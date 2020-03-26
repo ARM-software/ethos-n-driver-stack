@@ -1,0 +1,191 @@
+/*
+ *
+ * (C) COPYRIGHT 2018-2019 ARM Limited. All rights reserved.
+ *
+ * This program is free software and is provided to you under the terms of the
+ * GNU General Public License version 2 as published by the Free Software
+ * Foundation, and any use by you of this program is subject to the terms
+ * of such GNU licence.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, you can access it online at
+ * http://www.gnu.org/licenses/gpl-2.0.html.
+ *
+ * SPDX-License-Identifier: GPL-2.0-only
+ *
+ */
+
+#ifndef _ETHOSN_DMA_H_
+#define _ETHOSN_DMA_H_
+
+#include "ethosn_firmware.h"
+
+#include <linux/dma-mapping.h>
+#include <linux/types.h>
+
+#define ETHOSN_REGION_MASK DMA_BIT_MASK(REGION_SHIFT)
+
+#define ETHOSN_PROT_READ (1 << 0)
+#define ETHOSN_PROT_WRITE (1 << 1)
+
+struct device;
+struct ethosn_device;
+struct vm_area_struct;
+
+/*
+ * Used to save the result of dma_alloc calls for matching dma_free calls.
+ * Also, iova_addr is used to set the buffer table for inferences.
+ */
+struct ethosn_dma_info {
+	size_t     size;
+	void       *cpu_addr;
+	dma_addr_t iova_addr;
+};
+
+/**
+ * struct ethosn_dma_allocator - Allocator operations for DMA memory
+ * @destroy:	       Deinitialize the allocator and free private resources
+ * @alloc:             Allocate DMA memory
+ * @free               Free DMA memory allocated with alloc
+ * @sync_for_device    Transfer ownership of the memory buffer to the Ethos-N by
+ *                     flushing the CPU cache
+ * @sync_for_cpu       Transfer ownership of the memory buffer to the CPU by
+ *                     invalidating the CPU cache
+ * @mmap               Memory map the buffer into userspace
+ * @get_addr_size      Get address size
+ */
+struct ethosn_dma_allocator {
+	void (*destroy)(struct ethosn_device *ethosn,
+			struct ethosn_dma_allocator
+			*allocator);
+
+	struct ethosn_dma_info *(*alloc)(struct ethosn_device *ethosn,
+					 struct ethosn_dma_allocator *allocator,
+					 size_t size,
+					 int prot,
+					 enum ethosn_stream_id stream_id,
+					 gfp_t gfp);
+	void (*free)(struct ethosn_device *ethosn,
+		     struct ethosn_dma_allocator *allocator,
+		     enum ethosn_stream_id stream_id,
+		     struct ethosn_dma_info *dma_info);
+	void            (*sync_for_device)(struct ethosn_device *ethosn,
+					   struct ethosn_dma_info *dma_info);
+	void            (*sync_for_cpu)(struct ethosn_device *ethosn,
+					struct ethosn_dma_info *dma_info);
+	int             (*mmap)(struct ethosn_device *ethosn,
+				struct vm_area_struct *const vma,
+				const struct ethosn_dma_info *const dma_info);
+	dma_addr_t      (*get_addr_base)(struct ethosn_device *ethosn,
+					 enum ethosn_stream_id stream_id);
+	resource_size_t (*get_addr_size)(struct ethosn_device *ethosn,
+					 enum ethosn_stream_id stream_id);
+};
+
+/**
+ * ethosn_dma_allocator_create() - Initializes a DMA memory allocator
+ * @ethosn: Ethos-N device to associate with
+ * Return:
+ *  Pointer to ethosn_dma_allocator struct representing the DMA memory allocator
+ *  Or NULL or negative error code on failure
+ */
+struct ethosn_dma_allocator *ethosn_dma_allocator_create(
+	struct ethosn_device *ethosn);
+
+/**
+ * ethosn_dma_allocator_destroy() - Destroy the allocator and free all internal
+ * resources.
+ * @ethosn: Associated Ethos-N device
+ * @allocator: The allocator to destroy
+ */
+void ethosn_dma_allocator_destroy(struct ethosn_device *ethosn,
+				  struct ethosn_dma_allocator *allocator);
+
+/**
+ * ethosn_dma_alloc() - Allocate DMA memory and associate with device
+ * @ethosn: Ethos-N device to associate with
+ * @size: bytes of memory
+ * @prot: read/write protection
+ * @stream_id: Stream identifier
+ * @gfp: GFP flags
+ *
+ * Return:
+ *  Pointer to ethosn_dma_info struct representing the allocation
+ *  Or NULL or negative error code on failure
+ */
+struct ethosn_dma_info *ethosn_dma_alloc(struct ethosn_device *ethosn,
+					 size_t size,
+					 int prot,
+					 enum ethosn_stream_id stream_id,
+					 gfp_t gfp);
+
+/**
+ * ethosn_dma_free() - Free DMA allocation for device
+ * @ethosn: Associated Ethos-N device
+ * @stream_id: Stream identifier
+ * @dma_info: Allocation information
+ */
+void ethosn_dma_free(struct ethosn_device *ethosn,
+		     enum ethosn_stream_id stream_id,
+		     struct ethosn_dma_info *dma_info);
+
+/**
+ * ethosn_dma_get_addr_base() - Get base address of a given stream
+ * @ethosn: Ethos-N device to associate with
+ * @stream_id: Stream identifier
+ *
+ * Return:
+ *  Base address or zero on failure
+ */
+dma_addr_t ethosn_dma_get_addr_base(struct ethosn_device *ethosn,
+				    enum ethosn_stream_id stream_id);
+
+/**
+ * ethosn_dma_get_addr_size() - Get address space size of a given stream
+ * @ethosn: Ethos-N device to associate with
+ * @stream_id: Stream identifier
+ *
+ * Return:
+ *  Size of address space or zero on failure
+ */
+resource_size_t ethosn_dma_get_addr_size(struct ethosn_device *ethosn,
+					 enum ethosn_stream_id stream_id);
+
+/**
+ * ethosn_dma_mmap() - Do MMAP of DMA allocated memory
+ * @ethosn: Associated Ethos-N device
+ * @vma: memory area
+ * @dma_info: DMA allocation information
+ *
+ * Return:
+ * * 0 - Success
+ * * Negative error code
+ */
+int ethosn_dma_mmap(struct ethosn_device *ethosn,
+		    struct vm_area_struct *const vma,
+		    const struct ethosn_dma_info *const dma_info);
+
+/**
+ * ethosn_dma_sync_for_device() - Transfer ownership of the memory buffer to
+ * the device. Flushes the CPU cache.
+ * @ethosn: Associated Ethos-N device
+ * @dma_info: DMA allocation information
+ */
+void ethosn_dma_sync_for_device(struct ethosn_device *ethosn,
+				struct ethosn_dma_info *dma_info);
+
+/**
+ * ethosn_dma_sync_for_cpu() - Transfer ownership of the memory buffer to
+ * the cpu. Invalidates the CPU cache.
+ * @ethosn: Associated Ethos-N device
+ * @dma_info: DMA allocation information
+ */
+void ethosn_dma_sync_for_cpu(struct ethosn_device *ethosn,
+			     struct ethosn_dma_info *dma_info);
+
+#endif /* _ETHOSN_DMA_H_ */

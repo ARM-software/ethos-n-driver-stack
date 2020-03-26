@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (C) 2018-2020 Arm Limited. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+# Top level build script for Ethos-N driver stack
+# - reuse variable definitions across sub-module builds
+# - remove duplication
+
+from __future__ import print_function
+from SCons.Node.Alias import default_ans
+
+import os
+import common
+
+Help('''
+Usage:
+    See README.md and the Software Integration guide.
+
+Variables:
+''')
+
+var = common.create_variables()
+
+var.AddVariables(
+    BoolVariable('debug', 'Build in debug instead of release mode', False),
+    BoolVariable('coverage', 'Build for coverage analysis', False),
+    BoolVariable('profiling', 'Enable performance profiling', False),
+    EnumVariable('target', 'driver_library backend', 'kmod',
+                 allowed_values=('kmod', 'dumponly')),
+    EnumVariable('platform', 'Build for a given platform', 'native',
+                 allowed_values=('native', 'aarch64')),
+    EnumVariable('kernel_ver', 'Kernel version', '4.9',
+                 allowed_values=('4.9', '4.14', '4.19')),
+    PathVariable('build_dir', 'Build output directory',
+                 'build', PathVariable.PathIsDirCreate),
+    PathVariable('kernel_driver_dir', "Path to the Kernel Module code. Required if 'target=kmod'",
+                 os.path.join('..', 'kernel-module'), PathVariable.PathIsDir),
+    ('device_node', 'Device node in the dev filesystem', '/dev/ethosn0'),
+    ('firmware_profiling_node', 'Firmware profiling node in the sys fileystem',
+     '/sys/kernel/debug/ethosn0/firmware_profiling'),
+)
+
+env = Environment(variables=var)
+
+Help(var.GenerateHelpText(env))
+# Parse the default variables which were setup by common.create_variables()
+common.parse_default_vars(env)
+
+# The list of modules with their own SConscripts
+env['modules'] = ['driver_library',
+                  'support_library',
+                  'command_stream']
+
+
+# Top level assumes knowledge of the different components locations
+env['command_stream_dir'] = 'command_stream'
+env['driver_library_dir'] = 'driver_library'
+env['support_library_dir'] = 'support_library'
+
+# Because these path arguments may be relative, they must be correctly interpreted as relative to the top-level
+# folder rather than the 'build' subdirectory, which is what scons would do if they were passed to the SConscript as-is.
+# Therefore we convert them to absolute paths here, where they will be interpreted correctly.
+common.abs_path(env, ['command_stream_dir',
+                      'driver_library_dir',
+                      'kernel_driver_dir',
+                      'support_library_dir'])
+
+# Turn off Unit-Tests as they are not shipped
+env['tests'] = False
+
+Export('env')
+
+common.load_extras(env)
+
+# Process all modules which use a variant_dir
+# We're going to clone this, in the current form, some modules are polluting the env, breaking subsequent builds.
+env_backup = env
+for module in env['modules']:
+    env = env_backup.Clone()  # making sure we're starting with a clean config
+    SConscript(dirs=[module], variant_dir=common.variant_dir(env, module), duplicate=False, exports='env')
+
+aliases = default_ans.keys()
+env.Help('\n')
+env.Help('Found targets: \n')
+for alias in sorted(aliases):
+    env.Help('    {}\n'.format(alias))

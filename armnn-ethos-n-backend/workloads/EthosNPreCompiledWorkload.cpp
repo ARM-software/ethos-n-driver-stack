@@ -1,0 +1,385 @@
+//
+// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#include "EthosNPreCompiledWorkload.hpp"
+
+#include "EthosNTensorHandle.hpp"
+#include "EthosNWorkloadUtils.hpp"
+
+#include <armnn/ArmNN.hpp>
+#include <boost/filesystem.hpp>
+#include <ethosn_driver_library/Network.hpp>
+#include <ethosn_support_library/Support.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cassert>
+#include <cmath>
+#include <fcntl.h>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <numeric>
+#include <sstream>
+#include <vector>
+#if defined(__unix__)
+#include <poll.h>
+#include <unistd.h>
+#elif defined(_MSC_VER)
+#include <io.h>
+#endif
+
+// Error codes for the WaitStatus class
+enum class WaitErrorCode
+{
+    Success = 0,
+    Timeout = 1,
+    Error   = 2
+};
+
+// Status class for WaitForInference
+class WaitStatus
+{
+public:
+    // Default constructor
+    WaitStatus()
+        : m_ErrorCode(WaitErrorCode::Success)
+        , m_ErrorDescription("")
+    {}
+
+    // Standard constructor
+    explicit WaitStatus(WaitErrorCode errorCode, std::string errorDescription = "")
+        : m_ErrorCode(errorCode)
+        , m_ErrorDescription(errorDescription)
+    {}
+
+    // Allow instances of this class to be copy constructed
+    WaitStatus(const WaitStatus&) = default;
+
+    // Allow instances of this class to be move constructed
+    WaitStatus(WaitStatus&&) = default;
+
+    // Allow instances of this class to be copy assigned
+    WaitStatus& operator=(const WaitStatus&) = default;
+
+    // Allow instances of this class to be move assigned
+    WaitStatus& operator=(WaitStatus&&) = default;
+
+    // Explicit bool conversion operator
+    explicit operator bool() const noexcept
+    {
+        return m_ErrorCode == WaitErrorCode::Success;
+    }
+
+    // Gets the error code
+    WaitErrorCode GetErrorCode() const
+    {
+        return m_ErrorCode;
+    }
+
+    // Gets the error description (if any)
+    std::string GetErrorDescription() const
+    {
+        return m_ErrorDescription;
+    }
+
+private:
+    WaitErrorCode m_ErrorCode;
+    std::string m_ErrorDescription;
+};
+
+namespace armnn
+{
+namespace
+{
+
+// Wait for an inference to complete
+WaitStatus WaitForInference(int fd, int timeout)
+{
+    // Default to success as for platforms other than Linux we assume we are running on the model and therefore
+    // there is no need to wait.
+    WaitStatus result;
+
+#if defined(__unix__)
+    // Wait for the inference to complete
+    struct pollfd fds;
+    memset(&fds, 0, sizeof(fds));
+    fds.fd     = fd;
+    fds.events = POLLIN;    // Wait for any available input
+
+    const int msPerSeconds = 1000;
+    int pollResult         = poll(&fds, 1, timeout * msPerSeconds);
+    // Stash errno immediately after poll call
+    int pollErrorCode = errno;
+    if (pollResult > 0)
+    {
+        result = WaitStatus(WaitErrorCode::Success);
+    }
+    else if (pollResult == 0)
+    {
+        result = WaitStatus(WaitErrorCode::Timeout, "Timed out while waiting for the inference to complete");
+    }
+    else
+    {
+        // pollResult < 0
+        result = WaitStatus(WaitErrorCode::Error, "Error while waiting for the inference to complete (" +
+                                                      std::string(strerror(pollErrorCode)) + ")");
+    }
+#endif
+
+    return result;
+}
+
+}    // anonymous namespace
+
+void EthosNPreCompiledWorkload::Init(const PreCompiledDescriptor& descriptor,
+                                     const EthosNPreCompiledObject::Network& network)
+{
+    // Set up the buffers in the PreCompiledLayer::CreateWorkload() method, pass them in PreCompiledQueueDescriptor
+    unsigned int numInputBuffers = descriptor.m_NumInputSlots;
+    m_InputBuffers.resize(numInputBuffers);
+
+    // Fill m_InputBuffers from the input tensor handles, taking care to remap the indices from
+    // the Arm NN input slots order to the Ethos-N  inputs order.
+    for (unsigned int inputSlotIdx = 0; inputSlotIdx < numInputBuffers; ++inputSlotIdx)
+    {
+        uint32_t ethosnInputIdx = network.m_InputSlotsToEthosNInputs.at(inputSlotIdx);
+        m_InputBuffers[ethosnInputIdx] =
+            &(static_cast<EthosNTensorHandle*>(m_Data.m_Inputs[inputSlotIdx])->GetBuffer());
+    }
+
+    // Set up the buffers in the PreCompiledLayer::CreateWorkload() method, pass them in PreCompiledQueueDescriptor
+    unsigned int numOutputBuffers = descriptor.m_NumOutputSlots;
+    m_OutputBuffers.resize(numOutputBuffers);
+
+    // Fill m_OutputBuffers from the output tensor handles, taking care to remap the indices from
+    // the Arm NN output slots order to the Ethos-N outputs order.
+    for (unsigned int outputSlotIdx = 0; outputSlotIdx < numOutputBuffers; ++outputSlotIdx)
+    {
+        uint32_t ethosnOutputIdx = network.m_OutputSlotsToEthosNOutputs.at(outputSlotIdx);
+        m_OutputBuffers[ethosnOutputIdx] =
+            &(static_cast<EthosNTensorHandle*>(m_Data.m_Outputs[outputSlotIdx])->GetBuffer());
+    }
+
+    m_Network = std::make_unique<ethosn::driver_library::Network>(
+        const_cast<ethosn::support_library::CompiledNetwork&>(*network.m_CompiledNetwork));
+}
+
+EthosNPreCompiledWorkload::EthosNPreCompiledWorkload(const PreCompiledQueueDescriptor& descriptor,
+                                                     const WorkloadInfo& info)
+    : BaseWorkload<PreCompiledQueueDescriptor>(descriptor, info)
+    , m_PreCompiledObject(static_cast<const EthosNPreCompiledObject*>(descriptor.m_PreCompiledObject))
+{
+    // Check that the workload is holding a pointer to a valid pre-compiled object
+    if (m_PreCompiledObject == nullptr)
+    {
+        throw InvalidArgumentException("EthosNPreCompiledWorkload requires a valid pre-compiled object");
+    }
+
+    if (!m_PreCompiledObject->IsPerfEstimationOnly())
+    {
+        Init(descriptor.m_Parameters, *m_PreCompiledObject->GetNetwork());
+    }
+}
+
+void EthosNPreCompiledWorkload::Execute() const
+{
+    ARMNN_SCOPED_PROFILING_EVENT_ETHOSN("EthosNPreCompiledWorkload_Execute");
+
+    if (m_PreCompiledObject->IsPerfEstimationOnly())
+    {
+        SavePerformanceJson();
+    }
+    else
+    {
+        uint32_t numInputBuffers  = static_cast<uint32_t>(m_InputBuffers.size());
+        uint32_t numOutputBuffers = static_cast<uint32_t>(m_OutputBuffers.size());
+
+        const std::unique_ptr<ethosn::driver_library::Inference> inference(m_Network->ScheduleInference(
+            m_InputBuffers.data(), numInputBuffers, m_OutputBuffers.data(), numOutputBuffers));
+
+        WaitStatus result = WaitForInference(inference->GetFileDescriptor(), 60);
+        switch (result.GetErrorCode())
+        {
+            case WaitErrorCode::Success:
+                break;
+            case WaitErrorCode::Timeout:
+            case WaitErrorCode::Error:
+            default:
+                throw RuntimeException("An error has occurred waiting for the inference of a pre-compiled object: " +
+                                       result.GetErrorDescription());
+        }
+    }
+}
+
+namespace
+{
+
+template <typename T>
+struct QuotedT
+{
+    explicit constexpr QuotedT(const T& value)
+        : m_Value(value)
+    {}
+
+    const T& m_Value;
+};
+
+template <typename T>
+QuotedT<T> Quoted(const T& value)
+{
+    return QuotedT<T>(value);
+}
+
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const QuotedT<T>& field)
+{
+    return os << '"' << field.m_Value << '"';
+}
+
+template <typename T>
+struct JsonFieldT
+{
+    explicit constexpr JsonFieldT(const T& value)
+        : m_Value(value)
+    {}
+
+    const T& m_Value;
+};
+
+template <typename T>
+JsonFieldT<T> JsonField(const T& value)
+{
+    return JsonFieldT<T>(value);
+}
+
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const JsonFieldT<T>& field)
+{
+    return os << Quoted(field.m_Value) << ':';
+}
+
+struct Indent
+{
+    explicit constexpr Indent(const size_t depth)
+        : m_Depth(depth)
+    {}
+
+    constexpr operator size_t&()
+    {
+        return m_Depth;
+    }
+
+    constexpr operator size_t() const
+    {
+        return m_Depth;
+    }
+
+    size_t m_Depth;
+};
+
+std::ostream& operator<<(std::ostream& os, const Indent& indent)
+{
+    for (size_t i = 0; i < indent; ++i)
+    {
+        os << '\t';
+    }
+
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const ethosn::support_library::EthosNVariant variant)
+{
+    switch (variant)
+    {
+        case ethosn::support_library::EthosNVariant::ETHOS_N37:
+            os << Quoted("Ethos-N37");
+            break;
+        case ethosn::support_library::EthosNVariant::ETHOS_N57:
+            os << Quoted("Ethos-N57");
+            break;
+        case ethosn::support_library::EthosNVariant::ETHOS_N77:
+            os << Quoted("Ethos-N77");
+            break;
+        default:
+            BOOST_ASSERT_MSG(false, "Unexpected variant");
+    }
+    return os;
+}
+
+std::ostream& Print(std::ostream& os, Indent indent, const std::map<uint32_t, std::string>& map)
+{
+    os << indent << "{\n";
+    ++indent;
+
+    for (auto it = map.begin(); it != map.end(); ++it)
+    {
+        os << indent << JsonField(it->first) << ' ' << Quoted(it->second);
+        if (it != std::prev(map.end()))
+        {
+            os << ",";
+        }
+        os << '\n';
+    }
+
+    --indent;
+    os << indent << "}";
+    return os;
+}
+
+}    // namespace
+
+void EthosNPreCompiledWorkload::SavePerformanceJson() const
+{
+    const EthosNPreCompiledObject::PerfData& perfData = *m_PreCompiledObject->GetPerfData();
+
+    std::ofstream os(perfData.m_PerfOutFile);
+
+    Indent indent(0);
+    os << indent << "{\n";
+    ++indent;
+
+    os << indent << JsonField("Config") << "\n";
+    os << indent << "{\n";
+    indent++;
+
+    os << indent << JsonField("Variant") << ' ' << perfData.m_PerfVariant << ",\n";
+    os << indent << JsonField("SramSizeBytesOverride") << ' ' << perfData.m_PerfSramSizeBytesOverride << ",\n";
+    os << indent << JsonField("ActivationCompressionSavings") << ' '
+       << perfData.m_EstimationOptions.m_ActivationCompressionSaving << ",\n";
+
+    if (perfData.m_EstimationOptions.m_UseWeightCompressionOverride)
+    {
+        os << indent << JsonField("WeightCompressionSavings") << ' '
+           << perfData.m_EstimationOptions.m_WeightCompressionSaving << ",\n";
+    }
+    else
+    {
+        os << indent << JsonField("WeightCompressionSavings") << ' ' << Quoted("Not Specified") << ",\n";
+    }
+
+    os << indent << JsonField("Current") << ' ' << perfData.m_EstimationOptions.m_Current << "\n";
+
+    indent--;
+    os << indent << "},\n";
+
+    os << indent << JsonField("OperationNames") << '\n';
+    Print(os, indent, m_PreCompiledObject->GetEthosNOperationNameMapping()) << ",\n";
+
+    os << indent << JsonField("Results") << '\n';
+    ethosn::support_library::PrintNetworkPerformanceDataJson(os, static_cast<uint32_t>(indent.m_Depth),
+                                                             perfData.m_Data);
+
+    --indent;
+
+    os << indent << "}\n";
+}
+
+bool EthosNPreCompiledWorkloadValidate(std::string*)
+{
+    return true;
+}
+
+}    //namespace armnn

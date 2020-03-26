@@ -1,0 +1,26 @@
+
+/*
+ * Note:- The smmu stream id defined in ethosn needs to be a unique value amongst
+ * all the stream ids for the various devices attached to the same smmu.
+ */
+/ {
+	dma-ranges = <0x0 0x0 0x0 0x0 0x1000 0x0>;
+
+	smmu_ethosn: iommu@6f400000 {
+		compatible = "arm,smmu-v3";
+		reg = <0 0x6f400000 0 0x20000>;
+		msi-parent = <&{/interrupt-controller@2c010000/v2m@0}>;
+		#iommu-cells = <0x1>;
+	};
+
+	ethosn@60000000 {
+		compatible = "ethosn";
+		reg = <0 0x6f300000 0 0x00100000>;
+		reg-names = "top_regs";
+		interrupts = <0 168 4>, <0 168 4>, <0 168 4>;
+		interrupt-names = "err", "job", "debug";
+		iommus = <&smmu_ethosn 0>;
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+	};
+};
