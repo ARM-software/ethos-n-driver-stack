@@ -48,6 +48,14 @@ struct Version
 
 struct CompilationOptions
 {
+    struct DebugInfo
+    {
+        bool m_DumpDebugFiles  = false;
+        std::string m_DebugDir = ".";
+        bool m_DumpRam         = true;
+        // Default to not dump SRAM at the start of the network.
+        bool m_InitialSramDump = false;
+    };
     explicit CompilationOptions(const std::vector<char>& fwAndHwCapabilities)
         : m_FwAndHwCapabilities(fwAndHwCapabilities)
     {}
@@ -62,18 +70,19 @@ struct CompilationOptions
     bool m_Strategy4                     = true;
     bool m_Strategy6                     = true;
     bool m_Strategy7                     = true;
-    bool m_DumpRam                       = true;
-    bool m_InitialSramDump               = false;    // Default to not dump SRAM at the start of the network.
     bool m_BlockConfig16x16              = true;
     bool m_BlockConfig32x8               = true;
     bool m_BlockConfig8x32               = true;
+    bool m_BlockConfig16x8               = true;
+    bool m_BlockConfig8x16               = true;
     bool m_BlockConfig8x8                = true;
     bool m_EnableIntermediateCompression = true;
     bool m_DisableWinograd               = false;
     /// If enabled, files containing details of the compilation process will be dumped to m_DebugDir.
     /// These can be helpful for debugging compilation issues.
-    bool m_DumpDebugFiles  = false;
-    std::string m_DebugDir = ".";
+    DebugInfo m_DebugInfo;
+    /// If enabled, cascading optimization support will be enabled.
+    bool m_EnableCascading = false;
 };
 
 /// Contains options for performance estimation
@@ -114,7 +123,7 @@ struct MceStats
     // Number of MAC operations (multiplications and additions)
     uint64_t m_Operations;
     // Number of cycles to complete all MAC operations, expressed in cycles
-    uint32_t m_CycleCount;
+    uint64_t m_CycleCount;
 };
 
 struct PleStats
@@ -808,7 +817,14 @@ enum class EthosNVariant
 {
     ETHOS_N77,
     ETHOS_N57,
-    ETHOS_N37
+    ETHOS_N37,
+    ETHOS_N78_1TOPS_2PLE_RATIO,
+    ETHOS_N78_1TOPS_4PLE_RATIO,
+    ETHOS_N78_2TOPS_2PLE_RATIO,
+    ETHOS_N78_2TOPS_4PLE_RATIO,
+    ETHOS_N78_4TOPS_2PLE_RATIO,
+    ETHOS_N78_4TOPS_4PLE_RATIO,
+    ETHOS_N78_8TOPS_2PLE_RATIO
 };
 
 const char* EthosNVariantAsString(EthosNVariant ethosnType);

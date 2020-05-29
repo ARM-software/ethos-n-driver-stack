@@ -9,6 +9,7 @@
 #include "Network.hpp"
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 namespace ethosn
@@ -36,12 +37,19 @@ struct EncodedWeights
 class WeightEncoder
 {
 public:
+    /**
+     * Factory function that selects which weight encoder to use based on the hardware capabilities.
+     */
+    static std::unique_ptr<WeightEncoder> CreateWeightEncoder(const HardwareCapabilities& capabilities);
+
     WeightEncoder(const HardwareCapabilities& capabilities);
+
+    virtual ~WeightEncoder() = default;
 
     EncodedWeights Encode(const MceOperationNode& mceOperation,
                           uint32_t stripeDepth,
                           uint32_t stripeSize,
-                          const QuantizationInfo& outputQuantizationInfo) const;
+                          const QuantizationInfo& outputQuantizationInfo);
 
     /// Override which takes data separate to the weight data in mceOperation
     /// This can be used to see the resulting meta data for different weight data
@@ -49,7 +57,7 @@ public:
                           const std::vector<uint8_t>& weightData,
                           uint32_t stripeDepth,
                           uint32_t stripeSize,
-                          const QuantizationInfo& outputQuantizationInfo) const;
+                          const QuantizationInfo& outputQuantizationInfo);
 
     EncodedWeights Encode(const TensorInfo& weightsTensorInfo,
                           const uint8_t* weightsData,
@@ -64,17 +72,9 @@ public:
                           uint32_t paddingLeft,
                           uint32_t iterationSize,
                           ethosn::command_stream::MceOperation operation,
-                          CompilerMceAlgorithm algorithm) const;
+                          CompilerMceAlgorithm algorithm);
 
-private:
-    struct WeightCompressionParams
-    {
-        bool m_MaskEnable;
-        bool m_LutReload;
-        uint32_t m_IndexSize;
-        std::vector<uint8_t> m_Lut;
-    };
-
+protected:
     struct EncodingParams
     {
         uint16_t m_OfmScaleFactor;
@@ -87,7 +87,7 @@ private:
     struct EncodedOfm
     {
         std::vector<uint8_t> m_EncodedWeights;
-        WeightCompressionParams m_CompressionParameters;
+        uint32_t m_NumOfBits;
     };
 
     // Calculates the exact offset and size in DRAM of each weight stripe
@@ -108,25 +108,22 @@ private:
                                          CompilerMceAlgorithm algorithm,
                                          bool prepareForZeroMaskCompression) const;
 
-    // Analyze the weights for one ofm and choose appropriate compression parameters
-    WeightCompressionParams ChooseCompressionParameters(const std::vector<uint8_t>& rawWeightsForZeroMaskCompression,
-                                                        const std::vector<uint8_t>& rawWeightsForNoZeroMaskCompression,
-                                                        const TensorInfo& weightsTensorInfo) const;
-
     /// Encodes all the weights required to calculate a single OFM.
-    EncodedOfm EncodeOfm(const uint8_t* weightData,
-                         uint32_t ofmIdx,
-                         uint32_t iteration,
-                         const TensorInfo& weightsTensorInfo,
-                         uint32_t strideY,
-                         uint32_t strideX,
-                         uint32_t paddingTop,
-                         uint32_t paddingLeft,
-                         uint32_t iterationSize,
-                         ethosn::command_stream::MceOperation operation,
-                         CompilerMceAlgorithm algorithm,
-                         const EncodingParams& params,
-                         const WeightCompressionParams* previousOfmSameCeCompressionParams) const;
+    virtual EncodedOfm EncodeOfm(const uint8_t* weightData,
+                                 uint32_t ofmIdx,
+                                 uint32_t numOfmInParallel,
+                                 uint32_t numIterationsOfm,
+                                 uint32_t numOfmSetsPerStripe,
+                                 uint32_t iteration,
+                                 const TensorInfo& weightsTensorInfo,
+                                 uint32_t strideY,
+                                 uint32_t strideX,
+                                 uint32_t paddingTop,
+                                 uint32_t paddingLeft,
+                                 uint32_t iterationSize,
+                                 ethosn::command_stream::MceOperation operation,
+                                 CompilerMceAlgorithm algorithm,
+                                 const EncodingParams& params) = 0;
 
     /// Merges the given streams of data into 'numGroups' groups, using a round-robin allocation of streams to groups.
     /// All the streams in a group are then concatenated together.
@@ -145,6 +142,11 @@ private:
                                                    uint32_t numOfmsPerSram,
                                                    const uint32_t streamHeadersUpdateAlignment) const;
 
+    std::vector<std::vector<uint8_t>> MergeStreamsOg(const std::vector<std::vector<uint8_t>>& streams,
+                                                     const std::vector<uint32_t>& streamSize,
+                                                     uint32_t numGroups,
+                                                     const uint32_t streamHeadersUpdateAlignment) const;
+
     /// Interleaves the given streams of data by taking 'numBytesPerStream' bytes from each stream in turn.
     /// If some streams are shorter than others then zeroes will be used to pad these to the required length.
     ///
@@ -158,6 +160,9 @@ private:
     ///
     std::vector<uint8_t> InterleaveStreams(const std::vector<std::vector<uint8_t>>& streams,
                                            uint32_t numBytesPerStream) const;
+
+    /// Reset any OFM encoding parameters that may be saved from previous calls to Encode
+    virtual void ResetOfmEncodingParameters() = 0;
 
     /// Hardware capabilities.
     const HardwareCapabilities& m_Capabilities;

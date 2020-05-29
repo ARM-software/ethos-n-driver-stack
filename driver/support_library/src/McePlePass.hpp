@@ -50,14 +50,15 @@ public:
                                                       bool enableIntermediateCompression,
                                                       bool enableWinograd,
                                                       Node* firstNode,
-                                                      SramAllocator& sramAllocator);
+                                                      SramAllocator& sramAllocator,
+                                                      bool forwardEst);
 
     McePlePass(const HardwareCapabilities& capabilities,
                size_t id,
                std::vector<Node*> nodes,
                const TensorConfig& tensorConfig,
                BufferLocation outputLocation,
-               bool useIntermediateCompression,
+               CompilerDataFormat intermediateFormat,
                CompilerMceAlgorithm algorithm,
                uint32_t sramOffset);
 
@@ -78,6 +79,7 @@ public:
                                        const utils::ShapeMultiplier& shapeMultiplier,
                                        std::pair<bool, uint32_t> inputStaticAndOffset,
                                        CompilerMceAlgorithm algorithm,
+                                       const bool isLegacy,
                                        const uint32_t depthMax = UINT32_MAX);
 
 private:
@@ -118,7 +120,7 @@ private:
     std::vector<FormatConversionNode*> m_PostConversionNodes;
     std::vector<RequantizeNode*> m_RequantizeNodes;
 
-    WeightEncoder m_WeightEncoder;
+    std::unique_ptr<WeightEncoder> m_WeightEncoder;
 
     /// Tensor sram allocation information
     TensorConfig m_TensorConfig;

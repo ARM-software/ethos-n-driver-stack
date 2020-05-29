@@ -6,7 +6,9 @@
 #include "EthosNMapping.hpp"
 #include "EthosNLayerSupport.hpp"
 
+#include <InternalTypes.hpp>
 #include <armnn/Exceptions.hpp>
+#include <armnn/Logging.hpp>
 
 #include <fstream>
 #include <regex>
@@ -74,6 +76,200 @@ void armnn::Prune(std::string& s)
             s.end());
 }
 
+// Parsing numbers from "1x_x_x_" into {1, 0, 0, 0}
+std::vector<uint32_t> armnn::ParseNumbers(std::string& buf)
+{
+    std::vector<uint32_t> numbers;
+
+    std::vector<std::string> tokens = armnn::Split(buf, 'x');
+
+    for (auto tok : tokens)
+    {
+        if (tok != "_")
+        {
+            numbers.push_back(static_cast<uint32_t>(std::stoul(tok)));
+        }
+        else
+        {
+            numbers.push_back(0);
+        }
+    }
+
+    ARMNN_LOG(trace) << "The numbers are { ";
+
+    for (uint32_t i = 0; i < numbers.size(); ++i)
+    {
+        ARMNN_LOG(trace) << numbers.at(i) << " ";
+    }
+
+    ARMNN_LOG(trace) << " } \n";
+    return numbers;
+}
+
+std::vector<uint32_t> armnn::GetLayerParameterValue(std::map<std::string, std::string> paramList, std::string param)
+{
+    bool useDefault = false;
+    std::string errors;
+    std::vector<uint32_t> value;
+
+    if ((paramList.empty()) || (paramList.find(param) == paramList.end()))
+    {
+        useDefault = true;
+    }
+
+    if (!((param.compare("stride")) && (param.compare("kernel")) && (param.compare("dilation"))))
+    {
+        if (useDefault)
+        {
+            value = std::vector<uint32_t>{ 1, 1 };
+        }
+        else
+        {
+            value = armnn::ParseNumbers(paramList.find(param)->second);
+            if (value.size() != 2)
+            {
+                errors += "Invalid Value: The expected format is ((";
+                errors += param;
+                errors += "=_x_))";
+            }
+        }
+    }
+    else if (!(param.compare("padding")))
+    {
+        if (useDefault)
+        {
+            value = std::vector<uint32_t>{ 1, 1, 1, 1 };
+        }
+        else
+        {
+            value = armnn::ParseNumbers(paramList.find(param)->second);
+            if (value.size() != 4)
+            {
+                errors += "Invalid Value: The expected format is ((";
+                errors += param;
+                errors += "=_x_x_x_))";
+            }
+        }
+    }
+
+    if (!errors.empty())
+    {
+        throw armnn::InvalidArgumentException(errors);
+    }
+    else
+    {
+        return value;
+    }
+}
+
+// The buf is like "(arg1=value1),(arg2=value2),(arg3=value3)"
+std::map<std::string, std::string> armnn::ParseAdditionalParameters(std::string& buf, std::string& errors)
+{
+    std::map<std::string, std::string> paramsList;
+
+    auto regexSettings          = std::regex_constants::ECMAScript | std::regex_constants::icase;
+    std::string regexParamMatch = R"(\s*\((.*?)\)\s*)";
+    static const std::regex regexParamPair(regexParamMatch, regexSettings);
+    constexpr unsigned int cntAdditionalParamsSubGroups = 2;
+    constexpr unsigned int cntKeyValuePair              = 2;
+    constexpr unsigned int keyValuePairIndex            = 1;
+
+    // Extracting "(arg1=value1)", "(arg2=value2)", ... pairs
+    armnn::Prune(buf);
+    auto args = armnn::Split(buf, ',');
+
+    // Iterating through each "(arg1=value1)", "(arg2=value2)", ... pair
+    for (auto arg : args)
+    {
+        std::smatch match;
+
+        // Extracting "arg1=value1"
+        if (std::regex_match(arg, match, regexParamPair) && (match.size() == cntAdditionalParamsSubGroups))
+        {
+            // Extracting "arg1", "value1"
+            std::string parameter = match.str(keyValuePairIndex);
+
+            auto paramNameValue = armnn::Split(parameter, '=');
+
+            if (paramNameValue.size() != cntKeyValuePair)
+            {
+                errors += "Syntax error: Additional parameters should be in (name1=value1),(name2=value2) format\n";
+                errors += buf;
+                errors += "\n";
+            }
+            else
+            {
+                paramsList.insert(std::make_pair(paramNameValue[0], paramNameValue[1]));
+            }
+        }
+        else
+        {
+            errors += "Syntax error: Additional parameters should be specified as (name1=value1) (name2=value2)";
+            errors += buf;
+            errors += "\n";
+        }
+    }
+
+    return paramsList;
+}
+
+std::pair<std::string, armnn::SimpleInputOutput> armnn::GetInputOutput(std::smatch match)
+{
+    std::vector<uint32_t> shape;
+    std::map<std::string, SimpleInputOutput> inputOutput;
+
+    // Get name of the input/output tensor
+    const std::string name = match.str(2);
+
+    // Get the dimensions ie for eg "1x_x_x_"
+    std::string buffer = match.str(3);
+
+    shape = ParseNumbers(buffer);
+
+    return std::pair<std::string, SimpleInputOutput>(name, SimpleInputOutput(name, shape));
+}
+
+std::vector<armnn::SimpleInputOutput> armnn::GetLayerInputs(std::map<std::string, armnn::SimpleInputOutput>& tensors,
+                                                            std::string buf,
+                                                            std::string& errors)
+{
+    std::vector<armnn::SimpleInputOutput> layerInputs;
+    armnn::Prune(buf);
+
+    for (auto matchedInput : armnn::Split(buf, ','))
+    {
+        try
+        {
+            layerInputs.push_back(tensors.at(matchedInput));
+        }
+        catch (const std::out_of_range&)
+        {
+            errors += "Undefined input: '";
+            errors += matchedInput;
+            errors += "'\n";
+        }
+    }
+
+    return layerInputs;
+}
+
+std::vector<std::string> armnn::GetLayerOutputs(std::string buf, std::string& errors)
+{
+    armnn::Prune(buf);
+    std::vector<std::string> layerOutputs;
+
+    for (auto matchedOutput : armnn::Split(buf, ','))
+    {
+        layerOutputs.push_back(matchedOutput);
+    }
+
+    if (layerOutputs.size() == 0)
+    {
+        errors += "No outputs specified for the layer\n";
+    }
+    return layerOutputs;
+}
+
 void armnn::ProcessPattern(const std::vector<std::string>& buf,
                            std::map<std::string, SimpleInputOutput>& tensors,
                            std::vector<SimpleLayer>& layers)
@@ -82,80 +278,89 @@ void armnn::ProcessPattern(const std::vector<std::string>& buf,
     // Match string on either 'input' or 'output' followed by two words: input/output name and matrix size.
     // Any number of spaces, tabs or even a single comma could separate words.
     static const std::regex inOrOut(R"(\s*(input|output)(?:\s+|,\s*)(\w+)\s*,?\s*(\w+).*)", regexSettings);
-    // Match string on either 'Activation', 'Convolution2d' or 'StandIn' followed by three words in brackets: input name, output name and mapping function.
-    // Any number of spaces, tabs or even a single comma could separate words.
+
+    // Match string on any layer type string followed by three words in brackets: input name, output name and mapping function.
     std::string regexLayerMatch = R"(s*()";
-    regexLayerMatch += "Activation";
-    regexLayerMatch += "|Convolution2d";
-    regexLayerMatch += "|StandIn";
-    regexLayerMatch += "|Excluded)";
-    regexLayerMatch += R"((?:\s+|,\s*)\((.*?)\)\s*,?\s*\((.*?)\)(?:\s*,?\s*\((.*?)\))?.*)";
+#define X(name) regexLayerMatch += #name "|";
+    LIST_OF_LAYER_TYPE
+#undef X
+    // 'Excluded' means that the layer is not considered for estimation.
+    // Excluded is a word defined by us, it is not a standard layer type.
+    regexLayerMatch += "Excluded)";
+    regexLayerMatch += R"((?:\s+|,\s*)\((.*?)\)\s*,?\s*\((.*?)\)(?:\s*,?\s*\({2}(.*?)\){2})?(.*?))";
 
     static const std::regex layerType(regexLayerMatch, regexSettings);
     std::smatch match;
     std::string errors;
+    constexpr unsigned int minSubGroups                     = 4;
+    constexpr unsigned int minSubGroupsWithAdditionalParams = 5;
+    constexpr unsigned int minSubGroupsWithExtraneousParams = 6;
+    constexpr unsigned int layerTypeNameIndex               = 1;
+    constexpr unsigned int inputsIndex                      = 2;
+    constexpr unsigned int outputsIndex                     = 3;
+    constexpr unsigned int additionalParamsIndex            = 4;
+    constexpr unsigned int extraneousParamsIndex            = 5;
 
     for (auto line : buf)
     {
-        if (std::regex_match(line, match, inOrOut) && match.size() >= 4)
+        if (std::regex_match(line, match, inOrOut) && match.size() >= minSubGroups)
         {
-            // split the shape by x and check if any are not _ and record those in the shape and ) for _
-            std::vector<std::string> tokens = armnn::Split(match.str(3), 'x');
-            std::vector<uint32_t> shape;
-
-            for (auto tok : tokens)
-            {
-                if (tok != "_")
-                {
-                    shape.push_back(static_cast<uint32_t>(std::stoul(tok)));
-                }
-                else
-                {
-                    shape.push_back(0);
-                }
-            }
-
-            const std::string name = match.str(2);
-            tensors.emplace(name, SimpleInputOutput(name, shape));
+            tensors.emplace(GetInputOutput(match));
         }
-        else if (std::regex_match(line, match, layerType) && match.size() >= 4)
+        else if (std::regex_match(line, match, layerType) && match.size() >= minSubGroups)
         {
-            std::vector<SimpleInputOutput> layerInputs;
-            std::vector<std::string> layerOutputs;
+            armnn::AdditionalLayerParams layerParams;
+            std::map<std::string, std::string> funcName, args;
 
-            std::string name = match.str(1);
+            // Finding the name of LayerType
+            std::string typeName = match.str(layerTypeNameIndex);
+            armnn::Prune(typeName);
 
-            std::string matchedInputs = match.str(2);
-            armnn::Prune(matchedInputs);
-            for (auto matchedInput : armnn::Split(matchedInputs, ','))
+            // Finding the inputs
+            auto layerInputs = GetLayerInputs(tensors, match.str(inputsIndex), errors);
+
+            // Finding the outputs
+            auto layerOutputs = GetLayerOutputs(match.str(outputsIndex), errors);
+
+            uint32_t i = additionalParamsIndex;
+            // Let's figure out the additional parameters
+            if ((match.size() >= minSubGroupsWithAdditionalParams) && (!match.str(i).empty()))
             {
-                try
+                std::string additionalParam = match.str(i);
+                armnn::Prune(additionalParam);
+
+                // The braces get consumed during the parsing of the
+                // Layer. We need to put the braces back for additional
+                // parameters to be parsed correctly.
+                additionalParam = "(" + additionalParam + ")";
+
+                layerParams = ParseAdditionalParameters(additionalParam, errors);
+            }
+
+            // Check if the user has provided any extraneous parameters
+            if (match.size() >= minSubGroupsWithExtraneousParams)
+            {
+                std::string extraneousParams = match.str(extraneousParamsIndex);
+                armnn::Prune(extraneousParams);
+
+                if (!extraneousParams.empty())
                 {
-                    layerInputs.push_back(tensors.at(matchedInput));
+                    // We assume that the user wanted to specify the additional parameters
+                    // enclosed within ((...)).
+                    if (match.str(additionalParamsIndex).empty())
+                    {
+                        errors += "Syntax error:\n";
+                        errors += extraneousParams;
+                        errors += "\n Additional parameters are to be enclosed in (( ))\n";
+                    }
+                    // The user has specified too many parameters
+                    else
+                    {
+                        errors += "Syntax error: Too many parameters specified\n";
+                    }
                 }
-                catch (const std::out_of_range&)
-                {
-                    errors += "Undefined input: '";
-                    errors += matchedInput;
-                    errors += "'\n";
-                }
             }
-
-            std::string matchedOutputs = match.str(3);
-            armnn::Prune(matchedOutputs);
-            for (auto matchedOutput : armnn::Split(matchedOutputs, ','))
-            {
-                layerOutputs.push_back(matchedOutput);
-            }
-            std::string extra;
-            if (match.size() >= 5)
-            {
-                extra = match.str(4);
-                armnn::Prune(extra);
-            }
-            std::map<std::string, std::string> extraArgs = armnn::Split(extra, ',', '=');
-
-            layers.push_back(SimpleLayer(name, layerInputs, layerOutputs, extraArgs));
+            layers.push_back(SimpleLayer(typeName, layerInputs, layerOutputs, layerParams));
         }
         else
         {
@@ -181,6 +386,7 @@ void armnn::ProcessPattern(const std::vector<std::string>& buf,
 std::vector<armnn::Mapping> armnn::GetMappings(std::string mappingFileFromConfig)
 {
     std::vector<armnn::Mapping> mappingsFromFile;
+
     if (mappingFileFromConfig.empty())
     {
         return mappingsFromFile;

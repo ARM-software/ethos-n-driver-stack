@@ -7,6 +7,7 @@
 
 #include "EthosNBackendId.hpp"
 #include "EthosNBackendProfilingContext.hpp"
+#include "EthosNBackendUtils.hpp"
 #include "EthosNLayerSupport.hpp"
 #include "EthosNMapping.hpp"
 #include "EthosNSubgraphViewConverter.hpp"
@@ -14,6 +15,7 @@
 
 #include <Optimizer.hpp>
 #include <armnn/BackendRegistry.hpp>
+#include <armnn/Logging.hpp>
 #include <backendsCommon/IBackendContext.hpp>
 #include <backendsCommon/IMemoryManager.hpp>
 #include <backendsCommon/test/CommonTestUtils.hpp>
@@ -22,8 +24,8 @@
 namespace armnn
 {
 
-EthosNConfig g_EthosNConfig;
-EthosNMappings g_EthosNMappings;
+ARMNN_DLLEXPORT EthosNConfig g_EthosNConfig;
+ARMNN_DLLEXPORT EthosNMappings g_EthosNMappings;
 
 namespace ethosnbackend
 {
@@ -202,7 +204,7 @@ std::map<std::string, ActivationFunction> GetMapStringToActivationFunction()
 {
     std::map<std::string, ActivationFunction> mapStringToType;
 
-    for (ActivationFunction type = ActivationFunction::Sigmoid; type <= ActivationFunction::Square;
+    for (ActivationFunction type = ActivationFunction::Sigmoid; type <= ActivationFunction::HardSwish;
          type                    = NextEnumValue(type))
     {
         mapStringToType.emplace(GetActivationFunctionAsCString(type), type);
@@ -211,62 +213,181 @@ std::map<std::string, ActivationFunction> GetMapStringToActivationFunction()
     return mapStringToType;
 }
 
-template <class ConvLayerClass, class ConvLayerDescriptor>
-Layer* CreateConvolutionLayer(Graph& graph,
-                              unsigned int inputChannels,
-                              unsigned int kernelWidth,
-                              unsigned int kernelHeight,
-                              unsigned int strideX,
-                              unsigned int strideY,
-                              DataType weightDataType,
-                              DataType biasDataType)
+std::map<std::string, PoolingAlgorithm> GetMapStringToPoolingAlgorithm()
 {
-    ConvLayerDescriptor convolutionDescriptor;
-    const TensorInfo weightInfo =
-        TensorInfo({ inputChannels, kernelHeight, kernelWidth, inputChannels }, weightDataType);
-    const TensorInfo bias               = TensorInfo({ 1, 1, 1, inputChannels }, biasDataType, 0.9f, 0);
-    convolutionDescriptor.m_StrideX     = strideX;
-    convolutionDescriptor.m_StrideY     = strideY;
-    convolutionDescriptor.m_BiasEnabled = true;
-    convolutionDescriptor.m_DataLayout  = DataLayout::NHWC;
 
-    ConvLayerClass* convLayer = graph.AddLayer<ConvLayerClass>(convolutionDescriptor, "Convolution2d");
-    SetWeightAndBias(convLayer, weightInfo, bias);
+    std::map<std::string, PoolingAlgorithm> mapStringToType;
+
+    for (PoolingAlgorithm type = PoolingAlgorithm::Max; type <= PoolingAlgorithm::L2; type = NextEnumValue(type))
+    {
+        mapStringToType.emplace(GetPoolingAlgorithmAsCString(type), type);
+    }
+
+    return mapStringToType;
+}
+
+template <class ConvLayerClass, class ConvLayerDescriptor>
+Layer* CreateConvolutionLayer(
+    std::string layerName, ConvLayerDescriptor& desc, Graph& graph, TensorInfo& weight, TensorInfo& bias)
+{
+    ConvLayerClass* convLayer = graph.AddLayer<ConvLayerClass>(desc, layerName.c_str());
+    SetWeightAndBias(convLayer, weight, bias);
 
     return convLayer;
 }
 
-Layer* CreateConvolutionLayer(std::string layerName,
+template <class ConvLayerDescriptor>
+void FillStride(ConvLayerDescriptor& desc, AdditionalLayerParams& params)
+{
+    auto stride    = GetLayerParameterValue(params, "stride");
+    desc.m_StrideX = stride[STRIDE_X];
+    desc.m_StrideY = stride[STRIDE_Y];
+}
+
+template <class ConvLayerDescriptor>
+void FillPadding(ConvLayerDescriptor& desc, AdditionalLayerParams& params)
+{
+    auto padding     = GetLayerParameterValue(params, "padding");
+    desc.m_PadBottom = padding[PAD_BOTTOM];
+    desc.m_PadLeft   = padding[PAD_LEFT];
+    desc.m_PadRight  = padding[PAD_RIGHT];
+    desc.m_PadTop    = padding[PAD_TOP];
+}
+
+template <class ConvLayerDescriptor>
+void FillDilation(ConvLayerDescriptor& desc, AdditionalLayerParams& params)
+{
+    auto dilation    = GetLayerParameterValue(params, "dilation");
+    desc.m_DilationX = dilation[DILATION_X];
+    desc.m_DilationY = dilation[DILATION_Y];
+}
+
+template <class ConvLayerDescriptor>
+void FillPoolSize(ConvLayerDescriptor& desc, AdditionalLayerParams& params)
+{
+    // For Pooling layers, the user specifies the pool width and height
+    // in additional parameter "kernel".
+    // ie ((kernel=poolWidthxpoolHeight))
+    auto kernel       = GetLayerParameterValue(params, "kernel");
+    desc.m_PoolHeight = kernel[KERNEL_HEIGHT];
+    desc.m_PoolWidth  = kernel[KERNEL_WIDTH];
+}
+
+template <class ConvLayerDescriptor>
+void SetDataLayoutAndBias(ConvLayerDescriptor& desc)
+{
+    desc.m_DataLayout  = DataLayout::NHWC;
+    desc.m_BiasEnabled = true;
+}
+
+Convolution2dDescriptor CreateConv2dDescriptor(AdditionalLayerParams params)
+{
+    Convolution2dDescriptor desc;
+
+    FillStride<Convolution2dDescriptor>(desc, params);
+    FillDilation<Convolution2dDescriptor>(desc, params);
+    FillPadding<Convolution2dDescriptor>(desc, params);
+    SetDataLayoutAndBias<Convolution2dDescriptor>(desc);
+
+    return desc;
+}
+
+TransposeConvolution2dDescriptor CreateTransConv2dDescriptor(AdditionalLayerParams params)
+{
+    TransposeConvolution2dDescriptor desc;
+
+    FillStride<TransposeConvolution2dDescriptor>(desc, params);
+    FillPadding<TransposeConvolution2dDescriptor>(desc, params);
+    SetDataLayoutAndBias<TransposeConvolution2dDescriptor>(desc);
+
+    return desc;
+}
+
+DepthwiseConvolution2dDescriptor CreateDepthConvDescriptor(AdditionalLayerParams params)
+{
+    DepthwiseConvolution2dDescriptor desc;
+
+    FillStride<DepthwiseConvolution2dDescriptor>(desc, params);
+    FillDilation<DepthwiseConvolution2dDescriptor>(desc, params);
+    FillPadding<DepthwiseConvolution2dDescriptor>(desc, params);
+    SetDataLayoutAndBias<DepthwiseConvolution2dDescriptor>(desc);
+
+    return desc;
+}
+
+Layer* CreateConvolutionLayer(LayerType type,
                               Graph& graph,
                               unsigned int inputChannels,
-                              unsigned int kernelWidth,
-                              unsigned int kernelHeight,
-                              unsigned int strideX,
-                              unsigned int strideY,
-                              DataType weightDataType,
+                              AdditionalLayerParams additionalLayerParams,
+                              DataType weightDatatype,
                               DataType biasDataType)
 {
-    Layer* newLayer = nullptr;
+    Layer* newLayer       = nullptr;
+    auto kernel           = GetLayerParameterValue(additionalLayerParams, "kernel");
+    auto kernelHeight     = kernel[KERNEL_HEIGHT];
+    auto kernelWidth      = kernel[KERNEL_WIDTH];
+    std::string layerName = additionalLayerParams["name"];
 
-    if (layerName == "Convolution2d")
+    // For all the convolutions, the basic assumption is that the outputChannels
+    // is same as inputChannels, so that the output tensor shape is same as input
+    // tensor shape.
+    if (type == LayerType::Convolution2d)
     {
-        std::cout << "The replacement is Convolution2d \n";
+        ARMNN_LOG(info) << "The replacement is Convolution2d \n";
 
-        newLayer = CreateConvolutionLayer<Convolution2dLayer, Convolution2dDescriptor>(
-            graph, inputChannels, kernelWidth, kernelHeight, strideX, strideY, weightDataType, biasDataType);
+        // The weightDimensions are of the format OHWI
+        const unsigned int weightDimensions[4]{ inputChannels, kernelHeight, kernelWidth, inputChannels };
+        TensorInfo weight(4, weightDimensions, weightDatatype, 0.5f, 0);
+
+        // The bias is of the format NHWC
+        TensorInfo bias = TensorInfo({ 1, kernelHeight, kernelWidth, inputChannels }, biasDataType, 0.9f, 0);
+
+        auto desc = CreateConv2dDescriptor(additionalLayerParams);
+
+        newLayer =
+            CreateConvolutionLayer<Convolution2dLayer, Convolution2dDescriptor>(layerName, desc, graph, weight, bias);
     }
-    else
+    // The notable exception to this is TransposeConvolution2d, where the output tensor's width and
+    // height is double of that of the input tensor.
+    else if (type == LayerType::TransposeConvolution2d)
     {
-        std::cout << "The replacement is TransposeConvolution2d \n";
+        ARMNN_LOG(info) << "The replacement is TransposeConvolution2d \n";
+
+        // The weightDimensions are of the format OHWI
+        const unsigned int weightDimensions[4]{ inputChannels, kernelHeight, kernelWidth, inputChannels };
+        TensorInfo weight(4, weightDimensions, weightDatatype, 0.5f, 0);
+
+        // The bias is of the format NHWC
+        TensorInfo bias = TensorInfo({ 1, kernelHeight, kernelWidth, inputChannels }, biasDataType, 0.9f, 0);
+
+        auto desc = CreateTransConv2dDescriptor(additionalLayerParams);
 
         newLayer = CreateConvolutionLayer<TransposeConvolution2dLayer, TransposeConvolution2dDescriptor>(
-            graph, inputChannels, kernelWidth, kernelHeight, strideX, strideY, weightDataType, biasDataType);
+            layerName, desc, graph, weight, bias);
     }
+    else if (type == LayerType::DepthwiseConvolution2d)
+    {
+        unsigned int channelMultiplier = 1;
 
+        ARMNN_LOG(info) << "The replacement is DepthwiseConvolution2d \n";
+
+        // The weightDimensions are of the format MIHW
+        const unsigned int weightDimensions[4]{ channelMultiplier, inputChannels, kernelHeight, kernelWidth };
+        TensorInfo weight(4, weightDimensions, weightDatatype, 0.5f, 0);
+
+        // The bias is of the format NHWC
+        TensorInfo bias =
+            TensorInfo({ 1, kernelHeight, kernelWidth, (inputChannels * channelMultiplier) }, biasDataType, 0.9f, 0);
+
+        auto desc = CreateDepthConvDescriptor(additionalLayerParams);
+
+        newLayer = CreateConvolutionLayer<DepthwiseConvolution2dLayer, DepthwiseConvolution2dDescriptor>(
+            layerName, desc, graph, weight, bias);
+    }
     return newLayer;
 }
 
-Layer* CreateActivationLayer(Graph& graph, std::string activationFunc)
+Layer* CreateActivationLayer(Graph& graph, std::string activationFunc, std::string layerName)
 {
     std::map<std::string, ActivationFunction> mapStringToActivationFunction = GetMapStringToActivationFunction();
 
@@ -274,85 +395,326 @@ Layer* CreateActivationLayer(Graph& graph, std::string activationFunc)
     ActivationDescriptor desc;
     desc.m_Function = func;
 
-    auto* layer = graph.AddLayer<ActivationLayer>(desc, activationFunc.c_str());
+    auto* layer = graph.AddLayer<ActivationLayer>(desc, layerName.c_str());
 
     return layer;
 }
 
-bool ValidateActivationLayerParameters(SimpleLayer& layer)
+void ValidatePoolingLayerParameters(SimpleLayer& layer)
 {
-    std::map<std::string, ActivationFunction> mapStringToActivationFunction = GetMapStringToActivationFunction();
-    auto extraArg                                                           = layer.m_ExtraArgs.find("function");
+    std::string errors;
+    auto poolAlgo   = GetMapStringToPoolingAlgorithm();
+    auto m_PoolType = poolAlgo.find(layer.m_LayerParams["function"])->second;
 
-    if (extraArg == layer.m_ExtraArgs.end())
+    // Currently, only AveragePooling is supported.
+    if (m_PoolType != PoolingAlgorithm::Average)
     {
-        // if no activation function is provided
-        return false;
-    }
-
-    auto func = mapStringToActivationFunction.find(extraArg->second);
-
-    if (func == mapStringToActivationFunction.end())
-    {
-        // if activation function is invalid
-        return false;
-    }
-
-    // Currently we support only Sigmoid and ReLu Activation functions
-    if ((func->second == ActivationFunction::Sigmoid) || (func->second == ActivationFunction::ReLu))
-    {
-        return true;
-    }
-    else
-    {
-        return false;
+        errors = "Invalid Value: Only Average Pooling is supported\n";
+        throw armnn::InvalidArgumentException(errors);
     }
 }
 
-void SubstituteLayer(Mapping& mapping, Layer* layer, Graph& newGraph)
+void ValidateActivationLayerParameters(SimpleLayer& layer)
 {
-    Layer* newLayer                  = NULL;
-    std::string replacementLayerName = mapping.m_ReplacementLayers[0].m_Name;
+    std::map<std::string, ActivationFunction> mapStringToActivationFunction = GetMapStringToActivationFunction();
+    auto funcName                                                           = layer.m_LayerParams.find("function");
+    auto func = mapStringToActivationFunction.find(funcName->second);
+    std::string errors;
 
-    if (replacementLayerName == "Activation")
+    // Currently we support only Sigmoid and ReLu Activation functions
+    if (!((func->second == ActivationFunction::Sigmoid) || (func->second == ActivationFunction::ReLu)))
     {
-        auto extraArg = mapping.m_ReplacementLayers[0].m_ExtraArgs.find("function");
-
-        std::cout << "The replacement is activation function " << extraArg->second << "\n";
-
-        if (!ValidateActivationLayerParameters(mapping.m_ReplacementLayers[0]))
-        {
-            return;
-        }
-
-        newLayer = CreateActivationLayer(newGraph, extraArg->second);
+        errors = "Invalid Value: Activation functions other than Sigmoid and ReLu are not supported\n";
+        throw armnn::InvalidArgumentException(errors);
     }
-    else if ((replacementLayerName == "Convolution2d") || (replacementLayerName == "TransposeConvolution2d"))
+}
+
+void ValidateConvolutionLayerParameters(SimpleLayer& layer)
+{
+    std::string errors;
+
+    if (layer.m_Inputs[0].m_Shape.size() != 4)
     {
-
-        Layer& previousLayer    = layer->GetInputSlot(0).GetConnectedOutputSlot()->GetOwningLayer();
-        const TensorInfo& tinfo = previousLayer.GetOutputSlot(0).GetTensorInfo();
-        // Need to validate that input tensor is of 4 dimensions
-        unsigned int inputChannels = tinfo.GetShape()[3];
-        unsigned int strideX = 1, strideY = 1;
-
-        if (replacementLayerName == "TransposeConvolution2d")
-        {
-            strideX = 2;
-            strideY = 2;
-        }
-
-        newLayer = CreateConvolutionLayer(replacementLayerName, newGraph, inputChannels, 1, 1, strideX, strideY,
-                                          tinfo.GetDataType(), DataType::Signed32);
+        errors = "Invalid Value: The number of dimensions for input/output tensor has to be 4\n";
+        throw armnn::InvalidArgumentException(errors);
     }
+}
+
+Layer* CreateFullyConnectedLayer(Graph& graph,
+                                 const TensorInfo& inputTensor,
+                                 const TensorInfo& outputTensor,
+                                 AdditionalLayerParams& params)
+{
+    FullyConnectedDescriptor desc;
+    auto name = params["name"];
+
+    uint32_t numInputs  = inputTensor.GetShape()[inputTensor.GetNumDimensions() - 1];
+    uint32_t numOutputs = outputTensor.GetShape()[outputTensor.GetNumDimensions() - 1];
+    // One needs to ensure that inputTensor.GetQuantizationScale() * weightInfo.GetQuantizationScale() / outputTensor.GetQuantizationScale()
+    // should be in the range of [0, 1)
+    float weightQuantizationScale = 0.5f * outputTensor.GetQuantizationScale() / inputTensor.GetQuantizationScale();
+
+    const TensorInfo weightInfo({ numInputs, numOutputs }, inputTensor.GetDataType(), weightQuantizationScale, 0);
+    float biasQuantizationScale = inputTensor.GetQuantizationScale() * weightInfo.GetQuantizationScale();
+    const TensorInfo biasesInfo({ 1, numOutputs }, DataType::Signed32, biasQuantizationScale, 0);
+
+    desc.m_BiasEnabled = true;
+
+    ARMNN_LOG(info) << "Creating a Fully Connected layer \n";
+    auto layer = graph.AddLayer<FullyConnectedLayer>(desc, name.c_str());
+    SetWeightAndBias(layer, weightInfo, biasesInfo);
+
+    return layer;
+}
+
+Layer* CreatePooling2dLayer(Graph& graph, AdditionalLayerParams& params)
+{
+    Pooling2dDescriptor poolDesc;
+    auto name = params["name"];
+
+    poolDesc.m_DataLayout = DataLayout::NHWC;
+    FillStride<Pooling2dDescriptor>(poolDesc, params);
+    FillPadding<Pooling2dDescriptor>(poolDesc, params);
+    FillPoolSize<Pooling2dDescriptor>(poolDesc, params);
+
+    auto poolAlgo       = GetMapStringToPoolingAlgorithm();
+    poolDesc.m_PoolType = poolAlgo.find(params["function"])->second;
+
+    return graph.AddLayer<Pooling2dLayer>(poolDesc, name.c_str());
+}
+
+void SubstituteLayer(
+    Mapping& mapping, Layer* layer, const TensorInfo& inputTensor, const TensorInfo& outputTensor, Graph& newGraph)
+{
+    Layer* newLayer = nullptr;
+    std::string errors;
+    std::string replacementLayerTypeName = mapping.m_ReplacementLayers[0].m_LayerTypeName;
+    AdditionalLayerParams params         = mapping.m_ReplacementLayers[0].m_LayerParams;
+    LayerType type                       = GetLayerType(replacementLayerTypeName);
+
+    ARMNN_LOG(info) << "Replacement layer type name is " << replacementLayerTypeName << "\n";
+
+    if (type == LayerType::Activation)
+    {
+        auto funcName = mapping.m_ReplacementLayers[0].m_LayerParams.find("function");
+
+        ARMNN_LOG(info) << "The replacement is activation function " << funcName->second << "\n";
+
+        ValidateActivationLayerParameters(mapping.m_ReplacementLayers[0]);
+        newLayer =
+            CreateActivationLayer(newGraph, funcName->second, mapping.m_ReplacementLayers[0].m_LayerParams["name"]);
+    }
+    else if ((type == LayerType::Convolution2d) || (type == LayerType::TransposeConvolution2d) ||
+             (type == LayerType::DepthwiseConvolution2d))
+    {
+        unsigned int inputChannels = inputTensor.GetShape()[3];
+
+        ValidateConvolutionLayerParameters(mapping.m_ReplacementLayers[0]);
+        newLayer = CreateConvolutionLayer(type, newGraph, inputChannels, params, inputTensor.GetDataType(),
+                                          DataType::Signed32);
+    }
+    else if (type == LayerType::FullyConnected)
+    {
+        newLayer = CreateFullyConnectedLayer(newGraph, inputTensor, outputTensor, params);
+    }
+    else if (type == LayerType::Pooling2d)
+    {
+        ValidatePoolingLayerParameters(mapping.m_ReplacementLayers[0]);
+        newLayer = CreatePooling2dLayer(newGraph, params);
+    }
+    else
+    {
+        errors = "Invalid Argument: The Replacement layer type \"";
+        errors += replacementLayerTypeName;
+        errors += "\" is not yet supported\n";
+
+        throw armnn::InvalidArgumentException(errors);
+    }
+
+    BOOST_ASSERT((newLayer != nullptr));
 
     SubgraphView newSubgraphFromLayer = SubgraphView(layer);
 
     // SubstituteSubgraph() currently cannot be called on a Graph that contains only one layer.
     // CloneGraph() and ReinterpretGraphToSubgraph() are used to work around this.
     newGraph.SubstituteSubgraph(newSubgraphFromLayer, newLayer);
+}
 
-    return;
+// Check for additional parameters required for certain layer types
+// 1. Activation layer needs ((function=someActionfunction))
+// 2. Pooling2d layer needs ((function=somePoolingAlgo))
+// 3. StandIn layer needs ((name=someName))
+// The mappedlayer's additional paramaters should be matching to that
+// of the layer to be replaced
+void CheckParamValuesForLayer(SimpleLayer layer)
+{
+    LayerType type = GetLayerType(layer.m_LayerTypeName);
+    std::string errors;
+
+    if ((type == LayerType::Activation) || (type == LayerType::Pooling2d))
+    {
+        // We need function=<someFunctionName> for this layer
+        if ((layer.m_LayerParams.find("function") == layer.m_LayerParams.end()) ||
+            ((layer.m_LayerParams.find("function")->second).empty()))
+        {
+            errors += "Invalid Argument: ((function=somefunction)) is needed ";
+            errors += "for mapping Activation or Pooling2d layers \n";
+        }
+        else
+        {
+            auto func = layer.m_LayerParams.find("function")->second;
+
+            if (type == LayerType::Activation)
+            {
+                auto nameFuncPair = GetMapStringToActivationFunction();
+
+                if (nameFuncPair.find(func) == nameFuncPair.end())
+                {
+                    errors += "Invalid Value: ";
+                    errors += func + "is not a valid Activation Function\n";
+                    errors += "valid activation functions are as follows - ";
+                    errors += " Sigmoid, TanH, Linear, ReLu, BoundedReLu,";
+                    errors += " SoftReLu, LeakyReLu, Abs, Sqrt, Square, Elu, HardSwish \n";
+                }
+            }
+            else
+            {
+                auto nameFuncPair = GetMapStringToPoolingAlgorithm();
+
+                if (nameFuncPair.find(func) == nameFuncPair.end())
+                {
+                    errors += "Invalid Value: ";
+                    errors += func + "is not a valid pooling algorithm\n";
+                    errors += "Average, Max, L2 \n";
+                }
+            }
+        }
+    }
+
+    if (!errors.empty())
+    {
+        throw armnn::InvalidArgumentException(errors);
+    }
+}
+
+bool IsAdditionalParamsMatching(Layer* layer, SimpleLayer& mappingLayer)
+{
+    // For Activation layers, the "function" value should match
+    if (layer->GetType() == LayerType::Activation)
+    {
+        ActivationLayer* actLayer = dynamic_cast<ActivationLayer*>(layer);
+
+        auto actFunc = std::string(GetActivationFunctionAsCString(actLayer->GetParameters().m_Function));
+
+        if (actFunc.compare(mappingLayer.m_LayerParams["function"]))
+        {
+            return false;
+        }
+    }
+    // For Pooling2d layers as well, the "function" value should match
+    else if (layer->GetType() == LayerType::Pooling2d)
+    {
+        Pooling2dLayer* poolLayer = dynamic_cast<Pooling2dLayer*>(layer);
+        auto algo                 = std::string(GetPoolingAlgorithmAsCString(poolLayer->GetParameters().m_PoolType));
+
+        if (algo.compare(mappingLayer.m_LayerParams["function"]))
+        {
+            return false;
+        }
+    }
+    // If the layer name is provided, then it should match
+    else if (!mappingLayer.m_LayerParams["name"].empty())
+    {
+        if (std::string(layer->GetName()).compare(mappingLayer.m_LayerParams["name"]))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+LayerType GetLayerType(std::string layerTypeName)
+{
+    std::map<std::string, LayerType> mapStringToLayerType = GetMapStringToLayerType();
+
+    auto type = mapStringToLayerType.find(layerTypeName);
+    return type->second;
+}
+
+// Check if the layerTypeName can be mapped to one of the armnn::LayerType
+bool IsLayerType(std::string layerTypeName)
+{
+    std::string errors;
+
+    // loop through layer types, call GetLayerTypeAsCString() and create a map, then get the type from the string from the map
+    std::map<std::string, LayerType> mapStringToLayerType = GetMapStringToLayerType();
+
+    auto type = mapStringToLayerType.find(layerTypeName);
+
+    return (type != mapStringToLayerType.end());
+}
+
+// Check if the layer additional parameters are of known types.
+// Note:- We do not check the values at this point. The values
+// will be validated when they are retrieved during layer creation.
+void ValidateAdditionalParameters(SimpleLayer layer)
+{
+    auto layerParams = layer.m_LayerParams;
+    std::string errors;
+
+    for (auto param : layerParams)
+    {
+        auto name = param.first;
+
+        if (name.compare("function") && name.compare("stride") && name.compare("kernel") && name.compare("name") &&
+            name.compare("padding") && name.compare("dilation"))
+        {
+            errors = "Invalid Argument: Layer Parameter \"";
+            errors += name;
+            errors += "\"is unknown. \n";
+            errors += "Known parameters are \"function\", \"stride\", \"kernel\", ";
+            errors += " \"name\", \"padding\", \"dilation\" ";
+
+            throw armnn::InvalidArgumentException(errors);
+        }
+    }
+
+    CheckParamValuesForLayer(layer);
+}
+
+void ValidateMappingParameters(Mapping mapping)
+{
+    std::string errors;
+    std::string pattern     = mapping.m_PatternLayers[0].m_LayerTypeName;
+    std::string replacement = mapping.m_ReplacementLayers[0].m_LayerTypeName;
+
+    if (mapping.m_PatternLayers.size() != 1)
+    {
+        errors = "Invalid Argument: N:1 mapping is not supported\n";
+    }
+    else if (!IsLayerType(pattern))
+    {
+        errors = "Invalid Argument: Pattern Layer Type is invalid\n";
+        errors += pattern;
+        errors += "\n";
+    }
+    else if ((!IsLayerType(replacement)) && (replacement.compare("Excluded")))
+    {
+        errors = "Invalid Argument: Replacement Layer Type is invalid\n";
+        errors += replacement;
+        errors += "\n";
+    }
+    else
+    {
+        ValidateAdditionalParameters(mapping.m_PatternLayers[0]);
+        ValidateAdditionalParameters(mapping.m_ReplacementLayers[0]);
+    }
+
+    if (!errors.empty())
+    {
+        throw armnn::InvalidArgumentException(errors);
+    }
 }
 
 void ApplyMappings(std::vector<Mapping> mappings, Graph& newGraph)
@@ -360,37 +722,19 @@ void ApplyMappings(std::vector<Mapping> mappings, Graph& newGraph)
     // substitute the layers as per the mapping
     const std::list<Layer*> newGraphLayers(newGraph.begin(), newGraph.end());
 
-    // loop through layer types, call GetLayerTypeAsCString() and create a map, then get the type from the string from the map
-    std::map<std::string, LayerType> mapStringToLayerType                   = GetMapStringToLayerType();
-    std::map<std::string, ActivationFunction> mapStringToActivationFunction = GetMapStringToActivationFunction();
     for (Mapping mapping : mappings)
     {
-        // Hardcoded to one pattern layer until we implement N:1
-        if (mapping.m_PatternLayers.size() != 1)
-        {
-            continue;
-        }
-
-        auto type = mapStringToLayerType.find(mapping.m_PatternLayers[0].m_Name);
-
-        if (type == mapStringToLayerType.end())
-        {
-            // skip this mapping if the mapping layer could not be found
-            continue;
-        }
-
-        auto replacementType = mapStringToLayerType.find(mapping.m_ReplacementLayers[0].m_Name);
-
-        if (replacementType == mapStringToLayerType.end())
-        {
-            // skip this mapping if the replacement layer could not be found
-            continue;
-        }
+        ValidateMappingParameters(mapping);
 
         for (Layer* layer : newGraphLayers)
         {
-            if (layer->GetType() == type->second)
+            if (layer->GetType() == GetLayerType(mapping.m_PatternLayers[0].m_LayerTypeName))
             {
+                if (!mapping.m_ReplacementLayers[0].m_LayerTypeName.compare("Excluded"))
+                {
+                    continue;
+                }
+
                 auto inputTensorsCnt  = layer->GetNumOutputSlots();
                 auto outputTensorsCnt = layer->GetNumOutputSlots();
 
@@ -401,21 +745,38 @@ void ApplyMappings(std::vector<Mapping> mappings, Graph& newGraph)
                     TensorInfo outputTensor =
                         layer->GetOutputSlots()[0].GetConnection(0)->GetConnectedOutputSlot()->GetTensorInfo();
 
-                    // The original layer has input tensor shape same as output tensor shape
-                    if (inputTensor.GetShape() == outputTensor.GetShape())
+                    // In the mapping, the count of replacement layers and pattern layers has to be 1.
+                    // This is because we are interested in replacing a single layer at a time.
+                    // This will change when we implement N:1 mapping scheme.
+                    // Also, the mapping's pattern and replacement layer's input/output tensor
+                    // shape has to be the same.
+                    if ((mapping.m_ReplacementLayers.size() == 1) && (mapping.m_PatternLayers.size() == 1) &&
+                        (mapping.m_PatternLayers[0].m_Inputs == mapping.m_ReplacementLayers[0].m_Inputs) &&
+                        (mapping.m_PatternLayers[0].m_Outputs == mapping.m_ReplacementLayers[0].m_Outputs))
                     {
-
-                        // In the mapping, the count of replacement layers and pattern layers has to be 1.
-                        // This is because we are interested in replacing a single layer at a time.
-                        // This will change when we implement N:1 mapping scheme.
-                        // Also, the mapping's pattern and replacement layer's input/output tensor
-                        // shape has to be the same.
-                        if ((mapping.m_ReplacementLayers.size() == 1) && (mapping.m_PatternLayers.size() == 1) &&
-                            (mapping.m_PatternLayers[0].m_Inputs == mapping.m_ReplacementLayers[0].m_Inputs) &&
-                            (mapping.m_PatternLayers[0].m_Outputs == mapping.m_ReplacementLayers[0].m_Outputs))
+                        // The original layer has input tensor shape same as output tensor shape
+                        if (inputTensor.GetShape() == outputTensor.GetShape())
                         {
-                            SubstituteLayer(mapping, layer, newGraph);
+                            ARMNN_LOG(info) << "Input and Output tensors are of same shape\n";
                         }
+                        else
+                        {
+                            ARMNN_LOG(info) << "Input and Output tensors are of different shape\n";
+                        }
+
+                        // For some layer types like Activation, Pooling2d we need to match
+                        // not only the layer types but also the function (should be present in
+                        // m_LayerParams).
+                        // Also if name is provided as part of m_LayerParams, it needs to be matched
+                        // as well.
+                        bool ret = IsAdditionalParamsMatching(layer, mapping.m_PatternLayers[0]);
+
+                        if (!ret)
+                        {
+                            continue;
+                        }
+
+                        SubstituteLayer(mapping, layer, inputTensor, outputTensor, newGraph);
                     }
                 }
             }
@@ -511,17 +872,14 @@ IBackendInternal::IBackendProfilingContextPtr
     EthosNBackend::CreateBackendProfilingContext(const IRuntime::CreationOptions& options,
                                                  IBackendProfilingPtr& backendProfiling)
 {
-    if (options.m_ProfilingOptions.m_EnableProfiling)
-    {
-        std::shared_ptr<profiling::EthosNBackendProfilingContext> context =
-            std::make_shared<profiling::EthosNBackendProfilingContext>(backendProfiling);
-        EthosNBackendProfilingService::Instance().SetProfilingContextPtr(context);
-        return context;
-    }
-    else
+    if (!options.m_ProfilingOptions.m_EnableProfiling)
     {
         return nullptr;
     }
+    std::shared_ptr<profiling::EthosNBackendProfilingContext> context =
+        std::make_shared<profiling::EthosNBackendProfilingContext>(backendProfiling);
+    EthosNBackendProfilingService::Instance().SetProfilingContextPtr(context);
+    return context;
 }
 
 IBackendInternal::IMemoryManagerUniquePtr EthosNBackend::CreateMemoryManager() const

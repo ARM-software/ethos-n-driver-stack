@@ -46,6 +46,9 @@ public:
     const TensorShape& GetPatchShape() const;
     uint32_t GetTotalAccumulatorsPerEngine() const;
     uint32_t GetMacUnitsPerEngine() const;
+    uint32_t GetNumberOfPleLanes() const;
+    uint32_t GetWeightCompressionVersion() const;
+    uint32_t GetActivationCompressionVersion() const;
 
     uint32_t GetMacsPerWinograd2D() const
     {
@@ -309,6 +312,26 @@ inline uint32_t TotalSizeBytesNHWCBCompressed(const ethosn::support_library::Ten
 
     return utils::RoundUpToNearestMultiple(rowSizeMetaData, 64) +
            utils::RoundUpToNearestMultiple(sizeOfBrickGroupRow, 64) * numBrickGroupRows;
+}
+
+inline uint32_t TotalSizeBytesFCAF(const ethosn::support_library::TensorShape& tensorShape,
+                                   const ethosn::support_library::TensorShape& cellShape)
+{
+    constexpr uint32_t slotSize = 2112;
+    return slotSize * DivRoundUp(tensorShape[1], cellShape[0]) * DivRoundUp(tensorShape[2], cellShape[1]) *
+           DivRoundUp(tensorShape[3], cellShape[2]);
+}
+
+inline uint32_t TotalSizeBytesFCAFDeep(const ethosn::support_library::TensorInfo& tensorInfo)
+{
+    constexpr ethosn::support_library::TensorShape deepCellShape{ 8, 8, 32 };
+    return TotalSizeBytesFCAF(tensorInfo.m_Dimensions, deepCellShape);
+}
+
+inline uint32_t TotalSizeBytesFCAFWide(const ethosn::support_library::TensorInfo& tensorInfo)
+{
+    constexpr ethosn::support_library::TensorShape wideCellShape{ 8, 16, 16 };
+    return TotalSizeBytesFCAF(tensorInfo.m_Dimensions, wideCellShape);
 }
 
 uint32_t GetNumOrigChannels(uint32_t nChannels,

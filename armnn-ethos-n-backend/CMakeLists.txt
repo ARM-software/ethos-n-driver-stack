@@ -29,7 +29,11 @@ add_library(armnnEthosNBackend OBJECT ${armnnEthosNBackend_sources})
 target_include_directories(armnnEthosNBackend PRIVATE ${PROJECT_SOURCE_DIR}/src/armnn)
 target_include_directories(armnnEthosNBackend PRIVATE ${PROJECT_SOURCE_DIR}/src/armnnUtils)
 target_include_directories(armnnEthosNBackend PRIVATE ${PROJECT_SOURCE_DIR}/src/profiling)
+target_include_directories(armnnEthosNBackend PRIVATE ${PROJECT_SOURCE_DIR}/profiling/common/include)
 target_include_directories(armnnEthosNBackend PRIVATE ${PROJECT_SOURCE_DIR}/src/backends)
+
+# This static library is built into the core Arm NN shared library, so set the appropriate define
+target_compile_definitions(armnnEthosNBackend PRIVATE "ARMNN_COMPILING_DLL")
 
 add_subdirectory(workloads)
 

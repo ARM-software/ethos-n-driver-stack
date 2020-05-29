@@ -5,8 +5,10 @@
 
 #include "EthosNPreCompiledWorkload.hpp"
 
+#include "EthosNBackend.hpp"
 #include "EthosNTensorHandle.hpp"
 #include "EthosNWorkloadUtils.hpp"
+#include "LabelsAndEventClasses.hpp"
 
 #include <armnn/ArmNN.hpp>
 #include <boost/filesystem.hpp>
@@ -132,6 +134,76 @@ WaitStatus WaitForInference(int fd, int timeout)
     return result;
 }
 
+void SendProfilingEvents()
+{
+    auto context        = EthosNBackendProfilingService::Instance().GetContext();
+    auto timelineEvents = ethosn::driver_library::profiling::ReportNewProfilingData();
+    auto sender         = context->GetSendTimelinePacket();
+    auto& map           = context->GetIdToEntityGuids();
+    auto& guidGenerator = context->GetGuidGenerator();
+
+    // Currently Arm NN doesn't call EnableTimelineReporting so always report timeline events
+    for (auto event : timelineEvents)
+    {
+        using namespace ethosn::driver_library::profiling;
+        using namespace armnn::profiling;
+        // Filter for timeline events.
+        if (event.m_Type != ProfilingEntry::Type::TimelineEventStart &&
+            event.m_Type != ProfilingEntry::Type::TimelineEventEnd &&
+            event.m_Type != ProfilingEntry::Type::TimelineEventInstant)
+        {
+            continue;
+        }
+        auto guidIt = map.find({ event.m_Id });
+
+        // If we don't find the guid in the map, then assume it is the first time we send one for this entity
+        // An example of an entity is a single buffer.
+        // An entity can have multiple events associated with it. e.g. buffer lifetime start and buffer lifetime end.
+        if (guidIt == map.end())
+        {
+            auto entityGuid = guidGenerator.NextGuid();
+            sender->SendTimelineEntityBinaryPacket(entityGuid);
+            map.insert({ { event.m_Id }, entityGuid });
+            // Register a label with with the category and id e.g. Buffer 0
+            // Note: This Id is a global Id so "Buffer 2" may not be the third buffer.
+            std::string label = "EthosN " + std::string(MetadataCategoryToCString(event.m_MetadataCategory)) + " " +
+                                std::to_string(event.m_Id);
+            auto labelGuid = guidGenerator.GenerateStaticId(label);
+            sender->SendTimelineLabelBinaryPacket(labelGuid, label);
+            auto relationshipGuid = guidGenerator.NextGuid();
+            sender->SendTimelineRelationshipBinaryPacket(ProfilingRelationshipType::LabelLink, relationshipGuid,
+                                                         entityGuid, labelGuid);
+        }
+        auto entityGuid = map.at({ event.m_Id });
+        auto eventGuid  = guidGenerator.NextGuid();
+        auto timeInNanoSeconds =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(event.m_Timestamp.time_since_epoch()).count();
+        sender->SendTimelineEventBinaryPacket(static_cast<uint64_t>(timeInNanoSeconds), std::this_thread::get_id(),
+                                              eventGuid);
+
+        auto executionLinkId = profiling::ProfilingService::GetNextGuid();
+        sender->SendTimelineRelationshipBinaryPacket(ProfilingRelationshipType::ExecutionLink, executionLinkId,
+                                                     entityGuid, eventGuid);
+
+        // If we are sending Start and End timeline events then we add a link to the Start/End of Life Event Classes.
+        if (event.m_Type == ProfilingEntry::Type::TimelineEventStart)
+        {
+            auto eventClassLinkId = profiling::ProfilingService::GetNextGuid();
+            sender->SendTimelineRelationshipBinaryPacket(ProfilingRelationshipType::DataLink, eventClassLinkId,
+                                                         eventGuid,
+                                                         LabelsAndEventClasses::ARMNN_PROFILING_SOL_EVENT_CLASS);
+        }
+        if (event.m_Type == ProfilingEntry::Type::TimelineEventEnd)
+        {
+            auto eventClassLinkId = profiling::ProfilingService::GetNextGuid();
+            sender->SendTimelineRelationshipBinaryPacket(ProfilingRelationshipType::DataLink, eventClassLinkId,
+                                                         eventGuid,
+                                                         LabelsAndEventClasses::ARMNN_PROFILING_EOL_EVENT_CLASS);
+        }
+        sender->Commit();
+    }
+}
+
 }    // anonymous namespace
 
 void EthosNPreCompiledWorkload::Init(const PreCompiledDescriptor& descriptor,
@@ -201,6 +273,11 @@ void EthosNPreCompiledWorkload::Execute() const
             m_InputBuffers.data(), numInputBuffers, m_OutputBuffers.data(), numOutputBuffers));
 
         WaitStatus result = WaitForInference(inference->GetFileDescriptor(), 60);
+
+        if (EthosNBackendProfilingService::Instance().IsProfilingEnabled())
+        {
+            SendProfilingEvents();
+        }
         switch (result.GetErrorCode())
         {
             case WaitErrorCode::Success:
@@ -302,6 +379,27 @@ std::ostream& operator<<(std::ostream& os, const ethosn::support_library::EthosN
             break;
         case ethosn::support_library::EthosNVariant::ETHOS_N77:
             os << Quoted("Ethos-N77");
+            break;
+        case ethosn::support_library::EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO:
+            os << Quoted("Ethos-N78_1TOPS_2PLE_RATIO");
+            break;
+        case ethosn::support_library::EthosNVariant::ETHOS_N78_1TOPS_4PLE_RATIO:
+            os << Quoted("Ethos-N78_1TOPS_4PLE_RATIO");
+            break;
+        case ethosn::support_library::EthosNVariant::ETHOS_N78_2TOPS_2PLE_RATIO:
+            os << Quoted("Ethos-N78_2TOPS_2PLE_RATIO");
+            break;
+        case ethosn::support_library::EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO:
+            os << Quoted("Ethos-N78_2TOPS_4PLE_RATIO");
+            break;
+        case ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_2PLE_RATIO:
+            os << Quoted("Ethos-N78_4TOPS_2PLE_RATIO");
+            break;
+        case ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO:
+            os << Quoted("Ethos-N78_4TOPS_4PLE_RATIO");
+            break;
+        case ethosn::support_library::EthosNVariant::ETHOS_N78_8TOPS_2PLE_RATIO:
+            os << Quoted("Ethos-N78_8TOPS_2PLE_RATIO");
             break;
         default:
             BOOST_ASSERT_MSG(false, "Unexpected variant");

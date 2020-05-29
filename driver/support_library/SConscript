@@ -15,7 +15,8 @@ common.setup_toolchain(env, env['platform'])
 
 # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on the install target
 # where the install target is also provided via CPATH.
-env.PrependUnique(CPPPATH=[os.path.join(env['command_stream_dir'], 'include')])
+env.PrependUnique(CPPPATH=[os.path.join(env['command_stream_dir'], 'include'),
+                           'src'])
 
 # Build support_library shared and static libs
 srcs = [os.path.join('src', 'Support.cpp'),
@@ -28,6 +29,7 @@ srcs = [os.path.join('src', 'Support.cpp'),
         os.path.join('src', 'BufferManager.cpp'),
         os.path.join('src', 'WeightEncoder.cpp'),
         os.path.join('src', 'Strategies.cpp'),
+        os.path.join('src', 'StrategyX.cpp'),
         os.path.join('src', 'Graph.cpp'),
         os.path.join('src', 'GraphNodes.cpp'),
         os.path.join('src', 'NetworkToGraphConverter.cpp'),
@@ -38,7 +40,16 @@ srcs = [os.path.join('src', 'Support.cpp'),
         os.path.join('src', 'Section.cpp'),
         os.path.join('src', 'SubmapFilter.cpp'),
         os.path.join('src', 'SramAllocator.cpp'),
-        os.path.join('src', 'Utils.cpp')]
+        os.path.join('src', 'Utils.cpp'),
+        os.path.join('src', 'DebuggingContext.cpp'),
+        os.path.join('src', 'cascading', 'Cascading.cpp'),
+        os.path.join('src', 'cascading', 'Part.cpp'),
+        os.path.join('src', 'cascading', 'Plan.cpp'),
+        os.path.join('src', 'cascading', 'Combiner.cpp'),
+        os.path.join('src', 'cascading', 'Visualisation.cpp'),
+        os.path.join('src', 'nonCascading', 'NonCascading.cpp'),
+        os.path.join('src', 'cascading', 'MceOpUtils.cpp'),
+        os.path.join('src', 'cascading', 'OpUtils.cpp')]
 
 ethosn_support_lib = env.StaticLibrary('libEthosNSupport', srcs)
 env.Alias('install', env.Install(env['install_lib_dir'], ethosn_support_lib))

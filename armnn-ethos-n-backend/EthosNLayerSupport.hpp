@@ -134,6 +134,14 @@ public:
                                const ComparisonDescriptor& descriptor,
                                Optional<std::string&> reasonIfUnsupported) const override;
 
+    bool IsConvertBf16ToFp32Supported(const TensorInfo& input,
+                                      const TensorInfo& output,
+                                      Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
+
+    bool IsConvertFp32ToBf16Supported(const TensorInfo& input,
+                                      const TensorInfo& output,
+                                      Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
+
     bool IsConvertFp16ToFp32Supported(const TensorInfo& input,
                                       const TensorInfo& output,
                                       Optional<std::string&> reasonIfUnsupported) const override;
@@ -224,7 +232,7 @@ public:
                          const TensorInfo& output,
                          const LstmDescriptor& descriptor,
                          const LstmInputParamsInfo& paramsInfo,
-                         Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
+                         Optional<std::string&> reasonIfUnsupported) const override;
 
     bool IsMaximumSupported(const TensorInfo& input0,
                             const TensorInfo& input1,
@@ -283,6 +291,16 @@ public:
     bool IsQuantizeSupported(const armnn::TensorInfo& input,
                              const armnn::TensorInfo& output,
                              armnn::Optional<std::string&> reasonIfUnsupported) const override;
+
+    bool IsQLstmSupported(const TensorInfo& input,
+                          const TensorInfo& previousOutputIn,
+                          const TensorInfo& previousCellStateIn,
+                          const TensorInfo& outputStateOut,
+                          const TensorInfo& cellStateOut,
+                          const TensorInfo& output,
+                          const QLstmDescriptor& descriptor,
+                          const LstmInputParamsInfo& paramsInfo,
+                          Optional<std::string&> reasonIfUnsupported) const override;
 
     bool IsQuantizedLstmSupported(const TensorInfo& input,
                                   const TensorInfo& previousCellStateIn,
@@ -349,6 +367,11 @@ public:
                            const TensorInfo& output0,
                            const TensorInfo& output1,
                            Optional<std::string&> reasonIfUnsupported) const override;
+
+    bool IsTransposeSupported(const TensorInfo& input,
+                              const TensorInfo& output,
+                              const TransposeDescriptor& descriptor,
+                              Optional<std::string&> reasonIfUnsupported) const override;
 
 private:
     bool CheckEstimateOnlySupported(const TensorInfo& input,

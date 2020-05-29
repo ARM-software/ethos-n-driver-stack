@@ -6,6 +6,7 @@
 #pragma once
 
 #include "BufferManager.hpp"
+#include "DebuggingContext.hpp"
 #include "Graph.hpp"
 #include "Utils.hpp"
 
@@ -13,6 +14,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <memory>
 
 namespace ethosn
 {
@@ -23,6 +25,7 @@ class CompiledNetwork;
 class IStrategy;
 class Pass;
 class Section;
+class IEstimationStrategy;
 
 /// Compiles a user-constructed Network into a CompiledNetwork.
 /// This is done in three stages:
@@ -36,9 +39,12 @@ public:
              const FirmwareAndHardwareCapabilities& fwAndHwCapabilities,
              const CompilationOptions& compilationOptions,
              const EstimationOptions& estimationOptions);
+    Compiler(const Compiler&) = delete;
+    Compiler& operator=(const Compiler&) = delete;
 
     std::unique_ptr<CompiledNetwork> Compile();
     NetworkPerformanceData EstimatePerformance();
+    ~Compiler();
 
 private:
     /// Conversion
@@ -61,12 +67,6 @@ private:
     void Generate();
     /// @}
 
-    /// Performance estimation
-    /// @{
-    void Estimate();
-    void EstimateCascading(bool current);
-    /// @}
-
     /// Debugging
     /// @{
     void DumpGraph(const std::string& filename);
@@ -77,20 +77,19 @@ private:
 
     /// Compilation parameters, set at creation time.
     /// @{
-    bool m_DumpRam;
-    bool m_InitialSramDump;
     std::vector<std::unique_ptr<IStrategy>> m_AllowedStrategies;
     std::vector<command_stream::BlockConfig> m_AllowedBlockConfigs;
     HardwareCapabilities m_Capabilities;
-    bool m_DumpDebugFiles;
-    std::string m_DebugDir;
     bool m_DisableWinograd;
     bool m_EnableIntermediateCompression;
+    bool m_EnableCascading;
+    const DebuggingContext m_DebuggingContext;
     /// @}
 
-    /// Estimation parameters, set at creation time.
+    /// Performance estimation
     /// @{
-    EstimationOptions m_EstimationOptions;
+    std::unique_ptr<IEstimationStrategy> m_EstimationStrategy;
+    bool m_PerfEstimate;
     /// @}
 
     /// Intermediate data/results

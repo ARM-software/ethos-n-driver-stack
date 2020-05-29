@@ -30,7 +30,9 @@ enum class DataFormat : uint8_t
     NHWCB,
     NHWC,
     NCHW,
-    WEIGHT_STREAM
+    WEIGHT_STREAM,
+    FCAF_DEEP,
+    FCAF_WIDE
 };
 
 enum class SramAllocationStrategy : uint8_t
@@ -41,7 +43,8 @@ enum class SramAllocationStrategy : uint8_t
     STRATEGY_4,
     STRATEGY_5,
     STRATEGY_6,
-    STRATEGY_7
+    STRATEGY_7,
+    STRATEGY_X
 };
 
 enum class UpsampleType : uint8_t
@@ -79,12 +82,6 @@ enum class SectionType : uint8_t
     SIMO_CASCADED,
     SISO_BRANCHED_CASCADED,
     MISO,
-};
-
-enum class MceChannelMode : uint8_t
-{
-    CHANNEL_INTERLEAVE_FULL,
-    CHANNEL_INTERLEAVE,
 };
 
 // clang-format off

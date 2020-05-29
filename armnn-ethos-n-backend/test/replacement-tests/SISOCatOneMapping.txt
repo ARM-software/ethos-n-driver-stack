@@ -1,0 +1,27 @@
+pattern:
+input firstInput 1x16x16x16
+output firstOutput 1x16x16x16
+Activation  (firstInput) (firstOutput) ((function=TanH))
+graph-replacement:
+Activation  (firstInput) (firstOutput) ((function=Sigmoid),(name=Sigmoid))
+
+pattern:
+input firstInput 1x16x16x16
+output firstOutput 1x16x16x16
+Softmax (firstInput) (firstOutput)
+graph-replacement:
+Pooling2d (firstInput) (firstOutput), ((padding=1x1x1x1),(kernel=3x3),(stride=1x1),(function=Average),(name=Pooling2d))
+
+pattern:
+input firstInput 1x16x16x16
+output firstOutput 1x16x16x16
+ElementwiseUnary (firstInput) (firstOutput) ((function=Rsqrt))
+graph-replacement:
+Convolution2d (firstInput) (firstOutput), ((dilation=1x1),(kernel=1x1),(padding=0x0x0x0),(stride=1x1),(name=Convolution2d))
+
+pattern:
+input firstInput 1x16x16x16
+output firstOutput 1x16x16x16
+FullyConnected (firstInput) (firstOutput)
+graph-replacement:
+DepthwiseConvolution2d (firstInput) (firstOutput), ((dilation=1x1),(kernel=1x1),(padding=0x0x0x0),(stride=1x1),(name=DepthwiseConvolution2d))

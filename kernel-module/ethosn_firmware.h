@@ -16,7 +16,7 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
- * SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note
+ * SPDX-License-Identifier: GPL-2.0-only
  *
  */
 

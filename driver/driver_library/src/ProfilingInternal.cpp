@@ -5,8 +5,7 @@
 
 #include "ProfilingInternal.hpp"
 
-#include <uapi/ethosn.h>
-
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <iostream>
@@ -22,7 +21,7 @@ namespace profiling
 
 uint64_t GetNextTimeLineEventId()
 {
-    g_NextTimelineEventId = std::max(DRIVER_LIBRARY_EVENT_ID_BASE, g_NextTimelineEventId + 1);
+    g_NextTimelineEventId = std::max(g_DriverLibraryEventIdBase, g_NextTimelineEventId + 1);
     return g_NextTimelineEventId;
 }
 
@@ -35,7 +34,7 @@ bool ApplyConfiguration(Configuration config)
         g_ProfilingEntries.clear();
         g_BufferToLifetimeEventId.clear();
         g_InferenceToLifetimeEventId.clear();
-        g_NextTimelineEventId = DRIVER_LIBRARY_EVENT_ID_BASE;
+        g_NextTimelineEventId = g_DriverLibraryEventIdBase;
     }
 
     return hasKernelConfigureSucceeded;
@@ -182,7 +181,7 @@ Configuration g_CurrentConfiguration = GetDefaultConfiguration();
 std::vector<ProfilingEntry> g_ProfilingEntries              = {};
 std::map<Buffer*, uint64_t> g_BufferToLifetimeEventId       = {};
 std::map<Inference*, uint64_t> g_InferenceToLifetimeEventId = {};
-uint64_t g_NextTimelineEventId                              = DRIVER_LIBRARY_EVENT_ID_BASE;
+uint64_t g_NextTimelineEventId                              = g_DriverLibraryEventIdBase;
 
 bool Configure(Configuration config)
 {
@@ -221,6 +220,64 @@ uint64_t GetCounterValue(PollCounterName counter)
         default:
             assert(!"Invalid counter");
             return 0;
+    }
+}
+
+const char* MetadataCategoryToCString(ProfilingEntry::MetadataCategory category)
+{
+    switch (category)
+    {
+        case ProfilingEntry::MetadataCategory::FirmwareWfeSleeping:
+            return "FirmwareWfeSleeping";
+        case ProfilingEntry::MetadataCategory::FirmwareInference:
+            return "FirmwareInference";
+        case ProfilingEntry::MetadataCategory::FirmwareCommand:
+            return "FirmwareCommand";
+        case ProfilingEntry::MetadataCategory::FirmwareDma:
+            return "FirmwareDma";
+        case ProfilingEntry::MetadataCategory::FirmwareTsu:
+            return "FirmwareTsu";
+        case ProfilingEntry::MetadataCategory::FirmwareMceStripeSetup:
+            return "FirmwareMceStripeSetup";
+        case ProfilingEntry::MetadataCategory::FirmwarePleStripeSetup:
+            return "FirmwarePleStripeSetup";
+        case ProfilingEntry::MetadataCategory::FirmwareLabel:
+            return "FirmwareLabel";
+        case ProfilingEntry::MetadataCategory::FirmwareDmaSetup:
+            return "FirmwareDmaSetup";
+        case ProfilingEntry::MetadataCategory::FirmwareGetCompleteCommand:
+            return "FirmwareGetCompleteCommand";
+        case ProfilingEntry::MetadataCategory::FirmwareScheduleNextCommand:
+            return "FirmwareScheduleNextCommand";
+        case ProfilingEntry::MetadataCategory::FirmwareWfeChecking:
+            return "FirmwareWfeChecking";
+        case ProfilingEntry::MetadataCategory::FirmwareTimeSync:
+            return "FirmwareTimeSync";
+        case ProfilingEntry::MetadataCategory::InferenceLifetime:
+            return "InferenceLifetime";
+        case ProfilingEntry::MetadataCategory::BufferLifetime:
+            return "BufferLifetime";
+        case ProfilingEntry::MetadataCategory::CounterValue:
+            return "CounterValue";
+        default:
+            return nullptr;
+    }
+}
+
+const char* MetadataTypeToCString(ProfilingEntry::Type type)
+{
+    switch (type)
+    {
+        case ProfilingEntry::Type::TimelineEventStart:
+            return "Start";
+        case ProfilingEntry::Type::TimelineEventEnd:
+            return "End";
+        case ProfilingEntry::Type::TimelineEventInstant:
+            return "Instant";
+        case ProfilingEntry::Type::CounterSample:
+            return "Counter";
+        default:
+            return nullptr;
     }
 }
 

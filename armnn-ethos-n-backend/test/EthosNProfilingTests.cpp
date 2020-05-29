@@ -24,10 +24,8 @@ BOOST_AUTO_TEST_CASE(TestProfilingRegisterCounters)
     IRuntime::CreationOptions options;
     options.m_ProfilingOptions.m_EnableProfiling = true;
 
-    armnn::profiling::ProfilingService& profilingService = armnn::profiling::ProfilingService::Instance();
-    profilingService.ConfigureProfilingService(options.m_ProfilingOptions, true);
-
     armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
+    auto& profilingService = GetProfilingService(static_cast<Runtime*>(runtime.get()));
 
     const armnn::profiling::ICounterMappings& counterMap = profilingService.GetCounterMappings();
     BOOST_CHECK(counterMap.GetGlobalId(
@@ -55,10 +53,8 @@ BOOST_AUTO_TEST_CASE(TestEnableProfiling)
     IRuntime::CreationOptions options;
     options.m_ProfilingOptions.m_EnableProfiling = true;
 
-    armnn::profiling::ProfilingService& profilingService = armnn::profiling::ProfilingService::Instance();
-    profilingService.ConfigureProfilingService(options.m_ProfilingOptions, true);
-
     armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
+    auto& profilingService = GetProfilingService(static_cast<Runtime*>(runtime.get()));
     armnn::EthosNBackendProfilingService ethosnProfilingService = armnn::EthosNBackendProfilingService::Instance();
     armnn::profiling::EthosNBackendProfilingContext* ethosnProfilingContext = ethosnProfilingService.GetContext();
 

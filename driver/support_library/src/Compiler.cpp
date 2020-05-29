@@ -7,10 +7,13 @@
 
 #include "ConversionPass.hpp"
 #include "GraphNodes.hpp"
+#include "IEstimationStrategy.hpp"
 #include "McePlePass.hpp"
 #include "PlePass.hpp"
 #include "Section.hpp"
 #include "SramAllocator.hpp"
+#include "cascading/Cascading.hpp"
+#include "nonCascading/NonCascading.hpp"
 
 #include <fstream>
 #include <numeric>
@@ -27,19 +30,21 @@ using namespace utils;
 uint32_t CalculateBufferSize(const TensorShape& shape, command_stream::DataFormat dataFormat)
 {
     assert(dataFormat == command_stream::DataFormat::NHWC || dataFormat == command_stream::DataFormat::NHWCB ||
-           dataFormat == command_stream::DataFormat::NHWCB_COMPRESSED);
+           dataFormat == command_stream::DataFormat::NHWCB_COMPRESSED ||
+           dataFormat == command_stream::DataFormat::FCAF_WIDE || dataFormat == command_stream::DataFormat::FCAF_DEEP);
 
-    if (dataFormat == command_stream::DataFormat::NHWCB_COMPRESSED)
+    switch (dataFormat)
     {
-        return TotalSizeBytesNHWCBCompressed(shape);
-    }
-    else if (dataFormat == command_stream::DataFormat::NHWCB)
-    {
-        return TotalSizeBytesNHWCB(shape);
-    }
-    else
-    {
-        return TotalSizeBytes(shape);
+        case command_stream::DataFormat::NHWCB_COMPRESSED:
+            return TotalSizeBytesNHWCBCompressed(shape);
+        case command_stream::DataFormat::FCAF_DEEP:
+            return TotalSizeBytesFCAFDeep(shape);
+        case command_stream::DataFormat::FCAF_WIDE:
+            return TotalSizeBytesFCAFWide(shape);
+        case command_stream::DataFormat::NHWCB:
+            return TotalSizeBytesNHWCB(shape);
+        default:
+            return TotalSizeBytes(shape);
     }
 }
 
@@ -92,6 +97,14 @@ std::vector<command_stream::BlockConfig> GenerateAllowedBlockConfigs(const Compi
     {
         result.emplace_back(8u, 32u);
     }
+    if (m_Options.m_BlockConfig16x8)
+    {
+        result.emplace_back(16u, 8u);
+    }
+    if (m_Options.m_BlockConfig8x16)
+    {
+        result.emplace_back(8u, 16u);
+    }
     if (m_Options.m_BlockConfig8x8)
     {
         result.emplace_back(8u, 8u);
@@ -104,20 +117,37 @@ Compiler::Compiler(const Network& network,
                    const CompilationOptions& compilationOptions,
                    const EstimationOptions& estimationOptions)
     : m_Network(network)
-    , m_DumpRam(compilationOptions.m_DumpRam)
-    , m_InitialSramDump(compilationOptions.m_InitialSramDump)
     , m_AllowedStrategies(GenerateAllowedStrategies(compilationOptions))
     , m_AllowedBlockConfigs(GenerateAllowedBlockConfigs(compilationOptions))
     , m_Capabilities(fwAndHwCapabilities)
-    , m_DumpDebugFiles(compilationOptions.m_DumpDebugFiles)
-    , m_DebugDir(compilationOptions.m_DebugDir)
     , m_DisableWinograd(compilationOptions.m_DisableWinograd)
     , m_EnableIntermediateCompression(compilationOptions.m_EnableIntermediateCompression)
-    , m_EstimationOptions(estimationOptions)
+    , m_EnableCascading(false)
+    , m_DebuggingContext(compilationOptions.m_DebugInfo)
+    , m_EstimationStrategy(nullptr)
+    , m_PerfEstimate(false)
+{
+    // Check whether cascading is enabled in support library  and
+    // future optimistic estimates (PERF_CURRENT) enabled.
+    if (compilationOptions.m_EnableCascading == true && estimationOptions.m_Current == false)
+    {
+        m_EnableCascading    = true;
+        m_EstimationStrategy = std::make_unique<Cascading>(estimationOptions, m_Capabilities, m_DebuggingContext);
+    }
+    else
+    {
+        m_EstimationStrategy = std::make_unique<NonCascading>(estimationOptions, m_Capabilities, m_DebuggingContext);
+    }
+    assert(m_EstimationStrategy);
+}
+
+Compiler::~Compiler()
 {}
 
 std::unique_ptr<CompiledNetwork> Compiler::Compile()
 {
+    m_PerfEstimate = false;
+
     try
     {
         Convert();
@@ -146,16 +176,26 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
 
 NetworkPerformanceData Compiler::EstimatePerformance()
 {
+    // Sets the performance estimate flag
+    m_PerfEstimate = true;
+
     try
     {
         Convert();
-        Prepare();
+        if (!m_EnableCascading)
+        {
+            Prepare();
+        }
     }
     catch (const NotSupportedException&)
     {
         // Conversion and preparation can throw by not creating a valid graph but we should still be able to estimate it.
     }
-    Estimate();
+    if (m_EnableCascading)
+    {
+        Optimize();
+    }
+    m_PerformanceStream = m_EstimationStrategy->Estimate(m_Graph);
 
     return m_PerformanceStream;
 }
@@ -584,6 +624,12 @@ void Compiler::CreatePasses()
     std::vector<IStrategy*> strategies = utils::GetRawPointers(m_AllowedStrategies);
     std::vector<Node*> sortedNodes     = m_Graph.GetNodesSorted();
     SramAllocator sramAllocator(m_Capabilities.GetTotalSramSize() / m_Capabilities.GetNumberOfSrams());
+
+    // forward estimate flag is passed on to the function CreateGreedily to allow FCAF for
+    // strategies 6, 7 and arbitrary tensor shape. This happens if the forward-looking
+    // SPA is configured.
+    bool forwardEst = m_PerfEstimate && !m_EstimationStrategy->GetEstimationOptions().m_Current;
+
     for (Node* n : sortedNodes)
     {
         if (n->GetPass() == nullptr)
@@ -593,7 +639,8 @@ void Compiler::CreatePasses()
             if (!p)
             {
                 p = McePlePass::CreateGreedily(m_Capabilities, passId, strategies, m_AllowedBlockConfigs,
-                                               m_EnableIntermediateCompression, !m_DisableWinograd, n, sramAllocator);
+                                               m_EnableIntermediateCompression, !m_DisableWinograd, n, sramAllocator,
+                                               forwardEst);
             }
             if (!p)
             {
@@ -639,7 +686,7 @@ void Compiler::Generate()
     std::vector<Node*> sorted = m_Graph.GetNodesSorted();
 
     // If an initial dump is requested, add the sram dump command at the head of the stream.
-    if (m_InitialSramDump)
+    if (m_DebuggingContext.m_DebugInfo.m_InitialSramDump)
     {
         ethosn::command_stream::DumpSram cmdStrDumpSram;
         std::string dumpName = std::string("initial_ce");
@@ -649,7 +696,7 @@ void Compiler::Generate()
 
     for (Node* n : sorted)
     {
-        n->Generate(m_CommandStream, m_BufferManager, m_DumpRam);
+        n->Generate(m_CommandStream, m_BufferManager, m_DebuggingContext.m_DebugInfo.m_DumpRam);
     }
 
     DumpGraph("GraphFinal.dot");
@@ -659,194 +706,9 @@ void Compiler::Generate()
     m_BufferManager.Allocate();
 }
 
-void Compiler::EstimateCascading(bool current)
-{
-    if (!current)
-    {
-        std::vector<PassPerformanceData> perfStream = m_PerformanceStream.m_Stream;
-        constexpr double factor                     = 0.2f;
-
-        uint32_t sramFootprint            = 0;
-        uint32_t numCascadingNodes        = 0;
-        PassPerformanceData* previousNode = nullptr;
-
-        // There are two possible cascading strategies:
-        // - Input feature map streaming, only for the first node of the section
-        // - Weight streaming while all the input feature maps are stationary
-        for (PassPerformanceData& node : perfStream)
-        {
-            PassStats& current = node.m_Stats;
-
-            sramFootprint += static_cast<uint32_t>(
-                (current.m_Input.m_MemoryStats.m_DramParallel + current.m_Input.m_MemoryStats.m_DramNonParallel) *
-                factor);
-            sramFootprint += static_cast<uint32_t>(current.m_Weights.m_MemoryStats.m_DramParallel +
-                                                   current.m_Weights.m_MemoryStats.m_DramNonParallel);
-
-            // This is a sequence of cascade-able nodes.
-            if (numCascadingNodes > 0 && previousNode)
-            {
-                PassStats& previous = previousNode->m_Stats;
-
-                // The current node is not already cascaded with the previous node and the cascaded section fits in
-                // Sram.
-                if (current.m_Input.m_MemoryStats.m_Sram == 0 && sramFootprint <= m_Capabilities.GetTotalSramSize())
-                {
-                    // Two or more nodes can be cascaded
-                    if (numCascadingNodes == 1)
-                    {
-                        const uint32_t dramNonParallel = previous.m_Input.m_MemoryStats.m_DramNonParallel;
-                        const uint32_t dramParallel    = previous.m_Input.m_MemoryStats.m_DramParallel;
-
-                        // Update inputs statistics
-                        previous.m_Input.m_MemoryStats.m_DramNonParallel =
-                            static_cast<uint32_t>((dramNonParallel + dramParallel) * factor);
-                        previous.m_Input.m_MemoryStats.m_DramParallel =
-                            static_cast<uint32_t>((dramNonParallel + dramParallel) * (1 - factor));
-                    }
-                    else
-                    {
-                        // Update inputs statistics
-                        previous.m_Input.m_MemoryStats.m_Sram = previous.m_Input.m_MemoryStats.m_DramNonParallel +
-                                                                previous.m_Input.m_MemoryStats.m_DramParallel;
-                        previous.m_Input.m_MemoryStats.m_DramNonParallel = 0;
-                        previous.m_Input.m_MemoryStats.m_DramParallel    = 0;
-                        // Update weights statistics
-                        previous.m_Weights.m_MemoryStats.m_DramParallel =
-                            previous.m_Weights.m_MemoryStats.m_DramNonParallel +
-                            previous.m_Weights.m_MemoryStats.m_DramParallel;
-                        previous.m_Weights.m_MemoryStats.m_DramNonParallel = 0;
-                    }
-
-                    // Update outputs statistics
-                    previous.m_Output.m_MemoryStats.m_Sram = previous.m_Output.m_MemoryStats.m_DramNonParallel +
-                                                             previous.m_Output.m_MemoryStats.m_DramParallel;
-                    previous.m_Output.m_MemoryStats.m_DramNonParallel = 0;
-                    previous.m_Output.m_MemoryStats.m_DramParallel    = 0;
-                    ++numCascadingNodes;
-                }
-                else
-                {
-                    // The current node cannot be cascaded with the previous node, update the statistics for the
-                    // previous node to account for this.
-                    if (previous.m_Input.m_MemoryStats.m_Sram == 0)
-                    {
-                        // Update inputs statistics
-                        previous.m_Input.m_MemoryStats.m_Sram = previous.m_Input.m_MemoryStats.m_DramNonParallel +
-                                                                previous.m_Input.m_MemoryStats.m_DramParallel;
-                        previous.m_Input.m_MemoryStats.m_DramNonParallel = 0;
-                        previous.m_Input.m_MemoryStats.m_DramParallel    = 0;
-
-                        // Update outputs statistics
-                        const uint32_t dramNonParallel = previous.m_Output.m_MemoryStats.m_DramNonParallel;
-                        const uint32_t dramParallel    = previous.m_Output.m_MemoryStats.m_DramParallel;
-
-                        previous.m_Output.m_MemoryStats.m_DramNonParallel =
-                            static_cast<uint32_t>((dramParallel + dramNonParallel) * factor);
-                        previous.m_Output.m_MemoryStats.m_DramParallel =
-                            static_cast<uint32_t>((dramParallel + dramNonParallel) * (1 - factor));
-
-                        // Update weights statistics
-                        previous.m_Weights.m_MemoryStats.m_DramParallel =
-                            previous.m_Weights.m_MemoryStats.m_DramNonParallel +
-                            previous.m_Weights.m_MemoryStats.m_DramParallel;
-                        previous.m_Weights.m_MemoryStats.m_DramNonParallel = 0;
-                    }
-                    // Check if it can do at least weight streaming
-                    else if (current.m_Input.m_MemoryStats.m_Sram != 0)
-                    {
-                        // Update weights statistics
-                        current.m_Weights.m_MemoryStats.m_DramParallel =
-                            current.m_Weights.m_MemoryStats.m_DramNonParallel +
-                            current.m_Weights.m_MemoryStats.m_DramParallel;
-                        current.m_Weights.m_MemoryStats.m_DramNonParallel = 0;
-                    }
-
-                    numCascadingNodes = 0;
-                    sramFootprint     = 0;
-                }
-            }
-            else
-            {
-                // This is the first node of a potential section.
-                if (numCascadingNodes == 0 && previousNode)
-                {
-                    PassStats& previous = previousNode->m_Stats;
-
-                    // Check if weight streaming
-                    if (previous.m_Input.m_MemoryStats.m_Sram != 0 && current.m_Input.m_MemoryStats.m_Sram != 0)
-                    {
-                        // Update weights statistics
-                        current.m_Weights.m_MemoryStats.m_DramParallel =
-                            current.m_Weights.m_MemoryStats.m_DramNonParallel +
-                            current.m_Weights.m_MemoryStats.m_DramParallel;
-                        current.m_Weights.m_MemoryStats.m_DramNonParallel = 0;
-                    }
-                }
-                ++numCascadingNodes;
-            }
-
-            previousNode = &node;
-        }
-
-        // It has finished going through all the nodes, update the last node statistics if it has been cascaded.
-        if (numCascadingNodes > 0)
-        {
-            PassStats& previous = previousNode->m_Stats;
-
-            // Update input statistics
-            previous.m_Input.m_MemoryStats.m_Sram =
-                previous.m_Input.m_MemoryStats.m_DramNonParallel + previous.m_Input.m_MemoryStats.m_DramParallel;
-
-            // Update weights statistics
-            previous.m_Weights.m_MemoryStats.m_DramParallel =
-                previous.m_Weights.m_MemoryStats.m_DramNonParallel + previous.m_Weights.m_MemoryStats.m_DramParallel;
-            previous.m_Weights.m_MemoryStats.m_DramNonParallel = 0;
-
-            // Update outputs statistics
-            const uint32_t dramNonParallel = previous.m_Output.m_MemoryStats.m_DramNonParallel;
-            const uint32_t dramParallel    = previous.m_Output.m_MemoryStats.m_DramParallel;
-
-            previous.m_Output.m_MemoryStats.m_DramNonParallel =
-                static_cast<uint32_t>((dramParallel + dramNonParallel) * factor);
-            previous.m_Output.m_MemoryStats.m_DramParallel =
-                static_cast<uint32_t>((dramParallel + dramNonParallel) * (1 - factor));
-        }
-
-        m_PerformanceStream.m_Stream = perfStream;
-    }
-}
-
-void Compiler::Estimate()
-{
-    std::vector<Node*> sorted = m_Graph.GetNodesSorted();
-
-    for (Node* n : sorted)
-    {
-        if (!n->IsPrepared())
-        {
-            std::stringstream result;
-            for (auto id : n->GetCorrespondingOperationIds())
-            {
-                result << " " << id;
-            }
-            std::cerr << "Failed to prepare operation:" << result.str() << "\n";
-        }
-        n->Estimate(m_PerformanceStream, m_EstimationOptions);
-    }
-
-    EstimateCascading(m_EstimationOptions.m_Current);
-
-    DumpGraph("GraphFinal.dot");
-}
-
 void Compiler::DumpGraph(const std::string& filename)
 {
-    if (m_DumpDebugFiles)
-    {
-        std::ofstream dotStream(m_DebugDir + '/' + filename);
-        m_Graph.DumpToDotFormat(dotStream);
-    }
+    m_DebuggingContext.DumpGraph(m_Graph, filename);
 }
 
 CompiledNetworkImpl::CompiledNetworkImpl(const std::vector<uint8_t>& constantDmaData,

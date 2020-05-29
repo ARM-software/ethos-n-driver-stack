@@ -19,13 +19,20 @@ list(APPEND armnnEthosNBackendUnitTests_sources
      EthosNWorkloadFactoryHelper.hpp
      PreCompiledTestImpl.cpp
      PreCompiledTestImpl.hpp
+     EthosNReplacementTests.cpp
+     replacement-tests/SISOCatOneGraphFactory.cpp
 )
 
 add_library(armnnEthosNBackendUnitTests OBJECT ${armnnEthosNBackendUnitTests_sources})
 target_include_directories(armnnEthosNBackendUnitTests PRIVATE ${PROJECT_SOURCE_DIR}/src/armnn)
 target_include_directories(armnnEthosNBackendUnitTests PRIVATE ${PROJECT_SOURCE_DIR}/src/armnnUtils)
 target_include_directories(armnnEthosNBackendUnitTests PRIVATE ${PROJECT_SOURCE_DIR}/src/profiling)
+target_include_directories(armnnEthosNBackendUnitTests PRIVATE ${PROJECT_SOURCE_DIR}/profiling/common/include)
 target_include_directories(armnnEthosNBackendUnitTests PRIVATE ${PROJECT_SOURCE_DIR}/src/backends)
+# The "." adds the Ethos-N backend code into the include path. This is the cleanest way because
+# Arm NN normally accesses the code of the Ethos-N backend by finding a sub-directory that contains CMake files.
+# The name of the sub-directory can be environment specific.
+target_include_directories(armnnEthosNBackendUnitTests PRIVATE .)
 target_include_directories(armnnEthosNBackendUnitTests PRIVATE ..)
 
 # Keep the following test separated from the rest of the test suite, as it takes a long time to run (30 or so minutes)
@@ -40,6 +47,7 @@ macro(EthosNPreCompiledVGG16QuantTest testName sources)
     target_include_directories(${testName} PRIVATE ${PROJECT_SOURCE_DIR}/src/armnn)
     target_include_directories(${testName} PRIVATE ${PROJECT_SOURCE_DIR}/src/armnnUtils)
     target_include_directories(${testName} PRIVATE ${PROJECT_SOURCE_DIR}/src/profiling)
+    target_include_directories(${testName} PRIVATE ${PROJECT_SOURCE_DIR}/profiling/common/include)
     target_include_directories(${testName} PRIVATE ${PROJECT_SOURCE_DIR}/src/backends)
     target_include_directories(${testName} PRIVATE ${PROJECT_SOURCE_DIR}/src/armnn/test)
     target_include_directories(${testName} PRIVATE ..)

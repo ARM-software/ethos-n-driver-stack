@@ -188,6 +188,10 @@ public:
 
 std::vector<ProfilingEntry> ReportNewProfilingData();
 
+const char* MetadataCategoryToCString(ProfilingEntry::MetadataCategory category);
+
+const char* MetadataTypeToCString(ProfilingEntry::Type type);
+
 }    // namespace profiling
 }    // namespace driver_library
 }    // namespace ethosn

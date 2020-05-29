@@ -24,6 +24,7 @@ constexpr char EthosNConfig::DUMP_DEBUG_FILES_VAR[];
 constexpr char EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING[];
 constexpr char EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING[];
 constexpr char EthosNConfig::PERF_CURRENT[];
+constexpr char EthosNConfig::CASCADING[];
 
 EthosNConfig GetEthosNConfig()
 {
@@ -56,6 +57,7 @@ std::ostream& operator<<(std::ostream& configFile, const armnn::EthosNConfig& co
     configFile << armnn::EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING << " = "
                << config.m_PerfActivationCompressionSaving << std::endl;
     configFile << armnn::EthosNConfig::PERF_CURRENT << " = " << config.m_PerfCurrent << std::endl;
+    configFile << armnn::EthosNConfig::CASCADING << " = " << config.m_EnableCascading << std::endl;
     configFile.flush();
 
     return configFile;
@@ -92,7 +94,12 @@ std::istream& operator>>(std::istream& configFile, armnn::EthosNConfig& config)
                     catch (std::invalid_argument&)
                     {
                         throw armnn::Exception("Invalid variant specified on line " + std::to_string(lineNo) + ": " +
-                                               line + "\nMust be one of: Ethos-N37, Ethos-N57, Ethos-N77");
+                                               line +
+                                               "\nMust be one of: Ethos-N37, Ethos-N57, Ethos-N77, "
+                                               "Ethos-N78_1TOPS_2PLE_RATIO, Ethos-N78_1TOPS_4PLE_RATIO, "
+                                               "Ethos-N78_2TOPS_2PLE_RATIO, Ethos-N78_2TOPS_4PLE_RATIO, "
+                                               "Ethos-N78_4TOPS_2PLE_RATIO, Ethos-N78_4TOPS_4PLE_RATIO, "
+                                               "Ethos-N78_8TOPS_2PLE_RATIO");
                     }
                 }
                 else if (m[1] == armnn::EthosNConfig::PERF_SRAM_SIZE_BYTES_OVERRIDE_VAR)
@@ -123,6 +130,10 @@ std::istream& operator>>(std::istream& configFile, armnn::EthosNConfig& config)
                 else if (m[1] == armnn::EthosNConfig::PERF_CURRENT)
                 {
                     config.m_PerfCurrent = boost::lexical_cast<bool>(m[2]);
+                }
+                else if (m[1] == armnn::EthosNConfig::CASCADING)
+                {
+                    config.m_EnableCascading = boost::lexical_cast<bool>(m[2]);
                 }
                 else
                 {

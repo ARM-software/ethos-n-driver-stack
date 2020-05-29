@@ -17,7 +17,10 @@ class EthosNBackendProfilingContext : public IBackendProfilingContext
 {
 public:
     EthosNBackendProfilingContext(IBackendInternal::IBackendProfilingPtr& backendProfiling)
-        : m_BackendProfiling(backendProfiling)
+        : m_ProfilingEnabled(backendProfiling->IsProfilingEnabled())
+        , m_GuidGenerator(backendProfiling->GetProfilingGuidGenerator())
+        , m_SendTimelinePacket(backendProfiling->GetSendTimelinePacket())
+        , m_BackendProfiling(backendProfiling)
         , m_CapturePeriod(0)
     {}
 
@@ -28,16 +31,27 @@ public:
     // 4. ReportCounterValues() called multiple times when inference is running as well as finished
     // 5. EnableProfiling(flag = false)
     // 6. goto step 2
-    uint16_t RegisterCounters(uint16_t currentMaxGlobalCounterID);
-    Optional<std::string> ActivateCounters(uint32_t capturePeriod, const std::vector<uint16_t>& counterIds);
-    std::vector<Timestamp> ReportCounterValues();
-    void EnableProfiling(bool flag);
+    uint16_t RegisterCounters(uint16_t currentMaxGlobalCounterID) override;
+    Optional<std::string> ActivateCounters(uint32_t capturePeriod, const std::vector<uint16_t>& counterIds) override;
+    std::vector<Timestamp> ReportCounterValues() override;
+    bool EnableProfiling(bool flag) override;
+    bool EnableTimelineReporting(bool flag) override;
+
+    bool IsProfilingEnabled() const;
+    IProfilingGuidGenerator& GetGuidGenerator() const;
+    ISendTimelinePacket* GetSendTimelinePacket() const;
+
+    std::map<uint64_t, ProfilingDynamicGuid>& GetIdToEntityGuids();
 
 private:
+    bool m_ProfilingEnabled;
+    IProfilingGuidGenerator& m_GuidGenerator;
+    std::unique_ptr<ISendTimelinePacket> m_SendTimelinePacket;
     IBackendInternal::IBackendProfilingPtr& m_BackendProfiling;
     uint32_t m_CapturePeriod;
-    ethosn::driver_library::profiling::Configuration m_config;
+    ethosn::driver_library::profiling::Configuration m_Config;
     std::vector<uint16_t> m_ActiveCounters;
+    std::map<uint64_t, ProfilingDynamicGuid> m_IdToEntityGuids;
 };
 
 }    // namespace profiling

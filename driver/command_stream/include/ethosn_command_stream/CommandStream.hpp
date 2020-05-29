@@ -24,6 +24,11 @@ public:
         : m_Head(head)
     {}
 
+    const CommandHeader& operator*() const
+    {
+        return *m_Head;
+    }
+
     const CommandHeader* operator->() const
     {
         return m_Head;
@@ -35,9 +40,14 @@ public:
         return *this;
     }
 
-    operator const CommandHeader*() const
+    bool operator==(const CommandStreamConstIterator& other) const
     {
-        return m_Head;
+        return m_Head == other.m_Head;
+    }
+
+    bool operator!=(const CommandStreamConstIterator& other) const
+    {
+        return !(*this == other);
     }
 
 private:

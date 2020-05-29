@@ -1142,11 +1142,11 @@ SupportedLevel IsPoolingSupported(const PoolingInfo& poolingInfo,
         if (poolingInfo.m_PoolingSizeX == 3)
         {
             // Maximum width is implementation dependent
-            constexpr uint32_t maxWidth = 449;
+            constexpr uint32_t maxWidth = 481;
 
             if (inputWidth > maxWidth)
             {
-                SetReason("Max pooling 3x3_2_2: maximum input width (449) exceeded", reason, reasonMaxLength);
+                SetReason("Max pooling 3x3_2_2: maximum input width (481) exceeded", reason, reasonMaxLength);
                 return SupportedLevel::EstimateOnly;
             }
 

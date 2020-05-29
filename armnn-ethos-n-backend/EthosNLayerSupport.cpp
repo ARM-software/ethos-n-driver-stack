@@ -144,11 +144,13 @@ bool IsLayerExcluded(const EthosNMappings& mappings, LayerType layerType, std::s
     auto IsExcluded = [&](EthosNMappings::const_reference mapping) -> bool {
         using MappedLayers = std::vector<SimpleLayer>;
 
-        auto HasExclusion = [&](MappedLayers::const_reference layer) -> bool { return (layer.m_Name == "Excluded"); };
+        auto HasExclusion = [&](MappedLayers::const_reference layer) -> bool {
+            return (layer.m_LayerTypeName == "Excluded");
+        };
 
         auto IsExcludedLayer = [&](MappedLayers::const_reference layer) -> bool {
-            bool functionIsExcluded = const_cast<SimpleLayer&>(layer).m_ExtraArgs["function"] == func;
-            return (layer.m_Name == type && functionIsExcluded);
+            bool functionIsExcluded = const_cast<SimpleLayer&>(layer).m_LayerParams["function"] == func;
+            return (layer.m_LayerTypeName == type && functionIsExcluded);
         };
 
         const auto& replacements = mapping.m_ReplacementLayers;
@@ -837,12 +839,27 @@ bool EthosNLayerSupport::IsComparisonSupported(const TensorInfo& input0,
     return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
 }
 
+bool EthosNLayerSupport::IsConvertBf16ToFp32Supported(const TensorInfo&,
+                                                      const TensorInfo&,
+                                                      Optional<std::string&>) const
+{
+    // The Support Library does not support floating point types, even in performance-only mode.
+    return false;
+}
+
+bool EthosNLayerSupport::IsConvertFp32ToBf16Supported(const TensorInfo&,
+                                                      const TensorInfo&,
+                                                      Optional<std::string&>) const
+{
+    // The Support Library does not support floating point types, even in performance-only mode.
+    return false;
+}
+
 bool EthosNLayerSupport::IsConvertFp16ToFp32Supported(const TensorInfo&,
                                                       const TensorInfo&,
                                                       Optional<std::string&>) const
 {
-    // The Ethos-N will never support any kind of floating point data types, so this needs to be handled by another
-    // backend, even if performance-only mode.
+    // The Support Library does not support floating point types, even in performance-only mode.
     return false;
 }
 
@@ -850,22 +867,19 @@ bool EthosNLayerSupport::IsConvertFp32ToFp16Supported(const TensorInfo&,
                                                       const TensorInfo&,
                                                       Optional<std::string&>) const
 {
-    // The Ethos-N will never support any kind of floating point data types, so this needs to be handled by another
-    // backend, even if performance-only mode.
+    // The Support Library does not support floating point types, even in performance-only mode.
     return false;
 }
 
 bool EthosNLayerSupport::IsDebugSupported(const TensorInfo&, const TensorInfo&, Optional<std::string&>) const
 {
-    // We do not currently support dumping tensors from the Ethos-N backend. This layer also has no use in a performance-
-    // only context.
+    // The Support Library does not support floating point types, even in performance-only mode.
     return false;
 }
 
 bool EthosNLayerSupport::IsDequantizeSupported(const TensorInfo&, const TensorInfo&, Optional<std::string&>) const
 {
-    // The Ethos-N will never support any kind of floating point data types, so this needs to be handled by another
-    // backend, even if performance-only mode.
+    // The Support Library does not support floating point types, even in performance-only mode.
     return false;
 }
 
@@ -1080,9 +1094,21 @@ bool EthosNLayerSupport::IsQuantizeSupported(const armnn::TensorInfo&,
                                              const armnn::TensorInfo&,
                                              armnn::Optional<std::string&>) const
 {
-    // The Ethos-N will never support any kind of floating point data types, so this needs to be handled by another
-    // backend, even if performance-only mode.
+    // The Support Library does not support floating point types, even in performance-only mode.
     return false;
+}
+
+bool EthosNLayerSupport::IsQLstmSupported(const TensorInfo& input,
+                                          const TensorInfo&,
+                                          const TensorInfo&,
+                                          const TensorInfo&,
+                                          const TensorInfo&,
+                                          const TensorInfo& output,
+                                          const QLstmDescriptor&,
+                                          const LstmInputParamsInfo&,
+                                          Optional<std::string&> reasonIfUnsupported) const
+{
+    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
 bool EthosNLayerSupport::IsQuantizedLstmSupported(const TensorInfo& input,
@@ -1212,6 +1238,14 @@ bool EthosNLayerSupport::IsSwitchSupported(const TensorInfo& input0,
                                            Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported({ input0, input1 }, { output0, output1 }, reasonIfUnsupported);
+}
+
+bool EthosNLayerSupport::IsTransposeSupported(const TensorInfo& input,
+                                              const TensorInfo& output,
+                                              const TransposeDescriptor&,
+                                              Optional<std::string&> reasonIfUnsupported) const
+{
+    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
 }    // namespace armnn

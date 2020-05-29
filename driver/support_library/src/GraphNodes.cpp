@@ -273,20 +273,7 @@ DotAttributes MceOperationNode::GetDotAttributes()
 {
     DotAttributes result    = Node::GetDotAttributes();
     std::string labelPrefix = "MceOperationNode\n";
-    switch (m_Operation)
-    {
-        case ethosn::command_stream::MceOperation::CONVOLUTION:
-            labelPrefix += "CONVOLUTION\n";
-            break;
-        case ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION:
-            labelPrefix += "DEPTHWISE_CONVOLUTION\n";
-            break;
-        case ethosn::command_stream::MceOperation::FULLY_CONNECTED:
-            labelPrefix += "FULLY_CONNECTED\n";
-            break;
-        default:
-            assert(false);
-    }
+    labelPrefix += ToString(m_Operation) + "\n";
     switch (m_Algorithm)
     {
         case CompilerMceAlgorithm::None:
@@ -395,7 +382,8 @@ bool FuseOnlyPleOperationNode::IsAgnosticToRequantisation() const
     using namespace command_stream;
     PleOperation op = GetKernelOperation();
     return op == PleOperation::MAXPOOL_2X2_2_2 || op == PleOperation::INTERLEAVE_2X2_2_2 ||
-           op == PleOperation::MAXPOOL_3X3_2_2 || op == PleOperation::MEAN_XY_8X8 || op == PleOperation::PASSTHROUGH;
+           op == PleOperation::MAXPOOL_3X3_2_2_EVEN || op == PleOperation::MAXPOOL_3X3_2_2_ODD ||
+           op == PleOperation::MEAN_XY_7X7 || op == PleOperation::MEAN_XY_8X8 || op == PleOperation::PASSTHROUGH;
 }
 
 bool FuseOnlyPleOperationNode::IsPrepared()
@@ -478,7 +466,9 @@ FormatConversionNode::FormatConversionNode(NodeId id,
 
 bool FormatConversionNode::IsPrepared()
 {
-    return m_Pass != nullptr;
+    return m_Pass != nullptr &&
+           (!GetInputCompressed(0) || (GetInputCompressedFormat(0) != CompilerDataFormat::FCAF_DEEP &&
+                                       GetInputCompressedFormat(0) != CompilerDataFormat::FCAF_WIDE));
 }
 
 DotAttributes FormatConversionNode::GetDotAttributes()
@@ -495,6 +485,14 @@ bool FormatConversionNode::FixGraph(Graph& graph, FixGraphSeverity severity)
     {
         // Try forcing our input into DRAM (e.g. If reshape is last layer and the preceding McePlePass gets left in SRAM)
         GetInput(0)->GetSource()->SetLocationHint(LocationHint::RequireDram);
+        changed = true;
+    }
+
+    // Conversion nodes does not support FCAF formats as input
+    if (GetInputCompressed(0) && (GetInputCompressedFormat(0) == CompilerDataFormat::FCAF_DEEP ||
+                                  GetInputCompressedFormat(0) == CompilerDataFormat::FCAF_WIDE))
+    {
+        GetInput(0)->GetSource()->SetCompressionHint(CompressionHint::RequiredUncompressed);
         changed = true;
     }
     return changed;

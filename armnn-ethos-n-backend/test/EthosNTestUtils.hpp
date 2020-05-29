@@ -14,6 +14,8 @@
 #include <fstream>
 #include <string>
 
+#define ARRAY_SIZE(X) (sizeof(X) / sizeof(X[0]))
+
 namespace testing_utils
 {
 
@@ -21,23 +23,23 @@ class TempDir
 {
 public:
     TempDir()
-        : m_Dirname(std::tmpnam(nullptr))
+        : m_Dir(boost::filesystem::unique_path())
     {
-        boost::filesystem::create_directories(m_Dirname);
+        boost::filesystem::create_directories(m_Dir);
     }
 
     ~TempDir()
     {
-        boost::filesystem::remove_all(m_Dirname);
+        boost::filesystem::remove_all(m_Dir);
     }
 
-    const std::string& Str() const
+    std::string Str() const
     {
-        return m_Dirname;
+        return m_Dir.string();
     }
 
 private:
-    std::string m_Dirname;
+    boost::filesystem::path m_Dir;
 };
 
 inline void SetEnv(const char* const name, const char* const value)

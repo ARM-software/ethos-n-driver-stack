@@ -464,6 +464,7 @@ void PlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, BufferMan
         CalculateRescaleMultiplierAndShift(inputQuantScale1 / outputQuantScale, pleCmd.m_InputRescaleMultiplier1(),
                                            pleCmd.m_InputRescaleShift1());
     }
+
     cmdStream.EmplaceBack(pleCmd);
 
     Pass::PostGenerate(cmdStream, dumpRam);
@@ -507,7 +508,9 @@ PassStats PlePass::GetStats(const EstimationOptions& estimationOptions)
         // Number of patches that need to be post processed by the Ple kernel
         patchesH = std::max(utils::DivRoundUp(inputShape[1], m_Capabilities.GetPatchShape()[1]), patchesH);
         patchesW = std::max(utils::DivRoundUp(inputShape[2], m_Capabilities.GetPatchShape()[2]), patchesW);
-        patchesC = std::max(utils::DivRoundUp(inputShape[3], m_Capabilities.GetNumberOfEngines()), patchesC);
+        patchesC = std::max(utils::DivRoundUp(inputShape[3], m_Capabilities.GetNumberOfEngines() *
+                                                                 m_Capabilities.GetNumberOfPleLanes()),
+                            patchesC);
     }
 
     perfData.m_Input = inputStats;

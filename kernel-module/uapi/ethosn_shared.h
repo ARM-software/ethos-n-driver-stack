@@ -16,7 +16,7 @@
  * along with this program; if not, you can access it online at
  * http://www.gnu.org/licenses/gpl-2.0.html.
  *
- * SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note
+ * SPDX-License-Identifier: GPL-2.0-only
  *
  */
 
@@ -32,8 +32,6 @@
 #else
 #include <stdint.h>
 #endif
-
-#define DRIVER_LIBRARY_EVENT_ID_BASE   (65536UL)
 
 /**
  * enum ethosn_profiling_entry_type - Equivalent to the Driver Library's

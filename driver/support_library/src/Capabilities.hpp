@@ -15,7 +15,7 @@
 #include <array>
 #include <cstddef>
 
-#define FW_AND_HW_CAPABILITIES_VERSION 1
+#define FW_AND_HW_CAPABILITIES_VERSION 2
 
 namespace ethosn
 {
@@ -73,6 +73,9 @@ struct FirmwareAndHardwareCapabilities
     uint32_t m_MacUnitsPerEngine;
     uint32_t m_AccumulatorsPerMacUnit;
     uint32_t m_TotalAccumulatorsPerEngine;
+    uint32_t m_NumPleLanes;
+    uint32_t m_WeightCompressionVersion;
+    uint32_t m_ActivationCompressionVersion;
 };
 
 // The FirmwareAndHardwareCapabilities struct is copied through the driver stack as a simple block of memory

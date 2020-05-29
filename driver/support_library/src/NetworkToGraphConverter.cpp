@@ -187,6 +187,9 @@ void NetworkToGraphConverter::Visit(Pooling& pooling)
     const uint32_t inputHeight = pooling.GetInput(0).GetTensorInfo().m_Dimensions[1];
     const uint32_t inputWidth  = pooling.GetInput(0).GetTensorInfo().m_Dimensions[2];
 
+    const bool isInputEven = (((inputWidth % 2U) == 0) && ((inputHeight % 2U) == 0));
+    const bool isInputOdd  = (((inputWidth % 2U) != 0) && ((inputHeight % 2U) != 0));
+
     const PoolingInfo& poolingInfo = pooling.GetPoolingInfo();
 
     const PoolingInfo poolingInfoIfMean = {
@@ -210,7 +213,11 @@ void NetworkToGraphConverter::Visit(Pooling& pooling)
         return;
     }
 
-    if (poolingInfo == poolingInfoIfMean)
+    if ((inputHeight == 7U) && (inputWidth == 7U) && (poolingInfo == poolingInfoIfMean))
+    {
+        n = createFuseOnlyPleNode(command_stream::PleOperation::MEAN_XY_7X7);
+    }
+    else if ((inputHeight == 8U) && (inputWidth == 8U) && (poolingInfo == poolingInfoIfMean))
     {
         n = createFuseOnlyPleNode(command_stream::PleOperation::MEAN_XY_8X8);
     }
@@ -222,9 +229,13 @@ void NetworkToGraphConverter::Visit(Pooling& pooling)
     {
         n = createFuseOnlyPleNode(command_stream::PleOperation::MAXPOOL_2X2_2_2);
     }
-    else if (poolingInfo == PoolingInfo{ 3, 3, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
+    else if (isInputEven && poolingInfo == PoolingInfo{ 3, 3, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
     {
-        n = createFuseOnlyPleNode(command_stream::PleOperation::MAXPOOL_3X3_2_2);
+        n = createFuseOnlyPleNode(command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN);
+    }
+    else if (isInputOdd && poolingInfo == PoolingInfo{ 3, 3, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
+    {
+        n = createFuseOnlyPleNode(command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD);
     }
     else
     {
@@ -778,6 +789,19 @@ void NetworkToGraphConverter::Visit(Input& input)
 
 void NetworkToGraphConverter::Visit(DepthToSpace& depthToSpace)
 {
+    const SupportedLevel supportedLevel =
+        IsDepthToSpaceSupported(depthToSpace.GetInput(0).GetTensorInfo(), depthToSpace.GetDepthToSpaceInfo());
+
+    if (supportedLevel == SupportedLevel::EstimateOnly)
+    {
+        const auto& outInfo = depthToSpace.GetOutput(0).GetTensorInfo();
+        Node* n = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outInfo.m_Dimensions, outInfo.m_QuantizationInfo,
+                                                             CompilerDataFormat::NHWCB,
+                                                             std::set<uint32_t>{ depthToSpace.GetId() });
+        ConnectNode(depthToSpace, n);
+        return;
+    }
+
     // We implement depth-to-space (block-size 2) with a transpose convolution (stride 2) with a 2x2 kernel,
     // where the weights are used to 'select' which elements of the input are placed into each element of the output.
     // By setting the stride and kernel size the same, the output is made by multiplying the kernel by each IFM (x, y)

@@ -34,6 +34,7 @@ BOOST_AUTO_TEST_CASE(ParseEthosNConfig)
         os << armnn::EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING << " = 0.5\n";
         os << armnn::EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING << " = 0.5\n";
         os << armnn::EthosNConfig::PERF_CURRENT << " = 0\n";
+        os << armnn::EthosNConfig::CASCADING << " = 0\n";
     }
     SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
 
@@ -46,6 +47,7 @@ BOOST_AUTO_TEST_CASE(ParseEthosNConfig)
     BOOST_CHECK(config.m_PerfActivationCompressionSaving == 0.5f);
     BOOST_CHECK(config.m_PerfWeightCompressionSaving == 0.5f);
     BOOST_CHECK(config.m_PerfCurrent == false);
+    BOOST_CHECK(config.m_EnableCascading == false);
 }
 
 // A test which estimates the performance of a supported (relu) operation
@@ -202,7 +204,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyWorkload)
 				"Ple":
 				{
 					"NumOfPatches": 16,
-					"Operation": 9
+					"Operation": 11
 				}
 			}
 		],
@@ -380,7 +382,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyExistingWorkload)
 				"Ple":
 				{
 					"NumOfPatches": 16,
-					"Operation": 9
+					"Operation": 11
 				}
 			}
 		],
@@ -420,9 +422,9 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
     os << "pattern:\n";
     os << "input firstInput, 1x_x_x_\n";
     os << "output firstOutput, 1x_x_x_\n";
-    os << "Activation, (firstInput), (firstOutput), (function=TanH)\n";
+    os << "Activation, (firstInput), (firstOutput), ((function=TanH))\n";
     os << "graph-replacement:\n";
-    os << "Activation, (firstInput), (firstOutput), (function=Sigmoid)";
+    os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
 
     os.flush();
 
@@ -504,8 +506,8 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
 	"OperationNames":
 	{
 		"0": "Input from input",
-		"1": "Sigmoid",
-		"2": "Output from Sigmoid"
+		"1": "SigmoidFunc",
+		"2": "Output from SigmoidFunc"
 	},
 	"Results":
 	{
@@ -550,7 +552,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
 				"Ple":
 				{
 					"NumOfPatches": 16,
-					"Operation": 10
+					"Operation": 12
 				}
 			}
 		],
@@ -572,12 +574,14 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
     armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
 
     using namespace testing_utils;
-    const std::string configFile  = std::tmpnam(nullptr);
-    const std::string mappingFile = std::tmpnam(nullptr);
+
+    const TempDir tmpDir;
+    const std::string configFile  = tmpDir.Str() + "/config.txt";
+    const std::string mappingFile = tmpDir.Str() + "/mapping.txt";
 
     armnn::EthosNConfig config{};
     config.m_PerfOnly        = true;
-    config.m_PerfOutDir      = std::tmpnam(nullptr);
+    config.m_PerfOutDir      = tmpDir.Str();
     config.m_PerfMappingFile = mappingFile;
     config.m_PerfCurrent     = true;
 
@@ -587,9 +591,9 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
     os << "pattern:\n";
     os << "input firstInput, 1x_x_x_\n";
     os << "output firstOutput, 1x_x_x_\n";
-    os << "StandIn, (firstInput), (firstOutput), (name=StandInTest)\n";
+    os << "StandIn, (firstInput), (firstOutput), ((name=StandInTest))\n";
     os << "graph-replacement:\n";
-    os << "Activation, (firstInput), (firstOutput), (function=Sigmoid)";
+    os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
 
     os.flush();
 
@@ -670,8 +674,8 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
 	"OperationNames":
 	{
 		"0": "Input from input",
-		"1": "Sigmoid",
-		"2": "Output from Sigmoid"
+		"1": "SigmoidFunc",
+		"2": "Output from SigmoidFunc"
 	},
 	"Results":
 	{
@@ -716,7 +720,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
 				"Ple":
 				{
 					"NumOfPatches": 16,
-					"Operation": 10
+					"Operation": 12
 				}
 			}
 		],
@@ -822,7 +826,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkload)
 				"Ple":
 				{
 					"NumOfPatches": 16,
-					"Operation": 9
+					"Operation": 11
 				}
 			}
 		],
@@ -1046,7 +1050,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkloadSplit)
 				"Ple":
 				{
 					"NumOfPatches": 16,
-					"Operation": 9
+					"Operation": 11
 				}
 			}
 		],
@@ -1115,7 +1119,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkloadSplit)
 				"Ple":
 				{
 					"NumOfPatches": 16,
-					"Operation": 9
+					"Operation": 11
 				}
 			}
 		],

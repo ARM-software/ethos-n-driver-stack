@@ -3,12 +3,14 @@
 
 ## About the Arm Ethos-N Processors (NPU)
 
-The Arm® Ethos-N NPU improves the inference performance of neural networks. The NPU targets 8-bit integer quantized Convolutional Neural Networks (CNN). However, the NPU also improves the performance of 16-bit integer CNNs and Recurrent Neural Networks (RNN). Please note that 16-bit integer and RNN support are not part of this driver stack release.
+The Arm® Ethos-N NPUs improve the inference performance of neural networks. The NPUs target 8-bit integer quantized Convolutional Neural Networks (CNN). However, the NPUs also improve the performance of 16-bit integer CNNs and Recurrent Neural Networks (RNN). Please note that 16-bit integer and RNN support are not part of this driver stack release.
 
 For more information, please refer to:
 <https://www.arm.com/solutions/artificial-intelligence>
 
 ## About the Ethos-N driver stack
+
+The Ethos-N driver stack targets the Ethos-N37, Ethos-N57, Ethos-N77 and Ethos-N78 set of NPUs.
 
 The Ethos-N driver stack consists of several components.
 
@@ -63,9 +65,10 @@ sudo apt install git \
 
 ## Install the Linux source tree
 
-The Ethos-N driver stack source code depends on the Linux source tree to build the kernel module. You must configure the kernel to build the kernel module. Arm has tested version `4.9` of the Linux source tree.
+The Ethos-N driver stack source code depends on the Linux source tree to build the kernel module. You must configure the kernel to build the kernel module.
+Arm has tested version `4.9` of the Linux source tree in non-SMMU configurations and version '4.14' in SMMU configurations.
 
-1. Download version `4.9` or later of the Linux source tree from www.kernel.org.
+1. Download version `4.9` or `4.14` of the Linux source tree from [www.kernel.org](http://www.kernel.org).
 2. How you compile the driver affects how you configure the Linux kernel source tree:
 
     * If you compile the driver natively, enter the following commands to configure the Linux kernel source tree:
@@ -83,20 +86,6 @@ The Ethos-N driver stack source code depends on the Linux source tree to build t
         ```
 
     _Note that `<path_to_kernel>` is the directory where the Linux kernel tree is stored._
-
-    It is recommended to strip unnecessary symbols from the driver.
-
-    * If you compile the driver natively:
-
-        ```sh
-        strip --strip-unneeded ethosn.ko
-        ```
-
-    * If you cross compile the driver:
-
-        ```sh
-        aarch64-linux-gnu-strip --strip-unneeded ethosn.ko
-        ```
 
 ## Building the Ethos-N driver stack
 
@@ -118,6 +107,7 @@ git clone https://github.com/Arm-software/ethos-n-driver-stack ethosn-driver
 ## Configure SMMU support
 
 Arm recommends that you configure the Linux kernel with Input/Output Memory Management Unit (IOMMU) support for use as one of the dependencies of the kernel driver.
+Arm has only tested version `4.14` of the Linux kernel with IOMMU support.
 
 Add the following flag to your Linux configuration to include all the dependencies the kernel module needs:
 
@@ -152,6 +142,21 @@ You must follow specific steps to build the Ethos-N driver. You must build the E
         ```
 
     _Note that `<path_to_kernel>` is the directory where the Linux kernel tree is stored._
+
+    It is recommended to strip unnecessary symbols from the driver.
+
+    * If you compile the driver natively:
+
+        ```sh
+        strip --strip-unneeded ethosn.ko
+        ```
+
+    * If you cross compile the driver:
+
+        ```sh
+        aarch64-linux-gnu-strip --strip-unneeded ethosn.ko
+        ```
+
 
 3. Copy the kernel module `ethosn.ko` to the system that runs the Ethos-N driver.
 
@@ -219,13 +224,13 @@ You must follow specific steps to build the Ethos-N driver. You must build the E
 
     As part of the Arm NN build, the process automatically builds the Ethos-N driver plug-in for Arm NN.
 
-    _Arm uses TensorFlow Lite as an example. You can also build Arm NN for [TensorFlow](https://developer.arm.com/technologies/machine-learning-on-arm/developer-material/how-to-guides/configuring-the-arm-nn-sdk-build-environment-for-tensorflow), [Caffe](https://developer.arm.com/technologies/machine-learning-on-arm/developer-material/how-to-guides/configuring-the-arm-nn-sdk-build-environment-for-caffe) or [ONNX](https://developer.arm.com/technologies/machine-learning-on-arm/developer-material/how-to-guides/configuring-the-arm-nn-sdk-build-environment-for-onnx)._
+    _Arm uses TensorFlow Lite as an example. You can also build Arm NN for [TensorFlow](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configuring-the-arm-nn-sdk-build-environment-for-tensorflow), [Caffe](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment-for-caffe) or [ONNX](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configuring-the-arm-nn-sdk-build-environment-for-onnx)._
 
 9. If you require Android NNAPI support, see [the instructions](https://github.com/Arm-software/android-nn-driver#armnn-android-neural-networks-driver) for how to build the Arm NN Android NNAPI driver.
 
 ## Running the Ethos-N driver
 
-There are mutliple ways to exercise the Ethos-N driver.
+There are multiple ways to exercise the Ethos-N driver.
 
 1. Running the Arm NN Ethos-N backend unit tests. You need to have built Arm NN and the Ethos-N driver.
 
@@ -234,6 +239,12 @@ There are mutliple ways to exercise the Ethos-N driver.
     * `UnitTests` built from Arm NN
     * `libEthosNSupport.so` built from the Ethos-N driver inside `<install_directory>/lib/`
     * `libEthosNDriver.so` built from the Ethos-N driver inside `<install_directory>/lib/`
+
+    Some tests require data files as input. These can be found in the folders `<path_to>/driver_stack/ethosn-driver/armnn-ethos-n-backend/test/replacement-tests`
+    and `<path_to>/driver_stack/ethosn-driver/armnn-ethos-n-backend/test/mapping-tests`. These two folders (and their contents) must be available to the `UnitTests`
+    executable, under the paths `armnn-ethos-n-backend/test/replacement-tests` and `armnn-ethos-n-backend/test/mapping-tests`, respectively,
+    relative to the current directory that you run `UnitTests` from.
+    If you have cross compiled you will therefore need to copy these folders onto the target platform.
 
     Set `LD_LIBRARY_PATH` so the supplied libraries can be found and run the **UnitTests for the Ethos-N**.
 
@@ -290,24 +301,11 @@ The following features and feature combinations have known limitations in this A
 
 * This release has only been tested with specific networks
 
-  * **Arm Ethos-N77:**
     * VGG16
     * MobileNet v1-1-224
     * SSD MobileNet v1
     * InceptionV3
     * InceptionV4
-    * FSRCNN
-  * **Arm Ethos-N57:**
-    * VGG16
-    * MobileNet v1-1-224
-    * SSD MobileNet v1
-    * InceptionV3
-    * FSRCNN
-  * **Arm Ethos-N37:**
-    * VGG16
-    * MobileNet v1-1-224
-    * SSD MobileNet v1
-    * InceptionV3
     * FSRCNN
 
     _Running other networks may result in parts of the network being run by the Arm NN CPU reference backend._
@@ -376,4 +374,4 @@ This enables machine processing of license information based on the SPDX License
 
 The Ethos-N firmware binary is released under an [EULA](firmware/LES-PRE-21755.pdf).
 
-The Ethos-N firmware binary was compiled against the CMSIS library, which is released under the [Apache 2.0 license](firmware/tpip-licenses/apache-2.0.txt). See [apache-2.0.txt](firmware/tpip-licenses/apache-2.0.txt) for more information.
+The Ethos-N firmware binary was compiled against the CMSIS library, which is released under the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license. See [apache-2.0.txt](firmware/tpip-licenses/apache-2.0.txt) for more information.

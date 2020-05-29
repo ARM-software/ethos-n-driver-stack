@@ -29,7 +29,7 @@ void Section::Generate(command_stream::CommandStreamBuffer& cmdStream)
 
 DotAttributes Section::GetDotAttributes()
 {
-    DotAttributes result = { "Section " + m_Id, "blue" };
+    DotAttributes result(m_Id, "Section " + m_Id, "blue");
 
     switch (m_SectionType)
     {

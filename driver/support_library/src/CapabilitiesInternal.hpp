@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "../include/ethosn_support_library/Support.hpp"
 #include "Capabilities.hpp"
 
 namespace ethosn
@@ -12,6 +13,7 @@ namespace ethosn
 namespace support_library
 {
 
+FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant variant, uint32_t sramSize);
 FirmwareAndHardwareCapabilities GetEthosN77FwHwCapabilities();
 FirmwareAndHardwareCapabilities GetEthosN57FwHwCapabilities();
 FirmwareAndHardwareCapabilities GetEthosN37FwHwCapabilities();

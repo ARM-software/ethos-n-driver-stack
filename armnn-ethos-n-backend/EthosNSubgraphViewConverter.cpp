@@ -615,7 +615,7 @@ std::vector<CompiledBlobPtr>
     ethosnEstimationOpts.m_Current                      = m_EthosNConfig.m_PerfCurrent;
     EthosNPreCompiledObject::PerfData perfData;
 
-    perfData.m_PerfOutFile               = ethosnCompilationOpts.m_DebugDir + "/report.json";
+    perfData.m_PerfOutFile               = ethosnCompilationOpts.m_DebugInfo.m_DebugDir + "/report.json";
     perfData.m_PerfVariant               = m_EthosNConfig.m_PerfVariant;
     perfData.m_PerfSramSizeBytesOverride = m_EthosNConfig.m_PerfSramSizeBytesOverride;
     perfData.m_EstimationOptions         = ethosnEstimationOpts;
@@ -642,13 +642,15 @@ std::vector<CompiledBlobPtr> EthosNSubgraphViewConverter::CompileNetwork()
                                  : ethosn::driver_library::GetFirmwareAndHardwareCapabilities();
 
     ethosn_lib::CompilationOptions ethosnCompilationOpts(caps);
-    ethosnCompilationOpts.m_DumpDebugFiles = m_EthosNConfig.m_DumpDebugFiles;
-    ethosnCompilationOpts.m_DebugDir       = m_EthosNConfig.m_PerfOutDir + "/subgraph_" + std::to_string(m_InstanceId);
+    ethosnCompilationOpts.m_DebugInfo.m_DumpDebugFiles = m_EthosNConfig.m_DumpDebugFiles;
+    ethosnCompilationOpts.m_DebugInfo.m_DebugDir =
+        m_EthosNConfig.m_PerfOutDir + "/subgraph_" + std::to_string(m_InstanceId);
     // Disable RAM dump that is enabled by default by the Ethos-N support library
     // and litters the execution folder with sizable HEX files
-    ethosnCompilationOpts.m_DumpRam = false;
+    ethosnCompilationOpts.m_DebugInfo.m_DumpRam = false;
+    ethosnCompilationOpts.m_EnableCascading     = m_EthosNConfig.m_EnableCascading;
 
-    boost::filesystem::create_directories(ethosnCompilationOpts.m_DebugDir);
+    boost::filesystem::create_directories(ethosnCompilationOpts.m_DebugInfo.m_DebugDir);
 
     // Compile the network into a list of generic type-agnostic "blobs"
     std::vector<CompiledBlobPtr> compiledBlobs;

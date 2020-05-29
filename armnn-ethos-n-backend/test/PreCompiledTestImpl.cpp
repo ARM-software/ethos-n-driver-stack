@@ -513,7 +513,7 @@ LayerTestResult<uint8_t, 4> PreCompiledMaxPooling2dTestImpl(armnn::IWorkloadFact
     {
         for (unsigned int j = 0; j < 16; ++j)
         {
-            weightsData[(i * 16) + j] = i == j ? 1.0f : 0.0f;
+            weightsData[(i * 16) + j] = i == j ? 1 : 0;
         }
     }
     ConstTensor weights(weightsInfo, weightsData);

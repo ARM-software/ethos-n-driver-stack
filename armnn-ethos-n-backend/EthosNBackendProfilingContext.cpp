@@ -71,19 +71,47 @@ std::vector<Timestamp> EthosNBackendProfilingContext::ReportCounterValues()
     return { Timestamp{ timestamp, counterValues } };
 }
 
-void EthosNBackendProfilingContext::EnableProfiling(bool flag)
+bool EthosNBackendProfilingContext::EnableProfiling(bool flag)
 {
-    bool ret;
-
-    m_config.m_EnableProfiling = flag;
-
-    ret = ethosn::driver_library::profiling::Configure(m_config);
-
-    // FIXME :- Remove this when IBackendProfilingContext::EnableProfiling returns bool
-    if (!ret)
+    // Create a temporary config so if Configure fails we don't update the actual config
+    auto config              = m_Config;
+    config.m_EnableProfiling = flag;
+    bool configured          = ethosn::driver_library::profiling::Configure(config);
+    if (!configured)
     {
-        BOOST_ASSERT_MSG(false, "Could not enable profiling");
+        return false;
     }
+    m_Config           = config;
+    m_ProfilingEnabled = flag;
+    return true;
+}
+
+// Currently armnn doesn't use this api. So we are setting up the timeline events just before we send them
+// See EthosNPreCompiledWorkload.cpp Execute() for more details.
+// IVGCVSW-4708 needed before we can use this.
+bool EthosNBackendProfilingContext::EnableTimelineReporting(bool)
+{
+    return true;
+}
+
+bool EthosNBackendProfilingContext::IsProfilingEnabled() const
+{
+    return m_ProfilingEnabled;
+}
+
+IProfilingGuidGenerator& EthosNBackendProfilingContext::GetGuidGenerator() const
+{
+    return m_GuidGenerator;
+}
+
+ISendTimelinePacket* EthosNBackendProfilingContext::GetSendTimelinePacket() const
+{
+    return m_SendTimelinePacket.get();
+}
+
+std::map<uint64_t, ProfilingDynamicGuid>& EthosNBackendProfilingContext::GetIdToEntityGuids()
+{
+    return m_IdToEntityGuids;
 }
 
 }    // namespace profiling

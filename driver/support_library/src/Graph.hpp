@@ -7,6 +7,7 @@
 
 #include "BufferManager.hpp"
 #include "Network.hpp"
+#include "cascading/Visualisation.hpp"
 
 #include <memory>
 #include <vector>
@@ -33,7 +34,10 @@ enum class CompilerDataFormat
     NHWC,
     NCHW,
     NHWCB,
-    WEIGHT
+    WEIGHT,
+    NHWCB_COMPRESSED,
+    FCAF_DEEP,
+    FCAF_WIDE,
 };
 
 inline CompilerDataFormat ConvertExternalToCompilerDataFormat(DataFormat dataFormat)
@@ -70,12 +74,6 @@ enum class CompressionHint
 {
     PreferCompressed,
     RequiredUncompressed,
-};
-
-struct DotAttributes
-{
-    std::string m_Label;
-    std::string m_Color;
 };
 
 enum class FixGraphSeverity
@@ -115,12 +113,14 @@ public:
     TensorShape GetShape() const;
     QuantizationInfo GetQuantizationInfo() const;
     CompilerDataFormat GetFormat() const;
+    void SetFormat(CompilerDataFormat format);
 
     TensorShape GetInputShape(uint32_t inputIdx) const;
     QuantizationInfo GetInputQuantizationInfo(uint32_t inputIdx) const;
     CompilerDataFormat GetInputFormat(uint32_t inputIdx) const;
     command_stream::DataFormat GetInputBufferFormat(uint32_t inputIdx) const;
     bool GetInputCompressed(uint32_t inputIdx) const;
+    CompilerDataFormat GetInputCompressedFormat(uint32_t inputIdx) const;
     /// @}
 
     /// Preparation hints
@@ -156,7 +156,7 @@ public:
     void SetLocation(BufferLocation l);
 
     bool GetCompressed() const;
-    void SetCompressed(bool b);
+    CompilerDataFormat GetCompressedFormat() const;
 
     BufferLocation GetInputLocation(uint32_t inputIdx) const;
 
@@ -235,7 +235,6 @@ protected:
     bool m_PreparationAttempted;
     Pass* m_Pass;
     BufferLocation m_Location;
-    bool m_Compressed;
     //If this node's output will remain in SRAM then this is the offset at which it will be kept.
     //This is used by later nodes to determine where their inputs can be found.
     //At the generation stage this data will be placed into the BufferManager.
@@ -277,6 +276,8 @@ public:
     const std::vector<std::unique_ptr<Node>>& GetNodes() const;
     std::vector<Node*> GetNodesSorted() const;
 
+    const std::vector<std::unique_ptr<Edge>>& GetEdges() const;
+
     /// Constructs a new node of type TNode and adds it to this graph. The new node will initially have no connections.
     /// The arguments are forwarded to the node's constructor.
     template <typename TNode, typename... Args>
@@ -303,7 +304,7 @@ public:
     /// changed to come from 'position' instead.
     void InsertNodeAfter(Node* position, Node* newNode);
 
-    void DumpToDotFormat(std::ostream& stream);
+    void DumpToDotFormat(std::ostream& stream) const;
 
 private:
     void AddNode(std::unique_ptr<Node> node);

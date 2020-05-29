@@ -713,8 +713,10 @@ BOOST_AUTO_TEST_CASE(EstimateOnly5dFail)
     using namespace armnn;
     using namespace testing_utils;
 
-    const std::string configFile = std::tmpnam(nullptr);
-    const EthosNConfig config    = { true, ethosn_lib::EthosNVariant::ETHOS_N77, 0, std::tmpnam(nullptr) };
+    const TempDir tmpDir;
+
+    const std::string configFile = tmpDir.Str() + "/config.txt";
+    const EthosNConfig config    = { true, ethosn_lib::EthosNVariant::ETHOS_N77, 0, tmpDir.Str() };
 
     CreateConfigFile(configFile, config);
 

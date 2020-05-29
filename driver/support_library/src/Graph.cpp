@@ -34,7 +34,6 @@ Node::Node(NodeId id,
     , m_FixGraphCompressionHint(CompressionHint::PreferCompressed)
     , m_Pass(nullptr)
     , m_Location(BufferLocation::None)
-    , m_Compressed(false)
     , m_BufferId(0xFFFFFFFF)
     , m_CorrespondingOperationIds(correspondingOperationIds)
 {
@@ -92,6 +91,11 @@ CompilerDataFormat Node::GetInputFormat(uint32_t inputIdx) const
     return m_Inputs[inputIdx]->GetSource()->GetFormat();
 }
 
+CompilerDataFormat Node::GetInputCompressedFormat(uint32_t inputIdx) const
+{
+    return m_Inputs[inputIdx]->GetSource()->GetCompressedFormat();
+}
+
 BufferLocation Node::GetInputLocation(uint32_t inputIdx) const
 {
     return m_Inputs[inputIdx]->GetSource()->GetLocation();
@@ -107,9 +111,15 @@ command_stream::DataFormat Node::GetBufferFormat() const
     switch (m_Format)
     {
         case CompilerDataFormat::NHWCB:
-            return m_Compressed ? command_stream::DataFormat::NHWCB_COMPRESSED : command_stream::DataFormat::NHWCB;
+            return command_stream::DataFormat::NHWCB;
         case CompilerDataFormat::NHWC:
             return command_stream::DataFormat::NHWC;
+        case CompilerDataFormat::NHWCB_COMPRESSED:
+            return command_stream::DataFormat::NHWCB_COMPRESSED;
+        case CompilerDataFormat::FCAF_DEEP:
+            return command_stream::DataFormat::FCAF_DEEP;
+        case CompilerDataFormat::FCAF_WIDE:
+            return command_stream::DataFormat::FCAF_WIDE;
         default:
             assert(!"Unknown buffer format");
             return command_stream::DataFormat::WEIGHT_STREAM;    // Return something unusual to help indicate an error
@@ -148,7 +158,20 @@ ethosn::support_library::QuantizationInfo Node::GetQuantizationInfo() const
 
 ethosn::support_library::CompilerDataFormat Node::GetFormat() const
 {
+    if (m_Format == CompilerDataFormat::NHWCB_COMPRESSED || m_Format == CompilerDataFormat::FCAF_DEEP ||
+        m_Format == CompilerDataFormat::FCAF_WIDE)
+    {
+        return CompilerDataFormat::NHWCB;
+    }
     return m_Format;
+}
+void Node::SetFormat(CompilerDataFormat format)
+{
+    assert(m_Format == CompilerDataFormat::NHWC || m_Format == CompilerDataFormat::NHWCB ||
+           m_Format == CompilerDataFormat::NHWCB_COMPRESSED || m_Format == CompilerDataFormat::FCAF_DEEP ||
+           m_Format == CompilerDataFormat::FCAF_WIDE);
+
+    m_Format = format;
 }
 
 ethosn::support_library::BufferLocation Node::GetLocation() const
@@ -163,12 +186,13 @@ void Node::SetLocation(BufferLocation l)
 
 bool Node::GetCompressed() const
 {
-    return m_Compressed;
+    return (m_Format == CompilerDataFormat::NHWCB_COMPRESSED || m_Format == CompilerDataFormat::FCAF_DEEP ||
+            m_Format == CompilerDataFormat::FCAF_WIDE);
 }
 
-void Node::SetCompressed(bool b)
+CompilerDataFormat Node::GetCompressedFormat() const
 {
-    m_Compressed = b;
+    return m_Format;
 }
 
 ethosn::support_library::Pass* Node::GetPass() const
@@ -285,9 +309,8 @@ void Node::Estimate(NetworkPerformanceData& perfData, const EstimationOptions& e
 std::string Node::DumpToDotFormat(std::ostream& stream)
 {
     DotAttributes attr = GetDotAttributes();
-    std::string nodeId = std::to_string(GetId());
     std::string label  = utils::ReplaceAll(attr.m_Label, "\n", "\\n");
-    stream << nodeId << "[";
+    stream << attr.m_Id << "[";
     stream << "label = \"" << label << "\""
            << "\n";
     if (attr.m_Color.size() > 0)
@@ -295,7 +318,7 @@ std::string Node::DumpToDotFormat(std::ostream& stream)
         stream << ", color = " << attr.m_Color;
     }
     stream << "]\n";
-    return nodeId;
+    return attr.m_Id;
 }
 
 void Node::Reset()
@@ -304,7 +327,6 @@ void Node::Reset()
     m_Pass                 = nullptr;
     m_Location             = BufferLocation::None;
     m_BufferId             = 0xFFFFFFFF;
-    m_Compressed           = false;
     m_SramOffset           = 0;
 }
 
@@ -389,24 +411,8 @@ DotAttributes Node::GetDotAttributes()
     }
     result << "\n";
 
-    result << "[" << m_Shape[0] << ", " << m_Shape[1] << ", " << m_Shape[2] << ", " << m_Shape[3] << "] ";
-    switch (m_Format)
-    {
-        case CompilerDataFormat::NONE:
-            result << "Format = NONE\n";
-            break;
-        case CompilerDataFormat::NHWC:
-            result << "NHWC\n";
-            break;
-        case CompilerDataFormat::NHWCB:
-            result << "NHWCB\n";
-            break;
-        case CompilerDataFormat::WEIGHT:
-            result << "WEIGHT\n";
-            break;
-        default:
-            assert(!"Unknown format");
-    }
+    result << ToString(m_Shape) << " ";
+    result << "Format = " << ToString(m_Format) << "\n";
     switch (m_OptimizationHint)
     {
         case OptimizationHint::DoNotMerge:
@@ -451,7 +457,6 @@ DotAttributes Node::GetDotAttributes()
         default:
             assert(!"Unknown compression hint");
     }
-    result << "Compressed = " << m_Compressed << "\n";
     result << "Optimization Hint:";
     switch (m_OptimizationHint)
     {
@@ -465,7 +470,7 @@ DotAttributes Node::GetDotAttributes()
             assert(!"Unknown optimization hint");
     }
     std::string color = IsPrepared() ? "green" : "red";
-    return { result.str(), color };
+    return DotAttributes(std::to_string(GetId()), result.str(), color);
 }
 
 const ethosn::support_library::Edge* Node::GetInput(uint32_t idx) const
@@ -509,6 +514,7 @@ const ethosn::support_library::Node* Edge::GetDestination() const
 }
 
 Graph::Graph(const Network& network, const HardwareCapabilities& capabilities)
+    : Graph()
 {
     NetworkToGraphConverter converter(*this, capabilities, network.IsEstimationMode());
     network.Accept(converter);
@@ -540,6 +546,11 @@ std::vector<Node*> Graph::GetNodesSorted() const
         },
         sorted);
     return sorted;
+}
+
+const std::vector<std::unique_ptr<Edge>>& Graph::GetEdges() const
+{
+    return m_Edges;
 }
 
 void Graph::AddNode(std::unique_ptr<Node> node)
@@ -673,7 +684,7 @@ NodeId Graph::GenerateNodeId()
     return m_NextNodeId++;
 }
 
-void Graph::DumpToDotFormat(std::ostream& stream)
+void Graph::DumpToDotFormat(std::ostream& stream) const
 {
     stream << "digraph SupportLibraryGraph"
            << "\n";
@@ -700,7 +711,7 @@ void Graph::DumpToDotFormat(std::ostream& stream)
         if (section.first != nullptr)
         {
             DotAttributes attr = section.first->GetDotAttributes();
-            stream << "subgraph clusterSection" << section.first->GetId() << "\n";
+            stream << "subgraph clusterSection" << attr.m_Id << "\n";
             stream << "{"
                    << "\n";
             stream << "label=\"" << utils::ReplaceAll(attr.m_Label, "\n", "\\n") << "\""
@@ -715,7 +726,7 @@ void Graph::DumpToDotFormat(std::ostream& stream)
             if (p != nullptr)
             {
                 DotAttributes attr = p->GetDotAttributes();
-                stream << "subgraph clusterPass" << p->GetId() << "\n";
+                stream << "subgraph clusterPass" << attr.m_Id << "\n";
                 stream << "{"
                        << "\n";
                 stream << "label=\"" << utils::ReplaceAll(attr.m_Label, "\n", "\\n") << "\""

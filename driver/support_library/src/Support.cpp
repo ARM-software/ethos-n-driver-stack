@@ -356,15 +356,36 @@ const Version GetLibraryVersion()
 
 std::vector<char> GetPerformanceEstimatorFwAndHwCapabilities(EthosNVariant variant, uint32_t sramSizeBytes)
 {
-    FirmwareAndHardwareCapabilities capabilities = GetEthosN77FwHwCapabilities();
-
-    if (variant == EthosNVariant::ETHOS_N57)
+    FirmwareAndHardwareCapabilities capabilities;
+    switch (variant)
     {
-        capabilities = GetEthosN57FwHwCapabilities();
-    }
-    else if (variant == EthosNVariant::ETHOS_N37)
-    {
-        capabilities = GetEthosN37FwHwCapabilities();
+        case EthosNVariant::ETHOS_N77:
+            capabilities = GetEthosN77FwHwCapabilities();
+            break;
+        case EthosNVariant::ETHOS_N57:
+            capabilities = GetEthosN57FwHwCapabilities();
+            break;
+        case EthosNVariant::ETHOS_N37:
+            capabilities = GetEthosN37FwHwCapabilities();
+            break;
+        case EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO:
+            // Fallthrough
+        case EthosNVariant::ETHOS_N78_1TOPS_4PLE_RATIO:
+            // Fallthrough
+        case EthosNVariant::ETHOS_N78_2TOPS_2PLE_RATIO:
+            // Fallthrough
+        case EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO:
+            // Fallthrough
+        case EthosNVariant::ETHOS_N78_4TOPS_2PLE_RATIO:
+            // Fallthrough
+        case EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO:
+            // Fallthrough
+        case EthosNVariant::ETHOS_N78_8TOPS_2PLE_RATIO:
+            capabilities = GetEthosN78FwHwCapabilities(variant, sramSizeBytes);
+            break;
+        default:
+            throw NotSupportedException("Unsupported Npu Variant");
+            break;
     }
 
     if (sramSizeBytes > 0)
@@ -543,6 +564,12 @@ std::vector<std::unique_ptr<CompiledNetwork>> Compile(const Network& network, co
     {
         throw VersionMismatchException("m_FwAndHwCapabilities is not valid");
     }
+    // Cascading not supported while compilation
+    if (options.m_EnableCascading == true)
+    {
+        throw NotSupportedException("Cascading only supported for performance estimation");
+    }
+
     EstimationOptions estimationOptions;
     Compiler compiler(network, caps, options, estimationOptions);
 
@@ -567,6 +594,14 @@ NetworkPerformanceData EstimatePerformance(const Network& network,
     if (!ValidateCapabilities(compilationOptions, caps))
     {
         throw VersionMismatchException("m_FwAndHwCapabilities is not valid");
+    }
+
+    // Untill full implementation of cascading in support library,
+    // available  only as future optimistic estimate. i.e m_Current = false.
+    if (compilationOptions.m_EnableCascading == true && estimationOptions.m_Current == true)
+    {
+        throw NotSupportedException(
+            "Current performance and cascading modes are mutually exclusive. Please disable one or the other.");
     }
 
     Compiler compiler(network, caps, compilationOptions, estimationOptions);
@@ -612,6 +647,20 @@ const char* EthosNVariantAsString(EthosNVariant npuType)
             return "Ethos-N57";
         case EthosNVariant::ETHOS_N37:
             return "Ethos-N37";
+        case EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO:
+            return "Ethos-N78_1TOPS_2PLE_RATIO";
+        case EthosNVariant::ETHOS_N78_1TOPS_4PLE_RATIO:
+            return "Ethos-N78_1TOPS_4PLE_RATIO";
+        case EthosNVariant::ETHOS_N78_2TOPS_2PLE_RATIO:
+            return "Ethos-N78_2TOPS_2PLE_RATIO";
+        case EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO:
+            return "Ethos-N78_2TOPS_4PLE_RATIO";
+        case EthosNVariant::ETHOS_N78_4TOPS_2PLE_RATIO:
+            return "Ethos-N78_4TOPS_2PLE_RATIO";
+        case EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO:
+            return "Ethos-N78_4TOPS_4PLE_RATIO";
+        case EthosNVariant::ETHOS_N78_8TOPS_2PLE_RATIO:
+            return "Ethos-N78_8TOPS_2PLE_RATIO";
         default:
             return "Unknown NPU type";
     }
@@ -630,6 +679,34 @@ EthosNVariant EthosNVariantFromString(const char* npuType)
     else if (!std::strcmp(npuType, EthosNVariantAsString(EthosNVariant::ETHOS_N37)))
     {
         return EthosNVariant::ETHOS_N37;
+    }
+    else if (!std::strcmp(npuType, EthosNVariantAsString(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO)))
+    {
+        return EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO;
+    }
+    else if (!std::strcmp(npuType, EthosNVariantAsString(EthosNVariant::ETHOS_N78_1TOPS_4PLE_RATIO)))
+    {
+        return EthosNVariant::ETHOS_N78_1TOPS_4PLE_RATIO;
+    }
+    else if (!std::strcmp(npuType, EthosNVariantAsString(EthosNVariant::ETHOS_N78_2TOPS_2PLE_RATIO)))
+    {
+        return EthosNVariant::ETHOS_N78_2TOPS_2PLE_RATIO;
+    }
+    else if (!std::strcmp(npuType, EthosNVariantAsString(EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO)))
+    {
+        return EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO;
+    }
+    else if (!std::strcmp(npuType, EthosNVariantAsString(EthosNVariant::ETHOS_N78_4TOPS_2PLE_RATIO)))
+    {
+        return EthosNVariant::ETHOS_N78_4TOPS_2PLE_RATIO;
+    }
+    else if (!std::strcmp(npuType, EthosNVariantAsString(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO)))
+    {
+        return EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
+    }
+    else if (!std::strcmp(npuType, EthosNVariantAsString(EthosNVariant::ETHOS_N78_8TOPS_2PLE_RATIO)))
+    {
+        return EthosNVariant::ETHOS_N78_8TOPS_2PLE_RATIO;
     }
     else
     {

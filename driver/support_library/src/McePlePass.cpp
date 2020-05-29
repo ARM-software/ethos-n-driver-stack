@@ -6,6 +6,7 @@
 #include "McePlePass.hpp"
 
 #include "Compiler.hpp"
+#include "StrategyX.hpp"
 #include "Utils.hpp"
 
 #include <algorithm>
@@ -85,6 +86,105 @@ std::vector<uint8_t> GenerateCompressibleData(size_t numElements, float spaceSav
     auto QuantizeIfZero = [zeroPoint](uint8_t a, uint8_t b) { return a == 0 ? static_cast<uint8_t>(zeroPoint) : b; };
     std::transform(zeroData.begin(), zeroData.end(), dummyWeightData.begin(), dummyWeightData.begin(), QuantizeIfZero);
     return dummyWeightData;
+}
+
+bool IsCompressionFormatCompatible(CompilerDataFormat compressionFormat,
+                                   const TensorShape& nodeShape,
+                                   const TensorShape& stripeShape,
+                                   Strategy strategy,
+                                   bool forwardEst)
+{
+    // FCAF is not supported for strategy 7 and FC
+    bool fcafCompStrategy = (strategy != Strategy::STRATEGY_7 && strategy != Strategy::STRATEGY_FC);
+
+    // If SPA "forward-looking" estimate is configured, activation compression for Ethos-N78 will
+    // be allowed for strategies 6, 7 and arbitrary tensor shape.
+    bool estimateOverride = forwardEst && (strategy != Strategy::STRATEGY_FC);
+
+    switch (compressionFormat)
+    {
+        case CompilerDataFormat::NHWCB_COMPRESSED:
+            // The stripe must be the full width and depth of the node input/output shape
+            return stripeShape[2] >= nodeShape[2] && stripeShape[3] >= nodeShape[3];
+        case CompilerDataFormat::FCAF_DEEP:
+            // The node and stripe shape must be a multiple of the cells height (8), width (8) and depth (32)
+            return (fcafCompStrategy && stripeShape[1] % 8 == 0 && stripeShape[2] % 8 == 0 &&
+                    stripeShape[3] % 32 == 0 && nodeShape[1] % 8 == 0 && nodeShape[2] % 8 == 0 &&
+                    nodeShape[3] % 32 == 0) ||
+                   estimateOverride;
+        case CompilerDataFormat::FCAF_WIDE:
+            // The node and stripe shape must be a multiple of the cells height (8), width (16) and depth (16)
+            return (fcafCompStrategy && stripeShape[1] % 8 == 0 && stripeShape[2] % 16 == 0 &&
+                    stripeShape[3] % 16 == 0 && nodeShape[1] % 8 == 0 && nodeShape[2] % 16 == 0 &&
+                    nodeShape[3] % 16 == 0) ||
+                   estimateOverride;
+        default:
+            return false;
+    }
+}
+
+CompilerDataFormat GetIntermediateOutputFormat(const HardwareCapabilities& capabilities,
+                                               bool enableIntermediateCompression,
+                                               const LinearNodesOutput& linearOutputNodes,
+                                               bool forwardEst)
+{
+    const Node& outputNode                       = *linearOutputNodes.m_WorkingNodes.back();
+    const CompilerDataFormat currentOutputFormat = outputNode.GetCompressedFormat();
+
+    // Output must be uncompressed
+    if (outputNode.GetCompressionHint() == CompressionHint::RequiredUncompressed)
+    {
+        // Switch to uncompressed if the output is currently compressed
+        if (currentOutputFormat == CompilerDataFormat::NHWCB_COMPRESSED ||
+            currentOutputFormat == CompilerDataFormat::FCAF_DEEP ||
+            currentOutputFormat == CompilerDataFormat::FCAF_WIDE)
+        {
+            return CompilerDataFormat::NHWCB;
+        }
+
+        return currentOutputFormat;
+    }
+
+    // Only attempt to compress if the format is compatible and there is a transfer to the DRAM
+    if (currentOutputFormat != CompilerDataFormat::NHWCB || linearOutputNodes.m_OutputLocation != BufferLocation::Dram)
+    {
+        return currentOutputFormat;
+    }
+
+    // Attempt to compress if it was requested
+    if (enableIntermediateCompression)
+    {
+        const Strategy strategy              = linearOutputNodes.m_TensorConfig.strategy;
+        const TensorShape& outputStripeShape = linearOutputNodes.m_TensorConfig.outputAllocation.stripeShape;
+        const TensorShape& outputNodeShape   = outputNode.GetShape();
+
+        // Attempt to find a compatible compression to use
+        if (capabilities.GetActivationCompressionVersion() == 0)
+        {
+            if (IsCompressionFormatCompatible(CompilerDataFormat::NHWCB_COMPRESSED, outputNodeShape, outputStripeShape,
+                                              strategy, forwardEst))
+            {
+                return CompilerDataFormat::NHWCB_COMPRESSED;
+            }
+        }
+        else
+        {
+            if (IsCompressionFormatCompatible(CompilerDataFormat::FCAF_DEEP, outputNodeShape, outputStripeShape,
+                                              strategy, forwardEst))
+            {
+                return CompilerDataFormat::FCAF_DEEP;
+            }
+
+            if (IsCompressionFormatCompatible(CompilerDataFormat::FCAF_WIDE, outputNodeShape, outputStripeShape,
+                                              strategy, forwardEst))
+            {
+                return CompilerDataFormat::FCAF_WIDE;
+            }
+        }
+    }
+
+    // Output can't or should not be compressed
+    return currentOutputFormat;
 }
 
 }    // namespace
@@ -219,14 +319,16 @@ std::vector<command_stream::BlockConfig>
             };
             res = Filter(res, filter);
         }
-        else if (pleOp == command_stream::PleOperation::MEAN_XY_8X8)
+        else if ((pleOp == command_stream::PleOperation::MEAN_XY_7X7) ||
+                 (pleOp == command_stream::PleOperation::MEAN_XY_8X8))
         {
             auto filter = [FilterToSize](const command_stream::BlockConfig& blockConfig) {
                 return FilterToSize(blockConfig, 8, 8);
             };
             res = Filter(res, filter);
         }
-        else if (pleOp == command_stream::PleOperation::MAXPOOL_3X3_2_2)
+        else if (pleOp == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+                 pleOp == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD)
         {
             // The maxpool 3x3_2_2 and avgpool 3x3_1_1 ple kernels only support 8x8, 32x8 blocks
             auto filter = [&](const auto& blockConfig) {
@@ -249,6 +351,23 @@ std::vector<IStrategy*> McePlePass::GetValidStrategies(MceOperationNode* mceOper
         allowedStrategies.push_back(new StrategyFc());
     }
     return allowedStrategies;
+}
+
+std::vector<IStrategy*> FilterStrategiesForPle(command_stream::PleOperation operation,
+                                               std::vector<IStrategy*> strategies)
+{
+    // MaxPool 3x3 assumes block traversal will happen in X-Y-Z order.
+    // This means we cannot split the tensor in width.
+    if (operation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+        operation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD)
+    {
+        auto IsPartialWidthStrategies = [](IStrategy* s) {
+            return (dynamic_cast<Strategy4*>(s) || dynamic_cast<Strategy6*>(s));
+        };
+        strategies.erase(std::remove_if(strategies.begin(), strategies.end(), IsPartialWidthStrategies),
+                         strategies.end());
+    }
+    return strategies;
 }
 
 LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
@@ -365,12 +484,17 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
             {
                 res.m_Algorithm = CompilerMceAlgorithm::Direct;
             }
-            if (res.m_Algorithm == CompilerMceAlgorithm::Winograd)
+
+            if (res.m_Algorithm == CompilerMceAlgorithm::Winograd ||
+                (res.m_Algorithm == CompilerMceAlgorithm::Direct && ((weightsShape[0] > 7) || (weightsShape[1] > 7))))
             {
                 // WINOGRAD: width and height are rounded up to multiple of 3
                 // if it is not equal to 1
                 // This needs to be taken into consideration in selecting
                 // memory strategy.
+                // DIRECT: wide kernel mode (H or W, both > 7)
+                // then both H,W are rounded up to multiple of 3
+                // unless H, W = 1
                 if (weightsShape[0] != 1)
                 {
                     weightsShape[0] = utils::RoundUpToNearestMultiple(weightsShape[0], 3);
@@ -384,7 +508,8 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
 
             uint32_t depthMax = UINT32_MAX;
             if ((fuseOnlyPle != nullptr) &&
-                (fuseOnlyPle->GetKernelOperation() == command_stream::PleOperation::MAXPOOL_3X3_2_2))
+                ((fuseOnlyPle->GetKernelOperation() == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN) ||
+                 (fuseOnlyPle->GetKernelOperation() == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD)))
             {
                 // The stripe depth is limited since the PLE needs to buffer data
                 // from the neighbouring stripe.
@@ -397,7 +522,11 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
                     depthMax = capabilities.GetNumberOfOfm();
                 }
             }
-            auto validStrategies   = GetValidStrategies(mceOperation, allowedStrategies);
+            auto validStrategies = GetValidStrategies(mceOperation, allowedStrategies);
+            if (fuseOnlyPle)
+            {
+                validStrategies = FilterStrategiesForPle(fuseOnlyPle->GetKernelOperation(), validStrategies);
+            }
             auto validBlockConfigs = FilterValidAndSortBlockConfigs(
                 mceOperation, fuseOnlyPle, allowedBlockConfigs, capabilities, lastNode->GetShape(), res.m_Algorithm);
             TensorConfig tensorConfig;
@@ -409,7 +538,7 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
             strategySelected          = ChooseAndSetupStrategy(
                 capabilities, currentSramAllocator, validStrategies, validBlockConfigs, tensorConfig, mceInputShape,
                 lastNode->GetShape(), mceOperation->GetWeightsInfo().m_DataFormat, weightsShape, shapeMultiplier,
-                inputStaticAndOffset, res.m_Algorithm, depthMax);
+                inputStaticAndOffset, res.m_Algorithm, !IsStrategyX(*mceOperation), depthMax);
             if (strategySelected)
             {
                 // The TensorConfig that we chose may have restrictions on future conversions operations we can merge.
@@ -461,7 +590,8 @@ std::unique_ptr<ethosn::support_library::McePlePass>
                                bool enableIntermediateCompression,
                                bool enableWinograd,
                                Node* firstNode,
-                               SramAllocator& sramAllocator)
+                               SramAllocator& sramAllocator,
+                               bool forwardEst)
 {
     // Find the largest set of linear nodes which can be formed into a pass
     LinearNodesOutput linearNodes = FindLinearWorkingNodes(firstNode, sramAllocator, capabilities, allowedStrategies,
@@ -515,27 +645,23 @@ std::unique_ptr<ethosn::support_library::McePlePass>
         return std::unique_ptr<McePlePass>();
     }
 
-    // For IFM compression the stripe needs to be the full width and depth.
-    // If not we need to give a hint to the previous node that it's output needs to be uncompressed.
-    if (linearNodes.m_WorkingNodes.front()->GetInputCompressed(0) &&
-        (linearNodes.m_TensorConfig.inputAllocation.stripeShape[2] <
-             linearNodes.m_WorkingNodes.front()->GetInputShape(0)[2] ||
-         linearNodes.m_TensorConfig.inputAllocation.stripeShape[3] <
-             linearNodes.m_WorkingNodes.front()->GetInputShape(0)[3]))
+    const Strategy strategy             = linearNodes.m_TensorConfig.strategy;
+    const TensorShape& inputStripeShape = linearNodes.m_TensorConfig.inputAllocation.stripeShape;
+    Node& inputNode                     = *linearNodes.m_WorkingNodes.front();
+
+    // If the compression format can't be used for the IFM, we need to give a hint to the previous
+    // node that its output needs to be uncompressed.
+    if (inputNode.GetInputCompressed(0) &&
+        !IsCompressionFormatCompatible(inputNode.GetInputCompressedFormat(0), inputNode.GetInputShape(0),
+                                       inputStripeShape, strategy, forwardEst))
     {
-        linearNodes.m_WorkingNodes.front()->GetInput(0)->GetSource()->SetFixGraphCompressionHint(
-            CompressionHint::RequiredUncompressed);
+        inputNode.GetInput(0)->GetSource()->SetFixGraphCompressionHint(CompressionHint::RequiredUncompressed);
         return std::unique_ptr<McePlePass>();
     }
     assert(linearNodes.m_OutputLocation != BufferLocation::None);
-    bool useIntermediateCompression =
-        enableIntermediateCompression &&
-        linearNodes.m_WorkingNodes.back()->GetCompressionHint() == CompressionHint::PreferCompressed &&
-        linearNodes.m_WorkingNodes.back()->GetFormat() == CompilerDataFormat::NHWCB &&
-        linearNodes.m_OutputLocation == BufferLocation::Dram &&
-        linearNodes.m_TensorConfig.outputAllocation.stripeShape[2] >=
-            linearNodes.m_WorkingNodes.back()->GetShape()[2] &&
-        linearNodes.m_TensorConfig.outputAllocation.stripeShape[3] >= linearNodes.m_WorkingNodes.back()->GetShape()[3];
+
+    CompilerDataFormat intermediateOutputFormat =
+        GetIntermediateOutputFormat(capabilities, enableIntermediateCompression, linearNodes, forwardEst);
 
     // Once we've found a valid strategy we can set the old SramAllocator to the updated one.
     sramAllocator = linearNodes.m_SramAllocator;
@@ -555,7 +681,8 @@ std::unique_ptr<ethosn::support_library::McePlePass>
 
     std::unique_ptr<ethosn::support_library::McePlePass> result = std::make_unique<McePlePass>(
         capabilities, id, linearNodes.m_WorkingNodes, linearNodes.m_TensorConfig, linearNodes.m_OutputLocation,
-        useIntermediateCompression, linearNodes.m_Algorithm, sramOffset);
+        intermediateOutputFormat, linearNodes.m_Algorithm, sramOffset);
+
     return result;
 }
 
@@ -564,14 +691,14 @@ McePlePass::McePlePass(const HardwareCapabilities& capabilities,
                        std::vector<Node*> nodes,
                        const TensorConfig& tensorConfig,
                        BufferLocation outputLocation,
-                       bool useIntermediateCompression,
+                       CompilerDataFormat intermediateFormat,
                        CompilerMceAlgorithm algorithm,
                        uint32_t sramOffset)
     : Pass(capabilities, id)
     , m_ExtractSubtensorNode(nullptr)
     , m_MceOperation(nullptr)
     , m_PleOperation(nullptr)
-    , m_WeightEncoder(capabilities)
+    , m_WeightEncoder(WeightEncoder::CreateWeightEncoder(capabilities))
     , m_TensorConfig(tensorConfig)
 {
     m_Nodes = nodes;
@@ -616,7 +743,7 @@ McePlePass::McePlePass(const HardwareCapabilities& capabilities,
     m_Nodes.back()->SetLocation(outputLocation);
     // We can use compression only in the case when:
     // NHWCB tensors in DRAM where the output stripe is the full width and depth.
-    m_Nodes.back()->SetCompressed(useIntermediateCompression);
+    m_Nodes.back()->SetFormat(intermediateFormat);
 
     m_MceOperation->SetAlgorithm(algorithm);
 }
@@ -643,6 +770,7 @@ bool McePlePass::ChooseAndSetupStrategy(const HardwareCapabilities& capabilities
                                         const utils::ShapeMultiplier& shapeMultiplier,
                                         std::pair<bool, uint32_t> inputStaticAndOffset,
                                         CompilerMceAlgorithm algorithm,
+                                        const bool isLegacy,
                                         const uint32_t depthMax)
 {
     // We try the "best" strategies first until we find one which is appropriate
@@ -655,7 +783,7 @@ bool McePlePass::ChooseAndSetupStrategy(const HardwareCapabilities& capabilities
         {
             if (strategy->TrySetup(tensorConfig, sramAllocator, inputShape, outputShape, weightsFormat, weightsShape,
                                    currBlockConfig, capabilities, shapeMultiplier, inputStaticAndOffset, algorithm,
-                                   depthMax))
+                                   isLegacy, depthMax))
             {
                 strategySelected = true;
                 break;
@@ -773,6 +901,9 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
         case Strategy::STRATEGY_7:
             strategy = SramAllocationStrategy::STRATEGY_7;
             break;
+        case Strategy::STRATEGY_X:
+            strategy = SramAllocationStrategy::STRATEGY_X;
+            break;
         case Strategy::STRATEGY_FC:
             // Fully connected strategy is still mapped on to
             // command stream's STRATEGY_1. This shouldn't matter
@@ -807,7 +938,7 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
     uint32_t weightStripeDepth;
     std::tie(weightStripeSize, weightStripeDepth) = GetWeightStripeSizeAndDepth();
     EncodedWeights encodedWeights =
-        m_WeightEncoder.Encode(*m_MceOperation, weightStripeDepth, weightStripeSize, quantizationInfo);
+        m_WeightEncoder->Encode(*m_MceOperation, weightStripeDepth, weightStripeSize, quantizationInfo);
     std::vector<uint8_t>& compressedWeights = encodedWeights.m_Data;
     uint32_t weightBufferId                 = bufferManager.AddDramConstant(BufferType::ConstantDma, compressedWeights);
 
@@ -993,7 +1124,7 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
 namespace
 {
 
-uint32_t GetMceCycleCountWinograd(const HardwareCapabilities& caps,
+uint64_t GetMceCycleCountWinograd(const HardwareCapabilities& caps,
                                   const TensorShape& inputShape,
                                   const TensorShape& outputShape,
                                   const uint32_t weightsHeight,
@@ -1017,19 +1148,19 @@ uint32_t GetMceCycleCountWinograd(const HardwareCapabilities& caps,
         utils::DivRoundUp(outputShape[2], winogradOutputW) * utils::DivRoundUp(outputShape[1], winogradOutputH);
 
     const uint32_t wideKernelSize = caps.GetWideKernelSize();
-    const uint32_t numMacsPerElemHW =
+    const uint64_t numMacsPerElemHW =
         weightsHeight == 1 || weightsWidth == 1
             ? caps.GetMacsPerWinograd1D() * utils::DivRoundUp(weightsWidth * weightsHeight, wideKernelSize)
             : caps.GetMacsPerWinograd2D() * utils::DivRoundUp(weightsWidth, wideKernelSize) *
                   utils::DivRoundUp(weightsHeight, wideKernelSize);
 
-    const uint32_t numMacOps       = numWinogradOutputs * numMacsPerElemHW;
-    const uint32_t numCyclesPerOfm = (numTotIfms * numMacOps) / (ifmConsumed * caps.GetMacUnitsPerEngine());
+    const uint64_t numMacOps       = numWinogradOutputs * numMacsPerElemHW;
+    const uint64_t numCyclesPerOfm = (numTotIfms * numMacOps) / (ifmConsumed * caps.GetMacUnitsPerEngine());
 
     return numCyclesPerOfm * utils::DivRoundUp(numOfms, ofmProduced);
 }
 
-uint32_t GetMceCycleCountDirect(const HardwareCapabilities& caps,
+uint64_t GetMceCycleCountDirect(const HardwareCapabilities& caps,
                                 const MceOperationNode* mceOperation,
                                 const TensorShape& inputShape,
                                 const TensorShape& outputShape,
@@ -1041,7 +1172,7 @@ uint32_t GetMceCycleCountDirect(const HardwareCapabilities& caps,
     const uint32_t ifmConsumed       = caps.GetIfmPerEngine() * caps.GetNumberOfEngines();
     const uint32_t ofmProduced       = caps.GetOfmPerEngine() * caps.GetNumberOfEngines();
     const uint32_t halfPatchH        = caps.GetPatchShape()[1];
-    const uint32_t halfPatchW        = utils::DivRoundUp(caps.GetPatchShape()[2], 2);
+    const uint32_t halfPatchW        = utils::DivRoundUp(caps.GetPatchShape()[2], 2u);
     const uint32_t numActualIfms     = inputShape[3] / (stride.m_X * stride.m_Y);
 
     uint32_t numIfms = numActualIfms;
@@ -1058,13 +1189,13 @@ uint32_t GetMceCycleCountDirect(const HardwareCapabilities& caps,
     const uint32_t numOutputElements = utils::RoundUpToNearestMultiple(outputShape[2], halfPatchW) *
                                        utils::RoundUpToNearestMultiple(outputShape[1], halfPatchH);
 
-    const uint32_t numMacOps       = numOutputElements * numKernelElements;
-    const uint32_t numCyclesPerOfm = (numTotIfms * numMacOps) / (ifmConsumed * caps.GetMacUnitsPerEngine());
+    const uint64_t numMacOps       = numOutputElements * numKernelElements;
+    const uint64_t numCyclesPerOfm = (numTotIfms * numMacOps) / (ifmConsumed * caps.GetMacUnitsPerEngine());
 
     return numCyclesPerOfm * utils::DivRoundUp(numOfms, ofmProduced);
 }
 
-uint32_t GetMceCycleCount(const HardwareCapabilities& caps,
+uint64_t GetMceCycleCount(const HardwareCapabilities& caps,
                           const MceOperationNode* mceOperation,
                           const TensorShape& inputShape,
                           const TensorShape& outputShape,
@@ -1081,21 +1212,21 @@ uint32_t GetMceCycleCount(const HardwareCapabilities& caps,
     }
 }
 
-uint32_t GetNumOperations(const MceOperationNode* mceOperation,
+uint64_t GetNumOperations(const MceOperationNode* mceOperation,
                           const TensorShape& inputShape,
                           const TensorShape& outputShape,
                           const uint32_t weightsHeight,
                           const uint32_t weightsWidth)
 {
     const Stride& stride             = mceOperation->GetStride();
-    const uint32_t numKernelElements = weightsWidth * weightsHeight;
-    const uint32_t numOpsPerElement  = numKernelElements + numKernelElements;
-    const uint32_t numActualIfms     = utils::DivRoundUp(inputShape[3], (stride.m_X * stride.m_Y));
-    const uint32_t numInputElements  = inputShape[1] * inputShape[2];
-    const uint32_t numOpsPerIfm      = numInputElements * numOpsPerElement;
+    const uint64_t numKernelElements = weightsWidth * weightsHeight;
+    const uint64_t numOpsPerElement  = numKernelElements + numKernelElements;
+    const uint64_t numActualIfms     = utils::DivRoundUp(inputShape[3], (stride.m_X * stride.m_Y));
+    const uint64_t numInputElements  = inputShape[1] * inputShape[2];
+    const uint64_t numOpsPerIfm      = numInputElements * numOpsPerElement;
 
-    uint32_t numIfms = numActualIfms;
-    uint32_t numOfms = outputShape[3];
+    uint64_t numIfms = numActualIfms;
+    uint64_t numOfms = outputShape[3];
 
     if (mceOperation->GetOperation() == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION)
     {
@@ -1194,12 +1325,13 @@ PassStats McePlePass::GetStats(const EstimationOptions& estimationOptions)
         std::vector<uint8_t> dummyWeightData = GenerateCompressibleData(
             m_MceOperation->GetWeightsData().size(), estimationOptions.m_WeightCompressionSaving,
             m_MceOperation->GetWeightsInfo().m_QuantizationInfo.m_ZeroPoint);
-        encodedWeights = m_WeightEncoder.Encode(*m_MceOperation, dummyWeightData, weightStripeDepth, weightStripeSize,
-                                                quantizationInfo);
+        encodedWeights = m_WeightEncoder->Encode(*m_MceOperation, dummyWeightData, weightStripeDepth, weightStripeSize,
+                                                 quantizationInfo);
     }
     else
     {
-        encodedWeights = m_WeightEncoder.Encode(*m_MceOperation, weightStripeDepth, weightStripeSize, quantizationInfo);
+        encodedWeights =
+            m_WeightEncoder->Encode(*m_MceOperation, weightStripeDepth, weightStripeSize, quantizationInfo);
     }
     perfData.m_Weights =
         GetWeightsStats(encodedWeights, weightsInfo, weightsStripeShape, weightsTileSize, inputShape, inputStripeShape);
@@ -1209,7 +1341,8 @@ PassStats McePlePass::GetStats(const EstimationOptions& estimationOptions)
     // Number of patches that need to be post processed by the Ple kernel.
     const uint32_t patchesH       = utils::DivRoundUp(mceOutputShape[1], m_Capabilities.GetPatchShape()[1]);
     const uint32_t patchesW       = utils::DivRoundUp(mceOutputShape[2], m_Capabilities.GetPatchShape()[2]);
-    const uint32_t patchesC       = utils::DivRoundUp(mceOutputShape[3], m_Capabilities.GetNumberOfEngines());
+    const uint32_t patchesC       = utils::DivRoundUp(mceOutputShape[3], m_Capabilities.GetNumberOfEngines() *
+                                                                       m_Capabilities.GetNumberOfPleLanes());
     perfData.m_Ple.m_NumOfPatches = patchesW * patchesH * patchesC;
     perfData.m_Ple.m_Operation    = static_cast<uint32_t>(GetPleOperation());
 

@@ -21,6 +21,8 @@ class Inference;
 namespace profiling
 {
 
+const uint64_t g_DriverLibraryEventIdBase = 65536;
+
 namespace metadata
 {
 

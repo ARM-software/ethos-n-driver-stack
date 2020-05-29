@@ -91,9 +91,13 @@ std::vector<SubmapFilter> GetSubmapFilters(const uint32_t filterX,
     // Use wide kernels:
     // Winograd: filter size width/height greater than 3
     // Direct: filter size width/height greater than 7
+    //         wide kernel mode (H or W, both > 7)
+    //         then both H,W are rounded up to multiple of 3
+    //         unless H, W = 1
 
-    const uint32_t subKernelSizeX = filterX > maxFilterSize ? (filterX == 1 ? 1 : wideKernelSize) : filterX;
-    const uint32_t subKernelSizeY = filterY > maxFilterSize ? (filterY == 1 ? 1 : wideKernelSize) : filterY;
+    const bool wideKernel         = filterX > maxFilterSize || filterY > maxFilterSize;
+    const uint32_t subKernelSizeX = wideKernel ? (filterX == 1 ? 1 : wideKernelSize) : filterX;
+    const uint32_t subKernelSizeY = wideKernel ? (filterY == 1 ? 1 : wideKernelSize) : filterY;
     uint32_t wFilterW             = utils::DivRoundUp(filterX, subKernelSizeX);
     uint32_t wFilterH             = utils::DivRoundUp(filterY, subKernelSizeY);
 

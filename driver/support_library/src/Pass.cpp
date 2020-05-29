@@ -419,9 +419,11 @@ ethosn::support_library::DotAttributes Pass::GetDotAttributes()
     stream << std::hex << m_Nodes.back()->GetOutputSramOffset();
     std::string outputSramOffset =
         m_Nodes.back()->GetLocation() == BufferLocation::Sram ? "\nOutputSramOffset " + stream.str() : "";
-    return { "Pass " + std::to_string(m_Id) + "\nCommands " + std::to_string(m_CommandStreamFirstCommandIdx) + "-" +
-                 std::to_string(m_CommandStreamLastCommandIdx) + "\nOutputSramOffset " + outputSramOffset,
-             "black" };
+    return DotAttributes(std::to_string(m_Id),
+                         "Pass " + std::to_string(m_Id) + "\nCommands " +
+                             std::to_string(m_CommandStreamFirstCommandIdx) + "-" +
+                             std::to_string(m_CommandStreamLastCommandIdx) + "\nOutputSramOffset " + outputSramOffset,
+                         "black");
 }
 
 ConcatNode* FindConcatNode(Node* node)
