@@ -47,8 +47,11 @@ public:
 class OutputNode : public Node
 {
 public:
-    OutputNode(NodeId id, std::set<uint32_t> correspondingOperationIds, uint32_t sourceOperationOutputIndex)
-        : Node(id, TensorShape(), QuantizationInfo(), CompilerDataFormat::NONE, correspondingOperationIds)
+    OutputNode(NodeId id,
+               DataType dataType,
+               std::set<uint32_t> correspondingOperationIds,
+               uint32_t sourceOperationOutputIndex)
+        : Node(id, TensorShape(), dataType, QuantizationInfo(), CompilerDataFormat::NONE, correspondingOperationIds)
         , m_SourceOperationOutputIndex(sourceOperationOutputIndex)
     {}    // OutputNode doesn't really have an output...
 
@@ -70,6 +73,7 @@ public:
                  std::set<uint32_t> correspondingOperationIds)
         : Node(id,
                constantInfo.m_Dimensions,
+               constantInfo.m_DataType,
                constantInfo.m_QuantizationInfo,
                ConvertExternalToCompilerDataFormat(constantInfo.m_DataFormat),
                correspondingOperationIds)
@@ -94,13 +98,13 @@ public:
     MceOperationNode(NodeId id,
                      const TensorShape& uninterleavedInputTensorShape,
                      const TensorShape& outputTensorShape,
+                     DataType dataType,
                      const QuantizationInfo& outputQuantizationInfo,
                      const TensorInfo& weightsInfo,
                      std::vector<uint8_t> weightsData,
                      const TensorInfo& biasInfo,
                      std::vector<int32_t> biasData,
                      Stride stride,
-                     uint32_t upscaleFactor,
                      uint32_t padTop,
                      uint32_t padLeft,
                      command_stream::MceOperation op,
@@ -115,11 +119,15 @@ public:
     const TensorInfo& GetBiasInfo() const;
     const std::vector<int32_t>& GetBiasData() const;
 
+    uint32_t GetPadTop() const;
+    uint32_t GetPadLeft() const;
+
     Stride GetStride() const;
     void SetStride(Stride s);
 
     uint32_t GetUpscaleFactor() const;
-    void SetUpscaleFactor(uint32_t upscaleFactor);
+    ethosn::command_stream::UpsampleType GetUpsampleType() const;
+    void SetUpsampleParams(const uint32_t upscaleFactor, const ethosn::command_stream::UpsampleType upsampleType);
 
     ethosn::command_stream::MceOperation GetOperation() const;
     void SetOperation(ethosn::command_stream::MceOperation op);
@@ -152,6 +160,7 @@ private:
     std::vector<int32_t> m_BiasData;
     Stride m_Stride;
     uint32_t m_UpscaleFactor;
+    ethosn::command_stream::UpsampleType m_UpsampleType;
     uint32_t m_PadTop;
     uint32_t m_PadLeft;
     command_stream::MceOperation m_Operation;
@@ -166,6 +175,7 @@ class FuseOnlyPleOperationNode : public Node
 public:
     FuseOnlyPleOperationNode(NodeId id,
                              const TensorShape& outputTensorShape,
+                             DataType dataType,
                              const QuantizationInfo& outputQuantizationInfo,
                              command_stream::PleOperation k,
                              CompilerDataFormat format,
@@ -186,6 +196,8 @@ public:
 
     bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
 
+    virtual void SetOperationSpecificData(command_stream::McePle& data) const;
+
 private:
     command_stream::PleOperation m_KernelOperation;
 
@@ -193,11 +205,33 @@ private:
     utils::ShapeMultiplier m_ShapeMultiplier;
 };
 
+class LeakyReluNode : public FuseOnlyPleOperationNode
+{
+public:
+    LeakyReluNode(NodeId id,
+                  const TensorShape& outputTensorShape,
+                  DataType dataType,
+                  const QuantizationInfo& outputQuantizationInfo,
+                  command_stream::PleOperation k,
+                  CompilerDataFormat format,
+                  utils::ShapeMultiplier shapeMultiplier,
+                  std::set<uint32_t> correspondingOperationIds,
+                  float alpha);
+
+    float GetAlpha() const;
+
+    void SetOperationSpecificData(command_stream::McePle&) const override;
+
+private:
+    const float m_Alpha;
+};
+
 class StandalonePleOperationNode : public Node
 {
 public:
     StandalonePleOperationNode(NodeId id,
                                const TensorShape& outputTensorShape,
+                               DataType dataType,
                                const QuantizationInfo& outputQuantizationInfo,
                                command_stream::PleOperation k,
                                CompilerDataFormat format,
@@ -218,9 +252,10 @@ class McePostProcessOperationNode : public Node
 public:
     McePostProcessOperationNode(NodeId id,
                                 const TensorShape& outputTensorShape,
+                                DataType dataType,
                                 const QuantizationInfo& outputQuantizationInfo,
-                                uint8_t lowerBound,
-                                uint8_t upperBound,
+                                int16_t lowerBound,
+                                int16_t upperBound,
                                 CompilerDataFormat format,
                                 std::set<uint32_t> correspondingOperationIds);
 
@@ -231,8 +266,8 @@ public:
     bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
 
 private:
-    uint8_t m_LowerBound;
-    uint8_t m_UpperBound;
+    int16_t m_LowerBound;
+    int16_t m_UpperBound;
 };
 
 class SoftmaxNode : public Node
@@ -240,6 +275,7 @@ class SoftmaxNode : public Node
 public:
     SoftmaxNode(NodeId id,
                 const TensorShape& outputTensorShape,
+                DataType dataType,
                 const QuantizationInfo& outputQuantizationInfo,
                 CompilerDataFormat format,
                 std::set<uint32_t> correspondingOperationIds);
@@ -252,6 +288,7 @@ class RequantizeNode : public Node
 public:
     RequantizeNode(NodeId id,
                    const TensorShape& outputTensorShape,
+                   DataType dataType,
                    const QuantizationInfo& outputQuantizationInfo,
                    CompilerDataFormat format,
                    std::set<uint32_t> correspondingOperationIds);
@@ -269,6 +306,7 @@ class FormatConversionNode : public Node
 public:
     FormatConversionNode(NodeId id,
                          const TensorShape& outputTensorShape,
+                         DataType dataType,
                          const QuantizationInfo& outputQuantizationInfo,
                          CompilerDataFormat format,
                          std::set<uint32_t> correspondingOperationIds);
@@ -278,11 +316,25 @@ public:
     bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
 };
 
+class SpaceToDepthNode : public Node
+{
+public:
+    SpaceToDepthNode(NodeId id,
+                     const TensorShape& outputTensorShape,
+                     DataType dataType,
+                     const QuantizationInfo& outputQuantizationInfo,
+                     CompilerDataFormat format,
+                     std::set<uint32_t> correspondingOperationIds);
+
+    bool IsPrepared() override;
+};
+
 class ReinterpretNode : public Node
 {
 public:
     ReinterpretNode(NodeId id,
                     const TensorShape& outputTensorShape,
+                    DataType dataType,
                     const QuantizationInfo& outputQuantizationInfo,
                     CompilerDataFormat format,
                     std::set<uint32_t> correspondingOperationIds);
@@ -299,6 +351,7 @@ class ConcatNode : public Node
 public:
     ConcatNode(NodeId id,
                const TensorShape& outputTensorShape,
+               DataType dataType,
                const QuantizationInfo& outputQuantizationInfo,
                CompilerDataFormat format,
                uint32_t axis,
@@ -326,6 +379,7 @@ public:
     ExtractSubtensorNode(NodeId id,
                          const TensorShape& supertensorOffset,
                          const TensorShape& outputTensorShape,
+                         DataType dataType,
                          const QuantizationInfo& outputQuantizationInfo,
                          CompilerDataFormat format,
                          std::set<uint32_t> correspondingOperationIds);
@@ -345,6 +399,7 @@ class EstimateOnlyNode : public Node
 public:
     EstimateOnlyNode(NodeId id,
                      const TensorShape& outputTensorShape,
+                     DataType dataType,
                      const QuantizationInfo& outputQuantizationInfo,
                      CompilerDataFormat format,
                      std::set<uint32_t> correspondingOperationIds);

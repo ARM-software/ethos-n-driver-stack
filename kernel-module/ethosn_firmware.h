@@ -222,7 +222,7 @@ static inline bool ethosn_queue_write(struct ethosn_queue *queue,
 	if (ethosn_queue_get_free_space(queue) < size)
 		return false;
 
-	write = queue->write;
+	write = *write_pending;
 
 	for (i = 0; i < size; ++i) {
 		queue->data[write] = src[i];
@@ -478,10 +478,11 @@ struct ethosn_message_time_sync_request {
  * Streams identifier
  */
 enum  ethosn_stream_id {
-	ETHOSN_STREAM_FIRMWARE       = 0,
-	ETHOSN_STREAM_WORKING_DATA   = 1,
-	ETHOSN_STREAM_COMMAND_STREAM = 2,
-	ETHOSN_STREAM_DMA            = 3,
+	ETHOSN_STREAM_FIRMWARE         = 0,
+	ETHOSN_STREAM_WORKING_DATA     = 1,
+	ETHOSN_STREAM_COMMAND_STREAM   = 2,
+	ETHOSN_STREAM_DMA              = 3,
+	ETHOSN_STREAM_DMA_INTERMEDIATE = 4,
 };
 
 /**

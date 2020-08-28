@@ -117,19 +117,21 @@ using EntryData = decltype(ethosn_profiling_entry::data);
 /* generates the json file. New categories need to be added at the bottom of */
 /* the list. */
 enum class EntryDataCategory: uint8_t {
-	WfeSleeping,
-	Inference,
-	Command,
-	Dma,
-	Tsu,
-	MceStripeSetup,
-	PleStripeSetup,
-	Label,
-	DmaSetup,
-	GetCompleteCommand,
-	ScheduleNextCommand,
-	WfeChecking,
-	TimeSync,
+	WfeSleeping,            /* Legacy & Strategy X */
+	Inference,              /* Legacy & Strategy X */
+	Command,                /* Legacy & Strategy X */
+	Dma,                    /* Legacy & Strategy X */
+	Tsu,                    /* Legacy & Strategy X */
+	MceStripeSetup,         /* Legacy only */
+	PleStripeSetup,         /* Legacy only */
+	Label,                  /* Custom use */
+	DmaSetup,               /* Legacy only */
+	GetCompleteCommand,     /* Legacy only */
+	ScheduleNextCommand,    /* Legacy only */
+	WfeChecking,            /* Legacy only */
+	TimeSync,               /* Legacy & Strategy X */
+	Agent,                  /* Strategy X only */
+	AgentStripe,            /* Strategy X only */
 };
 
 /* Describes the encoding of the "Data" field. */
@@ -180,6 +182,15 @@ union DataUnion {
 			struct {
 				uint8_t m_TimeSyncData[3];
 			} m_TimeSyncFields;
+			struct {
+				uint8_t m_Type : 8;
+				uint8_t m_CommandIdx : 8;
+			} m_AgentFields;
+			struct {
+				uint8_t m_AgentStripeType : 8;
+				uint8_t m_CommandIdx : 8;
+				uint8_t m_StripeIdx : 8;
+			} m_AgentStripeFields;
 		};
 	};
 };

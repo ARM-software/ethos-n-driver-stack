@@ -27,74 +27,6 @@ namespace profiling
 namespace
 {
 
-ethosn_profiling_hw_counter_types ConvertHwCountersToKernel(HardwareCounters counter)
-{
-    switch (counter)
-    {
-        case HardwareCounters::FirmwareBusAccessRdTransfers:
-        {
-            return ethosn_profiling_hw_counter_types::BUS_ACCESS_RD_TRANSFERS;
-        }
-        case HardwareCounters::FirmwareBusRdCompleteTransfers:
-        {
-            return ethosn_profiling_hw_counter_types::BUS_RD_COMPLETE_TRANSFERS;
-        }
-        case HardwareCounters::FirmwareBusReadBeats:
-        {
-            return ethosn_profiling_hw_counter_types::BUS_READ_BEATS;
-        }
-        case HardwareCounters::FirmwareBusReadTxfrStallCycles:
-        {
-            return ethosn_profiling_hw_counter_types::BUS_READ_TXFR_STALL_CYCLES;
-        }
-        case HardwareCounters::FirmwareBusAccessWrTransfers:
-        {
-            return ethosn_profiling_hw_counter_types::BUS_ACCESS_WR_TRANSFERS;
-        }
-        case HardwareCounters::FirmwareBusWrCompleteTransfers:
-        {
-            return ethosn_profiling_hw_counter_types::BUS_WR_COMPLETE_TRANSFERS;
-        }
-        case HardwareCounters::FirmwareBusWriteBeats:
-        {
-            return ethosn_profiling_hw_counter_types::BUS_WRITE_BEATS;
-        }
-        case HardwareCounters::FirmwareBusWriteTxfrStallCycles:
-        {
-            return ethosn_profiling_hw_counter_types::BUS_WRITE_TXFR_STALL_CYCLES;
-        }
-        case HardwareCounters::FirmwareBusWriteStallCycles:
-        {
-            return ethosn_profiling_hw_counter_types::BUS_WRITE_STALL_CYCLES;
-        }
-        case HardwareCounters::FirmwareBusErrorCount:
-        {
-            return ethosn_profiling_hw_counter_types::BUS_ERROR_COUNT;
-        }
-        case HardwareCounters::FirmwareNcuMcuIcacheMiss:
-        {
-            return ethosn_profiling_hw_counter_types::NCU_MCU_ICACHE_MISS;
-        }
-        case HardwareCounters::FirmwareNcuMcuDcacheMiss:
-        {
-            return ethosn_profiling_hw_counter_types::NCU_MCU_DCACHE_MISS;
-        }
-        case HardwareCounters::FirmwareNcuMcuBusReadBeats:
-        {
-            return ethosn_profiling_hw_counter_types::NCU_MCU_BUS_READ_BEATS;
-        }
-        case HardwareCounters::FirmwareNcuMcuBusWriteBeats:
-        {
-            return ethosn_profiling_hw_counter_types::NCU_MCU_BUS_WRITE_BEATS;
-        }
-        default:
-        {
-            assert(!"ethosn_profiling_hw_counter_types not insync with HardwareCounters");
-            return ethosn_profiling_hw_counter_types::NCU_MCU_BUS_WRITE_BEATS;
-        }
-    }
-}
-
 struct TimeSync
 {
     TimeSync()
@@ -113,7 +45,7 @@ struct TimeSync
 
 int g_FirmwareBufferFd = 0;
 // Clock frequency expressed in MHz (it is provided by the kernel module).
-int g_ClockFrequency = 0;
+int g_ClockFrequencyMhz = 0;
 
 bool ConfigureKernelDriver(Configuration config)
 {
@@ -137,8 +69,8 @@ bool ConfigureKernelDriver(Configuration config)
     {
         kernelConfig.hw_counters[i] = ConvertHwCountersToKernel(config.m_HardwareCounters[i]);
     }
-    int result       = ioctl(ethosnFd, ETHOSN_IOCTL_CONFIGURE_PROFILING, &kernelConfig);
-    g_ClockFrequency = ioctl(ethosnFd, ETHOSN_IOCTL_GET_CLOCK_FREQUENCY);
+    int result          = ioctl(ethosnFd, ETHOSN_IOCTL_CONFIGURE_PROFILING, &kernelConfig);
+    g_ClockFrequencyMhz = ioctl(ethosnFd, ETHOSN_IOCTL_GET_CLOCK_FREQUENCY);
     close(ethosnFd);
 
     if (result != 0)
@@ -146,9 +78,9 @@ bool ConfigureKernelDriver(Configuration config)
         return false;
     }
 
-    if (g_ClockFrequency <= 0)
+    if (g_ClockFrequencyMhz <= 0)
     {
-        g_ClockFrequency = 0;
+        g_ClockFrequencyMhz = 0;
         return false;
     }
 
@@ -207,179 +139,7 @@ uint64_t GetKernelDriverCounterValue(PollCounterName counter)
 namespace
 {
 
-using EntryId   = decltype(ethosn_profiling_entry::id);
-using EntryData = decltype(ethosn_profiling_entry::data);
-
-uint64_t GetIdForCounterValue(EntryId id)
-{
-    uint64_t retVal;
-    // Convert ID (which is this case is the counter name)
-    switch (static_cast<FirmwareCounterName>(id))
-    {
-        case FirmwareCounterName::DwtSleepCycleCount:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareDwtSleepCycleCount);
-            break;
-        case FirmwareCounterName::EventQueueSize:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareEventQueueSize);
-            break;
-        case FirmwareCounterName::DmaNumReads:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareDmaNumReads);
-            break;
-        case FirmwareCounterName::DmaNumWrites:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareDmaNumWrites);
-            break;
-        case FirmwareCounterName::DmaReadBytes:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareDmaReadBytes);
-            break;
-        case FirmwareCounterName::DmaWriteBytes:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareDmaWriteBytes);
-            break;
-        case FirmwareCounterName::BusAccessRdTransfers:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusAccessRdTransfers);
-            break;
-        case FirmwareCounterName::BusRdCompleteTransfers:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusRdCompleteTransfers);
-            break;
-        case FirmwareCounterName::BusReadBeats:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusReadBeats);
-            break;
-        case FirmwareCounterName::BusReadTxfrStallCycles:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusReadTxfrStallCycles);
-            break;
-        case FirmwareCounterName::BusAccessWrTransfers:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusAccessWrTransfers);
-            break;
-        case FirmwareCounterName::BusWrCompleteTransfers:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusWrCompleteTransfers);
-            break;
-        case FirmwareCounterName::BusWriteBeats:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusWriteBeats);
-            break;
-        case FirmwareCounterName::BusWriteTxfrStallCycles:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusWriteTxfrStallCycles);
-            break;
-        case FirmwareCounterName::BusWriteStallCycles:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusWriteStallCycles);
-            break;
-        case FirmwareCounterName::BusErrorCount:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareBusErrorCount);
-            break;
-        case FirmwareCounterName::NcuMcuIcacheMiss:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareNcuMcuIcacheMiss);
-            break;
-        case FirmwareCounterName::NcuMcuDcacheMiss:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareNcuMcuDcacheMiss);
-            break;
-        case FirmwareCounterName::NcuMcuBusReadBeats:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareNcuMcuBusReadBeats);
-            break;
-        case FirmwareCounterName::NcuMcuBusWriteBeats:
-            retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareNcuMcuBusWriteBeats);
-            break;
-        default:
-            assert(false);
-            break;
-    }
-    return retVal;
-}
-
-EntryDataCategory GetFirmwareCategory(const EntryData data)
-{
-    DataUnion temp = {};
-    temp.m_Raw     = data;
-    return temp.m_Category;
-}
-
-ProfilingEntry::MetadataCategory ConvertCategoryEntry(const EntryDataCategory category)
-{
-    ProfilingEntry::MetadataCategory retVal;
-    switch (category)
-    {
-        case EntryDataCategory::WfeSleeping:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareWfeSleeping;
-            break;
-        case EntryDataCategory::Inference:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareInference;
-            break;
-        case EntryDataCategory::Command:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareCommand;
-            break;
-        case EntryDataCategory::Dma:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareDma;
-            break;
-        case EntryDataCategory::Tsu:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareTsu;
-            break;
-        case EntryDataCategory::MceStripeSetup:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareMceStripeSetup;
-            break;
-        case EntryDataCategory::PleStripeSetup:
-            retVal = ProfilingEntry::MetadataCategory::FirmwarePleStripeSetup;
-            break;
-        case EntryDataCategory::Label:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareLabel;
-            break;
-        case EntryDataCategory::DmaSetup:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareDmaSetup;
-            break;
-        case EntryDataCategory::GetCompleteCommand:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareGetCompleteCommand;
-            break;
-        case EntryDataCategory::ScheduleNextCommand:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareScheduleNextCommand;
-            break;
-        case EntryDataCategory::WfeChecking:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareWfeChecking;
-            break;
-        case EntryDataCategory::TimeSync:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareTimeSync;
-            break;
-        default:
-            assert(false);
-            break;
-    }
-    return retVal;
-}
-
-// Converts a profiling entry reported by the kernel into the Driver Library's public ProfilingEntry representation.
-ProfilingEntry ConvertProfilingEntry(const ethosn_profiling_entry& kernelEntry)
-{
-    ProfilingEntry result;
-    // Clock frequency is expressed in MHz.
-    result.m_Timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>(
-        std::chrono::nanoseconds((1000 / g_ClockFrequency) * kernelEntry.timestamp));
-    switch (kernelEntry.type)
-    {
-        case ethosn_profiling_entry_type::COUNTER_VALUE:
-            result.m_Id               = GetIdForCounterValue(kernelEntry.id);
-            result.m_Type             = ProfilingEntry::Type::CounterSample;
-            result.m_MetadataCategory = ProfilingEntry::MetadataCategory::CounterValue;
-            result.m_MetadataValue    = kernelEntry.data;
-            break;
-        case ethosn_profiling_entry_type::TIMELINE_EVENT_START:
-            result.m_Id               = static_cast<uint64_t>(kernelEntry.id);
-            result.m_Type             = ProfilingEntry::Type::TimelineEventStart;
-            result.m_MetadataCategory = ConvertCategoryEntry(GetFirmwareCategory(kernelEntry.data));
-            result.m_MetadataValue    = kernelEntry.data;
-            break;
-        case ethosn_profiling_entry_type::TIMELINE_EVENT_END:
-            result.m_Id               = static_cast<uint64_t>(kernelEntry.id);
-            result.m_Type             = ProfilingEntry::Type::TimelineEventEnd;
-            result.m_MetadataCategory = ConvertCategoryEntry(GetFirmwareCategory(kernelEntry.data));
-            result.m_MetadataValue    = kernelEntry.data;
-            break;
-        case ethosn_profiling_entry_type::TIMELINE_EVENT_INSTANT:
-            result.m_Id               = static_cast<uint64_t>(kernelEntry.id);
-            result.m_Type             = ProfilingEntry::Type::TimelineEventInstant;
-            result.m_MetadataCategory = ConvertCategoryEntry(GetFirmwareCategory(kernelEntry.data));
-            result.m_MetadataValue    = kernelEntry.data;
-            break;
-        default:
-            assert(false);
-            break;
-    }
-    return result;
-}
+using EntryId = decltype(ethosn_profiling_entry::id);
 
 // Get time delta between firmware profiling and global profiling
 TimeSync GetTimeDelta(const std::vector<ProfilingEntry>& entries)
@@ -437,7 +197,10 @@ TimeSync GetTimeDelta(const std::vector<ProfilingEntry>& entries)
             if (index == sizeof(uint64_t))
             {
                 // Time sync fully retrieved from 4 consecutive messages
-                retVal.m_Delta = sync - timestamp.time_since_epoch().count();
+                // The timestamp of the message (i.e. PMU cycle count) is stored as the number of nanoseconds since the
+                // high_resolution_clock epoch. Convert this to actual nanoseconds based on the clock frequency
+                // before calculating the difference with the host CPU (also measured in nanoseconds).
+                retVal.m_Delta = sync - (1000 / g_ClockFrequencyMhz) * timestamp.time_since_epoch().count();
                 retVal.m_Valid = true;
                 ResetSearchIndex();
                 return;
@@ -507,8 +270,12 @@ bool AppendKernelDriverEntries()
     // correct timestamps
     for (ProfilingEntry& entry : entries)
     {
-        entry.m_Timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>(
-            std::chrono::nanoseconds(entry.m_Timestamp.time_since_epoch().count() + g_ProfilingDelta));
+        // The timestamp of the message (i.e. PMU cycle count) is stored as the number of nanoseconds since the
+        // high_resolution_clock epoch. Convert this to actual nanoseconds based on the clock frequency
+        // before calculating the difference with the host CPU (also measured in nanoseconds).
+        entry.m_Timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>(std::chrono::nanoseconds(
+            (1000 / g_ClockFrequencyMhz) * entry.m_Timestamp.time_since_epoch().count() + g_ProfilingDelta));
+
         g_ProfilingEntries.push_back(entry);
     }
 

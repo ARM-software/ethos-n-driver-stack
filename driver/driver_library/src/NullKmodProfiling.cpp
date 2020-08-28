@@ -7,6 +7,11 @@
 // This is for the model and other backends that do not have access to a kernel module.
 // These functions are declared in ProfilingInternal.hpp.
 
+// Note that the model backend *can* report profiling entries, but due to the differences in the way the model backend
+// works (it creates a temporary Firmware object just for the inference), there is no global state for these functions
+// to affect, like there is for the kernel backend. Hence profiling is handled for the model backend inside
+// ModelNetwork::ScheduleInference().
+
 #include "ProfilingInternal.hpp"
 
 namespace ethosn

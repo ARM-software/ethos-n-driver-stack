@@ -183,6 +183,15 @@ void EthosNSubgraphViewConverter::AddActivationLayer(Layer* layer)
 
             break;
         }
+        case ActivationFunction::LeakyReLu:
+        {
+            const ethosn_lib::LeakyReluInfo leakyReluInfo = BuildEthosNLeakyReluInfo(
+                activationLayer.GetParameters(), activationLayer.GetOutputSlot(0).GetTensorInfo());
+
+            newOperand = ethosn_lib::AddLeakyRelu(m_Network, *input1.tensor, leakyReluInfo);
+
+            break;
+        }
         case ActivationFunction::Sigmoid:
         {
             newOperand = ethosn_lib::AddSigmoid(m_Network, *input1.tensor);
@@ -447,6 +456,48 @@ void EthosNSubgraphViewConverter::AddDepthToSpaceLayer(Layer* layer)
     InsertConvertedLayerSingleOutput(layer, ethosn_lib::AddDepthToSpace(m_Network, *input.tensor, info));
 }
 
+void EthosNSubgraphViewConverter::AddTransposeLayer(Layer* layer)
+{
+    BOOST_ASSERT(layer != nullptr);
+    BOOST_ASSERT(layer->GetType() == LayerType::Transpose);
+    TransposeLayer& transposeLayer = *boost::polymorphic_pointer_downcast<TransposeLayer>(layer);
+
+    auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnectedOutputSlot());
+
+    // Note it's safe to assume that BuildEthosNTransposeInfo succeeds, because we checked this in IsTransposeSupported.
+    auto transposeInfo = BuildEthosNTransposeInfo(transposeLayer.GetPermutation());
+
+    InsertConvertedLayerSingleOutput(layer, ethosn_lib::AddTranspose(m_Network, *input.tensor, transposeInfo.value()));
+}
+
+void EthosNSubgraphViewConverter::AddQuantizeLayer(Layer* layer)
+{
+    BOOST_ASSERT(layer != nullptr);
+    BOOST_ASSERT(layer->GetType() == LayerType::Quantize);
+    QuantizeLayer& quantizeLayer = *boost::polymorphic_pointer_downcast<QuantizeLayer>(layer);
+
+    auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnectedOutputSlot());
+
+    // Note it's safe to assume that BuildEthosNRequantizeInfo succeeds, because we checked this in IsRequantizeSupported.
+    auto requantizeInfo = BuildEthosNRequantizeInfo(quantizeLayer.GetOutputSlot(0).GetTensorInfo());
+
+    InsertConvertedLayerSingleOutput(layer, ethosn_lib::AddRequantize(m_Network, *input.tensor, requantizeInfo));
+}
+
+void EthosNSubgraphViewConverter::AddResizeLayer(Layer* layer)
+{
+    BOOST_ASSERT(layer != nullptr);
+    BOOST_ASSERT(layer->GetType() == LayerType::Resize);
+    ResizeLayer& resizeLayer = *boost::polymorphic_pointer_downcast<ResizeLayer>(layer);
+
+    auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnectedOutputSlot());
+
+    // Note it's safe to assume that BuildEthosNResizeInfo succeeds, because we checked this in IsResizeSupported.
+    auto resizeInfo = BuildEthosNResizeInfo(resizeLayer.GetParameters(), resizeLayer.GetOutputSlot(0).GetTensorInfo());
+
+    InsertConvertedLayerSingleOutput(layer, ethosn_lib::AddResize(m_Network, *input.tensor, resizeInfo));
+}
+
 void EthosNSubgraphViewConverter::AddEstimateOnly(Layer* layer)
 {
     BOOST_ASSERT(layer != nullptr);
@@ -522,6 +573,15 @@ EthosNOperand EthosNSubgraphViewConverter::AddOrRetrieveEthosNOperand(const Outp
             break;
         case LayerType::DepthToSpace:
             AddDepthToSpaceLayer(layer);
+            break;
+        case LayerType::Transpose:
+            AddTransposeLayer(layer);
+            break;
+        case LayerType::Quantize:
+            AddQuantizeLayer(layer);
+            break;
+        case LayerType::Resize:
+            AddResizeLayer(layer);
             break;
         default:
             if (m_EthosNConfig.m_PerfOnly)
@@ -645,10 +705,7 @@ std::vector<CompiledBlobPtr> EthosNSubgraphViewConverter::CompileNetwork()
     ethosnCompilationOpts.m_DebugInfo.m_DumpDebugFiles = m_EthosNConfig.m_DumpDebugFiles;
     ethosnCompilationOpts.m_DebugInfo.m_DebugDir =
         m_EthosNConfig.m_PerfOutDir + "/subgraph_" + std::to_string(m_InstanceId);
-    // Disable RAM dump that is enabled by default by the Ethos-N support library
-    // and litters the execution folder with sizable HEX files
-    ethosnCompilationOpts.m_DebugInfo.m_DumpRam = false;
-    ethosnCompilationOpts.m_EnableCascading     = m_EthosNConfig.m_EnableCascading;
+    ethosnCompilationOpts.m_CompilerAlgorithm = m_EthosNConfig.m_CompilerAlgorithm;
 
     boost::filesystem::create_directories(ethosnCompilationOpts.m_DebugInfo.m_DebugDir);
 

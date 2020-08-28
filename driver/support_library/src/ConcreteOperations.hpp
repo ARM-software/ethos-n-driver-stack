@@ -297,6 +297,40 @@ private:
     ReluInfo m_ReluInfo;
 };
 
+class LeakyRelu : public VisitableOperation<LeakyRelu>
+{
+public:
+    LeakyRelu(const detail::PosInNetwork pos, uint32_t id, Operand& input, const LeakyReluInfo& leakyReluInfo);
+
+    const LeakyReluInfo& GetLeakyReluInfo() const
+    {
+        return m_LeakyReluInfo;
+    }
+
+    static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const LeakyReluInfo& leakyReluInfo);
+    void Print(std::ostream& os) final;
+
+private:
+    LeakyReluInfo m_LeakyReluInfo;
+};
+
+class Requantize : public VisitableOperation<Requantize>
+{
+public:
+    Requantize(const detail::PosInNetwork pos, uint32_t id, Operand& input, const RequantizeInfo& requantizeInfo);
+
+    const RequantizeInfo& GetRequantizeInfo() const
+    {
+        return m_RequantizeInfo;
+    }
+
+    static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const RequantizeInfo& requantizeInfo);
+    void Print(std::ostream& os) final;
+
+private:
+    RequantizeInfo m_RequantizeInfo;
+};
+
 class Softmax : public VisitableOperation<Softmax>
 {
 public:
@@ -367,6 +401,60 @@ public:
 
 private:
     DepthToSpaceInfo m_DepthToSpaceInfo;
+};
+
+class SpaceToDepth : public VisitableOperation<SpaceToDepth>
+{
+public:
+    SpaceToDepth(const detail::PosInNetwork pos, uint32_t id, Operand& input, const SpaceToDepthInfo& spaceToDepthInfo);
+
+    const SpaceToDepthInfo& GetSpaceToDepthInfo() const
+    {
+        return m_SpaceToDepthInfo;
+    }
+
+    static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const SpaceToDepthInfo& spaceToDepthInfo);
+
+    void Print(std::ostream& os) final;
+
+private:
+    SpaceToDepthInfo m_SpaceToDepthInfo;
+};
+
+class Transpose : public VisitableOperation<Transpose>
+{
+public:
+    Transpose(const detail::PosInNetwork pos, uint32_t id, Operand& input, const TransposeInfo& transposeInfo);
+
+    const TransposeInfo& GetTransposeInfo() const
+    {
+        return m_TransposeInfo;
+    }
+
+    static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const TransposeInfo& transposeInfo);
+
+    void Print(std::ostream& os) final;
+
+private:
+    TransposeInfo m_TransposeInfo;
+};
+
+class Resize : public VisitableOperation<Resize>
+{
+public:
+    Resize(const detail::PosInNetwork pos, uint32_t id, Operand& input, const ResizeInfo& resizeInfo);
+
+    const ResizeInfo& GetResizeInfo() const
+    {
+        return m_ResizeInfo;
+    }
+
+    static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const ResizeInfo& transposeInfo);
+
+    void Print(std::ostream& os) final;
+
+private:
+    ResizeInfo m_ResizeInfo;
 };
 
 class EstimateOnly : public VisitableOperation<EstimateOnly>

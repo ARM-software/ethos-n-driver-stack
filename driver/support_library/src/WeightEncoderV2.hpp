@@ -64,7 +64,7 @@ public:
         UNCOMPRESSED = 7
     };
 
-    struct WeightCompressionParamsV2
+    struct WeightCompressionParamsV2 : public WeightCompressionParams
     {
         WeightCompressionParamsV2()
             : m_ReloadCompressionParams(true)
@@ -130,9 +130,11 @@ protected:
                                  uint32_t iterationSize,
                                  ethosn::command_stream::MceOperation operation,
                                  CompilerMceAlgorithm algorithm,
-                                 const EncodingParams& params);
+                                 const EncodingParams& params,
+                                 std::vector<std::unique_ptr<WeightCompressionParams>>& compressionParams) override;
 
-    void ResetOfmEncodingParameters() override;
+    virtual std::vector<std::unique_ptr<WeightCompressionParams>>
+        GenerateCompressionParams(uint32_t numOfmInParallel) override;
 
     uint8_t WeightOffsetClamp(WeightSymbol offset) const
     {
@@ -277,11 +279,26 @@ protected:
     void WritePayloadHeader(BitstreamWriter& writer,
                             const size_t payloadLength,
                             const WeightCompressionParamsV2& compParams);
+    /**
+     *  Weight Encoder V2 has OfmShift of 16
+     */
+    virtual uint32_t GetOfmShiftOffset() const override;
 
     /**
-     * History of previous compression parameter for each OFM.
+     * Number of Ofm processed in parallel which is the minimum number of
+     * weights streams that need to be loaded at the same time for all the
+     * mce interfaces to start producing an Ofm each.
      */
-    std::vector<WeightCompressionParamsV2> m_CompressionParams;
+    virtual uint32_t GetNumOfmInParallel(const uint32_t numOfm,
+                                         const uint32_t numSrams,
+                                         const uint32_t stripeDepth,
+                                         const DataFormat dataFormat) const override;
+
+    /**
+     * Get HWIM encoding parameters
+     */
+    virtual std::pair<uint32_t, uint32_t> GetHwimWeightPadding(
+        const bool usePadding, const uint32_t ifmIdx, const uint32_t numIfmsProcessedInParallel) const override;
 
     WeightCompMode m_Mode;
     WeightCompressionParamsV2 m_TestParams;

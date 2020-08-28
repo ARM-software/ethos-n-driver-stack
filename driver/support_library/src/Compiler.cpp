@@ -9,6 +9,7 @@
 #include "GraphNodes.hpp"
 #include "IEstimationStrategy.hpp"
 #include "McePlePass.hpp"
+#include "Optimization.hpp"
 #include "PlePass.hpp"
 #include "Section.hpp"
 #include "SramAllocator.hpp"
@@ -29,7 +30,8 @@ using namespace utils;
 
 uint32_t CalculateBufferSize(const TensorShape& shape, command_stream::DataFormat dataFormat)
 {
-    assert(dataFormat == command_stream::DataFormat::NHWC || dataFormat == command_stream::DataFormat::NHWCB ||
+    assert(dataFormat == command_stream::DataFormat::NHWC || dataFormat == command_stream::DataFormat::NCHW ||
+           dataFormat == command_stream::DataFormat::NHWCB ||
            dataFormat == command_stream::DataFormat::NHWCB_COMPRESSED ||
            dataFormat == command_stream::DataFormat::FCAF_WIDE || dataFormat == command_stream::DataFormat::FCAF_DEEP);
 
@@ -65,13 +67,13 @@ std::vector<std::unique_ptr<IStrategy>> GenerateAllowedStrategies(const Compilat
     {
         result.push_back(std::make_unique<Strategy1>());
     }
-    if (m_Options.m_Strategy4)
-    {
-        result.push_back(std::make_unique<Strategy4>());
-    }
     if (m_Options.m_Strategy6)
     {
         result.push_back(std::make_unique<Strategy6>());
+    }
+    if (m_Options.m_Strategy4)
+    {
+        result.push_back(std::make_unique<Strategy4>());
     }
     if (m_Options.m_Strategy7)
     {
@@ -120,26 +122,11 @@ Compiler::Compiler(const Network& network,
     , m_AllowedStrategies(GenerateAllowedStrategies(compilationOptions))
     , m_AllowedBlockConfigs(GenerateAllowedBlockConfigs(compilationOptions))
     , m_Capabilities(fwAndHwCapabilities)
-    , m_DisableWinograd(compilationOptions.m_DisableWinograd)
-    , m_EnableIntermediateCompression(compilationOptions.m_EnableIntermediateCompression)
-    , m_EnableCascading(false)
+    , m_CompilationOptions(compilationOptions)
     , m_DebuggingContext(compilationOptions.m_DebugInfo)
-    , m_EstimationStrategy(nullptr)
+    , m_EstimationOptions(estimationOptions)
     , m_PerfEstimate(false)
-{
-    // Check whether cascading is enabled in support library  and
-    // future optimistic estimates (PERF_CURRENT) enabled.
-    if (compilationOptions.m_EnableCascading == true && estimationOptions.m_Current == false)
-    {
-        m_EnableCascading    = true;
-        m_EstimationStrategy = std::make_unique<Cascading>(estimationOptions, m_Capabilities, m_DebuggingContext);
-    }
-    else
-    {
-        m_EstimationStrategy = std::make_unique<NonCascading>(estimationOptions, m_Capabilities, m_DebuggingContext);
-    }
-    assert(m_EstimationStrategy);
-}
+{}
 
 Compiler::~Compiler()
 {}
@@ -176,6 +163,68 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
 
 NetworkPerformanceData Compiler::EstimatePerformance()
 {
+    bool nonCascadedPerformanceValid = false;
+    bool cascadedPerformanceValid    = false;
+    NetworkPerformanceData nonCascadedPerformance, cascadedPerformance;
+    const CompilerAlgorithm& compilerAlgorithm = m_CompilationOptions.m_CompilerAlgorithm;
+    // An engineer can force to use non cascaded estimation only by setting
+    // 'COMPILER_ALGORITHM = NonCascadingOnly' into the configuration file
+    if (compilerAlgorithm == CompilerAlgorithm::Auto || compilerAlgorithm == CompilerAlgorithm::NonCascadingOnly)
+    {
+        try
+        {
+            m_EnableCascading           = false;
+            nonCascadedPerformance      = PrivateEstimatePerformance();
+            nonCascadedPerformanceValid = true;
+        }
+        catch (...)
+        {
+            //Nothing to do. nonCascadedPerformanceValid == false already
+        }
+    }
+    // An engineer can force to use cascaded estimation only by setting
+    // 'COMPILER_ALGORITHM = CascadingOnly' into the configuration file
+    if (compilerAlgorithm == CompilerAlgorithm::Auto || compilerAlgorithm == CompilerAlgorithm::CascadingOnly)
+    {
+        if (m_EstimationOptions.m_Current == false)
+        {
+            try
+            {
+                m_EnableCascading        = true;
+                cascadedPerformance      = PrivateEstimatePerformance();
+                cascadedPerformanceValid = true;
+            }
+            catch (...)
+            {
+                //Nothing to do. cascadedPerformanceValid == false already
+            }
+        }
+    }
+    if (!nonCascadedPerformanceValid && !cascadedPerformanceValid)
+    {
+        throw NotSupportedException("Estimation didn't find any valid performance data to return");
+    }
+    if (nonCascadedPerformanceValid && !cascadedPerformanceValid)
+    {
+        return nonCascadedPerformance;
+    }
+    if (!nonCascadedPerformanceValid && cascadedPerformanceValid)
+    {
+        return cascadedPerformance;
+    }
+    // Both of the performances are valid, try to see which one is the best
+    if (utils::IsLeftMoreDataPerformantThanRight(nonCascadedPerformance, cascadedPerformance))
+    {
+        return nonCascadedPerformance;
+    }
+    else
+    {
+        return cascadedPerformance;
+    }
+}
+
+NetworkPerformanceData Compiler::PrivateEstimatePerformance()
+{
     // Sets the performance estimate flag
     m_PerfEstimate = true;
 
@@ -195,321 +244,58 @@ NetworkPerformanceData Compiler::EstimatePerformance()
     {
         Optimize();
     }
-    m_PerformanceStream = m_EstimationStrategy->Estimate(m_Graph);
+    if (!m_EnableCascading)
+    {
+        NonCascading nonCascadingEstimate(m_EstimationOptions, m_Capabilities, m_DebuggingContext);
+        m_PerformanceStream = nonCascadingEstimate.Estimate(m_Graph);
+    }
+    else
+    {
+        Cascading cascadingEstimate(m_EstimationOptions, m_Capabilities, m_DebuggingContext);
+        m_PerformanceStream = cascadingEstimate.Estimate(m_Graph);
+    }
 
     return m_PerformanceStream;
 }
 
 void Compiler::Convert()
 {
-    m_Graph = Graph(m_Network, m_Capabilities);
+    m_Graph = Graph(m_Network, m_Capabilities, m_EstimationOptions);
 
-    DumpGraph("GraphInitial.dot");
+    DumpGraph("GraphInitial");
 }
 
 void Compiler::Optimize()
 {
+    using OptimizationFunc                     = bool (*)(Graph&, Node*);
+    const OptimizationFunc optimizationFuncs[] = {
+        &MergeFormatConversionNodes,
+        &MergeRequantizeNodes,
+        &ReorderReinterpretAndRequantizeNodes,
+        &ReorderConcatAndRequantizeNodes,
+        &MergeConcatNodes,
+        &RemoveUnconnectedNode,
+        &MergeConstantAndReinterpretNodes,
+        &MergeConstantAndFormatConversionNodes,
+        &ReplaceConstantAdditionWithDepthwise,
+    };
+
     bool madeChange;
     do
     {
         madeChange = false;
         for (Node* node : m_Graph.GetNodesSorted())
         {
-            ConcatNode* concatenationNode        = dynamic_cast<ConcatNode*>(node);
-            ConstantNode* constantNode           = dynamic_cast<ConstantNode*>(node);
-            FormatConversionNode* conversionNode = dynamic_cast<FormatConversionNode*>(node);
-            OutputNode* outputNode               = dynamic_cast<OutputNode*>(node);
-            RequantizeNode* requantizeNode       = dynamic_cast<RequantizeNode*>(node);
-            ReinterpretNode* reinterpetNode      = dynamic_cast<ReinterpretNode*>(node);
-            // Two adjacent format conversions which perform opposite conversions can be eliminated:
-            //
-            //   X (NHWCB) -->  FormatConversionNode to NHWC  -->  FormatConversionNode to NHWCB -->
-            //
-            //  Becomes
-            //
-            //  X (NHWCB) -->
-            if (conversionNode && conversionNode->GetOutputs().size() == 1 &&
-                conversionNode->GetOptimizationHint() != OptimizationHint::DoNotMerge)
+            for (const OptimizationFunc f : optimizationFuncs)
             {
-                FormatConversionNode* nextFormatConversionNode =
-                    dynamic_cast<FormatConversionNode*>(conversionNode->GetOutput(0)->GetDestination());
-                if (nextFormatConversionNode &&
-                    nextFormatConversionNode->GetOptimizationHint() != OptimizationHint::DoNotMerge)
+                madeChange = f(m_Graph, node);
+                if (madeChange)
                 {
-                    if (conversionNode->GetInputFormat(0) == nextFormatConversionNode->GetFormat())
-                    {
-                        m_Graph.CollapseEdge(conversionNode->GetInput(0));
-                        m_Graph.CollapseEdge(nextFormatConversionNode->GetInput(0));
-                        madeChange = true;
-                        break;
-                    }
-                }
-            }
-            // Two adjacent requantize nodes can be merged:
-            //
-            //   X -->  RequantizeNode to (0.1, 74) --> RequantizeNode to (1, -84)  -->
-            //
-            //  Becomes
-            //
-            //  X -->  RequantizeNode to (1, -84) -->
-            else if (requantizeNode && requantizeNode->GetOutputs().size() == 1 &&
-                     dynamic_cast<RequantizeNode*>(requantizeNode->GetOutput(0)->GetDestination()))
-            {
-                // Add the corresponding ids from the first requantize node (the removed one) to the second one (the one we are keeping)
-                RequantizeNode* nextNode =
-                    dynamic_cast<RequantizeNode*>(requantizeNode->GetOutput(0)->GetDestination());
-                nextNode->AddCorrespondingOperationIDs(requantizeNode->GetCorrespondingOperationIds());
-
-                m_Graph.CollapseNode(requantizeNode);
-                madeChange = true;
-                break;
-            }
-            // A reinterpret followed by a requantize can be reordered so the requantize is first.
-            // This is required to be able to do the requantize as part of a preceding MceOperation
-            //
-            //  X -->  ReinterpretNode --> RequantizeNode to (-1, 84) -->
-            //
-            //  Becomes
-            //
-            //  X --> RequantizeNode to (-1, 84) --> ReinterpretNode -->
-            else if (reinterpetNode && reinterpetNode->GetOutputs().size() == 1 &&
-                     dynamic_cast<RequantizeNode*>(reinterpetNode->GetOutput(0)->GetDestination()))
-            {
-                Node* oldRequantNode = dynamic_cast<RequantizeNode*>(reinterpetNode->GetOutput(0)->GetDestination());
-                Node* newRequant     = m_Graph.CreateAndAddNode<RequantizeNode>(
-                    reinterpetNode->GetInputShape(0), oldRequantNode->GetQuantizationInfo(),
-                    oldRequantNode->GetInputFormat(0), oldRequantNode->GetCorrespondingOperationIds());
-                m_Graph.SplitEdge(reinterpetNode->GetInput(0), newRequant);
-                m_Graph.CollapseNode(oldRequantNode);
-                madeChange = true;
-                break;
-            }
-            // A concat followed by a requantize can be reordered so that the requantize occurs on each input of the concat.
-            // This is required to be able to do the requantize as part of a preceding MceOperation
-            //
-            //  X0 -->
-            //  X1 -->  ConcatNode  --> RequantizeNode to (-1, 84) -->
-            //  X2 -->
-            //
-            //  Becomes
-            //
-            //  X0 --> RequantizeNode to (-1, 84) -->
-            //  X1 --> RequantizeNode to (-1, 84) --> ConcatNode -->
-            //  X2 --> RequantizeNode to (-1, 84) -->
-            else if (concatenationNode && concatenationNode->GetOutputs().size() == 1 &&
-                     dynamic_cast<RequantizeNode*>(concatenationNode->GetOutput(0)->GetDestination()))
-            {
-                Node* oldRequantNode = dynamic_cast<RequantizeNode*>(concatenationNode->GetOutput(0)->GetDestination());
-                for (uint32_t i = 0; i < concatenationNode->GetInputs().size(); ++i)
-                {
-                    Node* newRequant = m_Graph.CreateAndAddNode<RequantizeNode>(
-                        concatenationNode->GetInputShape(i), oldRequantNode->GetQuantizationInfo(),
-                        concatenationNode->GetInputFormat(i), oldRequantNode->GetCorrespondingOperationIds());
-                    m_Graph.SplitEdge(concatenationNode->GetInput(i), newRequant);
-                }
-                m_Graph.CollapseNode(oldRequantNode);
-                madeChange = true;
-                break;
-            }
-            // This is for use case of concatenation to concatenation in the graph, for example
-            // Before:
-            // concatNode0      concatNode1
-            //     \                /
-            //         concatNode2
-            // After:
-            //         concatNode2
-            //
-            else if (concatenationNode && concatenationNode->GetInputs().size() > 1 &&
-                     concatenationNode->GetOptimizationHint() != OptimizationHint::DoNotMerge)
-            {
-                for (uint32_t i = 0; i < concatenationNode->GetInputs().size(); ++i)
-                {
-                    ConcatNode* prevConcatenationNode =
-                        dynamic_cast<ConcatNode*>(concatenationNode->GetInput(i)->GetSource());
-                    if (prevConcatenationNode)
-                    {
-                        // preserve the corresponding ID from the concat node we are removing
-                        concatenationNode->AddCorrespondingOperationIDs(
-                            prevConcatenationNode->GetCorrespondingOperationIds());
-                        m_Graph.CollapseNode(prevConcatenationNode);
-                        madeChange = true;
-                        break;
-                    }
-                }
-            }
-            // Remove unconnected nodes
-            // Before:
-            // Node0   Node1
-            //         /
-            //      Node2
-            // After:
-            //        Node1
-            //         /
-            //      Node2
-            //
-            else if (outputNode == nullptr && node->GetOutputs().size() == 0)
-            {
-                m_Graph.RemoveNode(node);
-                madeChange = true;
-                break;
-            }
-            // Merge Constant node with ReinterpretNode if any.
-            // Before:
-            //         ConstantNode
-            //         /
-            //      ReinterpretNode
-            // After:
-            //        ConstantNode
-            //
-            else if (constantNode && constantNode->GetOutputs().size() == 1 &&
-                     constantNode->GetFormat() == CompilerDataFormat::NHWC &&
-                     dynamic_cast<ReinterpretNode*>(constantNode->GetOutput(0)->GetDestination()))
-            {
-                // Statically reshape the constant node shape.
-                ReinterpretNode* reinterpetNode =
-                    dynamic_cast<ReinterpretNode*>(constantNode->GetOutput(0)->GetDestination());
-                const TensorInfo constantInfo(reinterpetNode->GetShape(), constantNode->GetConstantDataType(),
-                                              DataFormat::NHWC, constantNode->GetQuantizationInfo());
-                Node* newConstantNode = m_Graph.CreateAndAddNode<ConstantNode>(
-                    constantInfo, constantNode->GetConstantData(), node->GetCorrespondingOperationIds());
-                // preserve the operation ids from the nodes that are being removed
-                newConstantNode->AddCorrespondingOperationIDs(reinterpetNode->GetCorrespondingOperationIds());
-
-                m_Graph.InsertNodeAfter(reinterpetNode, newConstantNode);
-                m_Graph.CollapseNode(reinterpetNode);
-                m_Graph.CollapseNode(constantNode);
-                madeChange = true;
-                break;
-            }
-            // Merge Constant node with FormatConversionNode if any.
-            // Before:
-            //         ConstantNode
-            //         /
-            //      FormatConversionNode
-            // After:
-            //        ConstantNode
-            //
-            else if (constantNode && constantNode->GetOutputs().size() == 1 &&
-                     constantNode->GetFormat() == CompilerDataFormat::NHWC &&
-                     dynamic_cast<FormatConversionNode*>(constantNode->GetOutput(0)->GetDestination()))
-            {
-                m_Graph.CollapseEdge(constantNode->GetOutput(0));
-                madeChange = true;
-                break;
-            }
-            // Replace Constant node and Addition node with a new MceOperationNode.
-            // Before:
-            // constantNode          inputNode
-            //          \                /
-            //      StandalonePleOperationNode
-            // After:
-            //                inputNode
-            //                   /
-            //   MceOperationNode (identity depthwise where the bias is the constant)
-            //
-            else if (constantNode && constantNode->GetOutputs().size() == 1 &&
-                     constantNode->GetFormat() == CompilerDataFormat::NHWC &&
-                     dynamic_cast<StandalonePleOperationNode*>(constantNode->GetOutput(0)->GetDestination()))
-            {
-                StandalonePleOperationNode* pleOperationNode =
-                    dynamic_cast<StandalonePleOperationNode*>(constantNode->GetOutput(0)->GetDestination());
-
-                if (pleOperationNode->GetKernelOperation() == command_stream::PleOperation::ADDITION ||
-                    pleOperationNode->GetKernelOperation() == command_stream::PleOperation::ADDITION_RESCALE)
-                {
-                    // if input shape is { 1, 1, 1, C } add an identity depthwise instead where the bias values are the constant vals from the bias add
-                    bool isConstantBroadcastAddChannels = constantNode->GetShape()[0] == 1 &&
-                                                          constantNode->GetShape()[1] == 1 &&
-                                                          constantNode->GetShape()[2] == 1;
-
-                    if (isConstantBroadcastAddChannels)
-                    {
-                        const TensorInfo constantLayerInfo(constantNode->GetShape(),
-                                                           constantNode->GetConstantDataType(), DataFormat::NHWC,
-                                                           constantNode->GetQuantizationInfo());
-
-                        std::vector<uint8_t> constantLayerData = constantNode->GetConstantData();
-                        const Padding& padding                 = { 0, 0, 0, 0 };
-
-                        // Assume there is only one constant input (and only 2 inputs total).
-                        // In this case the input to the depthwise will be the non constant one.
-                        uint8_t idxOfInput = 0;
-
-                        // If the constant one is at idx 0, then it must be the other one.
-                        if (dynamic_cast<ConstantNode*>(pleOperationNode->GetInput(0)->GetSource()))
-                        {
-                            idxOfInput = 1;
-                        }
-
-                        Node* inputNode = pleOperationNode->GetInput(idxOfInput)->GetSource();
-
-                        const TensorShape inputShape = inputNode->GetShape();
-
-                        if (inputShape[3] == constantNode->GetShape()[3])
-                        {
-
-                            const QuantizationInfo& outputQuantInfo =
-                                pleOperationNode->GetOutput(0)->GetSource()->GetQuantizationInfo();
-
-                            TensorShape outputShape = pleOperationNode->GetOutput(0)->GetSource()->GetShape();
-
-                            const uint32_t numIfm = inputShape[3];
-                            // Since the constant input is being requantized, the weight scale and values must be chosen
-                            // A weight scale and data must satisify the following requirements:
-                            //   - the resulting weight data for the identity convolution doesn't saturate
-                            //       (i.e. must be between 1 and 255)
-                            //   - inputQuantScale * weightQuantScale needs to be less than the outputQuantScale
-                            //       (See CalculateQuantizedMultiplierSmallerThanOne in Utils.hpp)
-                            const float weightScaleUpperBound =
-                                std::min(outputQuantInfo.m_Scale / inputNode->GetQuantizationInfo().m_Scale, 1.f);
-                            constexpr float weightScaleLowerBound = (1.f / 255.f);
-                            if (weightScaleUpperBound < weightScaleLowerBound)
-                            {
-                                throw NotSupportedException("Couldn't choose appropriate weight scale for bias add");
-                            }
-                            const float weightScaleTarget = (weightScaleUpperBound + weightScaleLowerBound) / 2.f;
-                            // The reciprical of the scale needs to be a whole number to minimize rounding error.
-                            const float weightScaleRecipRounded = std::round(1.f / weightScaleTarget);
-                            const float weightScale             = 1.f / weightScaleRecipRounded;
-                            const float newConstantLayerScale = weightScale * inputNode->GetQuantizationInfo().m_Scale;
-
-                            std::vector<uint8_t> weightsData(1 * 1 * 1 * numIfm,
-                                                             static_cast<uint8_t>(weightScaleRecipRounded));
-
-                            TensorInfo weightInfo{
-                                { 1, 1, numIfm, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, { 0, weightScale }
-                            };
-
-                            QuantizationInfo constantNodeQuantizationInfo = constantNode->GetQuantizationInfo();
-                            if (constantNode->GetConstantDataType() == DataType::UINT8_QUANTIZED)
-                            {
-                                std::vector<int32_t> newConstantLayerData;
-                                for (uint32_t k = 0; k < constantLayerData.size(); ++k)
-                                {
-                                    float fpValue = constantNodeQuantizationInfo.m_Scale *
-                                                    static_cast<float>((constantLayerData.at(k) -
-                                                                        constantNodeQuantizationInfo.m_ZeroPoint));
-                                    newConstantLayerData.push_back(
-                                        static_cast<int32_t>(std::round(fpValue / newConstantLayerScale)));
-                                }
-                                Node* mceNode = m_Graph.CreateAndAddNode<MceOperationNode>(
-                                    inputShape, outputShape, outputQuantInfo, weightInfo, weightsData,
-                                    constantLayerInfo, newConstantLayerData, Stride{ 1, 1 }, 1, padding.m_Top,
-                                    padding.m_Left, ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
-                                    CompilerDataFormat::NHWCB, node->GetCorrespondingOperationIds());
-
-                                mceNode->AddCorrespondingOperationIDs(pleOperationNode->GetCorrespondingOperationIds());
-
-                                m_Graph.InsertNodeAfter(inputNode, mceNode);
-                                m_Graph.CollapseEdge(mceNode->GetOutput(0));
-                                madeChange = true;
-                                break;
-                            }
-                        }
-                    }
+                    goto nextIteration;
                 }
             }
         }
+    nextIteration:;
     } while (madeChange);
 }
 
@@ -525,12 +311,12 @@ void Compiler::Prepare()
     const uint32_t maxIterations = static_cast<uint32_t>(m_Graph.GetNodes().size()) * 10;
     while (true)
     {
-        DumpGraph(std::string("GraphPrepareIteration") + std::to_string(numIterations) + "_Pre.dot");
+        DumpGraph(std::string("GraphPrepareIteration") + std::to_string(numIterations) + "_Pre");
 
         Optimize();
         CreatePasses();
 
-        DumpGraph(std::string("GraphPrepareIteration") + std::to_string(numIterations) + "_Post.dot");
+        DumpGraph(std::string("GraphPrepareIteration") + std::to_string(numIterations) + "_Post");
 
         if (IsPrepared())
         {
@@ -628,7 +414,7 @@ void Compiler::CreatePasses()
     // forward estimate flag is passed on to the function CreateGreedily to allow FCAF for
     // strategies 6, 7 and arbitrary tensor shape. This happens if the forward-looking
     // SPA is configured.
-    bool forwardEst = m_PerfEstimate && !m_EstimationStrategy->GetEstimationOptions().m_Current;
+    bool forwardEst = m_PerfEstimate && !m_EstimationOptions.m_Current;
 
     for (Node* n : sortedNodes)
     {
@@ -639,8 +425,8 @@ void Compiler::CreatePasses()
             if (!p)
             {
                 p = McePlePass::CreateGreedily(m_Capabilities, passId, strategies, m_AllowedBlockConfigs,
-                                               m_EnableIntermediateCompression, !m_DisableWinograd, n, sramAllocator,
-                                               forwardEst);
+                                               m_CompilationOptions.m_EnableIntermediateCompression,
+                                               !m_CompilationOptions.m_DisableWinograd, n, sramAllocator, forwardEst);
             }
             if (!p)
             {
@@ -699,7 +485,7 @@ void Compiler::Generate()
         n->Generate(m_CommandStream, m_BufferManager, m_DebuggingContext.m_DebugInfo.m_DumpRam);
     }
 
-    DumpGraph("GraphFinal.dot");
+    DumpGraph("GraphFinal");
 
     m_BufferManager.AddCommandStream(m_CommandStream);
 
@@ -708,7 +494,18 @@ void Compiler::Generate()
 
 void Compiler::DumpGraph(const std::string& filename)
 {
-    m_DebuggingContext.DumpGraph(m_Graph, filename);
+    std::string finalFileName("");
+    if (m_EnableCascading)
+    {
+        finalFileName += "Cascaded_";
+    }
+    else
+    {
+        finalFileName += "NonCascaded_";
+    }
+    finalFileName += filename;
+    finalFileName += ".dot";
+    m_DebuggingContext.DumpGraph(m_Graph, finalFileName);
 }
 
 CompiledNetworkImpl::CompiledNetworkImpl(const std::vector<uint8_t>& constantDmaData,

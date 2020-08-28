@@ -23,48 +23,50 @@ namespace ethosn
 namespace support_library
 {
 
-/**
- * BitstreamWriter is a helper class that supports writing packed bitfields into a vector.
- */
+namespace
+{
+using Weight = WeightEncoderV2::Weight;
+template <typename T>
+std::deque<Weight>
+    ConvertToUncompressedWeights(const T* const weights, const size_t numWeights, const int32_t zeroPoint)
+{
+    std::deque<Weight> uncompressedWeights;
+
+    const auto correctZeroPoint = [zeroPoint](const T w) { return static_cast<Weight>(w - zeroPoint); };
+
+    std::transform(weights, &weights[numWeights], std::back_inserter(uncompressedWeights), correctZeroPoint);
+
+    return uncompressedWeights;
+}
+}    // namespace
+
+// BitstreamWriter is a helper class that supports writing packed bitfields into a vector.
+
 class BitstreamWriter
 {
 public:
     BitstreamWriter();
 
-    /**
-     * Returns the current write position in the bitstream (in bits)
-     */
+    // Returns the current write position in the bitstream (in bits)
     size_t GetOffset();
 
-    /**
-     * Write an element to the stream. Offset specifies where to start writing in the stream.
-     */
+    // Write an element to the stream. Offset specifies where to start writing in the stream.
     void Write(uint8_t elem, int numBits, size_t offset);
 
-    /**
-     * Write an element to end of the stream.
-     */
+    // Write an element to end of the stream.
     void Write(uint8_t elem, int numBits);
 
-    /**
-     * Write an element to the stream. Offset specifies where to start writing in the stream.
-     */
+    // Write an element to the stream. Offset specifies where to start writing in the stream.
     template <class T>
     void Write(const T* elem, int numBits);
 
-    /**
-     * Reserve space in the stream by writing 0 bits
-     */
+    // Reserve space in the stream by writing 0 bits
     void Reserve(size_t numBits);
 
-    /**
-     * Returns the stream as a uint8_t vector
-     */
+    // Returns the stream as a uint8_t vector
     const std::vector<uint8_t>& GetBitstream();
 
-    /**
-     * Clears the content of the stream and resets the write position
-     */
+    // Clears the content of the stream and resets the write position
     void Clear();
 
 private:
@@ -397,13 +399,16 @@ public:
     WeightEncoderV1(const HardwareCapabilities& capabilities);
 
 protected:
-    struct WeightCompressionParams
+    struct WeightCompressionParamsV1 : public WeightCompressionParams
     {
         bool m_MaskEnable;
         bool m_LutReload;
         uint32_t m_IndexSize;
         std::vector<uint8_t> m_Lut;
     };
+
+    virtual std::vector<std::unique_ptr<WeightCompressionParams>>
+        GenerateCompressionParams(uint32_t numOfmInParallel) override;
 
     virtual EncodedOfm EncodeOfm(const uint8_t* weightData,
                                  uint32_t ofmIdx,
@@ -419,16 +424,24 @@ protected:
                                  uint32_t iterationSize,
                                  ethosn::command_stream::MceOperation operation,
                                  CompilerMceAlgorithm algorithm,
-                                 const EncodingParams& params) override;
+                                 const EncodingParams& params,
+                                 std::vector<std::unique_ptr<WeightCompressionParams>>& compressionParams) override;
 
-    void ResetOfmEncodingParameters() override;
+    virtual uint32_t GetOfmShiftOffset() const override;
+
+    virtual std::pair<uint32_t, uint32_t> GetHwimWeightPadding(
+        const bool usePadding, const uint32_t ifmIdx, const uint32_t numIfmsProcessedInParallel) const override;
+
+    virtual uint32_t GetNumOfmInParallel(const uint32_t numOfm,
+                                         const uint32_t numSrams,
+                                         const uint32_t stripeDepth,
+                                         const DataFormat dataFormat) const override;
 
     // Analyze the weights for one ofm and choose appropriate compression parameters
-    WeightCompressionParams ChooseCompressionParameters(const std::vector<uint8_t>& rawWeightsForZeroMaskCompression,
-                                                        const std::vector<uint8_t>& rawWeightsForNoZeroMaskCompression,
-                                                        const TensorInfo& weightsTensorInfo) const;
-
-    std::vector<WeightCompressionParams> m_CompressionParameters;
+    WeightCompressionParamsV1
+        ChooseCompressionParameters(const std::vector<uint8_t>& rawWeightsForZeroMaskCompression,
+                                    const std::vector<uint8_t>& rawWeightsForNoZeroMaskCompression,
+                                    const TensorInfo& weightsTensorInfo) const;
 };
 
 WeightEncoderV1::WeightEncoderV1(const HardwareCapabilities& capabilities)
@@ -461,27 +474,36 @@ WeightEncoderV2::WeightEncoderV2(const HardwareCapabilities& capabilities,
     , m_TestParams(params)
 {}
 
-WeightEncoder::EncodedOfm WeightEncoderV2::EncodeOfm(const uint8_t* weightData,
-                                                     uint32_t ofmIdx,
-                                                     uint32_t numOfmInParallel,
-                                                     uint32_t numIterationsOfm,
-                                                     uint32_t stripeDepth,
-                                                     uint32_t iteration,
-                                                     const TensorInfo& weightsTensorInfo,
-                                                     uint32_t strideY,
-                                                     uint32_t strideX,
-                                                     uint32_t paddingTop,
-                                                     uint32_t paddingLeft,
-                                                     uint32_t iterationSize,
-                                                     ethosn::command_stream::MceOperation operation,
-                                                     CompilerMceAlgorithm algorithm,
-                                                     const EncodingParams& params)
+std::vector<std::unique_ptr<WeightEncoder::WeightCompressionParams>>
+    WeightEncoderV2::GenerateCompressionParams(uint32_t numOfmInParallel)
+{
+    std::vector<std::unique_ptr<WeightCompressionParams>> params(numOfmInParallel);
+    std::generate(params.begin(), params.end(), std::make_unique<WeightCompressionParamsV2>);
+    return params;
+}
+
+WeightEncoder::EncodedOfm
+    WeightEncoderV2::EncodeOfm(const uint8_t* weightData,
+                               uint32_t ofmIdx,
+                               uint32_t numOfmInParallel,
+                               uint32_t numIterationsOfm,
+                               uint32_t stripeDepth,
+                               uint32_t iteration,
+                               const TensorInfo& weightsTensorInfo,
+                               uint32_t strideY,
+                               uint32_t strideX,
+                               uint32_t paddingTop,
+                               uint32_t paddingLeft,
+                               uint32_t iterationSize,
+                               ethosn::command_stream::MceOperation operation,
+                               CompilerMceAlgorithm algorithm,
+                               const EncodingParams& params,
+                               std::vector<std::unique_ptr<WeightCompressionParams>>& compressionParams)
 {
     uint32_t wdIdx = (ofmIdx % stripeDepth) % numOfmInParallel;
 
     // Grab a reference to previous compression parameters
-    m_CompressionParams.resize(numOfmInParallel);
-    WeightCompressionParamsV2& prevCompParams = m_CompressionParams[wdIdx];
+    WeightCompressionParamsV2& prevCompParams = static_cast<WeightCompressionParamsV2&>(*compressionParams[wdIdx]);
 
     if (!prevCompParams.m_InitialParameters)
     {
@@ -535,9 +557,29 @@ WeightEncoder::EncodedOfm WeightEncoderV2::EncodeOfm(const uint8_t* weightData,
     return { std::move(writer.GetBitstream()), static_cast<uint32_t>(writer.GetOffset()) };
 }
 
-void WeightEncoderV2::ResetOfmEncodingParameters()
+uint32_t WeightEncoderV2::GetOfmShiftOffset() const
 {
-    m_CompressionParams.clear();
+    return 16;
+}
+
+uint32_t WeightEncoderV2::GetNumOfmInParallel(const uint32_t numOfm,
+                                              const uint32_t numSrams,
+                                              const uint32_t stripeDepth,
+                                              const DataFormat dataFormat) const
+{
+    if (dataFormat == DataFormat::HWIO)
+    {
+        return std::min(numOfm, stripeDepth);
+    }
+    else
+    {
+        return std::min(numSrams, stripeDepth);
+    }
+}
+
+std::pair<uint32_t, uint32_t> WeightEncoderV2::GetHwimWeightPadding(const bool, const uint32_t, const uint32_t) const
+{
+    return std::make_pair(1, 1);
 }
 
 static uint8_t CalcBitWidth(size_t value, uint8_t minWidth)
@@ -724,19 +766,30 @@ bool WeightEncoderV2::FindPaletteParams(WeightCompressionParamsV2& params,
     // Adjust the palette size until all the symbols outside the palette can be represented.
     uint8_t weightOffset        = 0;
     WeightSymbol valueRangeLeft = static_cast<WeightSymbol>(maxWeightSymbolValue - paletteSize);
-    const uint8_t paddingOffset = palettePadding ? 1 : 0;
     do
     {
-        paletteSize = static_cast<uint8_t>(std::min<WeightSymbol>(paletteSize, valueRangeLeft));
-        // Find min and max symbol outside the palette
-        const auto minMaxItPair =
-            std::minmax_element(symbolFreqPairs.begin() + (paletteSize - paddingOffset), symbolFreqPairs.end());
-        // Use the smallest symbol as offset
-        weightOffset                 = WeightOffsetClamp(minMaxItPair.first->first);
-        const WeightSymbol maxSymbol = minMaxItPair.second->first;
-        // Calculate the value range left after the the highest symbol value outside the palette has
-        // been represented
-        valueRangeLeft = static_cast<WeightSymbol>(maxWeightSymbolValue - (maxSymbol - weightOffset));
+        paletteSize                        = static_cast<uint8_t>(std::min<WeightSymbol>(paletteSize, valueRangeLeft));
+        const uint8_t paletteSizeNoPadding = palettePadding ? static_cast<uint8_t>(paletteSize - 1) : paletteSize;
+
+        // Check if the palette contains all the weight values
+        if (paletteSizeNoPadding == symbolFreqPairs.size())
+        {
+            // RLE must be taken into account when selecting the weight offset.
+            weightOffset   = params.m_Zdiv != ZDivisor::RLE_DISABLED;
+            valueRangeLeft = maxWeightSymbolValue;
+        }
+        else
+        {
+            // Find min and max symbol outside the palette
+            const auto minMaxItPair =
+                std::minmax_element(symbolFreqPairs.begin() + paletteSizeNoPadding, symbolFreqPairs.end());
+            // Use the smallest symbol as offset
+            weightOffset                 = WeightOffsetClamp(minMaxItPair.first->first);
+            const WeightSymbol maxSymbol = minMaxItPair.second->first;
+            // Calculate the value range left after the the highest symbol value outside the palette has
+            // been represented
+            valueRangeLeft = static_cast<WeightSymbol>(maxWeightSymbolValue - (maxSymbol - weightOffset));
+        }
     } while (paletteSize > 2 && paletteSize > valueRangeLeft);
 
     // If the palette can't contain at least two values don't use it
@@ -761,7 +814,7 @@ void WeightEncoderV2::FindRLEParams(WeightCompressionParamsV2& params, const std
     for (std::deque<Weight>::const_iterator wIt = weights.begin(); wIt != weights.end(); wIt += (wIt != weights.end()))
     {
         uint32_t numZeroes = 0;
-        for (; *wIt == 0 && wIt != weights.end(); ++wIt)
+        for (; wIt != weights.end() && *wIt == 0; ++wIt)
         {
             ++numZeroes;
         }
@@ -807,8 +860,6 @@ void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& par
                                                   const WeightCompressionParamsV2& prevParams,
                                                   const std::deque<Weight>& weights) const
 {
-    constexpr uint32_t rleThreshold = 4;
-
     // Compression parameters are not reused at the moment so they should always be reloaded.
     std::map<WeightSymbol, uint32_t> symbolFreq;
     for (Weight weight : weights)
@@ -826,11 +877,13 @@ void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& par
         return a.second > b.second || (a.second == b.second && a.first > b.first);
     });
 
-    // Use RLE if zero is the most common value and is significantly more common than the next most
-    // common value.
-    if (sortedSymbolFreqPairs[0].first == 0 &&
-        (sortedSymbolFreqPairs.size() == 1 ||
-         sortedSymbolFreqPairs[0].second >= (sortedSymbolFreqPairs[1].second * rleThreshold)))
+    auto zeroIter = find_if(sortedSymbolFreqPairs.begin(), sortedSymbolFreqPairs.end(),
+                            [](const std::pair<WeightSymbol, uint32_t>& e) { return e.first == 0; });
+
+    // Use RLE if at least 20% of all elements are zero, this is measured to be the threshold where
+    // RLE starts to be meaningful.
+    constexpr uint32_t rleThreshold = 5;
+    if (zeroIter != sortedSymbolFreqPairs.end() && (zeroIter->second * rleThreshold) > weights.size())
     {
         FindRLEParams(params, weights);
         // If there are only zero weights, there is nothing more to do.
@@ -845,7 +898,7 @@ void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& par
         }
 
         // Remove the zero weights from the vector as they are now handled by RLE
-        sortedSymbolFreqPairs.erase(sortedSymbolFreqPairs.begin());
+        sortedSymbolFreqPairs.erase(zeroIter);
     }
 
     // Attempt to find palette parameters that fit the weight symbols
@@ -889,13 +942,13 @@ void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& par
         params.m_PaletteBits = CalcBitWidth(maxSymbol, 2) - 2;
     }
 
-    params.m_PaletteReload =
-        !(prevParams.m_InitialParameters == false && params.m_WeightOffset == prevParams.m_WeightOffset &&
-          params.m_Palette == prevParams.m_Palette && params.m_PaletteBits == prevParams.m_PaletteBits);
+    params.m_PaletteReload = !(prevParams.m_InitialParameters == false && params.m_Palette == prevParams.m_Palette &&
+                               params.m_PaletteBits == prevParams.m_PaletteBits);
 
     params.m_ReloadCompressionParams =
         !(params.m_PaletteReload == false && params.m_Zdiv == prevParams.m_Zdiv && params.m_Wdiv == prevParams.m_Wdiv &&
-          params.m_TruncationEnabled == prevParams.m_TruncationEnabled);
+          params.m_TruncationEnabled == prevParams.m_TruncationEnabled &&
+          params.m_WeightOffset == prevParams.m_WeightOffset);
 }
 
 const WeightEncoderV2::WeightCompressionParamsV2
@@ -978,6 +1031,7 @@ uint32_t WeightEncoderV2::GetOfmBiasSize(const TensorInfo& weightsTensorInfo) co
     switch (weightsTensorInfo.m_DataType)
     {
         case DataType::UINT8_QUANTIZED:
+        case DataType::INT8_QUANTIZED:
             ofmBiasSize += 1;
             break;
         case DataType::INT32_QUANTIZED:
@@ -1024,14 +1078,20 @@ bool WeightEncoderV2::GetOfmReload(const WeightCompressionParamsV2& compParams,
 std::deque<WeightEncoderV2::Weight> WeightEncoderV2::GetUncompressedWeights(const std::vector<uint8_t>& weights,
                                                                             const TensorInfo& weightsTensorInfo) const
 {
-    std::deque<Weight> uncompressedWeights;
-
-    for (auto w : weights)
+    switch (weightsTensorInfo.m_DataType)
     {
-        uncompressedWeights.push_back(static_cast<Weight>(w - weightsTensorInfo.m_QuantizationInfo.m_ZeroPoint));
+        case DataType::UINT8_QUANTIZED:
+            return ConvertToUncompressedWeights(weights.data(), weights.size(),
+                                                weightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
+        case DataType::INT8_QUANTIZED:
+            return ConvertToUncompressedWeights(reinterpret_cast<const int8_t*>(weights.data()), weights.size(),
+                                                weightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
+        default:
+        {
+            std::string errorMessage = "Error in " + std::string(__func__) + ": DataType not yet supported";
+            throw std::invalid_argument(errorMessage);
+        }
     }
-
-    return uncompressedWeights;
 }
 
 WeightEncoderV2::WeightSymbol WeightEncoderV2::DirectEncode(const Weight weight,
@@ -1393,11 +1453,11 @@ void WeightEncoderV2::WritePayloadHeader(BitstreamWriter& writer,
         writer.Write(&compParams.m_Zdiv, 3);
         writer.Write(&compParams.m_Wdiv, 3);
         writer.Write(&compParams.m_TruncationEnabled, 1);
+        writer.Write(&compParams.m_WeightOffset, 5);
         writer.Write(&compParams.m_PaletteReload, 1);
 
         if (compParams.m_PaletteReload)
         {
-            writer.Write(&compParams.m_WeightOffset, 5);
             const size_t paletteSize = compParams.m_Palette.empty() ? 0 : compParams.m_Palette.size() - 1;
             writer.Write(&paletteSize, 5);
             writer.Write(&compParams.m_PaletteBits, 3);
@@ -1499,6 +1559,9 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
                                      ethosn::command_stream::MceOperation operation,
                                      CompilerMceAlgorithm algorithm)
 {
+    assert(stripeDepth > 0);
+    assert(iterationSize > 0);
+
     uint32_t numOfms;
     if (weightsTensorInfo.m_DataFormat == DataFormat::HWIO)
     {
@@ -1515,12 +1578,13 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
     }
 
     // Bias dimensions should be valid
-    assert((biasTensorInfo.m_Dimensions[0] * biasTensorInfo.m_Dimensions[1] * biasTensorInfo.m_Dimensions[2] == 1) ||
+    assert((biasTensorInfo.m_Dimensions[0] * biasTensorInfo.m_Dimensions[1] * biasTensorInfo.m_Dimensions[2] == 1) &&
            biasTensorInfo.m_Dimensions[3] == numOfms);
 
     // Zero point value should be within allowed range
-    assert(weightsTensorInfo.m_QuantizationInfo.m_ZeroPoint <= UINT8_MAX);
-    assert(weightsTensorInfo.m_QuantizationInfo.m_ZeroPoint >= 0);
+    const utils::DataTypeRange zeroPointBounds = utils::GetRangeOfDataType(weightsTensorInfo.m_DataType);
+    assert(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint() <= zeroPointBounds.max &&
+           weightsTensorInfo.m_QuantizationInfo.GetZeroPoint() >= zeroPointBounds.min);
 
     uint32_t ifmChannels = weightsTensorInfo.m_Dimensions[2] * strideX * strideY;
     uint32_t numIterationsOfm =
@@ -1529,37 +1593,22 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
     // Number of Ofm processed in parallel which is the minimum number of
     // weights streams that need to be loaded at the same time for all the
     // mce interfaces to start producing an Ofm each.
-    uint32_t numOfmInParallel;
     uint32_t numSrams       = m_Capabilities.GetNumberOfSrams();
     uint32_t numOfmsPerSram = m_Capabilities.GetNumberOfOfm() / numSrams;
 
-    if (weightsTensorInfo.m_DataFormat == DataFormat::HWIO)
-    {
-        numOfmInParallel = m_Capabilities.GetNumberOfOfm();
-    }
-    else if (weightsTensorInfo.m_DataFormat == DataFormat::HWIM)
-    {
-        numOfmInParallel = numSrams;
-    }
-    else
-    {
-        // Weight tensor must be HWIO or HWIM
-        assert(false);
-    }
-
     // The number of OFMs that can be processed in parallel is limited to the stripe depth
-    if (m_Capabilities.GetWeightCompressionVersion() == 1)
-    {
-        numOfmInParallel = std::min(numOfmInParallel, stripeDepth);
-    }
+    uint32_t numOfmInParallel =
+        GetNumOfmInParallel(m_Capabilities.GetNumberOfOfm(), numSrams, stripeDepth, weightsTensorInfo.m_DataFormat);
+
+    std::vector<std::unique_ptr<WeightCompressionParams>> compressionParams =
+        GenerateCompressionParams(numOfmInParallel);
 
     // Encode each OFM stream independently
     std::vector<std::vector<uint8_t>> encodedStreams;
     encodedStreams.reserve(numOfms * numIterationsOfm);
     std::vector<uint32_t> encodedNumBits;
     encodedNumBits.reserve(numOfms * numIterationsOfm);
-    // Reset any OFM encoding parameters set by previous calls to this function
-    ResetOfmEncodingParameters();
+    const auto numWeightScales = weightsTensorInfo.m_QuantizationInfo.GetScales().Size();
 
     for (uint32_t ofm = 0; ofm < (numOfms * numIterationsOfm); ++ofm)
     {
@@ -1570,22 +1619,20 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
 
         // Calculate encoding parameters from the various quantization infos
         EncodingParams params;
-        double overallScale = (inputQuantizationInfo.m_Scale * weightsTensorInfo.m_QuantizationInfo.m_Scale) /
-                              outputQuantizationInfo.m_Scale;
+        double overallScale = (inputQuantizationInfo.GetScale() *
+                               weightsTensorInfo.m_QuantizationInfo.GetScale(numWeightScales > 1 ? ofmIdx : 0)) /
+                              outputQuantizationInfo.GetScale();
         utils::CalculateQuantizedMultiplierSmallerThanOne(overallScale, params.m_OfmScaleFactor, params.m_OfmShift);
 
-        if (m_Capabilities.GetWeightCompressionVersion() == 1)
-        {
-            params.m_OfmShift += 16;
-        }
+        params.m_OfmShift += GetOfmShiftOffset();
 
         params.m_OfmBias         = biasData[ofmIdx];
-        params.m_OfmZeroPoint    = outputQuantizationInfo.m_ZeroPoint;
-        params.m_FilterZeroPoint = weightsTensorInfo.m_QuantizationInfo.m_ZeroPoint;
+        params.m_OfmZeroPoint    = outputQuantizationInfo.GetZeroPoint();
+        params.m_FilterZeroPoint = weightsTensorInfo.m_QuantizationInfo.GetZeroPoint();
 
         EncodedOfm encodedOfm = EncodeOfm(weightsData, ofmIdx, numOfmInParallel, numIterationsOfm, stripeDepth,
                                           iteration, weightsTensorInfo, strideY, strideX, paddingTop, paddingLeft,
-                                          iterationSize, operation, algorithm, params);
+                                          iterationSize, operation, algorithm, params, compressionParams);
 
         encodedStreams.push_back(std::move(encodedOfm.m_EncodedWeights));
         encodedNumBits.push_back(encodedOfm.m_NumOfBits);
@@ -1764,6 +1811,8 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
                                                     CompilerMceAlgorithm algorithm,
                                                     bool prepareForZeroMaskCompression) const
 {
+    assert(algorithm != CompilerMceAlgorithm::None);
+
     const uint32_t numUninterleavedIfmsPerIteration = iterationSize / (strideX * strideY);
 
     utils::ConstTensorData wd(weightData, weightsTensorInfo.m_Dimensions);
@@ -1845,7 +1894,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
                     {
                         AddWeightsForIfms(
                             [&](uint32_t) {
-                                return static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.m_ZeroPoint);
+                                return static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
                             },
                             channelStart, numChannels);
                     }
@@ -1868,7 +1917,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
                                         return (isValidData && i < numIfms)
                                                    ? filter.GetWeightAt(wd, y, x, i, ofmIdx)
                                                    : static_cast<uint8_t>(
-                                                         weightsTensorInfo.m_QuantizationInfo.m_ZeroPoint);
+                                                         weightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
                                     },
                                     channelStart, numChannels);
                             }
@@ -1915,7 +1964,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
                             // zero padding if the index is outside the range of the original kernel
                             uint8_t weight =
                                 isValidData ? filter.GetWeightAt(wd, y, x, channel, ofmIdx)
-                                            : static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.m_ZeroPoint);
+                                            : static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
                             result.push_back(weight);
                             ++count;
                         }
@@ -1929,7 +1978,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
                 for (uint32_t i = count; i < utils::RoundUpToNearestMultiple(count, m_Capabilities.GetNumberOfSrams());
                      ++i)
                 {
-                    result.push_back(static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.m_ZeroPoint));
+                    result.push_back(static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint()));
                 }
             }
         }
@@ -1942,7 +1991,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
         const uint32_t numIfms         = weightsTensorInfo.m_Dimensions[2];
         const uint32_t numSrams        = m_Capabilities.GetNumberOfSrams();
 
-        assert(numIfms % 1024 == 0);
+        assert(numIfms % g_WeightsChannelVecProd == 0);
 
         for (SubmapFilter filter : subfilters)
         {
@@ -1950,8 +1999,8 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
             {
                 uint32_t rawIdx;
 
-                uint32_t brickIdx = encodedIdx / 1024;
-                uint32_t idxBrick = encodedIdx % 1024;
+                uint32_t brickIdx = encodedIdx / g_WeightsChannelVecProd;
+                uint32_t idxBrick = encodedIdx % g_WeightsChannelVecProd;
 
                 const uint32_t patchSize = 16;
                 assert(numSrams == 8 || numSrams == 16);
@@ -1980,8 +2029,8 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
                 uint32_t patchOffset = idxQbrick / numSrams;
                 uint8_t weight;
 
-                rawIdx =
-                    iterationOffset + brickIdx * 1024 + qbrickIdx * qbrickSize + patchIdx * patchSize + patchOffset;
+                rawIdx = iterationOffset + brickIdx * g_WeightsChannelVecProd + qbrickIdx * qbrickSize +
+                         patchIdx * patchSize + patchOffset;
 
                 if (rawIdx < numIfms)
                 {
@@ -1989,7 +2038,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
                 }
                 else
                 {
-                    weight = static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.m_ZeroPoint);
+                    weight = static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
                 }
 
                 result.push_back(weight);
@@ -2021,23 +2070,12 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
         {
             const SubmapFilter& filter = subfilters[filterIdx];
 
-            uint32_t numChannels, ifmMod;
-            if (m_Capabilities.GetWeightCompressionVersion() > 0)
-            {
-                numChannels = 1;
-                ifmMod      = 1;
-            }
-            else
-            {
+            // Get encoding params
+            bool usePadding               = (filterIdx == subfilters.size() - 1) && tightlyPackLastSliceLastSubfilter;
+            uint32_t numChannels          = 0;
+            uint32_t ifmMod               = 0;
+            std::tie(numChannels, ifmMod) = GetHwimWeightPadding(usePadding, ifmIdx, numIfmsProcessedInParallel);
 
-                // If there are multiple subfilters, the data in all except the last must be padded to the number of IGs.
-                // The last one may be left without padding, if we are not using zero compression.
-                numChannels = (filterIdx == subfilters.size() - 1 && tightlyPackLastSliceLastSubfilter)
-                                  ? (ifmIdx % numIfmsProcessedInParallel) + 1
-                                  : numIfmsProcessedInParallel;
-
-                ifmMod = numIfmsProcessedInParallel;
-            }
             // Add weight data in row-major order, with the slice of as many IFMs as there are IGs, tightly packed
             // for each filter coordinate.
             for (uint32_t h = 0; h < filter.GetFilterY(); ++h)
@@ -2054,7 +2092,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
                         }
                         else
                         {
-                            weight = static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.m_ZeroPoint);
+                            weight = static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
                         }
 
                         result.push_back(weight);
@@ -2072,7 +2110,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
     return result;
 }
 
-WeightEncoderV1::WeightCompressionParams
+WeightEncoderV1::WeightCompressionParamsV1
     WeightEncoderV1::ChooseCompressionParameters(const std::vector<uint8_t>& rawWeightsForZeroMaskCompression,
                                                  const std::vector<uint8_t>& rawWeightsForNoZeroMaskCompression,
                                                  const TensorInfo& weightsTensorInfo) const
@@ -2166,14 +2204,14 @@ WeightEncoderV1::WeightCompressionParams
         scheme.numElements = rawWeights.size();
         scheme.numUniqueElements =
             count_if(scheme.frequencies.begin(), scheme.frequencies.end(), [](size_t val) { return val != 0; });
-        scheme.numZeroPointElements = scheme.frequencies[weightsTensorInfo.m_QuantizationInfo.m_ZeroPoint];
+        scheme.numZeroPointElements = scheme.frequencies[weightsTensorInfo.m_QuantizationInfo.GetZeroPoint()];
         scheme.compressedSize       = scheme.compressedSizeCalculator(scheme);
     }
 
     const Scheme& bestScheme = *std::min_element(
         schemes.begin(), schemes.end(), [](auto a, auto b) -> bool { return a.compressedSize < b.compressedSize; });
 
-    WeightCompressionParams params;
+    WeightCompressionParamsV1 params;
     params.m_LutReload  = bestScheme.m_Lut;
     params.m_MaskEnable = bestScheme.m_ZeroMask;
     params.m_IndexSize  = 0;    // 8-bit weights, Lut disabled
@@ -2201,7 +2239,7 @@ WeightEncoderV1::WeightCompressionParams
 
         size_t index = 0;
         // ZeroPoint must be greater than zero and less than 255
-        uint8_t zeroPoint = static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.m_ZeroPoint);
+        uint8_t zeroPoint = static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
         for (int i = 0; index < bestScheme.frequencies.size(); ++index)
         {
             if (bestScheme.frequencies[index] != 0 && !(params.m_MaskEnable && index == zeroPoint))
@@ -2237,26 +2275,36 @@ struct WeightHeader
 static_assert(sizeof(WeightHeader) == 14, "WeightHeader struct has not been tightly packed.");
 #pragma pack(pop)
 
-WeightEncoder::EncodedOfm WeightEncoderV1::EncodeOfm(const uint8_t* weightData,
-                                                     uint32_t ofmIdx,
-                                                     uint32_t numOfmInParallel,
-                                                     uint32_t,
-                                                     uint32_t,
-                                                     uint32_t iteration,
-                                                     const TensorInfo& weightsTensorInfo,
-                                                     uint32_t strideY,
-                                                     uint32_t strideX,
-                                                     uint32_t paddingTop,
-                                                     uint32_t paddingLeft,
-                                                     uint32_t iterationSize,
-                                                     ethosn::command_stream::MceOperation operation,
-                                                     CompilerMceAlgorithm algorithm,
-                                                     const EncodingParams& params)
+std::vector<std::unique_ptr<WeightEncoder::WeightCompressionParams>>
+    WeightEncoderV1::GenerateCompressionParams(uint32_t numOfmInParallel)
+{
+    std::vector<std::unique_ptr<WeightCompressionParams>> params(numOfmInParallel);
+    std::generate(params.begin(), params.end(), std::make_unique<WeightCompressionParamsV1>);
+    return params;
+}
+
+WeightEncoder::EncodedOfm
+    WeightEncoderV1::EncodeOfm(const uint8_t* weightData,
+                               uint32_t ofmIdx,
+                               uint32_t numOfmInParallel,
+                               uint32_t,
+                               uint32_t,
+                               uint32_t iteration,
+                               const TensorInfo& weightsTensorInfo,
+                               uint32_t strideY,
+                               uint32_t strideX,
+                               uint32_t paddingTop,
+                               uint32_t paddingLeft,
+                               uint32_t iterationSize,
+                               ethosn::command_stream::MceOperation operation,
+                               CompilerMceAlgorithm algorithm,
+                               const EncodingParams& params,
+                               std::vector<std::unique_ptr<WeightCompressionParams>>& compressionParameters)
 {
     // Lookup the compression parameters for the previous OFM associated with the same CE. This is used
     // to modify the compression of this current OFM.
-    m_CompressionParameters.resize(numOfmInParallel);
-    WeightCompressionParams& previousOfmSameCeCompressionParams = m_CompressionParameters[ofmIdx % numOfmInParallel];
+    WeightCompressionParamsV1& previousOfmSameCeCompressionParams =
+        static_cast<WeightCompressionParamsV1&>(*compressionParameters[ofmIdx % numOfmInParallel]);
 
     // Get the raw (unencoded) weight stream. Note we must do this twice - once to get a stream suited
     // for zero mask compression and again to get one suited to no zero mask compression. Yuck!
@@ -2268,7 +2316,7 @@ WeightEncoder::EncodedOfm WeightEncoderV1::EncodeOfm(const uint8_t* weightData,
                         iterationSize, operation, algorithm, false);
 
     // Choose the best compression scheme
-    WeightCompressionParams compressionParams = ChooseCompressionParameters(
+    WeightCompressionParamsV1 compressionParams = ChooseCompressionParameters(
         rawWeightsForZeroMaskCompression, rawWeightsForNoZeroMaskCompression, weightsTensorInfo);
     std::vector<uint8_t>& rawWeights =
         compressionParams.m_MaskEnable ? rawWeightsForZeroMaskCompression : rawWeightsForNoZeroMaskCompression;
@@ -2304,7 +2352,7 @@ WeightEncoder::EncodedOfm WeightEncoderV1::EncodeOfm(const uint8_t* weightData,
     header.m_MaskEnable      = compressionParams.m_MaskEnable;
     header.m_LutReload       = compressionParams.m_LutReload;
     header.m_IndexSize       = compressionParams.m_IndexSize & 0b11;
-    header.m_SignExtend      = 0;    // Only required for 16-bit weights (we only support 8-bit)
+    header.m_SignExtend      = utils::IsDataTypeSigned(weightsTensorInfo.m_DataType);
     header.m_Padding         = 0;    // Unused padding.
 
     // Compress each weight using the above chosen compression parameters
@@ -2322,9 +2370,35 @@ WeightEncoder::EncodedOfm WeightEncoderV1::EncodeOfm(const uint8_t* weightData,
     return result;
 }
 
-void WeightEncoderV1::ResetOfmEncodingParameters()
+uint32_t WeightEncoderV1::GetOfmShiftOffset() const
 {
-    m_CompressionParameters.clear();
+    return 0;
+}
+
+std::pair<uint32_t, uint32_t> WeightEncoderV1::GetHwimWeightPadding(const bool usePadding,
+                                                                    const uint32_t ifmIdx,
+                                                                    const uint32_t numIfmsProcessedInParallel) const
+{
+    // If there are multiple subfilters, the data in all except the last must be padded to the number of IGs.
+    // The last one may be left without padding, if we are not using zero compression.
+    uint32_t numChannels = usePadding ? (ifmIdx % numIfmsProcessedInParallel) + 1 : numIfmsProcessedInParallel;
+
+    return std::make_pair(numChannels, numIfmsProcessedInParallel);
+}
+
+uint32_t WeightEncoderV1::GetNumOfmInParallel(const uint32_t numOfm,
+                                              const uint32_t numSrams,
+                                              const uint32_t,
+                                              const DataFormat dataFormat) const
+{
+    if (dataFormat == DataFormat::HWIO)
+    {
+        return numOfm;
+    }
+    else
+    {
+        return numSrams;
+    }
 }
 
 std::vector<std::vector<uint8_t>> WeightEncoder::MergeStreams(const std::vector<std::vector<uint8_t>>& streams,

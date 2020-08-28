@@ -189,32 +189,41 @@ NxtPa GetNxtPart(const PartId id, const size_t max, const Combination& comb, con
     }
 
     // It assumes that the parts are in topological sort
-    DstPart::const_iterator it = (mOfPa.m_Destination.begin());
-    while (it != mOfPa.m_Destination.end())
+    // Find the destination with the lowest numerical PartId that we haven't already done - this will give deterministic results
+    std::pair<const Edge*, PartId> lowestDstPart(nullptr, std::numeric_limits<PartId>::max());
+    for (const auto& it : mOfPa.m_Destination)
     {
-        const Edge* edge             = it->first;
+        const Edge* edge             = it.first;
         Scratch::Edges::iterator eIt = result.m_Comb.m_Scratch.m_Edges.find(id);
         const bool saved             = (eIt != result.m_Comb.m_Scratch.m_Edges.end());
         Scratch::Dst dst             = saved ? (eIt->second) : Scratch::Dst{};
         const bool done              = (std::find(std::begin(dst), std::end(dst), edge) != std::end(dst));
-        if (!done)
+        if (!done && it.second < lowestDstPart.second)
         {
-            if (saved)
-            {
-                (eIt->second).push_back(edge);
-            }
-            else
-            {
-                result.m_Comb.m_Scratch.m_Edges.insert(std::make_pair(id, Scratch::Dst{ { edge } }));
-            }
-            const bool last = (mOfPa.m_Destination.size() == (result.m_Comb.m_Scratch.m_Edges.find(id)->second).size());
-            result.m_Dst    = edge;
-            result.m_Found  = true;
-            result.m_Comb.m_Scratch.m_CurrPartId = last ? (id + 1U) : id;
-            return result;
+            lowestDstPart.first  = it.first;
+            lowestDstPart.second = it.second;
         }
-        ++it;
     }
+    if (lowestDstPart.second == std::numeric_limits<PartId>::max())
+    {
+        return result;
+    }
+
+    const Edge* edge             = lowestDstPart.first;
+    Scratch::Edges::iterator eIt = result.m_Comb.m_Scratch.m_Edges.find(id);
+    const bool saved             = (eIt != result.m_Comb.m_Scratch.m_Edges.end());
+    if (saved)
+    {
+        (eIt->second).push_back(edge);
+    }
+    else
+    {
+        result.m_Comb.m_Scratch.m_Edges.insert(std::make_pair(id, Scratch::Dst{ { edge } }));
+    }
+    const bool last = (mOfPa.m_Destination.size() == (result.m_Comb.m_Scratch.m_Edges.find(id)->second).size());
+    result.m_Dst    = edge;
+    result.m_Found  = true;
+    result.m_Comb.m_Scratch.m_CurrPartId = last ? (id + 1U) : id;
     return result;
 }
 
@@ -329,8 +338,8 @@ PlanCompatibilityResult ArePlansCompatible(const Plan& plan1, const Plan& plan2,
     // Sanity tests - make sure the two Plans are for adjacent Parts.
     // Note we lookup both buffers by the same Node, as the Graph does not explicitly store intermediate tensors -
     // they are implicitly attached to each Node (which are defined to have a single output).
-    Buffer* plan1OutputBuffer = plan1.GetOutputBuffer(edge.GetSource());
-    Buffer* plan2InputBuffer  = plan2.GetInputBuffer(&edge);
+    const Buffer* plan1OutputBuffer = plan1.GetOutputBuffer(edge.GetSource());
+    const Buffer* plan2InputBuffer  = plan2.GetInputBuffer(&edge);
 
     if (plan1OutputBuffer == nullptr || plan2InputBuffer == nullptr)
     {
@@ -340,11 +349,23 @@ PlanCompatibilityResult ArePlansCompatible(const Plan& plan1, const Plan& plan2,
         return result;
     }
 
+    // Some properties of the buffers must match, for example if the quantisation info is different then even inserting
+    // a DMA glue isn't going to help.
+    bool areBuffersCompatible = plan1OutputBuffer->m_QuantizationInfo == plan2InputBuffer->m_QuantizationInfo &&
+                                plan1OutputBuffer->m_TensorShape == plan2InputBuffer->m_TensorShape;
+    if (!areBuffersCompatible)
+    {
+        // Not compatible as the output buffer can't be used directly as the input buffer, and we can't convert
+        // between them using a glue (at least not with the current implementation of this function).
+        PlanCompatibilityResult result;
+        result.m_IsCompatible = false;
+        return result;
+    }
+
     // Check if the buffers on the boundary are compatible, i.e. the same, such that the plans could be directly merged
     // without any additional DMA ops required
     bool areBuffersEquivalent = plan1OutputBuffer->m_Location == plan2InputBuffer->m_Location &&
                                 plan1OutputBuffer->m_Format == plan2InputBuffer->m_Format &&
-                                plan1OutputBuffer->m_TensorShape == plan2InputBuffer->m_TensorShape &&
                                 plan1OutputBuffer->m_StripeShape == plan2InputBuffer->m_StripeShape &&
                                 plan1OutputBuffer->m_Order == plan2InputBuffer->m_Order &&
                                 plan1OutputBuffer->m_SizeInBytes == plan2InputBuffer->m_SizeInBytes;
@@ -393,13 +414,15 @@ PlanCompatibilityResult ArePlansCompatible(const Plan& plan1, const Plan& plan2,
         result.m_IsCompatible = true;
         result.m_RequiresGlue = true;
 
-        auto dma1              = std::make_unique<DmaOp>();
-        DmaOp* dma1Raw         = dma1.get();
-        auto dramBuffer        = std::make_unique<Buffer>();
-        dramBuffer->m_Location = Location::Dram;
-        Buffer* dramBufferRaw  = dramBuffer.get();
-        auto dma2              = std::make_unique<DmaOp>();
-        DmaOp* dma2Raw         = dma2.get();
+        auto dma1       = std::make_unique<DmaOp>();
+        DmaOp* dma1Raw  = dma1.get();
+        auto dramBuffer = std::make_unique<Buffer>(
+            Lifetime::Atomic, Location::Dram, CompilerDataFormat::NHWCB, plan1OutputBuffer->m_TensorShape,
+            TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
+            utils::TotalSizeBytesNHWCB(plan1OutputBuffer->m_TensorShape), plan1OutputBuffer->m_QuantizationInfo);
+        Buffer* dramBufferRaw = dramBuffer.get();
+        auto dma2             = std::make_unique<DmaOp>();
+        DmaOp* dma2Raw        = dma2.get();
         result.m_Glue.m_Graph.AddOp(std::move(dma1));
         result.m_Glue.m_Graph.AddOp(std::move(dma2));
         result.m_Glue.m_Graph.AddBuffer(std::move(dramBuffer));
@@ -433,6 +456,7 @@ Metadata CreateMetadata(const GraphOfParts& parts)
         comPlsOfPa.clear();
 
         const Part& fPart                      = parts.GetPart(p);
+        mOfPa.m_PartId                         = p;
         const std::vector<const Edge*> dsEdges = fPart.GetOutputs();
         for (uint32_t n = 0; n < dsEdges.size(); ++n)
         {
@@ -471,10 +495,19 @@ Metadata CreateMetadata(const GraphOfParts& parts)
                     comPlsOfPa.insert(std::make_pair(f, std::move(cPls)));
                 }
             }
-            if (comPlsOfPa.size() > 0)
+            size_t comSize = comPlsOfPa.size();
+            if (comSize > 0)
             {
                 mOfPa.m_Comp.insert(std::make_pair(dsEdge, std::move(comPlsOfPa)));
             }
+        }
+        size_t sizeOfCompatiblePlan = mOfPa.m_Comp.size();
+        bool isLastPartInNetwork    = dsEdges.size() == 0;
+        if (!isLastPartInNetwork && sizeOfCompatiblePlan == 0)
+        {
+            std::string errorMessage =
+                "No compatible plan was found for part with ID " + std::to_string(mOfPa.m_PartId);
+            throw NotSupportedException(errorMessage.c_str());
         }
         // Fill up sources and destinations
         const std::vector<const Edge*> srEdges = fPart.GetInputs();
@@ -506,7 +539,6 @@ Combinations CreateSeeds(const GraphOfParts& parts, const Metadata& metadata, co
     Combinations result;
 
     SramAllocator alloc(caps.GetTotalSramSize() / caps.GetNumberOfSrams());
-    Allocated allocated;
     Combination comb;
 
     // First part in topological order
@@ -549,7 +581,6 @@ GrownSeeds GrowSeeds(const Combinations& combs,
     result.m_Terminated = true;
 
     SramAllocator alloc(caps.GetTotalSramSize() / caps.GetNumberOfSrams());
-    Allocated allocated;
 
     for (uint32_t c = 0; c < combs.size(); ++c)
     {

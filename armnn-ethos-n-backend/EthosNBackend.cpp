@@ -421,11 +421,17 @@ void ValidateActivationLayerParameters(SimpleLayer& layer)
     auto func = mapStringToActivationFunction.find(funcName->second);
     std::string errors;
 
-    // Currently we support only Sigmoid and ReLu Activation functions
-    if (!((func->second == ActivationFunction::Sigmoid) || (func->second == ActivationFunction::ReLu)))
+    // Currently we support only Sigmoid, ReLu and LeakyReLu Activation functions
+    switch (func->second)
     {
-        errors = "Invalid Value: Activation functions other than Sigmoid and ReLu are not supported\n";
-        throw armnn::InvalidArgumentException(errors);
+        case ActivationFunction::Sigmoid:
+        case ActivationFunction::ReLu:
+        case ActivationFunction::LeakyReLu:
+            break;
+        default:
+            errors = "Invalid Value: Activation functions other than Sigmoid, ReLu and LeakyRelu are not supported\n";
+            throw armnn::InvalidArgumentException(errors);
+            break;
     }
 }
 

@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2019 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2020 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -46,15 +46,38 @@ struct ethosn_addr_map {
 	ethosn_address_t extension;
 };
 
+struct ethosn_inference_queue {
+	struct mutex     inference_queue_mutex;
+	struct list_head inference_queue;
+};
+
 struct ethosn_device {
+	struct ethosn_core            **core;
+	struct device                 *dev;
+	struct cdev                   cdev;
+	struct mutex                  mutex;
+	int                           num_cores;
+	struct ethosn_inference_queue queue;
+	struct ethosn_dma_allocator   *allocator;
+};
+
+enum ethosn_core_status {
+	/* Set the core status as busy */
+	ETHOSN_CORE_BUSY = 0,
+	/* Set the core status as free */
+	ETHOSN_CORE_FREE = 1,
+};
+
+struct ethosn_core {
 	struct device               *dev;
-	struct cdev                 cdev;
+	uint32_t                    core_id;
 	struct dentry               *debug_dir;
 	struct debugfs_regset32     debug_regset;
 
 	void __iomem                *top_regs;
 	int                         queue_size;
 
+	struct ethosn_device        *parent;
 	struct ethosn_dma_allocator *allocator;
 	struct ethosn_addr_map      dma_map;
 	struct ethosn_addr_map      firmware_map;
@@ -67,10 +90,7 @@ struct ethosn_device {
 	struct ethosn_dma_info      *mailbox_response;
 	void                        *mailbox_message;
 	uint32_t                    num_pongs_received;
-
 	bool                        firmware_running;
-	struct ethosn_inference     *current_inference;
-	struct list_head            inference_queue;
 
 	/* Stores the response from the firmware containing capabilities data.
 	 * This is allocated when the data is received from the firmware and
@@ -97,6 +117,12 @@ struct ethosn_device {
 	struct workqueue_struct *irq_wq;
 	struct work_struct      irq_work;
 	atomic_t                irq_status;
+
+	struct ethosn_inference *current_inference;
+
+	/* Indicates if the core is busy or free.
+	 */
+	enum ethosn_core_status status;
 
 	/*
 	 * This tells us if the device initialization has been completed.
@@ -142,42 +168,42 @@ struct ethosn_device {
 };
 
 /**
- * ethosn_device_init() - Initialize the Ethos-N device.
- * @ethosn:	Pointer to Ethos-N device.
+ * ethosn_device_init() - Initialize the Ethos-N core.
+ * @core:	Pointer to Ethos-N core.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_device_init(struct ethosn_device *ethosn);
+int ethosn_device_init(struct ethosn_core *core);
 
 /**
- * ethosn_device_deinit() - Deinitialize the Ethos-N device.
- * @ethosn:	Pointer to Ethos-N device.
+ * ethosn_device_deinit() - Deinitialize the Ethos-N core.
+ * @core:	Pointer to Ethos-N core.
  */
-void ethosn_device_deinit(struct ethosn_device *ethosn);
+void ethosn_device_deinit(struct ethosn_core *core);
 
 /**
  * to_ethosn_addr() - Convert Linux address to Ethos-N address.
  * @linux_addr:		Linux address.
  * @addr_map:		Ethos-N region extensions info
  *
- *                 MCU                                       Linux
- *             - +------+  region_offset                   +-------+
- *             | | Code |  +-----------+  -                |       |
- *             | +------+  |           |  | region_extend  |       |
- *             | | SRAM |  |           |  v                |       |
- * region_addr | +------+  |           |                   |       |
- *             | | Regs |  |           | linux_addr        |       |
- *             | +------+  |           +-----------------> |       |
- *             | | RAM0 |  |                               |       |
- *  ethosn_addr   v +------+  |                               |       |
- *  -----------> | RAM1 | -+                               |       |
- *               +------+                                  |       |
- *               | Dev0 |                                  +-------+
- *               +------+
- *               | Dev1 |
- *               +------+
- *               | Bus  |
- *               +------+
+ *                  MCU                                       Linux
+ *              - +------+  region_offset                   +-------+
+ *              | | Code |  +-----------+  -                |       |
+ *              | +------+  |           |  | region_extend  |       |
+ *              | | SRAM |  |           |  v                |       |
+ * region_addr  | +------+  |           |                   |       |
+ *              | | Regs |  |           | linux_addr        |       |
+ *              | +------+  |           +-----------------> |       |
+ *              | | RAM0 |  |                               |       |
+ *  ethosn_addr v +------+  |                               |       |
+ *  ------------> | RAM1 | -+                               |       |
+ *                +------+                                  |       |
+ *                | Dev0 |                                  +-------+
+ *                +------+
+ *                | Dev1 |
+ *                +------+
+ *                | Bus  |
+ *                +------+
  *
  * The MCU address space is divided into 8 regions. For region 'code', 'ram0'
  * and 'ram1' address extensions can be configured which are appended to the
@@ -204,139 +230,139 @@ resource_size_t to_ethosn_addr(const resource_size_t linux_addr,
 
 /**
  * ethosn_write_top_reg() - Write top register.
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  * @page:	Register page.
  * @offset:	Register offset.
  * @value:	Value to be written.
  */
-void ethosn_write_top_reg(struct ethosn_device *ethosn,
+void ethosn_write_top_reg(struct ethosn_core *core,
 			  const u32 page,
 			  const u32 offset,
 			  const u32 value);
 
 /**
  * ethosn_read_top_reg() - Read top register.
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  * @page:	Register page.
  * @offset:	Register offset.
  *
  * Return: Register value.
  */
-u32 ethosn_read_top_reg(struct ethosn_device *ethosn,
+u32 ethosn_read_top_reg(struct ethosn_core *core,
 			const u32 page,
 			const u32 offset);
 
 /**
  * ethosn_reset_and_start_ethosn() - Perform startup sequence for device
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_reset_and_start_ethosn(struct ethosn_device *ethosn);
+int ethosn_reset_and_start_ethosn(struct ethosn_core *core);
 
 /**
  * ethosn_notify_firmware() - Trigger IRQ on Ethos-N .
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  */
-void ethosn_notify_firmware(struct ethosn_device *ethosn);
+void ethosn_notify_firmware(struct ethosn_core *core);
 
 /**
  * ethosn_reset() - Reset the Ethos-N .
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_reset(struct ethosn_device *ethosn);
+int ethosn_reset(struct ethosn_core *core);
 
 /**
  * ethosn_set_power_ctrl() - Configure power control.
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  * @clk_on:	Request clock on if true.
  */
-void ethosn_set_power_ctrl(struct ethosn_device *ethosn,
+void ethosn_set_power_ctrl(struct ethosn_core *core,
 			   bool clk_on);
 
 /**
  * ethosn_set_mmu_stream_id() - Configure the mmu stream id0.
- * @ethosn:-	Pointer to the Ethos-N device
+ * @core:-	Pointer to the Ethos-N core
  *
  * Return: Negative error code on error, zero otherwise
  */
-int ethosn_set_mmu_stream_id(struct ethosn_device *ethosn);
+int ethosn_set_mmu_stream_id(struct ethosn_core *core);
 
 /**
  * ethosn_set_addr_ext() - Set address extension offset for stream.
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  * @stream:	Which stream to update.
  * @offset:	Address offset.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_set_addr_ext(struct ethosn_device *ethosn,
+int ethosn_set_addr_ext(struct ethosn_core *core,
 			unsigned int stream,
 			ethosn_address_t offset,
 			struct ethosn_addr_map *addr_map);
 
 /**
  * ethosn_dump_gps() - Dump all general purpose registers.
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  *
  * Return: None.
  */
-void ethosn_dump_gps(struct ethosn_device *ethosn);
+void ethosn_dump_gps(struct ethosn_core *core);
 
 /**
  * ethosn_read_message() - Read message from Ethos-N mailbox.
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  * @header:	Message header.
  * @data:	Pointer to data.
  * @length:	Max length in bytes of data buffer.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_read_message(struct ethosn_device *ethosn,
+int ethosn_read_message(struct ethosn_core *core,
 			struct ethosn_message_header *header,
 			void *data,
 			size_t length);
 
 /**
  * ethosn_write_message() - Write message to Ethos-N mailbox.
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  * @type:	Message type.
  * @data:	Pointer to data.
  * @length:	Length in bytes of data buffer.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_write_message(struct ethosn_device *ethosn,
+int ethosn_write_message(struct ethosn_core *core,
 			 enum ethosn_message_type type,
 			 void *data,
 			 size_t length);
 
 /**
  * ethosn_send_version_request() - Send version request to Ethos-N .
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_send_version_request(struct ethosn_device *ethosn);
+int ethosn_send_version_request(struct ethosn_core *core);
 
 /**
  * ethosn_send_fw_hw_capabilities_request() - Send FW & HW capabilities request.
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_send_fw_hw_capabilities_request(struct ethosn_device *ethosn);
+int ethosn_send_fw_hw_capabilities_request(struct ethosn_core *core);
 
 /**
  * ethosn_send_configure_profiling() - Send request to tell the firmware to
  *                                  enable/ disable profiling.
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_configure_firmware_profiling(struct ethosn_device *ethosn,
+int ethosn_configure_firmware_profiling(struct ethosn_core *core,
 					struct ethosn_profiling_config *
 					new_config);
 
@@ -347,59 +373,59 @@ int ethosn_configure_firmware_profiling(struct ethosn_device *ethosn,
  *                                          request. Typically this would mean
  *                                          freeing any old buffer that is no
  *                                          longer being used.
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_configure_firmware_profiling_ack(struct ethosn_device *ethosn);
+int ethosn_configure_firmware_profiling_ack(struct ethosn_core *core);
 
 /**
  * ethosn_send_time_sync() - Send sync timestamp to the firmware in order to
  *                           sync the firmware profiling data with the user
  *                           space profiling data.
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_send_time_sync(struct ethosn_device *ethosn);
+int ethosn_send_time_sync(struct ethosn_core *core);
 
 /**
  * ethosn_send_ping() - Send ping to Ethos-N .
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_send_ping(struct ethosn_device *ethosn);
+int ethosn_send_ping(struct ethosn_core *core);
 
 /**
  * ethosn_send_inference() - Send inference to Ethos-N .
- * @ethosn:		Pointer to Ethos-N device.
+ * @core:		Pointer to Ethos-N core.
  * @buffer_array:	DMA address to buffer array.
  * @user_arg:		User argument. Will be returned in interence response.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_send_inference(struct ethosn_device *ethosn,
+int ethosn_send_inference(struct ethosn_core *core,
 			  dma_addr_t buffer_array,
 			  uint64_t user_arg);
 
 /**
  * ethosn_send_stream_request() - Send region request to Ethos-N .
- * @ethosn:	Pointer to Ethos-N device.
+ * @core:	Pointer to Ethos-N core.
  * @stream_id:	Stream identifier.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_send_stream_request(struct ethosn_device *ethosn,
+int ethosn_send_stream_request(struct ethosn_core *core,
 			       enum ethosn_stream_id stream_id);
 
 /**
  * ethosn_send_mpu_enable_request() - Send Mpu enable request to Ethos-N .
- * @ethosn:		Pointer to Ethos-N device.
+ * @core:		Pointer to Ethos-N core.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_send_mpu_enable_request(struct ethosn_device *ethosn);
+int ethosn_send_mpu_enable_request(struct ethosn_core *core);
 
 /* ethosn_profiling_enabled() - Get status of the profiling enabled switch.
  *
@@ -419,9 +445,18 @@ bool ethosn_mailbox_empty(struct ethosn_queue *queue);
  */
 int ethosn_clock_frequency(void);
 
+/* ethosn_get_global_core_for_testing() - Exposes global access to the
+ *                                       most-recently created Ethos-N core
+ *                                       (in case of single core) or core0 (in
+ *                                       case of multicore) for testing
+ * purposes.
+ *                                       See ethosn-tests module.
+ */
+struct ethosn_core *ethosn_get_global_core_for_testing(void);
+
 /* ethosn_get_global_device_for_testing() - Exposes global access to the
- *                                       most-recently created Ethos-N device
- *                                       for testing purposes.
+ *                                       Ethos-N parent device for testing
+ * purposes.
  *                                       See ethosn-tests module.
  */
 struct ethosn_device *ethosn_get_global_device_for_testing(void);

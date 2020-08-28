@@ -25,56 +25,56 @@
 
 #include "ethosn_device.h"
 
-struct ethosn_device;
+struct ethosn_core;
 
 /**
  * ethosn_log_init - Initialize log object.
- * @ethosn:	Ethos-N device.
+ * @core:	Ethos-N core.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_log_init(struct ethosn_device *ethosn);
+int ethosn_log_init(struct ethosn_core *core);
 
 /**
  * ethosn_log_deinit - Deinitialize log object.
- * @ethosn:	Ethos-N device.
+ * @core:	Ethos-N core.
  */
-void ethosn_log_deinit(struct ethosn_device *ethosn);
+void ethosn_log_deinit(struct ethosn_core *core);
 
 /**
  * ethosn_log_text() - Write text message to log.
- * @ethosn:	Ethos-N device.
+ * @core:	Ethos-N core.
  * @msg:	Message.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_log_text(struct ethosn_device *ethosn,
+int ethosn_log_text(struct ethosn_core *core,
 		    const char *msg);
 
 /**
  * ethosn_log_uapi() - Write UAPI message to log.
- * @ethosn:	Ethos-N device.
+ * @core:	Ethos-N core.
  * @ioctl:	IOCTL.
  * @data:	Pointer to data.
  * @length:	Length of data.
  *
  * Return: 0 on succes, else error code.
  */
-int ethosn_log_uapi(struct ethosn_device *ethosn,
+int ethosn_log_uapi(struct ethosn_core *core,
 		    uint32_t ioctl,
 		    void *data,
 		    size_t length);
 
 /**
  * ethosn_log_firmware() - Write firmware message to log.
- * @ethosn:	Ethos-N device.
+ * @core:	Ethos-N core.
  * @direction:	0=host->firmware, 1=host<-firmware.
  * @header:	Firmware interface message header.
  * @data:	Data following message header.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_log_firmware(struct ethosn_device *ethosn,
+int ethosn_log_firmware(struct ethosn_core *core,
 			enum ethosn_log_firmware_direction direction,
 			struct ethosn_message_header *header,
 			void *data);

@@ -71,6 +71,17 @@ BOOST_AUTO_TEST_CASE(SwizzleConvolutionWeightsDataOIHWToHWIO)
                                   expectedOutputData.end());
 }
 
+BOOST_AUTO_TEST_CASE(SupportedDataTypes)
+{
+    // Supported DataTypes
+    BOOST_CHECK(IsDataTypeSupportedOnEthosN(armnn::DataType::QAsymmU8));
+    BOOST_CHECK(IsDataTypeSupportedOnEthosN(armnn::DataType::QAsymmS8));
+    BOOST_CHECK(IsDataTypeSupportedOnEthosN(armnn::DataType::QSymmS8));
+    BOOST_CHECK(IsDataTypeSupportedOnEthosN(armnn::DataType::Signed32));
+    // Unsupported DataTypes
+    BOOST_CHECK(!IsDataTypeSupportedOnEthosN(armnn::DataType::Float32));
+}
+
 BOOST_AUTO_TEST_SUITE_END()
 
 }    // namespace armnn

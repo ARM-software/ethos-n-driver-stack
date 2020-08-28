@@ -60,7 +60,7 @@ struct TensorConfig
     SramTensorAllocation pleAllocation;
     uint32_t blockWidth;
     uint32_t blockHeight;
-    Strategy strategy;
+    Strategy strategy = Strategy::NONE;
 };
 
 command_stream::DataLocation GetCommandDataLocation(BufferLocation bufferLocation);
@@ -132,30 +132,6 @@ protected:
     /// Performance estimation functions
     /// @{
     virtual PassStats GetStats(const EstimationOptions& estimationOptions) = 0;
-
-    InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRatio) const;
-
-    InputStats GetInputStats(const TensorShape& shape,
-                             const TensorShape& stripeShape,
-                             const BufferLocation location,
-                             const uint32_t tileSize,
-                             const TensorInfo& weights =
-                                 {
-                                     { { 1, 1, 1, 1 } },
-                                     DataType::UINT8_QUANTIZED,
-                                     DataFormat::HWIM,
-                                     { 0, 0.1f },
-                                 },
-                             const uint32_t numOutStripesC = 1);
-
-    OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeShape, const BufferLocation location);
-
-    WeightsStats GetWeightsStats(EncodedWeights& encodedWeights,
-                                 const TensorInfo& info,
-                                 const TensorShape& stripeShape,
-                                 const uint32_t tileSize,
-                                 const TensorShape& inShape,
-                                 const TensorShape& inStripeShape);
     /// @}
 
     size_t m_Id;

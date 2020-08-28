@@ -38,6 +38,9 @@ ethosn_lib::DataType ConvertDataType(DataType dataType)
     {
         case DataType::QAsymmU8:
             return ethosn_lib::DataType::UINT8_QUANTIZED;
+        case DataType::QAsymmS8:
+        case DataType::QSymmS8:
+            return ethosn_lib::DataType::INT8_QUANTIZED;
         case DataType::Signed32:
             return ethosn_lib::DataType::INT32_QUANTIZED;
         default:
@@ -57,6 +60,17 @@ ethosn_lib::ConvolutionInfo
     const Stride stride(descriptor.m_StrideX, descriptor.m_StrideY);
     const ethosn_lib::QuantizationInfo quantizationInfo(quantizationOffset, quantizationScale);
     return ethosn_lib::ConvolutionInfo(pad, stride, quantizationInfo);
+}
+
+bool IsTensorDataTypeSymmetric(const armnn::TensorInfo& tensorInfo)
+{
+    switch (tensorInfo.GetDataType())
+    {
+        case DataType::QSymmS8:
+            return true;
+        default:
+            return false;
+    }
 }
 
 }    // namespace
@@ -92,8 +106,20 @@ ethosn_lib::TensorInfo BuildEthosNTensorInfo(const armnn::TensorInfo& tensorInfo
 {
     const ethosn_lib::DataFormat ethosnDataFormat = ConvertDataLayout(dataLayout);
     const ethosn_lib::DataType ethosnDataType     = ConvertDataType(tensorInfo.GetDataType());
-    const ethosn_lib::QuantizationInfo ethosnQuantizationInfo(tensorInfo.GetQuantizationOffset(),
-                                                              tensorInfo.GetQuantizationScale());
+    const int32_t zeroPoint = IsTensorDataTypeSymmetric(tensorInfo) ? 0 : tensorInfo.GetQuantizationOffset();
+    ethosn_lib::QuantizationInfo ethosnQuantizationInfo(zeroPoint);
+    if (tensorInfo.HasMultipleQuantizationScales())
+    {
+        ethosnQuantizationInfo.SetScales(tensorInfo.GetQuantizationScales());
+    }
+    else
+    {
+        ethosnQuantizationInfo.SetScale(tensorInfo.GetQuantizationScale());
+    }
+    if (tensorInfo.GetQuantizationDim())
+    {
+        ethosnQuantizationInfo.SetQuantizationDim(tensorInfo.GetQuantizationDim().value());
+    }
 
     const ethosn_lib::TensorShape EthosNTensorShape = BuildEthosNTensorShape(tensorInfo.GetShape());
 
@@ -137,7 +163,7 @@ ethosn_lib::TensorInfo BuildEthosNConvolutionWeightsInfo(const TensorInfo& weigh
 {
     const PermutationVector permutationVector =
         GetEthosNConvolutionWeightsPermutationVector(layerLayout, isDepthwiseConvolution);
-    const TensorInfo swizzledWeightsInfo = armnnUtils::Permuted(weightsInfo, permutationVector);
+    TensorInfo swizzledWeightsInfo = armnnUtils::Permuted(weightsInfo, permutationVector, true);
 
     ethosn_lib::TensorInfo ethosnWeightsInfo = BuildEthosNTensorInfo(swizzledWeightsInfo, DataLayout::NHWC);
 
@@ -188,19 +214,38 @@ ethosn_lib::TensorInfo
     // For unknown reasons however, there is a test that checks that a 4D bias works (1x1x1xN), so we must
     // make that work too :(
     auto ethosnBiasesInfo = BuildEthosNTensorInfo(biasesInfo, armnn::DataLayout::NHWC);
+    // We must set the correct index for the QuantizationDim as well.
+    if (ethosnBiasesInfo.m_QuantizationInfo.GetQuantizationDim())
+    {
+        ethosnBiasesInfo.m_QuantizationInfo.SetQuantizationDim(3U);
+    }
     // The shape returned by BuildEthosNTensorInfo will be padded incorrectly.
     ethosnBiasesInfo.m_Dimensions = { 1, 1, 1, biasesInfo.GetNumElements() };
     // For some networks the quantisation scale of the bias may not be exactly correct, but the Ethos-N requires this.
     // Arm NN will validate that they are at least approximately correct, so we are safe to force this here.
-    ethosnBiasesInfo.m_QuantizationInfo.m_Scale = inputInfo.GetQuantizationScale() * weightsInfo.GetQuantizationScale();
+    ethosn_lib::QuantizationScales inputScales(inputInfo.GetQuantizationScales());
+    ethosn_lib::QuantizationScales weightScales(weightsInfo.GetQuantizationScales());
+    ethosnBiasesInfo.m_QuantizationInfo.SetScales((inputScales * weightScales).ToVector());
     return ethosnBiasesInfo;
 }
 
 armnn::ethosn_lib::TensorInfo
     BuildEthosNBiasesInfo(unsigned int numBiasElements, const TensorInfo& inputInfo, const TensorInfo& weightsInfo)
 {
-    TensorInfo biasInfo = TensorInfo({ numBiasElements }, DataType::Signed32,
-                                     inputInfo.GetQuantizationScale() * weightsInfo.GetQuantizationScale(), 0);
+    ethosn_lib::QuantizationScales inputScales(inputInfo.GetQuantizationScales());
+    ethosn_lib::QuantizationScales weightScales(weightsInfo.GetQuantizationScales());
+    ethosn_lib::QuantizationScales scales = inputScales * weightScales;
+    TensorInfo biasInfo;
+
+    if (scales.IsScalar())
+    {
+        biasInfo = TensorInfo({ numBiasElements }, DataType::Signed32, scales[0], 0);
+    }
+    else
+    {
+        // For per-channel quantization QuantizationDim shall reffer to output dim
+        biasInfo = TensorInfo({ numBiasElements }, DataType::Signed32, scales.ToVector(), 3U);
+    }
     return BuildEthosNBiasesInfo(biasInfo, inputInfo, weightsInfo);
 }
 
@@ -268,6 +313,71 @@ ethosn_lib::ReluInfo BuildEthosNReluInfo(const armnn::ActivationDescriptor& desc
     }
 
     return reluInfo;
+}
+
+ethosn_lib::LeakyReluInfo BuildEthosNLeakyReluInfo(const armnn::ActivationDescriptor& descriptor,
+                                                   const float quantizationScale,
+                                                   const int quantizationOffset)
+{
+    ethosn_lib::LeakyReluInfo leakyReluInfo;
+
+    BOOST_ASSERT(descriptor.m_Function == ActivationFunction::LeakyReLu);
+
+    leakyReluInfo.m_Alpha                  = descriptor.m_A;
+    leakyReluInfo.m_OutputQuantizationInfo = ethosn_lib::QuantizationInfo(quantizationOffset, quantizationScale);
+
+    return leakyReluInfo;
+}
+
+Optional<ethosn_lib::TransposeInfo> BuildEthosNTransposeInfo(const armnn::PermutationVector& descriptor)
+{
+    if (descriptor.GetSize() != 4)
+    {
+        return Optional<ethosn_lib::TransposeInfo>();
+    }
+
+    std::array<uint32_t, 4> permutation;
+    std::copy(descriptor.begin(), descriptor.end(), permutation.begin());
+
+    Optional<ethosn_lib::TransposeInfo> transposeInfo(permutation);
+
+    return transposeInfo;
+}
+
+ethosn_lib::RequantizeInfo BuildEthosNRequantizeInfo(const float quantizationScale, const int quantizationOffset)
+{
+    ethosn_lib::RequantizeInfo requantizeInfo;
+
+    requantizeInfo.m_OutputQuantizationInfo = ethosn_lib::QuantizationInfo(quantizationOffset, quantizationScale);
+
+    return requantizeInfo;
+}
+
+ethosn_lib::ResizeInfo
+    BuildEthosNResizeInfo(const armnn::ResizeDescriptor& descriptor, float quantizationScale, int quantizationOffset)
+{
+    ethosn_lib::ResizeAlgorithm algo = ethosn_lib::ResizeAlgorithm::BILINEAR;
+
+    switch (descriptor.m_Method)
+    {
+        case (ResizeMethod::Bilinear):
+        {
+            algo = ethosn_lib::ResizeAlgorithm::BILINEAR;
+            break;
+        }
+        case (ResizeMethod::NearestNeighbor):
+        {
+            algo = ethosn_lib::ResizeAlgorithm::NEAREST_NEIGHBOUR;
+            break;
+        }
+        default:
+        {
+            return ethosn_lib::ResizeInfo();
+        }
+    }
+
+    return ethosn_lib::ResizeInfo(algo, descriptor.m_TargetHeight, descriptor.m_TargetWidth,
+                                  ethosn_lib::QuantizationInfo(quantizationOffset, quantizationScale));
 }
 
 namespace
@@ -360,6 +470,22 @@ armnn::Optional<armnn::ethosn_lib::SplitInfo> BuildEthosNSplitInfo(const TensorS
     }
 
     return ethosn_lib::SplitInfo(ethosnSplitAxis.value(), ethosnSizes);
+}
+
+bool IsDataTypeSupportedOnEthosN(const DataType dataType)
+{
+    switch (dataType)
+    {
+        case DataType::QAsymmU8:
+        case DataType::QAsymmS8:
+        case DataType::QSymmS8:
+        case DataType::Signed32:
+            return true;
+        default:
+        {
+            return false;
+        }
+    }
 }
 
 }    // namespace ethosntensorutils

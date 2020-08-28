@@ -311,6 +311,30 @@ BOOST_AUTO_TEST_CASE(ConvertBoundedReLuLayer)
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
 }
 
+BOOST_AUTO_TEST_CASE(ConvertLeakyReLuLayer)
+{
+    using namespace testing_utils;
+
+    Graph graph;
+
+    const TempDir tmpDir;
+    const std::string configFile = tmpDir.Str() + "/config.txt";
+
+    armnn::EthosNConfig config{};
+    config.m_PerfOnly    = true;
+    config.m_PerfOutDir  = tmpDir.Str();
+    config.m_PerfCurrent = true;
+
+    CreateConfigFile(configFile, config);
+    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
+
+    SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::LeakyReLu);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+
+    // Check that we are able to convert the sub-graph when performance only mode.
+    BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
+}
+
 BOOST_AUTO_TEST_CASE(ConvertDepthwiseConvolutionLayer)
 {
     Graph graph;
@@ -618,6 +642,120 @@ BOOST_AUTO_TEST_CASE(ConvertReshapeLayer)
     // Construct sub-graph
     SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
         CreateInputsFrom({ reshapeLayer }), CreateOutputsFrom({ reshapeLayer }), { reshapeLayer });
+
+    // Set up Ethos-N  sub-graph converter
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+
+    // Check that we are able to convert the sub-graph
+    BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
+
+    // Check that Ethos-N is able to compile the converted sub-graph
+    BOOST_CHECK_NO_THROW(converter.CompileNetwork());
+}
+
+BOOST_AUTO_TEST_CASE(ConvertTransposeLayer)
+{
+    //Removed from the test because it is not part of the 20.08 delivery.
+    //To be re-enabled in 20.11
+    if (false)
+    {
+        Graph graph;
+
+        // Create tensorinfo
+        const TensorInfo inputTensorInfo({ 1, 32, 16, 8 }, DataType::QAsymmU8, 1.0f, 0);
+
+        // Construct graph
+        Layer* inputLayer = graph.AddLayer<InputLayer>(0, "input");
+        inputLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
+
+        TransposeDescriptor descriptor;
+        descriptor.m_DimMappings = { 0, 2, 3, 1 };
+
+        Layer* transposeLayer = graph.AddLayer<TransposeLayer>(descriptor, "transpose");
+
+        Layer* outputLayer = graph.AddLayer<OutputLayer>(0, "output");
+
+        // Set up connections
+        inputLayer->GetOutputSlot(0).Connect(transposeLayer->GetInputSlot(0));
+        transposeLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+
+        // Construct sub-graph
+        SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
+            CreateInputsFrom({ transposeLayer }), CreateOutputsFrom({ transposeLayer }), { transposeLayer });
+
+        // Set up Ethos-N  sub-graph converter
+        TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+
+        // Check that we are able to convert the sub-graph
+        BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
+
+        // Check that Ethos-N is able to compile the converted sub-graph
+        BOOST_CHECK_NO_THROW(converter.CompileNetwork());
+    }
+}
+
+BOOST_AUTO_TEST_CASE(ConvertQuantizeLayer)
+{
+    Graph graph;
+
+    // Create tensorinfo
+    const TensorInfo inputTensorInfo({ 1, 32, 16, 8 }, DataType::QAsymmU8, 0.7f, 127);
+    const TensorInfo outputTensorInfo({ 1, 32, 16, 8 }, DataType::QAsymmU8, 0.5f, 30);
+
+    // Construct graph
+    Layer* inputLayer = graph.AddLayer<InputLayer>(0, "input");
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
+
+    Layer* quantizeLayer = graph.AddLayer<QuantizeLayer>("quantize");
+
+    Layer* outputLayer = graph.AddLayer<OutputLayer>(0, "output");
+
+    // Set up connections
+    inputLayer->GetOutputSlot(0).Connect(quantizeLayer->GetInputSlot(0));
+    quantizeLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+    quantizeLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
+
+    // Construct sub-graph
+    SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
+        CreateInputsFrom({ quantizeLayer }), CreateOutputsFrom({ quantizeLayer }), { quantizeLayer });
+
+    // Set up Ethos-N  sub-graph converter
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+
+    // Check that we are able to convert the sub-graph
+    BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
+
+    // Check that Ethos-N is able to compile the converted sub-graph
+    BOOST_CHECK_NO_THROW(converter.CompileNetwork());
+}
+
+BOOST_AUTO_TEST_CASE(ConvertResizeLayer)
+{
+    Graph graph;
+
+    // Create tensorinfo
+    const TensorInfo inputTensorInfo({ 1, 32, 16, 8 }, DataType::QAsymmU8, 1.0f, 0);
+
+    // Construct graph
+    Layer* inputLayer = graph.AddLayer<InputLayer>(0, "input");
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
+
+    ResizeDescriptor descriptor;
+    descriptor.m_Method       = ResizeMethod::Bilinear;
+    descriptor.m_TargetHeight = 63;
+    descriptor.m_TargetWidth  = 32;
+
+    Layer* resizeLayer = graph.AddLayer<ResizeLayer>(descriptor, "resize");
+
+    Layer* outputLayer = graph.AddLayer<OutputLayer>(0, "output");
+
+    // Set up connections
+    inputLayer->GetOutputSlot(0).Connect(resizeLayer->GetInputSlot(0));
+    resizeLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+
+    // Construct sub-graph
+    SubgraphView::SubgraphViewPtr subgraphPtr =
+        CreateSubgraphViewFrom(CreateInputsFrom({ resizeLayer }), CreateOutputsFrom({ resizeLayer }), { resizeLayer });
 
     // Set up Ethos-N  sub-graph converter
     TestEthosNSubgraphViewConverter converter(*subgraphPtr);

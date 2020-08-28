@@ -14,8 +14,6 @@ namespace ethosn
 namespace support_library
 {
 
-class Buffer;
-
 MceStats GetMceStats(const HardwareCapabilities& caps,
                      const Stride& stride,
                      const ethosn::command_stream::MceOperation& convtype,
@@ -24,23 +22,6 @@ MceStats GetMceStats(const HardwareCapabilities& caps,
                      const TensorShape& outputShape,
                      const TensorShape& weightsShape);
 
-PleStats GetPleStats(const HardwareCapabilities& caps,
-                     const std::vector<TensorShape>& inputStripeShapes,
-                     const command_stream::PleOperation& pleoperation);
-
-InputStats GetInputStats(const HardwareCapabilities& caps,
-                         const Buffer* inpbuf,
-                         const Buffer* outbuff,
-                         const uint32_t& inputTileSize,
-                         const TensorInfo& weights = {
-                             { { 1, 1, 1, 1 } },
-                             DataType::UINT8_QUANTIZED,
-                             DataFormat::HWIM,
-                             { 0, 0.1f },
-                         });
-
-OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeShape, const BufferLocation location);
-
 WeightsStats GetWeightsStats(const HardwareCapabilities& caps,
                              EncodedWeights& encodedWeights,
                              const TensorInfo& info,
@@ -48,6 +29,8 @@ WeightsStats GetWeightsStats(const HardwareCapabilities& caps,
                              const uint32_t tileSize,
                              const TensorShape& inShape,
                              const TensorShape& inStripeShape);
+
+std::vector<uint8_t> GenerateCompressibleData(size_t numElements, float spaceSavingProportion, int32_t zeroPoint);
 
 }    //namespace support_library
 }    //namespace ethosn

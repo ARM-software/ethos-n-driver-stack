@@ -79,6 +79,9 @@ private:
     void AddSoftmaxLayer(Layer* layer);
     void AddSplitterLayer(Layer* layer);
     void AddDepthToSpaceLayer(Layer* layer);
+    void AddTransposeLayer(Layer* layer);
+    void AddQuantizeLayer(Layer* layer);
+    void AddResizeLayer(Layer* layer);
     /// @}
 
     void AddEstimateOnly(Layer* layer);

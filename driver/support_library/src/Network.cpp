@@ -148,6 +148,32 @@ Relu& Network::AddRelu(Operand& input, const ReluInfo& reluInfo)
     return AddOperationWithId<Relu>({ &input.GetProducer() }, input, reluInfo);
 }
 
+LeakyRelu& Network::AddLeakyRelu(Operand& input, const LeakyReluInfo& leakyReluInfo)
+{
+    char reason[1024];
+    SupportedLevel supportedLevel =
+        IsLeakyReluSupported(leakyReluInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+    if (!CheckSupportedLevel(supportedLevel))
+    {
+        throw NotSupportedException(reason);
+    }
+
+    return AddOperationWithId<LeakyRelu>({ &input.GetProducer() }, input, leakyReluInfo);
+}
+
+Requantize& Network::AddRequantize(Operand& input, const RequantizeInfo& requantizeInfo)
+{
+    char reason[1024];
+    SupportedLevel supportedLevel =
+        IsRequantizeSupported(requantizeInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+    if (!CheckSupportedLevel(supportedLevel))
+    {
+        throw NotSupportedException(reason);
+    }
+
+    return AddOperationWithId<Requantize>({ &input.GetProducer() }, input, requantizeInfo);
+}
+
 Softmax& Network::AddSoftmax(Operand& input)
 {
     char reason[1024];
@@ -209,6 +235,45 @@ DepthToSpace& Network::AddDepthToSpace(Operand& input, const DepthToSpaceInfo& d
     }
 
     return AddOperationWithId<DepthToSpace>({ &input.GetProducer() }, input, depthToSpaceInfo);
+}
+
+SpaceToDepth& Network::AddSpaceToDepth(Operand& input, const SpaceToDepthInfo& spaceToDepthInfo)
+{
+    char reason[1024];
+    SupportedLevel supportedLevel =
+        IsSpaceToDepthSupported(input.GetTensorInfo(), spaceToDepthInfo, nullptr, reason, sizeof(reason));
+    if (!CheckSupportedLevel(supportedLevel))
+    {
+        throw NotSupportedException(reason);
+    }
+
+    return AddOperationWithId<SpaceToDepth>({ &input.GetProducer() }, input, spaceToDepthInfo);
+}
+
+Transpose& Network::AddTranspose(Operand& input, const TransposeInfo& transposeInfo)
+{
+    char reason[1024];
+    SupportedLevel supportedLevel =
+        IsTransposeSupported(transposeInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+    if (!CheckSupportedLevel(supportedLevel))
+    {
+        throw NotSupportedException(reason);
+    }
+
+    return AddOperationWithId<Transpose>({ &input.GetProducer() }, input, transposeInfo);
+}
+
+Resize& Network::AddResize(Operand& input, const ResizeInfo& resizeInfo)
+{
+    char reason[1024];
+    SupportedLevel supportedLevel =
+        IsResizeSupported(resizeInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+    if (!CheckSupportedLevel(supportedLevel))
+    {
+        throw NotSupportedException(reason);
+    }
+
+    return AddOperationWithId<Resize>({ &input.GetProducer() }, input, resizeInfo);
 }
 
 EstimateOnly& Network::AddEstimateOnly(const std::vector<Operand*>& inputs, const EstimateOnlyInfo& estimateOnly)

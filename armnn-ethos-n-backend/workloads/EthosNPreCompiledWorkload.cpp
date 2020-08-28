@@ -10,6 +10,7 @@
 #include "EthosNWorkloadUtils.hpp"
 #include "LabelsAndEventClasses.hpp"
 
+#include <Threads.hpp>
 #include <armnn/ArmNN.hpp>
 #include <boost/filesystem.hpp>
 #include <ethosn_driver_library/Network.hpp>
@@ -172,32 +173,28 @@ void SendProfilingEvents()
             sender->SendTimelineLabelBinaryPacket(labelGuid, label);
             auto relationshipGuid = guidGenerator.NextGuid();
             sender->SendTimelineRelationshipBinaryPacket(ProfilingRelationshipType::LabelLink, relationshipGuid,
-                                                         entityGuid, labelGuid);
+                                                         entityGuid, labelGuid, LabelsAndEventClasses::NAME_GUID);
         }
         auto entityGuid = map.at({ event.m_Id });
         auto eventGuid  = guidGenerator.NextGuid();
         auto timeInNanoSeconds =
             std::chrono::duration_cast<std::chrono::nanoseconds>(event.m_Timestamp.time_since_epoch()).count();
-        sender->SendTimelineEventBinaryPacket(static_cast<uint64_t>(timeInNanoSeconds), std::this_thread::get_id(),
-                                              eventGuid);
+        sender->SendTimelineEventBinaryPacket(static_cast<uint64_t>(timeInNanoSeconds),
+                                              armnnUtils::Threads::GetCurrentThreadId(), eventGuid);
 
         auto executionLinkId = profiling::ProfilingService::GetNextGuid();
-        sender->SendTimelineRelationshipBinaryPacket(ProfilingRelationshipType::ExecutionLink, executionLinkId,
-                                                     entityGuid, eventGuid);
 
         // If we are sending Start and End timeline events then we add a link to the Start/End of Life Event Classes.
         if (event.m_Type == ProfilingEntry::Type::TimelineEventStart)
         {
-            auto eventClassLinkId = profiling::ProfilingService::GetNextGuid();
-            sender->SendTimelineRelationshipBinaryPacket(ProfilingRelationshipType::DataLink, eventClassLinkId,
-                                                         eventGuid,
+            sender->SendTimelineRelationshipBinaryPacket(ProfilingRelationshipType::ExecutionLink, executionLinkId,
+                                                         entityGuid, eventGuid,
                                                          LabelsAndEventClasses::ARMNN_PROFILING_SOL_EVENT_CLASS);
         }
         if (event.m_Type == ProfilingEntry::Type::TimelineEventEnd)
         {
-            auto eventClassLinkId = profiling::ProfilingService::GetNextGuid();
-            sender->SendTimelineRelationshipBinaryPacket(ProfilingRelationshipType::DataLink, eventClassLinkId,
-                                                         eventGuid,
+            sender->SendTimelineRelationshipBinaryPacket(ProfilingRelationshipType::ExecutionLink, executionLinkId,
+                                                         entityGuid, eventGuid,
                                                          LabelsAndEventClasses::ARMNN_PROFILING_EOL_EVENT_CLASS);
         }
         sender->Commit();

@@ -24,16 +24,22 @@ struct Combination;
 enum class Location;
 enum class Lifetime;
 enum class CompilerDataFormat;
+enum class CompilerDataCompressedFormat;
 enum class TraversalOrder;
+enum class CompilerMceAlgorithm;
 
 std::string ToString(Location l);
 std::string ToString(Lifetime l);
 std::string ToString(CompilerDataFormat f);
+std::string ToString(CompilerDataCompressedFormat f);
 std::string ToString(const TensorShape& s);
 std::string ToString(TraversalOrder o);
 std::string ToString(command_stream::MceOperation o);
+std::string ToString(CompilerMceAlgorithm a);
 std::string ToString(command_stream::PleOperation o);
 std::string ToString(command_stream::BlockConfig b);
+std::string ToString(const QuantizationInfo& q);
+std::string ToString(const Stride& s);
 
 template <typename C>
 std::string ArrayToString(const C& container)
@@ -68,6 +74,9 @@ enum class DetailLevel
     Low,
     High
 };
+
+/// Save OpGraph information to a text file
+void SaveOpGraphToTxtFile(const OpGraph& graph, std::ostream& stream);
 
 /// Saves a graph of Ops and Buffers to a dot file format to visualise the graph.
 /// detailLevel controls how much detail is shown on the visualisation.

@@ -7,6 +7,7 @@
 
 #include "GraphNodes.hpp"
 #include "Utils.hpp"
+#include "cascading/MceEstimationUtils.hpp"
 
 using namespace ethosn::support_library::utils;
 
@@ -36,8 +37,9 @@ std::vector<Node*> CreateTransposeConv(Graph& graph,
     // The stride of the convolution operation underneath is always 1.
     // The stride comes in as a vector {x, y} where x = y (validated by IsSupported checks)
     assert(stride.m_X == stride.m_Y);
-    uint32_t upscaleFactor          = stride.m_X;
-    const TensorShape& weightsShape = weightsInfo.m_Dimensions;
+    uint32_t upscaleFactor                            = stride.m_X;
+    ethosn::command_stream::UpsampleType upsampleType = ethosn::command_stream::UpsampleType::TRANSPOSE;
+    const TensorShape& weightsShape                   = weightsInfo.m_Dimensions;
 
     // The padding of a TransposeConvolution affects the convolution operation underneath, but requires modification.
     // This means there is a restriction on the size of the padding such that our internal padding cannot be negative,
@@ -93,7 +95,7 @@ std::vector<Node*> CreateTransposeConv(Graph& graph,
 
         const uint32_t numIfm   = inputShape[3];
         const float weightScale = 0.5f;
-        const float biasScale   = weightScale * inputInfo.m_QuantizationInfo.m_Scale;
+        const float biasScale   = weightScale * inputInfo.m_QuantizationInfo.GetScale();
 
         std::vector<uint8_t> weightsData(1 * 1 * 1 * numIfm, 2);
         std::vector<int32_t> biasData(numIfm, 0);
@@ -102,12 +104,16 @@ std::vector<Node*> CreateTransposeConv(Graph& graph,
         TensorInfo biasInfo{ { 1, 1, 1, numIfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
 
         MceOperationNode* identityDepthwiseNode = graph.CreateAndAddNode<MceOperationNode>(
-            inputShape, intermediateOutputShape, inputInfo.m_QuantizationInfo, weightInfo, weightsData, biasInfo,
-            biasData, Stride{ 1, 1 }, upscaleFactor, 0, 0, ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
-            CompilerDataFormat::NHWCB, std::set<uint32_t>{ sourceOperationId });
+            inputShape, intermediateOutputShape, inputInfo.m_DataType, inputInfo.m_QuantizationInfo, weightInfo,
+            weightsData, biasInfo, biasData, Stride(), 0, 0,
+            ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION, CompilerDataFormat::NHWCB,
+            std::set<uint32_t>{ sourceOperationId });
         nodes.push_back(identityDepthwiseNode);
 
+        identityDepthwiseNode->SetUpsampleParams(upscaleFactor, upsampleType);
+
         upscaleFactor = 1;
+        upsampleType  = ethosn::command_stream::UpsampleType::OFF;
         inputShape    = intermediateOutputShape;
     }
 
@@ -129,9 +135,11 @@ std::vector<Node*> CreateTransposeConv(Graph& graph,
     }
 
     MceOperationNode* convNode = graph.CreateAndAddNode<MceOperationNode>(
-        inputShape, outputInfo.m_Dimensions, outputInfo.m_QuantizationInfo, weightsInfo, flippedWeightsData, biasInfo,
-        std::move(biasData), Stride(1, 1), upscaleFactor, topMcePadding, leftMcePadding,
+        inputShape, outputInfo.m_Dimensions, outputInfo.m_DataType, outputInfo.m_QuantizationInfo, weightsInfo,
+        flippedWeightsData, biasInfo, std::move(biasData), Stride(), topMcePadding, leftMcePadding,
         command_stream::MceOperation::CONVOLUTION, CompilerDataFormat::NHWCB, std::set<uint32_t>{ sourceOperationId });
+
+    convNode->SetUpsampleParams(upscaleFactor, upsampleType);
 
     nodes.push_back(convNode);
 
@@ -143,22 +151,25 @@ std::vector<Node*> CreateTransposeConv(Graph& graph,
 void NetworkToGraphConverter::Visit(Reshape& reshape)
 {
     std::vector<Node*> nodes;
+    const TensorInfo& inputTensorInfo  = reshape.GetInput(0).GetTensorInfo();
+    const TensorInfo& outputTensorInfo = reshape.GetOutput(0).GetTensorInfo();
+
     // Add conversion to NHWC (if necessary), then reinterpret to new shape, then conversion back to NHWCB.
     if (m_OperandToNode[&reshape.GetInput(0)]->GetFormat() != CompilerDataFormat::NHWC)
     {
         FormatConversionNode* conversionNode = m_Graph.CreateAndAddNode<FormatConversionNode>(
-            reshape.GetInput(0).GetTensorInfo().m_Dimensions, reshape.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+            inputTensorInfo.m_Dimensions, inputTensorInfo.m_DataType, inputTensorInfo.m_QuantizationInfo,
             CompilerDataFormat::NHWC, std::set<uint32_t>{ reshape.GetId() });
         nodes.push_back(conversionNode);
     }
 
     ReinterpretNode* reinterpretNode = m_Graph.CreateAndAddNode<ReinterpretNode>(
-        reshape.GetOutput(0).GetTensorInfo().m_Dimensions, reshape.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
+        outputTensorInfo.m_Dimensions, outputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo,
         CompilerDataFormat::NHWC, std::set<uint32_t>{ reshape.GetId() });
     nodes.push_back(reinterpretNode);
 
     FormatConversionNode* conversionNode = m_Graph.CreateAndAddNode<FormatConversionNode>(
-        reshape.GetOutput(0).GetTensorInfo().m_Dimensions, reshape.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
+        outputTensorInfo.m_Dimensions, outputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo,
         CompilerDataFormat::NHWCB, std::set<uint32_t>{ reshape.GetId() });
     nodes.push_back(conversionNode);
 
@@ -167,19 +178,20 @@ void NetworkToGraphConverter::Visit(Reshape& reshape)
 
 void NetworkToGraphConverter::Visit(Pooling& pooling)
 {
+    const TensorInfo& tensorInfo     = pooling.GetOutput(0).GetTensorInfo();
     const auto createFuseOnlyPleNode = [&](const command_stream::PleOperation op) {
         utils::ShapeMultiplier shapeMultiplier = { { 1, pooling.GetPoolingInfo().m_PoolingStrideY },
                                                    { 1, pooling.GetPoolingInfo().m_PoolingStrideX },
                                                    1 };
         return m_Graph.CreateAndAddNode<FuseOnlyPleOperationNode>(
-            pooling.GetOutput(0).GetTensorInfo().m_Dimensions, pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
-            op, CompilerDataFormat::NHWCB, shapeMultiplier, std::set<uint32_t>{ pooling.GetId() });
+            tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo, op,
+            CompilerDataFormat::NHWCB, shapeMultiplier, std::set<uint32_t>{ pooling.GetId() });
     };
 
     const auto createStandalonePleNode = [&](const command_stream::PleOperation op) {
         return m_Graph.CreateAndAddNode<StandalonePleOperationNode>(
-            pooling.GetOutput(0).GetTensorInfo().m_Dimensions, pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
-            op, CompilerDataFormat::NHWCB, std::set<uint32_t>{ pooling.GetId() });
+            tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo, op,
+            CompilerDataFormat::NHWCB, std::set<uint32_t>{ pooling.GetId() });
     };
 
     Node* n = nullptr;
@@ -206,8 +218,8 @@ void NetworkToGraphConverter::Visit(Pooling& pooling)
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
         const auto& outInfo = pooling.GetOutput(0).GetTensorInfo();
-        Node* n = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outInfo.m_Dimensions, outInfo.m_QuantizationInfo,
-                                                             CompilerDataFormat::NHWCB,
+        Node* n             = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outInfo.m_Dimensions, outInfo.m_DataType,
+                                                             outInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB,
                                                              std::set<uint32_t>{ pooling.GetId() });
         ConnectNode(pooling, n);
         return;
@@ -247,8 +259,9 @@ void NetworkToGraphConverter::Visit(Pooling& pooling)
 
 void NetworkToGraphConverter::Visit(Sigmoid& sigmoid)
 {
-    Node* const pleSigmoid = m_Graph.CreateAndAddNode<FuseOnlyPleOperationNode>(
-        sigmoid.GetOutput(0).GetTensorInfo().m_Dimensions, sigmoid.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
+    const TensorInfo& tensorInfo = sigmoid.GetOutput(0).GetTensorInfo();
+    Node* const pleSigmoid       = m_Graph.CreateAndAddNode<FuseOnlyPleOperationNode>(
+        tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo,
         command_stream::PleOperation::SIGMOID, CompilerDataFormat::NHWCB, g_IdentityShapeMultiplier,
         std::set<uint32_t>{ sigmoid.GetId() });
 
@@ -262,8 +275,8 @@ void NetworkToGraphConverter::Visit(Softmax& softmax)
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
         const auto& outInfo = softmax.GetOutput(0).GetTensorInfo();
-        Node* n = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outInfo.m_Dimensions, outInfo.m_QuantizationInfo,
-                                                             CompilerDataFormat::NHWCB,
+        Node* n             = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outInfo.m_Dimensions, outInfo.m_DataType,
+                                                             outInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB,
                                                              std::set<uint32_t>{ softmax.GetId() });
         ConnectNode(softmax, n);
         return;
@@ -273,11 +286,32 @@ void NetworkToGraphConverter::Visit(Softmax& softmax)
 
 void NetworkToGraphConverter::Visit(Relu& relu)
 {
-    Node* n = m_Graph.CreateAndAddNode<McePostProcessOperationNode>(
-        relu.GetOutput(0).GetTensorInfo().m_Dimensions, relu.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
-        relu.GetReluInfo().m_LowerBound, relu.GetReluInfo().m_UpperBound, CompilerDataFormat::NHWCB,
-        std::set<uint32_t>{ relu.GetId() });
+    const TensorInfo& tensorInfo = relu.GetOutput(0).GetTensorInfo();
+    Node* n                      = m_Graph.CreateAndAddNode<McePostProcessOperationNode>(
+        tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo, relu.GetReluInfo().m_LowerBound,
+        relu.GetReluInfo().m_UpperBound, CompilerDataFormat::NHWCB, std::set<uint32_t>{ relu.GetId() });
     ConnectNode(relu, n);
+}
+
+void NetworkToGraphConverter::Visit(LeakyRelu& leakyRelu)
+{
+    const TensorInfo& tensorInfo = leakyRelu.GetOutput(0).GetTensorInfo();
+    Node* const leakyReluNode    = m_Graph.CreateAndAddNode<LeakyReluNode>(
+        tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo,
+        command_stream::PleOperation::LEAKY_RELU, CompilerDataFormat::NHWCB, g_IdentityShapeMultiplier,
+        std::set<uint32_t>{ leakyRelu.GetId() }, leakyRelu.GetLeakyReluInfo().m_Alpha);
+
+    ConnectNode(leakyRelu, leakyReluNode);
+}
+
+void NetworkToGraphConverter::Visit(Requantize& requantize)
+{
+    const TensorInfo& tensorInfo = requantize.GetOutput(0).GetTensorInfo();
+    Node* const requantizeNode   = m_Graph.CreateAndAddNode<RequantizeNode>(
+        tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB,
+        std::set<uint32_t>{ requantize.GetId() });
+
+    ConnectNode(requantize, requantizeNode);
 }
 
 namespace
@@ -295,15 +329,16 @@ std::vector<uint8_t> Pad(const std::vector<uint8_t>& input, size_t newSize, uint
 void NetworkToGraphConverter::Visit(FullyConnected& fullyConnected)
 {
     std::vector<Node*> nodes;
+    const TensorInfo& inputTensorInfo  = fullyConnected.GetInput(0).GetTensorInfo();
+    const TensorInfo& outputTensorInfo = fullyConnected.GetOutput(0).GetTensorInfo();
 
     // Input to FC must be NHWC
     // Add conversion node if necessary
     if (m_OperandToNode[&fullyConnected.GetInput(0)]->GetFormat() != CompilerDataFormat::NHWC)
     {
         FormatConversionNode* conversionNode = m_Graph.CreateAndAddNode<FormatConversionNode>(
-            fullyConnected.GetInput(0).GetTensorInfo().m_Dimensions,
-            fullyConnected.GetInput(0).GetTensorInfo().m_QuantizationInfo, CompilerDataFormat::NHWC,
-            std::set<uint32_t>{ fullyConnected.GetId() });
+            inputTensorInfo.m_Dimensions, inputTensorInfo.m_DataType, inputTensorInfo.m_QuantizationInfo,
+            CompilerDataFormat::NHWC, std::set<uint32_t>{ fullyConnected.GetId() });
         nodes.push_back(conversionNode);
     }
 
@@ -339,10 +374,10 @@ void NetworkToGraphConverter::Visit(FullyConnected& fullyConnected)
         return TensorShape{ 1, reinterpretedHeight, reinterpretedWidth, reinterpretedChannels };
     };
 
-    const TensorShape reinterpretedInput = GetShapeContainingLinearElements(
-        m_Capabilities.GetBrickGroupShape(), fullyConnected.GetInput(0).GetTensorInfo().m_Dimensions[3]);
+    const TensorShape reinterpretedInput =
+        GetShapeContainingLinearElements(m_Capabilities.GetBrickGroupShape(), inputTensorInfo.m_Dimensions[3]);
     ReinterpretNode* reinterpretNode = m_Graph.CreateAndAddNode<ReinterpretNode>(
-        reinterpretedInput, fullyConnected.GetInput(0).GetTensorInfo().m_QuantizationInfo, CompilerDataFormat::NHWCB,
+        reinterpretedInput, inputTensorInfo.m_DataType, inputTensorInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB,
         std::set<uint32_t>{ fullyConnected.GetId() });
     nodes.push_back(reinterpretNode);
 
@@ -350,17 +385,16 @@ void NetworkToGraphConverter::Visit(FullyConnected& fullyConnected)
     // It is easier to make this adjustment here rather than the WeightEncoder itself, even though
     // it is less desirable.
     TensorInfo weightsInfo      = fullyConnected.GetWeights().GetTensorInfo();
-    weightsInfo.m_Dimensions[2] = utils::RoundUpToNearestMultiple(weightsInfo.m_Dimensions[2], 1024);
+    weightsInfo.m_Dimensions[2] = utils::RoundUpToNearestMultiple(weightsInfo.m_Dimensions[2], g_WeightsChannelVecProd);
     std::vector<uint8_t> paddedWeightsData =
         Pad(fullyConnected.GetWeights().GetDataVector(), utils::TotalSizeBytes(weightsInfo),
-            static_cast<uint8_t>(weightsInfo.m_QuantizationInfo.m_ZeroPoint));
+            static_cast<uint8_t>(weightsInfo.m_QuantizationInfo.GetZeroPoint()));
 
     Node* fcNode = m_Graph.CreateAndAddNode<MceOperationNode>(
-        fullyConnected.GetInput(0).GetTensorInfo().m_Dimensions,
-        fullyConnected.GetOutput(0).GetTensorInfo().m_Dimensions,
-        fullyConnected.GetOutput(0).GetTensorInfo().m_QuantizationInfo, weightsInfo, paddedWeightsData,
-        fullyConnected.GetBias().GetTensorInfo(), fullyConnected.GetBias().GetDataVectorAs<int32_t>(), Stride(), 1, 0,
-        0, command_stream::MceOperation::FULLY_CONNECTED, CompilerDataFormat::NHWCB,
+        inputTensorInfo.m_Dimensions, outputTensorInfo.m_Dimensions, inputTensorInfo.m_DataType,
+        outputTensorInfo.m_QuantizationInfo, weightsInfo, MaybeOverrideWeights(paddedWeightsData, weightsInfo),
+        fullyConnected.GetBias().GetTensorInfo(), fullyConnected.GetBias().GetDataVectorAs<int32_t>(), Stride(), 0, 0,
+        command_stream::MceOperation::FULLY_CONNECTED, CompilerDataFormat::NHWCB,
         std::set<uint32_t>{ fullyConnected.GetId() });
     nodes.push_back(fcNode);
 
@@ -380,8 +414,8 @@ void NetworkToGraphConverter::Visit(Addition& addition)
     const SupportedLevel supportedLevel = IsAdditionSupported(inputInfo0, inputInfo1, quantInfoOutput);
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
-        Node* n = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outputInfo.m_Dimensions, quantInfoOutput,
-                                                             CompilerDataFormat::NHWCB,
+        Node* n = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outputInfo.m_Dimensions, outputInfo.m_DataType,
+                                                             quantInfoOutput, CompilerDataFormat::NHWCB,
                                                              std::set<uint32_t>{ addition.GetId() });
         ConnectNode(addition, n);
         return;
@@ -393,9 +427,10 @@ void NetworkToGraphConverter::Visit(Addition& addition)
     command_stream::PleOperation pleOp =
         isQuantInfoIdentical ? command_stream::PleOperation::ADDITION : command_stream::PleOperation::ADDITION_RESCALE;
 
-    Node* n = m_Graph.CreateAndAddNode<StandalonePleOperationNode>(
-        addition.GetOutput(0).GetTensorInfo().m_Dimensions, addition.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
-        pleOp, CompilerDataFormat::NHWCB, std::set<uint32_t>{ addition.GetId() });
+    const TensorInfo& tensorInfo = addition.GetOutput(0).GetTensorInfo();
+    Node* n                      = m_Graph.CreateAndAddNode<StandalonePleOperationNode>(
+        tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo, pleOp, CompilerDataFormat::NHWCB,
+        std::set<uint32_t>{ addition.GetId() });
     ConnectNode(addition, n);
 }
 
@@ -420,17 +455,17 @@ void NetworkToGraphConverter::Visit(Concatenation& concatenation)
         for (auto it : concatenation.GetInputs())
         {
             // We should still be able to estimate it, so only throw if we aren't in estimation mode.
-            if (it->GetConsumers().size() > 1 && !m_EstimationMode)
+            if (it->GetConsumers().size() > 1 && !m_EstimationOptions.has_value())
             {
-                throw NotSupportedException("Inputs to Concatentation cannot be connected to multiple operations");
+                throw NotSupportedException("Inputs to Concatenation cannot be connected to multiple operations");
             }
         }
 
         if (supportedLevel == SupportedLevel::EstimateOnly)
         {
             const auto& outInfo = concatenation.GetOutput(0).GetTensorInfo();
-            Node* n = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outInfo.m_Dimensions, outInfo.m_QuantizationInfo,
-                                                                 CompilerDataFormat::NHWCB,
+            Node* n             = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outInfo.m_Dimensions, outInfo.m_DataType,
+                                                                 outInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB,
                                                                  std::set<uint32_t>{ concatenation.GetId() });
             ConnectNode(concatenation, n);
             return;
@@ -452,6 +487,7 @@ void NetworkToGraphConverter::Visit(Concatenation& concatenation)
     }
 
     Node* n = m_Graph.CreateAndAddNode<ConcatNode>(concatenation.GetOutput(0).GetTensorInfo().m_Dimensions,
+                                                   concatenation.GetOutput(0).GetTensorInfo().m_DataType,
                                                    concatenation.GetConcatenationInfo().m_OutputQuantizationInfo,
                                                    format, axis, std::set<uint32_t>{ concatenation.GetId() });
 
@@ -463,9 +499,9 @@ void NetworkToGraphConverter::Visit(Concatenation& concatenation)
     {
         if (n->GetInputFormat(i) != format)
         {
-            Node* reformat = m_Graph.CreateAndAddNode<FormatConversionNode>(
-                concatenation.GetInput(i).GetTensorInfo().m_Dimensions,
-                concatenation.GetInput(i).GetTensorInfo().m_QuantizationInfo, format,
+            const TensorInfo& tensorInfo = concatenation.GetInput(i).GetTensorInfo();
+            Node* reformat               = m_Graph.CreateAndAddNode<FormatConversionNode>(
+                tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo, format,
                 std::set<uint32_t>{ concatenation.GetId() });
             edgeToAddConversion.push_back({ n->GetInput(i), reformat });
         }
@@ -484,7 +520,8 @@ void NetworkToGraphConverter::Visit(Concatenation& concatenation)
         if (n->GetInputQuantizationInfo(i) != outputQuantInfo)
         {
             Node* requant = m_Graph.CreateAndAddNode<RequantizeNode>(
-                concatenation.GetInput(i).GetTensorInfo().m_Dimensions, outputQuantInfo, format,
+                concatenation.GetInput(i).GetTensorInfo().m_Dimensions,
+                concatenation.GetInput(i).GetTensorInfo().m_DataType, outputQuantInfo, format,
                 std::set<uint32_t>{ concatenation.GetId() });
             edgeToAddRequantize.push_back({ n->GetInput(i), requant });
         }
@@ -510,8 +547,8 @@ void NetworkToGraphConverter::Visit(Split& split)
             {
                 const TensorInfo& tensorInfo       = it.GetTensorInfo();
                 EstimateOnlyNode* estimateOnlyNode = m_Graph.CreateAndAddNode<EstimateOnlyNode>(
-                    tensorInfo.m_Dimensions, tensorInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB,
-                    std::set<uint32_t>{ split.GetId() });
+                    tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo,
+                    CompilerDataFormat::NHWCB, std::set<uint32_t>{ split.GetId() });
 
                 m_OperandToNode[&it] = estimateOnlyNode;
                 m_Graph.Connect(inputNode, estimateOnlyNode);
@@ -540,7 +577,7 @@ void NetworkToGraphConverter::Visit(Split& split)
     if (inputNode->GetFormat() != format)
     {
         FormatConversionNode* conversionNode = m_Graph.CreateAndAddNode<FormatConversionNode>(
-            inputTensorInfo.m_Dimensions, inputTensorInfo.m_QuantizationInfo, format,
+            inputTensorInfo.m_Dimensions, inputTensorInfo.m_DataType, inputTensorInfo.m_QuantizationInfo, format,
             std::set<uint32_t>{ split.GetId() });
         m_Graph.Connect(inputNode, conversionNode);
         inputNode = conversionNode;
@@ -554,7 +591,7 @@ void NetworkToGraphConverter::Visit(Split& split)
         TensorShape outputShape       = inputTensorInfo.m_Dimensions;
         outputShape[splitInfo.m_Axis] = splitInfo.m_Sizes[outputIdx];
         extractSubtensorNodes.push_back(m_Graph.CreateAndAddNode<ExtractSubtensorNode>(
-            supertensorOffset, outputShape, inputTensorInfo.m_QuantizationInfo, format,
+            supertensorOffset, outputShape, inputTensorInfo.m_DataType, inputTensorInfo.m_QuantizationInfo, format,
             std::set<uint32_t>{ split.GetId() }));
         supertensorOffset[splitInfo.m_Axis] += splitInfo.m_Sizes[outputIdx];
     }
@@ -585,8 +622,8 @@ void NetworkToGraphConverter::Visit(DepthwiseConvolution& depthwiseConvolution)
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
         const auto& outInfo = depthwiseConvolution.GetOutput(0).GetTensorInfo();
-        Node* n = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outInfo.m_Dimensions, outInfo.m_QuantizationInfo,
-                                                             CompilerDataFormat::NHWCB,
+        Node* n             = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outInfo.m_Dimensions, outInfo.m_DataType,
+                                                             outInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB,
                                                              std::set<uint32_t>{ depthwiseConvolution.GetId() });
         ConnectNode(depthwiseConvolution, n);
         return;
@@ -614,7 +651,7 @@ void NetworkToGraphConverter::Visit(DepthwiseConvolution& depthwiseConvolution)
                        depthwiseConvolution.GetInput(0).GetTensorInfo().m_QuantizationInfo);
 
         Node* interleaveNode = m_Graph.CreateAndAddNode<FuseOnlyPleOperationNode>(
-            interleaveOutput.m_Dimensions, interleaveOutput.m_QuantizationInfo,
+            interleaveOutput.m_Dimensions, interleaveOutput.m_DataType, interleaveOutput.m_QuantizationInfo,
             command_stream::PleOperation::INTERLEAVE_2X2_2_2, CompilerDataFormat::NHWCB,
             ShapeMultiplier{ { 1, convInfo.m_Stride.m_Y },
                              { 1, convInfo.m_Stride.m_X },
@@ -643,10 +680,11 @@ void NetworkToGraphConverter::Visit(DepthwiseConvolution& depthwiseConvolution)
     Node* convNode = m_Graph.CreateAndAddNode<MceOperationNode>(
         depthwiseConvolution.GetInput(0).GetTensorInfo().m_Dimensions,
         depthwiseConvolution.GetOutput(0).GetTensorInfo().m_Dimensions,
+        depthwiseConvolution.GetOutput(0).GetTensorInfo().m_DataType,
         depthwiseConvolution.GetOutput(0).GetTensorInfo().m_QuantizationInfo, weightInfo,
-        depthwiseConvolution.GetWeights().GetDataVector(), depthwiseConvolution.GetBias().GetTensorInfo(),
-        depthwiseConvolution.GetBias().GetDataVectorAs<int32_t>(), depthwiseConvolution.GetConvolutionInfo().m_Stride,
-        1, depthwiseConvolution.GetConvolutionInfo().m_Padding.m_Top,
+        MaybeOverrideWeights(depthwiseConvolution.GetWeights().GetDataVector(), weightInfo),
+        depthwiseConvolution.GetBias().GetTensorInfo(), depthwiseConvolution.GetBias().GetDataVectorAs<int32_t>(),
+        depthwiseConvolution.GetConvolutionInfo().m_Stride, depthwiseConvolution.GetConvolutionInfo().m_Padding.m_Top,
         depthwiseConvolution.GetConvolutionInfo().m_Padding.m_Left, operation, CompilerDataFormat::NHWCB,
         std::set<uint32_t>{ depthwiseConvolution.GetId() });
     nodes.push_back(convNode);
@@ -665,8 +703,8 @@ void NetworkToGraphConverter::Visit(Convolution& convolution)
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
         const auto& outInfo = convolution.GetOutput(0).GetTensorInfo();
-        Node* n = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outInfo.m_Dimensions, outInfo.m_QuantizationInfo,
-                                                             CompilerDataFormat::NHWCB,
+        Node* n             = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outInfo.m_Dimensions, outInfo.m_DataType,
+                                                             outInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB,
                                                              std::set<uint32_t>{ convolution.GetId() });
         ConnectNode(convolution, n);
         return;
@@ -691,7 +729,7 @@ void NetworkToGraphConverter::Visit(Convolution& convolution)
                                                  convolution.GetInput(0).GetTensorInfo().m_QuantizationInfo);
 
         Node* interleaveNode = m_Graph.CreateAndAddNode<FuseOnlyPleOperationNode>(
-            interleaveOutput.m_Dimensions, interleaveOutput.m_QuantizationInfo,
+            interleaveOutput.m_Dimensions, interleaveOutput.m_DataType, interleaveOutput.m_QuantizationInfo,
             command_stream::PleOperation::INTERLEAVE_2X2_2_2, CompilerDataFormat::NHWCB,
             ShapeMultiplier{ { 1, convInfo.m_Stride.m_Y },
                              { 1, convInfo.m_Stride.m_X },
@@ -702,12 +740,13 @@ void NetworkToGraphConverter::Visit(Convolution& convolution)
 
     Node* convNode = m_Graph.CreateAndAddNode<MceOperationNode>(
         convolution.GetInput(0).GetTensorInfo().m_Dimensions, convolution.GetOutput(0).GetTensorInfo().m_Dimensions,
+        convolution.GetOutput(0).GetTensorInfo().m_DataType,
         convolution.GetOutput(0).GetTensorInfo().m_QuantizationInfo, convolution.GetWeights().GetTensorInfo(),
-        convolution.GetWeights().GetDataVector(), convolution.GetBias().GetTensorInfo(),
-        convolution.GetBias().GetDataVectorAs<int32_t>(), convolution.GetConvolutionInfo().m_Stride, 1,
-        convolution.GetConvolutionInfo().m_Padding.m_Top, convolution.GetConvolutionInfo().m_Padding.m_Left,
-        command_stream::MceOperation::CONVOLUTION, CompilerDataFormat::NHWCB,
-        std::set<uint32_t>{ convolution.GetId() });
+        MaybeOverrideWeights(convolution.GetWeights().GetDataVector(), convolution.GetWeights().GetTensorInfo()),
+        convolution.GetBias().GetTensorInfo(), convolution.GetBias().GetDataVectorAs<int32_t>(),
+        convolution.GetConvolutionInfo().m_Stride, convolution.GetConvolutionInfo().m_Padding.m_Top,
+        convolution.GetConvolutionInfo().m_Padding.m_Left, command_stream::MceOperation::CONVOLUTION,
+        CompilerDataFormat::NHWCB, std::set<uint32_t>{ convolution.GetId() });
     nodes.push_back(convNode);
 
     ConnectNodeChain(convolution, nodes);
@@ -731,8 +770,8 @@ void NetworkToGraphConverter::Visit(TransposeConvolution& transposeConvolution)
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
         const auto& outInfo = transposeConvolution.GetOutput(0).GetTensorInfo();
-        Node* n = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outInfo.m_Dimensions, outInfo.m_QuantizationInfo,
-                                                             CompilerDataFormat::NHWCB,
+        Node* n             = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outInfo.m_Dimensions, outInfo.m_DataType,
+                                                             outInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB,
                                                              std::set<uint32_t>{ transposeConvolution.GetId() });
         ConnectNode(transposeConvolution, n);
         return;
@@ -754,7 +793,8 @@ void NetworkToGraphConverter::Visit(Output& output)
         ConvertExternalToCompilerDataFormat(output.GetTensorInfo().m_DataFormat))
     {
         FormatConversionNode* conversionNode = m_Graph.CreateAndAddNode<FormatConversionNode>(
-            output.GetTensorInfo().m_Dimensions, output.GetTensorInfo().m_QuantizationInfo,
+            output.GetTensorInfo().m_Dimensions, output.GetTensorInfo().m_DataType,
+            output.GetTensorInfo().m_QuantizationInfo,
             ConvertExternalToCompilerDataFormat(output.GetTensorInfo().m_DataFormat),
             std::set<uint32_t>{ output.GetInput(0).GetProducer().GetId() });
         nodes.push_back(conversionNode);
@@ -764,7 +804,8 @@ void NetworkToGraphConverter::Visit(Output& output)
     // node itself. This is for consistency when we start splitting the network and need to identify network outputs
     // that do not have their own unique node. See documentation on InputBufferInfo struct in Support.hpp for details.
     Node* outputNode = m_Graph.CreateAndAddNode<OutputNode>(
-        std::set<uint32_t>{ output.GetInput(0).GetProducer().GetId() }, output.GetInput(0).GetProducerOutputIndex());
+        output.GetTensorInfo().m_DataType, std::set<uint32_t>{ output.GetInput(0).GetProducer().GetId() },
+        output.GetInput(0).GetProducerOutputIndex());
     nodes.push_back(outputNode);
 
     ConnectNodeChain(output, nodes);
@@ -779,9 +820,10 @@ void NetworkToGraphConverter::Visit(Input& input)
     // Add a format conversion to NHWCB if needed because operations work best with NHWCB.
     if (n->GetFormat() != CompilerDataFormat::NHWCB)
     {
+        const TensorInfo& tensorInfo         = input.GetOutput(0).GetTensorInfo();
         FormatConversionNode* conversionNode = m_Graph.CreateAndAddNode<FormatConversionNode>(
-            input.GetOutput(0).GetTensorInfo().m_Dimensions, input.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
-            CompilerDataFormat::NHWCB, std::set<uint32_t>{ input.GetId() });
+            tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB,
+            std::set<uint32_t>{ input.GetId() });
         nodes.push_back(conversionNode);
     }
     ConnectNodeChain(input, nodes);
@@ -795,8 +837,8 @@ void NetworkToGraphConverter::Visit(DepthToSpace& depthToSpace)
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
         const auto& outInfo = depthToSpace.GetOutput(0).GetTensorInfo();
-        Node* n = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outInfo.m_Dimensions, outInfo.m_QuantizationInfo,
-                                                             CompilerDataFormat::NHWCB,
+        Node* n             = m_Graph.CreateAndAddNode<EstimateOnlyNode>(outInfo.m_Dimensions, outInfo.m_DataType,
+                                                             outInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB,
                                                              std::set<uint32_t>{ depthToSpace.GetId() });
         ConnectNode(depthToSpace, n);
         return;
@@ -867,7 +909,10 @@ void NetworkToGraphConverter::Visit(DepthToSpace& depthToSpace)
     }
 
     // Set biases to all zero (we don't need a bias)
-    const float biasScale = weightsScale * depthToSpace.GetInput(0).GetTensorInfo().m_QuantizationInfo.m_Scale;
+    const float biasScale =
+        weightsScale * depthToSpace.GetInput(0)
+                           .GetTensorInfo()
+                           .m_QuantizationInfo.GetScale();    // TODO: Add support for per-channel quantization
     TensorInfo biasInfo({ 1, 1, 1, outputShape[3] }, DataType::UINT8_QUANTIZED, DataFormat::NHWC,
                         QuantizationInfo(0, biasScale));
     std::vector<int32_t> biasData(utils::GetNumElements(biasInfo.m_Dimensions), 0);
@@ -880,6 +925,51 @@ void NetworkToGraphConverter::Visit(DepthToSpace& depthToSpace)
     ConnectNodeChain(depthToSpace, transposeConvNodes);
 }
 
+void NetworkToGraphConverter::Visit(SpaceToDepth&)
+{
+    return;
+}
+
+void NetworkToGraphConverter::Visit(Transpose&)
+{
+    return;
+}
+
+void NetworkToGraphConverter::Visit(Resize& resize)
+{
+    std::vector<Node*> nodes;
+    const TensorInfo& inputInfo   = resize.GetInput(0).GetTensorInfo();
+    const TensorShape& inputShape = inputInfo.m_Dimensions;
+    const TensorInfo& outputInfo  = resize.GetOutput(0).GetTensorInfo();
+    const ResizeInfo& resizeInfo  = resize.GetResizeInfo();
+
+    const uint32_t numIfm   = inputShape[3];
+    const float weightScale = 0.5f;
+    // TODO: Add support for per-channel quantization
+    const float biasScale = weightScale * inputInfo.m_QuantizationInfo.GetScale();
+
+    std::vector<uint8_t> weightsData(1 * 1 * 1 * numIfm, 2);
+    std::vector<int32_t> biasData(numIfm, 0);
+
+    TensorInfo weightInfo{ { 1, 1, numIfm, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, { 0, weightScale } };
+    TensorInfo biasInfo{ { 1, 1, 1, numIfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
+
+    MceOperationNode* resizeNode = m_Graph.CreateAndAddNode<MceOperationNode>(
+        inputShape, outputInfo.m_Dimensions, outputInfo.m_DataType, outputInfo.m_QuantizationInfo, weightInfo,
+        weightsData, biasInfo, biasData, Stride(), 0, 0, ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
+        CompilerDataFormat::NHWCB, std::set<uint32_t>{ resize.GetId() });
+    nodes.push_back(resizeNode);
+
+    // This is checked in IsSupported but let's make sure that here it using the only
+    // upscale factor supported which is 2U for height and width.
+    const uint32_t upscaleFactorHeight = utils::DivRoundUp(GetHeight(outputInfo.m_Dimensions), GetHeight(inputShape));
+    const uint32_t upscaleFactorWidth  = utils::DivRoundUp(GetWidth(outputInfo.m_Dimensions), GetWidth(inputShape));
+    assert((upscaleFactorHeight == upscaleFactorWidth) && (upscaleFactorHeight == 2U));
+    resizeNode->SetUpsampleParams(upscaleFactorHeight, ConvertResizeAlgorithmToCommand(resizeInfo.m_Algo));
+
+    ConnectNodeChain(resize, nodes);
+}
+
 void NetworkToGraphConverter::Visit(EstimateOnly& estimateOnly)
 {
     // Add an EstimateOnly node for each output of the EstimateOnly operation
@@ -887,7 +977,7 @@ void NetworkToGraphConverter::Visit(EstimateOnly& estimateOnly)
     {
         const TensorInfo& tensorInfo       = it.GetTensorInfo();
         EstimateOnlyNode* estimateOnlyNode = m_Graph.CreateAndAddNode<EstimateOnlyNode>(
-            tensorInfo.m_Dimensions, tensorInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB,
+            tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB,
             std::set<uint32_t>{ estimateOnly.GetId() });
 
         m_OperandToNode[&it] = estimateOnlyNode;
@@ -925,6 +1015,23 @@ void NetworkToGraphConverter::ConnectNodeChain(const Operation& operation, const
     if (operation.GetOutputs().size() > 0)
     {
         m_OperandToNode[&operation.GetOutput(0)] = nodes.back();
+    }
+}
+
+std::vector<uint8_t> NetworkToGraphConverter::MaybeOverrideWeights(const std::vector<uint8_t>& userWeights,
+                                                                   const TensorInfo& weightsInfo) const
+
+{
+    if (m_EstimationOptions.has_value() && m_EstimationOptions.value().m_UseWeightCompressionOverride)
+    {
+        std::vector<uint8_t> dummyWeightData =
+            GenerateCompressibleData(userWeights.size(), m_EstimationOptions.value().m_WeightCompressionSaving,
+                                     weightsInfo.m_QuantizationInfo.GetZeroPoint());
+        return dummyWeightData;
+    }
+    else
+    {
+        return userWeights;
     }
 }
 

@@ -20,6 +20,8 @@
  *
  */
 
+// This header file reflects architecture version 1.4.5
+
 /* This header file is NOT automatically generated */
 
 #pragma once

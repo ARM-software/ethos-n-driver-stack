@@ -81,6 +81,94 @@ constexpr Padding CalcSamePadding(const TensorInfo& inputInfo,
     return CalcSamePadding(inputInfo.m_Dimensions, weightsInfo.m_Dimensions, stride, preferBefore);
 }
 
+using PossibleTypeList = std::initializer_list<DataType>;
+
+bool IsDataTypeIn(const TensorInfo& info, const PossibleTypeList& possibleTypes)
+{
+    return std::find(possibleTypes.begin(), possibleTypes.end(), info.m_DataType) != possibleTypes.end();
+}
+
+bool IsInputDataTypeSupported(const TensorInfo& info, const char* what, char* reason, size_t reasonMaxLength)
+{
+    bool isSupported = IsDataTypeIn(info, { DataType::INT8_QUANTIZED, DataType::UINT8_QUANTIZED });
+    if (!isSupported)
+    {
+        SetReason("%s must be UINT8_QUANTIZED or INT8_QUANTIZED", reason, reasonMaxLength, what);
+    }
+
+    return isSupported;
+}
+
+bool IsQuantisationZeroPointInRange(const TensorInfo& tensor)
+{
+    const utils::DataTypeRange dataTypeRange = utils::GetRangeOfDataType(tensor.m_DataType);
+    const int32_t minAllowed                 = dataTypeRange.min;
+    const int32_t maxAllowed                 = dataTypeRange.max;
+
+    const int32_t zeroPoint = tensor.m_QuantizationInfo.GetZeroPoint();
+    return (zeroPoint >= minAllowed) && (zeroPoint <= maxAllowed);
+}
+
+bool HasQuantizationDim(const TensorInfo& info)
+{
+    return info.m_QuantizationInfo.GetQuantizationDim().has_value();
+}
+
+bool IsQuantizationDimSupported(const TensorInfo& info,
+                                uint32_t expectedDim,
+                                const char* name,
+                                const char* what,
+                                char* reason,
+                                size_t reasonMaxLength)
+{
+    if (HasQuantizationDim(info))
+    {
+        if (info.m_QuantizationInfo.GetQuantizationDim().value() != expectedDim)
+        {
+            SetReason("%s: Per channel quantization axis must be %d for %s", reason, reasonMaxLength, what, expectedDim,
+                      name);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool IsQuantizationDimSupported(const TensorInfo* biasInfo,
+                                const TensorInfo* weightsInfo,
+                                const TensorInfo* inputInfo,
+                                const char* what,
+                                char* reason,
+                                size_t reasonMaxLength)
+{
+    if (biasInfo != nullptr)
+    {
+        if (!IsQuantizationDimSupported(*biasInfo, 3U, "Biases", what, reason, reasonMaxLength))
+        {
+            return false;
+        }
+    }
+
+    if (weightsInfo != nullptr)
+    {
+        if (!IsQuantizationDimSupported(*weightsInfo, 3U, "Weights", what, reason, reasonMaxLength))
+        {
+            return false;
+        }
+    }
+
+    if (inputInfo != nullptr)
+    {
+        if (HasQuantizationDim(*inputInfo))
+        {
+            SetReason("%s: Quantization Dim should not be used on Input", reason, reasonMaxLength, what);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 }    // namespace
 
 const SupportedLevel SupportedLevel::Unsupported  = SupportedLevel(InternalSupportedLevel::Unsupported);
@@ -90,9 +178,8 @@ const SupportedLevel SupportedLevel::Supported    = SupportedLevel(InternalSuppo
 SupportedLevel
     IsInputSupported(const TensorInfo& inputInfo, TensorInfo* outputInfo, char* reason, size_t reasonMaxLength)
 {
-    if (inputInfo.m_DataType != DataType::UINT8_QUANTIZED)
+    if (!IsInputDataTypeSupported(inputInfo, "Input layer", reason, reasonMaxLength))
     {
-        SetReason("Input layer must be UINT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -100,6 +187,11 @@ SupportedLevel
     {
         SetReason("Input layer must be NHWC or NHWCB", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Input layer", reason, reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
     }
 
     if (outputInfo != nullptr)
@@ -119,9 +211,8 @@ SupportedLevel
 SupportedLevel
     IsOutputSupported(const TensorInfo& inputInfo, const DataFormat format, char* reason, size_t reasonMaxLength)
 {
-    if (inputInfo.m_DataType != DataType::UINT8_QUANTIZED)
+    if (!IsInputDataTypeSupported(inputInfo, "Output layer's input", reason, reasonMaxLength))
     {
-        SetReason("An Output layer's input must be UINT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -135,6 +226,11 @@ SupportedLevel
     {
         SetReason("An Output layer's format must be NHWC or NHWCB", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Output layer", reason, reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
     }
 
     return SupportedLevel::Supported;
@@ -153,9 +249,8 @@ SupportedLevel IsConvolutionSupported(const TensorInfo& biasInfo,
                                       char* reason,
                                       size_t reasonMaxLength)
 {
-    if (inputInfo.m_DataType != DataType::UINT8_QUANTIZED)
+    if (!IsInputDataTypeSupported(inputInfo, "Input to conv", reason, reasonMaxLength))
     {
-        SetReason("Input to conv must be UINT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -165,9 +260,9 @@ SupportedLevel IsConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (weightsInfo.m_DataType != DataType::UINT8_QUANTIZED)
+    if (!IsDataTypeIn(weightsInfo, { DataType::INT8_QUANTIZED, DataType::UINT8_QUANTIZED }))
     {
-        SetReason("Weights for conv must be UINT8_QUANTIZED", reason, reasonMaxLength);
+        SetReason("Weights for conv must be UINT8_QUANTIZED or INT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -219,6 +314,11 @@ SupportedLevel IsConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
+    if (!IsQuantizationDimSupported(&biasInfo, &weightsInfo, &inputInfo, "Convolution", reason, reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
+    }
+
     if (outputInfo != nullptr)
     {
         if ((utils::TotalSizeBytes(*outputInfo) != 0) && (*outputInfo != expectedOutputInfo))
@@ -229,25 +329,30 @@ SupportedLevel IsConvolutionSupported(const TensorInfo& biasInfo,
         *outputInfo = expectedOutputInfo;
     }
 
-    if (weightsInfo.m_QuantizationInfo.m_ZeroPoint > UINT8_MAX)
+    if (!(IsQuantisationZeroPointInRange(weightsInfo)))
     {
-        SetReason("Zero point value above allowed range", reason, reasonMaxLength);
+        SetReason("Zero point value of weight is not in range", reason, reasonMaxLength);
         return SupportedLevel::EstimateOnly;
     }
 
-    if (weightsInfo.m_QuantizationInfo.m_ZeroPoint < 0)
+    if (biasInfo.m_QuantizationInfo.GetZeroPoint() != 0)
     {
-        SetReason("Zero point value below allowed range", reason, reasonMaxLength);
+        SetReason("Bias for conv must have quantization parameters with zero point of 0", reason, reasonMaxLength);
         return SupportedLevel::EstimateOnly;
     }
 
-    if (biasInfo.m_QuantizationInfo.m_ZeroPoint != 0 ||
-        biasInfo.m_QuantizationInfo.m_Scale !=
-            inputInfo.m_QuantizationInfo.m_Scale * weightsInfo.m_QuantizationInfo.m_Scale)
+    if (biasInfo.m_QuantizationInfo.GetScales().Size() != weightsInfo.m_QuantizationInfo.GetScales().Size())
     {
-        SetReason("Bias for conv must have quantization parameters with zero point of 0 and scale of input scale x "
-                  "weight scale",
-                  reason, reasonMaxLength);
+        SetReason("Bias and weights must have quantization parameters with same number of scales", reason,
+                  reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (biasInfo.m_QuantizationInfo.GetScales() !=
+        inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales())
+    {
+        SetReason("Bias for conv must have quantization parameters with scale of input scale x weight scale", reason,
+                  reasonMaxLength);
         return SupportedLevel::EstimateOnly;
     }
 
@@ -279,11 +384,13 @@ SupportedLevel IsConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::EstimateOnly;
     }
 
-    double overallScale = inputInfo.m_QuantizationInfo.m_Scale * weightsInfo.m_QuantizationInfo.m_Scale /
-                          convInfo.m_OutputQuantizationInfo.m_Scale;
-    if (overallScale < 0.0f || overallScale >= 1.0f)
+    // TODO: Bring up support for per-channel quantization
+    QuantizationScales overallScale =
+        inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales();
+    overallScale /= convInfo.m_OutputQuantizationInfo.GetScales();
+    if (overallScale.m_Scales.min() < 0.0f || overallScale.m_Scales.max() >= 1.0f)
     {
-        SetReason("Overall scale (of the input * weights / output) should be in the range [0, 1)", reason,
+        SetReason("Overall scale (of the input * weights / output) should be in the range [0, 1}", reason,
                   reasonMaxLength);
         return SupportedLevel::EstimateOnly;
     }
@@ -299,9 +406,8 @@ SupportedLevel IsDepthwiseConvolutionSupported(const TensorInfo& biasInfo,
                                                char* reason,
                                                size_t reasonMaxLength)
 {
-    if (inputInfo.m_DataType != DataType::UINT8_QUANTIZED)
+    if (!IsInputDataTypeSupported(inputInfo, "Input to depthwise conv", reason, reasonMaxLength))
     {
-        SetReason("Input to depthwise conv must be UINT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -311,9 +417,9 @@ SupportedLevel IsDepthwiseConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (weightsInfo.m_DataType != DataType::UINT8_QUANTIZED)
+    if (!IsDataTypeIn(weightsInfo, { DataType::INT8_QUANTIZED, DataType::UINT8_QUANTIZED }))
     {
-        SetReason("Weights for depthwise conv must be UINT8_QUANTIZED", reason, reasonMaxLength);
+        SetReason("Weights for depthwise conv must be UINT8_QUANTIZED or INT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -365,6 +471,12 @@ SupportedLevel IsDepthwiseConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
+    if (!IsQuantizationDimSupported(&biasInfo, &weightsInfo, &inputInfo, "Depthwise Convolution", reason,
+                                    reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
+    }
+
     if (outputInfo != nullptr)
     {
         if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
@@ -382,21 +494,15 @@ SupportedLevel IsDepthwiseConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::EstimateOnly;
     }
 
-    if (weightsInfo.m_QuantizationInfo.m_ZeroPoint > UINT8_MAX)
+    if (!(IsQuantisationZeroPointInRange(weightsInfo)))
     {
-        SetReason("Zero point value above allowed range", reason, reasonMaxLength);
+        SetReason("Zero point value of weight is not in range", reason, reasonMaxLength);
         return SupportedLevel::EstimateOnly;
     }
 
-    if (weightsInfo.m_QuantizationInfo.m_ZeroPoint < 0)
-    {
-        SetReason("Zero point value below allowed range", reason, reasonMaxLength);
-        return SupportedLevel::EstimateOnly;
-    }
-
-    if (biasInfo.m_QuantizationInfo.m_ZeroPoint != 0 ||
-        biasInfo.m_QuantizationInfo.m_Scale !=
-            inputInfo.m_QuantizationInfo.m_Scale * weightsInfo.m_QuantizationInfo.m_Scale)
+    if (biasInfo.m_QuantizationInfo.GetZeroPoint() != 0 ||
+        biasInfo.m_QuantizationInfo.GetScales() !=
+            inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales())
     {
         SetReason("Bias for depthwise conv must have quantization parameters with zero point of 0 and scale of "
                   "input scale x weight scale",
@@ -432,8 +538,9 @@ SupportedLevel IsDepthwiseConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::EstimateOnly;
     }
 
-    double overallScale = inputInfo.m_QuantizationInfo.m_Scale * weightsInfo.m_QuantizationInfo.m_Scale /
-                          convInfo.m_OutputQuantizationInfo.m_Scale;
+    // TODO: Add support for per-channel quantization
+    double overallScale = inputInfo.m_QuantizationInfo.GetScale() * weightsInfo.m_QuantizationInfo.GetScale() /
+                          convInfo.m_OutputQuantizationInfo.GetScale();
     if (overallScale < 0.0f || overallScale >= 1.0f)
     {
         SetReason("Overall scale (of the input * weights / output) should be in the range [0, 1)", reason,
@@ -452,9 +559,8 @@ SupportedLevel IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
                                                char* reason,
                                                size_t reasonMaxLength)
 {
-    if (inputInfo.m_DataType != DataType::UINT8_QUANTIZED)
+    if (!IsInputDataTypeSupported(inputInfo, "Input to transpose conv", reason, reasonMaxLength))
     {
-        SetReason("Input to transpose conv must be UINT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -464,9 +570,9 @@ SupportedLevel IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (weightsInfo.m_DataType != DataType::UINT8_QUANTIZED)
+    if (!IsDataTypeIn(weightsInfo, { DataType::INT8_QUANTIZED, DataType::UINT8_QUANTIZED }))
     {
-        SetReason("Weights for transpose conv must be UINT8_QUANTIZED", reason, reasonMaxLength);
+        SetReason("Weights for transpose conv must be UINT8_QUANTIZED or INT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -518,6 +624,12 @@ SupportedLevel IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
+    if (!IsQuantizationDimSupported(&biasInfo, &weightsInfo, &inputInfo, "Transpose Convolution", reason,
+                                    reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
+    }
+
     if (outputInfo != nullptr)
     {
         if ((utils::TotalSizeBytes(*outputInfo) != 0) && (*outputInfo != expectedOutputInfo))
@@ -528,15 +640,15 @@ SupportedLevel IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
         *outputInfo = expectedOutputInfo;
     }
 
-    if (weightsInfo.m_QuantizationInfo.m_ZeroPoint > UINT8_MAX || weightsInfo.m_QuantizationInfo.m_ZeroPoint < 0)
+    if (!(IsQuantisationZeroPointInRange(weightsInfo)))
     {
-        SetReason("Zero point value outside allowed range (0-255)", reason, reasonMaxLength);
+        SetReason("Zero point value of weight is not in range", reason, reasonMaxLength);
         return SupportedLevel::EstimateOnly;
     }
 
-    if (biasInfo.m_QuantizationInfo.m_ZeroPoint != 0 ||
-        biasInfo.m_QuantizationInfo.m_Scale !=
-            inputInfo.m_QuantizationInfo.m_Scale * weightsInfo.m_QuantizationInfo.m_Scale)
+    if (biasInfo.m_QuantizationInfo.GetZeroPoint() != 0 ||
+        biasInfo.m_QuantizationInfo.GetScales() !=
+            inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales())
     {
         SetReason("Bias for transpose conv must have quantization parameters with zero point of 0 and "
                   "scale of input scale x weight scale",
@@ -576,8 +688,9 @@ SupportedLevel IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::EstimateOnly;
     }
 
-    double overallScale = inputInfo.m_QuantizationInfo.m_Scale * weightsInfo.m_QuantizationInfo.m_Scale /
-                          convInfo.m_OutputQuantizationInfo.m_Scale;
+    // TODO: Add support for per-channel quantization
+    double overallScale = inputInfo.m_QuantizationInfo.GetScale() * weightsInfo.m_QuantizationInfo.GetScale() /
+                          convInfo.m_OutputQuantizationInfo.GetScale();
     if (overallScale < 0.0f || overallScale >= 1.0f)
     {
         SetReason("Overall scale (of the input * weights / output) should be in the range [0, 1)", reason,
@@ -603,9 +716,8 @@ SupportedLevel IsConcatenationSupported(const std::vector<TensorInfo>& inputInfo
 
     for (uint32_t i = 0; i < numInputs; ++i)
     {
-        if (inputInfos[i].m_DataType != DataType::UINT8_QUANTIZED)
+        if (!IsInputDataTypeSupported(inputInfos[i], "Input tensors", reason, reasonMaxLength))
         {
-            SetReason("Input tensors must have data type UINT8_QUANTIZED", reason, reasonMaxLength);
             return SupportedLevel::Unsupported;
         }
         if (inputInfos[i].m_DataFormat != DataFormat::NHWC && inputInfos[i].m_DataFormat != DataFormat::NHWCB)
@@ -638,6 +750,12 @@ SupportedLevel IsConcatenationSupported(const std::vector<TensorInfo>& inputInfo
                 return SupportedLevel::Unsupported;
             }
         }
+    }
+
+    if (std::any_of(inputInfos.begin(), inputInfos.end(), HasQuantizationDim))
+    {
+        SetReason("Quantization Dim should not be used on any Inputs of Concat", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
     }
 
     if (outputInfo != nullptr)
@@ -697,9 +815,8 @@ SupportedLevel IsSplitSupported(const TensorInfo& inputInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (inputInfo.m_DataType != DataType::UINT8_QUANTIZED)
+    if (!IsInputDataTypeSupported(inputInfo, "Input tensor", reason, reasonMaxLength))
     {
-        SetReason("Input tensor must have data type UINT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
     if (inputInfo.m_DataFormat != DataFormat::NHWC && inputInfo.m_DataFormat != DataFormat::NHWCB)
@@ -720,6 +837,11 @@ SupportedLevel IsSplitSupported(const TensorInfo& inputInfo,
     {
         SetReason("Sizes must sum to the total size of the input tensor along the split axis", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Split", reason, reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
     }
 
     if (outputInfos != nullptr)
@@ -816,10 +938,22 @@ SupportedLevel IsAdditionSupported(const TensorInfo& inputInfo0,
         return SupportedLevel::Unsupported;
     }
 
+    if (!IsInputDataTypeSupported(inputInfo0, "Input to addition", reason, reasonMaxLength) ||
+        !IsInputDataTypeSupported(inputInfo1, "Input to addition", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (((inputInfo0.m_DataFormat != DataFormat::NHWC) && (inputInfo0.m_DataFormat != DataFormat::NHWCB)) ||
         ((inputInfo1.m_DataFormat != DataFormat::NHWC) && (inputInfo1.m_DataFormat != DataFormat::NHWCB)))
     {
         SetReason("Input to addition must be NHWC or NHWCB", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (HasQuantizationDim(inputInfo0) || HasQuantizationDim(inputInfo1))
+    {
+        SetReason("Quantization Dim should not be used on any Inputs of Addition", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -857,9 +991,8 @@ SupportedLevel IsFullyConnectedSupported(const TensorInfo& biasInfo,
                                          char* reason,
                                          size_t reasonMaxLength)
 {
-    if (inputInfo.m_DataType != DataType::UINT8_QUANTIZED)
+    if (!IsInputDataTypeSupported(inputInfo, "Input to fully connected", reason, reasonMaxLength))
     {
-        SetReason("Input to fully connected must be UINT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -870,11 +1003,12 @@ SupportedLevel IsFullyConnectedSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (weightsInfo.m_DataType != DataType::UINT8_QUANTIZED)
+    if (!IsDataTypeIn(weightsInfo, { DataType::INT8_QUANTIZED, DataType::UINT8_QUANTIZED }))
     {
-        SetReason("Weights for fully connected must be UINT8_QUANTIZED", reason, reasonMaxLength);
+        SetReason("Weights for fully connected must be UINT8_QUANTIZED or INT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
+
     if (weightsInfo.m_DataFormat != DataFormat::HWIO)
     {
         SetReason("Weights for fully connected must be HWIO", reason, reasonMaxLength);
@@ -913,6 +1047,11 @@ SupportedLevel IsFullyConnectedSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
+    if (!IsQuantizationDimSupported(&biasInfo, &weightsInfo, &inputInfo, "Fully Connected", reason, reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
+    }
+
     if (outputInfo != nullptr)
     {
         TensorInfo expectedOutputInfo =
@@ -932,21 +1071,15 @@ SupportedLevel IsFullyConnectedSupported(const TensorInfo& biasInfo,
         return SupportedLevel::EstimateOnly;
     }
 
-    if (weightsInfo.m_QuantizationInfo.m_ZeroPoint > UINT8_MAX)
+    if (!(IsQuantisationZeroPointInRange(weightsInfo)))
     {
-        SetReason("Zero point value above allowed range", reason, reasonMaxLength);
+        SetReason("Zero point value of weight is not in range", reason, reasonMaxLength);
         return SupportedLevel::EstimateOnly;
     }
 
-    if (weightsInfo.m_QuantizationInfo.m_ZeroPoint < 0)
-    {
-        SetReason("Zero point value below allowed range", reason, reasonMaxLength);
-        return SupportedLevel::EstimateOnly;
-    }
-
-    if (biasInfo.m_QuantizationInfo.m_ZeroPoint != 0 ||
-        biasInfo.m_QuantizationInfo.m_Scale !=
-            inputInfo.m_QuantizationInfo.m_Scale * weightsInfo.m_QuantizationInfo.m_Scale)
+    if (biasInfo.m_QuantizationInfo.GetZeroPoint() != 0 ||
+        biasInfo.m_QuantizationInfo.GetScales() !=
+            inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales())
     {
         SetReason("Bias for fully connected must have quantization parameters with zero point of 0 and scale of "
                   "input scale x weight scale",
@@ -954,8 +1087,9 @@ SupportedLevel IsFullyConnectedSupported(const TensorInfo& biasInfo,
         return SupportedLevel::EstimateOnly;
     }
 
-    double overallScale = inputInfo.m_QuantizationInfo.m_Scale * weightsInfo.m_QuantizationInfo.m_Scale /
-                          fullyConnectedInfo.m_OutputQuantizationInfo.m_Scale;
+    // TODO: Add support for per-channel quantization
+    double overallScale = inputInfo.m_QuantizationInfo.GetScale() * weightsInfo.m_QuantizationInfo.GetScale() /
+                          fullyConnectedInfo.m_OutputQuantizationInfo.GetScale();
     if (overallScale < 0.0f || overallScale >= 1.0f)
     {
         SetReason("Overall scale (of the input * weights / output) should be in the range [0, 1)", reason,
@@ -975,9 +1109,8 @@ SupportedLevel IsReluSupported(
         return SupportedLevel::Unsupported;
     }
 
-    if (inputInfo.m_DataType != DataType::UINT8_QUANTIZED)
+    if (!IsInputDataTypeSupported(inputInfo, "Input to relu", reason, reasonMaxLength))
     {
-        SetReason("Input to relu must be UINT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -987,9 +1120,92 @@ SupportedLevel IsReluSupported(
         return SupportedLevel::Unsupported;
     }
 
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Relu", reason, reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
+    }
+
     if (outputInfo != nullptr)
     {
         TensorInfo expectedOutputInfo = inputInfo;
+        if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
+        {
+            SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
+            return SupportedLevel::Unsupported;
+        }
+        *outputInfo = expectedOutputInfo;
+    }
+
+    return SupportedLevel::Supported;
+}
+
+SupportedLevel IsLeakyReluSupported(const LeakyReluInfo& leakyReluInfo,
+                                    const TensorInfo& inputInfo,
+                                    TensorInfo* outputInfo,
+                                    char* reason,
+                                    size_t reasonMaxLength)
+{
+    if (!IsInputDataTypeSupported(inputInfo, "Input to leaky relu", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (inputInfo.m_DataFormat != DataFormat::NHWC && inputInfo.m_DataFormat != DataFormat::NHWCB)
+    {
+        SetReason("Input to leaky relu must be NHWC or NHWCB", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Leaky Relu", reason, reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
+    }
+
+    if (outputInfo != nullptr)
+    {
+        TensorInfo expectedOutputInfo = LeakyRelu::CalculateOutputTensorInfo(inputInfo, leakyReluInfo);
+        if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
+        {
+            SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
+            return SupportedLevel::Unsupported;
+        }
+        *outputInfo = expectedOutputInfo;
+    }
+
+    if (leakyReluInfo.m_Alpha >= 1.0f || leakyReluInfo.m_Alpha <= 0.0f)
+    {
+        SetReason("Leaky relu alpha must be less than 1 and greater than 0", reason, reasonMaxLength);
+        return SupportedLevel::EstimateOnly;
+    }
+
+    return SupportedLevel::Supported;
+}
+
+SupportedLevel IsRequantizeSupported(const RequantizeInfo& requantizeInfo,
+                                     const TensorInfo& inputInfo,
+                                     TensorInfo* outputInfo,
+                                     char* reason,
+                                     size_t reasonMaxLength)
+{
+    if (!IsInputDataTypeSupported(inputInfo, "Input to requantize", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (inputInfo.m_DataFormat != DataFormat::NHWC && inputInfo.m_DataFormat != DataFormat::NHWCB)
+    {
+        SetReason("Input to requantize must be NHWC or NHWCB", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Requantize", reason, reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
+    }
+
+    if (outputInfo != nullptr)
+    {
+        TensorInfo expectedOutputInfo = Requantize::CalculateOutputTensorInfo(inputInfo, requantizeInfo);
         if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
         {
             SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
@@ -1010,10 +1226,14 @@ SupportedLevel IsSoftmaxSupported(const TensorInfo&, TensorInfo*, char* reason, 
 SupportedLevel
     IsSigmoidSupported(const TensorInfo& inputInfo, TensorInfo* outputInfo, char* reason, size_t reasonMaxLength)
 {
-    if (inputInfo.m_DataType != DataType::UINT8_QUANTIZED)
+    if (!IsInputDataTypeSupported(inputInfo, "Input to sigmoid layer", reason, reasonMaxLength))
     {
-        SetReason("Input to sigmoid layer must be UINT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Sigmoid", reason, reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
     }
 
     if (outputInfo != nullptr)
@@ -1043,9 +1263,8 @@ SupportedLevel IsPoolingSupported(const PoolingInfo& poolingInfo,
     const uint32_t inputHeight = inputInfo.m_Dimensions[1];
     const uint32_t inputWidth  = inputInfo.m_Dimensions[2];
 
-    if (inputInfo.m_DataType != DataType::UINT8_QUANTIZED)
+    if (!IsInputDataTypeSupported(inputInfo, "Input to pooling layer", reason, reasonMaxLength))
     {
-        SetReason("Input to pooling layer must be UINT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -1054,6 +1273,11 @@ SupportedLevel IsPoolingSupported(const PoolingInfo& poolingInfo,
     {
         SetReason("Invalid pooling size/stride", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Pooling", reason, reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
     }
 
     if (outputInfo != nullptr)
@@ -1190,6 +1414,11 @@ SupportedLevel IsReshapeSupported(const TensorShape& newDimensions,
         return SupportedLevel::Unsupported;
     }
 
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Reshape", reason, reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
+    }
+
     if (outputInfo != nullptr)
     {
         TensorInfo expectedOutputInfo = Reshape::CalculateOutputTensorInfo(inputInfo, newDimensions);
@@ -1211,9 +1440,8 @@ SupportedLevel IsDepthToSpaceSupported(const TensorInfo& inputInfo,
                                        char* reason,
                                        size_t reasonMaxLength)
 {
-    if (inputInfo.m_DataType != DataType::UINT8_QUANTIZED)
+    if (!IsInputDataTypeSupported(inputInfo, "Input to depth to space", reason, reasonMaxLength))
     {
-        SetReason("Input must be UINT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -1228,6 +1456,11 @@ SupportedLevel IsDepthToSpaceSupported(const TensorInfo& inputInfo,
         SetReason("Number of channels of input must be an exact multiple of the square of the block size", reason,
                   reasonMaxLength);
         return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Depth to Space", reason, reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
     }
 
     if (outputInfo != nullptr)
@@ -1248,6 +1481,11 @@ SupportedLevel IsDepthToSpaceSupported(const TensorInfo& inputInfo,
     }
 
     return SupportedLevel::Supported;
+}
+
+SupportedLevel IsSpaceToDepthSupported(const TensorInfo&, const SpaceToDepthInfo&, TensorInfo*, char*, size_t)
+{
+    return SupportedLevel::Unsupported;
 }
 
 SupportedLevel IsEstimateOnlySupported(const std::vector<TensorInfo>&,
@@ -1271,6 +1509,60 @@ SupportedLevel IsEstimateOnlySupported(const std::vector<TensorInfo>&,
         }
     }
     return SupportedLevel::EstimateOnly;
+}
+
+SupportedLevel IsTransposeSupported(const TransposeInfo&, const TensorInfo&, TensorInfo*, char*, size_t)
+{
+    return SupportedLevel::Unsupported;
+}
+
+SupportedLevel IsResizeSupported(const ResizeInfo& resizeInfo,
+                                 const TensorInfo& inputInfo,
+                                 TensorInfo* outputInfo,
+                                 char* reason,
+                                 size_t reasonMaxLength)
+{
+    if (!IsInputDataTypeSupported(inputInfo, "Input to resize", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (inputInfo.m_DataFormat != DataFormat::NHWC && inputInfo.m_DataFormat != DataFormat::NHWCB)
+    {
+        SetReason("Input must be NHWC or NHWCB", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    constexpr uint32_t upscaleFactor = 2U;
+    const uint32_t maxUpscaledHeight = upscaleFactor * inputInfo.m_Dimensions[1];
+    const uint32_t maxUpscaledWidth  = upscaleFactor * inputInfo.m_Dimensions[2];
+    const uint32_t minUpscaledHeight = upscaleFactor * inputInfo.m_Dimensions[1] - 1U;
+    const uint32_t minUpscaledWidth  = upscaleFactor * inputInfo.m_Dimensions[2] - 1U;
+    if (resizeInfo.m_NewHeight != maxUpscaledHeight && resizeInfo.m_NewHeight != minUpscaledHeight)
+    {
+        SetReason("Requested height isn't supported", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (resizeInfo.m_NewWidth != maxUpscaledWidth && resizeInfo.m_NewWidth != minUpscaledWidth)
+    {
+        SetReason("Requested width isn't supported", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (outputInfo != nullptr)
+    {
+        TensorInfo expectedOutputInfo = Resize::CalculateOutputTensorInfo(inputInfo, resizeInfo);
+
+        if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
+        {
+            SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
+            return SupportedLevel::Unsupported;
+        }
+        *outputInfo = expectedOutputInfo;
+    }
+
+    return SupportedLevel::Supported;
 }
 
 }    // namespace support_library

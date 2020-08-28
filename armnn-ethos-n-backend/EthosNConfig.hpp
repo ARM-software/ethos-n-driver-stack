@@ -28,7 +28,7 @@ struct EthosNConfig
     static constexpr char PERF_WEIGHT_COMPRESSION_SAVING[]      = "PERFORMANCE_WEIGHT_COMPRESSION_SAVING";        // float
     static constexpr char PERF_ACTIVATION_COMPRESSION_SAVING[]  = "PERFORMANCE_ACTIVATION_COMPRESSION_SAVING";    // float
     static constexpr char PERF_CURRENT[]                        = "PERFORMANCE_CURRENT";                          // boolean
-    static constexpr char CASCADING[]                           = "CASCADING";                                    // boolean
+    static constexpr char COMPILER_ALGORITHM[]                  = "COMPILER_ALGORITHM";                           // enum
     // clang-format on
 
     bool m_PerfOnly                                      = false;
@@ -41,7 +41,8 @@ struct EthosNConfig
     bool m_PerfUseWeightCompressionOverride              = false;
     float m_PerfWeightCompressionSaving                  = 0.0f;
     bool m_PerfCurrent                                   = false;
-    bool m_EnableCascading                               = false;
+    ethosn::support_library::CompilerAlgorithm m_CompilerAlgorithm =
+        ethosn::support_library::CompilerAlgorithm::NonCascadingOnly;
 };
 
 /// Reads the configuration for the Ethos-N backend from the file pointed by the environment

@@ -157,6 +157,8 @@ public:
         FirmwareScheduleNextCommand,
         FirmwareWfeChecking,
         FirmwareTimeSync,
+        FirmwareAgent,
+        FirmwareAgentStripe,
 
         // Non-firmware related categories go here.
         InferenceLifetime,

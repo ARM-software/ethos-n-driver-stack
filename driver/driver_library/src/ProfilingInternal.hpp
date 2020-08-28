@@ -6,6 +6,8 @@
 
 #include "../include/ethosn_driver_library/Profiling.hpp"
 
+#include <uapi/ethosn_shared.h>
+
 #include <map>
 #include <string>
 #include <vector>
@@ -99,6 +101,9 @@ uint64_t GetKernelDriverCounterValue(PollCounterName counter);
 /// Append all entries reported by the kernel driver to the given vector.
 bool AppendKernelDriverEntries();
 /// @}
+
+ethosn_profiling_hw_counter_types ConvertHwCountersToKernel(HardwareCounters counter);
+ProfilingEntry ConvertProfilingEntry(const ethosn_profiling_entry& kernelEntry);
 
 }    // namespace profiling
 }    // namespace driver_library

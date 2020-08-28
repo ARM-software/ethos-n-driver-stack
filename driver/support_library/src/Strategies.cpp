@@ -8,14 +8,13 @@
 #include "../include/ethosn_support_library/Support.hpp"
 #include "Compiler.hpp"
 #include "Pass.hpp"
+#include "StrategiesCommon.hpp"
 #include "Utils.hpp"
 
 namespace ethosn
 {
 namespace support_library
 {
-
-using namespace utils;
 
 namespace
 {
@@ -25,96 +24,6 @@ namespace
 // We need to further investigate this trade-off.
 constexpr uint32_t g_DefaultMaxNumInputBuffersInTile  = 3;
 constexpr uint32_t g_DefaultMaxNumWeightBuffersInTile = 2;
-
-struct AllocationResult
-{
-    bool m_Success;
-    uint32_t m_InputOffset;
-    uint32_t m_WeightOffset;
-    uint32_t m_OutputOffset;
-    uint32_t m_PleOffset;
-};
-
-AllocationResult FitsInSram(SramAllocator& sramAllocator,
-                            const HardwareCapabilities& capabilities,
-                            uint32_t input,
-                            uint32_t weight,
-                            uint32_t output,
-                            std::pair<bool, uint32_t> inputStaticAndOffset)
-{
-    AllocationResult res;
-    res.m_Success          = true;
-    auto pleAllocateResult = sramAllocator.Allocate(capabilities.GetMaxPleSize(), AllocationPreference::Start, "ple");
-    res.m_Success &= pleAllocateResult.first;
-    res.m_PleOffset = pleAllocateResult.second;
-
-    if (inputStaticAndOffset.first)
-    {
-        res.m_InputOffset = inputStaticAndOffset.second;
-    }
-    else
-    {
-        assert(input > 0);
-        auto inputAllocateResult =
-            sramAllocator.Allocate(input / capabilities.GetNumberOfSrams(), AllocationPreference::Start, "input");
-        res.m_Success &= inputAllocateResult.first;
-        res.m_InputOffset = inputAllocateResult.second;
-    }
-
-    // Try to allocate output and input tiles in opposite ends of SRAM, so we can overlap loading/saving
-    AllocationPreference outputAllocationPreference;
-    AllocationPreference weightAllocationPreference;
-    if (res.m_InputOffset <= (capabilities.GetTotalSramSize() / capabilities.GetNumberOfSrams()) / 2)
-    {
-        outputAllocationPreference = AllocationPreference::End;
-        weightAllocationPreference = AllocationPreference::Start;
-    }
-    else
-    {
-        outputAllocationPreference = AllocationPreference::Start;
-        weightAllocationPreference = AllocationPreference::End;
-    }
-
-    // There are passes without weights but still need to decide on strategies i.e. PlePasses
-    // We don't allocate anything if there are no weights.
-    assert(weight > 0);
-    auto weightAllocateResult =
-        sramAllocator.Allocate(weight / capabilities.GetNumberOfSrams(), weightAllocationPreference, "weights");
-    res.m_Success &= weightAllocateResult.first;
-    res.m_WeightOffset = weightAllocateResult.second;
-
-    assert(output > 0);
-    auto outputAllocateResult =
-        sramAllocator.Allocate(output / capabilities.GetNumberOfSrams(), outputAllocationPreference, "outputs");
-    res.m_Success &= outputAllocateResult.first;
-    res.m_OutputOffset = outputAllocateResult.second;
-
-    return res;
-}
-
-void FillTensorConfigOffsets(const AllocationResult& allocationResults, TensorConfig& outTensorConfig)
-{
-    outTensorConfig.pleAllocation.offset     = allocationResults.m_PleOffset;
-    outTensorConfig.inputAllocation.offset   = allocationResults.m_InputOffset;
-    outTensorConfig.weightsAllocation.offset = allocationResults.m_WeightOffset;
-    outTensorConfig.outputAllocation.offset  = allocationResults.m_OutputOffset;
-}
-// Helper function to account for the fact that if the output stripe in a dimension is the entire tensor
-// we need to use the full input tensor in that dimension
-uint32_t AccountForFullDimension(const uint32_t outputTensorDim,
-                                 const uint32_t inputTensorDim,
-                                 const uint32_t outputStripeDim,
-                                 const Fraction multiplier)
-{
-    if (outputStripeDim >= outputTensorDim)
-    {
-        return inputTensorDim;
-    }
-    else
-    {
-        return outputStripeDim / multiplier;
-    }
-}
 
 // Given a requested shape for the output stripe (which is not required to be rounded at all),
 // calculates what the actual stripe sizes would be (accounting for hardware and firmware constraints)
@@ -136,8 +45,8 @@ bool TryStripeShapes(SramAllocator& sramAllocator,
                      const uint32_t maxNumWeightBuffersInTile = g_DefaultMaxNumWeightBuffersInTile,
                      const uint32_t maxNumInputBuffersInTile  = g_DefaultMaxNumInputBuffersInTile)
 {
-    const uint32_t brickGroupWidth    = capabilities.GetBrickGroupShape()[1];
-    const uint32_t brickGroupHeight   = capabilities.GetBrickGroupShape()[2];
+    const uint32_t brickGroupHeight   = capabilities.GetBrickGroupShape()[1];
+    const uint32_t brickGroupWidth    = capabilities.GetBrickGroupShape()[2];
     const uint32_t brickGroupChannels = capabilities.GetBrickGroupShape()[3];
 
     // Round the requested output stripe shape to appropriate boundaries
@@ -232,8 +141,8 @@ bool TryStripeShapes(SramAllocator& sramAllocator,
     // Clamp the overall tile size to the size of the full tensor. This means that if we have a small number of stripes
     // and the last one is partial we don't waste space in the tile that will never be used.
     const uint32_t inputTileMax =
-        TotalSizeBytes(TensorShape{ 1, RoundUpToNearestMultiple(inputShape[1], brickGroupWidth),
-                                    RoundUpToNearestMultiple(inputShape[2], brickGroupHeight),
+        TotalSizeBytes(TensorShape{ 1, RoundUpToNearestMultiple(inputShape[1], brickGroupHeight),
+                                    RoundUpToNearestMultiple(inputShape[2], brickGroupWidth),
                                     RoundUpToNearestMultiple(inputShape[3], capabilities.GetNumberOfSrams()) });
     // Account for the boundary slots if required by the strategy and the kernel size. It uses the normal
     // slot triple buffering in the width dimension if needed.
@@ -267,8 +176,8 @@ bool TryStripeShapes(SramAllocator& sramAllocator,
     // Clamp the overall tile size to the size of the full tensor. This means that if we have a small number of stripes
     // and the last one is partial we don't waste space in the tile that will never be used.
     const uint32_t outputTileMax =
-        TotalSizeBytes(TensorShape{ 1, RoundUpToNearestMultiple(outputShape[1], brickGroupWidth),
-                                    RoundUpToNearestMultiple(outputShape[2], brickGroupHeight),
+        TotalSizeBytes(TensorShape{ 1, RoundUpToNearestMultiple(outputShape[1], brickGroupHeight),
+                                    RoundUpToNearestMultiple(outputShape[2], brickGroupWidth),
                                     RoundUpToNearestMultiple(outputShape[3], capabilities.GetNumberOfSrams()) });
     const uint32_t outputTile = std::min(TotalSizeBytes(outputStripe) * numOutputStripesInTile, outputTileMax);
 
@@ -315,7 +224,6 @@ bool Strategy0::TrySetup(TensorConfig& tensorConfig,
                          const utils::ShapeMultiplier& shapeMultiplier,
                          std::pair<bool, uint32_t> inputStaticAndOffset,
                          CompilerMceAlgorithm,
-                         const bool,
                          const uint32_t depthMax)
 {
     // Try splitting into two stripes at first, then move until we find something that works.
@@ -368,7 +276,6 @@ bool Strategy1::TrySetup(TensorConfig& tensorConfig,
                          const utils::ShapeMultiplier& shapeMultiplier,
                          std::pair<bool, uint32_t> inputStaticAndOffset,
                          CompilerMceAlgorithm,
-                         const bool,
                          const uint32_t depthMax)
 {
     auto TrySolution = [&](const uint32_t outputStripeChannels, uint32_t numWeightBuffers) {
@@ -428,7 +335,6 @@ bool Strategy3::TrySetup(TensorConfig& tensorConfig,
                          const utils::ShapeMultiplier& shapeMultiplier,
                          std::pair<bool, uint32_t> inputStaticAndOffset,
                          CompilerMceAlgorithm,
-                         const bool,
                          const uint32_t depthMax)
 {
     if (TryStripeShapes(sramAllocator, outputShape, inputShape, outputShape, weightsFormat, weightsShape, capabilities,
@@ -454,7 +360,6 @@ bool Strategy4::TrySetup(TensorConfig& tensorConfig,
                          const utils::ShapeMultiplier& shapeMultiplier,
                          std::pair<bool, uint32_t> inputStaticAndOffset,
                          CompilerMceAlgorithm,
-                         const bool,
                          const uint32_t depthMax)
 {
     using namespace ethosn::command_stream;
@@ -589,7 +494,6 @@ bool Strategy6::TrySetup(TensorConfig& tensorConfig,
                          const utils::ShapeMultiplier& shapeMultiplier,
                          std::pair<bool, uint32_t> inputStaticAndOffset,
                          CompilerMceAlgorithm,
-                         const bool,
                          const uint32_t depthMax)
 {
     if (inputStaticAndOffset.first)
@@ -658,7 +562,6 @@ bool Strategy7::TrySetup(TensorConfig& tensorConfig,
                          const utils::ShapeMultiplier& shapeMultiplier,
                          std::pair<bool, uint32_t> inputStaticAndOffset,
                          CompilerMceAlgorithm algorithm,
-                         const bool isLegacy,
                          const uint32_t depthMax)
 {
     if (inputStaticAndOffset.first)
@@ -685,7 +588,7 @@ bool Strategy7::TrySetup(TensorConfig& tensorConfig,
         return false;
     }
 
-    if (isLegacy && (blockConfig.m_BlockWidth() < outputShape[2]))
+    if (blockConfig.m_BlockWidth() < outputShape[2])
     {
         // Use legacy code for HWIM, it does not support streaming in width
         return false;
@@ -712,24 +615,12 @@ bool Strategy7::TrySetup(TensorConfig& tensorConfig,
     };
 
     const uint32_t numStripesH = utils::DivRoundUp(inputShape[1], inputStripe[1]);
-    const uint32_t numStripesW = utils::DivRoundUp(inputShape[2], inputStripe[2]);
+    const bool needNeighbourH  = (weightsShape[0] > 1U);
 
-    const bool needNeighbourH = (weightsShape[0] > 1U);
-    const bool needNeighbourW = (weightsShape[1] > 1U);
-
-    // Legacy double buffers only if no need for neighbour
+    // double buffers only if no need for neighbour
     const uint32_t numRequiredCentralStripesH = needNeighbourH ? 3U : 2U;
-    const uint32_t numRequiredCentralStripesW = needNeighbourW ? 3U : 1U;
 
-    uint32_t numInputStripesTile = isLegacy ? std::min(numStripesH, numRequiredCentralStripesH)
-                                            : std::min(numStripesW, numRequiredCentralStripesW);
-
-    const bool needBoundary   = (isLegacy) ? false : ((numStripesH > 1U) && needNeighbourH);
-    uint32_t numBoundarySlots = needBoundary ? (numInputStripesTile * 2U) : 0;
-
-    const uint32_t numSlotQueues = isLegacy ? 1U : ((numInputStripesTile <= 2U) ? 2U : 1U);
-    numInputStripesTile *= numSlotQueues;
-    numBoundarySlots *= numSlotQueues;
+    const uint32_t numInputStripesTile = std::min(numStripesH, numRequiredCentralStripesH);
 
     // output stripe is also double buffered in the tile
     const uint32_t outputTile = outputStripe[0] * outputStripe[1] * outputStripe[2] * outputStripe[3] * 2U;
@@ -785,8 +676,7 @@ bool Strategy7::TrySetup(TensorConfig& tensorConfig,
             // Fit all ifm iterations in the weight tile to avoid weight reloading. Plus one to allow for buffering
             const uint32_t numWeightStripesTile = DivRoundUp(inputShape[3], inputStripeDepth) + 1U;
 
-            inputTile = (inputStripe[0] * inputStripe[1] * inputStripe[2] * inputStripe[3] * numInputStripesTile) +
-                        (numBoundarySlots * capabilities.GetBoundaryStripeHeight() * inputStripe[2] * inputStripe[3]);
+            inputTile  = (inputStripe[0] * inputStripe[1] * inputStripe[2] * inputStripe[3] * numInputStripesTile);
             weightTile = EstimateWeightSizeBytes(weightStripe, capabilities, false) * numWeightStripesTile;
 
             sramAllocator = originalSramAllocator;
@@ -822,7 +712,7 @@ bool Strategy7::TrySetup(TensorConfig& tensorConfig,
     tensorConfig.weightsAllocation.tileSize    = weightTile;
     tensorConfig.blockWidth                    = blockConfig.m_BlockWidth();
     tensorConfig.blockHeight                   = blockConfig.m_BlockHeight();
-    tensorConfig.strategy                      = isLegacy ? Strategy::STRATEGY_7 : Strategy::STRATEGY_X;
+    tensorConfig.strategy                      = Strategy::STRATEGY_7;
 
     originalSramAllocator = sramAllocator;
     FillTensorConfigOffsets(allocationResults, tensorConfig);
@@ -841,7 +731,6 @@ bool StrategyFc::TrySetup(TensorConfig& tensorConfig,
                           const ShapeMultiplier&,
                           std::pair<bool, uint32_t> inputStaticAndOffset,
                           CompilerMceAlgorithm,
-                          const bool,
                           uint32_t)
 {
     using namespace ethosn::command_stream;

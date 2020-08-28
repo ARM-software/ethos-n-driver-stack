@@ -6,7 +6,8 @@
 #pragma once
 
 #include "../Graph.hpp"
-#include "OpUtils.hpp"
+#include "../GraphNodes.hpp"
+#include "../WeightEncoder.hpp"
 
 #include <ethosn_command_stream/CommandStream.hpp>
 
@@ -42,6 +43,7 @@ enum class Location
     Dram,
     PleInputSram,
     Sram,
+    VirtualSram
 };
 
 class Buffer;
@@ -94,7 +96,10 @@ public:
     /// @{
     void AddOp(Op* op);
     void AddBuffer(Buffer* buffer);
+
     void SetProducer(Buffer* buffer, Op* producerOp);
+    void ClearProducer(Buffer* buffer);
+
     void AddConsumer(Buffer* buffer, Op* consumerOp, uint32_t opInputIdx);
     /// @}
 
@@ -118,8 +123,8 @@ private:
 class OwnedOpGraph : public OpGraph
 {
 public:
-    void AddOp(std::unique_ptr<Op> op);
-    void AddBuffer(std::unique_ptr<Buffer> buffer);
+    Op* AddOp(std::unique_ptr<Op> op);
+    Buffer* AddBuffer(std::unique_ptr<Buffer> buffer);
 
 private:
     std::vector<std::unique_ptr<Op>> m_Ops;
@@ -134,6 +139,7 @@ public:
     /// This can be used to help identify this object for debugging purposes, and is used in visulisations (dot files)
     /// to identify this object. It shouldn't have any effect on network compilation or estimation.
     std::string m_DebugTag;
+    int m_DebugId;
 
     /// Counter for generating unique debug tags (see DebuggableObject constructor).
     /// This is publicly exposed so can be manipulated by tests.
@@ -184,10 +190,9 @@ class DmaOp : public Op
 {
 public:
     DmaOp();
-    DmaOp(Lifetime lifetime, Location location, CompilerDataFormat format);
+    DmaOp(Lifetime lifetime, Location location);
 
     Location m_Location;
-    CompilerDataFormat m_Format;
 };
 
 class MceOp : public Op
@@ -202,7 +207,9 @@ public:
           TensorShape outputStripeShape,
           TensorShape weightsStripeShape,
           TraversalOrder order,
-          Stride stride);
+          Stride stride,
+          uint32_t padLeft,
+          uint32_t padTop);
 
     MceOperation m_Op;
     CompilerMceAlgorithm m_Algo;
@@ -212,6 +219,8 @@ public:
     TensorShape m_WeightsStripeShape;
     TraversalOrder m_Order;
     Stride m_Stride;
+    uint32_t m_PadLeft;
+    uint32_t m_PadTop;
 };
 
 class PleOp : public Op
@@ -249,15 +258,24 @@ public:
            TensorShape tensorShape,
            TensorShape stripeShape,
            TraversalOrder order,
-           uint32_t sizeInBytes);
+           uint32_t sizeInBytes,
+           QuantizationInfo quantInfo);
 
     Lifetime m_Lifetime;
     Location m_Location;
     CompilerDataFormat m_Format;
+    QuantizationInfo m_QuantizationInfo;
     TensorShape m_TensorShape;
     TensorShape m_StripeShape;
     TraversalOrder m_Order;
     uint32_t m_SizeInBytes;
+
+    /// This value should be easily calculable from m_SizeInBytes and m_StripeShape (and possibly some format parameters),
+    /// but is useful to store by itself nonetheless.
+    uint32_t m_NumStripes;
+
+    /// Relevant only if this is a weights buffer in Dram.
+    std::unique_ptr<EncodedWeights> m_EncodedWeights;
 };
 
 }    // namespace support_library

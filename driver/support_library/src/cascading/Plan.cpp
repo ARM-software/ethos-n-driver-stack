@@ -93,6 +93,20 @@ void OpGraph::SetProducer(Buffer* buffer, Op* producerOp)
     m_OpOutputs[producerOp]   = buffer;
 }
 
+void OpGraph::ClearProducer(Buffer* buffer)
+{
+    if (!Contains(buffer))
+    {
+        throw std::runtime_error("buffer is not part of this graph (or is nullptr)");
+    }
+    auto oldProducerIt = m_BufferProducers.find(buffer);
+    if (oldProducerIt != m_BufferProducers.end())
+    {
+        m_OpOutputs.erase(oldProducerIt->second);
+    }
+    m_BufferProducers.erase(buffer);
+}
+
 void OpGraph::AddConsumer(Buffer* buffer, Op* consumerOp, uint32_t opInputIdx)
 {
     if (!Contains(buffer))
@@ -111,11 +125,20 @@ void OpGraph::AddConsumer(Buffer* buffer, Op* consumerOp, uint32_t opInputIdx)
     }
     m_BufferConsumers[buffer].push_back({ consumerOp, opInputIdx });
     auto& inputs = m_OpInputs[consumerOp];
-    if (opInputIdx >= inputs.size())
+    if (opInputIdx < inputs.size())
     {
-        inputs.resize(opInputIdx + 1, nullptr);
+        inputs[opInputIdx] = buffer;
     }
-    inputs[opInputIdx] = buffer;
+    else if (opInputIdx == inputs.size())
+    {
+        inputs.push_back(buffer);
+    }
+    else
+    {
+        // Prevent leaving 'dangling' inputs - they must be connected properly first.
+        // This means other code can be sure that input buffers are not set to null and so don't need to check.
+        throw std::runtime_error("Cannot connect to this input index without connecting earlier inputs first.");
+    }
 }
 
 Plan::Plan()
@@ -157,18 +180,22 @@ const OwnedOpGraph& Plan::getOwnedOpGraph() const
     return m_OpGraph;
 }
 
-void OwnedOpGraph::AddOp(std::unique_ptr<Op> op)
+Op* OwnedOpGraph::AddOp(std::unique_ptr<Op> op)
 {
     // Call base implementation first in case it errors, in which case we don't want to track this Op.
-    OpGraph::AddOp(op.get());
-    m_Ops.push_back(std::move(op));
+    Op* raw = op.get();
+    OpGraph::AddOp(raw);
+    m_Ops.emplace_back(std::move(op));
+    return raw;
 }
 
-void OwnedOpGraph::AddBuffer(std::unique_ptr<Buffer> buffer)
+Buffer* OwnedOpGraph::AddBuffer(std::unique_ptr<Buffer> buffer)
 {
     // Call base implementation first in case it errors, in which case we don't want to track this Op.
-    OpGraph::AddBuffer(buffer.get());
-    m_Buffers.push_back(std::move(buffer));
+    Buffer* raw = buffer.get();
+    OpGraph::AddBuffer(raw);
+    m_Buffers.emplace_back(std::move(buffer));
+    return raw;
 }
 
 int DebuggableObject::ms_IdCounter = 0;
@@ -178,6 +205,8 @@ DebuggableObject::DebuggableObject(const char* defaultTagPrefix)
     // Generate an arbitrary and unique (but deterministic) default debug tag for this object.
     // This means that if no-one sets anything more useful, we still have a way to identify it.
     m_DebugTag = std::string(defaultTagPrefix) + " " + std::to_string(ms_IdCounter);
+    //m_DebugId is very useful for conditional breakpoints
+    m_DebugId = ms_IdCounter;
     ++ms_IdCounter;
 }
 
@@ -194,13 +223,11 @@ Op::Op(const char* defaultTagPrefix, Lifetime lifetime)
 DmaOp::DmaOp()
     : Op("DmaOp")
     , m_Location(Location::Dram)
-    , m_Format(CompilerDataFormat::NONE)
 {}
 
-DmaOp::DmaOp(Lifetime lifetime, Location location, CompilerDataFormat format)
+DmaOp::DmaOp(Lifetime lifetime, Location location)
     : Op("DmaOp", lifetime)
     , m_Location(location)
-    , m_Format(format)
 {}
 
 MceOp::MceOp()
@@ -213,6 +240,8 @@ MceOp::MceOp()
     , m_WeightsStripeShape{ 0, 0, 0, 0 }
     , m_Order(TraversalOrder::Xyz)
     , m_Stride()
+    , m_PadLeft(0)
+    , m_PadTop(0)
 {}
 
 MceOp::MceOp(Lifetime lifetime,
@@ -223,7 +252,9 @@ MceOp::MceOp(Lifetime lifetime,
              TensorShape outputStripeShape,
              TensorShape weightsStripeShape,
              TraversalOrder order,
-             Stride stride)
+             Stride stride,
+             uint32_t padLeft,
+             uint32_t padTop)
     : Op("MceOp", lifetime)
     , m_Op(op)
     , m_Algo(algo)
@@ -233,6 +264,8 @@ MceOp::MceOp(Lifetime lifetime,
     , m_WeightsStripeShape(weightsStripeShape)
     , m_Order(order)
     , m_Stride(stride)
+    , m_PadLeft(padLeft)
+    , m_PadTop(padTop)
 {}
 
 PleOp::PleOp()
@@ -269,11 +302,12 @@ Buffer::Buffer()
              { 0, 0, 0, 0 },
              { 0, 0, 0, 0 },
              TraversalOrder::Xyz,
-             0)
+             0,
+             QuantizationInfo())
 {}
 
 Buffer::Buffer(Lifetime lifetime, Location location, CompilerDataFormat format, TraversalOrder order)
-    : Buffer(lifetime, location, format, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, order, 0)
+    : Buffer(lifetime, location, format, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, order, 0, QuantizationInfo())
 {}
 
 Buffer::Buffer(Lifetime lifetime,
@@ -282,15 +316,18 @@ Buffer::Buffer(Lifetime lifetime,
                TensorShape tensorShape,
                TensorShape stripeShape,
                TraversalOrder order,
-               uint32_t sizeInBytes)
+               uint32_t sizeInBytes,
+               QuantizationInfo quantInfo)
     : DebuggableObject("Buffer")
     , m_Lifetime(lifetime)
     , m_Location(location)
     , m_Format(format)
+    , m_QuantizationInfo(quantInfo)
     , m_TensorShape(tensorShape)
     , m_StripeShape(stripeShape)
     , m_Order(order)
     , m_SizeInBytes(sizeInBytes)
+    , m_NumStripes(0)
 {}
 
 }    // namespace support_library

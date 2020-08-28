@@ -197,8 +197,37 @@ inline ethosn_lib::ReluInfo BuildEthosNReluInfo(const armnn::ActivationDescripto
     return BuildEthosNReluInfo(descriptor, outputInfo.GetQuantizationScale(), outputInfo.GetQuantizationOffset());
 }
 
+ethosn_lib::LeakyReluInfo BuildEthosNLeakyReluInfo(const armnn::ActivationDescriptor& descriptor,
+                                                   float quantizationScale,
+                                                   int quantizationOffset);
+
+inline ethosn_lib::LeakyReluInfo BuildEthosNLeakyReluInfo(const armnn::ActivationDescriptor& descriptor,
+                                                          const armnn::TensorInfo& outputInfo)
+{
+    return BuildEthosNLeakyReluInfo(descriptor, outputInfo.GetQuantizationScale(), outputInfo.GetQuantizationOffset());
+}
+
 Optional<ethosn_lib::SplitInfo> BuildEthosNSplitInfo(const TensorShape& inputShape,
                                                      const ViewsDescriptor& splitterDescriptor);
 
+Optional<ethosn_lib::TransposeInfo> BuildEthosNTransposeInfo(const armnn::PermutationVector& descriptor);
+
+ethosn_lib::RequantizeInfo BuildEthosNRequantizeInfo(const float quantizationScale, const int quantizationOffset);
+
+inline ethosn_lib::RequantizeInfo BuildEthosNRequantizeInfo(const armnn::TensorInfo& outputInfo)
+{
+    return BuildEthosNRequantizeInfo(outputInfo.GetQuantizationScale(), outputInfo.GetQuantizationOffset());
+}
+
+ethosn_lib::ResizeInfo
+    BuildEthosNResizeInfo(const armnn::ResizeDescriptor& descriptor, float quantizationScale, int quantizationOffset);
+
+inline ethosn_lib::ResizeInfo BuildEthosNResizeInfo(const armnn::ResizeDescriptor& descriptor,
+                                                    const armnn::TensorInfo& outputInfo)
+{
+    return BuildEthosNResizeInfo(descriptor, outputInfo.GetQuantizationScale(), outputInfo.GetQuantizationOffset());
+}
+
+bool IsDataTypeSupportedOnEthosN(const armnn::DataType dataType);
 }    // namespace ethosntensorutils
 }    // namespace armnn

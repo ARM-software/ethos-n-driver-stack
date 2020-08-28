@@ -120,7 +120,8 @@ using CompatiblePlans = std::vector<CompatiblePlan>;
 // |                |                                                  |
 // |-------------------------------------------------------------------|
 // |    ...         |                  ...                             |
-using CompatiblePlansOfPart = std::unordered_map<PlanId, CompatiblePlans>;
+// Note this is an *ordered* map to give deterministic results.
+using CompatiblePlansOfPart = std::map<PlanId, CompatiblePlans>;
 
 // |-----------------------------------------------------------------|
 // |     Edge       |               CompatiblePlansOfPart            |
@@ -146,6 +147,7 @@ struct MetadataOfPart
 {
     SrcPart m_Source;
     DstPart m_Destination;
+    PartId m_PartId;
     CompatiblePlansOfParts m_Comp;
 };
 

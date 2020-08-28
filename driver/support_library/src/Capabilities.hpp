@@ -15,7 +15,7 @@
 #include <array>
 #include <cstddef>
 
-#define FW_AND_HW_CAPABILITIES_VERSION 2
+#define FW_AND_HW_CAPABILITIES_VERSION 3
 
 namespace ethosn
 {
@@ -76,6 +76,7 @@ struct FirmwareAndHardwareCapabilities
     uint32_t m_NumPleLanes;
     uint32_t m_WeightCompressionVersion;
     uint32_t m_ActivationCompressionVersion;
+    uint32_t m_IsNchwSupported;
 };
 
 // The FirmwareAndHardwareCapabilities struct is copied through the driver stack as a simple block of memory

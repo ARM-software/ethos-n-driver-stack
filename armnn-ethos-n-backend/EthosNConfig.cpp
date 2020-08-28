@@ -24,7 +24,7 @@ constexpr char EthosNConfig::DUMP_DEBUG_FILES_VAR[];
 constexpr char EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING[];
 constexpr char EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING[];
 constexpr char EthosNConfig::PERF_CURRENT[];
-constexpr char EthosNConfig::CASCADING[];
+constexpr char EthosNConfig::COMPILER_ALGORITHM[];
 
 EthosNConfig GetEthosNConfig()
 {
@@ -57,7 +57,11 @@ std::ostream& operator<<(std::ostream& configFile, const armnn::EthosNConfig& co
     configFile << armnn::EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING << " = "
                << config.m_PerfActivationCompressionSaving << std::endl;
     configFile << armnn::EthosNConfig::PERF_CURRENT << " = " << config.m_PerfCurrent << std::endl;
-    configFile << armnn::EthosNConfig::CASCADING << " = " << config.m_EnableCascading << std::endl;
+    if (config.m_CompilerAlgorithm != ethosn::support_library::CompilerAlgorithm::Auto)
+    {
+        configFile << armnn::EthosNConfig::COMPILER_ALGORITHM << " = "
+                   << ethosn::support_library::EthosNCompilerAlgorithmAsString(config.m_CompilerAlgorithm) << std::endl;
+    }
     configFile.flush();
 
     return configFile;
@@ -131,9 +135,23 @@ std::istream& operator>>(std::istream& configFile, armnn::EthosNConfig& config)
                 {
                     config.m_PerfCurrent = boost::lexical_cast<bool>(m[2]);
                 }
-                else if (m[1] == armnn::EthosNConfig::CASCADING)
+                else if (m[1] == armnn::EthosNConfig::COMPILER_ALGORITHM)
                 {
-                    config.m_EnableCascading = boost::lexical_cast<bool>(m[2]);
+                    try
+                    {
+                        config.m_CompilerAlgorithm =
+                            ethosn::support_library::EthosNCompilerAlgorithmFromString(m[2].str().c_str());
+                    }
+                    catch (std::invalid_argument&)
+                    {
+                        throw armnn::Exception("Invalid value '" + m[2].str() + "' for option " +
+                                               std::string(armnn::EthosNConfig::COMPILER_ALGORITHM) +
+                                               ". Must be one of: \n"
+#define X(value) +#value + "\n"
+                                               COMPILER_ALGORITHM_MODE
+#undef X
+                        );
+                    }
                 }
                 else
                 {

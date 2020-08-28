@@ -353,6 +353,45 @@ void Relu::Print(std::ostream& os)
     PrintOperation(os, *this, "Relu");
 }
 
+LeakyRelu::LeakyRelu(const detail::PosInNetwork pos, uint32_t id, Operand& input, const LeakyReluInfo& leakyReluInfo)
+    : VisitableOperation<LeakyRelu>(
+          pos, id, { &input }, { CalculateOutputTensorInfo(input.GetTensorInfo(), leakyReluInfo) })
+    , m_LeakyReluInfo(leakyReluInfo)
+{}
+
+TensorInfo LeakyRelu::CalculateOutputTensorInfo(const TensorInfo& inputInfo, const LeakyReluInfo& leakyReluInfo)
+{
+    TensorInfo outputInfo         = inputInfo;
+    outputInfo.m_QuantizationInfo = leakyReluInfo.m_OutputQuantizationInfo;
+    return outputInfo;
+}
+
+void LeakyRelu::Print(std::ostream& os)
+{
+    PrintOperation(os, *this, "LeakyRelu");
+}
+
+Requantize::Requantize(const detail::PosInNetwork pos,
+                       uint32_t id,
+                       Operand& input,
+                       const RequantizeInfo& requantizeInfo)
+    : VisitableOperation<Requantize>(
+          pos, id, { &input }, { CalculateOutputTensorInfo(input.GetTensorInfo(), requantizeInfo) })
+    , m_RequantizeInfo(requantizeInfo)
+{}
+
+TensorInfo Requantize::CalculateOutputTensorInfo(const TensorInfo& inputInfo, const RequantizeInfo& requantizeInfo)
+{
+    TensorInfo outputInfo         = inputInfo;
+    outputInfo.m_QuantizationInfo = requantizeInfo.m_OutputQuantizationInfo;
+    return outputInfo;
+}
+
+void Requantize::Print(std::ostream& os)
+{
+    PrintOperation(os, *this, "Requantize");
+}
+
 Softmax::Softmax(const detail::PosInNetwork pos, uint32_t id, Operand& input)
     : VisitableOperation<Softmax>(pos, id, { &input }, { input.GetTensorInfo() })
 {}
@@ -368,8 +407,11 @@ Sigmoid::Sigmoid(const detail::PosInNetwork pos, uint32_t id, Operand& input)
 
 TensorInfo Sigmoid::CalculateOutputTensorInfo(const TensorInfo& inputInfo)
 {
+    const int32_t zeroPoint = (inputInfo.m_DataType == DataType::INT8_QUANTIZED) ? -128 : 0;
+
     TensorInfo outInfo         = inputInfo;
-    outInfo.m_QuantizationInfo = QuantizationInfo(0, 1.f / 256);
+    outInfo.m_QuantizationInfo = QuantizationInfo(zeroPoint, 1.f / 256);
+
     return outInfo;
 }
 
@@ -505,6 +547,72 @@ TensorInfo DepthToSpace::CalculateOutputTensorInfo(const TensorInfo& inputInfo,
 void DepthToSpace::Print(std::ostream& os)
 {
     PrintOperation(os, *this, "DepthToSpace");
+}
+
+SpaceToDepth::SpaceToDepth(const detail::PosInNetwork pos,
+                           uint32_t id,
+                           Operand& input,
+                           const SpaceToDepthInfo& spaceToDepthInfo)
+    : VisitableOperation<SpaceToDepth>(
+          pos, id, { &input }, { CalculateOutputTensorInfo(input.GetTensorInfo(), spaceToDepthInfo) })
+    , m_SpaceToDepthInfo(spaceToDepthInfo)
+{}
+
+TensorInfo SpaceToDepth::CalculateOutputTensorInfo(const TensorInfo& inputInfo,
+                                                   const SpaceToDepthInfo& spaceToDepthInfo)
+{
+    TensorInfo result  = inputInfo;
+    uint32_t blockSize = spaceToDepthInfo.m_BlockSize;
+    assert(inputInfo.m_Dimensions[1] % blockSize == 0 && inputInfo.m_Dimensions[2] % blockSize == 0);
+    result.m_Dimensions[1] = inputInfo.m_Dimensions[1] / blockSize;
+    result.m_Dimensions[2] = inputInfo.m_Dimensions[2] / blockSize;
+    result.m_Dimensions[3] = inputInfo.m_Dimensions[3] * blockSize * blockSize;
+    return result;
+}
+
+void SpaceToDepth::Print(std::ostream& os)
+{
+    PrintOperation(os, *this, "SpaceToDepth");
+}
+
+Transpose::Transpose(const detail::PosInNetwork pos, uint32_t id, Operand& input, const TransposeInfo& transposeInfo)
+    : VisitableOperation<Transpose>(
+          pos, id, { &input }, { CalculateOutputTensorInfo(input.GetTensorInfo(), transposeInfo) })
+    , m_TransposeInfo(transposeInfo)
+{}
+
+TensorInfo Transpose::CalculateOutputTensorInfo(const TensorInfo& inputInfo, const TransposeInfo& transposeInfo)
+{
+    TensorInfo result      = inputInfo;
+    auto& permutation      = transposeInfo.m_Permutation;
+    result.m_Dimensions[1] = inputInfo.m_Dimensions[permutation[1]];
+    result.m_Dimensions[2] = inputInfo.m_Dimensions[permutation[2]];
+    result.m_Dimensions[3] = inputInfo.m_Dimensions[permutation[3]];
+    return result;
+}
+
+void Transpose::Print(std::ostream& os)
+{
+    PrintOperation(os, *this, "Transpose");
+}
+
+Resize::Resize(const detail::PosInNetwork pos, uint32_t id, Operand& input, const ResizeInfo& resizeInfo)
+    : VisitableOperation<Resize>(pos, id, { &input }, { CalculateOutputTensorInfo(input.GetTensorInfo(), resizeInfo) })
+    , m_ResizeInfo(resizeInfo)
+{}
+
+TensorInfo Resize::CalculateOutputTensorInfo(const TensorInfo& inputInfo, const ResizeInfo& resizeInfo)
+{
+    TensorInfo outputInfo         = inputInfo;
+    outputInfo.m_Dimensions[1]    = resizeInfo.m_NewHeight;
+    outputInfo.m_Dimensions[2]    = resizeInfo.m_NewWidth;
+    outputInfo.m_QuantizationInfo = resizeInfo.m_OutputQuantizationInfo;
+    return outputInfo;
+}
+
+void Resize::Print(std::ostream& os)
+{
+    PrintOperation(os, *this, "Resize");
 }
 
 EstimateOnly::EstimateOnly(const detail::PosInNetwork pos,

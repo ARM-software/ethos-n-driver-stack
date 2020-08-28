@@ -134,6 +134,7 @@ FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant varian
 
     fwHwCapabilities.m_WeightCompressionVersion     = 1;
     fwHwCapabilities.m_ActivationCompressionVersion = 1;
+    fwHwCapabilities.m_IsNchwSupported              = 1;
     SetCommonCapabilities(fwHwCapabilities);
     return fwHwCapabilities;
 }
@@ -150,6 +151,7 @@ FirmwareAndHardwareCapabilities GetEthosN77FwHwCapabilities()
     fwHwCapabilities.m_NumPleLanes                  = 1;
     fwHwCapabilities.m_WeightCompressionVersion     = 0;
     fwHwCapabilities.m_ActivationCompressionVersion = 0;
+    fwHwCapabilities.m_IsNchwSupported              = 0;
 
     SetCommonCapabilities(fwHwCapabilities);
 
@@ -168,6 +170,7 @@ FirmwareAndHardwareCapabilities GetEthosN57FwHwCapabilities()
     fwHwCapabilities.m_NumPleLanes                  = 1;
     fwHwCapabilities.m_WeightCompressionVersion     = 0;
     fwHwCapabilities.m_ActivationCompressionVersion = 0;
+    fwHwCapabilities.m_IsNchwSupported              = 0;
 
     SetCommonCapabilities(fwHwCapabilities);
 
@@ -186,6 +189,7 @@ FirmwareAndHardwareCapabilities GetEthosN37FwHwCapabilities()
     fwHwCapabilities.m_NumPleLanes                  = 1;
     fwHwCapabilities.m_WeightCompressionVersion     = 0;
     fwHwCapabilities.m_ActivationCompressionVersion = 0;
+    fwHwCapabilities.m_IsNchwSupported              = 0;
 
     SetCommonCapabilities(fwHwCapabilities);
 

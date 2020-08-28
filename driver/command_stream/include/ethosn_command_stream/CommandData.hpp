@@ -21,7 +21,8 @@ using Filename    = std::array<char, 128>;
 
 enum class DataType : uint8_t
 {
-    QASYMM8
+    QASYMM8,
+    QSYMM8
 };
 
 enum class DataFormat : uint8_t
@@ -117,18 +118,20 @@ NAMED_BINARY_TUPLE(MceData,
                    TensorShape, OutputShape,
                    TensorShape, OutputStripeShape,
                    int16_t, OutputZeroPoint,
-                   uint16_t, OutputRescaleMultiplier,
-                   uint16_t, OutputRescaleShift,
                    UpsampleType, UpsampleMode,
                    MceOperation, Operation,
                    MceAlgorithm, Algorithm,
-                   uint8_t, ActivationMin,
-                   uint8_t, ActivationMax);
+                   int16_t, ActivationMin,
+                   int16_t, ActivationMax);
 
 NAMED_BINARY_TUPLE(PleData,
                    uint32_t, CeSram,
                    uint32_t, PleSram,
-                   PleOperation, Operation);
+                   PleOperation, Operation,
+                   uint16_t, RescaleMultiplier0,
+                   uint16_t, RescaleShift0,
+                   uint16_t, RescaleMultiplier1,
+                   uint16_t, RescaleShift1);
 
 template <Opcode O>
 struct CommandData;
@@ -149,11 +152,7 @@ NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::OPERATION_PLE_ONLY>, Comma
                                   TensorInfo, InputInfo2,
                                   TensorInfo, OutputInfo,
                                   SramConfig, SramConfig,
-                                  PleData, PleData,
-                                  uint16_t, InputRescaleMultiplier0,
-                                  uint16_t, InputRescaleShift0,
-                                  uint16_t, InputRescaleMultiplier1,
-                                  uint16_t, InputRescaleShift1);
+                                  PleData, PleData);
 
 NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::OPERATION_SOFTMAX>, CommandData,
                                   TensorInfo, InputInfo,
@@ -167,6 +166,13 @@ NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::OPERATION_SOFTMAX>, Comman
 NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::OPERATION_CONVERT>, CommandData,
     TensorInfo, InputInfo,
     TensorInfo, OutputInfo);
+
+NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::OPERATION_SPACE_TO_DEPTH>, CommandData,
+    TensorInfo, InputInfo,
+    TensorInfo, OutputInfo,
+    uint32_t, UsedEmcs,
+    uint32_t, Intermediate1Size,
+    uint32_t, Intermediate2Size);
 
 NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::DUMP_DRAM>, CommandData,
                                   uint32_t, DramBufferId,
@@ -185,15 +191,16 @@ NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::DELAY>, CommandData,
 
 // clang-format on
 
-using McePle   = CommandData<Opcode::OPERATION_MCE_PLE>;
-using PleOnly  = CommandData<Opcode::OPERATION_PLE_ONLY>;
-using Softmax  = CommandData<Opcode::OPERATION_SOFTMAX>;
-using Convert  = CommandData<Opcode::OPERATION_CONVERT>;
-using DumpDram = CommandData<Opcode::DUMP_DRAM>;
-using DumpSram = CommandData<Opcode::DUMP_SRAM>;
-using Fence    = CommandData<Opcode::FENCE>;
-using Section  = CommandData<Opcode::SECTION>;
-using Delay    = CommandData<Opcode::DELAY>;
+using McePle       = CommandData<Opcode::OPERATION_MCE_PLE>;
+using PleOnly      = CommandData<Opcode::OPERATION_PLE_ONLY>;
+using Softmax      = CommandData<Opcode::OPERATION_SOFTMAX>;
+using Convert      = CommandData<Opcode::OPERATION_CONVERT>;
+using SpaceToDepth = CommandData<Opcode::OPERATION_SPACE_TO_DEPTH>;
+using DumpDram     = CommandData<Opcode::DUMP_DRAM>;
+using DumpSram     = CommandData<Opcode::DUMP_SRAM>;
+using Fence        = CommandData<Opcode::FENCE>;
+using Section      = CommandData<Opcode::SECTION>;
+using Delay        = CommandData<Opcode::DELAY>;
 
 }    // namespace command_stream
 }    // namespace ethosn

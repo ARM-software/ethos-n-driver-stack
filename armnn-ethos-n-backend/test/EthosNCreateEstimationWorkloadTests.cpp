@@ -34,7 +34,7 @@ BOOST_AUTO_TEST_CASE(ParseEthosNConfig)
         os << armnn::EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING << " = 0.5\n";
         os << armnn::EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING << " = 0.5\n";
         os << armnn::EthosNConfig::PERF_CURRENT << " = 0\n";
-        os << armnn::EthosNConfig::CASCADING << " = 0\n";
+        os << armnn::EthosNConfig::COMPILER_ALGORITHM << " = Auto\n";
     }
     SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
 
@@ -47,7 +47,47 @@ BOOST_AUTO_TEST_CASE(ParseEthosNConfig)
     BOOST_CHECK(config.m_PerfActivationCompressionSaving == 0.5f);
     BOOST_CHECK(config.m_PerfWeightCompressionSaving == 0.5f);
     BOOST_CHECK(config.m_PerfCurrent == false);
-    BOOST_CHECK(config.m_EnableCascading == false);
+    BOOST_CHECK(config.m_CompilerAlgorithm == ethosn::support_library::CompilerAlgorithm::Auto);
+}
+
+BOOST_AUTO_TEST_CASE(ParseEthosNConfigCascadingOk)
+{
+    using namespace testing_utils;
+
+    const TempDir tmpDir;
+    const std::string configFile = tmpDir.Str() + "/config.txt";
+    {
+        std::ofstream os(configFile);
+        os << armnn::EthosNConfig::COMPILER_ALGORITHM << " = CascadingOnly\n";
+    }
+    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
+
+    armnn::EthosNConfig config = armnn::GetEthosNConfig();
+    BOOST_CHECK(config.m_CompilerAlgorithm == ethosn::support_library::CompilerAlgorithm::CascadingOnly);
+}
+
+BOOST_AUTO_TEST_CASE(ParseEthosNConfigCascadingNOk)
+{
+    using namespace testing_utils;
+
+    const TempDir tmpDir;
+    const std::string configFile = tmpDir.Str() + "/config.txt";
+    {
+        std::ofstream os(configFile);
+        os << armnn::EthosNConfig::COMPILER_ALGORITHM << " = foo\n";
+    }
+    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
+
+    bool exceptionCaught = false;
+    try
+    {
+        armnn::EthosNConfig config = armnn::GetEthosNConfig();
+    }
+    catch (...)
+    {
+        exceptionCaught = true;
+    }
+    BOOST_CHECK(exceptionCaught == true);
 }
 
 // A test which estimates the performance of a supported (relu) operation
@@ -418,15 +458,15 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
 
     CreateConfigFile(configFile, config);
 
-    std::ofstream os(config.m_PerfMappingFile);
-    os << "pattern:\n";
-    os << "input firstInput, 1x_x_x_\n";
-    os << "output firstOutput, 1x_x_x_\n";
-    os << "Activation, (firstInput), (firstOutput), ((function=TanH))\n";
-    os << "graph-replacement:\n";
-    os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
-
-    os.flush();
+    {
+        std::ofstream os(config.m_PerfMappingFile);
+        os << "pattern:\n";
+        os << "input firstInput, 1x_x_x_\n";
+        os << "output firstOutput, 1x_x_x_\n";
+        os << "Activation, (firstInput), (firstOutput), ((function=TanH))\n";
+        os << "graph-replacement:\n";
+        os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
+    }
 
     SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
     armnn::EthosNWorkloadFactory factory;
@@ -587,15 +627,15 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
 
     CreateConfigFile(configFile, config);
 
-    std::ofstream os(mappingFile);
-    os << "pattern:\n";
-    os << "input firstInput, 1x_x_x_\n";
-    os << "output firstOutput, 1x_x_x_\n";
-    os << "StandIn, (firstInput), (firstOutput), ((name=StandInTest))\n";
-    os << "graph-replacement:\n";
-    os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
-
-    os.flush();
+    {
+        std::ofstream os(mappingFile);
+        os << "pattern:\n";
+        os << "input firstInput, 1x_x_x_\n";
+        os << "output firstOutput, 1x_x_x_\n";
+        os << "StandIn, (firstInput), (firstOutput), ((name=StandInTest))\n";
+        os << "graph-replacement:\n";
+        os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
+    }
 
     SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
     armnn::EthosNWorkloadFactory factory;

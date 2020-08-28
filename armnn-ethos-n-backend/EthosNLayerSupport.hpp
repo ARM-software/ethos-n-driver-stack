@@ -84,6 +84,10 @@ public:
                                 const PreCompiledDescriptor& descriptor,
                                 Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
 
+    bool IsRankSupported(const TensorInfo& input,
+                         const TensorInfo& output,
+                         Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
+
     bool IsReshapeSupported(const TensorInfo& input,
                             const TensorInfo& output,
                             const ReshapeDescriptor& descriptor,
@@ -194,6 +198,11 @@ public:
                                      const FakeQuantizationDescriptor& descriptor,
                                      Optional<std::string&> reasonIfUnsupported) const override;
 
+    bool IsFillSupported(const TensorInfo& input,
+                         const TensorInfo& output,
+                         const FillDescriptor& descriptor,
+                         Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
+
     bool IsFloorSupported(const TensorInfo& input,
                           const TensorInfo& output,
                           Optional<std::string&> reasonIfUnsupported) const override;
@@ -202,6 +211,12 @@ public:
                            const armnn::TensorInfo& input1,
                            const armnn::TensorInfo& output,
                            armnn::Optional<std::string&> reasonIfUnsupported) const override;
+
+    bool IsGatherSupported(const TensorInfo& input0,
+                           const TensorInfo& input1,
+                           const TensorInfo& output,
+                           const GatherDescriptor& descriptor,
+                           Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
 
     bool IsGreaterSupported(const TensorInfo& input0,
                             const TensorInfo& input1,

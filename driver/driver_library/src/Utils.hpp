@@ -4,6 +4,8 @@
 //
 #pragma once
 
+#include <ethosn_utils/Macros.hpp>
+
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -13,9 +15,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <vector>
-
-#define STRINGIZE(x) #x
-#define STRINGIZE_VALUE_OF(x) STRINGIZE(x)
 
 namespace ethosn
 {

@@ -25,6 +25,8 @@ enum class PleOperation : uint8_t
     OFM_SCALING,
     PASSTHROUGH,
     SIGMOID,
+    TRANSPOSE_XY,
+    LEAKY_RELU,
 };
 
 }    // namespace command_stream

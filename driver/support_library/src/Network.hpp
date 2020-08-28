@@ -112,6 +112,10 @@ public:
 
     Relu& AddRelu(Operand& input, const ReluInfo& reluInfo);
 
+    LeakyRelu& AddLeakyRelu(Operand& input, const LeakyReluInfo& leakyReluInfo);
+
+    Requantize& AddRequantize(Operand& input, const RequantizeInfo& requantizeInfo);
+
     Softmax& AddSoftmax(Operand& input);
 
     Sigmoid& AddSigmoid(Operand& input);
@@ -121,6 +125,12 @@ public:
     Reshape& AddReshape(Operand& input, const TensorShape& newDimensions);
 
     DepthToSpace& AddDepthToSpace(Operand& input, const DepthToSpaceInfo& depthToSpaceInfo);
+
+    SpaceToDepth& AddSpaceToDepth(Operand& input, const SpaceToDepthInfo& spaceToDepthInfo);
+
+    Transpose& AddTranspose(Operand& input, const TransposeInfo& transposeInfo);
+
+    Resize& AddResize(Operand& input, const ResizeInfo& resizeInfo);
 
     EstimateOnly& AddEstimateOnly(const std::vector<Operand*>& inputs, const EstimateOnlyInfo& estimateOnly);
 

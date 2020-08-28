@@ -31,8 +31,10 @@ std::string ToString(Location l)
             return "Sram";
         case Location::PleInputSram:
             return "PleInputSram";
+        case Location::VirtualSram:
+            return "VirtualSram";
         default:
-            assert(!"Unknown");
+            assert(!"Unknown location");
             return "";
     }
 }
@@ -46,7 +48,7 @@ std::string ToString(Lifetime l)
         case Lifetime::Cascade:
             return "Cascade";
         default:
-            assert(!"Unknown");
+            assert(!"Unknown lifetime");
             return "";
     }
 }
@@ -65,14 +67,26 @@ std::string ToString(CompilerDataFormat f)
             return "NHWCB";
         case CompilerDataFormat::WEIGHT:
             return "WEIGHT";
-        case CompilerDataFormat::NHWCB_COMPRESSED:
+        default:
+            assert(!"Unknown data format");
+            return "";
+    }
+}
+
+std::string ToString(CompilerDataCompressedFormat f)
+{
+    switch (f)
+    {
+        case CompilerDataCompressedFormat::NONE:
+            return "NONE";
+        case CompilerDataCompressedFormat::NHWCB_COMPRESSED:
             return "NHWCB_COMPRESSED";
-        case CompilerDataFormat::FCAF_DEEP:
+        case CompilerDataCompressedFormat::FCAF_DEEP:
             return "FCAF_DEEP";
-        case CompilerDataFormat::FCAF_WIDE:
+        case CompilerDataCompressedFormat::FCAF_WIDE:
             return "FCAF_WIDE";
         default:
-            assert(!"Unknown");
+            assert(!"Unknown data compressed format");
             return "";
     }
 }
@@ -93,7 +107,7 @@ std::string ToString(TraversalOrder o)
         case TraversalOrder::Zxy:
             return "Zxy";
         default:
-            assert(!"Unknown");
+            assert(!"Unknown traversal order");
             return "";
     }
 }
@@ -109,7 +123,23 @@ std::string ToString(command_stream::MceOperation o)
         case ethosn::command_stream::MceOperation::FULLY_CONNECTED:
             return "FULLY_CONNECTED";
         default:
-            assert(!"Unknown");
+            assert(!"Unknown MCE operation");
+            return "";
+    }
+}
+
+std::string ToString(CompilerMceAlgorithm a)
+{
+    switch (a)
+    {
+        case CompilerMceAlgorithm::None:
+            return "NONE";
+        case CompilerMceAlgorithm::Direct:
+            return "DIRECT";
+        case CompilerMceAlgorithm::Winograd:
+            return "WINOGRAD";
+        default:
+            assert(!"Unknown MCE algorithm");
             return "";
     }
 }
@@ -144,8 +174,10 @@ std::string ToString(command_stream::PleOperation o)
             return "PASSTHROUGH";
         case ethosn::command_stream::PleOperation::SIGMOID:
             return "SIGMOID";
+        case ethosn::command_stream::PleOperation::TRANSPOSE_XY:
+            return "TRANSPOSE_XY";
         default:
-            assert(!"Unknown");
+            assert(!"Unknown PLE operation");
             return "";
     }
 }
@@ -153,6 +185,39 @@ std::string ToString(command_stream::PleOperation o)
 std::string ToString(command_stream::BlockConfig b)
 {
     return std::to_string(b.m_BlockWidth()) + "x" + std::to_string(b.m_BlockHeight());
+}
+
+std::string ToString(const QuantizationScales& s)
+{
+    if (s.IsScalar())
+    {
+        return "Scale = " + std::to_string(s[0]);
+    }
+    else
+    {
+        std::string out("Scales = [ ");
+        for (std::size_t i = 0; i < s.Size(); ++i)
+        {
+            out += std::to_string(s[i]) + " ";
+        }
+        out += "]";
+        return out;
+    }
+}
+
+std::string ToString(const QuantizationInfo& q)
+{
+    std::string out("ZeroPoint = " + std::to_string(q.GetZeroPoint()) + ", " + ToString(q.GetScales()));
+    if (q.GetQuantizationDim().has_value())
+    {
+        out += ", Dim = " + std::to_string(q.GetQuantizationDim().value());
+    }
+    return out;
+}
+
+std::string ToString(const Stride& s)
+{
+    return std::to_string(s.m_X) + ", " + std::to_string(s.m_Y);
 }
 
 DotAttributes::DotAttributes(std::string id, std::string label, std::string color)
@@ -172,6 +237,58 @@ std::string SanitizeId(std::string s)
     return utils::ReplaceAll(s, " ", "_");
 }
 
+std::string GetOpString(Op* op)
+{
+    std::stringstream stream;
+    DmaOp* dmaOp = dynamic_cast<DmaOp*>(op);
+    MceOp* mceOp = dynamic_cast<MceOp*>(op);
+    PleOp* pleOp = dynamic_cast<PleOp*>(op);
+    if (dmaOp != nullptr)
+    {
+        stream << "DmaOp\n";
+        stream << "Location = " << ToString(dmaOp->m_Location) << "\n";
+    }
+    else if (mceOp != nullptr)
+    {
+        stream << "MceOp\n";
+        stream << "Op = " << ToString(mceOp->m_Op) << "\n";
+        stream << "Algo = " << ToString(mceOp->m_Algo) << "\n";
+        stream << "Block Config = " << ToString(mceOp->m_BlockConfig) << "\n";
+        stream << "Input Stripe Shape = " << ToString(mceOp->m_InputStripeShape) << "\n";
+        stream << "Output Stripe Shape = " << ToString(mceOp->m_OutputStripeShape) << "\n";
+        stream << "Weights Stripe Shape = " << ToString(mceOp->m_WeightsStripeShape) << "\n";
+        stream << "Order = " << ToString(mceOp->m_Order) << "\n";
+        stream << "Stride = " << ToString(mceOp->m_Stride) << "\n";
+        stream << "Pad L/T = " << mceOp->m_PadLeft << ", " << mceOp->m_PadTop << "\n";
+    }
+    else if (pleOp != nullptr)
+    {
+        stream << "PleOp\n";
+        stream << "Op = " << ToString(pleOp->m_Op) << "\n";
+        stream << "Block Config = " << ToString(pleOp->m_BlockConfig) << "\n";
+        stream << "Num Inputs = " << pleOp->m_NumInputs << "\n";
+        stream << "Input Stripe Shapes = " << ArrayToString(pleOp->m_InputStripeShapes) << "\n";
+        stream << "Output Stripe Shape = " << ToString(pleOp->m_OutputStripeShape) << "\n";
+    }
+    return stream.str();
+}
+
+std::string GetBufferString(Buffer* buffer)
+{
+    std::stringstream stream;
+    stream << "\n";
+    stream << "Lifetime = " << ToString(buffer->m_Lifetime) << "\n";
+    stream << "Location = " << ToString(buffer->m_Location) << "\n";
+    stream << "Format = " << ToString(buffer->m_Format) << "\n";
+    stream << "Quant. Info = " << ToString(buffer->m_QuantizationInfo) << "\n";
+    stream << "Tensor shape = " << ToString(buffer->m_TensorShape) << "\n";
+    stream << "Stripe shape = " << ToString(buffer->m_StripeShape) << "\n";
+    stream << "Num. Stripes = " << buffer->m_NumStripes << "\n";
+    stream << "Order = " << ToString(buffer->m_Order) << "\n";
+    stream << "Size in bytes = " << buffer->m_SizeInBytes << "\n";
+    return stream.str();
+}
+
 DotAttributes GetDotAttributes(Op* op, DetailLevel detailLevel)
 {
     DotAttributes result;
@@ -185,34 +302,7 @@ DotAttributes GetDotAttributes(Op* op, DetailLevel detailLevel)
         label << "\n";
         label << "Lifetime = " << ToString(op->m_Lifetime) << "\n";
 
-        DmaOp* dmaOp = dynamic_cast<DmaOp*>(op);
-        MceOp* mceOp = dynamic_cast<MceOp*>(op);
-        PleOp* pleOp = dynamic_cast<PleOp*>(op);
-        if (dmaOp != nullptr)
-        {
-            label << "DmaOp\n";
-            label << "Location = " << ToString(dmaOp->m_Location) << "\n";
-            label << "Format = " << ToString(dmaOp->m_Format) << "\n";
-        }
-        else if (mceOp != nullptr)
-        {
-            label << "MceOp\n";
-            label << "Op = " << ToString(mceOp->m_Op) << "\n";
-            label << "Block Config = " << ToString(mceOp->m_BlockConfig) << "\n";
-            label << "Input Stripe Shape = " << ToString(mceOp->m_InputStripeShape) << "\n";
-            label << "Output Stripe Shape = " << ToString(mceOp->m_OutputStripeShape) << "\n";
-            label << "Weights Stripe Shape = " << ToString(mceOp->m_WeightsStripeShape) << "\n";
-            label << "Order = " << ToString(mceOp->m_Order) << "\n";
-        }
-        else if (pleOp != nullptr)
-        {
-            label << "PleOp\n";
-            label << "Op = " << ToString(pleOp->m_Op) << "\n";
-            label << "Block Config = " << ToString(pleOp->m_BlockConfig) << "\n";
-            label << "Num Inputs = " << pleOp->m_NumInputs << "\n";
-            label << "Input Stripe Shapes = " << ArrayToString(pleOp->m_InputStripeShapes) << "\n";
-            label << "Output Stripe Shape = " << ToString(pleOp->m_OutputStripeShape) << "\n";
-        }
+        label << GetOpString(op);
     }
     result.m_Label = label.str();
 
@@ -229,14 +319,7 @@ DotAttributes GetDotAttributes(Buffer* buffer, DetailLevel detailLevel)
     label << buffer->m_DebugTag;
     if (detailLevel == DetailLevel::High)
     {
-        label << "\n";
-        label << "Lifetime = " << ToString(buffer->m_Lifetime) << "\n";
-        label << "Location = " << ToString(buffer->m_Location) << "\n";
-        label << "Format = " << ToString(buffer->m_Format) << "\n";
-        label << "Tensor shape = " << ToString(buffer->m_TensorShape) << "\n";
-        label << "Stripe shape = " << ToString(buffer->m_StripeShape) << "\n";
-        label << "Order = " << ToString(buffer->m_Order) << "\n";
-        label << "Size in bytes = " << buffer->m_SizeInBytes << "\n";
+        label << GetBufferString(buffer);
     }
     result.m_Label = label.str();
 
@@ -444,6 +527,7 @@ DotAttributes GetDotAttributes(Node* node, DetailLevel detailLevel)
 
         label << "Shape = " << ToString(node->GetShape()) << "\n";
         label << "Format = " << ToString(node->GetFormat()) << "\n";
+        label << "CompressedFormat = " << ToString(node->GetCompressedFormat()) << "\n";
     }
     result.m_Label = label.str();
 
@@ -608,12 +692,12 @@ void SaveGraphToDot(const Graph& graph, const GraphOfParts* graphOfParts, std::o
 
     // Process all parts that we were given (if any)
     const Parts& parts = graphOfParts != nullptr ? graphOfParts->m_Parts : static_cast<const Parts&>(Parts());
-    for (const auto& part : parts)
+    for (const std::unique_ptr<Part>& part : parts)
     {
         DotAttributes attr = GetDotAttributes(part.get(), detailLevel);
         DumpSubgraphHeaderToDotFormat(attr, stream);
 
-        for (auto&& n : part->m_SubGraph)
+        for (Node*& n : part->m_SubGraph)
         {
             std::string nodeId = DumpToDotFormat(n, stream, detailLevel);
             nodeIds[n]         = nodeId;
@@ -666,6 +750,30 @@ void SavePlansToDot(const Part& part, std::ostream& stream, DetailLevel detailLe
 
     stream << "}"
            << "\n";
+}
+
+void SaveOpGraphToTxtFile(const OpGraph& graph, std::ostream& stream)
+{
+    auto ops = graph.GetOps();
+    for (auto op : ops)
+    {
+        stream << GetOpString(op);
+        stream << "\n";
+        stream << "\nInput Buffers: \n";
+        auto inputBufs = graph.GetInputs(op);
+        for (auto inputBuf : inputBufs)
+        {
+            stream << GetBufferString(inputBuf);
+        }
+        stream << "Output Buffers: \n";
+        auto outputBuf = graph.GetOutput(op);
+        if (outputBuf)
+        {
+            stream << GetBufferString(outputBuf);
+        }
+        stream << "\n";
+    }
+    stream << "-------------------------------------------------------------------------\n";
 }
 
 void SaveCombinationToDot(const Combination& combination,

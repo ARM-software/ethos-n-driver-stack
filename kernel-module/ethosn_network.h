@@ -23,9 +23,10 @@
 #ifndef _ETHOSN_NETWORK_H_
 #define _ETHOSN_NETWORK_H_
 
+#include "ethosn_device.h"
 #include <linux/irqreturn.h>
 
-struct ethosn_device;
+struct ethosn_core;
 struct ethosn_inference;
 struct ethosn_network_req;
 struct ethosn_inference_req;
@@ -33,7 +34,7 @@ struct ethosn_inference_req;
 int ethosn_network_register(struct ethosn_device *ethosn,
 			    struct ethosn_network_req *net_req);
 
-void ethosn_network_poll(struct ethosn_device *ethosn,
+void ethosn_network_poll(struct ethosn_core *core,
 			 struct ethosn_inference *inference,
 			 int status);
 

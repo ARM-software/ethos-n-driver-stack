@@ -71,6 +71,8 @@ private:
                 return NextHeaderImpl<Opcode::OPERATION_SOFTMAX>();
             case Opcode::OPERATION_CONVERT:
                 return NextHeaderImpl<Opcode::OPERATION_CONVERT>();
+            case Opcode::OPERATION_SPACE_TO_DEPTH:
+                return NextHeaderImpl<Opcode::OPERATION_SPACE_TO_DEPTH>();
             case Opcode::DUMP_DRAM:
                 return NextHeaderImpl<Opcode::DUMP_DRAM>();
             case Opcode::DUMP_SRAM:

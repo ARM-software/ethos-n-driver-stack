@@ -36,7 +36,7 @@ var.AddVariables(
                  allowed_values=('4.9', '4.14', '4.19')),
     PathVariable('build_dir', 'Build output directory',
                  'build', PathVariable.PathIsDirCreate),
-    PathVariable('kernel_driver_dir', "Path to the Kernel Module code. Required if 'target=kmod'",
+    PathVariable('kernel_module_dir', "Path to the Kernel Module code. Required if 'target=kmod'",
                  os.path.join('..', 'kernel-module'), PathVariable.PathIsDir),
     ('device_node', 'Device node in the dev filesystem', '/dev/ethosn0'),
     ('firmware_profiling_node', 'Firmware profiling node in the sys fileystem',
@@ -52,6 +52,7 @@ common.parse_default_vars(env)
 # The list of modules with their own SConscripts
 env['modules'] = ['driver_library',
                   'support_library',
+                  'utils',
                   'command_stream']
 
 
@@ -59,13 +60,15 @@ env['modules'] = ['driver_library',
 env['command_stream_dir'] = 'command_stream'
 env['driver_library_dir'] = 'driver_library'
 env['support_library_dir'] = 'support_library'
+env['utils_dir'] = 'utils'
 
 # Because these path arguments may be relative, they must be correctly interpreted as relative to the top-level
 # folder rather than the 'build' subdirectory, which is what scons would do if they were passed to the SConscript as-is.
 # Therefore we convert them to absolute paths here, where they will be interpreted correctly.
 common.abs_path(env, ['command_stream_dir',
                       'driver_library_dir',
-                      'kernel_driver_dir',
+                      'kernel_module_dir',
+                      'utils_dir',
                       'support_library_dir'])
 
 # Turn off Unit-Tests as they are not shipped

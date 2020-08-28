@@ -171,6 +171,20 @@ SupportedLevel IsReluSupported(const ReluInfo& reluInfo,
                                char* reason           = nullptr,
                                size_t reasonMaxLength = g_ReasonMaxLength);
 
+// Checks whether a specific leaky relu operation configuration is supported by the Ethos-N
+SupportedLevel IsLeakyReluSupported(const LeakyReluInfo& leakyReluInfo,
+                                    const TensorInfo& inputInfo,
+                                    TensorInfo* outputInfo = nullptr,
+                                    char* reason           = nullptr,
+                                    size_t reasonMaxLength = g_ReasonMaxLength);
+
+// Checks whether a specific requantize operation configuration is supported by the Ethos-N
+SupportedLevel IsRequantizeSupported(const RequantizeInfo& requantizeInfo,
+                                     const TensorInfo& inputInfo,
+                                     TensorInfo* outputInfo = nullptr,
+                                     char* reason           = nullptr,
+                                     size_t reasonMaxLength = g_ReasonMaxLength);
+
 // Checks whether a softmax operation configuration is supported by the Ethos-N
 SupportedLevel IsSoftmaxSupported(const TensorInfo& inputInfo,
                                   TensorInfo* outputInfo = nullptr,
@@ -204,6 +218,13 @@ SupportedLevel IsDepthToSpaceSupported(const TensorInfo& inputInfo,
                                        char* reason           = nullptr,
                                        size_t reasonMaxLength = g_ReasonMaxLength);
 
+// Checks whether a specific SpaceToDepth operation configuration is supported by the Ethos-N
+SupportedLevel IsSpaceToDepthSupported(const TensorInfo& inputInfo,
+                                       const SpaceToDepthInfo& spaceToDepthInfo,
+                                       TensorInfo* outputInfo = nullptr,
+                                       char* reason           = nullptr,
+                                       size_t reasonMaxLength = g_ReasonMaxLength);
+
 // Checks whether a specific EstimateOnly operation configuration is supported by the Ethos-N
 SupportedLevel IsEstimateOnlySupported(const std::vector<TensorInfo>& inputInfos,
                                        const EstimateOnlyInfo& estimateOnlyInfo,
@@ -211,5 +232,17 @@ SupportedLevel IsEstimateOnlySupported(const std::vector<TensorInfo>& inputInfos
                                        char* reason                         = nullptr,
                                        size_t reasonMaxLength               = g_ReasonMaxLength);
 
+// Checks whether a specific Transpose operation configuration is supported by the Ethos-N
+SupportedLevel IsTransposeSupported(const TransposeInfo& transposeInfo,
+                                    const TensorInfo& inputInfo,
+                                    TensorInfo* outputInfo = nullptr,
+                                    char* reason           = nullptr,
+                                    size_t reasonMaxLength = g_ReasonMaxLength);
+
+SupportedLevel IsResizeSupported(const ResizeInfo& resizeInfo,
+                                 const TensorInfo& inputInfo,
+                                 TensorInfo* outputInfo = nullptr,
+                                 char* reason           = nullptr,
+                                 size_t reasonMaxLength = g_ReasonMaxLength);
 }    // namespace support_library
 }    // namespace ethosn

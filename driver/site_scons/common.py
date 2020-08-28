@@ -133,6 +133,8 @@ def setup_common_env(env):
     if env.get('coverage', False):
         env.AppendUnique(CXXFLAGS=['--coverage', '-O0'])
         env.AppendUnique(LINKFLAGS=['--coverage'])
+    # By enabling this flag, binary will use RUNPATH instead of RPATH
+    env.AppendUnique(LINKFLAGS=["-Wl,--enable-new-dtags"])
 
 
 def setup_toolchain(env, toolchain):
@@ -306,3 +308,13 @@ def add_padding(align):
             new_sz = ((sz + align - 1) // align) * align
             f.write(b'\x00' * (new_sz - sz))
     return add_padding_fn
+
+
+def arch_regs_dir(env, variant=None):
+    if variant is None:
+        variant = get_single_elem(env['variants'], 'variants')
+
+    if variant == 'fenchurch':
+        return env['arch_regs_dir']
+
+    return env['arch_regs_nx7_dir']

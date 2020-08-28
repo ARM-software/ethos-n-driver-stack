@@ -8,6 +8,7 @@
 #include "Compiler.hpp"
 #include "GraphNodes.hpp"
 #include "Utils.hpp"
+#include "cascading/EstimationUtils.hpp"
 
 #include <algorithm>
 #include <functional>
@@ -56,24 +57,38 @@ bool ConversionPass::ChooseAndSetupStripe(const HardwareCapabilities& capabiliti
 std::unique_ptr<ethosn::support_library::ConversionPass> ConversionPass::CreateGreedily(
     const HardwareCapabilities& capabilities, size_t id, Node* firstNode, SramAllocator& sramAllocator)
 {
-    // If our input is in DRAM then we can support any linear sequence of Conversion nodes (i.e. convert from NHWCB to NHWC or vice versa).
-    // If our input is in SRAM then we can also support NHWC reinterprets (i.e. reshapes) as long as the sequence ends in NHWCB
     Node* current = firstNode;
     std::vector<Node*> definiteNodes;
     std::vector<Node*> potentialNodes;
 
+    if (firstNode->GetInputs().empty())
+    {
+        return std::unique_ptr<ConversionPass>();    // InputNode
+    }
+    if (!capabilities.GetIsNchwSupported() && (firstNode->GetInputFormat(0) == CompilerDataFormat::NCHW))
+    {
+        return std::unique_ptr<ConversionPass>();    // Support NCHW conversion based on hardware capability
+    }
+
+    // If our input is in DRAM then we can support any linear sequence of Conversion nodes (i.e. convert from NHWCB to NHWC or vice versa).
+    bool isInputDram = (firstNode->GetInputLocation(0) == BufferLocation::Dram);
+    if (isInputDram && firstNode->GetInputCompressed(0) &&
+        (firstNode->GetInputCompressedFormat(0) == CompilerDataCompressedFormat::FCAF_DEEP ||
+         firstNode->GetInputCompressedFormat(0) == CompilerDataCompressedFormat::FCAF_WIDE))
+    {
+        // Firmware doesn't support loading FCAF formats from Dram in for OPERATION_CONVERT.
+        return std::unique_ptr<ConversionPass>();
+    }
+    // If our input is in SRAM then we can also support NHWC reinterprets (i.e. reshapes) as long as the sequence ends in NHWCB
+    bool isInputSram = (firstNode->GetInputLocation(0) == BufferLocation::Sram);
+
     while (current != nullptr)
     {
-        if (firstNode->GetInputs().empty())
-        {
-            break;    // InputNode
-        }
-
-        if (firstNode->GetInputLocation(0) == BufferLocation::Dram && dynamic_cast<FormatConversionNode*>(current))
+        if (isInputDram && dynamic_cast<FormatConversionNode*>(current))
         {
             definiteNodes.push_back(current);
         }
-        else if (firstNode->GetInputLocation(0) == BufferLocation::Sram)
+        else if (isInputSram)
         {
             if ((dynamic_cast<FormatConversionNode*>(current) ||
                  (dynamic_cast<ReinterpretNode*>(current) && current->GetInputFormat(0) == CompilerDataFormat::NHWC &&
@@ -123,6 +138,19 @@ std::unique_ptr<ethosn::support_library::ConversionPass> ConversionPass::CreateG
             // For DRAM -> DRAM conversion we use the biggest possible stripe shape in the Y-direction.
             SramAllocator currentAllocator = sramAllocator;
             ChooseAndSetupStripe(capabilities, currentAllocator, stripeShape, definiteNodes.back()->GetShape());
+
+            if (!capabilities.GetIsNchwSupported() && (definiteNodes.back()->GetFormat() == CompilerDataFormat::NCHW))
+            {
+                return std::unique_ptr<ConversionPass>();    // Support NCHW conversion based on hardware capability
+            }
+
+            // Conversion pass involving NCHW only supports strategy 3
+            if (((definiteNodes.front()->GetInputFormat(0) == CompilerDataFormat::NCHW) ||
+                 (definiteNodes.back()->GetFormat() == CompilerDataFormat::NCHW)) &&
+                (stripeShape[1] < definiteNodes.front()->GetInputShape(0)[1]))
+            {
+                return std::unique_ptr<ConversionPass>();
+            }
 
             outputSramAllocationPreference = AllocationPreference::Start;
         }
@@ -242,26 +270,26 @@ void ConversionPass::Generate(command_stream::CommandStreamBuffer& cmdStream,
     m_Nodes.back()->SetBufferId(outputBufferId);
 
     Convert convert;
-    convert.m_InputInfo().m_DataType()          = command_stream::DataType::QASYMM8;
+    convert.m_InputInfo().m_DataType()          = ConvertDataType(m_Nodes.front()->GetInputDataType(0));
     convert.m_InputInfo().m_DataFormat()        = m_Nodes.front()->GetInputBufferFormat(0);
     convert.m_InputInfo().m_TensorShape()       = inputShape;
     convert.m_InputInfo().m_SupertensorShape()  = inputShape;
     convert.m_InputInfo().m_SupertensorOffset() = { 0, 0, 0, 0 };
     convert.m_InputInfo().m_DramBufferId()      = inputBufferId;
     convert.m_InputInfo().m_ZeroPoint() =
-        static_cast<uint8_t>(m_Nodes.front()->GetInputQuantizationInfo(0).m_ZeroPoint);
+        static_cast<int16_t>(m_Nodes.front()->GetInputQuantizationInfo(0).GetZeroPoint());
     convert.m_InputInfo().m_DataLocation() = GetCommandDataLocation(inputLocation);
     convert.m_InputInfo().m_SramOffset()   = inputSramOffset;
     convert.m_InputInfo().m_StripeShape()  = m_StripeShape;
     convert.m_InputInfo().m_TileSize()     = utils::TotalSizeBytesNHWCB(m_StripeShape);
 
-    convert.m_OutputInfo().m_DataType()          = command_stream::DataType::QASYMM8;
+    convert.m_OutputInfo().m_DataType()          = ConvertDataType(m_Nodes.back()->GetDataType());
     convert.m_OutputInfo().m_DataFormat()        = commandOutputDataFormat;
     convert.m_OutputInfo().m_TensorShape()       = outputShape;
     convert.m_OutputInfo().m_SupertensorShape()  = outputSupertensorShape;
     convert.m_OutputInfo().m_SupertensorOffset() = outputSupertensorOffset;
     convert.m_OutputInfo().m_DramBufferId()      = outputBufferId;
-    convert.m_OutputInfo().m_ZeroPoint()    = static_cast<uint8_t>(m_Nodes.back()->GetQuantizationInfo().m_ZeroPoint);
+    convert.m_OutputInfo().m_ZeroPoint() = static_cast<int16_t>(m_Nodes.back()->GetQuantizationInfo().GetZeroPoint());
     convert.m_OutputInfo().m_DataLocation() = GetCommandDataLocation(outputLocation);
     convert.m_OutputInfo().m_SramOffset()   = outputSramOffset;
     convert.m_OutputInfo().m_StripeShape()  = m_StripeShape;

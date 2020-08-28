@@ -108,6 +108,11 @@ uint32_t HardwareCapabilities::GetActivationCompressionVersion() const
     return m_FirmwareAndHardwareCapabilities.m_ActivationCompressionVersion;
 }
 
+uint32_t HardwareCapabilities::GetIsNchwSupported() const
+{
+    return m_FirmwareAndHardwareCapabilities.m_IsNchwSupported;
+}
+
 namespace utils
 {
 
@@ -262,6 +267,100 @@ std::string ReplaceAll(std::string str, const std::string& from, const std::stri
         start_pos += to.length();    // Handles case where 'to' is a substring of 'from'
     }
     return str;
+}
+
+uint64_t GetPerformanceDataMetric(const PassStats& passStat)
+{
+    return passStat.m_Input.m_MemoryStats.m_DramParallel + passStat.m_Input.m_MemoryStats.m_DramNonParallel +
+           passStat.m_Output.m_MemoryStats.m_DramParallel + passStat.m_Output.m_MemoryStats.m_DramNonParallel +
+           passStat.m_Weights.m_MemoryStats.m_DramParallel + passStat.m_Output.m_MemoryStats.m_DramNonParallel;
+}
+
+uint64_t GetMetric(const NetworkPerformanceData& netPerfData)
+{
+    uint64_t performanceMetric = 0;
+    for (PassPerformanceData passPerfData : netPerfData.m_Stream)
+    {
+        performanceMetric += GetPerformanceDataMetric(passPerfData.m_Stats);
+    }
+    return performanceMetric;
+}
+
+bool IsLeftMoreDataPerformantThanRight(const NetworkPerformanceData& left, const NetworkPerformanceData& right)
+{
+    return GetMetric(left) < GetMetric(right);
+}
+
+command_stream::DataType GetCommandDataType(const DataType supportLibraryDataType)
+{
+    switch (supportLibraryDataType)
+    {
+        case DataType::UINT8_QUANTIZED:
+            return command_stream::DataType::QASYMM8;
+        case DataType::INT8_QUANTIZED:
+            return command_stream::DataType::QSYMM8;
+        default:
+        {
+            std::string errorMessage = "Error in " + std::string(__func__) + ": type " +
+                                       std::to_string(static_cast<uint32_t>(supportLibraryDataType)) +
+                                       " is not yet supported";
+            throw std::invalid_argument(errorMessage);
+        }
+    }
+}
+
+bool IsDataTypeSigned(const DataType type)
+{
+    switch (type)
+    {
+        case DataType::UINT8_QUANTIZED:
+            return false;
+        case DataType::INT8_QUANTIZED:
+        case DataType::INT32_QUANTIZED:
+            return true;
+        default:
+        {
+            std::string errorMessage = "Error in " + std::string(__func__) + ": DataType " +
+                                       std::to_string(static_cast<uint32_t>(type)) + " not supported";
+            throw std::invalid_argument(errorMessage);
+        }
+    }
+}
+
+DataTypeRange GetRangeOfDataType(const DataType type)
+{
+    switch (type)
+    {
+        case DataType::UINT8_QUANTIZED:
+            return GetTypeLimits<uint8_t>();
+        case DataType::INT8_QUANTIZED:
+            return GetTypeLimits<int8_t>();
+        case DataType::INT32_QUANTIZED:
+            return GetTypeLimits<int32_t>();
+        default:
+        {
+            std::string errorMessage = "Error in " + std::string(__func__) + ": DataType " +
+                                       std::to_string(static_cast<uint32_t>(type)) + " not supported";
+            throw std::invalid_argument(errorMessage);
+        }
+    }
+}
+
+command_stream::UpsampleType ConvertResizeAlgorithmToCommand(const ResizeAlgorithm algorithm)
+{
+    if (algorithm == ResizeAlgorithm::BILINEAR)
+    {
+        return command_stream::UpsampleType::BILINEAR;
+    }
+    else if (algorithm == ResizeAlgorithm::NEAREST_NEIGHBOUR)
+    {
+        return command_stream::UpsampleType::NEAREST_NEIGHBOUR;
+    }
+    else
+    {
+        assert(false);
+        return command_stream::UpsampleType::OFF;
+    }
 }
 
 }    // namespace utils

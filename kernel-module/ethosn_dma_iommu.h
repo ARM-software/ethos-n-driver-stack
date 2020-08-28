@@ -28,6 +28,6 @@
 #include <linux/types.h>
 
 struct ethosn_dma_allocator *ethosn_dma_iommu_allocator_create(
-	struct ethosn_device *ethosn);
+	struct device *dev);
 
 #endif /* _ETHOSN_DMA_IOMMU_H_ */

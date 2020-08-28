@@ -49,7 +49,8 @@ public:
                                        SramTensorAllocation& outputOffsetAndSize,
                                        const std::vector<TensorShape>& inputShapes,
                                        const TensorShape& outputShape,
-                                       const std::vector<std::pair<bool, uint32_t>>& inputsStaticAndOffset);
+                                       const std::vector<std::pair<bool, uint32_t>>& inputsStaticAndOffset,
+                                       const TensorShape& splittableDims);
 
 private:
     PassStats GetStats(const EstimationOptions& estimationOptions) override;

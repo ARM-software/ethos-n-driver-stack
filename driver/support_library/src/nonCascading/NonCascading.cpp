@@ -45,7 +45,7 @@ NetworkPerformanceData NonCascading::Estimate(Graph& graph)
 
     EstimateCascading();
 
-    m_DebuggingContext.DumpGraph(graph, "GraphFinal.dot");
+    m_DebuggingContext.DumpGraph(graph, "NonCascaded_GraphFinal.dot");
 
     return m_PerformanceStream;
 }

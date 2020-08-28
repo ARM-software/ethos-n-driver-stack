@@ -47,7 +47,6 @@ public:
                           const utils::ShapeMultiplier& shapeMultiplier,
                           std::pair<bool, uint32_t> inputStaticAndOffset,
                           CompilerMceAlgorithm algorithm,
-                          const bool isLegacy,
                           const uint32_t depthMax = UINT32_MAX) = 0;
 
     virtual ~IStrategy()
@@ -73,7 +72,6 @@ public:
                           const utils::ShapeMultiplier& shapeMultiplier,
                           std::pair<bool, uint32_t> inputStaticAndOffset,
                           CompilerMceAlgorithm algorithm,
-                          const bool isLegacy,
                           const uint32_t depthMax = UINT32_MAX) override;
 
     virtual const char* GetStrategyString() override;
@@ -96,7 +94,6 @@ public:
                           const utils::ShapeMultiplier& shapeMultiplier,
                           std::pair<bool, uint32_t> inputStaticAndOffset,
                           CompilerMceAlgorithm algorithm,
-                          const bool isLegacy,
                           const uint32_t depthMax = UINT32_MAX) override;
 
     virtual const char* GetStrategyString() override;
@@ -117,7 +114,6 @@ public:
                           const utils::ShapeMultiplier& shapeMultiplier,
                           std::pair<bool, uint32_t> inputStaticAndOffset,
                           CompilerMceAlgorithm algorithm,
-                          const bool isLegacy,
                           const uint32_t depthMax = UINT32_MAX) override;
 
     virtual const char* GetStrategyString() override;
@@ -140,7 +136,6 @@ public:
                           const utils::ShapeMultiplier& shapeMultiplier,
                           std::pair<bool, uint32_t> inputStaticAndOffset,
                           CompilerMceAlgorithm algorithm,
-                          const bool isLegacy,
                           const uint32_t depthMax = UINT32_MAX) override;
 
     virtual const char* GetStrategyString() override;
@@ -161,7 +156,6 @@ public:
                           const utils::ShapeMultiplier& shapeMultiplier,
                           std::pair<bool, uint32_t> inputStaticAndOffset,
                           CompilerMceAlgorithm algorithm,
-                          const bool isLegacy,
                           const uint32_t depthMax = UINT32_MAX) override;
 
     virtual const char* GetStrategyString() override;
@@ -183,7 +177,6 @@ public:
                           const utils::ShapeMultiplier& shapeMultiplier,
                           std::pair<bool, uint32_t> inputStaticAndOffset,
                           CompilerMceAlgorithm algorithm,
-                          const bool isLegacy,
                           const uint32_t depthMax = UINT32_MAX) override;
 
     virtual const char* GetStrategyString() override;
@@ -204,7 +197,6 @@ public:
                           const utils::ShapeMultiplier& shapeMultiplier,
                           std::pair<bool, uint32_t> inputStaticAndOffset,
                           CompilerMceAlgorithm algorithm,
-                          const bool isLegacy,
                           const uint32_t depthMax = UINT32_MAX) override;
 
     virtual const char* GetStrategyString() override;

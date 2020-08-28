@@ -17,6 +17,9 @@ namespace ethosn
 namespace support_library
 {
 
+// Currently the weights encoder for fully connected works best with multiple of 1024 input channels.
+constexpr uint32_t g_WeightsChannelVecProd = 1024U;
+
 class Constant;
 class HardwareCapabilities;
 class MceOperationNode;
@@ -90,6 +93,11 @@ protected:
         uint32_t m_NumOfBits;
     };
 
+    struct WeightCompressionParams
+    {
+        virtual ~WeightCompressionParams() = default;
+    };
+
     // Calculates the exact offset and size in DRAM of each weight stripe
     std::vector<WeightsMetadata> CalculateWeightsMetadata(const std::vector<std::vector<uint8_t>>& streamPerStripeOg,
                                                           uint32_t numOgPerStripe) const;
@@ -108,6 +116,10 @@ protected:
                                          CompilerMceAlgorithm algorithm,
                                          bool prepareForZeroMaskCompression) const;
 
+    /// Generate vector of weight compression parameters
+    virtual std::vector<std::unique_ptr<WeightCompressionParams>>
+        GenerateCompressionParams(uint32_t numOfmInParallel) = 0;
+
     /// Encodes all the weights required to calculate a single OFM.
     virtual EncodedOfm EncodeOfm(const uint8_t* weightData,
                                  uint32_t ofmIdx,
@@ -123,7 +135,8 @@ protected:
                                  uint32_t iterationSize,
                                  ethosn::command_stream::MceOperation operation,
                                  CompilerMceAlgorithm algorithm,
-                                 const EncodingParams& params) = 0;
+                                 const EncodingParams& params,
+                                 std::vector<std::unique_ptr<WeightCompressionParams>>& compressionParams) = 0;
 
     /// Merges the given streams of data into 'numGroups' groups, using a round-robin allocation of streams to groups.
     /// All the streams in a group are then concatenated together.
@@ -161,8 +174,21 @@ protected:
     std::vector<uint8_t> InterleaveStreams(const std::vector<std::vector<uint8_t>>& streams,
                                            uint32_t numBytesPerStream) const;
 
-    /// Reset any OFM encoding parameters that may be saved from previous calls to Encode
-    virtual void ResetOfmEncodingParameters() = 0;
+    /// Get OfmShift based on weight encoder version
+    virtual uint32_t GetOfmShiftOffset() const = 0;
+
+    // Number of Ofm processed in parallel which is the minimum number of
+    // weights streams that need to be loaded at the same time for all the
+    // mce interfaces to start producing an Ofm each.
+    virtual uint32_t GetNumOfmInParallel(const uint32_t numOfm,
+                                         const uint32_t numSrams,
+                                         const uint32_t stripeDepth,
+                                         const DataFormat dataFormat) const = 0;
+
+    /// Get HWIM encoding parameters
+    virtual std::pair<uint32_t, uint32_t> GetHwimWeightPadding(const bool usePadding,
+                                                               const uint32_t ifmIdx,
+                                                               const uint32_t numIfmsProcessedInParallel) const = 0;
 
     /// Hardware capabilities.
     const HardwareCapabilities& m_Capabilities;

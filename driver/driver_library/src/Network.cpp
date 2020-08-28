@@ -33,12 +33,10 @@ Version::Version(const uint32_t Major, const uint32_t Minor, const uint32_t Patc
 
 Network::Network(support_library::CompiledNetwork& compiledNetwork)
     : m_NetworkImpl(
-#if defined(TARGET_KMOD)
-          std::make_unique<KmodNetworkImpl>(compiledNetwork)
-#elif defined(TARGET_DUMPONLY)
+#if defined(TARGET_DUMPONLY)
           std::make_unique<NetworkImpl>(compiledNetwork)
 #else
-#error "Unknown target backend."
+          std::make_unique<KmodNetworkImpl>(compiledNetwork)
 #endif
       )
 {}

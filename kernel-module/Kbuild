@@ -25,6 +25,7 @@ obj-$(CONFIG_ETHOSN_TEST) += tests/ethosn-tests.o
 
 ethosn-objs := ethosn_driver.o \
              ethosn_device.o \
+             ethosn_core.o \
              ethosn_buffer.o \
              ethosn_dma.o \
              ethosn_dma_carveout.o \

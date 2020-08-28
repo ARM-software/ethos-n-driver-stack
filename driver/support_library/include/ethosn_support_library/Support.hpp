@@ -5,7 +5,10 @@
 
 #pragma once
 
+#include "Optional.hpp"
+
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -16,6 +19,7 @@
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <valarray>
 #include <vector>
 
 // Version information
@@ -46,14 +50,28 @@ struct Version
     uint32_t Patch;
 };
 
+#define COMPILER_ALGORITHM_MODE                                                                                        \
+    X(Auto)                                                                                                            \
+    X(CascadingOnly)                                                                                                   \
+    X(NonCascadingOnly)
+
+#define X(value) value,
+enum class CompilerAlgorithm
+{
+    COMPILER_ALGORITHM_MODE
+};
+#undef X
+
+const char* EthosNCompilerAlgorithmAsString(CompilerAlgorithm mode);
+CompilerAlgorithm EthosNCompilerAlgorithmFromString(const char* mode);
+
 struct CompilationOptions
 {
     struct DebugInfo
     {
         bool m_DumpDebugFiles  = false;
         std::string m_DebugDir = ".";
-        bool m_DumpRam         = true;
-        // Default to not dump SRAM at the start of the network.
+        bool m_DumpRam         = false;
         bool m_InitialSramDump = false;
     };
     explicit CompilationOptions(const std::vector<char>& fwAndHwCapabilities)
@@ -81,8 +99,14 @@ struct CompilationOptions
     /// If enabled, files containing details of the compilation process will be dumped to m_DebugDir.
     /// These can be helpful for debugging compilation issues.
     DebugInfo m_DebugInfo;
-    /// If enabled, cascading optimization support will be enabled.
-    bool m_EnableCascading = false;
+    /// The m_CompilerAlgorithm can be used to force one approach over another as cascaded vs non cascaded.
+    /// "CascadingOnly" means that the cascaded approach will be used
+    /// "NonCascadingOnly" means that the non cascaded approach will be used
+    /// "Auto" means the compiler decides to do what is best which is
+    /// - for compilation: using non cascaded approach
+    /// - for estimation: executing cascaded and non cascaded approach and returning
+    ///                   the one which is the more performant
+    CompilerAlgorithm m_CompilerAlgorithm = CompilerAlgorithm::NonCascadingOnly;
 };
 
 /// Contains options for performance estimation
@@ -281,6 +305,7 @@ void PrintNetworkPerformanceDataJson(std::ostream& os, uint32_t indentNumTabs, c
 enum class DataType
 {
     UINT8_QUANTIZED,    ///< Contiguously packed 8-bit unsigned integers, interpreted as based on the QuantizationInfo.
+    INT8_QUANTIZED,     ///< Contiguously packed 8-bit signed integers, interpreted as based on the QuantizationInfo.
     INT32_QUANTIZED     ///< Contiguously packed 32-bit signed integers, interpreted as based on the QuantizationInfo.
 };
 
@@ -302,17 +327,181 @@ enum class PoolingType
     AVG,
 };
 
+// Resize algorithm
+enum class ResizeAlgorithm
+{
+    NEAREST_NEIGHBOUR,
+    BILINEAR,
+};
+
+// QuantizationScales vector supporting per element and scalar multiplication
+struct QuantizationScales
+{
+public:
+    QuantizationScales()
+        : QuantizationScales(1.0f)
+    {}
+    QuantizationScales(float scalar, std::size_t size = 1)
+        : m_Scales(scalar, size)
+    {}
+    QuantizationScales(const std::vector<float>& vect)
+        : m_Scales(vect.data(), vect.size())
+    {}
+    QuantizationScales(const std::initializer_list<float>& list)
+        : m_Scales(list)
+    {}
+
+    std::vector<float> ToVector()
+    {
+        return std::vector<float>(std::begin(m_Scales), std::end(m_Scales));
+    }
+
+    bool IsScalar() const
+    {
+        return Size() == 1;
+    }
+
+    QuantizationScales& operator/=(const QuantizationScales& rhs);
+    QuantizationScales& operator/=(float rhs)
+    {
+        m_Scales /= rhs;
+
+        return *this;
+    }
+
+    QuantizationScales& operator*=(const QuantizationScales& rhs);
+    QuantizationScales& operator*=(float rhs)
+    {
+        m_Scales *= rhs;
+
+        return *this;
+    }
+
+    std::size_t Size() const
+    {
+        return m_Scales.size();
+    }
+
+    float& operator[](std::size_t idx)
+    {
+        return m_Scales[idx];
+    }
+    const float& operator[](std::size_t idx) const
+    {
+        return m_Scales[idx];
+    }
+
+    bool operator==(const QuantizationScales& rhs) const
+    {
+        if (Size() != rhs.Size())
+        {
+            return false;
+        }
+
+        return std::equal(std::begin(m_Scales), std::end(m_Scales), std::begin(rhs.m_Scales));
+    }
+
+    bool operator!=(const QuantizationScales& rhs) const
+    {
+        return !(*this == rhs);
+    }
+
+public:
+    std::valarray<float> m_Scales;
+};
+
+QuantizationScales operator/(const QuantizationScales& lhs, const QuantizationScales& rhs);
+QuantizationScales operator/(const QuantizationScales& lhs, float rhs);
+QuantizationScales operator/(float lhs, const QuantizationScales& rhs);
+
+QuantizationScales operator*(const QuantizationScales& lhs, const QuantizationScales& rhs);
+QuantizationScales operator*(const QuantizationScales& lhs, float rhs);
+QuantizationScales operator*(float lhs, const QuantizationScales& rhs);
+
 // Scale and zero point for quantized asymmetric values
 struct QuantizationInfo
 {
-    constexpr QuantizationInfo(const int32_t zeroPoint = 0, const float scale = 1.f)
-        : m_ZeroPoint(zeroPoint)
-        , m_Scale(scale)
-    {}
+    using QuantizationDim = utils::Optional<uint32_t>;
 
-    bool operator==(const QuantizationInfo& rhs) const
+    constexpr QuantizationInfo()
     {
-        return m_ZeroPoint == rhs.m_ZeroPoint && m_Scale == rhs.m_Scale;
+        m_QuantizationDim = std::make_unique<QuantizationDim>();
+        m_Scales          = std::make_unique<QuantizationScales>(1.0f);
+    }
+
+    constexpr explicit QuantizationInfo(const float scale)
+        : QuantizationInfo()
+    {
+        QuantizationScales& scales = (*m_Scales);
+        scales[0]                  = scale;
+    }
+
+    constexpr QuantizationInfo(const QuantizationScales& scales)
+        : QuantizationInfo()
+    {
+        *m_Scales = scales;
+    }
+
+    constexpr QuantizationInfo(QuantizationScales&& scales)
+        : QuantizationInfo()
+    {
+        *m_Scales = std::move(scales);
+    }
+
+    constexpr QuantizationInfo(const int32_t zeroPoint, const float scale = 1.0f)
+        : QuantizationInfo(scale)
+    {
+        m_ZeroPoint = zeroPoint;
+    }
+
+    constexpr QuantizationInfo(const int32_t zeroPoint, const QuantizationScales& scales)
+        : QuantizationInfo(scales)
+    {
+        m_ZeroPoint = zeroPoint;
+    }
+
+    constexpr QuantizationInfo(const int32_t zeroPoint, QuantizationScales&& scales)
+        : QuantizationInfo(std::move(scales))
+    {
+        m_ZeroPoint = zeroPoint;
+    }
+
+    constexpr QuantizationInfo(const QuantizationInfo& quantizationInfo)
+        : QuantizationInfo()
+    {
+        m_ZeroPoint        = quantizationInfo.m_ZeroPoint;
+        *m_Scales          = *quantizationInfo.m_Scales;
+        *m_QuantizationDim = *quantizationInfo.m_QuantizationDim;
+    }
+
+    constexpr QuantizationInfo(QuantizationInfo&& quantizationInfo)
+        : QuantizationInfo()
+    {
+        m_ZeroPoint       = quantizationInfo.m_ZeroPoint;
+        m_Scales          = std::move(quantizationInfo.m_Scales);
+        m_QuantizationDim = std::move(quantizationInfo.m_QuantizationDim);
+    }
+
+    QuantizationInfo& operator=(const QuantizationInfo& quantizationInfo)
+    {
+        this->m_ZeroPoint        = quantizationInfo.m_ZeroPoint;
+        *this->m_Scales          = *quantizationInfo.m_Scales;
+        *this->m_QuantizationDim = *quantizationInfo.m_QuantizationDim;
+        return *this;
+    }
+
+    QuantizationInfo& operator=(QuantizationInfo&& quantizationInfo)
+    {
+        this->m_ZeroPoint       = quantizationInfo.m_ZeroPoint;
+        this->m_Scales          = std::move(quantizationInfo.m_Scales);
+        this->m_QuantizationDim = std::move(quantizationInfo.m_QuantizationDim);
+        return *this;
+    }
+
+    bool operator==(const QuantizationInfo& quantizationInfo) const
+    {
+        return (m_ZeroPoint == quantizationInfo.m_ZeroPoint) && (*m_Scales == *quantizationInfo.m_Scales) &&
+               (*m_QuantizationDim == *quantizationInfo.m_QuantizationDim);
     }
 
     bool operator!=(const QuantizationInfo& rhs) const
@@ -320,8 +509,62 @@ struct QuantizationInfo
         return !(*this == rhs);
     }
 
-    int32_t m_ZeroPoint;
-    float m_Scale;
+    int32_t GetZeroPoint() const
+    {
+        return m_ZeroPoint;
+    }
+
+    void SetZeroPoint(int32_t zeroPoint)
+    {
+        m_ZeroPoint = zeroPoint;
+    }
+
+    float GetScale() const
+    {
+        assert(m_Scales->IsScalar());
+        return (*m_Scales)[0];
+    }
+
+    float GetScale(std::size_t index) const
+    {
+        return (*m_Scales)[index];
+    }
+
+    void SetScale(float scale)
+    {
+        assert(m_Scales->IsScalar());
+        (*m_Scales)[0] = scale;
+    }
+
+    const QuantizationScales& GetScales() const
+    {
+        return *m_Scales;
+    }
+
+    void SetScales(const QuantizationScales& scales)
+    {
+        *m_Scales = scales;
+    }
+
+    void SetScales(QuantizationScales&& scales)
+    {
+        *m_Scales = std::move(scales);
+    }
+
+    QuantizationDim GetQuantizationDim() const
+    {
+        return *m_QuantizationDim;
+    }
+
+    void SetQuantizationDim(unsigned int quantizationDim)
+    {
+        *m_QuantizationDim = quantizationDim;
+    }
+
+private:
+    int32_t m_ZeroPoint = { 0 };
+    std::unique_ptr<QuantizationScales> m_Scales;
+    std::unique_ptr<QuantizationDim> m_QuantizationDim;
 };
 
 using TensorShape = std::array<uint32_t, 4>;
@@ -447,7 +690,7 @@ struct ReluInfo
         , m_UpperBound(255)
     {}
 
-    constexpr ReluInfo(uint8_t lowerBound, uint8_t upperBound)
+    constexpr ReluInfo(int16_t lowerBound, int16_t upperBound)
         : m_LowerBound(lowerBound)
         , m_UpperBound(upperBound)
     {}
@@ -462,8 +705,59 @@ struct ReluInfo
         return !(*this == rhs);
     }
 
-    uint8_t m_LowerBound;
-    uint8_t m_UpperBound;
+    int16_t m_LowerBound;
+    int16_t m_UpperBound;
+};
+
+// Parameters that specify a LeakyRelu operation
+struct LeakyReluInfo
+{
+    constexpr LeakyReluInfo()
+        : m_Alpha(0.01f)
+        , m_OutputQuantizationInfo()
+    {}
+
+    constexpr LeakyReluInfo(const float alpha, const QuantizationInfo& qInfo)
+        : m_Alpha(alpha)
+        , m_OutputQuantizationInfo(qInfo)
+    {}
+
+    bool operator==(const LeakyReluInfo& rhs) const
+    {
+        return ((m_Alpha == rhs.m_Alpha) && (m_OutputQuantizationInfo == rhs.m_OutputQuantizationInfo));
+    }
+
+    bool operator!=(const LeakyReluInfo& rhs) const
+    {
+        return !(*this == rhs);
+    }
+
+    float m_Alpha;
+    QuantizationInfo m_OutputQuantizationInfo;
+};
+
+// Parameters that specify a Requantize operation
+struct RequantizeInfo
+{
+    constexpr RequantizeInfo()
+        : m_OutputQuantizationInfo()
+    {}
+
+    constexpr RequantizeInfo(const QuantizationInfo& qInfo)
+        : m_OutputQuantizationInfo(qInfo)
+    {}
+
+    bool operator==(const RequantizeInfo& rhs) const
+    {
+        return (m_OutputQuantizationInfo == rhs.m_OutputQuantizationInfo);
+    }
+
+    bool operator!=(const RequantizeInfo& rhs) const
+    {
+        return !(*this == rhs);
+    }
+
+    QuantizationInfo m_OutputQuantizationInfo;
 };
 
 // Parameters that specify a pooling operation
@@ -562,6 +856,63 @@ struct DepthToSpaceInfo
     }
 
     uint32_t m_BlockSize;
+};
+
+using SpaceToDepthInfo = DepthToSpaceInfo;
+
+struct TransposeInfo
+{
+    TransposeInfo(const std::array<uint32_t, 4>& permutation)
+        : m_Permutation(permutation)
+    {}
+
+    bool operator==(const TransposeInfo& rhs) const
+    {
+        return (m_Permutation == rhs.m_Permutation);
+    }
+
+    bool operator!=(const TransposeInfo& rhs) const
+    {
+        return !(*this == rhs);
+    }
+
+    std::array<uint32_t, 4> m_Permutation;
+};
+
+struct ResizeInfo
+{
+    ResizeInfo()
+        : m_Algo{}
+        , m_NewHeight{}
+        , m_NewWidth{}
+        , m_OutputQuantizationInfo{}
+    {}
+
+    ResizeInfo(const ResizeAlgorithm algo,
+               const uint32_t newHeight,
+               const uint32_t newWidth,
+               const QuantizationInfo& qInfo = {})
+        : m_Algo(algo)
+        , m_NewHeight(newHeight)
+        , m_NewWidth(newWidth)
+        , m_OutputQuantizationInfo(qInfo)
+    {}
+
+    bool operator==(const ResizeInfo& rhs) const
+    {
+        return (m_Algo == rhs.m_Algo && m_NewHeight == rhs.m_NewHeight && m_NewWidth == rhs.m_NewWidth &&
+                m_OutputQuantizationInfo == rhs.m_OutputQuantizationInfo);
+    }
+
+    bool operator!=(const ResizeInfo& rhs) const
+    {
+        return !(*this == rhs);
+    }
+
+    ResizeAlgorithm m_Algo;
+    uint32_t m_NewHeight;
+    uint32_t m_NewWidth;
+    QuantizationInfo m_OutputQuantizationInfo;
 };
 
 struct EstimateOnlyInfo
@@ -911,6 +1262,14 @@ TensorAndId<Operand> AddFullyConnected(const std::shared_ptr<Network>& network,
 // Add Relu to a Network. The returned shared_ptr ref-counts the network.
 TensorAndId<Operand> AddRelu(const std::shared_ptr<Network>& network, Operand& input, const ReluInfo& reluInfo);
 
+// Add LeakyRelu to a Network. The returned shared_ptr ref-counts the network.
+TensorAndId<Operand>
+    AddLeakyRelu(const std::shared_ptr<Network>& network, Operand& input, const LeakyReluInfo& leakyReluInfo);
+
+// Add Requantize to a Network. The returned shared_ptr ref-counts the network.
+TensorAndId<Operand>
+    AddRequantize(const std::shared_ptr<Network>& network, Operand& input, const RequantizeInfo& requantizeInfo);
+
 // Add Softmax to a Network. The returned shared_ptr ref-counts the network.
 TensorAndId<Operand> AddSoftmax(const std::shared_ptr<Network>& network, Operand& input);
 
@@ -928,6 +1287,17 @@ TensorAndId<Operand>
 // Add DepthToSpace to a Network. The returned shared_ptr ref-counts the network.
 TensorAndId<Operand>
     AddDepthToSpace(const std::shared_ptr<Network>& network, Operand& input, const DepthToSpaceInfo& depthToSpaceInfo);
+
+// Add SpaceToDepth to a Network. The returned shared_ptr ref-counts the network.
+TensorAndId<Operand>
+    AddSpaceToDepth(const std::shared_ptr<Network>& network, Operand& input, const SpaceToDepthInfo& spaceToDepthInfo);
+
+// Add Transpose to a Network. The returned shared_ptr ref-counts the network.
+TensorAndId<Operand>
+    AddTranspose(const std::shared_ptr<Network>& network, Operand& input, const TransposeInfo& transposeInfo);
+
+// Add Resize to a Network. The returned shared_ptr ref-counts the network.
+TensorAndId<Operand> AddResize(const std::shared_ptr<Network>& network, Operand& input, const ResizeInfo& resizeInfo);
 
 // Add EstimateOnly to a Network. The returned shared_ptr ref-counts the network.
 TensorsAndId AddEstimateOnly(const std::shared_ptr<Network>& network,

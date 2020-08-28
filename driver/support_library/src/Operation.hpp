@@ -29,11 +29,16 @@ class Split;
 class Addition;
 class FullyConnected;
 class Relu;
+class LeakyRelu;
+class Requantize;
 class Softmax;
 class Sigmoid;
 class Pooling;
 class Reshape;
 class DepthToSpace;
+class SpaceToDepth;
+class Transpose;
+class Resize;
 class EstimateOnly;
 
 namespace detail
@@ -76,11 +81,16 @@ public:
     virtual void Visit(Addition& addition)                         = 0;
     virtual void Visit(FullyConnected& fullyConnected)             = 0;
     virtual void Visit(Relu& relu)                                 = 0;
+    virtual void Visit(LeakyRelu& leakyRelu)                       = 0;
+    virtual void Visit(Requantize& requantize)                     = 0;
     virtual void Visit(Softmax& softmax)                           = 0;
     virtual void Visit(Sigmoid& sigmoid)                           = 0;
     virtual void Visit(Pooling& pooling)                           = 0;
     virtual void Visit(Reshape& reshape)                           = 0;
     virtual void Visit(DepthToSpace& depthToSpace)                 = 0;
+    virtual void Visit(SpaceToDepth& spaceToDepth)                 = 0;
+    virtual void Visit(Transpose& transpose)                       = 0;
+    virtual void Visit(Resize& resize)                             = 0;
     virtual void Visit(EstimateOnly& estimateOnly)                 = 0;
 };
 
@@ -113,6 +123,10 @@ public:
     {}
     void Visit(Relu&) override
     {}
+    void Visit(LeakyRelu&) override
+    {}
+    void Visit(Requantize&) override
+    {}
     void Visit(Softmax&) override
     {}
     void Visit(Sigmoid&) override
@@ -122,6 +136,12 @@ public:
     void Visit(Reshape&) override
     {}
     void Visit(DepthToSpace&) override
+    {}
+    void Visit(SpaceToDepth&) override
+    {}
+    void Visit(Transpose&) override
+    {}
+    void Visit(Resize&) override
     {}
     void Visit(EstimateOnly&) override
     {}

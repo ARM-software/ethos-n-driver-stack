@@ -58,7 +58,7 @@ public:
                std::vector<Node*> nodes,
                const TensorConfig& tensorConfig,
                BufferLocation outputLocation,
-               CompilerDataFormat intermediateFormat,
+               CompilerDataCompressedFormat intermediateCompressedFormat,
                CompilerMceAlgorithm algorithm,
                uint32_t sramOffset);
 
@@ -79,7 +79,6 @@ public:
                                        const utils::ShapeMultiplier& shapeMultiplier,
                                        std::pair<bool, uint32_t> inputStaticAndOffset,
                                        CompilerMceAlgorithm algorithm,
-                                       const bool isLegacy,
                                        const uint32_t depthMax = UINT32_MAX);
 
 private:
@@ -108,9 +107,6 @@ private:
     command_stream::PleOperation GetPleOperation() const;
 
     std::pair<uint32_t, uint32_t> GetWeightStripeSizeAndDepth();
-
-    MceStats
-        GetMceStats(const TensorShape& inputShape, const TensorShape& outputShape, const TensorShape& weightsShape);
 
     std::vector<FormatConversionNode*> m_PreConversionNodes;
     ExtractSubtensorNode* m_ExtractSubtensorNode;

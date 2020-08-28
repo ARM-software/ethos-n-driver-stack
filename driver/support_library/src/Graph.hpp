@@ -35,10 +35,17 @@ enum class CompilerDataFormat
     NCHW,
     NHWCB,
     WEIGHT,
+};
+
+enum class CompilerDataCompressedFormat
+{
+    NONE,
     NHWCB_COMPRESSED,
     FCAF_DEEP,
     FCAF_WIDE,
 };
+
+bool IsCompressed(CompilerDataCompressedFormat compressedFormat);
 
 inline CompilerDataFormat ConvertExternalToCompilerDataFormat(DataFormat dataFormat)
 {
@@ -93,6 +100,7 @@ class Node
 public:
     Node(NodeId id,
          const TensorShape& outputTensorShape,
+         DataType outpuDataType,
          const QuantizationInfo& outputQuantizationInfo,
          CompilerDataFormat format,
          std::set<uint32_t> correspondingOperationIds);
@@ -111,16 +119,17 @@ public:
     /// Fixed properties
     /// @{
     TensorShape GetShape() const;
+    DataType GetDataType() const;
     QuantizationInfo GetQuantizationInfo() const;
     CompilerDataFormat GetFormat() const;
-    void SetFormat(CompilerDataFormat format);
 
     TensorShape GetInputShape(uint32_t inputIdx) const;
+    DataType GetInputDataType(uint32_t inputIdx) const;
     QuantizationInfo GetInputQuantizationInfo(uint32_t inputIdx) const;
     CompilerDataFormat GetInputFormat(uint32_t inputIdx) const;
     command_stream::DataFormat GetInputBufferFormat(uint32_t inputIdx) const;
     bool GetInputCompressed(uint32_t inputIdx) const;
-    CompilerDataFormat GetInputCompressedFormat(uint32_t inputIdx) const;
+    CompilerDataCompressedFormat GetInputCompressedFormat(uint32_t inputIdx) const;
     /// @}
 
     /// Preparation hints
@@ -156,7 +165,8 @@ public:
     void SetLocation(BufferLocation l);
 
     bool GetCompressed() const;
-    CompilerDataFormat GetCompressedFormat() const;
+    CompilerDataCompressedFormat GetCompressedFormat() const;
+    void SetCompressedFormat(CompilerDataCompressedFormat format);
 
     BufferLocation GetInputLocation(uint32_t inputIdx) const;
 
@@ -218,8 +228,10 @@ protected:
 
     // Abstract properties of the output - don't require the tensor to actually exist anywhere in SRAM/DRAM
     TensorShape m_Shape;
+    DataType m_DataType;
     QuantizationInfo m_QuantizationInfo;
     CompilerDataFormat m_Format;
+    CompilerDataCompressedFormat m_CompressionFormat;
 
     // Preparation hints
     OptimizationHint m_OptimizationHint;
@@ -254,8 +266,10 @@ public:
 
     const Node* GetSource() const;
     const Node* GetDestination() const;
+    const TensorShape GetSourceShape() const;
     Node* GetSource();
     Node* GetDestination();
+    TensorShape GetSourceShape();
 
 private:
     Node* m_Source;
@@ -271,7 +285,7 @@ public:
         , m_NextNodeId(0)
     {}
 
-    Graph(const Network& network, const HardwareCapabilities& capabilities);
+    Graph(const Network& network, const HardwareCapabilities& capabilities, const EstimationOptions& estimationOptions);
 
     const std::vector<std::unique_ptr<Node>>& GetNodes() const;
     std::vector<Node*> GetNodesSorted() const;

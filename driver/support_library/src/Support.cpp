@@ -261,7 +261,7 @@ std::ostream& Print(std::ostream& os, Indent indent, const PassPerformanceData& 
     os << indent << JsonField("OperationIds") << ' ';
     Print(os, Indent(0), JsonArray(pass.m_OperationIds)) << ",\n";
 
-    os << indent << JsonField("ParentIds") << ' ' << pass.m_ParentIds << ",\n";
+    os << indent << JsonField("ParentIds") << ' ' << (pass.m_ParentIds.empty() ? "[]" : pass.m_ParentIds) << ",\n";
 
     os << indent << JsonField("Input") << '\n';
     Print(os, indent, pass.m_Stats.m_Input) << ",\n";
@@ -494,6 +494,18 @@ TensorAndId<Operand> AddRelu(const std::shared_ptr<Network>& network, Operand& i
     return GetSingleOutputResult(network, network->AddRelu(input, reluInfo));
 }
 
+TensorAndId<Operand>
+    AddLeakyRelu(const std::shared_ptr<Network>& network, Operand& input, const LeakyReluInfo& leakyReluInfo)
+{
+    return GetSingleOutputResult(network, network->AddLeakyRelu(input, leakyReluInfo));
+}
+
+TensorAndId<Operand>
+    AddRequantize(const std::shared_ptr<Network>& network, Operand& input, const RequantizeInfo& requantizeInfo)
+{
+    return GetSingleOutputResult(network, network->AddRequantize(input, requantizeInfo));
+}
+
 TensorAndId<Operand> AddSoftmax(const std::shared_ptr<Network>& network, Operand& input)
 {
     return GetSingleOutputResult(network, network->AddSoftmax(input));
@@ -519,6 +531,23 @@ TensorAndId<Operand>
     AddDepthToSpace(const std::shared_ptr<Network>& network, Operand& input, const DepthToSpaceInfo& depthToSpaceInfo)
 {
     return GetSingleOutputResult(network, network->AddDepthToSpace(input, depthToSpaceInfo));
+}
+
+TensorAndId<Operand>
+    AddSpaceToDepth(const std::shared_ptr<Network>& network, Operand& input, const SpaceToDepthInfo& spaceToDepthInfo)
+{
+    return GetSingleOutputResult(network, network->AddSpaceToDepth(input, spaceToDepthInfo));
+}
+
+TensorAndId<Operand>
+    AddTranspose(const std::shared_ptr<Network>& network, Operand& input, const TransposeInfo& transposeInfo)
+{
+    return GetSingleOutputResult(network, network->AddTranspose(input, transposeInfo));
+}
+
+TensorAndId<Operand> AddResize(const std::shared_ptr<Network>& network, Operand& input, const ResizeInfo& resizeInfo)
+{
+    return GetSingleOutputResult(network, network->AddResize(input, resizeInfo));
 }
 
 TensorsAndId AddEstimateOnly(const std::shared_ptr<Network>& network,
@@ -565,7 +594,7 @@ std::vector<std::unique_ptr<CompiledNetwork>> Compile(const Network& network, co
         throw VersionMismatchException("m_FwAndHwCapabilities is not valid");
     }
     // Cascading not supported while compilation
-    if (options.m_EnableCascading == true)
+    if (options.m_CompilerAlgorithm == CompilerAlgorithm::CascadingOnly)
     {
         throw NotSupportedException("Cascading only supported for performance estimation");
     }
@@ -596,9 +625,10 @@ NetworkPerformanceData EstimatePerformance(const Network& network,
         throw VersionMismatchException("m_FwAndHwCapabilities is not valid");
     }
 
-    // Untill full implementation of cascading in support library,
+    // Until full implementation of cascading in support library,
     // available  only as future optimistic estimate. i.e m_Current = false.
-    if (compilationOptions.m_EnableCascading == true && estimationOptions.m_Current == true)
+    if (compilationOptions.m_CompilerAlgorithm == CompilerAlgorithm::CascadingOnly &&
+        estimationOptions.m_Current == true)
     {
         throw NotSupportedException(
             "Current performance and cascading modes are mutually exclusive. Please disable one or the other.");
@@ -714,6 +744,35 @@ EthosNVariant EthosNVariantFromString(const char* npuType)
     }
 }
 
+const char* EthosNCompilerAlgorithmAsString(CompilerAlgorithm mode)
+{
+    switch (mode)
+    {
+#define X(value)                                                                                                       \
+    case CompilerAlgorithm::value:                                                                                     \
+        return #value;
+        COMPILER_ALGORITHM_MODE
+#undef X
+        default:
+            return "Unknown Cascading support mode";
+    }
+}
+
+CompilerAlgorithm EthosNCompilerAlgorithmFromString(const char* mode)
+{
+#define X(value)                                                                                                       \
+    if (std::string(mode) == #value)                                                                                   \
+    {                                                                                                                  \
+        return CompilerAlgorithm::value;                                                                               \
+    }
+    COMPILER_ALGORITHM_MODE
+#undef X
+    else
+    {
+        throw std::invalid_argument("Unknown Cascading support mode");
+    }
+}
+
 namespace debug
 {
 std::ostream& operator<<(std::ostream& os, Network& network)
@@ -728,6 +787,86 @@ std::ostream& operator<<(std::ostream& os, Network& network)
     return os;
 }
 }    // namespace debug
+
+namespace
+{
+
+void BroadcastScalesDim(std::valarray<float>& result, QuantizationScales& lhs, const QuantizationScales& rhs)
+{
+    if (lhs.IsScalar())
+    {
+        // Broadcast our scalar value into an array with the same length as the rhs
+        lhs.m_Scales.resize(rhs.Size(), lhs[0]);
+        result = rhs.m_Scales;
+    }
+    else if (rhs.IsScalar())
+    {
+        float scalar = rhs[0];
+        result.resize(lhs.Size(), scalar);
+    }
+
+    assert(result.size() == lhs.Size());
+}
+}    // namespace
+
+QuantizationScales& QuantizationScales::operator/=(const QuantizationScales& rhs)
+{
+    std::valarray<float> divider;
+
+    BroadcastScalesDim(divider, *this, rhs);
+
+    m_Scales /= divider;
+
+    return *this;
+}
+
+QuantizationScales operator/(const QuantizationScales& lhs, const QuantizationScales& rhs)
+{
+    QuantizationScales result(lhs);
+    result /= rhs;
+    return result;
+}
+QuantizationScales operator/(float lhs, const QuantizationScales& rhs)
+{
+    QuantizationScales result(lhs);
+    result /= rhs;
+    return result;
+}
+QuantizationScales operator/(const QuantizationScales& lhs, float rhs)
+{
+    QuantizationScales result(rhs);
+    result /= lhs;
+    return result;
+}
+
+QuantizationScales& QuantizationScales::operator*=(const QuantizationScales& rhs)
+{
+    std::valarray<float> multiplier;
+
+    BroadcastScalesDim(multiplier, *this, rhs);
+
+    m_Scales *= multiplier;
+
+    return *this;
+}
+QuantizationScales operator*(const QuantizationScales& lhs, const QuantizationScales& rhs)
+{
+    QuantizationScales result(lhs);
+    result *= rhs;
+    return result;
+}
+QuantizationScales operator*(float lhs, const QuantizationScales& rhs)
+{
+    QuantizationScales result(lhs);
+    result *= rhs;
+    return result;
+}
+QuantizationScales operator*(const QuantizationScales& lhs, float rhs)
+{
+    QuantizationScales result(rhs);
+    result *= lhs;
+    return result;
+}
 
 }    // namespace support_library
 }    // namespace ethosn

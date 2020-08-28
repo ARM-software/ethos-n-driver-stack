@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "../include/ethosn_support_library/Optional.hpp"
 #include "Network.hpp"
 
 #include <unordered_map>
@@ -20,10 +21,12 @@ class Node;
 class NetworkToGraphConverter : public INetworkVisitor
 {
 public:
-    NetworkToGraphConverter(Graph& graph, const HardwareCapabilities& capabilities, bool estimationMode)
+    NetworkToGraphConverter(Graph& graph,
+                            const HardwareCapabilities& capabilities,
+                            utils::Optional<const EstimationOptions&> estimationOptions)
         : m_Graph(graph)
         , m_Capabilities(capabilities)
-        , m_EstimationMode(estimationMode)
+        , m_EstimationOptions(estimationOptions)
     {}
 
     void Visit(Input& input) final;
@@ -37,11 +40,16 @@ public:
     void Visit(Addition& addition) final;
     void Visit(FullyConnected& fullyConnected) final;
     void Visit(Relu& relu) final;
+    void Visit(LeakyRelu& leakyRelu) final;
+    void Visit(Requantize& requantize) final;
     void Visit(Softmax& softmax) final;
     void Visit(Sigmoid& sigmoid) final;
     void Visit(Pooling& pooling) final;
     void Visit(Reshape& reshape) final;
     void Visit(DepthToSpace& depthToSpace) final;
+    void Visit(SpaceToDepth& spaceToDepth) final;
+    void Visit(Transpose& transpose) final;
+    void Visit(Resize& resize) final;
     void Visit(EstimateOnly& estimateOnly) final;
 
 private:
@@ -53,13 +61,16 @@ private:
     /// The first node in the list will have its inputs connected to the nodes representing the inputs of the Operation.
     void ConnectNodeChain(const Operation& operation, const std::vector<Node*>& linearNodes);
 
+    std::vector<uint8_t> MaybeOverrideWeights(const std::vector<uint8_t>& userWeights,
+                                              const TensorInfo& weightsInfo) const;
+
     /// For each Operand in the input Network that we have visited,
     /// this contains the corresponding Node in the resulting Graph that produces the equivalent of that Operand.
     std::unordered_map<const Operand*, Node*> m_OperandToNode;
 
     Graph& m_Graph;
     const HardwareCapabilities& m_Capabilities;
-    const bool m_EstimationMode;
+    utils::Optional<const EstimationOptions&> m_EstimationOptions;
 };
 
 }    // namespace support_library

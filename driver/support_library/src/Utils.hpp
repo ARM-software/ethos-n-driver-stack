@@ -9,7 +9,9 @@
 #include "Capabilities.hpp"
 
 #include <ethosn_command_stream/BinaryTuple.hpp>
+#include <ethosn_command_stream/CommandData.hpp>
 #include <ethosn_command_stream/PleOperation.hpp>
+#include <ethosn_utils/Macros.hpp>
 
 #include <cassert>
 #include <cmath>
@@ -17,9 +19,6 @@
 #include <functional>
 #include <limits>
 #include <map>
-
-// To prevent the warning that we arent using a variable, use this macro.
-#define UNUSED(x) (void)(x)
 
 namespace ethosn
 {
@@ -49,6 +48,7 @@ public:
     uint32_t GetNumberOfPleLanes() const;
     uint32_t GetWeightCompressionVersion() const;
     uint32_t GetActivationCompressionVersion() const;
+    uint32_t GetIsNchwSupported() const;
 
     uint32_t GetMacsPerWinograd2D() const
     {
@@ -183,7 +183,7 @@ inline void CalculateQuantizedMultiplierSmallerThanOne(double multiplier, uint16
         const int exp = std::ilogb(multiplier);
         outShift      = static_cast<uint32_t>(-exp - 1);
         assert(outShift < 32);
-        uint32_t outScaleU32 = static_cast<uint32_t>(std::lround(std::scalbn(multiplier, 16 + outShift)));
+        uint32_t outScaleU32 = static_cast<uint32_t>(std::lround(std::scalbn(multiplier, 16U + outShift)));
         assert(outScaleU32 <= (1U << 16));
         if (outScaleU32 == (1U << 16))
         {
@@ -224,11 +224,27 @@ constexpr uint32_t GetElementSizeBytes(ethosn::support_library::DataType type)
     switch (type)
     {
         case ethosn::support_library::DataType::UINT8_QUANTIZED:
+        case ethosn::support_library::DataType::INT8_QUANTIZED:
             return 1;
         case ethosn::support_library::DataType::INT32_QUANTIZED:
             return 4;
         default:
             return 0;
+    }
+}
+
+/// Utility function to convert support_library::DataType to command_stream::DataType
+inline command_stream::DataType ConvertDataType(support_library::DataType dataType)
+{
+    switch (dataType)
+    {
+        case support_library::DataType::UINT8_QUANTIZED:
+            return command_stream::DataType::QASYMM8;
+        case support_library::DataType::INT8_QUANTIZED:
+            return command_stream::DataType::QSYMM8;
+        default:
+            throw std::invalid_argument(std::string("Unsupported data type ") +
+                                        std::to_string(static_cast<int>(dataType)));
     }
 }
 
@@ -280,6 +296,16 @@ inline ethosn::support_library::TensorShape
     return roundUp;
 }
 
+inline uint32_t MaxTileSize(const ethosn::support_library::TensorShape& shape, const HardwareCapabilities& capabilities)
+{
+    const uint32_t brickGroupHeight = capabilities.GetBrickGroupShape()[1];
+    const uint32_t brickGroupWidth  = capabilities.GetBrickGroupShape()[2];
+    const uint32_t numSrams         = capabilities.GetNumberOfSrams();
+    return TotalSizeBytes(TensorShape{ 1, RoundUpToNearestMultiple(shape[1], brickGroupHeight),
+                                       RoundUpToNearestMultiple(shape[2], brickGroupWidth),
+                                       RoundUpToNearestMultiple(shape[3], numSrams) });
+}
+
 inline uint32_t TotalSizeBytesNHWCB(const ethosn::support_library::TensorInfo& info)
 {
     return GetElementSizeBytes(info.m_DataType) * info.m_Dimensions[0] *
@@ -290,7 +316,7 @@ inline uint32_t TotalSizeBytesNHWCB(const ethosn::support_library::TensorInfo& i
 
 inline uint32_t TotalSizeBytesNHWCBCompressed(const ethosn::support_library::TensorInfo& info)
 {
-    assert(info.m_DataType == DataType::UINT8_QUANTIZED);
+    assert(info.m_DataType == DataType::UINT8_QUANTIZED || info.m_DataType == DataType::INT8_QUANTIZED);
     auto shape                            = info.m_Dimensions;
     constexpr uint32_t brickGroupWidth    = 8;
     constexpr uint32_t brickGroupHeight   = 8;
@@ -343,6 +369,24 @@ uint32_t GetNumSubmapChannels(uint32_t nChannels,
                               uint32_t strideX,
                               uint32_t strideY,
                               const HardwareCapabilities& capabilities);
+
+template <typename T>
+constexpr uint32_t GetHeight(const T& tensorShape)
+{
+    return tensorShape[1];
+}
+
+template <typename T>
+constexpr uint32_t GetWidth(const T& tensorShape)
+{
+    return tensorShape[2];
+}
+
+template <typename T>
+constexpr uint32_t GetChannels(const T& tensorShape)
+{
+    return tensorShape[3];
+}
 
 inline uint32_t
     GetTensorIndex(const TensorShape& tensorShape, uint32_t dim0, uint32_t dim1, uint32_t dim2, uint32_t dim3)
@@ -554,6 +598,30 @@ struct ShapeMultiplier
 };
 
 constexpr ShapeMultiplier g_IdentityShapeMultiplier = { Fraction{ 1, 1 }, Fraction{ 1, 1 }, Fraction{ 1, 1 } };
+
+uint64_t GetPerformanceDataMetric(const PassStats& passStat);
+uint64_t GetMetric(const NetworkPerformanceData& netPerfData);
+bool IsLeftMoreDataPerformantThanRight(const NetworkPerformanceData& left, const NetworkPerformanceData& right);
+
+command_stream::DataType GetCommandDataType(const DataType supportLibraryDataType);
+
+bool IsDataTypeSigned(const DataType type);
+
+struct DataTypeRange
+{
+    int32_t min;
+    int32_t max;
+};
+
+DataTypeRange GetRangeOfDataType(const DataType type);
+
+template <typename T>
+constexpr DataTypeRange GetTypeLimits()
+{
+    return { std::numeric_limits<T>::lowest(), std::numeric_limits<T>::max() };
+}
+
+command_stream::UpsampleType ConvertResizeAlgorithmToCommand(const ResizeAlgorithm algorithm);
 
 }    // namespace utils
 

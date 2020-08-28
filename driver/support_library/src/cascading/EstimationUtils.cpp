@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-// TODO:: Duplicated code from Pass.cpp Need to be deleted/restructured. Fix in NNXSW-2208
-#include "OpUtils.hpp"
+#include "EstimationUtils.hpp"
 
 #include "Plan.hpp"
 
@@ -100,26 +99,6 @@ uint32_t GetInputTotalBytes(const HardwareCapabilities& caps,
     return (reloads + 1U) * shape[0] * effectiveHeight * effectiveWidth * shape[3];
 }
 
-uint32_t GetWeightsNumReloads(const HardwareCapabilities& caps,
-                              const TensorShape& inShape,
-                              const TensorShape& inStripeShape,
-                              const TensorInfo& info,
-                              const uint32_t tileSize)
-{
-    // The input data streaming affects the number of weights data reloads.
-    const uint32_t numStripesH = utils::GetNumStripesH(inShape, inStripeShape);
-    const uint32_t numStripesW = utils::GetNumStripesW(inShape, inStripeShape);
-    const uint32_t numStripesC = utils::GetNumStripesC(inShape, inStripeShape);
-
-    const uint32_t totalSize =
-        utils::EstimateWeightSizeBytes(info.m_Dimensions, caps, info.m_DataFormat == DataFormat::HWIM);
-
-    const bool isStreamingHC = numStripesH > 1U && numStripesW == 1U && numStripesC > 1U;
-
-    // Account for the reloading of the weights data, this happens when streaming input data in depth and height.
-    return isStreamingHC && (tileSize < totalSize) ? (numStripesW * numStripesH - 1U) : 0;
-}
-
 InputStats GetInputStats(const HardwareCapabilities& caps,
                          const TensorShape& shape,
                          const TensorShape& stripeShape,
@@ -139,6 +118,7 @@ InputStats GetInputStats(const HardwareCapabilities& caps,
             std::min(stripeShape[3], shape[3]),
         };
         const uint32_t stripeSize = stripeShape[0] * stripeShape[1] * stripeShape[2] * stripeShape[3];
+        assert(stripeSize != 0U);
 
         const uint32_t numStripesH = utils::GetNumStripesH(shape, stripeShape);
         const uint32_t numStripesW = utils::GetNumStripesW(shape, stripeShape);
@@ -213,7 +193,7 @@ InputStats GetInputStats(const HardwareCapabilities& caps,
     return data;
 }
 
-OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeShape, const BufferLocation location)
+OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeShape, const Location location)
 {
     OutputStats data;
 
@@ -225,7 +205,7 @@ OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeSh
     const uint32_t total = shape[0] * shape[1] * shape[2] * shape[3];
 
     // Consider the output data transfer only if it is not already in Sram.
-    if (location != BufferLocation::Sram)
+    if (location != Location::Sram)
     {
         // Wait to the final stripe to be copied out if required.
         data.m_MemoryStats.m_DramNonParallel    = stripeSize;
@@ -239,68 +219,8 @@ OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeSh
     return data;
 }
 
-WeightsStats GetWeightsStats(const HardwareCapabilities& caps,
-                             EncodedWeights& encodedWeights,
-                             const TensorInfo& info,
-                             const TensorShape& stripeShape,
-                             const uint32_t tileSize,
-                             const TensorShape& inShape,
-                             const TensorShape& inStripeShape)
-{
-    WeightsStats data;
-
-    const uint32_t stripeSize =
-        utils::EstimateWeightSizeBytes(stripeShape, caps, info.m_DataFormat == DataFormat::HWIM);
-
-    // Account for the reloading of the weights data, this happens when streaming input data in depth and height.
-    data.m_StripesStats.m_NumCentralStripes = static_cast<uint32_t>(encodedWeights.m_Metadata.size());
-    data.m_StripesStats.m_NumReloads        = GetWeightsNumReloads(caps, inShape, inStripeShape, info, tileSize);
-
-    // Check if there is more than a stripe in the tile.
-    const bool buffering = tileSize > stripeSize;
-
-    if (buffering)
-    {
-        // At least a weights stripe needs to be in internal memory before starting the processing, use the metadata information
-        // to get the amount of data.
-        data.m_MemoryStats.m_DramNonParallel = encodedWeights.m_Metadata[0].m_Size;
-        data.m_MemoryStats.m_DramParallel =
-            (data.m_StripesStats.m_NumReloads + 1U) * static_cast<uint32_t>(encodedWeights.m_Data.size()) -
-            data.m_MemoryStats.m_DramNonParallel;
-    }
-    else
-    {
-        data.m_MemoryStats.m_DramNonParallel =
-            (data.m_StripesStats.m_NumReloads + 1U) * static_cast<uint32_t>(encodedWeights.m_Data.size());
-    }
-    // Clamp the savings to 0
-    // if the weights are uncompressable then the encoded weight size is larger than the weights provided
-    // because of the header
-    data.m_WeightCompressionSavings =
-        std::max(0.0f, 1.0f - (static_cast<float>(encodedWeights.m_Data.size()) /
-                               static_cast<float>(utils::GetNumElements(info.m_Dimensions))));
-
-    return data;
-}
-
-InputStats GetInputStats(const HardwareCapabilities& caps,
-                         const Buffer* inpbuf,
-                         const Buffer* outbuff,
-                         const uint32_t& inputTileSize,
-                         const TensorInfo& weightsInfo)
-{
-    // TODO: Assuming RoundUpHeightAndWidthToBrickGroup. Fix in NNXSW-2208
-    assert(inpbuf);
-    assert(outbuff);
-
-    // Number of output stripes affects the number of input data reloads for some streaming strategies.
-    uint32_t numOutStripeC = utils::DivRoundUp(outbuff->m_TensorShape[3], outbuff->m_StripeShape[3]);
-    return GetInputStats(caps, inpbuf->m_TensorShape, inpbuf->m_StripeShape, inpbuf->m_Location, inputTileSize,
-                         weightsInfo, numOutStripeC);
-}
-
 PleStats GetPleStats(const HardwareCapabilities& caps,
-                     const std::vector<TensorShape>& inputStripeShapes,
+                     const std::vector<TensorShape>& inputShapes,
                      const command_stream::PleOperation& pleOperation)
 {
     PleStats pleststs;
@@ -310,16 +230,27 @@ PleStats GetPleStats(const HardwareCapabilities& caps,
     uint32_t patchesW = 0;
     uint32_t patchesC = 0;
 
-    for (auto& inputshape : inputStripeShapes)
+    for (auto& inputShape : inputShapes)
     {
-        patchesH = std::max(utils::DivRoundUp(inputshape[1], caps.GetPatchShape()[1]), patchesH);
-        patchesW = std::max(utils::DivRoundUp(inputshape[2], caps.GetPatchShape()[2]), patchesW);
-        patchesC = std::max(utils::DivRoundUp(inputshape[3], caps.GetNumberOfEngines()), patchesC);
+        patchesH = std::max(utils::DivRoundUp(inputShape[1], caps.GetPatchShape()[1]), patchesH);
+        patchesW = std::max(utils::DivRoundUp(inputShape[2], caps.GetPatchShape()[2]), patchesW);
+        patchesC = std::max(utils::DivRoundUp(inputShape[3], caps.GetNumberOfEngines() * caps.GetNumberOfPleLanes()),
+                            patchesC);
     }
 
     pleststs.m_NumOfPatches = patchesW * patchesH * patchesC;
     pleststs.m_Operation    = static_cast<uint32_t>(pleOperation);
     return pleststs;
+}
+
+InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRatio)
+{
+    InputStats ret = stats;
+    ret.m_MemoryStats.m_DramNonParallel =
+        static_cast<uint32_t>(static_cast<float>(stats.m_MemoryStats.m_DramNonParallel) * (1 - spaceSavingRatio));
+    ret.m_MemoryStats.m_DramParallel =
+        static_cast<uint32_t>(static_cast<float>(stats.m_MemoryStats.m_DramParallel) * (1 - spaceSavingRatio));
+    return ret;
 }
 
 }    // namespace support_library

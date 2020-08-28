@@ -211,7 +211,7 @@ You must follow specific steps to build the Ethos-N driver. You must build the E
     ln -s <path_to>/driver_stack/ethosn-driver/armnn-ethos-n-backend ethos-n
     ```
 
-8. Build Arm NN for TensorFlow Lite. For instructions on building Arm NN, see <https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configuring-the-arm-nn-sdk-build-environment-for-tensorflow-lite.>
+8. Build Arm NN for TensorFlow Lite. For instructions on building Arm NN, see <https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configuring-the-arm-nn-sdk-build-environment-for-tensorflow-lite>
 
     The following build options are required to the CMake call in the **Build Arm NN** section of the guide:
 
@@ -219,8 +219,10 @@ You must follow specific steps to build the Ethos-N driver. You must build the E
     -DBUILD_TESTS=1
     -DARMNNREF=1
     -DETHOSN_SUPPORT=1
-    -DETHOSN_ROOT=<install_directory>
+    -DETHOSN_ROOT=<install_directory> # as provided in step6
     ```
+
+    For cross compilation, please refer to <https://github.com/ARM-software/armnn/blob/master/BuildGuideCrossCompilation.md>
 
     As part of the Arm NN build, the process automatically builds the Ethos-N driver plug-in for Arm NN.
 

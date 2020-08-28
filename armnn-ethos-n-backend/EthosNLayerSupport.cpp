@@ -106,23 +106,19 @@ void SetReasonIfUnsupported(bool supported,
 
 bool IsTensorSupportedOnEthosN(const TensorInfo& tensorInfo, Optional<std::string&> reasonIfUnsupported)
 {
+    using namespace ethosntensorutils;
     if (tensorInfo.GetNumDimensions() > 4)
     {
         SetReason(reasonIfUnsupported, std::string("The ethosn can only support up to 4D tensors"));
         return false;
     }
-    switch (tensorInfo.GetDataType())
+    if (!IsDataTypeSupportedOnEthosN(tensorInfo.GetDataType()))
     {
-        case DataType::QAsymmU8:
-        case DataType::Signed32:
-            return true;
-        default:
-        {
-            SetReason(reasonIfUnsupported,
-                      std::string("Unsupported data type: ") + GetDataTypeName(tensorInfo.GetDataType()));
-            return false;
-        }
+        SetReason(reasonIfUnsupported,
+                  std::string("Unsupported data type: ") + GetDataTypeName(tensorInfo.GetDataType()));
+        return false;
     }
+    return true;
 }
 
 bool IsTensorSupportedOnEthosN(const Optional<TensorInfo>& tensorInfo, Optional<std::string&> reasonIfUnsupported)
@@ -223,6 +219,14 @@ bool EthosNLayerSupport::IsActivationSupported(const TensorInfo& input,
 
             supportedLevel = ethosn_lib::IsReluSupported(reluInfo, ethosnInput, &ethosnOutput,
                                                          messageHelper.GetBuffer(), messageHelper.GetBufferSize());
+            break;
+        }
+        case ActivationFunction::LeakyReLu:
+        {
+            const ethosn_lib::LeakyReluInfo leakyReluInfo = BuildEthosNLeakyReluInfo(descriptor, output);
+
+            supportedLevel = ethosn_lib::IsLeakyReluSupported(leakyReluInfo, ethosnInput, &ethosnOutput,
+                                                              messageHelper.GetBuffer(), messageHelper.GetBufferSize());
             break;
         }
         case ActivationFunction::Sigmoid:
@@ -604,16 +608,16 @@ bool EthosNLayerSupport::IsPreCompiledSupported(const TensorInfo& input,
                                                 const PreCompiledDescriptor& descriptor,
                                                 Optional<std::string&> reasonIfUnsupported) const
 {
-    using ethosn_lib::SupportedLevel;
     ignore_unused(descriptor);
 
-    bool supported = input.GetDataType() == DataType::QAsymmU8;
-    if (!supported && reasonIfUnsupported)
-    {
-        reasonIfUnsupported.value() = "Only QAsymmU8 is supported.";
-    }
+    return IsTensorSupportedOnEthosN(input, reasonIfUnsupported);
+}
 
-    return supported;
+bool EthosNLayerSupport::IsRankSupported(const TensorInfo& input,
+                                         const TensorInfo& output,
+                                         Optional<std::string&> reasonIfUnsupported) const
+{
+    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
 bool EthosNLayerSupport::IsReshapeSupported(const TensorInfo& input,
@@ -939,6 +943,15 @@ bool EthosNLayerSupport::IsFakeQuantizationSupported(const TensorInfo& input,
     return CheckEstimateOnlySupported({ input }, {}, reasonIfUnsupported);
 }
 
+bool EthosNLayerSupport::IsFillSupported(const TensorInfo& input,
+                                         const TensorInfo& output,
+                                         const FillDescriptor& descriptor,
+                                         Optional<std::string&> reasonIfUnsupported) const
+{
+    ignore_unused(descriptor);
+    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
+}
+
 bool EthosNLayerSupport::IsFloorSupported(const TensorInfo& input,
                                           const TensorInfo& output,
                                           Optional<std::string&> reasonIfUnsupported) const
@@ -951,6 +964,16 @@ bool EthosNLayerSupport::IsGatherSupported(const armnn::TensorInfo& input0,
                                            const armnn::TensorInfo& output,
                                            armnn::Optional<std::string&> reasonIfUnsupported) const
 {
+    return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
+}
+
+bool EthosNLayerSupport::IsGatherSupported(const armnn::TensorInfo& input0,
+                                           const armnn::TensorInfo& input1,
+                                           const armnn::TensorInfo& output,
+                                           const GatherDescriptor& descriptor,
+                                           armnn::Optional<std::string&> reasonIfUnsupported) const
+{
+    ignore_unused(descriptor);
     return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
 }
 
@@ -1094,7 +1117,7 @@ bool EthosNLayerSupport::IsQuantizeSupported(const armnn::TensorInfo&,
                                              const armnn::TensorInfo&,
                                              armnn::Optional<std::string&>) const
 {
-    // The Support Library does not support floating point types, even in performance-only mode.
+    // Disabled for now to prevent an issue running Yolo v3.
     return false;
 }
 
@@ -1131,10 +1154,34 @@ bool EthosNLayerSupport::IsResizeBilinearSupported(const TensorInfo& input,
 
 bool EthosNLayerSupport::IsResizeSupported(const TensorInfo& input,
                                            const TensorInfo& output,
-                                           const ResizeDescriptor&,
+                                           const ResizeDescriptor& descriptor,
                                            Optional<std::string&> reasonIfUnsupported) const
 {
-    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
+    using ethosn_lib::SupportedLevel;
+
+    if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
+          IsTensorSupportedOnEthosN(output, reasonIfUnsupported)))
+    {
+        return false;
+    }
+
+    if ((descriptor.m_Method != ResizeMethod::Bilinear) && (descriptor.m_Method != ResizeMethod::NearestNeighbor))
+    {
+        return false;
+    }
+
+    auto ethosnInput  = BuildEthosNTensorInfo(input, DataLayout::NHWC);
+    auto ethosnOutput = BuildEthosNTensorInfo(output, DataLayout::NHWC);
+
+    auto ethosResizeInfo = BuildEthosNResizeInfo(descriptor, output);
+
+    ReasonMessageHelper messageHelper;
+    SupportedLevel supportedLevel = ethosn_lib::IsResizeSupported(
+        ethosResizeInfo, ethosnInput, &ethosnOutput, messageHelper.GetBuffer(), messageHelper.GetBufferSize());
+
+    bool supported = CheckSupportedLevel(supportedLevel, g_EthosNConfig.m_PerfOnly);
+    SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
+    return supported;
 }
 
 bool EthosNLayerSupport::IsRsqrtSupported(const TensorInfo& input,
@@ -1242,10 +1289,35 @@ bool EthosNLayerSupport::IsSwitchSupported(const TensorInfo& input0,
 
 bool EthosNLayerSupport::IsTransposeSupported(const TensorInfo& input,
                                               const TensorInfo& output,
-                                              const TransposeDescriptor&,
+                                              const TransposeDescriptor& descriptor,
                                               Optional<std::string&> reasonIfUnsupported) const
 {
-    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
+    using ethosn_lib::SupportedLevel;
+
+    if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
+          IsTensorSupportedOnEthosN(output, reasonIfUnsupported)))
+    {
+        return false;
+    }
+
+    auto ethosnInput  = BuildEthosNTensorInfo(input, DataLayout::NHWC);
+    auto ethosnOutput = BuildEthosNTensorInfo(output, DataLayout::NHWC);
+
+    auto ethosTransposeInfo = BuildEthosNTransposeInfo(descriptor.m_DimMappings);
+
+    if (!ethosTransposeInfo.has_value())
+    {
+        return false;
+    }
+
+    ReasonMessageHelper messageHelper;
+    SupportedLevel supportedLevel =
+        ethosn_lib::IsTransposeSupported(ethosTransposeInfo.value(), ethosnInput, &ethosnOutput,
+                                         messageHelper.GetBuffer(), messageHelper.GetBufferSize());
+
+    bool supported = CheckSupportedLevel(supportedLevel, g_EthosNConfig.m_PerfOnly);
+    SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
+    return supported;
 }
 
 }    // namespace armnn

@@ -45,6 +45,18 @@ LayerTestResult<uint8_t, 4> PreCompiledTransposeConvolution2dStride2x2Test(
     return PreCompiledTransposeConvolution2dStride2x2TestImpl(workloadFactory, memoryManager);
 }
 
+LayerTestResult<uint8_t, 4> PreCompiledConvolution2dWithAssymetricSignedWeightsTest(
+    armnn::IWorkloadFactory& workloadFactory, const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager)
+{
+    return PreCompiledConvolution2dWithAssymetricSignedWeightsTestImpl(workloadFactory, memoryManager);
+}
+
+LayerTestResult<uint8_t, 4> PreCompiledConvolution2dWithSymetricSignedWeightsTest(
+    armnn::IWorkloadFactory& workloadFactory, const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager)
+{
+    return PreCompiledConvolution2dWithSymetricSignedWeightsTestImpl(workloadFactory, memoryManager);
+}
+
 LayerTestResult<uint8_t, 4>
     PreCompiledMaxPooling2dTest(armnn::IWorkloadFactory& workloadFactory,
                                 const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager)

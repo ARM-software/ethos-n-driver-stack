@@ -80,16 +80,16 @@ private:
     std::vector<std::unique_ptr<IStrategy>> m_AllowedStrategies;
     std::vector<command_stream::BlockConfig> m_AllowedBlockConfigs;
     HardwareCapabilities m_Capabilities;
-    bool m_DisableWinograd;
-    bool m_EnableIntermediateCompression;
+    const CompilationOptions& m_CompilationOptions;
     bool m_EnableCascading;
     const DebuggingContext m_DebuggingContext;
     /// @}
 
     /// Performance estimation
     /// @{
-    std::unique_ptr<IEstimationStrategy> m_EstimationStrategy;
+    const EstimationOptions& m_EstimationOptions;
     bool m_PerfEstimate;
+    NetworkPerformanceData PrivateEstimatePerformance();
     /// @}
 
     /// Intermediate data/results

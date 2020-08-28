@@ -139,6 +139,18 @@ void DumpProfilingData(const std::vector<ProfilingEntry>& profilingData, std::os
                   << R"("firmware_time_sync_value": )" << std::to_string(entry.m_MetadataValue) << "\n";
                 break;
             }
+            case ProfilingEntry::MetadataCategory::FirmwareAgent:
+            {
+                o << "\t\t\t"
+                  << R"("firmware_agent_value": )" << std::to_string(entry.m_MetadataValue) << "\n";
+                break;
+            }
+            case ProfilingEntry::MetadataCategory::FirmwareAgentStripe:
+            {
+                o << "\t\t\t"
+                  << R"("firmware_agent_stripe_value": )" << std::to_string(entry.m_MetadataValue) << "\n";
+                break;
+            }
             case ProfilingEntry::MetadataCategory::InferenceLifetime:
             {
                 o << "\t\t\t"

@@ -8,9 +8,14 @@
 #include "../Graph.hpp"
 #include "../GraphNodes.hpp"
 #include "../McePlePass.hpp"
+#include "../Utils.hpp"
 #include "DebuggingContext.hpp"
+#include "Estimation.hpp"
 #include "Part.hpp"
 
+#include "../include/ethosn_support_library/Optional.hpp"
+
+#include <fstream>
 #include <iostream>
 
 using namespace std;
@@ -19,33 +24,6 @@ namespace ethosn
 {
 namespace support_library
 {
-
-namespace
-{
-
-uint64_t GetPerformanceDataMetric(const PassStats& passStat)
-{
-    return passStat.m_Input.m_MemoryStats.m_DramParallel + passStat.m_Input.m_MemoryStats.m_DramNonParallel +
-           passStat.m_Output.m_MemoryStats.m_DramParallel + passStat.m_Output.m_MemoryStats.m_DramNonParallel +
-           passStat.m_Weights.m_MemoryStats.m_DramParallel + passStat.m_Output.m_MemoryStats.m_DramNonParallel;
-}
-
-uint64_t GetMetric(const NetworkPerformanceData& netPerfData)
-{
-    uint64_t performanceMetric = 0;
-    for (PassPerformanceData passPerfData : netPerfData.m_Stream)
-    {
-        performanceMetric += GetPerformanceDataMetric(passPerfData.m_Stats);
-    }
-    return performanceMetric;
-}
-
-bool IsLeftMoreDataPerformantThanRight(const NetworkPerformanceData& left, const NetworkPerformanceData& right)
-{
-    return GetMetric(left) < GetMetric(right);
-}
-
-}    //namespace
 
 template <typename T>
 bool IsNodeOfType(const Node* node)
@@ -56,7 +34,7 @@ bool IsNodeOfType(const Node* node)
 GraphOfParts CreateGraphOfParts(const Graph& graph)
 {
     GraphOfParts graphOfParts;
-    auto& parts = graphOfParts.m_Parts;
+    Parts& parts = graphOfParts.m_Parts;
 
     auto AddNodeToPart    = [](Node* node, Part& part) -> void { part.m_SubGraph.push_back(node); };
     auto AddNodeToNewPart = [&](Node* node) -> void {
@@ -156,15 +134,24 @@ NetworkPerformanceData Cascading::Estimate(Graph& graph)
 {
     m_GraphOfParts = CreateGraphOfParts(graph);
 
-    m_DebuggingContext.SaveGraphToDot(graph, &m_GraphOfParts, "GraphOfParts.dot", DetailLevel::Low);
-    m_DebuggingContext.SaveGraphToDot(graph, &m_GraphOfParts, "GraphOfPartsDetailed.dot", DetailLevel::High);
+    m_DebuggingContext.SaveGraphToDot(graph, &m_GraphOfParts, "Cascaded_GraphOfParts.dot", DetailLevel::Low);
+    m_DebuggingContext.SaveGraphToDot(graph, &m_GraphOfParts, "Cascaded_GraphOfPartsDetailed.dot", DetailLevel::High);
 
     CreatePlans(m_GraphOfParts.m_Parts, m_Capabilities);
 
-    for (auto&& part : m_GraphOfParts.m_Parts)
+    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles)
     {
-        m_DebuggingContext.SavePlansToDot(*part, part->m_DebugTag + " Plans.dot", DetailLevel::Low);
-        m_DebuggingContext.SavePlansToDot(*part, part->m_DebugTag + " PlansDetailed.dot", DetailLevel::High);
+        std::ofstream debugPlanCountsDumpFile(
+            m_DebuggingContext.GetAbsolutePathOutputFileName("Cascaded_PlanCounts.txt"));
+
+        for (auto&& part : m_GraphOfParts.m_Parts)
+        {
+            debugPlanCountsDumpFile << part->m_DebugTag << ": " << part->GetNumPlans() << std::endl;
+
+            m_DebuggingContext.SavePlansToDot(*part, "Cascaded_" + part->m_DebugTag + " Plans.dot", DetailLevel::Low);
+            m_DebuggingContext.SavePlansToDot(*part, "Cascaded_" + part->m_DebugTag + " PlansDetailed.dot",
+                                              DetailLevel::High);
+        }
     }
 
     m_ValidCombinations = Combine(m_GraphOfParts);
@@ -175,16 +162,18 @@ NetworkPerformanceData Cascading::Estimate(Graph& graph)
         for (const Combination& comb : m_ValidCombinations)
         {
             m_DebuggingContext.SaveCombinationToDot(
-                comb, m_GraphOfParts, std::string("Combination") + std::to_string(counter) + ".dot", DetailLevel::Low);
+                comb, m_GraphOfParts, std::string("Cascaded_Combination") + std::to_string(counter) + ".dot",
+                DetailLevel::Low);
             m_DebuggingContext.SaveCombinationToDot(
-                comb, m_GraphOfParts, std::string("Combination") + std::to_string(counter) + "Detailed.dot",
+                comb, m_GraphOfParts, std::string("Cascaded_Combination") + std::to_string(counter) + "Detailed.dot",
                 DetailLevel::High);
 
             OpGraph g = GetOpGraphForCombination(comb, m_GraphOfParts);
-            m_DebuggingContext.SaveOpGraphToDot(g, std::string("Combination") + std::to_string(counter) + "Merged.dot",
-                                                DetailLevel::Low);
             m_DebuggingContext.SaveOpGraphToDot(
-                g, std::string("Combination") + std::to_string(counter) + "MergedDetailed.dot", DetailLevel::High);
+                g, std::string("Cascaded_Combination") + std::to_string(counter) + "Merged.dot", DetailLevel::Low);
+            m_DebuggingContext.SaveOpGraphToDot(
+                g, std::string("Cascaded_Combination") + std::to_string(counter) + "MergedDetailed.dot",
+                DetailLevel::High);
             ++counter;
         }
     }
@@ -205,87 +194,56 @@ const GraphOfParts& Cascading::getGraphOfParts() const
 
 void Cascading::EstimatePerformance()
 {
-    bool isFirst = true;
+    std::ofstream debugPerformanceDumpFile;
+    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles)
+    {
+        debugPerformanceDumpFile.open(m_DebuggingContext.GetAbsolutePathOutputFileName("Cascaded_Performance.txt"));
+    }
+    uint32_t combinationIdx = 0;
+    utils::Optional<uint32_t> bestCombinationIdx;
     for (const Combination& combination : m_ValidCombinations)
     {
-        NetworkPerformanceData curNetPerfData = EstimateCombination(combination);
-        if (isFirst || IsLeftMoreDataPerformantThanRight(curNetPerfData, m_PerformanceStream))
+        try
         {
-            isFirst             = false;
-            m_PerformanceStream = curNetPerfData;
+            NetworkPerformanceData curNetPerfData = EstimateCombination(combination);
+
+            if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles)
+            {
+                debugPerformanceDumpFile << combinationIdx << ": " << utils::GetMetric(curNetPerfData) << std::endl;
+            }
+
+            if (!bestCombinationIdx.has_value() ||
+                utils::IsLeftMoreDataPerformantThanRight(curNetPerfData, m_PerformanceStream))
+            {
+                m_PerformanceStream = curNetPerfData;
+                bestCombinationIdx  = combinationIdx;
+            }
         }
+        catch (const NotSupportedException& e)
+        {
+            // Ignore this combination - others may still be valid
+            if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles)
+            {
+                debugPerformanceDumpFile << combinationIdx << ": Error: " << e.what() << std::endl;
+            }
+        }
+
+        ++combinationIdx;
     }
-}
 
-NetworkPerformanceData EstimateCombination(const Combination& combination,
-                                           const GraphOfParts& parts,
-                                           const HardwareCapabilities& capabilities)
-{
-    NetworkPerformanceData netPerfData;
-    OpGraph combiOpGraph  = GetOpGraphForCombination(combination, parts);
-    OpGraph::OpList opLst = combiOpGraph.GetOps();
-    assert(opLst.size() >= 1);
-
-    netPerfData.m_Stream.emplace_back(std::move(PassPerformanceData()));
-    PassStats& planStats = netPerfData.m_Stream.front().m_Stats;
-
-    for (auto opIt = opLst.begin(); opIt != opLst.end(); ++opIt)
+    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles)
     {
-        Op* op     = *opIt;
-        Op* prevOp = (opIt == opLst.begin()) ? nullptr : *(opIt - 1);
-        Op* nextOp = (opIt == opLst.end()) ? nullptr : *(opIt + 1);
-
-        OpGraph::BufferList bufList = combiOpGraph.GetInputs(op);
-        assert(bufList.size() >= 1);
-        Buffer* inpBuf = bufList[0];
-        Buffer* outBuf = combiOpGraph.GetOutput(op);
-        assert(outBuf);
-
-        // TODO: Fix this in NNXSW-2194
-        uint32_t inputTilesize = 1;
-
-        if (IsObjectOfType<DmaOp>(op))
-        {
-            if (Location::Dram == inpBuf->m_Location && Location::Sram == outBuf->m_Location)
-            {
-                // Calculate Input stats
-                // TODO: Get Weights Info buffer if required. No Activation Compression. Fix in NNXSW-2194
-                planStats.m_Input += support_library::GetInputStats(capabilities, inpBuf, outBuf, inputTilesize);
-            }
-            if (Location::Sram == inpBuf->m_Location && Location::Dram == outBuf->m_Location)
-            {
-                // Calculate Output stats
-                // TODO: RoundedUpOutputShape, Location. NNXSW-2194
-                planStats.m_Output +=
-                    support_library::GetOutputStats(inpBuf->m_TensorShape, inpBuf->m_StripeShape, BufferLocation::Dram);
-                // If prev op is MCe or Ple stop the pass here for generation of stats.
-                //TODO: operatorID and ParentID to be filled in by NNXSW-2190
-                if ((nextOp != nullptr) && (IsObjectOfType<MceOp>(prevOp) || IsObjectOfType<PleOp>(prevOp)))
-                {
-                    netPerfData.m_Stream.emplace_back(std::move(PassPerformanceData()));
-                    planStats = netPerfData.m_Stream.front().m_Stats;
-                }
-            }
-        }
-        else if (IsObjectOfType<MceOp>(op))
-        {
-            MceOp* mceOp    = dynamic_cast<MceOp*>(op);
-            planStats.m_Mce = support_library::GetMceStats(capabilities, mceOp->m_Stride, mceOp->m_Op, mceOp->m_Algo,
-                                                           mceOp->m_InputStripeShape, mceOp->m_OutputStripeShape,
-                                                           mceOp->m_WeightsStripeShape);
-        }
-        else if (IsObjectOfType<PleOp>(op))
-        {
-            PleOp* pleOp    = dynamic_cast<PleOp*>(op);
-            planStats.m_Ple = support_library::GetPleStats(capabilities, pleOp->m_InputStripeShapes, pleOp->m_Op);
-        }
+        debugPerformanceDumpFile << "\nBest: "
+                                 << (bestCombinationIdx.has_value() ? std::to_string(bestCombinationIdx.value())
+                                                                    : "NONE")
+                                 << std::endl;
     }
-    return netPerfData;
 }
 
 NetworkPerformanceData Cascading::EstimateCombination(const Combination& combination)
 {
-    return ethosn::support_library::EstimateCombination(combination, m_GraphOfParts, m_Capabilities);
+    OpGraph combiOpGraph = GetOpGraphForCombination(combination, m_GraphOfParts);
+    return ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Capabilities, GetEstimationOptions());
 }
 
 }    // namespace support_library

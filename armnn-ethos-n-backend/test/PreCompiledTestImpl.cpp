@@ -405,6 +405,76 @@ LayerTestResult<uint8_t, 4> PreCompiledConvolution2dTestImpl(armnn::IWorkloadFac
     return OptimiseAndRunNetwork(workloadFactory, network, inputInfo, inputData, outputInfo, expectedOutputData);
 }
 
+// Test a [1, 1, 1, 1] tensor with signed weights
+template <typename ConvolutionDescriptor>
+LayerTestResult<uint8_t, 4>
+    PreCompiledConvolution2dWithSignedWeightsTestImpl(armnn::IWorkloadFactory& workloadFactory,
+                                                      const armnn::IBackendInternal::IMemoryManagerSharedPtr&,
+                                                      const ConvolutionDescriptor& descriptor,
+                                                      const armnn::DataType weightDataType)
+{
+    constexpr int inputSize  = 1;
+    constexpr int outputSize = 1;
+    constexpr int channels   = 1;
+    constexpr int kernelSize = 1;
+    // We must set a zero point bigger than the absolute value of our final
+    // results, else the ouput is clamped into the range [0, 255] because
+    // output values are uint8_t
+    constexpr int32_t outputZeroPoint = 100;
+    constexpr float weightScale       = 0.5f;
+
+    BOOST_ASSERT(descriptor.m_BiasEnabled == true);
+    BOOST_ASSERT(descriptor.m_DataLayout == DataLayout::NHWC);
+
+    // Set up tensor shapes and infos
+    const TensorShape inputShape({ 1, inputSize, inputSize, channels });
+    const TensorShape outputShape({ 1, outputSize, outputSize, channels });
+    const TensorShape kernelShape({ 1, kernelSize, kernelSize, channels });
+    const TensorShape biasesShape({ 1, 1, 1, channels });
+
+    // NOTE: inputScale * weightsScale / outputScale must be >= 0.0 and < 1.0
+    TensorInfo inputInfo(inputShape, DataType::QAsymmU8, 1.0f, 0);
+    TensorInfo outputInfo(outputShape, DataType::QAsymmU8, 1.0f, outputZeroPoint);
+    // We set on purpose a non zero zero point when the data type is symmetric
+    // to check that the backend reset it to zero.
+    const bool isWeightDataTypeSymmetric = weightDataType == armnn::DataType::QSymmS8;
+    const int32_t weightZeroPoint        = isWeightDataTypeSymmetric ? 42 : 0;
+    TensorInfo weightsInfo(kernelShape, weightDataType, weightScale, weightZeroPoint);
+    TensorInfo biasesInfo(biasesShape, DataType::Signed32, 1.0f, 0);
+
+    // input weight is -42
+    // the weight data are quantized
+    // -84 comes from armnn::Quantize<int8_t>(-42, weightScale, 0)
+    std::vector<int8_t> weightsData = { -84 };
+
+    const unsigned int biasDataSize = biasesInfo.GetNumElements();
+    std::vector<int32_t> biasesData(biasDataSize, 0);
+
+    // Construct network
+    Network network;
+    ConstTensor weights(weightsInfo, weightsData);
+    ConstTensor biases(biasesInfo, biasesData);
+
+    IConnectableLayer* const inputLayer       = network.AddInputLayer(0, "input");
+    IConnectableLayer* const convolutionLayer = AddConvolutionLayerToNetwork(network, descriptor, weights, biases);
+    IConnectableLayer* const outputLayer      = network.AddOutputLayer(0, "output");
+
+    inputLayer->GetOutputSlot(0).Connect(convolutionLayer->GetInputSlot(0));
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+
+    convolutionLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+    convolutionLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
+
+    std::vector<uint8_t> inputData = { 2 };
+
+    // Set expected output
+    // 16 comes from armnn::Dequantize(weightsData[0], weightScale, 0) * inputData[0] + outputZeroPoint
+    uint8_t signedExpectedOutput            = 16;
+    std::vector<uint8_t> expectedOutputData = { signedExpectedOutput };
+
+    return OptimiseAndRunNetwork(workloadFactory, network, inputInfo, inputData, outputInfo, expectedOutputData);
+}
+
 }    // anonymous namespace
 
 LayerTestResult<uint8_t, 4>
@@ -491,6 +561,30 @@ LayerTestResult<uint8_t, 4> PreCompiledTransposeConvolution2dStride2x2TestImpl(
 
     return PreCompiledConvolution2dTestImpl(workloadFactory, memoryManager, inputSize, outputSize, channels, kernelSize,
                                             descriptor);
+}
+
+LayerTestResult<uint8_t, 4> PreCompiledConvolution2dWithAssymetricSignedWeightsTestImpl(
+    armnn::IWorkloadFactory& workloadFactory, const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager)
+{
+    const unsigned int stride  = 1;
+    const unsigned int padding = 0;
+
+    Convolution2dDescriptor descriptor = CreateConvolutionDescriptor<Convolution2dDescriptor>(stride, padding);
+
+    return PreCompiledConvolution2dWithSignedWeightsTestImpl(workloadFactory, memoryManager, descriptor,
+                                                             armnn::DataType::QAsymmS8);
+}
+
+LayerTestResult<uint8_t, 4> PreCompiledConvolution2dWithSymetricSignedWeightsTestImpl(
+    armnn::IWorkloadFactory& workloadFactory, const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager)
+{
+    const unsigned int stride  = 1;
+    const unsigned int padding = 0;
+
+    Convolution2dDescriptor descriptor = CreateConvolutionDescriptor<Convolution2dDescriptor>(stride, padding);
+
+    return PreCompiledConvolution2dWithSignedWeightsTestImpl(workloadFactory, memoryManager, descriptor,
+                                                             armnn::DataType::QSymmS8);
 }
 
 LayerTestResult<uint8_t, 4> PreCompiledMaxPooling2dTestImpl(armnn::IWorkloadFactory& workloadFactory,

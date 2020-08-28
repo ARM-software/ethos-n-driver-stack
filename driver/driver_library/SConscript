@@ -17,7 +17,8 @@ common.setup_toolchain(env, env['platform'])
 # where the install target is also provided via CPATH.
 env.PrependUnique(CPPPATH=[os.path.join(env['command_stream_dir'], 'include'),
                            os.path.join(env['support_library_dir'], 'include'),
-                           env['kernel_driver_dir']])
+                           os.path.join(env['utils_dir'], 'include'),
+                           env['kernel_module_dir']])
 # Set the appropriate CPP define for the target.
 env.Append(CPPDEFINES=['TARGET_' + env['target'].upper()])
 

@@ -50,9 +50,6 @@ private:
 };
 
 GraphOfParts CreateGraphOfParts(const Graph& graph);
-NetworkPerformanceData EstimateCombination(const Combination& combination,
-                                           const GraphOfParts& parts,
-                                           const HardwareCapabilities& capabilities);
 
 }    // namespace support_library
 }    // namespace ethosn

@@ -17,15 +17,23 @@ namespace ethosn
 namespace support_library
 {
 
+bool IsCompressed(CompilerDataCompressedFormat compressedFormat)
+{
+    return compressedFormat != CompilerDataCompressedFormat::NONE;
+}
+
 Node::Node(NodeId id,
            const TensorShape& outputTensorShape,
+           DataType outputDataType,
            const QuantizationInfo& outputQuantizationInfo,
            CompilerDataFormat format,
            std::set<uint32_t> correspondingOperationIds)
     : m_Id(id)
     , m_Shape(outputTensorShape)
+    , m_DataType(outputDataType)
     , m_QuantizationInfo(outputQuantizationInfo)
     , m_Format(format)
+    , m_CompressionFormat(CompilerDataCompressedFormat::NONE)
     , m_OptimizationHint(OptimizationHint::DontCare)
     , m_LocationHint(LocationHint::PreferSram)
     , m_CompressionHint(CompressionHint::PreferCompressed)
@@ -81,6 +89,11 @@ TensorShape Node::GetInputShape(uint32_t inputIdx) const
     return m_Inputs[inputIdx]->GetSource()->GetShape();
 }
 
+DataType Node::GetInputDataType(uint32_t inputIdx) const
+{
+    return m_Inputs[inputIdx]->GetSource()->GetDataType();
+}
+
 QuantizationInfo Node::GetInputQuantizationInfo(uint32_t inputIdx) const
 {
     return m_Inputs[inputIdx]->GetSource()->GetQuantizationInfo();
@@ -91,7 +104,7 @@ CompilerDataFormat Node::GetInputFormat(uint32_t inputIdx) const
     return m_Inputs[inputIdx]->GetSource()->GetFormat();
 }
 
-CompilerDataFormat Node::GetInputCompressedFormat(uint32_t inputIdx) const
+CompilerDataCompressedFormat Node::GetInputCompressedFormat(uint32_t inputIdx) const
 {
     return m_Inputs[inputIdx]->GetSource()->GetCompressedFormat();
 }
@@ -108,21 +121,37 @@ command_stream::DataFormat Node::GetInputBufferFormat(uint32_t inputIdx) const
 
 command_stream::DataFormat Node::GetBufferFormat() const
 {
-    switch (m_Format)
+    if (m_CompressionFormat == CompilerDataCompressedFormat::NONE)
     {
-        case CompilerDataFormat::NHWCB:
-            return command_stream::DataFormat::NHWCB;
-        case CompilerDataFormat::NHWC:
-            return command_stream::DataFormat::NHWC;
-        case CompilerDataFormat::NHWCB_COMPRESSED:
-            return command_stream::DataFormat::NHWCB_COMPRESSED;
-        case CompilerDataFormat::FCAF_DEEP:
-            return command_stream::DataFormat::FCAF_DEEP;
-        case CompilerDataFormat::FCAF_WIDE:
-            return command_stream::DataFormat::FCAF_WIDE;
-        default:
-            assert(!"Unknown buffer format");
-            return command_stream::DataFormat::WEIGHT_STREAM;    // Return something unusual to help indicate an error
+        switch (m_Format)
+        {
+            case CompilerDataFormat::NHWCB:
+                return command_stream::DataFormat::NHWCB;
+            case CompilerDataFormat::NHWC:
+                return command_stream::DataFormat::NHWC;
+            case CompilerDataFormat::NCHW:
+                return command_stream::DataFormat::NCHW;
+            default:
+                assert(!"Unknown buffer format");
+                return command_stream::DataFormat::
+                    WEIGHT_STREAM;    // Return something unusual to help indicate an error
+        }
+    }
+    else
+    {
+        switch (m_CompressionFormat)
+        {
+            case CompilerDataCompressedFormat::NHWCB_COMPRESSED:
+                return command_stream::DataFormat::NHWCB_COMPRESSED;
+            case CompilerDataCompressedFormat::FCAF_DEEP:
+                return command_stream::DataFormat::FCAF_DEEP;
+            case CompilerDataCompressedFormat::FCAF_WIDE:
+                return command_stream::DataFormat::FCAF_WIDE;
+            default:
+                assert(!"Unknown buffer compression format");
+                return command_stream::DataFormat::
+                    WEIGHT_STREAM;    // Return something unusual to help indicate an error
+        }
     }
 }
 
@@ -151,6 +180,11 @@ ethosn::support_library::TensorShape Node::GetShape() const
     return m_Shape;
 }
 
+ethosn::support_library::DataType Node::GetDataType() const
+{
+    return m_DataType;
+}
+
 ethosn::support_library::QuantizationInfo Node::GetQuantizationInfo() const
 {
     return m_QuantizationInfo;
@@ -158,20 +192,7 @@ ethosn::support_library::QuantizationInfo Node::GetQuantizationInfo() const
 
 ethosn::support_library::CompilerDataFormat Node::GetFormat() const
 {
-    if (m_Format == CompilerDataFormat::NHWCB_COMPRESSED || m_Format == CompilerDataFormat::FCAF_DEEP ||
-        m_Format == CompilerDataFormat::FCAF_WIDE)
-    {
-        return CompilerDataFormat::NHWCB;
-    }
     return m_Format;
-}
-void Node::SetFormat(CompilerDataFormat format)
-{
-    assert(m_Format == CompilerDataFormat::NHWC || m_Format == CompilerDataFormat::NHWCB ||
-           m_Format == CompilerDataFormat::NHWCB_COMPRESSED || m_Format == CompilerDataFormat::FCAF_DEEP ||
-           m_Format == CompilerDataFormat::FCAF_WIDE);
-
-    m_Format = format;
 }
 
 ethosn::support_library::BufferLocation Node::GetLocation() const
@@ -186,13 +207,22 @@ void Node::SetLocation(BufferLocation l)
 
 bool Node::GetCompressed() const
 {
-    return (m_Format == CompilerDataFormat::NHWCB_COMPRESSED || m_Format == CompilerDataFormat::FCAF_DEEP ||
-            m_Format == CompilerDataFormat::FCAF_WIDE);
+    return (m_CompressionFormat != CompilerDataCompressedFormat::NONE);
 }
 
-CompilerDataFormat Node::GetCompressedFormat() const
+CompilerDataCompressedFormat Node::GetCompressedFormat() const
 {
-    return m_Format;
+    return m_CompressionFormat;
+}
+
+void Node::SetCompressedFormat(CompilerDataCompressedFormat format)
+{
+    if (format != CompilerDataCompressedFormat::NONE)
+    {
+        assert(m_Format == CompilerDataFormat::NHWCB);
+    }
+
+    m_CompressionFormat = format;
 }
 
 ethosn::support_library::Pass* Node::GetPass() const
@@ -261,20 +291,39 @@ bool Node::FixGraph(Graph& graph, FixGraphSeverity)
     }
     if (m_FixGraphConvertOutputTo != CompilerDataFormat::NONE)
     {
-        CompilerDataFormat requiredFormat = m_FixGraphConvertOutputTo;
+        if (GetOutputs().size() == 1)    // Not supported for other cases
+        {
+            CompilerDataFormat requiredFormat = m_FixGraphConvertOutputTo;
 
-        FormatConversionNode* firstConversion = graph.CreateAndAddNode<FormatConversionNode>(
-            GetShape(), GetQuantizationInfo(), requiredFormat, GetCorrespondingOperationIds());
-        firstConversion->SetOptimizationHint(
-            OptimizationHint::
-                DoNotMerge);    // Prevent the two nodes from being merged by optimization - otherwise we won't be able to use it in McePlePass.
-        graph.SplitEdge(GetOutput(0), firstConversion);
-        FormatConversionNode* secondConversion = graph.CreateAndAddNode<FormatConversionNode>(
-            GetShape(), GetQuantizationInfo(), GetFormat(), GetCorrespondingOperationIds());
-        graph.SplitEdge(firstConversion->GetOutput(0), secondConversion);
+            // First check if we already have a FormatConversionNode on our output.
+            // If we do then don't add another otherwise it could lead to the preparation loop getting stuck
+            // and repeatedly adding more nodes with no benefit.
+            FormatConversionNode* existing = dynamic_cast<FormatConversionNode*>(GetOutput(0)->GetDestination());
+            if (existing == nullptr || existing->GetFormat() != requiredFormat)
+            {
+                // Note that we need to add *two* FormatConversionNodes - one to convert to the format that we want
+                // and then another to convert back to the original format.
+                // The reason we need to convert back is that the format of layers in the graph is one of their fundamental
+                // properties and will affect the operation of some nodes (e.g. Reinterpret, which relies on the layout
+                // if its input).
+                // Changing the format that is input into whatever node consumes our output could therefore invalidate
+                // that node and change the meaning of the graph, which we don't want.
+                // The McePlePass can simply include *one* of the two FormatConversionNodes for what it needs, and the other
+                // can be handled by the preceding/following pass.
+                FormatConversionNode* firstConversion = graph.CreateAndAddNode<FormatConversionNode>(
+                    GetShape(), GetDataType(), GetQuantizationInfo(), requiredFormat, GetCorrespondingOperationIds());
+                firstConversion->SetOptimizationHint(
+                    OptimizationHint::
+                        DoNotMerge);    // Prevent the two nodes from being merged by optimization - otherwise we won't be able to use it in McePlePass.
+                graph.SplitEdge(GetOutput(0), firstConversion);
+                FormatConversionNode* secondConversion = graph.CreateAndAddNode<FormatConversionNode>(
+                    GetShape(), GetDataType(), GetQuantizationInfo(), GetFormat(), GetCorrespondingOperationIds());
+                graph.SplitEdge(firstConversion->GetOutput(0), secondConversion);
 
-        m_FixGraphConvertOutputTo = CompilerDataFormat::NONE;    // Already done.
-        changed                   = true;
+                m_FixGraphConvertOutputTo = CompilerDataFormat::NONE;    // Already done.
+                changed                   = true;
+            }
+        }
     }
 
     return changed;
@@ -413,6 +462,8 @@ DotAttributes Node::GetDotAttributes()
 
     result << ToString(m_Shape) << " ";
     result << "Format = " << ToString(m_Format) << "\n";
+    result << "CompressedFormat = " << ToString(m_CompressionFormat) << "\n";
+    result << "Quant. Info = " << ToString(m_QuantizationInfo) << "\n";
     switch (m_OptimizationHint)
     {
         case OptimizationHint::DoNotMerge:
@@ -503,6 +554,16 @@ ethosn::support_library::Node* Edge::GetSource()
     return m_Source;
 }
 
+const ethosn::support_library::TensorShape Edge::GetSourceShape() const
+{
+    return m_Source->GetShape();
+}
+
+ethosn::support_library::TensorShape Edge::GetSourceShape()
+{
+    return m_Source->GetShape();
+}
+
 ethosn::support_library::Node* Edge::GetDestination()
 {
     return m_Destination;
@@ -513,10 +574,14 @@ const ethosn::support_library::Node* Edge::GetDestination() const
     return m_Destination;
 }
 
-Graph::Graph(const Network& network, const HardwareCapabilities& capabilities)
+Graph::Graph(const Network& network,
+             const HardwareCapabilities& capabilities,
+             const EstimationOptions& estimationOptions)
     : Graph()
 {
-    NetworkToGraphConverter converter(*this, capabilities, network.IsEstimationMode());
+    NetworkToGraphConverter converter(*this, capabilities,
+                                      network.IsEstimationMode() ? estimationOptions
+                                                                 : utils::Optional<const EstimationOptions&>());
     network.Accept(converter);
 }
 

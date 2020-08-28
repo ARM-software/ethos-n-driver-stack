@@ -32,6 +32,12 @@ ARMNN_AUTO_TEST_CASE(PreCompiledDepthwiseConvolution2dStride2x2, PreCompiledDept
 
 ARMNN_AUTO_TEST_CASE(PreCompiledTransposeConvolution2dStride2x2, PreCompiledTransposeConvolution2dStride2x2Test)
 
+ARMNN_AUTO_TEST_CASE(PreCompiledConvolution2dWithAssymetricSignedWeights,
+                     PreCompiledConvolution2dWithAssymetricSignedWeightsTest)
+
+ARMNN_AUTO_TEST_CASE(PreCompiledConvolution2dWithSymetricSignedWeights,
+                     PreCompiledConvolution2dWithSymetricSignedWeightsTest)
+
 ARMNN_AUTO_TEST_CASE(PreCompiledFullyConnected, PreCompiledFullyConnectedTest)
 ARMNN_AUTO_TEST_CASE(PreCompiledFullyConnected4d, PreCompiledFullyConnected4dTest)
 

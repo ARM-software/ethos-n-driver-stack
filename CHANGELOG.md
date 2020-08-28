@@ -1,5 +1,35 @@
 # Changelog
 
+## 20.08
+
+### New Features
+
+- Support for Arm NN 20.08.
+- Support for Leaky ReLU activation operator.
+- Support for Resize operator
+- Support for Requantize operator (only using Support Library API directly, not through Arm NN backend)
+- Support for Addition operator with larger tensor shapes
+- Support for Multi-core NPU (including SMMU support for multi NPU)
+- Support for 8-bit signed weights and activations.
+- Support for per-channel quantisation of weights for convolution
+- Support for YOLO v3 detection subgraph (backbone).
+- Some small parts of the network are currently not supported (in particular the Quantize and Concat layers). This results in Arm NN splitting the network into several smaller subgraphs, of which the supported subgraphs will be run by the NPU. This will be addressed in a future release of the driver stack.
+The output of the network does not exactly match the Arm NN reference backend, as with other supported networks. Future releases of the driver stack may improve the accuracy.
+- Improved profiling information from firmware.
+- Improved performance by better memory streaming strategies.
+
+### Public API Changes
+
+- Support Library's QuantizationInfo struct has been refactored in order to support per-channel quantisation. Please see Support.hpp for details of the new interface. The included Arm NN backend has been updated accordingly.
+
+### Other Changes
+
+- None
+
+### Known Issues
+
+- Space to depth and Transpose operations not supported and may return failure.
+
 ## 20.05
 
 ### New Features

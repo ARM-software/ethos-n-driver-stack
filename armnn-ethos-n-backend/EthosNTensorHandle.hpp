@@ -4,6 +4,8 @@
 //
 #pragma once
 
+#include "EthosNTensorUtils.hpp"
+
 #include "armnn/Exceptions.hpp"
 #include "armnn/TypesUtils.hpp"
 #include "backendsCommon/ITensorHandle.hpp"
@@ -23,11 +25,13 @@ public:
         : m_TensorInfo(tensorInfo)
         , m_Buffer(tensorInfo.GetNumElements(), ethosn::driver_library::DataFormat::NHWC)
     {
+        using namespace ethosntensorutils;
         // NOTE: The Ethos-N API is unclear on whether the size specified for a Buffer is the number of elements, or
-        //       the number of bytes; this can be ignored for now, as the only supported data type is QAsymmU8.
+        //       the number of bytes; this can be ignored for now, as the only supported data types are QAsymmU8,
+        //       QAsymmS8 and QSymmS8.
         // NOTE: The only supported DataFormat is NHWC.
         // NOTE: The DataFormat parameter is unused and may be removed in a future Ethos-N version.
-        if (tensorInfo.GetDataType() != DataType::QAsymmU8)
+        if (!IsDataTypeSupportedOnEthosN(tensorInfo.GetDataType()))
         {
             throw InvalidArgumentException(std::string("Unsupported data type ") +
                                                std::string(GetDataTypeName(tensorInfo.GetDataType())),

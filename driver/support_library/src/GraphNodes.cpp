@@ -44,7 +44,7 @@ MceOperationNode* CreateIdentityMceOpNode(Graph& graph, Node* previousNode)
 {
     const uint32_t numIfm   = previousNode->GetShape()[3];
     const float weightScale = 0.5f;
-    const float biasScale   = weightScale * previousNode->GetQuantizationInfo().m_Scale;
+    const float biasScale   = weightScale * previousNode->GetQuantizationInfo().GetScale();
 
     std::vector<uint8_t> weightsData(1 * 1 * 1 * numIfm, 2);
     std::vector<int32_t> biasData(numIfm, 0);
@@ -53,8 +53,8 @@ MceOperationNode* CreateIdentityMceOpNode(Graph& graph, Node* previousNode)
     TensorInfo biasInfo{ { 1, 1, 1, numIfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
 
     MceOperationNode* result = graph.CreateAndAddNode<MceOperationNode>(
-        previousNode->GetShape(), previousNode->GetShape(), previousNode->GetQuantizationInfo(), weightInfo,
-        weightsData, biasInfo, biasData, Stride{ 1, 1 }, 1, 0, 0,
+        previousNode->GetShape(), previousNode->GetShape(), previousNode->GetDataType(),
+        previousNode->GetQuantizationInfo(), weightInfo, weightsData, biasInfo, biasData, Stride{ 1, 1 }, 0, 0,
         ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION, CompilerDataFormat::NHWCB,
         previousNode->GetCorrespondingOperationIds());
 
@@ -72,6 +72,7 @@ void InsertIdentityNode(Graph& graph, Edge* edge)
 InputNode::InputNode(NodeId id, const TensorInfo& outputTensorInfo, std::set<uint32_t> correspondingOperationIds)
     : Node(id,
            outputTensorInfo.m_Dimensions,
+           outputTensorInfo.m_DataType,
            outputTensorInfo.m_QuantizationInfo,
            ConvertExternalToCompilerDataFormat(outputTensorInfo.m_DataFormat),
            correspondingOperationIds)
@@ -135,26 +136,27 @@ const DataType& ConstantNode::GetConstantDataType() const
 MceOperationNode::MceOperationNode(NodeId id,
                                    const TensorShape& uninterleavedInputTensorShape,
                                    const TensorShape& outputTensorShape,
+                                   DataType dataType,
                                    const QuantizationInfo& outputQuantizationInfo,
                                    const TensorInfo& weightsInfo,
                                    std::vector<uint8_t> weightsData,
                                    const TensorInfo& biasInfo,
                                    std::vector<int32_t> biasData,
                                    Stride stride,
-                                   uint32_t upscaleFactor,
                                    uint32_t padTop,
                                    uint32_t padLeft,
                                    command_stream::MceOperation op,
                                    CompilerDataFormat format,
                                    std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
     , m_UninterleavedInputShape(uninterleavedInputTensorShape)
     , m_WeightsInfo(weightsInfo)
     , m_WeightsData(std::move(weightsData))
     , m_BiasInfo(biasInfo)
     , m_BiasData(std::move(biasData))
     , m_Stride(stride)
-    , m_UpscaleFactor(upscaleFactor)
+    , m_UpscaleFactor(1U)
+    , m_UpsampleType(command_stream::UpsampleType::OFF)
     , m_PadTop(padTop)
     , m_PadLeft(padLeft)
     , m_Operation(op)
@@ -189,6 +191,16 @@ const std::vector<int32_t>& MceOperationNode::GetBiasData() const
     return m_BiasData;
 }
 
+uint32_t MceOperationNode::GetPadTop() const
+{
+    return m_PadTop;
+}
+
+uint32_t MceOperationNode::GetPadLeft() const
+{
+    return m_PadLeft;
+}
+
 Stride MceOperationNode::GetStride() const
 {
     return m_Stride;
@@ -204,9 +216,18 @@ uint32_t MceOperationNode::GetUpscaleFactor() const
     return m_UpscaleFactor;
 }
 
-void MceOperationNode::SetUpscaleFactor(uint32_t upscaleFactor)
+ethosn::command_stream::UpsampleType MceOperationNode::GetUpsampleType() const
 {
+    return m_UpsampleType;
+}
+
+void MceOperationNode::SetUpsampleParams(const uint32_t upscaleFactor,
+                                         const ethosn::command_stream::UpsampleType upsampleType)
+{
+    // Check that upscaleFactor and upscaleType are coherent.
+    assert((upscaleFactor != 1U) == (upsampleType != ethosn::command_stream::UpsampleType::OFF));
     m_UpscaleFactor = upscaleFactor;
+    m_UpsampleType  = upsampleType;
 }
 
 ethosn::command_stream::MceOperation MceOperationNode::GetOperation() const
@@ -252,15 +273,13 @@ AlgorithmHint MceOperationNode::GetFixGraphAlgorithmHint() const
 ethosn::command_stream::MceData MceOperationNode::GetMceData() const
 {
     ethosn::command_stream::MceData result;
-    result.m_Stride().m_X()            = m_Stride.m_X;
-    result.m_Stride().m_Y()            = m_Stride.m_Y;
-    result.m_PadTop()                  = m_PadTop;
-    result.m_PadLeft()                 = m_PadLeft;
-    result.m_Operation()               = m_Operation;
-    result.m_Algorithm()               = ConvertAlgorithmCompilerToCommand(m_Algorithm);
-    result.m_OutputZeroPoint()         = static_cast<int16_t>(m_QuantizationInfo.m_ZeroPoint);
-    result.m_OutputRescaleMultiplier() = 1U;
-    result.m_OutputRescaleShift()      = 0U;
+    result.m_Stride().m_X()    = m_Stride.m_X;
+    result.m_Stride().m_Y()    = m_Stride.m_Y;
+    result.m_PadTop()          = m_PadTop;
+    result.m_PadLeft()         = m_PadLeft;
+    result.m_Operation()       = m_Operation;
+    result.m_Algorithm()       = ConvertAlgorithmCompilerToCommand(m_Algorithm);
+    result.m_OutputZeroPoint() = static_cast<int16_t>(m_QuantizationInfo.GetZeroPoint());
     return result;
 }
 
@@ -274,20 +293,7 @@ DotAttributes MceOperationNode::GetDotAttributes()
     DotAttributes result    = Node::GetDotAttributes();
     std::string labelPrefix = "MceOperationNode\n";
     labelPrefix += ToString(m_Operation) + "\n";
-    switch (m_Algorithm)
-    {
-        case CompilerMceAlgorithm::None:
-            labelPrefix += "NONE\n";
-            break;
-        case CompilerMceAlgorithm::Direct:
-            labelPrefix += "DIRECT\n";
-            break;
-        case CompilerMceAlgorithm::Winograd:
-            labelPrefix += "WINOGRAD\n";
-            break;
-        default:
-            assert(false);
-    }
+    labelPrefix += ToString(m_Algorithm) + "\n";
     result.m_Label = labelPrefix + result.m_Label;
     return result;
 }
@@ -318,12 +324,13 @@ utils::ShapeMultiplier MceOperationNode::GetShapeMultiplier() const
 
 McePostProcessOperationNode::McePostProcessOperationNode(NodeId id,
                                                          const TensorShape& outputTensorShape,
+                                                         DataType dataType,
                                                          const QuantizationInfo& outputQuantizationInfo,
-                                                         uint8_t lowerBound,
-                                                         uint8_t upperBound,
+                                                         int16_t lowerBound,
+                                                         int16_t upperBound,
                                                          CompilerDataFormat format,
                                                          std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
     , m_LowerBound(lowerBound)
     , m_UpperBound(upperBound)
 {}
@@ -362,12 +369,13 @@ bool McePostProcessOperationNode::FixGraph(Graph& graph, FixGraphSeverity severi
 
 FuseOnlyPleOperationNode::FuseOnlyPleOperationNode(NodeId id,
                                                    const TensorShape& outputTensorShape,
+                                                   DataType dataType,
                                                    const QuantizationInfo& outputQuantizationInfo,
                                                    command_stream::PleOperation k,
                                                    CompilerDataFormat format,
                                                    ShapeMultiplier shapeMultiplier,
                                                    std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
     , m_KernelOperation(k)
     , m_ShapeMultiplier(shapeMultiplier)
 {}
@@ -412,13 +420,64 @@ bool FuseOnlyPleOperationNode::FixGraph(Graph& graph, FixGraphSeverity severity)
     return changed;
 }
 
+void FuseOnlyPleOperationNode::SetOperationSpecificData(command_stream::McePle&) const
+{}
+
+LeakyReluNode::LeakyReluNode(NodeId id,
+                             const TensorShape& outputTensorShape,
+                             DataType dataType,
+                             const QuantizationInfo& outputQuantizationInfo,
+                             command_stream::PleOperation k,
+                             CompilerDataFormat format,
+                             ShapeMultiplier shapeMultiplier,
+                             std::set<uint32_t> correspondingOperationIds,
+                             float alpha)
+    : FuseOnlyPleOperationNode(id,
+                               outputTensorShape,
+                               dataType,
+                               outputQuantizationInfo,
+                               k,
+                               format,
+                               shapeMultiplier,
+                               correspondingOperationIds)
+    , m_Alpha(alpha)
+{}
+
+float LeakyReluNode::GetAlpha() const
+{
+    return m_Alpha;
+}
+
+void LeakyReluNode::SetOperationSpecificData(command_stream::McePle& data) const
+{
+    const QuantizationInfo outQuantInfo = m_QuantizationInfo;
+    const QuantizationInfo inQuantInfo  = GetInputQuantizationInfo(0);
+
+    const double alphaRescaleFactor = m_Alpha * (inQuantInfo.GetScale() / outQuantInfo.GetScale());
+    uint16_t alphaMult;
+    uint16_t alphaShift;
+    CalculateRescaleMultiplierAndShift(alphaRescaleFactor, alphaMult, alphaShift);
+
+    const double inputToOutputRescaleFactor = (inQuantInfo.GetScale() / outQuantInfo.GetScale());
+    uint16_t inputToOutputMult;
+    uint16_t inputToOutputShift;
+    CalculateRescaleMultiplierAndShift(inputToOutputRescaleFactor, inputToOutputMult, inputToOutputShift);
+
+    data.m_PleData().m_RescaleMultiplier0() = inputToOutputMult;
+    data.m_PleData().m_RescaleShift0()      = inputToOutputShift;
+
+    data.m_PleData().m_RescaleMultiplier1() = alphaMult;
+    data.m_PleData().m_RescaleShift1()      = alphaShift;
+}
+
 StandalonePleOperationNode::StandalonePleOperationNode(NodeId id,
                                                        const TensorShape& outputTensorShape,
+                                                       DataType dataType,
                                                        const QuantizationInfo& outputQuantizationInfo,
                                                        command_stream::PleOperation k,
                                                        CompilerDataFormat format,
                                                        std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
     , m_KernelOperation(k)
 {}
 
@@ -458,17 +517,16 @@ bool StandalonePleOperationNode::FixGraph(Graph& graph, FixGraphSeverity severit
 
 FormatConversionNode::FormatConversionNode(NodeId id,
                                            const TensorShape& outputTensorShape,
+                                           DataType dataType,
                                            const QuantizationInfo& outputQuantizationInfo,
                                            CompilerDataFormat format,
                                            std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
 {}
 
 bool FormatConversionNode::IsPrepared()
 {
-    return m_Pass != nullptr &&
-           (!GetInputCompressed(0) || (GetInputCompressedFormat(0) != CompilerDataFormat::FCAF_DEEP &&
-                                       GetInputCompressedFormat(0) != CompilerDataFormat::FCAF_WIDE));
+    return m_Pass != nullptr;
 }
 
 DotAttributes FormatConversionNode::GetDotAttributes()
@@ -488,9 +546,11 @@ bool FormatConversionNode::FixGraph(Graph& graph, FixGraphSeverity severity)
         changed = true;
     }
 
-    // Conversion nodes does not support FCAF formats as input
-    if (GetInputCompressed(0) && (GetInputCompressedFormat(0) == CompilerDataFormat::FCAF_DEEP ||
-                                  GetInputCompressedFormat(0) == CompilerDataFormat::FCAF_WIDE))
+    // If we couldn't be assigned to a pass and our input is in FCAF format, then try forcing it to uncompressed
+    // as ConversionPass doesn't support FCAF and this change might allow that to work now.
+    if (m_Pass == nullptr && GetInputCompressed(0) &&
+        (GetInputCompressedFormat(0) == CompilerDataCompressedFormat::FCAF_DEEP ||
+         GetInputCompressedFormat(0) == CompilerDataCompressedFormat::FCAF_WIDE))
     {
         GetInput(0)->GetSource()->SetCompressionHint(CompressionHint::RequiredUncompressed);
         changed = true;
@@ -498,12 +558,27 @@ bool FormatConversionNode::FixGraph(Graph& graph, FixGraphSeverity severity)
     return changed;
 }
 
+SpaceToDepthNode::SpaceToDepthNode(NodeId id,
+                                   const TensorShape& outputTensorShape,
+                                   DataType dataType,
+                                   const QuantizationInfo& outputQuantizationInfo,
+                                   CompilerDataFormat format,
+                                   std::set<uint32_t> correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
+{}
+
+bool SpaceToDepthNode::IsPrepared()
+{
+    return m_Pass != nullptr;
+}
+
 ReinterpretNode::ReinterpretNode(NodeId id,
                                  const TensorShape& outputTensorShape,
+                                 DataType dataType,
                                  const QuantizationInfo& outputQuantizationInfo,
                                  CompilerDataFormat format,
                                  std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
 {}
 
 bool ReinterpretNode::IsPrepared()
@@ -544,11 +619,12 @@ void ReinterpretNode::PrepareAfterPassAssignment(SramAllocator& sramAllocator)
 
 ConcatNode::ConcatNode(NodeId id,
                        const TensorShape& outputTensorShape,
+                       DataType dataType,
                        const QuantizationInfo& outputQuantizationInfo,
                        CompilerDataFormat format,
                        uint32_t axis,
                        std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
     , m_Axis(axis)
 {}
 
@@ -621,8 +697,9 @@ bool ConcatNode::FixGraph(Graph& graph, FixGraphSeverity severity)
                 // Set the location hint of the Identity Node to be in DRAM
                 // If it chooses put the output in SRAM we cannot fuse the format conversion.
                 GetInput(i)->GetSource()->SetLocationHint(LocationHint::RequireDram);
-                Node* reformat = graph.CreateAndAddNode<FormatConversionNode>(
-                    GetInputShape(i), GetInputQuantizationInfo(i), GetFormat(), GetCorrespondingOperationIds());
+                Node* reformat = graph.CreateAndAddNode<FormatConversionNode>(GetInputShape(i), GetInputDataType(i),
+                                                                              GetInputQuantizationInfo(i), GetFormat(),
+                                                                              GetCorrespondingOperationIds());
                 graph.SplitEdge(GetInput(i), reformat);
             }
             changed = true;
@@ -652,10 +729,11 @@ void ConcatNode::PrepareAfterPassAssignment(SramAllocator& sramAllocator)
 ExtractSubtensorNode::ExtractSubtensorNode(NodeId id,
                                            const TensorShape& supertensorOffset,
                                            const TensorShape& outputTensorShape,
+                                           DataType dataType,
                                            const QuantizationInfo& outputQuantizationInfo,
                                            CompilerDataFormat format,
                                            std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
     , m_SupertensorOffset(supertensorOffset)
 {}
 
@@ -686,9 +764,9 @@ bool ExtractSubtensorNode::FixGraph(Graph& graph, FixGraphSeverity)
         // the meaning of the graph.
         if (identityNode->GetFormat() != GetFormat())
         {
-            Node* reformat = graph.CreateAndAddNode<FormatConversionNode>(identityNode->GetShape(),
-                                                                          identityNode->GetQuantizationInfo(),
-                                                                          GetFormat(), GetCorrespondingOperationIds());
+            Node* reformat = graph.CreateAndAddNode<FormatConversionNode>(
+                identityNode->GetShape(), identityNode->GetDataType(), identityNode->GetQuantizationInfo(), GetFormat(),
+                GetCorrespondingOperationIds());
             graph.InsertNodeAfter(identityNode, reformat);
         }
     }
@@ -707,18 +785,20 @@ bool SoftmaxNode::IsPrepared()
 
 SoftmaxNode::SoftmaxNode(NodeId id,
                          const TensorShape& outputTensorShape,
+                         DataType dataType,
                          const QuantizationInfo& outputQuantizationInfo,
                          CompilerDataFormat format,
                          std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
 {}
 
 RequantizeNode::RequantizeNode(NodeId id,
                                const TensorShape& outputTensorShape,
+                               DataType dataType,
                                const QuantizationInfo& outputQuantizationInfo,
                                CompilerDataFormat format,
                                std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
 {}
 
 bool RequantizeNode::IsPrepared()
@@ -754,15 +834,15 @@ void RequantizeNode::Apply(ethosn::command_stream::MceData& mceData,
                            const QuantizationInfo& inputQuantizationInfo) const
 {
     // Dequantize then requantize the upper and lower bounds
-    float dequantizedMin = static_cast<float>(mceData.m_ActivationMin() - inputQuantizationInfo.m_ZeroPoint) *
-                           inputQuantizationInfo.m_Scale;
-    float dequantizedMax = static_cast<float>(mceData.m_ActivationMax() - inputQuantizationInfo.m_ZeroPoint) *
-                           inputQuantizationInfo.m_Scale;
+    float dequantizedMin = static_cast<float>(mceData.m_ActivationMin() - inputQuantizationInfo.GetZeroPoint()) *
+                           inputQuantizationInfo.GetScale();
+    float dequantizedMax = static_cast<float>(mceData.m_ActivationMax() - inputQuantizationInfo.GetZeroPoint()) *
+                           inputQuantizationInfo.GetScale();
 
     float requantizedMin =
-        (dequantizedMin / m_QuantizationInfo.m_Scale) + static_cast<float>(m_QuantizationInfo.m_ZeroPoint);
+        (dequantizedMin / m_QuantizationInfo.GetScale()) + static_cast<float>(m_QuantizationInfo.GetZeroPoint());
     float requantizedMax =
-        (dequantizedMax / m_QuantizationInfo.m_Scale) + static_cast<float>(m_QuantizationInfo.m_ZeroPoint);
+        (dequantizedMax / m_QuantizationInfo.GetScale()) + static_cast<float>(m_QuantizationInfo.GetZeroPoint());
 
     constexpr auto max = std::numeric_limits<uint8_t>::max();
     constexpr auto min = std::numeric_limits<uint8_t>::min();
@@ -770,8 +850,8 @@ void RequantizeNode::Apply(ethosn::command_stream::MceData& mceData,
     float clampedQuantizedMin = utils::Clamp(requantizedMin, static_cast<float>(min), static_cast<float>(max));
     float clampedQuantizedMax = utils::Clamp(requantizedMax, static_cast<float>(min), static_cast<float>(max));
 
-    mceData.m_ActivationMin() = static_cast<uint8_t>(clampedQuantizedMin);
-    mceData.m_ActivationMax() = static_cast<uint8_t>(clampedQuantizedMax);
+    mceData.m_ActivationMin() = static_cast<uint8_t>(std::round(clampedQuantizedMin));
+    mceData.m_ActivationMax() = static_cast<uint8_t>(std::round(clampedQuantizedMax));
 }
 
 bool OutputNode::IsPrepared()
@@ -821,10 +901,11 @@ DotAttributes OutputNode::GetDotAttributes()
 
 EstimateOnlyNode::EstimateOnlyNode(NodeId id,
                                    const TensorShape& outputTensorShape,
+                                   DataType dataType,
                                    const QuantizationInfo& outputQuantizationInfo,
                                    CompilerDataFormat format,
                                    std::set<uint32_t> correspondingOperationIds)
-    : Node(id, outputTensorShape, outputQuantizationInfo, format, correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
 {}
 
 bool EstimateOnlyNode::IsPrepared()

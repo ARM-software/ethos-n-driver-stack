@@ -16,6 +16,7 @@ common.setup_toolchain(env, env['platform'])
 # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on the install target
 # where the install target is also provided via CPATH.
 env.PrependUnique(CPPPATH=[os.path.join(env['command_stream_dir'], 'include'),
+                           os.path.join(env['utils_dir'], 'include'),
                            'src'])
 
 # Build support_library shared and static libs
@@ -42,14 +43,16 @@ srcs = [os.path.join('src', 'Support.cpp'),
         os.path.join('src', 'SramAllocator.cpp'),
         os.path.join('src', 'Utils.cpp'),
         os.path.join('src', 'DebuggingContext.cpp'),
+        os.path.join('src', 'Optimization.cpp'),
         os.path.join('src', 'cascading', 'Cascading.cpp'),
         os.path.join('src', 'cascading', 'Part.cpp'),
         os.path.join('src', 'cascading', 'Plan.cpp'),
         os.path.join('src', 'cascading', 'Combiner.cpp'),
         os.path.join('src', 'cascading', 'Visualisation.cpp'),
         os.path.join('src', 'nonCascading', 'NonCascading.cpp'),
-        os.path.join('src', 'cascading', 'MceOpUtils.cpp'),
-        os.path.join('src', 'cascading', 'OpUtils.cpp')]
+        os.path.join('src', 'cascading', 'Estimation.cpp'),
+        os.path.join('src', 'cascading', 'EstimationUtils.cpp'),
+        os.path.join('src', 'cascading', 'MceEstimationUtils.cpp')]
 
 ethosn_support_lib = env.StaticLibrary('libEthosNSupport', srcs)
 env.Alias('install', env.Install(env['install_lib_dir'], ethosn_support_lib))

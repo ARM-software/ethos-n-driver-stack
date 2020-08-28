@@ -23,12 +23,11 @@
 #ifndef _ETHOSN_BUFFER_H_
 #define _ETHOSN_BUFFER_H_
 
+#include "ethosn_device.h"
 #include "ethosn_dma.h"
 #include "uapi/ethosn.h"
 
 #include <linux/types.h>
-
-struct ethosn_device;
 
 struct ethosn_buffer {
 	struct ethosn_device   *ethosn;
