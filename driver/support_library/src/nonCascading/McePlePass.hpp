@@ -115,6 +115,7 @@ private:
     FuseOnlyPleOperationNode* m_PleOperation;
     std::vector<FormatConversionNode*> m_PostConversionNodes;
     std::vector<RequantizeNode*> m_RequantizeNodes;
+    std::vector<CopyNode*> m_CopyNodes;
 
     std::unique_ptr<WeightEncoder> m_WeightEncoder;
 

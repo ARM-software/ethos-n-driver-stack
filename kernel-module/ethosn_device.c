@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2020 Arm Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -241,11 +241,20 @@ static void ethosn_mailbox_free(struct ethosn_core *core)
 {
 	ethosn_dma_unmap_and_free(core->allocator, core->mailbox,
 				  ETHOSN_STREAM_WORKING_DATA);
+	core->mailbox = NULL;
+
 	ethosn_dma_unmap_and_free(core->allocator, core->mailbox_request,
 				  ETHOSN_STREAM_WORKING_DATA);
+	core->mailbox_request = NULL;
+
 	ethosn_dma_unmap_and_free(core->allocator, core->mailbox_response,
 				  ETHOSN_STREAM_WORKING_DATA);
-	devm_kfree(core->parent->dev, core->mailbox_message);
+	core->mailbox_response = NULL;
+
+	if (core->mailbox_message) {
+		devm_kfree(core->parent->dev, core->mailbox_message);
+		core->mailbox_message = NULL;
+	}
 }
 
 /**
@@ -1255,10 +1264,15 @@ static void ethosn_firmware_deinit(struct ethosn_core *core)
 {
 	ethosn_dma_unmap_and_free(core->allocator, core->firmware,
 				  ETHOSN_STREAM_FIRMWARE);
+	core->firmware = NULL;
+
 	ethosn_dma_unmap_and_free(core->allocator, core->firmware_stack,
 				  ETHOSN_STREAM_WORKING_DATA);
+	core->firmware_stack = NULL;
+
 	ethosn_dma_unmap_and_free(core->allocator, core->firmware_vtable,
 				  ETHOSN_STREAM_FIRMWARE);
+	core->firmware_vtable = NULL;
 }
 
 /****************************************************************************
@@ -1466,6 +1480,7 @@ cleanup:
 static void dfs_deinit(struct ethosn_core *core)
 {
 	debugfs_remove_recursive(core->debug_dir);
+	core->debug_dir = NULL;
 }
 
 static void dfs_init(struct ethosn_core *core)
@@ -1581,6 +1596,10 @@ void ethosn_device_deinit(struct ethosn_core *core)
 {
 	int ret;
 
+	/* Verify that the core is initialized */
+	if (atomic_read(&core->init_done) == 0)
+		return;
+
 	ret = mutex_lock_interruptible(&core->mutex);
 	if (ret)
 		return;
@@ -1596,20 +1615,26 @@ void ethosn_device_deinit(struct ethosn_core *core)
 	ethosn_log_deinit(core);
 	dfs_deinit(core);
 	mutex_unlock(&core->mutex);
-	if (core->fw_and_hw_caps.data)
+	if (core->fw_and_hw_caps.data) {
 		devm_kfree(core->parent->dev, core->fw_and_hw_caps.data);
+		core->fw_and_hw_caps.data = NULL;
+	}
 
-	if (!IS_ERR_OR_NULL(core->profiling.firmware_buffer))
+	if (!IS_ERR_OR_NULL(core->profiling.firmware_buffer)) {
 		ethosn_dma_unmap_and_free(
 			core->allocator,
 			core->profiling.firmware_buffer,
 			ETHOSN_STREAM_WORKING_DATA);
+		core->profiling.firmware_buffer = NULL;
+	}
 
-	if (!IS_ERR_OR_NULL(core->profiling.firmware_buffer_pending))
+	if (!IS_ERR_OR_NULL(core->profiling.firmware_buffer_pending)) {
 		ethosn_dma_unmap_and_free(
 			core->allocator,
 			core->profiling.firmware_buffer_pending,
 			ETHOSN_STREAM_WORKING_DATA);
+		core->profiling.firmware_buffer_pending = NULL;
+	}
 }
 
 bool ethosn_profiling_enabled(void)

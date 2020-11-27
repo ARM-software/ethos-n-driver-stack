@@ -7,6 +7,8 @@
 
 #include "ethosn_support_library/Support.hpp"
 
+#include "DebuggingContext.hpp"
+
 namespace ethosn
 {
 namespace support_library
@@ -14,18 +16,19 @@ namespace support_library
 
 class Graph;
 struct EstimationOptions;
+struct CompilationOptions;
 class HardwareCapabilities;
-struct DebuggingContext;
 
 class IEstimationStrategy
 {
 public:
     IEstimationStrategy(const EstimationOptions& estOpt,
-                        const HardwareCapabilities& hwCap,
-                        const DebuggingContext& debuggingContext)
+                        const CompilationOptions& compOpt,
+                        const HardwareCapabilities& hwCap)
         : m_EstimationOptions(estOpt)
+        , m_CompilationOptions(compOpt)
         , m_Capabilities(hwCap)
-        , m_DebuggingContext(debuggingContext){};
+        , m_DebuggingContext(GetDebuggingContext()){};
     virtual NetworkPerformanceData Estimate(Graph& graph) = 0;
     virtual ~IEstimationStrategy()
     {}
@@ -39,6 +42,7 @@ public:
 
 protected:
     const EstimationOptions& m_EstimationOptions;
+    const CompilationOptions& m_CompilationOptions;
     const HardwareCapabilities& m_Capabilities;
     const DebuggingContext& m_DebuggingContext;
 };

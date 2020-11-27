@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2019 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2019 Arm Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -233,8 +233,11 @@ int ethosn_log_init(struct ethosn_core *core)
 void ethosn_log_deinit(struct ethosn_core *core)
 {
 	debugfs_remove(core->ram_log.dentry);
-	devm_kfree(core->parent->dev, core->ram_log.data);
-	core->ram_log.data = NULL;
+	core->ram_log.dentry = NULL;
+	if (core->ram_log.data) {
+		devm_kfree(core->parent->dev, core->ram_log.data);
+		core->ram_log.data = NULL;
+	}
 }
 
 int ethosn_log_text(struct ethosn_core *core,

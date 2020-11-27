@@ -8,8 +8,6 @@
 
 #include <test/CreateWorkload.hpp>
 
-#include <boost/polymorphic_pointer_cast.hpp>
-
 using namespace armnn;
 
 BOOST_AUTO_TEST_SUITE(CreateWorkloadEthosN)
@@ -32,8 +30,8 @@ void EthosNCreatePreCompiledWorkloadTest(bool withBias = false)
     // Checks that inputs/outputs are as we expect them (see definition of CreatePreCompiledWorkloadTest).
     PreCompiledQueueDescriptor queueDescriptor = workload.second->GetData();
 
-    auto inputHandle  = boost::polymorphic_pointer_downcast<EthosNTensorHandle>(queueDescriptor.m_Inputs[0]);
-    auto outputHandle = boost::polymorphic_pointer_downcast<EthosNTensorHandle>(queueDescriptor.m_Outputs[0]);
+    auto inputHandle  = PolymorphicPointerDowncast<EthosNTensorHandle>(queueDescriptor.m_Inputs[0]);
+    auto outputHandle = PolymorphicPointerDowncast<EthosNTensorHandle>(queueDescriptor.m_Outputs[0]);
 
     BOOST_TEST(TestEthosNTensorHandleInfo(*inputHandle, TensorInfo({ 1, 16, 16, 16 }, dataType, 0.9f, 0)));
     BOOST_TEST(TestEthosNTensorHandleInfo(*outputHandle, TensorInfo({ 1, 16, 16, 16 }, dataType, 0.9f, 0)));

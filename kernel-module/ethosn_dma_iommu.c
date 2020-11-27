@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2020 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2020 Arm Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -155,24 +155,22 @@ static dma_addr_t iommu_alloc_iova(struct ethosn_dma_info_internal *dma,
 	unsigned long start = 0;
 	unsigned long flags;
 	int nr_pages = DIV_ROUND_UP(dma->info.size, PAGE_SIZE);
+	dma_addr_t iova = 0;
 
 	spin_lock_irqsave(&stream->lock, flags);
 
 	start = bitmap_find_next_zero_area(stream->bitmap, stream->bits, 0,
 					   nr_pages, 0);
-	if (start > stream->bits) {
-		stream = NULL;
+	if (start > stream->bits)
 		goto ret;
-	}
 
 	bitmap_set(stream->bitmap, start, nr_pages);
+
+	iova = stream->addr_base + start * PAGE_SIZE;
 ret:
 	spin_unlock_irqrestore(&stream->lock, flags);
 
-	if (stream)
-		return stream->addr_base + start * PAGE_SIZE;
-	else
-		return 0;
+	return iova;
 }
 
 static void iommu_free_iova(dma_addr_t start,

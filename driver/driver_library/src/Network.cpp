@@ -6,7 +6,11 @@
 #include "../include/ethosn_driver_library/Network.hpp"
 
 #include "NetworkImpl.hpp"
+#ifdef TARGET_MODEL
+#include "ModelNetwork.hpp"
+#elif defined(TARGET_KMOD)
 #include "KmodNetwork.hpp"
+#endif
 
 namespace ethosn
 {
@@ -33,10 +37,14 @@ Version::Version(const uint32_t Major, const uint32_t Minor, const uint32_t Patc
 
 Network::Network(support_library::CompiledNetwork& compiledNetwork)
     : m_NetworkImpl(
-#if defined(TARGET_DUMPONLY)
+#if defined(TARGET_MODEL)
+          std::make_unique<ModelNetworkImpl>(compiledNetwork)
+#elif defined(TARGET_KMOD)
+          std::make_unique<KmodNetworkImpl>(compiledNetwork)
+#elif defined(TARGET_DUMPONLY)
           std::make_unique<NetworkImpl>(compiledNetwork)
 #else
-          std::make_unique<KmodNetworkImpl>(compiledNetwork)
+#error "Unknown target backend."
 #endif
       )
 {}
@@ -49,6 +57,11 @@ Inference* Network::ScheduleInference(Buffer* const inputBuffers[],
                                       uint32_t numOutputBuffers) const
 {
     return m_NetworkImpl->ScheduleInference(inputBuffers, numInputBuffers, outputBuffers, numOutputBuffers);
+}
+
+void Network::SetDebugName(const char* name)
+{
+    m_NetworkImpl->SetDebugName(name);
 }
 
 }    // namespace driver_library

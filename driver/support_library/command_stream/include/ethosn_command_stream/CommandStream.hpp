@@ -20,6 +20,12 @@ namespace command_stream
 class CommandStreamConstIterator
 {
 public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type        = CommandHeader;
+    using difference_type   = int;
+    using pointer           = CommandHeader*;
+    using reference         = CommandHeader&;
+
     explicit CommandStreamConstIterator(const CommandHeader* head)
         : m_Head(head)
     {}

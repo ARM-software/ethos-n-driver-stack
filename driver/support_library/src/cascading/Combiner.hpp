@@ -8,6 +8,7 @@
 #include "Part.hpp"
 #include "Plan.hpp"
 
+#include <deque>
 #include <memory>
 #include <unordered_map>
 
@@ -19,6 +20,9 @@ namespace support_library
 /// for example some DmaOps.
 struct Glue
 {
+    Glue() noexcept
+    {}
+
     OwnedOpGraph m_Graph;
     /// The Op (and which of its inputs) of m_Graph that need to be connected to the output buffer of 'plan1'.
     /// Unused if no glue is required.
@@ -33,6 +37,9 @@ struct Glue
 /// to make them compatible.
 struct PlanCompatibilityResult
 {
+    PlanCompatibilityResult() noexcept
+    {}
+
     bool m_IsCompatible = false;
 
     bool m_RequiresGlue = false;
@@ -108,6 +115,10 @@ struct CompatiblePlan
     PlanId m_Id;
 };
 
+// Vector of all incompatible plans given the part.
+// The index of the outer vector represents the part id.
+using IncompatiblePlans = std::vector<std::vector<PlanId>>;
+
 // Vector of all compatible plans of a destination part given the
 // source part and its plan.
 using CompatiblePlans = std::vector<CompatiblePlan>;
@@ -167,17 +178,25 @@ struct MetadataOfPart
 // |                |   ...    |               ...             | ...
 // |-----------------------------------------------------------|----
 // |    ...         |   ...    |               ...             | ...
-using Metadata = std::vector<MetadataOfPart>;
+using Metadata = std::deque<MetadataOfPart>;
 
 struct GrownSeeds
 {
-    bool m_Terminated  = true;
-    size_t m_BestScore = 0U;
-    Combinations m_Combinations;
+    bool m_Terminated           = true;
+    size_t m_BestScore          = 0U;
+    Combinations m_Combinations = {};
+};
+
+enum class GrowScheme
+{
+    MergeOnly,
+    DramOnly,
+    Default
 };
 
 /// Checks whether two given plans are compatible, i.e. whether plan1 could be joined to plan2 along the given Edge.
-PlanCompatibilityResult ArePlansCompatible(const Plan& plan1, const Plan& plan2, const Edge& edge);
+PlanCompatibilityResult
+    ArePlansCompatible(const Plan& plan1, const Plan& plan2, const Edge& edge, const HardwareCapabilities&);
 
 // Create a Metadata structure containing all the compatible
 // succession of plans of two topologically consecutive parts.
@@ -186,7 +205,7 @@ PlanCompatibilityResult ArePlansCompatible(const Plan& plan1, const Plan& plan2,
 //
 // For each plan in PartX list all the compatible plans of PartY.
 // No SRAM allocation verification is performed at this stage.
-Metadata CreateMetadata(const GraphOfParts&);
+Metadata CreateMetadata(const GraphOfParts&, const HardwareCapabilities&);
 
 // Create the seeds from which all the combinations are going to be derived.
 // The seeds are created from the first part in topological order.
@@ -201,8 +220,12 @@ Combinations CreateSeeds(const GraphOfParts&, const Metadata&, const HardwareCap
 
 // The input combinations seeds are grown by one plan at each iteration
 // until all the combinations have length equal to the number of parts.
-GrownSeeds
-    GrowSeeds(const Combinations&, const GraphOfParts&, const size_t, const Metadata&, const HardwareCapabilities&);
+GrownSeeds GrowSeeds(const Combinations&,
+                     const GraphOfParts&,
+                     const size_t,
+                     const Metadata&,
+                     const HardwareCapabilities&,
+                     const GrowScheme scheme = GrowScheme::Default);
 
 /// Creates a single OpGraph which contains the full graph of Ops and Buffers for the given Combination.
 /// This handles merging of adjacent Plans and Glues to give a homogenous structure, suitable for

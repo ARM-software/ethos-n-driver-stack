@@ -48,6 +48,8 @@ public:
         Reset();
     }
 
+    SramAllocator(const SramAllocator& s) = default;
+
     SramAllocator& operator=(const SramAllocator& s);
 
     // Return whether allocating was successful and the offset of the requested size

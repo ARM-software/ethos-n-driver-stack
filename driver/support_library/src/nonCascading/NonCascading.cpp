@@ -20,9 +20,9 @@ namespace support_library
 {
 
 NonCascading::NonCascading(const EstimationOptions& estOpt,
-                           const HardwareCapabilities& hwCap,
-                           const DebuggingContext& debuggingContext)
-    : IEstimationStrategy(estOpt, hwCap, debuggingContext)
+                           const CompilationOptions& compOpt,
+                           const HardwareCapabilities& hwCap)
+    : IEstimationStrategy(estOpt, compOpt, hwCap)
 {}
 
 NetworkPerformanceData NonCascading::Estimate(Graph& graph)
@@ -45,7 +45,7 @@ NetworkPerformanceData NonCascading::Estimate(Graph& graph)
 
     EstimateCascading();
 
-    m_DebuggingContext.DumpGraph(graph, "NonCascaded_GraphFinal.dot");
+    m_DebuggingContext.DumpGraph(CompilationOptions::DebugLevel::Medium, graph, "NonCascaded_GraphFinal.dot");
 
     return m_PerformanceStream;
 }

@@ -60,25 +60,29 @@ LayerTestResult<uint8_t, 4>
                                     const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager);
 
 LayerTestResult<uint8_t, 4>
+    PreCompiledLeakyReluTestImpl(armnn::IWorkloadFactory& workloadFactory,
+                                 const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager);
+
+LayerTestResult<uint8_t, 4>
     PreCompiledAdditionTestImpl(armnn::IWorkloadFactory& workloadFactory,
                                 const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager);
 
-LayerTestResult<boost::uint8_t, 4>
+LayerTestResult<uint8_t, 4>
     PreCompiledMultiInputTestImpl(armnn::IWorkloadFactory& workloadFactory,
                                   const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager);
 
-std::vector<LayerTestResult<boost::uint8_t, 4>>
+std::vector<LayerTestResult<uint8_t, 4>>
     PreCompiledMultiOutputTestImpl(armnn::IWorkloadFactory& workloadFactory,
                                    const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager);
 
-LayerTestResult<boost::uint8_t, 1>
+LayerTestResult<uint8_t, 1>
     PreCompiled1dTensorTestImpl(armnn::IWorkloadFactory& workloadFactory,
                                 const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager);
 
-LayerTestResult<boost::uint8_t, 2>
+LayerTestResult<uint8_t, 2>
     PreCompiled2dTensorTestImpl(armnn::IWorkloadFactory& workloadFactory,
                                 const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager);
 
-LayerTestResult<boost::uint8_t, 3>
+LayerTestResult<uint8_t, 3>
     PreCompiled3dTensorTestImpl(armnn::IWorkloadFactory& workloadFactory,
                                 const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager);

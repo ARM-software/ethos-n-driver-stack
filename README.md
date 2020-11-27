@@ -46,7 +46,7 @@ To build the Ethos-N software, you require some tools. You must install the foll
 * [SCons](https://scons.org/) [Recommended: `v3.0.1`].  An open-source software construction tool.
 * [Make](https://www.gnu.org/software/make/) [Recommended: `4.1`].  A build automation tool.
 * [Sparse](https://www.kernel.org/doc/html/v4.12/dev-tools/sparse.html) [Recommended: `0.5.1`].  A semantic parser for C.
-* [GNU C and C++ and compilers](https://gcc.gnu.org/) [Recommended: `5.3.1 20160413`].  Open-source tools for Arm processors.
+* [GNU C and C++ and compilers](https://gcc.gnu.org/) [Recommended: `7.5.0`].  Open-source tools for Arm processors.
 
 ### Install the build tools
 
@@ -148,17 +148,17 @@ You must follow specific steps to build the Ethos-N driver. You must build the E
     * If you compile the driver natively:
 
         ```sh
-        strip --strip-unneeded ethosn.ko
+        strip --strip-unneeded <path_to>/driver_stack/ethosn-driver/kernel-module/ethosn.ko
         ```
 
     * If you cross compile the driver:
 
         ```sh
-        aarch64-linux-gnu-strip --strip-unneeded ethosn.ko
+        aarch64-linux-gnu-strip --strip-unneeded <path_to>/driver_stack/ethosn-driver/kernel-module/ethosn.ko
         ```
 
 
-3. Copy the kernel module `ethosn.ko` to the system that runs the Ethos-N driver.
+3. Copy the kernel module `<path_to>/driver_stack/ethosn-driver/kernel-module/ethosn.ko` to the system that runs the Ethos-N driver.
 
 4. Enter the following command to load the kernel module on the target system:
 
@@ -242,6 +242,8 @@ There are multiple ways to exercise the Ethos-N driver.
     * `libEthosNSupport.so` built from the Ethos-N driver inside `<install_directory>/lib/`
     * `libEthosNDriver.so` built from the Ethos-N driver inside `<install_directory>/lib/`
 
+    *Note:* You may need to copy additional .so files depending on your toolchain and its runtime dependencies.
+
     Some tests require data files as input. These can be found in the folders `<path_to>/driver_stack/ethosn-driver/armnn-ethos-n-backend/test/replacement-tests`
     and `<path_to>/driver_stack/ethosn-driver/armnn-ethos-n-backend/test/mapping-tests`. These two folders (and their contents) must be available to the `UnitTests`
     executable, under the paths `armnn-ethos-n-backend/test/replacement-tests` and `armnn-ethos-n-backend/test/mapping-tests`, respectively,
@@ -256,11 +258,13 @@ There are multiple ways to exercise the Ethos-N driver.
 
 2. Running the `ExecuteNetwork` program provided by Arm NN. This supports running of TfLite models.
 
-    If you have cross compiled you will need to copy the following files onto the target platform
+    If you have cross compiled you will need to copy the following files onto the target platform:
     * All `*.so` files built from Arm NN
     * `ExecuteNetwork` built from Arm NN in the `tests/` folder
     * `libEthosNSupport.so` built from the Ethos-N driver inside `<install_directory>/lib/`
     * `libEthosNDriver.so` built from the Ethos-N driver inside `<install_directory>/lib/`
+
+    *Note:* You may need to copy additional .so files depending on your toolchain and its runtime dependencies.
 
     The `ExecuteNetwork` program requires parameters passed in. Detail about these can be found by running:
 
@@ -309,6 +313,7 @@ The following features and feature combinations have known limitations in this A
     * InceptionV3
     * InceptionV4
     * FSRCNN
+    * Yolo V3
 
     _Running other networks may result in parts of the network being run by the Arm NN CPU reference backend._
 
@@ -319,10 +324,6 @@ The driver expects that the minimum amount of memory available for an Arm Ethos-
 Systems that implement Arm SMMU require a memory footprint of 3 MB to create all the page translations for the NPU memory accesses.
 
 For more information on memory requirements and limitations, please see the documentation for your SoC.
-
-## Security Issues
-
-If you believe you have discovered a security issue please contact <MLG-Security@arm.com>
 
 ## License
 

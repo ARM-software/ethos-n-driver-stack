@@ -12,6 +12,43 @@ namespace ethosn
 namespace support_library
 {
 
+void OptimizeGraph(Graph& graph)
+{
+    using OptimizationFunc                     = bool (*)(Graph&, Node*);
+    const OptimizationFunc optimizationFuncs[] = {
+        &MergeFormatConversionNodes,
+        &ReorderReinterpretAndRequantizeNodes,
+        &ReorderConcatAndRequantizeNodes,
+        &ReorderConcatAndCopyNodes,
+        &MergeCopyAndRequantizeNodes,
+        &MergeRequantizeNodes,
+        &MergeCopyNodes,
+        &MergeConcatNodes,
+        &RemoveUnconnectedNode,
+        &MergeConstantAndReinterpretNodes,
+        &MergeConstantAndFormatConversionNodes,
+        &ReplaceConstantAdditionWithDepthwise,
+    };
+
+    bool madeChange;
+    do
+    {
+        madeChange = false;
+        for (Node* node : graph.GetNodesSorted())
+        {
+            for (const OptimizationFunc f : optimizationFuncs)
+            {
+                madeChange = f(graph, node);
+                if (madeChange)
+                {
+                    goto nextIteration;
+                }
+            }
+        }
+    nextIteration:;
+    } while (madeChange);
+}
+
 bool MergeFormatConversionNodes(Graph& graph, Node* node)
 {
     // Two adjacent format conversions which perform opposite conversions can be eliminated:
@@ -63,6 +100,52 @@ bool MergeRequantizeNodes(Graph& graph, Node* node)
     return false;
 }
 
+bool MergeCopyNodes(Graph& graph, Node* node)
+{
+    // Two adjacent copy nodes can be merged:
+    //
+    //   X --> CopyNode --> CopyNode -->
+    //
+    //  Becomes
+    //
+    //  X --> CopyNode -->
+    CopyNode* copyNode = dynamic_cast<CopyNode*>(node);
+    if (copyNode && copyNode->GetOutputs().size() == 1 &&
+        dynamic_cast<CopyNode*>(copyNode->GetOutput(0)->GetDestination()))
+    {
+        // Add the corresponding ids from the first copy node (the removed one) to the second one (the one we are keeping)
+        CopyNode* nextNode = dynamic_cast<CopyNode*>(copyNode->GetOutput(0)->GetDestination());
+        nextNode->AddCorrespondingOperationIDs(copyNode->GetCorrespondingOperationIds());
+
+        graph.CollapseNode(copyNode);
+        return true;
+    }
+    return false;
+}
+
+bool MergeCopyAndRequantizeNodes(Graph& graph, Node* node)
+{
+    // Two adjacent Copy and requantize nodes can be merged
+    //
+    //   X --> CopyNode --> RequantizeNode to (1, -84)  -->
+    //
+    //  Becomes
+    //
+    //  X -->  RequantizeNode to (1, -84) -->
+    CopyNode* copyNode = dynamic_cast<CopyNode*>(node);
+    if (copyNode && copyNode->GetOutputs().size() == 1 &&
+        dynamic_cast<RequantizeNode*>(copyNode->GetOutput(0)->GetDestination()))
+    {
+        // Add the corresponding ids from the copy node to the requantize node
+        RequantizeNode* nextNode = dynamic_cast<RequantizeNode*>(copyNode->GetOutput(0)->GetDestination());
+        nextNode->AddCorrespondingOperationIDs(copyNode->GetCorrespondingOperationIds());
+
+        graph.CollapseNode(copyNode);
+        return true;
+    }
+    return false;
+}
+
 bool ReorderReinterpretAndRequantizeNodes(Graph& graph, Node* node)
 {
     // A reinterpret followed by a requantize can be reordered so the requantize is first.
@@ -78,11 +161,45 @@ bool ReorderReinterpretAndRequantizeNodes(Graph& graph, Node* node)
         dynamic_cast<RequantizeNode*>(reinterpetNode->GetOutput(0)->GetDestination()))
     {
         Node* oldRequantNode = dynamic_cast<RequantizeNode*>(reinterpetNode->GetOutput(0)->GetDestination());
-        Node* newRequant     = graph.CreateAndAddNode<RequantizeNode>(
-            reinterpetNode->GetInputShape(0), oldRequantNode->GetDataType(), oldRequantNode->GetQuantizationInfo(),
-            oldRequantNode->GetInputFormat(0), oldRequantNode->GetCorrespondingOperationIds());
+        Node* newRequant     = graph.CreateAndAddNodeWithDebug<RequantizeNode>(
+            ETHOSN_FUNCTION_SIGNATURE, reinterpetNode->GetInputShape(0), oldRequantNode->GetDataType(),
+            oldRequantNode->GetQuantizationInfo(), oldRequantNode->GetInputFormat(0),
+            oldRequantNode->GetCorrespondingOperationIds());
         graph.SplitEdge(reinterpetNode->GetInput(0), newRequant);
         graph.CollapseNode(oldRequantNode);
+        return true;
+    }
+    return false;
+}
+
+bool ReorderConcatAndCopyNodes(Graph& graph, Node* node)
+{
+    // A concat followed by a copy can be reordered so that the copy occurs on each input of the concat.
+    // This is required to be able to merge concat followed by another concat
+    //
+    //  X0 -->
+    //  X1 -->  ConcatNode  --> CopyNode -->
+    //  X2 -->
+    //
+    //  Becomes
+    //
+    //  X0 --> CopyNode -->
+    //  X1 --> CopyNode --> ConcatNode -->
+    //  X2 --> CopyNode -->
+    ConcatNode* concatenationNode = dynamic_cast<ConcatNode*>(node);
+    if (concatenationNode && concatenationNode->GetOutputs().size() == 1 &&
+        dynamic_cast<CopyNode*>(concatenationNode->GetOutput(0)->GetDestination()))
+    {
+        Node* oldCopyNode = dynamic_cast<CopyNode*>(concatenationNode->GetOutput(0)->GetDestination());
+        for (uint32_t i = 0; i < concatenationNode->GetInputs().size(); ++i)
+        {
+            Node* newCopy = graph.CreateAndAddNodeWithDebug<CopyNode>(
+                ETHOSN_FUNCTION_SIGNATURE, concatenationNode->GetInputShape(i), oldCopyNode->GetDataType(),
+                oldCopyNode->GetQuantizationInfo(), concatenationNode->GetInputFormat(i),
+                oldCopyNode->GetCorrespondingOperationIds());
+            graph.SplitEdge(concatenationNode->GetInput(i), newCopy);
+        }
+        graph.CollapseNode(oldCopyNode);
         return true;
     }
     return false;
@@ -109,8 +226,8 @@ bool ReorderConcatAndRequantizeNodes(Graph& graph, Node* node)
         Node* oldRequantNode = dynamic_cast<RequantizeNode*>(concatenationNode->GetOutput(0)->GetDestination());
         for (uint32_t i = 0; i < concatenationNode->GetInputs().size(); ++i)
         {
-            Node* newRequant = graph.CreateAndAddNode<RequantizeNode>(
-                concatenationNode->GetInputShape(i), oldRequantNode->GetDataType(),
+            Node* newRequant = graph.CreateAndAddNodeWithDebug<RequantizeNode>(
+                ETHOSN_FUNCTION_SIGNATURE, concatenationNode->GetInputShape(i), oldRequantNode->GetDataType(),
                 oldRequantNode->GetQuantizationInfo(), concatenationNode->GetInputFormat(i),
                 oldRequantNode->GetCorrespondingOperationIds());
             graph.SplitEdge(concatenationNode->GetInput(i), newRequant);
@@ -190,8 +307,9 @@ bool MergeConstantAndReinterpretNodes(Graph& graph, Node* node)
         ReinterpretNode* reinterpetNode = dynamic_cast<ReinterpretNode*>(constantNode->GetOutput(0)->GetDestination());
         const TensorInfo constantInfo(reinterpetNode->GetShape(), constantNode->GetConstantDataType(), DataFormat::NHWC,
                                       constantNode->GetQuantizationInfo());
-        Node* newConstantNode = graph.CreateAndAddNode<ConstantNode>(constantInfo, constantNode->GetConstantData(),
-                                                                     node->GetCorrespondingOperationIds());
+        Node* newConstantNode = graph.CreateAndAddNodeWithDebug<ConstantNode>(ETHOSN_FUNCTION_SIGNATURE, constantInfo,
+                                                                              constantNode->GetConstantData(),
+                                                                              node->GetCorrespondingOperationIds());
         // preserve the operation ids from the nodes that are being removed
         newConstantNode->AddCorrespondingOperationIDs(reinterpetNode->GetCorrespondingOperationIds());
 
@@ -289,7 +407,6 @@ bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Node* node)
                     //       (i.e. must be between 1 and 255)
                     //   - inputQuantScale * weightQuantScale needs to be less than the outputQuantScale
                     //       (See CalculateQuantizedMultiplierSmallerThanOne in Utils.hpp)
-                    // TODO: Add support for per-channel quantization
                     const float weightScaleUpperBound =
                         std::min(outputQuantInfo.GetScale() / inputNode->GetQuantizationInfo().GetScale(), 1.f);
                     constexpr float weightScaleLowerBound = (1.f / 255.f);
@@ -322,11 +439,11 @@ bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Node* node)
                             newConstantLayerData.push_back(
                                 static_cast<int32_t>(std::round(fpValue / newConstantLayerScale)));
                         }
-                        Node* mceNode = graph.CreateAndAddNode<MceOperationNode>(
-                            inputShape, outputShape, dataType, outputQuantInfo, weightInfo, weightsData,
-                            constantLayerInfo, newConstantLayerData, Stride{ 1, 1 }, padding.m_Top, padding.m_Left,
-                            ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION, CompilerDataFormat::NHWCB,
-                            node->GetCorrespondingOperationIds());
+                        Node* mceNode = graph.CreateAndAddNodeWithDebug<MceOperationNode>(
+                            ETHOSN_FUNCTION_SIGNATURE, inputShape, outputShape, dataType, outputQuantInfo, weightInfo,
+                            weightsData, constantLayerInfo, newConstantLayerData, Stride{ 1, 1 }, padding.m_Top,
+                            padding.m_Left, ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
+                            CompilerDataFormat::NHWCB, node->GetCorrespondingOperationIds());
 
                         mceNode->AddCorrespondingOperationIDs(pleOperationNode->GetCorrespondingOperationIds());
 

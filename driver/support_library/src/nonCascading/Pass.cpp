@@ -94,24 +94,31 @@ void Pass::PostGenerate(command_stream::CommandStreamBuffer& cmdStream, bool dum
     {
         if (m_Nodes.back()->GetLocation() == ethosn::support_library::BufferLocation::Dram)
         {
-            // In order for the end-to-end tests to only validate dram dumps when the output is actually in DRAM,
-            // have a different dumpName for passes that have static outputs (output in SRAM).
-            const char* const ignoreStr = (m_Nodes.back()->GetLocation() == BufferLocation::Sram) ? "IGNORE_" : "";
-            const std::string dumpName  = ignoreStr + std::to_string(m_Nodes.back()->GetShape()[0]) + "_" +
-                                         std::to_string(m_Nodes.back()->GetShape()[1]) + "_" +
-                                         std::to_string(m_Nodes.back()->GetShape()[2]) + "_" +
-                                         std::to_string(m_Nodes.back()->GetShape()[3]) + "_CommandStream_Operation_" +
-                                         std::to_string(m_Id) + "_OutputModel_NHWCB.hex";
+            const TensorShape& shape = m_Nodes.back()->GetShape();
+
+            std::string dumpName;
+            {
+                std::stringstream ss;
+                ss << "EthosNIntermediateBuffer_" << m_Nodes.back()->GetBufferId();
+                ss << "_" << ToString(m_Nodes.back()->GetDataType());
+                ss << "_" << ToString(m_Nodes.back()->GetBufferFormat());
+                ss << "_" << shape[0] << "_" << shape[1] << "_" << shape[2] << "_" << shape[3];
+                ss << ".hex";
+
+                dumpName = ss.str();
+            }
 
             ethosn::command_stream::DumpDram cmdStrDumpDram;
             cmdStrDumpDram.m_DramBufferId() = m_Nodes.back()->GetBufferId();
 
+            assert(dumpName.size() < sizeof(cmdStrDumpDram.m_Filename()));
             std::copy(dumpName.begin(), dumpName.end(), cmdStrDumpDram.m_Filename().begin());
             cmdStream.EmplaceBack(cmdStrDumpDram);
         }
 
         ethosn::command_stream::DumpSram cmdStrDumpSram;
         const std::string dumpName = "output_ce_" + std::to_string(m_Id);
+        assert(dumpName.size() < sizeof(cmdStrDumpSram.m_Filename()));
         std::copy(dumpName.begin(), dumpName.end(), cmdStrDumpSram.m_Filename().begin());
         cmdStream.EmplaceBack(cmdStrDumpSram);
     }

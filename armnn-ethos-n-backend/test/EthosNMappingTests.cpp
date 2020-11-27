@@ -12,6 +12,7 @@
 #include <EthosNBackendId.hpp>
 #include <Network.hpp>
 #include <armnn/Logging.hpp>
+#include <armnn/utility/Assert.hpp>
 #include <backendsCommon/test/CommonTestUtils.hpp>
 #include <test/EthosNTestUtils.hpp>
 
@@ -158,7 +159,7 @@ Mappings CreateSubstitutionMappings(TestLayerType original,
                                      { "firstOutput" }, {}) });
             break;
         default:
-            BOOST_ASSERT_MSG(false, "Unsupported substitutable layer type\n");
+            ARMNN_ASSERT_MSG(false, "Unsupported substitutable layer type\n");
             break;
     }
 
@@ -202,7 +203,7 @@ Mappings CreateSubstitutionMappings(TestLayerType original,
                                             { "firstOutput" }, params) });
             break;
         default:
-            BOOST_ASSERT_MSG(false, "Unsupported replacement layer type\n");
+            ARMNN_ASSERT_MSG(false, "Unsupported replacement layer type\n");
             break;
     }
 
@@ -552,7 +553,7 @@ Mappings CreateMappings(TestLayerType originalType,
     ethosNMappings = CreateSubstitutionMappings<SIZE>(originalType, replacementType, inputDimensions, outputDimensions);
 
     //Test if there is atleast one mapping
-    BOOST_ASSERT((ethosNMappings.size() >= 1));
+    ARMNN_ASSERT((ethosNMappings.size() >= 1));
     //Test if the mapping layer types are as intended
     BOOST_TEST(((mapStringToLayerType.find(ethosNMappings[0].m_ReplacementLayers[0].m_LayerTypeName)->second) ==
                 replacementType.layer));
@@ -1023,12 +1024,12 @@ BOOST_DATA_TEST_CASE(
         parsedMapping = GetMappings(fullFileName);
         gotException  = ExceptionCases::NoException;
     }
-    catch (armnn::ParseException e)
+    catch (const armnn::ParseException& e)
     {
         gotException = ExceptionCases::ParseException;
         BOOST_TEST((std::string(e.what()).find(exceptionMessage) != std::string::npos));
     }
-    catch (armnn::InvalidArgumentException e)
+    catch (const armnn::InvalidArgumentException& e)
     {
         gotException = ExceptionCases::InvalidArgumentException;
         BOOST_TEST((std::string(e.what()).find(exceptionMessage) != std::string::npos));
@@ -1237,12 +1238,12 @@ BOOST_AUTO_TEST_CASE(TestAdditionalParameters)
             BOOST_TEST(IsLayerPresentInSubgraph(graph, replacementLayerType,
                                                 ethosNMappings[0].m_ReplacementLayers[0].m_LayerParams));
         }
-        catch (armnn::InvalidArgumentException e)
+        catch (const armnn::InvalidArgumentException& e)
         {
             gotException = ExceptionCases::InvalidArgumentException;
             BOOST_TEST((std::string(e.what()).find(exceptionMessage) != std::string::npos));
         }
-        catch (armnn::ParseException e)
+        catch (const armnn::ParseException& e)
         {
             gotException = ExceptionCases::InvalidArgumentException;
             BOOST_TEST((std::string(e.what()).find(exceptionMessage) != std::string::npos));
@@ -1361,7 +1362,7 @@ BOOST_AUTO_TEST_CASE(TestLayerExclusionViaArmnn)
 
     // Then
     IOptimizedNetwork* optimizedNetwork = optNet.get();
-    auto optNetPtr                      = boost::polymorphic_downcast<OptimizedNetwork*>(optimizedNetwork);
+    auto optNetPtr                      = PolymorphicDowncast<OptimizedNetwork*>(optimizedNetwork);
     auto& optimizedGraph                = optNetPtr->GetGraph();
     Graph::ConstIterator layer          = optimizedGraph.cbegin();
     auto inputLayer                     = *layer;

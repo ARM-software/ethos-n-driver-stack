@@ -12,7 +12,7 @@
 
 #include <Threads.hpp>
 #include <armnn/ArmNN.hpp>
-#include <boost/filesystem.hpp>
+#include <armnn/utility/Assert.hpp>
 #include <ethosn_driver_library/Network.hpp>
 #include <ethosn_support_library/Support.hpp>
 
@@ -118,7 +118,21 @@ WaitStatus WaitForInference(int fd, int timeout)
     int pollErrorCode = errno;
     if (pollResult > 0)
     {
-        result = WaitStatus(WaitErrorCode::Success);
+        ethosn::driver_library::InferenceResult ethosNResult;
+        if (read(fd, &ethosNResult, sizeof(ethosNResult)) != static_cast<ssize_t>(sizeof(ethosNResult)))
+        {
+            result = WaitStatus(WaitErrorCode::Error,
+                                "Failed to read inference result status (" + std::string(strerror(errno)) + ")");
+        }
+        else if (ethosNResult == ethosn::driver_library::InferenceResult::Completed)
+        {
+            result = WaitStatus(WaitErrorCode::Success);
+        }
+        else
+        {
+            result = WaitStatus(WaitErrorCode::Error,
+                                "Inference failed with status " + std::to_string(static_cast<uint32_t>(ethosNResult)));
+        }
     }
     else if (pollResult == 0)
     {
@@ -234,6 +248,7 @@ void EthosNPreCompiledWorkload::Init(const PreCompiledDescriptor& descriptor,
 
     m_Network = std::make_unique<ethosn::driver_library::Network>(
         const_cast<ethosn::support_library::CompiledNetwork&>(*network.m_CompiledNetwork));
+    m_Network->SetDebugName(std::to_string(m_Guid).c_str());
 }
 
 EthosNPreCompiledWorkload::EthosNPreCompiledWorkload(const PreCompiledQueueDescriptor& descriptor,
@@ -399,7 +414,7 @@ std::ostream& operator<<(std::ostream& os, const ethosn::support_library::EthosN
             os << Quoted("Ethos-N78_8TOPS_2PLE_RATIO");
             break;
         default:
-            BOOST_ASSERT_MSG(false, "Unexpected variant");
+            ARMNN_ASSERT_MSG(false, "Unexpected variant");
     }
     return os;
 }

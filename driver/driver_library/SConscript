@@ -22,9 +22,6 @@ env.PrependUnique(CPPPATH=[os.path.join(env['command_stream_dir'], 'include'),
 # Set the appropriate CPP define for the target.
 env.Append(CPPDEFINES=['TARGET_' + env['target'].upper()])
 
-if env['profiling']:
-    env.AppendUnique(CPPDEFINES=['CONTROL_UNIT_PROFILING'])
-
 srcs = [os.path.join('src', 'Inference.cpp'),
         os.path.join('src', 'Buffer.cpp'),
         os.path.join('src', 'Network.cpp'),
@@ -40,11 +37,12 @@ if env['target'] == 'kmod':
 else:
     srcs += [os.path.join('src', 'NullKmodProfiling.cpp')]
 
+if env['target'] == 'model':
+    srcs += [os.path.join('src', 'ModelNetwork.cpp')]
+
 # Build driver_library static and shared lib
 ethosn_driver_lib = env.StaticLibrary('libEthosNDriver', srcs)
 env.Alias('install', env.Install(env['install_lib_dir'], ethosn_driver_lib))
-
-libs = []
 
 # Note we must explicitly set the SONAME to override the default which uses a path relative to the current directory.
 # This means that when the runtime linker looks for the .so, it uses the filename only and not the relative path.
@@ -53,7 +51,13 @@ libs = []
 #       which may have --coverage and other flags.
 soEnv = env.Clone()
 soEnv.Append(LINKFLAGS='-Wl,-soname=libEthosNDriver.so')
-ethosn_driver_shared = soEnv.SharedLibrary('libEthosNDriver', srcs, LIBS=libs)
+# On non-Unix platforms, the static and shared lib filenames may collide, so use a different name
+shared_lib_name = 'libEthosNDriver' if env['PLATFORM'] == 'posix' else 'libEthosNDriverShared'
+# On non-Unix platforms, the static and shared libs may need to have different compile options, so the obj names
+# need to be unique
+obj_prefix = None if env['PLATFORM'] == 'posix' else 'Shared_'
+libs = env.get('driver_library_extra_libs', [])  # Allow extra libs to be specified by scons_extra files
+ethosn_driver_shared = soEnv.SharedLibrary(shared_lib_name, srcs, LIBS=libs, SHOBJPREFIX=obj_prefix)
 
 env.Alias('install', env.Install(env['install_lib_dir'], ethosn_driver_shared))
 env.Alias('install', env.Install(os.path.join(env['install_include_dir'], 'ethosn_driver_library'),

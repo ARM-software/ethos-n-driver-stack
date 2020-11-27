@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2019 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2019 Arm Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -40,5 +40,8 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 			   struct ethosn_buffer_req *buf_req);
 struct ethosn_buffer *ethosn_buffer_get(int fd);
 void put_ethosn_buffer(struct ethosn_buffer *buf);
+
+int ethosn_get_dma_view_fd(struct ethosn_device *ethosn,
+			   struct ethosn_dma_info *dma_info);
 
 #endif /* _ETHOSN_BUFFER_H_ */

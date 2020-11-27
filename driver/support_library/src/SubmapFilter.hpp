@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include "Utils.hpp"
 #include "WeightEncoder.hpp"
 
 #include <cstdint>

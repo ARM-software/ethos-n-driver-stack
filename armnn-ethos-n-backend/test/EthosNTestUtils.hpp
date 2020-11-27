@@ -7,8 +7,8 @@
 
 #include "EthosNConfig.hpp"
 
+#include <Filesystem.hpp>
 #include <SubgraphView.hpp>
-#include <boost/filesystem.hpp>
 
 #include <cstdlib>
 #include <fstream>
@@ -23,14 +23,16 @@ class TempDir
 {
 public:
     TempDir()
-        : m_Dir(boost::filesystem::unique_path())
     {
-        boost::filesystem::create_directories(m_Dir);
+        static std::atomic<int> g_Counter;
+        int uniqueId = g_Counter++;
+        m_Dir        = "TempDir-" + std::to_string(uniqueId);
+        fs::create_directories(m_Dir);
     }
 
     ~TempDir()
     {
-        boost::filesystem::remove_all(m_Dir);
+        fs::remove_all(m_Dir);
     }
 
     std::string Str() const
@@ -39,7 +41,7 @@ public:
     }
 
 private:
-    boost::filesystem::path m_Dir;
+    fs::path m_Dir;
 };
 
 inline void SetEnv(const char* const name, const char* const value)

@@ -59,15 +59,19 @@ public:
         TensorShape m_InputStripeShape;
         TensorShape m_OutputStripeShape;
         NumStripes m_NumStripes;
+        Lifetime m_Lifetime = Lifetime::Cascade;
 
         bool operator<(const StripeInfos& rhs) const;
     };
 
-    Part()
+    Part(const EstimationOptions& estOpt, const CompilationOptions& compOpt, const HardwareCapabilities& capabilities)
         : DebuggableObject("Part")
+        , m_EstimationOptions(estOpt)
+        , m_CompilationOptions(compOpt)
+        , m_Capabilities(capabilities)
     {}
 
-    void CreatePlans(const HardwareCapabilities& caps);
+    void CreatePlans();
     const Plan& GetPlan(const PlanId id) const;
     size_t GetNumPlans() const;
     std::vector<const Edge*> GetInputs() const;
@@ -85,7 +89,6 @@ private:
     void CreatePlanForOutputNode(Node* node, Lifetime lifetime, TraversalOrder order);
     void CreatePlanForNode(Node* node,
                            Lifetime lifetime,
-                           const HardwareCapabilities& caps,
                            TraversalOrder order,
                            TensorShape inputShape,
                            TensorShape outputShape,
@@ -95,21 +98,16 @@ private:
                            Location inputBufferLocaton,
                            Location outputBufferLocation,
                            WeightEncoderCache& weightEncoderCache);
-    void GenerateWithTraversalOrders(Node* node,
-                                     const HardwareCapabilities& caps,
-                                     WeightEncoderCache& weightEncoderCache);
+    void GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEncoderCache);
     void GenerateWithStripeSizes(Node* node,
-                                 const HardwareCapabilities& caps,
-                                 const std::vector<BlockConfig>& blockConfigs,
+                                 const std::vector<command_stream::BlockConfig>& blockConfigs,
                                  TraversalOrder order,
                                  WeightEncoderCache& weightEncoderCache);
     void GenerateWithNumStripes(Node* node,
-                                const HardwareCapabilities& caps,
                                 TraversalOrder order,
                                 const std::set<StripeInfos>& stripeInfo,
                                 WeightEncoderCache& weightEncoderCache);
     void GenerateWithNumStripesForLocation(Node* node,
-                                           const HardwareCapabilities& caps,
                                            TraversalOrder order,
                                            const std::set<StripeInfos>& stripeInfos,
                                            Location inputBufferLocaton,
@@ -120,7 +118,6 @@ private:
                                         const TensorShape& inputShape,
                                         const QuantizationInfo& inpQuantInfo,
                                         Lifetime lifetime,
-                                        const HardwareCapabilities& caps,
                                         TraversalOrder order,
                                         TensorShape inputStripe,
                                         TensorShape outputStripe,
@@ -130,7 +127,6 @@ private:
 
     void CreatePlanWithIdentityMceOp(FuseOnlyPleOperationNode* node,
                                      Lifetime lifetime,
-                                     const HardwareCapabilities& caps,
                                      TraversalOrder order,
                                      TensorShape inputStripe,
                                      TensorShape outputStripe,
@@ -140,7 +136,6 @@ private:
     void AddOpToOpGraphWithInputOutputBuffers(OwnedOpGraph& opGraph,
                                               Node* node,
                                               Lifetime lifetime,
-                                              const HardwareCapabilities& caps,
                                               TraversalOrder order,
                                               TensorShape inputStripe,
                                               TensorShape outputStripe,
@@ -153,7 +148,6 @@ private:
 
     void CreatePlanWithIdentityPleOp(Node* node,
                                      Lifetime lifetime,
-                                     const HardwareCapabilities& caps,
                                      TraversalOrder order,
                                      TensorShape inputStripe,
                                      TensorShape outputStripe,
@@ -163,6 +157,10 @@ private:
                                      Location inputBufferLocaton,
                                      Location outputBufferLocation,
                                      WeightEncoderCache& weightEncoderCache);
+
+    const EstimationOptions& m_EstimationOptions;
+    const CompilationOptions& m_CompilationOptions;
+    const HardwareCapabilities& m_Capabilities;
 };
 
 using Parts = std::vector<std::unique_ptr<Part>>;
@@ -183,6 +181,13 @@ public:
 
     Parts m_Parts;
 };
+
+uint32_t CalculateTileSize(Node* node,
+                           const HardwareCapabilities& caps,
+                           const TensorShape& inputTensorShape,
+                           const TensorShape& inputStripeShape,
+                           const TensorShape& outputStripeShape,
+                           uint32_t numStripes);
 
 }    // namespace support_library
 }    // namespace ethosn

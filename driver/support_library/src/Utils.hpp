@@ -24,6 +24,17 @@ namespace ethosn
 {
 namespace support_library
 {
+enum class CompilerDataCompressedFormat;
+class Node;
+
+/// The types of algorithm an MceOperation can use or None if it hasn't been decided yet
+/// The decision of what algorithm to use is based on several factors including the AlgorithmHint.
+enum class CompilerMceAlgorithm
+{
+    None,
+    Winograd,
+    Direct
+};
 
 class HardwareCapabilities
 {
@@ -73,6 +84,13 @@ public:
     uint32_t GetWideKernelSize() const
     {
         return 3U;
+    }
+
+    std::vector<char> GetData() const
+    {
+        auto const caps = reinterpret_cast<const char*>(&m_FirmwareAndHardwareCapabilities);
+        std::vector<char> ret(caps, caps + sizeof(m_FirmwareAndHardwareCapabilities));
+        return ret;
     }
 
 private:
@@ -230,21 +248,6 @@ constexpr uint32_t GetElementSizeBytes(ethosn::support_library::DataType type)
             return 4;
         default:
             return 0;
-    }
-}
-
-/// Utility function to convert support_library::DataType to command_stream::DataType
-inline command_stream::DataType ConvertDataType(support_library::DataType dataType)
-{
-    switch (dataType)
-    {
-        case support_library::DataType::UINT8_QUANTIZED:
-            return command_stream::DataType::QASYMM8;
-        case support_library::DataType::INT8_QUANTIZED:
-            return command_stream::DataType::QSYMM8;
-        default:
-            throw std::invalid_argument(std::string("Unsupported data type ") +
-                                        std::to_string(static_cast<int>(dataType)));
     }
 }
 
@@ -530,8 +533,6 @@ std::vector<TElement*> GetRawPointers(const std::vector<std::unique_ptr<TElement
     return result;
 }
 
-std::string ReplaceAll(std::string str, const std::string& from, const std::string& to);
-
 /// e.g. Map({1, 2, 3}, [](int x) { return 2*x; }) == {2, 4, 6}
 template <typename Out, typename In, typename Func>
 constexpr std::vector<Out> Map(const std::vector<In>& container, Func func)
@@ -622,6 +623,35 @@ constexpr DataTypeRange GetTypeLimits()
 }
 
 command_stream::UpsampleType ConvertResizeAlgorithmToCommand(const ResizeAlgorithm algorithm);
+
+bool IsCompressionFormatCompatibleWithStripeAndShape(const CompilerDataCompressedFormat& compressionFormat,
+                                                     const TensorShape& nodeShape,
+                                                     const TensorShape& stripeShape);
+
+struct NeedBoundary
+{
+    bool m_Before;
+    bool m_After;
+};
+
+inline NeedBoundary GetBoundaryRequirements(const uint32_t padBefore,
+                                            const uint32_t ifmSize,
+                                            const uint32_t ifmStripeSize,
+                                            const uint32_t ofmStripeSize,
+                                            const uint32_t weightSize)
+{
+    if (ifmSize <= ifmStripeSize)
+    {
+        return {};
+    }
+    return NeedBoundary{ padBefore > 0, ((ofmStripeSize + weightSize - padBefore - 1U) > ifmStripeSize) };
+}
+
+CompilerMceAlgorithm FindBestConvAlgorithm(const HardwareCapabilities& caps, uint32_t w, uint32_t h);
+TensorShape GetRoundedWeights(const TensorShape& originalShape, const CompilerMceAlgorithm algorithm);
+
+constexpr int32_t g_IdentityWeightValue = 128;
+constexpr float g_IdentityWeightScale   = 1.f / static_cast<float>(g_IdentityWeightValue);
 
 }    // namespace utils
 

@@ -21,8 +21,8 @@ using Filename    = std::array<char, 128>;
 
 enum class DataType : uint8_t
 {
-    QASYMM8,
-    QSYMM8
+    U8,
+    S8
 };
 
 enum class DataFormat : uint8_t

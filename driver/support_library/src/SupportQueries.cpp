@@ -5,6 +5,7 @@
 
 #include "../include/ethosn_support_library/SupportQueries.hpp"
 
+#include "CapabilitiesInternal.hpp"
 #include "Network.hpp"
 #include "Utils.hpp"
 
@@ -99,6 +100,28 @@ bool IsInputDataTypeSupported(const TensorInfo& info, const char* what, char* re
     return isSupported;
 }
 
+bool IsWeightsDataTypeSupported(const TensorInfo& info, const char* what, char* reason, size_t reasonMaxLength)
+{
+    bool isSupported = IsDataTypeIn(info, { DataType::INT8_QUANTIZED, DataType::UINT8_QUANTIZED });
+    if (!isSupported)
+    {
+        SetReason("%s must be UINT8_QUANTIZED or INT8_QUANTIZED", reason, reasonMaxLength, what);
+    }
+
+    return isSupported;
+}
+
+bool IsBiasDataTypeSupported(const TensorInfo& info, const char* what, char* reason, size_t reasonMaxLength)
+{
+    bool isSupported = IsDataTypeIn(info, { DataType::INT32_QUANTIZED });
+    if (!isSupported)
+    {
+        SetReason("%s must be INT32_QUANTIZED", reason, reasonMaxLength, what);
+    }
+
+    return isSupported;
+}
+
 bool IsQuantisationZeroPointInRange(const TensorInfo& tensor)
 {
     const utils::DataTypeRange dataTypeRange = utils::GetRangeOfDataType(tensor.m_DataType);
@@ -123,10 +146,19 @@ bool IsQuantizationDimSupported(const TensorInfo& info,
 {
     if (HasQuantizationDim(info))
     {
-        if (info.m_QuantizationInfo.GetQuantizationDim().value() != expectedDim)
+        uint32_t dim = info.m_QuantizationInfo.GetQuantizationDim().value();
+
+        if (dim != expectedDim)
         {
             SetReason("%s: Per channel quantization axis must be %d for %s", reason, reasonMaxLength, what, expectedDim,
                       name);
+            return false;
+        }
+
+        if (info.m_QuantizationInfo.GetScales().size() != info.m_Dimensions[dim])
+        {
+            SetReason("%s must have quantization parameters with same number of elements as the quantisation dim",
+                      reason, reasonMaxLength, what);
             return false;
         }
     }
@@ -137,6 +169,7 @@ bool IsQuantizationDimSupported(const TensorInfo& info,
 bool IsQuantizationDimSupported(const TensorInfo* biasInfo,
                                 const TensorInfo* weightsInfo,
                                 const TensorInfo* inputInfo,
+                                const QuantizationInfo* outputQuantInfo,
                                 const char* what,
                                 char* reason,
                                 size_t reasonMaxLength)
@@ -164,9 +197,67 @@ bool IsQuantizationDimSupported(const TensorInfo* biasInfo,
             SetReason("%s: Quantization Dim should not be used on Input", reason, reasonMaxLength, what);
             return false;
         }
+        if (inputInfo->m_QuantizationInfo.GetScales().size() != 1)
+        {
+            SetReason("%s: Input quantization scales must have a size of 1", reason, reasonMaxLength, what);
+            return false;
+        }
+    }
+
+    if (outputQuantInfo != nullptr)
+    {
+        if (outputQuantInfo->GetQuantizationDim().has_value())
+        {
+            SetReason("%s: Quantization Dim should not be used on Output", reason, reasonMaxLength, what);
+            return false;
+        }
+        if (outputQuantInfo->GetScales().size() != 1)
+        {
+            SetReason("%s: Output quantization scales must have a size of 1", reason, reasonMaxLength, what);
+            return false;
+        }
     }
 
     return true;
+}
+
+size_t GetTotalSramSize(const std::vector<char>& caps)
+{
+    return static_cast<size_t>(GetValidCapabilities(caps).m_TotalSramSize);
+}
+
+bool IsTensorDepthSupported(
+    const std::vector<char>& caps, const TensorInfo& info, const char* what, char* reason, size_t reasonMaxLength)
+{
+    if (info.m_Dimensions[2] == 1)
+    {
+        // Note:
+        //   This is a relax check if Width size is 1 because the DMA is capable of splitting in channels
+        //   (we can 'pretend' that the channels is actually the width)
+        return true;
+    }
+
+    // Assume the worse case situation which is that we have to convert between NHWC and NHWCB.
+    // Due to hardware DMA limitations, we can't split NHWC in depth, so the minimum chunk of data we can
+    // convert is 8 x 8 x C, and therefore we need to be able to fit this in SRAM.
+    size_t maxChunkSize = 8 * 8 * info.m_Dimensions[3];
+    size_t sramSize     = GetTotalSramSize(caps);
+
+    if (maxChunkSize > sramSize)
+    {
+        SetReason("%s: Tensor max depth cannot fit in SRAM (%d / %d)", reason, reasonMaxLength, what, maxChunkSize,
+                  sramSize);
+        return false;
+    }
+
+    return true;
+}
+
+constexpr bool IsQuantizationScaleSupported(float input, float output)
+{
+    // We implement requantize with identity convolutions so the same quantization restrictions apply
+    float multiplier = input * utils::g_IdentityWeightScale / output;
+    return (multiplier >= 0.f && multiplier < 1.f);
 }
 
 }    // namespace
@@ -175,9 +266,28 @@ const SupportedLevel SupportedLevel::Unsupported  = SupportedLevel(InternalSuppo
 const SupportedLevel SupportedLevel::EstimateOnly = SupportedLevel(InternalSupportedLevel::EstimateOnly);
 const SupportedLevel SupportedLevel::Supported    = SupportedLevel(InternalSupportedLevel::Supported);
 
-SupportedLevel
-    IsInputSupported(const TensorInfo& inputInfo, TensorInfo* outputInfo, char* reason, size_t reasonMaxLength)
+SupportQueries::SupportQueries(const std::vector<char>& caps)
+    : m_Capabilities(caps)
 {
+    ValidateCapabilities(m_Capabilities);
+}
+
+SupportedLevel SupportQueries::IsInputSupported(const TensorInfo& inputInfo,
+                                                TensorInfo* outputInfo,
+                                                char* reason,
+                                                size_t reasonMaxLength) const
+{
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input layer", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (!IsInputDataTypeSupported(inputInfo, "Input layer", reason, reasonMaxLength))
     {
         return SupportedLevel::Unsupported;
@@ -189,9 +299,9 @@ SupportedLevel
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Input layer", reason, reasonMaxLength))
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "Input layer", reason, reasonMaxLength))
     {
-        return SupportedLevel::EstimateOnly;
+        return SupportedLevel::Unsupported;
     }
 
     if (outputInfo != nullptr)
@@ -208,9 +318,22 @@ SupportedLevel
     return SupportedLevel::Supported;
 }
 
-SupportedLevel
-    IsOutputSupported(const TensorInfo& inputInfo, const DataFormat format, char* reason, size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsOutputSupported(const TensorInfo& inputInfo,
+                                                 const DataFormat format,
+                                                 char* reason,
+                                                 size_t reasonMaxLength) const
 {
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input layer", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (!IsInputDataTypeSupported(inputInfo, "Output layer's input", reason, reasonMaxLength))
     {
         return SupportedLevel::Unsupported;
@@ -228,27 +351,44 @@ SupportedLevel
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Output layer", reason, reasonMaxLength))
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "Output layer", reason, reasonMaxLength))
     {
-        return SupportedLevel::EstimateOnly;
+        return SupportedLevel::Unsupported;
     }
 
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsConstantSupported(const TensorInfo&, char*, size_t)
+SupportedLevel
+    SupportQueries::IsConstantSupported(const TensorInfo& constantInfo, char* reason, size_t reasonMaxLength) const
 {
+    if (!IsTensorDepthSupported(m_Capabilities, constantInfo, "Constant layer", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsConvolutionSupported(const TensorInfo& biasInfo,
-                                      const TensorInfo& weightsInfo,
-                                      const ConvolutionInfo& convInfo,
-                                      const TensorInfo& inputInfo,
-                                      TensorInfo* outputInfo,
-                                      char* reason,
-                                      size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsConvolutionSupported(const TensorInfo& biasInfo,
+                                                      const TensorInfo& weightsInfo,
+                                                      const ConvolutionInfo& convInfo,
+                                                      const TensorInfo& inputInfo,
+                                                      TensorInfo* outputInfo,
+                                                      char* reason,
+                                                      size_t reasonMaxLength) const
 {
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to conv", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (!IsInputDataTypeSupported(inputInfo, "Input to conv", reason, reasonMaxLength))
     {
         return SupportedLevel::Unsupported;
@@ -260,9 +400,8 @@ SupportedLevel IsConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsDataTypeIn(weightsInfo, { DataType::INT8_QUANTIZED, DataType::UINT8_QUANTIZED }))
+    if (!IsWeightsDataTypeSupported(weightsInfo, "Weight for conv", reason, reasonMaxLength))
     {
-        SetReason("Weights for conv must be UINT8_QUANTIZED or INT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -272,9 +411,8 @@ SupportedLevel IsConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (biasInfo.m_DataType != DataType::INT32_QUANTIZED)
+    if (!IsBiasDataTypeSupported(biasInfo, "Bias for conv", reason, reasonMaxLength))
     {
-        SetReason("Bias for conv must be INT32_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -314,9 +452,15 @@ SupportedLevel IsConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsQuantizationDimSupported(&biasInfo, &weightsInfo, &inputInfo, "Convolution", reason, reasonMaxLength))
+    if (!IsTensorDepthSupported(m_Capabilities, expectedOutputInfo, "Output of conv", reason, reasonMaxLength))
     {
-        return SupportedLevel::EstimateOnly;
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(&biasInfo, &weightsInfo, &inputInfo, &convInfo.m_OutputQuantizationInfo,
+                                    "Convolution", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
     }
 
     if (outputInfo != nullptr)
@@ -341,15 +485,9 @@ SupportedLevel IsConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::EstimateOnly;
     }
 
-    if (biasInfo.m_QuantizationInfo.GetScales().Size() != weightsInfo.m_QuantizationInfo.GetScales().Size())
-    {
-        SetReason("Bias and weights must have quantization parameters with same number of scales", reason,
-                  reasonMaxLength);
-        return SupportedLevel::Unsupported;
-    }
-
-    if (biasInfo.m_QuantizationInfo.GetScales() !=
-        inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales())
+    QuantizationScales intermediateScales =
+        inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales();
+    if (biasInfo.m_QuantizationInfo.GetScales() != intermediateScales)
     {
         SetReason("Bias for conv must have quantization parameters with scale of input scale x weight scale", reason,
                   reasonMaxLength);
@@ -360,7 +498,8 @@ SupportedLevel IsConvolutionSupported(const TensorInfo& biasInfo,
 
     if ((g_ConvolutionKernelSizes.count(kernelHeight) == 0U) || (g_ConvolutionKernelSizes.count(kernelWidth) == 0U))
     {
-        SetReason("Unsupported kernel size. Width/height must be in { 1, 2, 3, 5, 7, 9 }", reason, reasonMaxLength);
+        SetReason("Unsupported kernel size. Width(%d)/height(%d) must be in { 1, 2, 3, 5, 7, 9 }", reason,
+                  reasonMaxLength, kernelWidth, kernelHeight);
         return SupportedLevel::EstimateOnly;
     }
 
@@ -384,13 +523,10 @@ SupportedLevel IsConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::EstimateOnly;
     }
 
-    // TODO: Bring up support for per-channel quantization
-    QuantizationScales overallScale =
-        inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales();
-    overallScale /= convInfo.m_OutputQuantizationInfo.GetScales();
-    if (overallScale.m_Scales.min() < 0.0f || overallScale.m_Scales.max() >= 1.0f)
+    QuantizationScales overallScale = intermediateScales / convInfo.m_OutputQuantizationInfo.GetScales();
+    if (overallScale.min() < 0.0f || overallScale.max() >= 1.0f)
     {
-        SetReason("Overall scale (of the input * weights / output) should be in the range [0, 1}", reason,
+        SetReason("Overall scale (of the input * weights / output) should be in the range [0, 1)", reason,
                   reasonMaxLength);
         return SupportedLevel::EstimateOnly;
     }
@@ -398,14 +534,25 @@ SupportedLevel IsConvolutionSupported(const TensorInfo& biasInfo,
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsDepthwiseConvolutionSupported(const TensorInfo& biasInfo,
-                                               const TensorInfo& weightsInfo,
-                                               const ConvolutionInfo& convInfo,
-                                               const TensorInfo& inputInfo,
-                                               TensorInfo* outputInfo,
-                                               char* reason,
-                                               size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsDepthwiseConvolutionSupported(const TensorInfo& biasInfo,
+                                                               const TensorInfo& weightsInfo,
+                                                               const ConvolutionInfo& convInfo,
+                                                               const TensorInfo& inputInfo,
+                                                               TensorInfo* outputInfo,
+                                                               char* reason,
+                                                               size_t reasonMaxLength) const
 {
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to depthwise conv", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (!IsInputDataTypeSupported(inputInfo, "Input to depthwise conv", reason, reasonMaxLength))
     {
         return SupportedLevel::Unsupported;
@@ -417,9 +564,8 @@ SupportedLevel IsDepthwiseConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsDataTypeIn(weightsInfo, { DataType::INT8_QUANTIZED, DataType::UINT8_QUANTIZED }))
+    if (!IsWeightsDataTypeSupported(weightsInfo, "Weight for conv", reason, reasonMaxLength))
     {
-        SetReason("Weights for depthwise conv must be UINT8_QUANTIZED or INT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -429,9 +575,8 @@ SupportedLevel IsDepthwiseConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (biasInfo.m_DataType != DataType::INT32_QUANTIZED)
+    if (!IsBiasDataTypeSupported(biasInfo, "Bias for depthwise conv", reason, reasonMaxLength))
     {
-        SetReason("Bias for depthwise conv must be INT32_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -471,10 +616,16 @@ SupportedLevel IsDepthwiseConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsQuantizationDimSupported(&biasInfo, &weightsInfo, &inputInfo, "Depthwise Convolution", reason,
-                                    reasonMaxLength))
+    if (!IsTensorDepthSupported(m_Capabilities, expectedOutputInfo, "Output of depthwise conv", reason,
+                                reasonMaxLength))
     {
-        return SupportedLevel::EstimateOnly;
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(&biasInfo, &weightsInfo, &inputInfo, &convInfo.m_OutputQuantizationInfo,
+                                    "Depthwise Convolution", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
     }
 
     if (outputInfo != nullptr)
@@ -500,9 +651,9 @@ SupportedLevel IsDepthwiseConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::EstimateOnly;
     }
 
-    if (biasInfo.m_QuantizationInfo.GetZeroPoint() != 0 ||
-        biasInfo.m_QuantizationInfo.GetScales() !=
-            inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales())
+    QuantizationScales intermediateScales =
+        inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales();
+    if (biasInfo.m_QuantizationInfo.GetScales() != intermediateScales)
     {
         SetReason("Bias for depthwise conv must have quantization parameters with zero point of 0 and scale of "
                   "input scale x weight scale",
@@ -514,7 +665,8 @@ SupportedLevel IsDepthwiseConvolutionSupported(const TensorInfo& biasInfo,
 
     if ((kernelHeight != kernelWidth) || (g_ConvolutionKernelSizes.count(kernelHeight) == 0U))
     {
-        SetReason("Unsupported kernel size. Width/height must be in { 1, 2, 3, 5, 7, 9 }", reason, reasonMaxLength);
+        SetReason("Unsupported kernel size. Width(%d)/height(%d) must be in { 1, 2, 3, 5, 7, 9 }", reason,
+                  reasonMaxLength, kernelWidth, kernelHeight);
         return SupportedLevel::EstimateOnly;
     }
 
@@ -538,10 +690,8 @@ SupportedLevel IsDepthwiseConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::EstimateOnly;
     }
 
-    // TODO: Add support for per-channel quantization
-    double overallScale = inputInfo.m_QuantizationInfo.GetScale() * weightsInfo.m_QuantizationInfo.GetScale() /
-                          convInfo.m_OutputQuantizationInfo.GetScale();
-    if (overallScale < 0.0f || overallScale >= 1.0f)
+    QuantizationScales overallScale = intermediateScales / convInfo.m_OutputQuantizationInfo.GetScales();
+    if (overallScale.min() < 0.0f || overallScale.max() >= 1.0f)
     {
         SetReason("Overall scale (of the input * weights / output) should be in the range [0, 1)", reason,
                   reasonMaxLength);
@@ -551,14 +701,25 @@ SupportedLevel IsDepthwiseConvolutionSupported(const TensorInfo& biasInfo,
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
-                                               const TensorInfo& weightsInfo,
-                                               const ConvolutionInfo& convInfo,
-                                               const TensorInfo& inputInfo,
-                                               TensorInfo* outputInfo,
-                                               char* reason,
-                                               size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
+                                                               const TensorInfo& weightsInfo,
+                                                               const ConvolutionInfo& convInfo,
+                                                               const TensorInfo& inputInfo,
+                                                               TensorInfo* outputInfo,
+                                                               char* reason,
+                                                               size_t reasonMaxLength) const
 {
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to transpose conv", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (!IsInputDataTypeSupported(inputInfo, "Input to transpose conv", reason, reasonMaxLength))
     {
         return SupportedLevel::Unsupported;
@@ -570,9 +731,8 @@ SupportedLevel IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsDataTypeIn(weightsInfo, { DataType::INT8_QUANTIZED, DataType::UINT8_QUANTIZED }))
+    if (!IsWeightsDataTypeSupported(weightsInfo, "Weights for transpose conv", reason, reasonMaxLength))
     {
-        SetReason("Weights for transpose conv must be UINT8_QUANTIZED or INT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -582,9 +742,8 @@ SupportedLevel IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (biasInfo.m_DataType != DataType::INT32_QUANTIZED)
+    if (!IsBiasDataTypeSupported(biasInfo, "Bias for transpose conv", reason, reasonMaxLength))
     {
-        SetReason("Bias for transpose conv must be INT32_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -624,10 +783,16 @@ SupportedLevel IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsQuantizationDimSupported(&biasInfo, &weightsInfo, &inputInfo, "Transpose Convolution", reason,
-                                    reasonMaxLength))
+    if (!IsTensorDepthSupported(m_Capabilities, expectedOutputInfo, "Output of transpose conv", reason,
+                                reasonMaxLength))
     {
-        return SupportedLevel::EstimateOnly;
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(&biasInfo, &weightsInfo, &inputInfo, &convInfo.m_OutputQuantizationInfo,
+                                    "Transpose Convolution", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
     }
 
     if (outputInfo != nullptr)
@@ -646,9 +811,10 @@ SupportedLevel IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::EstimateOnly;
     }
 
+    QuantizationScales intermediateScales =
+        inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales();
     if (biasInfo.m_QuantizationInfo.GetZeroPoint() != 0 ||
-        biasInfo.m_QuantizationInfo.GetScales() !=
-            inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales())
+        biasInfo.m_QuantizationInfo.GetScales() != intermediateScales)
     {
         SetReason("Bias for transpose conv must have quantization parameters with zero point of 0 and "
                   "scale of input scale x weight scale",
@@ -660,7 +826,8 @@ SupportedLevel IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
 
     if ((g_ConvolutionKernelSizes.count(kernelHeight) == 0U) || (g_ConvolutionKernelSizes.count(kernelWidth) == 0U))
     {
-        SetReason("Unsupported kernel size. Width/height must be in { 1, 2, 3, 5, 7, 9 }", reason, reasonMaxLength);
+        SetReason("Unsupported kernel size. Width(%d)/height(%d) must be in { 1, 2, 3, 5, 7, 9 }", reason,
+                  reasonMaxLength, kernelWidth, kernelHeight);
         return SupportedLevel::EstimateOnly;
     }
 
@@ -688,10 +855,10 @@ SupportedLevel IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
         return SupportedLevel::EstimateOnly;
     }
 
-    // TODO: Add support for per-channel quantization
-    double overallScale = inputInfo.m_QuantizationInfo.GetScale() * weightsInfo.m_QuantizationInfo.GetScale() /
-                          convInfo.m_OutputQuantizationInfo.GetScale();
-    if (overallScale < 0.0f || overallScale >= 1.0f)
+    QuantizationScales overallScale =
+        (inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales()) /
+        convInfo.m_OutputQuantizationInfo.GetScales();
+    if (overallScale.min() < 0.0f || overallScale.max() >= 1.0f)
     {
         SetReason("Overall scale (of the input * weights / output) should be in the range [0, 1)", reason,
                   reasonMaxLength);
@@ -701,11 +868,11 @@ SupportedLevel IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsConcatenationSupported(const std::vector<TensorInfo>& inputInfos,
-                                        const ConcatenationInfo& concatInfo,
-                                        TensorInfo* outputInfo,
-                                        char* reason,
-                                        size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsConcatenationSupported(const std::vector<TensorInfo>& inputInfos,
+                                                        const ConcatenationInfo& concatInfo,
+                                                        TensorInfo* outputInfo,
+                                                        char* reason,
+                                                        size_t reasonMaxLength) const
 {
     size_t numInputs = inputInfos.size();
     if (numInputs < 1)
@@ -716,6 +883,17 @@ SupportedLevel IsConcatenationSupported(const std::vector<TensorInfo>& inputInfo
 
     for (uint32_t i = 0; i < numInputs; ++i)
     {
+        if (inputInfos[i].m_Dimensions[0] != 1)
+        {
+            SetReason("Batch size must be 1", reason, reasonMaxLength);
+            return SupportedLevel::Unsupported;
+        }
+
+        if (!IsTensorDepthSupported(m_Capabilities, inputInfos[i], "Input tensors", reason, reasonMaxLength))
+        {
+            return SupportedLevel::Unsupported;
+        }
+
         if (!IsInputDataTypeSupported(inputInfos[i], "Input tensors", reason, reasonMaxLength))
         {
             return SupportedLevel::Unsupported;
@@ -758,9 +936,34 @@ SupportedLevel IsConcatenationSupported(const std::vector<TensorInfo>& inputInfo
         return SupportedLevel::Unsupported;
     }
 
+    if (!IsQuantizationDimSupported(nullptr, nullptr, nullptr, &concatInfo.m_OutputQuantizationInfo, "Concatenation",
+                                    reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    // We implement requantize with identity convolutions so the same quantization restrictions apply
+    float outputScale = concatInfo.m_OutputQuantizationInfo.GetScale();
+    for (const auto& info : inputInfos)
+    {
+
+        if (!IsQuantizationScaleSupported(info.m_QuantizationInfo.GetScale(), outputScale))
+        {
+            // We might be able to support this in the future if we add a generic requantize in the PLE
+            SetReason("Output scales must be bigger than input scale / 128", reason, reasonMaxLength);
+            return SupportedLevel::EstimateOnly;
+        }
+    }
+
+    TensorInfo expectedOutputInfo = Concatenation::CalculateOutputTensorInfo(inputInfos, concatInfo);
+
+    if (!IsTensorDepthSupported(m_Capabilities, expectedOutputInfo, "Output of concatenation", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (outputInfo != nullptr)
     {
-        TensorInfo expectedOutputInfo = Concatenation::CalculateOutputTensorInfo(inputInfos, concatInfo);
         if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
         {
             SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
@@ -802,13 +1005,25 @@ SupportedLevel IsConcatenationSupported(const std::vector<TensorInfo>& inputInfo
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsSplitSupported(const TensorInfo& inputInfo,
-                                const SplitInfo& splitInfo,
-                                std::vector<TensorInfo>* outputInfos,
-                                char* reason,
-                                size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsSplitSupported(const TensorInfo& inputInfo,
+                                                const SplitInfo& splitInfo,
+                                                std::vector<TensorInfo>* outputInfos,
+                                                char* reason,
+                                                size_t reasonMaxLength) const
 {
     size_t numOutputs = splitInfo.m_Sizes.size();
+
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input tensor", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (numOutputs < 1)
     {
         SetReason("Must have at least 1 output", reason, reasonMaxLength);
@@ -839,9 +1054,9 @@ SupportedLevel IsSplitSupported(const TensorInfo& inputInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Split", reason, reasonMaxLength))
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "Split", reason, reasonMaxLength))
     {
-        return SupportedLevel::EstimateOnly;
+        return SupportedLevel::Unsupported;
     }
 
     if (outputInfos != nullptr)
@@ -851,9 +1066,17 @@ SupportedLevel IsSplitSupported(const TensorInfo& inputInfo,
             SetReason("Provided outputInfos array has incorrect size", reason, reasonMaxLength);
             return SupportedLevel::Unsupported;
         }
+    }
 
-        std::vector<TensorInfo> expectedOutputInfos = Split::CalculateOutputTensorInfos(inputInfo, splitInfo);
-        for (uint32_t i = 0; i < numOutputs; ++i)
+    std::vector<TensorInfo> expectedOutputInfos = Split::CalculateOutputTensorInfos(inputInfo, splitInfo);
+    for (uint32_t i = 0; i < numOutputs; ++i)
+    {
+        if (!IsTensorDepthSupported(m_Capabilities, expectedOutputInfos[i], "Output of split", reason, reasonMaxLength))
+        {
+            return SupportedLevel::Unsupported;
+        }
+
+        if (outputInfos != nullptr)
         {
             if (utils::TotalSizeBytes((*outputInfos)[i]) != 0 && (*outputInfos)[i] != expectedOutputInfos[i])
             {
@@ -896,12 +1119,12 @@ SupportedLevel IsSplitSupported(const TensorInfo& inputInfo,
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsAdditionSupported(const TensorInfo& inputInfo0,
-                                   const TensorInfo& inputInfo1,
-                                   const QuantizationInfo& outputQuantizationInfo,
-                                   TensorInfo* outputInfo,
-                                   char* reason,
-                                   size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsAdditionSupported(const TensorInfo& inputInfo0,
+                                                   const TensorInfo& inputInfo1,
+                                                   const QuantizationInfo& outputQuantizationInfo,
+                                                   TensorInfo* outputInfo,
+                                                   char* reason,
+                                                   size_t reasonMaxLength) const
 {
     const TensorShape& shape0 = inputInfo0.m_Dimensions;
     const TensorShape& shape1 = inputInfo1.m_Dimensions;
@@ -917,6 +1140,22 @@ SupportedLevel IsAdditionSupported(const TensorInfo& inputInfo0,
     const bool isDim1Compatible = isDim1Equal || canStretchDim1;
     const bool isDim2Compatible = isDim2Equal || canStretchDim2;
     const bool isDim3Compatible = isDim3Equal || canStretchDim3;
+
+    if ((inputInfo0.m_Dimensions[0] != 1) || (inputInfo1.m_Dimensions[0] != 1))
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo0, "Input0 to addition", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo1, "Input1 to addition", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
 
     // From the AndroidNN spec:
     // Two dimensions are compatible when:
@@ -959,6 +1198,10 @@ SupportedLevel IsAdditionSupported(const TensorInfo& inputInfo0,
 
     if (outputInfo != nullptr)
     {
+        // Note:
+        //   Here we don't need to check IsTensorDepthSupported since addition of two layers will result in an output
+        //   tensor info that depth is the max of any of the input.
+        //   This would lead to dead code as if we don't fail with input0 or input1 we will not fail on output.
         TensorInfo expectedOutputInfo =
             Addition::CalculateOutputTensorInfo(inputInfo0, inputInfo1, outputQuantizationInfo);
         if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
@@ -977,20 +1220,32 @@ SupportedLevel IsAdditionSupported(const TensorInfo& inputInfo0,
 
     if (!utils::Find(supportedStretchedDimensions, stretchDimensions).first)
     {
+        SetReason("Cannot stretch along the requested dimensions.", reason, reasonMaxLength);
         return SupportedLevel::EstimateOnly;
     }
 
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsFullyConnectedSupported(const TensorInfo& biasInfo,
-                                         const TensorInfo& weightsInfo,
-                                         const FullyConnectedInfo& fullyConnectedInfo,
-                                         const TensorInfo& inputInfo,
-                                         TensorInfo* outputInfo,
-                                         char* reason,
-                                         size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsFullyConnectedSupported(const TensorInfo& biasInfo,
+                                                         const TensorInfo& weightsInfo,
+                                                         const FullyConnectedInfo& fullyConnectedInfo,
+                                                         const TensorInfo& inputInfo,
+                                                         TensorInfo* outputInfo,
+                                                         char* reason,
+                                                         size_t reasonMaxLength) const
 {
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to fully connected", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (!IsInputDataTypeSupported(inputInfo, "Input to fully connected", reason, reasonMaxLength))
     {
         return SupportedLevel::Unsupported;
@@ -1003,9 +1258,8 @@ SupportedLevel IsFullyConnectedSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsDataTypeIn(weightsInfo, { DataType::INT8_QUANTIZED, DataType::UINT8_QUANTIZED }))
+    if (!IsWeightsDataTypeSupported(weightsInfo, "Weights for fully connected", reason, reasonMaxLength))
     {
-        SetReason("Weights for fully connected must be UINT8_QUANTIZED or INT8_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -1028,9 +1282,8 @@ SupportedLevel IsFullyConnectedSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (biasInfo.m_DataType != DataType::INT32_QUANTIZED)
+    if (!IsBiasDataTypeSupported(biasInfo, "Bias for fully connected", reason, reasonMaxLength))
     {
-        SetReason("Bias for fully connected must be INT32_QUANTIZED", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -1047,15 +1300,23 @@ SupportedLevel IsFullyConnectedSupported(const TensorInfo& biasInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsQuantizationDimSupported(&biasInfo, &weightsInfo, &inputInfo, "Fully Connected", reason, reasonMaxLength))
+    if (!IsQuantizationDimSupported(&biasInfo, &weightsInfo, &inputInfo, &fullyConnectedInfo.m_OutputQuantizationInfo,
+                                    "Fully Connected", reason, reasonMaxLength))
     {
-        return SupportedLevel::EstimateOnly;
+        return SupportedLevel::Unsupported;
+    }
+
+    TensorInfo expectedOutputInfo =
+        FullyConnected::CalculateOutputTensorInfo(inputInfo, weightsInfo, fullyConnectedInfo);
+
+    if (!IsTensorDepthSupported(m_Capabilities, expectedOutputInfo, "Output of fully connected", reason,
+                                reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
     }
 
     if (outputInfo != nullptr)
     {
-        TensorInfo expectedOutputInfo =
-            FullyConnected::CalculateOutputTensorInfo(inputInfo, weightsInfo, fullyConnectedInfo);
         if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
         {
             SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
@@ -1077,9 +1338,10 @@ SupportedLevel IsFullyConnectedSupported(const TensorInfo& biasInfo,
         return SupportedLevel::EstimateOnly;
     }
 
+    QuantizationScales intermediateScales =
+        inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales();
     if (biasInfo.m_QuantizationInfo.GetZeroPoint() != 0 ||
-        biasInfo.m_QuantizationInfo.GetScales() !=
-            inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales())
+        biasInfo.m_QuantizationInfo.GetScales() != intermediateScales)
     {
         SetReason("Bias for fully connected must have quantization parameters with zero point of 0 and scale of "
                   "input scale x weight scale",
@@ -1087,10 +1349,8 @@ SupportedLevel IsFullyConnectedSupported(const TensorInfo& biasInfo,
         return SupportedLevel::EstimateOnly;
     }
 
-    // TODO: Add support for per-channel quantization
-    double overallScale = inputInfo.m_QuantizationInfo.GetScale() * weightsInfo.m_QuantizationInfo.GetScale() /
-                          fullyConnectedInfo.m_OutputQuantizationInfo.GetScale();
-    if (overallScale < 0.0f || overallScale >= 1.0f)
+    QuantizationScales overallScale = intermediateScales / fullyConnectedInfo.m_OutputQuantizationInfo.GetScales();
+    if (overallScale.min() < 0.0f || overallScale.max() >= 1.0f)
     {
         SetReason("Overall scale (of the input * weights / output) should be in the range [0, 1)", reason,
                   reasonMaxLength);
@@ -1100,9 +1360,23 @@ SupportedLevel IsFullyConnectedSupported(const TensorInfo& biasInfo,
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsReluSupported(
-    const ReluInfo& reluInfo, const TensorInfo& inputInfo, TensorInfo* outputInfo, char* reason, size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsReluSupported(const ReluInfo& reluInfo,
+                                               const TensorInfo& inputInfo,
+                                               TensorInfo* outputInfo,
+                                               char* reason,
+                                               size_t reasonMaxLength) const
 {
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to relu", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (reluInfo.m_LowerBound > reluInfo.m_UpperBound)
     {
         SetReason("Relu has lower bound > upper bound", reason, reasonMaxLength);
@@ -1120,9 +1394,9 @@ SupportedLevel IsReluSupported(
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Relu", reason, reasonMaxLength))
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "Relu", reason, reasonMaxLength))
     {
-        return SupportedLevel::EstimateOnly;
+        return SupportedLevel::Unsupported;
     }
 
     if (outputInfo != nullptr)
@@ -1139,12 +1413,23 @@ SupportedLevel IsReluSupported(
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsLeakyReluSupported(const LeakyReluInfo& leakyReluInfo,
-                                    const TensorInfo& inputInfo,
-                                    TensorInfo* outputInfo,
-                                    char* reason,
-                                    size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsLeakyReluSupported(const LeakyReluInfo& leakyReluInfo,
+                                                    const TensorInfo& inputInfo,
+                                                    TensorInfo* outputInfo,
+                                                    char* reason,
+                                                    size_t reasonMaxLength) const
 {
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to leaky relu", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (!IsInputDataTypeSupported(inputInfo, "Input to leaky relu", reason, reasonMaxLength))
     {
         return SupportedLevel::Unsupported;
@@ -1156,9 +1441,10 @@ SupportedLevel IsLeakyReluSupported(const LeakyReluInfo& leakyReluInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Leaky Relu", reason, reasonMaxLength))
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, &leakyReluInfo.m_OutputQuantizationInfo, "Leaky Relu",
+                                    reason, reasonMaxLength))
     {
-        return SupportedLevel::EstimateOnly;
+        return SupportedLevel::Unsupported;
     }
 
     if (outputInfo != nullptr)
@@ -1181,12 +1467,23 @@ SupportedLevel IsLeakyReluSupported(const LeakyReluInfo& leakyReluInfo,
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsRequantizeSupported(const RequantizeInfo& requantizeInfo,
-                                     const TensorInfo& inputInfo,
-                                     TensorInfo* outputInfo,
-                                     char* reason,
-                                     size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsRequantizeSupported(const RequantizeInfo& requantizeInfo,
+                                                     const TensorInfo& inputInfo,
+                                                     TensorInfo* outputInfo,
+                                                     char* reason,
+                                                     size_t reasonMaxLength) const
 {
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to requantize", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (!IsInputDataTypeSupported(inputInfo, "Input to requantize", reason, reasonMaxLength))
     {
         return SupportedLevel::Unsupported;
@@ -1198,14 +1495,30 @@ SupportedLevel IsRequantizeSupported(const RequantizeInfo& requantizeInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Requantize", reason, reasonMaxLength))
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, &requantizeInfo.m_OutputQuantizationInfo,
+                                    "Requantize", reason, reasonMaxLength))
     {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationScaleSupported(inputInfo.m_QuantizationInfo.GetScale(),
+                                      requantizeInfo.m_OutputQuantizationInfo.GetScale()))
+    {
+        SetReason("Output scale must be bigger than input scale / 128", reason, reasonMaxLength);
+        // We might be able to support this in the future if we add a generic requantize in the PLE
         return SupportedLevel::EstimateOnly;
+    }
+
+    TensorInfo expectedOutputInfo = Requantize::CalculateOutputTensorInfo(inputInfo, requantizeInfo);
+
+    if (!(IsQuantisationZeroPointInRange(expectedOutputInfo)))
+    {
+        SetReason("Zero point out of range", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
     }
 
     if (outputInfo != nullptr)
     {
-        TensorInfo expectedOutputInfo = Requantize::CalculateOutputTensorInfo(inputInfo, requantizeInfo);
         if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
         {
             SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
@@ -1217,23 +1530,37 @@ SupportedLevel IsRequantizeSupported(const RequantizeInfo& requantizeInfo,
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsSoftmaxSupported(const TensorInfo&, TensorInfo*, char* reason, size_t reasonMaxLength)
+SupportedLevel
+    SupportQueries::IsSoftmaxSupported(const TensorInfo&, TensorInfo*, char* reason, size_t reasonMaxLength) const
 {
     SetReason("Softmax operation is not supported", reason, reasonMaxLength);
     return SupportedLevel::EstimateOnly;
 }
 
-SupportedLevel
-    IsSigmoidSupported(const TensorInfo& inputInfo, TensorInfo* outputInfo, char* reason, size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsSigmoidSupported(const TensorInfo& inputInfo,
+                                                  TensorInfo* outputInfo,
+                                                  char* reason,
+                                                  size_t reasonMaxLength) const
 {
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to sigmoid layer", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (!IsInputDataTypeSupported(inputInfo, "Input to sigmoid layer", reason, reasonMaxLength))
     {
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Sigmoid", reason, reasonMaxLength))
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "Sigmoid", reason, reasonMaxLength))
     {
-        return SupportedLevel::EstimateOnly;
+        return SupportedLevel::Unsupported;
     }
 
     if (outputInfo != nullptr)
@@ -1254,14 +1581,25 @@ SupportedLevel
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsPoolingSupported(const PoolingInfo& poolingInfo,
-                                  const TensorInfo& inputInfo,
-                                  TensorInfo* outputInfo,
-                                  char* reason,
-                                  size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsPoolingSupported(const PoolingInfo& poolingInfo,
+                                                  const TensorInfo& inputInfo,
+                                                  TensorInfo* outputInfo,
+                                                  char* reason,
+                                                  size_t reasonMaxLength) const
 {
     const uint32_t inputHeight = inputInfo.m_Dimensions[1];
     const uint32_t inputWidth  = inputInfo.m_Dimensions[2];
+
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to pooling layer", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
 
     if (!IsInputDataTypeSupported(inputInfo, "Input to pooling layer", reason, reasonMaxLength))
     {
@@ -1275,9 +1613,9 @@ SupportedLevel IsPoolingSupported(const PoolingInfo& poolingInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Pooling", reason, reasonMaxLength))
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "Pooling", reason, reasonMaxLength))
     {
-        return SupportedLevel::EstimateOnly;
+        return SupportedLevel::Unsupported;
     }
 
     if (outputInfo != nullptr)
@@ -1402,27 +1740,43 @@ SupportedLevel IsPoolingSupported(const PoolingInfo& poolingInfo,
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsReshapeSupported(const TensorShape& newDimensions,
-                                  const TensorInfo& inputInfo,
-                                  TensorInfo* outputInfo,
-                                  char* reason,
-                                  size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsReshapeSupported(const TensorShape& newDimensions,
+                                                  const TensorInfo& inputInfo,
+                                                  TensorInfo* outputInfo,
+                                                  char* reason,
+                                                  size_t reasonMaxLength) const
 {
+    if ((inputInfo.m_Dimensions[0] != 1) || (newDimensions[0] != 1))
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to reshape", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (utils::TotalSizeBytes(inputInfo) != utils::TotalSizeBytes(newDimensions))
     {
         SetReason("Total elements in the input doesn't match new dimensions", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Reshape", reason, reasonMaxLength))
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "Reshape", reason, reasonMaxLength))
     {
-        return SupportedLevel::EstimateOnly;
+        return SupportedLevel::Unsupported;
+    }
+
+    TensorInfo expectedOutputInfo = Reshape::CalculateOutputTensorInfo(inputInfo, newDimensions);
+
+    if (!IsTensorDepthSupported(m_Capabilities, expectedOutputInfo, "Output of reshape", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
     }
 
     if (outputInfo != nullptr)
     {
-        TensorInfo expectedOutputInfo = Reshape::CalculateOutputTensorInfo(inputInfo, newDimensions);
-
         if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
         {
             SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
@@ -1434,12 +1788,23 @@ SupportedLevel IsReshapeSupported(const TensorShape& newDimensions,
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsDepthToSpaceSupported(const TensorInfo& inputInfo,
-                                       const DepthToSpaceInfo& depthToSpaceInfo,
-                                       TensorInfo* outputInfo,
-                                       char* reason,
-                                       size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsDepthToSpaceSupported(const TensorInfo& inputInfo,
+                                                       const DepthToSpaceInfo& depthToSpaceInfo,
+                                                       TensorInfo* outputInfo,
+                                                       char* reason,
+                                                       size_t reasonMaxLength) const
 {
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to depth to space", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (!IsInputDataTypeSupported(inputInfo, "Input to depth to space", reason, reasonMaxLength))
     {
         return SupportedLevel::Unsupported;
@@ -1458,13 +1823,17 @@ SupportedLevel IsDepthToSpaceSupported(const TensorInfo& inputInfo,
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, "Depth to Space", reason, reasonMaxLength))
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "Depth to Space", reason, reasonMaxLength))
     {
-        return SupportedLevel::EstimateOnly;
+        return SupportedLevel::Unsupported;
     }
 
     if (outputInfo != nullptr)
     {
+        // Note:
+        //   Here we don't need to check IsTensorDepthSupported since calculated output of DepthToSpace results in an
+        //   output tensor info that depth is the depth of input tensor info divided by the square of block size.
+        //   This would lead to dead code as if we don't fail with input we will not fail on output.
         TensorInfo expectedOutputInfo = DepthToSpace::CalculateOutputTensorInfo(inputInfo, depthToSpaceInfo);
         if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
         {
@@ -1483,16 +1852,17 @@ SupportedLevel IsDepthToSpaceSupported(const TensorInfo& inputInfo,
     return SupportedLevel::Supported;
 }
 
-SupportedLevel IsSpaceToDepthSupported(const TensorInfo&, const SpaceToDepthInfo&, TensorInfo*, char*, size_t)
+SupportedLevel SupportQueries::IsSpaceToDepthSupported(
+    const TensorInfo&, const SpaceToDepthInfo&, TensorInfo*, char*, size_t) const
 {
     return SupportedLevel::Unsupported;
 }
 
-SupportedLevel IsEstimateOnlySupported(const std::vector<TensorInfo>&,
-                                       const EstimateOnlyInfo& info,
-                                       std::vector<TensorInfo>* outputInfos,
-                                       char* reason,
-                                       size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsEstimateOnlySupported(const std::vector<TensorInfo>&,
+                                                       const EstimateOnlyInfo& info,
+                                                       std::vector<TensorInfo>* outputInfos,
+                                                       char* reason,
+                                                       size_t reasonMaxLength) const
 {
     if (outputInfos != nullptr)
     {
@@ -1511,17 +1881,29 @@ SupportedLevel IsEstimateOnlySupported(const std::vector<TensorInfo>&,
     return SupportedLevel::EstimateOnly;
 }
 
-SupportedLevel IsTransposeSupported(const TransposeInfo&, const TensorInfo&, TensorInfo*, char*, size_t)
+SupportedLevel
+    SupportQueries::IsTransposeSupported(const TransposeInfo&, const TensorInfo&, TensorInfo*, char*, size_t) const
 {
     return SupportedLevel::Unsupported;
 }
 
-SupportedLevel IsResizeSupported(const ResizeInfo& resizeInfo,
-                                 const TensorInfo& inputInfo,
-                                 TensorInfo* outputInfo,
-                                 char* reason,
-                                 size_t reasonMaxLength)
+SupportedLevel SupportQueries::IsResizeSupported(const ResizeInfo& resizeInfo,
+                                                 const TensorInfo& inputInfo,
+                                                 TensorInfo* outputInfo,
+                                                 char* reason,
+                                                 size_t reasonMaxLength) const
 {
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to resize", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (!IsInputDataTypeSupported(inputInfo, "Input to resize", reason, reasonMaxLength))
     {
         return SupportedLevel::Unsupported;
@@ -1552,6 +1934,10 @@ SupportedLevel IsResizeSupported(const ResizeInfo& resizeInfo,
 
     if (outputInfo != nullptr)
     {
+        // Note:
+        //   Here we don't need to check IsTensorDepthSupported since calculated output of Resize results in an output
+        //   tensor info that depth is the depth of input tensor info.
+        //   This would lead to dead code as if we don't fail with input we will not fail on output.
         TensorInfo expectedOutputInfo = Resize::CalculateOutputTensorInfo(inputInfo, resizeInfo);
 
         if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)

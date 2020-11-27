@@ -15,9 +15,7 @@ namespace support_library
 class NonCascading : public IEstimationStrategy
 {
 public:
-    NonCascading(const EstimationOptions& estOpt,
-                 const HardwareCapabilities& hwCap,
-                 const DebuggingContext& debuggingContext);
+    NonCascading(const EstimationOptions& estOpt, const CompilationOptions& compOpt, const HardwareCapabilities& hwCap);
     NetworkPerformanceData Estimate(Graph& graph) override;
 
 private:

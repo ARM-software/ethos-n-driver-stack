@@ -36,19 +36,37 @@ bool ConversionPass::ChooseAndSetupStripe(const HardwareCapabilities& capabiliti
     outputAllocateResult.first                      = false;
 
     // Try taking the whole size first, then move until we find something that works.
-    const uint32_t maxSplits = DivRoundUp(outputShape[1], capabilities.GetBrickGroupShape()[1]);
+    const uint32_t maxHeightSplit = DivRoundUp(outputShape[1], capabilities.GetBrickGroupShape()[1]);
+    const uint32_t maxWidthSplits = DivRoundUp(outputShape[2], capabilities.GetBrickGroupShape()[2]);
+    // Allow splitting in depth only if the width is 1. When the width is 1 the firmware can support splitting in depth,
+    // but for other cases it can't (this isn't strictly true, but is a conservative approximation - what matters
+    // here is that we support at least the cases we claim to, which is when width == 1 - see IsTensorDepthSupported).
+    const uint32_t maxDepthSplits =
+        outputShape[2] == 1 ? DivRoundUp(outputShape[3], capabilities.GetBrickGroupShape()[3]) : 1;
 
-    for (uint32_t numHeightSplits = 1; numHeightSplits <= maxSplits && !outputAllocateResult.first; ++numHeightSplits)
+    for (uint32_t numDepthSplits = 1; numDepthSplits <= maxDepthSplits && !outputAllocateResult.first; ++numDepthSplits)
     {
-        const uint32_t outputStripeHeight = outputShape[1] / numHeightSplits;
+        for (uint32_t numWidthSplits = 1; numWidthSplits <= maxWidthSplits && !outputAllocateResult.first;
+             ++numWidthSplits)
+        {
+            for (uint32_t numHeightSplits = 1; numHeightSplits <= maxHeightSplit && !outputAllocateResult.first;
+                 ++numHeightSplits)
+            {
+                const uint32_t outputStripeHeight = outputShape[1] / numHeightSplits;
+                const uint32_t outputStripeWidth  = outputShape[2] / numWidthSplits;
+                const uint32_t outputStripeDepth  = outputShape[3] / numDepthSplits;
 
-        outputStripe = { 1, utils::RoundUpToNearestMultiple(outputStripeHeight, capabilities.GetBrickGroupShape()[1]),
-                         utils::RoundUpToNearestMultiple(outputShape[2], capabilities.GetBrickGroupShape()[2]),
-                         utils::RoundUpToNearestMultiple(outputShape[3], capabilities.GetBrickGroupShape()[3]) };
-        const uint32_t output = TotalSizeBytesNHWCB(outputStripe);
+                outputStripe = {
+                    1, utils::RoundUpToNearestMultiple(outputStripeHeight, capabilities.GetBrickGroupShape()[1]),
+                    utils::RoundUpToNearestMultiple(outputStripeWidth, capabilities.GetBrickGroupShape()[2]),
+                    utils::RoundUpToNearestMultiple(outputStripeDepth, capabilities.GetBrickGroupShape()[3])
+                };
+                const uint32_t output = TotalSizeBytesNHWCB(outputStripe);
 
-        outputAllocateResult = sramAllocator.Allocate(output / capabilities.GetNumberOfSrams(),
-                                                      outputAllocationPreference, "outputs attempt");
+                outputAllocateResult = sramAllocator.Allocate(output / capabilities.GetNumberOfSrams(),
+                                                              outputAllocationPreference, "outputs attempt");
+            }
+        }
     }
 
     return outputAllocateResult.first;
@@ -88,6 +106,10 @@ std::unique_ptr<ethosn::support_library::ConversionPass> ConversionPass::CreateG
         {
             definiteNodes.push_back(current);
         }
+        else if (isInputDram && dynamic_cast<CopyNode*>(current))
+        {
+            definiteNodes.push_back(current);
+        }
         else if (isInputSram)
         {
             if ((dynamic_cast<FormatConversionNode*>(current) ||
@@ -121,7 +143,7 @@ std::unique_ptr<ethosn::support_library::ConversionPass> ConversionPass::CreateG
         // Allocate some SRAM for the output.
 
         TensorShape stripeShape;
-        AllocationPreference outputSramAllocationPreference;
+        AllocationPreference outputSramAllocationPreference = AllocationPreference::Start;
         if (definiteNodes.front()->GetInputLocation(0) == BufferLocation::Sram)
         {
             // For SRAM -> SRAM conversion we perform the whole operation in one stripe
@@ -228,7 +250,7 @@ void ConversionPass::Generate(command_stream::CommandStreamBuffer& cmdStream,
     TensorShape outputSupertensorShape                 = outputShape;
     TensorShape outputSupertensorOffset                = { 0, 0, 0, 0 };
 
-    uint32_t inputSramOffset;
+    uint32_t inputSramOffset = 0;
 
     uint32_t outputBufferId   = 0;
     uint32_t outputSize       = CalculateBufferSize(m_Nodes.back()->GetShape(), commandOutputDataFormat);
@@ -270,7 +292,7 @@ void ConversionPass::Generate(command_stream::CommandStreamBuffer& cmdStream,
     m_Nodes.back()->SetBufferId(outputBufferId);
 
     Convert convert;
-    convert.m_InputInfo().m_DataType()          = ConvertDataType(m_Nodes.front()->GetInputDataType(0));
+    convert.m_InputInfo().m_DataType()          = GetCommandDataType(m_Nodes.front()->GetInputDataType(0));
     convert.m_InputInfo().m_DataFormat()        = m_Nodes.front()->GetInputBufferFormat(0);
     convert.m_InputInfo().m_TensorShape()       = inputShape;
     convert.m_InputInfo().m_SupertensorShape()  = inputShape;
@@ -283,7 +305,7 @@ void ConversionPass::Generate(command_stream::CommandStreamBuffer& cmdStream,
     convert.m_InputInfo().m_StripeShape()  = m_StripeShape;
     convert.m_InputInfo().m_TileSize()     = utils::TotalSizeBytesNHWCB(m_StripeShape);
 
-    convert.m_OutputInfo().m_DataType()          = ConvertDataType(m_Nodes.back()->GetDataType());
+    convert.m_OutputInfo().m_DataType()          = GetCommandDataType(m_Nodes.back()->GetDataType());
     convert.m_OutputInfo().m_DataFormat()        = commandOutputDataFormat;
     convert.m_OutputInfo().m_TensorShape()       = outputShape;
     convert.m_OutputInfo().m_SupertensorShape()  = outputSupertensorShape;

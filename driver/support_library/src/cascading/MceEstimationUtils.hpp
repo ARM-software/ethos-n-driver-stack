@@ -5,7 +5,6 @@
 #pragma once
 
 #include "../GraphNodes.hpp"
-#include "../Utils.hpp"
 #include "../WeightEncoder.hpp"
 #include "Plan.hpp"
 
@@ -13,6 +12,8 @@ namespace ethosn
 {
 namespace support_library
 {
+
+class HardwareCapabilities;
 
 MceStats GetMceStats(const HardwareCapabilities& caps,
                      const Stride& stride,

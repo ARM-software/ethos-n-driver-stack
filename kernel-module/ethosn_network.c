@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2019 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2019 Arm Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -789,15 +789,25 @@ static long network_ioctl(struct file *filep,
 		}
 
 		ret = ethosn_inference_register(network, &infer_req);
+
+		dev_dbg(net_to_dev(network), "SCHEDULE_INFERENCE: %llu", time);
+
+		break;
+	}
+	case ETHOSN_IOCTL_GET_INTERMEDIATE_BUFFER: {
+		if (network->ethosn->num_cores > 1)
+			dev_warn(net_to_dev(
+					 network),
+				 "Intermediate buffer for multi-core system: core 0 will be returned.");
+
+		ret = ethosn_get_dma_view_fd(network->ethosn,
+					     network->intermediate_data[0]);
 		break;
 	}
 	default: {
 		ret = -EINVAL;
 	}
 	}
-
-	dev_dbg(net_to_dev(network),
-		"SCHEDULE_INFERENCE: %llu", time);
 
 	return ret;
 }

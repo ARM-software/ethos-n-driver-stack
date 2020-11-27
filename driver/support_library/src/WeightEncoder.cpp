@@ -291,7 +291,7 @@ public:
                    uint32_t indexSize,
                    const std::vector<uint8_t>& lut,
                    bool lutReload,
-                   const uint32_t zeroPoint,
+                   const uint8_t zeroPoint,
                    int blockSize);
 
     virtual void CompressWeight(uint8_t weight);
@@ -303,14 +303,16 @@ protected:
     uint16_t m_Mask;
     int m_NumWeights;
     size_t m_MaskOffset;
-    uint32_t m_ZeroPoint;
+    // ZeroPoint can be signed or unsigned 8 bit value but it is always
+    // stored as uint8_t.
+    uint8_t m_ZeroPoint;
 };
 
 ZeroCompressor::ZeroCompressor(std::vector<uint8_t>& result,
                                uint32_t indexSize,
                                const std::vector<uint8_t>& lut,
                                bool lutReload,
-                               const uint32_t zeroPoint,
+                               const uint8_t zeroPoint,
                                int blockSize)
     : IndexCompressor(result, indexSize, lut, lutReload)
     , m_BlockSize(blockSize)
@@ -375,7 +377,7 @@ static std::shared_ptr<WeightCompressor> CreateWeightCompressor(std::vector<uint
                                                                 const std::vector<uint8_t>& lut,
                                                                 bool lutReload,
                                                                 bool maskEnable,
-                                                                const uint32_t zeroPoint,
+                                                                const uint8_t zeroPoint,
                                                                 int blockSize)
 {
     if (!maskEnable && indexSize > 0)
@@ -819,10 +821,12 @@ void WeightEncoderV2::FindRLEParams(WeightCompressionParamsV2& params, const std
             ++numZeroes;
         }
 
-        if (numZeroes > 0)
-        {
-            zeroGroups.push_back(numZeroes);
-        }
+        zeroGroups.push_back(numZeroes);
+    }
+
+    if (weights.back() != 0)
+    {
+        zeroGroups.push_back(0);
     }
 
     // Find the ZDiv with the lowest overall bitcost
@@ -1489,7 +1493,8 @@ std::unique_ptr<WeightEncoder> WeightEncoder::CreateWeightEncoder(const Hardware
     }
     else
     {
-        throw VersionMismatchException("Unsupported weight compressor version");
+        throw VersionMismatchException(std::string("Unsupported weight compressor version: ") +
+                                       std::to_string(version));
     }
 }
 
@@ -1559,10 +1564,11 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
                                      ethosn::command_stream::MceOperation operation,
                                      CompilerMceAlgorithm algorithm)
 {
+    ETHOSN_UNUSED(biasTensorInfo);
     assert(stripeDepth > 0);
     assert(iterationSize > 0);
 
-    uint32_t numOfms;
+    uint32_t numOfms = 0;
     if (weightsTensorInfo.m_DataFormat == DataFormat::HWIO)
     {
         numOfms = weightsTensorInfo.m_Dimensions[3];
@@ -1573,7 +1579,6 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
     }
     else
     {
-        // Weight tensor must be HWIO or HWIM
         assert(false);
     }
 
@@ -1583,6 +1588,7 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
 
     // Zero point value should be within allowed range
     const utils::DataTypeRange zeroPointBounds = utils::GetRangeOfDataType(weightsTensorInfo.m_DataType);
+    ETHOSN_UNUSED(zeroPointBounds);
     assert(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint() <= zeroPointBounds.max &&
            weightsTensorInfo.m_QuantizationInfo.GetZeroPoint() >= zeroPointBounds.min);
 
@@ -1608,7 +1614,7 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
     encodedStreams.reserve(numOfms * numIterationsOfm);
     std::vector<uint32_t> encodedNumBits;
     encodedNumBits.reserve(numOfms * numIterationsOfm);
-    const auto numWeightScales = weightsTensorInfo.m_QuantizationInfo.GetScales().Size();
+    const auto numWeightScales = weightsTensorInfo.m_QuantizationInfo.GetScales().size();
 
     for (uint32_t ofm = 0; ofm < (numOfms * numIterationsOfm); ++ofm)
     {
@@ -2188,6 +2194,9 @@ WeightEncoderV1::WeightCompressionParamsV1
         },
     } };
     // clang-format on
+
+    // ZeroPoint must be representable in the data type (int8 or uint8 for now)
+    const uint8_t zeroPoint = static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
     // Analyze the size for each
     for (Scheme& scheme : schemes)
     {
@@ -2204,7 +2213,7 @@ WeightEncoderV1::WeightCompressionParamsV1
         scheme.numElements = rawWeights.size();
         scheme.numUniqueElements =
             count_if(scheme.frequencies.begin(), scheme.frequencies.end(), [](size_t val) { return val != 0; });
-        scheme.numZeroPointElements = scheme.frequencies[weightsTensorInfo.m_QuantizationInfo.GetZeroPoint()];
+        scheme.numZeroPointElements = scheme.frequencies[zeroPoint];
         scheme.compressedSize       = scheme.compressedSizeCalculator(scheme);
     }
 
@@ -2219,11 +2228,10 @@ WeightEncoderV1::WeightCompressionParamsV1
     if (params.m_LutReload)
     {
         // Enable Lut compression
-        /* IndexSize:  Bits per index (number of weights):
-            1           3 (0 - 8 weights)
-            2           4 (9 - 16 weights)
-            3           5 (17 - 32 weights)
-        */
+        // IndexSize:  Bits per index (number of weights):
+        //  1           3 (0 - 8 weights)
+        //  2           4 (9 - 16 weights)
+        //  3           5 (17 - 32 weights)
         size_t compressedUniqueElements = bestScheme.numUniqueElements;
         if (params.m_MaskEnable && bestScheme.numZeroPointElements > 0)
         {
@@ -2238,8 +2246,6 @@ WeightEncoderV1::WeightCompressionParamsV1
         params.m_Lut = std::vector<uint8_t>(static_cast<int>(pow(2, bitsPerIndex)), 0);
 
         size_t index = 0;
-        // ZeroPoint must be greater than zero and less than 255
-        uint8_t zeroPoint = static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
         for (int i = 0; index < bestScheme.frequencies.size(); ++index)
         {
             if (bestScheme.frequencies[index] != 0 && !(params.m_MaskEnable && index == zeroPoint))
@@ -2356,9 +2362,10 @@ WeightEncoder::EncodedOfm
     header.m_Padding         = 0;    // Unused padding.
 
     // Compress each weight using the above chosen compression parameters
-    std::shared_ptr<WeightCompressor> compressor = CreateWeightCompressor(
-        encodedWeights, compressionParams.m_IndexSize, compressionParams.m_Lut, compressionParams.m_LutReload,
-        compressionParams.m_MaskEnable, params.m_FilterZeroPoint, m_Capabilities.GetNumberOfSrams());
+    std::shared_ptr<WeightCompressor> compressor =
+        CreateWeightCompressor(encodedWeights, compressionParams.m_IndexSize, compressionParams.m_Lut,
+                               compressionParams.m_LutReload, compressionParams.m_MaskEnable,
+                               static_cast<uint8_t>(params.m_FilterZeroPoint), m_Capabilities.GetNumberOfSrams());
 
     for (size_t i = 0; i < rawWeights.size(); ++i)
     {
@@ -2534,10 +2541,11 @@ std::vector<std::vector<uint8_t>> WeightEncoder::MergeStreams(const std::vector<
                 WeightHeader& header = reinterpret_cast<WeightHeader&>(mergedGroup[start]);
                 assert(header.m_StreamLength == 0xFFFF);    // Not yet written or not a header
 
-                uint32_t startWord = start / streamHeadersUpdateAlignment;
-                uint32_t endWord =
+                const uint32_t startWord = start / streamHeadersUpdateAlignment;
+                const uint32_t endWord =
                     utils::DivRoundUp(static_cast<uint32_t>(mergedGroup.size()), streamHeadersUpdateAlignment);
-                header.m_StreamLength = static_cast<uint16_t>(endWord - startWord);
+                const uint16_t streamLength = static_cast<uint16_t>(endWord - startWord);
+                header.m_StreamLength       = streamLength;
             }
         }
     }

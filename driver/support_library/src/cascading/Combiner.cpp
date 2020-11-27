@@ -6,82 +6,36 @@
 #include "Combiner.hpp"
 
 #include "../SramAllocator.hpp"
+#include "../Utils.hpp"
 #include "Cascading.hpp"
+#include "DebuggingContext.hpp"
+#include "Estimation.hpp"
 #include "Part.hpp"
 #include "Plan.hpp"
+
+#include <ethosn_utils/Filesystem.hpp>
+
+#include <array>
+#include <fstream>
+#include <list>
 
 namespace ethosn
 {
 namespace support_library
 {
 
+using namespace utils;
+
 namespace
 {
 
-bool IsOutputBufferInDram(const Plan& plan, const Edge& edge)
-{
-    const Buffer* buf = plan.GetOutputBuffer(edge.GetSource());
-    return (buf == nullptr) ? true : ((buf->m_Location) == Location::Dram);
-}
-
-bool IsOutputBufferAtomic(const Plan& plan, const Edge& edge)
-{
-    const Buffer* buf = plan.GetOutputBuffer(edge.GetSource());
-    return (buf == nullptr) ? true : ((buf->m_Lifetime) == Lifetime::Atomic);
-}
-
-struct SizeInBytes
-{
-    uint32_t m_Tot       = 0;
-    uint32_t m_TotAtomic = 0;
-};
-
-SizeInBytes GetTotSizeInBytes(const Plan& plan)
-{
-    SizeInBytes result;
-    const OpGraph::BufferList& bufs        = plan.m_OpGraph.GetBuffers();
-    OpGraph::BufferList::const_iterator it = bufs.begin();
-    while (it != bufs.end())
-    {
-        const Buffer* buf   = *it;
-        const uint32_t size = buf->m_SizeInBytes;
-        result.m_Tot += size;
-        if (buf->m_Lifetime == Lifetime::Atomic)
-        {
-            result.m_TotAtomic += size;
-        }
-        ++it;
-    }
-    assert(result.m_TotAtomic <= result.m_Tot);
-    return result;
-}
-
-SizeInBytes GetInputsSizeInBytes(const Plan& plan)
-{
-    SizeInBytes result;
-    const Plan::InputMapping in           = plan.m_InputMappings;
-    Plan::InputMapping::const_iterator it = in.begin();
-    while (it != in.end())
-    {
-        const Buffer* buf   = it->first;
-        const uint32_t size = buf->m_SizeInBytes;
-        result.m_Tot += size;
-        if (buf->m_Lifetime == Lifetime::Atomic)
-        {
-            result.m_TotAtomic += size;
-        }
-        ++it;
-    }
-    assert(result.m_TotAtomic <= result.m_Tot);
-    return result;
-}
+constexpr uint32_t g_kHistoryDepth = 2U;
 
 using Allocated = std::pair<bool, uint32_t>;
 
 struct AddedSeed
 {
     bool m_Added;
-    uint32_t m_MinSizeInBytes;
     Combination m_Combination;
 };
 
@@ -93,7 +47,6 @@ AddedSeed AddSeed(const PlanId fPlId,
                   const Glue* glue,
                   const Combination& comb,
                   const uint32_t baseSizeInBytes,
-                  const uint32_t minSizeInBytes,
                   SramAllocator& alloc,
                   const HardwareCapabilities& caps,
                   const bool canMerge)
@@ -117,16 +70,10 @@ AddedSeed AddSeed(const PlanId fPlId,
     if (!allocated.first)
     {
         // There is no space
-        return AddedSeed{ false, std::numeric_limits<uint32_t>::max(), Combination{} };
+        return AddedSeed{ false, Combination{} };
     }
 
-    const uint32_t allocatedSram = addSizeInBytes - sTotSize.m_TotAtomic;
-    const bool isMinSize         = (allocatedSram <= minSizeInBytes);
-
-    if (canMerge && !isMinSize)
-    {
-        return AddedSeed{ false, std::numeric_limits<uint32_t>::max(), Combination{} };
-    }
+    const uint32_t allocatedSram = addSizeInBytes;
 
     if (update)
     {
@@ -142,7 +89,14 @@ AddedSeed AddSeed(const PlanId fPlId,
         result.m_Elems.push_back(el);
     }
 
-    result.m_Scratch.m_AllocatedSram = allocatedSram;
+    if (canMerge && (allocatedSram < sInSize.m_TotAtomic))
+    {
+        std::string errorMessage =
+            "Sram allocation incorrect " + std::to_string(allocatedSram) + " < " + std::to_string(sInSize.m_TotAtomic);
+        throw NotSupportedException(errorMessage.c_str());
+    }
+
+    result.m_Scratch.m_AllocatedSram = allocatedSram - (canMerge ? sInSize.m_TotAtomic : 0U);
 
     if (!update)
     {
@@ -156,7 +110,7 @@ AddedSeed AddSeed(const PlanId fPlId,
         ++result.m_Scratch.m_Score;
     }
 
-    return AddedSeed{ true, (canMerge ? std::min(minSizeInBytes, allocatedSram) : minSizeInBytes), result };
+    return AddedSeed{ true, result };
 }
 
 struct NxtPa
@@ -278,7 +232,8 @@ Combinations CombineSeeds(const PlanId fPlId,
                           const Metadata& metadata,
                           SramAllocator& alloc,
                           const HardwareCapabilities& caps,
-                          const bool create = true)
+                          const GrowScheme scheme = GrowScheme::Default,
+                          const bool create       = true)
 {
     Combinations result;
 
@@ -295,12 +250,9 @@ Combinations CombineSeeds(const PlanId fPlId,
 
     const Plan& fPl      = fPart.GetPlan(fPlId);
     const bool outInDram = IsOutputBufferInDram(fPl, *sEdge);
-    const bool outAtomic = IsOutputBufferAtomic(fPl, *sEdge);
 
     const SizeInBytes fTotSize     = GetTotSizeInBytes(fPl);
-    const uint32_t baseSizeInBytes = create ? (fTotSize.m_Tot - fTotSize.m_TotAtomic) : comb.m_Scratch.m_AllocatedSram;
-
-    uint32_t minSizeInBytes = std::numeric_limits<uint32_t>::max();
+    const uint32_t baseSizeInBytes = create ? (fTotSize.m_Tot) : comb.m_Scratch.m_AllocatedSram;
 
     // Process all the list of compatible plans
     for (uint32_t i = 0; i < fComPls.size(); ++i)
@@ -314,26 +266,104 @@ Combinations CombineSeeds(const PlanId fPlId,
 
         const bool hasGlue = (fComPl.m_Glue.m_Graph.GetOps().size() > 0);
 
-        const bool canMerge = !hasGlue && !outInDram && !outAtomic;
+        const bool canMerge = !hasGlue && !outInDram;
+
+        if (scheme == GrowScheme::MergeOnly && !canMerge)
+        {
+            continue;
+        }
+
+        if (scheme == GrowScheme::DramOnly && canMerge)
+        {
+            continue;
+        }
 
         AddedSeed addedSeed = AddSeed(fPlId, fComPl.m_Id, fPartId, sEdge, sPart, &fComPl.m_Glue, comb, baseSizeInBytes,
-                                      minSizeInBytes, alloc, caps, canMerge);
+                                      alloc, caps, canMerge);
 
         if (addedSeed.m_Added)
         {
             // Add seed
             result.push_back(addedSeed.m_Combination);
-            // Update min size in bytes
-            minSizeInBytes = addedSeed.m_MinSizeInBytes;
         }
     }
 
     return result;
 }
 
+CascadingBufferFormat GetBestCascadingBufferDramFormat(const TensorShape& tensorShape,
+                                                       const std::array<TensorShape, 2> inputOutputStripeShapes,
+                                                       const HardwareCapabilities& hwCap)
+{
+    using SupportedCompressedFormats = std::vector<CascadingBufferFormat>;
+
+    constexpr size_t sramStripeShapesSize = inputOutputStripeShapes.size();
+    SupportedCompressedFormats cascadingBufferSupportedTypePerStripe[sramStripeShapesSize];
+    for (size_t sramStripeShapesIdx = 0; sramStripeShapesIdx < sramStripeShapesSize; sramStripeShapesIdx++)
+    {
+        const TensorShape& currentStripeShape = inputOutputStripeShapes[sramStripeShapesIdx];
+        SupportedCompressedFormats& currentCascadedSupportedTypeList =
+            cascadingBufferSupportedTypePerStripe[sramStripeShapesIdx];
+        const bool isFCAFEnabled = hwCap.GetActivationCompressionVersion() == 1;
+
+        if (!isFCAFEnabled && IsCompressionFormatCompatibleWithStripeAndShape(
+                                  CompilerDataCompressedFormat::NHWCB_COMPRESSED, tensorShape, currentStripeShape))
+        {
+            currentCascadedSupportedTypeList.push_back(CascadingBufferFormat::NHWCB_COMPRESSED);
+        }
+        if (isFCAFEnabled && IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_DEEP,
+                                                                             tensorShape, currentStripeShape))
+        {
+            currentCascadedSupportedTypeList.push_back(CascadingBufferFormat::FCAF_DEEP);
+        }
+        if (isFCAFEnabled && IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_WIDE,
+                                                                             tensorShape, currentStripeShape))
+        {
+            currentCascadedSupportedTypeList.push_back(CascadingBufferFormat::FCAF_WIDE);
+        }
+    }
+
+    SupportedCompressedFormats supportedTypes;
+    static_assert(ETHOSN_ARRAY_SIZE(cascadingBufferSupportedTypePerStripe) == 2, "");
+    std::set_intersection(cascadingBufferSupportedTypePerStripe[0].begin(),
+                          cascadingBufferSupportedTypePerStripe[0].end(),
+                          cascadingBufferSupportedTypePerStripe[1].begin(),
+                          cascadingBufferSupportedTypePerStripe[1].end(), std::back_inserter(supportedTypes));
+
+    if (!supportedTypes.empty())
+    {
+        return supportedTypes.front();
+    }
+
+    return CascadingBufferFormat::NHWCB;
+}
+
 }    // namespace
 
-PlanCompatibilityResult ArePlansCompatible(const Plan& plan1, const Plan& plan2, const Edge& edge)
+bool AreMceOperationsCompatible(const Buffer* plan1OutputBuffer,
+                                const Buffer* plan2InputBuffer,
+                                const Node* destination)
+{
+    if ((IsObjectOfType<MceOperationNode>(destination)) && (plan1OutputBuffer->m_Location != Location::Dram))
+    {
+        const MceOperationNode* mceOperationNode = dynamic_cast<const MceOperationNode*>(destination);
+        const TensorShape& inputBufferShape      = plan2InputBuffer->m_TensorShape;
+        const TensorShape& inputStripeShape      = plan2InputBuffer->m_StripeShape;
+
+        if ((mceOperationNode->GetOperation() == ethosn::command_stream::MceOperation::CONVOLUTION) ||
+            (mceOperationNode->GetOperation() == ethosn::command_stream::MceOperation::FULLY_CONNECTED))
+        {
+            if (GetChannels(inputStripeShape) < GetChannels(inputBufferShape))
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+PlanCompatibilityResult
+    ArePlansCompatible(const Plan& plan1, const Plan& plan2, const Edge& edge, const HardwareCapabilities& hwCap)
 {
     // Sanity tests - make sure the two Plans are for adjacent Parts.
     // Note we lookup both buffers by the same Node, as the Graph does not explicitly store intermediate tensors -
@@ -368,8 +398,14 @@ PlanCompatibilityResult ArePlansCompatible(const Plan& plan1, const Plan& plan2,
                                 plan1OutputBuffer->m_Format == plan2InputBuffer->m_Format &&
                                 plan1OutputBuffer->m_StripeShape == plan2InputBuffer->m_StripeShape &&
                                 plan1OutputBuffer->m_Order == plan2InputBuffer->m_Order &&
-                                plan1OutputBuffer->m_SizeInBytes == plan2InputBuffer->m_SizeInBytes;
-    if (areBuffersEquivalent)
+                                plan1OutputBuffer->m_SizeInBytes == plan2InputBuffer->m_SizeInBytes &&
+                                plan1OutputBuffer->m_NumStripes == plan2InputBuffer->m_NumStripes;
+    // For some MceOperations (ie Convolution, FullyConnected), we cannot merge plan2's input buffer stripe
+    // with plan1's output buffer stripe which splits the full tensor in depth. The reason being
+    // Mce cannot keep partial results. So we need to have a glue (ie dma operation) between these plans to
+    // stop merging them.
+    if ((areBuffersEquivalent) &&
+        AreMceOperationsCompatible(plan1OutputBuffer, plan2InputBuffer, edge.GetDestination()))
     {
         PlanCompatibilityResult result;
         result.m_IsCompatible = true;
@@ -410,16 +446,24 @@ PlanCompatibilityResult ArePlansCompatible(const Plan& plan1, const Plan& plan2,
     // If both buffers are in SRAM (but not equivalent, as checked above), we can DMA out to DRAM and back in again.
     else if (plan1OutputBuffer->m_Location == Location::Sram && plan2InputBuffer->m_Location == Location::Sram)
     {
+        assert(plan1OutputBuffer->m_Format == CascadingBufferFormat::NHWCB);
+        assert(plan2InputBuffer->m_Format == CascadingBufferFormat::NHWCB);
+
         PlanCompatibilityResult result;
         result.m_IsCompatible = true;
         result.m_RequiresGlue = true;
 
-        auto dma1       = std::make_unique<DmaOp>();
-        DmaOp* dma1Raw  = dma1.get();
+        auto dma1      = std::make_unique<DmaOp>();
+        DmaOp* dma1Raw = dma1.get();
+
+        CascadingBufferFormat cascadingBufferFormat = GetBestCascadingBufferDramFormat(
+            plan1OutputBuffer->m_TensorShape, { plan1OutputBuffer->m_StripeShape, plan2InputBuffer->m_StripeShape },
+            hwCap);
         auto dramBuffer = std::make_unique<Buffer>(
-            Lifetime::Atomic, Location::Dram, CompilerDataFormat::NHWCB, plan1OutputBuffer->m_TensorShape,
+            Lifetime::Atomic, Location::Dram, cascadingBufferFormat, plan1OutputBuffer->m_TensorShape,
             TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
             utils::TotalSizeBytesNHWCB(plan1OutputBuffer->m_TensorShape), plan1OutputBuffer->m_QuantizationInfo);
+
         Buffer* dramBufferRaw = dramBuffer.get();
         auto dma2             = std::make_unique<DmaOp>();
         DmaOp* dma2Raw        = dma2.get();
@@ -437,18 +481,23 @@ PlanCompatibilityResult ArePlansCompatible(const Plan& plan1, const Plan& plan2,
     return PlanCompatibilityResult{};
 }
 
-Metadata CreateMetadata(const GraphOfParts& parts)
+Metadata CreateMetadata(const GraphOfParts& parts, const HardwareCapabilities& hwCap)
 {
     const size_t numParts = parts.GetNumParts();
     assert(numParts > 1U);
+    assert(numParts <= std::numeric_limits<int32_t>::max());
 
     Metadata result;
+    IncompatiblePlans incompPlans(numParts);
 
     MetadataOfPart mOfPa;
     CompatiblePlansOfPart comPlsOfPa;
     CompatiblePlans cPls;
 
-    for (PartId p = 0; p < numParts; ++p)
+    // This loop goes backward to remove all incompatible
+    // plans before they are used by any source part.
+    const int32_t last = static_cast<int32_t>(numParts) - 1;
+    for (int32_t p = last; p >= 0; --p)
     {
         mOfPa.m_Comp.clear();
         mOfPa.m_Source.clear();
@@ -464,6 +513,7 @@ Metadata CreateMetadata(const GraphOfParts& parts)
 
             const InPart inPa = parts.GetInputPart(*dsEdge);
             assert(inPa.first == true);
+            const std::vector<PlanId> incompPlansOfDstPart = incompPlans.at(inPa.second);
 
             const Part& sPart = parts.GetPart(inPa.second);
             // Requires Dram if the part is not directly connected with next part
@@ -479,8 +529,14 @@ Metadata CreateMetadata(const GraphOfParts& parts)
 
                 for (uint32_t s = 0; s < sPart.GetNumPlans(); ++s)
                 {
+                    if (incompPlansOfDstPart.end() !=
+                        std::find(incompPlansOfDstPart.begin(), incompPlansOfDstPart.end(), s))
+                    {
+                        // Skip this plan.
+                        continue;
+                    }
                     const Plan& sPl                   = sPart.GetPlan(s);
-                    PlanCompatibilityResult plCompRes = ArePlansCompatible(fPl, sPl, *dsEdge);
+                    PlanCompatibilityResult plCompRes = ArePlansCompatible(fPl, sPl, *dsEdge, hwCap);
                     if (plCompRes.m_IsCompatible)
                     {
                         if (reqDram && !IsOutputBufferInDram(fPl, *dsEdge) && !plCompRes.m_RequiresGlue)
@@ -493,6 +549,11 @@ Metadata CreateMetadata(const GraphOfParts& parts)
                 if (cPls.size() > 0)
                 {
                     comPlsOfPa.insert(std::make_pair(f, std::move(cPls)));
+                }
+                else
+                {
+                    // Add to the list of incompatible plans
+                    incompPlans.at(p).push_back(f);
                 }
             }
             size_t comSize = comPlsOfPa.size();
@@ -525,7 +586,7 @@ Metadata CreateMetadata(const GraphOfParts& parts)
             assert(inPa.first == true);
             mOfPa.m_Destination.insert(std::make_pair(dsEdge, inPa.second));
         }
-        result.push_back(std::move(mOfPa));
+        result.push_front(std::move(mOfPa));
     }
 
     return result;
@@ -572,30 +633,34 @@ GrownSeeds GrowSeeds(const Combinations& combs,
                      const GraphOfParts& parts,
                      const size_t minScore,
                      const Metadata& metadata,
-                     const HardwareCapabilities& caps)
+                     const HardwareCapabilities& caps,
+                     const GrowScheme scheme)
 {
     const size_t numParts = parts.GetNumParts();
     assert(numParts > 1U);
 
     GrownSeeds result;
-    result.m_Terminated = true;
 
     SramAllocator alloc(caps.GetTotalSramSize() / caps.GetNumberOfSrams());
 
-    for (uint32_t c = 0; c < combs.size(); ++c)
+    for (const auto& currComb : combs)
     {
+        if (currComb.m_Elems.empty())
+        {
+            continue;
+        }
 
-        if (combs.at(c).m_Scratch.m_Score < minScore)
+        if (currComb.m_Scratch.m_Score < minScore)
         {
             continue;
         }
 
         // Get where it is with the combination
-        const PartId fPartId = combs.at(c).m_Scratch.m_CurrPartId;
+        const PartId fPartId = currComb.m_Scratch.m_CurrPartId;
         if (fPartId < numParts)
         {
 
-            const NxtPa next             = GetNxtPart(fPartId, numParts, combs.at(c), metadata);
+            const NxtPa next             = GetNxtPart(fPartId, numParts, currComb, metadata);
             const MetadataOfPart& fMOfPa = metadata.at(fPartId);
 
             result.m_Terminated = false;
@@ -624,7 +689,7 @@ GrownSeeds GrowSeeds(const Combinations& combs,
                     {
                         // Take the planId and the list of compatible plans of a connected part
                         Combinations temp = CombineSeeds(it->first, it->second, next.m_Comb, fPartId, sEdge, parts,
-                                                         reqPlan, metadata, alloc, caps);
+                                                         reqPlan, metadata, alloc, caps, scheme);
                         result.m_Combinations.insert(std::end(result.m_Combinations), std::begin(temp), std::end(temp));
                         ++it;
                     }
@@ -636,7 +701,7 @@ GrownSeeds GrowSeeds(const Combinations& combs,
                     {
                         // Take the planId and the list of compatible plans of a connected part
                         Combinations temp = CombineSeeds(it->first, it->second, next.m_Comb, fPartId, sEdge, parts,
-                                                         reqPlan, metadata, alloc, caps, false);
+                                                         reqPlan, metadata, alloc, caps, scheme, false);
                         result.m_Combinations.insert(std::end(result.m_Combinations), std::begin(temp), std::end(temp));
                     }
                 }
@@ -652,7 +717,7 @@ GrownSeeds GrowSeeds(const Combinations& combs,
         }
         else
         {
-            result.m_Combinations.push_back(combs.at(c));
+            result.m_Combinations.push_back(currComb);
         }
         // Record best score for this iteration
         if ((result.m_Combinations.size() > 0) && (result.m_Combinations.back().m_Scratch.m_Score > result.m_BestScore))
@@ -663,19 +728,147 @@ GrownSeeds GrowSeeds(const Combinations& combs,
     return result;
 }
 
+Combination PruneCombinations(const GraphOfParts& parts,
+                              const HardwareCapabilities& caps,
+                              const Combinations& combs,
+                              const EstimationOptions& estimationOpts)
+{
+    if (combs.size() > 0)
+    {
+        utils::Optional<Combination> result;
+        NetworkPerformanceData refNetPerfData;
+        for (const Combination& combination : combs)
+        {
+            try
+            {
+                OpGraph combiOpGraph = GetOpGraphForCombination(combination, parts);
+                EstimatedOpGraph curNetPerfData =
+                    ethosn::support_library::EstimateOpGraph(combiOpGraph, caps, estimationOpts);
+
+                if (!result.has_value() ||
+                    utils::IsLeftMoreDataPerformantThanRight(curNetPerfData.m_PerfData, refNetPerfData))
+                {
+                    refNetPerfData = curNetPerfData.m_PerfData;
+                    result         = combination;
+                }
+            }
+            catch (const NotSupportedException&)
+            {
+                // Skip this combination
+            }
+        }
+        if (!result.has_value())
+        {
+            // If Estimation failed, pick the first combination
+            return combs.front();
+        }
+        return result.value();
+    }
+    return Combination{};
+}
+
 Combinations Cascading::Combine(const GraphOfParts& parts)
 {
-    m_Metadata = CreateMetadata(parts);
+    using namespace ethosn::utils;
+
+    m_Metadata = CreateMetadata(parts, m_Capabilities);
+
+    if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+    {
+        std::string folder = "Metadata";
+        MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
+
+        for (const MetadataOfPart& fMOfPa : m_Metadata)
+        {
+            const Part& srcPart       = parts.GetPart(fMOfPa.m_PartId);
+            std::string srcPartFolder = folder + "/" + srcPart.m_DebugTag;
+            // Create source part folder
+            MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(srcPartFolder).c_str());
+
+            std::ofstream debugMergeablePlanDumpFile(
+                m_DebuggingContext.GetAbsolutePathOutputFileName(srcPartFolder + "/Cascaded_MergeablePlans.txt"));
+
+            uint32_t edgeCounter  = 0;
+            uint32_t mergeCounter = 0;
+            for (const auto& itPa : fMOfPa.m_Comp)
+            {
+                const InPart inPa   = parts.GetInputPart(*(itPa.first));
+                const Part& dstPart = parts.GetPart(inPa.second);
+                for (const auto& itPls : itPa.second)
+                {
+                    const Plan& srcPlan  = srcPart.GetPlan(itPls.first);
+                    const bool outInDram = IsOutputBufferInDram(srcPlan, *(itPa.first));
+                    for (const auto& itPl : itPls.second)
+                    {
+                        const Plan& dstPlan        = dstPart.GetPlan(itPl.m_Id);
+                        const std::string filename = dstPart.m_DebugTag + "_" + srcPlan.m_DebugTag + "_" +
+                                                     dstPlan.m_DebugTag + "_Edge" + std::to_string(edgeCounter) +
+                                                     "_Detailed.dot";
+                        m_DebuggingContext.SaveOpGraphToDot(CompilationOptions::DebugLevel::None, itPl.m_Glue.m_Graph,
+                                                            srcPartFolder + "/" + filename, DetailLevel::High);
+
+                        if (!outInDram && itPl.m_Glue.m_Graph.GetOps().empty())
+                        {
+                            ++mergeCounter;
+                            debugMergeablePlanDumpFile << srcPlan.m_DebugTag << ": " << dstPlan.m_DebugTag << std::endl;
+                        }
+                    }
+                }
+                ++edgeCounter;
+                debugMergeablePlanDumpFile << "Tot: " << mergeCounter << std::endl;
+            }
+        }
+    }
 
     Combinations currSeeds = CreateSeeds(parts, m_Metadata, m_Capabilities);
 
     GrownSeeds grownSeeds;
+    std::deque<Combinations> history;
 
+    uint32_t iteration = 0;
     do
     {
-        const size_t limit = (grownSeeds.m_BestScore > 1U) ? (grownSeeds.m_BestScore - 1U) : grownSeeds.m_BestScore;
-        grownSeeds         = GrowSeeds(currSeeds, parts, limit, m_Metadata, m_Capabilities);
-        currSeeds          = grownSeeds.m_Combinations;
+        grownSeeds = GrowSeeds(currSeeds, parts, 0U, m_Metadata, m_Capabilities, GrowScheme::MergeOnly);
+        if (grownSeeds.m_Combinations.empty())
+        {
+            Combinations pruned = {};
+            if (currSeeds.empty() && history.size() > g_kHistoryDepth)
+            {
+                currSeeds = history.front();
+                history.clear();
+            }
+            pruned.push_back(PruneCombinations(parts, m_Capabilities, currSeeds, GetEstimationOptions()));
+            grownSeeds = GrowSeeds(pruned, parts, 0U, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
+        }
+        currSeeds = grownSeeds.m_Combinations;
+
+        if (history.size() > g_kHistoryDepth)
+        {
+            history.pop_front();
+        }
+        history.push_back(currSeeds);
+
+        if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+        {
+            std::string folder = "IntermediateCombinationsIteration" + std::to_string(iteration);
+            MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
+            uint32_t combinationNumber = 0;
+            for (const Combination& comb : currSeeds)
+            {
+                std::string subfolder = folder + "/" + std::to_string(combinationNumber);
+                MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(subfolder).c_str());
+
+                m_DebuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, parts,
+                                                        subfolder + "/Detailed.dot", DetailLevel::High);
+
+                ++combinationNumber;
+                if (combinationNumber > m_DebuggingContext.GetMaxNumDumps())
+                {
+                    break;
+                }
+            }
+        }
+        ++iteration;
     } while (!grownSeeds.m_Terminated);
 
     return currSeeds;

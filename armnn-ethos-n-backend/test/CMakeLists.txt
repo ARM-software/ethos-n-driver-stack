@@ -34,32 +34,3 @@ target_include_directories(armnnEthosNBackendUnitTests PRIVATE ${PROJECT_SOURCE_
 # The name of the sub-directory can be environment specific.
 target_include_directories(armnnEthosNBackendUnitTests PRIVATE .)
 target_include_directories(armnnEthosNBackendUnitTests PRIVATE ..)
-
-# Keep the following test separated from the rest of the test suite, as it takes a long time to run (30 or so minutes)
-# This test is deployed in the armnn/tests directory along with the other network tests and should be run manually
-macro(EthosNPreCompiledVGG16QuantTest testName sources)
-    add_executable_ex(${testName} ${sources})
-
-    # By default EthosNPreCompiledVGG16QuantTest would end up to <build dir>/src/backend/ethosn/test,
-    # instead add it to the other network tests in <build dir>/armnn/tests
-    set_target_properties(${testName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/armnn/tests)
-
-    target_include_directories(${testName} PRIVATE ${PROJECT_SOURCE_DIR}/src/armnn)
-    target_include_directories(${testName} PRIVATE ${PROJECT_SOURCE_DIR}/src/armnnUtils)
-    target_include_directories(${testName} PRIVATE ${PROJECT_SOURCE_DIR}/src/profiling)
-    target_include_directories(${testName} PRIVATE ${PROJECT_SOURCE_DIR}/profiling/common/include)
-    target_include_directories(${testName} PRIVATE ${PROJECT_SOURCE_DIR}/src/backends)
-    target_include_directories(${testName} PRIVATE ${PROJECT_SOURCE_DIR}/src/armnn/test)
-    target_include_directories(${testName} PRIVATE ..)
-
-    target_link_libraries(${testName} armnn)
-    target_link_libraries(${testName} ${CMAKE_THREAD_LIBS_INIT})
-    target_link_libraries(${testName}
-                          ${Boost_SYSTEM_LIBRARY}
-                          ${Boost_FILESYSTEM_LIBRARY}
-                          ${Boost_PROGRAM_OPTIONS_LIBRARY})
-    addDllCopyCommands(${testName})
-endmacro()
-
-set(EthosNPreCompiledVGG16Quant-Armnn_sources EthosNPreCompiledVGG16Quant-Armnn.cpp)
-EthosNPreCompiledVGG16QuantTest(EthosNPreCompiledVGG16Quant-Armnn "${EthosNPreCompiledVGG16Quant-Armnn_sources}")

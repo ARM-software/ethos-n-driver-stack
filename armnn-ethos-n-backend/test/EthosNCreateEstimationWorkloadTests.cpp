@@ -10,6 +10,7 @@
 #include "EthosNWorkloadFactory.hpp"
 #include "EthosNWorkloads.hpp"
 
+#include <Filesystem.hpp>
 #include <test/CreateWorkload.hpp>
 
 BOOST_AUTO_TEST_SUITE(CreateEstimationWorkloadEthosN)
@@ -31,10 +32,12 @@ BOOST_AUTO_TEST_CASE(ParseEthosNConfig)
         os << armnn::EthosNConfig::PERF_SRAM_SIZE_BYTES_OVERRIDE_VAR << " = 12\n";
         os << armnn::EthosNConfig::PERF_OUT_DIR_VAR << " = test\n";
         os << armnn::EthosNConfig::DUMP_DEBUG_FILES_VAR << " = 1\n";
+        os << armnn::EthosNConfig::DUMP_RAM_VAR << " = 1\n";
         os << armnn::EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING << " = 0.5\n";
         os << armnn::EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING << " = 0.5\n";
         os << armnn::EthosNConfig::PERF_CURRENT << " = 0\n";
         os << armnn::EthosNConfig::COMPILER_ALGORITHM << " = Auto\n";
+        os << armnn::EthosNConfig::INTERMEDIATE_COMPRESSION << " = 1\n";
     }
     SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
 
@@ -44,10 +47,12 @@ BOOST_AUTO_TEST_CASE(ParseEthosNConfig)
     BOOST_CHECK(config.m_PerfSramSizeBytesOverride == 12);
     BOOST_CHECK(config.m_PerfOutDir == "test");
     BOOST_CHECK(config.m_DumpDebugFiles == true);
+    BOOST_CHECK(config.m_DumpRam == true);
     BOOST_CHECK(config.m_PerfActivationCompressionSaving == 0.5f);
     BOOST_CHECK(config.m_PerfWeightCompressionSaving == 0.5f);
     BOOST_CHECK(config.m_PerfCurrent == false);
     BOOST_CHECK(config.m_CompilerAlgorithm == ethosn::support_library::CompilerAlgorithm::Auto);
+    BOOST_CHECK(config.m_IntermediateCompression == true);
 }
 
 BOOST_AUTO_TEST_CASE(ParseEthosNConfigCascadingOk)
@@ -244,7 +249,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyWorkload)
 				"Ple":
 				{
 					"NumOfPatches": 16,
-					"Operation": 11
+					"Operation": 10
 				}
 			}
 		],
@@ -422,7 +427,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyExistingWorkload)
 				"Ple":
 				{
 					"NumOfPatches": 16,
-					"Operation": 11
+					"Operation": 10
 				}
 			}
 		],
@@ -592,7 +597,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
 				"Ple":
 				{
 					"NumOfPatches": 16,
-					"Operation": 12
+					"Operation": 11
 				}
 			}
 		],
@@ -760,7 +765,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
 				"Ple":
 				{
 					"NumOfPatches": 16,
-					"Operation": 12
+					"Operation": 11
 				}
 			}
 		],
@@ -774,7 +779,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
     BOOST_TEST(result == golden);
 
     BOOST_TEST(remove(configFile.c_str()) == 0);
-    BOOST_TEST(boost::filesystem::remove_all(config.m_PerfOutDir.c_str()) > 0);
+    BOOST_TEST(fs::remove_all(config.m_PerfOutDir.c_str()) > 0);
 }
 
 BOOST_AUTO_TEST_CASE(CreateEstimationWorkload)
@@ -828,7 +833,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkload)
 		"Stream":
 		[
 			{
-				"OperationIds": [ 0, 3 ],
+				"OperationIds": [ 0, 1, 2, 3 ],
 				"ParentIds": [ [] ],
 				"Input":
 				{
@@ -866,7 +871,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkload)
 				"Ple":
 				{
 					"NumOfPatches": 16,
-					"Operation": 11
+					"Operation": 10
 				}
 			}
 		],
@@ -1052,7 +1057,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkloadSplit)
 		"Stream":
 		[
 			{
-				"OperationIds": [ 0, 3 ],
+				"OperationIds": [ 0, 1, 2, 3 ],
 				"ParentIds": [ [] ],
 				"Input":
 				{
@@ -1090,7 +1095,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkloadSplit)
 				"Ple":
 				{
 					"NumOfPatches": 16,
-					"Operation": 11
+					"Operation": 10
 				}
 			}
 		],
@@ -1121,7 +1126,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkloadSplit)
 		"Stream":
 		[
 			{
-				"OperationIds": [ 0, 3 ],
+				"OperationIds": [ 0, 1, 2, 3 ],
 				"ParentIds": [ [] ],
 				"Input":
 				{
@@ -1159,7 +1164,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkloadSplit)
 				"Ple":
 				{
 					"NumOfPatches": 16,
-					"Operation": 11
+					"Operation": 10
 				}
 			}
 		],

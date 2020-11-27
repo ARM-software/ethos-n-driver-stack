@@ -21,19 +21,24 @@ def create_variables():
     Returns:
         (SCons.Script.Variables): The scons Variables pre-setup with common parameters
     '''
+    # First create a dummy env to parse just the 'options' parameter.
+    # This allows the user to specify a file containing build options
     options_var = SCons.Script.Variables()
-    options_var.Add('options', 'Options for Sconstruct e.g. debug=0', 'options.py')
+    options_var.Add('options', 'Options for SConstruct e.g. debug=0', 'options.py')
     env = SCons.Script.Environment(variables=options_var)
-    # Create another Variables so we can have options appear in the help command
+
+    # Use this parameter to create the real variables, pre-populating the values from the user provided
+    # options file, and also the dev_options.py file, which may be pe present if this is a developer checkout.
+    # Note we include the 'options' var again, so it appears in the help command
     var = SCons.Script.Variables(['dev_options.py', env['options']])
     var.AddVariables(
-        ('options', 'Options for Sconstruct e.g. debug=0', 'options.py'),
+        ('options', 'Options for SConstruct e.g. debug=0', 'options.py'),
         ('PATH', 'Prepend to the PATH environment variable'),
         ('LD_LIBRARY_PATH', 'Prepend to the LD_LIBRARY_PATH environment variable'),
         ('CPATH', 'Append to the C include path list the compiler uses'),
         ('LPATH', 'Append to the library path list the compiler uses'),
 
-        ('scons_extra', 'Extra scons files to be loaded, separated by comma.', None),
+        ('scons_extra', 'Extra scons files to be loaded, separated by comma.', ''),
 
         PathVariable('install_prefix', 'Installation prefix', os.path.join(os.path.sep, 'usr', 'local'),
                      PathVariable.PathAccept),
@@ -47,12 +52,13 @@ def create_variables():
     return var
 
 
-def load_extras(env, **params):
+def load_extras(env):
     "Load any extra scons scripts, specified in scons_extra variable"
     scriptpath = env.get('scons_extra')
     if scriptpath:
-        print('Loading extra SConscripts: {}, with {}'.format(scriptpath, params))
-        env.SConscript(scriptpath, exports=['env', 'params'])
+        scripts = [s for s in scriptpath.split(',') if s]  # Ignore empty entries
+        for s in scripts:
+            env.SConscript(s, exports=['env'])
 
 
 def add_env_var(env, variable):
@@ -129,6 +135,11 @@ def setup_common_env(env):
     else:
         env.AppendUnique(CXXFLAGS=['-O3'])
     env.PrependUnique(CPPPATH=['include'])
+
+    # Setup asserts, if asserts are explicitly set then set NDEBUG accordingly.
+    # If asserts aren't explicitly set then enable asserts in debug and disable them in release.
+    if env['asserts'] == '0' or (env['asserts'] == 'debug' and not env['debug']):
+        env.AppendUnique(CPPDEFINES=['NDEBUG'])
 
     if env.get('coverage', False):
         env.AppendUnique(CXXFLAGS=['--coverage', '-O0'])
@@ -210,34 +221,38 @@ def variable_exists(env, variable, exception_type):
         raise exception_type('\033[91mERROR: Missing required "{}" parameter.\033[0m'.format(variable))
 
 
-def abs_path(env, paths):
+def abs_path(env, paths, relative_offset='.'):
     '''
     Convert path(s) to their absolute path equivalent.
 
     Args:
         env   (SCons.Environment): The scons environment to use
         paths (str or list/tuple): The scons parameter(s) to abspath
+        relative_offset (str)    : When a relative path needs converting to absolute, it is interpreted relative to this
     '''
     paths = paths if isinstance(paths, (list, tuple)) else [paths]
     for path in paths:
         try:
-            env[path] = env.Dir(env[path]).abspath
+            if not os.path.isabs(env[path]):
+                env[path] = env.Dir(os.path.join(relative_offset, env[path])).abspath
         except KeyError:
             continue
 
 
-def abs_filepath(env, paths):
+def abs_filepath(env, paths, relative_offset='.'):
     '''
     Convert file path(s) to their absolute file path equivalent.
 
     Args:
         env   (SCons.Environment): The scons environment to use
         paths (str or list/tuple): The scons parameter(s) to conviert into absolute file path
+        relative_offset (str)    : When a relative path needs converting to absolute, it is interpreted relative to this
     '''
     paths = paths if isinstance(paths, (list, tuple)) else [paths]
     for path in paths:
         try:
-            env[path] = env.File(env[path]).abspath
+            if not os.path.isabs(env[path]):
+                env[path] = env.File(os.path.join(relative_offset, env[path])).abspath
         except KeyError:
             continue
         except TypeError:
@@ -245,27 +260,27 @@ def abs_filepath(env, paths):
             continue
 
 
-def variant_dir(env, prefix=None, suffix=None):
-    '''
-    Setup the scons variant_dir based on whether in debug or release mode.
+def get_build_dir(env, module_base, config=None):
+    if config is None:
+        config = '{}_{}'.format('debug' if env['debug'] else 'release', env['platform'])
+    return env.Dir(os.path.join(module_base, env['build_dir'], config)).abspath
 
-    Args:
-        env (SCons.Environment): The scons environment to use
-        prefix  (str, optional): A prefix to the build folder
-        suffix  (str, optional): A suffix to the build folder
 
-    Returns:
-        (str): The scons variant_dir
-    '''
-    config = 'debug' if env['debug'] else 'release'
-    result = os.path.join(env['build_dir'], config)
-    if prefix:
-        result = os.path.join(prefix, result)
-    if suffix:
-        result = os.path.join(result, suffix)
-    result = env.Dir(result).abspath
-    env['variant_dir'] = result
-    return result
+def get_driver_library_build_dir(env):
+    config = '{}_{}_{}'.format('debug' if env['debug'] else 'release', env['platform'], env['target'])
+    return get_build_dir(env, env['driver_library_dir'], config)
+
+
+def get_support_library_build_dir(env):
+    return get_build_dir(env, env['support_library_dir'])
+
+
+def get_command_stream_build_dir(env):
+    return get_build_dir(env, env['command_stream_dir'])
+
+
+def get_utils_build_dir(env):
+    return get_build_dir(env, env['utils_dir'])
 
 
 def get_single_elem(elems, msg_context):
@@ -278,24 +293,6 @@ def get_single_elem(elems, msg_context):
 def root_dir():
     "Returns the root of driver_stack tree"
     return os.path.realpath(os.path.join(__file__, '..', '..'))
-
-
-def setup_plelib_dependency(env):
-    '''
-    Setup plelib dependency.
-
-    Args:
-        env (SCons.Environment): The scons environment to use
-    '''
-
-    ple_include = env.get('ple_include', os.path.join(root_dir(), 'include'))
-
-    if not os.path.exists(ple_include):
-        ple_include = os.path.join(env['ple_dir'], 'build', 'release', 'include')
-
-    # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on
-    # the install target where the install target is also provided via CPATH.
-    env.PrependUnique(CPPPATH=[ple_include])
 
 
 def add_padding(align):

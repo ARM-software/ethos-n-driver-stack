@@ -13,8 +13,6 @@ namespace ethosn
 namespace support_library
 {
 
-using namespace utils;
-
 namespace
 {
 
@@ -97,7 +95,7 @@ void FillTensorConfigOffsets(const AllocationResult& allocationResults, TensorCo
 uint32_t AccountForFullDimension(const uint32_t outputTensorDim,
                                  const uint32_t inputTensorDim,
                                  const uint32_t outputStripeDim,
-                                 const Fraction multiplier)
+                                 const utils::Fraction multiplier)
 {
     if (outputStripeDim >= outputTensorDim)
     {

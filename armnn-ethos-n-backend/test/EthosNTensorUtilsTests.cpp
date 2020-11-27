@@ -82,6 +82,29 @@ BOOST_AUTO_TEST_CASE(SupportedDataTypes)
     BOOST_CHECK(!IsDataTypeSupportedOnEthosN(armnn::DataType::Float32));
 }
 
+BOOST_AUTO_TEST_CASE(BuildEthosNTensorShapeTests)
+{
+    BOOST_CHECK((BuildEthosNTensorShape(TensorShape{ 23 }) == ethosn_lib::TensorShape{ 1, 23, 1, 1 }));
+    BOOST_CHECK((BuildEthosNTensorShape(TensorShape{ 23, 45 }) == ethosn_lib::TensorShape{ 1, 23, 45, 1 }));
+    BOOST_CHECK((BuildEthosNTensorShape(TensorShape{ 23, 45, 4 }) == ethosn_lib::TensorShape{ 1, 23, 45, 4 }));
+    BOOST_CHECK((BuildEthosNTensorShape(TensorShape{ 23, 45, 4, 235 }) == ethosn_lib::TensorShape{ 23, 45, 4, 235 }));
+    BOOST_CHECK((BuildEthosNTensorShape(TensorShape{ 1, 23 }) == ethosn_lib::TensorShape{ 1, 23, 1, 1 }));
+    BOOST_CHECK((BuildEthosNTensorShape(TensorShape{ 1, 23, 45 }) == ethosn_lib::TensorShape{ 1, 23, 45, 1 }));
+    BOOST_CHECK((BuildEthosNTensorShape(TensorShape{ 1, 23, 45, 4 }) == ethosn_lib::TensorShape{ 1, 23, 45, 4 }));
+}
+
+BOOST_AUTO_TEST_CASE(BuildEthosNReluInfoTests)
+{
+    BOOST_CHECK(BuildEthosNReluInfo(ActivationDescriptor(ActivationFunction::ReLu, 999.9f, 999.0f), DataType::QAsymmU8,
+                                    0.1f, 20) == ethosn_lib::ReluInfo(20, 255));
+    BOOST_CHECK(BuildEthosNReluInfo(ActivationDescriptor(ActivationFunction::ReLu, 999.9f, 999.0f), DataType::QAsymmS8,
+                                    0.1f, -20) == ethosn_lib::ReluInfo(-20, 127));
+    BOOST_CHECK(BuildEthosNReluInfo(ActivationDescriptor(ActivationFunction::BoundedReLu, 1.0f, -1.0f),
+                                    DataType::QAsymmU8, 0.1f, 20) == ethosn_lib::ReluInfo(10, 30));
+    BOOST_CHECK(BuildEthosNReluInfo(ActivationDescriptor(ActivationFunction::BoundedReLu, 1.0f, -1.0f),
+                                    DataType::QAsymmS8, 0.1f, -20) == ethosn_lib::ReluInfo(-30, -10));
+}
+
 BOOST_AUTO_TEST_SUITE_END()
 
 }    // namespace armnn

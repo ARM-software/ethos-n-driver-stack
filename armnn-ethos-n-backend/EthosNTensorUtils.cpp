@@ -10,7 +10,7 @@
 #include <armnn/TypesUtils.hpp>
 #include <armnnUtils/Permute.hpp>
 
-#include <boost/assert.hpp>
+#include <armnn/utility/Assert.hpp>
 
 namespace
 {
@@ -50,16 +50,34 @@ ethosn_lib::DataType ConvertDataType(DataType dataType)
 }
 
 template <typename ArmnnDescriptor>
-ethosn_lib::ConvolutionInfo
-    BuildEthosNConvolutionInfo(const ArmnnDescriptor& descriptor, float quantizationScale, int quantizationOffset)
+bool IsSupportedDilation(const ArmnnDescriptor& descriptor)
 {
-    using ethosn_lib::Padding;
-    using ethosn_lib::Stride;
+    return (descriptor.m_DilationX == 1U) && (descriptor.m_DilationY == 1U);
+}
+bool IsSupportedDilation(const armnn::TransposeConvolution2dDescriptor&)
+{
+    return true;
+}
 
+template <typename ArmnnDescriptor>
+Optional<ethosn_lib::ConvolutionInfo> BuildEthosNConvolutionInfo(const ArmnnDescriptor& descriptor,
+                                                                 float quantizationScale,
+                                                                 int quantizationOffset,
+                                                                 Optional<std::string&> reasonIfUnsupported = {})
+{
+    if (!IsSupportedDilation(descriptor))
+    {
+        if (reasonIfUnsupported)
+        {
+            reasonIfUnsupported.value() = "Dilation not supported";
+        }
+        return {};
+    }
+    using namespace ethosn_lib;
     const Padding pad(descriptor.m_PadTop, descriptor.m_PadBottom, descriptor.m_PadLeft, descriptor.m_PadRight);
     const Stride stride(descriptor.m_StrideX, descriptor.m_StrideY);
-    const ethosn_lib::QuantizationInfo quantizationInfo(quantizationOffset, quantizationScale);
-    return ethosn_lib::ConvolutionInfo(pad, stride, quantizationInfo);
+    const QuantizationInfo quantizationInfo(quantizationOffset, quantizationScale);
+    return ConvolutionInfo(pad, stride, quantizationInfo);
 }
 
 bool IsTensorDataTypeSymmetric(const armnn::TensorInfo& tensorInfo)
@@ -73,6 +91,29 @@ bool IsTensorDataTypeSymmetric(const armnn::TensorInfo& tensorInfo)
     }
 }
 
+template <typename T>
+ethosn_lib::ReluInfo BuildEthosNReluInfoImpl(const armnn::ActivationDescriptor& descriptor,
+                                             const float inputQuantizationScale,
+                                             const int inputQuantizationOffset)
+{
+    ethosn_lib::ReluInfo reluInfo;
+
+    if (descriptor.m_Function == ActivationFunction::BoundedReLu)
+    {
+        reluInfo.m_LowerBound = Quantize<T>(descriptor.m_B, inputQuantizationScale, inputQuantizationOffset);
+        reluInfo.m_UpperBound = Quantize<T>(descriptor.m_A, inputQuantizationScale, inputQuantizationOffset);
+    }
+    else
+    {
+        ARMNN_ASSERT(descriptor.m_Function == ActivationFunction::ReLu);
+
+        reluInfo.m_LowerBound = Quantize<T>(0, inputQuantizationScale, inputQuantizationOffset);
+        reluInfo.m_UpperBound = std::numeric_limits<T>::max();
+    }
+
+    return reluInfo;
+}
+
 }    // namespace
 
 namespace armnn
@@ -84,16 +125,37 @@ namespace ethosntensorutils
 /// Ethos-N Tensor.
 ethosn_lib::TensorShape BuildEthosNTensorShape(const armnn::TensorShape& tensorShape)
 {
-    ethosn_lib::TensorShape shape;
-    // Ethos-N tensors are always 4d, insert length 1 dimensions to pad.
-    // We pad to the "right" (i.e. a 10 x 20 becomes 10 x 20 x 1 x 1) as this should result in more favourable
-    // strategies being chosen. This is because the Height dimension will tend to stay large which means
-    // strategy 0 can be used, instead of Height becoming 1 which could lead to strategy 4.
-    for (unsigned int i = 0; i < tensorShape.GetNumDimensions(); i++)
+    constexpr size_t maxEthosNDims = ethosn_lib::TensorShape{}.size();
+
+    const size_t numDims = tensorShape.GetNumDimensions();
+
+    if (numDims > maxEthosNDims)
     {
-        shape[i] = tensorShape[i];
+        std::string msg = "Invalid TensorShape: max number of dimensions exceeded in EthosNAcc backend ";
+        msg += std::to_string(numDims);
+        msg += " > ";
+        msg += std::to_string(maxEthosNDims);
+        throw armnn::InvalidArgumentException(msg);
     }
-    for (unsigned int i = tensorShape.GetNumDimensions(); i < 4; i++)
+
+    ethosn_lib::TensorShape shape;
+
+    // Ethos-N tensors are always 4d, insert length 1 dimensions to pad.
+    // We always pad the batch dimension first if the first dimension is >1 and any extra dimension
+    // to the "right" (i.e. both 10x20 or 1x10x20 become 1x10x20x1) as this should result in more
+    // favourable strategies being chosen. This is because the Height dimension will tend to stay large
+    // which means strategy 0 can be used, instead of Height becoming 1 which could lead to strategy 4.
+    const size_t dimOffset = ((tensorShape[0] > 1U) && (numDims < maxEthosNDims)) ? 1U : 0U;
+
+    for (size_t i = 0; i < dimOffset; ++i)
+    {
+        shape[i] = 1;
+    }
+    for (unsigned int i = 0; i < numDims; ++i)
+    {
+        shape[i + dimOffset] = tensorShape[i];
+    }
+    for (size_t i = numDims + dimOffset; i < maxEthosNDims; ++i)
     {
         shape[i] = 1;
     }
@@ -152,7 +214,7 @@ PermutationVector GetEthosNConvolutionWeightsPermutationVector(DataLayout layerL
             return PermutationVector({ 3, 2, 0, 1 });
         default:
             // OHWI to HWIO
-            BOOST_ASSERT(layerLayout == DataLayout::NHWC);
+            ARMNN_ASSERT(layerLayout == DataLayout::NHWC);
             return PermutationVector({ 3, 0, 1, 2 });
     }
 }
@@ -178,7 +240,7 @@ ethosn_lib::TensorInfo BuildEthosNConvolutionWeightsInfo(const TensorInfo& weigh
 ethosn_lib::TensorInfo BuildEthosNFullyConnectedWeightsInfo(const TensorInfo& weightsInfo, bool transposeWeightMatrix)
 {
     // Weight tensor is guaranteed to be 2D by the Arm NN validation (FullyConnectedQueueDescriptor::Validate).
-    BOOST_ASSERT(weightsInfo.GetNumDimensions() == 2);
+    ARMNN_ASSERT(weightsInfo.GetNumDimensions() == 2);
 
     ethosn_lib::TensorInfo ethosnWeightsInfo;
     if (transposeWeightMatrix)
@@ -225,49 +287,40 @@ ethosn_lib::TensorInfo
     // Arm NN will validate that they are at least approximately correct, so we are safe to force this here.
     ethosn_lib::QuantizationScales inputScales(inputInfo.GetQuantizationScales());
     ethosn_lib::QuantizationScales weightScales(weightsInfo.GetQuantizationScales());
-    ethosnBiasesInfo.m_QuantizationInfo.SetScales((inputScales * weightScales).ToVector());
+    ethosnBiasesInfo.m_QuantizationInfo.SetScales(inputScales * weightScales);
     return ethosnBiasesInfo;
 }
 
 armnn::ethosn_lib::TensorInfo
     BuildEthosNBiasesInfo(unsigned int numBiasElements, const TensorInfo& inputInfo, const TensorInfo& weightsInfo)
 {
-    ethosn_lib::QuantizationScales inputScales(inputInfo.GetQuantizationScales());
-    ethosn_lib::QuantizationScales weightScales(weightsInfo.GetQuantizationScales());
-    ethosn_lib::QuantizationScales scales = inputScales * weightScales;
-    TensorInfo biasInfo;
+    TensorInfo biasInfo({ numBiasElements }, DataType::Signed32);
 
-    if (scales.IsScalar())
-    {
-        biasInfo = TensorInfo({ numBiasElements }, DataType::Signed32, scales[0], 0);
-    }
-    else
-    {
-        // For per-channel quantization QuantizationDim shall reffer to output dim
-        biasInfo = TensorInfo({ numBiasElements }, DataType::Signed32, scales.ToVector(), 3U);
-    }
     return BuildEthosNBiasesInfo(biasInfo, inputInfo, weightsInfo);
 }
 
-ethosn_lib::ConvolutionInfo BuildEthosNConvolutionInfo(const armnn::Convolution2dDescriptor& descriptor,
-                                                       int32_t quantizationOffset,
-                                                       float quantizationScale)
+Optional<ethosn_lib::ConvolutionInfo> BuildEthosNConvolutionInfo(const armnn::Convolution2dDescriptor& descriptor,
+                                                                 int32_t quantizationOffset,
+                                                                 float quantizationScale,
+                                                                 Optional<std::string&> reasonIfUnsupported)
 {
-    return ::BuildEthosNConvolutionInfo(descriptor, quantizationScale, quantizationOffset);
+    return ::BuildEthosNConvolutionInfo(descriptor, quantizationScale, quantizationOffset, reasonIfUnsupported);
 }
 
-ethosn_lib::ConvolutionInfo BuildEthosNConvolutionInfo(const armnn::DepthwiseConvolution2dDescriptor& descriptor,
-                                                       int32_t quantizationOffset,
-                                                       float quantizationScale)
+Optional<ethosn_lib::ConvolutionInfo>
+    BuildEthosNConvolutionInfo(const armnn::DepthwiseConvolution2dDescriptor& descriptor,
+                               int32_t quantizationOffset,
+                               float quantizationScale,
+                               Optional<std::string&> reasonIfUnsupported)
 {
-    return ::BuildEthosNConvolutionInfo(descriptor, quantizationScale, quantizationOffset);
+    return ::BuildEthosNConvolutionInfo(descriptor, quantizationScale, quantizationOffset, reasonIfUnsupported);
 }
 
 ethosn_lib::ConvolutionInfo BuildEthosNConvolutionInfo(const armnn::TransposeConvolution2dDescriptor& descriptor,
                                                        int32_t quantizationOffset,
                                                        float quantizationScale)
 {
-    return ::BuildEthosNConvolutionInfo(descriptor, quantizationScale, quantizationOffset);
+    return ::BuildEthosNConvolutionInfo(descriptor, quantizationScale, quantizationOffset, {}).value();
 }
 
 ethosn_lib::FullyConnectedInfo BuildEthosNFullyConnectedLayerInfo(const FullyConnectedDescriptor&,
@@ -293,26 +346,27 @@ ethosn_lib::PoolingInfo BuildEthosNPoolingLayerInfo(const armnn::Pooling2dDescri
     return ethosn_lib::PoolingInfo(poolingInfo);
 }
 
-ethosn_lib::ReluInfo BuildEthosNReluInfo(const armnn::ActivationDescriptor& descriptor,
-                                         const float quantizationScale,
-                                         const int quantizationOffset)
+Optional<ethosn_lib::ReluInfo> BuildEthosNReluInfo(const armnn::ActivationDescriptor& descriptor,
+                                                   armnn::DataType inputDataType,
+                                                   const float inputQuantizationScale,
+                                                   const int inputQuantizationOffset)
 {
-    ethosn_lib::ReluInfo reluInfo;
-
-    if (descriptor.m_Function == ActivationFunction::BoundedReLu)
+    switch (inputDataType)
     {
-        reluInfo.m_LowerBound = Quantize<uint8_t>(descriptor.m_B, quantizationScale, quantizationOffset);
-        reluInfo.m_UpperBound = Quantize<uint8_t>(descriptor.m_A, quantizationScale, quantizationOffset);
+        case DataType::QAsymmU8:
+        {
+            return BuildEthosNReluInfoImpl<uint8_t>(descriptor, inputQuantizationScale, inputQuantizationOffset);
+        }
+        case DataType::QAsymmS8:    // Intentional fallthrough
+        case DataType::QSymmS8:
+        {
+            return BuildEthosNReluInfoImpl<int8_t>(descriptor, inputQuantizationScale, inputQuantizationOffset);
+        }
+        default:
+        {
+            return Optional<ethosn_lib::ReluInfo>();
+        }
     }
-    else
-    {
-        BOOST_ASSERT(descriptor.m_Function == ActivationFunction::ReLu);
-
-        reluInfo.m_LowerBound = Quantize<uint8_t>(0, quantizationScale, quantizationOffset);
-        reluInfo.m_UpperBound = 255U;
-    }
-
-    return reluInfo;
 }
 
 ethosn_lib::LeakyReluInfo BuildEthosNLeakyReluInfo(const armnn::ActivationDescriptor& descriptor,
@@ -321,7 +375,7 @@ ethosn_lib::LeakyReluInfo BuildEthosNLeakyReluInfo(const armnn::ActivationDescri
 {
     ethosn_lib::LeakyReluInfo leakyReluInfo;
 
-    BOOST_ASSERT(descriptor.m_Function == ActivationFunction::LeakyReLu);
+    ARMNN_ASSERT(descriptor.m_Function == ActivationFunction::LeakyReLu);
 
     leakyReluInfo.m_Alpha                  = descriptor.m_A;
     leakyReluInfo.m_OutputQuantizationInfo = ethosn_lib::QuantizationInfo(quantizationOffset, quantizationScale);
@@ -385,7 +439,7 @@ namespace
 
 Optional<uint32_t> CalculateEthosNSplitAxis(const ViewsDescriptor& splitterDescriptor)
 {
-    BOOST_ASSERT(splitterDescriptor.GetNumViews() >= 2);
+    ARMNN_ASSERT(splitterDescriptor.GetNumViews() >= 2);
     // The first view's origin should be at 0 in all dimensions.
     TensorShape origin0(splitterDescriptor.GetNumDimensions(), splitterDescriptor.GetViewOrigin(0));
     for (uint32_t d = 0; d < splitterDescriptor.GetNumDimensions(); ++d)
@@ -419,7 +473,7 @@ Optional<uint32_t> CalculateEthosNSplitAxis(const ViewsDescriptor& splitterDescr
 armnn::Optional<armnn::ethosn_lib::SplitInfo> BuildEthosNSplitInfo(const TensorShape& inputShape,
                                                                    const ViewsDescriptor& splitterDescriptor)
 {
-    BOOST_ASSERT(inputShape.GetNumDimensions() == splitterDescriptor.GetNumDimensions());
+    ARMNN_ASSERT(inputShape.GetNumDimensions() == splitterDescriptor.GetNumDimensions());
     // We need at least two views to determine a split axis
     if (splitterDescriptor.GetNumViews() < 2)
     {

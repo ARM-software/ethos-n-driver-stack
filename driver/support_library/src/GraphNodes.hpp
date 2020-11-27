@@ -6,24 +6,14 @@
 #pragma once
 
 #include "Graph.hpp"
+#include "Utils.hpp"
 
 #include <ethosn_command_stream/PleOperation.hpp>
-
-#include "Utils.hpp"
 
 namespace ethosn
 {
 namespace support_library
 {
-
-/// The types of algorithm an MceOperation can use or None if it hasn't been decided yet
-/// The decision of what algorithm to use is based on several factors including the AlgorithmHint.
-enum class CompilerMceAlgorithm
-{
-    None,
-    Winograd,
-    Direct
-};
 
 /// A hint to describe what algorithm can be used.
 enum class AlgorithmHint
@@ -135,6 +125,7 @@ public:
     ethosn::command_stream::MceData GetMceData() const;
 
     CompilerMceAlgorithm GetAlgorithm() const;
+    CompilerMceAlgorithm GetEffectiveAlgorithm(HardwareCapabilities capabilities, bool isWinogradEnabled) const;
     void SetAlgorithm(CompilerMceAlgorithm a);
 
     AlgorithmHint GetAlgorithmHint() const;
@@ -301,6 +292,21 @@ public:
     void Apply(ethosn::command_stream::MceData& mceData, const QuantizationInfo& inputQuantizationInfo) const;
 };
 
+class CopyNode : public Node
+{
+public:
+    CopyNode(NodeId id,
+             const TensorShape& outputTensorShape,
+             DataType dataType,
+             const QuantizationInfo& outputQuantizationInfo,
+             CompilerDataFormat format,
+             std::set<uint32_t> correspondingOperationIds);
+
+    bool IsPrepared() override;
+    bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
+    DotAttributes GetDotAttributes() override;
+};
+
 class FormatConversionNode : public Node
 {
 public:
@@ -410,6 +416,10 @@ public:
 
     DotAttributes GetDotAttributes() override;
 };
+
+MceOperationNode* CreateIdentityMceOpNode(Graph& graph, Node* previousNode);
+
+void InsertIdentityNode(Graph& graph, Edge* edge);
 
 }    // namespace support_library
 }    // namespace ethosn

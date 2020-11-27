@@ -46,13 +46,30 @@ enum class Location
     VirtualSram
 };
 
+enum class CascadingBufferFormat
+{
+    NHWC,
+    NCHW,
+    NHWCB,
+    WEIGHT,
+    NHWCB_COMPRESSED,
+    FCAF_DEEP,
+    FCAF_WIDE
+};
+
+struct SizeInBytes
+{
+    uint32_t m_Tot       = 0;
+    uint32_t m_TotAtomic = 0;
+};
+
+bool IsCompressed(CascadingBufferFormat format);
+
 class Buffer;
 class Op;
 
 using PartId = size_t;
 using PlanId = size_t;
-
-using namespace command_stream;
 
 /// A graph of connected Ops and Buffers.
 ///
@@ -162,9 +179,6 @@ public:
     /// Returns nullptr if the Node is unrecognised.
     Buffer* GetOutputBuffer(const Node* outputNode) const;
 
-    /// Returns the OwnedOpGraph.
-    const OwnedOpGraph& getOwnedOpGraph() const;
-
     /// The graph of Ops and Buffers which define how this plan would be executed.
     OwnedOpGraph m_OpGraph;
 
@@ -184,6 +198,7 @@ public:
     virtual ~Op() = default;
 
     Lifetime m_Lifetime;
+    std::set<uint32_t> m_OperationIds;
 };
 
 class DmaOp : public Op
@@ -200,9 +215,9 @@ class MceOp : public Op
 public:
     MceOp();
     MceOp(Lifetime lifetime,
-          MceOperation op,
+          command_stream::MceOperation op,
           CompilerMceAlgorithm algo,
-          BlockConfig blockConfig,
+          command_stream::BlockConfig blockConfig,
           TensorShape inputStripeShape,
           TensorShape outputStripeShape,
           TensorShape weightsStripeShape,
@@ -211,9 +226,9 @@ public:
           uint32_t padLeft,
           uint32_t padTop);
 
-    MceOperation m_Op;
+    command_stream::MceOperation m_Op;
     CompilerMceAlgorithm m_Algo;
-    BlockConfig m_BlockConfig;
+    command_stream::BlockConfig m_BlockConfig;
     TensorShape m_InputStripeShape;
     TensorShape m_OutputStripeShape;
     TensorShape m_WeightsStripeShape;
@@ -228,14 +243,14 @@ class PleOp : public Op
 public:
     PleOp();
     PleOp(Lifetime lifetime,
-          PleOperation op,
-          BlockConfig blockConfig,
+          command_stream::PleOperation op,
+          command_stream::BlockConfig blockConfig,
           uint32_t numInputs,
           std::vector<TensorShape> inputStripeShapes,
           TensorShape outputStripeShape);
 
-    PleOperation m_Op;
-    BlockConfig m_BlockConfig;
+    command_stream::PleOperation m_Op;
+    command_stream::BlockConfig m_BlockConfig;
     uint32_t m_NumInputs;
     std::vector<TensorShape> m_InputStripeShapes;
     TensorShape m_OutputStripeShape;
@@ -251,10 +266,10 @@ class Buffer : public DebuggableObject
 {
 public:
     Buffer();
-    Buffer(Lifetime lifetime, Location location, CompilerDataFormat format, TraversalOrder order);
+    Buffer(Lifetime lifetime, Location location, CascadingBufferFormat format, TraversalOrder order);
     Buffer(Lifetime lifetime,
            Location location,
-           CompilerDataFormat format,
+           CascadingBufferFormat format,
            TensorShape tensorShape,
            TensorShape stripeShape,
            TraversalOrder order,
@@ -263,7 +278,7 @@ public:
 
     Lifetime m_Lifetime;
     Location m_Location;
-    CompilerDataFormat m_Format;
+    CascadingBufferFormat m_Format;
     QuantizationInfo m_QuantizationInfo;
     TensorShape m_TensorShape;
     TensorShape m_StripeShape;
@@ -277,6 +292,11 @@ public:
     /// Relevant only if this is a weights buffer in Dram.
     std::unique_ptr<EncodedWeights> m_EncodedWeights;
 };
+
+bool IsOutputBufferInDram(const Plan& plan, const Edge& edge);
+
+SizeInBytes GetTotSizeInBytes(const Plan& plan);
+SizeInBytes GetInputsSizeInBytes(const Plan& plan);
 
 }    // namespace support_library
 }    // namespace ethosn

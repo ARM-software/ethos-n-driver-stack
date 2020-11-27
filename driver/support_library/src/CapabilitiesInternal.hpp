@@ -18,5 +18,16 @@ FirmwareAndHardwareCapabilities GetEthosN77FwHwCapabilities();
 FirmwareAndHardwareCapabilities GetEthosN57FwHwCapabilities();
 FirmwareAndHardwareCapabilities GetEthosN37FwHwCapabilities();
 
+/// Checks that capabilities vector is valid
+///
+/// @exception Throws VersionMismatchException if version or size missmatch
+void ValidateCapabilities(const std::vector<char>& rawCaps);
+
+/// Validates capabilities and get a FirmwareAndHardwareCapabilities object from raw vector
+///
+/// @returns FirmwareAndHardwareCapabilities
+/// @exception Throws VersionMismatchException if version or size missmatch
+FirmwareAndHardwareCapabilities GetValidCapabilities(const std::vector<char>& rawCaps);
+
 }    // namespace support_library
 }    // namespace ethosn

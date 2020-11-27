@@ -419,6 +419,8 @@ uint64_t GetIdForCounterValue(EntryId id)
             retVal = static_cast<uint64_t>(CollatedCounterName::FirmwareNcuMcuBusWriteBeats);
             break;
         default:
+            // Set the return value so we don't get errors when asserts are disabled
+            retVal = static_cast<uint64_t>(CollatedCounterName::NumValues);
             assert(false);
             break;
     }
@@ -483,6 +485,8 @@ ProfilingEntry::MetadataCategory ConvertCategoryEntry(const EntryDataCategory ca
             retVal = ProfilingEntry::MetadataCategory::FirmwareAgentStripe;
             break;
         default:
+            // Set the return value so we don't get errors when asserts are disabled
+            retVal = ProfilingEntry::MetadataCategory::FirmwareWfeSleeping;
             assert(false);
             break;
     }

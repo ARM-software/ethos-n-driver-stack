@@ -25,6 +25,8 @@ public:
                                  uint32_t numOutputBuffers) const override;
 
 private:
+    void DumpIntermediateBuffers();
+
     int m_NetworkFd;
 };
 

@@ -11,7 +11,7 @@
 #include "backendsCommon/ITensorHandle.hpp"
 
 #include <CompatibleTypes.hpp>
-#include <boost/assert.hpp>
+#include <armnn/utility/Assert.hpp>
 #include <ethosn_driver_library/Buffer.hpp>
 
 namespace armnn
@@ -91,7 +91,7 @@ public:
     template <typename T>
     T* GetTensor() const
     {
-        BOOST_ASSERT(CompatibleTypes<T>(GetTensorInfo().GetDataType()));
+        ARMNN_ASSERT(CompatibleTypes<T>(GetTensorInfo().GetDataType()));
         return reinterpret_cast<T*>(m_Buffer.GetMappedBuffer());
     }
 

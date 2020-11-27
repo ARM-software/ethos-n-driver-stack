@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2019 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2019 Arm Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -19,10 +19,6 @@
  * SPDX-License-Identifier: GPL-2.0-only
  *
  */
-
-// This header file reflects architecture version 1.4.5
-
-/* This header file is NOT automatically generated */
 
 #pragma once
 

@@ -20,6 +20,7 @@ class Graph;
 class OpGraph;
 class GraphOfParts;
 class Part;
+struct EstimatedOpGraph;
 struct Combination;
 enum class Location;
 enum class Lifetime;
@@ -40,6 +41,9 @@ std::string ToString(command_stream::PleOperation o);
 std::string ToString(command_stream::BlockConfig b);
 std::string ToString(const QuantizationInfo& q);
 std::string ToString(const Stride& s);
+std::string ToString(command_stream::DataFormat f);
+std::string ToString(const uint32_t v);
+std::string ToString(DataType t);
 
 template <typename C>
 std::string ArrayToString(const C& container)
@@ -49,7 +53,7 @@ std::string ArrayToString(const C& container)
     for (auto it = container.begin(); it != container.end(); ++it)
     {
         ss << ToString(*it);
-        if (it != (container.end() - 1))
+        if (it != std::prev(container.end()))
         {
             ss << ", ";
         }
@@ -60,11 +64,12 @@ std::string ArrayToString(const C& container)
 
 struct DotAttributes
 {
-    DotAttributes() = default;
+    DotAttributes();
     DotAttributes(std::string id, std::string label, std::string color);
 
     std::string m_Id;
     std::string m_Label;
+    char m_LabelAlignmentChar;
     std::string m_Shape;
     std::string m_Color;
 };
@@ -81,6 +86,14 @@ void SaveOpGraphToTxtFile(const OpGraph& graph, std::ostream& stream);
 /// Saves a graph of Ops and Buffers to a dot file format to visualise the graph.
 /// detailLevel controls how much detail is shown on the visualisation.
 void SaveOpGraphToDot(const OpGraph& graph, std::ostream& stream, DetailLevel detailLevel);
+
+/// Saves a graph of Ops and Buffers to a dot file format to visualise the graph.
+/// Includes details of how the performance of the OpGraph was estimated.
+/// detailLevel controls how much detail is shown on the visualisation.
+void SaveEstimatedOpGraphToDot(const OpGraph& graph,
+                               const EstimatedOpGraph& estimationDetails,
+                               std::ostream& stream,
+                               DetailLevel detailLevel);
 
 /// Saves a Graph of Nodes to a dot file format to visualise the graph.
 /// Optionally includes groupings of Nodes into Parts, if provided a GraphOfParts object.

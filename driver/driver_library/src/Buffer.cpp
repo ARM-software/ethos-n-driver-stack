@@ -6,7 +6,11 @@
 #include "../include/ethosn_driver_library/Buffer.hpp"
 
 #include "ProfilingInternal.hpp"
+#ifdef TARGET_KMOD
 #include "KmodBuffer.hpp"
+#else
+#include "ModelBuffer.hpp"
+#endif
 
 #include <chrono>
 

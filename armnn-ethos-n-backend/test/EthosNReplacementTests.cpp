@@ -10,6 +10,7 @@
 #include "replacement-tests/SISOCatOneGraphFactory.hpp"
 
 #include <armnn/INetwork.hpp>
+#include <armnn/utility/Assert.hpp>
 #include <armnn/utility/PolymorphicDowncast.hpp>
 #include <backendsCommon/CpuTensorHandle.hpp>
 #include <backendsCommon/test/CommonTestUtils.hpp>
@@ -99,9 +100,9 @@ BOOST_DATA_TEST_CASE(TestGraphReplace,
         const Layer* expLayer = *expGraphLayerItr;
         unsigned int expectedNumInSlot;
         unsigned int expectedNumOutSlot;
-        BOOST_ASSERT_MSG(modLayer->GetNumInputSlots() <= 1,
+        ARMNN_ASSERT_MSG(modLayer->GetNumInputSlots() <= 1,
                          "Multi input layers are not yet supported by this test\n\r");
-        BOOST_ASSERT_MSG(modLayer->GetNumOutputSlots() <= 1,
+        ARMNN_ASSERT_MSG(modLayer->GetNumOutputSlots() <= 1,
                          "Multi output layers are not yet supported by this test\n\r");
 
         CheckLayerEquals(modLayer, expLayer, "Mod == Exp ", layerIdx);
@@ -226,6 +227,6 @@ static void CheckLayerEquals(const Layer* modLayer, const Layer* expLayer, std::
         assertMessage.append(__FUNCTION__);
         assertMessage.append(". Please add\n\r");
         BOOST_ERROR(assertMessage);
-        BOOST_ASSERT(false);
+        ARMNN_ASSERT(false);
     }
 }

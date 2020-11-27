@@ -6,6 +6,8 @@
 #include "Utils.hpp"
 
 #include "Compiler.hpp"
+#include "nonCascading/McePlePass.hpp"
+#include "nonCascading/Strategies.hpp"
 
 namespace ethosn
 {
@@ -258,22 +260,11 @@ uint32_t GetNumSubmapChannels(uint32_t nChannels,
     return result;
 }
 
-std::string ReplaceAll(std::string str, const std::string& from, const std::string& to)
-{
-    size_t start_pos = 0;
-    while ((start_pos = str.find(from, start_pos)) != std::string::npos)
-    {
-        str.replace(start_pos, from.length(), to);
-        start_pos += to.length();    // Handles case where 'to' is a substring of 'from'
-    }
-    return str;
-}
-
 uint64_t GetPerformanceDataMetric(const PassStats& passStat)
 {
     return passStat.m_Input.m_MemoryStats.m_DramParallel + passStat.m_Input.m_MemoryStats.m_DramNonParallel +
            passStat.m_Output.m_MemoryStats.m_DramParallel + passStat.m_Output.m_MemoryStats.m_DramNonParallel +
-           passStat.m_Weights.m_MemoryStats.m_DramParallel + passStat.m_Output.m_MemoryStats.m_DramNonParallel;
+           passStat.m_Weights.m_MemoryStats.m_DramParallel + passStat.m_Weights.m_MemoryStats.m_DramNonParallel;
 }
 
 uint64_t GetMetric(const NetworkPerformanceData& netPerfData)
@@ -296,9 +287,9 @@ command_stream::DataType GetCommandDataType(const DataType supportLibraryDataTyp
     switch (supportLibraryDataType)
     {
         case DataType::UINT8_QUANTIZED:
-            return command_stream::DataType::QASYMM8;
+            return command_stream::DataType::U8;
         case DataType::INT8_QUANTIZED:
-            return command_stream::DataType::QSYMM8;
+            return command_stream::DataType::S8;
         default:
         {
             std::string errorMessage = "Error in " + std::string(__func__) + ": type " +
@@ -361,6 +352,92 @@ command_stream::UpsampleType ConvertResizeAlgorithmToCommand(const ResizeAlgorit
         assert(false);
         return command_stream::UpsampleType::OFF;
     }
+}
+
+bool IsCompressionFormatCompatibleWithStripeAndShape(const CompilerDataCompressedFormat& compressionFormat,
+                                                     const TensorShape& nodeShape,
+                                                     const TensorShape& stripeShape)
+{
+    switch (compressionFormat)
+    {
+        case CompilerDataCompressedFormat::NHWCB_COMPRESSED:
+            // The stripe must be the full width and depth of the node input/output shape
+            return stripeShape[2] >= nodeShape[2] && stripeShape[3] >= nodeShape[3];
+        case CompilerDataCompressedFormat::FCAF_DEEP:
+            // The stripe shape must be a multiple of the cells height (8), width (8) and depth (32)
+            return (((stripeShape[1] % 8) == 0) && ((stripeShape[2] % 8) == 0) && ((stripeShape[3] % 32) == 0));
+        case CompilerDataCompressedFormat::FCAF_WIDE:
+            // The stripe shape must be a multiple of the cells height (8), width (16) and depth (16)
+            return (((stripeShape[1] % 8) == 0) && ((stripeShape[2] % 16) == 0) && ((stripeShape[3] % 16) == 0));
+        default:
+            return false;
+    }
+}
+
+CompilerMceAlgorithm FindBestConvAlgorithm(const HardwareCapabilities& caps, uint32_t w, uint32_t h)
+{
+    uint32_t numMultsDirect;
+    uint32_t numMultsWinograd;
+
+    // Only chooses WINOGRAD if it reduces the number of
+    // multiplications because it adds some additional overheads
+    // See the 2x2 Winograd Support Specification for further details
+
+    // Decompose kernels with width and height > 3 into multiple 3x3, 3x1 or 1x3 sub-kernels.
+    const uint32_t wideKernelSize = caps.GetWideKernelSize();
+    if (w == 1 || h == 1)
+    {
+        // 1D convolution kernel dim w x 1 or 1 x h
+        // numOfMultiplications = 2 * w or 2 * h                   DIRECT
+        //                      = 4 * CEIL(W/3) or 4 * CEIL(H/3)   WINOGRAD
+        numMultsDirect   = w * h * caps.GetOutputSizePerWinograd2D() * caps.GetOutputSizePerWinograd1D();
+        numMultsWinograd = caps.GetMacsPerWinograd1D() * utils::DivRoundUp(w * h, wideKernelSize);
+    }
+    else
+    {
+        // 2D convolution kernel dim w x h
+        // numOfMultiplications = 4 * w * h                    DIRECT
+        //                      = 16 * CEIL(W/3) * CEIL(H/3)   WINOGRAD
+        numMultsDirect = w * h * caps.GetOutputSizePerWinograd2D() * caps.GetOutputSizePerWinograd2D();
+        numMultsWinograd =
+            caps.GetMacsPerWinograd2D() * utils::DivRoundUp(w, wideKernelSize) * utils::DivRoundUp(h, wideKernelSize);
+    }
+
+    if (numMultsWinograd < numMultsDirect)
+    {
+        return CompilerMceAlgorithm::Winograd;
+    }
+    else
+    {
+        return CompilerMceAlgorithm::Direct;
+    }
+}
+
+TensorShape GetRoundedWeights(const TensorShape& originalShape, const CompilerMceAlgorithm algorithm)
+{
+    TensorShape newShape = originalShape;
+    if (algorithm == CompilerMceAlgorithm::Winograd ||
+        (algorithm == CompilerMceAlgorithm::Direct && ((originalShape[0] > 7) || (originalShape[1] > 7))))
+    {
+        // WINOGRAD: width and height are rounded up to multiple of 3
+        // if it is not equal to 1
+        // This needs to be taken into consideration in selecting
+        // memory strategy.
+        // DIRECT: wide kernel mode (H or W, both > 7)
+        // then both H,W are rounded up to multiple of 3
+        // unless H, W = 1
+        if (originalShape[0] != 1)
+        {
+            newShape[0] = utils::RoundUpToNearestMultiple(originalShape[0], 3);
+        }
+
+        if (originalShape[1] != 1)
+        {
+            newShape[1] = utils::RoundUpToNearestMultiple(originalShape[1], 3);
+        }
+    }
+
+    return newShape;
 }
 
 }    // namespace utils

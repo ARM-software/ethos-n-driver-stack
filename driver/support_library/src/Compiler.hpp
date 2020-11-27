@@ -5,10 +5,10 @@
 
 #pragma once
 
-#include "BufferManager.hpp"
 #include "DebuggingContext.hpp"
 #include "Graph.hpp"
 #include "Utils.hpp"
+#include "nonCascading/BufferManager.hpp"
 
 #include <ethosn_command_stream/CommandStreamBuffer.hpp>
 
@@ -50,7 +50,6 @@ private:
     /// Conversion
     /// @{
     void Convert();
-    void ConvertForEstimation();
     /// @}
 
     /// Preparation
@@ -82,7 +81,6 @@ private:
     HardwareCapabilities m_Capabilities;
     const CompilationOptions& m_CompilationOptions;
     bool m_EnableCascading;
-    const DebuggingContext m_DebuggingContext;
     /// @}
 
     /// Performance estimation

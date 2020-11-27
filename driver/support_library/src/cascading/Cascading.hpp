@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include "../Utils.hpp"
 #include "Combiner.hpp"
 #include "IEstimationStrategy.hpp"
 #include "Part.hpp"
@@ -16,40 +15,37 @@ namespace support_library
 {
 
 class Graph;
+class HardwareCapabilities;
+struct EstimationOptions;
+struct DebuggingContext;
 
 class Cascading : public IEstimationStrategy
 {
 public:
-    Cascading(const EstimationOptions& estOpt,
-              const HardwareCapabilities& caps,
-              const DebuggingContext& debuggingContext);
+    Cascading(const EstimationOptions& estOpt, const CompilationOptions& compOpt, const HardwareCapabilities& caps);
     virtual ~Cascading();
 
-    NetworkPerformanceData Estimate(Graph& graph) override;
-    void EstimatePerformance();
-    NetworkPerformanceData EstimateCombination(const Combination&);
+    const GraphOfParts& GetGraphOfParts() const;
 
     Combinations Combine(const GraphOfParts&);
+    NetworkPerformanceData Estimate(Graph& graph) override;
 
-    Combination GetOptimalCombination(const Combinations&)
-    {
-        Combination result;
-
-        // TODO
-
-        return result;
-    }
-
-    const GraphOfParts& getGraphOfParts() const;
+    const Combination* GetBestCombination();
 
 private:
+    void EstimatePerformance();
+
     NetworkPerformanceData m_PerformanceStream;
+    const Combination* m_BestCombination;
     Metadata m_Metadata;
     Combinations m_ValidCombinations;
     GraphOfParts m_GraphOfParts;
 };
 
-GraphOfParts CreateGraphOfParts(const Graph& graph);
+GraphOfParts CreateGraphOfParts(const Graph& graph,
+                                const EstimationOptions& estOpt,
+                                const CompilationOptions& compOpt,
+                                const HardwareCapabilities& capabilities);
 
 }    // namespace support_library
 }    // namespace ethosn

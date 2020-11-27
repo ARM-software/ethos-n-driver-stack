@@ -5,9 +5,12 @@
 
 #include "Graph.hpp"
 
+#include "DebuggingContext.hpp"
 #include "GraphNodes.hpp"
 #include "NetworkToGraphConverter.hpp"
-#include "Pass.hpp"
+#include "nonCascading/Pass.hpp"
+
+#include <ethosn_utils/Strings.hpp>
 
 #include <sstream>
 #include <unordered_map>
@@ -33,7 +36,6 @@ Node::Node(NodeId id,
     , m_DataType(outputDataType)
     , m_QuantizationInfo(outputQuantizationInfo)
     , m_Format(format)
-    , m_CompressionFormat(CompilerDataCompressedFormat::NONE)
     , m_OptimizationHint(OptimizationHint::DontCare)
     , m_LocationHint(LocationHint::PreferSram)
     , m_CompressionHint(CompressionHint::PreferCompressed)
@@ -42,6 +44,7 @@ Node::Node(NodeId id,
     , m_FixGraphCompressionHint(CompressionHint::PreferCompressed)
     , m_Pass(nullptr)
     , m_Location(BufferLocation::None)
+    , m_CompressionFormat(CompilerDataCompressedFormat::NONE)
     , m_BufferId(0xFFFFFFFF)
     , m_CorrespondingOperationIds(correspondingOperationIds)
 {
@@ -267,6 +270,7 @@ void Node::PrepareAfterPassAssignment(SramAllocator& sramAllocator)
             if (canDeallocateInput)
             {
                 bool freed = sramAllocator.Free(inputNode->m_SramOffset);
+                ETHOSN_UNUSED(freed);
                 assert(freed);
             }
         }
@@ -310,14 +314,16 @@ bool Node::FixGraph(Graph& graph, FixGraphSeverity)
                 // that node and change the meaning of the graph, which we don't want.
                 // The McePlePass can simply include *one* of the two FormatConversionNodes for what it needs, and the other
                 // can be handled by the preceding/following pass.
-                FormatConversionNode* firstConversion = graph.CreateAndAddNode<FormatConversionNode>(
-                    GetShape(), GetDataType(), GetQuantizationInfo(), requiredFormat, GetCorrespondingOperationIds());
+                FormatConversionNode* firstConversion = graph.CreateAndAddNodeWithDebug<FormatConversionNode>(
+                    ETHOSN_FUNCTION_SIGNATURE, GetShape(), GetDataType(), GetQuantizationInfo(), requiredFormat,
+                    GetCorrespondingOperationIds());
                 firstConversion->SetOptimizationHint(
                     OptimizationHint::
                         DoNotMerge);    // Prevent the two nodes from being merged by optimization - otherwise we won't be able to use it in McePlePass.
                 graph.SplitEdge(GetOutput(0), firstConversion);
-                FormatConversionNode* secondConversion = graph.CreateAndAddNode<FormatConversionNode>(
-                    GetShape(), GetDataType(), GetQuantizationInfo(), GetFormat(), GetCorrespondingOperationIds());
+                FormatConversionNode* secondConversion = graph.CreateAndAddNodeWithDebug<FormatConversionNode>(
+                    ETHOSN_FUNCTION_SIGNATURE, GetShape(), GetDataType(), GetQuantizationInfo(), GetFormat(),
+                    GetCorrespondingOperationIds());
                 graph.SplitEdge(firstConversion->GetOutput(0), secondConversion);
 
                 m_FixGraphConvertOutputTo = CompilerDataFormat::NONE;    // Already done.
@@ -358,7 +364,7 @@ void Node::Estimate(NetworkPerformanceData& perfData, const EstimationOptions& e
 std::string Node::DumpToDotFormat(std::ostream& stream)
 {
     DotAttributes attr = GetDotAttributes();
-    std::string label  = utils::ReplaceAll(attr.m_Label, "\n", "\\n");
+    std::string label  = ethosn::utils::ReplaceAll(attr.m_Label, "\n", "\\n");
     stream << attr.m_Id << "[";
     stream << "label = \"" << label << "\""
            << "\n";
@@ -377,6 +383,7 @@ void Node::Reset()
     m_Location             = BufferLocation::None;
     m_BufferId             = 0xFFFFFFFF;
     m_SramOffset           = 0;
+    m_CompressionFormat    = CompilerDataCompressedFormat::NONE;
 }
 
 ethosn::support_library::OptimizationHint Node::GetOptimizationHint() const
@@ -452,7 +459,9 @@ void Node::SetBufferId(uint32_t v)
 DotAttributes Node::GetDotAttributes()
 {
     std::stringstream result;
+    const DebuggingContext& debuggingContext = GetDebuggingContext();
 
+    result << "Creation source:" << debuggingContext.GetStringFromNode(this) << "\n";
     result << "CorrespondingOperationIds:";
     for (auto id : m_CorrespondingOperationIds)
     {
@@ -489,10 +498,10 @@ DotAttributes Node::GetDotAttributes()
             result << "Location = NONE\n";
             break;
         case BufferLocation::Dram:
-            result << "DRAM, BUFFER 0x" << std::hex << m_BufferId << std::dec << "\n";
+            result << "DRAM, BUFFER 0x" << std::hex << m_BufferId << std::dec << " (" << m_BufferId << ")\n";
             break;
         case BufferLocation::Sram:
-            result << "SRAM, BUFFER 0x" << std::hex << m_BufferId << std::dec << "\n";
+            result << "SRAM, BUFFER 0x" << std::hex << m_BufferId << std::dec << " (" << m_BufferId << ")\n";
             break;
         default:
             assert(!"Unknown location");
@@ -576,12 +585,13 @@ const ethosn::support_library::Node* Edge::GetDestination() const
 
 Graph::Graph(const Network& network,
              const HardwareCapabilities& capabilities,
-             const EstimationOptions& estimationOptions)
+             const EstimationOptions& estimationOptions,
+             bool strictPrecision)
     : Graph()
 {
-    NetworkToGraphConverter converter(*this, capabilities,
-                                      network.IsEstimationMode() ? estimationOptions
-                                                                 : utils::Optional<const EstimationOptions&>());
+    NetworkToGraphConverter converter(
+        *this, capabilities,
+        network.IsEstimationMode() ? estimationOptions : utils::Optional<const EstimationOptions&>(), strictPrecision);
     network.Accept(converter);
 }
 
@@ -779,7 +789,7 @@ void Graph::DumpToDotFormat(std::ostream& stream) const
             stream << "subgraph clusterSection" << attr.m_Id << "\n";
             stream << "{"
                    << "\n";
-            stream << "label=\"" << utils::ReplaceAll(attr.m_Label, "\n", "\\n") << "\""
+            stream << "label=\"" << ethosn::utils::ReplaceAll(attr.m_Label, "\n", "\\n") << "\""
                    << "\n";
             stream << "color = " << attr.m_Color << "\n";
             stream << "labeljust=l"
@@ -794,7 +804,7 @@ void Graph::DumpToDotFormat(std::ostream& stream) const
                 stream << "subgraph clusterPass" << attr.m_Id << "\n";
                 stream << "{"
                        << "\n";
-                stream << "label=\"" << utils::ReplaceAll(attr.m_Label, "\n", "\\n") << "\""
+                stream << "label=\"" << ethosn::utils::ReplaceAll(attr.m_Label, "\n", "\\n") << "\""
                        << "\n";
                 stream << "color = " << attr.m_Color << "\n";
                 stream << "labeljust=l"

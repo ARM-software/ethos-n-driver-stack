@@ -31,76 +31,44 @@ using namespace utils;
 namespace
 {
 
-CompilerMceAlgorithm ConvAlgorithm(const HardwareCapabilities& caps, uint32_t w, uint32_t h)
-{
-    uint32_t numMultsDirect;
-    uint32_t numMultsWinograd;
-
-    // Only chooses WINOGRAD if it reduces the number of
-    // multiplications because it adds some additional overheads
-    // See the 2x2 Winograd Support Specification for further details
-
-    // Decompose kernels with width and height > 3 into multiple 3x3, 3x1 or 1x3 sub-kernels.
-    const uint32_t wideKernelSize = caps.GetWideKernelSize();
-    if (w == 1 || h == 1)
-    {
-        // 1D convolution kernel dim w x 1 or 1 x h
-        // numOfMultiplications = 2 * w or 2 * h                   DIRECT
-        //                      = 4 * CEIL(W/3) or 4 * CEIL(H/3)   WINOGRAD
-        numMultsDirect   = w * h * caps.GetOutputSizePerWinograd2D() * caps.GetOutputSizePerWinograd1D();
-        numMultsWinograd = caps.GetMacsPerWinograd1D() * utils::DivRoundUp(w * h, wideKernelSize);
-    }
-    else
-    {
-        // 2D convolution kernel dim w x h
-        // numOfMultiplications = 4 * w * h                    DIRECT
-        //                      = 16 * CEIL(W/3) * CEIL(H/3)   WINOGRAD
-        numMultsDirect = w * h * caps.GetOutputSizePerWinograd2D() * caps.GetOutputSizePerWinograd2D();
-        numMultsWinograd =
-            caps.GetMacsPerWinograd2D() * utils::DivRoundUp(w, wideKernelSize) * utils::DivRoundUp(h, wideKernelSize);
-    }
-
-    if (numMultsWinograd < numMultsDirect)
-    {
-        return CompilerMceAlgorithm::Winograd;
-    }
-    else
-    {
-        return CompilerMceAlgorithm::Direct;
-    }
-}
-
-bool IsCompressionFormatCompatible(CompilerDataCompressedFormat compressionFormat,
+bool IsCompressionFormatCompatible(const CompilerDataCompressedFormat& compressionFormat,
                                    const TensorShape& nodeShape,
                                    const TensorShape& stripeShape,
-                                   Strategy strategy,
+                                   const Strategy& strategy,
                                    bool forwardEst)
 {
-    // FCAF is not supported for strategy 7 and FC
-    bool fcafCompStrategy = (strategy != Strategy::STRATEGY_7 && strategy != Strategy::STRATEGY_FC);
-
-    // If SPA "forward-looking" estimate is configured, activation compression for Ethos-N78 will
-    // be allowed for strategies 6, 7 and arbitrary tensor shape.
-    bool estimateOverride = forwardEst && (strategy != Strategy::STRATEGY_FC);
+    // If SPA "forward-looking" estimate is configured, activation compression for Ethos-N78 will be
+    // allowed for arbitrary tensor shapes except for Strategy 7 and Fully connected, which are not
+    // supported by FCAF.
+    bool estimateOverride = forwardEst && (strategy != Strategy::STRATEGY_7 && strategy != Strategy::STRATEGY_FC);
+    bool tensorCompressible =
+        IsCompressionFormatCompatibleWithStripeAndShape(compressionFormat, nodeShape, stripeShape);
 
     switch (compressionFormat)
     {
         case CompilerDataCompressedFormat::NHWCB_COMPRESSED:
             // The stripe must be the full width and depth of the node input/output shape
-            return stripeShape[2] >= nodeShape[2] && stripeShape[3] >= nodeShape[3];
+            return tensorCompressible;
         case CompilerDataCompressedFormat::FCAF_DEEP:
             // The stripe shape must be a multiple of the cells height (8), width (8) and depth (32)
-            return (fcafCompStrategy &&
-                    (((stripeShape[1] % 8) == 0) && ((stripeShape[2] % 8) == 0) && ((stripeShape[3] % 32) == 0))) ||
-                   estimateOverride;
+            return (tensorCompressible || estimateOverride);
         case CompilerDataCompressedFormat::FCAF_WIDE:
             // The stripe shape must be a multiple of the cells height (8), width (16) and depth (16)
-            return (fcafCompStrategy &&
-                    (((stripeShape[1] % 8) == 0) && ((stripeShape[2] % 16) == 0) && ((stripeShape[3] % 16) == 0))) ||
-                   estimateOverride;
+            return (tensorCompressible || estimateOverride);
         default:
             return false;
     }
+}
+
+bool IsNodeCompressible(const Node& node)
+{
+    const CompressionHint nodeCompressionHint = node.GetCompressionHint();
+    const CompilerDataFormat nodeFormat       = node.GetFormat();
+
+    const bool hintIsOk             = nodeCompressionHint != CompressionHint::RequiredUncompressed;
+    const bool isFormatCompressible = nodeFormat == CompilerDataFormat::NHWCB;
+
+    return hintIsOk && isFormatCompressible;
 }
 
 CompilerDataCompressedFormat GetIntermediateOutputCompressedFormat(const HardwareCapabilities& capabilities,
@@ -108,17 +76,10 @@ CompilerDataCompressedFormat GetIntermediateOutputCompressedFormat(const Hardwar
                                                                    const LinearNodesOutput& linearOutputNodes,
                                                                    bool forwardEst)
 {
-    const Node& outputNode                       = *linearOutputNodes.m_WorkingNodes.back();
-    const CompilerDataFormat currentOutputFormat = outputNode.GetFormat();
-
-    // Output must be uncompressed
-    if (outputNode.GetCompressionHint() == CompressionHint::RequiredUncompressed)
-    {
-        return CompilerDataCompressedFormat::NONE;
-    }
+    const Node& outputNode = *linearOutputNodes.m_WorkingNodes.back();
 
     // Only attempt to compress if the format is compatible and there is a transfer to the DRAM
-    if (currentOutputFormat != CompilerDataFormat::NHWCB || linearOutputNodes.m_OutputLocation != BufferLocation::Dram)
+    if (!IsNodeCompressible(outputNode) || linearOutputNodes.m_OutputLocation != BufferLocation::Dram)
     {
         return CompilerDataCompressedFormat::NONE;
     }
@@ -425,6 +386,10 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
                 break;
             }
         }
+        else if (mceOperation != nullptr && dynamic_cast<CopyNode*>(current))
+        {
+            currentSetOfNodes.push_back(current);
+        }
         else
         {
             break;
@@ -444,40 +409,9 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
                 mceOperation->GetShapeMultiplier() *
                 (fuseOnlyPle != nullptr ? fuseOnlyPle->GetShapeMultiplier() : g_IdentityShapeMultiplier);
 
-            TensorShape weightsShape = mceOperation->GetWeightsInfo().m_Dimensions;
-            if (mceOperation->GetAlgorithmHint() == AlgorithmHint::AllowWinograd && enableWinograd &&
-                mceOperation->GetOperation() == command_stream::MceOperation::CONVOLUTION &&
-                mceOperation->GetStride() == Stride{ 1, 1 } &&
-                // Winograd and upscaling cannot be performed at the same time
-                mceOperation->GetUpsampleType() == UpsampleType::OFF)
-            {
-                res.m_Algorithm = ConvAlgorithm(capabilities, weightsShape[0], weightsShape[1]);
-            }
-            else
-            {
-                res.m_Algorithm = CompilerMceAlgorithm::Direct;
-            }
+            res.m_Algorithm = mceOperation->GetEffectiveAlgorithm(capabilities, enableWinograd);
 
-            if (res.m_Algorithm == CompilerMceAlgorithm::Winograd ||
-                (res.m_Algorithm == CompilerMceAlgorithm::Direct && ((weightsShape[0] > 7) || (weightsShape[1] > 7))))
-            {
-                // WINOGRAD: width and height are rounded up to multiple of 3
-                // if it is not equal to 1
-                // This needs to be taken into consideration in selecting
-                // memory strategy.
-                // DIRECT: wide kernel mode (H or W, both > 7)
-                // then both H,W are rounded up to multiple of 3
-                // unless H, W = 1
-                if (weightsShape[0] != 1)
-                {
-                    weightsShape[0] = utils::RoundUpToNearestMultiple(weightsShape[0], 3);
-                }
-
-                if (weightsShape[1] != 1)
-                {
-                    weightsShape[1] = utils::RoundUpToNearestMultiple(weightsShape[1], 3);
-                }
-            }
+            TensorShape weightsShape = GetRoundedWeights(mceOperation->GetWeightsInfo().m_Dimensions, res.m_Algorithm);
 
             uint32_t depthMax = UINT32_MAX;
             if ((fuseOnlyPle != nullptr) &&
@@ -513,13 +447,12 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
                 lastNode->GetShape(), mceOperation->GetWeightsInfo().m_DataFormat, weightsShape, shapeMultiplier,
                 inputStaticAndOffset, res.m_Algorithm, depthMax);
 
-            if (IsStrategyX(mceOperation->GetOperation(), mceOperation->GetUpsampleType(), tensorConfig,
-                            res.m_Algorithm, validStrategies))
+            if (IsStrategyX(mceOperation->GetOperation(), tensorConfig, res.m_Algorithm, validStrategies))
             {
                 currentSramAllocator = sramAllocator;
                 strategySelected     = TryStrategyX(
-                    mceOperation->GetOperation(), tensorConfig, currentSramAllocator, mceInputShape,
-                    lastNode->GetShape(), mceOperation->GetWeightsInfo().m_DataFormat, weightsShape,
+                    mceOperation->GetOperation(), mceOperation->GetUpsampleType(), tensorConfig, currentSramAllocator,
+                    mceInputShape, lastNode->GetShape(), mceOperation->GetWeightsInfo().m_DataFormat, weightsShape,
                     std::make_pair(mceOperation->GetPadTop(), mceOperation->GetPadLeft()), validBlockConfigs,
                     capabilities, mceOperation->GetShapeMultiplier(),
                     (fuseOnlyPle != nullptr ? fuseOnlyPle->GetShapeMultiplier() : g_IdentityShapeMultiplier),
@@ -743,6 +676,10 @@ McePlePass::McePlePass(const HardwareCapabilities& capabilities,
         {
             m_RequantizeNodes.push_back(dynamic_cast<RequantizeNode*>(node));
         }
+        else if (dynamic_cast<CopyNode*>(node))
+        {
+            m_CopyNodes.push_back(dynamic_cast<CopyNode*>(node));
+        }
         else
         {
             assert(!"Unexpected node type");
@@ -761,11 +698,7 @@ McePlePass::McePlePass(const HardwareCapabilities& capabilities,
 command_stream::PleOperation McePlePass::GetPleOperation() const
 {
     // Get PLE code buffer - passthrough unless we have been fused with a PLE operation
-#if OFM_SCALING_BYPASS_ENABLE
-    return command_stream::PleOperation::OFM_SCALING;
-#else
     return m_PleOperation ? m_PleOperation->GetKernelOperation() : command_stream::PleOperation::PASSTHROUGH;
-#endif
 }
 
 bool McePlePass::ChooseAndSetupStrategy(const HardwareCapabilities& capabilities,
@@ -848,7 +781,7 @@ std::pair<uint32_t, uint32_t> McePlePass::GetWeightStripeSizeAndDepth()
     uint32_t weightStripeSize = m_TensorConfig.weightsAllocation.stripeShape[2];
 
     // Encode weights
-    uint32_t weightStripeDepth;
+    uint32_t weightStripeDepth = 0;
     if (weightsInfo.m_DataFormat == DataFormat::HWIO)
     {
         weightStripeDepth = m_TensorConfig.weightsAllocation.stripeShape[3];
@@ -923,6 +856,8 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
         default:
             // Invalid strategy
             assert(false);
+            // Set strategy so we don't get errors with asserts disabled
+            strategy = SramAllocationStrategy::STRATEGY_0;
     }
 
     convCmd.m_SramConfig().m_AllocationStrategy() = strategy;
@@ -960,7 +895,7 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
     uint32_t weightMetadataBufferId    = bufferManager.AddDramConstant(BufferType::ConstantControlUnit, metadataBytes);
     convCmd.m_WeightMetadataBufferId() = weightMetadataBufferId;
 
-    convCmd.m_InputInfo().m_DataType()         = ConvertDataType(m_Nodes.front()->GetInputDataType(0));
+    convCmd.m_InputInfo().m_DataType()         = GetCommandDataType(m_Nodes.front()->GetInputDataType(0));
     convCmd.m_InputInfo().m_DataFormat()       = m_Nodes.front()->GetInputBufferFormat(0);
     convCmd.m_InputInfo().m_TensorShape()      = mceInputShape;
     convCmd.m_InputInfo().m_SupertensorShape() = m_Nodes.front()->GetInputShape(0);
@@ -998,7 +933,7 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
     convCmd.m_WeightInfo().m_DramBufferId()      = weightBufferId;
     convCmd.m_WeightInfo().m_ZeroPoint()         = static_cast<int16_t>(weightsInfo.m_QuantizationInfo.GetZeroPoint());
 
-    convCmd.m_OutputInfo().m_DataType()          = ConvertDataType(m_Nodes.back()->GetDataType());
+    convCmd.m_OutputInfo().m_DataType()          = GetCommandDataType(m_Nodes.back()->GetDataType());
     convCmd.m_OutputInfo().m_DataFormat()        = m_Nodes.back()->GetBufferFormat();
     convCmd.m_OutputInfo().m_TensorShape()       = outputShape;
     convCmd.m_OutputInfo().m_SupertensorShape()  = outputShape;

@@ -5,16 +5,16 @@
 
 #include "Compiler.hpp"
 
-#include "ConversionPass.hpp"
 #include "GraphNodes.hpp"
 #include "IEstimationStrategy.hpp"
-#include "McePlePass.hpp"
 #include "Optimization.hpp"
-#include "PlePass.hpp"
-#include "Section.hpp"
 #include "SramAllocator.hpp"
 #include "cascading/Cascading.hpp"
+#include "nonCascading/ConversionPass.hpp"
+#include "nonCascading/McePlePass.hpp"
 #include "nonCascading/NonCascading.hpp"
+#include "nonCascading/PlePass.hpp"
+#include "nonCascading/Section.hpp"
 
 #include <fstream>
 #include <numeric>
@@ -123,10 +123,12 @@ Compiler::Compiler(const Network& network,
     , m_AllowedBlockConfigs(GenerateAllowedBlockConfigs(compilationOptions))
     , m_Capabilities(fwAndHwCapabilities)
     , m_CompilationOptions(compilationOptions)
-    , m_DebuggingContext(compilationOptions.m_DebugInfo)
+    , m_EnableCascading(false)
     , m_EstimationOptions(estimationOptions)
     , m_PerfEstimate(false)
-{}
+{
+    SetDebuggingContext(DebuggingContext(&compilationOptions.m_DebugInfo));
+}
 
 Compiler::~Compiler()
 {}
@@ -246,12 +248,12 @@ NetworkPerformanceData Compiler::PrivateEstimatePerformance()
     }
     if (!m_EnableCascading)
     {
-        NonCascading nonCascadingEstimate(m_EstimationOptions, m_Capabilities, m_DebuggingContext);
+        NonCascading nonCascadingEstimate(m_EstimationOptions, m_CompilationOptions, m_Capabilities);
         m_PerformanceStream = nonCascadingEstimate.Estimate(m_Graph);
     }
     else
     {
-        Cascading cascadingEstimate(m_EstimationOptions, m_Capabilities, m_DebuggingContext);
+        Cascading cascadingEstimate(m_EstimationOptions, m_CompilationOptions, m_Capabilities);
         m_PerformanceStream = cascadingEstimate.Estimate(m_Graph);
     }
 
@@ -260,43 +262,14 @@ NetworkPerformanceData Compiler::PrivateEstimatePerformance()
 
 void Compiler::Convert()
 {
-    m_Graph = Graph(m_Network, m_Capabilities, m_EstimationOptions);
+    m_Graph = Graph(m_Network, m_Capabilities, m_EstimationOptions, m_CompilationOptions.m_StrictPrecision);
 
     DumpGraph("GraphInitial");
 }
 
 void Compiler::Optimize()
 {
-    using OptimizationFunc                     = bool (*)(Graph&, Node*);
-    const OptimizationFunc optimizationFuncs[] = {
-        &MergeFormatConversionNodes,
-        &MergeRequantizeNodes,
-        &ReorderReinterpretAndRequantizeNodes,
-        &ReorderConcatAndRequantizeNodes,
-        &MergeConcatNodes,
-        &RemoveUnconnectedNode,
-        &MergeConstantAndReinterpretNodes,
-        &MergeConstantAndFormatConversionNodes,
-        &ReplaceConstantAdditionWithDepthwise,
-    };
-
-    bool madeChange;
-    do
-    {
-        madeChange = false;
-        for (Node* node : m_Graph.GetNodesSorted())
-        {
-            for (const OptimizationFunc f : optimizationFuncs)
-            {
-                madeChange = f(m_Graph, node);
-                if (madeChange)
-                {
-                    goto nextIteration;
-                }
-            }
-        }
-    nextIteration:;
-    } while (madeChange);
+    OptimizeGraph(m_Graph);
 }
 
 void Compiler::Prepare()
@@ -348,8 +321,9 @@ void Compiler::Prepare()
 
         if (!madeChange || numIterations > maxIterations)
         {
-            std::string errorMsg =
-                std::string("Unable to prepare graph after ") + std::to_string(numIterations) + " iterations.";
+            std::string errorMsg = std::string("Unable to prepare graph after ") + std::to_string(numIterations) +
+                                   " iterations (max: " + std::to_string(maxIterations) +
+                                   "). madeChange = " + (madeChange ? "true" : "false") + ".";
 
             errorMsg += "The operation(s) with the following ids have failed to compile:";
 
@@ -469,20 +443,22 @@ void Compiler::CreateSections()
 
 void Compiler::Generate()
 {
-    std::vector<Node*> sorted = m_Graph.GetNodesSorted();
+    const DebuggingContext& debuggingContext = GetConstDebuggingContext();
+    std::vector<Node*> sorted                = m_Graph.GetNodesSorted();
 
     // If an initial dump is requested, add the sram dump command at the head of the stream.
-    if (m_DebuggingContext.m_DebugInfo.m_InitialSramDump)
+    if (debuggingContext.m_DebugInfo->m_InitialSramDump)
     {
         ethosn::command_stream::DumpSram cmdStrDumpSram;
-        std::string dumpName = std::string("initial_ce");
-        std::copy(dumpName.begin(), dumpName.end(), cmdStrDumpSram.m_Filename().begin());
+        const char dumpName[] = "initial_ce";
+        static_assert(sizeof(dumpName) <= sizeof(cmdStrDumpSram.m_Filename()), "");
+        std::copy(std::begin(dumpName), std::end(dumpName), cmdStrDumpSram.m_Filename().begin());
         m_CommandStream.EmplaceBack(cmdStrDumpSram);
     }
 
     for (Node* n : sorted)
     {
-        n->Generate(m_CommandStream, m_BufferManager, m_DebuggingContext.m_DebugInfo.m_DumpRam);
+        n->Generate(m_CommandStream, m_BufferManager, debuggingContext.m_DebugInfo->m_DumpRam);
     }
 
     DumpGraph("GraphFinal");
@@ -494,6 +470,7 @@ void Compiler::Generate()
 
 void Compiler::DumpGraph(const std::string& filename)
 {
+    const DebuggingContext& debuggingContext = GetConstDebuggingContext();
     std::string finalFileName("");
     if (m_EnableCascading)
     {
@@ -505,7 +482,7 @@ void Compiler::DumpGraph(const std::string& filename)
     }
     finalFileName += filename;
     finalFileName += ".dot";
-    m_DebuggingContext.DumpGraph(m_Graph, finalFileName);
+    debuggingContext.DumpGraph(CompilationOptions::DebugLevel::Medium, m_Graph, finalFileName);
 }
 
 CompiledNetworkImpl::CompiledNetworkImpl(const std::vector<uint8_t>& constantDmaData,

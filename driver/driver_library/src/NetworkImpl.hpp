@@ -33,8 +33,22 @@ public:
                                          Buffer* const outputBuffers[],
                                          uint32_t numOutputBuffers) const;
 
+    void SetDebugName(const char* name);
+
 protected:
-    void DumpCmm(Buffer* const inputBuffers[], uint32_t numInputBuffers, const char* cmmFilename) const;
+    enum CmmSection : uint8_t
+    {
+        Cmm_ConstantDma         = 0x1,
+        Cmm_ConstantControlUnit = 0x2,
+        Cmm_Inference           = 0x4,
+        Cmm_Ifm                 = 0x8,
+        Cmm_All                 = 0xFF,
+    };
+
+    void DumpCmm(Buffer* const inputBuffers[],
+                 uint32_t numInputBuffers,
+                 const char* cmmFilename,
+                 uint8_t sections) const;
 
     std::vector<uint32_t> BuildInferenceData(uint64_t constantControlUnitDataBaseAddress,
                                              uint64_t constantDmaDataBaseAddress,
@@ -43,6 +57,7 @@ protected:
                                              uint64_t intermediateDataBaseAddress) const;
 
     support_library::CompiledNetwork& m_CompiledNetwork;
+    std::string m_DebugName;
 };
 
 }    // namespace driver_library

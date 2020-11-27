@@ -23,11 +23,8 @@ class NetworkToGraphConverter : public INetworkVisitor
 public:
     NetworkToGraphConverter(Graph& graph,
                             const HardwareCapabilities& capabilities,
-                            utils::Optional<const EstimationOptions&> estimationOptions)
-        : m_Graph(graph)
-        , m_Capabilities(capabilities)
-        , m_EstimationOptions(estimationOptions)
-    {}
+                            utils::Optional<const EstimationOptions&> estimationOptions,
+                            const bool strictPrecision);
 
     void Visit(Input& input) final;
     void Visit(Output& output) final;
@@ -71,6 +68,8 @@ private:
     Graph& m_Graph;
     const HardwareCapabilities& m_Capabilities;
     utils::Optional<const EstimationOptions&> m_EstimationOptions;
+    SupportQueries m_Queries;
+    bool m_StrictPrecision;
 };
 
 }    // namespace support_library

@@ -5,13 +5,15 @@
 
 #include "GraphNodes.hpp"
 
-#include "BufferManager.hpp"
-#include "ConversionPass.hpp"
-#include "McePlePass.hpp"
-#include "Pass.hpp"
+#include "DebuggingContext.hpp"
 #include "Utils.hpp"
+#include "nonCascading/BufferManager.hpp"
+#include "nonCascading/ConversionPass.hpp"
+#include "nonCascading/McePlePass.hpp"
+#include "nonCascading/Pass.hpp"
 
 #include <ethosn_command_stream/PleOperation.hpp>
+#include <ethosn_utils/Quantization.hpp>
 
 using namespace ethosn::support_library::utils;
 
@@ -40,31 +42,25 @@ command_stream::MceAlgorithm ConvertAlgorithmCompilerToCommand(CompilerMceAlgori
     }
 }
 
-MceOperationNode* CreateIdentityMceOpNode(Graph& graph, Node* previousNode)
+void InsertCopyNode(Graph& graph, Edge* edge)
 {
-    const uint32_t numIfm   = previousNode->GetShape()[3];
-    const float weightScale = 0.5f;
-    const float biasScale   = weightScale * previousNode->GetQuantizationInfo().GetScale();
-
-    std::vector<uint8_t> weightsData(1 * 1 * 1 * numIfm, 2);
-    std::vector<int32_t> biasData(numIfm, 0);
-
-    TensorInfo weightInfo{ { 1, 1, numIfm, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, { 0, weightScale } };
-    TensorInfo biasInfo{ { 1, 1, 1, numIfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
-
-    MceOperationNode* result = graph.CreateAndAddNode<MceOperationNode>(
-        previousNode->GetShape(), previousNode->GetShape(), previousNode->GetDataType(),
-        previousNode->GetQuantizationInfo(), weightInfo, weightsData, biasInfo, biasData, Stride{ 1, 1 }, 0, 0,
-        ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION, CompilerDataFormat::NHWCB,
-        previousNode->GetCorrespondingOperationIds());
-
-    return result;
+    Node* prevNode     = edge->GetSource();
+    CopyNode* copyNode = graph.CreateAndAddNodeWithDebug<CopyNode>(
+        ETHOSN_FUNCTION_SIGNATURE, prevNode->GetShape(), prevNode->GetDataType(), prevNode->GetQuantizationInfo(),
+        prevNode->GetFormat(), prevNode->GetCorrespondingOperationIds());
+    graph.SplitEdge(edge, copyNode);
 }
 
-void InsertIdentityNode(Graph& graph, Edge* edge)
+bool ContainsPass(Node* node)
 {
-    MceOperationNode* convNode = CreateIdentityMceOpNode(graph, edge->GetSource());
-    graph.SplitEdge(edge, convNode);
+    auto NodeContainsPass = [](Node* node) -> Node* {
+        if (node->GetPass() != nullptr)
+        {
+            return node;
+        }
+        return nullptr;
+    };
+    return SearchDependencies(node, NodeContainsPass) != nullptr;
 }
 
 }    // namespace
@@ -250,6 +246,21 @@ CompilerMceAlgorithm MceOperationNode::GetAlgorithm() const
     return m_Algorithm;
 }
 
+CompilerMceAlgorithm MceOperationNode::GetEffectiveAlgorithm(HardwareCapabilities capabilities,
+                                                             bool isWinogradEnabled) const
+{
+    const TensorShape& weightsShape = m_WeightsInfo.m_Dimensions;
+    if (GetAlgorithmHint() == AlgorithmHint::AllowWinograd && isWinogradEnabled &&
+        GetOperation() == command_stream::MceOperation::CONVOLUTION && GetStride() == Stride{ 1, 1 } &&
+        // Winograd and upscaling cannot be performed at the same time
+        GetUpsampleType() == command_stream::UpsampleType::OFF)
+    {
+        return FindBestConvAlgorithm(capabilities, weightsShape[0], weightsShape[1]);
+    }
+
+    return CompilerMceAlgorithm::Direct;
+}
+
 void MceOperationNode::SetAlgorithmHint(AlgorithmHint a)
 {
     m_AlgorithmHint = a;
@@ -317,7 +328,7 @@ void MceOperationNode::Reset()
     m_Algorithm = CompilerMceAlgorithm::None;
 }
 
-utils::ShapeMultiplier MceOperationNode::GetShapeMultiplier() const
+ShapeMultiplier MceOperationNode::GetShapeMultiplier() const
 {
     return { m_UpscaleFactor, m_UpscaleFactor, 1 };
 }
@@ -645,13 +656,6 @@ bool ConcatNode::IsPrepared()
         {
             return false;
         }
-        // Concats are handled by the preceding Passes writing directly into the concat output buffer.
-        // Therefore all our inputs need to be in a pass that supports this, which is currently just McePlePasses
-        if (dynamic_cast<McePlePass*>(GetInput(i)->GetSource()->GetPass()) == nullptr &&
-            dynamic_cast<ConversionPass*>(GetInput(i)->GetSource()->GetPass()) == nullptr)
-        {
-            return false;
-        }
     }
     return true;
 }
@@ -679,31 +683,6 @@ bool ConcatNode::FixGraph(Graph& graph, FixGraphSeverity severity)
             GetInput(i)->GetSource()->SetCompressionHint(CompressionHint::RequiredUncompressed);
             changed = true;
         }
-        // See IsPrepared for context.
-        // We can force an McePlePass pass to be created on our input by adding a convolution there.
-        // This counts as a more severe change because adding an extra node to the graph may be suboptimal in the case
-        // that other fixes to the graph are possible. For example the preceding node may be able to fix the graph itself.
-        const bool mceOperationRequired =
-            dynamic_cast<McePlePass*>(GetInput(i)->GetSource()->GetPass()) == nullptr &&
-            dynamic_cast<ConversionPass*>(GetInput(i)->GetSource()->GetPass()) == nullptr &&
-            // Make sure that it's not adding another Identity node for every iteration.
-            dynamic_cast<MceOperationNode*>(GetInput(i)->GetSource()) == nullptr;
-
-        if (severity == FixGraphSeverity::High && mceOperationRequired)
-        {
-            InsertIdentityNode(graph, GetInput(i));
-            if (GetFormat() == CompilerDataFormat::NHWC)
-            {
-                // Set the location hint of the Identity Node to be in DRAM
-                // If it chooses put the output in SRAM we cannot fuse the format conversion.
-                GetInput(i)->GetSource()->SetLocationHint(LocationHint::RequireDram);
-                Node* reformat = graph.CreateAndAddNode<FormatConversionNode>(GetInputShape(i), GetInputDataType(i),
-                                                                              GetInputQuantizationInfo(i), GetFormat(),
-                                                                              GetCorrespondingOperationIds());
-                graph.SplitEdge(GetInput(i), reformat);
-            }
-            changed = true;
-        }
     }
     return changed;
 }
@@ -717,7 +696,7 @@ void ConcatNode::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
         assert(bufferId == GetInput(i)->GetSource()->GetBufferId());
         assert(m_Format == GetInputFormat(i));
     }
-    SetBufferId(GetInput(0)->GetSource()->GetBufferId());
+    SetBufferId(bufferId);
 }
 
 void ConcatNode::PrepareAfterPassAssignment(SramAllocator& sramAllocator)
@@ -764,9 +743,9 @@ bool ExtractSubtensorNode::FixGraph(Graph& graph, FixGraphSeverity)
         // the meaning of the graph.
         if (identityNode->GetFormat() != GetFormat())
         {
-            Node* reformat = graph.CreateAndAddNode<FormatConversionNode>(
-                identityNode->GetShape(), identityNode->GetDataType(), identityNode->GetQuantizationInfo(), GetFormat(),
-                GetCorrespondingOperationIds());
+            Node* reformat = graph.CreateAndAddNodeWithDebug<FormatConversionNode>(
+                ETHOSN_FUNCTION_SIGNATURE, identityNode->GetShape(), identityNode->GetDataType(),
+                identityNode->GetQuantizationInfo(), GetFormat(), GetCorrespondingOperationIds());
             graph.InsertNodeAfter(identityNode, reformat);
         }
     }
@@ -791,6 +770,41 @@ SoftmaxNode::SoftmaxNode(NodeId id,
                          std::set<uint32_t> correspondingOperationIds)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
 {}
+
+CopyNode::CopyNode(NodeId id,
+                   const TensorShape& outputTensorShape,
+                   DataType dataType,
+                   const QuantizationInfo& outputQuantizationInfo,
+                   CompilerDataFormat format,
+                   std::set<uint32_t> correspondingOperationIds)
+    : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
+{}
+
+bool CopyNode::IsPrepared()
+{
+    return m_Pass != nullptr;
+}
+
+bool CopyNode::FixGraph(Graph& graph, FixGraphSeverity severity)
+{
+    bool changed = Node::FixGraph(graph, severity);
+
+    // We don't support a ConversionPass that goes from Sram into Dram, so we may need to force our input
+    // back to Dram in order for a pass to be created.
+    if (m_Pass == nullptr && GetInputLocation(0) == BufferLocation::Sram)
+    {
+        GetInput(0)->GetSource()->SetLocationHint(LocationHint::RequireDram);
+        changed = true;
+    }
+    return changed;
+}
+
+DotAttributes CopyNode::GetDotAttributes()
+{
+    DotAttributes result = Node::GetDotAttributes();
+    result.m_Label       = "CopyNode\n" + result.m_Label;
+    return result;
+}
 
 RequantizeNode::RequantizeNode(NodeId id,
                                const TensorShape& outputTensorShape,
@@ -834,29 +848,48 @@ void RequantizeNode::Apply(ethosn::command_stream::MceData& mceData,
                            const QuantizationInfo& inputQuantizationInfo) const
 {
     // Dequantize then requantize the upper and lower bounds
-    float dequantizedMin = static_cast<float>(mceData.m_ActivationMin() - inputQuantizationInfo.GetZeroPoint()) *
-                           inputQuantizationInfo.GetScale();
-    float dequantizedMax = static_cast<float>(mceData.m_ActivationMax() - inputQuantizationInfo.GetZeroPoint()) *
-                           inputQuantizationInfo.GetScale();
+    float dequantizedMin = ethosn::utils::Dequantize(mceData.m_ActivationMin(), inputQuantizationInfo.GetScale(),
+                                                     inputQuantizationInfo.GetZeroPoint());
+    float dequantizedMax = ethosn::utils::Dequantize(mceData.m_ActivationMax(), inputQuantizationInfo.GetScale(),
+                                                     inputQuantizationInfo.GetZeroPoint());
 
-    float requantizedMin =
-        (dequantizedMin / m_QuantizationInfo.GetScale()) + static_cast<float>(m_QuantizationInfo.GetZeroPoint());
-    float requantizedMax =
-        (dequantizedMax / m_QuantizationInfo.GetScale()) + static_cast<float>(m_QuantizationInfo.GetZeroPoint());
-
-    constexpr auto max = std::numeric_limits<uint8_t>::max();
-    constexpr auto min = std::numeric_limits<uint8_t>::min();
-
-    float clampedQuantizedMin = utils::Clamp(requantizedMin, static_cast<float>(min), static_cast<float>(max));
-    float clampedQuantizedMax = utils::Clamp(requantizedMax, static_cast<float>(min), static_cast<float>(max));
-
-    mceData.m_ActivationMin() = static_cast<uint8_t>(std::round(clampedQuantizedMin));
-    mceData.m_ActivationMax() = static_cast<uint8_t>(std::round(clampedQuantizedMax));
+    switch (m_DataType)
+    {
+        case DataType::UINT8_QUANTIZED:
+            mceData.m_ActivationMin() = ethosn::utils::Quantize<uint8_t>(dequantizedMin, m_QuantizationInfo.GetScale(),
+                                                                         m_QuantizationInfo.GetZeroPoint());
+            mceData.m_ActivationMax() = ethosn::utils::Quantize<uint8_t>(dequantizedMax, m_QuantizationInfo.GetScale(),
+                                                                         m_QuantizationInfo.GetZeroPoint());
+            break;
+        case DataType::INT8_QUANTIZED:
+            mceData.m_ActivationMin() = ethosn::utils::Quantize<int8_t>(dequantizedMin, m_QuantizationInfo.GetScale(),
+                                                                        m_QuantizationInfo.GetZeroPoint());
+            mceData.m_ActivationMax() = ethosn::utils::Quantize<int8_t>(dequantizedMax, m_QuantizationInfo.GetScale(),
+                                                                        m_QuantizationInfo.GetZeroPoint());
+            break;
+        default:
+            assert(!"Not implemented");
+    }
 }
 
 bool OutputNode::IsPrepared()
 {
-    return GetInputLocation(0) == BufferLocation::Dram && !GetInputCompressed(0);
+    if (GetInputLocation(0) != BufferLocation::Dram)
+    {
+        return false;
+    }
+    if (GetInputCompressed(0))
+    {
+        return false;
+    }
+    // Walk the graph to the inputs, a path with at least one pass in it is required
+    // If there isn't one, it means an input goes straight to an output
+    // which would make the input buffer the same as the output buffer, which is not supported by our API.
+    if (!ContainsPass(this))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool OutputNode::FixGraph(Graph& graph, FixGraphSeverity severity)
@@ -872,7 +905,14 @@ bool OutputNode::FixGraph(Graph& graph, FixGraphSeverity severity)
         GetInput(0)->GetSource()->SetCompressionHint(CompressionHint::RequiredUncompressed);
         changed = true;
     }
-
+    // Walk the graph to the inputs, a path with at least one pass in it is required
+    // If there isn't one, it means an input goes straight to an output
+    // which would make the input buffer the same as the output buffer, which is not supported by our API.
+    if (!ContainsPass(this))
+    {
+        InsertCopyNode(graph, GetInput(0));
+        changed = true;
+    }
     return changed;
 }
 
@@ -881,10 +921,7 @@ void OutputNode::Generate(command_stream::CommandStreamBuffer&, BufferManager& b
     // Modify output buffer descriptor to be an output
     uint32_t bufferId = GetInput(0)->GetSource()->GetBufferId();
 
-    if (bufferManager.GetBuffers().at(bufferId).m_Type == BufferType::Input)
-    {
-        throw NotSupportedException(std::string("Unable to change input buffer to output buffer").c_str());
-    }
+    assert(bufferManager.GetBuffers().at(bufferId).m_Type == BufferType::Intermediate);
 
     // The OutputNode can only ever be associated with one input network operation.
     assert(m_CorrespondingOperationIds.size() == 1);
@@ -927,6 +964,33 @@ DotAttributes EstimateOnlyNode::GetDotAttributes()
     DotAttributes result = Node::GetDotAttributes();
     result.m_Label       = "EstimateOnlyNode\n" + result.m_Label;
     return result;
+}
+
+MceOperationNode* CreateIdentityMceOpNode(Graph& graph, Node* previousNode)
+{
+    const uint32_t numIfm   = previousNode->GetShape()[3];
+    const float weightScale = g_IdentityWeightScale;
+    const float biasScale   = weightScale * previousNode->GetQuantizationInfo().GetScale();
+
+    std::vector<uint8_t> weightsData(numIfm, g_IdentityWeightValue);
+    std::vector<int32_t> biasData(numIfm, 0);
+
+    TensorInfo weightInfo{ { 1, 1, numIfm, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, { 0, weightScale } };
+    TensorInfo biasInfo{ { 1, 1, 1, numIfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
+
+    MceOperationNode* result = graph.CreateAndAddNodeWithDebug<MceOperationNode>(
+        ETHOSN_FUNCTION_SIGNATURE, previousNode->GetShape(), previousNode->GetShape(), previousNode->GetDataType(),
+        previousNode->GetQuantizationInfo(), weightInfo, weightsData, biasInfo, biasData, Stride{ 1, 1 }, 0, 0,
+        ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION, CompilerDataFormat::NHWCB,
+        previousNode->GetCorrespondingOperationIds());
+
+    return result;
+}
+
+void InsertIdentityNode(Graph& graph, Edge* edge)
+{
+    MceOperationNode* convNode = CreateIdentityMceOpNode(graph, edge->GetSource());
+    graph.SplitEdge(edge, convNode);
 }
 
 }    // namespace support_library

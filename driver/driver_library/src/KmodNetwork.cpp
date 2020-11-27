@@ -10,10 +10,12 @@
 
 #include <ethosn_command_stream/CommandStreamBuffer.hpp>
 #include <ethosn_support_library/Support.hpp>
+#include <ethosn_utils/Strings.hpp>
 #include <uapi/ethosn.h>
 
 #include <cstring>
 #include <fcntl.h>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <numeric>
@@ -59,10 +61,10 @@ namespace driver_library
 
 std::vector<char> GetFirmwareAndHardwareCapabilities()
 {
-    int fd = open(STRINGIZE_VALUE_OF(DEVICE_NODE), O_RDONLY);
+    int fd = open(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE), O_RDONLY);
     if (fd < 0)
     {
-        throw std::runtime_error(std::string("Unable to open ") + std::string(STRINGIZE_VALUE_OF(DEVICE_NODE)) +
+        throw std::runtime_error(std::string("Unable to open ") + std::string(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE)) +
                                  std::string(": ") + strerror(errno));
     }
 
@@ -123,10 +125,10 @@ KmodNetworkImpl::KmodNetworkImpl(support_library::CompiledNetwork& compiledNetwo
     netReq.cu_data.size    = static_cast<uint32_t>(compiledNetwork.GetConstantControlUnitData().size());
     netReq.cu_data.data    = compiledNetwork.GetConstantControlUnitData().data();
 
-    int ethosnFd = open(STRINGIZE_VALUE_OF(DEVICE_NODE), O_RDONLY);
+    int ethosnFd = open(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE), O_RDONLY);
     if (ethosnFd < 0)
     {
-        throw std::runtime_error(std::string("Unable to open ") + std::string(STRINGIZE_VALUE_OF(DEVICE_NODE)) +
+        throw std::runtime_error(std::string("Unable to open ") + std::string(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE)) +
                                  std::string(": ") + strerror(errno));
     }
     m_NetworkFd = ioctl(ethosnFd, ETHOSN_IOCTL_REGISTER_NETWORK, &netReq);
@@ -143,6 +145,13 @@ KmodNetworkImpl::KmodNetworkImpl(support_library::CompiledNetwork& compiledNetwo
 
 KmodNetworkImpl::~KmodNetworkImpl()
 {
+    // Dump intermediate buffer files, if requested
+    const char* const debugEnv = std::getenv("ETHOSN_DRIVER_LIBRARY_DEBUG");
+    if (debugEnv && strstr(debugEnv, "dump-intermediate") != nullptr)
+    {
+        DumpIntermediateBuffers();
+    }
+
     close(m_NetworkFd);
 }
 
@@ -152,9 +161,15 @@ Inference* KmodNetworkImpl::ScheduleInference(Buffer* const inputBuffers[],
                                               uint32_t numOutputBuffers) const
 {
     const char* const debugEnv = std::getenv("ETHOSN_DRIVER_LIBRARY_DEBUG");
-    if (debugEnv && strcmp(debugEnv, "1") == 0)
+    if (debugEnv && (strcmp(debugEnv, "1") == 0 || strstr(debugEnv, "cmm") != nullptr))
     {
-        DumpCmm(inputBuffers, numInputBuffers, "CombinedMemoryMap.hex");
+        DumpCmm(inputBuffers, numInputBuffers, (std::string("CombinedMemoryMap_") + m_DebugName + ".hex").c_str(),
+                Cmm_All);
+    }
+    else if (debugEnv && strstr(debugEnv, "cmdstream") != nullptr)
+    {
+        DumpCmm(inputBuffers, numInputBuffers, (std::string("CombinedMemoryMap_") + m_DebugName + ".hex").c_str(),
+                Cmm_Inference | Cmm_ConstantControlUnit);
     }
 
     ethosn_inference_req ifrReq = {};
@@ -185,6 +200,95 @@ Inference* KmodNetworkImpl::ScheduleInference(Buffer* const inputBuffers[],
     }
 
     return new Inference(inference_fd);
+}
+
+void KmodNetworkImpl::DumpIntermediateBuffers()
+{
+    std::cout << "Dumping intermediate buffers..." << std::endl;
+
+    // Get the file handle from the kernel module
+    int intermediateBufferFd = ioctl(m_NetworkFd, ETHOSN_IOCTL_GET_INTERMEDIATE_BUFFER);
+    if (intermediateBufferFd < 0)
+    {
+        int err = errno;
+        std::cerr << "Unable to get intermediate buffer: " << strerror(err) << std::endl;
+        return;
+    }
+
+    // Find the size of the buffer and validate it
+    off_t size;
+    size = lseek(intermediateBufferFd, 0, SEEK_END);
+    if (size < 0)
+    {
+        int err = errno;
+        std::cerr << "Unable to seek intermediate buffer: " << strerror(err) << std::endl;
+        close(intermediateBufferFd);
+        return;
+    }
+    if (size != m_CompiledNetwork.GetIntermediateDataSize())
+    {
+        std::cerr << "Intermediate data was of unexpected size: CompiledNetwork: "
+                  << m_CompiledNetwork.GetIntermediateDataSize() << ", Kernel: " << size << std::endl;
+    }
+
+    if (size > 0)    // There may not be any intermediate data at all
+    {
+        // Map the buffer so we can read its data
+        uint8_t* data = reinterpret_cast<uint8_t*>(mmap(nullptr, size, PROT_READ, MAP_SHARED, intermediateBufferFd, 0));
+        if (data == MAP_FAILED)
+        {
+            int err = errno;
+            std::cerr << "Unable to map buffer: " << strerror(err) << std::endl;
+            close(intermediateBufferFd);
+            return;
+        }
+
+        // Parse the command stream to find the DUMP_DRAM commands
+        support_library::BufferInfo cmdStreamInfo = m_CompiledNetwork.GetConstantControlUnitDataBufferInfos()[0];
+        const uint8_t* rawCmdStreamData           = m_CompiledNetwork.GetConstantControlUnitData().data();
+        command_stream::CommandStream cmdStream(rawCmdStreamData + cmdStreamInfo.m_Offset,
+                                                rawCmdStreamData + cmdStreamInfo.m_Offset + cmdStreamInfo.m_Size);
+        for (auto it = cmdStream.begin(); it != cmdStream.end(); ++it)
+        {
+            if (it->m_Opcode() == command_stream::Opcode::DUMP_DRAM)
+            {
+                const command_stream::CommandData<command_stream::Opcode::DUMP_DRAM>& cmd =
+                    it->GetCommand<command_stream::Opcode::DUMP_DRAM>()->m_Data();
+
+                // Find where this buffer is in the intermediate data
+                auto bufferInfoIt = std::find_if(m_CompiledNetwork.GetIntermediateDataBufferInfos().begin(),
+                                                 m_CompiledNetwork.GetIntermediateDataBufferInfos().end(),
+                                                 [&](const auto& b) { return b.m_Id == cmd.m_DramBufferId(); });
+                if (bufferInfoIt == m_CompiledNetwork.GetIntermediateDataBufferInfos().end())
+                {
+                    std::cerr << "Can't find buffer info for buffer ID " << cmd.m_DramBufferId()
+                              << ", which would have been dumped to " << cmd.m_Filename().data() << std::endl;
+                }
+                else
+                {
+                    // Modify the filename to include the network name, so we don't overwrite files for example when running multiple subgraphs
+                    std::string dumpFilename = cmd.m_Filename().data();
+                    dumpFilename             = utils::ReplaceAll(dumpFilename, "EthosNIntermediateBuffer_",
+                                                     "EthosNIntermediateBuffer_" + m_DebugName + "_");
+
+                    std::ofstream fs(dumpFilename.c_str());
+                    WriteHex(fs, 0, data + bufferInfoIt->m_Offset, bufferInfoIt->m_Size);
+                    std::cout << "Dumped EthosN intermediate buffer " << bufferInfoIt->m_Id << " to " << dumpFilename
+                              << std::endl;
+                }
+            }
+        }
+
+        munmap(data, size);
+    }
+    else
+    {
+        std::cerr << "No intermediate data to dump" << std::endl;
+    }
+
+    close(intermediateBufferFd);
+
+    std::cout << "Finished dumping intermediate buffers" << std::endl;
 }
 
 }    // namespace driver_library

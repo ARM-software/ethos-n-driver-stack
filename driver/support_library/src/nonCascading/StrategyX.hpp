@@ -14,12 +14,12 @@ namespace support_library
 {
 
 bool IsStrategyX(const command_stream::MceOperation& mceOperation,
-                 const command_stream::UpsampleType upsampleType,
                  const TensorConfig& tensorConfig,
                  const CompilerMceAlgorithm algorithm,
                  const std::vector<IStrategy*>& allowedStrategies);
 
 bool TryStrategyX(const command_stream::MceOperation& mceOperation,
+                  const command_stream::UpsampleType upsampleType,
                   TensorConfig& tensorConfig,
                   SramAllocator& sramAllocator,
                   const TensorShape& inputShape,

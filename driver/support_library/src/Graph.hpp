@@ -5,9 +5,10 @@
 
 #pragma once
 
-#include "BufferManager.hpp"
+#include "DebuggingContext.hpp"
 #include "Network.hpp"
 #include "cascading/Visualisation.hpp"
+#include "nonCascading/BufferManager.hpp"
 
 #include <memory>
 #include <vector>
@@ -34,7 +35,7 @@ enum class CompilerDataFormat
     NHWC,
     NCHW,
     NHWCB,
-    WEIGHT,
+    WEIGHT
 };
 
 enum class CompilerDataCompressedFormat
@@ -42,7 +43,7 @@ enum class CompilerDataCompressedFormat
     NONE,
     NHWCB_COMPRESSED,
     FCAF_DEEP,
-    FCAF_WIDE,
+    FCAF_WIDE
 };
 
 bool IsCompressed(CompilerDataCompressedFormat compressedFormat);
@@ -128,8 +129,6 @@ public:
     QuantizationInfo GetInputQuantizationInfo(uint32_t inputIdx) const;
     CompilerDataFormat GetInputFormat(uint32_t inputIdx) const;
     command_stream::DataFormat GetInputBufferFormat(uint32_t inputIdx) const;
-    bool GetInputCompressed(uint32_t inputIdx) const;
-    CompilerDataCompressedFormat GetInputCompressedFormat(uint32_t inputIdx) const;
     /// @}
 
     /// Preparation hints
@@ -175,6 +174,9 @@ public:
     uint32_t GetInputSramOffset(uint32_t inputIdx) const;
     uint32_t GetOutputSramOffset() const;
     void SetOutputSramOffset(uint32_t offset);
+
+    bool GetInputCompressed(uint32_t inputIdx) const;
+    CompilerDataCompressedFormat GetInputCompressedFormat(uint32_t inputIdx) const;
     /// @}
 
     /// Generation results
@@ -231,7 +233,6 @@ protected:
     DataType m_DataType;
     QuantizationInfo m_QuantizationInfo;
     CompilerDataFormat m_Format;
-    CompilerDataCompressedFormat m_CompressionFormat;
 
     // Preparation hints
     OptimizationHint m_OptimizationHint;
@@ -251,6 +252,7 @@ protected:
     //This is used by later nodes to determine where their inputs can be found.
     //At the generation stage this data will be placed into the BufferManager.
     uint32_t m_SramOffset;
+    CompilerDataCompressedFormat m_CompressionFormat;
 
     // Set during generation.
     uint32_t m_BufferId;
@@ -285,7 +287,10 @@ public:
         , m_NextNodeId(0)
     {}
 
-    Graph(const Network& network, const HardwareCapabilities& capabilities, const EstimationOptions& estimationOptions);
+    Graph(const Network& network,
+          const HardwareCapabilities& capabilities,
+          const EstimationOptions& estimationOptions,
+          bool strictPrecision = false);
 
     const std::vector<std::unique_ptr<Node>>& GetNodes() const;
     std::vector<Node*> GetNodesSorted() const;
@@ -296,6 +301,9 @@ public:
     /// The arguments are forwarded to the node's constructor.
     template <typename TNode, typename... Args>
     TNode* CreateAndAddNode(Args&&... args);
+
+    template <typename TNode, typename... Args>
+    TNode* CreateAndAddNodeWithDebug(const char* addedFrom, Args&&... args);
 
     /// Connects two nodes together with a directed edge.
     /// insertionIdx specifies the index of the *incoming* connection to destination
@@ -328,6 +336,16 @@ private:
     std::vector<std::unique_ptr<Edge>> m_Edges;
     NodeId m_NextNodeId;
 };
+
+template <typename TNode, typename... Args>
+TNode* ethosn::support_library::Graph::CreateAndAddNodeWithDebug(const char* addedFrom, Args&&... args)
+{
+    TNode* ptr                         = this->CreateAndAddNode<TNode>(std::forward<Args>(args)...);
+    DebuggingContext& debuggingContext = GetDebuggingContext();
+    debuggingContext.AddNodeCreationSource({ ptr, addedFrom });
+
+    return ptr;
+}
 
 template <typename TNode, typename... Args>
 TNode* ethosn::support_library::Graph::CreateAndAddNode(Args&&... args)

@@ -8,12 +8,15 @@
 #include "EthosNMapping.hpp"
 
 #include <armnn/ILayerSupport.hpp>
+#include <ethosn_support_library/SupportQueries.hpp>
 
 namespace armnn
 {
 
-// In performance estimation mode we want to support operations which don't "exist" in the support library
-// Inheriting ILayerSupport instead of LayerSupportBase causes a compilation error if we don't overload one of the methods.
+// In performance estimation mode we want to support operations which don't "exist" in the support library,
+// so that they can be mapped to operations that we do support.
+// Inheriting ILayerSupport instead of LayerSupportBase causes a compilation error if we don't overload one
+// of the methods, providing a nice check that we're handling everything properly.
 class EthosNLayerSupport : public ILayerSupport
 {
 public:
@@ -233,6 +236,17 @@ public:
                                     const L2NormalizationDescriptor& descriptor,
                                     Optional<std::string&> reasonIfUnsupported) const override;
 
+    bool IsLogicalBinarySupported(const TensorInfo& input0,
+                                  const TensorInfo& input1,
+                                  const TensorInfo& output,
+                                  const LogicalBinaryDescriptor& descriptor,
+                                  Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
+
+    bool IsLogicalUnarySupported(const TensorInfo& input,
+                                 const TensorInfo& output,
+                                 const ElementwiseUnaryDescriptor& descriptor,
+                                 Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
+
     bool IsLogSoftmaxSupported(const TensorInfo& input,
                                const TensorInfo& output,
                                const LogSoftmaxDescriptor& descriptor,
@@ -395,6 +409,10 @@ private:
     bool CheckEstimateOnlySupported(const std::vector<TensorInfo>& inputs,
                                     const std::vector<TensorInfo>& outputs,
                                     Optional<std::string&> reasonIfUnsupported) const;
+
+    EthosNConfig m_Config;
+    EthosNMappings m_Mappings;
+    ethosn::support_library::SupportQueries m_Queries;
 };
 
 }    // namespace armnn

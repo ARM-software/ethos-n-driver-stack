@@ -7,6 +7,7 @@
 
 #include "SramAllocator.hpp"
 #include "StrategiesCommon.hpp"
+#include "Utils.hpp"
 
 #include <ethosn_command_stream/CommandData.hpp>
 
@@ -15,27 +16,61 @@ namespace ethosn
 namespace support_library
 {
 
+using namespace utils;
+
 namespace
 {
 
-struct NeedBoundary
+enum class WeightsReloadingOptions
 {
-    bool m_Before;
-    bool m_After;
+    NO_RELOADING,
+    RELOADING_DOUBLE_BUFFERING,
+    RELOADING_NO_DOUBLE_BUFFERING,
 };
 
-NeedBoundary GetBoundaryRequirements(const uint32_t padBefore,
-                                     const uint32_t ifmSize,
-                                     const uint32_t ifmStripeSize,
-                                     const uint32_t ofmStripeSize,
-                                     const uint32_t weightSize)
+bool IsUpsampling(command_stream::UpsampleType upsampleType)
 {
-    if (ifmSize <= ifmStripeSize)
+    return upsampleType != command_stream::UpsampleType::OFF;
+}
+
+bool IsFullyConnected(command_stream::MceOperation mceOperation)
+{
+    return mceOperation == command_stream::MceOperation::FULLY_CONNECTED;
+}
+
+bool IsBlockConfigCompatible(const command_stream::BlockConfig& blockConfig,
+                             const HardwareCapabilities& capabilities,
+                             command_stream::MceOperation mceOperation,
+                             command_stream::UpsampleType upsampleType)
+{
+    const uint32_t numAccumulatorsPerOg     = capabilities.GetTotalAccumulatorsPerEngine();
+    const uint32_t currBlockWidth           = blockConfig.m_BlockWidth();
+    const uint32_t currBlockHeight          = blockConfig.m_BlockHeight();
+    const uint32_t numberOfElementsInABlock = currBlockWidth * currBlockHeight;
+
+    bool isUpsampling     = IsUpsampling(upsampleType);
+    bool isFullyConnected = IsFullyConnected(mceOperation);
+
+    if (numberOfElementsInABlock > numAccumulatorsPerOg)
     {
-        return {};
+        return false;
     }
 
-    return NeedBoundary{ padBefore > 0, ((ofmStripeSize + weightSize - padBefore - 1U) > ifmStripeSize) };
+    if (isFullyConnected && (currBlockWidth != 8U || currBlockHeight != 8U))
+    {
+        return false;
+    }
+
+    // When using upsampling, we need to have a block size of
+    // 16x16 because the input tensor is DMA using the size
+    // "BlockSizeW/2 X BlockSizeH/2" and the DMA cannot transfer block
+    // smaller than 8x8
+    if (isUpsampling && (currBlockWidth != 16U || currBlockHeight != 16U))
+    {
+        return false;
+    }
+
+    return true;
 }
 
 // Given a requested shape for the output stripe calculates what the actual stripe sizes would be
@@ -57,8 +92,10 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
                      std::pair<const bool, const uint32_t> inputStaticAndOffset,
                      TensorConfig& outTensorConfig,
                      const uint32_t depthMax,
-                     const bool allowInputBuffering   = false,
-                     const bool activationCompression = false)
+                     const bool allowInputBuffering                 = false,
+                     const bool avoidInputReloading                 = false,
+                     const bool activationCompression               = false,
+                     const WeightsReloadingOptions weightsReloading = WeightsReloadingOptions::NO_RELOADING)
 {
     const bool isFullyConnected = (mceOperation == command_stream::MceOperation::FULLY_CONNECTED);
     const bool isHwio           = (weightsFormat == DataFormat::HWIO);
@@ -170,6 +207,8 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
     // Clamp this to the maximum number of stripes possible (i.e. if the image is small enough don't bother allocating
     // more space than we could use).
     const uint32_t numInputStripesTotalX = DivRoundUp(GetWidth(inputShape), GetWidth(inputStripe));
+    const uint32_t numInputStripesTotalY = DivRoundUp(GetHeight(inputShape), GetHeight(inputStripe));
+    const uint32_t numInputStripesTotalZ = DivRoundUp(GetChannels(inputShape), GetChannels(inputStripe));
 
     const NeedBoundary needBoundaryX = GetBoundaryRequirements(pad.second, GetWidth(inputShape), GetWidth(inputStripe),
                                                                GetWidth(mceOutputStripe), weightsShape[1]);
@@ -179,13 +218,37 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
     numInputSlots += static_cast<uint32_t>(needBoundaryX.m_After);
     numInputSlots = std::min(numInputSlots, numInputStripesTotalX);
 
-    // It's better to use multiple queues if partial depth.
-    const bool needQueues    = (GetChannels(inputShape) > GetChannels(inputStripe));
-    const uint32_t inputTile = totalSlotSize * numInputSlots * ((allowInputBuffering && needQueues) ? 2U : 1U);
+    const bool isFullHeight              = numInputStripesTotalY == 1U;
+    const bool isFullWidth               = numInputStripesTotalX == 1U;
+    const uint32_t numInputSlotGroupsMax = (avoidInputReloading && isFullHeight && isFullWidth)
+                                               ? (numInputStripesTotalX * numInputStripesTotalY * numInputStripesTotalZ)
+                                               : 2U;
 
-    // Fit all ifm iterations in the weight tile to avoid weight reloading. Plus one to allow for buffering.
-    const uint32_t numWeightStripesInTile =
-        (isFullyConnected ? 1U : DivRoundUp(GetChannels(inputShape), GetChannels(inputStripe))) + 1U;
+    // It's better to use multiple queues if partial depth.
+    const bool needSlotGroups = (GetChannels(inputShape) > GetChannels(inputStripe));
+    const uint32_t inputTile =
+        totalSlotSize * numInputSlots * ((allowInputBuffering && needSlotGroups) ? numInputSlotGroupsMax : 1U);
+
+    uint32_t numWeightStripesInTile;
+    if (!isFullyConnected)
+    {
+        if (weightsReloading == WeightsReloadingOptions::NO_RELOADING)
+        {
+            // First try to fit all ifm iterations in the weight tile to avoid weight reloading.
+            numWeightStripesInTile = DivRoundUp(GetChannels(inputShape), GetChannels(inputStripe));
+        }
+        else
+        {
+            // If not try to weight reloading with double buffering.
+            numWeightStripesInTile = weightsReloading == WeightsReloadingOptions::RELOADING_DOUBLE_BUFFERING ? 2U : 1U;
+        }
+    }
+    else
+    {
+        // Fully connected: reserves two stripes for weight streaming.
+        numWeightStripesInTile = 2U;
+    }
+
     const uint32_t weightTile =
         EstimateWeightSizeBytes(weightStripe, capabilities, weightsFormat == DataFormat::HWIM) * numWeightStripesInTile;
 
@@ -266,6 +329,7 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
 // Try ZXY input traversal: streaming in Z, in X and Y and XYZ output traversal (output traversal
 // matters only for the Firmware).
 bool TryInputZXYOutputXYZ(const command_stream::MceOperation& mceOperation,
+                          command_stream::UpsampleType upsampleType,
                           TensorConfig& tensorConfig,
                           SramAllocator& sramAllocator,
                           const TensorShape& inputShape,
@@ -285,7 +349,7 @@ bool TryInputZXYOutputXYZ(const command_stream::MceOperation& mceOperation,
         return false;
     }
 
-    const bool isFullyConnected = (mceOperation == command_stream::MceOperation::FULLY_CONNECTED);
+    const bool isFullyConnected = IsFullyConnected(mceOperation);
 
     // Sort the block config (allowedBlockConfigs is a copy)
     std::sort(allowedBlockConfigs.begin(), allowedBlockConfigs.end(),
@@ -316,27 +380,27 @@ bool TryInputZXYOutputXYZ(const command_stream::MceOperation& mceOperation,
     }
     activationCompressionOptions.push_back(false);
 
+    const WeightsReloadingOptions weightsReloading[] = { WeightsReloadingOptions::NO_RELOADING,
+                                                         WeightsReloadingOptions::RELOADING_DOUBLE_BUFFERING,
+                                                         WeightsReloadingOptions::RELOADING_NO_DOUBLE_BUFFERING };
+
     // Generate a list of parameters we pass to TryStripeShapes so we can see all the stripe shapes which could be attempted.
     std::vector<Params> paramsList;
+
     for (auto compression : activationCompressionOptions)
     {
         for (auto& currBlockConfig : allowedBlockConfigs)
         {
-            const uint32_t numAccumulatorsPerOg = capabilities.GetTotalAccumulatorsPerEngine();
-
-            if ((currBlockConfig.m_BlockWidth() * currBlockConfig.m_BlockHeight()) > numAccumulatorsPerOg)
+            if (!IsBlockConfigCompatible(currBlockConfig, capabilities, mceOperation, upsampleType))
             {
                 continue;
             }
 
-            if (isFullyConnected && (currBlockConfig.m_BlockWidth() != 8U) && (currBlockConfig.m_BlockHeight() != 8U))
-            {
-                continue;
-            }
-
+            const uint32_t currBlockWidth  = currBlockConfig.m_BlockWidth();
+            const uint32_t currBlockHeight = currBlockConfig.m_BlockHeight();
             // Mce can produce a single block only.
-            const uint32_t outputStripeHeight = currBlockConfig.m_BlockHeight() * pleShapeMultiplier.m_H;
-            const uint32_t outputStripeWidth  = currBlockConfig.m_BlockWidth() * pleShapeMultiplier.m_W;
+            const uint32_t outputStripeHeight = currBlockHeight * pleShapeMultiplier.m_H;
+            const uint32_t outputStripeWidth  = currBlockWidth * pleShapeMultiplier.m_W;
 
             for (uint32_t numInputChannelSplits = 2U; numInputChannelSplits < GetChannels(inputShape);
                  ++numInputChannelSplits)
@@ -355,12 +419,15 @@ bool TryInputZXYOutputXYZ(const command_stream::MceOperation& mceOperation,
         return false;
     }
 
-    auto TryConf = [&](const Params params, const bool allowInputBuffering) {
+    auto TryConf = [&](const Params params, const bool allowInputBuffering, const bool avoidInputReloading,
+                       const WeightsReloadingOptions weightsReloading) {
+        assert(!avoidInputReloading || allowInputBuffering);
         if (TryStripeShapes(mceOperation, sramAllocator,
                             { 1, params.outputStripeHeight, params.outputStripeWidth, params.outputStripeChannel },
                             params.inputStripeChannel, inputShape, outputShape, weightsFormat, weightsShape,
                             capabilities, mceShapeMultiplier, pleShapeMultiplier, pad, inputStaticAndOffset,
-                            tensorConfig, depthMax, allowInputBuffering, params.activationCompression))
+                            tensorConfig, depthMax, allowInputBuffering, avoidInputReloading,
+                            params.activationCompression, weightsReloading))
         {
             // Check that input stripe is partial depth.
             if (GetChannels(tensorConfig.inputAllocation.stripeShape) < GetChannels(inputShape))
@@ -374,30 +441,52 @@ bool TryInputZXYOutputXYZ(const command_stream::MceOperation& mceOperation,
         return false;
     };
 
-    // Try all the configuration using input buffering.
-    for (auto params : paramsList)
-    {
-        if (TryConf(params, true))
-        {
-            return true;
-        }
-    }
+    // Below it is going to try:
+    // a. Fit all input stripes in the tile to avoid reloading and allow buffering
+    // b. Fit at least two input stripes (including neighbouring) for double buffering
+    // c. No buffering
+    // with all possible weights reloading options as following:
+    // a. Fit all weight stripes in the tile (NO_RELOADING)
+    // b. Fit at least two weight stripes stripes (RELOADING_DOUBLE_BUFFERING)
+    // c. Only single weight stripe can fit so no buffering (RELOADING_NO_DOUBLE_BUFFERING)
 
-    // If here it means that it cannot do input buffering.
-    for (auto params : paramsList)
+    for (auto& tryWeightsReloading : weightsReloading)
     {
-        if (TryConf(params, false))
+        // a. Try all configurations using input buffering.
+        for (auto params : paramsList)
         {
-            return true;
+            if (TryConf(params, true, true, tryWeightsReloading))
+            {
+                return true;
+            }
+        }
+
+        // b. If here it means that it cannot avoid input reloading.
+        for (auto params : paramsList)
+        {
+            if (TryConf(params, true, false, tryWeightsReloading))
+            {
+                return true;
+            }
+        }
+
+        // c. If here it means that it cannot do input buffering.
+        for (auto params : paramsList)
+        {
+            if (TryConf(params, false, false, tryWeightsReloading))
+            {
+                return true;
+            }
         }
     }
 
     return false;
 }
 
-// Try XY input traversal: streaming in X and Y and XYZ output traversal (output traversal
+// Try XY input traversal: streaming in X and Y and XYZ output traversal (output traversal)
 // matters only for the Firmware).
 bool TryInputXYOutputXYZ(const command_stream::MceOperation& mceOperation,
+                         command_stream::UpsampleType upsampleType,
                          TensorConfig& tensorConfig,
                          SramAllocator& sramAllocator,
                          const TensorShape& inputShape,
@@ -447,19 +536,21 @@ bool TryInputXYOutputXYZ(const command_stream::MceOperation& mceOperation,
     std::vector<Params> paramsList;
     for (auto& currBlockConfig : allowedBlockConfigs)
     {
-        if (isFullyConnected && (currBlockConfig.m_BlockWidth() != 8U) && (currBlockConfig.m_BlockHeight() != 8U))
+        if (!IsBlockConfigCompatible(currBlockConfig, capabilities, mceOperation, upsampleType))
         {
             continue;
         }
 
+        const uint32_t currBlockWidth  = currBlockConfig.m_BlockWidth();
+        const uint32_t currBlockHeight = currBlockConfig.m_BlockHeight();
         // Use a single block only.
-        const uint32_t outputStripeHeight = currBlockConfig.m_BlockHeight() * pleShapeMultiplier.m_H;
-        const uint32_t outputStripeWidth  = currBlockConfig.m_BlockWidth() * pleShapeMultiplier.m_W;
+        const uint32_t outputStripeHeight = currBlockHeight * pleShapeMultiplier.m_H;
+        const uint32_t outputStripeWidth  = currBlockWidth * pleShapeMultiplier.m_W;
 
         const uint32_t inputStripeChannel  = GetChannels(inputShape);
         const uint32_t outputStripeChannel = capabilities.GetNumberOfOfm() * pleShapeMultiplier.m_C;
-        paramsList.push_back({ currBlockConfig.m_BlockHeight(), currBlockConfig.m_BlockWidth(), inputStripeChannel,
-                               outputStripeHeight, outputStripeWidth, outputStripeChannel });
+        paramsList.push_back({ currBlockHeight, currBlockConfig.m_BlockWidth(), inputStripeChannel, outputStripeHeight,
+                               outputStripeWidth, outputStripeChannel });
     }
 
     if (paramsList.size() == 0)
@@ -482,7 +573,7 @@ bool TryInputXYOutputXYZ(const command_stream::MceOperation& mceOperation,
         return false;
     };
 
-    // Try all the configuration using input buffering.
+    // Try all configurations using input buffering.
     for (auto params : paramsList)
     {
         if (TryConf(params, true))
@@ -519,22 +610,23 @@ bool IsStrategyAllowed(const std::vector<IStrategy*>& strategies)
 }    //namespace
 
 bool IsStrategyX(const command_stream::MceOperation& mceOperation,
-                 const command_stream::UpsampleType upsampleType,
                  const TensorConfig& tensorConfig,
                  const CompilerMceAlgorithm algorithm,
                  const std::vector<IStrategy*>& allowedStrategies)
 {
-    const bool isSupportedMceOperation = (mceOperation == command_stream::MceOperation::CONVOLUTION);
-    const bool isSupportedAlgorithm    = (algorithm == CompilerMceAlgorithm::Direct);
-    const bool isSupportedUpsampling   = (upsampleType == command_stream::UpsampleType::OFF);
-    const bool isSupportedStrategy =
-        (tensorConfig.strategy == Strategy::STRATEGY_7) || (tensorConfig.strategy == Strategy::NONE);
-    const bool isAllowedStrategy = IsStrategyAllowed<Strategy7>(allowedStrategies);
-    return isSupportedMceOperation && isSupportedAlgorithm && isSupportedUpsampling && isSupportedStrategy &&
-           isAllowedStrategy;
+    const bool isSupportedMceOperation = (mceOperation == command_stream::MceOperation::CONVOLUTION) ||
+                                         (mceOperation == command_stream::MceOperation::FULLY_CONNECTED);
+    const bool isSupportedAlgorithm = (algorithm == CompilerMceAlgorithm::Direct);
+    const bool isSupportedStrategy  = (tensorConfig.strategy == Strategy::STRATEGY_7) ||
+                                     (tensorConfig.strategy == Strategy::STRATEGY_FC) ||
+                                     (tensorConfig.strategy == Strategy::NONE);
+    const bool isAllowedStrategy =
+        (IsStrategyAllowed<Strategy7>(allowedStrategies) || IsStrategyAllowed<StrategyFc>(allowedStrategies));
+    return isSupportedMceOperation && isSupportedAlgorithm && isSupportedStrategy && isAllowedStrategy;
 }
 
 bool TryStrategyX(const command_stream::MceOperation& mceOperation,
+                  const command_stream::UpsampleType upsampleType,
                   TensorConfig& tensorConfig,
                   SramAllocator& sramAllocator,
                   const TensorShape& inputShape,
@@ -549,15 +641,15 @@ bool TryStrategyX(const command_stream::MceOperation& mceOperation,
                   std::pair<const bool, const uint32_t> inputStaticAndOffset,
                   const uint32_t depthMax)
 {
-    if (TryInputXYOutputXYZ(mceOperation, tensorConfig, sramAllocator, inputShape, outputShape, weightsFormat,
-                            weightsShape, pad, allowedBlockConfigs, capabilities, mceShapeMultiplier,
+    if (TryInputXYOutputXYZ(mceOperation, upsampleType, tensorConfig, sramAllocator, inputShape, outputShape,
+                            weightsFormat, weightsShape, pad, allowedBlockConfigs, capabilities, mceShapeMultiplier,
                             pleShapeMultiplier, inputStaticAndOffset, depthMax))
     {
         return true;
     }
 
-    if (TryInputZXYOutputXYZ(mceOperation, tensorConfig, sramAllocator, inputShape, outputShape, weightsFormat,
-                             weightsShape, pad, allowedBlockConfigs, capabilities, mceShapeMultiplier,
+    if (TryInputZXYOutputXYZ(mceOperation, upsampleType, tensorConfig, sramAllocator, inputShape, outputShape,
+                             weightsFormat, weightsShape, pad, allowedBlockConfigs, capabilities, mceShapeMultiplier,
                              pleShapeMultiplier, inputStaticAndOffset, depthMax))
     {
         return true;

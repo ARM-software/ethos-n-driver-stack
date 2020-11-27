@@ -6,11 +6,15 @@
 #include "Visualisation.hpp"
 
 #include "Combiner.hpp"
+#include "Estimation.hpp"
 #include "Graph.hpp"
 #include "GraphNodes.hpp"
 #include "Part.hpp"
+#include "PerformanceData.hpp"
 #include "Plan.hpp"
 #include "Utils.hpp"
+
+#include <ethosn_utils/Strings.hpp>
 
 #include <iostream>
 
@@ -49,6 +53,30 @@ std::string ToString(Lifetime l)
             return "Cascade";
         default:
             assert(!"Unknown lifetime");
+            return "";
+    }
+}
+
+std::string ToString(CascadingBufferFormat f)
+{
+    switch (f)
+    {
+        case CascadingBufferFormat::NHWC:
+            return "NHWC";
+        case CascadingBufferFormat::NCHW:
+            return "NCHW";
+        case CascadingBufferFormat::NHWCB:
+            return "NHWCB";
+        case CascadingBufferFormat::WEIGHT:
+            return "WEIGHT";
+        case CascadingBufferFormat::NHWCB_COMPRESSED:
+            return "NHWCB_COMPRESSED";
+        case CascadingBufferFormat::FCAF_DEEP:
+            return "FCAF_DEEP";
+        case CascadingBufferFormat::FCAF_WIDE:
+            return "FCAF_WIDE";
+        default:
+            assert(!"Unknown data format");
             return "";
     }
 }
@@ -168,8 +196,6 @@ std::string ToString(command_stream::PleOperation o)
             return "MEAN_XY_7X7";
         case ethosn::command_stream::PleOperation::MEAN_XY_8X8:
             return "MEAN_XY_8X8";
-        case ethosn::command_stream::PleOperation::OFM_SCALING:
-            return "OFM_SCALING";
         case ethosn::command_stream::PleOperation::PASSTHROUGH:
             return "PASSTHROUGH";
         case ethosn::command_stream::PleOperation::SIGMOID:
@@ -187,18 +213,18 @@ std::string ToString(command_stream::BlockConfig b)
     return std::to_string(b.m_BlockWidth()) + "x" + std::to_string(b.m_BlockHeight());
 }
 
-std::string ToString(const QuantizationScales& s)
+std::string ToString(const QuantizationScales& scales)
 {
-    if (s.IsScalar())
+    if (scales.size() == 1)
     {
-        return "Scale = " + std::to_string(s[0]);
+        return "Scale = " + std::to_string(scales[0]);
     }
     else
     {
         std::string out("Scales = [ ");
-        for (std::size_t i = 0; i < s.Size(); ++i)
+        for (auto s : scales)
         {
-            out += std::to_string(s[i]) + " ";
+            out += std::to_string(s) + " ";
         }
         out += "]";
         return out;
@@ -220,9 +246,59 @@ std::string ToString(const Stride& s)
     return std::to_string(s.m_X) + ", " + std::to_string(s.m_Y);
 }
 
+std::string ToString(command_stream::DataFormat f)
+{
+    switch (f)
+    {
+        case command_stream::DataFormat::FCAF_DEEP:
+            return "FCAF_DEEP";
+        case command_stream::DataFormat::FCAF_WIDE:
+            return "FCAF_WIDE";
+        case command_stream::DataFormat::NCHW:
+            return "NCHW";
+        case command_stream::DataFormat::NHWC:
+            return "NHWC";
+        case command_stream::DataFormat::NHWCB:
+            return "NHWCB";
+        case command_stream::DataFormat::NHWCB_COMPRESSED:
+            return "NHWCB_COMPRESSED";
+        case command_stream::DataFormat::WEIGHT_STREAM:
+            return "WEIGHT_STREAM";
+        default:
+            assert(!"Unknown format");
+            return "";
+    }
+}
+
+std::string ToString(const uint32_t v)
+{
+    return std::to_string(v);
+}
+
+std::string ToString(DataType t)
+{
+    switch (t)
+    {
+        case DataType::UINT8_QUANTIZED:
+            return "UINT8_QUANTIZED";
+        case DataType::INT8_QUANTIZED:
+            return "INT8_QUANTIZED";
+        case DataType::INT32_QUANTIZED:
+            return "INT32_QUANTIZED";
+        default:
+            assert(!"Unknown format");
+            return "";
+    }
+}
+
+DotAttributes::DotAttributes()
+    : m_LabelAlignmentChar('n')
+{}
+
 DotAttributes::DotAttributes(std::string id, std::string label, std::string color)
     : m_Id(id)
     , m_Label(label)
+    , m_LabelAlignmentChar('n')
     , m_Color(color)
 {}
 
@@ -231,10 +307,21 @@ namespace
 
 using NodeIds = std::unordered_map<void*, std::string>;
 
+/// Escapes any characters that have special meaning in the dot language.
+/// Unfortunately the escape sequence for newline also encodes the alignment (left, centre, right) of the text.
+/// The codes are 'l' -> left, 'r' -> right, 'n' -> centre
+std::string Escape(std::string s, char alignmentChar = 'n')
+{
+    s = ethosn::utils::ReplaceAll(s, "\n", std::string("\\") + alignmentChar);
+    s = ethosn::utils::ReplaceAll(s, "\"", "\\\"");
+    s = ethosn::utils::ReplaceAll(s, "\t", "    ");    // Tabs don't seem to work at all (e.g. when used in JSON)
+    return s;
+}
+
 /// Replaces any illegal characters to form a valid .dot file "ID".
 std::string SanitizeId(std::string s)
 {
-    return utils::ReplaceAll(s, " ", "_");
+    return ethosn::utils::ReplaceAll(s, " ", "_");
 }
 
 std::string GetOpString(Op* op)
@@ -270,6 +357,7 @@ std::string GetOpString(Op* op)
         stream << "Input Stripe Shapes = " << ArrayToString(pleOp->m_InputStripeShapes) << "\n";
         stream << "Output Stripe Shape = " << ToString(pleOp->m_OutputStripeShape) << "\n";
     }
+    stream << "Operation Ids = " << ArrayToString(op->m_OperationIds) << "\n";
     return stream.str();
 }
 
@@ -286,6 +374,16 @@ std::string GetBufferString(Buffer* buffer)
     stream << "Num. Stripes = " << buffer->m_NumStripes << "\n";
     stream << "Order = " << ToString(buffer->m_Order) << "\n";
     stream << "Size in bytes = " << buffer->m_SizeInBytes << "\n";
+    return stream.str();
+}
+
+std::string GetCombinationString(const Combination* comb)
+{
+    std::stringstream stream;
+    stream << "\n";
+    stream << "Current Part ID = " << std::to_string(comb->m_Scratch.m_CurrPartId) << "\n";
+    stream << "Allocated Sram = " << std::to_string(comb->m_Scratch.m_AllocatedSram) << "\n";
+    stream << "Score = " << std::to_string(comb->m_Scratch.m_Score) << "\n";
     return stream.str();
 }
 
@@ -339,6 +437,18 @@ DotAttributes GetDotAttributes(const Plan* plan, DetailLevel)
     DotAttributes result;
     result.m_Id    = SanitizeId(plan->m_DebugTag);
     result.m_Label = plan->m_DebugTag;
+    return result;
+}
+
+DotAttributes GetDotAttributes(const Combination* comb, DetailLevel)
+{
+    DotAttributes result;
+
+    std::stringstream label;
+    label << "Scratch";
+    label << GetCombinationString(comb);
+    result.m_Label = label.str();
+
     return result;
 }
 
@@ -536,7 +646,7 @@ DotAttributes GetDotAttributes(Node* node, DetailLevel detailLevel)
 
 void DumpNodeToDotFormat(DotAttributes attr, std::ostream& stream)
 {
-    std::string label = utils::ReplaceAll(attr.m_Label, "\n", "\\n");
+    std::string label = Escape(attr.m_Label, attr.m_LabelAlignmentChar);
     stream << attr.m_Id << "[";
     stream << "label = \"" << label << "\"";
     if (attr.m_Shape.size() > 0)
@@ -563,7 +673,7 @@ void DumpSubgraphHeaderToDotFormat(DotAttributes attr, std::ostream& stream)
     stream << "subgraph cluster" << attr.m_Id << "\n";
     stream << "{"
            << "\n";
-    stream << "label=\"" << utils::ReplaceAll(attr.m_Label, "\n", "\\n") << "\""
+    stream << "label=\"" << Escape(attr.m_Label) << "\""
            << "\n";
     if (attr.m_Color.size() > 0)
     {
@@ -573,22 +683,8 @@ void DumpSubgraphHeaderToDotFormat(DotAttributes attr, std::ostream& stream)
            << "\n";
 }
 
-NodeIds SaveOpGraphAsBody(const OpGraph& graph, std::ostream& stream, DetailLevel detailLevel)
+void SaveOpGraphEdges(const OpGraph& graph, const NodeIds& nodeIds, std::ostream& stream)
 {
-    NodeIds nodeIds;
-
-    // Define all the nodes and remember the node IDs, so we can link them with edges later.
-    for (auto&& o : graph.GetOps())
-    {
-        std::string nodeId = DumpToDotFormat(o, stream, detailLevel);
-        nodeIds[o]         = nodeId;
-    }
-    for (auto&& b : graph.GetBuffers())
-    {
-        std::string nodeId = DumpToDotFormat(b, stream, detailLevel);
-        nodeIds[b]         = nodeId;
-    }
-
     // Define all the edges
     for (auto&& b : graph.GetBuffers())
     {
@@ -609,23 +705,29 @@ NodeIds SaveOpGraphAsBody(const OpGraph& graph, std::ostream& stream, DetailLeve
             stream << "\n";
         }
     }
+}
 
-    // Heuristic to make the 'weights' input of MceOps appear to the side of the MceOp so it doesn't interrupt
-    // the general flow of the network from top to bottom:
-    //    Input number 1 of every MceOp, and all its antecedents are placed on the same 'rank'
-    for (auto&& o : graph.GetOps())
+/// Heuristic to make the 'weights' input of MceOps appear to the side of the MceOp so it doesn't interrupt
+/// the general flow of the network from top to bottom:
+///    Input number 1 of every MceOp, and all its antecedents are placed on the same 'rank'
+void ApplyOpGraphRankHeuristic(const OpGraph& graph,
+                               const std::vector<Op*>& opsSubset,
+                               const NodeIds& nodeIds,
+                               std::ostream& stream)
+{
+    for (auto&& o : opsSubset)
     {
         if (dynamic_cast<MceOp*>(o) != nullptr && graph.GetInputs(o).size() >= 2)
         {
-            stream << "{ rank = \"same\"; " << nodeIds[o] << "; ";
+            stream << "{ rank = \"same\"; " << nodeIds.at(o) << "; ";
             Buffer* buf = graph.GetInputs(o)[1];
             while (buf != nullptr)
             {
-                stream << nodeIds[buf] << "; ";
+                stream << nodeIds.at(buf) << "; ";
                 Op* op = graph.GetProducer(buf);
                 if (op != nullptr)
                 {
-                    stream << nodeIds[op] << "; ";
+                    stream << nodeIds.at(op) << "; ";
                     if (graph.GetInputs(op).size() == 1)
                     {
                         buf = graph.GetInputs(op)[0];
@@ -637,6 +739,30 @@ NodeIds SaveOpGraphAsBody(const OpGraph& graph, std::ostream& stream, DetailLeve
             stream << "}\n";
         }
     }
+}
+
+NodeIds SaveOpGraphAsBody(const OpGraph& graph, std::ostream& stream, DetailLevel detailLevel)
+{
+    NodeIds nodeIds;
+
+    // Define all the nodes and remember the node IDs, so we can link them with edges later.
+    for (auto&& o : graph.GetOps())
+    {
+        std::string nodeId = DumpToDotFormat(o, stream, detailLevel);
+        nodeIds[o]         = nodeId;
+    }
+    for (auto&& b : graph.GetBuffers())
+    {
+        std::string nodeId = DumpToDotFormat(b, stream, detailLevel);
+        nodeIds[b]         = nodeId;
+    }
+
+    // Define all the edges
+    SaveOpGraphEdges(graph, nodeIds, stream);
+
+    // Heuristic to make the 'weights' input of MceOps appear to the side of the MceOp so it doesn't interrupt
+    // the general flow of the network from top to bottom:
+    ApplyOpGraphRankHeuristic(graph, graph.GetOps(), nodeIds, stream);
 
     return nodeIds;
 }
@@ -676,6 +802,104 @@ void SaveOpGraphToDot(const OpGraph& graph, std::ostream& stream, DetailLevel de
            << "\n";
 
     SaveOpGraphAsBody(graph, stream, detailLevel);
+
+    stream << "}"
+           << "\n";
+}
+
+void SaveEstimatedOpGraphToDot(const OpGraph& graph,
+                               const EstimatedOpGraph& estimationDetails,
+                               std::ostream& stream,
+                               DetailLevel detailLevel)
+{
+    stream << "digraph SupportLibraryGraph"
+           << "\n";
+    stream << "{"
+           << "\n";
+
+    // Decide which Pass each Buffer belongs to (if any). This information is derived from the EstimatedOpGraph.
+    std::unordered_map<uint32_t, std::vector<Buffer*>> passToBuffers;
+    std::unordered_set<Buffer*> unassignedBuffers;
+    for (Buffer* b : graph.GetBuffers())
+    {
+        // If all the buffers inputs and outputs are in the same Pass, then we assign the buffer to that pass too.
+        // Otherwise leave it unassigned
+        std::vector<uint32_t> neighbourPassIdxs;
+        if (graph.GetProducer(b) != nullptr)
+        {
+            neighbourPassIdxs.push_back(estimationDetails.m_OpToPass.at(graph.GetProducer(b)));
+        }
+        for (auto consumer : graph.GetConsumers(b))
+        {
+            neighbourPassIdxs.push_back(estimationDetails.m_OpToPass.at(consumer.first));
+        }
+
+        if (!neighbourPassIdxs.empty() && std::all_of(neighbourPassIdxs.begin(), neighbourPassIdxs.end(),
+                                                      [&](uint32_t p) { return p == neighbourPassIdxs.front(); }))
+        {
+            passToBuffers[neighbourPassIdxs.front()].push_back(b);
+        }
+        else
+        {
+            unassignedBuffers.insert(b);
+        }
+    }
+
+    NodeIds nodeIds;
+
+    // Write a subgraph for each pass, containing just the nodes for now.
+    // We'll add the edges later as we can do them all together (including edges between passes).
+    size_t numPasses = estimationDetails.m_PerfData.m_Stream.size();
+    for (uint32_t passIdx = 0; passIdx < numPasses; ++passIdx)
+    {
+        std::string passId = "Pass" + std::to_string(passIdx);
+        DotAttributes passAttr(passId, passId, "");
+        DumpSubgraphHeaderToDotFormat(passAttr, stream);
+
+        // Ops
+        std::vector<Op*> ops;
+        for (auto kv : estimationDetails.m_OpToPass)
+        {
+            if (kv.second != passIdx)
+            {
+                continue;
+            }
+
+            ops.push_back(kv.first);
+            std::string nodeId = DumpToDotFormat(kv.first, stream, detailLevel);
+            nodeIds[kv.first]  = nodeId;
+        }
+
+        // Buffers
+        for (Buffer* b : passToBuffers[passIdx])
+        {
+            std::string nodeId = DumpToDotFormat(b, stream, detailLevel);
+            nodeIds[b]         = nodeId;
+        }
+
+        ApplyOpGraphRankHeuristic(graph, ops, nodeIds, stream);
+
+        // Add a "dummy" node showing the perf data JSON
+        std::stringstream perfJson;
+        PrintPassPerformanceData(perfJson, ethosn::utils::Indent(0), estimationDetails.m_PerfData.m_Stream[passIdx]);
+        DotAttributes perfAttr(passId + "_Perf", perfJson.str(), "");
+        perfAttr.m_Shape              = "box";
+        perfAttr.m_LabelAlignmentChar = 'l';
+        DumpNodeToDotFormat(perfAttr, stream);
+
+        stream << "}"
+               << "\n";
+    }
+
+    // Buffers that aren't in a Pass
+    for (Buffer* b : unassignedBuffers)
+    {
+        std::string nodeId = DumpToDotFormat(b, stream, detailLevel);
+        nodeIds[b]         = nodeId;
+    }
+
+    // Edges
+    SaveOpGraphEdges(graph, nodeIds, stream);
 
     stream << "}"
            << "\n";
@@ -786,6 +1010,12 @@ void SaveCombinationToDot(const Combination& combination,
     stream << "{"
            << "\n";
 
+    // Save Scratch at the top
+    DotAttributes attr = GetDotAttributes(&combination, detailLevel);
+    DumpSubgraphHeaderToDotFormat(attr, stream);
+    stream << "{"
+           << "\n";
+
     NodeIds nodeIds;
     std::unordered_map<const Edge*, std::string> edgeInputs;
 
@@ -795,7 +1025,7 @@ void SaveCombinationToDot(const Combination& combination,
         const Plan& plan = part.GetPlan(elem.m_PlanId);
 
         // Save Plans as isolated subgraph
-        DotAttributes attr = GetDotAttributes(&plan, detailLevel);
+        attr = GetDotAttributes(&plan, detailLevel);
         DumpSubgraphHeaderToDotFormat(attr, stream);
         NodeIds newNodeIds = SaveOpGraphAsBody(plan.m_OpGraph, stream, detailLevel);
         nodeIds.insert(newNodeIds.begin(), newNodeIds.end());
@@ -834,6 +1064,7 @@ void SaveCombinationToDot(const Combination& combination,
                 // Connect the glue to its input plan
                 stream << nodeIds.at(plan.GetOutputBuffer(outputEdge->GetSource())) << " -> "
                        << nodeIds.at(glue->m_InputSlot.first);
+                // If the consumer has multiple inputs, label each one as the order is important.
                 if (glue->m_Graph.GetInputs(glue->m_InputSlot.first).size() > 1)
                 {
                     stream << "[ label=\"Input " << glue->m_InputSlot.second << "\"]";
@@ -850,6 +1081,10 @@ void SaveCombinationToDot(const Combination& combination,
         }
     }
 
+    stream << "}"
+           << "\n";
+    stream << "}"
+           << "\n";
     stream << "}"
            << "\n";
 }

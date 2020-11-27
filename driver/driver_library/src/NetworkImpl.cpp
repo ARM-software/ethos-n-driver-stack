@@ -127,7 +127,7 @@ Inference* NetworkImpl::ScheduleInference(Buffer* const inputBuffers[],
                                           Buffer* const[],
                                           uint32_t) const
 {
-    DumpCmm(inputBuffers, numInputBuffers, "CombinedMemoryMap.hex");
+    DumpCmm(inputBuffers, numInputBuffers, "CombinedMemoryMap.hex", Cmm_All);
 
     // Simulate an inference result for the user by creating a memory stream containing the result status.
     FILE* tempFile         = std::tmpfile();
@@ -141,7 +141,15 @@ Inference* NetworkImpl::ScheduleInference(Buffer* const inputBuffers[],
     return new Inference(fileno(tempFile));
 }
 
-void NetworkImpl::DumpCmm(Buffer* const inputBuffers[], uint32_t numInputBuffers, const char* cmmFilename) const
+void NetworkImpl::SetDebugName(const char* name)
+{
+    m_DebugName = name;
+}
+
+void NetworkImpl::DumpCmm(Buffer* const inputBuffers[],
+                          uint32_t numInputBuffers,
+                          const char* cmmFilename,
+                          uint8_t sections) const
 {
     constexpr uint32_t defaultMailboxAddr = 0x60000000;
     constexpr uint32_t defaultBaseAddr    = 0x60100000;
@@ -179,22 +187,34 @@ void NetworkImpl::DumpCmm(Buffer* const inputBuffers[], uint32_t numInputBuffers
     MemoryMap cmm = GetFirmwareMemMap(firmwareFile);
 
     // Add "memory map"
-    AddToMemoryMap(cmm, static_cast<uint32_t>(constantDmaDataBaseAddress), m_CompiledNetwork.GetConstantDmaData());
-    AddToMemoryMap(cmm, static_cast<uint32_t>(cmmConstantControlUnitDataBaseAddress),
-                   m_CompiledNetwork.GetConstantControlUnitData());
+    if (sections & Cmm_ConstantDma)
+    {
+        AddToMemoryMap(cmm, static_cast<uint32_t>(constantDmaDataBaseAddress), m_CompiledNetwork.GetConstantDmaData());
+    }
+    if (sections & Cmm_ConstantControlUnit)
+    {
+        AddToMemoryMap(cmm, static_cast<uint32_t>(cmmConstantControlUnitDataBaseAddress),
+                       m_CompiledNetwork.GetConstantControlUnitData());
+    }
 
-    // Write the inference data. It includes the binding table and the command stream.
+    // Write the inference data, which includes the binding table
     const uint32_t inferenceAddr = static_cast<uint32_t>(mailboxAddress) + 16;
     AddToMemoryMap(cmm, static_cast<uint32_t>(mailboxAddress), &inferenceAddr, sizeof(inferenceAddr));
-    AddToMemoryMap(cmm, inferenceAddr, combinedMemMapInferenceData);
+    if (sections & Cmm_Inference)
+    {
+        AddToMemoryMap(cmm, inferenceAddr, combinedMemMapInferenceData);
+    }
 
     // Then load in the IFM data
-    for (uint32_t i = 0; i < numInputBuffers; ++i)
+    if (sections & Cmm_Ifm)
     {
-        auto& info = m_CompiledNetwork.GetInputBufferInfos()[i];
-        auto ifm   = inputBuffers[i];
-        AddToMemoryMap(cmm, static_cast<uint32_t>(inputBuffersBaseAddress) + info.m_Offset, ifm->GetMappedBuffer(),
-                       info.m_Size);
+        for (uint32_t i = 0; i < numInputBuffers; ++i)
+        {
+            auto& info = m_CompiledNetwork.GetInputBufferInfos()[i];
+            auto ifm   = inputBuffers[i];
+            AddToMemoryMap(cmm, static_cast<uint32_t>(inputBuffersBaseAddress) + info.m_Offset, ifm->GetMappedBuffer(),
+                           info.m_Size);
+        }
     }
 
     // Write cmm to file

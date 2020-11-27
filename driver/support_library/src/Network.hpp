@@ -25,7 +25,7 @@ public:
     // Link to the input (by index) of a consumer (reader) Operation
     struct Consumer
     {
-        constexpr Consumer(Operation& operation, const size_t inputIndex)
+        constexpr Consumer(Operation& operation, const size_t inputIndex) noexcept
             : m_Operation(operation)
             , m_InputIndex(inputIndex)
         {}
@@ -78,11 +78,12 @@ private:
 class Network
 {
 public:
-    Network(bool estimatePerformance = false)
+    Network(const std::vector<char>& caps, bool estimatePerformance = false)
         : m_Operations()
         , m_NextOperationId(0)
         , m_OperationIds()
         , m_EstimatePerformanceMode(estimatePerformance)
+        , m_Queries(caps)
     {}
 
     Input& AddInput(const TensorInfo& info);
@@ -172,6 +173,11 @@ public:
         return m_EstimatePerformanceMode;
     }
 
+    const std::vector<char>& GetCapabilities() const
+    {
+        return m_Queries.GetCapabilities();
+    }
+
 private:
     // Return the position in the list after the latest parent
     detail::PosInNetwork::Type PosAfter(const std::vector<const Operation*>& parents) const;
@@ -223,6 +229,7 @@ private:
     uint32_t m_NextOperationId;
     std::set<uint32_t> m_OperationIds;
     const bool m_EstimatePerformanceMode;
+    SupportQueries m_Queries;
 };
 
 }    // namespace support_library

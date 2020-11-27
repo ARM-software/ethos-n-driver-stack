@@ -9,7 +9,9 @@
 #include "Compiler.hpp"
 #include "Graph.hpp"
 #include "Network.hpp"
-#include "Pass.hpp"
+#include "PerformanceData.hpp"
+
+#include <ethosn_utils/Json.hpp>
 
 #include <iomanip>
 #include <iostream>
@@ -17,6 +19,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+
+using namespace ethosn::utils;
 
 namespace ethosn
 {
@@ -40,276 +44,6 @@ TensorsAndId GetMultipleOutputResult(const std::shared_ptr<Network>& network, Op
         tensors.push_back(std::shared_ptr<Operand>(network, &operand));
     }
     return { tensors, op.GetId() };
-}
-
-template <typename T>
-struct QuotedT
-{
-    explicit constexpr QuotedT(const T& value)
-        : m_Value(value)
-    {}
-
-    const T& m_Value;
-};
-
-template <typename T>
-QuotedT<T> Quoted(const T& value)
-{
-    return QuotedT<T>(value);
-}
-
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const QuotedT<T>& field)
-{
-    return os << '"' << field.m_Value << '"';
-}
-
-template <typename T>
-struct JsonFieldT
-{
-    explicit constexpr JsonFieldT(const T& value)
-        : m_Value(value)
-    {}
-
-    const T& m_Value;
-};
-
-template <typename T>
-JsonFieldT<T> JsonField(const T& value)
-{
-    return JsonFieldT<T>(value);
-}
-
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const JsonFieldT<T>& field)
-{
-    return os << Quoted(field.m_Value) << ':';
-}
-
-struct Indent
-{
-    explicit constexpr Indent(const size_t depth)
-        : m_Depth(depth)
-    {}
-
-    constexpr operator size_t&()
-    {
-        return m_Depth;
-    }
-
-    constexpr operator size_t() const
-    {
-        return m_Depth;
-    }
-
-    size_t m_Depth;
-};
-
-std::ostream& operator<<(std::ostream& os, const Indent& indent)
-{
-    for (size_t i = 0; i < indent; ++i)
-    {
-        os << '\t';
-    }
-
-    return os;
-}
-
-template <typename T>
-struct JsonArrayT
-{
-    explicit constexpr JsonArrayT(const T& value)
-        : m_Value(value)
-    {}
-
-    const T& m_Value;
-};
-
-template <typename T>
-JsonArrayT<T> JsonArray(const T& value)
-{
-    return JsonArrayT<T>(value);
-}
-
-template <typename T, typename PrintFn>
-std::ostream& Print(
-    std::ostream& os, const Indent indent, const JsonArrayT<T>& array, PrintFn&& printFn, const bool multiline = false)
-{
-    const char sep = multiline ? '\n' : ' ';
-
-    os << indent << '[' << sep;
-
-    for (auto it = array.m_Value.begin(); it != array.m_Value.end(); ++it)
-    {
-        printFn(os, *it);
-
-        if (it != std::prev(array.m_Value.end()))
-        {
-            os << ',';
-        }
-
-        os << sep;
-    }
-
-    if (multiline)
-    {
-        os << indent;
-    }
-
-    os << ']';
-
-    return os;
-}
-
-template <typename T>
-std::ostream& Print(std::ostream& os, const Indent indent, const JsonArrayT<T>& array, const bool multiline = false)
-{
-    return Print(os, indent, array, [](std::ostream& os, const auto& value) { os << value; }, multiline);
-}
-
-std::ostream& Print(std::ostream& os, Indent indent, const MemoryStats& stats)
-{
-    os << indent << JsonField("DramParallelBytes") << ' ' << stats.m_DramParallel << ",\n";
-    os << indent << JsonField("DramNonParallelBytes") << ' ' << stats.m_DramNonParallel << ",\n";
-    os << indent << JsonField("SramBytes") << ' ' << stats.m_Sram;
-    return os;
-}
-
-std::ostream& Print(std::ostream& os, Indent indent, const StripesStats& stats)
-{
-    os << indent << JsonField("NumCentralStripes") << ' ' << stats.m_NumCentralStripes << ",\n";
-    os << indent << JsonField("NumBoundaryStripes") << ' ' << stats.m_NumBoundaryStripes << ",\n";
-    os << indent << JsonField("NumReloads") << ' ' << stats.m_NumReloads;
-    return os;
-}
-
-std::ostream& Print(std::ostream& os, Indent indent, const InputStats& stats)
-{
-    os << indent << "{\n";
-
-    ++indent;
-
-    Print(os, indent, stats.m_MemoryStats);
-    os << ",\n";
-    Print(os, indent, stats.m_StripesStats);
-    os << "\n";
-
-    --indent;
-
-    os << indent << "}";
-
-    return os;
-}
-
-std::ostream& Print(std::ostream& os, Indent indent, const WeightsStats& stats)
-{
-    os << indent << "{\n";
-
-    ++indent;
-
-    Print(os, indent, stats.m_MemoryStats);
-    os << ",\n";
-    Print(os, indent, stats.m_StripesStats);
-    os << ",\n";
-    os << indent << JsonField("CompressionSavings") << ' ' << stats.m_WeightCompressionSavings << "\n";
-
-    --indent;
-
-    os << indent << "}";
-
-    return os;
-}
-
-std::ostream& Print(std::ostream& os, Indent indent, const MceStats& mceStats)
-{
-    os << indent << "{\n";
-
-    ++indent;
-
-    os << indent << JsonField("Operations") << ' ' << mceStats.m_Operations << ",\n";
-    os << indent << JsonField("CycleCount") << ' ' << mceStats.m_CycleCount << "\n";
-
-    --indent;
-
-    os << indent << "}";
-
-    return os;
-}
-
-std::ostream& Print(std::ostream& os, Indent indent, const PleStats& pleStats)
-{
-    os << indent << "{\n";
-
-    ++indent;
-
-    os << indent << JsonField("NumOfPatches") << ' ' << pleStats.m_NumOfPatches << ",\n";
-    os << indent << JsonField("Operation") << ' ' << pleStats.m_Operation << "\n";
-
-    --indent;
-
-    os << indent << "}";
-
-    return os;
-}
-
-std::ostream& Print(std::ostream& os, Indent indent, const PassPerformanceData& pass)
-{
-    os << indent << "{\n";
-
-    ++indent;
-
-    os << indent << JsonField("OperationIds") << ' ';
-    Print(os, Indent(0), JsonArray(pass.m_OperationIds)) << ",\n";
-
-    os << indent << JsonField("ParentIds") << ' ' << (pass.m_ParentIds.empty() ? "[]" : pass.m_ParentIds) << ",\n";
-
-    os << indent << JsonField("Input") << '\n';
-    Print(os, indent, pass.m_Stats.m_Input) << ",\n";
-
-    os << indent << JsonField("Output") << '\n';
-    Print(os, indent, pass.m_Stats.m_Output) << ",\n";
-
-    os << indent << JsonField("Weights") << '\n';
-    Print(os, indent, pass.m_Stats.m_Weights) << ",\n";
-
-    os << indent << JsonField("Mce") << '\n';
-    Print(os, indent, pass.m_Stats.m_Mce) << ",\n";
-
-    os << indent << JsonField("Ple") << '\n';
-    Print(os, indent, pass.m_Stats.m_Ple) << "\n";
-
-    --indent;
-
-    os << indent << "}";
-
-    return os;
-}
-
-std::ostream& Print(std::ostream& os, Indent indent, const std::map<uint32_t, std::string>& failureReasons)
-{
-    os << indent << "{\n";
-
-    ++indent;
-
-    for (auto it = failureReasons.begin(); it != failureReasons.end(); ++it)
-    {
-        os << indent << JsonField(it->first) << ' ' << Quoted(it->second);
-
-        if (it != std::prev(failureReasons.end()))
-        {
-            os << ",\n";
-        }
-        else
-        {
-            os << "\n";
-        }
-    }
-
-    --indent;
-
-    os << indent << "}";
-
-    return os;
 }
 
 }    // namespace
@@ -354,7 +88,7 @@ const Version GetLibraryVersion()
                    ETHOSN_SUPPORT_LIBRARY_VERSION_PATCH);
 }
 
-std::vector<char> GetPerformanceEstimatorFwAndHwCapabilities(EthosNVariant variant, uint32_t sramSizeBytes)
+std::vector<char> GetFwAndHwCapabilities(EthosNVariant variant, uint32_t sramSizeBytes)
 {
     FirmwareAndHardwareCapabilities capabilities;
     switch (variant)
@@ -400,14 +134,14 @@ std::vector<char> GetPerformanceEstimatorFwAndHwCapabilities(EthosNVariant varia
     return ret;
 }
 
-std::shared_ptr<Network> CreateNetwork()
+std::shared_ptr<Network> CreateNetwork(const std::vector<char>& caps)
 {
-    return std::make_shared<Network>();
+    return std::make_shared<Network>(caps);
 }
 
-std::shared_ptr<Network> CreateEstimationNetwork()
+std::shared_ptr<Network> CreateEstimationNetwork(const std::vector<char>& caps)
 {
-    return std::make_shared<Network>(true);
+    return std::make_shared<Network>(caps, true);
 }
 
 TensorAndId<Operand> AddInput(const std::shared_ptr<Network>& network, const TensorInfo& info)
@@ -562,37 +296,12 @@ TensorInfo GetTensorInfo(const std::shared_ptr<Operand>& operand)
     return operand->GetTensorInfo();
 }
 
-bool ValidateCapabilities(const CompilationOptions& options, FirmwareAndHardwareCapabilities& caps)
-{
-    // Decode the capabilities struct by looking first at the header
-    if (options.m_FwAndHwCapabilities.size() < sizeof(FirmwareAndHardwareCapabilitiesHeader))
-    {
-        // Invalid size.
-        return false;
-    }
-    FirmwareAndHardwareCapabilitiesHeader header;
-    memcpy(&header, options.m_FwAndHwCapabilities.data(), sizeof(FirmwareAndHardwareCapabilitiesHeader));
-    // For now we support only the current version.
-    if (header.m_Size != sizeof(FirmwareAndHardwareCapabilities) || header.m_Version != FW_AND_HW_CAPABILITIES_VERSION)
-    {
-        // Unsupported version.
-        return false;
-    }
-    // Now we can decode the full struct.
-    memcpy(&caps, options.m_FwAndHwCapabilities.data(), sizeof(FirmwareAndHardwareCapabilities));
-
-    return true;
-}
-
 std::vector<std::unique_ptr<CompiledNetwork>> Compile(const Network& network, const CompilationOptions& options)
 {
     std::vector<std::unique_ptr<CompiledNetwork>> allSupportedSubgraphs;
 
-    FirmwareAndHardwareCapabilities caps;
-    if (!ValidateCapabilities(options, caps))
-    {
-        throw VersionMismatchException("m_FwAndHwCapabilities is not valid");
-    }
+    FirmwareAndHardwareCapabilities caps = GetValidCapabilities(network.GetCapabilities());
+
     // Cascading not supported while compilation
     if (options.m_CompilerAlgorithm == CompilerAlgorithm::CascadingOnly)
     {
@@ -619,11 +328,7 @@ NetworkPerformanceData EstimatePerformance(const Network& network,
                                            const CompilationOptions& compilationOptions,
                                            const EstimationOptions& estimationOptions)
 {
-    FirmwareAndHardwareCapabilities caps;
-    if (!ValidateCapabilities(compilationOptions, caps))
-    {
-        throw VersionMismatchException("m_FwAndHwCapabilities is not valid");
-    }
+    FirmwareAndHardwareCapabilities caps = GetValidCapabilities(network.GetCapabilities());
 
     // Until full implementation of cascading in support library,
     // available  only as future optimistic estimate. i.e m_Current = false.
@@ -647,14 +352,14 @@ void PrintNetworkPerformanceDataJson(std::ostream& os, uint32_t indentNumTabs, c
     ++indent;
 
     const auto printPass = [indent](std::ostream& os, const PassPerformanceData& pass) {
-        Print(os, Indent(indent + 1), pass);
+        PrintPassPerformanceData(os, Indent(indent + 1), pass);
     };
 
     os << indent << JsonField("Stream") << '\n';
     Print(os, indent, JsonArray(perfData.m_Stream), printPass, true) << ",\n";
 
     os << indent << JsonField("Issues") << '\n';
-    Print(os, indent, perfData.m_OperationIdFailureReasons) << '\n';
+    PrintFailureReasons(os, indent, perfData.m_OperationIdFailureReasons) << '\n';
 
     --indent;
     os << indent << "}\n";
@@ -790,82 +495,42 @@ std::ostream& operator<<(std::ostream& os, Network& network)
 
 namespace
 {
-
-void BroadcastScalesDim(std::valarray<float>& result, QuantizationScales& lhs, const QuantizationScales& rhs)
+template <typename Op>
+QuantizationScales ApplyWithBroadcast(const QuantizationScales& lhs, const QuantizationScales& rhs, Op op)
 {
-    if (lhs.IsScalar())
+    if (lhs.size() == 1)
     {
-        // Broadcast our scalar value into an array with the same length as the rhs
-        lhs.m_Scales.resize(rhs.Size(), lhs[0]);
-        result = rhs.m_Scales;
+        return QuantizationScales(op(lhs[0], rhs));
     }
-    else if (rhs.IsScalar())
+    else if (rhs.size() == 1)
     {
-        float scalar = rhs[0];
-        result.resize(lhs.Size(), scalar);
+        return QuantizationScales(op(lhs, rhs[0]));
     }
-
-    assert(result.size() == lhs.Size());
+    else
+    {
+        return QuantizationScales(op(static_cast<const std::valarray<float>&>(lhs), rhs));
+    }
 }
 }    // namespace
 
-QuantizationScales& QuantizationScales::operator/=(const QuantizationScales& rhs)
-{
-    std::valarray<float> divider;
-
-    BroadcastScalesDim(divider, *this, rhs);
-
-    m_Scales /= divider;
-
-    return *this;
-}
-
 QuantizationScales operator/(const QuantizationScales& lhs, const QuantizationScales& rhs)
 {
-    QuantizationScales result(lhs);
-    result /= rhs;
-    return result;
-}
-QuantizationScales operator/(float lhs, const QuantizationScales& rhs)
-{
-    QuantizationScales result(lhs);
-    result /= rhs;
-    return result;
-}
-QuantizationScales operator/(const QuantizationScales& lhs, float rhs)
-{
-    QuantizationScales result(rhs);
-    result /= lhs;
-    return result;
+    return ApplyWithBroadcast(lhs, rhs, [](auto& x, auto& y) { return x / y; });
 }
 
-QuantizationScales& QuantizationScales::operator*=(const QuantizationScales& rhs)
-{
-    std::valarray<float> multiplier;
-
-    BroadcastScalesDim(multiplier, *this, rhs);
-
-    m_Scales *= multiplier;
-
-    return *this;
-}
 QuantizationScales operator*(const QuantizationScales& lhs, const QuantizationScales& rhs)
 {
-    QuantizationScales result(lhs);
-    result *= rhs;
-    return result;
+    return ApplyWithBroadcast(lhs, rhs, [](auto& x, auto& y) { return x * y; });
 }
-QuantizationScales operator*(float lhs, const QuantizationScales& rhs)
+
+bool operator==(const QuantizationScales& lhs, const QuantizationScales& rhs)
 {
-    QuantizationScales result(lhs);
-    result *= rhs;
-    return result;
+    return std::equal(std::begin(lhs), std::end(lhs), std::begin(rhs), std::end(rhs));
 }
-QuantizationScales operator*(const QuantizationScales& lhs, float rhs)
+
+bool operator!=(const QuantizationScales& lhs, const QuantizationScales& rhs)
 {
-    QuantizationScales result(rhs);
-    result *= lhs;
-    return result;
+    return !(lhs == rhs);
 }
 
 }    // namespace support_library

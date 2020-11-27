@@ -99,9 +99,9 @@ FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant varian
 
     if (sramSize != 0)
     {
-        // EthosN78 only allows sram size per emc between 48kB and 128kB in steps of 16kB.
+        // EthosN78 only allows sram size per emc between 32kB and 128kB in steps of 16kB.
         // Additionally sram sizes of 56kB and 256kB are allowed
-        constexpr uint32_t minSramSizePerEmcKb           = 48 * 1024;
+        constexpr uint32_t minSramSizePerEmcKb           = 32 * 1024;
         constexpr uint32_t maxSramSizePerEmcKb           = 128 * 1024;
         constexpr uint32_t additionalMinSramSizePerEmcKb = 56 * 1024;
         constexpr uint32_t additionalMaxSramSizePerEmcKb = 256 * 1024;
@@ -195,5 +195,36 @@ FirmwareAndHardwareCapabilities GetEthosN37FwHwCapabilities()
 
     return fwHwCapabilities;
 }
+
+void ValidateCapabilities(const std::vector<char>& rawCaps)
+{
+    // Decode the capabilities struct by looking first at the header
+    if (rawCaps.size() < sizeof(FirmwareAndHardwareCapabilitiesHeader))
+    {
+        // Invalid size.
+        throw VersionMismatchException("m_FwAndHwCapabilities is not valid");
+    }
+
+    const auto header = reinterpret_cast<const FirmwareAndHardwareCapabilitiesHeader*>(rawCaps.data());
+    // For now we support only the current version.
+    if (header->m_Size != sizeof(FirmwareAndHardwareCapabilities) ||
+        header->m_Version != FW_AND_HW_CAPABILITIES_VERSION)
+    {
+        // Unsupported version.
+        throw VersionMismatchException("m_FwAndHwCapabilities is not valid");
+    }
+}
+
+FirmwareAndHardwareCapabilities GetValidCapabilities(const std::vector<char>& rawCaps)
+{
+    FirmwareAndHardwareCapabilities caps;
+    ValidateCapabilities(rawCaps);
+
+    // Now we can decode the full struct.
+    memcpy(&caps, rawCaps.data(), sizeof(FirmwareAndHardwareCapabilities));
+
+    return caps;
+}
+
 }    // namespace support_library
 }    // namespace ethosn

@@ -11,6 +11,7 @@
 #include <EthosNTensorUtils.hpp>
 #include <Graph.hpp>
 #include <armnn/ArmNN.hpp>
+#include <armnn/utility/Assert.hpp>
 #include <backendsCommon/test/CommonTestUtils.hpp>
 #include <boost/test/unit_test.hpp>
 #include <ethosn_support_library/Support.hpp>
@@ -34,6 +35,11 @@ SubgraphView::SubgraphViewPtr BuildActivationSubgraph(Graph& graph, ActivationFu
     if (activationFunction == ActivationFunction::BoundedReLu)
     {
         activationDescriptor.m_A = 6.0f;    // ReLu6
+        activationDescriptor.m_B = 0.0f;
+    }
+    if (activationFunction == ActivationFunction::LeakyReLu)
+    {
+        activationDescriptor.m_A = 0.1f;
         activationDescriptor.m_B = 0.0f;
     }
 
@@ -335,6 +341,16 @@ BOOST_AUTO_TEST_CASE(ConvertLeakyReLuLayer)
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
 }
 
+BOOST_AUTO_TEST_CASE(ConvertExecutionLeakyReLuLayer)
+{
+    Graph graph;
+
+    SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::LeakyReLu);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+
+    BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
+}
+
 BOOST_AUTO_TEST_CASE(ConvertDepthwiseConvolutionLayer)
 {
     Graph graph;
@@ -622,14 +638,14 @@ BOOST_AUTO_TEST_CASE(ConvertReshapeLayer)
     Graph graph;
 
     // Create tensorinfo
-    const TensorInfo inputTensorInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
+    const TensorInfo inputTensorInfo({ 1, 4, 4, 16 }, DataType::QAsymmU8, 1.0f, 0);
 
     // Construct graph
     Layer* inputLayer = graph.AddLayer<InputLayer>(0, "input");
     inputLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
 
     ReshapeDescriptor descriptor;
-    descriptor.m_TargetShape = { 16, 16, 16, 1 };
+    descriptor.m_TargetShape = { 1, 1, 16, 16 };
 
     Layer* reshapeLayer = graph.AddLayer<ReshapeLayer>(descriptor, "reshape");
 
@@ -767,15 +783,16 @@ BOOST_AUTO_TEST_CASE(ConvertResizeLayer)
     BOOST_CHECK_NO_THROW(converter.CompileNetwork());
 }
 
-BOOST_AUTO_TEST_CASE(TestNonOptimizableConvolutionLayer)
+BOOST_AUTO_TEST_CASE(TestConvolutionLayerWithLargeTensors)
 {
     Graph graph;
 
-    // Using very large tensors to force the subgraph compilation to fail on the Ethos-N backend
-    const TensorInfo inputInfo({ 1, 16, 16, 10000 }, DataType::QAsymmU8, 1.0f, 0);
-    const TensorInfo outputInfo({ 1, 16, 16, 10000 }, DataType::QAsymmU8, 1.0f, 0);
-    const TensorInfo weightInfo({ 10000, 1, 1, 10000 }, DataType::QAsymmU8, 0.9f, 0);
-    const TensorInfo biasInfo({ 1, 1, 1, 10000 }, DataType::Signed32, 0.9f, 0);
+    // Since we are supporting splitting in width and depth in conversion pass
+    // Ethos-N should be able to compile sub-graph with large input tensors
+    const TensorInfo inputInfo({ 1, 16, 10000, 16 }, DataType::QAsymmU8, 1.0f, 0);
+    const TensorInfo outputInfo({ 1, 16, 10000, 16 }, DataType::QAsymmU8, 1.0f, 0);
+    const TensorInfo weightInfo({ 16, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
+    const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0);
 
     // Construct Graph
     Layer* const inputLayer = graph.AddLayer<InputLayer>(0, "input");
@@ -808,11 +825,8 @@ BOOST_AUTO_TEST_CASE(TestNonOptimizableConvolutionLayer)
     // Check that we are able to convert the sub-graph
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
 
-    // Check that the Ethos-N is not able to compile the converted sub-graph
-    // (the call to ethosn_lib::Compile returns an empty list of compiled blobs)
-    std::vector<CompiledBlobPtr> compiledBlobs;
-    BOOST_CHECK_NO_THROW(compiledBlobs = converter.CompileNetwork());
-    BOOST_TEST(compiledBlobs.empty());
+    // Check that the Ethos-N is able to compile the converted sub-graph
+    BOOST_CHECK_NO_THROW(converter.CompileNetwork());
 }
 
 BOOST_AUTO_TEST_CASE(TestEthosNBackendFail)
@@ -839,11 +853,8 @@ BOOST_AUTO_TEST_CASE(TestEthosNBackendFail)
     IRuntime::CreationOptions options;
     IRuntimePtr runtime(IRuntime::Create(options));
     std::vector<BackendId> backends = { EthosNBackendId() };
-    IOptimizedNetworkPtr optNet     = Optimize(*net, backends, runtime->GetDeviceSpec());
-
-    // Optimized network should return NULL as currently the Ethos-N backend workloads are
-    // not implemented, and Ethos-N will never support Float32 normalization
-    BOOST_ASSERT(optNet == NULL);
+    // Optimize should throw the Ethos-N backend will never support Float32 normalization
+    BOOST_CHECK_THROW(Optimize(*net, backends, runtime->GetDeviceSpec()), armnn::InvalidArgumentException);
 }
 
 BOOST_AUTO_TEST_CASE(EstimateOnly5dFail)
@@ -863,8 +874,8 @@ BOOST_AUTO_TEST_CASE(EstimateOnly5dFail)
     TensorInfo input  = TensorInfo({ 1, 1, 1, 1, 4 }, DataType::QAsymmU8, 1.f, 0);
     TensorInfo output = TensorInfo({ 1, 1, 1, 1, 4 }, DataType::QAsymmU8, 1.f, 0);
     std::string reasonIfUnsupported;
-    BOOST_ASSERT(!layerSupport.IsRsqrtSupported(input, output, reasonIfUnsupported));
-    BOOST_ASSERT(reasonIfUnsupported == "The ethosn can only support up to 4D tensors");
+    ARMNN_ASSERT(!layerSupport.IsRsqrtSupported(input, output, reasonIfUnsupported));
+    ARMNN_ASSERT(reasonIfUnsupported == "The ethosn can only support up to 4D tensors");
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -11,7 +11,6 @@
 #include "Graph.hpp"
 #include "Section.hpp"
 #include "Strategies.hpp"
-#include "Utils.hpp"
 #include "WeightEncoder.hpp"
 
 #include <ethosn_command_stream/CommandData.hpp>

@@ -132,6 +132,13 @@ std::unique_ptr<PlePass> PlePass::CreateGreedily(const HardwareCapabilities& cap
 
             if (strategySelected)
             {
+                if ((outputSramAllocation.stripeShape[3] < outputShape[3] ||
+                     outputSramAllocation.stripeShape[2] < outputShape[2]))
+                {
+                    // The Firmware does not support outputting NHWC when the OFMs stripes are not contiguous in DRAM.
+                    requiredOutputFormat = CompilerDataFormat::NHWCB;
+                }
+
                 if (lastNode->GetFormat() == CompilerDataFormat::NHWCB &&
                     lastNode->GetLocationHint() != LocationHint::RequireDram &&
                     outputSramAllocation.stripeShape[1] >= outputShape[1] &&
@@ -169,7 +176,8 @@ std::unique_ptr<PlePass> PlePass::CreateGreedily(const HardwareCapabilities& cap
             // Compression format can't be used for the IFM, we need to give a hint to the previous
             // node that its output needs to be uncompressed.
             // Non legacy code does not support it quite yet.
-            bool requiredUncompressed = false;
+            bool requiredUncompressed    = false;
+            bool splitInDepthUnsupported = false;
             for (uint32_t i = 0; i < firstNode->GetInputs().size(); ++i)
             {
                 if (firstNode->GetInputCompressed(i))
@@ -178,8 +186,19 @@ std::unique_ptr<PlePass> PlePass::CreateGreedily(const HardwareCapabilities& cap
                         CompressionHint::RequiredUncompressed);
                     requiredUncompressed = true;
                 }
+
+                auto inputSramAllocation = inputSramAllocations[i];
+                auto inputShape          = firstNode->GetInputShape(i);
+                auto source              = firstNode->GetInput(i)->GetSource();
+                if (firstNode->GetInputFormat(i) == CompilerDataFormat::NHWC &&
+                    (inputSramAllocation.stripeShape[3] < inputShape[3]))
+                {
+                    // The firmware does not support non contiguous IFM stripes in DRAM for NHWC input.
+                    source->SetFixGraphConvertOutputTo(CompilerDataFormat::NHWCB);
+                    splitInDepthUnsupported = true;
+                }
             }
-            if (requiredUncompressed)
+            if (requiredUncompressed || splitInDepthUnsupported)
             {
                 return std::unique_ptr<PlePass>();
             }
@@ -460,7 +479,7 @@ void PlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, BufferMan
     // Continue setting up command
     pleCmd.m_NumInputInfos() = static_cast<uint32_t>(m_PleOperation->GetInputs().size());
 
-    pleCmd.m_InputInfo().m_DataType()          = ConvertDataType(m_PleOperation->GetInputDataType(0));
+    pleCmd.m_InputInfo().m_DataType()          = GetCommandDataType(m_PleOperation->GetInputDataType(0));
     pleCmd.m_InputInfo().m_DataFormat()        = m_PleOperation->GetInputBufferFormat(0);
     pleCmd.m_InputInfo().m_TensorShape()       = inputShape;
     pleCmd.m_InputInfo().m_SupertensorShape()  = inputShape;
@@ -482,7 +501,7 @@ void PlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, BufferMan
     if (m_PleOperation->GetInputs().size() == 2)
     {
         const TensorShape& inputShape2              = m_Nodes.front()->GetInputShape(1);
-        pleCmd.m_InputInfo2().m_DataType()          = ConvertDataType(m_PleOperation->GetInputDataType(1));
+        pleCmd.m_InputInfo2().m_DataType()          = GetCommandDataType(m_PleOperation->GetInputDataType(1));
         pleCmd.m_InputInfo2().m_DataFormat()        = m_PleOperation->GetInputBufferFormat(1);
         pleCmd.m_InputInfo2().m_StripeShape()       = m_InputSramAllocations[1].stripeShape;
         pleCmd.m_InputInfo2().m_TileSize()          = m_InputSramAllocations[1].tileSize;
@@ -515,7 +534,7 @@ void PlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, BufferMan
     }
     m_Nodes.back()->SetBufferId(outputBufferId);
 
-    pleCmd.m_OutputInfo().m_DataType()          = ConvertDataType(m_Nodes.back()->GetDataType());
+    pleCmd.m_OutputInfo().m_DataType()          = GetCommandDataType(m_Nodes.back()->GetDataType());
     pleCmd.m_OutputInfo().m_DataFormat()        = m_Nodes.back()->GetBufferFormat();
     pleCmd.m_OutputInfo().m_TensorShape()       = outputShape;
     pleCmd.m_OutputInfo().m_SupertensorShape()  = outputShape;

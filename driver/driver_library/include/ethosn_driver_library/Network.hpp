@@ -54,6 +54,8 @@ public:
                                  Buffer* const outputBuffers[],
                                  uint32_t numOutputBuffers) const;
 
+    void SetDebugName(const char* name);
+
 private:
     std::unique_ptr<NetworkImpl> m_NetworkImpl;
 };

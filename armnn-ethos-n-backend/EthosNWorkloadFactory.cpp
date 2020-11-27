@@ -13,7 +13,6 @@
 #include <armnn/Utils.hpp>
 #include <backendsCommon/MakeWorkloadHelper.hpp>
 #include <backendsCommon/MemCopyWorkload.hpp>
-#include <boost/polymorphic_cast.hpp>
 
 namespace armnn
 {

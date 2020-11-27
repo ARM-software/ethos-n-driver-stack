@@ -18,7 +18,7 @@ namespace support_library
 Constant& Network::AddConstant(const TensorInfo& info, const void* data)
 {
     char reason[1024];
-    SupportedLevel supportedLevel = IsConstantSupported(info, reason, sizeof(reason));
+    SupportedLevel supportedLevel = m_Queries.IsConstantSupported(info, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -29,8 +29,9 @@ Constant& Network::AddConstant(const TensorInfo& info, const void* data)
 Convolution& Network::AddConvolution(Operand& input, Constant& bias, Constant& weights, const ConvolutionInfo& convInfo)
 {
     char reason[1024];
-    SupportedLevel supportedLevel = IsConvolutionSupported(bias.GetTensorInfo(), weights.GetTensorInfo(), convInfo,
-                                                           input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+    SupportedLevel supportedLevel =
+        m_Queries.IsConvolutionSupported(bias.GetTensorInfo(), weights.GetTensorInfo(), convInfo, input.GetTensorInfo(),
+                                         nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -44,8 +45,8 @@ DepthwiseConvolution&
 {
     char reason[1024];
     SupportedLevel supportedLevel =
-        IsDepthwiseConvolutionSupported(bias.GetTensorInfo(), weights.GetTensorInfo(), convInfo, input.GetTensorInfo(),
-                                        nullptr, reason, sizeof(reason));
+        m_Queries.IsDepthwiseConvolutionSupported(bias.GetTensorInfo(), weights.GetTensorInfo(), convInfo,
+                                                  input.GetTensorInfo(), nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -60,8 +61,8 @@ TransposeConvolution&
 {
     char reason[1024];
     SupportedLevel supportedLevel =
-        IsTransposeConvolutionSupported(bias.GetTensorInfo(), weights.GetTensorInfo(), convInfo, input.GetTensorInfo(),
-                                        nullptr, reason, sizeof(reason));
+        m_Queries.IsTransposeConvolutionSupported(bias.GetTensorInfo(), weights.GetTensorInfo(), convInfo,
+                                                  input.GetTensorInfo(), nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -80,9 +81,9 @@ Concatenation& Network::AddConcatenation(const std::vector<Operand*>& inputs, co
     {
         producers.push_back(&(*it)->GetProducer());
     }
-    SupportedLevel supportedLevel =
-        IsConcatenationSupported(utils::Map<TensorInfo>(inputs, [](Operand* x) { return x->GetTensorInfo(); }),
-                                 concatInfo, nullptr, reason, sizeof(reason));
+    SupportedLevel supportedLevel = m_Queries.IsConcatenationSupported(
+        utils::Map<TensorInfo>(inputs, [](Operand* x) { return x->GetTensorInfo(); }), concatInfo, nullptr, reason,
+        sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -94,7 +95,8 @@ Concatenation& Network::AddConcatenation(const std::vector<Operand*>& inputs, co
 Split& Network::AddSplit(Operand& input, const SplitInfo& splitInfo)
 {
     char reason[1024];
-    SupportedLevel supportedLevel = IsSplitSupported(input.GetTensorInfo(), splitInfo, nullptr, reason, sizeof(reason));
+    SupportedLevel supportedLevel =
+        m_Queries.IsSplitSupported(input.GetTensorInfo(), splitInfo, nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -107,8 +109,8 @@ Addition& Network::AddAddition(Operand& layer1, Operand& layer2, const Quantizat
 {
     char reason[1024];
 
-    SupportedLevel supportedLevel = IsAdditionSupported(layer1.GetTensorInfo(), layer2.GetTensorInfo(),
-                                                        outputQuantizationInfo, nullptr, reason, sizeof(reason));
+    SupportedLevel supportedLevel = m_Queries.IsAdditionSupported(
+        layer1.GetTensorInfo(), layer2.GetTensorInfo(), outputQuantizationInfo, nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -125,8 +127,8 @@ FullyConnected& Network::AddFullyConnected(Operand& input,
 {
     char reason[1024];
     SupportedLevel supportedLevel =
-        IsFullyConnectedSupported(bias.GetTensorInfo(), weights.GetTensorInfo(), fullyConnectedInfo,
-                                  input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+        m_Queries.IsFullyConnectedSupported(bias.GetTensorInfo(), weights.GetTensorInfo(), fullyConnectedInfo,
+                                            input.GetTensorInfo(), nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -139,7 +141,8 @@ FullyConnected& Network::AddFullyConnected(Operand& input,
 Relu& Network::AddRelu(Operand& input, const ReluInfo& reluInfo)
 {
     char reason[1024];
-    SupportedLevel supportedLevel = IsReluSupported(reluInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+    SupportedLevel supportedLevel =
+        m_Queries.IsReluSupported(reluInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -152,7 +155,7 @@ LeakyRelu& Network::AddLeakyRelu(Operand& input, const LeakyReluInfo& leakyReluI
 {
     char reason[1024];
     SupportedLevel supportedLevel =
-        IsLeakyReluSupported(leakyReluInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+        m_Queries.IsLeakyReluSupported(leakyReluInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -165,7 +168,7 @@ Requantize& Network::AddRequantize(Operand& input, const RequantizeInfo& requant
 {
     char reason[1024];
     SupportedLevel supportedLevel =
-        IsRequantizeSupported(requantizeInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+        m_Queries.IsRequantizeSupported(requantizeInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -177,7 +180,8 @@ Requantize& Network::AddRequantize(Operand& input, const RequantizeInfo& requant
 Softmax& Network::AddSoftmax(Operand& input)
 {
     char reason[1024];
-    SupportedLevel supportedLevel = IsSoftmaxSupported(input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+    SupportedLevel supportedLevel =
+        m_Queries.IsSoftmaxSupported(input.GetTensorInfo(), nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -189,7 +193,8 @@ Softmax& Network::AddSoftmax(Operand& input)
 Sigmoid& Network::AddSigmoid(Operand& input)
 {
     char reason[1024];
-    SupportedLevel supportedLevel = IsSigmoidSupported(input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+    SupportedLevel supportedLevel =
+        m_Queries.IsSigmoidSupported(input.GetTensorInfo(), nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -202,7 +207,7 @@ Pooling& Network::AddPooling(Operand& input, const PoolingInfo& poolingInfo)
 {
     char reason[1024];
     SupportedLevel supportedLevel =
-        IsPoolingSupported(poolingInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+        m_Queries.IsPoolingSupported(poolingInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -215,7 +220,7 @@ Reshape& Network::AddReshape(Operand& input, const TensorShape& newDimensions)
 {
     char reason[1024];
     SupportedLevel supportedLevel =
-        IsReshapeSupported(newDimensions, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+        m_Queries.IsReshapeSupported(newDimensions, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -228,7 +233,7 @@ DepthToSpace& Network::AddDepthToSpace(Operand& input, const DepthToSpaceInfo& d
 {
     char reason[1024];
     SupportedLevel supportedLevel =
-        IsDepthToSpaceSupported(input.GetTensorInfo(), depthToSpaceInfo, nullptr, reason, sizeof(reason));
+        m_Queries.IsDepthToSpaceSupported(input.GetTensorInfo(), depthToSpaceInfo, nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -241,7 +246,7 @@ SpaceToDepth& Network::AddSpaceToDepth(Operand& input, const SpaceToDepthInfo& s
 {
     char reason[1024];
     SupportedLevel supportedLevel =
-        IsSpaceToDepthSupported(input.GetTensorInfo(), spaceToDepthInfo, nullptr, reason, sizeof(reason));
+        m_Queries.IsSpaceToDepthSupported(input.GetTensorInfo(), spaceToDepthInfo, nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -254,7 +259,7 @@ Transpose& Network::AddTranspose(Operand& input, const TransposeInfo& transposeI
 {
     char reason[1024];
     SupportedLevel supportedLevel =
-        IsTransposeSupported(transposeInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+        m_Queries.IsTransposeSupported(transposeInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -267,7 +272,7 @@ Resize& Network::AddResize(Operand& input, const ResizeInfo& resizeInfo)
 {
     char reason[1024];
     SupportedLevel supportedLevel =
-        IsResizeSupported(resizeInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+        m_Queries.IsResizeSupported(resizeInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -287,7 +292,7 @@ EstimateOnly& Network::AddEstimateOnly(const std::vector<Operand*>& inputs, cons
         inputTensorInfos.push_back(input->GetTensorInfo());
     }
     SupportedLevel supportedLevel =
-        IsEstimateOnlySupported(inputTensorInfos, estimateOnly, nullptr, reason, sizeof(reason));
+        m_Queries.IsEstimateOnlySupported(inputTensorInfos, estimateOnly, nullptr, reason, sizeof(reason));
 
     if (!CheckSupportedLevel(supportedLevel))
     {
@@ -320,7 +325,7 @@ ethosn::support_library::detail::PosInNetwork::Type
 Input& Network::AddInput(const TensorInfo& info)
 {
     char reason[1024];
-    SupportedLevel supportedLevel = IsInputSupported(info, nullptr, reason, sizeof(reason));
+    SupportedLevel supportedLevel = m_Queries.IsInputSupported(info, nullptr, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);
@@ -332,7 +337,8 @@ Input& Network::AddInput(const TensorInfo& info)
 Output& Network::AddOutput(Operand& operand, const DataFormat format)
 {
     char reason[1024];
-    SupportedLevel supportedLevel = IsOutputSupported(operand.GetTensorInfo(), format, reason, sizeof(reason));
+    SupportedLevel supportedLevel =
+        m_Queries.IsOutputSupported(operand.GetTensorInfo(), format, reason, sizeof(reason));
     if (!CheckSupportedLevel(supportedLevel))
     {
         throw NotSupportedException(reason);

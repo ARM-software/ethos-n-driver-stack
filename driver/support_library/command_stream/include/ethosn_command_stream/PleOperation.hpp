@@ -10,6 +10,8 @@ namespace ethosn
 namespace command_stream
 {
 
+// These enum values must match those in the PLE build system,
+// and those in the SPA notebook.
 enum class PleOperation : uint8_t
 {
     ADDITION,
@@ -22,7 +24,6 @@ enum class PleOperation : uint8_t
     MAXPOOL_3X3_2_2_ODD,
     MEAN_XY_7X7,
     MEAN_XY_8X8,
-    OFM_SCALING,
     PASSTHROUGH,
     SIGMOID,
     TRANSPOSE_XY,

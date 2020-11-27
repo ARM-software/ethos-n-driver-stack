@@ -9,8 +9,8 @@
 #include <armnn/Optional.hpp>
 #include <armnn/Tensor.hpp>
 #include <armnn/Types.hpp>
+#include <armnn/utility/Assert.hpp>
 #include <armnnUtils/Permute.hpp>
-#include <boost/assert.hpp>
 #include <ethosn_support_library/Support.hpp>
 
 namespace armnn
@@ -25,10 +25,10 @@ namespace ethosntensorutils
 template <typename T>
 void SwizzleOHWIToHWIO(const void* inputBuffer, void* outputBuffer, const armnn::TensorShape& inputShape)
 {
-    BOOST_ASSERT(inputBuffer != nullptr);
-    BOOST_ASSERT(outputBuffer != nullptr);
+    ARMNN_ASSERT(inputBuffer != nullptr);
+    ARMNN_ASSERT(outputBuffer != nullptr);
 
-    BOOST_ASSERT(inputShape.GetNumDimensions() == 4);
+    ARMNN_ASSERT(inputShape.GetNumDimensions() == 4);
 
     const T* typedInputData = reinterpret_cast<const T*>(inputBuffer);
     std::vector<T> output;
@@ -61,10 +61,10 @@ void SwizzleOHWIToHWIO(const void* inputBuffer, void* outputBuffer, const armnn:
 template <typename T>
 void SwizzleOIHWToHWIO(const void* inputBuffer, void* outputBuffer, const armnn::TensorShape& inputShape)
 {
-    BOOST_ASSERT(inputBuffer != nullptr);
-    BOOST_ASSERT(outputBuffer != nullptr);
+    ARMNN_ASSERT(inputBuffer != nullptr);
+    ARMNN_ASSERT(outputBuffer != nullptr);
 
-    BOOST_ASSERT(inputShape.GetNumDimensions() == 4);
+    ARMNN_ASSERT(inputShape.GetNumDimensions() == 4);
 
     const T* typedInputData = reinterpret_cast<const T*>(inputBuffer);
     std::vector<T> output;
@@ -117,7 +117,7 @@ void SwizzleConvolutionWeightsData(const void* inputBuffer,
                 break;
             default:
                 // OHWI -> HWIO
-                BOOST_ASSERT(layerLayout == DataLayout::NHWC);
+                ARMNN_ASSERT(layerLayout == DataLayout::NHWC);
                 SwizzleOHWIToHWIO<T>(inputBuffer, outputBuffer, inputShape);
         }
     }
@@ -145,14 +145,17 @@ ethosn_lib::TensorInfo
     BuildEthosNBiasesInfo(unsigned int numBiasElements, const TensorInfo& inputInfo, const TensorInfo& weightsInfo);
 
 /// Utility function to set up a ethosn_lib::ConvolutionInfo object from armnn::Convolution2dDescriptor
-ethosn_lib::ConvolutionInfo BuildEthosNConvolutionInfo(const armnn::Convolution2dDescriptor& descriptor,
-                                                       int32_t quantizationOffset,
-                                                       float quantizationScale);
+Optional<ethosn_lib::ConvolutionInfo> BuildEthosNConvolutionInfo(const armnn::Convolution2dDescriptor& descriptor,
+                                                                 int32_t quantizationOffset,
+                                                                 float quantizationScale,
+                                                                 Optional<std::string&> reasonIfUnsupported);
 
 /// Utility function to set up a ethosn_lib::ConvolutionInfo object from armnn::DepthwiseConvolution2dDescriptor
-ethosn_lib::ConvolutionInfo BuildEthosNConvolutionInfo(const armnn::DepthwiseConvolution2dDescriptor& descriptor,
-                                                       int32_t quantizationOffset,
-                                                       float quantizationScale);
+Optional<ethosn_lib::ConvolutionInfo>
+    BuildEthosNConvolutionInfo(const armnn::DepthwiseConvolution2dDescriptor& descriptor,
+                               int32_t quantizationOffset,
+                               float quantizationScale,
+                               Optional<std::string&> reasonIfUnsupported);
 
 /// Utility function to set up a ethosn_lib::ConvolutionInfo object from armnn::TransposeConvolution2dDescriptor
 ethosn_lib::ConvolutionInfo BuildEthosNConvolutionInfo(const armnn::TransposeConvolution2dDescriptor& descriptor,
@@ -188,13 +191,16 @@ inline ethosn_lib::Padding ConvertPaddingToEthosNPadding(uint32_t top, uint32_t 
     return ethosn_lib::Padding(top, bottom, left, right);
 }
 
-ethosn_lib::ReluInfo
-    BuildEthosNReluInfo(const armnn::ActivationDescriptor& descriptor, float quantizationScale, int quantizationOffset);
+Optional<ethosn_lib::ReluInfo> BuildEthosNReluInfo(const armnn::ActivationDescriptor& descriptor,
+                                                   armnn::DataType inputDataType,
+                                                   float inputQuantizationScale,
+                                                   int inputQuantizationOffset);
 
-inline ethosn_lib::ReluInfo BuildEthosNReluInfo(const armnn::ActivationDescriptor& descriptor,
-                                                const armnn::TensorInfo& outputInfo)
+inline Optional<ethosn_lib::ReluInfo> BuildEthosNReluInfo(const armnn::ActivationDescriptor& descriptor,
+                                                          const armnn::TensorInfo& inputInfo)
 {
-    return BuildEthosNReluInfo(descriptor, outputInfo.GetQuantizationScale(), outputInfo.GetQuantizationOffset());
+    return BuildEthosNReluInfo(descriptor, inputInfo.GetDataType(), inputInfo.GetQuantizationScale(),
+                               inputInfo.GetQuantizationOffset());
 }
 
 ethosn_lib::LeakyReluInfo BuildEthosNLeakyReluInfo(const armnn::ActivationDescriptor& descriptor,
@@ -229,5 +235,6 @@ inline ethosn_lib::ResizeInfo BuildEthosNResizeInfo(const armnn::ResizeDescripto
 }
 
 bool IsDataTypeSupportedOnEthosN(const armnn::DataType dataType);
+
 }    // namespace ethosntensorutils
 }    // namespace armnn

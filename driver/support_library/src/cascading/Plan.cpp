@@ -6,11 +6,18 @@
 #include "Plan.hpp"
 
 using namespace std;
+using namespace ethosn::command_stream;
 
 namespace ethosn
 {
 namespace support_library
 {
+
+bool IsCompressed(CascadingBufferFormat format)
+{
+    return format == CascadingBufferFormat::NHWCB_COMPRESSED || format == CascadingBufferFormat::FCAF_DEEP ||
+           format == CascadingBufferFormat::FCAF_WIDE;
+}
 
 const OpGraph::OpList& OpGraph::GetOps() const
 {
@@ -175,11 +182,6 @@ Buffer* Plan::GetOutputBuffer(const Node* outputNode) const
     return nullptr;
 }
 
-const OwnedOpGraph& Plan::getOwnedOpGraph() const
-{
-    return m_OpGraph;
-}
-
 Op* OwnedOpGraph::AddOp(std::unique_ptr<Op> op)
 {
     // Call base implementation first in case it errors, in which case we don't want to track this Op.
@@ -212,12 +214,14 @@ DebuggableObject::DebuggableObject(const char* defaultTagPrefix)
 
 Op::Op(const char* defaultTagPrefix)
     : DebuggableObject(defaultTagPrefix)
-    , m_Lifetime(Lifetime::Atomic)
+    , m_Lifetime(Lifetime::Cascade)
+    , m_OperationIds()
 {}
 
 Op::Op(const char* defaultTagPrefix, Lifetime lifetime)
     : DebuggableObject(defaultTagPrefix)
     , m_Lifetime(lifetime)
+    , m_OperationIds()
 {}
 
 DmaOp::DmaOp()
@@ -296,9 +300,9 @@ DummyOp::DummyOp()
 {}
 
 Buffer::Buffer()
-    : Buffer(Lifetime::Atomic,
+    : Buffer(Lifetime::Cascade,
              Location::Dram,
-             CompilerDataFormat::NONE,
+             CascadingBufferFormat::NHWCB,
              { 0, 0, 0, 0 },
              { 0, 0, 0, 0 },
              TraversalOrder::Xyz,
@@ -306,13 +310,13 @@ Buffer::Buffer()
              QuantizationInfo())
 {}
 
-Buffer::Buffer(Lifetime lifetime, Location location, CompilerDataFormat format, TraversalOrder order)
+Buffer::Buffer(Lifetime lifetime, Location location, CascadingBufferFormat format, TraversalOrder order)
     : Buffer(lifetime, location, format, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, order, 0, QuantizationInfo())
 {}
 
 Buffer::Buffer(Lifetime lifetime,
                Location location,
-               CompilerDataFormat format,
+               CascadingBufferFormat format,
                TensorShape tensorShape,
                TensorShape stripeShape,
                TraversalOrder order,
@@ -329,6 +333,58 @@ Buffer::Buffer(Lifetime lifetime,
     , m_SizeInBytes(sizeInBytes)
     , m_NumStripes(0)
 {}
+
+bool IsOutputBufferInDram(const Plan& plan, const Edge& edge)
+{
+    const Buffer* buf = plan.GetOutputBuffer(edge.GetSource());
+    return (buf == nullptr) ? true : ((buf->m_Location) == Location::Dram);
+}
+
+SizeInBytes GetTotSizeInBytes(const Plan& plan)
+{
+    SizeInBytes result;
+    const OpGraph::BufferList& bufs        = plan.m_OpGraph.GetBuffers();
+    OpGraph::BufferList::const_iterator it = bufs.begin();
+    while (it != bufs.end())
+    {
+        const Buffer* buf   = *it;
+        const uint32_t size = buf->m_SizeInBytes;
+        if (buf->m_Location == Location::Sram)
+        {
+            result.m_Tot += size;
+            if (buf->m_Lifetime == Lifetime::Atomic)
+            {
+                result.m_TotAtomic += size;
+            }
+        }
+        ++it;
+    }
+    assert(result.m_TotAtomic <= result.m_Tot);
+    return result;
+}
+
+SizeInBytes GetInputsSizeInBytes(const Plan& plan)
+{
+    SizeInBytes result;
+    const Plan::InputMapping in           = plan.m_InputMappings;
+    Plan::InputMapping::const_iterator it = in.begin();
+    while (it != in.end())
+    {
+        const Buffer* buf   = it->first;
+        const uint32_t size = buf->m_SizeInBytes;
+        if (buf->m_Location == Location::Sram)
+        {
+            result.m_Tot += size;
+            if (buf->m_Lifetime == Lifetime::Atomic)
+            {
+                result.m_TotAtomic += size;
+            }
+        }
+        ++it;
+    }
+    assert(result.m_TotAtomic <= result.m_Tot);
+    return result;
+}
 
 }    // namespace support_library
 }    // namespace ethosn

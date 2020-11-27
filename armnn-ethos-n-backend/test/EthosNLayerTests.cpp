@@ -47,6 +47,8 @@ ARMNN_AUTO_TEST_CASE(PreCompiledSplitter, PreCompiledSplitterTest)
 
 ARMNN_AUTO_TEST_CASE(PreCompiledDepthToSpace, PreCompiledDepthToSpaceTest)
 
+ARMNN_AUTO_TEST_CASE(PreCompiledLeakyRelu, PreCompiledLeakyReluTest)
+
 ARMNN_AUTO_TEST_CASE(PreCompiledAddition, PreCompiledAdditionTest)
 
 ARMNN_AUTO_TEST_CASE(PreCompiledMultiInput, PreCompiledMultiInputTest)

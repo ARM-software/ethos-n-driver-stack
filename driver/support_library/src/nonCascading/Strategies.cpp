@@ -16,6 +16,8 @@ namespace ethosn
 namespace support_library
 {
 
+using namespace utils;
+
 namespace
 {
 
@@ -94,8 +96,8 @@ bool TryStripeShapes(SramAllocator& sramAllocator,
     const TensorShape outputStripe = { 1, outputStripeHeight, outputStripeWidth, outputStripeChannels };
 
     // Calculate input stripe from output stripe
-    const TensorShape inputStripe = { 1, inputStripeHeight, inputStripeWidth,
-                                      RoundUpToNearestMultiple(inputShape[3], capabilities.GetNumberOfSrams()) };
+    TensorShape inputStripe = { 1, inputStripeHeight, inputStripeWidth,
+                                RoundUpToNearestMultiple(inputShape[3], capabilities.GetNumberOfSrams()) };
 
     // Calculate weight stripe from output stripe.
     TensorShape weightStripe;
@@ -110,6 +112,13 @@ bool TryStripeShapes(SramAllocator& sramAllocator,
                               utils::RoundUpToNearestMultiple(weightsShape[2], capabilities.GetNumberOfSrams()));
         weightStripe = { weightsShape[0], weightsShape[1], outputStripe[3] / shapeMultiplier.m_C * strideSize,
                          weightsShape[3] };
+
+        // Legacy code doesn't support splitting in width in this case.
+        // Also this is not required when the whole input is already in Sram.
+        if (!inputStaticAndOffset.first && GetWidth(inputStripe) >= GetWidth(inputShape))
+        {
+            inputStripe[3] = weightStripe[2];
+        }
     }
     else
     {
@@ -181,7 +190,7 @@ bool TryStripeShapes(SramAllocator& sramAllocator,
                                     RoundUpToNearestMultiple(outputShape[3], capabilities.GetNumberOfSrams()) });
     const uint32_t outputTile = std::min(TotalSizeBytes(outputStripe) * numOutputStripesInTile, outputTileMax);
 
-    if (numInputStripesTotalX < numOutputStripesX || numInputStripesTotalY < numOutputStripesY)
+    if (numInputStripesTotalX != numOutputStripesX || numInputStripesTotalY < numOutputStripesY)
     {
         // This is a limitation of the current StripeStreamer code in the firmware.
         // Note that there is only very limited support for the case where there are
@@ -547,12 +556,12 @@ bool Strategy6::TrySetup(TensorConfig& tensorConfig,
     return false;
 }
 
-// Scheduling strategy to support IFM depth streaming
+// Scheduling strategy to support input tensor depth streaming
 // Limitations:
-// (1) IFM split in Z direction only, no split in XY
-// (2) Winograd is not supported
+// (1) Input tensor split in depth and height directions, no split in width.
+// (2) only depthwise convoutions supported.
 bool Strategy7::TrySetup(TensorConfig& tensorConfig,
-                         SramAllocator& originalSramAllocator,
+                         SramAllocator& sramAllocator,
                          const TensorShape& inputShape,
                          const TensorShape& outputShape,
                          DataFormat weightsFormat,
@@ -561,274 +570,95 @@ bool Strategy7::TrySetup(TensorConfig& tensorConfig,
                          const HardwareCapabilities& capabilities,
                          const utils::ShapeMultiplier& shapeMultiplier,
                          std::pair<bool, uint32_t> inputStaticAndOffset,
-                         CompilerMceAlgorithm algorithm,
+                         CompilerMceAlgorithm,
                          const uint32_t depthMax)
 {
+    const bool isHwim = weightsFormat == DataFormat::HWIM;
+
+    // This applies only to Depthwise convolutions.
+    if (!isHwim)
+    {
+        return false;
+    }
+
     if (inputStaticAndOffset.first)
     {
         return false;
     }
 
-    const bool isHwim                   = weightsFormat == DataFormat::HWIM;
-    const bool isHwio                   = weightsFormat == DataFormat::HWIO;
-    const uint32_t numAccumulatorsPerOg = capabilities.GetTotalAccumulatorsPerEngine();
-    const uint32_t brickGroupChannels   = capabilities.GetBrickGroupShape()[3];
-
-    // the depth is constrained by the number of OFMs that can be produced in one iteration
-    const uint32_t depthStripe = std::min(capabilities.GetNumberOfOfm(), depthMax);
-
-    if (algorithm == CompilerMceAlgorithm::Winograd)
-    {
+    auto TrySolution = [&](const uint32_t outputStripeHeight, const uint32_t outputStripeChannels,
+                           uint32_t numWeightBuffers) {
+        if (TryStripeShapes(sramAllocator, { 1, outputStripeHeight, outputShape[2], outputStripeChannels }, inputShape,
+                            outputShape, weightsFormat, weightsShape, capabilities, shapeMultiplier,
+                            inputStaticAndOffset, tensorConfig, depthMax, numWeightBuffers))
+        {
+            tensorConfig.blockWidth  = blockConfig.m_BlockWidth();
+            tensorConfig.blockHeight = blockConfig.m_BlockHeight();
+            tensorConfig.strategy    = Strategy::STRATEGY_7;
+            return true;
+        }
         return false;
-    }
-    if ((blockConfig.m_BlockWidth() * blockConfig.m_BlockHeight()) > numAccumulatorsPerOg)
-    {
-        // Because of the IFM streaming in Z, (1) the output block shape
-        // in XY is limited by the number of OFMs which can be produced in one iteration
-        return false;
-    }
-
-    if (blockConfig.m_BlockWidth() < outputShape[2])
-    {
-        // Use legacy code for HWIM, it does not support streaming in width
-        return false;
-    }
-
-    // Restriction when depth streaming (multiple iterations per output):
-    // block dim = stripe dimension in XY plane.
-    const TensorShape outputStripe = { outputShape[0], blockConfig.m_BlockHeight(), blockConfig.m_BlockWidth(),
-                                       depthStripe * shapeMultiplier.m_C };
-
-    const uint32_t inputStripeHeight =
-        AccountForFullDimension(outputShape[1], inputShape[1], outputStripe[1], shapeMultiplier.m_H);
-    const uint32_t inputStripeWidth =
-        AccountForFullDimension(outputShape[2], inputShape[2], outputStripe[2], shapeMultiplier.m_W);
-
-    uint32_t strideSize =
-        utils::DivRoundUp(utils::RoundUpToNearestMultiple(inputShape[3], capabilities.GetNumberOfSrams()),
-                          utils::RoundUpToNearestMultiple(weightsShape[2], capabilities.GetNumberOfSrams()));
-    TensorShape inputStripe = {
-        inputShape[0], utils::RoundUpToNearestMultiple(inputStripeHeight, capabilities.GetBrickGroupShape()[1]),
-        utils::RoundUpToNearestMultiple(inputStripeWidth, capabilities.GetBrickGroupShape()[2]),
-        isHwio ? utils::RoundUpToNearestMultiple(inputShape[3], capabilities.GetNumberOfSrams())
-               : depthStripe * strideSize
     };
 
-    const uint32_t numStripesH = utils::DivRoundUp(inputShape[1], inputStripe[1]);
-    const bool needNeighbourH  = (weightsShape[0] > 1U);
+    const uint32_t maxHeightSplits = DivRoundUp(inputShape[1], blockConfig.m_BlockHeight());
 
-    // double buffers only if no need for neighbour
-    const uint32_t numRequiredCentralStripesH = needNeighbourH ? 3U : 2U;
-
-    const uint32_t numInputStripesTile = std::min(numStripesH, numRequiredCentralStripesH);
-
-    // output stripe is also double buffered in the tile
-    const uint32_t outputTile = outputStripe[0] * outputStripe[1] * outputStripe[2] * outputStripe[3] * 2U;
-
-    // initialise weight stripe.
-    TensorShape weightStripe;
-    if (isHwio)
+    struct Strategy7Params
     {
-        // Note that the "I" dimension is left as zero for now and set during the below loop.
-        weightStripe = { weightsShape[0], weightsShape[1], 0, outputStripe[3] };
-    }
-    else if (isHwim)
+        uint32_t outputStripeHeight;
+        uint32_t outputStripeChannels;
+        uint32_t numWeightBuffers;
+    };
+    // Generate a list of parameters we pass to TryStripeShapes so we can see all the stripe shapes which could be attempted.
+    std::vector<Strategy7Params> paramsList;
+    for (uint32_t numHeightSplits = 1U; numHeightSplits <= maxHeightSplits; ++numHeightSplits)
     {
-        weightStripe = { weightsShape[0], weightsShape[1], depthStripe * strideSize, weightsShape[3] };
-    }
-    else
-    {
-        // Weight tensor must be HWIO or HWIM
-        assert(false);
-    }
-
-    uint32_t inputStripeDepth = inputStripe[3];
-
-    SramAllocator sramAllocator;
-    AllocationResult allocationResults;
-
-    uint32_t inputTile;
-    uint32_t weightTile;
-    if (isHwio)
-    {
-        // For regular convolution, iteratively reduce the input stripe depth until it fits.
-        do
+        for (uint32_t numDepthSplits = 2U; numDepthSplits < outputShape[3]; ++numDepthSplits)
         {
-            if (inputStripeDepth <= depthStripe * strideSize)
+            // First, try and find a solution with three stripes of weight in the tile.
+            for (uint32_t numWeightBuffers = 3U; numWeightBuffers >= g_DefaultMaxNumWeightBuffersInTile;
+                 --numWeightBuffers)
             {
-                return false;
+                const uint32_t outputStripeHeight   = outputShape[1] / numHeightSplits;
+                const uint32_t outputStripeChannels = outputShape[3] / numDepthSplits;
+                paramsList.push_back({ outputStripeHeight, outputStripeChannels, numWeightBuffers });
             }
-
-            // halve the input stripe depth in order to fit IFM into the SRAM
-            inputStripeDepth /= 2;
-            // The stripe depth must also be such that no stripes may start on channels that aren't a multiple of 16 and pass
-            // through into the next 16, which is not supported by the DMA (e.g. a stripe starting on channel 24
-            // and going to channel 48).
-            inputStripeDepth =
-                (DivRoundUp(inputShape[3], inputStripeDepth) > 1 && inputStripeDepth > brickGroupChannels * strideSize)
-                    ? RoundUpToNearestMultiple(inputStripeDepth, brickGroupChannels * strideSize)
-                    : RoundUpToNearestMultiple(inputStripeDepth, capabilities.GetNumberOfSrams() * strideSize);
-
-            // update the input and weight stripe tensor accordingly
-            inputStripe[3]  = inputStripeDepth;
-            weightStripe[2] = inputStripeDepth;
-
-            // Fit all ifm iterations in the weight tile to avoid weight reloading. Plus one to allow for buffering
-            const uint32_t numWeightStripesTile = DivRoundUp(inputShape[3], inputStripeDepth) + 1U;
-
-            inputTile  = (inputStripe[0] * inputStripe[1] * inputStripe[2] * inputStripe[3] * numInputStripesTile);
-            weightTile = EstimateWeightSizeBytes(weightStripe, capabilities, false) * numWeightStripesTile;
-
-            sramAllocator = originalSramAllocator;
-            allocationResults =
-                FitsInSram(sramAllocator, capabilities, inputTile, weightTile, outputTile, inputStaticAndOffset);
-        } while (allocationResults.m_Success == false);
-    }
-    else if (isHwim)
-    {
-        // For depthwise, we start with the smallest input stripe depth anyway
-        // (as it must be equal to the output stripe depth) so there is only one configuration to try.
-        inputTile     = inputStripe[0] * inputStripe[1] * inputStripe[2] * inputStripe[3] * numInputStripesTile;
-        weightTile    = EstimateWeightSizeBytes(weightStripe, capabilities, false) * 2;
-        sramAllocator = originalSramAllocator;
-        allocationResults =
-            FitsInSram(sramAllocator, capabilities, inputTile, weightTile, outputTile, inputStaticAndOffset);
-        if (!allocationResults.m_Success)
-        {
-            return false;
         }
     }
-    else
+    // Attempt single buffering the weight stripes as a last resort.
+    for (uint32_t numHeightSplits = 1U; numHeightSplits <= maxHeightSplits; ++numHeightSplits)
     {
-        // Weight tensor must be HWIO or HWIM
-        assert(false);
+        for (uint32_t numDepthSplits = 2U; numDepthSplits < outputShape[3]; ++numDepthSplits)
+        {
+            const uint32_t outputStripeHeight   = outputShape[1] / numHeightSplits;
+            const uint32_t outputStripeChannels = outputShape[3] / numDepthSplits;
+            paramsList.push_back({ outputStripeHeight, outputStripeChannels, 1U });
+        }
     }
+    for (auto params : paramsList)
+    {
 
-    tensorConfig.inputAllocation.stripeShape   = inputStripe;
-    tensorConfig.inputAllocation.tileSize      = inputTile;
-    tensorConfig.outputAllocation.stripeShape  = outputStripe;
-    tensorConfig.outputAllocation.tileSize     = outputTile;
-    tensorConfig.weightsAllocation.stripeShape = weightStripe;
-    tensorConfig.weightsAllocation.tileSize    = weightTile;
-    tensorConfig.blockWidth                    = blockConfig.m_BlockWidth();
-    tensorConfig.blockHeight                   = blockConfig.m_BlockHeight();
-    tensorConfig.strategy                      = Strategy::STRATEGY_7;
-
-    originalSramAllocator = sramAllocator;
-    FillTensorConfigOffsets(allocationResults, tensorConfig);
-
-    return true;
+        if (TrySolution(params.outputStripeHeight, params.outputStripeChannels, params.numWeightBuffers))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
-bool StrategyFc::TrySetup(TensorConfig& tensorConfig,
-                          SramAllocator& originalSramAllocator,
-                          const TensorShape& inputShape,
-                          const TensorShape& outputShape,
-                          const DataFormat weightsFormat,
-                          const TensorShape& weightsShape,
-                          const ethosn::command_stream::BlockConfig& blockConfig,
-                          const HardwareCapabilities& capabilities,
+bool StrategyFc::TrySetup(TensorConfig&,
+                          SramAllocator&,
+                          const TensorShape&,
+                          const TensorShape&,
+                          const DataFormat,
+                          const TensorShape&,
+                          const ethosn::command_stream::BlockConfig&,
+                          const HardwareCapabilities&,
                           const ShapeMultiplier&,
-                          std::pair<bool, uint32_t> inputStaticAndOffset,
+                          std::pair<bool, uint32_t>,
                           CompilerMceAlgorithm,
                           uint32_t)
 {
-    using namespace ethosn::command_stream;
-    using namespace ethosn;
-
-    if (weightsFormat != DataFormat::HWIO)
-    {
-        return false;
-    }
-
-    // The minimum stripe depth depends on the number of compute engines and how
-    // many OFMs each CE can output
-    const uint32_t stripeSize = RoundUpToNearestMultiple(std::min(outputShape[3], capabilities.GetNumberOfOfm()),
-                                                         capabilities.GetNumberOfSrams());
-
-    uint32_t inputW     = inputShape[2];
-    uint32_t inputH     = inputShape[1];
-    uint32_t inputDepth = inputShape[3];
-
-    // clang-format off
-    TensorShape inputStripe = { inputShape[0],
-                                utils::RoundUpToNearestMultiple(inputW,     capabilities.GetBrickGroupShape()[1]),
-                                utils::RoundUpToNearestMultiple(inputH,     capabilities.GetBrickGroupShape()[2]),
-                                utils::RoundUpToNearestMultiple(inputDepth, capabilities.GetNumberOfSrams()) };
-
-    uint32_t inputTile = inputShape[0] *
-                         utils::RoundUpToNearestMultiple(inputW,      capabilities.GetBrickGroupShape()[1]) *
-                         utils::RoundUpToNearestMultiple(inputH,     capabilities.GetBrickGroupShape()[2]) *
-                         utils::RoundUpToNearestMultiple(inputDepth, capabilities.GetNumberOfSrams()) ;
-
-    TensorShape outputStripe = { outputShape[0],
-                                 utils::RoundUpToNearestMultiple(outputShape[1], capabilities.GetBrickGroupShape()[1]),
-                                 utils::RoundUpToNearestMultiple(outputShape[2], capabilities.GetBrickGroupShape()[2]),
-                                 stripeSize };
-
-    // The OFM and weight tiles are double buffered, allowing the CEs to work on
-    // one stripe at the same time as the MCE loads new weights and outputs finished OFMs
-    uint32_t outputTile = outputShape[0] *
-                          utils::RoundUpToNearestMultiple(outputShape[1], capabilities.GetBrickGroupShape()[1]) *
-                          utils::RoundUpToNearestMultiple(outputShape[2], capabilities.GetBrickGroupShape()[2]) *
-                          stripeSize * 2 ;
-
-    // dim[2] of weight tensor = input length
-    // it is round to multipe of 1024
-    uint32_t inputLength = RoundUpToNearestMultiple(weightsShape[2], 1024);
-
-    // initialise both weight stripe and tile.
-    TensorShape weightStripe = { weightsShape[0],
-                                 weightsShape[1],
-                                 inputLength,
-                                 stripeSize };
-
-    // clang-format on
-
-    bool isHwim = weightsFormat == DataFormat::HWIM;
-
-    // compute weight size including header
-    uint32_t weightTile = EstimateWeightSizeBytes(weightStripe, capabilities, isHwim) * 2;
-
-    if (inputTile >= (capabilities.GetTotalSramSize() / 2))
-    {
-        // The strategy only works if the input tile size is less than half of the total
-        // SRAM size.
-        return false;
-    }
-
-    SramAllocator sramAllocator = originalSramAllocator;
-    // weight stripe tensor is adjusted so that input+weight+output tiles fit into SRAM.
-    AllocationResult allocationResults =
-        FitsInSram(sramAllocator, capabilities, inputTile, weightTile, outputTile, inputStaticAndOffset);
-    while (allocationResults.m_Success == false)
-    {
-        // weight length per stripe is halved then re-aligned to multiple of 1024
-        inputLength /= 2;
-        inputLength = RoundUpToNearestMultiple(inputLength, 1024);
-
-        // update stripe and tile tensors
-        weightStripe[2] = inputLength;
-
-        // recalculate the weight size
-        weightTile                  = EstimateWeightSizeBytes(weightStripe, capabilities, isHwim) * 2;
-        SramAllocator sramAllocator = originalSramAllocator;
-        allocationResults =
-            FitsInSram(sramAllocator, capabilities, inputTile, weightTile, outputTile, inputStaticAndOffset);
-    }
-
-    tensorConfig.inputAllocation.stripeShape   = inputStripe;
-    tensorConfig.inputAllocation.tileSize      = inputTile;
-    tensorConfig.outputAllocation.stripeShape  = outputStripe;
-    tensorConfig.outputAllocation.tileSize     = outputTile;
-    tensorConfig.weightsAllocation.stripeShape = weightStripe;
-    tensorConfig.weightsAllocation.tileSize    = weightTile;
-    tensorConfig.blockWidth                    = blockConfig.m_BlockWidth();
-    tensorConfig.blockHeight                   = blockConfig.m_BlockHeight();
-    tensorConfig.strategy                      = Strategy::STRATEGY_FC;
-    originalSramAllocator                      = sramAllocator;
-    FillTensorConfigOffsets(allocationResults, tensorConfig);
-    return true;
+    return false;
 }
 
 const char* Strategy0::GetStrategyString()

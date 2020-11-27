@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2019 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2019 Arm Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -20,7 +20,6 @@
  *
  */
 
-// This header file reflects architecture version 1.4.5
 
 #pragma once
 
@@ -38,7 +37,7 @@
 
 #define NPU_ARCH_VERSION_MAJOR 1
 #define NPU_ARCH_VERSION_MINOR 4
-#define NPU_ARCH_VERSION_PATCH 5
+#define NPU_ARCH_VERSION_PATCH 8
 #define NPU_ARCH_BASENAME "SCYLLA"
 
 // Register offsets

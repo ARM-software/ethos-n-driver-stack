@@ -5,7 +5,6 @@
 #pragma once
 
 #include "../GraphNodes.hpp"
-#include "../Utils.hpp"
 #include "../WeightEncoder.hpp"
 #include "Plan.hpp"
 
@@ -15,6 +14,7 @@ namespace support_library
 {
 
 class Buffer;
+class HardwareCapabilities;
 
 PleStats GetPleStats(const HardwareCapabilities& caps,
                      const std::vector<TensorShape>& inputShapes,

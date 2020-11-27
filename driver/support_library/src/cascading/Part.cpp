@@ -6,19 +6,114 @@
 #include "Part.hpp"
 
 #include "../Graph.hpp"
+#include "../Utils.hpp"
 #include "GraphNodes.hpp"
 #include "Plan.hpp"
-#include "Utils.hpp"
 #include "WeightEncoder.hpp"
 
 #include <unordered_map>
 
 using namespace std;
+using namespace ethosn::command_stream;
 
 namespace ethosn
 {
 namespace support_library
 {
+
+using namespace utils;
+
+namespace
+{
+uint32_t GetWeightStripeDepth(const TensorInfo& weightInfo, MceOp* mceOp)
+{
+    if (weightInfo.m_DataFormat == DataFormat::HWIO)
+    {
+        return mceOp->m_WeightsStripeShape[3];
+    }
+    else if (weightInfo.m_DataFormat == DataFormat::HWIM)
+    {
+        return mceOp->m_WeightsStripeShape[2] * mceOp->m_WeightsStripeShape[3] /
+               (mceOp->m_Stride.m_X * mceOp->m_Stride.m_Y);
+    }
+    else
+    {
+        assert(false);
+        return 0;
+    }
+}
+
+TensorShape CalculateWeightStripeShape(const TensorInfo& weightInfo, TensorShape inputStripe, TensorShape outputStripe)
+{
+    assert(weightInfo.m_DataFormat == DataFormat::HWIO || weightInfo.m_DataFormat == DataFormat::HWIM);
+
+    TensorShape result = weightInfo.m_Dimensions;
+    result[2]          = inputStripe[3];
+    // For HWIO the weight stripe "O" dimension needs to match the output tensor stripe size
+    // For HWIM it should be 1 as we don't support channel multiplier > 1.
+    if (weightInfo.m_DataFormat == DataFormat::HWIO)
+    {
+        result[3] = outputStripe[3];
+    }
+    else
+    {
+        assert(result[3] == 1);
+    }
+    return result;
+}
+
+/// Generates a stripe shape given an encoding and an input tensor
+/// Tries to create a stripe with the stripe shape in the encoding, if the dimension is 0 then it uses the full length of that dimension.
+TensorShape CreateStripe(TensorShape input, TensorShape inputEncoding, const HardwareCapabilities& caps)
+{
+    TensorShape inputStripeShape;
+    for (uint32_t i = 0; i < input.size(); ++i)
+    {
+        inputStripeShape[i] = inputEncoding[i] != 0 ? inputEncoding[i] : input[i];
+    }
+    inputStripeShape    = utils::RoundUpHeightAndWidthToBrickGroup(inputStripeShape);
+    inputStripeShape[3] = utils::RoundUpToNearestMultiple(inputStripeShape[3], caps.GetNumberOfSrams());
+    return inputStripeShape;
+}
+
+CascadingBufferFormat GetFormat(Location location)
+{
+    switch (location)
+    {
+        case Location::Dram:
+            return CascadingBufferFormat::NHWC;
+        case Location::PleInputSram:
+        case Location::Sram:
+            return CascadingBufferFormat::NHWCB;
+        case Location::VirtualSram:
+            return CascadingBufferFormat::NHWC;
+        default:
+            throw NotSupportedException("Unkwnown location");
+    }
+}
+
+CascadingBufferFormat GetCascadingBufferFormatFromCompilerDataFormat(const CompilerDataFormat& format)
+{
+    switch (format)
+    {
+        case (CompilerDataFormat::NHWC):
+            return CascadingBufferFormat::NHWC;
+        case (CompilerDataFormat::NCHW):
+            return CascadingBufferFormat::NCHW;
+        case (CompilerDataFormat::NHWCB):
+            return CascadingBufferFormat::NHWCB;
+        case (CompilerDataFormat::WEIGHT):
+            return CascadingBufferFormat::WEIGHT;
+        default:
+        {
+            std::string error = "In " + std::string(ETHOSN_FUNCTION_SIGNATURE) + ": value " +
+                                std::to_string(static_cast<uint32_t>(format)) + " is not valid";
+            throw NotSupportedException(error.c_str());
+        }
+    }
+}
+
+}    // namespace
 
 class WeightEncoderCache
 {
@@ -146,14 +241,16 @@ bool Part::StripeInfos::operator<(const StripeInfos& rhs) const
     return false;
 }
 
-std::unique_ptr<Op> CreateOpFromNode(const Node* node)
+std::unique_ptr<Op>
+    CreateOpFromNode(const Node* node, const CompilationOptions& compOpt, const HardwareCapabilities& caps)
 {
     if (IsObjectOfType<MceOperationNode>(node))
     {
         const MceOperationNode* mceOperationNode = dynamic_cast<const MceOperationNode*>(node);
-        MceOp op(Lifetime::Atomic, mceOperationNode->GetOperation(), CompilerMceAlgorithm::Direct,
-                 BlockConfig{ 8U, 8U }, TensorShape{}, TensorShape{}, TensorShape{}, TraversalOrder::Xyz,
-                 mceOperationNode->GetStride(), mceOperationNode->GetPadLeft(), mceOperationNode->GetPadTop());
+        MceOp op(Lifetime::Cascade, mceOperationNode->GetOperation(),
+                 mceOperationNode->GetEffectiveAlgorithm(caps, !compOpt.m_DisableWinograd), BlockConfig{ 8U, 8U },
+                 TensorShape{}, TensorShape{}, TensorShape{}, TraversalOrder::Xyz, mceOperationNode->GetStride(),
+                 mceOperationNode->GetPadLeft(), mceOperationNode->GetPadTop());
         return std::make_unique<MceOp>(std::move(op));
     }
     else if (IsObjectOfType<McePostProcessOperationNode>(node))
@@ -163,7 +260,7 @@ std::unique_ptr<Op> CreateOpFromNode(const Node* node)
     else if (IsObjectOfType<FuseOnlyPleOperationNode>(node))
     {
         const FuseOnlyPleOperationNode* fuseOnlyPleOperationNode = dynamic_cast<const FuseOnlyPleOperationNode*>(node);
-        PleOp op(Lifetime::Atomic, fuseOnlyPleOperationNode->GetKernelOperation(), BlockConfig{ 8U, 8U },
+        PleOp op(Lifetime::Cascade, fuseOnlyPleOperationNode->GetKernelOperation(), BlockConfig{ 8U, 8U },
                  static_cast<uint32_t>(fuseOnlyPleOperationNode->GetInputs().size()), std::vector<TensorShape>{},
                  TensorShape{});
         return std::make_unique<PleOp>(std::move(op));
@@ -172,7 +269,7 @@ std::unique_ptr<Op> CreateOpFromNode(const Node* node)
     {
         const StandalonePleOperationNode* standalonePleOperationNode =
             dynamic_cast<const StandalonePleOperationNode*>(node);
-        PleOp op(Lifetime::Atomic, standalonePleOperationNode->GetKernelOperation(), BlockConfig{ 8U, 8U },
+        PleOp op(Lifetime::Cascade, standalonePleOperationNode->GetKernelOperation(), BlockConfig{ 8U, 8U },
                  static_cast<uint32_t>(standalonePleOperationNode->GetInputs().size()), std::vector<TensorShape>{},
                  TensorShape{});
         return std::make_unique<PleOp>(std::move(op));
@@ -205,22 +302,6 @@ int GetStripePosition(TraversalOrder order)
     }
 }
 
-CompilerDataFormat GetFormat(Location location)
-{
-    switch (location)
-    {
-        case Location::Dram:
-            return CompilerDataFormat::NHWC;
-        case Location::PleInputSram:
-        case Location::Sram:
-            return CompilerDataFormat::NHWCB;
-        case Location::VirtualSram:
-            return CompilerDataFormat::NHWC;
-        default:
-            throw NotSupportedException("Unkwnown location");
-    }
-}
-
 TensorShape GetShapeRoundedToBrickGroup(TensorShape shape)
 {
     shape    = utils::RoundUpHeightAndWidthToBrickGroup(shape);
@@ -243,13 +324,13 @@ TensorShape GetWeightsShape(const Node* node)
     return GetWeightsInfo(node).m_Dimensions;
 }
 
-uint32_t CalculateBufferSize(const TensorShape& shape, CompilerDataFormat f)
+uint32_t CalculateBufferSize(const TensorShape& shape, CascadingBufferFormat f)
 {
     switch (f)
     {
-        case CompilerDataFormat::NHWCB:
+        case CascadingBufferFormat::NHWCB:
             return utils::TotalSizeBytesNHWCB(shape);
-        case CompilerDataFormat::NHWC:
+        case CascadingBufferFormat::NHWC:
             return utils::TotalSizeBytes(shape);
         default:
             assert(false);
@@ -274,9 +355,60 @@ uint32_t CalculateTileSize(const HardwareCapabilities& caps,
     return std::min(inputTileSize, inputFullStripeSize);
 }
 
-bool IsPlanValid(const Plan& plan)
+uint32_t CalculateTileSize(Node* node,
+                           const HardwareCapabilities& caps,
+                           const TensorShape& inputTensorShape,
+                           const TensorShape& inputStripeShape,
+                           const TensorShape& outputStripeShape,
+                           uint32_t numStripes)
 {
-    (void)plan;
+    uint32_t inputFullStripeSize;
+
+    if (IsObjectOfType<MceOperationNode>(node))
+    {
+        auto mceNode                    = GetObjectAs<MceOperationNode>(node);
+        auto kernelHeight               = mceNode->GetWeightsInfo().m_Dimensions[0];
+        auto padTop                     = mceNode->GetPadTop();
+        const uint32_t brickGroupHeight = GetHeight(caps.GetBrickGroupShape());
+
+        // Work out the tile sizes by deciding how many stripes we want in each tile
+        const NeedBoundary needBoundaryY = ethosn::support_library::utils::GetBoundaryRequirements(
+            padTop, GetHeight(inputTensorShape), GetHeight(inputStripeShape), GetHeight(outputStripeShape),
+            kernelHeight);
+
+        const bool isStreamingWidth = GetWidth(inputStripeShape) < GetWidth(inputTensorShape);
+
+        const bool needsBoundarySlots = (needBoundaryY.m_Before || needBoundaryY.m_After) && (isStreamingWidth);
+        const uint32_t inputStripeXZ  = GetWidth(inputStripeShape) * GetChannels(inputStripeShape);
+
+        const uint32_t boundarySlotSize = needsBoundarySlots ? (brickGroupHeight * inputStripeXZ) : 0U;
+        const uint32_t defaultSlotSize  = TotalSizeBytes(inputStripeShape);
+
+        // We need the boundary slots both on the top and bottom of the stripe
+        const uint32_t totalSlotSize = (2U * boundarySlotSize) + defaultSlotSize;
+
+        inputFullStripeSize = totalSlotSize * numStripes;
+    }
+    else
+    {
+        // Restrict the tile max size to be the full tensor so we don't waste space when we have partial stripes
+        inputFullStripeSize = numStripes * CalculateSizeInBytes(inputStripeShape);
+    }
+    const uint32_t inputTileSize = utils::MaxTileSize(inputTensorShape, caps);
+
+    return std::min(inputTileSize, inputFullStripeSize);
+}
+
+bool IsPlanValid(const HardwareCapabilities& caps, const Plan& plan)
+{
+    const uint32_t sizeInBytes = GetTotSizeInBytes(plan).m_Tot;
+
+    if (sizeInBytes > caps.GetTotalSramSize())
+    {
+        // There is no space
+        return false;
+    }
+
     return true;
 }
 
@@ -433,11 +565,8 @@ const Parts& GraphOfParts::GetParts() const
     return m_Parts;
 }
 
-void Part::CreatePlans(const HardwareCapabilities& caps)
+void Part::CreatePlans()
 {
-    using DataFormats                      = std::list<CompilerDataFormat>;
-    const DataFormats supportedDataFormats = { CompilerDataFormat::NHWC, CompilerDataFormat::NHWCB };
-
     Node* node = m_SubGraph.front();
     if (IsObjectOfType<InputNode>(node))
     {
@@ -449,13 +578,23 @@ void Part::CreatePlans(const HardwareCapabilities& caps)
     }
     else
     {
-        WeightEncoderCache weightEncoderCache(caps);
-        GenerateWithTraversalOrders(node, caps, weightEncoderCache);
+        WeightEncoderCache weightEncoderCache(m_Capabilities);
+        GenerateWithTraversalOrders(node, weightEncoderCache);
     }
 
     if (m_Plans.empty())
     {
         throw NotSupportedException("No plans generated for this part");
+    }
+
+    // Add operation ids
+    std::set<uint32_t> opIds = node->GetCorrespondingOperationIds();
+    for (auto&& plan : m_Plans)
+    {
+        for (auto&& op : plan->m_OpGraph.GetOps())
+        {
+            op->m_OperationIds.insert(opIds.begin(), opIds.end());
+        }
     }
 }
 
@@ -463,7 +602,7 @@ void Part::AddNewPlan(Plan::InputMapping&& inputMappings, Plan::OutputMapping&& 
 {
     auto plan       = std::make_unique<Plan>(std::move(inputMappings), std::move(outputMappings));
     plan->m_OpGraph = std::move(opGraph);
-    if (IsPlanValid(*plan))
+    if (IsPlanValid(m_Capabilities, *plan))
     {
         m_Plans.push_back(std::move(plan));
     }
@@ -475,9 +614,10 @@ void Part::CreatePlanForInputNode(Node* node, Lifetime lifetime, TraversalOrder 
     Plan::OutputMapping outputMappings;
     OwnedOpGraph opGraph;
 
-    auto buffer                  = std::make_unique<Buffer>(lifetime, Location::Dram, node->GetFormat(), order);
+    CascadingBufferFormat format = GetCascadingBufferFormatFromCompilerDataFormat(node->GetFormat());
+    auto buffer                  = std::make_unique<Buffer>(lifetime, Location::Dram, format, order);
     buffer->m_TensorShape        = node->GetShape();
-    buffer->m_SizeInBytes        = CalculateBufferSize(node->GetShape(), node->GetFormat());
+    buffer->m_SizeInBytes        = CalculateBufferSize(node->GetShape(), format);
     buffer->m_QuantizationInfo   = node->GetQuantizationInfo();
     outputMappings[buffer.get()] = node;
     opGraph.AddBuffer(std::move(buffer));
@@ -493,71 +633,16 @@ void Part::CreatePlanForOutputNode(Node* node, Lifetime lifetime, TraversalOrder
     assert(node->GetInputs().size() > 0);
     for (Edge* edge : node->GetInputs())
     {
-        std::unique_ptr<Buffer> buffer =
-            std::make_unique<Buffer>(lifetime, Location::Dram, edge->GetSource()->GetFormat(), order);
-        buffer->m_TensorShape       = edge->GetSourceShape();
-        buffer->m_SizeInBytes       = CalculateBufferSize(edge->GetSourceShape(), edge->GetSource()->GetFormat());
-        buffer->m_QuantizationInfo  = edge->GetSource()->GetQuantizationInfo();
-        inputMappings[buffer.get()] = edge;
+        CascadingBufferFormat format   = GetCascadingBufferFormatFromCompilerDataFormat(edge->GetSource()->GetFormat());
+        std::unique_ptr<Buffer> buffer = std::make_unique<Buffer>(lifetime, Location::Dram, format, order);
+        buffer->m_TensorShape          = edge->GetSourceShape();
+        buffer->m_SizeInBytes          = CalculateBufferSize(edge->GetSourceShape(), format);
+        buffer->m_QuantizationInfo     = edge->GetSource()->GetQuantizationInfo();
+        inputMappings[buffer.get()]    = edge;
         opGraph.AddBuffer(std::move(buffer));
     }
     AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph));
 }
-
-namespace
-{
-uint32_t GetWeightStripeDepth(const TensorInfo& weightInfo, MceOp* mceOp)
-{
-    if (weightInfo.m_DataFormat == DataFormat::HWIO)
-    {
-        return mceOp->m_WeightsStripeShape[3];
-    }
-    else if (weightInfo.m_DataFormat == DataFormat::HWIM)
-    {
-        return mceOp->m_WeightsStripeShape[2] * mceOp->m_WeightsStripeShape[3] /
-               (mceOp->m_Stride.m_X * mceOp->m_Stride.m_Y);
-    }
-    else
-    {
-        assert(false);
-        return 0;
-    }
-}
-
-TensorShape CalculateWeightStripeShape(const TensorInfo& weightInfo, TensorShape inputStripe, TensorShape outputStripe)
-{
-    assert(weightInfo.m_DataFormat == DataFormat::HWIO || weightInfo.m_DataFormat == DataFormat::HWIM);
-
-    TensorShape result = weightInfo.m_Dimensions;
-    result[2]          = inputStripe[3];
-    // For HWIO the weight stripe "O" dimension needs to match the output tensor stripe size
-    // For HWIM it should be 1 as we don't support channel multiplier > 1.
-    if (weightInfo.m_DataFormat == DataFormat::HWIO)
-    {
-        result[3] = outputStripe[3];
-    }
-    else
-    {
-        assert(result[3] == 1);
-    }
-    return result;
-}
-
-/// Generates a stripe shape given an encoding and an input tensor
-/// Tries to create a stripe with the stripe shape in the encoding, if the dimension is 0 then it uses the full length of that dimension.
-TensorShape CreateStripe(TensorShape input, TensorShape inputEncoding, const HardwareCapabilities& caps)
-{
-    TensorShape inputStripeShape;
-    for (uint32_t i = 0; i < input.size(); ++i)
-    {
-        inputStripeShape[i] = inputEncoding[i] != 0 ? inputEncoding[i] : input[i];
-    }
-    inputStripeShape    = utils::RoundUpHeightAndWidthToBrickGroup(inputStripeShape);
-    inputStripeShape[3] = utils::RoundUpToNearestMultiple(inputStripeShape[3], caps.GetNumberOfSrams());
-    return inputStripeShape;
-}
-
-}    // namespace
 
 void AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
                                      const TensorShape& inpStripeShape,
@@ -571,25 +656,26 @@ void AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
                                      TraversalOrder order,
                                      WeightEncoderCache& weightEncoderCache)
 {
-    const OpGraph::BufferList& buffers = opGraph.GetBuffers();
-    const OpGraph::OpList& ops         = opGraph.GetOps();
-    Op* op                             = ops.front();
+    const OpGraph::BufferList& buffers  = opGraph.GetBuffers();
+    const OpGraph::OpList& ops          = opGraph.GetOps();
+    Op* op                              = ops.front();
+    const TensorShape weightStripeShape = CalculateWeightStripeShape(weightInfo, inpStripeShape, outStripeShape);
 
     assert(dynamic_cast<MceOp*>(op) != nullptr);
     MceOp* mceOp = dynamic_cast<MceOp*>(op);
 
-    opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Dram,
-                                               ConvertExternalToCompilerDataFormat(weightInfo.m_DataFormat), order));
+    CascadingBufferFormat formatInDram =
+        GetCascadingBufferFormatFromCompilerDataFormat(ConvertExternalToCompilerDataFormat(weightInfo.m_DataFormat));
+    opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Dram, formatInDram, order));
     Buffer* weightsBufferInDram        = buffers.back();
     weightsBufferInDram->m_TensorShape = weightInfo.m_Dimensions;
-    weightsBufferInDram->m_StripeShape = CalculateWeightStripeShape(weightInfo, inpStripeShape, outStripeShape);
+    weightsBufferInDram->m_StripeShape = weightStripeShape;
 
-    opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Sram, CompilerDataFormat::NHWCB, order));
-    Buffer* weightsBufferInSram        = buffers.back();
-    weightsBufferInSram->m_TensorShape = weightsBufferInDram->m_TensorShape;
-
-    weightsBufferInSram->m_StripeShape      = CalculateWeightStripeShape(weightInfo, inpStripeShape, outStripeShape);
-    weightsBufferInSram->m_Format           = CompilerDataFormat::WEIGHT;
+    CascadingBufferFormat formatInSram = GetCascadingBufferFormatFromCompilerDataFormat(CompilerDataFormat::WEIGHT);
+    opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Sram, formatInSram, order));
+    Buffer* weightsBufferInSram             = buffers.back();
+    weightsBufferInSram->m_TensorShape      = weightsBufferInDram->m_TensorShape;
+    weightsBufferInSram->m_StripeShape      = weightStripeShape;
     weightsBufferInSram->m_QuantizationInfo = weightInfo.m_QuantizationInfo;
     weightsBufferInSram->m_NumStripes       = numWeightStripes;
 
@@ -636,7 +722,6 @@ Buffer* Part::AddIdentityMceOpForSubGraph(OwnedOpGraph& opGraph,
                                           const TensorShape& inpShape,
                                           const QuantizationInfo& inpQuantInfo,
                                           Lifetime lifetime,
-                                          const HardwareCapabilities& caps,
                                           TraversalOrder order,
                                           TensorShape inputStripe,
                                           TensorShape outputStripe,
@@ -660,17 +745,17 @@ Buffer* Part::AddIdentityMceOpForSubGraph(OwnedOpGraph& opGraph,
     std::vector<int32_t> biasData(numIfm, 0);
 
     // Add MceOp.
-    opGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::DEPTHWISE_CONVOLUTION,
+    opGraph.AddOp(std::make_unique<MceOp>(Lifetime::Cascade, MceOperation::DEPTHWISE_CONVOLUTION,
                                           CompilerMceAlgorithm::Direct, BlockConfig{ 8U, 8U }, inputStripe,
                                           outputStripe, weightStripe, order, Stride(1, 1), 0, 0));
     Op* idMceOp = ops.back();
 
     // Add input Buffer.
-    opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Sram, CompilerDataFormat::NHWCB, order));
+    opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Sram, CascadingBufferFormat::NHWCB, order));
     Buffer* idMceOpInBuff = buffers.back();
 
     // Add Output Buffer.
-    opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::PleInputSram, CompilerDataFormat::NHWCB, order));
+    opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::PleInputSram, CascadingBufferFormat::NHWCB, order));
     Buffer* idMceOpOutBuff = buffers.back();
 
     opGraph.AddConsumer(idMceOpInBuff, idMceOp, 0);
@@ -686,7 +771,8 @@ Buffer* Part::AddIdentityMceOpForSubGraph(OwnedOpGraph& opGraph,
     idMceOpOutBuff->m_StripeShape = outputStripe;
     idMceOpInBuff->m_StripeShape  = inputStripe;
     idMceOpOutBuff->m_SizeInBytes = 0;    // The output buffer is in ple sram so has no size in the tile
-    idMceOpInBuff->m_SizeInBytes  = CalculateTileSize(caps, inpShape, idMceOpInBuff->m_StripeShape, numInputStripes);
+    idMceOpInBuff->m_SizeInBytes =
+        CalculateTileSize(m_Capabilities, inpShape, idMceOpInBuff->m_StripeShape, numInputStripes);
     idMceOpOutBuff->m_QuantizationInfo = inpQuantInfo;
     idMceOpInBuff->m_QuantizationInfo  = inpQuantInfo;
     idMceOpOutBuff->m_NumStripes       = 0;
@@ -697,7 +783,6 @@ Buffer* Part::AddIdentityMceOpForSubGraph(OwnedOpGraph& opGraph,
 
 void Part::CreatePlanWithIdentityMceOp(FuseOnlyPleOperationNode* node,
                                        Lifetime lifetime,
-                                       const HardwareCapabilities& caps,
                                        TraversalOrder order,
                                        TensorShape inputStripe,
                                        TensorShape outputStripe,
@@ -718,10 +803,12 @@ void Part::CreatePlanWithIdentityMceOp(FuseOnlyPleOperationNode* node,
     // Generate the input stripes needed for the mce op
     TensorShape encoding          = { 0, inputStripe[1], inputStripe[2], inputStripe[3] };
     const TensorShape& inputShape = node->GetInputShape(0);
-    TensorShape mceInputStripe    = CreateStripe(inputShape, encoding, caps);
+    TensorShape mceInputStripe    = CreateStripe(inputShape, encoding, m_Capabilities);
     // Identity MceOps have a kernel size of 1x1 so only require 1-2 stripes
     // They output into PLE SRAM so there are no output stripes
-    NumStripes numStripes = { 1U, 2U, 0U, 0U, 1U, 2U };
+    // The number of weight stripes depends on the mceOutputStripe == mceInputStripe
+    const uint32_t maxNumWeightstripes = GetChannels(inputStripe) < GetChannels(inputShape) ? 2U : 1U;
+    NumStripes numStripes              = { 1U, 2U, 0U, 0U, 1U, maxNumWeightstripes };
 
     for (auto numInputStripes = numStripes.minInputStripes; numInputStripes <= numStripes.maxInputStripes;
          ++numInputStripes)
@@ -734,10 +821,10 @@ void Part::CreatePlanWithIdentityMceOp(FuseOnlyPleOperationNode* node,
             Plan::OutputMapping outputMappings;
             // Add Identity MCeOp.
             auto mceOpOutputBuffer = AddIdentityMceOpForSubGraph(opGraph, inputShape, inputNode->GetQuantizationInfo(),
-                                                                 lifetime, caps, order, mceInputStripe, mceInputStripe,
+                                                                 lifetime, order, mceInputStripe, mceInputStripe,
                                                                  numInputStripes, numWeightStripes, weightEncoderCache);
             // Add PleOp
-            opGraph.AddOp(CreateOpFromNode(node));
+            opGraph.AddOp(CreateOpFromNode(node, m_CompilationOptions, m_Capabilities));
             Op* op                             = opGraph.GetOps().back();
             const OpGraph::BufferList& buffers = opGraph.GetBuffers();
 
@@ -745,8 +832,9 @@ void Part::CreatePlanWithIdentityMceOp(FuseOnlyPleOperationNode* node,
             op->m_Lifetime = lifetime;
 
             Buffer* outBuffer       = opGraph.AddBuffer(std::make_unique<Buffer>(
-                lifetime, Location::Sram, CompilerDataFormat::NHWCB, outShape, outputStripe, order,
-                CalculateTileSize(caps, outShape, outputStripe, numOutputStripes), outputNode->GetQuantizationInfo()));
+                lifetime, Location::Sram, CascadingBufferFormat::NHWCB, outShape, outputStripe, order,
+                CalculateTileSize(m_Capabilities, outShape, outputStripe, numOutputStripes),
+                outputNode->GetQuantizationInfo()));
             outBuffer->m_NumStripes = numOutputStripes;
 
             opGraph.AddConsumer(mceOpOutputBuffer, op, 0);
@@ -766,7 +854,6 @@ void Part::CreatePlanWithIdentityMceOp(FuseOnlyPleOperationNode* node,
 
 void Part::CreatePlanWithIdentityPleOp(Node* node,
                                        Lifetime lifetime,
-                                       const HardwareCapabilities& caps,
                                        TraversalOrder order,
                                        TensorShape inputStripe,
                                        TensorShape outputStripe,
@@ -779,8 +866,8 @@ void Part::CreatePlanWithIdentityPleOp(Node* node,
 {
     assert(node->GetInputs().size() > 0);
 
-    // We need to generate 1-4 output stripes because we may need boundary data + double buffering
-    NumStripes numStripes = { 0U, 0U, 1U, 4U, 0U, 0U };
+    // We need to generate 1-3 output stripes because we may need boundary data
+    NumStripes numStripes = { 0U, 0U, 1U, 3U, 0U, 0U };
 
     for (auto numPleOutputStripes = numStripes.minOutputStripes; numPleOutputStripes <= numStripes.maxOutputStripes;
          ++numPleOutputStripes)
@@ -791,9 +878,9 @@ void Part::CreatePlanWithIdentityPleOp(Node* node,
         const OpGraph::BufferList& buffers = opGraph.GetBuffers();
         const OpGraph::OpList& ops         = opGraph.GetOps();
 
-        AddOpToOpGraphWithInputOutputBuffers(opGraph, node, lifetime, caps, order, inputStripe, outputStripe,
-                                             numInputStripes, numOutputStripes, inputBufferLocation,
-                                             outputBufferLocation, inputMappings, outputMappings);
+        AddOpToOpGraphWithInputOutputBuffers(opGraph, node, lifetime, order, inputStripe, outputStripe, numInputStripes,
+                                             numOutputStripes, inputBufferLocation, outputBufferLocation, inputMappings,
+                                             outputMappings);
         Buffer* mceOutputBuff = buffers.back();
         Buffer* mceInputBuff  = buffers.front();
 
@@ -805,14 +892,16 @@ void Part::CreatePlanWithIdentityPleOp(Node* node,
                                         weightEncoderCache);
 
         // Add Passthrough PleOp.node
-        opGraph.AddOp(std::make_unique<PleOp>(Lifetime::Atomic, PleOperation::PASSTHROUGH, BlockConfig{ 1U, 1U }, 1,
+        opGraph.AddOp(std::make_unique<PleOp>(Lifetime::Cascade, PleOperation::PASSTHROUGH, BlockConfig{ 1U, 1U }, 1,
                                               std::vector<TensorShape>{}, TensorShape{}));
         Op* op = ops.back();
 
         // Add output Buffer.
-        opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Sram, CompilerDataFormat::NHWCB,
+        const uint32_t sizeInBytes = CalculateTileSize(m_Capabilities, mceOutputBuff->m_TensorShape,
+                                                       mceOutputBuff->m_StripeShape, numPleOutputStripes);
+        opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Sram, CascadingBufferFormat::NHWCB,
                                                    mceOutputBuff->m_TensorShape, mceOutputBuff->m_StripeShape, order,
-                                                   mceOutputBuff->m_SizeInBytes, mceOutputBuff->m_QuantizationInfo));
+                                                   sizeInBytes, mceOutputBuff->m_QuantizationInfo));
         Buffer* idPleOpOutBuff       = buffers.back();
         idPleOpOutBuff->m_NumStripes = numPleOutputStripes;
 
@@ -833,7 +922,6 @@ void Part::CreatePlanWithIdentityPleOp(Node* node,
 void Part::AddOpToOpGraphWithInputOutputBuffers(OwnedOpGraph& opGraph,
                                                 Node* node,
                                                 Lifetime lifetime,
-                                                const HardwareCapabilities& caps,
                                                 TraversalOrder order,
                                                 TensorShape inputStripe,
                                                 TensorShape outputStripe,
@@ -846,7 +934,7 @@ void Part::AddOpToOpGraphWithInputOutputBuffers(OwnedOpGraph& opGraph,
 {
     (void)outputMappings;    //Currently unused but expected to be used whenever multi output will be supported
 
-    opGraph.AddOp(CreateOpFromNode(node));
+    opGraph.AddOp(CreateOpFromNode(node, m_CompilationOptions, m_Capabilities));
 
     const OpGraph::BufferList& buffers = opGraph.GetBuffers();
     const OpGraph::OpList& ops         = opGraph.GetOps();
@@ -861,10 +949,11 @@ void Part::AddOpToOpGraphWithInputOutputBuffers(OwnedOpGraph& opGraph,
         inBuffer->m_TensorShape = inputNode->GetShape();
         inBuffer->m_StripeShape = inputStripe;
         inBuffer->m_NumStripes  = numInputStripes;
-        inBuffer->m_SizeInBytes =
-            inputBufferLocation == Location::Sram
-                ? CalculateTileSize(caps, inBuffer->m_TensorShape, inBuffer->m_StripeShape, numInputStripes)
-                : CalculateBufferSize(inBuffer->m_TensorShape, inBuffer->m_Format);
+        inBuffer->m_SizeInBytes = inputBufferLocation == Location::Sram
+                                      ? CalculateTileSize(node, m_Capabilities, inBuffer->m_TensorShape, inputStripe,
+                                                          outputStripe, numInputStripes)
+                                      : CalculateBufferSize(inBuffer->m_TensorShape, inBuffer->m_Format);
+
         inBuffer->m_QuantizationInfo = inputNode->GetQuantizationInfo();
         inputMappings[inBuffer]      = edge;
         opGraph.AddConsumer(inBuffer, op, 0);
@@ -892,14 +981,14 @@ void Part::AddOpToOpGraphWithInputOutputBuffers(OwnedOpGraph& opGraph,
     outBuffer->m_NumStripes  = numOutputStripes;
     outBuffer->m_SizeInBytes =
         outputBufferLocation == Location::Sram
-            ? CalculateTileSize(caps, outBuffer->m_TensorShape, outBuffer->m_StripeShape, numOutputStripes)
+            ? CalculateTileSize(m_Capabilities, outBuffer->m_TensorShape, outBuffer->m_StripeShape, numOutputStripes)
             : CalculateBufferSize(outBuffer->m_TensorShape, outBuffer->m_Format);
+
     outBuffer->m_QuantizationInfo = outputNode->GetQuantizationInfo();
 }
 
 void Part::CreatePlanForNode(Node* node,
                              Lifetime lifetime,
-                             const HardwareCapabilities& caps,
                              TraversalOrder order,
                              TensorShape inputStripe,
                              TensorShape outputStripe,
@@ -918,18 +1007,18 @@ void Part::CreatePlanForNode(Node* node,
     auto& buffers = opGraph.GetBuffers();
     auto& ops     = opGraph.GetOps();
 
-    AddOpToOpGraphWithInputOutputBuffers(opGraph, node, lifetime, caps, order, inputStripe, outputStripe,
-                                         numInputStripes, numOutputStripes, inputBufferLocaton, outputBufferLocation,
-                                         inputMappings, outputMappings);
+    AddOpToOpGraphWithInputOutputBuffers(opGraph, node, lifetime, order, inputStripe, outputStripe, numInputStripes,
+                                         numOutputStripes, inputBufferLocaton, outputBufferLocation, inputMappings,
+                                         outputMappings);
 
     auto outBuffer = buffers.back();
     auto op        = ops.back();
 
     if (this->m_SubGraph.size() > 1 && IsObjectOfType<McePostProcessOperationNode>(this->m_SubGraph[1]))
     {
-        opGraph.AddOp(CreateOpFromNode(this->m_SubGraph[1]));
+        opGraph.AddOp(CreateOpFromNode(this->m_SubGraph[1], m_CompilationOptions, m_Capabilities));
         auto mcePpOp = ops.back();
-        opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Sram, CompilerDataFormat::NHWCB, order));
+        opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Sram, CascadingBufferFormat::NHWCB, order));
         auto mcePpOpBuffer = buffers.back();
         opGraph.AddConsumer(outBuffer, mcePpOp, 0);
         opGraph.SetProducer(mcePpOpBuffer, mcePpOp);
@@ -966,7 +1055,7 @@ void Part::CreatePlanForNode(Node* node,
     if (idMceOpRequired)
     {
         // Add another plan with IdMceOp.
-        CreatePlanWithIdentityMceOp(GetObjectAs<FuseOnlyPleOperationNode>(node), lifetime, caps, order, inputStripe,
+        CreatePlanWithIdentityMceOp(GetObjectAs<FuseOnlyPleOperationNode>(node), lifetime, order, inputStripe,
                                     outputStripe, numOutputStripes, weightEncoderCache);
     }
 
@@ -975,9 +1064,8 @@ void Part::CreatePlanForNode(Node* node,
     if (idPleOpRequired)
     {
         // Add another plan with IdMceOp
-        CreatePlanWithIdentityPleOp(node, lifetime, caps, order, inputStripe, outputStripe, numInputStripes,
-                                    numOutputStripes, numWeightStripes, inputBufferLocaton, outputBufferLocation,
-                                    weightEncoderCache);
+        CreatePlanWithIdentityPleOp(node, lifetime, order, inputStripe, outputStripe, numInputStripes, numOutputStripes,
+                                    numWeightStripes, inputBufferLocaton, outputBufferLocation, weightEncoderCache);
     }
 }
 
@@ -1000,28 +1088,26 @@ std::vector<BlockConfig> GenerateBlockConfigs(Node* node)
     return result;
 }
 
-void Part::GenerateWithTraversalOrders(Node* node,
-                                       const HardwareCapabilities& caps,
-                                       WeightEncoderCache& weightEncoderCache)
+void Part::GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEncoderCache)
 {
     std::vector<BlockConfig> blockConfigs = GenerateBlockConfigs(node);
-    GenerateWithStripeSizes(node, caps, blockConfigs, TraversalOrder::Xyz, weightEncoderCache);
+    GenerateWithStripeSizes(node, blockConfigs, TraversalOrder::Xyz, weightEncoderCache);
     // TODO: Add the same function call with traversal order ZXY
 
-    auto inputStripe  = CreateStripe(node->GetInputShape(0), TensorShape{ 0, 0, 0, 0 }, caps);
-    auto outputStripe = CreateStripe(node->GetShape(), TensorShape{ 0, 0, 0, 0 }, caps);
+    auto inputStripe  = CreateStripe(node->GetInputShape(0), TensorShape{ 0, 0, 0, 0 }, m_Capabilities);
+    auto outputStripe = CreateStripe(node->GetShape(), TensorShape{ 0, 0, 0, 0 }, m_Capabilities);
     if (IsObjectOfType<FormatConversionNode>(node))
     {
         auto format = node->GetFormat();
         switch (format)
         {
             case CompilerDataFormat::NHWCB:
-                CreatePlanForNode(node, Lifetime::Atomic, caps, TraversalOrder::Xyz, inputStripe, outputStripe, 1U, 1U,
-                                  0u, Location::VirtualSram, Location::Sram, weightEncoderCache);
+                CreatePlanForNode(node, Lifetime::Cascade, TraversalOrder::Xyz, inputStripe, outputStripe, 1U, 1U, 0u,
+                                  Location::VirtualSram, Location::Sram, weightEncoderCache);
                 break;
             case CompilerDataFormat::NHWC:
-                CreatePlanForNode(node, Lifetime::Atomic, caps, TraversalOrder::Xyz, inputStripe, outputStripe, 1U, 1U,
-                                  0u, Location::Sram, Location::VirtualSram, weightEncoderCache);
+                CreatePlanForNode(node, Lifetime::Cascade, TraversalOrder::Xyz, inputStripe, outputStripe, 1U, 1U, 0u,
+                                  Location::Sram, Location::VirtualSram, weightEncoderCache);
                 break;
             default:
                 throw NotSupportedException(
@@ -1030,9 +1116,9 @@ void Part::GenerateWithTraversalOrders(Node* node,
     }
     else if (IsObjectOfType<ReinterpretNode>(node))
     {
-        CreatePlanForNode(node, Lifetime::Atomic, caps, TraversalOrder::Xyz, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, 0U, 0U, 0u,
+        CreatePlanForNode(node, Lifetime::Cascade, TraversalOrder::Xyz, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, 0U, 0U, 0u,
                           Location::Dram, Location::Dram, weightEncoderCache);
-        CreatePlanForNode(node, Lifetime::Atomic, caps, TraversalOrder::Xyz, inputStripe, outputStripe, 1U, 1U, 0u,
+        CreatePlanForNode(node, Lifetime::Cascade, TraversalOrder::Xyz, inputStripe, outputStripe, 1U, 1U, 0u,
                           Location::VirtualSram, Location::VirtualSram, weightEncoderCache);
     }
 }
@@ -1059,13 +1145,13 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
         if (kernelHeight == 1)
         {
             numStripes.minInputStripes = 1;
-            numStripes.maxInputStripes = 2;
+            numStripes.maxInputStripes = numStripes.minInputStripes + 1;
         }
     }
     else if (IsObjectOfType<FuseOnlyPleOperationNode>(node))
     {
         // The input to fuse only ple operations are in ple sram and have no "stripes"
-        numStripes = { 0U, 0U, 1U, 4U, 0U, 0U };
+        numStripes = { 0U, 0U, 1U, 3U, 0U, 0U };
     }
     else if (IsObjectOfType<StandalonePleOperationNode>(node))
     {
@@ -1074,7 +1160,7 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
     else
     {
         // Format conversion and reinterpret need to be able to combine with the input of an MceOperation and the output of a FusedPleOperation
-        numStripes = { 1U, 4U, 1U, 4U, 0U, 0U };
+        numStripes = { 1U, 2U, 1U, 3U, 0U, 0U };
     }
 
     auto ApplyShapeMult = [&](TensorShape shape) {
@@ -1134,6 +1220,18 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
         TensorShape outputStripe        = CreateStripe(node->GetShape(), outputEncoding, caps);
         const TensorShape& outputShape  = node->GetShape();
         Part::NumStripes numStripesCopy = numStripes;
+
+        if (IsObjectOfType<MceOperationNode>(node))
+        {
+            auto mceNode     = GetObjectAs<MceOperationNode>(node);
+            auto kernelWidth = mceNode->GetWeightsInfo().m_Dimensions[1];
+            if (kernelWidth == 1)
+            {
+                numStripesCopy.minInputStripes = 1;
+                numStripesCopy.maxInputStripes = 2;
+            }
+        }
+
         numStripesCopy.maxWeightStripes = std::min(numStripes.maxWeightStripes, 1u);
         AddStripeInfos(inputStripe, outputStripe, numStripesCopy, inputShape, outputShape);
     }
@@ -1148,6 +1246,18 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
         TensorShape outputStripe        = CreateStripe(node->GetShape(), outputEncoding, caps);
         const TensorShape& outputShape  = node->GetShape();
         Part::NumStripes numStripesCopy = numStripes;
+
+        if (IsObjectOfType<MceOperationNode>(node))
+        {
+            auto mceNode     = GetObjectAs<MceOperationNode>(node);
+            auto kernelWidth = mceNode->GetWeightsInfo().m_Dimensions[1];
+            if (kernelWidth == 1)
+            {
+                numStripesCopy.minInputStripes = 1;
+                numStripesCopy.maxInputStripes = 2;
+            }
+        }
+
         numStripesCopy.maxWeightStripes = std::min(numStripes.maxWeightStripes, 1u);
         AddStripeInfos(inputStripe, outputStripe, numStripesCopy, inputShape, outputShape);
     }
@@ -1223,16 +1333,18 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
 
         TensorShape outputStripe        = CreateStripe(node->GetShape(), encoding, caps);
         Part::NumStripes numStripesCopy = numStripes;
+        numStripesCopy.minWeightStripes = std::min(numStripes.minWeightStripes, 1u);
         numStripesCopy.maxWeightStripes = std::min(numStripes.maxWeightStripes, 1u);
+        numStripesCopy.minInputStripes  = std::min(numStripes.minInputStripes, 1u);
         numStripesCopy.maxInputStripes  = std::min(numStripes.maxInputStripes, 1u);
+        numStripesCopy.minOutputStripes = std::min(numStripes.minOutputStripes, 1u);
         numStripesCopy.maxOutputStripes = std::min(numStripes.maxOutputStripes, 1u);
-        result.insert(Part::StripeInfos{ inputStripe, outputStripe, numStripesCopy });
+        result.insert(Part::StripeInfos{ inputStripe, outputStripe, numStripesCopy, Lifetime::Atomic });
     }
     return result;
 }
 
 void Part::GenerateWithStripeSizes(Node* node,
-                                   const HardwareCapabilities& caps,
                                    const std::vector<BlockConfig>& blockConfigs,
                                    TraversalOrder order,
                                    WeightEncoderCache& weightEncoderCache)
@@ -1240,27 +1352,26 @@ void Part::GenerateWithStripeSizes(Node* node,
     std::set<Part::StripeInfos> stripeInfos;
     for (auto blockConfig : blockConfigs)
     {
-        auto mceStripes = GenerateStripes(node, caps, blockConfig);
+        auto mceStripes = GenerateStripes(node, m_Capabilities, blockConfig);
         stripeInfos.insert(mceStripes.begin(), mceStripes.end());
     }
 
-    GenerateWithNumStripes(node, caps, order, stripeInfos, weightEncoderCache);
+    GenerateWithNumStripes(node, order, stripeInfos, weightEncoderCache);
 }
 
 void Part::GenerateWithNumStripes(Node* node,
-                                  const HardwareCapabilities& caps,
                                   TraversalOrder order,
                                   const std::set<Part::StripeInfos>& stripeInfos,
                                   WeightEncoderCache& weightEncoderCache)
 {
     if (IsObjectOfType<MceOperationNode>(node))
     {
-        GenerateWithNumStripesForLocation(node, caps, order, stripeInfos, Location::Sram, Location::PleInputSram,
+        GenerateWithNumStripesForLocation(node, order, stripeInfos, Location::Sram, Location::PleInputSram,
                                           weightEncoderCache);
     }
     else if (IsObjectOfType<FuseOnlyPleOperationNode>(node))
     {
-        GenerateWithNumStripesForLocation(node, caps, order, stripeInfos, Location::PleInputSram, Location::Sram,
+        GenerateWithNumStripesForLocation(node, order, stripeInfos, Location::PleInputSram, Location::Sram,
                                           weightEncoderCache);
     }
     else if (IsObjectOfType<FormatConversionNode>(node))
@@ -1269,11 +1380,11 @@ void Part::GenerateWithNumStripes(Node* node,
         switch (format)
         {
             case CompilerDataFormat::NHWC:
-                GenerateWithNumStripesForLocation(node, caps, order, stripeInfos, Location::Sram, Location::Dram,
+                GenerateWithNumStripesForLocation(node, order, stripeInfos, Location::Sram, Location::Dram,
                                                   weightEncoderCache);
                 break;
             case CompilerDataFormat::NHWCB:
-                GenerateWithNumStripesForLocation(node, caps, order, stripeInfos, Location::Dram, Location::Sram,
+                GenerateWithNumStripesForLocation(node, order, stripeInfos, Location::Dram, Location::Sram,
                                                   weightEncoderCache);
                 break;
             default:
@@ -1283,7 +1394,6 @@ void Part::GenerateWithNumStripes(Node* node,
 }
 
 void Part::GenerateWithNumStripesForLocation(Node* node,
-                                             const HardwareCapabilities& caps,
                                              TraversalOrder order,
                                              const std::set<Part::StripeInfos>& stripeInfos,
                                              Location inputBufferLocaton,
@@ -1314,7 +1424,7 @@ void Part::GenerateWithNumStripesForLocation(Node* node,
                 for (auto numWeightStripes = stripeInfosI.m_NumStripes.minWeightStripes;
                      numWeightStripes <= stripeInfosI.m_NumStripes.maxWeightStripes; ++numWeightStripes)
                 {
-                    CreatePlanForNode(node, Lifetime::Atomic, caps, order, stripeInfosI.m_InputStripeShape,
+                    CreatePlanForNode(node, stripeInfosI.m_Lifetime, order, stripeInfosI.m_InputStripeShape,
                                       stripeInfosI.m_OutputStripeShape, numInputStripes, numOutputStripes,
                                       numWeightStripes, inputBufferLocaton, outputBufferLocation, weightEncoderCache);
                 }

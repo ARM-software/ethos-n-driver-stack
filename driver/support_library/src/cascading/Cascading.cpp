@@ -7,22 +7,26 @@
 
 #include "../Graph.hpp"
 #include "../GraphNodes.hpp"
-#include "../McePlePass.hpp"
 #include "../Utils.hpp"
 #include "DebuggingContext.hpp"
 #include "Estimation.hpp"
 #include "Part.hpp"
 
 #include "../include/ethosn_support_library/Optional.hpp"
+#include <ethosn_utils/Filesystem.hpp>
 
 #include <fstream>
 #include <iostream>
 
 using namespace std;
+using namespace ethosn::utils;
 
 namespace ethosn
 {
 namespace support_library
+{
+
+namespace
 {
 
 template <typename T>
@@ -31,7 +35,42 @@ bool IsNodeOfType(const Node* node)
     return (dynamic_cast<const T*>(node) != nullptr);
 }
 
-GraphOfParts CreateGraphOfParts(const Graph& graph)
+void SaveDebugFilesForUnestimatedCombination(std::string folder,
+                                             const DebuggingContext& debuggingContext,
+                                             const Combination& comb,
+                                             const OpGraph& opGraph,
+                                             const GraphOfParts& graphOfParts)
+{
+    MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
+
+    debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, graphOfParts,
+                                          folder + "/Simple.dot", DetailLevel::Low);
+    debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, graphOfParts,
+                                          folder + "/Detailed.dot", DetailLevel::High);
+
+    debuggingContext.SaveOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, folder + "/MergedSimple.dot",
+                                      DetailLevel::Low);
+    debuggingContext.SaveOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, folder + "/MergedDetailed.dot",
+                                      DetailLevel::High);
+}
+
+void SaveDebugFilesForEstimatedCombination(std::string folder,
+                                           const DebuggingContext& debuggingContext,
+                                           const OpGraph& opGraph,
+                                           const EstimatedOpGraph& estimationDetails)
+{
+    MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
+
+    debuggingContext.SaveEstimatedOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, estimationDetails,
+                                               folder + "/Estimated.dot", DetailLevel::High);
+}
+
+}    // namespace
+
+GraphOfParts CreateGraphOfParts(const Graph& graph,
+                                const EstimationOptions& estOpt,
+                                const CompilationOptions& compOpt,
+                                const HardwareCapabilities& capabilities)
 {
     GraphOfParts graphOfParts;
     Parts& parts = graphOfParts.m_Parts;
@@ -39,7 +78,7 @@ GraphOfParts CreateGraphOfParts(const Graph& graph)
     auto AddNodeToPart    = [](Node* node, Part& part) -> void { part.m_SubGraph.push_back(node); };
     auto AddNodeToNewPart = [&](Node* node) -> void {
         // Insert node into new part.
-        parts.push_back(std::make_unique<Part>());
+        parts.push_back(std::make_unique<Part>(estOpt, compOpt, capabilities));
         AddNodeToPart(node, *(parts.back()));
     };
     auto FindPartFromSourceAndAddNode = [&](Node* ppOpNode) -> void {
@@ -109,20 +148,21 @@ GraphOfParts CreateGraphOfParts(const Graph& graph)
     return graphOfParts;
 }
 
-void CreatePlans(Parts& parts, const HardwareCapabilities& caps)
+void CreatePlans(Parts& parts)
 {
     for (auto& part : parts)
     {
-        part->CreatePlans(caps);
+        part->CreatePlans();
     }
 
     return;
 }
 
 Cascading::Cascading(const EstimationOptions& estOpt,
-                     const HardwareCapabilities& hwCap,
-                     const DebuggingContext& debuggingContext)
-    : IEstimationStrategy(estOpt, hwCap, debuggingContext)
+                     const CompilationOptions& compOpt,
+                     const HardwareCapabilities& hwCap)
+    : IEstimationStrategy(estOpt, compOpt, hwCap)
+    , m_BestCombination(nullptr)
 {
     // Constructor
 }
@@ -132,48 +172,47 @@ Cascading::~Cascading()
 
 NetworkPerformanceData Cascading::Estimate(Graph& graph)
 {
-    m_GraphOfParts = CreateGraphOfParts(graph);
+    m_GraphOfParts = CreateGraphOfParts(graph, m_EstimationOptions, m_CompilationOptions, m_Capabilities);
 
-    m_DebuggingContext.SaveGraphToDot(graph, &m_GraphOfParts, "Cascaded_GraphOfParts.dot", DetailLevel::Low);
-    m_DebuggingContext.SaveGraphToDot(graph, &m_GraphOfParts, "Cascaded_GraphOfPartsDetailed.dot", DetailLevel::High);
+    m_DebuggingContext.SaveGraphToDot(CompilationOptions::DebugLevel::Medium, graph, &m_GraphOfParts,
+                                      "Cascaded_GraphOfParts.dot", DetailLevel::Low);
+    m_DebuggingContext.SaveGraphToDot(CompilationOptions::DebugLevel::Medium, graph, &m_GraphOfParts,
+                                      "Cascaded_GraphOfPartsDetailed.dot", DetailLevel::High);
 
-    CreatePlans(m_GraphOfParts.m_Parts, m_Capabilities);
+    CreatePlans(m_GraphOfParts.m_Parts);
 
-    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles)
+    if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
     {
         std::ofstream debugPlanCountsDumpFile(
             m_DebuggingContext.GetAbsolutePathOutputFileName("Cascaded_PlanCounts.txt"));
 
+        MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("Parts").c_str());
+
         for (auto&& part : m_GraphOfParts.m_Parts)
         {
+            std::string folder = "Parts/" + part->m_DebugTag;
+            MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
+
             debugPlanCountsDumpFile << part->m_DebugTag << ": " << part->GetNumPlans() << std::endl;
 
-            m_DebuggingContext.SavePlansToDot(*part, "Cascaded_" + part->m_DebugTag + " Plans.dot", DetailLevel::Low);
-            m_DebuggingContext.SavePlansToDot(*part, "Cascaded_" + part->m_DebugTag + " PlansDetailed.dot",
-                                              DetailLevel::High);
+            m_DebuggingContext.SavePlansToDot(CompilationOptions::DebugLevel::Medium, *part, folder + "/Plans.dot",
+                                              DetailLevel::Low);
+            m_DebuggingContext.SavePlansToDot(CompilationOptions::DebugLevel::Medium, *part,
+                                              folder + "/PlansDetailed.dot", DetailLevel::High);
         }
     }
 
     m_ValidCombinations = Combine(m_GraphOfParts);
 
-    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles)
+    if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
     {
+        MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("Combinations").c_str());
         uint32_t counter = 0;
         for (const Combination& comb : m_ValidCombinations)
         {
-            m_DebuggingContext.SaveCombinationToDot(
-                comb, m_GraphOfParts, std::string("Cascaded_Combination") + std::to_string(counter) + ".dot",
-                DetailLevel::Low);
-            m_DebuggingContext.SaveCombinationToDot(
-                comb, m_GraphOfParts, std::string("Cascaded_Combination") + std::to_string(counter) + "Detailed.dot",
-                DetailLevel::High);
-
-            OpGraph g = GetOpGraphForCombination(comb, m_GraphOfParts);
-            m_DebuggingContext.SaveOpGraphToDot(
-                g, std::string("Cascaded_Combination") + std::to_string(counter) + "Merged.dot", DetailLevel::Low);
-            m_DebuggingContext.SaveOpGraphToDot(
-                g, std::string("Cascaded_Combination") + std::to_string(counter) + "MergedDetailed.dot",
-                DetailLevel::High);
+            std::string folder = "Combinations/" + std::to_string(counter);
+            OpGraph g          = GetOpGraphForCombination(comb, m_GraphOfParts);
+            SaveDebugFilesForUnestimatedCombination(folder, m_DebuggingContext, comb, g, m_GraphOfParts);
             ++counter;
         }
     }
@@ -187,15 +226,20 @@ NetworkPerformanceData Cascading::Estimate(Graph& graph)
     return m_PerformanceStream;
 }
 
-const GraphOfParts& Cascading::getGraphOfParts() const
+const GraphOfParts& Cascading::GetGraphOfParts() const
 {
     return m_GraphOfParts;
+}
+
+const ethosn::support_library::Combination* Cascading::GetBestCombination()
+{
+    return m_BestCombination;
 }
 
 void Cascading::EstimatePerformance()
 {
     std::ofstream debugPerformanceDumpFile;
-    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles)
+    if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
     {
         debugPerformanceDumpFile.open(m_DebuggingContext.GetAbsolutePathOutputFileName("Cascaded_Performance.txt"));
     }
@@ -205,24 +249,33 @@ void Cascading::EstimatePerformance()
     {
         try
         {
-            NetworkPerformanceData curNetPerfData = EstimateCombination(combination);
+            OpGraph combiOpGraph = GetOpGraphForCombination(combination, m_GraphOfParts);
+            EstimatedOpGraph curNetPerfData =
+                ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Capabilities, GetEstimationOptions());
 
-            if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles)
+            if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
             {
-                debugPerformanceDumpFile << combinationIdx << ": " << utils::GetMetric(curNetPerfData) << std::endl;
+                debugPerformanceDumpFile << combinationIdx << ": " << utils::GetMetric(curNetPerfData.m_PerfData)
+                                         << std::endl;
+                if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+                {
+                    std::string folder = "Combinations/" + std::to_string(combinationIdx);
+                    SaveDebugFilesForEstimatedCombination(folder, m_DebuggingContext, combiOpGraph, curNetPerfData);
+                }
             }
 
             if (!bestCombinationIdx.has_value() ||
-                utils::IsLeftMoreDataPerformantThanRight(curNetPerfData, m_PerformanceStream))
+                utils::IsLeftMoreDataPerformantThanRight(curNetPerfData.m_PerfData, m_PerformanceStream))
             {
-                m_PerformanceStream = curNetPerfData;
+                m_PerformanceStream = curNetPerfData.m_PerfData;
+                m_BestCombination   = &combination;
                 bestCombinationIdx  = combinationIdx;
             }
         }
         catch (const NotSupportedException& e)
         {
             // Ignore this combination - others may still be valid
-            if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles)
+            if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
             {
                 debugPerformanceDumpFile << combinationIdx << ": Error: " << e.what() << std::endl;
             }
@@ -231,19 +284,27 @@ void Cascading::EstimatePerformance()
         ++combinationIdx;
     }
 
-    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles)
+    if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
     {
         debugPerformanceDumpFile << "\nBest: "
                                  << (bestCombinationIdx.has_value() ? std::to_string(bestCombinationIdx.value())
                                                                     : "NONE")
                                  << std::endl;
-    }
-}
 
-NetworkPerformanceData Cascading::EstimateCombination(const Combination& combination)
-{
-    OpGraph combiOpGraph = GetOpGraphForCombination(combination, m_GraphOfParts);
-    return ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Capabilities, GetEstimationOptions());
+        // Save the details of the best combination. Note this is done at Medium debug level, so we do this even though
+        // we save out details for ALL the combinations on High debug level.
+        if (bestCombinationIdx.has_value())
+        {
+            MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("Combinations").c_str());
+            std::string folder   = "Combinations/Best(" + std::to_string(bestCombinationIdx.value()) + ")";
+            OpGraph combiOpGraph = GetOpGraphForCombination(*m_BestCombination, m_GraphOfParts);
+            EstimatedOpGraph curNetPerfData =
+                ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Capabilities, GetEstimationOptions());
+            SaveDebugFilesForUnestimatedCombination(folder, m_DebuggingContext, *m_BestCombination, combiOpGraph,
+                                                    m_GraphOfParts);
+            SaveDebugFilesForEstimatedCombination(folder, m_DebuggingContext, combiOpGraph, curNetPerfData);
+        }
+    }
 }
 
 }    // namespace support_library

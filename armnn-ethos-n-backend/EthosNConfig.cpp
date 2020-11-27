@@ -5,11 +5,61 @@
 #include "EthosNConfig.hpp"
 
 #include <armnn/Exceptions.hpp>
-#include <boost/lexical_cast.hpp>
 
 #include <cstdlib>
 #include <fstream>
 #include <regex>
+
+namespace
+{
+
+bool TryConvertToBool(std::ssub_match submatch, const std::string& line, const size_t lineNo)
+{
+    if (submatch != "1" && submatch != "0")
+    {
+        throw armnn::Exception("Unable to convert to boolean in config file on line " + std::to_string(lineNo) + ": " +
+                               line);
+    }
+    return submatch == "1";
+}
+
+float TryConvertToFloat(std::ssub_match submatch, const std::string& line, const size_t lineNo)
+{
+    try
+    {
+        return std::stof(submatch);
+    }
+    catch (std::invalid_argument&)
+    {
+        throw armnn::Exception("Unable to convert to float in config file on line " + std::to_string(lineNo) + ": " +
+                               line);
+    }
+    catch (std::out_of_range&)
+    {
+        throw armnn::Exception("Floating point out of range in config file on line " + std::to_string(lineNo) + ": " +
+                               line);
+    }
+}
+
+uint32_t TryConvertToUnsigned(std::ssub_match submatch, const std::string& line, const size_t lineNo)
+{
+    try
+    {
+        return static_cast<uint32_t>(std::stoul(submatch));
+    }
+    catch (std::invalid_argument&)
+    {
+        throw armnn::Exception("Unable to convert to unsigned integer in config file on line " +
+                               std::to_string(lineNo) + ": " + line);
+    }
+    catch (std::out_of_range&)
+    {
+        throw armnn::Exception("Unsigned integer out of range in config file on line " + std::to_string(lineNo) + ": " +
+                               line);
+    }
+}
+
+}    // namespace
 
 namespace armnn
 {
@@ -21,10 +71,12 @@ constexpr char EthosNConfig::PERF_SRAM_SIZE_BYTES_OVERRIDE_VAR[];
 constexpr char EthosNConfig::PERF_MAPPING_FILE_VAR[];
 constexpr char EthosNConfig::PERF_OUT_DIR_VAR[];
 constexpr char EthosNConfig::DUMP_DEBUG_FILES_VAR[];
+constexpr char EthosNConfig::DUMP_RAM_VAR[];
 constexpr char EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING[];
 constexpr char EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING[];
 constexpr char EthosNConfig::PERF_CURRENT[];
 constexpr char EthosNConfig::COMPILER_ALGORITHM[];
+constexpr char EthosNConfig::INTERMEDIATE_COMPRESSION[];
 
 EthosNConfig GetEthosNConfig()
 {
@@ -52,6 +104,7 @@ std::ostream& operator<<(std::ostream& configFile, const armnn::EthosNConfig& co
     configFile << armnn::EthosNConfig::PERF_OUT_DIR_VAR << " = " << config.m_PerfOutDir << std::endl;
     configFile << armnn::EthosNConfig::PERF_MAPPING_FILE_VAR << " = " << config.m_PerfMappingFile << std::endl;
     configFile << armnn::EthosNConfig::DUMP_DEBUG_FILES_VAR << " = " << config.m_DumpDebugFiles << std::endl;
+    configFile << armnn::EthosNConfig::DUMP_RAM_VAR << " = " << config.m_DumpRam << std::endl;
     configFile << armnn::EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING << " = " << config.m_PerfWeightCompressionSaving
                << std::endl;
     configFile << armnn::EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING << " = "
@@ -62,6 +115,8 @@ std::ostream& operator<<(std::ostream& configFile, const armnn::EthosNConfig& co
         configFile << armnn::EthosNConfig::COMPILER_ALGORITHM << " = "
                    << ethosn::support_library::EthosNCompilerAlgorithmAsString(config.m_CompilerAlgorithm) << std::endl;
     }
+    configFile << armnn::EthosNConfig::INTERMEDIATE_COMPRESSION << " = " << config.m_IntermediateCompression
+               << std::endl;
     configFile.flush();
 
     return configFile;
@@ -77,6 +132,11 @@ std::istream& operator>>(std::istream& configFile, armnn::EthosNConfig& config)
 
         for (size_t lineNo = 1; std::getline(configFile, line); ++lineNo)
         {
+            if (line.empty() || line[0] == '#')
+            {
+                continue;
+            }
+
             std::smatch m;
 
             if (!std::regex_match(line, m, varAssignRegex))
@@ -87,7 +147,7 @@ std::istream& operator>>(std::istream& configFile, armnn::EthosNConfig& config)
             {
                 if (m[1] == armnn::EthosNConfig::PERF_ONLY_VAR)
                 {
-                    config.m_PerfOnly = boost::lexical_cast<bool>(m[2]);
+                    config.m_PerfOnly = TryConvertToBool(m[2], line, lineNo);
                 }
                 else if (m[1] == armnn::EthosNConfig::PERF_VARIANT_VAR)
                 {
@@ -108,7 +168,7 @@ std::istream& operator>>(std::istream& configFile, armnn::EthosNConfig& config)
                 }
                 else if (m[1] == armnn::EthosNConfig::PERF_SRAM_SIZE_BYTES_OVERRIDE_VAR)
                 {
-                    config.m_PerfSramSizeBytesOverride = boost::lexical_cast<uint32_t>(m[2]);
+                    config.m_PerfSramSizeBytesOverride = TryConvertToUnsigned(m[2], line, lineNo);
                 }
                 else if (m[1] == armnn::EthosNConfig::PERF_OUT_DIR_VAR)
                 {
@@ -120,20 +180,24 @@ std::istream& operator>>(std::istream& configFile, armnn::EthosNConfig& config)
                 }
                 else if (m[1] == armnn::EthosNConfig::DUMP_DEBUG_FILES_VAR)
                 {
-                    config.m_DumpDebugFiles = boost::lexical_cast<bool>(m[2]);
+                    config.m_DumpDebugFiles = TryConvertToBool(m[2], line, lineNo);
+                }
+                else if (m[1] == armnn::EthosNConfig::DUMP_RAM_VAR)
+                {
+                    config.m_DumpRam = TryConvertToBool(m[2], line, lineNo);
                 }
                 else if (m[1] == armnn::EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING)
                 {
-                    config.m_PerfActivationCompressionSaving = boost::lexical_cast<float>(m[2]);
+                    config.m_PerfActivationCompressionSaving = TryConvertToFloat(m[2], line, lineNo);
                 }
                 else if (m[1] == armnn::EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING)
                 {
                     config.m_PerfUseWeightCompressionOverride = true;
-                    config.m_PerfWeightCompressionSaving      = boost::lexical_cast<float>(m[2]);
+                    config.m_PerfWeightCompressionSaving      = TryConvertToFloat(m[2], line, lineNo);
                 }
                 else if (m[1] == armnn::EthosNConfig::PERF_CURRENT)
                 {
-                    config.m_PerfCurrent = boost::lexical_cast<bool>(m[2]);
+                    config.m_PerfCurrent = TryConvertToBool(m[2], line, lineNo);
                 }
                 else if (m[1] == armnn::EthosNConfig::COMPILER_ALGORITHM)
                 {
@@ -152,6 +216,10 @@ std::istream& operator>>(std::istream& configFile, armnn::EthosNConfig& config)
 #undef X
                         );
                     }
+                }
+                else if (m[1] == armnn::EthosNConfig::INTERMEDIATE_COMPRESSION)
+                {
+                    config.m_IntermediateCompression = TryConvertToBool(m[2], line, lineNo);
                 }
                 else
                 {

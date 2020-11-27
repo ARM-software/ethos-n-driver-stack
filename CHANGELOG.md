@@ -1,5 +1,34 @@
 # Changelog
 
+## 20.11
+
+### New Features
+
+- Support for Arm NN 20.11.
+- Support for Quantize operator.
+- Support for Leaky Relu on Ethos-N78.
+- Remove restriction on tensor size for transpose convolution operator.
+- Support for concatenation with shared inputs, e.g. used in Yolo v3
+
+### Public API changes
+
+- Support Library: IsSupported APIs changed from pure functions to class methods APIs to hold context of SwHw capabilities.
+- Support Library: CompileOptions constructor does not take argument any longer.
+- Support Library: Capabilities passed through the Network object to Compile and Estimate.
+
+### Other changes
+
+- Improve accuracy for addition with different input quantization parameters.
+- Recommended GNU C/C++ compiler version updated to 7.5.0 in README.
+- Fixed bug that could lead to incorrect output when using Relu with signed inputs.
+- Support for no op network. e.g. Input → Output or Input → Reshape → Output
+- Improved support for layers with large widths or depths.
+- Added IsSupported checks for max depth of input and output tensors.
+
+### Known issues
+
+- None
+
 ## 20.08
 
 ### New Features

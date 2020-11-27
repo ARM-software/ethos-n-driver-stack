@@ -41,11 +41,12 @@ public:
             MB_RDWR,
         };
 
-        int ethosnFd = open(STRINGIZE_VALUE_OF(DEVICE_NODE), O_RDONLY);
+        int ethosnFd = open(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE), O_RDONLY);
         if (ethosnFd < 0)
         {
-            throw std::runtime_error(std::string("Unable to open ") + std::string(STRINGIZE_VALUE_OF(DEVICE_NODE)) +
-                                     std::string(": ") + strerror(errno));
+            throw std::runtime_error(std::string("Unable to open ") +
+                                     std::string(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE)) + std::string(": ") +
+                                     strerror(errno));
         }
 
         m_BufferFd = ioctl(ethosnFd, ETHOSN_IOCTL_CREATE_BUFFER, &outputBufReq);

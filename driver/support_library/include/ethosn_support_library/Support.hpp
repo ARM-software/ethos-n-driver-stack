@@ -36,6 +36,7 @@ class Input;
 class Output;
 class Operand;
 class Constant;
+class SupportQueries;
 
 struct Version
 {
@@ -67,21 +68,21 @@ CompilerAlgorithm EthosNCompilerAlgorithmFromString(const char* mode);
 
 struct CompilationOptions
 {
+    enum class DebugLevel
+    {
+        None,
+        Medium,
+        High,
+    };
+
     struct DebugInfo
     {
-        bool m_DumpDebugFiles  = false;
-        std::string m_DebugDir = ".";
-        bool m_DumpRam         = false;
-        bool m_InitialSramDump = false;
+        DebugLevel m_DumpDebugFiles = DebugLevel::None;
+        std::string m_DebugDir      = ".";
+        bool m_DumpRam              = false;
+        bool m_InitialSramDump      = false;
     };
-    explicit CompilationOptions(const std::vector<char>& fwAndHwCapabilities)
-        : m_FwAndHwCapabilities(fwAndHwCapabilities)
-    {}
 
-    /// An opaque block of data containing the capabilities of the hardware and the firmware.
-    /// This should be obtained from the Driver Library's GetFirmwareAndHardwareCapabilities() API.
-    /// Note that the size and format of this data may vary depending on the version of the hardware/firmware.
-    std::vector<char> m_FwAndHwCapabilities;
     bool m_Strategy0                     = true;
     bool m_Strategy1                     = true;
     bool m_Strategy3                     = true;
@@ -96,6 +97,10 @@ struct CompilationOptions
     bool m_BlockConfig8x8                = true;
     bool m_EnableIntermediateCompression = true;
     bool m_DisableWinograd               = false;
+
+    bool m_StrictPrecision =
+        false;    // Set this to true to create a more precise but slower compiled network. At the moment this will disable the concat optimization.
+
     /// If enabled, files containing details of the compilation process will be dumped to m_DebugDir.
     /// These can be helpful for debugging compilation issues.
     DebugInfo m_DebugInfo;
@@ -335,173 +340,80 @@ enum class ResizeAlgorithm
 };
 
 // QuantizationScales vector supporting per element and scalar multiplication
-struct QuantizationScales
+struct QuantizationScales : public std::valarray<float>
 {
 public:
-    QuantizationScales()
-        : QuantizationScales(1.0f)
-    {}
-    QuantizationScales(float scalar, std::size_t size = 1)
-        : m_Scales(scalar, size)
-    {}
-    QuantizationScales(const std::vector<float>& vect)
-        : m_Scales(vect.data(), vect.size())
-    {}
-    QuantizationScales(const std::initializer_list<float>& list)
-        : m_Scales(list)
+    // Inherit valarray constructors
+    using std::valarray<float>::valarray;
+
+    QuantizationScales(std::valarray<float>&& rhs)
+        : std::valarray<float>(std::move(rhs))
     {}
 
-    std::vector<float> ToVector()
-    {
-        return std::vector<float>(std::begin(m_Scales), std::end(m_Scales));
-    }
-
-    bool IsScalar() const
-    {
-        return Size() == 1;
-    }
-
-    QuantizationScales& operator/=(const QuantizationScales& rhs);
-    QuantizationScales& operator/=(float rhs)
-    {
-        m_Scales /= rhs;
-
-        return *this;
-    }
-
-    QuantizationScales& operator*=(const QuantizationScales& rhs);
-    QuantizationScales& operator*=(float rhs)
-    {
-        m_Scales *= rhs;
-
-        return *this;
-    }
-
-    std::size_t Size() const
-    {
-        return m_Scales.size();
-    }
-
-    float& operator[](std::size_t idx)
-    {
-        return m_Scales[idx];
-    }
-    const float& operator[](std::size_t idx) const
-    {
-        return m_Scales[idx];
-    }
-
-    bool operator==(const QuantizationScales& rhs) const
-    {
-        if (Size() != rhs.Size())
-        {
-            return false;
-        }
-
-        return std::equal(std::begin(m_Scales), std::end(m_Scales), std::begin(rhs.m_Scales));
-    }
-
-    bool operator!=(const QuantizationScales& rhs) const
-    {
-        return !(*this == rhs);
-    }
-
-public:
-    std::valarray<float> m_Scales;
+    explicit QuantizationScales(const std::vector<float>& vect)
+        : std::valarray<float>(vect.data(), vect.size())
+    {}
 };
 
-QuantizationScales operator/(const QuantizationScales& lhs, const QuantizationScales& rhs);
-QuantizationScales operator/(const QuantizationScales& lhs, float rhs);
-QuantizationScales operator/(float lhs, const QuantizationScales& rhs);
+// QuantizationScales operator overloads to support boolean comparison
+bool operator==(const QuantizationScales& lhs, const QuantizationScales& rhs);
+bool operator!=(const QuantizationScales& lhs, const QuantizationScales& rhs);
 
+// QuantizationScales operator overloads to support scalar scales operations
+QuantizationScales operator/(const QuantizationScales& lhs, const QuantizationScales& rhs);
 QuantizationScales operator*(const QuantizationScales& lhs, const QuantizationScales& rhs);
-QuantizationScales operator*(const QuantizationScales& lhs, float rhs);
-QuantizationScales operator*(float lhs, const QuantizationScales& rhs);
 
 // Scale and zero point for quantized asymmetric values
 struct QuantizationInfo
 {
     using QuantizationDim = utils::Optional<uint32_t>;
 
-    constexpr QuantizationInfo()
-    {
-        m_QuantizationDim = std::make_unique<QuantizationDim>();
-        m_Scales          = std::make_unique<QuantizationScales>(1.0f);
-    }
+    QuantizationInfo()
+        : m_ZeroPoint(0)
+        , m_Scales(1.0f, 1)
+        , m_QuantizationDim()
+    {}
 
-    constexpr explicit QuantizationInfo(const float scale)
-        : QuantizationInfo()
-    {
-        QuantizationScales& scales = (*m_Scales);
-        scales[0]                  = scale;
-    }
+    explicit QuantizationInfo(const float scale)
+        : m_ZeroPoint(0)
+        , m_Scales(scale, 1)
+        , m_QuantizationDim()
+    {}
 
-    constexpr QuantizationInfo(const QuantizationScales& scales)
-        : QuantizationInfo()
-    {
-        *m_Scales = scales;
-    }
+    explicit QuantizationInfo(const QuantizationScales& scales)
+        : m_ZeroPoint(0)
+        , m_Scales(scales)
+        , m_QuantizationDim()
+    {}
 
-    constexpr QuantizationInfo(QuantizationScales&& scales)
-        : QuantizationInfo()
-    {
-        *m_Scales = std::move(scales);
-    }
+    explicit QuantizationInfo(const int32_t zeroPoint)
+        : m_ZeroPoint(zeroPoint)
+        , m_Scales(1.0f, 1)
+        , m_QuantizationDim()
+    {}
 
-    constexpr QuantizationInfo(const int32_t zeroPoint, const float scale = 1.0f)
-        : QuantizationInfo(scale)
-    {
-        m_ZeroPoint = zeroPoint;
-    }
+    QuantizationInfo(const int32_t zeroPoint, const float scale)
+        : m_ZeroPoint(zeroPoint)
+        , m_Scales(scale, 1)
+        , m_QuantizationDim()
+    {}
 
-    constexpr QuantizationInfo(const int32_t zeroPoint, const QuantizationScales& scales)
-        : QuantizationInfo(scales)
-    {
-        m_ZeroPoint = zeroPoint;
-    }
+    QuantizationInfo(const int32_t zeroPoint, const QuantizationScales& scales)
+        : m_ZeroPoint(zeroPoint)
+        , m_Scales(scales)
+        , m_QuantizationDim()
+    {}
 
-    constexpr QuantizationInfo(const int32_t zeroPoint, QuantizationScales&& scales)
-        : QuantizationInfo(std::move(scales))
-    {
-        m_ZeroPoint = zeroPoint;
-    }
-
-    constexpr QuantizationInfo(const QuantizationInfo& quantizationInfo)
-        : QuantizationInfo()
-    {
-        m_ZeroPoint        = quantizationInfo.m_ZeroPoint;
-        *m_Scales          = *quantizationInfo.m_Scales;
-        *m_QuantizationDim = *quantizationInfo.m_QuantizationDim;
-    }
-
-    constexpr QuantizationInfo(QuantizationInfo&& quantizationInfo)
-        : QuantizationInfo()
-    {
-        m_ZeroPoint       = quantizationInfo.m_ZeroPoint;
-        m_Scales          = std::move(quantizationInfo.m_Scales);
-        m_QuantizationDim = std::move(quantizationInfo.m_QuantizationDim);
-    }
-
-    QuantizationInfo& operator=(const QuantizationInfo& quantizationInfo)
-    {
-        this->m_ZeroPoint        = quantizationInfo.m_ZeroPoint;
-        *this->m_Scales          = *quantizationInfo.m_Scales;
-        *this->m_QuantizationDim = *quantizationInfo.m_QuantizationDim;
-        return *this;
-    }
-
-    QuantizationInfo& operator=(QuantizationInfo&& quantizationInfo)
-    {
-        this->m_ZeroPoint       = quantizationInfo.m_ZeroPoint;
-        this->m_Scales          = std::move(quantizationInfo.m_Scales);
-        this->m_QuantizationDim = std::move(quantizationInfo.m_QuantizationDim);
-        return *this;
-    }
+    QuantizationInfo(const int32_t zeroPoint, const QuantizationScales& scales, uint32_t dim)
+        : m_ZeroPoint(zeroPoint)
+        , m_Scales(scales)
+        , m_QuantizationDim(dim)
+    {}
 
     bool operator==(const QuantizationInfo& quantizationInfo) const
     {
-        return (m_ZeroPoint == quantizationInfo.m_ZeroPoint) && (*m_Scales == *quantizationInfo.m_Scales) &&
-               (*m_QuantizationDim == *quantizationInfo.m_QuantizationDim);
+        return (m_ZeroPoint == quantizationInfo.m_ZeroPoint) && (m_Scales == quantizationInfo.m_Scales) &&
+               (m_QuantizationDim == quantizationInfo.m_QuantizationDim);
     }
 
     bool operator!=(const QuantizationInfo& rhs) const
@@ -521,50 +433,50 @@ struct QuantizationInfo
 
     float GetScale() const
     {
-        assert(m_Scales->IsScalar());
-        return (*m_Scales)[0];
+        assert(m_Scales.size() == 1);
+        return m_Scales[0];
     }
 
     float GetScale(std::size_t index) const
     {
-        return (*m_Scales)[index];
+        return m_Scales[index];
     }
 
     void SetScale(float scale)
     {
-        assert(m_Scales->IsScalar());
-        (*m_Scales)[0] = scale;
+        assert(m_Scales.size() == 1);
+        m_Scales[0] = scale;
     }
 
     const QuantizationScales& GetScales() const
     {
-        return *m_Scales;
+        return m_Scales;
     }
 
     void SetScales(const QuantizationScales& scales)
     {
-        *m_Scales = scales;
+        m_Scales = scales;
     }
 
-    void SetScales(QuantizationScales&& scales)
+    void SetScales(const std::vector<float>& scales)
     {
-        *m_Scales = std::move(scales);
+        m_Scales = QuantizationScales(scales.data(), scales.size());
     }
 
     QuantizationDim GetQuantizationDim() const
     {
-        return *m_QuantizationDim;
+        return m_QuantizationDim;
     }
 
     void SetQuantizationDim(unsigned int quantizationDim)
     {
-        *m_QuantizationDim = quantizationDim;
+        m_QuantizationDim = quantizationDim;
     }
 
 private:
-    int32_t m_ZeroPoint = { 0 };
-    std::unique_ptr<QuantizationScales> m_Scales;
-    std::unique_ptr<QuantizationDim> m_QuantizationDim;
+    int32_t m_ZeroPoint;
+    QuantizationScales m_Scales;
+    QuantizationDim m_QuantizationDim;
 };
 
 using TensorShape = std::array<uint32_t, 4>;
@@ -572,10 +484,10 @@ using TensorShape = std::array<uint32_t, 4>;
 // Tensor dimensions, data format and quantization info
 struct TensorInfo
 {
-    constexpr TensorInfo(const TensorShape& dims       = {},
-                         DataType dataType             = DataType::UINT8_QUANTIZED,
-                         DataFormat dataFormat         = DataFormat::NHWC,
-                         const QuantizationInfo& qInfo = {})
+    TensorInfo(const TensorShape& dims       = {},
+               DataType dataType             = DataType::UINT8_QUANTIZED,
+               DataFormat dataFormat         = DataFormat::NHWC,
+               const QuantizationInfo& qInfo = {})
         : m_Dimensions(dims)
         , m_DataType(dataType)
         , m_DataFormat(dataFormat)
@@ -648,9 +560,7 @@ struct Stride
 // Parameters that specify a convolution operation
 struct ConvolutionInfo
 {
-    constexpr ConvolutionInfo(const Padding& padding        = {},
-                              const Stride& stride          = {},
-                              const QuantizationInfo& qInfo = {})
+    ConvolutionInfo(const Padding& padding = {}, const Stride& stride = {}, const QuantizationInfo& qInfo = {})
         : m_Padding(padding)
         , m_Stride(stride)
         , m_OutputQuantizationInfo(qInfo)
@@ -675,7 +585,7 @@ struct ConvolutionInfo
 // Parameters that specify a fully connected operation
 struct FullyConnectedInfo
 {
-    constexpr FullyConnectedInfo(const QuantizationInfo& qInfo = {})
+    FullyConnectedInfo(const QuantizationInfo& qInfo = {})
         : m_OutputQuantizationInfo(qInfo)
     {}
 
@@ -705,19 +615,22 @@ struct ReluInfo
         return !(*this == rhs);
     }
 
+    /// The bounds of the relu, specified in the quantised space of the input to the Relu operation.
+    /// @{
     int16_t m_LowerBound;
     int16_t m_UpperBound;
+    /// @}
 };
 
 // Parameters that specify a LeakyRelu operation
 struct LeakyReluInfo
 {
-    constexpr LeakyReluInfo()
+    LeakyReluInfo()
         : m_Alpha(0.01f)
         , m_OutputQuantizationInfo()
     {}
 
-    constexpr LeakyReluInfo(const float alpha, const QuantizationInfo& qInfo)
+    LeakyReluInfo(const float alpha, const QuantizationInfo& qInfo)
         : m_Alpha(alpha)
         , m_OutputQuantizationInfo(qInfo)
     {}
@@ -739,11 +652,11 @@ struct LeakyReluInfo
 // Parameters that specify a Requantize operation
 struct RequantizeInfo
 {
-    constexpr RequantizeInfo()
+    RequantizeInfo()
         : m_OutputQuantizationInfo()
     {}
 
-    constexpr RequantizeInfo(const QuantizationInfo& qInfo)
+    RequantizeInfo(const QuantizationInfo& qInfo)
         : m_OutputQuantizationInfo(qInfo)
     {}
 
@@ -799,7 +712,7 @@ struct PoolingInfo
 
 struct ConcatenationInfo
 {
-    constexpr ConcatenationInfo(uint32_t axis, const QuantizationInfo& qInfo)
+    ConcatenationInfo(uint32_t axis, const QuantizationInfo& qInfo)
         : m_Axis(axis)
         , m_OutputQuantizationInfo(qInfo)
     {}
@@ -1123,6 +1036,10 @@ public:
         : m_Reason(reason)
     {}
 
+    VersionMismatchException(std::string reason)
+        : m_Reason(reason)
+    {}
+
     virtual const char* what() const noexcept override
     {
         return m_Reason.c_str();
@@ -1182,20 +1099,24 @@ const char* EthosNVariantAsString(EthosNVariant ethosnType);
 EthosNVariant EthosNVariantFromString(const char* ethosnType);
 
 // Gets firmware and hardware capabilities from this library in the absence of the real device.
-// This is for performance estimation purposes only, and approximates a real device of the variant requested.
 // Optionally SRAM size can be overridden.
-std::vector<char> GetPerformanceEstimatorFwAndHwCapabilities(EthosNVariant variant, uint32_t sramSizeBytes = 0);
+std::vector<char> GetFwAndHwCapabilities(EthosNVariant variant, uint32_t sramSizeBytes = 0);
 
 // Deserialize a serialized CompiledNetwork from the specified input stream
 // If the versions used for serialization and deserialization are different
 //      an exception of type VersionMismatchException will be thrown.
 std::unique_ptr<CompiledNetwork> DeserializeCompiledNetwork(std::istream&);
 
-// Create a new Network
-std::shared_ptr<Network> CreateNetwork();
+/// Creates a new Network
+///
+/// @param caps: An opaque block of data containing the capabilities of the hardware and the firmware.
+///        This should be obtained from the Driver Library's GetFirmwareAndHardwareCapabilities() API.
+///        It can also be obtained from the Support Library's GetFwAndHwCapabilities() API for offline compilation.
+///        Note that the size and format of this data may vary depending on the version of the hardware/firmware.
+std::shared_ptr<Network> CreateNetwork(const std::vector<char>& caps);
 
 // Create a new Network for performance estimation
-std::shared_ptr<Network> CreateEstimationNetwork();
+std::shared_ptr<Network> CreateEstimationNetwork(const std::vector<char>& caps);
 
 // Add Input to a Network. The returned shared_ptr ref-counts the network.
 TensorAndId<Operand> AddInput(const std::shared_ptr<Network>& network, const TensorInfo& info);

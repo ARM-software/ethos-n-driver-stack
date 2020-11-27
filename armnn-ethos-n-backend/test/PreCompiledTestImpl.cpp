@@ -11,10 +11,10 @@
 #include <Runtime.hpp>
 #include <armnn/Exceptions.hpp>
 #include <armnn/INetwork.hpp>
+#include <armnn/utility/Assert.hpp>
 #include <armnnUtils/Permute.hpp>
 #include <backendsCommon/WorkloadFactory.hpp>
 #include <backendsCommon/test/TensorCopyUtils.hpp>
-#include <boost/polymorphic_pointer_cast.hpp>
 #include <test/TensorHelpers.hpp>
 
 #include <algorithm>
@@ -75,7 +75,7 @@ ConvolutionDescriptor CreateConvolutionDescriptor(unsigned int stride, unsigned 
 
 std::vector<uint8_t> CreateIdentityConvolutionKernel(unsigned int kernelSize, unsigned int channels)
 {
-    BOOST_ASSERT(kernelSize % 2 == 1);    // kernelSize need to be an odd number
+    ARMNN_ASSERT(kernelSize % 2 == 1);    // kernelSize need to be an odd number
 
     const unsigned int numElements = channels * (kernelSize * kernelSize);
     std::vector<uint8_t> kernel(numElements, 0u);
@@ -110,7 +110,7 @@ std::vector<uint8_t> GetIdentityConvolutionExpectedOutputData(const TensorInfo& 
     std::vector<uint8_t> expectedOutputData(outputDataSize);
 
     const unsigned int channels = outputInfo.GetShape()[3];
-    BOOST_ASSERT(channels == inputInfo.GetShape()[3]);
+    ARMNN_ASSERT(channels == inputInfo.GetShape()[3]);
 
     const unsigned int inputW = inputInfo.GetShape()[2];
 
@@ -152,7 +152,7 @@ std::vector<uint8_t> GetActivationExpectedOutputData(const TensorInfo& inputInfo
     const unsigned int inputDataSize  = inputInfo.GetNumElements();
     const unsigned int outputDataSize = outputInfo.GetNumElements();
 
-    BOOST_ASSERT(outputDataSize == inputDataSize);
+    ARMNN_ASSERT(outputDataSize == inputDataSize);
     std::vector<uint8_t> expectedOutputData(outputDataSize);
 
     switch (descriptor.m_Function)
@@ -178,9 +178,21 @@ std::vector<uint8_t> GetActivationExpectedOutputData(const TensorInfo& inputInfo
             }
             break;
         }
+        case ActivationFunction::LeakyReLu:
+        {
+            for (unsigned int i = 0u; i < inputDataSize; ++i)
+            {
+                const float dequantizedInput =
+                    Dequantize(inputData[i], inputInfo.GetQuantizationScale(), inputInfo.GetQuantizationOffset());
+                expectedOutputData[i] =
+                    Quantize<uint8_t>(std::max(descriptor.m_A * dequantizedInput, dequantizedInput),
+                                      outputInfo.GetQuantizationScale(), outputInfo.GetQuantizationOffset());
+            }
+            break;
+        }
         default:
         {
-            BOOST_ASSERT_MSG(false, "Unsupported Activation function");
+            ARMNN_ASSERT_MSG(false, "Unsupported Activation function");
             break;
         }
     }
@@ -194,7 +206,7 @@ armnn::PreCompiledLayer* FindPreCompiledLayer(armnn::Graph& optimisedGraph)
     {
         if (layer->GetType() == armnn::LayerType::PreCompiled)
         {
-            return boost::polymorphic_pointer_downcast<armnn::PreCompiledLayer>(layer);
+            return PolymorphicPointerDowncast<armnn::PreCompiledLayer>(layer);
         }
     }
 
@@ -225,16 +237,19 @@ std::vector<LayerTestResult<uint8_t, NumDims>>
                                   std::map<LayerBindingId, TensorInfo> outputInfos,
                                   std::map<LayerBindingId, std::vector<uint8_t>> expectedOutputData)
 {
-    BOOST_ASSERT(inputInfos.size() == inputData.size());
-    BOOST_ASSERT(outputInfos.size() == expectedOutputData.size());
+    ARMNN_ASSERT(inputInfos.size() == inputData.size());
+    ARMNN_ASSERT(outputInfos.size() == expectedOutputData.size());
 
     // Optimize the network for the backend supported by the factory
     std::vector<BackendId> backends = { workloadFactory.GetBackendId() };
     IRuntimePtr runtime(IRuntime::Create(IRuntime::CreationOptions()));
-    std::vector<std::string> errMessages;
-    IOptimizedNetworkPtr optimizedNet =
-        Optimize(net, backends, runtime->GetDeviceSpec(), OptimizerOptions(), errMessages);
-    if (!optimizedNet)
+    std::vector<std::string> messages;
+    IOptimizedNetworkPtr optimizedNet(nullptr, nullptr);
+    try
+    {
+        optimizedNet = Optimize(net, backends, runtime->GetDeviceSpec(), OptimizerOptions(), messages);
+    }
+    catch (const armnn::Exception& e)
     {
         throw RuntimeException(std::string("Failed to optimize network for ") + std::string(backends[0]),
                                CHECK_LOCATION());
@@ -254,22 +269,20 @@ std::vector<LayerTestResult<uint8_t, NumDims>>
     for (uint32_t i = 0; i < preCompiledLayer->GetNumInputSlots(); ++i)
     {
         Layer& inputLayer =
-            boost::polymorphic_pointer_downcast<OutputSlot>(preCompiledLayer->GetInputSlot(i).GetConnection())
-                ->GetOwningLayer();
-        BOOST_ASSERT(inputLayer.GetType() == LayerType::Input);
-        LayerBindingId bindingId = boost::polymorphic_pointer_downcast<InputLayer>(&inputLayer)->GetBindingId();
+            PolymorphicPointerDowncast<OutputSlot>(preCompiledLayer->GetInputSlot(i).GetConnection())->GetOwningLayer();
+        ARMNN_ASSERT(inputLayer.GetType() == LayerType::Input);
+        LayerBindingId bindingId = PolymorphicPointerDowncast<InputLayer>(&inputLayer)->GetBindingId();
         inputIdxsToBindingId[i]  = bindingId;
     }
 
     std::map<uint32_t, LayerBindingId> outputIdxsToBindingId;
     for (uint32_t i = 0; i < preCompiledLayer->GetNumOutputSlots(); ++i)
     {
-        BOOST_ASSERT(preCompiledLayer->GetOutputSlot(i).GetNumConnections() == 1);
-        Layer& outputLayer =
-            boost::polymorphic_pointer_downcast<InputSlot>(preCompiledLayer->GetOutputSlot(i).GetConnection(0))
-                ->GetOwningLayer();
-        BOOST_ASSERT(outputLayer.GetType() == LayerType::Output);
-        LayerBindingId bindingId = boost::polymorphic_pointer_downcast<OutputLayer>(&outputLayer)->GetBindingId();
+        ARMNN_ASSERT(preCompiledLayer->GetOutputSlot(i).GetNumConnections() == 1);
+        Layer& outputLayer = PolymorphicPointerDowncast<InputSlot>(preCompiledLayer->GetOutputSlot(i).GetConnection(0))
+                                 ->GetOwningLayer();
+        ARMNN_ASSERT(outputLayer.GetType() == LayerType::Output);
+        LayerBindingId bindingId = PolymorphicPointerDowncast<OutputLayer>(&outputLayer)->GetBindingId();
         outputIdxsToBindingId[i] = bindingId;
     }
 
@@ -286,7 +299,7 @@ std::vector<LayerTestResult<uint8_t, NumDims>>
     // Set the input data
     const QueueDescriptor& workloadData =
         static_cast<BaseWorkload<PreCompiledQueueDescriptor>*>(workload.get())->GetData();
-    BOOST_ASSERT(inputInfos.size() == workloadData.m_Inputs.size());
+    ARMNN_ASSERT(inputInfos.size() == workloadData.m_Inputs.size());
     for (uint32_t i = 0; i < inputInfos.size(); ++i)
     {
         LayerBindingId bindingId = inputIdxsToBindingId.at(i);
@@ -298,7 +311,7 @@ std::vector<LayerTestResult<uint8_t, NumDims>>
 
     // Set the expected and actual outputs
     std::vector<LayerTestResult<uint8_t, NumDims>> results;
-    BOOST_ASSERT(outputInfos.size() == workloadData.m_Outputs.size());
+    ARMNN_ASSERT(outputInfos.size() == workloadData.m_Outputs.size());
     for (uint32_t i = 0; i < outputInfos.size(); ++i)
     {
         LayerBindingId bindingId = outputIdxsToBindingId.at(i);
@@ -320,9 +333,9 @@ LayerTestResult<uint8_t, NumDims> OptimiseAndRunNetwork(armnn::IWorkloadFactory&
                                                         TensorInfo outputInfo,
                                                         std::vector<uint8_t> expectedOutputData)
 {
-    BOOST_ASSERT(net.GetGraph().GetNumInputs() == 1);
+    ARMNN_ASSERT(net.GetGraph().GetNumInputs() == 1);
     LayerBindingId inputBindingId = (*net.GetGraph().GetInputLayers().begin())->GetBindingId();
-    BOOST_ASSERT(net.GetGraph().GetNumOutputs() == 1);
+    ARMNN_ASSERT(net.GetGraph().GetNumOutputs() == 1);
     LayerBindingId outputBindingId = (*net.GetGraph().GetOutputLayers().begin())->GetBindingId();
     return OptimiseAndRunNetworkMultiple<NumDims>(
         workloadFactory, net, { { inputBindingId, inputInfo } }, { { inputBindingId, inputData } },
@@ -340,8 +353,8 @@ LayerTestResult<uint8_t, 4> PreCompiledConvolution2dTestImpl(armnn::IWorkloadFac
 {
     constexpr bool isDepthwise = std::is_same<ConvolutionDescriptor, DepthwiseConvolution2dDescriptor>::value;
 
-    BOOST_ASSERT(descriptor.m_BiasEnabled == true);
-    BOOST_ASSERT(descriptor.m_DataLayout == DataLayout::NHWC);
+    ARMNN_ASSERT(descriptor.m_BiasEnabled == true);
+    ARMNN_ASSERT(descriptor.m_DataLayout == DataLayout::NHWC);
 
     // Set up tensor shapes and infos
     const TensorShape inputShape({ 1, inputSize, inputSize, channels });
@@ -423,8 +436,8 @@ LayerTestResult<uint8_t, 4>
     constexpr int32_t outputZeroPoint = 100;
     constexpr float weightScale       = 0.5f;
 
-    BOOST_ASSERT(descriptor.m_BiasEnabled == true);
-    BOOST_ASSERT(descriptor.m_DataLayout == DataLayout::NHWC);
+    ARMNN_ASSERT(descriptor.m_BiasEnabled == true);
+    ARMNN_ASSERT(descriptor.m_DataLayout == DataLayout::NHWC);
 
     // Set up tensor shapes and infos
     const TensorShape inputShape({ 1, inputSize, inputSize, channels });
@@ -624,7 +637,7 @@ LayerTestResult<uint8_t, 4> PreCompiledMaxPooling2dTestImpl(armnn::IWorkloadFact
     std::vector<uint8_t> inputData(inputDataSize);
     for (unsigned int i = 0; i < inputDataSize; ++i)
     {
-        inputData[i] = boost::numeric_cast<uint8_t>((i * 4) % 250);
+        inputData[i] = numeric_cast<uint8_t>((i * 4) % 250);
     }
 
     // Set up the Convolution output / Pooling input info
@@ -698,8 +711,8 @@ LayerTestResult<uint8_t, 4> PreCompiledFusedActivationTestImpl(armnn::IWorkloadF
                                                                const ConvolutionDescriptor& convDescriptor,
                                                                const ActivationDescriptor& activationDescriptor)
 {
-    BOOST_ASSERT(convDescriptor.m_BiasEnabled == true);
-    BOOST_ASSERT(convDescriptor.m_DataLayout == DataLayout::NHWC);
+    ARMNN_ASSERT(convDescriptor.m_BiasEnabled == true);
+    ARMNN_ASSERT(convDescriptor.m_DataLayout == DataLayout::NHWC);
 
     // Set up tensor shapes and infos
     const TensorShape inputShape({ 1, inputSize, inputSize, channels });
@@ -738,7 +751,7 @@ LayerTestResult<uint8_t, 4> PreCompiledFusedActivationTestImpl(armnn::IWorkloadF
 
     // Set expected output for ReLu
     std::vector<uint8_t> expectedOutputData =
-        GetActivationExpectedOutputData(inputInfo, outputInfo, activationDescriptor, expectedConvOutputData);
+        GetActivationExpectedOutputData(convOutputInfo, outputInfo, activationDescriptor, expectedConvOutputData);
 
     // Construct network
     Network net;
@@ -982,6 +995,29 @@ LayerTestResult<uint8_t, 4> PreCompiledDepthToSpaceTestImpl(armnn::IWorkloadFact
     };
 
     return OptimiseAndRunNetwork(workloadFactory, net, inputInfo, inputData, outputInfo, expectedOutputData);
+}
+
+LayerTestResult<uint8_t, 4>
+    PreCompiledLeakyReluTestImpl(armnn::IWorkloadFactory& workloadFactory,
+                                 const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager)
+{
+    const unsigned int inputSize  = 16;
+    const unsigned int outputSize = 16;
+    const unsigned int channels   = 1;
+    const unsigned int kernelSize = 3;
+    const unsigned int stride     = 1;
+    const unsigned int padding    = 1;
+
+    Convolution2dDescriptor convolutionDescriptor =
+        CreateConvolutionDescriptor<Convolution2dDescriptor>(stride, padding);
+
+    ActivationDescriptor activationDescriptor;
+    activationDescriptor.m_Function = ActivationFunction::LeakyReLu;
+    activationDescriptor.m_A        = 0.1f;
+    activationDescriptor.m_B        = 0.0f;
+
+    return PreCompiledFusedActivationTestImpl(workloadFactory, memoryManager, inputSize, outputSize, channels,
+                                              kernelSize, convolutionDescriptor, activationDescriptor);
 }
 
 LayerTestResult<uint8_t, 4> PreCompiledAdditionTestImpl(armnn::IWorkloadFactory& workloadFactory,

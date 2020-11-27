@@ -114,6 +114,13 @@ LayerTestResult<uint8_t, 4>
 }
 
 LayerTestResult<uint8_t, 4>
+    PreCompiledLeakyReluTest(armnn::IWorkloadFactory& workloadFactory,
+                             const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager)
+{
+    return PreCompiledLeakyReluTestImpl(workloadFactory, memoryManager);
+}
+
+LayerTestResult<uint8_t, 4>
     PreCompiledAdditionTest(armnn::IWorkloadFactory& workloadFactory,
                             const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager)
 {

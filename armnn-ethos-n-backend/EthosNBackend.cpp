@@ -16,10 +16,10 @@
 #include <Optimizer.hpp>
 #include <armnn/BackendRegistry.hpp>
 #include <armnn/Logging.hpp>
+#include <armnn/utility/Assert.hpp>
 #include <backendsCommon/IBackendContext.hpp>
 #include <backendsCommon/IMemoryManager.hpp>
 #include <backendsCommon/test/CommonTestUtils.hpp>
-#include <boost/cast.hpp>
 
 namespace armnn
 {
@@ -118,7 +118,7 @@ Graph CloneGraph(const SubgraphView& originalSubgraph)
             }
         }
 
-        BOOST_ASSERT(i < originalSubgraphLayer.GetNumOutputSlots());
+        ARMNN_ASSERT(i < originalSubgraphLayer.GetNumOutputSlots());
 
         OutputSlot* outputSlotOfLayer     = &clonedLayer->GetOutputSlot(i);
         OutputLayer* const newOutputLayer = newGraph.AddLayer<OutputLayer>(slotCount, "output");
@@ -146,10 +146,10 @@ SubgraphView ReinterpretGraphToSubgraph(Graph& newGraph)
         switch (layer->GetType())
         {
             case LayerType::Input:
-                inputLayersNewGr.push_back(boost::polymorphic_downcast<InputLayer*>(layer));
+                inputLayersNewGr.push_back(PolymorphicDowncast<InputLayer*>(layer));
                 break;
             case LayerType::Output:
-                outputLayersNewGr.push_back(boost::polymorphic_downcast<OutputLayer*>(layer));
+                outputLayersNewGr.push_back(PolymorphicDowncast<OutputLayer*>(layer));
                 break;
             default:
                 subgrLayers.push_back(layer);
@@ -537,7 +537,7 @@ void SubstituteLayer(
         throw armnn::InvalidArgumentException(errors);
     }
 
-    BOOST_ASSERT((newLayer != nullptr));
+    ARMNN_ASSERT((newLayer != nullptr));
 
     SubgraphView newSubgraphFromLayer = SubgraphView(layer);
 
@@ -554,6 +554,12 @@ void SubstituteLayer(
 // of the layer to be replaced
 void CheckParamValuesForLayer(SimpleLayer layer)
 {
+    // Excluded is a word defined by us, it is not a standard layer type
+    if (!(layer.m_LayerTypeName.compare("Excluded")))
+    {
+        return;
+    }
+
     LayerType type = GetLayerType(layer.m_LayerTypeName);
     std::string errors;
 
@@ -645,6 +651,15 @@ LayerType GetLayerType(std::string layerTypeName)
     std::map<std::string, LayerType> mapStringToLayerType = GetMapStringToLayerType();
 
     auto type = mapStringToLayerType.find(layerTypeName);
+    if (type == mapStringToLayerType.end())
+    {
+        std::string errors = "layername \"" + layerTypeName + "\" is not valid";
+        if (!errors.empty())
+        {
+            throw armnn::InvalidArgumentException(errors);
+        }
+    }
+
     return type->second;
 }
 
@@ -834,7 +849,7 @@ void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
     }
 
     // Only the case of a single compiled network is currently supported
-    BOOST_ASSERT(compiledNetworks.size() == 1);
+    ARMNN_ASSERT(compiledNetworks.size() == 1);
 
     // Wrap the precompiled layer into a graph
     PreCompiledLayer& preCompiledLayer = *optimizationViews.GetGraph().AddLayer<PreCompiledLayer>(
