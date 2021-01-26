@@ -149,6 +149,9 @@ std::unique_ptr<ethosn::support_library::SpaceToDepthPass> SpaceToDepthPass::Cre
 
         if (allocationResult.first)
         {
+            // SpaceToDepth's OFM is always in DRAM. Therefore it is safe to free the allocated SRAM.
+            sramAllocator.Free(firstNode->GetId(), allocationResult.second);
+
             return std::make_unique<SpaceToDepthPass>(capabilities, size, firstNode, allocationResult.second,
                                                       stripeShape, spaceToDepthData);
         }
