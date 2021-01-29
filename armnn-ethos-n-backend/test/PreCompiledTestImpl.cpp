@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1286,4 +1286,52 @@ LayerTestResult<uint8_t, 3> PreCompiled3dTensorTestImpl(armnn::IWorkloadFactory&
     std::vector<uint8_t> expectedOutputData = inputData;
 
     return OptimiseAndRunNetwork<3>(workloadFactory, *net, 0, inputInfo, inputData, 1, reshapeInfo, expectedOutputData);
+}
+
+/// Checks that the backend optimization substituting the Constant-Multiplication layer
+/// pattern with a DepthwiseConvolution2d will produce correct results when ran by the Ethos-N.
+LayerTestResult<uint8_t, 4>
+    PreCompiledConstMulToDepthwiseTestImpl(armnn::IWorkloadFactory& workloadFactory,
+                                           const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
+{
+    // Set up tensor infos
+    TensorInfo inputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
+    TensorInfo constInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.5f, 0);
+    TensorInfo outputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
+
+    std::vector<uint8_t> inputData{
+        // clang-format off
+        1, 2, 3, 4,           10, 20, 15, 30,
+        8, 6, 5, 4,           11, 21, 31, 41,
+        // clang-format on
+    };
+
+    std::vector<uint8_t> constData{ 5, 8, 2, 6 };
+
+    ConstTensor constantTensor{ constInfo, constData };
+
+    // Construct a network with the Constant-Multiplication pattern
+    armnn::INetworkPtr net = armnn::INetwork::Create();
+
+    IConnectableLayer* const inputLayer  = net->AddInputLayer(0, "input");
+    IConnectableLayer* const constLayer  = net->AddConstantLayer(constantTensor);
+    IConnectableLayer* const mulLayer    = net->AddMultiplicationLayer("multiplication");
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(1, "output");
+
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+    constLayer->GetOutputSlot(0).SetTensorInfo(constInfo);
+    mulLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
+
+    inputLayer->GetOutputSlot(0).Connect(mulLayer->GetInputSlot(0));
+    constLayer->GetOutputSlot(0).Connect(mulLayer->GetInputSlot(1));
+    mulLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+
+    std::vector<uint8_t> expectedOutputData{
+        // clang-format off
+        3, 8, 3, 12,          25, 80, 15, 90,
+        20, 24, 5, 12,        28, 84, 31, 123,
+        // clang-format on
+    };
+
+    return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 1, outputInfo, expectedOutputData);
 }

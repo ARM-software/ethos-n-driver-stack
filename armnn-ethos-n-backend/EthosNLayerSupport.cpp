@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1120,6 +1120,76 @@ bool EthosNLayerSupport::IsMultiplicationSupported(const TensorInfo& input0,
                                                    const TensorInfo& output,
                                                    Optional<std::string&> reasonIfUnsupported) const
 {
+    // Support for Multiplication operations is claimed where either input tensor has the shape { 1, 1, 1, C },
+    // to catch cases where the input is a Constant of that shape. The backend will then substitute the
+    // Constant-Multiplication pattern for DepthwiseConvolution2d, otherwise failing to compile the subgraph
+    // where the shape and layer type requirements are not met.
+    using ethosn_lib::SupportedLevel;
+    if (!(IsTensorSupportedOnEthosN(input0, reasonIfUnsupported) &&
+          IsTensorSupportedOnEthosN(input1, reasonIfUnsupported) &&
+          IsTensorSupportedOnEthosN(output, reasonIfUnsupported)))
+    {
+        return false;
+    }
+
+    ethosn_lib::TensorShape input0Shape = BuildEthosNTensorShape(input0.GetShape());
+    ethosn_lib::TensorShape input1Shape = BuildEthosNTensorShape(input1.GetShape());
+    ethosn_lib::TensorShape outputShape = BuildEthosNTensorShape(output.GetShape());
+
+    // We assume one of the inputs is a constant in the form { 1, 1, 1, C }
+    bool isInput0Constant = (input0Shape[0] == 1) && (input0Shape[1] == 1) && (input0Shape[2] == 1);
+    bool isInput1Constant = (input1Shape[0] == 1) && (input1Shape[1] == 1) && (input1Shape[2] == 1);
+
+    if ((isInput0Constant || isInput1Constant) && (input0Shape[3] == input1Shape[3]))
+    {
+        TensorInfo inputToDepthwise{};
+        TensorInfo constant{};
+        ethosn_lib::TensorShape inputToDepthwiseShape{};
+
+        if (isInput1Constant)
+        {
+            constant              = input1;
+            inputToDepthwise      = input0;
+            inputToDepthwiseShape = input0Shape;
+        }
+        else
+        {
+            constant              = input0;
+            inputToDepthwise      = input1;
+            inputToDepthwiseShape = input1Shape;
+        }
+
+        if (inputToDepthwiseShape == outputShape)
+        {
+            DepthwiseConvolution2dDescriptor desc;
+            desc.m_StrideX     = 1;
+            desc.m_StrideY     = 1;
+            desc.m_PadBottom   = 0;
+            desc.m_PadLeft     = 0;
+            desc.m_PadRight    = 0;
+            desc.m_PadTop      = 0;
+            desc.m_DilationX   = 1;
+            desc.m_DilationY   = 1;
+            desc.m_DataLayout  = DataLayout::NHWC;
+            desc.m_BiasEnabled = false;
+
+            const TensorInfo weights(TensorShape({ 1, constant.GetShape()[3], 1, 1 }), constant.GetDataType(),
+                                     constant.GetQuantizationScale(), constant.GetQuantizationOffset());
+
+            bool supported = EthosNLayerSupport::IsDepthwiseConvolutionSupported(
+                inputToDepthwise, output, desc, weights, EmptyOptional(), reasonIfUnsupported);
+
+            ReasonMessageHelper messageHelper;
+            messageHelper.SetString("Multiplication operation is not supported on Arm Ethos-N NPU backend and an "
+                                    "attempt was made to substitute for DepthwiseConvolution2d, however the following "
+                                    "error occured when checking for Depthwise support: " +
+                                    reasonIfUnsupported.value());
+
+            SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
+            return supported;
+        }
+    }
+
     return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
 }
 

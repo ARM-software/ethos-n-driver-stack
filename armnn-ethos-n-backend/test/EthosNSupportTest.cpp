@@ -878,4 +878,36 @@ BOOST_AUTO_TEST_CASE(EstimateOnly5dFail)
     ARMNN_ASSERT(reasonIfUnsupported == "The ethosn can only support up to 4D tensors");
 }
 
+/// Checks the error message produced when the backend fails to claim support for Multiplication
+/// by attempting to substitute the operation with DepthwiseConvolution2d.
+BOOST_AUTO_TEST_CASE(TestMulSubstitutionFail)
+{
+    using namespace armnn;
+    using namespace testing_utils;
+
+    const TempDir tmpDir;
+
+    const std::string configFile = tmpDir.Str() + "/config.txt";
+    const EthosNConfig config    = { true, ethosn_lib::EthosNVariant::ETHOS_N77, 0, tmpDir.Str() };
+
+    CreateConfigFile(configFile, config);
+
+    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
+    EthosNLayerSupport layerSupport;
+
+    // input1 is assumed to be a constant and will be used for the weights of the convolution
+    TensorInfo input0 = TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
+    TensorInfo input1 = TensorInfo({ 1, 1, 1, 4 }, DataType::Signed32, 1.0f, 0);
+    TensorInfo output = TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 0.9f, 0);
+
+    std::string reasonIfUnsupported;
+    std::string expectedReasonIfSupported =
+        "Multiplication operation is not supported on Arm Ethos-N NPU backend and an attempt was made to substitute "
+        "for DepthwiseConvolution2d, however the following error occured when checking for Depthwise support: Weight "
+        "for conv must be UINT8_QUANTIZED or INT8_QUANTIZED";
+
+    ARMNN_ASSERT(!layerSupport.IsMultiplicationSupported(input0, input1, output, reasonIfUnsupported));
+    ARMNN_ASSERT(reasonIfUnsupported == expectedReasonIfSupported);
+}
+
 BOOST_AUTO_TEST_SUITE_END()

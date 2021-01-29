@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -123,6 +123,10 @@ Layer* CreateFullyConnectedLayer(Graph& graph,
 Layer* CreatePooling2dLayer(Graph& graph, AdditionalLayerParams& params);
 
 void ApplyMappings(std::vector<Mapping> mappings, Graph& newGraph);
+
+void ReplaceUnsupportedLayers(Graph& graph);
+
+bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph, Layer* layer);
 
 }    // namespace ethosnbackend
 

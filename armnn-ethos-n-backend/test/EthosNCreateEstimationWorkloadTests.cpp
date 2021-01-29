@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "EthosNBackendId.hpp"
@@ -553,7 +553,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
 	},
 	"OperationNames":
 	{
-		"0": "Input from input",
+		"0": "Input from input layer",
 		"1": "SigmoidFunc",
 		"2": "Output from SigmoidFunc"
 	},
@@ -722,7 +722,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
 	},
 	"OperationNames":
 	{
-		"0": "Input from input",
+		"0": "Input from input layer",
 		"1": "SigmoidFunc",
 		"2": "Output from SigmoidFunc"
 	},

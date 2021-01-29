@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -160,4 +160,11 @@ LayerTestResult<uint8_t, 3>
                             const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager)
 {
     return PreCompiled3dTensorTestImpl(workloadFactory, memoryManager);
+}
+
+LayerTestResult<uint8_t, 4>
+    PreCompiledConstMulToDepthwiseTest(armnn::IWorkloadFactory& workloadFactory,
+                                       const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager)
+{
+    return PreCompiledConstMulToDepthwiseTestImpl(workloadFactory, memoryManager);
 }

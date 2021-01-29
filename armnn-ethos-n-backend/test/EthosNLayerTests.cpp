@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "EthosNLayerTests.hpp"
@@ -57,6 +57,8 @@ ARMNN_AUTO_TEST_CASE(PreCompiledMultiOutput, PreCompiledMultiOutputTest)
 ARMNN_AUTO_TEST_CASE(PreCompiled1dTensor, PreCompiled1dTensorTest)
 ARMNN_AUTO_TEST_CASE(PreCompiled2dTensor, PreCompiled2dTensorTest)
 ARMNN_AUTO_TEST_CASE(PreCompiled3dTensor, PreCompiled3dTensorTest)
+
+ARMNN_AUTO_TEST_CASE(PreCompiledConstMulToDepthwise, PreCompiledConstMulToDepthwiseTest)
 
 BOOST_AUTO_TEST_CASE(TestInvalidLayerName)
 {
