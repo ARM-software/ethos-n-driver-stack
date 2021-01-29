@@ -1023,6 +1023,16 @@ void NetworkToGraphConverter::Visit(SpaceToDepth& spaceToDepth)
         std::set<uint32_t>{ spaceToDepth.GetId() });
     nodes.push_back(spaceToDepthNode);
 
+    // Add a format conversion to NHWCB that is required by some operations.
+    if (spaceToDepthNode->GetFormat() != CompilerDataFormat::NHWCB)
+    {
+        const TensorInfo& tensorInfo         = spaceToDepth.GetOutput(0).GetTensorInfo();
+        FormatConversionNode* conversionNode = m_Graph.CreateAndAddNodeWithDebug<FormatConversionNode>(
+            ETHOSN_FUNCTION_SIGNATURE, tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo,
+            CompilerDataFormat::NHWCB, std::set<uint32_t>{ spaceToDepth.GetId() });
+        nodes.push_back(conversionNode);
+    }
+
     ConnectNodeChain(spaceToDepth, nodes);
 }
 
