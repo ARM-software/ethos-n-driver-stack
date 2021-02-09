@@ -364,6 +364,14 @@ int ethosn_send_version_request(struct ethosn_core *core);
 int ethosn_send_fw_hw_capabilities_request(struct ethosn_core *core);
 
 /**
+ * ethosn_send_stash_request() - Send stash request if SMMU is available.
+ * @core: Pointer to Ethos-N core.
+ *
+ * Return: 0 on succss, else error code
+ */
+int ethosn_send_stash_request(struct ethosn_core *core);
+
+/**
  * ethosn_send_configure_profiling() - Send request to tell the firmware to
  *                                  enable/ disable profiling.
  * @core:	Pointer to Ethos-N core.
@@ -440,6 +448,12 @@ int ethosn_send_mpu_enable_request(struct ethosn_core *core);
  * Return: 'true' if profiling is enabled, otherwise 'false'.
  */
 bool ethosn_profiling_enabled(void);
+
+/* ethosn_stashing_enabled() - Get status of the stashing enabled switch.
+ *
+ * Return: 'true' if stashing is enabled, otherwise 'false'.
+ */
+bool ethosn_stashing_enabled(void);
 
 /* ethosn_mailbox_empty() - Check if the mailbox is empty.
  *

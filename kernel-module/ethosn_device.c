@@ -64,6 +64,9 @@ module_param_named(profiling, profiling_enabled, bool, 0664);
 static int clock_frequency = 1000;
 module_param_named(clock_frequency, clock_frequency, int, 0440);
 
+static bool stashing_enabled;
+module_param_named(stashing, stashing_enabled, bool, 0440);
+
 /* Exposes global access to the most-recently created Ethos-N core for testing
  * purposes. See ethosn-tests module
  */
@@ -125,6 +128,9 @@ bool ethosn_smmu_available(struct device *dev)
 
 	return has_smmu;
 }
+
+/* Exported for use by ethosn-tests module */
+EXPORT_SYMBOL(ethosn_smmu_available);
 
 /**
  * ethosn_mailbox_init() - Initialize the mailbox structure.
@@ -328,7 +334,7 @@ u32 ethosn_read_top_reg(struct ethosn_core *core,
 	return ioread32(ethosn_top_reg_addr(core->top_regs, page, offset));
 }
 
-/* Exported for use by ethosn-tests module * */
+/* Exported for use by ethosn-tests module */
 EXPORT_SYMBOL(ethosn_read_top_reg);
 
 /**
@@ -441,6 +447,11 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 
 	/* Ping firmware */
 	ret = ethosn_send_ping(core);
+	if (ret != 0)
+		return ret;
+
+	/* Enable stashing */
+	ret = ethosn_send_stash_request(core);
 	if (ret != 0)
 		return ret;
 
@@ -1138,6 +1149,23 @@ int ethosn_send_mpu_enable_request(struct ethosn_core *core)
 				    NULL, 0);
 }
 
+int ethosn_send_stash_request(struct ethosn_core *core)
+{
+	if (!ethosn_stashing_enabled())
+		return 0;
+
+	if (ethosn_smmu_available(core->dev)) {
+		dev_dbg(core->dev, "-> SMMU Available");
+
+		return ethosn_write_message(core, ETHOSN_MESSAGE_STASH_REQUEST,
+					    NULL, 0);
+	} else {
+		dev_dbg(core->dev, "-> SMMU Not Available");
+
+		return 0;
+	}
+}
+
 /****************************************************************************
  * Firmware
  ****************************************************************************/
@@ -1725,7 +1753,14 @@ int ethosn_clock_frequency(void)
 	return clock_frequency;
 }
 
-/* uncrustify-off */
+bool ethosn_stashing_enabled(void)
+{
+	return stashing_enabled;
+}
+
+/* Exported for use by ethosn-tests module */
+EXPORT_SYMBOL(ethosn_stashing_enabled);
+
 struct ethosn_core *ethosn_get_global_core_for_testing(void)
 {
 	return ethosn_global_core_for_testing;
@@ -1733,5 +1768,3 @@ struct ethosn_core *ethosn_get_global_core_for_testing(void)
 
 /* Exported for use by ethosn-tests module */
 EXPORT_SYMBOL(ethosn_get_global_core_for_testing);
-
-/* uncrustify-on */

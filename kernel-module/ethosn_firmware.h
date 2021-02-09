@@ -48,7 +48,7 @@
  * firmware binaries (sub-components of the fat binary).
  */
 #define ETHOSN_FIRMWARE_VERSION_MAJOR 1
-#define ETHOSN_FIRMWARE_VERSION_MINOR 0
+#define ETHOSN_FIRMWARE_VERSION_MINOR 1
 #define ETHOSN_FIRMWARE_VERSION_PATCH 0
 
 /** Max length of a cache line. Used to separate host and Ethos-N data. */
@@ -300,6 +300,8 @@ enum ethosn_message_type {
 
 	ETHOSN_MESSAGE_FW_HW_CAPS_REQUEST,
 	ETHOSN_MESSAGE_FW_HW_CAPS_RESPONSE,
+
+	ETHOSN_MESSAGE_STASH_REQUEST,
 
 	ETHOSN_MESSAGE_MAX
 };
