@@ -141,6 +141,50 @@ StrategySelectionReturnValue
     const uint32_t inputStripeWidth =
         RoundUpToNearestMultiple(std::min(inputStripeWidthPre, GetWidth(inputShape)), brickGroupWidth);
 
+    const TensorShape& weightsShape = strategyXSelectionParameters.weightsShape;
+
+    // Account for the boundary slots if required by the strategy and the kernel size. It uses the normal
+    // slot triple buffering in the width dimension if needed.
+    uint32_t usedBoundarySlotsHeight;
+
+    if (inputShape[1] > inputStripeHeight && inputShape[2] > inputStripeWidth && weightsShape[0] > 1)
+    {
+        usedBoundarySlotsHeight = capabilities.GetBoundaryStripeHeight();
+    }
+    else
+    {
+        usedBoundarySlotsHeight = 0;
+    }
+
+    // Ensure that the input is large enough for the filter
+    if (inputShape[1] > inputStripeHeight)    // streaming in Y
+    {
+        if (usedBoundarySlotsHeight != 0)
+        {
+            if ((2 * usedBoundarySlotsHeight) < (weightsShape[0] - 1))
+            {
+                // Without this restriction, wrong stripe height would be selected resulting in output being produced without doing a full convolution.
+                return {};
+            }
+        }
+        else
+        {
+            if ((2 * inputStripeHeight) < (weightsShape[0] - 1))
+            {
+                // Without this restriction, wrong stripe height would be selected resulting in output being produced without doing a full convolution.
+                return {};
+            }
+        }
+    }
+    if (inputShape[2] > inputStripeWidth)    // streaming in X
+    {
+        if ((2 * inputStripeWidth) < (weightsShape[1] - 1))
+        {
+            // Without this restriction, wrong stripe width would be selected resulting in output being produced without doing a full convolution.
+            return {};
+        }
+    }
+
     // Output stripe depth maximum is set for MAXPOOLING_3x3/(2,2)
     // so that the PLE can manage spilling if the number of stripes is more than 1.
     const uint32_t& depthMax = strategyXSelectionParameters.depthMax;
@@ -154,7 +198,6 @@ StrategySelectionReturnValue
                                           outputStripeWidth / pleShapeMultiplier.m_W,
                                           outputStripeChannels / pleShapeMultiplier.m_C };
 
-    const TensorShape& weightsShape = strategyXSelectionParameters.weightsShape;
     uint32_t strideSize =
         utils::DivRoundUp(utils::RoundUpToNearestMultiple(GetChannels(inputShape), capabilities.GetNumberOfSrams()),
                           utils::RoundUpToNearestMultiple(weightsShape[2], capabilities.GetNumberOfSrams()));

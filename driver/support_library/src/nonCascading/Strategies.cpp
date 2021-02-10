@@ -205,6 +205,50 @@ TryStripeShapesResult TryStripeShapes(const StrategySelectionParameters& strateg
     const uint32_t inputStripeWidth =
         RoundUpToNearestMultiple(std::min(inputStripeWidthPre, inputShape[2]), brickGroupWidth);
 
+    const TensorShape& weightsShape = strategySelectionParameters.weightsShape;
+
+    // Account for the boundary slots if required by the strategy and the kernel size. It uses the normal
+    // slot triple buffering in the width dimension if needed.
+    uint32_t usedBoundarySlotsHeight;
+
+    if (inputShape[1] > inputStripeHeight && inputShape[2] > inputStripeWidth && weightsShape[0] > 1)
+    {
+        usedBoundarySlotsHeight = capabilities.GetBoundaryStripeHeight();
+    }
+    else
+    {
+        usedBoundarySlotsHeight = 0;
+    }
+
+    // Ensure that the input is large enough for the filter
+    if (inputShape[1] > inputStripeHeight)    // streaming in Y
+    {
+        if (usedBoundarySlotsHeight != 0)
+        {
+            if ((2 * usedBoundarySlotsHeight) < (weightsShape[0] - 1))
+            {
+                // Without this restriction, wrong stripe height would be selected resulting in output being produced without doing a full convolution.
+                return {};
+            }
+        }
+        else
+        {
+            if ((2 * inputStripeHeight) < (weightsShape[0] - 1))
+            {
+                // Without this restriction, wrong stripe height would be selected resulting in output being produced without doing a full convolution.
+                return {};
+            }
+        }
+    }
+    if (inputShape[2] > inputStripeWidth)    // streaming in X
+    {
+        if ((2 * inputStripeWidth) < (weightsShape[1] - 1))
+        {
+            // Without this restriction, wrong stripe width would be selected resulting in output being produced without doing a full convolution.
+            return {};
+        }
+    }
+
     // Output stripe depth maximum is set for MAXPOOLING_3x3/(2,2)
     // so that the PLE can manage spilling if the number of stripes is more than 1.
     if (utils::DivRoundUp(inputShape[1], inputStripeHeight) > 1)
@@ -222,7 +266,6 @@ TryStripeShapesResult TryStripeShapes(const StrategySelectionParameters& strateg
     // Calculate weight stripe from output stripe.
     TensorShape weightStripe;
     const DataFormat& weightsFormat                       = strategySelectionParameters.weightsFormat;
-    const TensorShape& weightsShape                       = strategySelectionParameters.weightsShape;
     const std::pair<bool, uint32_t>& inputStaticAndOffset = strategySelectionParameters.inputStaticAndOffset;
     if (weightsFormat == DataFormat::HWIO)
     {
@@ -298,10 +341,7 @@ TryStripeShapesResult TryStripeShapes(const StrategySelectionParameters& strateg
     // Account for the boundary slots if required by the strategy and the kernel size. It uses the normal
     // slot triple buffering in the width dimension if needed.
     const uint32_t boundarySlotsSize =
-        inputShape[1] > inputStripe[1] && inputShape[2] > inputStripe[2] && weightsShape[0] > 1
-            ? capabilities.GetNumBoundarySlots() * capabilities.GetBoundaryStripeHeight() * inputStripe[2] *
-                  inputStripe[3]
-            : 0;
+        capabilities.GetNumBoundarySlots() * usedBoundarySlotsHeight * inputStripe[2] * inputStripe[3];
     const uint32_t inputTile =
         std::min(TotalSizeBytes(inputStripe) * numInputStripesInTile, inputTileMax) + boundarySlotsSize;
 
