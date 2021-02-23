@@ -47,6 +47,10 @@ if env['target'] == 'model':
     env.Repository(os.path.join(env['driver_library_dir'], '..', '..', 'internal', 'driver'))
     srcs += [os.path.join('src', 'ModelNetwork.cpp')]
 
+# Add internal sources only if the directory exists.
+internal_dir = os.path.join(env['driver_library_dir'], '..', '..', 'internal', 'driver', 'driver_library', 'src')
+if os.path.isdir(internal_dir):
+    env.PrependUnique(CPPPATH=[internal_dir])
 
 # Build driver_library static and shared lib
 ethosn_driver_lib = env.StaticLibrary('libEthosNDriver', srcs)

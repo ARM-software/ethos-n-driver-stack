@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -7,6 +7,9 @@
 
 #include "../include/ethosn_driver_library/Network.hpp"
 #include "Utils.hpp"
+#if defined(ETHOSN_INTERNAL)
+#include "DumpCommandStream.hpp"
+#endif
 
 #include <ethosn_command_stream/CommandStream.hpp>
 #include <ethosn_command_stream/CommandStreamBuffer.hpp>
@@ -215,6 +218,17 @@ bool ReadBufferInfoArray(Reader& reader, std::vector<BufferInfo>& outData)
     return true;
 }
 
+void DumpCommandStream(const char* inputCmmFilename, const char* outputCmdStreamFilename)
+{
+#if defined(ETHOSN_INTERNAL)
+    DumpCommandStreamImpl(inputCmmFilename, outputCmdStreamFilename);
+#else
+    ETHOSN_UNUSED(inputCmmFilename);
+    ETHOSN_UNUSED(outputCmdStreamFilename);
+    std::cerr << "Command stream dumping is available only in internal builds" << std::endl;
+#endif
+}
+
 }    // namespace
 
 namespace ethosn
@@ -324,16 +338,21 @@ void NetworkImpl::SetDebugName(const char* name)
 
 void NetworkImpl::DumpCmmBasedOnEnvVar(Buffer* const inputBuffers[], uint32_t numInputBuffers) const
 {
-    const char* const debugEnv = std::getenv("ETHOSN_DRIVER_LIBRARY_DEBUG");
+    const char* const debugEnv    = std::getenv("ETHOSN_DRIVER_LIBRARY_DEBUG");
+    const std::string cmmFilename = std::string("CombinedMemoryMap_") + m_DebugName + ".hex";
+    uint8_t cmmSections           = 0;
     if (debugEnv && (strcmp(debugEnv, "1") == 0 || strstr(debugEnv, "cmm") != nullptr))
     {
-        DumpCmm(inputBuffers, numInputBuffers, (std::string("CombinedMemoryMap_") + m_DebugName + ".hex").c_str(),
-                Cmm_All);
+        cmmSections = Cmm_All;
     }
     else if (debugEnv && strstr(debugEnv, "cmdstream") != nullptr)
     {
-        DumpCmm(inputBuffers, numInputBuffers, (std::string("CombinedMemoryMap_") + m_DebugName + ".hex").c_str(),
-                Cmm_Inference | Cmm_ConstantControlUnit);
+        cmmSections = Cmm_Inference | Cmm_ConstantControlUnit;
+    }
+    if (cmmSections != 0)
+    {
+        DumpCmm(inputBuffers, numInputBuffers, cmmFilename.c_str(), cmmSections);
+        DumpCommandStream(cmmFilename.c_str(), (std::string("CommandStream_") + m_DebugName + ".xml").c_str());
     }
 }
 
