@@ -1,5 +1,5 @@
 //
-// Copyright © 2020 Arm Limited. All rights reserved.
+// Copyright © 2020-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -182,9 +182,9 @@ protected:
     /**
      * Find the optimal GRC parameters for the specified weight symbol frequency pairs.
      */
-    void FindGRCParams(WeightCompressionParamsV2& params,
-                       const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
-                       const std::vector<std::pair<WeightSymbol, uint32_t>>& noPaletteSymbolFreqPairs) const;
+    uint32_t FindGRCParams(WeightCompressionParamsV2& params,
+                           const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
+                           const std::vector<std::pair<WeightSymbol, uint32_t>>& noPaletteSymbolFreqPairs) const;
 
     /**
      * Create a palette of the specified size
@@ -203,12 +203,12 @@ protected:
     /**
      * Find the optimal RLE parameters for the specified weights
      */
-    void FindRLEParams(WeightCompressionParamsV2& params, const std::deque<Weight>& weights) const;
+    uint32_t FindRLEParams(WeightCompressionParamsV2& params, const std::deque<Weight>& weights) const;
 
     /**
      * Find optimal compression parameter for the specified weights
      */
-    void FindWeightCompressionParams(WeightCompressionParamsV2& params,
+    void FindWeightCompressionParams(WeightCompressionParamsV2& newParams,
                                      const WeightCompressionParamsV2& prevParams,
                                      const std::deque<Weight>& weights) const;
 
@@ -258,7 +258,6 @@ protected:
     void GRCCompressPackChunk(const std::deque<WeightSymbol>& weightSymbols,
                               const std::deque<WeightSymbol>& zeroSymbols,
                               const WeightCompressionParamsV2& compParams,
-                              int32_t ifmConsumedPerEngine,
                               BitstreamWriter& writer) const;
 
     /**
@@ -302,6 +301,8 @@ protected:
 
     WeightCompMode m_Mode;
     WeightCompressionParamsV2 m_TestParams;
+    const uint32_t m_IfmConsumedPerEnginex3d4;
+    const uint32_t m_IfmConsumedPerEngined2;
 };
 
 }    // namespace support_library

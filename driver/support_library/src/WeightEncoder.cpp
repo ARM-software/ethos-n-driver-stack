@@ -466,6 +466,8 @@ void insert_back(std::vector<uint8_t>& dst, const T& src)
 WeightEncoderV2::WeightEncoderV2(const HardwareCapabilities& capabilities)
     : WeightEncoder(capabilities)
     , m_Mode(WeightCompMode::AUTO)
+    , m_IfmConsumedPerEnginex3d4((3 * capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 4)
+    , m_IfmConsumedPerEngined2((capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 2)
 {}
 
 WeightEncoderV2::WeightEncoderV2(const HardwareCapabilities& capabilities,
@@ -474,6 +476,8 @@ WeightEncoderV2::WeightEncoderV2(const HardwareCapabilities& capabilities,
     : WeightEncoder(capabilities)
     , m_Mode(mode)
     , m_TestParams(params)
+    , m_IfmConsumedPerEnginex3d4((3 * capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 4)
+    , m_IfmConsumedPerEngined2((capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 2)
 {}
 
 std::vector<std::unique_ptr<WeightEncoder::WeightCompressionParams>>
@@ -574,9 +578,7 @@ WeightEncoder::EncodedOfm
 
     WritePayloadHeader(writer, pldLen, compParams);
 
-    uint32_t ifmConsumedPerEngine = m_Capabilities.GetIgsPerEngine() * m_Capabilities.GetNumberOfEngines();
-
-    GRCCompressPackChunk(weightSymbols, zeroSymbols, compParams, ifmConsumedPerEngine, writer);
+    GRCCompressPackChunk(weightSymbols, zeroSymbols, compParams, writer);
 
     // Remember current compression parameters
     prevCompParams = compParams;
@@ -653,10 +655,10 @@ std::vector<std::pair<WeightEncoderV2::WeightSymbol, uint32_t>> WeightEncoderV2:
     return uncompressedSymbolFreqPairs;
 }
 
-void WeightEncoderV2::FindGRCParams(
-    WeightCompressionParamsV2& params,
-    const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
-    const std::vector<std::pair<WeightSymbol, uint32_t>>& noPaletteSymbolFreqPairs) const
+uint32_t
+    WeightEncoderV2::FindGRCParams(WeightCompressionParamsV2& params,
+                                   const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
+                                   const std::vector<std::pair<WeightSymbol, uint32_t>>& noPaletteSymbolFreqPairs) const
 {
     constexpr uint8_t maxNumQuotientBits = 31;
 
@@ -718,6 +720,8 @@ void WeightEncoderV2::FindGRCParams(
     params.m_Wdiv = bestWDiv;
     // Ignore truncated if uncompressed is used
     params.m_TruncationEnabled = truncated && bestWDiv != WDivisor::UNCOMPRESSED;
+
+    return bestBitcost;
 }
 
 void WeightEncoderV2::CreatePalette(WeightCompressionParamsV2& params,
@@ -832,9 +836,10 @@ bool WeightEncoderV2::FindPaletteParams(WeightCompressionParamsV2& params,
     return true;
 }
 
-void WeightEncoderV2::FindRLEParams(WeightCompressionParamsV2& params, const std::deque<Weight>& weights) const
+uint32_t WeightEncoderV2::FindRLEParams(WeightCompressionParamsV2& params, const std::deque<Weight>& weights) const
 {
-    constexpr uint8_t maxNumQuotientBits = 31;
+    constexpr uint32_t maxNumQuotientBits = 31;
+    constexpr uint32_t zDiv3              = static_cast<uint32_t>(ZDivisor::ZDIV_3);
 
     // Find how the zeroes are grouped among the weights
     std::vector<uint32_t> zeroGroups;
@@ -857,23 +862,34 @@ void WeightEncoderV2::FindRLEParams(WeightCompressionParamsV2& params, const std
     // Find the ZDiv with the lowest overall bitcost
     uint32_t bestBitcost = UINT32_MAX;
     ZDivisor bestZDiv    = ZDivisor::ZDIV_0;
-    for (uint8_t i = 0; i <= static_cast<uint8_t>(ZDivisor::ZDIV_3); ++i)
+    for (uint32_t i = 0; i <= zDiv3; ++i)
     {
-        uint32_t bitcost = 0;
+
+        uint32_t sumQuots  = 0;
+        uint32_t sumRemain = 0;
         for (uint32_t group : zeroGroups)
         {
             const uint32_t numQuotientBits = (group >> i);
             if (numQuotientBits > maxNumQuotientBits)
             {
                 // Too many quotient bits, skip to next ZDiv
-                bitcost = UINT32_MAX;
+                sumQuots = UINT32_MAX;
                 break;
             }
 
-            // Number of quotient bits + XDIV.
-            // The trailing zero has been omitted as its cost is constant.
-            bitcost += numQuotientBits + i;
+            sumQuots += numQuotientBits + 1;
+            sumRemain += i;
         }
+
+        if (sumQuots == UINT32_MAX)
+        {
+            continue;
+        }
+
+        // Calculate the total bitcost for the RLE chunk packing with padding
+        // See Ethos-N78 MCE Specification, section 6.8.6.3.5
+        uint32_t packSize = i < zDiv3 ? m_IfmConsumedPerEnginex3d4 : m_IfmConsumedPerEngined2;
+        uint32_t bitcost  = utils::RoundUpToNearestMultiple(sumQuots, packSize) + sumRemain;
 
         if (bitcost < bestBitcost)
         {
@@ -883,9 +899,11 @@ void WeightEncoderV2::FindRLEParams(WeightCompressionParamsV2& params, const std
     }
 
     params.m_Zdiv = bestZDiv;
+
+    return bestBitcost;
 }
 
-void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& params,
+void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& newParams,
                                                   const WeightCompressionParamsV2& prevParams,
                                                   const std::deque<Weight>& weights) const
 {
@@ -908,85 +926,108 @@ void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& par
     auto zeroIter = find_if(sortedSymbolFreqPairs.begin(), sortedSymbolFreqPairs.end(),
                             [](const std::pair<WeightSymbol, uint32_t>& e) { return e.first == 0; });
 
-    // Use RLE if at least 20% of all elements are zero, this is measured to be the threshold where
-    // RLE starts to be meaningful.
-    constexpr uint32_t rleThreshold = 5;
-    if (zeroIter != sortedSymbolFreqPairs.end() && (zeroIter->second * rleThreshold) > weights.size())
+    std::vector<std::pair<uint32_t, WeightCompressionParamsV2>> passCostParamPairs;
+    // If there are zero weights, run an extra pass with RLE enabled
+    uint32_t numPasses = zeroIter != sortedSymbolFreqPairs.end() ? 2 : 1;
+    for (uint32_t pass = 0; pass < numPasses; ++pass)
     {
-        FindRLEParams(params, weights);
-        // If there are only zero weights, there is nothing more to do.
-        if (sortedSymbolFreqPairs.size() == 1)
-        {
-            // There are only zero weights so only the ZDivisor will be used. All other compression
-            // parameters should stay the same as the previous OFM.
-            ZDivisor zDiv              = params.m_Zdiv;
-            EncodingParams encParams   = params.m_EncodingParams;
-            params                     = prevParams;
-            params.m_Zdiv              = zDiv;
-            params.m_EncodingParams    = encParams;
-            params.m_InitialParameters = false;
-            // The palette only needs to be written if this is the initial parameters.
-            params.m_PaletteReload = prevParams.m_InitialParameters;
+        WeightCompressionParamsV2 params = newParams;
+        uint32_t bitCost                 = 0;
 
-            // If this is not the initial parameters and the same RLE ZDivisor was used for the previous
-            // OFM the compression parameters can be reused
-            params.m_ReloadCompressionParams =
-                !(prevParams.m_InitialParameters == false && params.m_Zdiv == prevParams.m_Zdiv);
-            return;
+        // Only use RLE for the second pass
+        if (pass > 0)
+        {
+            bitCost += FindRLEParams(params, weights);
+            // If there are only zero weights, there is nothing more to do.
+            if (sortedSymbolFreqPairs.size() == 1)
+            {
+                // There are only zero weights so only the ZDivisor will be used. All other compression
+                // parameters should stay the same as the previous OFM.
+                ZDivisor zDiv              = params.m_Zdiv;
+                EncodingParams encParams   = params.m_EncodingParams;
+                params                     = prevParams;
+                params.m_Zdiv              = zDiv;
+                params.m_EncodingParams    = encParams;
+                params.m_InitialParameters = false;
+                // The palette only needs to be written if this is the initial parameters.
+                params.m_PaletteReload = prevParams.m_InitialParameters;
+
+                // If this is not the initial parameters and the same RLE ZDivisor was used for the previous
+                // OFM the compression parameters can be reused
+                params.m_ReloadCompressionParams =
+                    !(prevParams.m_InitialParameters == false && params.m_Zdiv == prevParams.m_Zdiv);
+                passCostParamPairs.emplace_back(bitCost, params);
+                break;
+            }
+
+            // Remove the zero weights from the vector as they are now handled by RLE
+            sortedSymbolFreqPairs.erase(zeroIter);
         }
 
-        // Remove the zero weights from the vector as they are now handled by RLE
-        sortedSymbolFreqPairs.erase(zeroIter);
+        // Attempt to find palette parameters that fit the weight symbols
+        if (!FindPaletteParams(params, sortedSymbolFreqPairs))
+        {
+            // No palette will be used so find the smallest symbol to use as weight offset
+            const Weight minSymbol =
+                std::min_element(sortedSymbolFreqPairs.begin(), sortedSymbolFreqPairs.end())->first;
+            params.m_WeightOffset = WeightOffsetClamp(minSymbol);
+            params.m_PaletteBits  = 0;
+        }
+
+        // To be able to find the best GRC params, we first need to create a vector with the final
+        // symbols that should be compressed.
+        std::vector<std::pair<WeightSymbol, uint32_t>> uncompressedSymbolFreqs = CreateUncompressedSymbolFreqs(
+            sortedSymbolFreqPairs, params.m_InversePalette, params.m_Palette.size(), params.m_WeightOffset);
+
+        // If a palette is used and it does not contain all the values, the GRC param finder needs an
+        // additional vector where the palette is not used to correctly evaluate the cost of using
+        // uncompressed mode.
+        std::vector<std::pair<WeightSymbol, uint32_t>> uncompressedNoPaletteSymbolFreqs;
+        uint8_t noPaletteOffset = 0;
+        // Inverse palette has the actual size without padding
+        if (params.m_InversePalette.size() != sortedSymbolFreqPairs.size())
+        {
+            noPaletteOffset =
+                WeightOffsetClamp(std::min_element(sortedSymbolFreqPairs.begin(), sortedSymbolFreqPairs.end())->first);
+            uncompressedNoPaletteSymbolFreqs =
+                CreateUncompressedSymbolFreqs(sortedSymbolFreqPairs, {}, 0, noPaletteOffset);
+        }
+
+        bitCost += FindGRCParams(params, uncompressedSymbolFreqs, uncompressedNoPaletteSymbolFreqs);
+        if (params.m_Wdiv == WDivisor::UNCOMPRESSED && !uncompressedNoPaletteSymbolFreqs.empty())
+        {
+            params.m_Palette.clear();
+            params.m_InversePalette.clear();
+
+            // Change to offset without the palette
+            params.m_WeightOffset = noPaletteOffset;
+            // Calculate the uncompressed bitwidth
+            const WeightSymbol maxSymbol =
+                std::max_element(uncompressedNoPaletteSymbolFreqs.begin(), uncompressedNoPaletteSymbolFreqs.end())
+                    ->first;
+            params.m_PaletteBits = CalcBitWidth(maxSymbol, 2) - 2;
+        }
+
+        params.m_PaletteReload =
+            !(prevParams.m_InitialParameters == false && params.m_Palette == prevParams.m_Palette &&
+              params.m_PaletteBits == prevParams.m_PaletteBits);
+
+        if (params.m_PaletteReload && params.m_Palette.size() > 0)
+        {
+            bitCost += static_cast<uint32_t>((params.m_PaletteBits + 2) * params.m_Palette.size());
+        }
+
+        params.m_ReloadCompressionParams =
+            !(params.m_PaletteReload == false && params.m_Zdiv == prevParams.m_Zdiv &&
+              params.m_Wdiv == prevParams.m_Wdiv && params.m_TruncationEnabled == prevParams.m_TruncationEnabled &&
+              params.m_WeightOffset == prevParams.m_WeightOffset);
+
+        passCostParamPairs.emplace_back(bitCost, params);
     }
 
-    // Attempt to find palette parameters that fit the weight symbols
-    if (!FindPaletteParams(params, sortedSymbolFreqPairs))
-    {
-        // No palette will be used so find the smallest symbol to use as weight offset
-        const Weight minSymbol = std::min_element(sortedSymbolFreqPairs.begin(), sortedSymbolFreqPairs.end())->first;
-        params.m_WeightOffset  = WeightOffsetClamp(minSymbol);
-        params.m_PaletteBits   = 0;
-    }
-
-    // To be able to find the best GRC params, we first need to create a vector with the final
-    // symbols that should be compressed.
-    std::vector<std::pair<WeightSymbol, uint32_t>> uncompressedSymbolFreqs = CreateUncompressedSymbolFreqs(
-        sortedSymbolFreqPairs, params.m_InversePalette, params.m_Palette.size(), params.m_WeightOffset);
-
-    // If a palette is used and it does not contain all the values, the GRC param finder needs an
-    // additional vector where the palette is not used to correctly evaluate the cost of using
-    // uncompressed mode.
-    std::vector<std::pair<WeightSymbol, uint32_t>> uncompressedNoPaletteSymbolFreqs;
-    uint8_t noPaletteOffset = 0;
-    // Inverse palette has the actual size without padding
-    if (params.m_InversePalette.size() != sortedSymbolFreqPairs.size())
-    {
-        noPaletteOffset =
-            WeightOffsetClamp(std::min_element(sortedSymbolFreqPairs.begin(), sortedSymbolFreqPairs.end())->first);
-        uncompressedNoPaletteSymbolFreqs = CreateUncompressedSymbolFreqs(sortedSymbolFreqPairs, {}, 0, noPaletteOffset);
-    }
-
-    FindGRCParams(params, uncompressedSymbolFreqs, uncompressedNoPaletteSymbolFreqs);
-    if (params.m_Wdiv == WDivisor::UNCOMPRESSED && !uncompressedNoPaletteSymbolFreqs.empty())
-    {
-        params.m_Palette.clear();
-        params.m_InversePalette.clear();
-
-        // Change to offset without the palette
-        params.m_WeightOffset = noPaletteOffset;
-        // Calculate the uncompressed bitwidth
-        const WeightSymbol maxSymbol =
-            std::max_element(uncompressedNoPaletteSymbolFreqs.begin(), uncompressedNoPaletteSymbolFreqs.end())->first;
-        params.m_PaletteBits = CalcBitWidth(maxSymbol, 2) - 2;
-    }
-
-    params.m_PaletteReload = !(prevParams.m_InitialParameters == false && params.m_Palette == prevParams.m_Palette &&
-                               params.m_PaletteBits == prevParams.m_PaletteBits);
-
-    params.m_ReloadCompressionParams =
-        !(params.m_PaletteReload == false && params.m_Zdiv == prevParams.m_Zdiv && params.m_Wdiv == prevParams.m_Wdiv &&
-          params.m_TruncationEnabled == prevParams.m_TruncationEnabled &&
-          params.m_WeightOffset == prevParams.m_WeightOffset);
+    // Get the params with the lowest cost
+    auto min_cost_cmp = [](const auto& a, const auto& b) { return a.first < b.first; };
+    newParams         = std::min_element(passCostParamPairs.begin(), passCostParamPairs.end(), min_cost_cmp)->second;
 }
 
 const WeightEncoderV2::WeightCompressionParamsV2
@@ -1223,13 +1264,8 @@ void WeightEncoderV2::PaletteZrunEncode(const std::deque<WeightEncoderV2::Weight
 void WeightEncoderV2::GRCCompressPackChunk(const std::deque<WeightSymbol>& weightSymbols,
                                            const std::deque<WeightSymbol>& zeroSymbols,
                                            const WeightCompressionParamsV2& compParams,
-                                           int32_t ifmConsumedPerEngine,
                                            BitstreamWriter& writer) const
 {
-    assert(ifmConsumedPerEngine > 0);
-
-    const int32_t ifmConsumedPerEnginex3d4 = (3 * ifmConsumedPerEngine) / 4;
-    const int32_t ifmConsumedPerEngined2   = ifmConsumedPerEngine / 2;
 
     bool unCompressed = compParams.m_Wdiv == WDivisor::UNCOMPRESSED;
     bool rleEnabled   = compParams.m_Zdiv != ZDivisor::RLE_DISABLED;
@@ -1268,7 +1304,8 @@ void WeightEncoderV2::GRCCompressPackChunk(const std::deque<WeightSymbol>& weigh
     int32_t zUnary     = 0;
     int32_t zQuot      = -1;
     int32_t zRmd       = 0;
-    int32_t zUnaryLen  = (zDivisor < 3) ? ifmConsumedPerEnginex3d4 : ifmConsumedPerEngined2;
+    int32_t zUnaryLen  = (zDivisor < 3) ? static_cast<int32_t>(m_IfmConsumedPerEnginex3d4)
+                                       : static_cast<int32_t>(m_IfmConsumedPerEngined2);
 
     int32_t j;
 
@@ -1286,12 +1323,12 @@ void WeightEncoderV2::GRCCompressPackChunk(const std::deque<WeightSymbol>& weigh
     {
         // See Ethos-N78 MCE specification, section 6.8.6.3.5
         int32_t balance = rleEnabled ? wPos - zPos : 0;
-        bool wEnable    = (balance < ifmConsumedPerEngined2) && (wPos < nWeights);
+        bool wEnable    = (balance < static_cast<int32_t>(m_IfmConsumedPerEngined2)) && (wPos < nWeights);
         bool zEnable    = balance >= 0 && rleEnabled && zPos < nZeros;
 
         // maximum number of weight symbols
-        int32_t maxNumWunary0Bits =
-            (unCompressed && (wDivisor > 5)) ? ifmConsumedPerEngined2 : ifmConsumedPerEnginex3d4;
+        int32_t maxNumWunary0Bits = (unCompressed && (wDivisor > 5)) ? static_cast<int32_t>(m_IfmConsumedPerEngined2)
+                                                                     : static_cast<int32_t>(m_IfmConsumedPerEnginex3d4);
 
         if (wEnable)
         {
