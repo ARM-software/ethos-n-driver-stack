@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -37,6 +37,7 @@ class Compiler;
 struct SramTensorAllocation
 {
     uint32_t tileSize;
+    uint32_t numStripesInTile;
     TensorShape stripeShape;
     uint32_t offset;
 };

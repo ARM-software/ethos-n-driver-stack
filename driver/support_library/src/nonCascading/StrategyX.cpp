@@ -226,8 +226,9 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
 
     // It's better to use multiple queues if partial depth.
     const bool needSlotGroups = (GetChannels(inputShape) > GetChannels(inputStripe));
-    const uint32_t inputTile =
-        totalSlotSize * numInputSlots * ((allowInputBuffering && needSlotGroups) ? numInputSlotGroupsMax : 1U);
+    const uint32_t numInputStripesInTile =
+        numInputSlots * ((allowInputBuffering && needSlotGroups) ? numInputSlotGroupsMax : 1U);
+    const uint32_t inputTile = totalSlotSize * numInputStripesInTile;
 
     uint32_t numWeightStripesInTile;
     if (!isFullyConnected)
@@ -314,12 +315,15 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
     {
         return false;
     }
-    outTensorConfig.inputAllocation.stripeShape   = inputStripe;
-    outTensorConfig.inputAllocation.tileSize      = inputTile;
-    outTensorConfig.outputAllocation.stripeShape  = outputStripe;
-    outTensorConfig.outputAllocation.tileSize     = outputTile;
-    outTensorConfig.weightsAllocation.stripeShape = weightStripe;
-    outTensorConfig.weightsAllocation.tileSize    = weightTile;
+    outTensorConfig.inputAllocation.stripeShape        = inputStripe;
+    outTensorConfig.inputAllocation.tileSize           = inputTile;
+    outTensorConfig.inputAllocation.numStripesInTile   = numInputStripesInTile;
+    outTensorConfig.outputAllocation.stripeShape       = outputStripe;
+    outTensorConfig.outputAllocation.tileSize          = outputTile;
+    outTensorConfig.outputAllocation.numStripesInTile  = numOutputStripesInTile;
+    outTensorConfig.weightsAllocation.stripeShape      = weightStripe;
+    outTensorConfig.weightsAllocation.tileSize         = weightTile;
+    outTensorConfig.weightsAllocation.numStripesInTile = numWeightStripesInTile;
     // If we succeeded in finding a strategy, update the sram allocation state
     sramAllocator = currentSramAllocator;
     FillTensorConfigOffsets(allocationResults, outTensorConfig);

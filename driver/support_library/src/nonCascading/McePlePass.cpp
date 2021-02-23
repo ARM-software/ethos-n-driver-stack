@@ -806,6 +806,14 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
     std::tie(weightStripeSize, weightStripeDepth) = GetWeightStripeSizeAndDepth();
     EncodedWeights encodedWeights =
         m_WeightEncoder->Encode(*m_MceOperation, weightStripeDepth, weightStripeSize, quantizationInfo);
+
+    // Check that the weight tile can hold the expected number of stripes
+    if (m_TensorConfig.weightsAllocation.tileSize <
+        (encodedWeights.m_MaxSize * m_TensorConfig.weightsAllocation.numStripesInTile))
+    {
+        throw InternalErrorException("Weight tile too small for the expected number of stripes");
+    }
+
     std::vector<uint8_t>& compressedWeights = encodedWeights.m_Data;
     uint32_t weightBufferId                 = bufferManager.AddDramConstant(BufferType::ConstantDma, compressedWeights);
 

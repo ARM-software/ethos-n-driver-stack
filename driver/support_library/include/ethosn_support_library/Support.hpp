@@ -985,6 +985,23 @@ public:
     virtual void Serialize(std::ostream&) const = 0;
 };
 
+/// Exception type thrown for unexpected internal errors.
+class InternalErrorException : public std::exception
+{
+public:
+    InternalErrorException(const char* reason)
+        : m_Reason(reason)
+    {}
+
+    virtual const char* what() const noexcept override
+    {
+        return m_Reason.c_str();
+    }
+
+private:
+    std::string m_Reason;
+};
+
 /// Exception type thrown when an operation is added to a Network which is not supported.
 class NotSupportedException : public std::exception
 {
@@ -1045,7 +1062,9 @@ struct TensorsAndId
 // Get a version string for this library
 const Version GetLibraryVersion();
 
-// Call the Compiler to process the network and get the outputs that need to be passed through Arm NN to the driver lib
+/// Call the Compiler to process the network and get the outputs that need to be passed through Arm NN to the driver lib
+///
+/// @throws InternalErrorException for unexpected internal compilation errors.
 std::vector<std::unique_ptr<CompiledNetwork>> Compile(const Network& network, const CompilationOptions& options);
 
 // Call the Compiler to estimate the performance of the network

@@ -366,14 +366,17 @@ TryStripeShapesResult TryStripeShapes(const SramAllocator& sramAllocator,
         return {};
     }
     TryStripeShapesResult result;
-    result.m_Success                                    = true;
-    result.m_TensorConfig.inputAllocation.stripeShape   = inputStripe;
-    result.m_TensorConfig.inputAllocation.tileSize      = inputTile;
-    result.m_TensorConfig.outputAllocation.stripeShape  = outputStripe;
-    result.m_TensorConfig.outputAllocation.tileSize     = outputTile;
-    result.m_TensorConfig.weightsAllocation.stripeShape = weightStripe;
-    result.m_TensorConfig.weightsAllocation.tileSize    = weightTile;
-    result.m_UpdatedSramAllocator                       = currentSramAllocator;
+    result.m_Success                                         = true;
+    result.m_TensorConfig.inputAllocation.stripeShape        = inputStripe;
+    result.m_TensorConfig.inputAllocation.tileSize           = inputTile;
+    result.m_TensorConfig.inputAllocation.numStripesInTile   = numInputStripesInTile;
+    result.m_TensorConfig.outputAllocation.stripeShape       = outputStripe;
+    result.m_TensorConfig.outputAllocation.tileSize          = outputTile;
+    result.m_TensorConfig.outputAllocation.numStripesInTile  = numOutputStripesInTile;
+    result.m_TensorConfig.weightsAllocation.stripeShape      = weightStripe;
+    result.m_TensorConfig.weightsAllocation.tileSize         = weightTile;
+    result.m_TensorConfig.weightsAllocation.numStripesInTile = numWeightStripesInTile;
+    result.m_UpdatedSramAllocator                            = currentSramAllocator;
     FillTensorConfigOffsets(allocationResults, result.m_TensorConfig);
 
     result.m_InputStats = GetInputStats(
