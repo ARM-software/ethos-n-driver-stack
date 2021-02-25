@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -13,6 +13,13 @@ namespace ethosn
 {
 namespace support_library
 {
+
+#if !defined(NDEBUG)
+constexpr const char SupportLibraryName[] = "support_library";
+LoggerType g_Logger({ &ethosn::utils::log::sinks::StdOut<SupportLibraryName> });
+#else
+LoggerType g_Logger;
+#endif
 
 HardwareCapabilities::HardwareCapabilities(const FirmwareAndHardwareCapabilities& fwAndHwCapabilities)
 {
@@ -29,20 +36,20 @@ uint32_t HardwareCapabilities::GetNumberOfEngines() const
     return m_FirmwareAndHardwareCapabilities.m_NumberOfEngines;
 }
 
-uint32_t HardwareCapabilities::GetIfmPerEngine() const
+uint32_t HardwareCapabilities::GetIgsPerEngine() const
 {
-    return m_FirmwareAndHardwareCapabilities.m_IfmPerEngine;
+    return m_FirmwareAndHardwareCapabilities.m_IgsPerEngine;
 }
 
-uint32_t HardwareCapabilities::GetOfmPerEngine() const
+uint32_t HardwareCapabilities::GetOgsPerEngine() const
 {
-    return m_FirmwareAndHardwareCapabilities.m_OfmPerEngine;
+    return m_FirmwareAndHardwareCapabilities.m_OgsPerEngine;
 }
 
-uint32_t HardwareCapabilities::GetNumberOfOfm() const
+uint32_t HardwareCapabilities::GetNumberOfOgs() const
 {
     // Return the total number of OFMs that can be generated
-    return m_FirmwareAndHardwareCapabilities.m_NumberOfEngines * m_FirmwareAndHardwareCapabilities.m_OfmPerEngine;
+    return m_FirmwareAndHardwareCapabilities.m_NumberOfEngines * m_FirmwareAndHardwareCapabilities.m_OgsPerEngine;
 }
 
 uint32_t HardwareCapabilities::GetNumberOfSrams() const
@@ -85,14 +92,14 @@ const TensorShape& HardwareCapabilities::GetPatchShape() const
     return m_FirmwareAndHardwareCapabilities.m_PatchShape;
 }
 
-uint32_t HardwareCapabilities::GetMacUnitsPerEngine() const
+uint32_t HardwareCapabilities::GetMacUnitsPerOg() const
 {
-    return m_FirmwareAndHardwareCapabilities.m_MacUnitsPerEngine;
+    return m_FirmwareAndHardwareCapabilities.m_MacUnitsPerOg;
 }
 
-uint32_t HardwareCapabilities::GetTotalAccumulatorsPerEngine() const
+uint32_t HardwareCapabilities::GetTotalAccumulatorsPerOg() const
 {
-    return m_FirmwareAndHardwareCapabilities.m_TotalAccumulatorsPerEngine;
+    return m_FirmwareAndHardwareCapabilities.m_TotalAccumulatorsPerOg;
 }
 
 uint32_t HardwareCapabilities::GetWeightCompressionVersion() const
@@ -150,7 +157,7 @@ uint32_t EstimateWeightSizeBytes(const TensorShape& shape, const HardwareCapabil
     // requires a full set of numCes number of weights so we just set the others to zero.
     // See MCE specification 6.13 Weight Decoder and WeightEncoder.cpp in support_library for more information.
     // HWIM always uses ZERO COMPRESSION: 1 byte weight + mask (1 bit for each IG)
-    const uint32_t numIfmsProcessedInParallel = capabilities.GetIfmPerEngine() * capabilities.GetNumberOfEngines();
+    const uint32_t numIfmsProcessedInParallel = capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines();
     const uint32_t numIfmsRounded = utils::RoundUpToNearestMultiple(std::get<2>(shape), numIfmsProcessedInParallel);
     uint32_t numIfmsPerCe         = isHwim ? 1 + (capabilities.GetNumberOfSrams() / 8) : numIfmsRounded;
     uint32_t numBytesPerOfm       = std::get<0>(shape) * std::get<1>(shape) * numIfmsPerCe;
@@ -171,7 +178,7 @@ uint32_t EstimateWeightSizeBytes(const TensorShape& shape, const HardwareCapabil
     {
         numOutputChannels *= std::get<2>(shape);
     }
-    const uint32_t numOfmsProducedInParallel = isHwim ? capabilities.GetNumberOfSrams() : capabilities.GetNumberOfOfm();
+    const uint32_t numOfmsProducedInParallel = isHwim ? capabilities.GetNumberOfSrams() : capabilities.GetNumberOfOgs();
     uint32_t numOfmsPerIteration             = utils::DivRoundUp(numOutputChannels, numOfmsProducedInParallel);
     uint32_t numBytesPerIteration            = numBytesPerOfm * numOfmsPerIteration;
     numBytesPerIteration = static_cast<uint32_t>(command_stream::impl::RoundUp<16>(numBytesPerIteration));
@@ -188,21 +195,14 @@ uint32_t
     }
     else
     {
-        const uint32_t interleaveStride = capabilities.GetNumberOfSrams();
-        // The stride is nicely aligned when the number of channels is multiple of interleaveStride
-        uint32_t strideAlignment = strideX * strideY * interleaveStride;
-        // Input channels remainder of the strideAlignment
-        uint32_t nChannelsRemainder = nChannels % strideAlignment;
-
-        // For a single engine the number of channels after striding is equal to the
+        // For a single sram the number of channels after submap decomposition is equal to the
         // original number of channels multiplied by the stride in X and Y direction.
-        // When looking at the whole set of engines things change slightly.
+        // When looking at the whole set of srams things change slightly.
         //
-        // The example below shows a case where orignal number of channels is 16 and stride 2x2.
-        // interleaveStride is 16.
+        // The example below shows a case where original number of channels is 16 and stride 2x2.
         // x = active channel
         // - = non-active channel
-        // CE#0 CE#1 CE#2 CE#3 CE#4 CE#5 CE#6 CE#7 CE#8 CE#9 CE#10 CE#11 CE#12 CE#13 CE#14 CE#15
+        // RAM0 RAM1 RAM2 RAM3 RAM4 RAM5 RAM6 RAM7 RAM8 RAM9 RAM10 RAM11 RAM12 RAM13 RAM14 RAM15
         //  x(0) x    x    x    x    x    x    x    x    x    x     x     x     x     x     x
         //  x    x    x    x    x    x    x    x    x    x    x     x     x     x     x     x
         //  x    x    x    x    x    x    x    x    x    x    x     x     x     x     x     x
@@ -211,24 +211,22 @@ uint32_t
         // channels is 64 / 2 * 2 = 16
         //
         // The example below shows a case where original number of channels is 3 and stride 2x2
-        // CE#0 CE#1 CE#2 CE#3 CE#4 CE#5 CE#6 CE#7 CE#8 CE#9 CE#10 CE#11 CE#12 CE#13 CE#14 CE#15
+        // RAM0 RAM1 RAM2 RAM3 RAM4 RAM5 RAM6 RAM7 RAM8 RAM9 RAM10 RAM11 RAM12 RAM13 RAM14 RAM15
         //  x(0) x    x    -    -    -    -    -    -    -    -     -     -     -     -     -
         //  x    x    x    -    -    -    -    -    -    -    -     -     -     -     -     -
         //  x    x    x    -    -    -    -    -    -    -    -     -     -     -     -     -
         //  x    x   x(50) -    -    -    -    -    -    -    -     -     -     -     -     -
         // The global number of channels is 51 (need to count non-active channels). The number of
-        // original channels is equal to global number minus (strideX*strideY - 1)*16 which is
-        // equal to 3
-        // The formulas below generalise this concept.
-        if (nChannelsRemainder)
-        {
-            result = interleaveStride * (nChannels / strideAlignment) + (nChannelsRemainder) -
-                     (strideX * strideY - 1) * interleaveStride;
-        }
-        else
-        {
-            result = nChannels / (strideX * strideY);
-        }
+        // original channels is equal to global number minus (strideX*strideY - 1)*16 divided by
+        // strideX*strideY which is equal to 3.
+        // The formula below generalises this concept.
+
+        const uint32_t numSrams           = capabilities.GetNumberOfSrams();
+        const uint32_t fullBlocks         = strideX * strideY * numSrams;
+        const uint32_t nChannelsRemainder = nChannels % numSrams;
+
+        // The result is the number of full channel blocks times numSrams plus the remainder
+        result = ((nChannels / fullBlocks) * numSrams) + nChannelsRemainder;
     }
     return result;
 }
@@ -384,23 +382,33 @@ CompilerMceAlgorithm FindBestConvAlgorithm(const HardwareCapabilities& caps, uin
     // See the 2x2 Winograd Support Specification for further details
 
     // Decompose kernels with width and height > 3 into multiple 3x3, 3x1 or 1x3 sub-kernels.
-    const uint32_t wideKernelSize = caps.GetWideKernelSize();
+    const uint32_t winogradKernelSize = caps.GetWideKernelSize();
     if (w == 1 || h == 1)
     {
         // 1D convolution kernel dim w x 1 or 1 x h
-        // numOfMultiplications = 2 * w or 2 * h                   DIRECT
-        //                      = 4 * CEIL(W/3) or 4 * CEIL(H/3)   WINOGRAD
-        numMultsDirect   = w * h * caps.GetOutputSizePerWinograd2D() * caps.GetOutputSizePerWinograd1D();
-        numMultsWinograd = caps.GetMacsPerWinograd1D() * utils::DivRoundUp(w * h, wideKernelSize);
+        // Assuming 2x4 output half patch
+        // numOfMultiplications = 8 * w or 8 * h                   DIRECT
+        //                      = 16 * CEIL(W/3) or 16 * CEIL(H/3)   WINOGRAD
+
+        // Number of elements in winograd output block is the same for either 1x3 or 3x1 kernels.
+        const WinogradOutputShape winogradOutput1D = caps.Get3x1WinogradOutputSize();
+        // Example: for 3x1 filter => 24 MACs in direct.
+        numMultsDirect = w * h * winogradOutput1D.m_Height * winogradOutput1D.m_Width;
+        // Example: for 3x1 filter => 16 MACs in wingorad.
+        numMultsWinograd = caps.GetMacsPerWinogradOutputBlock() * utils::DivRoundUp(w * h, winogradKernelSize);
     }
     else
     {
         // 2D convolution kernel dim w x h
+        // Assuming 2x2 output quarter patch
         // numOfMultiplications = 4 * w * h                    DIRECT
         //                      = 16 * CEIL(W/3) * CEIL(H/3)   WINOGRAD
-        numMultsDirect = w * h * caps.GetOutputSizePerWinograd2D() * caps.GetOutputSizePerWinograd2D();
-        numMultsWinograd =
-            caps.GetMacsPerWinograd2D() * utils::DivRoundUp(w, wideKernelSize) * utils::DivRoundUp(h, wideKernelSize);
+        const WinogradOutputShape winogradOutput2D = caps.Get3x3WinogradOutputSize();
+        // Example: for 3x3 filter => 36 MACs in direct.
+        numMultsDirect = w * h * winogradOutput2D.m_Height * winogradOutput2D.m_Width;
+        // Example: for 3x3 filter => 16 MACs in wingorad.
+        numMultsWinograd = caps.GetMacsPerWinogradOutputBlock() * utils::DivRoundUp(w, winogradKernelSize) *
+                           utils::DivRoundUp(h, winogradKernelSize);
     }
 
     if (numMultsWinograd < numMultsDirect)

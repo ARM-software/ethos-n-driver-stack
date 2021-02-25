@@ -77,7 +77,7 @@ BOOST_AUTO_TEST_SUITE(EthosNSupport)
 BOOST_AUTO_TEST_CASE(LibraryAccess)
 {
     const std::string version = ethosn_lib::GetLibraryVersion().ToString();
-    BOOST_TEST(version == "0.1.1");
+    BOOST_TEST(version == "0.1.2");
 }
 
 BOOST_AUTO_TEST_CASE(ConvertAdditionLayer)
@@ -758,7 +758,7 @@ BOOST_AUTO_TEST_CASE(ConvertResizeLayer)
 
     ResizeDescriptor descriptor;
     descriptor.m_Method       = ResizeMethod::Bilinear;
-    descriptor.m_TargetHeight = 63;
+    descriptor.m_TargetHeight = 64;
     descriptor.m_TargetWidth  = 32;
 
     Layer* resizeLayer = graph.AddLayer<ResizeLayer>(descriptor, "resize");

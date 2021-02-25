@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -92,7 +92,7 @@ void BitstreamWriter::Write(uint8_t elem, int numBits, size_t offset)
 
         if (idx >= m_Bitstream.size())
         {
-            m_Bitstream.push_back((elem >> i) & 1);
+            m_Bitstream.push_back(static_cast<uint8_t>((elem >> i) & 1));
         }
         else
         {
@@ -533,7 +533,32 @@ WeightEncoder::EncodedOfm
 
     const uint32_t ofmBiasSize = GetOfmBiasSize(weightsTensorInfo);
 
-    const bool ofmReload = GetOfmReload(compParams, prevCompParams, ofmIdx < numOfmInParallel);
+    // When using per channel quantization the reload parameter depends on the memory streaming
+    // being used. At the moment this information is not available here. Always reload in this case.
+    // Example:
+    //
+    // Number of Ofms : 4
+    // Ofm number: 0 1 2 3
+    // scale:      a a a b (a, b are numbers)
+    // reload:     T F F T (T=True, F=False)
+    //
+    // Case 1
+    // Ofm stripe is full height, full width and full depth
+    // Streaming strategy processes Ofms in the order: 0, 1, 2, 3
+    // No issue
+    //
+    // Case 2
+    // Ofm stripe is partial height, full width and partial depth
+    // Streaming strategy processes Ofms in the order: 0, 1, 0, 1, 2, 3, 2, 3
+    // Reload:                                         T  F  T  F  F  T  F  T
+    //                                                                   ^
+    //                                                       it uses scale "b" of 3 which
+    //                                                       is not correct. It should
+    //                                                       have reloaded its own scale "a"
+    //
+    const auto isPerChannelQuantization = weightsTensorInfo.m_QuantizationInfo.GetScales().size() > 1;
+    const bool ofmReload =
+        isPerChannelQuantization || GetOfmReload(compParams, prevCompParams, ofmIdx < numOfmInParallel);
 
     BitstreamWriter writer;
 
@@ -549,7 +574,7 @@ WeightEncoder::EncodedOfm
 
     WritePayloadHeader(writer, pldLen, compParams);
 
-    uint32_t ifmConsumedPerEngine = m_Capabilities.GetIfmPerEngine() * m_Capabilities.GetNumberOfEngines();
+    uint32_t ifmConsumedPerEngine = m_Capabilities.GetIgsPerEngine() * m_Capabilities.GetNumberOfEngines();
 
     GRCCompressPackChunk(weightSymbols, zeroSymbols, compParams, ifmConsumedPerEngine, writer);
 
@@ -893,11 +918,21 @@ void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& par
         // If there are only zero weights, there is nothing more to do.
         if (sortedSymbolFreqPairs.size() == 1)
         {
-            // The palette parameters whill not be used as there is only zero weights. However, if
-            // this is the initial header the palette parameters must be written.
+            // There are only zero weights so only the ZDivisor will be used. All other compression
+            // parameters should stay the same as the previous OFM.
+            ZDivisor zDiv              = params.m_Zdiv;
+            EncodingParams encParams   = params.m_EncodingParams;
+            params                     = prevParams;
+            params.m_Zdiv              = zDiv;
+            params.m_EncodingParams    = encParams;
+            params.m_InitialParameters = false;
+            // The palette only needs to be written if this is the initial parameters.
             params.m_PaletteReload = prevParams.m_InitialParameters;
-            // If the same RLE ZDivisor was used for the previous OFM the compression parameters can be reused
-            params.m_ReloadCompressionParams = !(params.m_PaletteReload == false && params.m_Zdiv == prevParams.m_Zdiv);
+
+            // If this is not the initial parameters and the same RLE ZDivisor was used for the previous
+            // OFM the compression parameters can be reused
+            params.m_ReloadCompressionParams =
+                !(prevParams.m_InitialParameters == false && params.m_Zdiv == prevParams.m_Zdiv);
             return;
         }
 
@@ -1600,11 +1635,11 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
     // weights streams that need to be loaded at the same time for all the
     // mce interfaces to start producing an Ofm each.
     uint32_t numSrams       = m_Capabilities.GetNumberOfSrams();
-    uint32_t numOfmsPerSram = m_Capabilities.GetNumberOfOfm() / numSrams;
+    uint32_t numOfmsPerSram = m_Capabilities.GetNumberOfOgs() / numSrams;
 
     // The number of OFMs that can be processed in parallel is limited to the stripe depth
     uint32_t numOfmInParallel =
-        GetNumOfmInParallel(m_Capabilities.GetNumberOfOfm(), numSrams, stripeDepth, weightsTensorInfo.m_DataFormat);
+        GetNumOfmInParallel(m_Capabilities.GetNumberOfOgs(), numSrams, stripeDepth, weightsTensorInfo.m_DataFormat);
 
     std::vector<std::unique_ptr<WeightCompressionParams>> compressionParams =
         GenerateCompressionParams(numOfmInParallel);
@@ -1831,7 +1866,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
     std::vector<SubmapFilter> wideSubfilters = GetSubmapFilters(filterX, filterY, wideKernelSize, maxFilterSize);
 
     uint32_t numEngines      = m_Capabilities.GetNumberOfEngines();
-    uint32_t numIfmPerEngine = m_Capabilities.GetIfmPerEngine();
+    uint32_t numIgsPerEngine = m_Capabilities.GetIgsPerEngine();
     // When not using zero mask compression we must tightly pack the final subfilter in the final slice
     // (where each slice is the set of weights for as many IFMs as there are IGs).
     // However when zero mask compression is enabled the HW behaves differently and requires this to be padded
@@ -1854,7 +1889,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
     {
         const uint32_t numIfms = weightsTensorInfo.m_Dimensions[2];
 
-        const uint32_t numIfmsProcessedInParallel = numIfmPerEngine * numEngines;
+        const uint32_t numIfmsProcessedInParallel = numIgsPerEngine * numEngines;
 
         // In the IFM depth streaming, weights need to be partitioned
         // into multiple sections per OFM.
@@ -2328,7 +2363,7 @@ WeightEncoder::EncodedOfm
         compressionParams.m_MaskEnable ? rawWeightsForZeroMaskCompression : rawWeightsForNoZeroMaskCompression;
 
     // If the Lut is the same as for previous OFM for the current CE then don't reload it
-    const uint32_t numOfmsPerSram = m_Capabilities.GetNumberOfOfm() / m_Capabilities.GetNumberOfSrams();
+    const uint32_t numOfmsPerSram = m_Capabilities.GetNumberOfOgs() / m_Capabilities.GetNumberOfSrams();
     if (compressionParams.m_IndexSize != 0 && ofmIdx >= numOfmInParallel &&
         previousOfmSameCeCompressionParams.m_Lut == compressionParams.m_Lut &&
         // Disable for configurations with more than one OFM per SRAM, since they use a different CE OFM

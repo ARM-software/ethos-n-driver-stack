@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Contains the definition of the *current* version of the FirmwareAndHardwareCapabilities struct.
@@ -14,6 +14,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 
 #define FW_AND_HW_CAPABILITIES_VERSION 3
 
@@ -61,8 +62,8 @@ struct FirmwareAndHardwareCapabilities
     // Hardware capabilities
     uint32_t m_TotalSramSize;
     uint32_t m_NumberOfEngines;
-    uint32_t m_OfmPerEngine;
-    uint32_t m_IfmPerEngine;
+    uint32_t m_OgsPerEngine;
+    uint32_t m_IgsPerEngine;
     uint32_t m_EmcPerEngine;
     uint32_t m_MaxPleSize;
     uint32_t m_BoundaryStripeHeight;
@@ -70,9 +71,9 @@ struct FirmwareAndHardwareCapabilities
     uint32_t m_NumCentralSlots;
     TensorShape m_BrickGroupShape;
     TensorShape m_PatchShape;
-    uint32_t m_MacUnitsPerEngine;
+    uint32_t m_MacUnitsPerOg;
     uint32_t m_AccumulatorsPerMacUnit;
-    uint32_t m_TotalAccumulatorsPerEngine;
+    uint32_t m_TotalAccumulatorsPerOg;
     uint32_t m_NumPleLanes;
     uint32_t m_WeightCompressionVersion;
     uint32_t m_ActivationCompressionVersion;

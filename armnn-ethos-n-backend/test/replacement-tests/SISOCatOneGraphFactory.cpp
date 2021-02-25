@@ -1,5 +1,5 @@
 //
-// Copyright © 2020 Arm Ltd. All rights reserved.
+// Copyright © 2020-2021 Arm Ltd. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "SISOCatOneGraphFactory.hpp"
@@ -8,6 +8,7 @@
 #include "EthosNLayerSupport.hpp"
 #include "EthosNMapping.hpp"
 #include "EthosNTestUtils.hpp"
+#include "Network.hpp"
 
 #include <boost/test/unit_test.hpp>
 
@@ -20,12 +21,11 @@ const std::string& SISOCatOneGraphFactory::GetName() const
 }
 
 //input-->Activation(TanH)-->Softmax-->Rsqrt-->FullyCoonected-->output
-INetworkPtr SISOCatOneGraphFactory::GetInitialGraph() const
+std::unique_ptr<NetworkImpl> SISOCatOneGraphFactory::GetInitialGraph() const
 {
-    INetworkPtr iNetPtr(INetwork::Create());
-    INetwork& net = *iNetPtr;
+    std::unique_ptr<NetworkImpl> net = std::make_unique<NetworkImpl>();
 
-    armnn::IConnectableLayer* const inputLayer = net.AddInputLayer(0, "input layer");
+    armnn::IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input layer");
     BOOST_TEST(inputLayer);
 
     //Layer 1
@@ -33,18 +33,18 @@ INetworkPtr SISOCatOneGraphFactory::GetInitialGraph() const
     tanDesc.m_A                               = 100;
     tanDesc.m_B                               = 0;
     tanDesc.m_Function                        = ActivationFunction::TanH;
-    armnn::IConnectableLayer* const tanhLayer = net.AddActivationLayer(tanDesc, "TanH layer");
+    armnn::IConnectableLayer* const tanhLayer = net->AddActivationLayer(tanDesc, "TanH layer");
     BOOST_TEST(tanhLayer);
 
     //Layer 2
     armnn::SoftmaxDescriptor softMaxDesc{};
-    armnn::IConnectableLayer* const softmaxLayer = net.AddSoftmaxLayer(softMaxDesc, "Softmax");
+    armnn::IConnectableLayer* const softmaxLayer = net->AddSoftmaxLayer(softMaxDesc, "Softmax");
     BOOST_TEST(softmaxLayer);
 
     //Layer 3
     armnn::ElementwiseUnaryDescriptor rsqrtDesc;
     rsqrtDesc.m_Operation                = UnaryOperation::Rsqrt;
-    armnn::IConnectableLayer* rsqrtLayer = net.AddElementwiseUnaryLayer(rsqrtDesc, "Rsqrt");
+    armnn::IConnectableLayer* rsqrtLayer = net->AddElementwiseUnaryLayer(rsqrtDesc, "Rsqrt");
     BOOST_TEST(rsqrtLayer);
 
     //Layer 4
@@ -53,10 +53,10 @@ INetworkPtr SISOCatOneGraphFactory::GetInitialGraph() const
     armnn::ConstTensor weights(armnn::TensorInfo(4, dims, armnn::DataType::Float32), convWeightsData);
     armnn::FullyConnectedDescriptor fullyConnectedDesc;
     armnn::IConnectableLayer* const fullyConnectedLayer =
-        net.AddFullyConnectedLayer(fullyConnectedDesc, weights, armnn::EmptyOptional(), "fully connected");
+        net->AddFullyConnectedLayer(fullyConnectedDesc, weights, armnn::EmptyOptional(), "fully connected");
     BOOST_TEST(fullyConnectedLayer);
 
-    armnn::IConnectableLayer* const outputLayer = net.AddOutputLayer(0, "output layer");
+    armnn::IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output layer");
     BOOST_TEST(outputLayer);
 
     TensorInfo inputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
@@ -82,15 +82,13 @@ INetworkPtr SISOCatOneGraphFactory::GetInitialGraph() const
     fullyConnectedLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
     fullyConnectedLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
 
-    return iNetPtr;
+    return net;
 }
 
-INetworkPtr SISOCatOneGraphFactory::GetExpectedModifiedGraph() const
+std::unique_ptr<NetworkImpl> SISOCatOneGraphFactory::GetExpectedModifiedGraph() const
 {
-    INetworkPtr iNetPtr(INetwork::Create());
-    INetwork& net = *iNetPtr;
-
-    armnn::IConnectableLayer* const inputLayer = net.AddInputLayer(0, "input layer");
+    std::unique_ptr<NetworkImpl> net           = std::make_unique<NetworkImpl>();
+    armnn::IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input layer");
     BOOST_TEST(inputLayer);
 
     //Layer 1
@@ -98,7 +96,7 @@ INetworkPtr SISOCatOneGraphFactory::GetExpectedModifiedGraph() const
     tanDesc.m_A                                  = 100;
     tanDesc.m_B                                  = 0;
     tanDesc.m_Function                           = ActivationFunction::Sigmoid;
-    armnn::IConnectableLayer* const sigmoidLayer = net.AddActivationLayer(tanDesc, "Sigmoid");
+    armnn::IConnectableLayer* const sigmoidLayer = net->AddActivationLayer(tanDesc, "Sigmoid");
     BOOST_TEST(sigmoidLayer);
 
     //Layer 2
@@ -113,7 +111,7 @@ INetworkPtr SISOCatOneGraphFactory::GetExpectedModifiedGraph() const
     pooling2dDesc.m_PoolWidth                      = 3;
     pooling2dDesc.m_PoolType                       = PoolingAlgorithm::Average;
     pooling2dDesc.m_DataLayout                     = DataLayout::NHWC;
-    armnn::IConnectableLayer* const pooling2dLayer = net.AddPooling2dLayer(pooling2dDesc, "Pooling2d");
+    armnn::IConnectableLayer* const pooling2dLayer = net->AddPooling2dLayer(pooling2dDesc, "Pooling2d");
     BOOST_TEST(pooling2dLayer);
 
     //Layer 3
@@ -138,7 +136,7 @@ INetworkPtr SISOCatOneGraphFactory::GetExpectedModifiedGraph() const
     ConstTensor biasesConv2d(TensorInfo(4, biasDimensionsConv2d.data(), DataType::Signed32, 0.899999976f),
                              biasesDataConv2d);
 
-    armnn::IConnectableLayer* convolution2dLayer = net.AddConvolution2dLayer(
+    armnn::IConnectableLayer* convolution2dLayer = net->AddConvolution2dLayer(
         convolution2dDesc, weightsConv2d, Optional<ConstTensor>(biasesConv2d), "Convolution2d");
     BOOST_TEST(convolution2dLayer);
 
@@ -166,11 +164,11 @@ INetworkPtr SISOCatOneGraphFactory::GetExpectedModifiedGraph() const
                                   biasesDataDepthConv2d);
 
     armnn::IConnectableLayer* depthwiseConvolution2dLayer =
-        net.AddDepthwiseConvolution2dLayer(depthwiseConvolution2dDesc, weightsDepthConv2d,
-                                           Optional<ConstTensor>(biasesDepthConv2d), "DepthwiseConvolution2d");
+        net->AddDepthwiseConvolution2dLayer(depthwiseConvolution2dDesc, weightsDepthConv2d,
+                                            Optional<ConstTensor>(biasesDepthConv2d), "DepthwiseConvolution2d");
     BOOST_TEST(depthwiseConvolution2dLayer);
 
-    armnn::IConnectableLayer* const outputLayer = net.AddOutputLayer(0, "output layer");
+    armnn::IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output layer");
     BOOST_TEST(outputLayer);
 
     TensorInfo inputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
@@ -196,7 +194,7 @@ INetworkPtr SISOCatOneGraphFactory::GetExpectedModifiedGraph() const
     depthwiseConvolution2dLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
     depthwiseConvolution2dLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
 
-    return iNetPtr;
+    return net;
 }
 
 std::string SISOCatOneGraphFactory::GetMappingFileName() const

@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2020 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2021 Arm Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -28,6 +28,7 @@
 #include "ethosn_log.h"
 #include "ethosn_network.h"
 #include "ethosn_core.h"
+#include "ethosn_smc.h"
 #include "uapi/ethosn.h"
 
 #include <linux/atomic.h>
@@ -1040,6 +1041,30 @@ static int ethosn_driver_probe(struct ethosn_core *core,
 {
 	struct ethosn_profiling_config config = {};
 	int ret;
+
+	ret = ethosn_smc_version_check(core);
+#ifdef ETHOSN_NS
+
+	/*
+	 * If the Arm Ethos-N NPU SiP service is available verify the NPU's
+	 * secure status.
+	 */
+	if (!ret && ethosn_smc_is_secure(core)) {
+		dev_err(core->dev,
+			"NPU in secure mode, non-secure kernel not supported.\n");
+
+		return -EFAULT;
+	}
+
+#else
+	if (ret) {
+		dev_err(core->dev,
+			"Arm Ethos-N NPU SiP service required for secure kernel\n");
+
+		return -EFAULT;
+	}
+
+#endif
 
 	mutex_init(&core->mutex);
 

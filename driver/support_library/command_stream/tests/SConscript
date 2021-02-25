@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (C) 2018-2020 Arm Limited. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+Import('env')
+
+srcs = ['Main.cpp',
+        'CommandStreamTests.cpp']
+
+unitTests = env.Program('UnitTests', srcs)
+testAlias = env.Alias('command-stream-unit-tests', [unitTests], unitTests[0].abspath)
+env.Alias('unit-tests', testAlias)
+AlwaysBuild(testAlias)

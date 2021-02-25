@@ -1,45 +1,55 @@
+# Arm® Ethos™-N Driver Stack
 
-# Arm® Ethos™-N series Driver Stack
+## About the Arm Ethos-N neural processing unit (NPU)
 
-## About the Arm Ethos-N Processors (NPU)
-
-The Arm® Ethos-N NPUs improve the inference performance of neural networks. The NPUs target 8-bit integer quantized Convolutional Neural Networks (CNN). However, the NPUs also improve the performance of 16-bit integer CNNs and Recurrent Neural Networks (RNN). Please note that 16-bit integer and RNN support are not part of this driver stack release.
+The Arm Ethos-N NPUs improve the inference performance of neural networks. The NPUs target 8-bit integer quantized Convolutional Neural Networks (CNN). However, the NPUs also improve the performance of 16-bit integer CNNs and Recurrent Neural Networks (RNN). Please note that 16-bit integer and RNN support are not part of this driver stack release.
 
 For more information, please refer to:
 <https://www.arm.com/solutions/artificial-intelligence>
 
 ## About the Ethos-N driver stack
 
-The Ethos-N driver stack targets the Ethos-N37, Ethos-N57, Ethos-N77 and Ethos-N78 set of NPUs.
+The Ethos-N driver stack targets the Ethos-N78 NPU.
 
 The Ethos-N driver stack consists of several components.
 
 The list of open source components are:
 
-* **Arm NN:** A set of Linux software that enables machine learning workloads on power efficient devices. On Linux, applications can directly link to Arm NN. On Android, you can use Arm NN as a backend for the Android NNAPI or applications can directly link to Arm NN.
+* **Arm NN:** A software library that enables machine learning workloads on power efficient devices. On Linux®, applications can directly link to Arm NN. On Android™, you can use Arm NN as a backend for the Android NNAPI or applications can directly link to Arm NN.
 * **Arm NN Android neural networks driver:** Supports the Android NNAPI on the NPU. The Arm NN Android neural networks driver is optional.
-* **Ethos-N driver:** Contains the user space component of the driver.
-* **Ethos-N kernel module:** Contains the kernel space component of the driver.
-* **Arm NN Ethos-N backend:** Contains the Ethos-N backend for Arm NN.
+* **Ethos-N NPU driver:** Contains the user space component of the driver.
+* **Ethos-N NPU kernel module:** Contains the kernel space component of the driver.
+* **Arm NN Ethos-N NPU backend:** Contains the Ethos-N NPU backend for Arm NN.
 
 The following software component is available under an Arm proprietary license:
 
-* **Ethos-N firmware binaries package:** Contains the firmware that runs on the NPU.
+* **Ethos-N NPU firmware binaries file:** Contains the firmware that runs on the NPU.
 
 Arm NN and the Arm NN Android neural networks driver are external downloads and links are provided below. All other components are part of this driver stack release.
 
 ## Platform requirements
 
-Your (target) platform must meet specific requirements to run the Ethos-N driver. Your platform must have:
+Your (target) platform must meet specific requirements to run the Ethos-N NPU driver. Your platform must have:
 
 * An Armv8-A application processor.
-* An Arm Ethos-N series NPU.
+* An Arm Ethos-N NPU.
 * At least 4GB of RAM.
 * At least 5GB of free storage space.
 
+## Secure mode
+
+The Arm Ethos-N NPU will boot up in either secure or non-secure mode depending on how the hardware has been configured. For more information, see Arm Ethos-N78 NPU Technical Reference Manual.
+
+To use the NPU in secure mode, the target platform must have a [Trusted Firmware-A (TF-A)](https://www.trustedfirmware.org/projects/tf-a/) with support for the NPU.
+At the moment, the TF-A changes needed to support the NPU have not yet been included in the TF-A source repository. Instead, the changes needed and a reference implementation for the Arm Juno platform can be found here <https://review.trustedfirmware.org/q/project:%2522TF-A/trusted-firmware-a%2522++topic:%2522arm_ethosn_npu_sip%2522> and must be applied to the TF-A source.
+
+To enable support for the NPU in TF-A, the new build option added in the changes must be used.
+
+For information about where to get the TF-A source and how to build it, see [TF-A documentation](https://trustedfirmware-a.readthedocs.io/en/latest/index.html).
+
 ## Build tools
 
-To build the Ethos-N software, you require some tools. You must install the following tools on your development platform:
+To build the Ethos-N NPU software, you require some tools. You must install the following tools on your development platform:
 
 * A Linux distribution.  An open-source operating system.
 * [Git](https://git-scm.com/) [Recommended: `2.17.1`].  A version control system that software developers use for source code management.
@@ -50,7 +60,7 @@ To build the Ethos-N software, you require some tools. You must install the foll
 
 ### Install the build tools
 
-You must use specific tools to build the Ethos-N driver. You can use a package manager to install the build tools. For example, enter the following commands to install the build tools on `Ubuntu 18.04` in order to cross compile:
+You must use specific tools to build the Ethos-N NPU driver. You can use a package manager to install the build tools. For example, enter the following commands to install the build tools on `Ubuntu 18.04` in order to cross compile:
 
 ```sh
 sudo apt install git \
@@ -61,6 +71,11 @@ sudo apt install git \
     g++-aarch64-linux-gnu \
     gcc \
     bc
+```
+Additionally if you want to build unit tests for the Ethos-N NPU user space libraries, you need Catch2 [Recommended: `v2.13.0`]:
+
+```sh
+git clone --depth 1 https://github.com/catchorg/Catch2.git --branch v2.13.0 <path_to_catch>/Catch2
 ```
 
 ## Install the Linux source tree
@@ -95,13 +110,13 @@ The Ethos-N driver stack is written using portable `C++14` and the build system 
 
 You must download the different components of the driver stack to build the driver. The different components of the driver stack are available for download in different ways.
 
-Enter the following commands to download Arm NN, the Ethos-N driver, kernel module, and other components you require:
+Enter the following commands to download Arm NN, the Ethos-N NPU driver, kernel module, and other components you require:
 
 ```sh
 mkdir driver_stack
 cd driver_stack
 git clone https://github.com/Arm-software/armnn
-git clone https://github.com/Arm-software/ethos-n-driver-stack ethosn-driver
+git clone https://github.com/Arm-software/ethos-n-driver-stack
 ```
 
 ## Configure SMMU support
@@ -117,27 +132,29 @@ CONFIG_ARM_SMMU_V3=y
 
 If you run the NPU without an IOMMU, you must create a reserved memory area. The reserved memory area must begin on a 512MB aligned address and must not be larger than 512MB.
 
-## Build the Ethos-N driver
+## Build the Ethos-N NPU driver
 
-You must follow specific steps to build the Ethos-N driver. You must build the Ethos-N driver, Ethos-N kernel module, and Arm NN.  Depending on your system, you must run some of the following steps with appropriate privileges.
+You must follow specific steps to build the Ethos-N NPU driver. You must build the Ethos-N NPU driver, Ethos-N NPU kernel module, and Arm NN.  Depending on your system, you must run some of the following steps with appropriate privileges.
 
-1. Copy the `<path_to>/driver_stack/ethosn-driver/firmware/ethosn.bin` file into the `/lib/firmware/` folder of the target system that runs the Ethos-N driver.
+1. Copy the `<path_to>/driver_stack/ethos-n-driver-stack/firmware/ethosn.bin` file into the `/lib/firmware/` folder of the target system that runs the Ethos-N NPU driver.
 
     _Note that `<path_to>` is the directory where the `driver_stack` directory is stored._
 
-2. How you compile the driver affects how you build the Ethos-N kernel module:
+2. How you compile the driver affects how you build the Ethos-N NPU kernel module:
 
-    * If you compile the driver natively, enter the following commands to build the Ethos-N kernel module:
+    *Note:* By default, the kernel module is built for an NPU running in secure mode. If non-secure mode is needed, the following flag `EXTRA_CCFLAGS=" -DETHOSN_NS"` must be added to the make commands below. It is not possible to use a kernel module built for non-secure mode with an NPU running in secure mode.
+
+    * If you compile the driver natively, enter the following commands to build the Ethos-N NPU kernel module:
 
         ```sh
-        cd <path_to>/driver_stack/ethosn-driver/kernel-module
+        cd <path_to>/driver_stack/ethos-n-driver-stack/kernel-module
         make -C <path_to_kernel> M=$PWD modules
         ```
 
-    * If you cross compile the driver, enter the following commands to build the Ethos-N kernel module:
+    * If you cross compile the driver, enter the following commands to build the Ethos-N NPU kernel module:
 
         ```sh
-        cd <path_to>/driver_stack/ethosn-driver/kernel-module
+        cd <path_to>/driver_stack/ethos-n-driver-stack/kernel-module
         make -C <path_to_kernel> M=$PWD ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- modules
         ```
 
@@ -148,17 +165,17 @@ You must follow specific steps to build the Ethos-N driver. You must build the E
     * If you compile the driver natively:
 
         ```sh
-        strip --strip-unneeded <path_to>/driver_stack/ethosn-driver/kernel-module/ethosn.ko
+        strip --strip-unneeded <path_to>/driver_stack/ethos-n-driver-stack/kernel-module/ethosn.ko
         ```
 
     * If you cross compile the driver:
 
         ```sh
-        aarch64-linux-gnu-strip --strip-unneeded <path_to>/driver_stack/ethosn-driver/kernel-module/ethosn.ko
+        aarch64-linux-gnu-strip --strip-unneeded <path_to>/driver_stack/ethos-n-driver-stack/kernel-module/ethosn.ko
         ```
 
 
-3. Copy the kernel module `<path_to>/driver_stack/ethosn-driver/kernel-module/ethosn.ko` to the system that runs the Ethos-N driver.
+3. Copy the kernel module `<path_to>/driver_stack/ethos-n-driver-stack/kernel-module/ethosn.ko` to the system that runs the Ethos-N NPU driver.
 
 4. Enter the following command to load the kernel module on the target system:
 
@@ -166,19 +183,19 @@ You must follow specific steps to build the Ethos-N driver. You must build the E
     insmod ethosn.ko
     ```
 
-5. Enter the following commands to build the user-space libraries of the Ethos-N driver:
+5. Enter the following commands to build the user space libraries of the Ethos-N NPU driver:
 
     * If you compile the driver natively:
 
         ```sh
-        cd <path_to>/driver_stack/ethosn-driver/driver
+        cd <path_to>/driver_stack/ethos-n-driver-stack/driver
         scons
         ```
 
     * If you cross compile the driver:
 
         ```sh
-        cd <path_to>/driver_stack/ethosn-driver/driver
+        cd <path_to>/driver_stack/ethos-n-driver-stack/driver
         scons platform=aarch64
         ```
 
@@ -188,27 +205,27 @@ You must follow specific steps to build the Ethos-N driver. You must build the E
     scons --help
     ```
 
-6. Enter the following command to install the user-space libraries of the Ethos-N driver:
+6. Enter the following command to install the user space libraries of the Ethos-N NPU driver:
 
     * If you compile the driver natively:
 
         ```sh
-        cd <path_to>/driver_stack/ethosn-driver/driver
+        cd <path_to>/driver_stack/ethos-n-driver-stack/driver
         scons install_prefix=<install_directory> install
         ```
 
     * If you cross compile the driver:
 
         ```sh
-        cd <path_to>/driver_stack/ethosn-driver/driver
+        cd <path_to>/driver_stack/ethos-n-driver-stack/driver
         scons platform=aarch64 install_prefix=<install_directory> install
         ```
 
-7. Enter the following commands to link the Ethos-N backend to the Arm NN source tree:
+7. Enter the following commands to link the Ethos-N NPU backend to the Arm NN source tree:
 
     ```sh
     cd <path_to>/driver_stack/armnn/src/backends
-    ln -s <path_to>/driver_stack/ethosn-driver/armnn-ethos-n-backend ethos-n
+    ln -s <path_to>/driver_stack/ethos-n-driver-stack/armnn-ethos-n-backend ethos-n
     ```
 
 8. Build Arm NN for TensorFlow Lite. For instructions on building Arm NN, see <https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configuring-the-arm-nn-sdk-build-environment-for-tensorflow-lite>
@@ -224,45 +241,70 @@ You must follow specific steps to build the Ethos-N driver. You must build the E
 
     For cross compilation, please refer to <https://github.com/ARM-software/armnn/blob/master/BuildGuideCrossCompilation.md>
 
-    As part of the Arm NN build, the process automatically builds the Ethos-N driver plug-in for Arm NN.
+    As part of the Arm NN build, the process automatically builds the Ethos-N NPU driver plug-in for Arm NN.
 
     _Arm uses TensorFlow Lite as an example. You can also build Arm NN for [TensorFlow](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configuring-the-arm-nn-sdk-build-environment-for-tensorflow), [Caffe](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment-for-caffe) or [ONNX](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configuring-the-arm-nn-sdk-build-environment-for-onnx)._
 
 9. If you require Android NNAPI support, see [the instructions](https://github.com/Arm-software/android-nn-driver#armnn-android-neural-networks-driver) for how to build the Arm NN Android NNAPI driver.
 
-## Running the Ethos-N driver
+## Running the Ethos-N NPU driver
 
-There are multiple ways to exercise the Ethos-N driver.
+There are multiple ways to exercise the Ethos-N NPU driver.
 
-1. Running the Arm NN Ethos-N backend unit tests. You need to have built Arm NN and the Ethos-N driver.
+1. Running the Arm NN Ethos-N NPU backend unit tests. You need to have built Arm NN and the Ethos-N NPU driver.
 
     If you have cross compiled you will need to copy the following files onto the target platform:
-    * All `*.so` files built from Arm NN
+    * All `*.so*` files built from Arm NN
     * `UnitTests` built from Arm NN
-    * `libEthosNSupport.so` built from the Ethos-N driver inside `<install_directory>/lib/`
-    * `libEthosNDriver.so` built from the Ethos-N driver inside `<install_directory>/lib/`
+    * `libEthosNSupport.so` built from the Ethos-N NPU driver inside `<install_directory>/lib/`
+    * `libEthosNDriver.so` built from the Ethos-N NPU driver inside `<install_directory>/lib/`
 
     *Note:* You may need to copy additional .so files depending on your toolchain and its runtime dependencies.
 
-    Some tests require data files as input. These can be found in the folders `<path_to>/driver_stack/ethosn-driver/armnn-ethos-n-backend/test/replacement-tests`
-    and `<path_to>/driver_stack/ethosn-driver/armnn-ethos-n-backend/test/mapping-tests`. These two folders (and their contents) must be available to the `UnitTests`
+    Some tests require data files as input. These can be found in the folders `<path_to>/driver_stack/ethos-n-driver-stack/armnn-ethos-n-backend/test/replacement-tests`
+    and `<path_to>/driver_stack/ethos-n-driver-stack/armnn-ethos-n-backend/test/mapping-tests`. These two folders (and their contents) must be available to the `UnitTests`
     executable, under the paths `armnn-ethos-n-backend/test/replacement-tests` and `armnn-ethos-n-backend/test/mapping-tests`, respectively,
     relative to the current directory that you run `UnitTests` from.
     If you have cross compiled you will therefore need to copy these folders onto the target platform.
 
-    Set `LD_LIBRARY_PATH` so the supplied libraries can be found and run the **UnitTests for the Ethos-N**.
+    Set `LD_LIBRARY_PATH` so the supplied libraries can be found and run the **UnitTests for the Ethos-N NPU**.
 
     ```sh
     LD_LIBRARY_PATH=<path_to_ethosn_libraries>:<path_to_armnn_libs> ./UnitTests --run_test=*EthosN*
     ```
 
-2. Running the `ExecuteNetwork` program provided by Arm NN. This supports running of TfLite models.
+2. Running the Ethos-N NPU driver user space unit tests.
+
+    You need to have built the driver with testing enabled:
+    * Add `tests=1` to your scons commands to build the user space component unit tests.
+    * Make sure your CPATH scons variable (specified on the command-line) points to
+      <path_to_catch>/Catch2/single_include/catch2/
 
     If you have cross compiled you will need to copy the following files onto the target platform:
-    * All `*.so` files built from Arm NN
+    * `UnitTests` built for the Ethos-N NPU support library inside `<path_to>/driver_stack/ethos-n-driver-stack/driver/support_library/build/release_<platform>/tests`
+    * `UnitTests` built for the Ethos-N NPU command stream inside `<path_to>/driver_stack/ethos-n-driver-stack/driver/support_library/command_stream/build/release_<platform>/tests`
+    * `UnitTests` built for the Ethos-N NPU driver library inside `<path_to>/driver_stack/ethos-n-driver-stack/driver/driver_library/build/release_<platform>_kmod/tests`
+    * `libEthosNSupport.so` built from the Ethos-N NPU driver inside `<install_directory>/lib/`
+    * `libEthosNDriver.so` built from the Ethos-N NPU driver inside `<install_directory>/lib/`
+    * `ethosn.ko` built from the Ethos-N NPU driver inside `<path_to>/driver_stack/ethos-n-driver-stack/kernel-module/`
+
+    *Note:* You may need to copy additional .so files depending on your toolchain and its runtime dependencies.
+
+    Set `LD_LIBRARY_PATH` so the supplied libraries can be found and run the **UnitTests for the Ethos-N NPU**.
+
+    For each Ethos-N NPU driver user space component unit tests:
+
+    ```sh
+    LD_LIBRARY_PATH=<path_to_ethosn_libraries> ./UnitTests
+    ```
+
+3. Running the `ExecuteNetwork` program provided by Arm NN. This supports running of TfLite models.
+
+    If you have cross compiled you will need to copy the following files onto the target platform:
+    * All `*.so*` files built from Arm NN
     * `ExecuteNetwork` built from Arm NN in the `tests/` folder
-    * `libEthosNSupport.so` built from the Ethos-N driver inside `<install_directory>/lib/`
-    * `libEthosNDriver.so` built from the Ethos-N driver inside `<install_directory>/lib/`
+    * `libEthosNSupport.so` built from the Ethos-N NPU driver inside `<install_directory>/lib/`
+    * `libEthosNDriver.so` built from the Ethos-N NPU driver inside `<install_directory>/lib/`
 
     *Note:* You may need to copy additional .so files depending on your toolchain and its runtime dependencies.
 
@@ -285,7 +327,7 @@ There are multiple ways to exercise the Ethos-N driver.
     -c The device you wish to run this inference on
     ```
 
-    An example of running **Mobilenet_v1_1.0_224_quant.tflite** on the Ethos-N:
+    An example of running **Mobilenet_v1_1.0_224_quant.tflite** on the Ethos-N NPU:
 
     ```sh
     LD_LIBRARY_PATH=<path_to_ethosn_libraries>:<path_to_armnn_libs> ./tests/ExecuteNetwork -f tflite-binary -i input -y qasymm8 -o MobilenetV1/Predictions/Reshape_1 -z qasymm8 -d input_data.txt -m mobilenet_v1_1.0_224_quant.tflite -c EthosNAcc -c CpuRef
@@ -303,7 +345,7 @@ The `ethosn.bin` has been compiled with the following security related flags:
 
 ### Functional limitations
 
-The following features and feature combinations have known limitations in this Arm Ethos-N driver stack release.
+The following features and feature combinations have known limitations in this Ethos-N driver stack release.
 
 * This release has only been tested with specific networks
 
@@ -327,19 +369,19 @@ For more information on memory requirements and limitations, please see the docu
 
 ## License
 
-The Arm Ethos-N driver stack is composed of multiple components, each with their own license. The components are:
+The Ethos-N driver stack is composed of multiple components, each with their own license. The components are:
 
-* The Arm Ethos-N driver, which is the collection of user space libraries.
-* The Arm NN backend, which interfaces the Ethos-N driver to Arm NN.
-* The Arm Ethos-N kernel module, to be used with the Linux kernel.
-* The Arm Ethos-N firmware, which will be loaded by the kernel module onto the NPU.
+* The Arm Ethos-N NPU driver, which is the collection of user space libraries.
+* The Arm NN backend, which interfaces the Ethos-N NPU driver to Arm NN.
+* The Arm Ethos-N NPU kernel module, to be used with the Linux kernel.
+* The Arm Ethos-N NPU firmware, which will be loaded by the kernel module onto the NPU.
 
-### License for the Ethos-N driver and Arm NN backend
+### License for the Ethos-N NPU driver and Arm NN backend
 
-The Arm Ethos-N driver and the Arm NN backend are provided under the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license. See [LICENSE](driver/LICENSE) and [LICENSE](armnn-ethos-n-backend/LICENSE) for more information. Contributions to this project are accepted under the same license.
+The Arm Ethos-N NPU driver and the Arm NN backend are provided under the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license. See [LICENSE](driver/LICENSE) and [LICENSE](armnn-ethos-n-backend/LICENSE) for more information. Contributions to this project are accepted under the same license.
 
 ```less
-Copyright 2018-2020 Arm Limited
+Copyright 2018-2021 Arm Limited
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -360,9 +402,11 @@ Individual files contain the following tag instead of the full license text.
 SPDX-License-Identifier: Apache-2.0
 ```
 
-### License for the Ethos-N kernel module
+This enables machine processing of license information based on the SPDX License Identifiers that are available here: <http://spdx.org/licenses/>
 
-The Arm Ethos-N kernel module is provided under the [GPL v2 only](https://spdx.org/licenses/GPL-2.0-only.html) license.
+### License for the Ethos-N NPU kernel module
+
+The Arm Ethos-N NPU kernel module is provided under the [GPL v2 only](https://spdx.org/licenses/GPL-2.0-only.html) license.
 See [LICENSE](kernel-module/LICENSE) for more information. Contributions to this project are accepted under the same license.
 
 Individual files contain the following tag instead of the full license text.
@@ -371,10 +415,17 @@ Individual files contain the following tag instead of the full license text.
 SPDX-License-Identifier: GPL-2.0-only
 ```
 
-This enables machine processing of license information based on the SPDX License Identifiers that are available here: <http://spdx.org/licenses/>
+### EULA and TPIP for the Ethos-N NPU firmware
 
-### EULA and TPIP for the Ethos-N firmware
+The Ethos-N NPU firmware binary is released under an [EULA](firmware/LES-PRE-21755.pdf).
 
-The Ethos-N firmware binary is released under an [EULA](firmware/LES-PRE-21755.pdf).
+The Ethos-N NPU firmware binary was compiled against the CMSIS library, which is released under the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license. See [apache-2.0.txt](firmware/tpip-licenses/apache-2.0.txt) for more information.
 
-The Ethos-N firmware binary was compiled against the CMSIS library, which is released under the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license. See [apache-2.0.txt](firmware/tpip-licenses/apache-2.0.txt) for more information.
+
+### Trademarks and copyrights
+
+Arm and Ethos are registered trademarks or trademarks of Arm Limited (or its subsidiaries) in the US and/or elsewhere.
+
+Android is a trademark of Google LLC.
+
+Linux® is the registered trademark of Linus Torvalds in the U.S. and other countries.

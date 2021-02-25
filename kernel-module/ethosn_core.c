@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2020 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2021 Arm Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -31,6 +31,7 @@
 #include <linux/iommu.h>
 
 #define ETHOSN_CORE_DRIVER_NAME    "ethosn-core"
+#define ETHOSN_CORE_NUM_MAX        64
 
 static struct ethosn_device *ethosn_driver(struct platform_device *pdev)
 {
@@ -57,6 +58,13 @@ static int ethosn_child_pdev_probe(struct platform_device *pdev)
 
 	if (IS_ERR_OR_NULL(ethosn)) {
 		dev_err(&pdev->dev, "Invalid Ethosn parent device driver");
+
+		return -EINVAL;
+	}
+
+	if (core_count > ETHOSN_CORE_NUM_MAX) {
+		dev_err(&pdev->dev, "Invalid number of cores, max = %d\n",
+			ETHOSN_CORE_NUM_MAX);
 
 		return -EINVAL;
 	}

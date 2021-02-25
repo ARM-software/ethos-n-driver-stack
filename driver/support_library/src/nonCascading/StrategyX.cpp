@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -43,7 +43,7 @@ bool IsBlockConfigCompatible(const command_stream::BlockConfig& blockConfig,
                              command_stream::MceOperation mceOperation,
                              command_stream::UpsampleType upsampleType)
 {
-    const uint32_t numAccumulatorsPerOg     = capabilities.GetTotalAccumulatorsPerEngine();
+    const uint32_t numAccumulatorsPerOg     = capabilities.GetTotalAccumulatorsPerOg();
     const uint32_t currBlockWidth           = blockConfig.m_BlockWidth();
     const uint32_t currBlockHeight          = blockConfig.m_BlockHeight();
     const uint32_t numberOfElementsInABlock = currBlockWidth * currBlockHeight;
@@ -304,7 +304,7 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
     const uint32_t outputTileMax = TotalSizeBytes(
         TensorShape{ 1, RoundUpToNearestMultiple(GetHeight(outputShape), brickGroupHeight),
                      RoundUpToNearestMultiple(GetWidth(outputShape), brickGroupWidth),
-                     RoundUpToNearestMultiple(GetChannels(outputShape), capabilities.GetNumberOfOfm()) });
+                     RoundUpToNearestMultiple(GetChannels(outputShape), capabilities.GetNumberOfOgs()) });
     const uint32_t outputTile = std::min(TotalSizeBytes(outputStripe) * numOutputStripesInTile, outputTileMax);
 
     SramAllocator currentSramAllocator = sramAllocator;
@@ -406,7 +406,7 @@ bool TryInputZXYOutputXYZ(const command_stream::MceOperation& mceOperation,
                  ++numInputChannelSplits)
             {
                 const uint32_t inputStripeChannel  = GetChannels(inputShape) / numInputChannelSplits;
-                const uint32_t outputStripeChannel = capabilities.GetNumberOfOfm() * pleShapeMultiplier.m_C;
+                const uint32_t outputStripeChannel = capabilities.GetNumberOfOgs() * pleShapeMultiplier.m_C;
                 paramsList.push_back({ currBlockConfig.m_BlockHeight(), currBlockConfig.m_BlockWidth(),
                                        inputStripeChannel, outputStripeHeight, outputStripeWidth, outputStripeChannel,
                                        compression });
@@ -548,7 +548,7 @@ bool TryInputXYOutputXYZ(const command_stream::MceOperation& mceOperation,
         const uint32_t outputStripeWidth  = currBlockWidth * pleShapeMultiplier.m_W;
 
         const uint32_t inputStripeChannel  = GetChannels(inputShape);
-        const uint32_t outputStripeChannel = capabilities.GetNumberOfOfm() * pleShapeMultiplier.m_C;
+        const uint32_t outputStripeChannel = capabilities.GetNumberOfOgs() * pleShapeMultiplier.m_C;
         paramsList.push_back({ currBlockHeight, currBlockConfig.m_BlockWidth(), inputStripeChannel, outputStripeHeight,
                                outputStripeWidth, outputStripeChannel });
     }
@@ -617,11 +617,10 @@ bool IsStrategyX(const command_stream::MceOperation& mceOperation,
     const bool isSupportedMceOperation = (mceOperation == command_stream::MceOperation::CONVOLUTION) ||
                                          (mceOperation == command_stream::MceOperation::FULLY_CONNECTED);
     const bool isSupportedAlgorithm = (algorithm == CompilerMceAlgorithm::Direct);
-    const bool isSupportedStrategy  = (tensorConfig.strategy == Strategy::STRATEGY_7) ||
-                                     (tensorConfig.strategy == Strategy::STRATEGY_FC) ||
-                                     (tensorConfig.strategy == Strategy::NONE);
-    const bool isAllowedStrategy =
-        (IsStrategyAllowed<Strategy7>(allowedStrategies) || IsStrategyAllowed<StrategyFc>(allowedStrategies));
+    const bool isSupportedStrategy =
+        (tensorConfig.strategy == Strategy::STRATEGY_7) || (tensorConfig.strategy == Strategy::NONE);
+    const bool isAllowedStrategy = (IsStrategyAllowed<Strategy7>(allowedStrategies)) ||
+                                   (mceOperation == command_stream::MceOperation::FULLY_CONNECTED);
     return isSupportedMceOperation && isSupportedAlgorithm && isSupportedStrategy && isAllowedStrategy;
 }
 

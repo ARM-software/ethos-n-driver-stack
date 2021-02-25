@@ -8,6 +8,9 @@
 #define ETHOSN_STRINGIZE(x) #x
 #define ETHOSN_STRINGIZE_VALUE_OF(x) ETHOSN_STRINGIZE(x)
 
+#define ETHOSN_CAT(a, b) a##b
+#define ETHOSN_CAT_VALUES_OF(a, b) ETHOSN_CAT(a, b)
+
 // To prevent the warning that we aren't using a variable, use this macro.
 #define ETHOSN_UNUSED(x) (void)(x)
 

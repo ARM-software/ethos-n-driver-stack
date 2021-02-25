@@ -1,5 +1,5 @@
 //
-// Copyright © 2019-2020 Arm Limited. All rights reserved.
+// Copyright © 2019-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -24,8 +24,8 @@ BOOST_AUTO_TEST_CASE(TestProfilingRegisterCounters)
     IRuntime::CreationOptions options;
     options.m_ProfilingOptions.m_EnableProfiling = true;
 
-    armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
-    auto& profilingService = GetProfilingService(static_cast<Runtime*>(runtime.get()));
+    armnn::RuntimeImpl runtime(options);
+    auto& profilingService = GetProfilingService(&runtime);
 
     const armnn::profiling::ICounterMappings& counterMap = profilingService.GetCounterMappings();
     BOOST_CHECK(counterMap.GetGlobalId(
@@ -53,8 +53,8 @@ BOOST_AUTO_TEST_CASE(TestEnableProfiling)
     IRuntime::CreationOptions options;
     options.m_ProfilingOptions.m_EnableProfiling = true;
 
-    armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
-    auto& profilingService = GetProfilingService(static_cast<Runtime*>(runtime.get()));
+    RuntimeImpl runtime(options);
+    auto& profilingService                                      = GetProfilingService(&runtime);
     armnn::EthosNBackendProfilingService ethosnProfilingService = armnn::EthosNBackendProfilingService::Instance();
     armnn::profiling::EthosNBackendProfilingContext* ethosnProfilingContext = ethosnProfilingService.GetContext();
 

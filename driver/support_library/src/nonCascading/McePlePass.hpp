@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -73,10 +73,12 @@ public:
                                        std::vector<command_stream::BlockConfig> allowedBlockConfigs,
                                        TensorConfig& tensorConfig,
                                        const TensorShape& inputShape,
+                                       const TensorShape& mceOutputShape,
                                        const TensorShape& outputShape,
                                        DataFormat weightsFormat,
                                        const TensorShape& weightsShape,
-                                       const utils::ShapeMultiplier& shapeMultiplier,
+                                       const utils::ShapeMultiplier& mceShapeMultiplier,
+                                       const utils::ShapeMultiplier& pleShapeMultiplier,
                                        std::pair<bool, uint32_t> inputStaticAndOffset,
                                        CompilerMceAlgorithm algorithm,
                                        const uint32_t depthMax = UINT32_MAX);
@@ -91,12 +93,11 @@ private:
     // Update the set of block configs to those that are valid for the selected Mce operation or algorithm,
     // e.g.Winograd, FullyConnected
     static std::vector<command_stream::BlockConfig>
-        FilterValidAndSortBlockConfigs(MceOperationNode* mceOperation,
-                                       FuseOnlyPleOperationNode* pleOperation,
-                                       const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
-                                       const HardwareCapabilities& capabilities,
-                                       const TensorShape& outputShape,
-                                       CompilerMceAlgorithm algorithm);
+        FilterValidBlockConfigs(MceOperationNode* mceOperation,
+                                FuseOnlyPleOperationNode* pleOperation,
+                                const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
+                                const HardwareCapabilities& capabilities,
+                                CompilerMceAlgorithm algorithm);
 
     // Update the set of strategies to those that are valid for the selected Mce operation or algorithm.
     static std::vector<IStrategy*> GetValidStrategies(MceOperationNode* mceOperation,

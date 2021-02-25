@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -127,7 +127,7 @@ Inference* NetworkImpl::ScheduleInference(Buffer* const inputBuffers[],
                                           Buffer* const[],
                                           uint32_t) const
 {
-    DumpCmm(inputBuffers, numInputBuffers, "CombinedMemoryMap.hex", Cmm_All);
+    DumpCmmBasedOnEnvVar(inputBuffers, numInputBuffers);
 
     // Simulate an inference result for the user by creating a memory stream containing the result status.
     FILE* tempFile         = std::tmpfile();
@@ -144,6 +144,21 @@ Inference* NetworkImpl::ScheduleInference(Buffer* const inputBuffers[],
 void NetworkImpl::SetDebugName(const char* name)
 {
     m_DebugName = name;
+}
+
+void NetworkImpl::DumpCmmBasedOnEnvVar(Buffer* const inputBuffers[], uint32_t numInputBuffers) const
+{
+    const char* const debugEnv = std::getenv("ETHOSN_DRIVER_LIBRARY_DEBUG");
+    if (debugEnv && (strcmp(debugEnv, "1") == 0 || strstr(debugEnv, "cmm") != nullptr))
+    {
+        DumpCmm(inputBuffers, numInputBuffers, (std::string("CombinedMemoryMap_") + m_DebugName + ".hex").c_str(),
+                Cmm_All);
+    }
+    else if (debugEnv && strstr(debugEnv, "cmdstream") != nullptr)
+    {
+        DumpCmm(inputBuffers, numInputBuffers, (std::string("CombinedMemoryMap_") + m_DebugName + ".hex").c_str(),
+                Cmm_Inference | Cmm_ConstantControlUnit);
+    }
 }
 
 void NetworkImpl::DumpCmm(Buffer* const inputBuffers[],

@@ -27,6 +27,13 @@ namespace support_library
 namespace
 {
 
+enum class PadMode
+{
+    PreferBefore,
+    PreferAfter,
+    Symmetric
+};
+
 static const std::unordered_set<uint32_t> g_ConvolutionKernelSizes = { 1, 2, 3, 5, 7, 9 };
 
 void SetReason(const char* reasonFull, char* reasonTruncated, size_t maxLength, ...)
@@ -41,7 +48,7 @@ void SetReason(const char* reasonFull, char* reasonTruncated, size_t maxLength, 
 }
 
 constexpr std::pair<uint32_t, uint32_t>
-    CalcSamePadding(const uint32_t inputSize, const uint32_t kernelSize, const uint32_t stride, const bool preferBefore)
+    CalcSamePadding(const uint32_t inputSize, const uint32_t kernelSize, const uint32_t stride, const PadMode mode)
 {
     const uint32_t paddedSize = ((utils::DivRoundUp(inputSize, stride) - 1U) * stride) + kernelSize;
     const uint32_t padSize    = (paddedSize > inputSize) ? paddedSize - inputSize : 0U;
@@ -49,8 +56,13 @@ constexpr std::pair<uint32_t, uint32_t>
     const uint32_t pad0 = utils::DivRoundUp(padSize, 2U);
     const uint32_t pad1 = padSize - pad0;
 
-    const uint32_t padBefore = preferBefore ? pad0 : pad1;
-    const uint32_t padAfter  = preferBefore ? pad1 : pad0;
+    if (mode == PadMode::Symmetric)
+    {
+        return { pad0, pad0 };
+    }
+
+    const uint32_t padBefore = (mode == PadMode::PreferBefore) ? pad0 : pad1;
+    const uint32_t padAfter  = (mode == PadMode::PreferAfter) ? pad0 : pad1;
 
     return { padBefore, padAfter };
 }
@@ -58,12 +70,10 @@ constexpr std::pair<uint32_t, uint32_t>
 constexpr Padding CalcSamePadding(const TensorShape& inputShape,
                                   const TensorShape& weightsShape,
                                   const Stride& stride,
-                                  const bool preferBefore)
+                                  const PadMode mode)
 {
-    const std::pair<uint32_t, uint32_t> padY =
-        CalcSamePadding(inputShape[1], weightsShape[0], stride.m_Y, preferBefore);
-    const std::pair<uint32_t, uint32_t> padX =
-        CalcSamePadding(inputShape[2], weightsShape[1], stride.m_X, preferBefore);
+    const std::pair<uint32_t, uint32_t> padY = CalcSamePadding(inputShape[1], weightsShape[0], stride.m_Y, mode);
+    const std::pair<uint32_t, uint32_t> padX = CalcSamePadding(inputShape[2], weightsShape[1], stride.m_X, mode);
 
     Padding pad;
     pad.m_Top    = padY.first;
@@ -77,9 +87,21 @@ constexpr Padding CalcSamePadding(const TensorShape& inputShape,
 constexpr Padding CalcSamePadding(const TensorInfo& inputInfo,
                                   const TensorInfo& weightsInfo,
                                   const Stride& stride,
-                                  const bool preferBefore)
+                                  const PadMode mode)
 {
-    return CalcSamePadding(inputInfo.m_Dimensions, weightsInfo.m_Dimensions, stride, preferBefore);
+    return CalcSamePadding(inputInfo.m_Dimensions, weightsInfo.m_Dimensions, stride, mode);
+}
+
+bool IsPaddingSupported(const TensorInfo& inputInfo,
+                        const TensorInfo& weightsInfo,
+                        const Stride& stride,
+                        const Padding& padInfo)
+{
+
+    return ((padInfo == Padding{ 0, 0, 0, 0 }) ||
+            (padInfo == CalcSamePadding(inputInfo, weightsInfo, stride, PadMode::Symmetric)) ||
+            (padInfo == CalcSamePadding(inputInfo, weightsInfo, stride, PadMode::PreferBefore)) ||
+            (padInfo == CalcSamePadding(inputInfo, weightsInfo, stride, PadMode::PreferAfter)));
 }
 
 using PossibleTypeList = std::initializer_list<DataType>;
@@ -515,9 +537,7 @@ SupportedLevel SupportQueries::IsConvolutionSupported(const TensorInfo& biasInfo
         return SupportedLevel::EstimateOnly;
     }
 
-    if ((convInfo.m_Padding != Padding(0, 0, 0, 0)) &&
-        (convInfo.m_Padding != CalcSamePadding(inputInfo, weightsInfo, convInfo.m_Stride, false)) &&
-        (convInfo.m_Padding != CalcSamePadding(inputInfo, weightsInfo, convInfo.m_Stride, true)))
+    if (!IsPaddingSupported(inputInfo, weightsInfo, convInfo.m_Stride, convInfo.m_Padding))
     {
         SetReason("Unsupported padding.", reason, reasonMaxLength);
         return SupportedLevel::EstimateOnly;
@@ -682,9 +702,7 @@ SupportedLevel SupportQueries::IsDepthwiseConvolutionSupported(const TensorInfo&
         return SupportedLevel::EstimateOnly;
     }
 
-    if ((convInfo.m_Padding != Padding{}) &&
-        (convInfo.m_Padding != CalcSamePadding(inputInfo, weightsInfo, convInfo.m_Stride, false)) &&
-        (convInfo.m_Padding != CalcSamePadding(inputInfo, weightsInfo, convInfo.m_Stride, true)))
+    if (!IsPaddingSupported(inputInfo, weightsInfo, convInfo.m_Stride, convInfo.m_Padding))
     {
         SetReason("Unsupported padding.", reason, reasonMaxLength);
         return SupportedLevel::EstimateOnly;
@@ -840,9 +858,7 @@ SupportedLevel SupportQueries::IsTransposeConvolutionSupported(const TensorInfo&
     // Check that padding is either SAME or VALID. To calculate what SAME padding means, we first calculate the output
     // size and then use that to calculate what SAME padding would be for a regular convolution.
     TensorShape outputShape = expectedOutputInfo.m_Dimensions;
-    if ((convInfo.m_Padding != Padding{}) &&
-        (convInfo.m_Padding != CalcSamePadding(outputShape, weightsInfo, convInfo.m_Stride, false)) &&
-        (convInfo.m_Padding != CalcSamePadding(outputShape, weightsInfo, convInfo.m_Stride, true)))
+    if (!IsPaddingSupported(outputShape, weightsInfo, convInfo.m_Stride, convInfo.m_Padding))
     {
         SetReason("Unsupported padding.", reason, reasonMaxLength);
         return SupportedLevel::EstimateOnly;
@@ -1704,11 +1720,11 @@ SupportedLevel SupportQueries::IsPoolingSupported(const PoolingInfo& poolingInfo
         if (poolingInfo.m_PoolingSizeX == 3)
         {
             // Maximum width is implementation dependent
-            constexpr uint32_t maxWidth = 481;
+            constexpr unsigned maxWidth = 417;
 
             if (inputWidth > maxWidth)
             {
-                SetReason("Max pooling 3x3_2_2: maximum input width (481) exceeded", reason, reasonMaxLength);
+                SetReason("Max pooling 3x3_2_2: maximum input width (%u) exceeded", reason, reasonMaxLength, maxWidth);
                 return SupportedLevel::EstimateOnly;
             }
 
@@ -1929,6 +1945,12 @@ SupportedLevel SupportQueries::IsResizeSupported(const ResizeInfo& resizeInfo,
     if (resizeInfo.m_NewWidth != maxUpscaledWidth && resizeInfo.m_NewWidth != minUpscaledWidth)
     {
         SetReason("Requested width isn't supported", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if ((resizeInfo.m_NewWidth & 1) ^ (resizeInfo.m_NewHeight & 1))
+    {
+        SetReason("Requested width and height must be both even or both odd", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 

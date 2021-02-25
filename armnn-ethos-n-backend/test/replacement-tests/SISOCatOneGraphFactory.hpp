@@ -1,5 +1,5 @@
 //
-// Copyright © 2020 Arm Ltd. All rights reserved.
+// Copyright © 2020-2021 Arm Ltd. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -10,7 +10,7 @@ class SISOCatOneGraphFactory : public IReplacementTestGraphFactory
 {
 public:
     const std::string& GetName() const override;
-    armnn::INetworkPtr GetInitialGraph() const override;
+    std::unique_ptr<armnn::NetworkImpl> GetInitialGraph() const override;
     std::string GetMappingFileName() const override;
-    armnn::INetworkPtr GetExpectedModifiedGraph() const override;
+    std::unique_ptr<armnn::NetworkImpl> GetExpectedModifiedGraph() const override;
 };

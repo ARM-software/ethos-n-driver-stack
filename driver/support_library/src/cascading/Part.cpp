@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1270,7 +1270,7 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
             const TensorShape& inputShape = node->GetInputShape(0);
             TensorShape inputStripe       = CreateStripe(node->GetInputShape(0), inputEncoding, caps);
 
-            TensorShape outputEncoding = { 0, 0, 0, caps.GetNumberOfOfm() };
+            TensorShape outputEncoding = { 0, 0, 0, caps.GetNumberOfOgs() };
             TensorShape outputStripe   = CreateStripe(node->GetShape(), outputEncoding, caps);
             // We have the full input tensor so we only have 1 stripe
             Part::NumStripes numStripesCopy = numStripes;
@@ -1283,7 +1283,7 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
         // note we have to limit the height and width to the block size
         {
             TensorShape encoding          = { 0, blockConfig.m_BlockHeight(), blockConfig.m_BlockWidth(),
-                                     caps.GetNumberOfOfm() };
+                                     caps.GetNumberOfOgs() };
             const TensorShape& inputShape = node->GetInputShape(0);
             TensorShape inputStripe       = CreateStripe(node->GetInputShape(0), encoding, caps);
 
@@ -1297,7 +1297,7 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
         // Assume that the ple operations has a 1-1 mapping between input and output
         // Try split depth
         {
-            TensorShape inputEncoding     = { 0, 0, 0, caps.GetNumberOfOfm() };
+            TensorShape inputEncoding     = { 0, 0, 0, caps.GetNumberOfOgs() };
             const TensorShape& inputShape = node->GetInputShape(0);
             TensorShape inputStripe       = CreateStripe(node->GetInputShape(0), inputEncoding, caps);
 
@@ -1313,7 +1313,7 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
         // e.g. relu
         {
             TensorShape inputEncoding     = { 0, blockConfig.m_BlockHeight(), blockConfig.m_BlockWidth(),
-                                          caps.GetNumberOfOfm() };
+                                          caps.GetNumberOfOgs() };
             const TensorShape& inputShape = node->GetInputShape(0);
             TensorShape inputStripe       = CreateStripe(node->GetInputShape(0), inputEncoding, caps);
 

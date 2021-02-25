@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2020 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2021 Arm Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -24,6 +24,7 @@
 
 #include "ethosn_firmware.h"
 #include "ethosn_log.h"
+#include "ethosn_smc.h"
 
 #include <linux/firmware.h>
 #include <linux/iommu.h>
@@ -43,8 +44,8 @@
 #define ETHOSN_CODE_SIZE                   0x40000
 
 /* Timeout in us when resetting the Ethos-N */
-#define ETHOSN_RESET_TIMEOUT_US            (10 * 1000 * 1000)
-#define ETHOSN_RESET_WAIT_US               1
+#define ETHOSN_RESET_TIMEOUT_US         (10 * 1000 * 1000)
+#define ETHOSN_RESET_WAIT_US            1
 
 /* Regset32 entry */
 #define REGSET32(r) { __stringify(r), \
@@ -482,6 +483,7 @@ void ethosn_notify_firmware(struct ethosn_core *core)
 
 static int ethosn_hard_reset(struct ethosn_core *core)
 {
+#ifdef ETHOSN_NS
 	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
 	unsigned int timeout;
 
@@ -510,10 +512,21 @@ static int ethosn_hard_reset(struct ethosn_core *core)
 	}
 
 	return 0;
+
+#else
+
+	/*
+	 * Access to DL1 registers is blocked in secure mode so reset is done
+	 * with a SMC call. The call will block until the reset is done or
+	 * timeout.
+	 */
+	return ethosn_smc_core_reset(core, 1);
+#endif
 }
 
 static int ethosn_soft_reset(struct ethosn_core *core)
 {
+#ifdef ETHOSN_NS
 	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
 	unsigned int timeout;
 
@@ -542,6 +555,18 @@ static int ethosn_soft_reset(struct ethosn_core *core)
 
 		return -ETIME;
 	}
+
+#else
+
+	/*
+	 * Access to DL1 registers is blocked in secure mode so reset is done
+	 * with a SMC call. The call will block until the reset is done or
+	 * timeout.
+	 */
+	if (ethosn_smc_core_reset(core, 0))
+		return -ETIME;
+
+#endif
 
 	return 0;
 }

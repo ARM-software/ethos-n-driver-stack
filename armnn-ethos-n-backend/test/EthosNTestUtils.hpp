@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -57,6 +57,8 @@ inline void SetEnv(const char* const name, const char* const value)
 inline void CreateConfigFile(const std::string& configFile, const armnn::EthosNConfig& config)
 {
     std::ofstream os(configFile);
+    os << armnn::EthosNConfig::PERF_VARIANT_VAR << " = "
+       << ethosn::support_library::EthosNVariantAsString(config.m_PerfVariant) << "\n";
     os << armnn::EthosNConfig::PERF_ONLY_VAR << " = " << config.m_PerfOnly << "\n";
     os << armnn::EthosNConfig::PERF_OUT_DIR_VAR << " = " << config.m_PerfOutDir << "\n";
     os << armnn::EthosNConfig::PERF_MAPPING_FILE_VAR << " = " << config.m_PerfMappingFile << "\n";

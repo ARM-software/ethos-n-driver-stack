@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -741,13 +741,15 @@ void ValidateMappingParameters(Mapping mapping)
 void ApplyMappings(std::vector<Mapping> mappings, Graph& newGraph)
 {
     // substitute the layers as per the mapping
-    const std::list<Layer*> newGraphLayers(newGraph.begin(), newGraph.end());
+    std::list<Layer*> newGraphLayers(newGraph.begin(), newGraph.end());
 
     for (Mapping mapping : mappings)
     {
         ValidateMappingParameters(mapping);
 
-        for (Layer* layer : newGraphLayers)
+        // Create copy of newGraphLayers and remove substituted layers from original list.
+        const std::list<Layer*> newGraphLayersCopy(newGraphLayers.begin(), newGraphLayers.end());
+        for (Layer* layer : newGraphLayersCopy)
         {
             if (layer->GetType() == GetLayerType(mapping.m_PatternLayers[0].m_LayerTypeName))
             {
@@ -798,6 +800,7 @@ void ApplyMappings(std::vector<Mapping> mappings, Graph& newGraph)
                         }
 
                         SubstituteLayer(mapping, layer, inputTensor, outputTensor, newGraph);
+                        newGraphLayers.remove(layer);
                     }
                 }
             }

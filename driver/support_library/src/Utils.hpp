@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -11,6 +11,7 @@
 #include <ethosn_command_stream/BinaryTuple.hpp>
 #include <ethosn_command_stream/CommandData.hpp>
 #include <ethosn_command_stream/PleOperation.hpp>
+#include <ethosn_utils/Log.hpp>
 #include <ethosn_utils/Macros.hpp>
 
 #include <cassert>
@@ -24,6 +25,15 @@ namespace ethosn
 {
 namespace support_library
 {
+
+#if !defined(NDEBUG)
+constexpr ethosn::utils::log::Severity g_LogCompileTimeMaxSeverity = ethosn::utils::log::Severity::Debug;
+#else
+constexpr ethosn::utils::log::Severity g_LogCompileTimeMaxSeverity = ethosn::utils::log::Severity::Info;
+#endif
+using LoggerType = ethosn::utils::log::Logger<g_LogCompileTimeMaxSeverity>;
+extern LoggerType g_Logger;
+
 enum class CompilerDataCompressedFormat;
 class Node;
 
@@ -36,6 +46,12 @@ enum class CompilerMceAlgorithm
     Direct
 };
 
+struct WinogradOutputShape
+{
+    uint32_t m_Width;
+    uint32_t m_Height;
+};
+
 class HardwareCapabilities
 {
 public:
@@ -43,9 +59,9 @@ public:
 
     uint32_t GetTotalSramSize() const;
     uint32_t GetNumberOfEngines() const;
-    uint32_t GetIfmPerEngine() const;
-    uint32_t GetOfmPerEngine() const;
-    uint32_t GetNumberOfOfm() const;
+    uint32_t GetIgsPerEngine() const;
+    uint32_t GetOgsPerEngine() const;
+    uint32_t GetNumberOfOgs() const;
     uint32_t GetNumberOfSrams() const;
     uint32_t GetNumberofSramsPerEngine() const;
     uint32_t GetMaxPleSize() const;
@@ -54,31 +70,32 @@ public:
     uint32_t GetNumCentralSlots() const;
     const TensorShape& GetBrickGroupShape() const;
     const TensorShape& GetPatchShape() const;
-    uint32_t GetTotalAccumulatorsPerEngine() const;
-    uint32_t GetMacUnitsPerEngine() const;
+    uint32_t GetTotalAccumulatorsPerOg() const;
+    uint32_t GetMacUnitsPerOg() const;
     uint32_t GetNumberOfPleLanes() const;
     uint32_t GetWeightCompressionVersion() const;
     uint32_t GetActivationCompressionVersion() const;
     uint32_t GetIsNchwSupported() const;
 
-    uint32_t GetMacsPerWinograd2D() const
+    // It is always 16 MACs per wingorad output block either for 1D (1x3/3x1 filter) or 2D (3x3 filter).
+    uint32_t GetMacsPerWinogradOutputBlock() const
     {
         return 16U;
     }
 
-    uint32_t GetOutputSizePerWinograd2D() const
+    WinogradOutputShape Get3x3WinogradOutputSize() const
     {
-        return 2U;
+        return { 2, 2 };
     }
 
-    uint32_t GetMacsPerWinograd1D() const
+    WinogradOutputShape Get3x1WinogradOutputSize() const
     {
-        return 4U;
+        return { 2, 4 };
     }
 
-    uint32_t GetOutputSizePerWinograd1D() const
+    WinogradOutputShape Get1x3WinogradOutputSize() const
     {
-        return 1U;
+        return { 4, 2 };
     }
 
     uint32_t GetWideKernelSize() const

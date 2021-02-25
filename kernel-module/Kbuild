@@ -1,5 +1,5 @@
 #
-# (C) COPYRIGHT 2018-2019 Arm Limited. All rights reserved.
+# (C) COPYRIGHT 2018-2021 Arm Limited. All rights reserved.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -21,7 +21,7 @@
 ccflags-y += -Wall -g -Werror -DDEBUG $(EXTRA_CCFLAGS)
 
 obj-m := ethosn.o
-obj-$(CONFIG_ETHOSN_TEST) += tests/ethosn-tests.o
+obj-$(CONFIG_ETHOSN_TEST) += ../internal/kernel-module/tests/ethosn-tests.o
 
 ethosn-objs := ethosn_driver.o \
              ethosn_device.o \
@@ -31,4 +31,5 @@ ethosn-objs := ethosn_driver.o \
              ethosn_dma_carveout.o \
              ethosn_dma_iommu.o \
              ethosn_log.o \
-             ethosn_network.o
+             ethosn_network.o \
+             ethosn_smc.o

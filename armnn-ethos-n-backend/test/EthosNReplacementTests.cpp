@@ -1,5 +1,5 @@
 //
-// Copyright © 2020 Arm Ltd. All rights reserved.
+// Copyright © 2020-2021 Arm Ltd. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "EthosNBackend.hpp"
@@ -68,15 +68,12 @@ BOOST_DATA_TEST_CASE(TestGraphReplace,
     std::string mappingFileName(REPLACEMENT_FILE_TEST_DIRECTORY);
     mappingFileName.append(factory.GetMappingFileName());
 
-    INetworkPtr initINetPtr  = factory.GetInitialGraph();
-    const INetwork& initINet = *initINetPtr;
-    const Network& initNet   = *PolymorphicDowncast<const Network*>(&initINet);
-    Graph modifiedGraph      = initNet.GetGraph();
+    std::unique_ptr<NetworkImpl> initNetImplPtr = factory.GetInitialGraph();
+    Graph modifiedGraph                         = initNetImplPtr->GetGraph();
 
-    INetworkPtr expectINetPtr    = factory.GetExpectedModifiedGraph();
-    const INetwork& expectedINet = *expectINetPtr;
-    const Network& expectedNet   = *PolymorphicDowncast<const Network*>(&expectedINet);
-    Graph expectedGraph          = expectedNet.GetGraph();
+    std::unique_ptr<NetworkImpl> expectedNetImplPtr = factory.GetExpectedModifiedGraph();
+    Graph expectedGraph                             = expectedNetImplPtr->GetGraph();
+
     const SubgraphView expectedGraphView(expectedGraph);
 
     EthosNMappings parsedMapping = GetMappings(mappingFileName);

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -631,6 +631,14 @@ bool EthosNLayerSupport::IsPreCompiledSupported(const TensorInfo& input,
 bool EthosNLayerSupport::IsRankSupported(const TensorInfo& input,
                                          const TensorInfo& output,
                                          Optional<std::string&> reasonIfUnsupported) const
+{
+    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
+}
+
+bool EthosNLayerSupport::IsReduceSupported(const TensorInfo& input,
+                                           const TensorInfo& output,
+                                           const ReduceDescriptor&,
+                                           Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }

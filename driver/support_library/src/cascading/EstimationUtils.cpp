@@ -1,5 +1,5 @@
 //
-// Copyright © 2020 Arm Limited. All rights reserved.
+// Copyright © 2020-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -84,7 +84,7 @@ uint32_t GetInputTotalBytes(const HardwareCapabilities& caps,
     // Calculate the total amount of input data to be transferred included reloading.
     if (needNeighbourStripeW && isStreamingC)
     {
-        borderWidth = caps.GetBrickGroupShape()[2];
+        borderWidth = stripeShape[2];
     }
 
     if (needNeighbourStripeH && (isStreamingC || (isStreamingH && isStreamingW)))
@@ -128,7 +128,7 @@ InputStats GetInputStats(const HardwareCapabilities& caps,
         const bool needNeighbourStripeW = weights.m_Dimensions[1] > 1U;
 
         // Number of ofm produced per iteration
-        const uint32_t ofmProduced = caps.GetOfmPerEngine() * caps.GetNumberOfEngines();
+        const uint32_t ofmProduced = caps.GetOgsPerEngine() * caps.GetNumberOfEngines();
 
         // This might change, it doesn't always need all the boundary slots.
         const uint32_t numBoundarySlots = caps.GetNumBoundarySlots();
@@ -156,7 +156,7 @@ InputStats GetInputStats(const HardwareCapabilities& caps,
 
         if (needNeighbourStripeW && isStreamingW)
         {
-            borderWidth = isStreamingC ? caps.GetBrickGroupShape()[2] : stripeShapeValid[2];
+            borderWidth = stripeShapeValid[2];
         }
 
         const bool isUsingBoundarySlots = needNeighbourStripeH && isStreamingH && isStreamingW && !isStreamingC;

@@ -147,7 +147,7 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
     {
         // Either we failed compilation or there was not enough SRAM to convert NHWCB to NHWC
         // NNXSW-2802: Temporary fix to print the error but need better approach  for error reporting from support library.
-        std::cerr << "Error: " << e.what() << std::endl;
+        g_Logger.Error("Error: %s", e.what());
         return std::unique_ptr<CompiledNetworkImpl>(nullptr);
     }
 

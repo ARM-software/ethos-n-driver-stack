@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "EthosNMapping.hpp"
 #include "EthosNLayerSupport.hpp"
+#include "EthosNMapping.hpp"
 
 #include <InternalTypes.hpp>
 #include <armnn/Exceptions.hpp>

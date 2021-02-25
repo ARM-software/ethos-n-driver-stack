@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -34,17 +34,18 @@ struct EthosNConfig
     static constexpr char INTERMEDIATE_COMPRESSION[]            = "INTERMEDIATE_COMPRESSION";                     // boolean
     // clang-format on
 
-    bool m_PerfOnly                                      = false;
-    ethosn::support_library::EthosNVariant m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
-    uint32_t m_PerfSramSizeBytesOverride                 = 0;
-    std::string m_PerfOutDir                             = "ethosn_perf";
-    std::string m_PerfMappingFile                        = "";
-    bool m_DumpDebugFiles                                = false;
-    bool m_DumpRam                                       = false;
-    float m_PerfActivationCompressionSaving              = 0.0f;
-    bool m_PerfUseWeightCompressionOverride              = false;
-    float m_PerfWeightCompressionSaving                  = 0.0f;
-    bool m_PerfCurrent                                   = false;
+    bool m_PerfOnly = false;
+    ethosn::support_library::EthosNVariant m_PerfVariant =
+        ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
+    uint32_t m_PerfSramSizeBytesOverride    = 0;
+    std::string m_PerfOutDir                = "ethosn_perf";
+    std::string m_PerfMappingFile           = "";
+    bool m_DumpDebugFiles                   = false;
+    bool m_DumpRam                          = false;
+    float m_PerfActivationCompressionSaving = 0.0f;
+    bool m_PerfUseWeightCompressionOverride = false;
+    float m_PerfWeightCompressionSaving     = 0.0f;
+    bool m_PerfCurrent                      = false;
     ethosn::support_library::CompilerAlgorithm m_CompilerAlgorithm =
         ethosn::support_library::CompilerAlgorithm::NonCascadingOnly;
     bool m_IntermediateCompression = true;

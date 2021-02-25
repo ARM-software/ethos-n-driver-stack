@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright © 2018-2021 Arm Limited. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+import os
+import common
+
+Import('env', 'ethosn_driver_shared')
+
+# Add RPATH entries so that the executable can be ran from any directory.
+env.Append(RPATH=[ethosn_driver_shared[0].dir.abspath,
+                  common.get_support_library_build_dir(env)])
+
+srcs = ['main.cpp',
+        'DriverLibraryTests.cpp',
+        'BufferTests.cpp',
+        'ConfigTests.cpp']
+
+internal_dir = os.path.join(env['driver_library_dir'], '..', '..', 'internal', 'driver', 'driver_library', 'tests')
+internal_srcs = []
+# Add internal tests only if the directory exists.
+if os.path.isdir(internal_dir):
+    # Compile internal-only unit tests files, which are stored outside of this component's folder.
+    # Use scons 'Repository' method to locate a build the additional files.
+    # (see Building From Code Repositories in scons documentation).
+    # Extend CPPPATH to allow to include headers from the current working directory.
+    # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on
+    # the install target where the install target is also provided via CPATH.
+    # (see Finding #include files in repositories in scons documentation).
+    env.PrependUnique(CPPPATH=['.',
+                               os.path.join(env['driver_library_dir'], '..', '..', 'internal', 'kernel-module')])
+    env.Repository(os.path.join(env['driver_library_dir'], '..', '..', 'internal', 'driver'))
+    internal_srcs = [f for f in os.listdir(internal_dir) if f.endswith('cpp')]
+# Add internal unit tests
+srcs.extend(internal_srcs)
+
+libs = [ethosn_driver_shared,
+        File(os.path.join(common.get_support_library_build_dir(env), 'libEthosNSupport.a'))]
+
+unitTests = env.Program('UnitTests', srcs, LIBS=libs)
+testAlias = env.Alias('driver-unit-tests', [unitTests], unitTests[0].abspath)
+env.Alias('unit-tests', testAlias)
+AlwaysBuild(testAlias)

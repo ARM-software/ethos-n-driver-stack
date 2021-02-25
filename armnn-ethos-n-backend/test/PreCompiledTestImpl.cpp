@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -24,7 +24,7 @@ using namespace armnn;
 namespace
 {
 
-IConnectableLayer* AddConvolutionLayerToNetwork(Network& network,
+IConnectableLayer* AddConvolutionLayerToNetwork(INetwork& network,
                                                 const Convolution2dDescriptor& descriptor,
                                                 const ConstTensor& weights,
                                                 const ConstTensor& biases)
@@ -32,7 +32,7 @@ IConnectableLayer* AddConvolutionLayerToNetwork(Network& network,
     return network.AddConvolution2dLayer(descriptor, weights, Optional<ConstTensor>(biases), "convolution");
 }
 
-IConnectableLayer* AddConvolutionLayerToNetwork(Network& network,
+IConnectableLayer* AddConvolutionLayerToNetwork(INetwork& network,
                                                 const DepthwiseConvolution2dDescriptor& descriptor,
                                                 const ConstTensor& weights,
                                                 const ConstTensor& biases)
@@ -41,7 +41,7 @@ IConnectableLayer* AddConvolutionLayerToNetwork(Network& network,
                                                   "depthwiseConvolution");
 }
 
-IConnectableLayer* AddConvolutionLayerToNetwork(Network& network,
+IConnectableLayer* AddConvolutionLayerToNetwork(INetwork& network,
                                                 const TransposeConvolution2dDescriptor& descriptor,
                                                 const ConstTensor& weights,
                                                 const ConstTensor& biases)
@@ -217,10 +217,10 @@ armnn::PreCompiledLayer* FindPreCompiledLayer(armnn::Graph& optimisedGraph)
 armnn::IConnectableLayer* AddFusedActivationLayer(armnn::IConnectableLayer* prevLayer,
                                                   unsigned int outputSlotIndex,
                                                   const ActivationDescriptor& descriptor,
-                                                  Network& net)
+                                                  INetwork& network)
 {
     std::string layerName = "activation" + std::string(GetActivationFunctionAsCString(descriptor.m_Function));
-    IConnectableLayer* activationLayer = net.AddActivationLayer(descriptor, layerName.c_str());
+    IConnectableLayer* activationLayer = network.AddActivationLayer(descriptor, layerName.c_str());
 
     auto& prevOutputSlot = prevLayer->GetOutputSlot(outputSlotIndex);
     prevOutputSlot.Connect(activationLayer->GetInputSlot(0));
@@ -231,7 +231,7 @@ armnn::IConnectableLayer* AddFusedActivationLayer(armnn::IConnectableLayer* prev
 template <uint32_t NumDims = 4>
 std::vector<LayerTestResult<uint8_t, NumDims>>
     OptimiseAndRunNetworkMultiple(armnn::IWorkloadFactory& workloadFactory,
-                                  Network& net,
+                                  INetwork& network,
                                   std::map<LayerBindingId, TensorInfo> inputInfos,
                                   std::map<LayerBindingId, std::vector<uint8_t>> inputData,
                                   std::map<LayerBindingId, TensorInfo> outputInfos,
@@ -247,16 +247,17 @@ std::vector<LayerTestResult<uint8_t, NumDims>>
     IOptimizedNetworkPtr optimizedNet(nullptr, nullptr);
     try
     {
-        optimizedNet = Optimize(net, backends, runtime->GetDeviceSpec(), OptimizerOptions(), messages);
+        optimizedNet = Optimize(network, backends, runtime->GetDeviceSpec(), OptimizerOptions(), messages);
     }
     catch (const armnn::Exception& e)
     {
         throw RuntimeException(std::string("Failed to optimize network for ") + std::string(backends[0]),
                                CHECK_LOCATION());
     }
-
+    ARMNN_ASSERT(GetGraphForTesting(optimizedNet.get()).GetNumInputs() == inputInfos.size());
+    ARMNN_ASSERT(GetGraphForTesting(optimizedNet.get()).GetNumOutputs() == outputInfos.size());
     // Find the pre-compiled layer in the optimised graph
-    Graph& optimisedGraph              = static_cast<OptimizedNetwork*>(optimizedNet.get())->GetGraph();
+    Graph& optimisedGraph              = GetGraphForTesting(optimizedNet.get());
     PreCompiledLayer* preCompiledLayer = FindPreCompiledLayer(optimisedGraph);
     if (!preCompiledLayer)
     {
@@ -327,18 +328,16 @@ std::vector<LayerTestResult<uint8_t, NumDims>>
 /// Simpler version of the above function for single input and single output networks.
 template <uint32_t NumDims = 4>
 LayerTestResult<uint8_t, NumDims> OptimiseAndRunNetwork(armnn::IWorkloadFactory& workloadFactory,
-                                                        Network& net,
+                                                        INetwork& network,
+                                                        LayerBindingId inputBindingId,
                                                         TensorInfo inputInfo,
                                                         std::vector<uint8_t> inputData,
+                                                        LayerBindingId outputBindingId,
                                                         TensorInfo outputInfo,
                                                         std::vector<uint8_t> expectedOutputData)
 {
-    ARMNN_ASSERT(net.GetGraph().GetNumInputs() == 1);
-    LayerBindingId inputBindingId = (*net.GetGraph().GetInputLayers().begin())->GetBindingId();
-    ARMNN_ASSERT(net.GetGraph().GetNumOutputs() == 1);
-    LayerBindingId outputBindingId = (*net.GetGraph().GetOutputLayers().begin())->GetBindingId();
     return OptimiseAndRunNetworkMultiple<NumDims>(
-        workloadFactory, net, { { inputBindingId, inputInfo } }, { { inputBindingId, inputData } },
+        workloadFactory, network, { { inputBindingId, inputInfo } }, { { inputBindingId, inputData } },
         { { outputBindingId, outputInfo } }, { { outputBindingId, expectedOutputData } })[0];
 }
 
@@ -392,13 +391,13 @@ LayerTestResult<uint8_t, 4> PreCompiledConvolution2dTestImpl(armnn::IWorkloadFac
     std::vector<int32_t> biasesData(biasDataSize, 0);
 
     // Construct network
-    Network network;
+    INetworkPtr network = armnn::INetwork::Create();
     ConstTensor weights(weightsInfo, weightsData);
     ConstTensor biases(biasesInfo, biasesData);
 
-    IConnectableLayer* const inputLayer       = network.AddInputLayer(0, "input");
-    IConnectableLayer* const convolutionLayer = AddConvolutionLayerToNetwork(network, descriptor, weights, biases);
-    IConnectableLayer* const outputLayer      = network.AddOutputLayer(0, "output");
+    IConnectableLayer* const inputLayer       = network->AddInputLayer(0, "input");
+    IConnectableLayer* const convolutionLayer = AddConvolutionLayerToNetwork(*network, descriptor, weights, biases);
+    IConnectableLayer* const outputLayer      = network->AddOutputLayer(0, "output");
 
     inputLayer->GetOutputSlot(0).Connect(convolutionLayer->GetInputSlot(0));
     inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
@@ -415,7 +414,7 @@ LayerTestResult<uint8_t, 4> PreCompiledConvolution2dTestImpl(armnn::IWorkloadFac
     std::vector<uint8_t> expectedOutputData =
         GetIdentityConvolutionExpectedOutputData(inputInfo, outputInfo, descriptor, inputData);
 
-    return OptimiseAndRunNetwork(workloadFactory, network, inputInfo, inputData, outputInfo, expectedOutputData);
+    return OptimiseAndRunNetwork(workloadFactory, *network, 0, inputInfo, inputData, 0, outputInfo, expectedOutputData);
 }
 
 // Test a [1, 1, 1, 1] tensor with signed weights
@@ -464,13 +463,13 @@ LayerTestResult<uint8_t, 4>
     std::vector<int32_t> biasesData(biasDataSize, 0);
 
     // Construct network
-    Network network;
+    INetworkPtr network = armnn::INetwork::Create();
     ConstTensor weights(weightsInfo, weightsData);
     ConstTensor biases(biasesInfo, biasesData);
 
-    IConnectableLayer* const inputLayer       = network.AddInputLayer(0, "input");
-    IConnectableLayer* const convolutionLayer = AddConvolutionLayerToNetwork(network, descriptor, weights, biases);
-    IConnectableLayer* const outputLayer      = network.AddOutputLayer(0, "output");
+    IConnectableLayer* const inputLayer       = network->AddInputLayer(0, "input");
+    IConnectableLayer* const convolutionLayer = AddConvolutionLayerToNetwork(*network, descriptor, weights, biases);
+    IConnectableLayer* const outputLayer      = network->AddOutputLayer(0, "output");
 
     inputLayer->GetOutputSlot(0).Connect(convolutionLayer->GetInputSlot(0));
     inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
@@ -485,7 +484,7 @@ LayerTestResult<uint8_t, 4>
     uint8_t signedExpectedOutput            = 16;
     std::vector<uint8_t> expectedOutputData = { signedExpectedOutput };
 
-    return OptimiseAndRunNetwork(workloadFactory, network, inputInfo, inputData, outputInfo, expectedOutputData);
+    return OptimiseAndRunNetwork(workloadFactory, *network, 0, inputInfo, inputData, 0, outputInfo, expectedOutputData);
 }
 
 }    // anonymous namespace
@@ -683,12 +682,12 @@ LayerTestResult<uint8_t, 4> PreCompiledMaxPooling2dTestImpl(armnn::IWorkloadFact
     }
 
     // Construct the network
-    Network net;
-    IConnectableLayer* const inputLayer = net.AddInputLayer(0, "input");
+    armnn::INetworkPtr net              = armnn::INetwork::Create();
+    IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
     IConnectableLayer* const convLayer =
-        net.AddConvolution2dLayer(convDescriptor, weights, Optional<ConstTensor>(biases), "conv");
-    IConnectableLayer* const poolingLayer = net.AddPooling2dLayer(poolDescriptor, "pooling2d");
-    IConnectableLayer* const outputLayer  = net.AddOutputLayer(0, "output");
+        net->AddConvolution2dLayer(convDescriptor, weights, Optional<ConstTensor>(biases), "conv");
+    IConnectableLayer* const poolingLayer = net->AddPooling2dLayer(poolDescriptor, "pooling2d");
+    IConnectableLayer* const outputLayer  = net->AddOutputLayer(0, "output");
 
     // Connect the layers
     inputLayer->GetOutputSlot(0).Connect(convLayer->GetInputSlot(0));
@@ -698,7 +697,7 @@ LayerTestResult<uint8_t, 4> PreCompiledMaxPooling2dTestImpl(armnn::IWorkloadFact
     poolingLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
     poolingLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
-    return OptimiseAndRunNetwork(workloadFactory, net, inputInfo, inputData, outputInfo, expectedOutputData);
+    return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 0, outputInfo, expectedOutputData);
 }
 
 template <typename ConvolutionDescriptor>
@@ -754,13 +753,13 @@ LayerTestResult<uint8_t, 4> PreCompiledFusedActivationTestImpl(armnn::IWorkloadF
         GetActivationExpectedOutputData(convOutputInfo, outputInfo, activationDescriptor, expectedConvOutputData);
 
     // Construct network
-    Network net;
+    armnn::INetworkPtr net = armnn::INetwork::Create();
     ConstTensor weights(weightsInfo, weightsData);
     ConstTensor biases(biasesInfo, biasesData);
 
-    IConnectableLayer* const inputLayer  = net.AddInputLayer(0, "input");
-    IConnectableLayer* const convLayer   = AddConvolutionLayerToNetwork(net, convDescriptor, weights, biases);
-    IConnectableLayer* const outputLayer = net.AddOutputLayer(0, "output");
+    IConnectableLayer* const inputLayer  = net->AddInputLayer(0, "input");
+    IConnectableLayer* const convLayer   = AddConvolutionLayerToNetwork(*net, convDescriptor, weights, biases);
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output");
 
     // Connect the layers
     inputLayer->GetOutputSlot(0).Connect(convLayer->GetInputSlot(0));
@@ -768,11 +767,11 @@ LayerTestResult<uint8_t, 4> PreCompiledFusedActivationTestImpl(armnn::IWorkloadF
 
     convLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
-    auto activationLayer = AddFusedActivationLayer(convLayer, 0, activationDescriptor, net);
+    auto activationLayer = AddFusedActivationLayer(convLayer, 0, activationDescriptor, *net);
 
     activationLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
-    return OptimiseAndRunNetwork(workloadFactory, net, inputInfo, inputData, outputInfo, expectedOutputData);
+    return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 0, outputInfo, expectedOutputData);
 }
 
 LayerTestResult<uint8_t, 4>
@@ -884,14 +883,14 @@ LayerTestResult<uint8_t, 2> PreCompiledFullyConnectedTestImpl(armnn::IWorkloadFa
     std::vector<uint8_t> expectedOutputData{ 1, 2 };
 
     // Construct network
-    Network net;
+    armnn::INetworkPtr net = armnn::INetwork::Create();
     ConstTensor weights(weightsInfo, weightsData);
     ConstTensor biases(biasesInfo, biasesData);
 
-    IConnectableLayer* const inputLayer = net.AddInputLayer(0, "input");
+    IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
     IConnectableLayer* const fullyConnectedLayer =
-        net.AddFullyConnectedLayer(descriptor, weights, Optional<ConstTensor>(biases), "fullyConnected");
-    IConnectableLayer* const outputLayer = net.AddOutputLayer(0, "output");
+        net->AddFullyConnectedLayer(descriptor, weights, Optional<ConstTensor>(biases), "fullyConnected");
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output");
 
     // Connect the layers
     inputLayer->GetOutputSlot(0).Connect(fullyConnectedLayer->GetInputSlot(0));
@@ -900,7 +899,7 @@ LayerTestResult<uint8_t, 2> PreCompiledFullyConnectedTestImpl(armnn::IWorkloadFa
     fullyConnectedLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
     fullyConnectedLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
-    return OptimiseAndRunNetwork<2>(workloadFactory, net, inputInfo, inputData, outputInfo, expectedOutputData);
+    return OptimiseAndRunNetwork<2>(workloadFactory, *net, 0, inputInfo, inputData, 0, outputInfo, expectedOutputData);
 }
 
 /// A simple split of a 1x1x2x1 tensor into two 1x1x1x1 tensors.
@@ -909,7 +908,7 @@ std::vector<LayerTestResult<uint8_t, 4>>
                                 const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
 {
     // Construct network
-    Network net;
+    armnn::INetworkPtr net = armnn::INetwork::Create();
 
     TensorInfo inputInfo({ 1, 1, 2, 1 }, DataType::QAsymmU8, 1.0f, 0);
     TensorInfo outputInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0);
@@ -934,10 +933,10 @@ std::vector<LayerTestResult<uint8_t, 4>>
     descriptor.SetViewSize(1, 2, 1);
     descriptor.SetViewSize(1, 3, 1);
 
-    IConnectableLayer* const inputLayer    = net.AddInputLayer(0, "input");
-    IConnectableLayer* const splitterLayer = net.AddSplitterLayer(descriptor, "splitter");
-    IConnectableLayer* const outputLayer0  = net.AddOutputLayer(0, "output0");
-    IConnectableLayer* const outputLayer1  = net.AddOutputLayer(1, "output1");
+    IConnectableLayer* const inputLayer    = net->AddInputLayer(0, "input");
+    IConnectableLayer* const splitterLayer = net->AddSplitterLayer(descriptor, "splitter");
+    IConnectableLayer* const outputLayer0  = net->AddOutputLayer(0, "output0");
+    IConnectableLayer* const outputLayer1  = net->AddOutputLayer(1, "output1");
 
     // Connect the layers
     inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
@@ -953,7 +952,7 @@ std::vector<LayerTestResult<uint8_t, 4>>
     std::vector<uint8_t> expectedOutputData0{ 1 };
     std::vector<uint8_t> expectedOutputData1{ 2 };
 
-    return OptimiseAndRunNetworkMultiple(workloadFactory, net, { { 0, inputInfo } }, { { 0, inputData } },
+    return OptimiseAndRunNetworkMultiple(workloadFactory, *net, { { 0, inputInfo } }, { { 0, inputData } },
                                          { { 0, outputInfo }, { 1, outputInfo } },
                                          { { 0, expectedOutputData0 }, { 1, expectedOutputData1 } });
 }
@@ -962,20 +961,20 @@ LayerTestResult<uint8_t, 4> PreCompiledDepthToSpaceTestImpl(armnn::IWorkloadFact
                                                             const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
 {
     // Construct network
-    Network net;
+    armnn::INetworkPtr net = armnn::INetwork::Create();
 
     TensorInfo inputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
     TensorInfo outputInfo({ 1, 4, 4, 1 }, DataType::QAsymmU8, 1.0f, 0);
 
-    IConnectableLayer* const inputLayer = net.AddInputLayer(0, "input");
+    IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
     inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
 
     DepthToSpaceDescriptor desc(2, DataLayout::NHWC);
-    IConnectableLayer* const spaceToDepthLayer = net.AddDepthToSpaceLayer(desc, "depthToSpace");
+    IConnectableLayer* const spaceToDepthLayer = net->AddDepthToSpaceLayer(desc, "depthToSpace");
     spaceToDepthLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
     inputLayer->GetOutputSlot(0).Connect(spaceToDepthLayer->GetInputSlot(0));
 
-    IConnectableLayer* const outputLayer = net.AddOutputLayer(0, "output");
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output");
     spaceToDepthLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
     std::vector<uint8_t> inputData{
@@ -994,7 +993,7 @@ LayerTestResult<uint8_t, 4> PreCompiledDepthToSpaceTestImpl(armnn::IWorkloadFact
         // clang-format on
     };
 
-    return OptimiseAndRunNetwork(workloadFactory, net, inputInfo, inputData, outputInfo, expectedOutputData);
+    return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 0, outputInfo, expectedOutputData);
 }
 
 LayerTestResult<uint8_t, 4>
@@ -1023,31 +1022,31 @@ LayerTestResult<uint8_t, 4>
 LayerTestResult<uint8_t, 4> PreCompiledAdditionTestImpl(armnn::IWorkloadFactory& workloadFactory,
                                                         const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
 {
-    Network net;
+    armnn::INetworkPtr net = armnn::INetwork::Create();
 
     // Note the use of non-trivial quantization parameters to make sure that these are correctly passed to Ethos-N.
     TensorInfo inputInfo0({ 1, 2, 2, 1 }, DataType::QAsymmU8, 2.0f, 1);
     TensorInfo inputInfo1({ 1, 2, 2, 1 }, DataType::QAsymmU8, 4.0f, 1);
     TensorInfo outputInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, 0.2f, 2);
 
-    IConnectableLayer* const inputLayer0 = net.AddInputLayer(0, "input0");
+    IConnectableLayer* const inputLayer0 = net->AddInputLayer(0, "input0");
     inputLayer0->GetOutputSlot(0).SetTensorInfo(inputInfo0);
-    IConnectableLayer* const inputLayer1 = net.AddInputLayer(1, "input1");
+    IConnectableLayer* const inputLayer1 = net->AddInputLayer(1, "input1");
     inputLayer1->GetOutputSlot(0).SetTensorInfo(inputInfo1);
 
-    IConnectableLayer* const additionLayer = net.AddAdditionLayer("addition");
+    IConnectableLayer* const additionLayer = net->AddAdditionLayer("addition");
     additionLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
     inputLayer0->GetOutputSlot(0).Connect(additionLayer->GetInputSlot(0));
     inputLayer1->GetOutputSlot(0).Connect(additionLayer->GetInputSlot(1));
 
-    IConnectableLayer* const outputLayer = net.AddOutputLayer(0, "output");
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output");
     additionLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
     std::vector<uint8_t> inputData0{ 1, 2, 3, 4 };               // Dequantised: 0.0, 2.0, 4.0, 6.0
     std::vector<uint8_t> inputData1{ 1, 2, 3, 4 };               // Dequantised: 0.0, 4.0, 8.0, 12.0
     std::vector<uint8_t> expectedOutputData{ 2, 32, 62, 92 };    // Dequantised: 0.0, 6.0, 12.0, 18.0
 
-    return OptimiseAndRunNetworkMultiple(workloadFactory, net, { { 0, inputInfo0 }, { 1, inputInfo1 } },
+    return OptimiseAndRunNetworkMultiple(workloadFactory, *net, { { 0, inputInfo0 }, { 1, inputInfo1 } },
                                          { { 0, inputData0 }, { 1, inputData1 } }, { { 0, outputInfo } },
                                          { { 0, expectedOutputData } })[0];
 }
@@ -1077,27 +1076,27 @@ LayerTestResult<uint8_t, 4> PreCompiledMultiInputTestImpl(armnn::IWorkloadFactor
     reluDesc.m_B        = 0.0f;
 
     // Construct network
-    Network net;
-    IConnectableLayer* const input0Layer = net.AddInputLayer(0, "input0");
+    armnn::INetworkPtr net               = armnn::INetwork::Create();
+    IConnectableLayer* const input0Layer = net->AddInputLayer(0, "input0");
     input0Layer->GetOutputSlot(0).SetTensorInfo(inputInfo);
-    IConnectableLayer* const relu0Layer = net.AddActivationLayer(reluDesc, "relu0");
+    IConnectableLayer* const relu0Layer = net->AddActivationLayer(reluDesc, "relu0");
     relu0Layer->GetOutputSlot(0).SetTensorInfo(intermediateInfo);
     input0Layer->GetOutputSlot(0).Connect(relu0Layer->GetInputSlot(0));
 
-    IConnectableLayer* const input1Layer = net.AddInputLayer(1, "input1");
+    IConnectableLayer* const input1Layer = net->AddInputLayer(1, "input1");
     input1Layer->GetOutputSlot(0).SetTensorInfo(inputInfo);
-    IConnectableLayer* const relu1Layer = net.AddActivationLayer(reluDesc, "relu1");
+    IConnectableLayer* const relu1Layer = net->AddActivationLayer(reluDesc, "relu1");
     relu1Layer->GetOutputSlot(0).SetTensorInfo(intermediateInfo);
     input1Layer->GetOutputSlot(0).Connect(relu1Layer->GetInputSlot(0));
 
     std::array<TensorShape, 2> concatInputShapes = { intermediateInfo.GetShape(), intermediateInfo.GetShape() };
-    IConnectableLayer* const concatLayer         = net.AddConcatLayer(
+    IConnectableLayer* const concatLayer         = net->AddConcatLayer(
         CreateDescriptorForConcatenation(concatInputShapes.begin(), concatInputShapes.end(), 3), "concat");
     concatLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
     relu0Layer->GetOutputSlot(0).Connect(concatLayer->GetInputSlot(0));
     relu1Layer->GetOutputSlot(0).Connect(concatLayer->GetInputSlot(1));
 
-    IConnectableLayer* const outputLayer = net.AddOutputLayer(0, "output");
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output");
     concatLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
     // Use different input data for each input
@@ -1111,7 +1110,7 @@ LayerTestResult<uint8_t, 4> PreCompiledMultiInputTestImpl(armnn::IWorkloadFactor
         expectedOutputData.push_back(i % 32 < 16 ? 64 : 192);
     }
 
-    return OptimiseAndRunNetworkMultiple(workloadFactory, net, { { 0, inputInfo }, { 1, inputInfo } },
+    return OptimiseAndRunNetworkMultiple(workloadFactory, *net, { { 0, inputInfo }, { 1, inputInfo } },
                                          { { 0, inputData0 }, { 1, inputData1 } }, { { 0, outputInfo } },
                                          { { 0, expectedOutputData } })[0];
 }
@@ -1145,19 +1144,19 @@ std::vector<LayerTestResult<uint8_t, 4>>
     reluDesc1.m_B        = 192.0f;
 
     // Construct network
-    Network net;
-    IConnectableLayer* const input0Layer = net.AddInputLayer(0, "input0");
+    armnn::INetworkPtr net               = armnn::INetwork::Create();
+    IConnectableLayer* const input0Layer = net->AddInputLayer(0, "input0");
     input0Layer->GetOutputSlot(0).SetTensorInfo(inputInfo);
-    IConnectableLayer* const relu0Layer = net.AddActivationLayer(reluDesc0, "relu0");
+    IConnectableLayer* const relu0Layer = net->AddActivationLayer(reluDesc0, "relu0");
     relu0Layer->GetOutputSlot(0).SetTensorInfo(intermediateInfo);
     input0Layer->GetOutputSlot(0).Connect(relu0Layer->GetInputSlot(0));
-    IConnectableLayer* const relu1Layer = net.AddActivationLayer(reluDesc1, "relu1");
+    IConnectableLayer* const relu1Layer = net->AddActivationLayer(reluDesc1, "relu1");
     relu1Layer->GetOutputSlot(0).SetTensorInfo(intermediateInfo);
     relu0Layer->GetOutputSlot(0).Connect(relu1Layer->GetInputSlot(0));
 
-    IConnectableLayer* const output1Layer = net.AddOutputLayer(1, "output1");
+    IConnectableLayer* const output1Layer = net->AddOutputLayer(1, "output1");
     relu1Layer->GetOutputSlot(0).Connect(output1Layer->GetInputSlot(0));
-    IConnectableLayer* const output0Layer = net.AddOutputLayer(0, "output0");
+    IConnectableLayer* const output0Layer = net->AddOutputLayer(0, "output0");
     relu0Layer->GetOutputSlot(0).Connect(output0Layer->GetInputSlot(0));
 
     // Input data is unimportant (as the relus will effectively overwrite the values)
@@ -1167,7 +1166,7 @@ std::vector<LayerTestResult<uint8_t, 4>>
     std::vector<uint8_t> expectedOutputData0(outputInfo.GetNumElements(), 64);
     std::vector<uint8_t> expectedOutputData1(outputInfo.GetNumElements(), 192);
 
-    return OptimiseAndRunNetworkMultiple(workloadFactory, net, { { 0, inputInfo } }, { { 0, inputData } },
+    return OptimiseAndRunNetworkMultiple(workloadFactory, *net, { { 0, inputInfo } }, { { 0, inputData } },
                                          { { 0, outputInfo }, { 1, outputInfo } },
                                          { { 0, expectedOutputData0 }, { 1, expectedOutputData1 } });
 }
@@ -1182,23 +1181,23 @@ LayerTestResult<uint8_t, 1> PreCompiled1dTensorTestImpl(armnn::IWorkloadFactory&
     TensorInfo reshapeInfo({ 240 }, DataType::QAsymmU8, 1.0f, 0);
 
     // Construct network
-    Network net;
-    IConnectableLayer* const inputLayer = net.AddInputLayer(0, "input");
+    armnn::INetworkPtr net              = armnn::INetwork::Create();
+    IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
     inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
 
     ActivationDescriptor reluDesc;
     reluDesc.m_Function                = ActivationFunction::BoundedReLu;
     reluDesc.m_A                       = 255.0f;
     reluDesc.m_B                       = 0.0f;
-    IConnectableLayer* const reluLayer = net.AddActivationLayer(reluDesc, "relu");
+    IConnectableLayer* const reluLayer = net->AddActivationLayer(reluDesc, "relu");
     reluLayer->GetOutputSlot(0).SetTensorInfo(reluInfo);
     inputLayer->GetOutputSlot(0).Connect(reluLayer->GetInputSlot(0));
 
-    IConnectableLayer* const reshapeLayer = net.AddReshapeLayer(ReshapeDescriptor(reshapeInfo.GetShape()), "reshape");
+    IConnectableLayer* const reshapeLayer = net->AddReshapeLayer(ReshapeDescriptor(reshapeInfo.GetShape()), "reshape");
     reshapeLayer->GetOutputSlot(0).SetTensorInfo(reshapeInfo);
     reluLayer->GetOutputSlot(0).Connect(reshapeLayer->GetInputSlot(0));
 
-    IConnectableLayer* const outputLayer = net.AddOutputLayer(1, "output");
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(1, "output");
     reshapeLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
     // Generate arbitrary input data
@@ -1208,7 +1207,7 @@ LayerTestResult<uint8_t, 1> PreCompiled1dTensorTestImpl(armnn::IWorkloadFactory&
     // Output data should be the the same as the input when expressed linearly as NHWC
     std::vector<uint8_t> expectedOutputData = inputData;
 
-    return OptimiseAndRunNetwork<1>(workloadFactory, net, inputInfo, inputData, reshapeInfo, expectedOutputData);
+    return OptimiseAndRunNetwork<1>(workloadFactory, *net, 0, inputInfo, inputData, 1, reshapeInfo, expectedOutputData);
 }
 
 /// Checks that a reshape to a 2D tensor is supported and ran by the Ethos-N.
@@ -1221,23 +1220,23 @@ LayerTestResult<uint8_t, 2> PreCompiled2dTensorTestImpl(armnn::IWorkloadFactory&
     TensorInfo reshapeInfo({ 24, 10 }, DataType::QAsymmU8, 1.0f, 0);
 
     // Construct network
-    Network net;
-    IConnectableLayer* const inputLayer = net.AddInputLayer(0, "input");
+    armnn::INetworkPtr net              = armnn::INetwork::Create();
+    IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
     inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
 
     ActivationDescriptor reluDesc;
     reluDesc.m_Function                = ActivationFunction::BoundedReLu;
     reluDesc.m_A                       = 255.0f;
     reluDesc.m_B                       = 0.0f;
-    IConnectableLayer* const reluLayer = net.AddActivationLayer(reluDesc, "relu");
+    IConnectableLayer* const reluLayer = net->AddActivationLayer(reluDesc, "relu");
     reluLayer->GetOutputSlot(0).SetTensorInfo(reluInfo);
     inputLayer->GetOutputSlot(0).Connect(reluLayer->GetInputSlot(0));
 
-    IConnectableLayer* const reshapeLayer = net.AddReshapeLayer(ReshapeDescriptor(reshapeInfo.GetShape()), "reshape");
+    IConnectableLayer* const reshapeLayer = net->AddReshapeLayer(ReshapeDescriptor(reshapeInfo.GetShape()), "reshape");
     reshapeLayer->GetOutputSlot(0).SetTensorInfo(reshapeInfo);
     reluLayer->GetOutputSlot(0).Connect(reshapeLayer->GetInputSlot(0));
 
-    IConnectableLayer* const outputLayer = net.AddOutputLayer(1, "output");
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(1, "output");
     reshapeLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
     // Generate arbitrary input data
@@ -1247,7 +1246,7 @@ LayerTestResult<uint8_t, 2> PreCompiled2dTensorTestImpl(armnn::IWorkloadFactory&
     // Output data should be the the same as the input when expressed linearly as NHWC
     std::vector<uint8_t> expectedOutputData = inputData;
 
-    return OptimiseAndRunNetwork<2>(workloadFactory, net, inputInfo, inputData, reshapeInfo, expectedOutputData);
+    return OptimiseAndRunNetwork<2>(workloadFactory, *net, 0, inputInfo, inputData, 1, reshapeInfo, expectedOutputData);
 }
 
 /// Checks that a reshape to a 3D tensor is supported and ran by the Ethos-N.
@@ -1260,23 +1259,23 @@ LayerTestResult<uint8_t, 3> PreCompiled3dTensorTestImpl(armnn::IWorkloadFactory&
     TensorInfo reshapeInfo({ 1, 24, 10 }, DataType::QAsymmU8, 1.0f, 0);
 
     // Construct network
-    Network net;
-    IConnectableLayer* const inputLayer = net.AddInputLayer(0, "input");
+    armnn::INetworkPtr net              = armnn::INetwork::Create();
+    IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
     inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
 
     ActivationDescriptor reluDesc;
     reluDesc.m_Function                = ActivationFunction::BoundedReLu;
     reluDesc.m_A                       = 255.0f;
     reluDesc.m_B                       = 0.0f;
-    IConnectableLayer* const reluLayer = net.AddActivationLayer(reluDesc, "relu");
+    IConnectableLayer* const reluLayer = net->AddActivationLayer(reluDesc, "relu");
     reluLayer->GetOutputSlot(0).SetTensorInfo(reluInfo);
     inputLayer->GetOutputSlot(0).Connect(reluLayer->GetInputSlot(0));
 
-    IConnectableLayer* const reshapeLayer = net.AddReshapeLayer(ReshapeDescriptor(reshapeInfo.GetShape()), "reshape");
+    IConnectableLayer* const reshapeLayer = net->AddReshapeLayer(ReshapeDescriptor(reshapeInfo.GetShape()), "reshape");
     reshapeLayer->GetOutputSlot(0).SetTensorInfo(reshapeInfo);
     reluLayer->GetOutputSlot(0).Connect(reshapeLayer->GetInputSlot(0));
 
-    IConnectableLayer* const outputLayer = net.AddOutputLayer(1, "output");
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(1, "output");
     reshapeLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
     // Generate arbitrary input data
@@ -1286,5 +1285,5 @@ LayerTestResult<uint8_t, 3> PreCompiled3dTensorTestImpl(armnn::IWorkloadFactory&
     // Output data should be the the same as the input when expressed linearly as NHWC
     std::vector<uint8_t> expectedOutputData = inputData;
 
-    return OptimiseAndRunNetwork<3>(workloadFactory, net, inputInfo, inputData, reshapeInfo, expectedOutputData);
+    return OptimiseAndRunNetwork<3>(workloadFactory, *net, 0, inputInfo, inputData, 1, reshapeInfo, expectedOutputData);
 }

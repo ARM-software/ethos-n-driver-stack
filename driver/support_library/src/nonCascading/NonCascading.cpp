@@ -38,7 +38,7 @@ NetworkPerformanceData NonCascading::Estimate(Graph& graph)
             {
                 result << " " << id;
             }
-            std::cerr << "Failed to prepare operation:" << result.str() << "\n";
+            g_Logger.Error("Failed to prepare operation:%s", result.str().c_str());
         }
         n->Estimate(m_PerformanceStream, m_EstimationOptions);
     }

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -35,10 +35,10 @@ void SetCommonCapabilities(FirmwareAndHardwareCapabilities& fwHwCapabilities)
     fwHwCapabilities.m_BrickGroupShape = { 1, 8, 8, 16 };
     fwHwCapabilities.m_PatchShape      = { 1, 4, 4, 1 };
     // Total num of accumulators per engine is defined by "mce_num_acc x mce_num_macs"
-    fwHwCapabilities.m_MacUnitsPerEngine      = 8;
+    fwHwCapabilities.m_MacUnitsPerOg          = 8;
     fwHwCapabilities.m_AccumulatorsPerMacUnit = 64;
-    fwHwCapabilities.m_TotalAccumulatorsPerEngine =
-        fwHwCapabilities.m_MacUnitsPerEngine * fwHwCapabilities.m_AccumulatorsPerMacUnit;
+    fwHwCapabilities.m_TotalAccumulatorsPerOg =
+        fwHwCapabilities.m_MacUnitsPerOg * fwHwCapabilities.m_AccumulatorsPerMacUnit;
 }
 }    // namespace
 
@@ -52,8 +52,8 @@ FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant varian
             // Fallthrough
         case EthosNVariant::ETHOS_N78_1TOPS_4PLE_RATIO:
             fwHwCapabilities.m_NumberOfEngines = 2;
-            fwHwCapabilities.m_IfmPerEngine    = 4;
-            fwHwCapabilities.m_OfmPerEngine    = 4;
+            fwHwCapabilities.m_IgsPerEngine    = 4;
+            fwHwCapabilities.m_OgsPerEngine    = 4;
             fwHwCapabilities.m_EmcPerEngine    = 4;
             fwHwCapabilities.m_TotalSramSize   = 448 * 1024;
             fwHwCapabilities.m_NumPleLanes     = (variant == EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO) ? 1 : 2;
@@ -62,32 +62,32 @@ FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant varian
             // Fallthrough
         case EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO:
             fwHwCapabilities.m_NumberOfEngines = 4;
-            fwHwCapabilities.m_IfmPerEngine    = 2;
-            fwHwCapabilities.m_OfmPerEngine    = 4;
+            fwHwCapabilities.m_IgsPerEngine    = 2;
+            fwHwCapabilities.m_OgsPerEngine    = 4;
             fwHwCapabilities.m_EmcPerEngine    = 2;
             fwHwCapabilities.m_TotalSramSize   = 768 * 1024;
             fwHwCapabilities.m_NumPleLanes     = (variant == EthosNVariant::ETHOS_N78_2TOPS_2PLE_RATIO) ? 1 : 2;
             break;
         case EthosNVariant::ETHOS_N78_4TOPS_2PLE_RATIO:
             fwHwCapabilities.m_NumberOfEngines = 4;
-            fwHwCapabilities.m_IfmPerEngine    = 4;
-            fwHwCapabilities.m_OfmPerEngine    = 4;
+            fwHwCapabilities.m_IgsPerEngine    = 4;
+            fwHwCapabilities.m_OgsPerEngine    = 4;
             fwHwCapabilities.m_EmcPerEngine    = 4;
             fwHwCapabilities.m_TotalSramSize   = 1024 * 1024;
             fwHwCapabilities.m_NumPleLanes     = 2;
             break;
         case EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO:
             fwHwCapabilities.m_NumberOfEngines = 8;
-            fwHwCapabilities.m_IfmPerEngine    = 2;
-            fwHwCapabilities.m_OfmPerEngine    = 2;
+            fwHwCapabilities.m_IgsPerEngine    = 2;
+            fwHwCapabilities.m_OgsPerEngine    = 2;
             fwHwCapabilities.m_EmcPerEngine    = 2;
             fwHwCapabilities.m_TotalSramSize   = 1024 * 1024;
             fwHwCapabilities.m_NumPleLanes     = 2;
             break;
         case EthosNVariant::ETHOS_N78_8TOPS_2PLE_RATIO:
             fwHwCapabilities.m_NumberOfEngines = 8;
-            fwHwCapabilities.m_IfmPerEngine    = 2;
-            fwHwCapabilities.m_OfmPerEngine    = 4;
+            fwHwCapabilities.m_IgsPerEngine    = 2;
+            fwHwCapabilities.m_OgsPerEngine    = 4;
             fwHwCapabilities.m_EmcPerEngine    = 2;
             fwHwCapabilities.m_TotalSramSize   = 2048 * 1024;
             fwHwCapabilities.m_NumPleLanes     = 2;
@@ -107,7 +107,7 @@ FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant varian
         constexpr uint32_t additionalMaxSramSizePerEmcKb = 256 * 1024;
         constexpr uint32_t sramSizeIncrementPerEmcKb     = 16 * 1024;
 
-        uint32_t numEmcs          = (fwHwCapabilities.m_NumberOfEngines * fwHwCapabilities.m_IfmPerEngine);
+        uint32_t numEmcs          = (fwHwCapabilities.m_NumberOfEngines * fwHwCapabilities.m_IgsPerEngine);
         uint32_t sramSizePerEmcKb = (sramSize / numEmcs);
 
         assert((sramSizePerEmcKb == additionalMinSramSizePerEmcKb) ||
@@ -144,8 +144,8 @@ FirmwareAndHardwareCapabilities GetEthosN77FwHwCapabilities()
     FirmwareAndHardwareCapabilities fwHwCapabilities;
     uint32_t sramPerEngine                          = 64 * 1024;
     fwHwCapabilities.m_NumberOfEngines              = 16;
-    fwHwCapabilities.m_IfmPerEngine                 = 1;
-    fwHwCapabilities.m_OfmPerEngine                 = 1;
+    fwHwCapabilities.m_IgsPerEngine                 = 1;
+    fwHwCapabilities.m_OgsPerEngine                 = 1;
     fwHwCapabilities.m_EmcPerEngine                 = 1;
     fwHwCapabilities.m_TotalSramSize                = fwHwCapabilities.m_NumberOfEngines * sramPerEngine;
     fwHwCapabilities.m_NumPleLanes                  = 1;
@@ -163,8 +163,8 @@ FirmwareAndHardwareCapabilities GetEthosN57FwHwCapabilities()
     FirmwareAndHardwareCapabilities fwHwCapabilities;
     uint32_t sramPerEngine                          = 64 * 1024;
     fwHwCapabilities.m_NumberOfEngines              = 8;
-    fwHwCapabilities.m_IfmPerEngine                 = 1;
-    fwHwCapabilities.m_OfmPerEngine                 = 2;
+    fwHwCapabilities.m_IgsPerEngine                 = 1;
+    fwHwCapabilities.m_OgsPerEngine                 = 2;
     fwHwCapabilities.m_EmcPerEngine                 = 1;
     fwHwCapabilities.m_TotalSramSize                = fwHwCapabilities.m_NumberOfEngines * sramPerEngine;
     fwHwCapabilities.m_NumPleLanes                  = 1;
@@ -182,8 +182,8 @@ FirmwareAndHardwareCapabilities GetEthosN37FwHwCapabilities()
     FirmwareAndHardwareCapabilities fwHwCapabilities;
     uint32_t sramPerEngine                          = 128 * 1024;
     fwHwCapabilities.m_NumberOfEngines              = 4;
-    fwHwCapabilities.m_IfmPerEngine                 = 2;
-    fwHwCapabilities.m_OfmPerEngine                 = 2;
+    fwHwCapabilities.m_IgsPerEngine                 = 2;
+    fwHwCapabilities.m_OgsPerEngine                 = 2;
     fwHwCapabilities.m_EmcPerEngine                 = 2;
     fwHwCapabilities.m_TotalSramSize                = fwHwCapabilities.m_NumberOfEngines * sramPerEngine;
     fwHwCapabilities.m_NumPleLanes                  = 1;

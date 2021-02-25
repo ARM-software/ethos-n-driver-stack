@@ -58,4 +58,19 @@ ARMNN_AUTO_TEST_CASE(PreCompiled1dTensor, PreCompiled1dTensorTest)
 ARMNN_AUTO_TEST_CASE(PreCompiled2dTensor, PreCompiled2dTensorTest)
 ARMNN_AUTO_TEST_CASE(PreCompiled3dTensor, PreCompiled3dTensorTest)
 
+BOOST_AUTO_TEST_CASE(TestInvalidLayerName)
+{
+    BOOST_CHECK_THROW(armnn::ethosnbackend::GetLayerType("Excluded"), armnn::InvalidArgumentException);
+
+    try
+    {
+        armnn::ethosnbackend::GetLayerType("Excluded");
+    }
+    catch (const armnn::InvalidArgumentException& e)
+    {
+        std::string err = "layername \"Excluded\" is not valid";
+        BOOST_CHECK_EQUAL(err, e.what());
+    }
+}
+
 BOOST_AUTO_TEST_SUITE_END()

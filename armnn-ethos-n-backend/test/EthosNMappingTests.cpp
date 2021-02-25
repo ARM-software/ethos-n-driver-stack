@@ -1,5 +1,5 @@
 //
-// Copyright © 2019-2020 Arm Limited. All rights reserved.
+// Copyright © 2019-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1361,11 +1361,9 @@ BOOST_AUTO_TEST_CASE(TestLayerExclusionViaArmnn)
     IOptimizedNetworkPtr optNet = Optimize(*net, backends, runtime->GetDeviceSpec());
 
     // Then
-    IOptimizedNetwork* optimizedNetwork = optNet.get();
-    auto optNetPtr                      = PolymorphicDowncast<OptimizedNetwork*>(optimizedNetwork);
-    auto& optimizedGraph                = optNetPtr->GetGraph();
-    Graph::ConstIterator layer          = optimizedGraph.cbegin();
-    auto inputLayer                     = *layer;
+    armnn::Graph& optimizedGraph = GetGraphForTesting(optNet.get());
+    Graph::ConstIterator layer   = optimizedGraph.cbegin();
+    auto inputLayer              = *layer;
     BOOST_TEST((inputLayer->GetBackendId() == EthosNBackendId()));
     ++layer;
     auto convolutionLayer = *layer;
@@ -1376,6 +1374,34 @@ BOOST_AUTO_TEST_CASE(TestLayerExclusionViaArmnn)
     ++layer;
     auto outputLayer = *layer;
     BOOST_TEST((outputLayer->GetBackendId() == BackendId(Compute::CpuRef)));
+}
+
+BOOST_AUTO_TEST_CASE(TestLayerInvalidExclusionViaArmnn)
+{
+    // Given
+    TempDir tmpDir;
+    EthosNConfig ethosnConfig                = CreateEthosNConfig(tmpDir);
+    const std::vector<std::string> mappings1 = {
+        "input firstInput, 1x_x_x_",
+        "output  firstOutput, 1x_x_x_",
+        "Excluded1, (firstInput), (firstOutput), ((function=TanH))",
+    };
+    Tensors tensors;
+    Layers layers;
+
+    BOOST_CHECK_THROW(armnn::ProcessPattern(mappings1, tensors, layers), armnn::ParseException);
+
+    // When
+    try
+    {
+        armnn::ProcessPattern(mappings1, tensors, layers);
+    }
+    // Then
+    catch (const armnn::ParseException& e)
+    {
+        std::string err = "Syntax error:\nExcluded1, (firstInput), (firstOutput), ((function=TanH))\n";
+        BOOST_CHECK_EQUAL(err, e.what());
+    }
 }
 
 BOOST_AUTO_TEST_SUITE_END()

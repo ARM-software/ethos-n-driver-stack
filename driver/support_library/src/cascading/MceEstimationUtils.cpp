@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -19,31 +19,41 @@ uint64_t GetMceCycleCountWinograd(const HardwareCapabilities& caps,
                                   const uint32_t weightsWidth)
 {
 
-    const uint32_t ifmConsumed = caps.GetIfmPerEngine() * caps.GetNumberOfEngines();
-    const uint32_t ofmProduced = caps.GetOfmPerEngine() * caps.GetNumberOfEngines();
-    // Winograd output size can be 2x2 for 2D or 1x2 and 2x1 for 1D
-    const uint32_t winogradOutputH =
-        weightsHeight == 1U ? caps.GetOutputSizePerWinograd1D() : caps.GetOutputSizePerWinograd2D();
-    const uint32_t winogradOutputW =
-        weightsWidth == 1U ? caps.GetOutputSizePerWinograd1D() : caps.GetOutputSizePerWinograd2D();
+    const uint32_t ifmConsumed = caps.GetIgsPerEngine() * caps.GetNumberOfEngines();
+    const uint32_t ofmProduced = caps.GetOgsPerEngine() * caps.GetNumberOfEngines();
+
+    // Winograd output block size:
+    // 1D 1x3 [WxH]filter -> [WxH] 4x2
+    // 1D 3x1 filter -> 2x4
+    // 2D 3x3 filter -> 2x2
+    WinogradOutputShape winogradOutputShape = caps.Get3x3WinogradOutputSize();
+
+    if (weightsWidth == 1U)
+    {
+        winogradOutputShape = caps.Get1x3WinogradOutputSize();
+    }
+
+    if (weightsHeight == 1U)
+    {
+        winogradOutputShape = caps.Get3x1WinogradOutputSize();
+    }
 
     uint32_t numIfms = inputShape[3];
     uint32_t numOfms = outputShape[3];
 
     const uint32_t numTotIfms = utils::RoundUpToNearestMultiple(numIfms, ifmConsumed);
-    // Number of Winograd output (i.e. 2x2, 1x2, 2x1) on HW plane
-    const uint32_t numWinogradOutputs =
-        utils::DivRoundUp(outputShape[2], winogradOutputW) * utils::DivRoundUp(outputShape[1], winogradOutputH);
 
-    const uint32_t wideKernelSize = caps.GetWideKernelSize();
-    const uint64_t numMacsPerElemHW =
-        weightsHeight == 1 || weightsWidth == 1
-            ? caps.GetMacsPerWinograd1D() * utils::DivRoundUp(weightsWidth * weightsHeight, wideKernelSize)
-            : caps.GetMacsPerWinograd2D() * utils::DivRoundUp(weightsWidth, wideKernelSize) *
-                  utils::DivRoundUp(weightsHeight, wideKernelSize);
+    const uint32_t numWinogradOutputs = utils::DivRoundUp(outputShape[2], winogradOutputShape.m_Width) *
+                                        utils::DivRoundUp(outputShape[1], winogradOutputShape.m_Height);
 
-    const uint64_t numMacOps       = numWinogradOutputs * numMacsPerElemHW;
-    const uint64_t numCyclesPerOfm = (numTotIfms * numMacOps) / (ifmConsumed * caps.GetMacUnitsPerEngine());
+    const uint32_t winogradKernelSize = caps.GetWideKernelSize();
+    // Always 16 MACs to process either a 2x4, 4x2 or 2x2 winograd block
+    const uint64_t numMacsPerWinogradOutput = caps.GetMacsPerWinogradOutputBlock() *
+                                              utils::DivRoundUp(weightsWidth, winogradKernelSize) *
+                                              utils::DivRoundUp(weightsHeight, winogradKernelSize);
+
+    const uint64_t numMacOps       = numWinogradOutputs * numMacsPerWinogradOutput;
+    const uint64_t numCyclesPerOfm = (numTotIfms * numMacOps) / (ifmConsumed * caps.GetMacUnitsPerOg());
 
     return numCyclesPerOfm * utils::DivRoundUp(numOfms, ofmProduced);
 }
@@ -57,30 +67,38 @@ uint64_t GetMceCycleCountDirect(const HardwareCapabilities& caps,
                                 const uint32_t weightsWidth)
 {
     const uint32_t numKernelElements = weightsWidth * weightsHeight;
-    const uint32_t ifmConsumed       = caps.GetIfmPerEngine() * caps.GetNumberOfEngines();
-    const uint32_t ofmProduced       = caps.GetOfmPerEngine() * caps.GetNumberOfEngines();
-    const uint32_t halfPatchH        = caps.GetPatchShape()[1];
-    const uint32_t halfPatchW        = utils::DivRoundUp(caps.GetPatchShape()[2], 2u);
-    const uint32_t numActualIfms     = inputShape[3] / (stride.m_X * stride.m_Y);
-
-    uint32_t numIfms = numActualIfms;
-    uint32_t numOfms = outputShape[3];
+    const uint32_t numEngines        = caps.GetNumberOfEngines();
+    const uint32_t numIgsPerEngine   = caps.GetIgsPerEngine();
+    const uint32_t numOgsPerEngine   = caps.GetOgsPerEngine();
+    const uint32_t numMacUnitsPerOg  = caps.GetMacUnitsPerOg();
+    const uint32_t halfPatchHeight   = caps.GetPatchShape()[1];
+    const uint32_t halfPatchWidth    = utils::DivRoundUp(caps.GetPatchShape()[2], 2u);
+    uint32_t numActiveOgs;
+    uint32_t ifmChannelsPerMacUnit;
+    uint32_t ifmChannelsPerOfm;
 
     if (convtype == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION)
     {
-        numIfms = ifmConsumed;
-        numOfms = numActualIfms;
+        numActiveOgs          = numIgsPerEngine * numEngines;
+        ifmChannelsPerMacUnit = 1;
+        ifmChannelsPerOfm     = 1;
+    }
+    else
+    {
+        numActiveOgs          = numOgsPerEngine * numEngines;
+        ifmChannelsPerMacUnit = numIgsPerEngine * numEngines;
+        ifmChannelsPerOfm     = utils::GetNumOrigChannels(inputShape[3], stride.m_X, stride.m_Y, caps);
     }
 
-    const uint32_t numTotIfms = utils::RoundUpToNearestMultiple(numIfms, ifmConsumed);
-    // Number of output elements on HW plane when the height and width are rounded up to half patches
-    const uint32_t numOutputElements = utils::RoundUpToNearestMultiple(outputShape[2], halfPatchW) *
-                                       utils::RoundUpToNearestMultiple(outputShape[1], halfPatchH);
+    uint32_t h        = utils::RoundUpToNearestMultiple(outputShape[1], halfPatchHeight);
+    uint32_t w        = utils::RoundUpToNearestMultiple(outputShape[2], halfPatchWidth);
+    uint32_t i        = utils::RoundUpToNearestMultiple(ifmChannelsPerOfm, ifmChannelsPerMacUnit);
+    uint32_t o        = utils::RoundUpToNearestMultiple(outputShape[3], numActiveOgs);
+    uint32_t macCount = numKernelElements * h * w * i * o;
 
-    const uint64_t numMacOps       = numOutputElements * numKernelElements;
-    const uint64_t numCyclesPerOfm = (numTotIfms * numMacOps) / (ifmConsumed * caps.GetMacUnitsPerEngine());
+    uint32_t macsPerCycle = ifmChannelsPerMacUnit * numMacUnitsPerOg * numActiveOgs;
 
-    return numCyclesPerOfm * utils::DivRoundUp(numOfms, ofmProduced);
+    return macCount / macsPerCycle;
 }
 
 uint64_t GetMceCycleCount(const HardwareCapabilities& caps,
@@ -102,23 +120,24 @@ uint64_t GetMceCycleCount(const HardwareCapabilities& caps,
     }
 }
 
-uint64_t GetNumOperations(const Stride& stride,
-                          const ethosn::command_stream::MceOperation& convtype,
+uint64_t GetNumOperations(const HardwareCapabilities& caps,
+                          const Stride& stride,
+                          const command_stream::MceOperation& convtype,
                           const TensorShape& inputShape,
                           const TensorShape& outputShape,
                           const uint32_t weightsHeight,
                           const uint32_t weightsWidth)
 {
     const uint64_t numKernelElements = weightsWidth * weightsHeight;
-    const uint64_t numOpsPerElement  = numKernelElements + numKernelElements;
-    const uint64_t numActualIfms     = utils::DivRoundUp(inputShape[3], (stride.m_X * stride.m_Y));
+    const uint64_t numOpsPerElement  = 2U * numKernelElements;
+    const uint64_t numActualIfms     = utils::GetNumOrigChannels(inputShape[3], stride.m_X, stride.m_Y, caps);
     const uint64_t numInputElements  = inputShape[1] * inputShape[2];
     const uint64_t numOpsPerIfm      = numInputElements * numOpsPerElement;
 
     uint64_t numIfms = numActualIfms;
     uint64_t numOfms = outputShape[3];
 
-    if (convtype == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION)
+    if (convtype == command_stream::MceOperation::DEPTHWISE_CONVOLUTION)
     {
         numIfms = 1;
         numOfms = numActualIfms;
@@ -142,7 +161,7 @@ MceStats GetMceStats(const HardwareCapabilities& caps,
     data.m_CycleCount =
         GetMceCycleCount(caps, stride, convtype, algo, inputShape, outputShape, weightsHeight, weightsWidth);
 
-    data.m_Operations = GetNumOperations(stride, convtype, inputShape, outputShape, weightsHeight, weightsWidth);
+    data.m_Operations = GetNumOperations(caps, stride, convtype, inputShape, outputShape, weightsHeight, weightsWidth);
 
     return data;
 }

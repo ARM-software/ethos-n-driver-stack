@@ -30,7 +30,7 @@ def create_variables():
     # Use this parameter to create the real variables, pre-populating the values from the user provided
     # options file, and also the dev_options.py file, which may be pe present if this is a developer checkout.
     # Note we include the 'options' var again, so it appears in the help command
-    var = SCons.Script.Variables(['dev_options.py', env['options']])
+    var = SCons.Script.Variables([os.path.join('..', 'internal', 'dev_options.py'), env['options']])
     var.AddVariables(
         ('options', 'Options for SConstruct e.g. debug=0', 'options.py'),
         ('PATH', 'Prepend to the PATH environment variable'),
@@ -147,6 +147,18 @@ def setup_common_env(env):
     # By enabling this flag, binary will use RUNPATH instead of RPATH
     env.AppendUnique(LINKFLAGS=["-Wl,--enable-new-dtags"])
 
+    # Add sanitization flags
+    if env['sanitize']:
+        flags = (
+            '-fsanitize=address',
+            '-fsanitize-address-use-after-scope',
+            '-fsanitize=undefined',
+            '-fsanitize=leak'
+        )
+        env.AppendUnique(CXXFLAGS=flags)
+        env.AppendUnique(CPPFLAGS=flags)
+        env.AppendUnique(LINKFLAGS=flags)
+
 
 def setup_toolchain(env, toolchain):
     '''
@@ -260,14 +272,18 @@ def abs_filepath(env, paths, relative_offset='.'):
             continue
 
 
+def get_build_type(env):
+    return 'debug' if env['debug'] else 'release'
+
+
 def get_build_dir(env, module_base, config=None):
     if config is None:
-        config = '{}_{}'.format('debug' if env['debug'] else 'release', env['platform'])
+        config = '{}_{}'.format(get_build_type(env), env['platform'])
     return env.Dir(os.path.join(module_base, env['build_dir'], config)).abspath
 
 
 def get_driver_library_build_dir(env):
-    config = '{}_{}_{}'.format('debug' if env['debug'] else 'release', env['platform'], env['target'])
+    config = '{}_{}_{}'.format(get_build_type(env), env['platform'], env['target'])
     return get_build_dir(env, env['driver_library_dir'], config)
 
 

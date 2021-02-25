@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -90,6 +90,11 @@ public:
     bool IsRankSupported(const TensorInfo& input,
                          const TensorInfo& output,
                          Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
+
+    bool IsReduceSupported(const TensorInfo& input,
+                           const TensorInfo& output,
+                           const ReduceDescriptor& descriptor,
+                           Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
 
     bool IsReshapeSupported(const TensorInfo& input,
                             const TensorInfo& output,

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -42,7 +42,6 @@ enum class SramAllocationStrategy : uint8_t
     STRATEGY_1,
     STRATEGY_3,
     STRATEGY_4,
-    STRATEGY_5,
     STRATEGY_6,
     STRATEGY_7,
     STRATEGY_X
@@ -54,6 +53,12 @@ enum class UpsampleType : uint8_t
     BILINEAR,
     NEAREST_NEIGHBOUR,
     TRANSPOSE,
+};
+
+enum class UpsampleEdgeMode : uint8_t
+{
+    GENERATE,
+    DROP,
 };
 
 enum class MceOperation : uint8_t
@@ -119,6 +124,8 @@ NAMED_BINARY_TUPLE(MceData,
                    TensorShape, OutputStripeShape,
                    int16_t, OutputZeroPoint,
                    UpsampleType, UpsampleMode,
+                   UpsampleEdgeMode, UpsampleEdgeModeRow,
+                   UpsampleEdgeMode, UpsampleEdgeModeCol,
                    MceOperation, Operation,
                    MceAlgorithm, Algorithm,
                    int16_t, ActivationMin,

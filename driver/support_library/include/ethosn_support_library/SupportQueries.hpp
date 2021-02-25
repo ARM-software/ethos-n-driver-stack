@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -95,7 +95,7 @@ public:
         return m_Capabilities;
     }
 
-    /// Checks whether a specific input operation configuration is supported by the Ethos-N.
+    /// Checks whether a specific input operation configuration is supported by the NPU.
     /// @param inputInfo The TensorInfo of the tensor that this Input operation will produce.
     ///                  This is the size of the Tensor that must be provided to the driver library at inference time.
     ///                  It is the equivalent of the convInfo parameter for IsConvolutionSupported(),
@@ -112,7 +112,7 @@ public:
                                     char* reason           = nullptr,
                                     size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific output operation configuration is supported by the Ethos-N
+    // Checks whether a specific output operation configuration is supported by the NPU
     /// @param inputInfo The TensorInfo of the tensor that this Output will expose.
     ///                  This is the size of the Tensor that will be provided back to the user of the driver library
     ///                  at inference time.
@@ -122,12 +122,12 @@ public:
                                      char* reason           = nullptr,
                                      size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific constant operation configuration is supported by the Ethos-N
+    // Checks whether a specific constant operation configuration is supported by the NPU
     SupportedLevel IsConstantSupported(const TensorInfo& info,
                                        char* reason           = nullptr,
                                        size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific convolution operation configuration is supported by the Ethos-N
+    // Checks whether a specific convolution operation configuration is supported by the NPU
     SupportedLevel IsConvolutionSupported(const TensorInfo& biasInfo,
                                           const TensorInfo& weightsInfo,
                                           const ConvolutionInfo& convInfo,
@@ -136,7 +136,7 @@ public:
                                           char* reason           = nullptr,
                                           size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific depthwise convolution operation configuration is supported by the Ethos-N
+    // Checks whether a specific depthwise convolution operation configuration is supported by the NPU
     SupportedLevel IsDepthwiseConvolutionSupported(const TensorInfo& biasInfo,
                                                    const TensorInfo& weightsInfo,
                                                    const ConvolutionInfo& convInfo,
@@ -145,7 +145,7 @@ public:
                                                    char* reason           = nullptr,
                                                    size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific transpose convolution operation configuration is supported by the Ethos-N
+    // Checks whether a specific transpose convolution operation configuration is supported by the NPU
     SupportedLevel IsTransposeConvolutionSupported(const TensorInfo& biasInfo,
                                                    const TensorInfo& weightsInfo,
                                                    const ConvolutionInfo& convInfo,
@@ -154,21 +154,21 @@ public:
                                                    char* reason           = nullptr,
                                                    size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific concatenation operation configuration is supported by the Ethos-N
+    // Checks whether a specific concatenation operation configuration is supported by the NPU
     SupportedLevel IsConcatenationSupported(const std::vector<TensorInfo>& inputInfos,
                                             const ConcatenationInfo& concatInfo,
                                             TensorInfo* outputInfo = nullptr,
                                             char* reason           = nullptr,
                                             size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific split operation configuration is supported by the Ethos-N
+    // Checks whether a specific split operation configuration is supported by the NPU
     SupportedLevel IsSplitSupported(const TensorInfo& inputInfo,
                                     const SplitInfo& splitInfo,
                                     std::vector<TensorInfo>* outputInfos = nullptr,
                                     char* reason                         = nullptr,
                                     size_t reasonMaxLength               = g_ReasonMaxLength) const;
 
-    // Checks whether a specific addition (tensor + tensor) operation configuration is supported by the Ethos-N
+    // Checks whether a specific addition (tensor + tensor) operation configuration is supported by the NPU
     SupportedLevel IsAdditionSupported(const TensorInfo& inputInfo0,
                                        const TensorInfo& inputInfo1,
                                        const QuantizationInfo& outputQuantizationInfo,
@@ -176,7 +176,7 @@ public:
                                        char* reason           = nullptr,
                                        size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific fully-connected operation configuration is supported by the Ethos-N
+    // Checks whether a specific fully-connected operation configuration is supported by the NPU
     SupportedLevel IsFullyConnectedSupported(const TensorInfo& biasInfo,
                                              const TensorInfo& weightsInfo,
                                              const FullyConnectedInfo& fullyConnectedInfo,
@@ -185,75 +185,75 @@ public:
                                              char* reason           = nullptr,
                                              size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific relu operation configuration is supported by the Ethos-N
+    // Checks whether a specific relu operation configuration is supported by the NPU
     SupportedLevel IsReluSupported(const ReluInfo& reluInfo,
                                    const TensorInfo& inputInfo,
                                    TensorInfo* outputInfo = nullptr,
                                    char* reason           = nullptr,
                                    size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific leaky relu operation configuration is supported by the Ethos-N
+    // Checks whether a specific leaky relu operation configuration is supported by the NPU
     SupportedLevel IsLeakyReluSupported(const LeakyReluInfo& leakyReluInfo,
                                         const TensorInfo& inputInfo,
                                         TensorInfo* outputInfo = nullptr,
                                         char* reason           = nullptr,
                                         size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific requantize operation configuration is supported by the Ethos-N
+    // Checks whether a specific requantize operation configuration is supported by the NPU
     SupportedLevel IsRequantizeSupported(const RequantizeInfo& requantizeInfo,
                                          const TensorInfo& inputInfo,
                                          TensorInfo* outputInfo = nullptr,
                                          char* reason           = nullptr,
                                          size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a softmax operation configuration is supported by the Ethos-N
+    // Checks whether a softmax operation configuration is supported by the NPU
     SupportedLevel IsSoftmaxSupported(const TensorInfo& inputInfo,
                                       TensorInfo* outputInfo = nullptr,
                                       char* reason           = nullptr,
                                       size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific sigmoid (aka 'logistic') operation configuration is supported by the Ethos-N
+    // Checks whether a specific sigmoid (aka 'logistic') operation configuration is supported by the NPU
     SupportedLevel IsSigmoidSupported(const TensorInfo& inputInfo,
                                       TensorInfo* outputInfo = nullptr,
                                       char* reason           = nullptr,
                                       size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific pooling operation configuration is supported by the Ethos-N
+    // Checks whether a specific pooling operation configuration is supported by the NPU
     SupportedLevel IsPoolingSupported(const PoolingInfo& poolingInfo,
                                       const TensorInfo& inputInfo,
                                       TensorInfo* outputInfo = nullptr,
                                       char* reason           = nullptr,
                                       size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific relu operation configuration is supported by the Ethos-N
+    // Checks whether a specific reshape operation configuration is supported by the NPU
     SupportedLevel IsReshapeSupported(const TensorShape& newDimensions,
                                       const TensorInfo& inputInfo,
                                       TensorInfo* outputInfo = nullptr,
                                       char* reason           = nullptr,
                                       size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific DepthToSpace operation configuration is supported by the Ethos-N
+    // Checks whether a specific DepthToSpace operation configuration is supported by the NPU
     SupportedLevel IsDepthToSpaceSupported(const TensorInfo& inputInfo,
                                            const DepthToSpaceInfo& depthToSpaceInfo,
                                            TensorInfo* outputInfo = nullptr,
                                            char* reason           = nullptr,
                                            size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific SpaceToDepth operation configuration is supported by the Ethos-N
+    // Checks whether a specific SpaceToDepth operation configuration is supported by the NPU
     SupportedLevel IsSpaceToDepthSupported(const TensorInfo& inputInfo,
                                            const SpaceToDepthInfo& spaceToDepthInfo,
                                            TensorInfo* outputInfo = nullptr,
                                            char* reason           = nullptr,
                                            size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific EstimateOnly operation configuration is supported by the Ethos-N
+    // Checks whether a specific EstimateOnly operation configuration is supported by the NPU
     SupportedLevel IsEstimateOnlySupported(const std::vector<TensorInfo>& inputInfos,
                                            const EstimateOnlyInfo& estimateOnlyInfo,
                                            std::vector<TensorInfo>* outputInfos = nullptr,
                                            char* reason                         = nullptr,
                                            size_t reasonMaxLength               = g_ReasonMaxLength) const;
 
-    // Checks whether a specific Transpose operation configuration is supported by the Ethos-N
+    // Checks whether a specific Transpose operation configuration is supported by the NPU
     SupportedLevel IsTransposeSupported(const TransposeInfo& transposeInfo,
                                         const TensorInfo& inputInfo,
                                         TensorInfo* outputInfo = nullptr,

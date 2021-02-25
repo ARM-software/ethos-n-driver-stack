@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "EthosNBackendId.hpp"
@@ -110,6 +110,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyWorkload)
     const std::string configFile = tmpDir.Str() + "/config.txt";
 
     armnn::EthosNConfig config{};
+    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
     config.m_PerfOnly    = true;
     config.m_PerfOutDir  = tmpDir.Str();
     config.m_PerfCurrent = true;
@@ -119,24 +120,24 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyWorkload)
     SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
     armnn::EthosNWorkloadFactory factory;
     // To create a PreCompiled layer, create a network and Optimize it.
-    armnn::Network net;
+    armnn::INetworkPtr net = armnn::INetwork::Create();
 
-    armnn::IConnectableLayer* const inputLayer = net.AddInputLayer(0, "input layer");
+    armnn::IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input layer");
     BOOST_TEST(inputLayer);
 
     ActivationDescriptor reluDesc;
     reluDesc.m_A                              = 100;
     reluDesc.m_B                              = 0;
     reluDesc.m_Function                       = ActivationFunction::BoundedReLu;
-    armnn::IConnectableLayer* const reluLayer = net.AddActivationLayer(reluDesc, "relu layer");
+    armnn::IConnectableLayer* const reluLayer = net->AddActivationLayer(reluDesc, "relu layer");
     BOOST_TEST(reluLayer);
 
     ElementwiseUnaryDescriptor unaryDesc;
     unaryDesc.m_Operation                    = UnaryOperation::Abs;
-    armnn::IConnectableLayer* const absLayer = net.AddElementwiseUnaryLayer(unaryDesc, "abs layer");
+    armnn::IConnectableLayer* const absLayer = net->AddElementwiseUnaryLayer(unaryDesc, "abs layer");
     BOOST_TEST(absLayer);
 
-    armnn::IConnectableLayer* const outputLayer = net.AddOutputLayer(0, "output layer");
+    armnn::IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output layer");
     BOOST_TEST(outputLayer);
 
     TensorInfo inputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
@@ -161,10 +162,10 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyWorkload)
     armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
     armnn::OptimizerOptions optimizerOptions;
     armnn::IOptimizedNetworkPtr optimizedNet =
-        armnn::Optimize(net, backends, runtime->GetDeviceSpec(), optimizerOptions);
+        armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
     BOOST_CHECK(optimizedNet != nullptr);
 
-    armnn::Graph& optimisedGraph = static_cast<armnn::OptimizedNetwork*>(optimizedNet.get())->GetGraph();
+    armnn::Graph& optimisedGraph = GetGraphForTesting(optimizedNet.get());
     Layer* preCompiledLayer      = nullptr;
     for (auto& layer : optimisedGraph)
     {
@@ -279,6 +280,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyExistingWorkload)
     const std::string configFile = tmpDir.Str() + "/config.txt";
 
     armnn::EthosNConfig config{};
+    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
     config.m_PerfOnly    = true;
     config.m_PerfOutDir  = tmpDir.Str();
     config.m_PerfCurrent = true;
@@ -288,16 +290,16 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyExistingWorkload)
     SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
     armnn::EthosNWorkloadFactory factory;
     // To create a PreCompiled layer, create a network and Optimize it.
-    armnn::Network net;
+    armnn::INetworkPtr net = armnn::INetwork::Create();
 
-    armnn::IConnectableLayer* const inputLayer = net.AddInputLayer(0, "input layer");
+    armnn::IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input layer");
     BOOST_TEST(inputLayer);
 
     ActivationDescriptor reluDesc;
     reluDesc.m_A                              = 100;
     reluDesc.m_B                              = 0;
     reluDesc.m_Function                       = ActivationFunction::BoundedReLu;
-    armnn::IConnectableLayer* const reluLayer = net.AddActivationLayer(reluDesc, "relu layer");
+    armnn::IConnectableLayer* const reluLayer = net->AddActivationLayer(reluDesc, "relu layer");
     BOOST_TEST(reluLayer);
 
     Pooling2dDescriptor poolDesc;
@@ -311,10 +313,10 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyExistingWorkload)
     poolDesc.m_PoolWidth                      = 1;
     poolDesc.m_PoolHeight                     = 1;
     poolDesc.m_PoolType                       = PoolingAlgorithm::Average;
-    armnn::IConnectableLayer* const poolLayer = net.AddPooling2dLayer(poolDesc, "pool layer");
+    armnn::IConnectableLayer* const poolLayer = net->AddPooling2dLayer(poolDesc, "pool layer");
     BOOST_TEST(poolLayer);
 
-    armnn::IConnectableLayer* const outputLayer = net.AddOutputLayer(0, "output layer");
+    armnn::IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output layer");
     BOOST_TEST(outputLayer);
 
     TensorInfo inputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
@@ -339,10 +341,10 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyExistingWorkload)
     armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
     armnn::OptimizerOptions optimizerOptions;
     armnn::IOptimizedNetworkPtr optimizedNet =
-        armnn::Optimize(net, backends, runtime->GetDeviceSpec(), optimizerOptions);
+        armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
     BOOST_CHECK(optimizedNet != nullptr);
 
-    armnn::Graph& optimisedGraph = static_cast<armnn::OptimizedNetwork*>(optimizedNet.get())->GetGraph();
+    armnn::Graph& optimisedGraph = GetGraphForTesting(optimizedNet.get());
     Layer* preCompiledLayer      = nullptr;
     for (auto& layer : optimisedGraph)
     {
@@ -456,6 +458,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
     const std::string configFile = tmpDir.Str() + "/config.txt";
 
     armnn::EthosNConfig config{};
+    config.m_PerfVariant     = ethosn::support_library::EthosNVariant::ETHOS_N77;
     config.m_PerfOnly        = true;
     config.m_PerfOutDir      = tmpDir.Str();
     config.m_PerfMappingFile = tmpDir.Str() + "/mapping.txt";
@@ -476,19 +479,19 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
     SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
     armnn::EthosNWorkloadFactory factory;
     // To create a PreCompiled layer, create a network and Optimize it.
-    armnn::Network net;
+    armnn::INetworkPtr net = armnn::INetwork::Create();
 
-    armnn::IConnectableLayer* const inputLayer = net.AddInputLayer(0, "input layer");
+    armnn::IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input layer");
     BOOST_TEST(inputLayer);
 
     ActivationDescriptor tanDesc;
     tanDesc.m_A                               = 100;
     tanDesc.m_B                               = 0;
     tanDesc.m_Function                        = ActivationFunction::TanH;
-    armnn::IConnectableLayer* const tanhLayer = net.AddActivationLayer(tanDesc, "TanH layer");
+    armnn::IConnectableLayer* const tanhLayer = net->AddActivationLayer(tanDesc, "TanH layer");
     BOOST_TEST(tanhLayer);
 
-    armnn::IConnectableLayer* const outputLayer = net.AddOutputLayer(0, "output layer");
+    armnn::IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output layer");
     BOOST_TEST(outputLayer);
 
     TensorInfo inputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
@@ -510,10 +513,10 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
     armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
     armnn::OptimizerOptions optimizerOptions;
     armnn::IOptimizedNetworkPtr optimizedNet =
-        armnn::Optimize(net, backends, runtime->GetDeviceSpec(), optimizerOptions);
+        armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
     BOOST_CHECK(optimizedNet != nullptr);
 
-    armnn::Graph& optimisedGraph = static_cast<armnn::OptimizedNetwork*>(optimizedNet.get())->GetGraph();
+    armnn::Graph& optimisedGraph = GetGraphForTesting(optimizedNet.get());
     Layer* preCompiledLayer      = nullptr;
     for (auto& layer : optimisedGraph)
     {
@@ -625,6 +628,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
     const std::string mappingFile = tmpDir.Str() + "/mapping.txt";
 
     armnn::EthosNConfig config{};
+    config.m_PerfVariant     = ethosn::support_library::EthosNVariant::ETHOS_N77;
     config.m_PerfOnly        = true;
     config.m_PerfOutDir      = tmpDir.Str();
     config.m_PerfMappingFile = mappingFile;
@@ -645,18 +649,18 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
     SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
     armnn::EthosNWorkloadFactory factory;
     // To create a PreCompiled layer, create a network and Optimize it.
-    armnn::Network net;
+    armnn::INetworkPtr net = armnn::INetwork::Create();
 
-    armnn::IConnectableLayer* const inputLayer = net.AddInputLayer(0, "input layer");
+    armnn::IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input layer");
     BOOST_TEST(inputLayer);
 
     StandInDescriptor standInDesc;
     standInDesc.m_NumInputs                      = 1;
     standInDesc.m_NumOutputs                     = 1;
-    armnn::IConnectableLayer* const standInLayer = net.AddStandInLayer(standInDesc, "StandInTest");
+    armnn::IConnectableLayer* const standInLayer = net->AddStandInLayer(standInDesc, "StandInTest");
     BOOST_TEST(standInLayer);
 
-    armnn::IConnectableLayer* const outputLayer = net.AddOutputLayer(0, "output layer");
+    armnn::IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output layer");
     BOOST_TEST(standInLayer);
 
     TensorInfo inputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
@@ -678,10 +682,10 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
     armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
     armnn::OptimizerOptions optimizerOptions;
     armnn::IOptimizedNetworkPtr optimizedNet =
-        armnn::Optimize(net, backends, runtime->GetDeviceSpec(), optimizerOptions);
+        armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
     BOOST_CHECK(optimizedNet != nullptr);
 
-    armnn::Graph& optimisedGraph = static_cast<armnn::OptimizedNetwork*>(optimizedNet.get())->GetGraph();
+    armnn::Graph& optimisedGraph = GetGraphForTesting(optimizedNet.get());
     Layer* preCompiledLayer      = nullptr;
     for (auto& layer : optimisedGraph)
     {
@@ -794,6 +798,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkload)
     const std::string configFile = tmpDir.Str() + "/config.txt";
 
     armnn::EthosNConfig config{};
+    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
     config.m_PerfOnly    = true;
     config.m_PerfOutDir  = tmpDir.Str();
     config.m_PerfCurrent = true;
@@ -896,6 +901,7 @@ BOOST_AUTO_TEST_CASE(EstimationCompressionOverride)
     const std::string configFile = tmpDir.Str() + "/config.txt";
 
     armnn::EthosNConfig config{};
+    config.m_PerfVariant                      = ethosn::support_library::EthosNVariant::ETHOS_N77;
     config.m_PerfOnly                         = true;
     config.m_PerfOutDir                       = tmpDir.Str();
     config.m_PerfActivationCompressionSaving  = 0.6f;
@@ -1021,6 +1027,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkloadSplit)
     const std::string configFile = tmpDir.Str() + "/config.txt";
 
     armnn::EthosNConfig config{};
+    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
     config.m_PerfOnly    = true;
     config.m_PerfOutDir  = tmpDir.Str();
     config.m_PerfCurrent = true;

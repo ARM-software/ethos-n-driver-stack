@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -160,17 +160,7 @@ Inference* KmodNetworkImpl::ScheduleInference(Buffer* const inputBuffers[],
                                               Buffer* const outputBuffers[],
                                               uint32_t numOutputBuffers) const
 {
-    const char* const debugEnv = std::getenv("ETHOSN_DRIVER_LIBRARY_DEBUG");
-    if (debugEnv && (strcmp(debugEnv, "1") == 0 || strstr(debugEnv, "cmm") != nullptr))
-    {
-        DumpCmm(inputBuffers, numInputBuffers, (std::string("CombinedMemoryMap_") + m_DebugName + ".hex").c_str(),
-                Cmm_All);
-    }
-    else if (debugEnv && strstr(debugEnv, "cmdstream") != nullptr)
-    {
-        DumpCmm(inputBuffers, numInputBuffers, (std::string("CombinedMemoryMap_") + m_DebugName + ".hex").c_str(),
-                Cmm_Inference | Cmm_ConstantControlUnit);
-    }
+    DumpCmmBasedOnEnvVar(inputBuffers, numInputBuffers);
 
     ethosn_inference_req ifrReq = {};
     std::vector<int> inputFds(numInputBuffers, -1);

@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2020 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2021 Arm Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -183,11 +183,13 @@ union DataUnion {
 				uint8_t m_TimeSyncData[3];
 			} m_TimeSyncFields;
 			struct {
-				uint8_t m_Type : 8;
+				uint8_t m_Type : 4;
+				uint8_t m_Idx : 4;
 				uint8_t m_CommandIdx : 8;
 			} m_AgentFields;
 			struct {
-				uint8_t m_AgentStripeType : 8;
+				uint8_t m_AgentStripeType : 4;
+				uint8_t m_AgentStripeIdx : 4;
 				uint8_t m_CommandIdx : 8;
 				uint8_t m_StripeIdx : 8;
 			} m_AgentStripeFields;

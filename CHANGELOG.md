@@ -1,5 +1,30 @@
 # Changelog
 
+## 21.02
+
+### New Features
+
+- Support for the Arm® Ethos™-N78 EAC release.
+- Support for additional padding configurations for convolutions.
+- Public unit tests for user space libraries.
+- Support for running in secure mode.
+- Interaction with Trusted Firmware to delegate some registers to non-secure mode and restrict others.
+
+### Public API changes
+
+- Driver Library version updated to 0.1.2.
+- Support Library version updated to 0.1.2.
+
+### Other changes
+
+- 3x performance improvement on ADDITION layers, giving ~25% inference performance improvement on Yolo V3 Backbone, depending on the configuration.
+- Improved streaming strategies, giving improved performance across all supported networks for smaller configurations, up to 25%.
+- The kernel module is built by default for an NPU running in secure mode. Extra build flags are needed to build for the NPU in non-secure mode.
+
+### Known issues
+
+- None
+
 ## 20.11
 
 ### New Features

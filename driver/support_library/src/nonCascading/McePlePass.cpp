@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -38,9 +38,8 @@ bool IsCompressionFormatCompatible(const CompilerDataCompressedFormat& compressi
                                    bool forwardEst)
 {
     // If SPA "forward-looking" estimate is configured, activation compression for Ethos-N78 will be
-    // allowed for arbitrary tensor shapes except for Strategy 7 and Fully connected, which are not
-    // supported by FCAF.
-    bool estimateOverride = forwardEst && (strategy != Strategy::STRATEGY_7 && strategy != Strategy::STRATEGY_FC);
+    // allowed for arbitrary tensor shapes except for Strategy 7, which are not supported by FCAF.
+    bool estimateOverride = forwardEst && (strategy != Strategy::STRATEGY_7);
     bool tensorCompressible =
         IsCompressionFormatCompatibleWithStripeAndShape(compressionFormat, nodeShape, stripeShape);
 
@@ -123,12 +122,11 @@ CompilerDataCompressedFormat GetIntermediateOutputCompressedFormat(const Hardwar
 }    // namespace
 
 std::vector<command_stream::BlockConfig>
-    McePlePass::FilterValidAndSortBlockConfigs(MceOperationNode* mceOperation,
-                                               FuseOnlyPleOperationNode* pleOperation,
-                                               const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
-                                               const HardwareCapabilities& capabilities,
-                                               const TensorShape& outputShape,
-                                               CompilerMceAlgorithm algorithm)
+    McePlePass::FilterValidBlockConfigs(MceOperationNode* mceOperation,
+                                        FuseOnlyPleOperationNode* pleOperation,
+                                        const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
+                                        const HardwareCapabilities& capabilities,
+                                        CompilerMceAlgorithm algorithm)
 {
     using namespace std::placeholders;
 
@@ -145,74 +143,13 @@ std::vector<command_stream::BlockConfig>
         // We can do twice the number of outputs elements with 1D compared to 2D
         // See the Block size limitations sections in the 2x2 Winograd Support document for further details
 
-        const uint32_t maxAllowedWxH = capabilities.GetTotalAccumulatorsPerEngine() / (isWinograd2d ? 4U : 2U);
+        const uint32_t maxAllowedWxH = capabilities.GetTotalAccumulatorsPerOg() / (isWinograd2d ? 4U : 2U);
 
         auto FilterMaxSize = [maxAllowedWxH](const command_stream::BlockConfig& blockConfig) {
             return (blockConfig.m_BlockWidth() * blockConfig.m_BlockHeight()) <= maxAllowedWxH;
         };
 
         res = Filter(res, FilterMaxSize);
-
-        const auto comp = [&](const command_stream::BlockConfig& blockConfig1,
-                              const command_stream::BlockConfig& blockConfig2) {
-            const uint32_t blockWidth1  = blockConfig1.m_BlockWidth();
-            const uint32_t blockHeight1 = blockConfig1.m_BlockHeight();
-
-            const uint32_t blockWidth2  = blockConfig2.m_BlockWidth();
-            const uint32_t blockHeight2 = blockConfig2.m_BlockHeight();
-
-            const bool outputFitsInBlock1 = (outputShape[1] <= blockHeight1) && (outputShape[2] <= blockWidth1);
-            const bool outputFitsInBlock2 = (outputShape[1] <= blockHeight2) && (outputShape[2] <= blockWidth2);
-
-            if (outputFitsInBlock1 && outputFitsInBlock2)
-            {
-                const uint32_t size1 = blockWidth1 * blockHeight1;
-                const uint32_t size2 = blockWidth2 * blockHeight2;
-
-                return size1 < size2;
-            }
-            else if (!outputFitsInBlock1 && !outputFitsInBlock2)
-            {
-                // We want to maximise the size of the partial blocks at the edge of the ofm XY planes.
-                // We maximise the sum of the remainder of the ofm shape divided by the block size.
-                //
-                // Example on a 17x17 ofm shape:
-                //   16x16 blocks: score = 17%16 + 17%16 = 2
-                //   32x8  blocks: score = 17%32 + 17%8 = 18.
-
-                const uint32_t remHeight1 = outputShape[1] % blockConfig1.m_BlockHeight();
-                const uint32_t remWidth1  = outputShape[2] % blockConfig1.m_BlockWidth();
-
-                const uint32_t remHeight2 = outputShape[1] % blockConfig2.m_BlockHeight();
-                const uint32_t remWidth2  = outputShape[2] % blockConfig2.m_BlockWidth();
-
-                const uint32_t rem1 = remHeight1 + remWidth1;
-                const uint32_t rem2 = remHeight2 + remWidth2;
-
-                if (rem1 == rem2)
-                {
-                    // In case of a tie, we favor largest block width if (weightsWidth > weightsHeight)
-                    // or largest block height otherwise
-
-                    if (weightsWidth > weightsHeight)
-                    {
-                        return (blockWidth1 > blockWidth2) ||
-                               ((blockWidth1 == blockWidth2) && (blockHeight1 > blockHeight2));
-                    }
-
-                    return (blockHeight1 > blockHeight2) ||
-                           ((blockHeight1 == blockHeight2) && (blockWidth1 > blockWidth2));
-                }
-
-                return rem1 > rem2;
-            }
-            else
-            {
-                return outputFitsInBlock1;    // && !outputFitsBlock2
-            }
-        };
-
-        std::sort(res.begin(), res.end(), comp);
     }
 
     const auto FilterToSize = [](const command_stream::BlockConfig& blockConfig, uint32_t width, uint32_t height) {
@@ -279,9 +216,8 @@ std::vector<IStrategy*> McePlePass::GetValidStrategies(MceOperationNode* mceOper
 {
     if (mceOperation->GetOperation() == ethosn::command_stream::MceOperation::FULLY_CONNECTED)
     {
-        // FC specific scheduling strategies will be used.
+        // Strategy X will be used.
         allowedStrategies.clear();
-        allowedStrategies.push_back(new StrategyFc());
     }
     return allowedStrategies;
 }
@@ -405,9 +341,6 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
             std::pair<bool, uint32_t> inputStaticAndOffset;
             inputStaticAndOffset.first  = firstNode->GetInputLocation(0) == BufferLocation::Sram;
             inputStaticAndOffset.second = firstNode->GetInput(0)->GetSource()->GetOutputSramOffset();
-            utils::ShapeMultiplier shapeMultiplier =
-                mceOperation->GetShapeMultiplier() *
-                (fuseOnlyPle != nullptr ? fuseOnlyPle->GetShapeMultiplier() : g_IdentityShapeMultiplier);
 
             res.m_Algorithm = mceOperation->GetEffectiveAlgorithm(capabilities, enableWinograd);
 
@@ -426,7 +359,7 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
                 }
                 else
                 {
-                    depthMax = capabilities.GetNumberOfOfm();
+                    depthMax = capabilities.GetNumberOfOgs();
                 }
             }
             auto validStrategies = GetValidStrategies(mceOperation, allowedStrategies);
@@ -434,17 +367,20 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
             {
                 validStrategies = FilterStrategiesForPle(fuseOnlyPle->GetKernelOperation(), validStrategies);
             }
-            auto validBlockConfigs = FilterValidAndSortBlockConfigs(
-                mceOperation, fuseOnlyPle, allowedBlockConfigs, capabilities, lastNode->GetShape(), res.m_Algorithm);
+            auto validBlockConfigs =
+                FilterValidBlockConfigs(mceOperation, fuseOnlyPle, allowedBlockConfigs, capabilities, res.m_Algorithm);
             TensorConfig tensorConfig;
             // Reset the SramAllocator used to calculate strategies to the base one originally passed in.
             SramAllocator currentSramAllocator = sramAllocator;
             // The shape we pass to strategy selection is the *MCE* input shape.
             // Note this may be different to firstNode->GetShape() if we are taking our input from a supertensor.
-            TensorShape mceInputShape = mceOperation->GetInputShape(0);
-            strategySelected          = ChooseAndSetupStrategy(
+            const TensorShape mceInputShape  = mceOperation->GetInputShape(0);
+            const TensorShape mceOutputShape = mceOperation->GetShape();
+            strategySelected                 = ChooseAndSetupStrategy(
                 capabilities, currentSramAllocator, validStrategies, validBlockConfigs, tensorConfig, mceInputShape,
-                lastNode->GetShape(), mceOperation->GetWeightsInfo().m_DataFormat, weightsShape, shapeMultiplier,
+                mceOutputShape, lastNode->GetShape(), mceOperation->GetWeightsInfo().m_DataFormat, weightsShape,
+                mceOperation->GetShapeMultiplier(),
+                (fuseOnlyPle != nullptr ? fuseOnlyPle->GetShapeMultiplier() : g_IdentityShapeMultiplier),
                 inputStaticAndOffset, res.m_Algorithm, depthMax);
 
             if (IsStrategyX(mceOperation->GetOperation(), tensorConfig, res.m_Algorithm, validStrategies))
@@ -707,10 +643,12 @@ bool McePlePass::ChooseAndSetupStrategy(const HardwareCapabilities& capabilities
                                         std::vector<command_stream::BlockConfig> allowedBlockConfigs,
                                         TensorConfig& tensorConfig,
                                         const TensorShape& inputShape,
+                                        const TensorShape& mceOutputShape,
                                         const TensorShape& outputShape,
                                         DataFormat weightsFormat,
                                         const TensorShape& weightsShape,
-                                        const utils::ShapeMultiplier& shapeMultiplier,
+                                        const utils::ShapeMultiplier& mceShapeMultiplier,
+                                        const utils::ShapeMultiplier& pleShapeMultiplier,
                                         std::pair<bool, uint32_t> inputStaticAndOffset,
                                         CompilerMceAlgorithm algorithm,
                                         const uint32_t depthMax)
@@ -721,15 +659,13 @@ bool McePlePass::ChooseAndSetupStrategy(const HardwareCapabilities& capabilities
 
     for (IStrategy* strategy : allowedStrategies)
     {
-        for (auto& currBlockConfig : allowedBlockConfigs)
+        if (strategy->TrySetupAnyBlockConfig(tensorConfig, sramAllocator, inputShape, mceOutputShape, outputShape,
+                                             weightsFormat, weightsShape, allowedBlockConfigs, capabilities,
+                                             mceShapeMultiplier, pleShapeMultiplier, inputStaticAndOffset, algorithm,
+                                             depthMax))
         {
-            if (strategy->TrySetup(tensorConfig, sramAllocator, inputShape, outputShape, weightsFormat, weightsShape,
-                                   currBlockConfig, capabilities, shapeMultiplier, inputStaticAndOffset, algorithm,
-                                   depthMax))
-            {
-                strategySelected = true;
-                break;
-            }
+            strategySelected = true;
+            break;
         }
 
         if (strategySelected)
@@ -758,9 +694,6 @@ ethosn::support_library::DotAttributes McePlePass::GetDotAttributes()
             break;
         case Strategy::STRATEGY_4:
             result.m_Label += "\nSTRATEGY_4";
-            break;
-        case Strategy::STRATEGY_5:
-            result.m_Label += "\nSTRATEGY_5";
             break;
         case Strategy::STRATEGY_6:
             result.m_Label += "\nSTRATEGY_6";
@@ -834,9 +767,6 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
         case Strategy::STRATEGY_4:
             strategy = SramAllocationStrategy::STRATEGY_4;
             break;
-        case Strategy::STRATEGY_5:
-            strategy = SramAllocationStrategy::STRATEGY_5;
-            break;
         case Strategy::STRATEGY_6:
             strategy = SramAllocationStrategy::STRATEGY_6;
             break;
@@ -845,13 +775,6 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
             break;
         case Strategy::STRATEGY_X:
             strategy = SramAllocationStrategy::STRATEGY_X;
-            break;
-        case Strategy::STRATEGY_FC:
-            // Fully connected strategy is still mapped on to
-            // command stream's STRATEGY_1. This shouldn't matter
-            // because the firmware doesn't check the strategy names
-            // but makes decisions based on the stripe and tile sizes.
-            strategy = SramAllocationStrategy::STRATEGY_1;
             break;
         default:
             // Invalid strategy
@@ -1008,7 +931,22 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
     convCmd.m_MceData().m_ActivationMax() = static_cast<int16_t>(activationBounds.max);
 
     assert(m_MceOperation->GetUpscaleFactor() <= 2);
-    convCmd.m_MceData().m_UpsampleMode()            = m_MceOperation->GetUpsampleType();
+    convCmd.m_MceData().m_UpsampleMode() = m_MceOperation->GetUpsampleType();
+
+    if (convCmd.m_MceData().m_UpsampleMode() == UpsampleType::BILINEAR)
+    {
+        // As only 2x resize is supported, drop mode is only possible for odd output width/height.
+        convCmd.m_MceData().m_UpsampleEdgeModeRow() =
+            (outputShape[1] & 1) ? UpsampleEdgeMode::DROP : UpsampleEdgeMode::GENERATE;
+        convCmd.m_MceData().m_UpsampleEdgeModeCol() =
+            (outputShape[2] & 1) ? UpsampleEdgeMode::DROP : UpsampleEdgeMode::GENERATE;
+    }
+    else
+    {
+        convCmd.m_MceData().m_UpsampleEdgeModeRow() = UpsampleEdgeMode::GENERATE;
+        convCmd.m_MceData().m_UpsampleEdgeModeCol() = UpsampleEdgeMode::GENERATE;
+    }
+
     convCmd.m_MceData().m_UninterleavedInputShape() = mceUninterleavedInputShape;
     convCmd.m_MceData().m_OutputShape()             = mceOutputShape;
     convCmd.m_MceData().m_OutputStripeShape()       = mceOutputStripe;

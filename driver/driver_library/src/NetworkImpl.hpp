@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -44,6 +44,8 @@ protected:
         Cmm_Ifm                 = 0x8,
         Cmm_All                 = 0xFF,
     };
+
+    void DumpCmmBasedOnEnvVar(Buffer* const inputBuffers[], uint32_t numInputBuffers) const;
 
     void DumpCmm(Buffer* const inputBuffers[],
                  uint32_t numInputBuffers,
