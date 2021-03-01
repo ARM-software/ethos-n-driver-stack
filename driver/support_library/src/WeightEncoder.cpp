@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1492,7 +1492,7 @@ void WeightEncoderV2::WritePayloadHeader(BitstreamWriter& writer,
         writer.Write(&compParams.m_Zdiv, 3);
         writer.Write(&compParams.m_Wdiv, 3);
         writer.Write(&compParams.m_TruncationEnabled, 1);
-        writer.Write(&compParams.m_WeightOffset, 5);
+        writer.Write(compParams.m_WeightOffset, 5);
         writer.Write(&compParams.m_PaletteReload, 1);
 
         if (compParams.m_PaletteReload)

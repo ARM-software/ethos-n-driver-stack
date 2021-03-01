@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -105,7 +105,11 @@ ethosn::command_stream::CommandStream GetCommandStream(const CompiledNetwork* co
     // The command stream buffer id is defined to be 0.
     auto cmdStreamBufferInfo =
         std::find_if(cuBufferInfo.begin(), cuBufferInfo.end(), [](const BufferInfo& b) { return b.m_Id == 0; });
-    assert(cmdStreamBufferInfo != cuBufferInfo.end());
+    if (cmdStreamBufferInfo == cuBufferInfo.end())
+    {
+        throw std::exception();
+    }
+
     const uint32_t* begin = reinterpret_cast<const uint32_t*>(compiledNetwork->GetConstantControlUnitData().data() +
                                                               cmdStreamBufferInfo->m_Offset);
     const uint32_t* end   = begin + cmdStreamBufferInfo->m_Size / sizeof(uint32_t);

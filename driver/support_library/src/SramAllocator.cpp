@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -68,10 +68,12 @@ bool SramAllocator::Free(uint32_t offset)
     auto MatchChunk = [offset](const auto& chunk) { return (offset == chunk.m_Begin); };
     // Remove the chunk from used memory and add it to the free memory.
     auto memoryChunkIt = std::find_if(m_UsedMemory.begin(), m_UsedMemory.end(), MatchChunk);
-    if (memoryChunkIt == std::end(m_UsedMemory))
+
+    if (memoryChunkIt == m_UsedMemory.end())
     {
         return false;
     }
+
     MemoryChunk memoryChunk = *memoryChunkIt;
     m_UsedMemory.erase(memoryChunkIt);
     m_FreeMemory.push_back(memoryChunk);

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -48,7 +48,7 @@ uint64_t GetMceCycleCountWinograd(const HardwareCapabilities& caps,
 
     const uint32_t winogradKernelSize = caps.GetWideKernelSize();
     // Always 16 MACs to process either a 2x4, 4x2 or 2x2 winograd block
-    const uint64_t numMacsPerWinogradOutput = caps.GetMacsPerWinogradOutputBlock() *
+    const uint64_t numMacsPerWinogradOutput = static_cast<uint64_t>(caps.GetMacsPerWinogradOutputBlock()) *
                                               utils::DivRoundUp(weightsWidth, winogradKernelSize) *
                                               utils::DivRoundUp(weightsHeight, winogradKernelSize);
 
@@ -128,10 +128,10 @@ uint64_t GetNumOperations(const HardwareCapabilities& caps,
                           const uint32_t weightsHeight,
                           const uint32_t weightsWidth)
 {
-    const uint64_t numKernelElements = weightsWidth * weightsHeight;
+    const uint64_t numKernelElements = static_cast<uint64_t>(weightsWidth) * weightsHeight;
     const uint64_t numOpsPerElement  = 2U * numKernelElements;
     const uint64_t numActualIfms     = utils::GetNumOrigChannels(inputShape[3], stride.m_X, stride.m_Y, caps);
-    const uint64_t numInputElements  = inputShape[1] * inputShape[2];
+    const uint64_t numInputElements  = static_cast<uint64_t>(inputShape[1]) * inputShape[2];
     const uint64_t numOpsPerIfm      = numInputElements * numOpsPerElement;
 
     uint64_t numIfms = numActualIfms;
