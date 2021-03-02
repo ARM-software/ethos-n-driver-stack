@@ -1,0 +1,26 @@
+# Do not add any tool specific files (e.g. .vscode for Visual Studio, .swp for Vim, etc...) here
+# Instead use the technique explained on the link below to avoid pushing "noisy" files
+# https://help.github.com/en/github/using-git/ignoring-files
+
+.sconsign.dblite
+*~
+build/
+*.pyc
+__pycache__/
+.sconf_temp
+options.py
+
+# Coverage
+coverage-report/
+*.gcda
+*.gcno
+
+# .tflite files that have been downloaded
+internal/tests/tflite
+
+# .armnn cache files
+internal/tests/graphs/armnn-cache
+internal/tests/tflite/armnn-cache
+
+# ipynb checkpoints
+*.ipynb_checkpoints

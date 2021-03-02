@@ -1,0 +1,18 @@
+# This folder is the final output of the Linux kernel build process
+install/
+
+# The Linux kernel build system also places intermediate build products alongside source,
+# so we must ignore based on specific filenames and file types rather than a single build folder
+*.o
+*.o.ur-safe
+*.o.d
+*.dtb
+*.cmd
+*.mod*
+.*.dts
+*.dtb.dts
+modules.order
+Module.symvers
+tests/UnitTests
+*.ko
+.cache.mk
