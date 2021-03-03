@@ -597,38 +597,46 @@ McePlePass::McePlePass(const HardwareCapabilities& capabilities,
     m_Nodes = nodes;
     for (auto node : nodes)
     {
+        FormatConversionNode* formatConversionNode               = dynamic_cast<FormatConversionNode*>(node);
+        ExtractSubtensorNode* extractSubtensorNode               = dynamic_cast<ExtractSubtensorNode*>(node);
+        MceOperationNode* mceOperationNode                       = dynamic_cast<MceOperationNode*>(node);
+        McePostProcessOperationNode* mcePostProcessOperationNode = dynamic_cast<McePostProcessOperationNode*>(node);
+        FuseOnlyPleOperationNode* fuseOnlyPleOperationNode       = dynamic_cast<FuseOnlyPleOperationNode*>(node);
+        RequantizeNode* requantizeNode                           = dynamic_cast<RequantizeNode*>(node);
+        CopyNode* copyNode                                       = dynamic_cast<CopyNode*>(node);
+
         node->SetPass(this);
-        if (dynamic_cast<FormatConversionNode*>(node) && m_MceOperation == nullptr)
+        if (formatConversionNode && m_MceOperation == nullptr)
         {
-            m_PreConversionNodes.push_back(dynamic_cast<FormatConversionNode*>(node));
+            m_PreConversionNodes.push_back(formatConversionNode);
         }
-        else if (dynamic_cast<ExtractSubtensorNode*>(node) && m_ExtractSubtensorNode == nullptr)
+        else if (extractSubtensorNode && m_ExtractSubtensorNode == nullptr)
         {
-            m_ExtractSubtensorNode = dynamic_cast<ExtractSubtensorNode*>(node);
+            m_ExtractSubtensorNode = extractSubtensorNode;
         }
-        else if (dynamic_cast<MceOperationNode*>(node) && m_MceOperation == nullptr)
+        else if (mceOperationNode && m_MceOperation == nullptr)
         {
-            m_MceOperation = dynamic_cast<MceOperationNode*>(node);
+            m_MceOperation = mceOperationNode;
         }
-        else if (dynamic_cast<McePostProcessOperationNode*>(node))
+        else if (mcePostProcessOperationNode)
         {
-            m_McePostProcessOperations.push_back(dynamic_cast<McePostProcessOperationNode*>(node));
+            m_McePostProcessOperations.push_back(mcePostProcessOperationNode);
         }
-        else if (dynamic_cast<FuseOnlyPleOperationNode*>(node))
+        else if (fuseOnlyPleOperationNode)
         {
-            m_PleOperation = dynamic_cast<FuseOnlyPleOperationNode*>(node);
+            m_PleOperation = fuseOnlyPleOperationNode;
         }
-        else if (dynamic_cast<FormatConversionNode*>(node))
+        else if (formatConversionNode)
         {
-            m_PostConversionNodes.push_back(dynamic_cast<FormatConversionNode*>(node));
+            m_PostConversionNodes.push_back(formatConversionNode);
         }
-        else if (dynamic_cast<RequantizeNode*>(node))
+        else if (requantizeNode)
         {
-            m_RequantizeNodes.push_back(dynamic_cast<RequantizeNode*>(node));
+            m_RequantizeNodes.push_back(requantizeNode);
         }
-        else if (dynamic_cast<CopyNode*>(node))
+        else if (copyNode)
         {
-            m_CopyNodes.push_back(dynamic_cast<CopyNode*>(node));
+            m_CopyNodes.push_back(copyNode);
         }
         else
         {

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -244,41 +244,47 @@ bool Part::StripeInfos::operator<(const StripeInfos& rhs) const
 std::unique_ptr<Op>
     CreateOpFromNode(const Node* node, const CompilationOptions& compOpt, const HardwareCapabilities& caps)
 {
-    if (IsObjectOfType<MceOperationNode>(node))
+    const MceOperationNode* mceOperationNode = dynamic_cast<const MceOperationNode*>(node);
+    const McePostProcessOperationNode* mcePostProcessOperationNode =
+        dynamic_cast<const McePostProcessOperationNode*>(node);
+    const FuseOnlyPleOperationNode* fuseOnlyPleOperationNode = dynamic_cast<const FuseOnlyPleOperationNode*>(node);
+    const StandalonePleOperationNode* standalonePleOperationNode =
+        dynamic_cast<const StandalonePleOperationNode*>(node);
+    const FormatConversionNode* formatConversionNode = dynamic_cast<const FormatConversionNode*>(node);
+    const EstimateOnlyNode* estimateOnlyNode         = dynamic_cast<const EstimateOnlyNode*>(node);
+    const ReinterpretNode* reinterpretNode           = dynamic_cast<const ReinterpretNode*>(node);
+
+    if (mceOperationNode)
     {
-        const MceOperationNode* mceOperationNode = dynamic_cast<const MceOperationNode*>(node);
         MceOp op(Lifetime::Cascade, mceOperationNode->GetOperation(),
                  mceOperationNode->GetEffectiveAlgorithm(caps, !compOpt.m_DisableWinograd), BlockConfig{ 8U, 8U },
                  TensorShape{}, TensorShape{}, TensorShape{}, TraversalOrder::Xyz, mceOperationNode->GetStride(),
                  mceOperationNode->GetPadLeft(), mceOperationNode->GetPadTop());
         return std::make_unique<MceOp>(std::move(op));
     }
-    else if (IsObjectOfType<McePostProcessOperationNode>(node))
+    else if (mcePostProcessOperationNode)
     {
         return std::make_unique<MceOp>();
     }
-    else if (IsObjectOfType<FuseOnlyPleOperationNode>(node))
+    else if (fuseOnlyPleOperationNode)
     {
-        const FuseOnlyPleOperationNode* fuseOnlyPleOperationNode = dynamic_cast<const FuseOnlyPleOperationNode*>(node);
         PleOp op(Lifetime::Cascade, fuseOnlyPleOperationNode->GetKernelOperation(), BlockConfig{ 8U, 8U },
                  static_cast<uint32_t>(fuseOnlyPleOperationNode->GetInputs().size()), std::vector<TensorShape>{},
                  TensorShape{});
         return std::make_unique<PleOp>(std::move(op));
     }
-    else if (IsObjectOfType<StandalonePleOperationNode>(node))
+    else if (standalonePleOperationNode)
     {
-        const StandalonePleOperationNode* standalonePleOperationNode =
-            dynamic_cast<const StandalonePleOperationNode*>(node);
         PleOp op(Lifetime::Cascade, standalonePleOperationNode->GetKernelOperation(), BlockConfig{ 8U, 8U },
                  static_cast<uint32_t>(standalonePleOperationNode->GetInputs().size()), std::vector<TensorShape>{},
                  TensorShape{});
         return std::make_unique<PleOp>(std::move(op));
     }
-    else if (IsObjectOfType<FormatConversionNode>(node))
+    else if (formatConversionNode)
     {
         return std::make_unique<DmaOp>();
     }
-    else if (IsObjectOfType<EstimateOnlyNode>(node) || IsObjectOfType<ReinterpretNode>(node))
+    else if (estimateOnlyNode || reinterpretNode)
     {
         return std::make_unique<DummyOp>();
     }
@@ -311,9 +317,10 @@ TensorShape GetShapeRoundedToBrickGroup(TensorShape shape)
 
 TensorInfo GetWeightsInfo(const Node* node)
 {
-    if (IsObjectOfType<MceOperationNode>(node))
+    const MceOperationNode* mceOpNode = dynamic_cast<const MceOperationNode*>(node);
+    if (mceOpNode)
     {
-        return dynamic_cast<const MceOperationNode*>(node)->GetWeightsInfo();
+        return mceOpNode->GetWeightsInfo();
     }
 
     return TensorInfo();
@@ -660,9 +667,12 @@ void AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
     const OpGraph::OpList& ops          = opGraph.GetOps();
     Op* op                              = ops.front();
     const TensorShape weightStripeShape = CalculateWeightStripeShape(weightInfo, inpStripeShape, outStripeShape);
+    MceOp* mceOp                        = dynamic_cast<MceOp*>(op);
 
-    assert(dynamic_cast<MceOp*>(op) != nullptr);
-    MceOp* mceOp = dynamic_cast<MceOp*>(op);
+    if (!mceOp)
+    {
+        throw InternalErrorException("MceOp is NULL.");
+    }
 
     CascadingBufferFormat formatInDram =
         GetCascadingBufferFormatFromCompilerDataFormat(ConvertExternalToCompilerDataFormat(weightInfo.m_DataFormat));
@@ -828,7 +838,6 @@ void Part::CreatePlanWithIdentityMceOp(FuseOnlyPleOperationNode* node,
             Op* op                             = opGraph.GetOps().back();
             const OpGraph::BufferList& buffers = opGraph.GetBuffers();
 
-            assert(dynamic_cast<PleOp*>(op) != nullptr);
             op->m_Lifetime = lifetime;
 
             Buffer* outBuffer       = opGraph.AddBuffer(std::make_unique<Buffer>(
@@ -844,6 +853,11 @@ void Part::CreatePlanWithIdentityMceOp(FuseOnlyPleOperationNode* node,
             outputMappings[outBuffer]      = outputNode;
 
             PleOp* pleOp = dynamic_cast<PleOp*>(op);
+            if (!pleOp)
+            {
+                throw InternalErrorException("PleOp is NULL");
+            }
+
             pleOp->m_InputStripeShapes.push_back(mceOpOutputBuffer->m_StripeShape);
             pleOp->m_OutputStripeShape = outBuffer->m_StripeShape;
 
@@ -909,7 +923,11 @@ void Part::CreatePlanWithIdentityPleOp(Node* node,
         opGraph.SetProducer(idPleOpOutBuff, op);
 
         PleOp* idPleOp = dynamic_cast<PleOp*>(op);
-        assert(idPleOp);
+        if (!idPleOp)
+        {
+            throw InternalErrorException("PleOp is NULL");
+        }
+
         idPleOp->m_InputStripeShapes.push_back(mceOutputBuff->m_StripeShape);
         idPleOp->m_OutputStripeShape = mceOutputBuff->m_StripeShape;
 
@@ -958,9 +976,9 @@ void Part::AddOpToOpGraphWithInputOutputBuffers(OwnedOpGraph& opGraph,
         inputMappings[inBuffer]      = edge;
         opGraph.AddConsumer(inBuffer, op, 0);
 
-        if (IsObjectOfType<PleOp>(op))
+        PleOp* pleOp = dynamic_cast<PleOp*>(op);
+        if (pleOp)
         {
-            PleOp* pleOp = dynamic_cast<PleOp*>(op);
             pleOp->m_InputStripeShapes.push_back(inBuffer->m_StripeShape);
         }
     }
@@ -1026,9 +1044,10 @@ void Part::CreatePlanForNode(Node* node,
 
     outputMappings[buffers.back()] = this->m_SubGraph.back();
 
-    if (IsObjectOfType<MceOp>(op))
+    MceOperationNode* mceNode = dynamic_cast<MceOperationNode*>(node);
+    PleOp* pleOp              = dynamic_cast<PleOp*>(op);
+    if (mceNode)
     {
-        MceOperationNode* mceNode     = GetObjectAs<MceOperationNode>(node);
         const TensorInfo& weightsInfo = GetWeightsInfo(node);
         if (utils::GetNumElements(weightsInfo.m_Dimensions) > 0)
         {
@@ -1042,9 +1061,8 @@ void Part::CreatePlanForNode(Node* node,
             }
         }
     }
-    else if (IsObjectOfType<PleOp>(op))
+    else if (pleOp)
     {
-        PleOp* pleOp               = dynamic_cast<PleOp*>(op);
         pleOp->m_OutputStripeShape = outBuffer->m_StripeShape;
     }
 

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -87,15 +87,18 @@ bool MergeRequantizeNodes(Graph& graph, Node* node)
     //
     //  X -->  RequantizeNode to (1, -84) -->
     RequantizeNode* requantizeNode = dynamic_cast<RequantizeNode*>(node);
-    if (requantizeNode && requantizeNode->GetOutputs().size() == 1 &&
-        dynamic_cast<RequantizeNode*>(requantizeNode->GetOutput(0)->GetDestination()))
+
+    if (requantizeNode && requantizeNode->GetOutputs().size() == 1)
     {
         // Add the corresponding ids from the first requantize node (the removed one) to the second one (the one we are keeping)
         RequantizeNode* nextNode = dynamic_cast<RequantizeNode*>(requantizeNode->GetOutput(0)->GetDestination());
-        nextNode->AddCorrespondingOperationIDs(requantizeNode->GetCorrespondingOperationIds());
 
-        graph.CollapseNode(requantizeNode);
-        return true;
+        if (nextNode)
+        {
+            nextNode->AddCorrespondingOperationIDs(requantizeNode->GetCorrespondingOperationIds());
+            graph.CollapseNode(requantizeNode);
+            return true;
+        }
     }
     return false;
 }
@@ -191,6 +194,7 @@ bool ReorderConcatAndCopyNodes(Graph& graph, Node* node)
         dynamic_cast<CopyNode*>(concatenationNode->GetOutput(0)->GetDestination()))
     {
         Node* oldCopyNode = dynamic_cast<CopyNode*>(concatenationNode->GetOutput(0)->GetDestination());
+
         for (uint32_t i = 0; i < concatenationNode->GetInputs().size(); ++i)
         {
             Node* newCopy = graph.CreateAndAddNodeWithDebug<CopyNode>(
@@ -224,6 +228,7 @@ bool ReorderConcatAndRequantizeNodes(Graph& graph, Node* node)
         dynamic_cast<RequantizeNode*>(concatenationNode->GetOutput(0)->GetDestination()))
     {
         Node* oldRequantNode = dynamic_cast<RequantizeNode*>(concatenationNode->GetOutput(0)->GetDestination());
+
         for (uint32_t i = 0; i < concatenationNode->GetInputs().size(); ++i)
         {
             Node* newRequant = graph.CreateAndAddNodeWithDebug<RequantizeNode>(
@@ -356,100 +361,104 @@ bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Node* node)
     //   MceOperationNode (identity depthwise where the bias is the constant)
     //
     ConstantNode* constantNode = dynamic_cast<ConstantNode*>(node);
-    if (constantNode && constantNode->GetOutputs().size() == 1 &&
-        constantNode->GetFormat() == CompilerDataFormat::NHWC &&
-        dynamic_cast<StandalonePleOperationNode*>(constantNode->GetOutput(0)->GetDestination()))
+    if (constantNode && constantNode->GetOutputs().size() == 1 && constantNode->GetFormat() == CompilerDataFormat::NHWC)
     {
         StandalonePleOperationNode* pleOperationNode =
             dynamic_cast<StandalonePleOperationNode*>(constantNode->GetOutput(0)->GetDestination());
 
-        if (pleOperationNode->GetKernelOperation() == command_stream::PleOperation::ADDITION ||
-            pleOperationNode->GetKernelOperation() == command_stream::PleOperation::ADDITION_RESCALE)
+        if (pleOperationNode)
         {
-            // if input shape is { 1, 1, 1, C } add an identity depthwise instead where the bias values are the constant vals from the bias add
-            bool isConstantBroadcastAddChannels = constantNode->GetShape()[0] == 1 &&
-                                                  constantNode->GetShape()[1] == 1 && constantNode->GetShape()[2] == 1;
-
-            if (isConstantBroadcastAddChannels)
+            if (pleOperationNode->GetKernelOperation() == command_stream::PleOperation::ADDITION ||
+                pleOperationNode->GetKernelOperation() == command_stream::PleOperation::ADDITION_RESCALE)
             {
-                const TensorInfo constantLayerInfo(constantNode->GetShape(), constantNode->GetConstantDataType(),
-                                                   DataFormat::NHWC, constantNode->GetQuantizationInfo());
+                // if input shape is { 1, 1, 1, C } add an identity depthwise instead where the bias values are the constant vals from the bias add
+                bool isConstantBroadcastAddChannels = constantNode->GetShape()[0] == 1 &&
+                                                      constantNode->GetShape()[1] == 1 &&
+                                                      constantNode->GetShape()[2] == 1;
 
-                std::vector<uint8_t> constantLayerData = constantNode->GetConstantData();
-                const Padding& padding                 = { 0, 0, 0, 0 };
-
-                // Assume there is only one constant input (and only 2 inputs total).
-                // In this case the input to the depthwise will be the non constant one.
-                uint8_t idxOfInput = 0;
-
-                // If the constant one is at idx 0, then it must be the other one.
-                if (dynamic_cast<ConstantNode*>(pleOperationNode->GetInput(0)->GetSource()))
+                if (isConstantBroadcastAddChannels)
                 {
-                    idxOfInput = 1;
-                }
+                    const TensorInfo constantLayerInfo(constantNode->GetShape(), constantNode->GetConstantDataType(),
+                                                       DataFormat::NHWC, constantNode->GetQuantizationInfo());
 
-                Node* inputNode = pleOperationNode->GetInput(idxOfInput)->GetSource();
+                    std::vector<uint8_t> constantLayerData = constantNode->GetConstantData();
+                    const Padding& padding                 = { 0, 0, 0, 0 };
 
-                const TensorShape inputShape = inputNode->GetShape();
+                    // Assume there is only one constant input (and only 2 inputs total).
+                    // In this case the input to the depthwise will be the non constant one.
+                    uint8_t idxOfInput = 0;
 
-                if (inputShape[3] == constantNode->GetShape()[3])
-                {
-
-                    const QuantizationInfo& outputQuantInfo =
-                        pleOperationNode->GetOutput(0)->GetSource()->GetQuantizationInfo();
-
-                    TensorShape outputShape = pleOperationNode->GetOutput(0)->GetSource()->GetShape();
-
-                    const uint32_t numIfm = inputShape[3];
-                    // Since the constant input is being requantized, the weight scale and values must be chosen
-                    // A weight scale and data must satisify the following requirements:
-                    //   - the resulting weight data for the identity convolution doesn't saturate
-                    //       (i.e. must be between 1 and 255)
-                    //   - inputQuantScale * weightQuantScale needs to be less than the outputQuantScale
-                    //       (See CalculateQuantizedMultiplierSmallerThanOne in Utils.hpp)
-                    const float weightScaleUpperBound =
-                        std::min(outputQuantInfo.GetScale() / inputNode->GetQuantizationInfo().GetScale(), 1.f);
-                    constexpr float weightScaleLowerBound = (1.f / 255.f);
-                    if (weightScaleUpperBound < weightScaleLowerBound)
+                    // If the constant one is at idx 0, then it must be the other one.
+                    if (dynamic_cast<ConstantNode*>(pleOperationNode->GetInput(0)->GetSource()))
                     {
-                        throw NotSupportedException("Couldn't choose appropriate weight scale for bias add");
+                        idxOfInput = 1;
                     }
-                    const float weightScaleTarget = (weightScaleUpperBound + weightScaleLowerBound) / 2.f;
-                    // The reciprical of the scale needs to be a whole number to minimize rounding error.
-                    const float weightScaleRecipRounded = std::round(1.f / weightScaleTarget);
-                    const float weightScale             = 1.f / weightScaleRecipRounded;
-                    const float newConstantLayerScale   = weightScale * inputNode->GetQuantizationInfo().GetScale();
 
-                    std::vector<uint8_t> weightsData(1 * 1 * 1 * numIfm, static_cast<uint8_t>(weightScaleRecipRounded));
+                    Node* inputNode = pleOperationNode->GetInput(idxOfInput)->GetSource();
 
-                    TensorInfo weightInfo{
-                        { 1, 1, numIfm, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, { 0, weightScale }
-                    };
+                    const TensorShape inputShape = inputNode->GetShape();
 
-                    QuantizationInfo constantNodeQuantizationInfo = constantNode->GetQuantizationInfo();
-                    auto dataType                                 = constantNode->GetConstantDataType();
-                    if (dataType == DataType::UINT8_QUANTIZED)
+                    if (inputShape[3] == constantNode->GetShape()[3])
                     {
-                        std::vector<int32_t> newConstantLayerData;
-                        for (uint32_t k = 0; k < constantLayerData.size(); ++k)
+
+                        const QuantizationInfo& outputQuantInfo =
+                            pleOperationNode->GetOutput(0)->GetSource()->GetQuantizationInfo();
+
+                        TensorShape outputShape = pleOperationNode->GetOutput(0)->GetSource()->GetShape();
+
+                        const uint32_t numIfm = inputShape[3];
+                        // Since the constant input is being requantized, the weight scale and values must be chosen
+                        // A weight scale and data must satisify the following requirements:
+                        //   - the resulting weight data for the identity convolution doesn't saturate
+                        //       (i.e. must be between 1 and 255)
+                        //   - inputQuantScale * weightQuantScale needs to be less than the outputQuantScale
+                        //       (See CalculateQuantizedMultiplierSmallerThanOne in Utils.hpp)
+                        const float weightScaleUpperBound =
+                            std::min(outputQuantInfo.GetScale() / inputNode->GetQuantizationInfo().GetScale(), 1.f);
+                        constexpr float weightScaleLowerBound = (1.f / 255.f);
+                        if (weightScaleUpperBound < weightScaleLowerBound)
                         {
-                            float fpValue = constantNodeQuantizationInfo.GetScale() *
-                                            static_cast<float>((constantLayerData.at(k) -
-                                                                constantNodeQuantizationInfo.GetZeroPoint()));
-                            newConstantLayerData.push_back(
-                                static_cast<int32_t>(std::round(fpValue / newConstantLayerScale)));
+                            throw NotSupportedException("Couldn't choose appropriate weight scale for bias add");
                         }
-                        Node* mceNode = graph.CreateAndAddNodeWithDebug<MceOperationNode>(
-                            ETHOSN_FUNCTION_SIGNATURE, inputShape, outputShape, dataType, outputQuantInfo, weightInfo,
-                            weightsData, constantLayerInfo, newConstantLayerData, Stride{ 1, 1 }, padding.m_Top,
-                            padding.m_Left, ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
-                            CompilerDataFormat::NHWCB, node->GetCorrespondingOperationIds());
+                        const float weightScaleTarget = (weightScaleUpperBound + weightScaleLowerBound) / 2.f;
+                        // The reciprical of the scale needs to be a whole number to minimize rounding error.
+                        const float weightScaleRecipRounded = std::round(1.f / weightScaleTarget);
+                        const float weightScale             = 1.f / weightScaleRecipRounded;
+                        const float newConstantLayerScale   = weightScale * inputNode->GetQuantizationInfo().GetScale();
 
-                        mceNode->AddCorrespondingOperationIDs(pleOperationNode->GetCorrespondingOperationIds());
+                        std::vector<uint8_t> weightsData(1 * 1 * 1 * numIfm,
+                                                         static_cast<uint8_t>(weightScaleRecipRounded));
 
-                        graph.InsertNodeAfter(inputNode, mceNode);
-                        graph.CollapseEdge(mceNode->GetOutput(0));
-                        return true;
+                        TensorInfo weightInfo{
+                            { 1, 1, numIfm, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, { 0, weightScale }
+                        };
+
+                        QuantizationInfo constantNodeQuantizationInfo = constantNode->GetQuantizationInfo();
+                        auto dataType                                 = constantNode->GetConstantDataType();
+                        if (dataType == DataType::UINT8_QUANTIZED)
+                        {
+                            std::vector<int32_t> newConstantLayerData;
+                            for (uint32_t k = 0; k < constantLayerData.size(); ++k)
+                            {
+                                float fpValue = constantNodeQuantizationInfo.GetScale() *
+                                                static_cast<float>((constantLayerData.at(k) -
+                                                                    constantNodeQuantizationInfo.GetZeroPoint()));
+                                newConstantLayerData.push_back(
+                                    static_cast<int32_t>(std::round(fpValue / newConstantLayerScale)));
+                            }
+                            Node* mceNode = graph.CreateAndAddNodeWithDebug<MceOperationNode>(
+                                ETHOSN_FUNCTION_SIGNATURE, inputShape, outputShape, dataType, outputQuantInfo,
+                                weightInfo, weightsData, constantLayerInfo, newConstantLayerData, Stride{ 1, 1 },
+                                padding.m_Top, padding.m_Left,
+                                ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION, CompilerDataFormat::NHWCB,
+                                node->GetCorrespondingOperationIds());
+
+                            mceNode->AddCorrespondingOperationIDs(pleOperationNode->GetCorrespondingOperationIds());
+
+                            graph.InsertNodeAfter(inputNode, mceNode);
+                            graph.CollapseEdge(mceNode->GetOutput(0));
+                            return true;
+                        }
                     }
                 }
             }

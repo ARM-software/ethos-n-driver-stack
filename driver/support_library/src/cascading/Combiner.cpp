@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -344,11 +344,12 @@ bool AreMceOperationsCompatible(const Buffer* plan1OutputBuffer,
                                 const Buffer* plan2InputBuffer,
                                 const Node* destination)
 {
-    if ((IsObjectOfType<MceOperationNode>(destination)) && (plan1OutputBuffer->m_Location != Location::Dram))
+
+    const MceOperationNode* mceOperationNode = dynamic_cast<const MceOperationNode*>(destination);
+    if ((mceOperationNode) && (plan1OutputBuffer->m_Location != Location::Dram))
     {
-        const MceOperationNode* mceOperationNode = dynamic_cast<const MceOperationNode*>(destination);
-        const TensorShape& inputBufferShape      = plan2InputBuffer->m_TensorShape;
-        const TensorShape& inputStripeShape      = plan2InputBuffer->m_StripeShape;
+        const TensorShape& inputBufferShape = plan2InputBuffer->m_TensorShape;
+        const TensorShape& inputStripeShape = plan2InputBuffer->m_StripeShape;
 
         if ((mceOperationNode->GetOperation() == ethosn::command_stream::MceOperation::CONVOLUTION) ||
             (mceOperationNode->GetOperation() == ethosn::command_stream::MceOperation::FULLY_CONNECTED))
