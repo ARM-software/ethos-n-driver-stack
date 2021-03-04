@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2020 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -258,6 +258,7 @@ static struct ethosn_dma_info *iommu_alloc(
 			dev_err(allocator->dev,
 				"failed to dma map pa 0x%llX\n",
 				page_to_phys(dma_info->pages[i]));
+			__free_page(pages[i]);
 			goto free_pages;
 		}
 	}
