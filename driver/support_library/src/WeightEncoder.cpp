@@ -677,15 +677,18 @@ uint32_t
     }
 
     // Calculate the bitcost for each WDiv to find the one with the lowest overall bitcost. Use the
-    // uncompressed bitcost as the intial best choice to include it in the selection process.
+    // uncompressed bitcost as the initial best choice to include it in the selection process.
     uint32_t bestBitcost = uncompressedBitcost;
     WDivisor bestWDiv    = WDivisor::UNCOMPRESSED;
     bool truncated       = false;
     for (uint8_t i = 0; i <= static_cast<uint8_t>(WDivisor::WDIV_5); ++i)
     {
-        uint32_t bitcost          = 0;
-        uint32_t truncatedBitcost = 0;
-        bool canTruncate          = (symbolFreqPairs.size() <= 3);
+        uint32_t sumQuots        = 0;
+        uint32_t sumTruncQuots   = 0;
+        uint32_t wUnary1Len      = 0;
+        uint32_t wUnary1TruncLen = 0;
+        uint32_t sumRemain       = 0;
+        bool canTruncate         = (symbolFreqPairs.size() <= 3);
         for (const auto& symbolFreqPair : symbolFreqPairs)
         {
             const uint32_t numQuotientBits = (symbolFreqPair.first >> i);
@@ -694,20 +697,34 @@ uint32_t
             if (numQuotientBits > maxNumQuotientBits)
             {
                 // Too many quotient bits, skip to next WDiv
-                bitcost = UINT32_MAX;
+                sumQuots = UINT32_MAX;
                 break;
             }
 
-            // (Number of quotient bits + (trailing zero bit) + (XDIV)) * Number of times the symbol occurs
-            bitcost += (numQuotientBits + 1 + i) * symbolFreqPair.second;
-            // No trailing zero bit and number of quotient bits is always 2 for truncated
-            truncatedBitcost += (2 + i) * symbolFreqPair.second;
+            sumQuots += (numQuotientBits + 1) * symbolFreqPair.second;
+            wUnary1Len += ((numQuotientBits + 1) / 2) * symbolFreqPair.second;
+
+            sumTruncQuots += (numQuotientBits > 0 ? 2 : 1) * symbolFreqPair.second;
+            wUnary1TruncLen += (numQuotientBits > 0 ? 1 : 0) * symbolFreqPair.second;
+
+            sumRemain += i * symbolFreqPair.second;
+        }
+
+        if (sumQuots == UINT32_MAX)
+        {
+            continue;
         }
 
         if (canTruncate)
         {
-            bitcost = truncatedBitcost;
+            sumQuots   = sumTruncQuots;
+            wUnary1Len = wUnary1TruncLen;
         }
+
+        // Calculate the total bitcost for the GRC chunk packing with padding
+        // See Ethos-N78 MCE Specification, section 6.8.6.3.5
+        uint32_t bitcost =
+            utils::RoundUpToNearestMultiple(sumQuots - wUnary1Len, m_IfmConsumedPerEnginex3d4) + wUnary1Len + sumRemain;
 
         if (bitcost < bestBitcost)
         {
