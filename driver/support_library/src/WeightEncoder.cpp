@@ -889,7 +889,6 @@ void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& par
                                                   const WeightCompressionParamsV2& prevParams,
                                                   const std::deque<Weight>& weights) const
 {
-    // Compression parameters are not reused at the moment so they should always be reloaded.
     std::map<WeightSymbol, uint32_t> symbolFreq;
     for (Weight weight : weights)
     {
