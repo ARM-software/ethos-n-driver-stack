@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -77,7 +77,7 @@ BOOST_AUTO_TEST_SUITE(EthosNSupport)
 BOOST_AUTO_TEST_CASE(LibraryAccess)
 {
     const std::string version = ethosn_lib::GetLibraryVersion().ToString();
-    BOOST_TEST(version == "0.1.2");
+    BOOST_TEST(version == "1.0.0");
 }
 
 BOOST_AUTO_TEST_CASE(ConvertAdditionLayer)

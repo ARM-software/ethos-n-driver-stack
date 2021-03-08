@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -13,5 +13,5 @@ TEST_CASE("AccessSupportLib")
 {
     // Simple test to ensure the library can be loaded.
     const Version version = GetLibraryVersion();
-    REQUIRE(version.ToString() == "0.1.2");
+    REQUIRE(version.ToString() == "1.0.0");
 }

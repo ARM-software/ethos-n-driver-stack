@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -23,9 +23,9 @@
 #include <vector>
 
 // Version information
-#define ETHOSN_SUPPORT_LIBRARY_VERSION_MAJOR 0
-#define ETHOSN_SUPPORT_LIBRARY_VERSION_MINOR 1
-#define ETHOSN_SUPPORT_LIBRARY_VERSION_PATCH 2
+#define ETHOSN_SUPPORT_LIBRARY_VERSION_MAJOR 1
+#define ETHOSN_SUPPORT_LIBRARY_VERSION_MINOR 0
+#define ETHOSN_SUPPORT_LIBRARY_VERSION_PATCH 0
 
 namespace ethosn
 {
@@ -369,44 +369,18 @@ struct QuantizationInfo
     using QuantizationDim = utils::Optional<uint32_t>;
 
     QuantizationInfo()
-        : m_ZeroPoint(0)
-        , m_Scales(1.0f, 1)
-        , m_QuantizationDim()
-    {}
-
-    explicit QuantizationInfo(const float scale)
-        : m_ZeroPoint(0)
-        , m_Scales(scale, 1)
-        , m_QuantizationDim()
-    {}
-
-    explicit QuantizationInfo(const QuantizationScales& scales)
-        : m_ZeroPoint(0)
-        , m_Scales(scales)
-        , m_QuantizationDim()
-    {}
-
-    explicit QuantizationInfo(const int32_t zeroPoint)
-        : m_ZeroPoint(zeroPoint)
-        , m_Scales(1.0f, 1)
-        , m_QuantizationDim()
+        : QuantizationInfo(0, QuantizationScales{ 1.0f })
     {}
 
     QuantizationInfo(const int32_t zeroPoint, const float scale)
-        : m_ZeroPoint(zeroPoint)
-        , m_Scales(scale, 1)
-        , m_QuantizationDim()
+        : QuantizationInfo(zeroPoint, QuantizationScales{ scale })
     {}
 
-    QuantizationInfo(const int32_t zeroPoint, const QuantizationScales& scales)
+    QuantizationInfo(const int32_t zeroPoint,
+                     QuantizationScales scales,
+                     const QuantizationDim dim = utils::EmptyOptional{})
         : m_ZeroPoint(zeroPoint)
-        , m_Scales(scales)
-        , m_QuantizationDim()
-    {}
-
-    QuantizationInfo(const int32_t zeroPoint, const QuantizationScales& scales, uint32_t dim)
-        : m_ZeroPoint(zeroPoint)
-        , m_Scales(scales)
+        , m_Scales(std::move(scales))
         , m_QuantizationDim(dim)
     {}
 

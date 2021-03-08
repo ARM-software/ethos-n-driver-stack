@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -43,7 +43,7 @@ SCENARIO("QuantizationInfo: API - constructors")
 
         WHEN("Instantiating QuantizationInfo(const float)")
         {
-            QuantizationInfo info(argScale1);
+            QuantizationInfo info(0, argScale1);
 
             THEN("Properties are set to given args values")
             {
@@ -59,7 +59,7 @@ SCENARIO("QuantizationInfo: API - constructors")
 
         WHEN("Instantiating QuantizationInfo(const QuantizationScales&)")
         {
-            QuantizationInfo info(argScales);
+            QuantizationInfo info(0, argScales);
 
             THEN("Properties are set to given args values")
             {
@@ -77,7 +77,7 @@ SCENARIO("QuantizationInfo: API - constructors")
         WHEN("Instantiating QuantizationInfo(QuantizationScales&&)")
         {
             const QuantizationScales& argScalesRef = argScales;
-            QuantizationInfo info(argScalesRef);
+            QuantizationInfo info(0, argScalesRef);
 
             THEN("Properties are set to given args values")
             {

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -169,7 +169,7 @@ ethosn_lib::TensorInfo BuildEthosNTensorInfo(const armnn::TensorInfo& tensorInfo
     const ethosn_lib::DataFormat ethosnDataFormat = ConvertDataLayout(dataLayout);
     const ethosn_lib::DataType ethosnDataType     = ConvertDataType(tensorInfo.GetDataType());
     const int32_t zeroPoint = IsTensorDataTypeSymmetric(tensorInfo) ? 0 : tensorInfo.GetQuantizationOffset();
-    ethosn_lib::QuantizationInfo ethosnQuantizationInfo(zeroPoint);
+    ethosn_lib::QuantizationInfo ethosnQuantizationInfo(zeroPoint, { 1.0f });
     if (tensorInfo.HasMultipleQuantizationScales())
     {
         ethosnQuantizationInfo.SetScales(tensorInfo.GetQuantizationScales());
