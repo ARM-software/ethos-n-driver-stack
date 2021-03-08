@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -246,8 +246,8 @@ void EthosNPreCompiledWorkload::Init(const PreCompiledDescriptor& descriptor,
             &(static_cast<EthosNTensorHandle*>(m_Data.m_Outputs[outputSlotIdx])->GetBuffer());
     }
 
-    m_Network = std::make_unique<ethosn::driver_library::Network>(
-        const_cast<ethosn::support_library::CompiledNetwork&>(*network.m_CompiledNetwork));
+    m_Network = std::make_unique<ethosn::driver_library::Network>(network.m_SerializedCompiledNetwork.data(),
+                                                                  network.m_SerializedCompiledNetwork.size());
     m_Network->SetDebugName(std::to_string(m_Guid).c_str());
 }
 

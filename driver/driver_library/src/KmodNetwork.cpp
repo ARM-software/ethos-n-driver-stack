@@ -9,7 +9,6 @@
 #include "Utils.hpp"
 
 #include <ethosn_command_stream/CommandStreamBuffer.hpp>
-#include <ethosn_support_library/Support.hpp>
 #include <ethosn_utils/Strings.hpp>
 #include <uapi/ethosn.h>
 
@@ -39,13 +38,12 @@ static_assert(ETHOSN_INFERENCE_ERROR == static_cast<int>(InferenceResult::Error)
 namespace
 {
 
-ethosn_buffer_info ToKmodBufInfo(const support_library::BufferInfo& info)
+ethosn_buffer_info ToKmodBufInfo(const BufferInfo& info)
 {
     return { info.m_Id, info.m_Offset, info.m_Size };
 }
 
-template <typename TBufferInfo>
-std::vector<ethosn_buffer_info> ToKmodBufInfos(const std::vector<TBufferInfo>& infos)
+std::vector<ethosn_buffer_info> ToKmodBufInfos(const std::vector<BufferInfo>& infos)
 {
     std::vector<ethosn_buffer_info> kmodInfos(infos.size());
     std::transform(infos.begin(), infos.end(), kmodInfos.begin(), ToKmodBufInfo);
@@ -91,28 +89,29 @@ std::vector<char> GetFirmwareAndHardwareCapabilities()
     return caps;
 }
 
-KmodNetworkImpl::KmodNetworkImpl(support_library::CompiledNetwork& compiledNetwork)
-    : NetworkImpl(compiledNetwork)
+KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compiledNetworkSize)
+    : NetworkImpl(compiledNetworkData, compiledNetworkSize, false)
 {
+    CompiledNetworkInfo compiledNetwork = DeserializeCompiledNetwork(compiledNetworkData, compiledNetworkSize);
+
     std::vector<ethosn_buffer_info> constantCuInfos =
-        ToKmodBufInfos(compiledNetwork.GetConstantControlUnitDataBufferInfos());
-    std::vector<ethosn_buffer_info> constantDmaInfos = ToKmodBufInfos(compiledNetwork.GetConstantDmaDataBufferInfos());
-    std::vector<ethosn_buffer_info> inputInfos       = ToKmodBufInfos(compiledNetwork.GetInputBufferInfos());
-    std::vector<ethosn_buffer_info> outputInfos      = ToKmodBufInfos(compiledNetwork.GetOutputBufferInfos());
-    std::vector<ethosn_buffer_info> intermediateInfos =
-        ToKmodBufInfos(compiledNetwork.GetIntermediateDataBufferInfos());
+        ToKmodBufInfos(compiledNetwork.m_ConstantControlUnitDataBufferInfos);
+    std::vector<ethosn_buffer_info> constantDmaInfos  = ToKmodBufInfos(compiledNetwork.m_ConstantDmaDataBufferInfos);
+    std::vector<ethosn_buffer_info> inputInfos        = ToKmodBufInfos(compiledNetwork.m_InputBufferInfos);
+    std::vector<ethosn_buffer_info> outputInfos       = ToKmodBufInfos(compiledNetwork.m_OutputBufferInfos);
+    std::vector<ethosn_buffer_info> intermediateInfos = ToKmodBufInfos(compiledNetwork.m_IntermediateDataBufferInfos);
 
     ethosn_network_req netReq = {};
 
     netReq.dma_buffers.num  = static_cast<uint32_t>(constantDmaInfos.size());
     netReq.dma_buffers.info = constantDmaInfos.data();
-    netReq.dma_data.size    = static_cast<uint32_t>(compiledNetwork.GetConstantDmaData().size());
-    netReq.dma_data.data    = compiledNetwork.GetConstantDmaData().data();
+    netReq.dma_data.size    = static_cast<uint32_t>(compiledNetwork.m_ConstantDmaDataSize);
+    netReq.dma_data.data    = compiledNetwork.CalculateConstantDmaDataPtr(compiledNetworkData);
 
     netReq.intermediate_buffers.num  = static_cast<uint32_t>(intermediateInfos.size());
     netReq.intermediate_buffers.info = intermediateInfos.data();
 
-    netReq.intermediate_data_size = compiledNetwork.GetIntermediateDataSize();
+    netReq.intermediate_data_size = compiledNetwork.m_IntermediateDataSize;
 
     netReq.input_buffers.num  = static_cast<uint32_t>(inputInfos.size());
     netReq.input_buffers.info = inputInfos.data();
@@ -122,8 +121,8 @@ KmodNetworkImpl::KmodNetworkImpl(support_library::CompiledNetwork& compiledNetwo
 
     netReq.cu_buffers.num  = static_cast<uint32_t>(constantCuInfos.size());
     netReq.cu_buffers.info = constantCuInfos.data();
-    netReq.cu_data.size    = static_cast<uint32_t>(compiledNetwork.GetConstantControlUnitData().size());
-    netReq.cu_data.data    = compiledNetwork.GetConstantControlUnitData().data();
+    netReq.cu_data.size    = static_cast<uint32_t>(compiledNetwork.m_ConstantControlUnitDataSize);
+    netReq.cu_data.data    = compiledNetwork.CalculateConstantControlUnitDataPtr(compiledNetworkData);
 
     int ethosnFd = open(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE), O_RDONLY);
     if (ethosnFd < 0)
@@ -194,6 +193,10 @@ Inference* KmodNetworkImpl::ScheduleInference(Buffer* const inputBuffers[],
 
 void KmodNetworkImpl::DumpIntermediateBuffers()
 {
+    if (!m_CompiledNetwork)
+    {
+        throw std::runtime_error("Mising m_CompiledNetwork");
+    }
     std::cout << "Dumping intermediate buffers..." << std::endl;
 
     // Get the file handle from the kernel module
@@ -215,10 +218,10 @@ void KmodNetworkImpl::DumpIntermediateBuffers()
         close(intermediateBufferFd);
         return;
     }
-    if (size != m_CompiledNetwork.GetIntermediateDataSize())
+    if (size != m_CompiledNetwork->m_IntermediateDataSize)
     {
         std::cerr << "Intermediate data was of unexpected size: CompiledNetwork: "
-                  << m_CompiledNetwork.GetIntermediateDataSize() << ", Kernel: " << size << std::endl;
+                  << m_CompiledNetwork->m_IntermediateDataSize << ", Kernel: " << size << std::endl;
     }
 
     if (size > 0)    // There may not be any intermediate data at all
@@ -234,8 +237,9 @@ void KmodNetworkImpl::DumpIntermediateBuffers()
         }
 
         // Parse the command stream to find the DUMP_DRAM commands
-        support_library::BufferInfo cmdStreamInfo = m_CompiledNetwork.GetConstantControlUnitDataBufferInfos()[0];
-        const uint8_t* rawCmdStreamData           = m_CompiledNetwork.GetConstantControlUnitData().data();
+        BufferInfo cmdStreamInfo = m_CompiledNetwork->m_ConstantControlUnitDataBufferInfos[0];
+        const uint8_t* rawCmdStreamData =
+            m_CompiledNetwork->CalculateConstantControlUnitDataPtr(m_CompiledNetworkData.data());
         command_stream::CommandStream cmdStream(rawCmdStreamData + cmdStreamInfo.m_Offset,
                                                 rawCmdStreamData + cmdStreamInfo.m_Offset + cmdStreamInfo.m_Size);
         for (auto it = cmdStream.begin(); it != cmdStream.end(); ++it)
@@ -246,10 +250,10 @@ void KmodNetworkImpl::DumpIntermediateBuffers()
                     it->GetCommand<command_stream::Opcode::DUMP_DRAM>()->m_Data();
 
                 // Find where this buffer is in the intermediate data
-                auto bufferInfoIt = std::find_if(m_CompiledNetwork.GetIntermediateDataBufferInfos().begin(),
-                                                 m_CompiledNetwork.GetIntermediateDataBufferInfos().end(),
+                auto bufferInfoIt = std::find_if(m_CompiledNetwork->m_IntermediateDataBufferInfos.begin(),
+                                                 m_CompiledNetwork->m_IntermediateDataBufferInfos.end(),
                                                  [&](const auto& b) { return b.m_Id == cmd.m_DramBufferId(); });
-                if (bufferInfoIt == m_CompiledNetwork.GetIntermediateDataBufferInfos().end())
+                if (bufferInfoIt == m_CompiledNetwork->m_IntermediateDataBufferInfos.end())
                 {
                     std::cerr << "Can't find buffer info for buffer ID " << cmd.m_DramBufferId()
                               << ", which would have been dumped to " << cmd.m_Filename().data() << std::endl;

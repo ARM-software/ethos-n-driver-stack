@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -15,7 +15,7 @@ namespace driver_library
 class KmodNetworkImpl : public NetworkImpl
 {
 public:
-    KmodNetworkImpl(support_library::CompiledNetwork& compiledNetwork);
+    KmodNetworkImpl(const char* compiledNetworkData, size_t compiledNetworkSize);
 
     ~KmodNetworkImpl() override;
 

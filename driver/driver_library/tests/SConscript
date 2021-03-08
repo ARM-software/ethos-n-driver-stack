@@ -37,8 +37,7 @@ if os.path.isdir(internal_dir):
 # Add internal unit tests
 srcs.extend(internal_srcs)
 
-libs = [ethosn_driver_shared,
-        File(os.path.join(common.get_support_library_build_dir(env), 'libEthosNSupport.a'))]
+libs = [ethosn_driver_shared]
 
 unitTests = env.Program('UnitTests', srcs, LIBS=libs)
 testAlias = env.Alias('driver-unit-tests', [unitTests], unitTests[0].abspath)

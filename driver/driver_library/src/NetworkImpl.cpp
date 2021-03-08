@@ -5,6 +5,7 @@
 
 #include "NetworkImpl.hpp"
 
+#include "../include/ethosn_driver_library/Network.hpp"
 #include "Utils.hpp"
 
 #include <ethosn_command_stream/CommandStream.hpp>
@@ -24,6 +25,7 @@
 #include <sys/types.h>
 
 using namespace ethosn;
+using namespace ethosn::driver_library;
 
 using MemoryMap = std::map<uint64_t, std::array<uint32_t, 4>>;
 
@@ -111,6 +113,108 @@ MemoryMap GetFirmwareMemMap(const char* firmwareFile)
     }
     return memMap;
 }
+
+/// Reads values from a raw byte array.
+class Reader
+{
+public:
+    Reader(const uint8_t* data, size_t size)
+        : m_Data(data)
+        , m_Size(size)
+        , m_Pos(0)
+    {}
+
+    size_t GetPosition()
+    {
+        return m_Pos;
+    }
+
+    bool ReadUint8(uint8_t& outValue)
+    {
+        if (m_Pos + 1 > m_Size)
+        {
+            return false;
+        }
+
+        outValue = m_Data[m_Pos];
+        m_Pos += 1;
+        return true;
+    }
+
+    /// Assumes little-endian encoding, regardless of the host platform's endian-ness.
+    bool ReadUint32(uint32_t& outValue)
+    {
+        if (m_Pos + 4 > m_Size)
+        {
+            return false;
+        }
+
+        uint32_t data =
+            m_Data[m_Pos + 3] << 24 | m_Data[m_Pos + 2] << 16 | m_Data[m_Pos + 1] << 8 | m_Data[m_Pos + 0] << 0;
+        m_Pos += 4;
+        outValue = data;
+        return true;
+    }
+
+    bool Skip(uint32_t numBytes)
+    {
+        if (m_Pos + numBytes > m_Size)
+        {
+            return false;
+        }
+
+        m_Pos += numBytes;
+        return true;
+    }
+
+private:
+    const uint8_t* m_Data;
+    size_t m_Size;
+    size_t m_Pos;
+};
+
+/// Note this does not copy the data - it just returns an offset to the beginning of the array and a size.
+/// Therefore the Reader's underlying data must be kept available for the caller to read the array contents.
+bool ReadByteArray(Reader& reader, size_t& outOffset, size_t& outSize)
+{
+    uint32_t size;
+    if (!reader.ReadUint32(size))
+    {
+        return false;
+    }
+    outSize = size;
+
+    outOffset = reader.GetPosition();
+    if (!reader.Skip(size))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool ReadBufferInfoArray(Reader& reader, std::vector<BufferInfo>& outData)
+{
+    uint32_t size;
+    if (!reader.ReadUint32(size))
+    {
+        return false;
+    }
+
+    for (uint32_t i = 0; i < size; ++i)
+    {
+        BufferInfo item;
+        if (!reader.ReadUint32(item.m_Id) || !reader.ReadUint32(item.m_Offset) || !reader.ReadUint32(item.m_Size))
+        {
+            return false;
+        }
+
+        outData.emplace_back(item);
+    }
+
+    return true;
+}
+
 }    // namespace
 
 namespace ethosn
@@ -118,9 +222,81 @@ namespace ethosn
 namespace driver_library
 {
 
-NetworkImpl::NetworkImpl(support_library::CompiledNetwork& compiledNetwork)
-    : m_CompiledNetwork(compiledNetwork)
-{}
+CompiledNetworkInfo DeserializeCompiledNetwork(const char* data, size_t size)
+{
+    Reader reader(reinterpret_cast<const uint8_t*>(data), size);
+
+    CompiledNetworkInfo result;
+
+    // Verify "FourCC"
+    uint8_t fourcc[4] = {};
+    if (!reader.ReadUint8(fourcc[0]) || !reader.ReadUint8(fourcc[1]) || !reader.ReadUint8(fourcc[2]) ||
+        !reader.ReadUint8(fourcc[3]))
+    {
+        throw CompiledNetworkException("Data too short");
+    }
+    if (fourcc[0] != 'E' || fourcc[1] != 'N' || fourcc[2] != 'C' || fourcc[3] != 'N')
+    {
+        throw CompiledNetworkException("Not a serialized CompiledNetwork");
+    }
+
+    // Verify version
+    uint32_t major;
+    uint32_t minor;
+    uint32_t patch;
+    if (!reader.ReadUint32(major) || !reader.ReadUint32(minor) || !reader.ReadUint32(patch))
+    {
+        throw CompiledNetworkException("Data too short");
+    }
+    if (major != 1 || minor != 0 || patch != 0)
+    {
+        throw CompiledNetworkException("Unsupported version");
+    }
+
+    // Read main data
+    bool success = true;
+    success      = success && ReadByteArray(reader, result.m_ConstantDmaDataOffset, result.m_ConstantDmaDataSize);
+    success =
+        success && ReadByteArray(reader, result.m_ConstantControlUnitDataOffset, result.m_ConstantControlUnitDataSize);
+    success = success && ReadBufferInfoArray(reader, result.m_InputBufferInfos);
+    success = success && ReadBufferInfoArray(reader, result.m_OutputBufferInfos);
+    success = success && ReadBufferInfoArray(reader, result.m_ConstantControlUnitDataBufferInfos);
+    success = success && ReadBufferInfoArray(reader, result.m_ConstantDmaDataBufferInfos);
+    success = success && ReadBufferInfoArray(reader, result.m_IntermediateDataBufferInfos);
+
+    if (!success)
+    {
+        throw CompiledNetworkException("Corrupted");
+    }
+
+    // Calculate intermediate data size
+    if (!result.m_IntermediateDataBufferInfos.empty())
+    {
+        auto GetLastBufferAddress = [](const auto& buf) { return buf.m_Offset + buf.m_Size; };
+        auto maxBuffer            = std::max_element(
+            result.m_IntermediateDataBufferInfos.begin(), result.m_IntermediateDataBufferInfos.end(),
+            [&](const auto& a, const auto& b) { return GetLastBufferAddress(a) < GetLastBufferAddress(b); });
+        result.m_IntermediateDataSize = GetLastBufferAddress(*maxBuffer);
+    }
+
+    return result;
+}
+
+NetworkImpl::NetworkImpl(const char* compiledNetworkData,
+                         size_t compiledNetworkSizeData,
+                         bool alwaysCopyCompiledNetwork)
+{
+    // Copy and store the compiled network if we might need it later for debugging use, or if we've been explicitly
+    // told to (i.e. for the model backend).
+    // We cannot simply store the user's pointers as they are not obliged to keep this data alive.
+    const char* const debugEnv = std::getenv("ETHOSN_DRIVER_LIBRARY_DEBUG");
+    if (alwaysCopyCompiledNetwork || debugEnv)
+    {
+        m_CompiledNetworkData = std::vector<char>(compiledNetworkData, compiledNetworkData + compiledNetworkSizeData);
+        m_CompiledNetwork     = std::make_unique<CompiledNetworkInfo>(
+            DeserializeCompiledNetwork(m_CompiledNetworkData.data(), m_CompiledNetworkData.size()));
+    }
+}
 
 Inference* NetworkImpl::ScheduleInference(Buffer* const inputBuffers[],
                                           uint32_t numInputBuffers,
@@ -166,6 +342,11 @@ void NetworkImpl::DumpCmm(Buffer* const inputBuffers[],
                           const char* cmmFilename,
                           uint8_t sections) const
 {
+    if (!m_CompiledNetwork)
+    {
+        throw std::runtime_error("Mising m_CompiledNetwork");
+    }
+
     constexpr uint32_t defaultMailboxAddr = 0x60000000;
     constexpr uint32_t defaultBaseAddr    = 0x60100000;
 
@@ -185,14 +366,14 @@ void NetworkImpl::DumpCmm(Buffer* const inputBuffers[],
     // Other buffer types need allocations in the functional model's address space.
     uint64_t constantDmaDataBaseAddress = ethosn::driver_library::RoundUpToNearestMultiple(baseAddress, 64);
     uint64_t inputBuffersBaseAddress    = ethosn::driver_library::RoundUpToNearestMultiple(
-        constantDmaDataBaseAddress + m_CompiledNetwork.GetConstantDmaData().size(), 64);
+        constantDmaDataBaseAddress + m_CompiledNetwork->m_ConstantDmaDataSize, 64);
     uint64_t outputBuffersBaseAddress = ethosn::driver_library::RoundUpToNearestMultiple(
-        inputBuffersBaseAddress + GetLastAddressedMemory(m_CompiledNetwork.GetInputBufferInfos()), 64);
+        inputBuffersBaseAddress + GetLastAddressedMemory(m_CompiledNetwork->m_InputBufferInfos), 64);
     uint64_t intermediateDataBaseAddress = ethosn::driver_library::RoundUpToNearestMultiple(
-        outputBuffersBaseAddress + GetLastAddressedMemory(m_CompiledNetwork.GetOutputBufferInfos()), 64);
+        outputBuffersBaseAddress + GetLastAddressedMemory(m_CompiledNetwork->m_OutputBufferInfos), 64);
 
     uint64_t cmmConstantControlUnitDataBaseAddress = ethosn::driver_library::RoundUpToNearestMultiple(
-        intermediateDataBaseAddress + m_CompiledNetwork.GetIntermediateDataSize(), 64);
+        intermediateDataBaseAddress + m_CompiledNetwork->m_IntermediateDataSize, 64);
 
     const std::vector<uint32_t> combinedMemMapInferenceData = BuildInferenceData(
         cuBaseAddress + cmmConstantControlUnitDataBaseAddress - baseAddress, constantDmaDataBaseAddress,
@@ -204,12 +385,15 @@ void NetworkImpl::DumpCmm(Buffer* const inputBuffers[],
     // Add "memory map"
     if (sections & Cmm_ConstantDma)
     {
-        AddToMemoryMap(cmm, static_cast<uint32_t>(constantDmaDataBaseAddress), m_CompiledNetwork.GetConstantDmaData());
+        AddToMemoryMap(cmm, static_cast<uint32_t>(constantDmaDataBaseAddress),
+                       m_CompiledNetwork->CalculateConstantDmaDataPtr(m_CompiledNetworkData.data()),
+                       m_CompiledNetwork->m_ConstantDmaDataSize);
     }
     if (sections & Cmm_ConstantControlUnit)
     {
         AddToMemoryMap(cmm, static_cast<uint32_t>(cmmConstantControlUnitDataBaseAddress),
-                       m_CompiledNetwork.GetConstantControlUnitData());
+                       m_CompiledNetwork->CalculateConstantControlUnitDataPtr(m_CompiledNetworkData.data()),
+                       m_CompiledNetwork->m_ConstantControlUnitDataSize);
     }
 
     // Write the inference data, which includes the binding table
@@ -225,7 +409,7 @@ void NetworkImpl::DumpCmm(Buffer* const inputBuffers[],
     {
         for (uint32_t i = 0; i < numInputBuffers; ++i)
         {
-            auto& info = m_CompiledNetwork.GetInputBufferInfos()[i];
+            auto& info = m_CompiledNetwork->m_InputBufferInfos[i];
             auto ifm   = inputBuffers[i];
             AddToMemoryMap(cmm, static_cast<uint32_t>(inputBuffersBaseAddress) + info.m_Offset, ifm->GetMappedBuffer(),
                            info.m_Size);
@@ -270,14 +454,18 @@ std::vector<uint32_t> NetworkImpl::BuildInferenceData(uint64_t constantControlUn
                                                       uint64_t outputBuffersBaseAddress,
                                                       uint64_t intermediateDataBaseAddress) const
 {
+    if (!m_CompiledNetwork)
+    {
+        throw std::runtime_error("Mising m_CompiledNetwork");
+    }
     std::vector<uint32_t> inferenceData;
 
     // Calculate and append total number of buffers to place in the buffer table.
-    size_t numCuBufs           = m_CompiledNetwork.GetConstantControlUnitDataBufferInfos().size();
-    size_t numDmaBufs          = m_CompiledNetwork.GetConstantDmaDataBufferInfos().size();
-    size_t numInputBufs        = m_CompiledNetwork.GetInputBufferInfos().size();
-    size_t numOutputBufs       = m_CompiledNetwork.GetOutputBufferInfos().size();
-    size_t numIntermediateBufs = m_CompiledNetwork.GetIntermediateDataBufferInfos().size();
+    size_t numCuBufs           = m_CompiledNetwork->m_ConstantControlUnitDataBufferInfos.size();
+    size_t numDmaBufs          = m_CompiledNetwork->m_ConstantDmaDataBufferInfos.size();
+    size_t numInputBufs        = m_CompiledNetwork->m_InputBufferInfos.size();
+    size_t numOutputBufs       = m_CompiledNetwork->m_OutputBufferInfos.size();
+    size_t numIntermediateBufs = m_CompiledNetwork->m_IntermediateDataBufferInfos.size();
 
     const uint32_t numBuffers =
         static_cast<uint32_t>(numCuBufs + numDmaBufs + numInputBufs + numOutputBufs + numIntermediateBufs);
@@ -288,11 +476,11 @@ std::vector<uint32_t> NetworkImpl::BuildInferenceData(uint64_t constantControlUn
     // Fill in the buffer table, which is ordered by buffer ID.
     std::vector<ethosn_buffer_desc> bufferTable(numBuffers);
     FillBufferTable(bufferTable, constantControlUnitDataBaseAddress,
-                    m_CompiledNetwork.GetConstantControlUnitDataBufferInfos());
-    FillBufferTable(bufferTable, constantDmaDataBaseAddress, m_CompiledNetwork.GetConstantDmaDataBufferInfos());
-    FillBufferTable(bufferTable, inputBuffersBaseAddress, m_CompiledNetwork.GetInputBufferInfos());
-    FillBufferTable(bufferTable, outputBuffersBaseAddress, m_CompiledNetwork.GetOutputBufferInfos());
-    FillBufferTable(bufferTable, intermediateDataBaseAddress, m_CompiledNetwork.GetIntermediateDataBufferInfos());
+                    m_CompiledNetwork->m_ConstantControlUnitDataBufferInfos);
+    FillBufferTable(bufferTable, constantDmaDataBaseAddress, m_CompiledNetwork->m_ConstantDmaDataBufferInfos);
+    FillBufferTable(bufferTable, inputBuffersBaseAddress, m_CompiledNetwork->m_InputBufferInfos);
+    FillBufferTable(bufferTable, outputBuffersBaseAddress, m_CompiledNetwork->m_OutputBufferInfos);
+    FillBufferTable(bufferTable, intermediateDataBaseAddress, m_CompiledNetwork->m_IntermediateDataBufferInfos);
 
     // Append buffer table to raw data.
     for (const auto& bufferInfo : bufferTable)

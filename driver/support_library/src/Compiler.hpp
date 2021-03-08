@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -173,20 +173,9 @@ public:
 
     virtual uint32_t GetIntermediateDataSize() const override;
 
-    template <typename T>
-    void Serialize(std::ostream& out, const std::vector<T>& data) const;
-
     virtual void Serialize(std::ostream& out) const override;
 
-    template <typename T>
-    void Deserialize(std::istream& in, std::vector<T>& data);
-
-    virtual void Deserialize(std::istream& in);
-
 private:
-    template <typename T>
-    T Read(std::istream& in);
-
     std::vector<uint8_t> m_ConstantDmaData;
     std::vector<uint8_t> m_ConstantControlUnitData;
 

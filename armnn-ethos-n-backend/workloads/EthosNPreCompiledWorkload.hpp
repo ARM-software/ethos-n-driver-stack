@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -36,15 +36,15 @@ public:
     /// and the execution stage (EthosNPreCompiledWorkload).
     struct Network
     {
-        Network(std::unique_ptr<ethosn::support_library::CompiledNetwork> compiledNetwork,
+        Network(std::vector<char> serializedCompiledNetwork,
                 std::unordered_map<uint32_t, uint32_t> inputSlotsToEthosNInputs,
                 std::unordered_map<uint32_t, uint32_t> outputSlotsToEthosNOutputs)
-            : m_CompiledNetwork(std::move(compiledNetwork))
+            : m_SerializedCompiledNetwork(std::move(serializedCompiledNetwork))
             , m_InputSlotsToEthosNInputs(std::move(inputSlotsToEthosNInputs))
             , m_OutputSlotsToEthosNOutputs(std::move(outputSlotsToEthosNOutputs))
         {}
 
-        std::unique_ptr<ethosn::support_library::CompiledNetwork> m_CompiledNetwork;
+        std::vector<char> m_SerializedCompiledNetwork;
         /// Maps from the Arm NN input/output slot index to the Ethos-N  input/output buffer index.
         /// In some cases these may be equivalent but it is not guaranteed.
         /// @{

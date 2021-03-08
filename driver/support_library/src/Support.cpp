@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -363,13 +363,6 @@ void PrintNetworkPerformanceDataJson(std::ostream& os, uint32_t indentNumTabs, c
 
     --indent;
     os << indent << "}\n";
-}
-
-std::unique_ptr<CompiledNetwork> DeserializeCompiledNetwork(std::istream& in)
-{
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = std::make_unique<CompiledNetworkImpl>();
-    compiledNetwork->Deserialize(in);
-    return compiledNetwork;
 }
 
 const char* EthosNVariantAsString(EthosNVariant npuType)

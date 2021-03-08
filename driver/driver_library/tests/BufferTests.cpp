@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -42,10 +42,9 @@ TEST_CASE("BufferDescriptor")
 {
     uint8_t test_src[] = "This is a test source data";
     uint32_t buf_size  = sizeof(test_src);
-    ethosn::support_library::BufferInfo info(0, 1000, buf_size);
 
     // Create a buffer with test source data
-    Buffer test_buffer(test_src, info.m_Size, DataFormat::NHWC);
+    Buffer test_buffer(test_src, buf_size, DataFormat::NHWC);
 
     // Verify Buffer properties
     REQUIRE(test_buffer.GetSize() == buf_size);

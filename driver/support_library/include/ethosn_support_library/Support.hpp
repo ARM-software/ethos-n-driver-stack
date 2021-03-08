@@ -982,6 +982,10 @@ public:
 
     virtual uint32_t GetIntermediateDataSize() const = 0;
 
+    /// Serializes this object to a binary data stream, for consumption by the Driver Library
+    /// (see ethosn::driver_library::Network constructor).
+    /// If writing to the given stream fails, no additional error reporting is performed. The caller must check the
+    /// state of the stream themselves after this method returns.
     virtual void Serialize(std::ostream&) const = 0;
 };
 
@@ -1019,7 +1023,7 @@ private:
     std::string m_Reason;
 };
 
-/// Exception type thrown when the versions used for serialization and deserialization are different.
+/// Exception type thrown when data passed to the Support Library is of the wrong version.
 class VersionMismatchException : public std::exception
 {
 public:
@@ -1094,11 +1098,6 @@ EthosNVariant EthosNVariantFromString(const char* ethosnType);
 // Gets firmware and hardware capabilities from this library in the absence of the real device.
 // Optionally SRAM size can be overridden.
 std::vector<char> GetFwAndHwCapabilities(EthosNVariant variant, uint32_t sramSizeBytes = 0);
-
-// Deserialize a serialized CompiledNetwork from the specified input stream
-// If the versions used for serialization and deserialization are different
-//      an exception of type VersionMismatchException will be thrown.
-std::unique_ptr<CompiledNetwork> DeserializeCompiledNetwork(std::istream&);
 
 /// Creates a new Network
 ///

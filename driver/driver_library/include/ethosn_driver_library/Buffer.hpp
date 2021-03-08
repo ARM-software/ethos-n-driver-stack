@@ -1,11 +1,9 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
-
-#include <ethosn_support_library/Support.hpp>
 
 #include <cstdint>
 #include <memory>

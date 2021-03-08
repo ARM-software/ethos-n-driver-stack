@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -8,12 +8,13 @@
 #include "Buffer.hpp"
 #include "Inference.hpp"
 
-#include <ethosn_support_library/Support.hpp>
+#include <string>
+#include <vector>
 
 // Version information
-#define ETHOSN_DRIVER_LIBRARY_VERSION_MAJOR 0
-#define ETHOSN_DRIVER_LIBRARY_VERSION_MINOR 1
-#define ETHOSN_DRIVER_LIBRARY_VERSION_PATCH 2
+#define ETHOSN_DRIVER_LIBRARY_VERSION_MAJOR 1
+#define ETHOSN_DRIVER_LIBRARY_VERSION_MINOR 0
+#define ETHOSN_DRIVER_LIBRARY_VERSION_PATCH 0
 
 namespace ethosn
 {
@@ -39,11 +40,33 @@ const Version GetLibraryVersion();
 /// to provide details of what features of the hardware it should compile for.
 std::vector<char> GetFirmwareAndHardwareCapabilities();
 
-// The Network class maintains references to the command stream, ple kernels & weights.
+/// Exception type thrown when there is a problem with a compiled network passed to the API.
+class CompiledNetworkException : public std::exception
+{
+public:
+    CompiledNetworkException(const char* reason)
+        : m_Reason(reason)
+    {}
+
+    virtual const char* what() const noexcept override
+    {
+        return m_Reason.c_str();
+    }
+
+private:
+    std::string m_Reason;
+};
+
+// A single network, loaded and ready to execute inferences.
 class Network
 {
 public:
-    Network(support_library::CompiledNetwork&);
+    /// Loads a Network into the driver so that it is ready for inferences.
+    /// The Compiled Network data should be obtained from the Support Library, by serializing the
+    /// ethosn::support_library::CompiledNetwork object (by calling its Serialize() method).
+    /// This data is copied into the driver where necessary and does not need to kept alive by the caller.
+    /// @throws CompiledNetworkException if the given Compiled Network data is not valid.
+    Network(const char* compiledNetworkData, size_t compiledNetworkSize);
 
     ~Network();
 

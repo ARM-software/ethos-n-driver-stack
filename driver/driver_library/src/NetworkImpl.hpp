@@ -8,21 +8,78 @@
 #include "../include/ethosn_driver_library/Buffer.hpp"
 #include "../include/ethosn_driver_library/Inference.hpp"
 
-#include <ethosn_support_library/Support.hpp>
-
 #include <cstdint>
+#include <string>
+#include <vector>
 
 namespace ethosn
 {
 namespace driver_library
 {
 
+struct BufferInfo
+{
+public:
+    constexpr BufferInfo()
+        : BufferInfo(0, 0, 0)
+    {}
+
+    constexpr BufferInfo(uint32_t id, uint32_t offset, uint32_t size)
+        : m_Id(id)
+        , m_Offset(offset)
+        , m_Size(size)
+    {}
+
+    bool operator==(const BufferInfo& rhs) const
+    {
+        return m_Id == rhs.m_Id && m_Offset == rhs.m_Offset && m_Size == rhs.m_Size;
+    }
+
+    uint32_t m_Id;
+    uint32_t m_Offset;
+    uint32_t m_Size;
+};
+
+/// The result of deserializing a Compiled Network from the Support Library (see DeserializeCompiledNetwork).
+/// This contains offsets to data in the byte array from which this object was parsed, so you will likely need to
+/// keep that data available if you want to use this object.
+/// This is done to avoid copying the potentially large constant data buffers.
+struct CompiledNetworkInfo
+{
+    size_t m_ConstantDmaDataOffset = 0;
+    size_t m_ConstantDmaDataSize   = 0;
+
+    size_t m_ConstantControlUnitDataOffset = 0;
+    size_t m_ConstantControlUnitDataSize   = 0;
+
+    std::vector<BufferInfo> m_InputBufferInfos;
+    std::vector<BufferInfo> m_OutputBufferInfos;
+    std::vector<BufferInfo> m_ConstantControlUnitDataBufferInfos;
+    std::vector<BufferInfo> m_ConstantDmaDataBufferInfos;
+    std::vector<BufferInfo> m_IntermediateDataBufferInfos;
+
+    uint32_t m_IntermediateDataSize = 0;
+
+    const uint8_t* CalculateConstantDmaDataPtr(const char* compiledNetworkData)
+    {
+        return reinterpret_cast<const uint8_t*>(compiledNetworkData) + m_ConstantDmaDataOffset;
+    }
+
+    const uint8_t* CalculateConstantControlUnitDataPtr(const char* compiledNetworkData)
+    {
+        return reinterpret_cast<const uint8_t*>(compiledNetworkData) + m_ConstantControlUnitDataOffset;
+    }
+};
+
+/// @throws CompiledNetworkException if the given Compiled Network data is not valid.
+CompiledNetworkInfo DeserializeCompiledNetwork(const char* data, size_t size);
+
 /// Base class for all NetworkImpls.
 /// This provides the functionality to dump a combined memory map.
 class NetworkImpl
 {
 public:
-    NetworkImpl(support_library::CompiledNetwork& compiledNetwork);
+    NetworkImpl(const char* compiledNetworkData, size_t compiledNetworkSizeData, bool alwaysCopyCompiledNetwork);
 
     virtual ~NetworkImpl()
     {}
@@ -58,7 +115,13 @@ protected:
                                              uint64_t outputBuffersBaseAddress,
                                              uint64_t intermediateDataBaseAddress) const;
 
-    support_library::CompiledNetwork& m_CompiledNetwork;
+    /// Some debugging operations and some backends require keeping around a copy of the compiled network,
+    /// but we don't want to incur this memory cost for the standard case, so these fields may be left empty.
+    /// @{
+    std::vector<char> m_CompiledNetworkData;
+    std::unique_ptr<CompiledNetworkInfo> m_CompiledNetwork;
+    /// @}
+
     std::string m_DebugName;
 };
 

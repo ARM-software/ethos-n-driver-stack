@@ -559,91 +559,60 @@ uint32_t CompiledNetworkImpl::GetIntermediateDataSize() const
     return GetLastBufferAddress(*maxBuffer);
 }
 
-template <typename T>
-void CompiledNetworkImpl::Serialize(std::ostream& out, const std::vector<T>& data) const
+namespace
 {
-    static_assert(std::is_trivially_copyable<T>::value, "Type must be trivially copyable");
 
-    size_t size = data.size();
-    out.write(reinterpret_cast<char*>(&size), sizeof(uint32_t));
-    for (size_t i = 0; i < size; ++i)
+void Write(std::ostream& out, const uint32_t data)
+{
+    // Write in little-endian order, regardless of host endianness
+    out.put(static_cast<char>(data & 0xFF));
+    out.put(static_cast<char>((data >> 8) & 0xFF));
+    out.put(static_cast<char>((data >> 16) & 0xFF));
+    out.put(static_cast<char>((data >> 24) & 0xFF));
+}
+
+void WriteByteArray(std::ostream& out, const std::vector<uint8_t>& data)
+{
+    Write(out, static_cast<uint32_t>(data.size()));
+    out.write(reinterpret_cast<const char*>(data.data()), data.size());
+}
+
+template <typename TBufferInfo>
+void WriteBufferInfoArray(std::ostream& out, const std::vector<TBufferInfo>& data)
+{
+    Write(out, static_cast<uint32_t>(data.size()));
+    for (size_t i = 0; i < data.size(); ++i)
     {
-        out.write(reinterpret_cast<const char*>(&data[i]), sizeof(T));
+        Write(out, data[i].m_Id);
+        Write(out, data[i].m_Offset);
+        Write(out, data[i].m_Size);
     }
 }
+
+}    // namespace
 
 void CompiledNetworkImpl::Serialize(std::ostream& out) const
 {
-    // Serialize the library version
-    const std::string version = GetLibraryVersion().ToString();
-    size_t size               = version.size();
-    assert(size < 100);
-    out.write(reinterpret_cast<char*>(&size), sizeof(uint32_t));
-    out.write(version.c_str(), size);
+    // Tag to identify the compiled network data structure using "FourCC" style
+    out.write("ENCN", 4);
 
-    // Serialize the vectors
-    Serialize(out, m_ConstantDmaData);
-    Serialize(out, m_ConstantControlUnitData);
-    Serialize(out, m_InputBufferInfos);
-    Serialize(out, m_OutputBufferInfos);
-    Serialize(out, m_ConstantControlUnitDataBufferInfos);
-    Serialize(out, m_ConstantDmaDataBufferInfos);
-    Serialize(out, m_IntermediateDataBufferInfos);
-}
+    // Version of data structure
+    constexpr uint32_t major = 1;
+    constexpr uint32_t minor = 0;
+    constexpr uint32_t patch = 0;
 
-template <typename T>
-void CompiledNetworkImpl::Deserialize(std::istream& in, std::vector<T>& data)
-{
-    static_assert(std::is_trivially_copyable<T>::value, "Type must be trivially copyable");
+    Write(out, major);
+    Write(out, minor);
+    Write(out, patch);
 
-    auto size = Read<uint32_t>(in);
-
-    for (uint32_t i = 0; i < size; ++i)
-    {
-        T item = T();
-        char data_buffer[sizeof(T)];
-        in.read(data_buffer, sizeof(T));
-        std::memcpy(&item, data_buffer, sizeof(T));
-        data.emplace_back(item);
-    }
-}
-
-void CompiledNetworkImpl::Deserialize(std::istream& in)
-{
-    // Check that input stream was serialized with the same version of the support library
-    auto size = Read<uint32_t>(in);
-    assert(size < 100);
-
-    char versionString[100];
-    in.read(versionString, size);
-    Version version(versionString);
-    Version libraryVersion = GetLibraryVersion();
-
-    if (libraryVersion.Major != version.Major || libraryVersion.Minor < version.Minor)
-    {
-        std::stringstream str;
-        str << "Compiled Network was serialized with Support Library version " << versionString
-            << ". Attempting to de-serialize with version " << GetLibraryVersion().ToString() << std::endl;
-
-        throw VersionMismatchException(str.str().c_str());
-    }
-
-    // Deserialize vectors
-    Deserialize(in, m_ConstantDmaData);
-    Deserialize(in, m_ConstantControlUnitData);
-    Deserialize(in, m_InputBufferInfos);
-    Deserialize(in, m_OutputBufferInfos);
-    Deserialize(in, m_ConstantControlUnitDataBufferInfos);
-    Deserialize(in, m_ConstantDmaDataBufferInfos);
-    Deserialize(in, m_IntermediateDataBufferInfos);
-}
-
-template <typename T>
-T CompiledNetworkImpl::Read(std::istream& in)
-{
-    T data;
-    in.read(reinterpret_cast<char*>(&data), sizeof(data));
-    return data;
+    // Main data
+    WriteByteArray(out, m_ConstantDmaData);
+    WriteByteArray(out, m_ConstantControlUnitData);
+    WriteBufferInfoArray(out, m_InputBufferInfos);
+    WriteBufferInfoArray(out, m_OutputBufferInfos);
+    WriteBufferInfoArray(out, m_ConstantControlUnitDataBufferInfos);
+    WriteBufferInfoArray(out, m_ConstantDmaDataBufferInfos);
+    WriteBufferInfoArray(out, m_IntermediateDataBufferInfos);
 }
 
 }    // namespace support_library

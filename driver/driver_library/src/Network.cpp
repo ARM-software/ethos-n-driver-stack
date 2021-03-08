@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -11,6 +11,8 @@
 #elif defined(TARGET_KMOD)
 #include "KmodNetwork.hpp"
 #endif
+
+#include <algorithm>
 
 namespace ethosn
 {
@@ -35,14 +37,14 @@ Version::Version(const uint32_t Major, const uint32_t Minor, const uint32_t Patc
     , Patch(Patch)
 {}
 
-Network::Network(support_library::CompiledNetwork& compiledNetwork)
+Network::Network(const char* compiledNetworkData, size_t compiledNetworkSize)
     : m_NetworkImpl(
 #if defined(TARGET_MODEL)
-          std::make_unique<ModelNetworkImpl>(compiledNetwork)
+          std::make_unique<ModelNetworkImpl>(compiledNetworkData, compiledNetworkSize)
 #elif defined(TARGET_KMOD)
-          std::make_unique<KmodNetworkImpl>(compiledNetwork)
+          std::make_unique<KmodNetworkImpl>(compiledNetworkData, compiledNetworkSize)
 #elif defined(TARGET_DUMPONLY)
-          std::make_unique<NetworkImpl>(compiledNetwork)
+          std::make_unique<NetworkImpl>(compiledNetworkData, compiledNetworkSize, false)
 #else
 #error "Unknown target backend."
 #endif

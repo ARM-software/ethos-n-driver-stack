@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -17,6 +17,7 @@
 #include <armnnUtils/Permute.hpp>
 #include <backendsCommon/CpuTensorHandle.hpp>
 #include <ethosn_driver_library/Network.hpp>
+#include <ethosn_utils/VectorStream.hpp>
 
 #include <algorithm>
 
@@ -791,10 +792,17 @@ std::vector<CompiledBlobPtr>
             outputSlotsToEthosNOutputs[outputSlotIdx] = ethosnOutputIdx;
         }
 
-        // Construct a EthosNPreCompiledObject containing the ethosn_lib::CompiledNetwork along with
+        // Construct a EthosNPreCompiledObject containing the serialized ethosn_lib::CompiledNetwork along with
         // other data needed by the workload.
+        std::vector<char> compiledNetworkData;
+        {
+            ethosn::utils::VectorStream compiledNetworkStream(compiledNetworkData);
+            compiledNetwork->Serialize(compiledNetworkStream);
+        }
+        compiledNetwork.release();    // No longer need this, so save the memory
+
         auto preCompiledObject = std::make_unique<EthosNPreCompiledObject>(
-            EthosNPreCompiledObject::Network(std::move(compiledNetwork), inputSlotsToEthosNInputs,
+            EthosNPreCompiledObject::Network(std::move(compiledNetworkData), inputSlotsToEthosNInputs,
                                              outputSlotsToEthosNOutputs),
             m_EthosNOperationNameMapping);
 
