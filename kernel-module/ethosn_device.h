@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2020 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -251,6 +251,14 @@ void ethosn_write_top_reg(struct ethosn_core *core,
 u32 ethosn_read_top_reg(struct ethosn_core *core,
 			const u32 page,
 			const u32 offset);
+
+/**
+ * ethosn_smmu_available() -  Checks if SMMU is available.
+ * @dev: Pointer to struct device.
+ *
+ * Return: 'true' if SMMU is available, otherwise 'false'
+ */
+bool ethosn_smmu_available(struct device *dev);
 
 /**
  * ethosn_reset_and_start_ethosn() - Perform startup sequence for device

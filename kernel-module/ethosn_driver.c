@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1365,7 +1365,7 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 	/* Currently we assume that the reserved memory is
 	 * common to all the NPUs
 	 */
-	if (!iommu_present(pdev->dev.bus)) {
+	if (!ethosn_smmu_available(&pdev->dev)) {
 		dev_dbg(&pdev->dev, "Init reserved mem\n");
 
 		ret = ethosn_init_reserved_mem(&pdev->dev);

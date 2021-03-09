@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2019 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -41,7 +41,7 @@ struct ethosn_dma_allocator *ethosn_dma_allocator_create(struct device *dev)
 {
 	struct ethosn_dma_allocator *allocator;
 
-	if (iommu_present(dev->bus))
+	if (ethosn_smmu_available(dev))
 		allocator = ethosn_dma_iommu_allocator_create(dev);
 	else
 		allocator = ethosn_dma_carveout_allocator_create(dev);

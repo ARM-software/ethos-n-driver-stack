@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -101,6 +101,29 @@ resource_size_t to_ethosn_addr(const resource_size_t linux_addr,
 	ethosn_addr = region_addr | (linux_addr & region_mask);
 
 	return ethosn_addr;
+}
+
+bool ethosn_smmu_available(struct device *dev)
+{
+	int len;
+	bool has_smmu = false;
+	bool is_parent = of_get_available_child_count(dev->of_node) > 0;
+	struct device_node *node;
+
+	/* iommus property is only available in the children
+	 * nodes (i.e. ethosn-core)
+	 */
+	if (is_parent)
+		node = of_get_next_available_child(dev->of_node, NULL);
+	else
+		node = dev->of_node;
+
+	has_smmu = !IS_ERR_OR_NULL(of_find_property(node, "iommus", &len));
+
+	if (is_parent)
+		of_node_put(node);
+
+	return has_smmu;
 }
 
 /**
@@ -367,7 +390,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 	ethosn_set_power_ctrl(core, true);
 
 	/* Set MMU Stream id0 if iommu is present */
-	if (iommu_present(core->dev->bus)) {
+	if (ethosn_smmu_available(core->dev)) {
 		ret = ethosn_set_mmu_stream_id(core);
 		if (ret)
 			return ret;
