@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -463,4 +463,70 @@ TEST_CASE("Test Reshape as last layer NHWCB")
     REQUIRE(convCmd[0].m_OutputInfo().m_DataLocation() == ethosn::command_stream::DataLocation::DRAM);
 
     REQUIRE(reshapeCmd.size() == 1);
+}
+
+/// Test reshape as last layer NHWCB DRAM with Strategy 0
+TEST_CASE("Test Reshape as last layer NHWCB DRAM with Strategy 0")
+{
+    // Create the network
+    CompilationOptions options       = GetDefaultCompilationOptions();
+    std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
+    std::shared_ptr<Operand> inputConv1 =
+        AddInput(network, TensorInfo({ 1, 256, 128, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB)).tensor;
+
+    std::shared_ptr<Constant> biasConv1 =
+        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, 1.0f }),
+                    std::vector<uint8_t>(16, 0).data())
+            .tensor;
+
+    std::shared_ptr<Constant> weightsConv1 =
+        AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
+                    std::vector<uint8_t>(16 * 16 * 16, 0).data())
+            .tensor;
+
+    std::shared_ptr<Operand> conv1 =
+        AddConvolution(network, *inputConv1, *biasConv1, *weightsConv1,
+                       ConvolutionInfo(Padding(0, 0, 0, 0), Stride(1, 1), QuantizationInfo(0, 1.1f)))
+            .tensor;
+
+    std::shared_ptr<Operand> reshape = AddReshape(network, *conv1, { 1, 128, 256, 16 }).tensor;
+    std::shared_ptr<Output> output   = AddOutput(network, *reshape, DataFormat::NHWCB).tensor;
+
+    // Compile it
+    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
+        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+
+    // Extract all the conv commands
+    using namespace ethosn::command_stream;
+    CommandStream cmdStream = GetCommandStream(compiledNetwork[0].get());
+    std::vector<McePle> convCmds;
+    std::vector<ethosn::command_stream::Convert> reshapeCmd;
+    for (const auto& cmdHeader : cmdStream)
+    {
+        if (cmdHeader.m_Opcode() == Opcode::OPERATION_MCE_PLE)
+        {
+            convCmds.push_back(cmdHeader.GetCommand<Opcode::OPERATION_MCE_PLE>()->m_Data());
+        }
+        if (cmdHeader.m_Opcode() == Opcode::OPERATION_CONVERT)
+        {
+            reshapeCmd.push_back(cmdHeader.GetCommand<Opcode::OPERATION_CONVERT>()->m_Data());
+        }
+    }
+
+    TensorShape conv_output = { 1, 256, 128, 16 };
+
+    REQUIRE(convCmds.size() == 1);
+    REQUIRE(convCmds[0].m_SramConfig().m_AllocationStrategy() ==
+            ethosn::command_stream::SramAllocationStrategy::STRATEGY_0);
+    REQUIRE(convCmds[0].m_InputInfo().m_DataLocation() == ethosn::command_stream::DataLocation::DRAM);
+    REQUIRE(convCmds[0].m_OutputInfo().m_DataFormat() == ethosn::command_stream::DataFormat::NHWC);
+    REQUIRE(convCmds[0].m_OutputInfo().m_DataLocation() == ethosn::command_stream::DataLocation::DRAM);
+    REQUIRE(convCmds[0].m_OutputInfo().m_TensorShape() == conv_output);
+    REQUIRE(convCmds[0].m_OutputInfo().m_SupertensorShape() == conv_output);
+
+    REQUIRE(reshapeCmd.size() == 1);
+    REQUIRE(reshapeCmd[0].m_InputInfo().m_DataFormat() == ethosn::command_stream::DataFormat::NHWC);
+    REQUIRE(reshapeCmd[0].m_InputInfo().m_DataLocation() == ethosn::command_stream::DataLocation::DRAM);
+    REQUIRE(reshapeCmd[0].m_OutputInfo().m_DataFormat() == ethosn::command_stream::DataFormat::NHWCB);
+    REQUIRE(reshapeCmd[0].m_OutputInfo().m_DataLocation() == ethosn::command_stream::DataLocation::DRAM);
 }
