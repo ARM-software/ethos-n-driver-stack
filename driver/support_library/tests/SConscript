@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2018-2021 Arm Limited. All rights reserved.
+# Copyright © 2018-2021 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -54,7 +54,8 @@ srcs = ['main.cpp',
         'ResizeTests.cpp',
         'OptionalTests.cpp',
         'QuantizationInfoTests.cpp',
-        'MceEstimationUtilsTests.cpp']
+        'MceEstimationUtilsTests.cpp',
+        'ReinterpretQuantizationTests.cpp']
 
 internal_dir = os.path.join(env['support_library_dir'], '..', '..', 'internal', 'driver', 'support_library', 'tests')
 internal_srcs = []

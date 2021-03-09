@@ -255,6 +255,26 @@ Relu::Relu(const detail::PosInNetwork pos, uint32_t id, Operand& input, const Re
     , m_ReluInfo(reluInfo)
 {}
 
+ReinterpretQuantization::ReinterpretQuantization(const detail::PosInNetwork pos,
+                                                 uint32_t id,
+                                                 Operand& input,
+                                                 const ReinterpretQuantizationInfo& reinterpretQuantizationInfo)
+    : VisitableOperation<ReinterpretQuantization>(
+          pos,
+          id,
+          { &input },
+          { CalculateOutputTensorInfo(input.GetTensorInfo(), reinterpretQuantizationInfo.m_OutputQuantizationInfo) })
+{}
+
+TensorInfo
+    ReinterpretQuantization::CalculateOutputTensorInfo(const TensorInfo& inputTensorInfo,
+                                                       const ReinterpretQuantizationInfo& reinterpretQuantizationInfo)
+{
+    TensorInfo outputTensorInfo(inputTensorInfo);
+    outputTensorInfo.m_QuantizationInfo = reinterpretQuantizationInfo.m_OutputQuantizationInfo;
+    return outputTensorInfo;
+}
+
 LeakyRelu::LeakyRelu(const detail::PosInNetwork pos, uint32_t id, Operand& input, const LeakyReluInfo& leakyReluInfo)
     : VisitableOperation<LeakyRelu>(
           pos, id, { &input }, { CalculateOutputTensorInfo(input.GetTensorInfo(), leakyReluInfo) })

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -110,6 +110,9 @@ public:
                                       Constant& bias,
                                       Constant& weights,
                                       const FullyConnectedInfo fullyConnectedInfo);
+
+    ReinterpretQuantization& AddReinterpretQuantization(Operand& input,
+                                                        const ReinterpretQuantizationInfo& reinterpretQuantizationInfo);
 
     Relu& AddRelu(Operand& input, const ReluInfo& reluInfo);
 

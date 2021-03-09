@@ -260,7 +260,7 @@ void Node::PrepareAfterPassAssignment(SramAllocator& sramAllocator)
             bool canDeallocateInput = true;
             for (const auto& node : inputNode->GetOutputs())
             {
-                //Keep the node sram offset untill all of its outputs nodes have been assigned a pass
+                //Keep the node sram offset until all of its outputs nodes have been assigned a pass
                 //we still need to deallocate its inputs otherwise nodes that fail to prepare will
                 //leave their inputs in SRAM for the whole preparation iteration.
                 if (!node->GetDestination()->m_PreparationAttempted)

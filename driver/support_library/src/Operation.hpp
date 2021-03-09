@@ -28,6 +28,7 @@ class Concatenation;
 class Split;
 class Addition;
 class FullyConnected;
+class ReinterpretQuantization;
 class Relu;
 class LeakyRelu;
 class Requantize;
@@ -70,28 +71,29 @@ class INetworkVisitor
 public:
     virtual ~INetworkVisitor()
     {}
-    virtual void Visit(Input& input)                               = 0;
-    virtual void Visit(Output& output)                             = 0;
-    virtual void Visit(Constant& constant)                         = 0;
-    virtual void Visit(Convolution& convolution)                   = 0;
-    virtual void Visit(DepthwiseConvolution& depthwiseConvolution) = 0;
-    virtual void Visit(TransposeConvolution& transposeConvolution) = 0;
-    virtual void Visit(Concatenation& concatenation)               = 0;
-    virtual void Visit(Split& split)                               = 0;
-    virtual void Visit(Addition& addition)                         = 0;
-    virtual void Visit(FullyConnected& fullyConnected)             = 0;
-    virtual void Visit(Relu& relu)                                 = 0;
-    virtual void Visit(LeakyRelu& leakyRelu)                       = 0;
-    virtual void Visit(Requantize& requantize)                     = 0;
-    virtual void Visit(Softmax& softmax)                           = 0;
-    virtual void Visit(Sigmoid& sigmoid)                           = 0;
-    virtual void Visit(Pooling& pooling)                           = 0;
-    virtual void Visit(Reshape& reshape)                           = 0;
-    virtual void Visit(DepthToSpace& depthToSpace)                 = 0;
-    virtual void Visit(SpaceToDepth& spaceToDepth)                 = 0;
-    virtual void Visit(Transpose& transpose)                       = 0;
-    virtual void Visit(Resize& resize)                             = 0;
-    virtual void Visit(EstimateOnly& estimateOnly)                 = 0;
+    virtual void Visit(Input& input)                                     = 0;
+    virtual void Visit(Output& output)                                   = 0;
+    virtual void Visit(Constant& constant)                               = 0;
+    virtual void Visit(Convolution& convolution)                         = 0;
+    virtual void Visit(DepthwiseConvolution& depthwiseConvolution)       = 0;
+    virtual void Visit(TransposeConvolution& transposeConvolution)       = 0;
+    virtual void Visit(Concatenation& concatenation)                     = 0;
+    virtual void Visit(Split& split)                                     = 0;
+    virtual void Visit(Addition& addition)                               = 0;
+    virtual void Visit(FullyConnected& fullyConnected)                   = 0;
+    virtual void Visit(ReinterpretQuantization& reinterpretQuantization) = 0;
+    virtual void Visit(Relu& relu)                                       = 0;
+    virtual void Visit(LeakyRelu& leakyRelu)                             = 0;
+    virtual void Visit(Requantize& requantize)                           = 0;
+    virtual void Visit(Softmax& softmax)                                 = 0;
+    virtual void Visit(Sigmoid& sigmoid)                                 = 0;
+    virtual void Visit(Pooling& pooling)                                 = 0;
+    virtual void Visit(Reshape& reshape)                                 = 0;
+    virtual void Visit(DepthToSpace& depthToSpace)                       = 0;
+    virtual void Visit(SpaceToDepth& spaceToDepth)                       = 0;
+    virtual void Visit(Transpose& transpose)                             = 0;
+    virtual void Visit(Resize& resize)                                   = 0;
+    virtual void Visit(EstimateOnly& estimateOnly)                       = 0;
 };
 
 /// Implementation of INetworkVisitor with default no-op implementations.
@@ -120,6 +122,8 @@ public:
     void Visit(Addition&) override
     {}
     void Visit(FullyConnected&) override
+    {}
+    void Visit(ReinterpretQuantization&) override
     {}
     void Visit(Relu&) override
     {}

@@ -425,6 +425,18 @@ void NetworkToGraphConverter::Visit(FullyConnected& fullyConnected)
     ConnectNodeChain(fullyConnected, nodes);
 }
 
+void NetworkToGraphConverter::Visit(ReinterpretQuantization& reinterpretQuantization)
+{
+    // The reinterpretation of the quantization parameters has already happened when inserting the operation so we
+    // just make a reinterpret node using the TensorInfo of the output's operation
+    const TensorInfo& tensorInfo = reinterpretQuantization.GetOutput(0).GetTensorInfo();
+
+    ReinterpretNode* reinterpretNode = m_Graph.CreateAndAddNodeWithDebug<ReinterpretNode>(
+        ETHOSN_FUNCTION_SIGNATURE, tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo,
+        CompilerDataFormat::NHWCB, std::set<uint32_t>{ reinterpretQuantization.GetId() });
+    ConnectNode(reinterpretQuantization, reinterpretNode);
+}
+
 void NetworkToGraphConverter::Visit(Addition& addition)
 {
     const auto& inputInfo0 = addition.GetInput(0).GetTensorInfo();

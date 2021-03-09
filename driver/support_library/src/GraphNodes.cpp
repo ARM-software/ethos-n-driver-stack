@@ -6,6 +6,7 @@
 #include "GraphNodes.hpp"
 
 #include "DebuggingContext.hpp"
+#include "SramAllocator.hpp"
 #include "Utils.hpp"
 #include "nonCascading/BufferManager.hpp"
 #include "nonCascading/ConversionPass.hpp"
@@ -629,13 +630,21 @@ DotAttributes ReinterpretNode::GetDotAttributes()
 
 void ReinterpretNode::PrepareAfterPassAssignment(SramAllocator& sramAllocator)
 {
-    Node::PrepareAfterPassAssignment(sramAllocator);
     if (m_Pass == nullptr)
     {
+        const BufferLocation& bufferLocation = GetInputLocation(0);
+        if (bufferLocation == BufferLocation::Sram)
+        {
+            sramAllocator.IncrementReferenceCount(m_Id, GetInputSramOffset(0));
+            SetOutputSramOffset(GetInputSramOffset(0));
+        }
         // This is called if there is no pass for us. Necessary so future passes can see our location.
         // If we are in a pass then the pass will handle this for us.
-        SetLocation(GetInputLocation(0));
+        SetLocation(bufferLocation);
     }
+
+    // Call the parent function's implementation after the node had the chance to increment the SRAM reference count.
+    Node::PrepareAfterPassAssignment(sramAllocator);
 }
 
 ConcatNode::ConcatNode(NodeId id,

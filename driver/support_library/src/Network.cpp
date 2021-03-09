@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -136,6 +136,12 @@ FullyConnected& Network::AddFullyConnected(Operand& input,
 
     return AddOperationWithId<FullyConnected>({ &input.GetProducer(), &bias, &weights }, input, bias, weights,
                                               fullyConnectedInfo);
+}
+
+ReinterpretQuantization&
+    Network::AddReinterpretQuantization(Operand& input, const ReinterpretQuantizationInfo& reinterpretQuantizationInfo)
+{
+    return AddOperationWithId<ReinterpretQuantization>({ &input.GetProducer() }, input, reinterpretQuantizationInfo);
 }
 
 Relu& Network::AddRelu(Operand& input, const ReluInfo& reluInfo)

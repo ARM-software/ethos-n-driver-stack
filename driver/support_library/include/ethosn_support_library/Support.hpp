@@ -566,6 +566,16 @@ struct FullyConnectedInfo
     QuantizationInfo m_OutputQuantizationInfo;
 };
 
+// Parameters that specify a reinterpret quantization operation
+struct ReinterpretQuantizationInfo
+{
+    ReinterpretQuantizationInfo(const QuantizationInfo& qInfo = {})
+        : m_OutputQuantizationInfo(qInfo)
+    {}
+
+    QuantizationInfo m_OutputQuantizationInfo;
+};
+
 // Parameters that specify a relu operation
 struct ReluInfo
 {
@@ -1137,6 +1147,14 @@ TensorAndId<Operand> AddFullyConnected(const std::shared_ptr<Network>& network,
                                        Constant& bias,
                                        Constant& weights,
                                        FullyConnectedInfo fullyConnectedInfo);
+
+// Add a ReinterpretQuantization to a Network.
+// This operation doesn't correspond to an actual network's operation but it useful
+// when the user needs to change the quantization parameters at a late stage of
+// a network's construction.
+TensorAndId<Operand> AddReinterpretQuantization(const std::shared_ptr<Network>& network,
+                                                Operand& input,
+                                                const ReinterpretQuantizationInfo& reinterpretQuantizationInfo);
 
 // Add Relu to a Network. The returned shared_ptr ref-counts the network.
 TensorAndId<Operand> AddRelu(const std::shared_ptr<Network>& network, Operand& input, const ReluInfo& reluInfo);

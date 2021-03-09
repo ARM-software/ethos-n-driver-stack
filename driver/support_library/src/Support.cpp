@@ -223,6 +223,13 @@ TensorAndId<Operand> AddFullyConnected(const std::shared_ptr<Network>& network,
     return GetSingleOutputResult(network, network->AddFullyConnected(input, bias, weights, fullyConnectedInfo));
 }
 
+TensorAndId<Operand> AddReinterpretQuantization(const std::shared_ptr<Network>& network,
+                                                Operand& input,
+                                                const ReinterpretQuantizationInfo& reinterpretQuantizationInfo)
+{
+    return GetSingleOutputResult(network, network->AddReinterpretQuantization(input, reinterpretQuantizationInfo));
+}
+
 TensorAndId<Operand> AddRelu(const std::shared_ptr<Network>& network, Operand& input, const ReluInfo& reluInfo)
 {
     return GetSingleOutputResult(network, network->AddRelu(input, reluInfo));

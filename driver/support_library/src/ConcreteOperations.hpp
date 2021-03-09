@@ -311,6 +311,22 @@ private:
     FullyConnectedInfo m_FullyConnectedInfo;
 };
 
+class ReinterpretQuantization : public VisitableOperation<ReinterpretQuantization>
+{
+public:
+    ReinterpretQuantization(const detail::PosInNetwork pos,
+                            uint32_t id,
+                            Operand& input,
+                            const ReinterpretQuantizationInfo& reinterpretQuantizationInfo);
+
+    static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputTensorInfo,
+                                                const ReinterpretQuantizationInfo& reinterpretQuantizationInfo);
+    const char* GetTypeName() final
+    {
+        return "ReinterpretQuantization";
+    }
+};
+
 class Relu : public VisitableOperation<Relu>
 {
 public:

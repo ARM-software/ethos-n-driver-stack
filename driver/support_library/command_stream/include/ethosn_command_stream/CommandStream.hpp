@@ -125,5 +125,47 @@ private:
     const CommandHeader* m_End;
 };
 
+template <Opcode O>
+constexpr bool AreCommandsEqual(const CommandHeader& lhs, const CommandHeader& rhs)
+{
+    const auto opLhs = lhs.GetCommand<O>();
+    const auto opRhs = rhs.GetCommand<O>();
+    bool equal       = *opLhs == *opRhs;
+    return equal;
+}
+
+constexpr bool AreCommandsEqual(const CommandHeader& lhs, const CommandHeader& rhs)
+{
+    if (lhs.m_Opcode() != rhs.m_Opcode())
+    {
+        return false;
+    }
+    switch (lhs.m_Opcode())
+    {
+        case Opcode::OPERATION_MCE_PLE:
+            return AreCommandsEqual<Opcode::OPERATION_MCE_PLE>(lhs, rhs);
+        case Opcode::OPERATION_PLE_ONLY:
+            return AreCommandsEqual<Opcode::OPERATION_PLE_ONLY>(lhs, rhs);
+        case Opcode::OPERATION_CONVERT:
+            return AreCommandsEqual<Opcode::OPERATION_CONVERT>(lhs, rhs);
+        case Opcode::DELAY:
+            return AreCommandsEqual<Opcode::DELAY>(lhs, rhs);
+        case Opcode::DUMP_DRAM:
+            return AreCommandsEqual<Opcode::DUMP_DRAM>(lhs, rhs);
+        case Opcode::DUMP_SRAM:
+            return AreCommandsEqual<Opcode::DUMP_SRAM>(lhs, rhs);
+        case Opcode::FENCE:
+            return AreCommandsEqual<Opcode::FENCE>(lhs, rhs);
+        case Opcode::OPERATION_SOFTMAX:
+            return AreCommandsEqual<Opcode::OPERATION_SOFTMAX>(lhs, rhs);
+        case Opcode::OPERATION_SPACE_TO_DEPTH:
+            return AreCommandsEqual<Opcode::OPERATION_SPACE_TO_DEPTH>(lhs, rhs);
+        case Opcode::SECTION:
+            return AreCommandsEqual<Opcode::SECTION>(lhs, rhs);
+        default:
+            return false;
+    }
+}
+
 }    // namespace command_stream
 }    // namespace ethosn
