@@ -189,8 +189,17 @@ public:
 
     virtual void SetOperationSpecificData(command_stream::McePle& data) const;
 
+    void SetFixGraphInsertIdentityNodeHint(bool isIdentityNode);
+
+    bool GetFixGraphInsertIdentityNodeHint() const
+    {
+        return m_InsertIdentityNodeHint;
+    }
+
 private:
     command_stream::PleOperation m_KernelOperation;
+
+    bool m_InsertIdentityNodeHint;
 
     /// The effect this ple node has on the shape of the output
     utils::ShapeMultiplier m_ShapeMultiplier;

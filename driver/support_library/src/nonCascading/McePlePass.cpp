@@ -445,6 +445,7 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
             }
             res.m_StrategySelected = selectedStrategy.success;
             res.m_MceOperation     = mceOperation;
+            res.m_FuseOnlyPle      = fuseOnlyPle;
         }
 
         current = GetNextLinearNodeForInclusionInPass<Node>(current);
@@ -490,6 +491,22 @@ std::unique_ptr<ethosn::support_library::McePlePass>
         linearNodes.m_MceOperation->SetFixGraphAlgorithmHint(AlgorithmHint::RequireDirect);
         return std::unique_ptr<McePlePass>();
     }
+
+    // If deep convolution followed by MaxPool 3x3 and the number of input channels is too large the ifm will
+    // be split in width and since the max pool PLE kernel does not support splitting in width the network
+    // will fail to compile so we need to insert identity depthwise before the max pool whenever we find this
+    // pattern.
+    if (!linearNodes.m_StrategySelected && linearNodes.m_FuseOnlyPle &&
+        ((linearNodes.m_FuseOnlyPle->GetKernelOperation() == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN) ||
+         (linearNodes.m_FuseOnlyPle->GetKernelOperation() == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD)) &&
+        dynamic_cast<MceOperationNode*>(linearNodes.m_FuseOnlyPle->GetInput(0)->GetSource()) != nullptr &&
+        dynamic_cast<MceOperationNode*>(linearNodes.m_FuseOnlyPle->GetInput(0)->GetSource())->GetOperation() !=
+            command_stream::MceOperation::DEPTHWISE_CONVOLUTION)
+    {
+        linearNodes.m_FuseOnlyPle->SetFixGraphInsertIdentityNodeHint(true);
+        return std::unique_ptr<McePlePass>();
+    }
+
     if (!linearNodes.m_StrategySelected)
     {
         // We may have been unable to find a strategy because SRAM is full

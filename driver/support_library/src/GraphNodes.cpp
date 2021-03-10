@@ -387,6 +387,7 @@ FuseOnlyPleOperationNode::FuseOnlyPleOperationNode(NodeId id,
                                                    std::set<uint32_t> correspondingOperationIds)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
     , m_KernelOperation(k)
+    , m_InsertIdentityNodeHint(false)
     , m_ShapeMultiplier(shapeMultiplier)
 {}
 
@@ -409,6 +410,11 @@ bool FuseOnlyPleOperationNode::IsPrepared()
     return m_Pass != nullptr;
 }
 
+void FuseOnlyPleOperationNode::SetFixGraphInsertIdentityNodeHint(bool isIdentityNode)
+{
+    m_InsertIdentityNodeHint = isIdentityNode;
+}
+
 DotAttributes FuseOnlyPleOperationNode::GetDotAttributes()
 {
     DotAttributes result = Node::GetDotAttributes();
@@ -420,12 +426,16 @@ bool FuseOnlyPleOperationNode::FixGraph(Graph& graph, FixGraphSeverity severity)
 {
     bool changed = Node::FixGraph(graph, severity);
     // If we couldn't be assigned into a pass then it may be because there is no convolution node before for us to
-    // be assigned to. In this case make an identity convolution node.
-    if (m_Pass == nullptr && (dynamic_cast<MceOperationNode*>(GetInput(0)->GetSource()) == nullptr ||
-                              GetInput(0)->GetSource()->GetOutputs().size() > 1))
+    // be assigned to. In this case make an identity convolution node. We might also need to insert identity depthwise
+    //  if a deep convolution followed by MaxPool 3x3 and the ifm will be splitted in width, please check the comment in McePlePass.cpp
+
+    if (m_Pass == nullptr &&
+        (m_InsertIdentityNodeHint || dynamic_cast<MceOperationNode*>(GetInput(0)->GetSource()) == nullptr ||
+         GetInput(0)->GetSource()->GetOutputs().size() > 1))
     {
         InsertIdentityNode(graph, GetInput(0));
-        changed = true;
+        changed                  = true;
+        m_InsertIdentityNodeHint = false;
     }
     return changed;
 }

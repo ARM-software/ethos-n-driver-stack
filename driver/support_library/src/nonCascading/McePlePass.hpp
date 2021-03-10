@@ -29,8 +29,9 @@ struct LinearNodesOutput
     // This is to prevent the case where we are able to create a pass then try and add an additional node
     // This then fails to create a pass which fails to prepare all the nodes. It should use the previously sucessful pass.
     std::vector<Node*> m_WorkingNodes;
-    MceOperationNode* m_MceOperation = nullptr;
-    bool m_StrategySelected          = false;
+    MceOperationNode* m_MceOperation        = nullptr;
+    FuseOnlyPleOperationNode* m_FuseOnlyPle = nullptr;
+    bool m_StrategySelected                 = false;
     StrategyConfig m_StrategyConfig;
     CompilerDataFormat m_RequiredOutputFormat = CompilerDataFormat::NONE;
     BufferLocation m_OutputLocation           = BufferLocation::None;
