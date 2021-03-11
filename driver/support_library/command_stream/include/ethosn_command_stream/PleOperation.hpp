@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -28,6 +28,7 @@ enum class PleOperation : uint8_t
     SIGMOID,
     TRANSPOSE_XY,
     LEAKY_RELU,
+    DOWNSAMPLE_2X2,
 };
 
 }    // namespace command_stream
