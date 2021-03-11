@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -136,7 +136,7 @@ TEST_CASE("ConvolutionSupported")
     {
         const auto inputDataType = GENERATE(DataType::UINT8_QUANTIZED, DataType::INT8_QUANTIZED);
 
-        TensorInfo biasInfo({ 1, 1, 1, 1 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, 1.f });
+        TensorInfo biasInfo({ 1, 1, 1, 1 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, 0.5f });
         TensorInfo weightsInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO);
         ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 });
         TensorInfo inputInfo({ 1, 1, 1, 1 }, inputDataType, DataFormat::NHWCB, { 0, 0.5f });
@@ -209,6 +209,48 @@ TEST_CASE("ConvolutionSupported")
         REQUIRE(Contains(
             reason,
             "Convolution must have quantization parameters with same number of elements as the quantisation dim"));
+    }
+
+    SECTION("Unsupported conv overall scale: too small")
+    {
+        const auto inputDataType = GENERATE(DataType::UINT8_QUANTIZED, DataType::INT8_QUANTIZED);
+
+        TensorInfo biasInfo({ 1, 1, 1, 1 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
+        biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 2.3e-10 });
+        biasInfo.m_QuantizationInfo.SetZeroPoint(0);
+        biasInfo.m_QuantizationInfo.SetQuantizationDim(3);
+        TensorInfo weightsInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO);
+        weightsInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 2.3e-10 });
+        weightsInfo.m_QuantizationInfo.SetZeroPoint(0);
+        weightsInfo.m_QuantizationInfo.SetQuantizationDim(3);
+        ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 }, { 0, 1.f });
+        TensorInfo inputInfo({ 1, 1, 1, 1 }, inputDataType, DataFormat::NHWCB, { 0, 1.f });
+        auto isSupported =
+            queries.IsConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason, sizeof(reason));
+        INFO(reason);
+        REQUIRE(isSupported == SupportedLevel::EstimateOnly);
+        REQUIRE(Contains(reason,
+                         "Overall scale (of the input * weights / output) should be in the range [2.328306e-10, 1)"));
+    }
+
+    SECTION("Supported conv overall scale: just fits")
+    {
+        const auto inputDataType = GENERATE(DataType::UINT8_QUANTIZED, DataType::INT8_QUANTIZED);
+
+        TensorInfo biasInfo({ 1, 1, 1, 1 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
+        biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 2.33e-10 });
+        biasInfo.m_QuantizationInfo.SetZeroPoint(0);
+        biasInfo.m_QuantizationInfo.SetQuantizationDim(3);
+        TensorInfo weightsInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO);
+        weightsInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 2.33e-10 });
+        weightsInfo.m_QuantizationInfo.SetZeroPoint(0);
+        weightsInfo.m_QuantizationInfo.SetQuantizationDim(3);
+        ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 }, { 0, 1.f });
+        TensorInfo inputInfo({ 1, 1, 1, 1 }, inputDataType, DataFormat::NHWCB, { 0, 1.f });
+        auto isSupported =
+            queries.IsConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason, sizeof(reason));
+        INFO(reason);
+        REQUIRE(isSupported == SupportedLevel::Supported);
     }
 
     SECTION("Unsupported conv per channel quantization: unsupported axis")

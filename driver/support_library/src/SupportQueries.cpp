@@ -9,6 +9,7 @@
 #include "Network.hpp"
 #include "Utils.hpp"
 
+#include <cmath>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
@@ -282,6 +283,23 @@ constexpr bool IsQuantizationScaleSupported(float input, float output)
     return (multiplier >= 0.f && multiplier < 1.f);
 }
 
+bool IsQuantizationScaleSupported(const QuantizationScales& overallScale,
+                                  const char* what,
+                                  char* reason,
+                                  size_t reasonMaxLength)
+{
+    // The shift is encoded with 5 bits
+    constexpr uint32_t maxShift = (1 << 5);
+    const float minScale        = std::exp2f(-(static_cast<float>(maxShift)));
+    if (overallScale.min() < minScale || overallScale.max() >= 1.0f)
+    {
+        SetReason("%s: Overall scale (of the input * weights / output) should be in the range [%e, 1)", reason,
+                  reasonMaxLength, what, minScale);
+        return false;
+    }
+    return true;
+}
+
 }    // namespace
 
 const SupportedLevel SupportedLevel::Unsupported  = SupportedLevel(InternalSupportedLevel::Unsupported);
@@ -544,10 +562,8 @@ SupportedLevel SupportQueries::IsConvolutionSupported(const TensorInfo& biasInfo
     }
 
     QuantizationScales overallScale = intermediateScales / convInfo.m_OutputQuantizationInfo.GetScales();
-    if (overallScale.min() < 0.0f || overallScale.max() >= 1.0f)
+    if (!IsQuantizationScaleSupported(overallScale, "Convolution", reason, reasonMaxLength))
     {
-        SetReason("Overall scale (of the input * weights / output) should be in the range [0, 1)", reason,
-                  reasonMaxLength);
         return SupportedLevel::EstimateOnly;
     }
 
@@ -709,10 +725,8 @@ SupportedLevel SupportQueries::IsDepthwiseConvolutionSupported(const TensorInfo&
     }
 
     QuantizationScales overallScale = intermediateScales / convInfo.m_OutputQuantizationInfo.GetScales();
-    if (overallScale.min() < 0.0f || overallScale.max() >= 1.0f)
+    if (!IsQuantizationScaleSupported(overallScale, "Depthwise Convolution", reason, reasonMaxLength))
     {
-        SetReason("Overall scale (of the input * weights / output) should be in the range [0, 1)", reason,
-                  reasonMaxLength);
         return SupportedLevel::EstimateOnly;
     }
 
@@ -871,13 +885,9 @@ SupportedLevel SupportQueries::IsTransposeConvolutionSupported(const TensorInfo&
         return SupportedLevel::EstimateOnly;
     }
 
-    QuantizationScales overallScale =
-        (inputInfo.m_QuantizationInfo.GetScales() * weightsInfo.m_QuantizationInfo.GetScales()) /
-        convInfo.m_OutputQuantizationInfo.GetScales();
-    if (overallScale.min() < 0.0f || overallScale.max() >= 1.0f)
+    QuantizationScales overallScale = intermediateScales / convInfo.m_OutputQuantizationInfo.GetScales();
+    if (!IsQuantizationScaleSupported(overallScale, "Tranpose Convolution", reason, reasonMaxLength))
     {
-        SetReason("Overall scale (of the input * weights / output) should be in the range [0, 1)", reason,
-                  reasonMaxLength);
         return SupportedLevel::EstimateOnly;
     }
 
@@ -1366,10 +1376,8 @@ SupportedLevel SupportQueries::IsFullyConnectedSupported(const TensorInfo& biasI
     }
 
     QuantizationScales overallScale = intermediateScales / fullyConnectedInfo.m_OutputQuantizationInfo.GetScales();
-    if (overallScale.min() < 0.0f || overallScale.max() >= 1.0f)
+    if (!IsQuantizationScaleSupported(overallScale, "Fully Connected", reason, reasonMaxLength))
     {
-        SetReason("Overall scale (of the input * weights / output) should be in the range [0, 1)", reason,
-                  reasonMaxLength);
         return SupportedLevel::EstimateOnly;
     }
 
