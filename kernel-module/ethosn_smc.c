@@ -32,30 +32,38 @@
 #define ETHOSN_SMC_CORE_HARD_RESET      0xc2000052
 #define ETHOSN_SMC_CORE_SOFT_RESET      0xc2000053
 
-#define ETHOSN_SMC_CALL(cmd, res) \
-	arm_smccc_smc(cmd, 0, 0, 0, 0, 0, 0, 0, res)
+static inline long __must_check ethosn_smc_core_call(u32 cmd,
+						     u32 core_id,
+						     struct arm_smccc_res *res)
+{
+	arm_smccc_smc(cmd, core_id, 0, 0, 0, 0, 0, 0, res);
 
-#define ETHOSN_SMC_CORE_CALL(cmd, core_id, res)	\
-	arm_smccc_smc(cmd, core_id, 0, 0, 0, 0, 0, 0, res)
+	return (long)res->a0;
+}
+
+static inline long __must_check ethosn_smc_call(u32 cmd,
+						struct arm_smccc_res *res)
+{
+	return ethosn_smc_core_call(cmd, 0, res);
+}
 
 int ethosn_smc_version_check(struct ethosn_core *core)
 {
 	struct arm_smccc_res res = { 0 };
 
-	ETHOSN_SMC_CALL(ETHOSN_SMC_VERSION, &res);
-	if (res.a0 < 0) {
+	if (ethosn_smc_call(ETHOSN_SMC_VERSION, &res) < 0) {
 		dev_warn(core->dev,
-			 "Arm Ethos-N NPU SiP service not available\n");
+			 "Arm Ethos-N NPU SiP service not available.\n");
 
-		return -EFAULT;
+		return -ENXIO;
 	}
 
 	if (res.a0 != ETHOSN_SIP_MAJOR_VERSION ||
 	    res.a1 < ETHOSN_SIP_MINOR_VERSION) {
 		dev_warn(core->dev,
-			 "Incompatible Arm Ethos-N NPU SiP service version.");
+			 "Incompatible Arm Ethos-N NPU SiP service version.\n");
 
-		return -EINVAL;
+		return -EPROTO;
 	}
 
 	return 0;
@@ -65,12 +73,17 @@ int ethosn_smc_is_secure(struct ethosn_core *core)
 {
 	struct arm_smccc_res res = { 0 };
 
-	ETHOSN_SMC_CALL(ETHOSN_SMC_IS_SECURE, &res);
-	if (res.a0 < 0) {
+	if (ethosn_smc_call(ETHOSN_SMC_IS_SECURE, &res) < 0) {
 		dev_err(core->dev,
-			"Arm Ethos-N NPU SiP service not available");
+			"Arm Ethos-N NPU SiP service not available.\n");
 
-		return -EFAULT;
+		return -ENXIO;
+	}
+
+	if (res.a0 > 1U) {
+		dev_err(core->dev, "Invalid NPU secure status.\n");
+
+		return -EPROTO;
 	}
 
 	return res.a0;
@@ -83,9 +96,8 @@ int ethosn_smc_core_reset(struct ethosn_core *core,
 	const u32 smc_reset_call = hard_reset ? ETHOSN_SMC_CORE_HARD_RESET :
 				   ETHOSN_SMC_CORE_SOFT_RESET;
 
-	ETHOSN_SMC_CORE_CALL(smc_reset_call, core->core_id, &res);
-	if (res.a0) {
-		dev_warn(core->dev, "Failed to %s reset the hardware. %ld\n",
+	if (ethosn_smc_core_call(smc_reset_call, core->core_id, &res)) {
+		dev_warn(core->dev, "Failed to %s reset the hardware: %ld\n",
 			 hard_reset ? "hard" : "soft", res.a0);
 
 		return -EFAULT;
