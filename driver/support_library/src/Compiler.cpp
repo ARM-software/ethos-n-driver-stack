@@ -490,9 +490,9 @@ CompiledNetworkImpl::CompiledNetworkImpl(const std::vector<uint8_t>& constantDma
                                          const std::vector<uint8_t>& constantControlUnitData,
                                          const std::map<uint32_t, CompilerBufferInfo>& buffers,
                                          const std::set<uint32_t>& operationIds)
-    : m_ConstantDmaData(constantDmaData)
+    : m_OperationIds(operationIds)
+    , m_ConstantDmaData(constantDmaData)
     , m_ConstantControlUnitData(constantControlUnitData)
-    , m_OperationIds(operationIds)
 {
     // Convert the set of buffers from the BufferManager into the format that CompiledNetwork exposes.
     for (auto internalBufferIt : buffers)
@@ -506,23 +506,22 @@ CompiledNetworkImpl::CompiledNetworkImpl(const std::vector<uint8_t>& constantDma
             continue;
         }
 
-        BufferInfo buffer(bufferId, compilerBuffer.m_Offset, compilerBuffer.m_Size);
+        BufferInfoInternal buffer(bufferId, compilerBuffer.m_Offset, compilerBuffer.m_Size,
+                                  compilerBuffer.m_SourceOperationId, compilerBuffer.m_SourceOperationOutputIndex);
         switch (compilerBuffer.m_Type)
         {
             case BufferType::Input:
             {
-                InputBufferInfo inputbuffer(buffer.m_Id, buffer.m_Offset, buffer.m_Size,
-                                            compilerBuffer.m_SourceOperationId,
-                                            compilerBuffer.m_SourceOperationOutputIndex);
-                m_InputBufferInfos.push_back(inputbuffer);
+                m_InputBufferInfos.push_back(buffer);
+                m_InputBufferInfosPublic.emplace_back(compilerBuffer.m_Size, compilerBuffer.m_SourceOperationId,
+                                                      compilerBuffer.m_SourceOperationOutputIndex);
                 break;
             }
             case BufferType::Output:
             {
-                OutputBufferInfo outputbuffer(bufferId, compilerBuffer.m_Offset, compilerBuffer.m_Size,
-                                              compilerBuffer.m_SourceOperationId,
-                                              compilerBuffer.m_SourceOperationOutputIndex);
-                m_OutputBufferInfos.push_back(outputbuffer);
+                m_OutputBufferInfos.push_back(buffer);
+                m_OutputBufferInfosPublic.emplace_back(compilerBuffer.m_Size, compilerBuffer.m_SourceOperationId,
+                                                       compilerBuffer.m_SourceOperationOutputIndex);
                 break;
             }
             case BufferType::Intermediate:
@@ -546,19 +545,6 @@ CompiledNetworkImpl::CompiledNetworkImpl(const std::vector<uint8_t>& constantDma
     }
 }
 
-uint32_t CompiledNetworkImpl::GetIntermediateDataSize() const
-{
-    if (m_IntermediateDataBufferInfos.empty())
-    {
-        return 0;
-    }
-    auto GetLastBufferAddress = [](const auto& buf) { return buf.m_Offset + buf.m_Size; };
-    auto maxBuffer            = std::max_element(
-        m_IntermediateDataBufferInfos.begin(), m_IntermediateDataBufferInfos.end(),
-        [&](const auto& a, const auto& b) { return GetLastBufferAddress(a) < GetLastBufferAddress(b); });
-    return GetLastBufferAddress(*maxBuffer);
-}
-
 namespace
 {
 
@@ -577,8 +563,7 @@ void WriteByteArray(std::ostream& out, const std::vector<uint8_t>& data)
     out.write(reinterpret_cast<const char*>(data.data()), data.size());
 }
 
-template <typename TBufferInfo>
-void WriteBufferInfoArray(std::ostream& out, const std::vector<TBufferInfo>& data)
+void WriteBufferInfoArray(std::ostream& out, const std::vector<CompiledNetworkImpl::BufferInfoInternal>& data)
 {
     Write(out, static_cast<uint32_t>(data.size()));
     for (size_t i = 0; i < data.size(); ++i)

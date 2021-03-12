@@ -825,28 +825,18 @@ struct BufferInfo
 {
 public:
     BufferInfo()
-        : m_Id(0)
-        , m_Offset(0)
-        , m_Size(0)
+        : m_Size(0)
     {}
 
-    constexpr BufferInfo(uint32_t id, uint32_t offset, uint32_t size)
-        : m_Id(id)
-        , m_Offset(offset)
-        , m_Size(size)
+    constexpr BufferInfo(uint32_t size)
+        : m_Size(size)
     {}
 
     bool operator==(const BufferInfo& rhs) const
     {
-        return m_Id == rhs.m_Id && m_Offset == rhs.m_Offset && m_Size == rhs.m_Size;
+        return m_Size == rhs.m_Size;
     }
 
-    /// Unique ID for this buffer, across all types of buffers exposed by CompiledNetwork.
-    /// IDs are contiguous across all buffer types and start at zero.
-    /// IDs are *not* necessarily contiguous within each type of buffer.
-    uint32_t m_Id;
-    /// Offset of the start of this buffer relative to a block of data containing all buffers of this type.
-    uint32_t m_Offset;
     /// Size (in bytes) of this buffer.
     uint32_t m_Size;
 };
@@ -876,9 +866,8 @@ struct InputBufferInfo : BufferInfo
         , m_SourceOperationOutputIndex(0)
     {}
 
-    constexpr InputBufferInfo(
-        uint32_t id, uint32_t offset, uint32_t size, uint32_t operationId, uint32_t sourceOperationOutputIndex)
-        : BufferInfo(id, offset, size)
+    constexpr InputBufferInfo(uint32_t size, uint32_t operationId, uint32_t sourceOperationOutputIndex)
+        : BufferInfo(size)
         , m_SourceOperationId(operationId)
         , m_SourceOperationOutputIndex(sourceOperationOutputIndex)
     {}
@@ -901,9 +890,8 @@ struct OutputBufferInfo : BufferInfo
         , m_SourceOperationOutputIndex(0)
     {}
 
-    constexpr OutputBufferInfo(
-        uint32_t id, uint32_t offset, uint32_t size, uint32_t operationId, uint32_t sourceOperationOutputIndex)
-        : BufferInfo(id, offset, size)
+    constexpr OutputBufferInfo(uint32_t size, uint32_t operationId, uint32_t sourceOperationOutputIndex)
+        : BufferInfo(size)
         , m_SourceOperationId(operationId)
         , m_SourceOperationOutputIndex(sourceOperationOutputIndex)
     {}
@@ -921,8 +909,7 @@ struct OutputBufferInfo : BufferInfo
 inline std::ostream& operator<<(std::ostream& os, const BufferInfo& value)
 {
     std::ios::fmtflags f(os.flags());
-    os << std::hex << "{ Id = 0x" << value.m_Id << ", Offset = 0x" << value.m_Offset << ", Size = 0x" << value.m_Size
-       << " }";
+    os << std::hex << "{ Size = 0x" << value.m_Size << " }";
     os.flags(f);
     return os;
 }
@@ -930,8 +917,8 @@ inline std::ostream& operator<<(std::ostream& os, const BufferInfo& value)
 inline std::ostream& operator<<(std::ostream& os, const InputBufferInfo& value)
 {
     std::ios::fmtflags f(os.flags());
-    os << std::hex << "{ Id = 0x" << value.m_Id << ", Offset = 0x" << value.m_Offset << ", Size = 0x" << value.m_Size
-       << ", OpId = " << value.m_SourceOperationId << ", Index = " << value.m_SourceOperationOutputIndex << " }";
+    os << std::hex << "{ Size = 0x" << value.m_Size << ", OpId = " << value.m_SourceOperationId
+       << ", Index = " << value.m_SourceOperationOutputIndex << " }";
     os.flags(f);
     return os;
 }
@@ -939,8 +926,8 @@ inline std::ostream& operator<<(std::ostream& os, const InputBufferInfo& value)
 inline std::ostream& operator<<(std::ostream& os, const OutputBufferInfo& value)
 {
     std::ios::fmtflags f(os.flags());
-    os << std::hex << "{ Id = 0x" << value.m_Id << ", Offset = 0x" << value.m_Offset << ", Size = 0x" << value.m_Size
-       << ", OpId = " << value.m_SourceOperationId << ", Index = " << value.m_SourceOperationOutputIndex << " }";
+    os << std::hex << "{ Size = 0x" << value.m_Size << ", OpId = " << value.m_SourceOperationId
+       << ", Index = " << value.m_SourceOperationOutputIndex << " }";
     os.flags(f);
     return os;
 }
@@ -952,35 +939,12 @@ public:
     virtual ~CompiledNetwork()
     {}
 
-    /// Data for consumption by the user.
-    /// @{
     virtual const std::set<uint32_t>& GetOperationIds() const = 0;
-    /// @}
 
-    /// Data for consumption by both the user and the Ethos-N Driver Library.
-    /// @{
     /// Details of each input buffer.
     virtual const std::vector<InputBufferInfo>& GetInputBufferInfos() const = 0;
     /// Details of each output buffer.
     virtual const std::vector<OutputBufferInfo>& GetOutputBufferInfos() const = 0;
-    /// @}
-
-    /// Data for internal consumption by the Ethos-N Driver Library.
-    /// @{
-    /// All the constant data to be read directly by the firmware - e.g. command stream, weights metadata
-    virtual const std::vector<uint8_t>& GetConstantControlUnitData() const = 0;
-    /// All the constant data to be DMA'd by the firmware, e.g. weights
-    virtual const std::vector<uint8_t>& GetConstantDmaData() const = 0;
-
-    /// Details of the individual buffers contained in the data returned by GetConstantControlUnitData().
-    virtual const std::vector<BufferInfo>& GetConstantControlUnitDataBufferInfos() const = 0;
-    /// Details of the individual buffers contained in the data returned by GetConstantDmaData().
-    virtual const std::vector<BufferInfo>& GetConstantDmaDataBufferInfos() const = 0;
-    /// Details of each intermediate buffer.
-    virtual const std::vector<BufferInfo>& GetIntermediateDataBufferInfos() const = 0;
-    /// @}
-
-    virtual uint32_t GetIntermediateDataSize() const = 0;
 
     /// Serializes this object to a binary data stream, for consumption by the Driver Library
     /// (see ethosn::driver_library::Network constructor).

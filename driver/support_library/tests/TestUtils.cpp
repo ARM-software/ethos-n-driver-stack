@@ -6,6 +6,7 @@
 #include "TestUtils.hpp"
 
 #include "../src/CapabilitiesInternal.hpp"
+#include "../src/Compiler.hpp"
 
 #include <cstring>
 
@@ -101,18 +102,19 @@ std::vector<uint8_t> GetCommandStreamData(const ethosn::command_stream::CommandS
 
 ethosn::command_stream::CommandStream GetCommandStream(const CompiledNetwork* compiledNetwork)
 {
-    auto& cuBufferInfo = compiledNetwork->GetConstantControlUnitDataBufferInfos();
+    const CompiledNetworkImpl* cnImpl = static_cast<const CompiledNetworkImpl*>(compiledNetwork);
+    auto& cuBufferInfo                = cnImpl->GetConstantControlUnitDataBufferInfos();
     // The command stream buffer id is defined to be 0.
     auto cmdStreamBufferInfo =
-        std::find_if(cuBufferInfo.begin(), cuBufferInfo.end(), [](const BufferInfo& b) { return b.m_Id == 0; });
+        std::find_if(cuBufferInfo.begin(), cuBufferInfo.end(), [](const auto& b) { return b.m_Id == 0; });
     if (cmdStreamBufferInfo == cuBufferInfo.end())
     {
         throw std::exception();
     }
 
-    const uint32_t* begin = reinterpret_cast<const uint32_t*>(compiledNetwork->GetConstantControlUnitData().data() +
-                                                              cmdStreamBufferInfo->m_Offset);
-    const uint32_t* end   = begin + cmdStreamBufferInfo->m_Size / sizeof(uint32_t);
+    const uint32_t* begin =
+        reinterpret_cast<const uint32_t*>(cnImpl->GetConstantControlUnitData().data() + cmdStreamBufferInfo->m_Offset);
+    const uint32_t* end = begin + cmdStreamBufferInfo->m_Size / sizeof(uint32_t);
     return ethosn::command_stream::CommandStream(begin, end);
 }
 

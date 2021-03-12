@@ -1,10 +1,11 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../include/ethosn_support_library/SupportQueries.hpp"
+#include "../src/Compiler.hpp"
 #include "../src/Utils.hpp"
 #include "TestUtils.hpp"
 
@@ -138,7 +139,8 @@ TEST_CASE("Split NHWCB")
     size_t firstOutputIdx = FindIndexIf(compiledNetwork[0]->GetOutputBufferInfos(),
                                         [&](auto b) { return b.m_SourceOperationOutputIndex == 0; })
                                 .second;
-    uint32_t firstOutputBufferId = compiledNetwork[0]->GetOutputBufferInfos()[firstOutputIdx].m_Id;
+    const CompiledNetworkImpl* cnImpl = static_cast<const CompiledNetworkImpl*>(compiledNetwork[0].get());
+    uint32_t firstOutputBufferId      = cnImpl->GetOutputBufferInfosInternal()[firstOutputIdx].m_Id;
 
     // Extract the McePle operations
     using namespace ethosn::command_stream;
@@ -200,7 +202,8 @@ TEST_CASE("Split NHWC")
     size_t firstOutputIdx = FindIndexIf(compiledNetwork[0]->GetOutputBufferInfos(),
                                         [&](auto b) { return b.m_SourceOperationOutputIndex == 0; })
                                 .second;
-    uint32_t firstOutputBufferId = compiledNetwork[0]->GetOutputBufferInfos()[firstOutputIdx].m_Id;
+    const CompiledNetworkImpl* cnImpl = static_cast<const CompiledNetworkImpl*>(compiledNetwork[0].get());
+    uint32_t firstOutputBufferId      = cnImpl->GetOutputBufferInfosInternal()[firstOutputIdx].m_Id;
 
     // Extract the McePle operations
     using namespace ethosn::command_stream;

@@ -115,15 +115,57 @@ private:
 class CompiledNetworkImpl : public CompiledNetwork
 {
 public:
+    struct BufferInfoInternal
+    {
+    public:
+        constexpr BufferInfoInternal()
+            : m_Id(0)
+            , m_Offset(0)
+            , m_Size(0)
+            , m_SourceOperationId(0)
+            , m_SourceOperationOutputIndex(0)
+        {}
+
+        constexpr BufferInfoInternal(uint32_t id, uint32_t offset, uint32_t size)
+            : m_Id(id)
+            , m_Offset(offset)
+            , m_Size(size)
+            , m_SourceOperationId(0xFFFFFFFF)
+            , m_SourceOperationOutputIndex(0xFFFFFFFF)
+        {}
+
+        constexpr BufferInfoInternal(uint32_t id,
+                                     uint32_t offset,
+                                     uint32_t size,
+                                     uint32_t sourceOperationId,
+                                     uint32_t sourceOperationOutputIndex)
+            : m_Id(id)
+            , m_Offset(offset)
+            , m_Size(size)
+            , m_SourceOperationId(sourceOperationId)
+            , m_SourceOperationOutputIndex(sourceOperationOutputIndex)
+        {}
+
+        bool operator==(const BufferInfoInternal& rhs) const
+        {
+            return m_Id == rhs.m_Id && m_Offset == rhs.m_Offset && m_Size == rhs.m_Size &&
+                   m_SourceOperationId == rhs.m_SourceOperationId &&
+                   m_SourceOperationOutputIndex == rhs.m_SourceOperationOutputIndex;
+        }
+
+        /// Unique ID for this buffer, across all types of buffers exposed by CompiledNetwork.
+        /// IDs are contiguous across all buffer types and start at zero.
+        /// IDs are *not* necessarily contiguous within each type of buffer.
+        uint32_t m_Id;
+        /// Offset of the start of this buffer relative to a block of data containing all buffers of this type.
+        uint32_t m_Offset;
+        /// Size (in bytes) of this buffer.
+        uint32_t m_Size;
+        uint32_t m_SourceOperationId;             ///< Only relevant for input and output buffer infos.
+        uint32_t m_SourceOperationOutputIndex;    ///< Only relevant for input and output buffer infos.
+    };
+
     CompiledNetworkImpl()
-        : m_ConstantDmaData()
-        , m_ConstantControlUnitData()
-        , m_InputBufferInfos()
-        , m_OutputBufferInfos()
-        , m_ConstantControlUnitDataBufferInfos()
-        , m_ConstantDmaDataBufferInfos()
-        , m_IntermediateDataBufferInfos()
-        , m_OperationIds()
     {}
 
     CompiledNetworkImpl(const std::vector<uint8_t>& constantDmaData,
@@ -131,62 +173,80 @@ public:
                         const std::map<uint32_t, CompilerBufferInfo>& buffers,
                         const std::set<uint32_t>& operationIds);
 
-    virtual const std::vector<uint8_t>& GetConstantDmaData() const override
-    {
-        return m_ConstantDmaData;
-    }
-
-    virtual const std::vector<uint8_t>& GetConstantControlUnitData() const override
-    {
-        return m_ConstantControlUnitData;
-    }
-
+    /// Public API implementation
+    /// @{
     virtual const std::set<uint32_t>& GetOperationIds() const override
     {
         return m_OperationIds;
     }
 
-    virtual const std::vector<InputBufferInfo>& GetInputBufferInfos() const override
+    const std::vector<InputBufferInfo>& GetInputBufferInfos() const override
+    {
+        return m_InputBufferInfosPublic;
+    }
+
+    const std::vector<OutputBufferInfo>& GetOutputBufferInfos() const override
+    {
+        return m_OutputBufferInfosPublic;
+    }
+
+    void Serialize(std::ostream& out) const override;
+    /// @}
+
+    const std::vector<BufferInfoInternal>& GetInputBufferInfosInternal() const
     {
         return m_InputBufferInfos;
     }
 
-    virtual const std::vector<OutputBufferInfo>& GetOutputBufferInfos() const override
+    const std::vector<BufferInfoInternal>& GetOutputBufferInfosInternal() const
     {
         return m_OutputBufferInfos;
     }
+    const std::vector<uint8_t>& GetConstantDmaData() const
+    {
+        return m_ConstantDmaData;
+    }
 
-    virtual const std::vector<BufferInfo>& GetConstantControlUnitDataBufferInfos() const override
+    const std::vector<uint8_t>& GetConstantControlUnitData() const
+    {
+        return m_ConstantControlUnitData;
+    }
+
+    const std::vector<BufferInfoInternal>& GetConstantControlUnitDataBufferInfos() const
     {
         return m_ConstantControlUnitDataBufferInfos;
     }
 
-    virtual const std::vector<BufferInfo>& GetConstantDmaDataBufferInfos() const override
+    const std::vector<BufferInfoInternal>& GetConstantDmaDataBufferInfos() const
     {
         return m_ConstantDmaDataBufferInfos;
     }
 
-    virtual const std::vector<BufferInfo>& GetIntermediateDataBufferInfos() const override
+    const std::vector<BufferInfoInternal>& GetIntermediateDataBufferInfos() const
     {
         return m_IntermediateDataBufferInfos;
     }
 
-    virtual uint32_t GetIntermediateDataSize() const override;
-
-    virtual void Serialize(std::ostream& out) const override;
-
 private:
+    /// Data exposed via public API.
+    /// @{
+    std::set<uint32_t> m_OperationIds;
+
+    std::vector<InputBufferInfo> m_InputBufferInfosPublic;
+    std::vector<OutputBufferInfo> m_OutputBufferInfosPublic;
+    /// @}
+
+    /// Internal use only
+    /// @{
     std::vector<uint8_t> m_ConstantDmaData;
     std::vector<uint8_t> m_ConstantControlUnitData;
 
-    std::vector<InputBufferInfo> m_InputBufferInfos;
-    std::vector<OutputBufferInfo> m_OutputBufferInfos;
-    std::vector<BufferInfo> m_ConstantControlUnitDataBufferInfos;
-    std::vector<BufferInfo> m_ConstantDmaDataBufferInfos;
-    std::vector<BufferInfo> m_IntermediateDataBufferInfos;
-
-    std::set<uint32_t> m_OperationIds;
-    std::map<uint32_t, std::string> m_OperationIdsFailureReasons;
+    std::vector<BufferInfoInternal> m_InputBufferInfos;
+    std::vector<BufferInfoInternal> m_OutputBufferInfos;
+    std::vector<BufferInfoInternal> m_ConstantControlUnitDataBufferInfos;
+    std::vector<BufferInfoInternal> m_ConstantDmaDataBufferInfos;
+    std::vector<BufferInfoInternal> m_IntermediateDataBufferInfos;
+    /// @}
 };
 
 std::vector<std::unique_ptr<IStrategy>> GenerateAllowedStrategies(const CompilationOptions& m_Options);

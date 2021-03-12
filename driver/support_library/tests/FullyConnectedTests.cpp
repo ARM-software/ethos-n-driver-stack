@@ -5,6 +5,7 @@
 
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../include/ethosn_support_library/SupportQueries.hpp"
+#include "../src/Compiler.hpp"
 #include "TestUtils.hpp"
 
 #include <catch.hpp>
@@ -360,18 +361,19 @@ TEST_CASE("Fully Connected")
     constexpr size_t compiledWeightSize = 12800;
 
     REQUIRE(compiledNetwork.size() == 1);
-    REQUIRE(compiledNetwork[0]->GetConstantControlUnitData() == expectedConstantControlUnitData);
-    REQUIRE(compiledNetwork[0]->GetConstantControlUnitDataBufferInfos() ==
-            std::vector<BufferInfo>{
-                BufferInfo(0u, 0u, static_cast<uint32_t>(expectedCmdStreamData.size())),
-                BufferInfo(3u, static_cast<uint32_t>(expectedCmdStreamData.size() + 63) & ~63, 0x8),
+    const CompiledNetworkImpl* cnImpl = static_cast<const CompiledNetworkImpl*>(compiledNetwork[0].get());
+    REQUIRE(cnImpl->GetConstantControlUnitData() == expectedConstantControlUnitData);
+    REQUIRE(cnImpl->GetConstantControlUnitDataBufferInfos() ==
+            std::vector<CompiledNetworkImpl::BufferInfoInternal>{
+                { 0u, 0u, static_cast<uint32_t>(expectedCmdStreamData.size()) },
+                { 3u, static_cast<uint32_t>(expectedCmdStreamData.size() + 63) & ~63, 0x8 },
             });
-    REQUIRE(compiledNetwork[0]->GetConstantDmaData().size() == compiledWeightSize);
-    REQUIRE(compiledNetwork[0]->GetConstantDmaDataBufferInfos() ==
-            std::vector<BufferInfo>{ BufferInfo(2, 0, compiledWeightSize) });
-    REQUIRE(compiledNetwork[0]->GetInputBufferInfos() ==
-            std::vector<InputBufferInfo>{ InputBufferInfo(1, 0, 0x600, 2, 0) });
-    REQUIRE(compiledNetwork[0]->GetOutputBufferInfos() ==
-            std::vector<OutputBufferInfo>{ OutputBufferInfo(4, 0, 0x10, 3, 0) });
-    REQUIRE(compiledNetwork[0]->GetIntermediateDataBufferInfos() == std::vector<BufferInfo>{});
+    REQUIRE(cnImpl->GetConstantDmaData().size() == compiledWeightSize);
+    REQUIRE(cnImpl->GetConstantDmaDataBufferInfos() ==
+            std::vector<CompiledNetworkImpl::BufferInfoInternal>{ { 2, 0, compiledWeightSize } });
+    REQUIRE(cnImpl->GetInputBufferInfosInternal() ==
+            std::vector<CompiledNetworkImpl::BufferInfoInternal>{ { 1, 0, 0x600, 2, 0 } });
+    REQUIRE(cnImpl->GetOutputBufferInfosInternal() ==
+            std::vector<CompiledNetworkImpl::BufferInfoInternal>{ { 4, 0, 0x10, 3, 0 } });
+    REQUIRE(cnImpl->GetIntermediateDataBufferInfos() == std::vector<CompiledNetworkImpl::BufferInfoInternal>{});
 }
