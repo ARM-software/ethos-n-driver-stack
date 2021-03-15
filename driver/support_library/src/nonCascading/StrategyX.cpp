@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -90,7 +90,7 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
                      const utils::ShapeMultiplier& pleShapeMultiplier,
                      std::pair<const uint32_t, const uint32_t> pad,
                      std::pair<const bool, const uint32_t> inputStaticAndOffset,
-                     TensorConfig& outTensorConfig,
+                     StrategyConfig& outStrategyConfig,
                      const uint32_t depthMax,
                      const bool allowInputBuffering                 = false,
                      const bool avoidInputReloading                 = false,
@@ -315,18 +315,18 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
     {
         return false;
     }
-    outTensorConfig.inputAllocation.stripeShape        = inputStripe;
-    outTensorConfig.inputAllocation.tileSize           = inputTile;
-    outTensorConfig.inputAllocation.numStripesInTile   = numInputStripesInTile;
-    outTensorConfig.outputAllocation.stripeShape       = outputStripe;
-    outTensorConfig.outputAllocation.tileSize          = outputTile;
-    outTensorConfig.outputAllocation.numStripesInTile  = numOutputStripesInTile;
-    outTensorConfig.weightsAllocation.stripeShape      = weightStripe;
-    outTensorConfig.weightsAllocation.tileSize         = weightTile;
-    outTensorConfig.weightsAllocation.numStripesInTile = numWeightStripesInTile;
+    outStrategyConfig.inputAllocation.stripeShape        = inputStripe;
+    outStrategyConfig.inputAllocation.tileSize           = inputTile;
+    outStrategyConfig.inputAllocation.numStripesInTile   = numInputStripesInTile;
+    outStrategyConfig.outputAllocation.stripeShape       = outputStripe;
+    outStrategyConfig.outputAllocation.tileSize          = outputTile;
+    outStrategyConfig.outputAllocation.numStripesInTile  = numOutputStripesInTile;
+    outStrategyConfig.weightsAllocation.stripeShape      = weightStripe;
+    outStrategyConfig.weightsAllocation.tileSize         = weightTile;
+    outStrategyConfig.weightsAllocation.numStripesInTile = numWeightStripesInTile;
     // If we succeeded in finding a strategy, update the sram allocation state
     sramAllocator = currentSramAllocator;
-    FillTensorConfigOffsets(allocationResults, outTensorConfig);
+    FillStrategyConfigOffsets(allocationResults, outStrategyConfig);
     return true;
 }
 
@@ -334,7 +334,7 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
 // matters only for the Firmware).
 bool TryInputZXYOutputXYZ(const command_stream::MceOperation& mceOperation,
                           command_stream::UpsampleType upsampleType,
-                          TensorConfig& tensorConfig,
+                          StrategyConfig& strategyConfig,
                           SramAllocator& sramAllocator,
                           const TensorShape& inputShape,
                           const TensorShape& outputShape,
@@ -430,15 +430,15 @@ bool TryInputZXYOutputXYZ(const command_stream::MceOperation& mceOperation,
                             { 1, params.outputStripeHeight, params.outputStripeWidth, params.outputStripeChannel },
                             params.inputStripeChannel, inputShape, outputShape, weightsFormat, weightsShape,
                             capabilities, mceShapeMultiplier, pleShapeMultiplier, pad, inputStaticAndOffset,
-                            tensorConfig, depthMax, allowInputBuffering, avoidInputReloading,
+                            strategyConfig, depthMax, allowInputBuffering, avoidInputReloading,
                             params.activationCompression, weightsReloading))
         {
             // Check that input stripe is partial depth.
-            if (GetChannels(tensorConfig.inputAllocation.stripeShape) < GetChannels(inputShape))
+            if (GetChannels(strategyConfig.inputAllocation.stripeShape) < GetChannels(inputShape))
             {
-                tensorConfig.blockWidth  = params.blockWidth;
-                tensorConfig.blockHeight = params.blockHeight;
-                tensorConfig.strategy    = Strategy::STRATEGY_X;
+                strategyConfig.blockWidth  = params.blockWidth;
+                strategyConfig.blockHeight = params.blockHeight;
+                strategyConfig.strategy    = Strategy::STRATEGY_X;
                 return true;
             }
         }
@@ -491,7 +491,7 @@ bool TryInputZXYOutputXYZ(const command_stream::MceOperation& mceOperation,
 // matters only for the Firmware).
 bool TryInputXYOutputXYZ(const command_stream::MceOperation& mceOperation,
                          command_stream::UpsampleType upsampleType,
-                         TensorConfig& tensorConfig,
+                         StrategyConfig& strategyConfig,
                          SramAllocator& sramAllocator,
                          const TensorShape& inputShape,
                          const TensorShape& outputShape,
@@ -567,11 +567,11 @@ bool TryInputXYOutputXYZ(const command_stream::MceOperation& mceOperation,
                             { 1, params.outputStripeHeight, params.outputStripeWidth, params.outputStripeChannel },
                             params.inputStripeChannel, inputShape, outputShape, weightsFormat, weightsShape,
                             capabilities, mceShapeMultiplier, pleShapeMultiplier, pad, inputStaticAndOffset,
-                            tensorConfig, depthMax, allowInputBuffering))
+                            strategyConfig, depthMax, allowInputBuffering))
         {
-            tensorConfig.blockWidth  = params.blockWidth;
-            tensorConfig.blockHeight = params.blockHeight;
-            tensorConfig.strategy    = Strategy::STRATEGY_X;
+            strategyConfig.blockWidth  = params.blockWidth;
+            strategyConfig.blockHeight = params.blockHeight;
+            strategyConfig.strategy    = Strategy::STRATEGY_X;
             return true;
         }
         return false;
@@ -614,7 +614,7 @@ bool IsStrategyAllowed(const std::vector<IStrategy*>& strategies)
 }    //namespace
 
 bool IsStrategyX(const command_stream::MceOperation& mceOperation,
-                 const TensorConfig& tensorConfig,
+                 const StrategyConfig& strategyConfig,
                  const CompilerMceAlgorithm algorithm,
                  const std::vector<IStrategy*>& allowedStrategies)
 {
@@ -622,7 +622,7 @@ bool IsStrategyX(const command_stream::MceOperation& mceOperation,
                                          (mceOperation == command_stream::MceOperation::FULLY_CONNECTED);
     const bool isSupportedAlgorithm = (algorithm == CompilerMceAlgorithm::Direct);
     const bool isSupportedStrategy =
-        (tensorConfig.strategy == Strategy::STRATEGY_7) || (tensorConfig.strategy == Strategy::NONE);
+        (strategyConfig.strategy == Strategy::STRATEGY_7) || (strategyConfig.strategy == Strategy::NONE);
     const bool isAllowedStrategy = (IsStrategyAllowed<Strategy7>(allowedStrategies)) ||
                                    (mceOperation == command_stream::MceOperation::FULLY_CONNECTED);
     return isSupportedMceOperation && isSupportedAlgorithm && isSupportedStrategy && isAllowedStrategy;
@@ -630,7 +630,7 @@ bool IsStrategyX(const command_stream::MceOperation& mceOperation,
 
 bool TryStrategyX(const command_stream::MceOperation& mceOperation,
                   const command_stream::UpsampleType upsampleType,
-                  TensorConfig& tensorConfig,
+                  StrategyConfig& strategyConfig,
                   SramAllocator& sramAllocator,
                   const TensorShape& inputShape,
                   const TensorShape& outputShape,
@@ -644,14 +644,14 @@ bool TryStrategyX(const command_stream::MceOperation& mceOperation,
                   std::pair<const bool, const uint32_t> inputStaticAndOffset,
                   const uint32_t depthMax)
 {
-    if (TryInputXYOutputXYZ(mceOperation, upsampleType, tensorConfig, sramAllocator, inputShape, outputShape,
+    if (TryInputXYOutputXYZ(mceOperation, upsampleType, strategyConfig, sramAllocator, inputShape, outputShape,
                             weightsFormat, weightsShape, pad, allowedBlockConfigs, capabilities, mceShapeMultiplier,
                             pleShapeMultiplier, inputStaticAndOffset, depthMax))
     {
         return true;
     }
 
-    if (TryInputZXYOutputXYZ(mceOperation, upsampleType, tensorConfig, sramAllocator, inputShape, outputShape,
+    if (TryInputZXYOutputXYZ(mceOperation, upsampleType, strategyConfig, sramAllocator, inputShape, outputShape,
                              weightsFormat, weightsShape, pad, allowedBlockConfigs, capabilities, mceShapeMultiplier,
                              pleShapeMultiplier, inputStaticAndOffset, depthMax))
     {

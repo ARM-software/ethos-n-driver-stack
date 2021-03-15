@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -82,12 +82,12 @@ AllocationResult FitsInSram(SramAllocator& sramAllocator,
     return res;
 }
 
-void FillTensorConfigOffsets(const AllocationResult& allocationResults, TensorConfig& outTensorConfig)
+void FillStrategyConfigOffsets(const AllocationResult& allocationResults, StrategyConfig& outStrategyConfig)
 {
-    outTensorConfig.pleAllocation.offset     = allocationResults.m_PleOffset;
-    outTensorConfig.inputAllocation.offset   = allocationResults.m_InputOffset;
-    outTensorConfig.weightsAllocation.offset = allocationResults.m_WeightOffset;
-    outTensorConfig.outputAllocation.offset  = allocationResults.m_OutputOffset;
+    outStrategyConfig.pleAllocation.offset     = allocationResults.m_PleOffset;
+    outStrategyConfig.inputAllocation.offset   = allocationResults.m_InputOffset;
+    outStrategyConfig.weightsAllocation.offset = allocationResults.m_WeightOffset;
+    outStrategyConfig.outputAllocation.offset  = allocationResults.m_OutputOffset;
 }
 
 // Helper function to account for the fact that if the output stripe in a dimension is the entire tensor

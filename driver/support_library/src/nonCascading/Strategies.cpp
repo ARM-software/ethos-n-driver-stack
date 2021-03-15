@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -96,40 +96,30 @@ std::vector<command_stream::BlockConfig>
 
 }    // namespace
 
-bool IStrategyDefaultBlockSelection::TrySetupAnyBlockConfig(
-    TensorConfig& tensorConfig,
-    SramAllocator& sramAllocator,
-    const TensorShape& inputShape,
-    const TensorShape& mceOutputShape,
-    const TensorShape& outputShape,
-    DataFormat weightsFormat,
-    const TensorShape& weightsShape,
-    const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
-    const HardwareCapabilities& capabilities,
-    const utils::ShapeMultiplier& mceShapeMultiplier,
-    const utils::ShapeMultiplier& pleShapeMultiplier,
-    std::pair<bool, uint32_t> inputStaticAndOffset,
-    CompilerMceAlgorithm algorithm,
-    const uint32_t depthMax /*= UINT32_MAX*/)
+StrategySelectionReturnValue IStrategyDefaultBlockSelection::TrySetupAnyBlockConfig(
+    const StrategySelectionParameters& strategySelectionParameters,
+    const std::vector<command_stream::BlockConfig>& allowedBlockConfigs)
 {
     // Sort block configs so that the most efficient ones will be first
-    std::vector<command_stream::BlockConfig> sortedBlockConfigs =
-        SortBlockConfigsBasedOnShapeRemainder(allowedBlockConfigs, outputShape, weightsShape);
+    std::vector<command_stream::BlockConfig> sortedBlockConfigs = SortBlockConfigsBasedOnShapeRemainder(
+        allowedBlockConfigs, strategySelectionParameters.outputShape, strategySelectionParameters.weightsShape);
 
     // Try each config in turn, and choose the first that works
-    for (auto& currBlockConfig : sortedBlockConfigs)
+    StrategySelectionReturnValue rv;
+    rv.success = false;
+
+    for (const auto& curBlockConfig : sortedBlockConfigs)
     {
-        if (TrySetup(tensorConfig, sramAllocator, inputShape, mceOutputShape, outputShape, weightsFormat, weightsShape,
-                     currBlockConfig, capabilities, mceShapeMultiplier, pleShapeMultiplier, inputStaticAndOffset,
-                     algorithm, depthMax))
+        rv = TrySetup(strategySelectionParameters, curBlockConfig);
+        if (rv.success)
         {
-            tensorConfig.blockWidth  = currBlockConfig.m_BlockWidth();
-            tensorConfig.blockHeight = currBlockConfig.m_BlockHeight();
-            return true;
+            rv.strategyConfig.blockWidth  = curBlockConfig.m_BlockWidth();
+            rv.strategyConfig.blockHeight = curBlockConfig.m_BlockHeight();
+            return rv;
         }
     }
 
-    return false;
+    return rv;
 }
 
 namespace
@@ -144,7 +134,7 @@ constexpr uint32_t g_DefaultMaxNumWeightBuffersInTile = 2;
 struct TryStripeShapesResult
 {
     bool m_Success                       = false;
-    TensorConfig m_TensorConfig          = {};
+    StrategyConfig m_StrategyConfig      = {};
     InputStats m_InputStats              = {};
     SramAllocator m_UpdatedSramAllocator = {};
 };
@@ -155,32 +145,25 @@ struct TryStripeShapesResult
 // fit into SRAM.
 // By keeping all the logic of the confusing rounding in this one function it lets the per-Strategy functions
 // be nice and simple and concentrate just on looping over possible stripe sizes.
-TryStripeShapesResult TryStripeShapes(const SramAllocator& sramAllocator,
+TryStripeShapesResult TryStripeShapes(const StrategySelectionParameters& strategySelectionParameters,
                                       const TensorShape& requestedOutputStripe,
-                                      const TensorShape& inputShape,
-                                      const TensorShape& mceOutputShape,
-                                      const TensorShape& outputShape,
-                                      DataFormat weightsFormat,
-                                      const TensorShape& weightsShape,
-                                      const HardwareCapabilities& capabilities,
-                                      const utils::ShapeMultiplier& mceShapeMultiplier,
-                                      const utils::ShapeMultiplier& pleShapeMultiplier,
-                                      std::pair<bool, uint32_t> inputStaticAndOffset,
-                                      const uint32_t depthMax,
                                       const uint32_t maxNumWeightBuffersInTile = g_DefaultMaxNumWeightBuffersInTile,
                                       const uint32_t maxNumInputBuffersInTile  = g_DefaultMaxNumInputBuffersInTile)
 {
-    ETHOSN_UNUSED(mceOutputShape);
 
-    const uint32_t patchWidth         = capabilities.GetPatchShape()[2];
-    const uint32_t brickGroupHeight   = capabilities.GetBrickGroupShape()[1];
-    const uint32_t brickGroupWidth    = capabilities.GetBrickGroupShape()[2];
-    const uint32_t brickGroupChannels = capabilities.GetBrickGroupShape()[3];
+    const HardwareCapabilities& capabilities = strategySelectionParameters.capabilities;
+    const uint32_t patchWidth                = capabilities.GetPatchShape()[2];
+    const uint32_t brickGroupHeight          = capabilities.GetBrickGroupShape()[1];
+    const uint32_t brickGroupWidth           = capabilities.GetBrickGroupShape()[2];
+    const uint32_t brickGroupChannels        = capabilities.GetBrickGroupShape()[3];
 
     // Sanity check to ensure the output shape width and height are not zero.
+    const TensorShape& outputShape = strategySelectionParameters.outputShape;
     assert(outputShape[1] != 0);
     assert(outputShape[2] != 0);
 
+    const ShapeMultiplier& mceShapeMultiplier     = strategySelectionParameters.mceShapeMultiplier;
+    const ShapeMultiplier& pleShapeMultiplier     = strategySelectionParameters.pleShapeMultiplier;
     const utils::ShapeMultiplier& shapeMultiplier = mceShapeMultiplier * pleShapeMultiplier;
 
     // Round the requested output stripe shape to appropriate boundaries
@@ -211,6 +194,7 @@ TryStripeShapesResult TryStripeShapes(const SramAllocator& sramAllocator,
             ? RoundUpToNearestMultiple(requestedOutputStripe[3], brickGroupChannels * shapeMultiplier.m_C)
             : RoundUpToNearestMultiple(requestedOutputStripe[3], capabilities.GetNumberOfSrams() * shapeMultiplier.m_C);
 
+    const TensorShape inputShape = strategySelectionParameters.inputShape;
     const uint32_t inputStripeHeightPre =
         AccountForFullDimension(outputShape[1], inputShape[1], outputStripeHeight, shapeMultiplier.m_H);
     const uint32_t inputStripeHeight =
@@ -225,7 +209,8 @@ TryStripeShapesResult TryStripeShapes(const SramAllocator& sramAllocator,
     // so that the PLE can manage spilling if the number of stripes is more than 1.
     if (utils::DivRoundUp(inputShape[1], inputStripeHeight) > 1)
     {
-        outputStripeChannels = std::min(outputStripeChannels, depthMax);
+        const uint32_t depthMax = strategySelectionParameters.depthMax;
+        outputStripeChannels    = std::min(outputStripeChannels, depthMax);
     }
 
     const TensorShape outputStripe = { 1, outputStripeHeight, outputStripeWidth, outputStripeChannels };
@@ -236,6 +221,9 @@ TryStripeShapesResult TryStripeShapes(const SramAllocator& sramAllocator,
 
     // Calculate weight stripe from output stripe.
     TensorShape weightStripe;
+    const DataFormat& weightsFormat                       = strategySelectionParameters.weightsFormat;
+    const TensorShape& weightsShape                       = strategySelectionParameters.weightsShape;
+    const std::pair<bool, uint32_t>& inputStaticAndOffset = strategySelectionParameters.inputStaticAndOffset;
     if (weightsFormat == DataFormat::HWIO)
     {
         weightStripe = { weightsShape[0], weightsShape[1], inputShape[3], outputStripe[3] / shapeMultiplier.m_C };
@@ -358,7 +346,7 @@ TryStripeShapesResult TryStripeShapes(const SramAllocator& sramAllocator,
         return {};
     }
 
-    SramAllocator currentSramAllocator = sramAllocator;
+    SramAllocator currentSramAllocator = strategySelectionParameters.sramAllocator;
     AllocationResult allocationResults =
         FitsInSram(currentSramAllocator, capabilities, inputTile, weightTile, outputTile, inputStaticAndOffset);
     if (!allocationResults.m_Success)
@@ -366,18 +354,18 @@ TryStripeShapesResult TryStripeShapes(const SramAllocator& sramAllocator,
         return {};
     }
     TryStripeShapesResult result;
-    result.m_Success                                         = true;
-    result.m_TensorConfig.inputAllocation.stripeShape        = inputStripe;
-    result.m_TensorConfig.inputAllocation.tileSize           = inputTile;
-    result.m_TensorConfig.inputAllocation.numStripesInTile   = numInputStripesInTile;
-    result.m_TensorConfig.outputAllocation.stripeShape       = outputStripe;
-    result.m_TensorConfig.outputAllocation.tileSize          = outputTile;
-    result.m_TensorConfig.outputAllocation.numStripesInTile  = numOutputStripesInTile;
-    result.m_TensorConfig.weightsAllocation.stripeShape      = weightStripe;
-    result.m_TensorConfig.weightsAllocation.tileSize         = weightTile;
-    result.m_TensorConfig.weightsAllocation.numStripesInTile = numWeightStripesInTile;
-    result.m_UpdatedSramAllocator                            = currentSramAllocator;
-    FillTensorConfigOffsets(allocationResults, result.m_TensorConfig);
+    result.m_Success                                           = true;
+    result.m_StrategyConfig.inputAllocation.stripeShape        = inputStripe;
+    result.m_StrategyConfig.inputAllocation.tileSize           = inputTile;
+    result.m_StrategyConfig.inputAllocation.numStripesInTile   = numInputStripesInTile;
+    result.m_StrategyConfig.outputAllocation.stripeShape       = outputStripe;
+    result.m_StrategyConfig.outputAllocation.tileSize          = outputTile;
+    result.m_StrategyConfig.outputAllocation.numStripesInTile  = numOutputStripesInTile;
+    result.m_StrategyConfig.weightsAllocation.stripeShape      = weightStripe;
+    result.m_StrategyConfig.weightsAllocation.tileSize         = weightTile;
+    result.m_StrategyConfig.weightsAllocation.numStripesInTile = numWeightStripesInTile;
+    result.m_UpdatedSramAllocator                              = currentSramAllocator;
+    FillStrategyConfigOffsets(allocationResults, result.m_StrategyConfig);
 
     result.m_InputStats = GetInputStats(
         capabilities, inputShape, inputStripe, inputStaticAndOffset.first ? Location::Sram : Location::Dram, inputTile,
@@ -390,29 +378,24 @@ TryStripeShapesResult TryStripeShapes(const SramAllocator& sramAllocator,
 
 using namespace utils;
 
-bool Strategy0::TrySetup(TensorConfig& tensorConfig,
-                         SramAllocator& sramAllocator,
-                         const TensorShape& inputShape,
-                         const TensorShape& mceOutputShape,
-                         const TensorShape& outputShape,
-                         DataFormat weightsFormat,
-                         const TensorShape& weightsShape,
-                         const ethosn::command_stream::BlockConfig& blockConfig,
-                         const HardwareCapabilities& capabilities,
-                         const utils::ShapeMultiplier& mceShapeMultiplier,
-                         const utils::ShapeMultiplier& pleShapeMultiplier,
-                         std::pair<bool, uint32_t> inputStaticAndOffset,
-                         CompilerMceAlgorithm,
-                         const uint32_t depthMax)
+StrategySelectionReturnValue Strategy0::TrySetup(const StrategySelectionParameters& strategySelectionParameters,
+                                                 const ethosn::command_stream::BlockConfig& blockConfig)
 {
+    StrategySelectionReturnValue rv{};
+    rv.success                     = false;
+    StrategyConfig& strategyConfig = rv.strategyConfig;
+    SramAllocator& sramAllocator   = rv.sramAllocator;
+
     // Calculate the range of stripe sizes we want to try. We want to make the MCE output stripe size a multiple of
     // the block size for performance reasons (partial blocks give poor PLE utilisation).
     // Try splitting into two stripes at first.
+    const TensorShape& mceOutputShape                = strategySelectionParameters.mceOutputShape;
+    const utils::ShapeMultiplier& pleShapeMultiplier = strategySelectionParameters.pleShapeMultiplier;
     const uint32_t maxMceOutputStripeHeight =
         RoundUpToNearestMultiple(mceOutputShape[1] / 2, blockConfig.m_BlockHeight());
     if (maxMceOutputStripeHeight >= mceOutputShape[1])
     {
-        return false;    // Can't use strategy 0, as the height is too small to split at all
+        return rv;    // Can't use strategy 0, as the height is too small to split at all
     }
     // Decrease iteratively by one block at a time
     const uint32_t stepMceOutputStripeHeight = blockConfig.m_BlockHeight();
@@ -441,49 +424,42 @@ bool Strategy0::TrySetup(TensorConfig& tensorConfig,
         }
     }
 
+    const TensorShape& outputShape = strategySelectionParameters.outputShape;
     for (auto params : paramsList)
     {
         const TryStripeShapesResult tryResult = TryStripeShapes(
-            sramAllocator, { 1, params.outputStripeHeight, outputShape[2], outputShape[3] }, inputShape, mceOutputShape,
-            outputShape, weightsFormat, weightsShape, capabilities, mceShapeMultiplier, pleShapeMultiplier,
-            inputStaticAndOffset, depthMax, g_DefaultMaxNumWeightBuffersInTile, params.numInputBuffers);
+            strategySelectionParameters, { 1, params.outputStripeHeight, outputShape[2], outputShape[3] },
+            g_DefaultMaxNumWeightBuffersInTile, params.numInputBuffers);
         if (tryResult.m_Success)
         {
-            tensorConfig          = tryResult.m_TensorConfig;
-            tensorConfig.strategy = Strategy::STRATEGY_0;
-            sramAllocator         = tryResult.m_UpdatedSramAllocator;
-            return true;
+            strategyConfig          = tryResult.m_StrategyConfig;
+            strategyConfig.strategy = Strategy::STRATEGY_0;
+            sramAllocator           = tryResult.m_UpdatedSramAllocator;
+            rv.success              = true;
+            return rv;
         }
     }
 
-    return false;
+    return rv;
 }
 
-bool Strategy1::TrySetup(TensorConfig& tensorConfig,
-                         SramAllocator& sramAllocator,
-                         const TensorShape& inputShape,
-                         const TensorShape& mceOutputShape,
-                         const TensorShape& outputShape,
-                         DataFormat weightsFormat,
-                         const TensorShape& weightsShape,
-                         const ethosn::command_stream::BlockConfig&,
-                         const HardwareCapabilities& capabilities,
-                         const utils::ShapeMultiplier& mceShapeMultiplier,
-                         const utils::ShapeMultiplier& pleShapeMultiplier,
-                         std::pair<bool, uint32_t> inputStaticAndOffset,
-                         CompilerMceAlgorithm,
-                         const uint32_t depthMax)
+StrategySelectionReturnValue Strategy1::TrySetup(const StrategySelectionParameters& strategySelectionParameters,
+                                                 const ethosn::command_stream::BlockConfig&)
 {
-    auto TrySolution = [&](const uint32_t outputStripeChannels, uint32_t numWeightBuffers) {
-        const TryStripeShapesResult tryResult =
-            TryStripeShapes(sramAllocator, { 1, outputShape[1], outputShape[2], outputStripeChannels }, inputShape,
-                            mceOutputShape, outputShape, weightsFormat, weightsShape, capabilities, mceShapeMultiplier,
-                            pleShapeMultiplier, inputStaticAndOffset, depthMax, numWeightBuffers);
+    StrategySelectionReturnValue rv;
+    rv.success                     = false;
+    StrategyConfig& strategyConfig = rv.strategyConfig;
+    SramAllocator& sramAllocator   = rv.sramAllocator;
+
+    const TensorShape& outputShape = strategySelectionParameters.outputShape;
+    auto TrySolution               = [&](const uint32_t outputStripeChannels, uint32_t numWeightBuffers) {
+        const TryStripeShapesResult tryResult = TryStripeShapes(
+            strategySelectionParameters, { 1, outputShape[1], outputShape[2], outputStripeChannels }, numWeightBuffers);
         if (tryResult.m_Success)
         {
-            tensorConfig          = tryResult.m_TensorConfig;
-            tensorConfig.strategy = Strategy::STRATEGY_1;
-            sramAllocator         = tryResult.m_UpdatedSramAllocator;
+            strategyConfig          = tryResult.m_StrategyConfig;
+            strategyConfig.strategy = Strategy::STRATEGY_1;
+            sramAllocator           = tryResult.m_UpdatedSramAllocator;
             return true;
         }
         return false;
@@ -516,66 +492,59 @@ bool Strategy1::TrySetup(TensorConfig& tensorConfig,
 
         if (TrySolution(params.outputStripeChannels, params.numWeightBuffers))
         {
-            return true;
+            rv.success = true;
+            return rv;
         }
     }
-    return false;
+    return rv;
 }
 
-bool Strategy3::TrySetup(TensorConfig& tensorConfig,
-                         SramAllocator& sramAllocator,
-                         const TensorShape& inputShape,
-                         const TensorShape& mceOutputShape,
-                         const TensorShape& outputShape,
-                         DataFormat weightsFormat,
-                         const TensorShape& weightsShape,
-                         const ethosn::command_stream::BlockConfig&,
-                         const HardwareCapabilities& capabilities,
-                         const utils::ShapeMultiplier& mceShapeMultiplier,
-                         const utils::ShapeMultiplier& pleShapeMultiplier,
-                         std::pair<bool, uint32_t> inputStaticAndOffset,
-                         CompilerMceAlgorithm,
-                         const uint32_t depthMax)
+StrategySelectionReturnValue Strategy3::TrySetup(const StrategySelectionParameters& strategySelectionParameters,
+                                                 const ethosn::command_stream::BlockConfig&)
 {
-    const TryStripeShapesResult tryResult = TryStripeShapes(
-        sramAllocator, outputShape, inputShape, mceOutputShape, outputShape, weightsFormat, weightsShape, capabilities,
-        mceShapeMultiplier, pleShapeMultiplier, inputStaticAndOffset, depthMax);
+    StrategySelectionReturnValue rv;
+    rv.success                     = false;
+    StrategyConfig& strategyConfig = rv.strategyConfig;
+    SramAllocator& sramAllocator   = rv.sramAllocator;
+
+    const TensorShape& outputShape        = strategySelectionParameters.outputShape;
+    const TryStripeShapesResult tryResult = TryStripeShapes(strategySelectionParameters, outputShape);
     if (tryResult.m_Success)
     {
-        tensorConfig          = tryResult.m_TensorConfig;
-        tensorConfig.strategy = Strategy::STRATEGY_3;
-        sramAllocator         = tryResult.m_UpdatedSramAllocator;
-        return true;
+        strategyConfig          = tryResult.m_StrategyConfig;
+        strategyConfig.strategy = Strategy::STRATEGY_3;
+        sramAllocator           = tryResult.m_UpdatedSramAllocator;
+        rv.success              = true;
+        return rv;
     }
 
-    return false;
+    return rv;
 }
 
-bool Strategy4::TrySetupAnyBlockConfig(TensorConfig& tensorConfig,
-                                       SramAllocator& sramAllocator,
-                                       const TensorShape& inputShape,
-                                       const TensorShape& mceOutputShape,
-                                       const TensorShape& outputShape,
-                                       DataFormat weightsFormat,
-                                       const TensorShape& weightsShape,
-                                       const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
-                                       const HardwareCapabilities& capabilities,
-                                       const utils::ShapeMultiplier& mceShapeMultiplier,
-                                       const utils::ShapeMultiplier& pleShapeMultiplier,
-                                       std::pair<bool, uint32_t> inputStaticAndOffset,
-                                       CompilerMceAlgorithm,
-                                       const uint32_t depthMax)
+StrategySelectionReturnValue
+    Strategy4::TrySetupAnyBlockConfig(const StrategySelectionParameters& strategySelectionParameters,
+                                      const std::vector<command_stream::BlockConfig>& allowedBlockConfigs)
 {
+    StrategySelectionReturnValue rv;
+    rv.success                     = false;
+    StrategyConfig& strategyConfig = rv.strategyConfig;
+    SramAllocator& sramAllocator   = rv.sramAllocator;
+
     // Force strategy 4 to use the minimum number of stripe depths
-    const uint32_t ofmRegion      = std::min(outputShape[3], capabilities.GetNumberOfOgs());
-    const uint32_t stripeDepth    = RoundUpToNearestMultiple(ofmRegion, capabilities.GetNumberOfSrams());
-    const uint32_t outStripeDepth = stripeDepth * mceShapeMultiplier.m_C * pleShapeMultiplier.m_C;
+    const TensorShape& outputShape            = strategySelectionParameters.outputShape;
+    const HardwareCapabilities& capabilities  = strategySelectionParameters.capabilities;
+    const ShapeMultiplier& mceShapeMultiplier = strategySelectionParameters.mceShapeMultiplier;
+    const ShapeMultiplier& pleShapeMultiplier = strategySelectionParameters.pleShapeMultiplier;
+    const uint32_t ofmRegion                  = std::min(outputShape[3], capabilities.GetNumberOfOgs());
+    const uint32_t stripeDepth                = RoundUpToNearestMultiple(ofmRegion, capabilities.GetNumberOfSrams());
+    const uint32_t outStripeDepth             = stripeDepth * mceShapeMultiplier.m_C * pleShapeMultiplier.m_C;
 
     const uint32_t inputStripeWidth     = capabilities.GetBrickGroupShape()[2];
     const uint32_t mceOutputStripeWidth = inputStripeWidth * mceShapeMultiplier.m_W;
     const uint32_t outputStripeWidth    = mceOutputStripeWidth * pleShapeMultiplier.m_W;
 
     // Sort block configs first based on the common metric
+    const TensorShape& weightsShape = strategySelectionParameters.weightsShape;
     std::vector<command_stream::BlockConfig> sortedBlockConfigs =
         SortBlockConfigsBasedOnShapeRemainder(allowedBlockConfigs, outputShape, weightsShape);
 
@@ -594,46 +563,43 @@ bool Strategy4::TrySetupAnyBlockConfig(TensorConfig& tensorConfig,
         // this does not fit then single-buffering will have to do.
         for (uint32_t numStripesInWeightTile = 2; numStripesInWeightTile >= 1; --numStripesInWeightTile)
         {
-            const TryStripeShapesResult tryResult = TryStripeShapes(
-                sramAllocator, { 1, outputShape[1], outputStripeWidth, outStripeDepth }, inputShape, mceOutputShape,
-                outputShape, weightsFormat, weightsShape, capabilities, mceShapeMultiplier, pleShapeMultiplier,
-                inputStaticAndOffset, depthMax, numStripesInWeightTile);
+            const TryStripeShapesResult tryResult =
+                TryStripeShapes(strategySelectionParameters, { 1, outputShape[1], outputStripeWidth, outStripeDepth },
+                                numStripesInWeightTile);
             if (tryResult.m_Success)
             {
-                tensorConfig             = tryResult.m_TensorConfig;
-                tensorConfig.strategy    = Strategy::STRATEGY_4;
-                tensorConfig.blockWidth  = blockConfig.m_BlockWidth();
-                tensorConfig.blockHeight = blockConfig.m_BlockHeight();
-                sramAllocator            = tryResult.m_UpdatedSramAllocator;
-                return true;
+                strategyConfig             = tryResult.m_StrategyConfig;
+                strategyConfig.strategy    = Strategy::STRATEGY_4;
+                strategyConfig.blockWidth  = blockConfig.m_BlockWidth();
+                strategyConfig.blockHeight = blockConfig.m_BlockHeight();
+                sramAllocator              = tryResult.m_UpdatedSramAllocator;
+                rv.success                 = true;
+                return rv;
             }
         }
     }
 
-    return false;
+    return rv;
 }
 
-bool Strategy6::TrySetupAnyBlockConfig(TensorConfig& tensorConfig,
-                                       SramAllocator& sramAllocator,
-                                       const TensorShape& inputShape,
-                                       const TensorShape& mceOutputShape,
-                                       const TensorShape& outputShape,
-                                       DataFormat weightsFormat,
-                                       const TensorShape& weightsShape,
-                                       const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
-                                       const HardwareCapabilities& capabilities,
-                                       const utils::ShapeMultiplier& mceShapeMultiplier,
-                                       const utils::ShapeMultiplier& pleShapeMultiplier,
-                                       std::pair<bool, uint32_t> inputStaticAndOffset,
-                                       CompilerMceAlgorithm,
-                                       const uint32_t depthMax)
+StrategySelectionReturnValue
+    Strategy6::TrySetupAnyBlockConfig(const StrategySelectionParameters& strategySelectionParameters,
+                                      const std::vector<command_stream::BlockConfig>& allowedBlockConfigs)
 {
+    StrategySelectionReturnValue rv;
+    rv.success                     = false;
+    StrategyConfig& strategyConfig = rv.strategyConfig;
+    SramAllocator& sramAllocator   = rv.sramAllocator;
+
+    const std::pair<bool, uint32_t>& inputStaticAndOffset = strategySelectionParameters.inputStaticAndOffset;
     if (inputStaticAndOffset.first)
     {
-        return false;
+        return rv;
     }
 
     // Sort block configs based on the common metric
+    const TensorShape& outputShape  = strategySelectionParameters.outputShape;
+    const TensorShape& weightsShape = strategySelectionParameters.weightsShape;
     std::vector<command_stream::BlockConfig> sortedBlockConfigs =
         SortBlockConfigsBasedOnShapeRemainder(allowedBlockConfigs, outputShape, weightsShape);
 
@@ -651,6 +617,8 @@ bool Strategy6::TrySetupAnyBlockConfig(TensorConfig& tensorConfig,
     // Consider all combinations of variables, in an order which we think will give the best performance first.
     // Even though we use a cost metric further down, this doesn't account for all aspects of performance and so the
     // order here does still matter.
+    const TensorShape& mceOutputShape         = strategySelectionParameters.mceOutputShape;
+    const ShapeMultiplier& pleShapeMultiplier = strategySelectionParameters.pleShapeMultiplier;
     for (uint32_t numChannelSplits = 1; numChannelSplits < outputShape[3]; ++numChannelSplits)
     {
         for (command_stream::BlockConfig blockConfig : sortedBlockConfigs)
@@ -702,13 +670,12 @@ bool Strategy6::TrySetupAnyBlockConfig(TensorConfig& tensorConfig,
     {
         const TensorShape outputStripeShape   = { 1, params.outputStripeHeight, params.outputStripeWidth,
                                                 params.outputStripeChannel };
-        const TryStripeShapesResult tryResult = TryStripeShapes(
-            sramAllocator, outputStripeShape, inputShape, mceOutputShape, outputShape, weightsFormat, weightsShape,
-            capabilities, mceShapeMultiplier, pleShapeMultiplier, inputStaticAndOffset, depthMax);
+        const TryStripeShapesResult tryResult = TryStripeShapes(strategySelectionParameters, outputStripeShape);
         if (tryResult.m_Success)
         {
             const uint64_t ifmBandwidth = tryResult.m_InputStats.m_MemoryStats.m_DramParallel +
                                           tryResult.m_InputStats.m_MemoryStats.m_DramNonParallel;
+            const HardwareCapabilities& capabilities = strategySelectionParameters.capabilities;
             const bool isOutputFcafCompatible =
                 capabilities.GetActivationCompressionVersion() == 1 &&
                 (IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_WIDE, outputShape,
@@ -734,60 +701,56 @@ bool Strategy6::TrySetupAnyBlockConfig(TensorConfig& tensorConfig,
 
     if (bestTryResult.has_value())
     {
-        tensorConfig             = bestTryResult.value().m_TensorConfig;
-        tensorConfig.strategy    = Strategy::STRATEGY_6;
-        tensorConfig.blockWidth  = bestParams.value().blockWidth;
-        tensorConfig.blockHeight = bestParams.value().blockHeight;
-        sramAllocator            = bestTryResult.value().m_UpdatedSramAllocator;
-        return true;
+        strategyConfig             = bestTryResult.value().m_StrategyConfig;
+        strategyConfig.strategy    = Strategy::STRATEGY_6;
+        strategyConfig.blockWidth  = bestParams.value().blockWidth;
+        strategyConfig.blockHeight = bestParams.value().blockHeight;
+        sramAllocator              = bestTryResult.value().m_UpdatedSramAllocator;
+        rv.success                 = true;
+        return rv;
     }
 
-    return false;
+    return rv;
 }
 
 // Scheduling strategy to support input tensor depth streaming
 // Limitations:
 // (1) Input tensor split in depth and height directions, no split in width.
 // (2) only depthwise convolutions supported.
-bool Strategy7::TrySetup(TensorConfig& tensorConfig,
-                         SramAllocator& sramAllocator,
-                         const TensorShape& inputShape,
-                         const TensorShape& mceOutputShape,
-                         const TensorShape& outputShape,
-                         DataFormat weightsFormat,
-                         const TensorShape& weightsShape,
-                         const ethosn::command_stream::BlockConfig& blockConfig,
-                         const HardwareCapabilities& capabilities,
-                         const utils::ShapeMultiplier& mceShapeMultiplier,
-                         const utils::ShapeMultiplier& pleShapeMultiplier,
-                         std::pair<bool, uint32_t> inputStaticAndOffset,
-                         CompilerMceAlgorithm,
-                         const uint32_t depthMax)
+StrategySelectionReturnValue Strategy7::TrySetup(const StrategySelectionParameters& strategySelectionParameters,
+                                                 const ethosn::command_stream::BlockConfig& blockConfig)
 {
-    const bool isHwim = weightsFormat == DataFormat::HWIM;
+    StrategySelectionReturnValue rv;
+    rv.success                     = false;
+    StrategyConfig& strategyConfig = rv.strategyConfig;
+    SramAllocator& sramAllocator   = rv.sramAllocator;
+
+    const DataFormat weightsFormat = strategySelectionParameters.weightsFormat;
+    const bool isHwim              = weightsFormat == DataFormat::HWIM;
 
     // This applies only to Depthwise convolutions.
     if (!isHwim)
     {
-        return false;
+        return rv;
     }
 
+    const std::pair<bool, uint32_t>& inputStaticAndOffset = strategySelectionParameters.inputStaticAndOffset;
     if (inputStaticAndOffset.first)
     {
-        return false;
+        return rv;
     }
 
-    auto TrySolution = [&](const uint32_t outputStripeHeight, const uint32_t outputStripeChannels,
+    const TensorShape& outputShape = strategySelectionParameters.outputShape;
+    auto TrySolution               = [&](const uint32_t outputStripeHeight, const uint32_t outputStripeChannels,
                            uint32_t numWeightBuffers) {
         const TryStripeShapesResult tryResult =
-            TryStripeShapes(sramAllocator, { 1, outputStripeHeight, outputShape[2], outputStripeChannels }, inputShape,
-                            mceOutputShape, outputShape, weightsFormat, weightsShape, capabilities, mceShapeMultiplier,
-                            pleShapeMultiplier, inputStaticAndOffset, depthMax, numWeightBuffers);
+            TryStripeShapes(strategySelectionParameters,
+                            { 1, outputStripeHeight, outputShape[2], outputStripeChannels }, numWeightBuffers);
         if (tryResult.m_Success)
         {
-            tensorConfig          = tryResult.m_TensorConfig;
-            tensorConfig.strategy = Strategy::STRATEGY_7;
-            sramAllocator         = tryResult.m_UpdatedSramAllocator;
+            strategyConfig          = tryResult.m_StrategyConfig;
+            strategyConfig.strategy = Strategy::STRATEGY_7;
+            sramAllocator           = tryResult.m_UpdatedSramAllocator;
             return true;
         }
         return false;
@@ -796,6 +759,7 @@ bool Strategy7::TrySetup(TensorConfig& tensorConfig,
     // Calculate the range of stripe sizes we want to try. We want to make the MCE output stripe size a multiple of
     // the block size for performance reasons (partial blocks give poor PLE utilisation).
     // Try splitting into two stripes at first.
+    const TensorShape& mceOutputShape = strategySelectionParameters.mceOutputShape;
     const uint32_t maxMceOutputStripeHeight =
         RoundUpToNearestMultiple(mceOutputShape[1] / 2, blockConfig.m_BlockHeight());
     // Decrease iteratively by one block at a time
@@ -804,9 +768,10 @@ bool Strategy7::TrySetup(TensorConfig& tensorConfig,
     const uint32_t minMceOutputStripeHeight = blockConfig.m_BlockHeight();
 
     // TryStripeShapes is driven by the *output* stripe size rather than *mce output* stripe size, so convert.
-    const uint32_t maxOutputStripeHeight  = maxMceOutputStripeHeight * pleShapeMultiplier.m_H;
-    const uint32_t stepOutputStripeHeight = stepMceOutputStripeHeight * pleShapeMultiplier.m_H;
-    const uint32_t minOutputStripeHeight  = minMceOutputStripeHeight * pleShapeMultiplier.m_H;
+    const ShapeMultiplier& pleShapeMultiplier = strategySelectionParameters.pleShapeMultiplier;
+    const uint32_t maxOutputStripeHeight      = maxMceOutputStripeHeight * pleShapeMultiplier.m_H;
+    const uint32_t stepOutputStripeHeight     = stepMceOutputStripeHeight * pleShapeMultiplier.m_H;
+    const uint32_t minOutputStripeHeight      = minMceOutputStripeHeight * pleShapeMultiplier.m_H;
 
     struct Strategy7Params
     {
@@ -845,10 +810,11 @@ bool Strategy7::TrySetup(TensorConfig& tensorConfig,
 
         if (TrySolution(params.outputStripeHeight, params.outputStripeChannels, params.numWeightBuffers))
         {
-            return true;
+            rv.success = true;
+            return rv;
         }
     }
-    return false;
+    return rv;
 }
 
 }    // namespace support_library

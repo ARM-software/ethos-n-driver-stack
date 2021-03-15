@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -359,6 +359,7 @@ TEST_CASE("Fully Connected")
                                            metaDataBuffer.end());
     constexpr size_t compiledWeightSize = 12800;
 
+    REQUIRE(compiledNetwork.size() == 1);
     REQUIRE(compiledNetwork[0]->GetConstantControlUnitData() == expectedConstantControlUnitData);
     REQUIRE(compiledNetwork[0]->GetConstantControlUnitDataBufferInfos() ==
             std::vector<BufferInfo>{

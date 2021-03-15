@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -14,13 +14,13 @@ namespace support_library
 {
 
 bool IsStrategyX(const command_stream::MceOperation& mceOperation,
-                 const TensorConfig& tensorConfig,
+                 const StrategyConfig& strategyConfig,
                  const CompilerMceAlgorithm algorithm,
                  const std::vector<IStrategy*>& allowedStrategies);
 
 bool TryStrategyX(const command_stream::MceOperation& mceOperation,
                   const command_stream::UpsampleType upsampleType,
-                  TensorConfig& tensorConfig,
+                  StrategyConfig& strategyConfig,
                   SramAllocator& sramAllocator,
                   const TensorShape& inputShape,
                   const TensorShape& outputShape,

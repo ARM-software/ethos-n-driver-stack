@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -28,7 +28,7 @@ struct LinearNodesOutput
     std::vector<Node*> m_WorkingNodes;
     MceOperationNode* m_MceOperation = nullptr;
     bool m_StrategySelected          = false;
-    TensorConfig m_TensorConfig;
+    StrategyConfig m_StrategyConfig;
     CompilerDataFormat m_RequiredOutputFormat = CompilerDataFormat::NONE;
     BufferLocation m_OutputLocation           = BufferLocation::None;
     SramAllocator m_SramAllocator;
@@ -56,7 +56,7 @@ public:
     McePlePass(const HardwareCapabilities& capabilities,
                size_t id,
                std::vector<Node*> nodes,
-               const TensorConfig& tensorConfig,
+               const StrategyConfig& strategyConfig,
                BufferLocation outputLocation,
                CompilerDataCompressedFormat intermediateCompressedFormat,
                CompilerMceAlgorithm algorithm,
@@ -67,21 +67,10 @@ public:
 
     DotAttributes GetDotAttributes() override;
 
-    static bool ChooseAndSetupStrategy(const HardwareCapabilities& capabilities,
-                                       SramAllocator& sramAllocator,
-                                       std::vector<IStrategy*> allowedStrategies,
-                                       std::vector<command_stream::BlockConfig> allowedBlockConfigs,
-                                       TensorConfig& tensorConfig,
-                                       const TensorShape& inputShape,
-                                       const TensorShape& mceOutputShape,
-                                       const TensorShape& outputShape,
-                                       DataFormat weightsFormat,
-                                       const TensorShape& weightsShape,
-                                       const utils::ShapeMultiplier& mceShapeMultiplier,
-                                       const utils::ShapeMultiplier& pleShapeMultiplier,
-                                       std::pair<bool, uint32_t> inputStaticAndOffset,
-                                       CompilerMceAlgorithm algorithm,
-                                       const uint32_t depthMax = UINT32_MAX);
+    static StrategySelectionReturnValue
+        ChooseAndSetupStrategy(const StrategySelectionParameters& strategySelectionParameters,
+                               std::vector<IStrategy*> allowedStrategies,
+                               std::vector<command_stream::BlockConfig> allowedBlockConfigs);
 
 private:
     static LinearNodesOutput FindLinearWorkingNodes(Node* firstNode,
@@ -121,7 +110,7 @@ private:
     std::unique_ptr<WeightEncoder> m_WeightEncoder;
 
     /// Tensor sram allocation information
-    TensorConfig m_TensorConfig;
+    StrategyConfig m_StrategyConfig;
 };
 
 }    // namespace support_library

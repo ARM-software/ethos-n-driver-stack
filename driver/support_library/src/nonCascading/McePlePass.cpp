@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -86,8 +86,8 @@ CompilerDataCompressedFormat GetIntermediateOutputCompressedFormat(const Hardwar
     // Attempt to compress if it was requested
     if (enableIntermediateCompression)
     {
-        const Strategy strategy              = linearOutputNodes.m_TensorConfig.strategy;
-        const TensorShape& outputStripeShape = linearOutputNodes.m_TensorConfig.outputAllocation.stripeShape;
+        const Strategy strategy              = linearOutputNodes.m_StrategyConfig.strategy;
+        const TensorShape& outputStripeShape = linearOutputNodes.m_StrategyConfig.outputAllocation.stripeShape;
         const TensorShape& outputNodeShape   = outputNode.GetShape();
 
         // Attempt to find a compatible compression to use
@@ -332,8 +332,9 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
         }
 
         // Analyze the current set of nodes that we have (calculate the strategies etc.), as this will determine whether we want to merge more.
-        bool strategySelected = false;
-        requiredOutputFormat  = CompilerDataFormat::NONE;
+        StrategySelectionReturnValue selectedStrategy;
+        selectedStrategy.success = false;
+        requiredOutputFormat     = CompilerDataFormat::NONE;
         if (mceOperation)
         {
             Node* firstNode = currentSetOfNodes.front();
@@ -369,37 +370,45 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
             }
             auto validBlockConfigs =
                 FilterValidBlockConfigs(mceOperation, fuseOnlyPle, allowedBlockConfigs, capabilities, res.m_Algorithm);
-            TensorConfig tensorConfig;
-            // Reset the SramAllocator used to calculate strategies to the base one originally passed in.
-            SramAllocator currentSramAllocator = sramAllocator;
             // The shape we pass to strategy selection is the *MCE* input shape.
             // Note this may be different to firstNode->GetShape() if we are taking our input from a supertensor.
             const TensorShape mceInputShape  = mceOperation->GetInputShape(0);
             const TensorShape mceOutputShape = mceOperation->GetShape();
-            strategySelected                 = ChooseAndSetupStrategy(
-                capabilities, currentSramAllocator, validStrategies, validBlockConfigs, tensorConfig, mceInputShape,
-                mceOutputShape, lastNode->GetShape(), mceOperation->GetWeightsInfo().m_DataFormat, weightsShape,
-                mceOperation->GetShapeMultiplier(),
-                (fuseOnlyPle != nullptr ? fuseOnlyPle->GetShapeMultiplier() : g_IdentityShapeMultiplier),
-                inputStaticAndOffset, res.m_Algorithm, depthMax);
 
-            if (IsStrategyX(mceOperation->GetOperation(), tensorConfig, res.m_Algorithm, validStrategies))
+            StrategySelectionParameters strategySelectionParameters{
+                capabilities,
+                // Reset the SramAllocator used to calculate strategies to the base one originally passed in.
+                sramAllocator, mceInputShape, mceOutputShape, lastNode->GetShape(),
+                mceOperation->GetWeightsInfo().m_DataFormat, weightsShape, mceOperation->GetShapeMultiplier(),
+                (fuseOnlyPle != nullptr ? fuseOnlyPle->GetShapeMultiplier() : g_IdentityShapeMultiplier),
+                inputStaticAndOffset, res.m_Algorithm, depthMax
+            };
+            selectedStrategy = ChooseAndSetupStrategy(strategySelectionParameters, validStrategies, validBlockConfigs);
+
+            if (IsStrategyX(mceOperation->GetOperation(), selectedStrategy.strategyConfig, res.m_Algorithm,
+                            validStrategies))
             {
-                currentSramAllocator = sramAllocator;
-                strategySelected     = TryStrategyX(
-                    mceOperation->GetOperation(), mceOperation->GetUpsampleType(), tensorConfig, currentSramAllocator,
-                    mceInputShape, lastNode->GetShape(), mceOperation->GetWeightsInfo().m_DataFormat, weightsShape,
+                SramAllocator currentSramAllocator = sramAllocator;
+                bool strategyXSelected             = TryStrategyX(
+                    mceOperation->GetOperation(), mceOperation->GetUpsampleType(), selectedStrategy.strategyConfig,
+                    currentSramAllocator, mceInputShape, lastNode->GetShape(),
+                    mceOperation->GetWeightsInfo().m_DataFormat, weightsShape,
                     std::make_pair(mceOperation->GetPadTop(), mceOperation->GetPadLeft()), validBlockConfigs,
                     capabilities, mceOperation->GetShapeMultiplier(),
                     (fuseOnlyPle != nullptr ? fuseOnlyPle->GetShapeMultiplier() : g_IdentityShapeMultiplier),
                     inputStaticAndOffset, depthMax);
+
+                selectedStrategy.success = strategyXSelected;
+                //selectedStrategy.strategyConfig is output of TryStrategyX
+                selectedStrategy.sramAllocator = currentSramAllocator;
             }
 
-            if (strategySelected)
+            if (selectedStrategy.success)
             {
-                // The TensorConfig that we chose may have restrictions on future conversions operations we can merge.
-                if ((tensorConfig.outputAllocation.stripeShape[3] < lastNode->GetShape()[3] ||
-                     tensorConfig.outputAllocation.stripeShape[2] < lastNode->GetShape()[2]) &&
+                const StrategyConfig& selectedStrategySramConfig = selectedStrategy.strategyConfig;
+                // The StrategyConfig that we chose may have restrictions on future conversions operations we can merge.
+                if ((selectedStrategySramConfig.outputAllocation.stripeShape[3] < lastNode->GetShape()[3] ||
+                     selectedStrategySramConfig.outputAllocation.stripeShape[2] < lastNode->GetShape()[2]) &&
                     mceOperation->GetOperation() != ethosn::command_stream::MceOperation::FULLY_CONNECTED)
                 {
                     // The Firmware does not support outputting NHWC when the OFMs stripes are not contiguous in DRAM.
@@ -411,7 +420,7 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
                     requiredOutputFormat = CompilerDataFormat::NHWC;
                 }
 
-                if (tensorConfig.strategy == Strategy::STRATEGY_3 &&
+                if (selectedStrategySramConfig.strategy == Strategy::STRATEGY_3 &&
                     lastNode->GetFormat() == CompilerDataFormat::NHWCB &&
                     lastNode->GetLocationHint() != LocationHint::RequireDram)
                 {
@@ -424,12 +433,12 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
                     res.m_OutputLocation = BufferLocation::Dram;
                 }
                 res.m_WorkingNodes         = currentSetOfNodes;
-                res.m_SramAllocator        = currentSramAllocator;
+                res.m_SramAllocator        = selectedStrategy.sramAllocator;
                 res.m_RequiredOutputFormat = requiredOutputFormat;
-                res.m_TensorConfig         = tensorConfig;
+                res.m_StrategyConfig       = selectedStrategySramConfig;
                 res.m_ValidBlockConfigs    = validBlockConfigs;
             }
-            res.m_StrategySelected = strategySelected;
+            res.m_StrategySelected = selectedStrategy.success;
             res.m_MceOperation     = mceOperation;
         }
 
@@ -501,17 +510,17 @@ std::unique_ptr<ethosn::support_library::McePlePass>
     // reading/writing in NCHW format, only strategy3 is allowed
     if (((linearNodes.m_WorkingNodes.front()->GetInputFormat(0) == CompilerDataFormat::NCHW) ||
          (linearNodes.m_WorkingNodes.back()->GetFormat() == CompilerDataFormat::NCHW)) &&
-        (linearNodes.m_TensorConfig.strategy != Strategy::STRATEGY_3))
+        (linearNodes.m_StrategyConfig.strategy != Strategy::STRATEGY_3))
     {
         return std::unique_ptr<McePlePass>();
     }
 
     if (linearNodes.m_WorkingNodes.front()->GetInputFormat(0) == CompilerDataFormat::NHWC &&
-        (linearNodes.m_TensorConfig.inputAllocation.stripeShape[3] <
+        (linearNodes.m_StrategyConfig.inputAllocation.stripeShape[3] <
              linearNodes.m_WorkingNodes.front()->GetInputShape(0)[3] ||
-         (linearNodes.m_TensorConfig.inputAllocation.stripeShape[1] <
+         (linearNodes.m_StrategyConfig.inputAllocation.stripeShape[1] <
               linearNodes.m_WorkingNodes.front()->GetInputShape(0)[1] &&
-          linearNodes.m_TensorConfig.inputAllocation.stripeShape[2] <
+          linearNodes.m_StrategyConfig.inputAllocation.stripeShape[2] <
               linearNodes.m_WorkingNodes.front()->GetInputShape(0)[2])))
     {
         // The firmware does not support either boundary stripe loading or non contiguous IFM stripes in DRAM for NHWC input.
@@ -524,8 +533,8 @@ std::unique_ptr<ethosn::support_library::McePlePass>
         return std::unique_ptr<McePlePass>();
     }
 
-    const Strategy strategy             = linearNodes.m_TensorConfig.strategy;
-    const TensorShape& inputStripeShape = linearNodes.m_TensorConfig.inputAllocation.stripeShape;
+    const Strategy strategy             = linearNodes.m_StrategyConfig.strategy;
+    const TensorShape& inputStripeShape = linearNodes.m_StrategyConfig.inputAllocation.stripeShape;
     Node& inputNode                     = *linearNodes.m_WorkingNodes.front();
 
     // If the compression format can't be used for the IFM, we need to give a hint to the previous
@@ -545,21 +554,21 @@ std::unique_ptr<ethosn::support_library::McePlePass>
     // Once we've found a valid strategy we can set the old SramAllocator to the updated one.
     sramAllocator = linearNodes.m_SramAllocator;
     // We can deallocate the weights and ple now.
-    sramAllocator.Free(linearNodes.m_TensorConfig.weightsAllocation.offset);
-    sramAllocator.Free(linearNodes.m_TensorConfig.pleAllocation.offset);
+    sramAllocator.Free(linearNodes.m_StrategyConfig.weightsAllocation.offset);
+    sramAllocator.Free(linearNodes.m_StrategyConfig.pleAllocation.offset);
     if (firstNode->GetInputLocation(0) != BufferLocation::Sram)
     {
-        sramAllocator.Free(linearNodes.m_TensorConfig.inputAllocation.offset);
+        sramAllocator.Free(linearNodes.m_StrategyConfig.inputAllocation.offset);
     }
     // Set the output sram offset for the final node in the pass. To be used as the input for the next node
     if (linearNodes.m_OutputLocation == BufferLocation::Dram)
     {
-        sramAllocator.Free(linearNodes.m_TensorConfig.outputAllocation.offset);
+        sramAllocator.Free(linearNodes.m_StrategyConfig.outputAllocation.offset);
     }
-    uint32_t sramOffset = linearNodes.m_TensorConfig.outputAllocation.offset;
+    uint32_t sramOffset = linearNodes.m_StrategyConfig.outputAllocation.offset;
 
     std::unique_ptr<ethosn::support_library::McePlePass> result = std::make_unique<McePlePass>(
-        capabilities, id, linearNodes.m_WorkingNodes, linearNodes.m_TensorConfig, linearNodes.m_OutputLocation,
+        capabilities, id, linearNodes.m_WorkingNodes, linearNodes.m_StrategyConfig, linearNodes.m_OutputLocation,
         intermediateOutputCompressedFormat, linearNodes.m_Algorithm, sramOffset);
 
     return result;
@@ -568,7 +577,7 @@ std::unique_ptr<ethosn::support_library::McePlePass>
 McePlePass::McePlePass(const HardwareCapabilities& capabilities,
                        size_t id,
                        std::vector<Node*> nodes,
-                       const TensorConfig& tensorConfig,
+                       const StrategyConfig& strategyConfig,
                        BufferLocation outputLocation,
                        CompilerDataCompressedFormat intermediateCompressedFormat,
                        CompilerMceAlgorithm algorithm,
@@ -578,7 +587,7 @@ McePlePass::McePlePass(const HardwareCapabilities& capabilities,
     , m_MceOperation(nullptr)
     , m_PleOperation(nullptr)
     , m_WeightEncoder(WeightEncoder::CreateWeightEncoder(capabilities))
-    , m_TensorConfig(tensorConfig)
+    , m_StrategyConfig(strategyConfig)
 {
     m_Nodes = nodes;
     for (auto node : nodes)
@@ -637,51 +646,33 @@ command_stream::PleOperation McePlePass::GetPleOperation() const
     return m_PleOperation ? m_PleOperation->GetKernelOperation() : command_stream::PleOperation::PASSTHROUGH;
 }
 
-bool McePlePass::ChooseAndSetupStrategy(const HardwareCapabilities& capabilities,
-                                        SramAllocator& sramAllocator,
-                                        std::vector<IStrategy*> allowedStrategies,
-                                        std::vector<command_stream::BlockConfig> allowedBlockConfigs,
-                                        TensorConfig& tensorConfig,
-                                        const TensorShape& inputShape,
-                                        const TensorShape& mceOutputShape,
-                                        const TensorShape& outputShape,
-                                        DataFormat weightsFormat,
-                                        const TensorShape& weightsShape,
-                                        const utils::ShapeMultiplier& mceShapeMultiplier,
-                                        const utils::ShapeMultiplier& pleShapeMultiplier,
-                                        std::pair<bool, uint32_t> inputStaticAndOffset,
-                                        CompilerMceAlgorithm algorithm,
-                                        const uint32_t depthMax)
+StrategySelectionReturnValue
+    McePlePass::ChooseAndSetupStrategy(const StrategySelectionParameters& strategySelectionParameters,
+                                       std::vector<IStrategy*> allowedStrategies,
+                                       std::vector<command_stream::BlockConfig> allowedBlockConfigs)
 {
     // We try the "best" strategies first until we find one which is appropriate
     // This may change in the future when we use a dynamic programming approach
-    bool strategySelected = false;
+    StrategySelectionReturnValue rv;
+    rv.success = false;
 
     for (IStrategy* strategy : allowedStrategies)
     {
-        if (strategy->TrySetupAnyBlockConfig(tensorConfig, sramAllocator, inputShape, mceOutputShape, outputShape,
-                                             weightsFormat, weightsShape, allowedBlockConfigs, capabilities,
-                                             mceShapeMultiplier, pleShapeMultiplier, inputStaticAndOffset, algorithm,
-                                             depthMax))
-        {
-            strategySelected = true;
-            break;
-        }
-
-        if (strategySelected)
+        rv = strategy->TrySetupAnyBlockConfig(strategySelectionParameters, allowedBlockConfigs);
+        if (rv.success)
         {
             break;
         }
     }
 
-    return strategySelected;
+    return rv;
 }
 
 ethosn::support_library::DotAttributes McePlePass::GetDotAttributes()
 {
     DotAttributes result = Pass::GetDotAttributes();
     result.m_Label       = "McePlePass\n" + result.m_Label;
-    switch (m_TensorConfig.strategy)
+    switch (m_StrategyConfig.strategy)
     {
         case Strategy::STRATEGY_0:
             result.m_Label += "\nSTRATEGY_0";
@@ -711,18 +702,18 @@ std::pair<uint32_t, uint32_t> McePlePass::GetWeightStripeSizeAndDepth()
 {
     const TensorInfo& weightsInfo = m_MceOperation->GetWeightsInfo();
     // weight stripe size is needed for weight encoder if weight streaming.
-    uint32_t weightStripeSize = m_TensorConfig.weightsAllocation.stripeShape[2];
+    uint32_t weightStripeSize = m_StrategyConfig.weightsAllocation.stripeShape[2];
 
     // Encode weights
     uint32_t weightStripeDepth = 0;
     if (weightsInfo.m_DataFormat == DataFormat::HWIO)
     {
-        weightStripeDepth = m_TensorConfig.weightsAllocation.stripeShape[3];
+        weightStripeDepth = m_StrategyConfig.weightsAllocation.stripeShape[3];
     }
     else if (weightsInfo.m_DataFormat == DataFormat::HWIM)
     {
-        weightStripeDepth = m_TensorConfig.weightsAllocation.stripeShape[2] *
-                            m_TensorConfig.weightsAllocation.stripeShape[3] /
+        weightStripeDepth = m_StrategyConfig.weightsAllocation.stripeShape[2] *
+                            m_StrategyConfig.weightsAllocation.stripeShape[3] /
                             (m_MceOperation->GetStride().m_X * m_MceOperation->GetStride().m_Y);
     }
     else
@@ -753,7 +744,7 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
 
     // The allocation has been executed in the Translation
     SramAllocationStrategy strategy;
-    switch (m_TensorConfig.strategy)
+    switch (m_StrategyConfig.strategy)
     {
         case Strategy::STRATEGY_0:
             strategy = SramAllocationStrategy::STRATEGY_0;
@@ -786,14 +777,14 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
     convCmd.m_SramConfig().m_AllocationStrategy() = strategy;
 
     // Propagate tile/stripe shapes to command stream structs
-    convCmd.m_InputInfo().m_StripeShape()   = m_TensorConfig.inputAllocation.stripeShape;
-    convCmd.m_InputInfo().m_TileSize()      = m_TensorConfig.inputAllocation.tileSize;
-    convCmd.m_OutputInfo().m_StripeShape()  = m_TensorConfig.outputAllocation.stripeShape;
-    convCmd.m_OutputInfo().m_TileSize()     = m_TensorConfig.outputAllocation.tileSize;
-    convCmd.m_WeightInfo().m_StripeShape()  = m_TensorConfig.weightsAllocation.stripeShape;
-    convCmd.m_WeightInfo().m_TileSize()     = m_TensorConfig.weightsAllocation.tileSize;
-    convCmd.m_BlockConfig().m_BlockWidth()  = m_TensorConfig.blockWidth;
-    convCmd.m_BlockConfig().m_BlockHeight() = m_TensorConfig.blockHeight;
+    convCmd.m_InputInfo().m_StripeShape()   = m_StrategyConfig.inputAllocation.stripeShape;
+    convCmd.m_InputInfo().m_TileSize()      = m_StrategyConfig.inputAllocation.tileSize;
+    convCmd.m_OutputInfo().m_StripeShape()  = m_StrategyConfig.outputAllocation.stripeShape;
+    convCmd.m_OutputInfo().m_TileSize()     = m_StrategyConfig.outputAllocation.tileSize;
+    convCmd.m_WeightInfo().m_StripeShape()  = m_StrategyConfig.weightsAllocation.stripeShape;
+    convCmd.m_WeightInfo().m_TileSize()     = m_StrategyConfig.weightsAllocation.tileSize;
+    convCmd.m_BlockConfig().m_BlockWidth()  = m_StrategyConfig.blockWidth;
+    convCmd.m_BlockConfig().m_BlockHeight() = m_StrategyConfig.blockHeight;
 
     uint32_t inputBufferId = m_Nodes.front()->GetInput(0)->GetSource()->GetBufferId();
 
@@ -808,8 +799,8 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
         m_WeightEncoder->Encode(*m_MceOperation, weightStripeDepth, weightStripeSize, quantizationInfo);
 
     // Check that the weight tile can hold the expected number of stripes
-    if (m_TensorConfig.weightsAllocation.tileSize <
-        (encodedWeights.m_MaxSize * m_TensorConfig.weightsAllocation.numStripesInTile))
+    if (m_StrategyConfig.weightsAllocation.tileSize <
+        (encodedWeights.m_MaxSize * m_StrategyConfig.weightsAllocation.numStripesInTile))
     {
         throw InternalErrorException("Weight tile too small for the expected number of stripes");
     }
@@ -873,10 +864,10 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
     convCmd.m_OutputInfo().m_DataLocation() = GetCommandDataLocation(outputLocation);
 
     const uint32_t inputSramOffset = inputLocation == BufferLocation::Sram ? bufferManager.GetSramOffset(inputBufferId)
-                                                                           : m_TensorConfig.inputAllocation.offset;
-    const uint32_t outputSramOffset = m_TensorConfig.outputAllocation.offset;
-    const uint32_t weightSramOffset = m_TensorConfig.weightsAllocation.offset;
-    const uint32_t pleSramOffset    = m_TensorConfig.pleAllocation.offset;
+                                                                           : m_StrategyConfig.inputAllocation.offset;
+    const uint32_t outputSramOffset = m_StrategyConfig.outputAllocation.offset;
+    const uint32_t weightSramOffset = m_StrategyConfig.weightsAllocation.offset;
+    const uint32_t pleSramOffset    = m_StrategyConfig.pleAllocation.offset;
     SramOffsets sramOffsets         = { inputSramOffset, outputSramOffset, weightSramOffset, pleSramOffset };
 
     uint32_t outputBufferId;
@@ -918,18 +909,18 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
     // Note strategy X does not support HWIW.
     assert(weightsInfo.m_DataFormat != DataFormat::HWIM || strategy != SramAllocationStrategy::STRATEGY_X);
     const TensorShape& mceOutputStripe = {
-        m_TensorConfig.inputAllocation.stripeShape[0],
-        utils::RoundUpToNearestMultiple(m_TensorConfig.inputAllocation.stripeShape[1] * mceOutputShape[1] /
+        m_StrategyConfig.inputAllocation.stripeShape[0],
+        utils::RoundUpToNearestMultiple(m_StrategyConfig.inputAllocation.stripeShape[1] * mceOutputShape[1] /
                                             mceInputShape[1],
                                         m_Capabilities.GetBrickGroupShape()[1]),
-        utils::RoundUpToNearestMultiple(m_TensorConfig.inputAllocation.stripeShape[2] * mceOutputShape[2] /
+        utils::RoundUpToNearestMultiple(m_StrategyConfig.inputAllocation.stripeShape[2] * mceOutputShape[2] /
                                             mceInputShape[2],
                                         m_Capabilities.GetBrickGroupShape()[2]),
         strategy == SramAllocationStrategy::STRATEGY_X
-            ? m_TensorConfig.weightsAllocation.stripeShape[3]
+            ? m_StrategyConfig.weightsAllocation.stripeShape[3]
             : (GetPleOperation() == command_stream::PleOperation::INTERLEAVE_2X2_2_2)
-                  ? m_TensorConfig.outputAllocation.stripeShape[3] / 4
-                  : m_TensorConfig.outputAllocation.stripeShape[3]
+                  ? m_StrategyConfig.outputAllocation.stripeShape[3] / 4
+                  : m_StrategyConfig.outputAllocation.stripeShape[3]
     };
 
     convCmd.m_MceData() = m_MceOperation->GetMceData();
@@ -1032,13 +1023,13 @@ PassStats McePlePass::GetStats(const EstimationOptions& estimationOptions)
         m_Nodes.front()->GetInputBufferFormat(0) != command_stream::DataFormat::NHWC
             ? RoundUpHeightAndWidthToBrickGroup(inputShape)
             : inputShape;
-    const TensorShape& inputStripeShape = m_TensorConfig.inputAllocation.stripeShape;
+    const TensorShape& inputStripeShape = m_StrategyConfig.inputAllocation.stripeShape;
     const BufferLocation inputLocation  = m_Nodes.front()->GetInput(0)->GetSource()->GetLocation();
-    const uint32_t inputTileSize        = m_TensorConfig.inputAllocation.tileSize;
+    const uint32_t inputTileSize        = m_StrategyConfig.inputAllocation.tileSize;
 
     const TensorInfo& weightsInfo         = m_MceOperation->GetWeightsInfo();
-    const TensorShape& weightsStripeShape = m_TensorConfig.weightsAllocation.stripeShape;
-    const uint32_t weightsTileSize        = m_TensorConfig.weightsAllocation.tileSize;
+    const TensorShape& weightsStripeShape = m_StrategyConfig.weightsAllocation.stripeShape;
+    const uint32_t weightsTileSize        = m_StrategyConfig.weightsAllocation.tileSize;
 
     const TensorShape& mceOutputShape = m_MceOperation->GetShape();
 
@@ -1046,7 +1037,7 @@ PassStats McePlePass::GetStats(const EstimationOptions& estimationOptions)
     const TensorShape& roundedUpOutputShape = m_Nodes.back()->GetBufferFormat() != command_stream::DataFormat::NHWC
                                                   ? RoundUpHeightAndWidthToBrickGroup(outputShape)
                                                   : outputShape;
-    const TensorShape& outputStripeShape = m_TensorConfig.outputAllocation.stripeShape;
+    const TensorShape& outputStripeShape = m_StrategyConfig.outputAllocation.stripeShape;
     const BufferLocation outputLocation  = m_Nodes.back()->GetLocation();
 
     // Number of output stripes affects the number of input data reloads for some streaming strategies.

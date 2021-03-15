@@ -11,6 +11,7 @@
 #include "Graph.hpp"
 #include "Section.hpp"
 #include "Strategies.hpp"
+#include "StrategyConfig.hpp"
 #include "WeightEncoder.hpp"
 
 #include <ethosn_command_stream/CommandData.hpp>
@@ -33,15 +34,6 @@ class McePlePass;
 class SoftmaxPass;
 class Compiler;
 
-// Describes the allocation of a tensor in SRAM
-struct SramTensorAllocation
-{
-    uint32_t tileSize;
-    uint32_t numStripesInTile;
-    TensorShape stripeShape;
-    uint32_t offset;
-};
-
 // Structure holding SramOffsets for tensors
 struct SramOffsets
 {
@@ -49,18 +41,6 @@ struct SramOffsets
     uint32_t outputOffset;
     uint32_t weightOffset;
     uint32_t pleCodeOffset;
-};
-
-// Output of ChooseAndSetupStrategy. Describes the allocation of input, output and weight tensors in SRAM
-struct TensorConfig
-{
-    SramTensorAllocation inputAllocation;
-    SramTensorAllocation outputAllocation;
-    SramTensorAllocation weightsAllocation;
-    SramTensorAllocation pleAllocation;
-    uint32_t blockWidth;
-    uint32_t blockHeight;
-    Strategy strategy = Strategy::NONE;
 };
 
 command_stream::DataLocation GetCommandDataLocation(BufferLocation bufferLocation);
