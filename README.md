@@ -70,6 +70,9 @@ sudo apt install git \
     gcc-aarch64-linux-gnu \
     g++-aarch64-linux-gnu \
     gcc \
+    bison \
+    flex \
+    libssl-dev \
     bc
 ```
 Additionally if you want to build unit tests for the Ethos-N NPU user space libraries, you need Catch2 [Recommended: `v2.13.0`]:
