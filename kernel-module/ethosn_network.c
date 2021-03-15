@@ -22,6 +22,7 @@
 
 #include "ethosn_network.h"
 
+#include "ethosn_backport.h"
 #include "ethosn_buffer.h"
 #include "ethosn_device.h"
 #include "ethosn_dma.h"
@@ -635,27 +636,28 @@ static int inference_release(struct inode *inode,
 		mutex_unlock(&core->mutex);
 	}
 
-	wake_up_poll(&inference->poll_wqh, POLLHUP);
+	wake_up_poll(&inference->poll_wqh, EPOLLHUP);
 
 	put_inference(inference);
 
 	return 0;
 }
 
-static unsigned int inference_poll(struct file *file,
-				   poll_table *wait)
+static __poll_t inference_poll(struct file *file,
+			       poll_table *wait)
 {
 	struct ethosn_inference *inference = file->private_data;
+	__poll_t ret = 0;
 
 	poll_wait(file, &inference->poll_wqh, wait);
 
 	if (inference->status < ETHOSN_INFERENCE_SCHEDULED)
-		return POLLERR;
+		ret = EPOLLERR;
 
-	if (inference->status > ETHOSN_INFERENCE_RUNNING)
-		return POLLIN;
+	else if (inference->status > ETHOSN_INFERENCE_RUNNING)
+		ret = EPOLLIN;
 
-	return 0;
+	return ret;
 }
 
 static ssize_t inference_read(struct file *file,
@@ -1307,7 +1309,7 @@ void ethosn_network_poll(struct ethosn_core *core,
 				allocator,
 				inference->outputs[i]->dma_info);
 
-		wake_up_poll(&inference->poll_wqh, POLLIN);
+		wake_up_poll(&inference->poll_wqh, EPOLLIN);
 		put_inference(inference);
 
 		dev_dbg(core->dev,

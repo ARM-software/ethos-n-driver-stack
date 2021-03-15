@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2019 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -22,6 +22,7 @@
 
 #include "ethosn_log.h"
 
+#include "ethosn_backport.h"
 #include "uapi/ethosn.h"
 
 #include <linux/debugfs.h>
@@ -153,18 +154,18 @@ static ssize_t fops_read(struct file *file,
 	return n;
 }
 
-static unsigned int fops_poll(struct file *file,
-			      poll_table *wait)
+static __poll_t fops_poll(struct file *file,
+			  poll_table *wait)
 {
 	struct ethosn_core *core = file->private_data;
-	unsigned int mask = 0;
+	__poll_t mask = 0;
 
 	poll_wait(file, &core->ram_log.wq, wait);
 
 	if (file->f_pos < core->ram_log.wpos)
-		mask |= POLLIN | POLLRDNORM;
+		mask |= EPOLLIN | EPOLLRDNORM;
 	else if (file->f_pos > core->ram_log.wpos)
-		mask |= POLLERR;
+		mask |= EPOLLERR;
 
 	return mask;
 }
