@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -15,6 +15,7 @@
 #include "nonCascading/NonCascading.hpp"
 #include "nonCascading/PlePass.hpp"
 #include "nonCascading/Section.hpp"
+#include "nonCascading/Strategies.hpp"
 
 #include <fstream>
 #include <numeric>

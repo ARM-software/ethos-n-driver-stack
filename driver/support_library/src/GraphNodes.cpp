@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -9,7 +9,6 @@
 #include "Utils.hpp"
 #include "nonCascading/BufferManager.hpp"
 #include "nonCascading/ConversionPass.hpp"
-#include "nonCascading/McePlePass.hpp"
 #include "nonCascading/Pass.hpp"
 
 #include <ethosn_command_stream/PleOperation.hpp>

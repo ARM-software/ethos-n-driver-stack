@@ -7,13 +7,11 @@
 
 #include "Pass.hpp"
 #include "SramAllocator.hpp"
+#include "StrategyConfig.hpp"
 
 namespace ethosn
 {
 namespace support_library
-{
-
-namespace
 {
 
 struct AllocationResult
@@ -25,12 +23,12 @@ struct AllocationResult
     uint32_t m_PleOffset;
 };
 
-AllocationResult FitsInSram(SramAllocator& sramAllocator,
-                            const HardwareCapabilities& capabilities,
-                            const uint32_t input,
-                            const uint32_t weight,
-                            const uint32_t output,
-                            std::pair<const bool, const uint32_t> inputStaticAndOffset)
+inline AllocationResult FitsInSram(SramAllocator& sramAllocator,
+                                   const HardwareCapabilities& capabilities,
+                                   const uint32_t input,
+                                   const uint32_t weight,
+                                   const uint32_t output,
+                                   std::pair<const bool, const uint32_t> inputStaticAndOffset)
 {
     AllocationResult res;
     res.m_Success          = true;
@@ -82,7 +80,7 @@ AllocationResult FitsInSram(SramAllocator& sramAllocator,
     return res;
 }
 
-void FillStrategyConfigOffsets(const AllocationResult& allocationResults, StrategyConfig& outStrategyConfig)
+inline void FillStrategyConfigOffsets(const AllocationResult& allocationResults, StrategyConfig& outStrategyConfig)
 {
     outStrategyConfig.pleAllocation.offset     = allocationResults.m_PleOffset;
     outStrategyConfig.inputAllocation.offset   = allocationResults.m_InputOffset;
@@ -92,10 +90,10 @@ void FillStrategyConfigOffsets(const AllocationResult& allocationResults, Strate
 
 // Helper function to account for the fact that if the output stripe in a dimension is the entire tensor
 // we need to use the full input tensor in that dimension
-uint32_t AccountForFullDimension(const uint32_t outputTensorDim,
-                                 const uint32_t inputTensorDim,
-                                 const uint32_t outputStripeDim,
-                                 const utils::Fraction multiplier)
+inline uint32_t AccountForFullDimension(const uint32_t outputTensorDim,
+                                        const uint32_t inputTensorDim,
+                                        const uint32_t outputStripeDim,
+                                        const utils::Fraction multiplier)
 {
     if (outputStripeDim >= outputTensorDim)
     {
@@ -107,7 +105,12 @@ uint32_t AccountForFullDimension(const uint32_t outputTensorDim,
     }
 }
 
-}    // namespace
+struct StrategySelectionReturnValue
+{
+    bool success;
+    StrategyConfig strategyConfig;
+    SramAllocator sramAllocator;
+};
 
 }    // namespace support_library
 }    // namespace ethosn

@@ -9,8 +9,6 @@
 #include "BufferManager.hpp"
 #include "Compiler.hpp"
 #include "Graph.hpp"
-#include "Section.hpp"
-#include "Strategies.hpp"
 #include "StrategyConfig.hpp"
 #include "WeightEncoder.hpp"
 

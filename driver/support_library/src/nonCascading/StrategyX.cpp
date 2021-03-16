@@ -6,7 +6,9 @@
 #include "StrategyX.hpp"
 
 #include "SramAllocator.hpp"
+#include "Strategies.hpp"
 #include "StrategiesCommon.hpp"
+#include "StrategyConfig.hpp"
 #include "Utils.hpp"
 
 #include <ethosn_command_stream/CommandData.hpp>
@@ -77,36 +79,34 @@ bool IsBlockConfigCompatible(const command_stream::BlockConfig& blockConfig,
 // (accounting for hardware and firmware constraints)
 // and what the tile sizes would be (accounting for buffering etc.) and checks if all this would
 // fit into SRAM.
-bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
-                     SramAllocator& sramAllocator,
-                     const TensorShape& requestedOutputStripe,
-                     const uint32_t requestedInputChannels,
-                     const TensorShape& inputShape,
-                     const TensorShape& outputShape,
-                     const DataFormat weightsFormat,
-                     const TensorShape& weightsShape,
-                     const HardwareCapabilities& capabilities,
-                     const utils::ShapeMultiplier& mceShapeMultiplier,
-                     const utils::ShapeMultiplier& pleShapeMultiplier,
-                     std::pair<const uint32_t, const uint32_t> pad,
-                     std::pair<const bool, const uint32_t> inputStaticAndOffset,
-                     StrategyConfig& outStrategyConfig,
-                     const uint32_t depthMax,
-                     const bool allowInputBuffering                 = false,
-                     const bool avoidInputReloading                 = false,
-                     const bool activationCompression               = false,
-                     const WeightsReloadingOptions weightsReloading = WeightsReloadingOptions::NO_RELOADING)
+StrategySelectionReturnValue
+    TryStripeShapes(const StrategyXSelectionParameters& strategyXSelectionParameters,
+                    const TensorShape& requestedOutputStripe,
+                    const uint32_t requestedInputChannels,
+                    const bool allowInputBuffering                 = false,
+                    const bool avoidInputReloading                 = false,
+                    const bool activationCompression               = false,
+                    const WeightsReloadingOptions weightsReloading = WeightsReloadingOptions::NO_RELOADING)
 {
-    const bool isFullyConnected = (mceOperation == command_stream::MceOperation::FULLY_CONNECTED);
-    const bool isHwio           = (weightsFormat == DataFormat::HWIO);
+    StrategySelectionReturnValue rv;
+    rv.success = false;
 
-    const uint32_t brickGroupHeight               = GetHeight(capabilities.GetBrickGroupShape());
-    const uint32_t brickGroupWidth                = GetWidth(capabilities.GetBrickGroupShape());
-    const uint32_t brickGroupChannels             = GetChannels(capabilities.GetBrickGroupShape());
-    const utils::ShapeMultiplier& shapeMultiplier = mceShapeMultiplier * pleShapeMultiplier;
+    const command_stream::MceOperation& mceOperation = strategyXSelectionParameters.mceOperation;
+    const DataFormat& weightsFormat                  = strategyXSelectionParameters.weightsFormat;
+    const bool isFullyConnected                      = (mceOperation == command_stream::MceOperation::FULLY_CONNECTED);
+    const bool isHwio                                = (weightsFormat == DataFormat::HWIO);
+
+    const HardwareCapabilities& capabilities         = strategyXSelectionParameters.capabilities;
+    const uint32_t brickGroupHeight                  = GetHeight(capabilities.GetBrickGroupShape());
+    const uint32_t brickGroupWidth                   = GetWidth(capabilities.GetBrickGroupShape());
+    const uint32_t brickGroupChannels                = GetChannels(capabilities.GetBrickGroupShape());
+    const utils::ShapeMultiplier& mceShapeMultiplier = strategyXSelectionParameters.mceShapeMultiplier;
+    const utils::ShapeMultiplier& pleShapeMultiplier = strategyXSelectionParameters.pleShapeMultiplier;
+    const utils::ShapeMultiplier& shapeMultiplier    = mceShapeMultiplier * pleShapeMultiplier;
 
     // Allow output stripe width smaller then brickGroupHeight. This is going to be fixed later to make it DMA-able when pooling is supported.
     const uint32_t outputStripeWidthMin = brickGroupWidth * shapeMultiplier.m_W;
+    const TensorShape& outputShape      = strategyXSelectionParameters.outputShape;
     const uint32_t outputStripeWidthMax = RoundUpToNearestMultiple(GetWidth(outputShape), brickGroupWidth);
     uint32_t outputStripeWidth =
         std::min(RoundUpToNearestMultiple(GetWidth(requestedOutputStripe), outputStripeWidthMin), outputStripeWidthMax);
@@ -130,6 +130,7 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
                                        capabilities.GetNumberOfSrams() * shapeMultiplier.m_C);
 
     // Calculate input stripe from output stripe
+    const TensorShape& inputShape = strategyXSelectionParameters.inputShape;
     const uint32_t inputStripeHeightPre =
         AccountForFullDimension(GetHeight(outputShape), GetHeight(inputShape), outputStripeHeight, shapeMultiplier.m_H);
     const uint32_t inputStripeHeight =
@@ -142,6 +143,7 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
 
     // Output stripe depth maximum is set for MAXPOOLING_3x3/(2,2)
     // so that the PLE can manage spilling if the number of stripes is more than 1.
+    const uint32_t& depthMax = strategyXSelectionParameters.depthMax;
     if (utils::DivRoundUp(GetHeight(inputShape), inputStripeHeight) > 1)
     {
         outputStripeChannels = std::min(outputStripeChannels, depthMax);
@@ -152,6 +154,7 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
                                           outputStripeWidth / pleShapeMultiplier.m_W,
                                           outputStripeChannels / pleShapeMultiplier.m_C };
 
+    const TensorShape& weightsShape = strategyXSelectionParameters.weightsShape;
     uint32_t strideSize =
         utils::DivRoundUp(utils::RoundUpToNearestMultiple(GetChannels(inputShape), capabilities.GetNumberOfSrams()),
                           utils::RoundUpToNearestMultiple(weightsShape[2], capabilities.GetNumberOfSrams()));
@@ -170,7 +173,7 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
     // Make sure that input is DMA-able.
     if ((GetHeight(inputStripe) % brickGroupHeight != 0) || (GetWidth(inputStripe) % brickGroupWidth != 0))
     {
-        return false;
+        return rv;
     }
 
     // Calculate weight stripe from output stripe.
@@ -193,6 +196,7 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
 
     // Work out the tile sizes by deciding how many stripes we want in each tile
 
+    const std::pair<const uint32_t, const uint32_t>& pad = strategyXSelectionParameters.pad;
     const NeedBoundary needBoundaryY = GetBoundaryRequirements(pad.first, GetHeight(inputShape), GetHeight(inputStripe),
                                                                GetHeight(mceOutputStripe), weightsShape[0]);
 
@@ -288,7 +292,7 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
     // Make sure that output is DMA-able.
     if ((GetHeight(outputStripe) % brickGroupHeight != 0) || (GetWidth(outputStripe) % brickGroupWidth != 0))
     {
-        return false;
+        return rv;
     }
 
     // Outputs. We need at most 2 at a time for double-buffering.
@@ -308,13 +312,18 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
                      RoundUpToNearestMultiple(GetChannels(outputShape), capabilities.GetNumberOfOgs()) });
     const uint32_t outputTile = std::min(TotalSizeBytes(outputStripe) * numOutputStripesInTile, outputTileMax);
 
-    SramAllocator currentSramAllocator = sramAllocator;
+    SramAllocator currentSramAllocator = strategyXSelectionParameters.sramAllocator;
+    const std::pair<const bool, const uint32_t>& inputStaticAndOffset =
+        strategyXSelectionParameters.inputStaticAndOffset;
     AllocationResult allocationResults =
         FitsInSram(currentSramAllocator, capabilities, inputTile, weightTile, outputTile, inputStaticAndOffset);
-    if (!allocationResults.m_Success)
+
+    rv.success = allocationResults.m_Success;
+    if (!rv.success)
     {
-        return false;
+        return rv;
     }
+    StrategyConfig& outStrategyConfig                    = rv.strategyConfig;
     outStrategyConfig.inputAllocation.stripeShape        = inputStripe;
     outStrategyConfig.inputAllocation.tileSize           = inputTile;
     outStrategyConfig.inputAllocation.numStripesInTile   = numInputStripesInTile;
@@ -325,37 +334,31 @@ bool TryStripeShapes(const command_stream::MceOperation& mceOperation,
     outStrategyConfig.weightsAllocation.tileSize         = weightTile;
     outStrategyConfig.weightsAllocation.numStripesInTile = numWeightStripesInTile;
     // If we succeeded in finding a strategy, update the sram allocation state
-    sramAllocator = currentSramAllocator;
+    rv.sramAllocator = currentSramAllocator;
     FillStrategyConfigOffsets(allocationResults, outStrategyConfig);
-    return true;
+    return rv;
 }
 
 // Try ZXY input traversal: streaming in Z, in X and Y and XYZ output traversal (output traversal
 // matters only for the Firmware).
-bool TryInputZXYOutputXYZ(const command_stream::MceOperation& mceOperation,
-                          command_stream::UpsampleType upsampleType,
-                          StrategyConfig& strategyConfig,
-                          SramAllocator& sramAllocator,
-                          const TensorShape& inputShape,
-                          const TensorShape& outputShape,
-                          const DataFormat weightsFormat,
-                          const TensorShape& weightsShape,
-                          std::pair<const uint32_t, const uint32_t> pad,
-                          std::vector<command_stream::BlockConfig> allowedBlockConfigs,
-                          const HardwareCapabilities& capabilities,
-                          const utils::ShapeMultiplier& mceShapeMultiplier,
-                          const utils::ShapeMultiplier& pleShapeMultiplier,
-                          std::pair<const bool, const uint32_t> inputStaticAndOffset,
-                          const uint32_t depthMax)
+StrategySelectionReturnValue TryInputZXYOutputXYZ(const StrategyXSelectionParameters& strategyXSelectionParameters)
 {
+    StrategySelectionReturnValue rv;
+
+    rv.success = false;
+
+    const std::pair<const bool, const uint32_t>& inputStaticAndOffset =
+        strategyXSelectionParameters.inputStaticAndOffset;
     if (inputStaticAndOffset.first)
     {
-        return false;
+        return rv;
     }
 
-    const bool isFullyConnected = IsFullyConnected(mceOperation);
+    const command_stream::MceOperation& mceOperation = strategyXSelectionParameters.mceOperation;
+    const bool isFullyConnected                      = IsFullyConnected(mceOperation);
 
     // Sort the block config (allowedBlockConfigs is a copy)
+    std::vector<command_stream::BlockConfig> allowedBlockConfigs = strategyXSelectionParameters.allowedBlockConfigs;
     std::sort(allowedBlockConfigs.begin(), allowedBlockConfigs.end(),
               [](command_stream::BlockConfig a, command_stream::BlockConfig b) {
                   return ((a.m_BlockWidth() > b.m_BlockWidth()) ||
@@ -378,6 +381,7 @@ bool TryInputZXYOutputXYZ(const command_stream::MceOperation& mceOperation,
     // Activation compression options:
     // {true, false} --- N78 and not fully connected.
     // {false}       --- otherwise
+    const HardwareCapabilities& capabilities = strategyXSelectionParameters.capabilities;
     if (capabilities.GetActivationCompressionVersion() == 1 && !isFullyConnected)
     {
         activationCompressionOptions.push_back(true);
@@ -391,6 +395,9 @@ bool TryInputZXYOutputXYZ(const command_stream::MceOperation& mceOperation,
     // Generate a list of parameters we pass to TryStripeShapes so we can see all the stripe shapes which could be attempted.
     std::vector<Params> paramsList;
 
+    const TensorShape& inputShape                    = strategyXSelectionParameters.inputShape;
+    const utils::ShapeMultiplier& pleShapeMultiplier = strategyXSelectionParameters.pleShapeMultiplier;
+    const command_stream::UpsampleType& upsampleType = strategyXSelectionParameters.upsampleType;
     for (auto compression : activationCompressionOptions)
     {
         for (auto& currBlockConfig : allowedBlockConfigs)
@@ -420,29 +427,35 @@ bool TryInputZXYOutputXYZ(const command_stream::MceOperation& mceOperation,
 
     if (paramsList.size() == 0)
     {
-        return false;
+        return rv;
     }
 
-    auto TryConf = [&](const Params params, const bool allowInputBuffering, const bool avoidInputReloading,
-                       const WeightsReloadingOptions weightsReloading) {
+    SramAllocator sramAllocator = strategyXSelectionParameters.sramAllocator;
+    auto TryConf = [&inputShape, &strategyXSelectionParameters](const Params params, const bool allowInputBuffering,
+                                                                const bool avoidInputReloading,
+                                                                const WeightsReloadingOptions weightsReloading) {
         assert(!avoidInputReloading || allowInputBuffering);
-        if (TryStripeShapes(mceOperation, sramAllocator,
+        StrategySelectionReturnValue rv =
+            TryStripeShapes(strategyXSelectionParameters,
                             { 1, params.outputStripeHeight, params.outputStripeWidth, params.outputStripeChannel },
-                            params.inputStripeChannel, inputShape, outputShape, weightsFormat, weightsShape,
-                            capabilities, mceShapeMultiplier, pleShapeMultiplier, pad, inputStaticAndOffset,
-                            strategyConfig, depthMax, allowInputBuffering, avoidInputReloading,
-                            params.activationCompression, weightsReloading))
+                            params.inputStripeChannel, allowInputBuffering, avoidInputReloading,
+                            params.activationCompression, weightsReloading);
+        if (rv.success)
         {
+            StrategyConfig& outStrategyConfig = rv.strategyConfig;
             // Check that input stripe is partial depth.
-            if (GetChannels(strategyConfig.inputAllocation.stripeShape) < GetChannels(inputShape))
+            if (GetChannels(outStrategyConfig.inputAllocation.stripeShape) < GetChannels(inputShape))
             {
-                strategyConfig.blockWidth  = params.blockWidth;
-                strategyConfig.blockHeight = params.blockHeight;
-                strategyConfig.strategy    = Strategy::STRATEGY_X;
-                return true;
+                outStrategyConfig.blockWidth  = params.blockWidth;
+                outStrategyConfig.blockHeight = params.blockHeight;
+                outStrategyConfig.strategy    = Strategy::STRATEGY_X;
+            }
+            else
+            {
+                rv.success = false;
             }
         }
-        return false;
+        return rv;
     };
 
     // Below it is going to try:
@@ -459,67 +472,63 @@ bool TryInputZXYOutputXYZ(const command_stream::MceOperation& mceOperation,
         // a. Try all configurations using input buffering.
         for (auto params : paramsList)
         {
-            if (TryConf(params, true, true, tryWeightsReloading))
+            rv = TryConf(params, true, true, tryWeightsReloading);
+            if (rv.success)
             {
-                return true;
+                return rv;
             }
         }
 
         // b. If here it means that it cannot avoid input reloading.
         for (auto params : paramsList)
         {
-            if (TryConf(params, true, false, tryWeightsReloading))
+            rv = TryConf(params, true, false, tryWeightsReloading);
+            if (rv.success)
             {
-                return true;
+                return rv;
             }
         }
 
         // c. If here it means that it cannot do input buffering.
         for (auto params : paramsList)
         {
-            if (TryConf(params, false, false, tryWeightsReloading))
+            rv = TryConf(params, false, false, tryWeightsReloading);
+            if (rv.success)
             {
-                return true;
+                return rv;
             }
         }
     }
 
-    return false;
+    return rv;
 }
 
 // Try XY input traversal: streaming in X and Y and XYZ output traversal (output traversal)
 // matters only for the Firmware).
-bool TryInputXYOutputXYZ(const command_stream::MceOperation& mceOperation,
-                         command_stream::UpsampleType upsampleType,
-                         StrategyConfig& strategyConfig,
-                         SramAllocator& sramAllocator,
-                         const TensorShape& inputShape,
-                         const TensorShape& outputShape,
-                         const DataFormat weightsFormat,
-                         const TensorShape& weightsShape,
-                         std::pair<const uint32_t, const uint32_t> pad,
-                         std::vector<command_stream::BlockConfig> allowedBlockConfigs,
-                         const HardwareCapabilities& capabilities,
-                         const utils::ShapeMultiplier& mceShapeMultiplier,
-                         const utils::ShapeMultiplier& pleShapeMultiplier,
-                         std::pair<const bool, const uint32_t> inputStaticAndOffset,
-                         const uint32_t depthMax)
+StrategySelectionReturnValue TryInputXYOutputXYZ(const StrategyXSelectionParameters& strategyXSelectionParameters)
 {
+    StrategySelectionReturnValue rv;
+    rv.success = false;
+
+    const std::pair<const bool, const uint32_t>& inputStaticAndOffset =
+        strategyXSelectionParameters.inputStaticAndOffset;
     if (inputStaticAndOffset.first)
     {
-        return false;
+        return rv;
     }
 
-    const bool isFullyConnected = (mceOperation == command_stream::MceOperation::FULLY_CONNECTED);
+    const command_stream::MceOperation& mceOperation = strategyXSelectionParameters.mceOperation;
+    const bool isFullyConnected                      = (mceOperation == command_stream::MceOperation::FULLY_CONNECTED);
 
     // Allow only fully connected since this is equivalent of strategy 1 not yet fully supported and
     // tested in strategy X.
     if (!isFullyConnected)
     {
-        return false;
+        return rv;
     }
 
     // Sort the block config (allowedBlockConfigs is a copy)
+    std::vector<command_stream::BlockConfig> allowedBlockConfigs = strategyXSelectionParameters.allowedBlockConfigs;
     std::sort(allowedBlockConfigs.begin(), allowedBlockConfigs.end(),
               [](command_stream::BlockConfig a, command_stream::BlockConfig b) {
                   return ((a.m_BlockWidth() > b.m_BlockWidth()) ||
@@ -538,6 +547,10 @@ bool TryInputXYOutputXYZ(const command_stream::MceOperation& mceOperation,
 
     // Generate a list of parameters we pass to TryStripeShapes so we can see all the stripe shapes which could be attempted.
     std::vector<Params> paramsList;
+    const HardwareCapabilities& capabilities         = strategyXSelectionParameters.capabilities;
+    const command_stream::UpsampleType& upsampleType = strategyXSelectionParameters.upsampleType;
+    const utils::ShapeMultiplier& pleShapeMultiplier = strategyXSelectionParameters.pleShapeMultiplier;
+    const TensorShape& inputShape                    = strategyXSelectionParameters.inputShape;
     for (auto& currBlockConfig : allowedBlockConfigs)
     {
         if (!IsBlockConfigCompatible(currBlockConfig, capabilities, mceOperation, upsampleType))
@@ -559,43 +572,45 @@ bool TryInputXYOutputXYZ(const command_stream::MceOperation& mceOperation,
 
     if (paramsList.size() == 0)
     {
-        return false;
+        return rv;
     }
 
-    auto TryConf = [&](const Params params, const bool allowInputBuffering) {
-        if (TryStripeShapes(mceOperation, sramAllocator,
+    auto TryConf = [&strategyXSelectionParameters](const Params params, const bool allowInputBuffering) {
+        StrategySelectionReturnValue rv =
+            TryStripeShapes(strategyXSelectionParameters,
                             { 1, params.outputStripeHeight, params.outputStripeWidth, params.outputStripeChannel },
-                            params.inputStripeChannel, inputShape, outputShape, weightsFormat, weightsShape,
-                            capabilities, mceShapeMultiplier, pleShapeMultiplier, pad, inputStaticAndOffset,
-                            strategyConfig, depthMax, allowInputBuffering))
+                            params.inputStripeChannel, allowInputBuffering);
+        StrategyConfig& outStrategyConfig = rv.strategyConfig;
+        if (rv.success)
         {
-            strategyConfig.blockWidth  = params.blockWidth;
-            strategyConfig.blockHeight = params.blockHeight;
-            strategyConfig.strategy    = Strategy::STRATEGY_X;
-            return true;
+            outStrategyConfig.blockWidth  = params.blockWidth;
+            outStrategyConfig.blockHeight = params.blockHeight;
+            outStrategyConfig.strategy    = Strategy::STRATEGY_X;
         }
-        return false;
+        return rv;
     };
 
     // Try all configurations using input buffering.
     for (auto params : paramsList)
     {
-        if (TryConf(params, true))
+        rv = TryConf(params, true);
+        if (rv.success)
         {
-            return true;
+            return rv;
         }
     }
 
     // If here it means that it cannot do input buffering.
     for (auto params : paramsList)
     {
-        if (TryConf(params, false))
+        rv = TryConf(params, false);
+        if (rv.success)
         {
-            return true;
+            return rv;
         }
     }
 
-    return false;
+    return rv;
 }
 
 template <typename T>
@@ -628,37 +643,17 @@ bool IsStrategyX(const command_stream::MceOperation& mceOperation,
     return isSupportedMceOperation && isSupportedAlgorithm && isSupportedStrategy && isAllowedStrategy;
 }
 
-bool TryStrategyX(const command_stream::MceOperation& mceOperation,
-                  const command_stream::UpsampleType upsampleType,
-                  StrategyConfig& strategyConfig,
-                  SramAllocator& sramAllocator,
-                  const TensorShape& inputShape,
-                  const TensorShape& outputShape,
-                  const DataFormat weightsFormat,
-                  const TensorShape& weightsShape,
-                  std::pair<const uint32_t, const uint32_t> pad,
-                  const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
-                  const HardwareCapabilities& capabilities,
-                  const utils::ShapeMultiplier& mceShapeMultiplier,
-                  const utils::ShapeMultiplier& pleShapeMultiplier,
-                  std::pair<const bool, const uint32_t> inputStaticAndOffset,
-                  const uint32_t depthMax)
+StrategySelectionReturnValue TryStrategyX(const StrategyXSelectionParameters& strategyXSelectionParameters)
 {
-    if (TryInputXYOutputXYZ(mceOperation, upsampleType, strategyConfig, sramAllocator, inputShape, outputShape,
-                            weightsFormat, weightsShape, pad, allowedBlockConfigs, capabilities, mceShapeMultiplier,
-                            pleShapeMultiplier, inputStaticAndOffset, depthMax))
+    StrategySelectionReturnValue rv = TryInputXYOutputXYZ(strategyXSelectionParameters);
+    if (rv.success)
     {
-        return true;
+        return rv;
     }
 
-    if (TryInputZXYOutputXYZ(mceOperation, upsampleType, strategyConfig, sramAllocator, inputShape, outputShape,
-                             weightsFormat, weightsShape, pad, allowedBlockConfigs, capabilities, mceShapeMultiplier,
-                             pleShapeMultiplier, inputStaticAndOffset, depthMax))
-    {
-        return true;
-    }
+    rv = TryInputZXYOutputXYZ(strategyXSelectionParameters);
 
-    return false;
+    return rv;
 }
 
 }    // namespace support_library

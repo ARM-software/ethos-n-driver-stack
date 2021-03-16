@@ -1,12 +1,11 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
 #include "Compiler.hpp"
-#include "Strategies.hpp"
 
 #include <ethosn_command_stream/CommandData.hpp>
 #include <ethosn_command_stream/CommandStreamBuffer.hpp>

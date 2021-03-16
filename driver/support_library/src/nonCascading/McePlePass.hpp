@@ -7,6 +7,8 @@
 
 #include "GraphNodes.hpp"
 #include "Pass.hpp"
+#include "SramAllocator.hpp"
+#include "StrategiesCommon.hpp"
 
 #include <ethosn_command_stream/PleOperation.hpp>
 
@@ -19,6 +21,7 @@ class FuseOnlyPleOperationNode;
 class FormatConversionNode;
 class McePostProcessOperationNode;
 class RequantizeNode;
+class StrategySelectionParameters;
 
 struct LinearNodesOutput
 {

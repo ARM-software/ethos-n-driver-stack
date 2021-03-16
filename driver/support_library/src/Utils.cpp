@@ -1,13 +1,11 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #include "Utils.hpp"
 
 #include "Compiler.hpp"
-#include "nonCascading/McePlePass.hpp"
-#include "nonCascading/Strategies.hpp"
 
 namespace ethosn
 {

@@ -6,6 +6,7 @@
 #include "McePlePass.hpp"
 
 #include "Compiler.hpp"
+#include "Strategies.hpp"
 #include "StrategyX.hpp"
 #include "Utils.hpp"
 #include "cascading/EstimationUtils.hpp"
@@ -388,19 +389,23 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
             if (IsStrategyX(mceOperation->GetOperation(), selectedStrategy.strategyConfig, res.m_Algorithm,
                             validStrategies))
             {
-                SramAllocator currentSramAllocator = sramAllocator;
-                bool strategyXSelected             = TryStrategyX(
-                    mceOperation->GetOperation(), mceOperation->GetUpsampleType(), selectedStrategy.strategyConfig,
-                    currentSramAllocator, mceInputShape, lastNode->GetShape(),
-                    mceOperation->GetWeightsInfo().m_DataFormat, weightsShape,
-                    std::make_pair(mceOperation->GetPadTop(), mceOperation->GetPadLeft()), validBlockConfigs,
-                    capabilities, mceOperation->GetShapeMultiplier(),
+                StrategyXSelectionParameters strategyXSelectionParameters{
+                    mceOperation->GetOperation(),
+                    mceOperation->GetUpsampleType(),
+                    sramAllocator,
+                    mceInputShape,
+                    lastNode->GetShape(),
+                    mceOperation->GetWeightsInfo().m_DataFormat,
+                    weightsShape,
+                    std::make_pair(mceOperation->GetPadTop(), mceOperation->GetPadLeft()),
+                    validBlockConfigs,
+                    capabilities,
+                    mceOperation->GetShapeMultiplier(),
                     (fuseOnlyPle != nullptr ? fuseOnlyPle->GetShapeMultiplier() : g_IdentityShapeMultiplier),
-                    inputStaticAndOffset, depthMax);
-
-                selectedStrategy.success = strategyXSelected;
-                //selectedStrategy.strategyConfig is output of TryStrategyX
-                selectedStrategy.sramAllocator = currentSramAllocator;
+                    inputStaticAndOffset,
+                    depthMax
+                };
+                selectedStrategy = TryStrategyX(strategyXSelectionParameters);
             }
 
             if (selectedStrategy.success)

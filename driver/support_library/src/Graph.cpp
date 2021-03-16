@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -8,7 +8,9 @@
 #include "DebuggingContext.hpp"
 #include "GraphNodes.hpp"
 #include "NetworkToGraphConverter.hpp"
+#include "SramAllocator.hpp"
 #include "nonCascading/Pass.hpp"
+#include "nonCascading/Section.hpp"
 
 #include <ethosn_utils/Strings.hpp>
 

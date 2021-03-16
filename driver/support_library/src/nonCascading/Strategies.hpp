@@ -8,6 +8,7 @@
 #include "GraphNodes.hpp"
 #include "Network.hpp"
 #include "SramAllocator.hpp"
+#include "StrategiesCommon.hpp"
 #include "StrategyConfig.hpp"
 
 #include <ethosn_command_stream/CommandStream.hpp>
@@ -63,13 +64,6 @@ struct StrategySelectionParameters
     std::pair<bool, uint32_t> inputStaticAndOffset;
     CompilerMceAlgorithm algorithm;
     uint32_t depthMax;
-};
-
-struct StrategySelectionReturnValue
-{
-    bool success{ false };
-    StrategyConfig strategyConfig;
-    SramAllocator sramAllocator;
 };
 
 class IStrategy
