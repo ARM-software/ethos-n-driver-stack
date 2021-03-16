@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2019 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -41,7 +41,12 @@
 #include <stdint.h>
 #endif
 
-/* Version information */
+/**
+ * Version information
+ *
+ * This is common for the fat binary (ethosn.bin) and the individual
+ * firmware binaries (sub-components of the fat binary).
+ */
 #define ETHOSN_FIRMWARE_VERSION_MAJOR 1
 #define ETHOSN_FIRMWARE_VERSION_MINOR 0
 #define ETHOSN_FIRMWARE_VERSION_PATCH 0

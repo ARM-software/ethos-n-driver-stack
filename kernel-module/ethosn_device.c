@@ -1144,6 +1144,9 @@ int ethosn_send_mpu_enable_request(struct ethosn_core *core)
 
 /* Big FW binary structure */
 struct ethosn_big_fw {
+	uint32_t fw_ver_major;
+	uint32_t fw_ver_minor;
+	uint32_t fw_ver_patch;
 	uint32_t fw_cnt;
 	struct ethosn_big_fw_desc {
 		uint32_t arch_min;
@@ -1166,11 +1169,14 @@ static struct ethosn_big_fw_desc *find_big_fw_desc(struct ethosn_core *core,
 	       npu_id.bits.arch_rev;
 
 	dev_dbg(core->dev,
-		"NPU reported version %u.%u.%u. FWs in BIG FW: %u\n",
+		"NPU reported version %u.%u.%u. FWs in BIG FW: %u. FW version in BIG FW: %u.%u.%u\n",
 		npu_id.bits.arch_major,
 		npu_id.bits.arch_minor,
 		npu_id.bits.arch_rev,
-		big_fw->fw_cnt);
+		big_fw->fw_cnt,
+		big_fw->fw_ver_major,
+		big_fw->fw_ver_minor,
+		big_fw->fw_ver_patch);
 
 	while (i--) {
 		if (big_fw->desc[i].arch_min <= arch &&
