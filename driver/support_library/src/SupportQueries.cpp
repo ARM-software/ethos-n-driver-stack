@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1688,9 +1688,8 @@ SupportedLevel SupportQueries::IsPoolingSupported(const PoolingInfo& poolingInfo
         const Padding padAfter = { 0, 1, 0, 1 };
 
         const PoolingInfo supportedConfigs[] = {
-            { 2, 2, 2, 2, noPad, PoolingType::MAX },
-            { 2, 2, 2, 2, padAfter, PoolingType::MAX },
-            { 3, 3, 2, 2, noPad, PoolingType::MAX },
+            { 1, 1, 2, 2, noPad, PoolingType::MAX },    { 2, 2, 2, 2, noPad, PoolingType::MAX },
+            { 2, 2, 2, 2, padAfter, PoolingType::MAX }, { 3, 3, 2, 2, noPad, PoolingType::MAX },
             { 3, 3, 2, 2, padAfter, PoolingType::MAX },
         };
 

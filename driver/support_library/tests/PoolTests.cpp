@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -98,6 +98,8 @@ TEST_CASE("PoolingSupported")
             SupportedLevel::EstimateOnly);
 
     // Supported
+    REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 1, 1 }, { 2, 2 }, noPad, PoolingType::MAX) ==
+            SupportedLevel::Supported);
     REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 2, 2 }, { 2, 2 }, noPad, PoolingType::MAX) ==
             SupportedLevel::Supported);
     REQUIRE(IsPoolingSupportedImpl(queries, { 17, 17 }, { 2, 2 }, { 2, 2 }, padAfter, PoolingType::MAX) ==

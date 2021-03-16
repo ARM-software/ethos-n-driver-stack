@@ -175,12 +175,17 @@ std::vector<command_stream::BlockConfig>
 
         const command_stream::PleOperation pleOp = pleOperation->GetKernelOperation();
 
-        if (pleOp == command_stream::PleOperation::INTERLEAVE_2X2_2_2)
+        if (pleOp == command_stream::PleOperation::DOWNSAMPLE_2X2)
         {
-            auto filter = [FilterToSize](const command_stream::BlockConfig& blockConfig) {
-                return FilterToSize(blockConfig, 16, 16);
+            auto filter = [&](const auto& blockConfig) {
+                return FilterToSizes(blockConfig, { { 16U, 8U }, { 32U, 8U }, { 16U, 16U }, { 8U, 8U } });
             };
             res = Filter(res, filter);
+        }
+        else if (pleOp == command_stream::PleOperation::INTERLEAVE_2X2_2_2)
+        {
+            auto filter = [FilterToSize](const auto& blockConfig) { return FilterToSize(blockConfig, 16, 16); };
+            res         = Filter(res, filter);
         }
         else if (pleOp == command_stream::PleOperation::MAXPOOL_2X2_2_2)
         {
@@ -193,10 +198,8 @@ std::vector<command_stream::BlockConfig>
         else if ((pleOp == command_stream::PleOperation::MEAN_XY_7X7) ||
                  (pleOp == command_stream::PleOperation::MEAN_XY_8X8))
         {
-            auto filter = [FilterToSize](const command_stream::BlockConfig& blockConfig) {
-                return FilterToSize(blockConfig, 8, 8);
-            };
-            res = Filter(res, filter);
+            auto filter = [FilterToSize](const auto& blockConfig) { return FilterToSize(blockConfig, 8, 8); };
+            res         = Filter(res, filter);
         }
         else if (pleOp == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
                  pleOp == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD)

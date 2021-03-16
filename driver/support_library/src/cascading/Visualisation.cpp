@@ -182,6 +182,8 @@ std::string ToString(command_stream::PleOperation o)
             return "ADDITION_RESCALE";
         case ethosn::command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA:
             return "AVGPOOL_3X3_1_1_UDMA";
+        case ethosn::command_stream::PleOperation::DOWNSAMPLE_2X2:
+            return "DOWNSAMPLE_2X2";
         case ethosn::command_stream::PleOperation::FAULT:
             return "FAULT";
         case ethosn::command_stream::PleOperation::INTERLEAVE_2X2_2_2:

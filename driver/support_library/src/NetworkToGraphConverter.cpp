@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -249,6 +249,10 @@ void NetworkToGraphConverter::Visit(Pooling& pooling)
     else if (poolingInfo == PoolingInfo{ 3, 3, 1, 1, poolingInfo.m_Padding, PoolingType::AVG })
     {
         n = createStandalonePleNode(command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA);
+    }
+    else if (poolingInfo == PoolingInfo{ 1, 1, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
+    {
+        n = createFuseOnlyPleNode(command_stream::PleOperation::DOWNSAMPLE_2X2);
     }
     else if (poolingInfo == PoolingInfo{ 2, 2, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
     {

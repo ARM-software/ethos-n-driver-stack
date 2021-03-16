@@ -400,9 +400,10 @@ bool FuseOnlyPleOperationNode::IsAgnosticToRequantisation() const
 {
     using namespace command_stream;
     PleOperation op = GetKernelOperation();
-    return op == PleOperation::MAXPOOL_2X2_2_2 || op == PleOperation::INTERLEAVE_2X2_2_2 ||
-           op == PleOperation::MAXPOOL_3X3_2_2_EVEN || op == PleOperation::MAXPOOL_3X3_2_2_ODD ||
-           op == PleOperation::MEAN_XY_7X7 || op == PleOperation::MEAN_XY_8X8 || op == PleOperation::PASSTHROUGH;
+    return op == PleOperation::DOWNSAMPLE_2X2 || op == PleOperation::INTERLEAVE_2X2_2_2 ||
+           op == PleOperation::MAXPOOL_2X2_2_2 || op == PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+           op == PleOperation::MAXPOOL_3X3_2_2_ODD || op == PleOperation::MEAN_XY_7X7 ||
+           op == PleOperation::MEAN_XY_8X8 || op == PleOperation::PASSTHROUGH;
 }
 
 bool FuseOnlyPleOperationNode::IsPrepared()
