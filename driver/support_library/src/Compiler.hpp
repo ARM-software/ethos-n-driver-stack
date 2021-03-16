@@ -254,5 +254,11 @@ std::vector<command_stream::BlockConfig> GenerateAllowedBlockConfigs(const Compi
 
 uint32_t CalculateBufferSize(const TensorShape& shape, command_stream::DataFormat dataFormat);
 
+template <class IOBufferInfo>
+bool SortByOperationId(const IOBufferInfo& buf1, const IOBufferInfo& buf2)
+{
+    return buf1.m_SourceOperationId < buf2.m_SourceOperationId;
+}
+
 }    // namespace support_library
 }    // namespace ethosn

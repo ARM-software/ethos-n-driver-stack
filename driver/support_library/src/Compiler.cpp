@@ -512,16 +512,38 @@ CompiledNetworkImpl::CompiledNetworkImpl(const std::vector<uint8_t>& constantDma
         {
             case BufferType::Input:
             {
+                InputBufferInfo inputBuffer(compilerBuffer.m_Size, compilerBuffer.m_SourceOperationId,
+                                            compilerBuffer.m_SourceOperationOutputIndex);
+
                 m_InputBufferInfos.push_back(buffer);
-                m_InputBufferInfosPublic.emplace_back(compilerBuffer.m_Size, compilerBuffer.m_SourceOperationId,
-                                                      compilerBuffer.m_SourceOperationOutputIndex);
+                m_InputBufferInfosPublic.push_back(inputBuffer);
+
+                // The input buffers need to sorted by m_SourceOperationId.
+                // m_SourceOperationId increases sequentially as the caller adds operands.
+                // This will ensure that the user can pass their buffers to the driver library API
+                // (ScheduleInference()) in the same order as they were added to the original
+                // network.
+                std::sort(m_InputBufferInfos.begin(), m_InputBufferInfos.end(), SortByOperationId<BufferInfoInternal>);
+                std::sort(m_InputBufferInfosPublic.begin(), m_InputBufferInfosPublic.end(),
+                          SortByOperationId<InputBufferInfo>);
                 break;
             }
             case BufferType::Output:
             {
+                OutputBufferInfo outputBuffer(compilerBuffer.m_Size, compilerBuffer.m_SourceOperationId,
+                                              compilerBuffer.m_SourceOperationOutputIndex);
                 m_OutputBufferInfos.push_back(buffer);
-                m_OutputBufferInfosPublic.emplace_back(compilerBuffer.m_Size, compilerBuffer.m_SourceOperationId,
-                                                       compilerBuffer.m_SourceOperationOutputIndex);
+                m_OutputBufferInfosPublic.push_back(outputBuffer);
+
+                // The output buffers need to sorted by m_SourceOperationId.
+                // m_SourceOperationId increases sequentially as the caller adds operands.
+                // This will ensure that the user can pass their buffers to the driver library API
+                // (ScheduleInference()) in the same order as they were added to the original
+                // network.
+                std::sort(m_OutputBufferInfos.begin(), m_OutputBufferInfos.end(),
+                          SortByOperationId<BufferInfoInternal>);
+                std::sort(m_OutputBufferInfosPublic.begin(), m_OutputBufferInfosPublic.end(),
+                          SortByOperationId<OutputBufferInfo>);
                 break;
             }
             case BufferType::Intermediate:

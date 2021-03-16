@@ -72,6 +72,7 @@ public:
 
     // Schedule an inference with the network and the input & output buffers supplied.
     // Returns a Inference object.
+    // The order of inputs/outputs correspond exactly to that in the compiled network.
     Inference* ScheduleInference(Buffer* const inputBuffers[],
                                  uint32_t numInputBuffers,
                                  Buffer* const outputBuffers[],

@@ -942,8 +942,10 @@ public:
     virtual const std::set<uint32_t>& GetOperationIds() const = 0;
 
     /// Details of each input buffer.
+    /// The array is in the same order as the user provided inputs via AddInput()
     virtual const std::vector<InputBufferInfo>& GetInputBufferInfos() const = 0;
     /// Details of each output buffer.
+    /// The array is in the same order as the user provided outputs via AddOutput()
     virtual const std::vector<OutputBufferInfo>& GetOutputBufferInfos() const = 0;
 
     /// Serializes this object to a binary data stream, for consumption by the Driver Library
