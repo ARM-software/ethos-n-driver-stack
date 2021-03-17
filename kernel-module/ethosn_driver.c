@@ -1049,7 +1049,7 @@ static int ethosn_driver_probe(struct ethosn_core *core,
 	 * If the Arm Ethos-N NPU SiP service is available verify the NPU's
 	 * secure status. If not, assume it's non-secure.
 	 */
-	secure = !ret ? ethosn_is_secure(core) : 0;
+	secure = !ret ? ethosn_smc_is_secure(core) : 0;
 	if (secure) {
 		if (secure == 1) {
 			dev_err(core->dev,
