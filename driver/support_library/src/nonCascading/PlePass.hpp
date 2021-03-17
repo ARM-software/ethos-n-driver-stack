@@ -1,11 +1,13 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
 #include "Pass.hpp"
+#include "SramAllocator.hpp"
+#include "StrategiesCommon.hpp"
 
 #include <ethosn_command_stream/PleOperation.hpp>
 
@@ -16,6 +18,48 @@ namespace support_library
 
 class StandalonePleOperationNode;
 class FormatConversionNode;
+
+struct PleStrategySelectionParameter
+{
+    PleStrategySelectionParameter(const HardwareCapabilities& capabilities,
+                                  SramAllocator sramAllocator,
+                                  const std::vector<SramTensorAllocation>& inputSramAllocations,
+                                  const std::vector<TensorShape>& inputShapes,
+                                  const TensorShape& outputShape,
+                                  const std::vector<std::pair<bool, uint32_t>>& inputsStaticAndOffset,
+                                  const TensorShape& splittableDims)
+        : capabilities{ capabilities }
+        , sramAllocator{ sramAllocator }
+        , inputSramAllocations{ inputSramAllocations }
+        , inputShapes{ inputShapes }
+        , outputShape{ outputShape }
+        , inputsStaticAndOffset{ inputsStaticAndOffset }
+        , splittableDims{ splittableDims }
+
+    {}
+    // The sole purpose of this struct is to pack all the parameters given to ChooseAndSetupStrategy and
+    // make sure all the arguments are read only. Hence the copy constructor and assignment operator are
+    // deleted.
+    PleStrategySelectionParameter(const PleStrategySelectionParameter&) = delete;
+    PleStrategySelectionParameter& operator=(const PleStrategySelectionParameter&) = delete;
+
+    HardwareCapabilities capabilities;
+    SramAllocator sramAllocator;
+    const std::vector<SramTensorAllocation>& inputSramAllocations;
+    std::vector<TensorShape> inputShapes;
+    TensorShape outputShape;
+    std::vector<std::pair<bool, uint32_t>> inputsStaticAndOffset;
+    TensorShape splittableDims;
+};
+
+struct PleStrategySelectionReturnValue
+{
+    bool success{ false };
+    SramAllocator sramAllocator;
+    std::vector<SramTensorAllocation> inputSramAllocations;
+    SramTensorAllocation pleSramAllocation;
+    SramTensorAllocation outputSramAllocation;
+};
 
 /// A set of operations which are evaluated by Ethos-N in a single "pass" through the PLE only.
 class PlePass : public Pass
@@ -42,15 +86,8 @@ public:
 
     DotAttributes GetDotAttributes() override;
 
-    static bool ChooseAndSetupStrategy(const HardwareCapabilities& capabilities,
-                                       SramAllocator& sramAllocator,
-                                       std::vector<SramTensorAllocation>& inputOffsetsAndSizes,
-                                       SramTensorAllocation& pleOffsetAndSize,
-                                       SramTensorAllocation& outputOffsetAndSize,
-                                       const std::vector<TensorShape>& inputShapes,
-                                       const TensorShape& outputShape,
-                                       const std::vector<std::pair<bool, uint32_t>>& inputsStaticAndOffset,
-                                       const TensorShape& splittableDims);
+    static PleStrategySelectionReturnValue
+        ChooseAndSetupStrategy(const PleStrategySelectionParameter& pleStrategySelectionParameter);
 
 private:
     PassStats GetStats(const EstimationOptions& estimationOptions) override;

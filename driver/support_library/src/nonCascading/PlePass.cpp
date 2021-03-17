@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -7,7 +7,6 @@
 
 #include "Compiler.hpp"
 #include "GraphNodes.hpp"
-#include "SramAllocator.hpp"
 #include "Utils.hpp"
 #include "cascading/EstimationUtils.hpp"
 
@@ -42,7 +41,6 @@ std::unique_ptr<PlePass> PlePass::CreateGreedily(const HardwareCapabilities& cap
 
     StandalonePleOperationNode* pleOperation = nullptr;
     FormatConversionNode* postConversion     = nullptr;
-    bool strategySelected                    = false;
     bool lastWorkingStrategySelected         = false;
 
     CompilerDataFormat requiredOutputFormat  = CompilerDataFormat::NONE;
@@ -75,7 +73,6 @@ std::unique_ptr<PlePass> PlePass::CreateGreedily(const HardwareCapabilities& cap
         }
 
         // Analyze the current set of nodes that we have (calculate the strategies etc.), as this will determine whether we want to merge more.
-        strategySelected     = false;
         outputLocation       = BufferLocation::None;
         requiredOutputFormat = CompilerDataFormat::NONE;
         if (pleOperation)
@@ -126,12 +123,18 @@ std::unique_ptr<PlePass> PlePass::CreateGreedily(const HardwareCapabilities& cap
                 splittableDims = { 0, 0, 0, 0 };
             }
 
-            strategySelected = ChooseAndSetupStrategy(capabilities, currentSramAllocator, inputSramAllocations,
-                                                      pleSramAllocation, outputSramAllocation, inputShapes, outputShape,
-                                                      inputsStaticAndOffset, splittableDims);
+            PleStrategySelectionParameter pleStrategySelectionParameter{ capabilities,         currentSramAllocator,
+                                                                         inputSramAllocations, inputShapes,
+                                                                         outputShape,          inputsStaticAndOffset,
+                                                                         splittableDims };
+            PleStrategySelectionReturnValue rv = ChooseAndSetupStrategy(pleStrategySelectionParameter);
 
-            if (strategySelected)
+            if (rv.success)
             {
+                inputSramAllocations = rv.inputSramAllocations;
+                currentSramAllocator = rv.sramAllocator;
+                pleSramAllocation    = rv.pleSramAllocation;
+                outputSramAllocation = rv.outputSramAllocation;
                 if ((outputSramAllocation.stripeShape[3] < outputShape[3] ||
                      outputSramAllocation.stripeShape[2] < outputShape[2]))
                 {
@@ -244,21 +247,17 @@ std::unique_ptr<PlePass> PlePass::CreateGreedily(const HardwareCapabilities& cap
     }
 }
 
-bool PlePass::ChooseAndSetupStrategy(const HardwareCapabilities& capabilities,
-                                     SramAllocator& sramAllocator,
-                                     std::vector<SramTensorAllocation>& inputSramAllocations,
-                                     SramTensorAllocation& pleSramAllocation,
-                                     SramTensorAllocation& outputSramAllocation,
-                                     const std::vector<TensorShape>& inputShapes,
-                                     const TensorShape& outputShape,
-                                     const std::vector<std::pair<bool, uint32_t>>& inputsStaticAndOffset,
-                                     const TensorShape& splittableDims)
+PleStrategySelectionReturnValue
+    PlePass::ChooseAndSetupStrategy(const PleStrategySelectionParameter& pleStrategySelectionParameter)
 {
     using namespace command_stream;
 
+    const std::vector<TensorShape>& inputShapes = pleStrategySelectionParameter.inputShapes;
     assert(inputShapes.size() > 0);
     // This function assumes we have setup the output parameters correctly
-    assert(inputSramAllocations.size() == inputShapes.size());
+    assert(pleStrategySelectionParameter.inputSramAllocations.size() == inputShapes.size());
+    const std::vector<std::pair<bool, uint32_t>>& inputsStaticAndOffset =
+        pleStrategySelectionParameter.inputsStaticAndOffset;
     assert(inputsStaticAndOffset.size() == inputShapes.size());
 
     const TensorShape& inputShape0 = inputShapes[0];
@@ -266,7 +265,7 @@ bool PlePass::ChooseAndSetupStrategy(const HardwareCapabilities& capabilities,
     if (!std::all_of(++inputShapes.begin(), inputShapes.end(),
                      [&inputShape0](const TensorShape& t) { return t == inputShape0; }))
     {
-        return false;
+        return {};
     }
 
     const std::pair<bool, uint32_t> inputsStaticAndOffset0 = inputsStaticAndOffset[0];
@@ -278,27 +277,32 @@ bool PlePass::ChooseAndSetupStrategy(const HardwareCapabilities& capabilities,
                          return t.first == inputsStaticAndOffset0.first;
                      }))
     {
-        return false;
+        return {};
     }
 
+    const TensorShape& outputShape = pleStrategySelectionParameter.outputShape;
     if (inputShape0[3] > outputShape[3])
     {
-        return false;
+        return {};
     }
 
+    SramAllocator sramAllocator             = pleStrategySelectionParameter.sramAllocator;
+    const HardwareCapabilities capabilities = pleStrategySelectionParameter.capabilities;
     auto pleAllocateResult = sramAllocator.Allocate(capabilities.GetMaxPleSize(), AllocationPreference::Start, "ple");
 
     if (!pleAllocateResult.first)
     {
-        return false;
+        return {};
     }
 
+    SramTensorAllocation pleSramAllocation;
     pleSramAllocation.tileSize = capabilities.GetMaxPleSize();
     pleSramAllocation.offset   = pleAllocateResult.second;
 
     // Generate all the stripes we want to try
     using TensorShapeList = std::vector<TensorShape>;
     TensorShapeList outStripes;
+    const TensorShape& splittableDims = pleStrategySelectionParameter.splittableDims;
     std::vector<TensorShapeList> inStripes;
     {
         // The stripe depth must be such that no stripes may start on channels that aren't a multiple of 16 and pass
@@ -350,23 +354,35 @@ bool PlePass::ChooseAndSetupStrategy(const HardwareCapabilities& capabilities,
         }
     }
 
-    auto tryAlloc = [&](const TensorShapeList& inputStripes, const TensorShape& outputStripe,
-                        const uint32_t maxNumStripesInTile) {
+    auto tryAlloc = [&sramAllocator, &pleStrategySelectionParameter,
+                     &pleSramAllocation](const TensorShapeList& inputStripes, const TensorShape& outputStripe,
+                                         const uint32_t maxNumStripesInTile) {
+        PleStrategySelectionReturnValue rv;
+        rv.pleSramAllocation = pleSramAllocation;
+        rv.success           = false;
+
         SramAllocator trySramAllocator = sramAllocator;
 
         const uint32_t outStripeSizeInSram = GetNumElements(outputStripe);
 
         // We don't need multiple stripes in the tile if the stripe is already the full tensor
+        const TensorShape& outputShape  = pleStrategySelectionParameter.outputShape;
         const uint32_t numStripesInTile = outStripeSizeInSram >= GetNumElements(outputShape) ? 1u : maxNumStripesInTile;
+        const HardwareCapabilities& capabilities = pleStrategySelectionParameter.capabilities;
         auto outputAllocateResult =
             trySramAllocator.Allocate((numStripesInTile * outStripeSizeInSram) / capabilities.GetNumberOfSrams(),
                                       AllocationPreference::End, "output");
 
         if (!outputAllocateResult.first)
         {
-            return false;
+            return rv;
         }
 
+        const std::vector<std::pair<bool, uint32_t>>& inputsStaticAndOffset =
+            pleStrategySelectionParameter.inputsStaticAndOffset;
+        const std::vector<TensorShape>& inputShapes             = pleStrategySelectionParameter.inputShapes;
+        rv.inputSramAllocations                                 = pleStrategySelectionParameter.inputSramAllocations;
+        std::vector<SramTensorAllocation>& inputSramAllocations = rv.inputSramAllocations;
         for (uint32_t inputIndex = 0; inputIndex < inputStripes.size(); ++inputIndex)
         {
             const TensorShape& inputStripe = inputStripes[inputIndex];
@@ -380,7 +396,7 @@ bool PlePass::ChooseAndSetupStrategy(const HardwareCapabilities& capabilities,
 
                 if (!allocateResult.first)
                 {
-                    return false;
+                    return rv;
                 }
 
                 inputSramAllocations[inputIndex].offset = allocateResult.second;
@@ -394,29 +410,32 @@ bool PlePass::ChooseAndSetupStrategy(const HardwareCapabilities& capabilities,
             }
             else
             {
-                return false;
+                return rv;
             }
             inputSramAllocations[inputIndex].stripeShape = inputStripe;
             inputSramAllocations[inputIndex].tileSize    = numStripesInTile * inStripeSizeInSram;
         }
 
-        outputSramAllocation.stripeShape = outputStripe;
-        outputSramAllocation.tileSize    = numStripesInTile * outStripeSizeInSram;
-        outputSramAllocation.offset      = outputAllocateResult.second;
-        sramAllocator                    = trySramAllocator;
-        return true;
+        SramTensorAllocation& outputSramAllocation = rv.outputSramAllocation;
+        outputSramAllocation.stripeShape           = outputStripe;
+        outputSramAllocation.tileSize              = numStripesInTile * outStripeSizeInSram;
+        outputSramAllocation.offset                = outputAllocateResult.second;
+        rv.sramAllocator                           = trySramAllocator;
+        rv.success                                 = true;
+        return rv;
     };
 
     for (uint32_t i = 0; i < outStripes.size(); ++i)
     {
+        PleStrategySelectionReturnValue rv = tryAlloc(inStripes[i], outStripes[i], 2u);
         // Double buffer all the stripes in each tile.
-        if (tryAlloc(inStripes[i], outStripes[i], 2u))
+        if (rv.success)
         {
-            return true;
+            return rv;
         }
     }
 
-    return false;
+    return {};
 }
 
 PlePass::PlePass(const HardwareCapabilities& capabilities,

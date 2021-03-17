@@ -19,58 +19,13 @@ namespace support_library
 {
 
 class HardwareCapabilities;
-
-struct StrategySelectionParameters
-{
-    StrategySelectionParameters(HardwareCapabilities capabilities,
-                                SramAllocator sramAllocator,
-                                TensorShape inputShape,
-                                TensorShape mceOutputShape,
-                                TensorShape outputShape,
-                                DataFormat weightsFormat,
-                                TensorShape weightsShape,
-                                utils::ShapeMultiplier mceShapeMultiplier,
-                                utils::ShapeMultiplier pleShapeMultiplier,
-                                std::pair<bool, uint32_t> inputStaticAndOffset,
-                                CompilerMceAlgorithm algorithm,
-                                uint32_t depthMax = UINT32_MAX)
-        : capabilities{ capabilities }
-        , sramAllocator{ sramAllocator }
-        , inputShape{ inputShape }
-        , mceOutputShape{ mceOutputShape }
-        , outputShape{ outputShape }
-        , weightsFormat{ weightsFormat }
-        , weightsShape{ weightsShape }
-        , mceShapeMultiplier{ mceShapeMultiplier }
-        , pleShapeMultiplier{ pleShapeMultiplier }
-        , inputStaticAndOffset{ inputStaticAndOffset }
-        , algorithm{ algorithm }
-        , depthMax{ depthMax }
-    {}
-    // Remove the copy constructor/assignment operator because there is no reason that this huge object
-    // wrapper must be copied.
-    StrategySelectionParameters(const StrategySelectionParameters&) = delete;
-    StrategySelectionParameters& operator=(const StrategySelectionParameters&) = delete;
-
-    HardwareCapabilities capabilities;
-    SramAllocator sramAllocator;
-    TensorShape inputShape;
-    TensorShape mceOutputShape;
-    TensorShape outputShape;
-    DataFormat weightsFormat;
-    TensorShape weightsShape;
-    utils::ShapeMultiplier mceShapeMultiplier;
-    utils::ShapeMultiplier pleShapeMultiplier;
-    std::pair<bool, uint32_t> inputStaticAndOffset;
-    CompilerMceAlgorithm algorithm;
-    uint32_t depthMax;
-};
+class MceStrategySelectionParameters;
 
 class IStrategy
 {
 public:
-    virtual StrategySelectionReturnValue
-        TrySetupAnyBlockConfig(const StrategySelectionParameters& strategySelectionParameters,
+    virtual MceStrategySelectionReturnValue
+        TrySetupAnyBlockConfig(const MceStrategySelectionParameters& strategySelectionParameters,
                                const std::vector<command_stream::BlockConfig>& allowedBlockConfigs) = 0;
 
     virtual ~IStrategy()
@@ -83,13 +38,13 @@ class IStrategyDefaultBlockSelection : public IStrategy
 {
 public:
     /// Implementation of IStrategy::TrySetupAnyBlockConfig
-    StrategySelectionReturnValue
-        TrySetupAnyBlockConfig(const StrategySelectionParameters& strategySelectionParameters,
+    MceStrategySelectionReturnValue
+        TrySetupAnyBlockConfig(const MceStrategySelectionParameters& strategySelectionParameters,
                                const std::vector<command_stream::BlockConfig>& allowedBlockConfigs) final;
 
     /// Interface for derived classes to implement, which attempts a single block config.
-    virtual StrategySelectionReturnValue TrySetup(const StrategySelectionParameters& strategySelectionParameters,
-                                                  const ethosn::command_stream::BlockConfig& blockConfig) = 0;
+    virtual MceStrategySelectionReturnValue TrySetup(const MceStrategySelectionParameters& strategySelectionParameters,
+                                                     const ethosn::command_stream::BlockConfig& blockConfig) = 0;
 };
 
 /// SRAM allocation strategy where the input feature map is "streamed" in one stripe at a time.
@@ -98,8 +53,8 @@ public:
 class Strategy0 : public IStrategyDefaultBlockSelection
 {
 public:
-    virtual StrategySelectionReturnValue TrySetup(const StrategySelectionParameters& strategySelectionParameters,
-                                                  const ethosn::command_stream::BlockConfig& blockConfig) override;
+    virtual MceStrategySelectionReturnValue TrySetup(const MceStrategySelectionParameters& strategySelectionParameters,
+                                                     const ethosn::command_stream::BlockConfig& blockConfig) override;
 };
 
 /// SRAM allocation strategy where the weights are "streamed" in one depth stripe at a time.
@@ -108,16 +63,16 @@ public:
 class Strategy1 : public IStrategyDefaultBlockSelection
 {
 public:
-    virtual StrategySelectionReturnValue TrySetup(const StrategySelectionParameters& strategySelectionParameters,
-                                                  const ethosn::command_stream::BlockConfig& blockConfig) override;
+    virtual MceStrategySelectionReturnValue TrySetup(const MceStrategySelectionParameters& strategySelectionParameters,
+                                                     const ethosn::command_stream::BlockConfig& blockConfig) override;
 };
 
 /// SRAM allocation strategy where input feature maps and weights are copied all at once.
 class Strategy3 : public IStrategyDefaultBlockSelection
 {
 public:
-    virtual StrategySelectionReturnValue TrySetup(const StrategySelectionParameters& strategySelectionParameters,
-                                                  const ethosn::command_stream::BlockConfig& blockConfig) override;
+    virtual MceStrategySelectionReturnValue TrySetup(const MceStrategySelectionParameters& strategySelectionParameters,
+                                                     const ethosn::command_stream::BlockConfig& blockConfig) override;
 };
 
 /// Implementation of the SRAM allocation strategy 4 where the input width
@@ -126,8 +81,8 @@ public:
 class Strategy4 : public IStrategy
 {
 public:
-    virtual StrategySelectionReturnValue
-        TrySetupAnyBlockConfig(const StrategySelectionParameters& strategySelectionParameters,
+    virtual MceStrategySelectionReturnValue
+        TrySetupAnyBlockConfig(const MceStrategySelectionParameters& strategySelectionParameters,
                                const std::vector<command_stream::BlockConfig>& allowedBlockConfigs) override;
 };
 
@@ -135,8 +90,8 @@ public:
 class Strategy6 : public IStrategy
 {
 public:
-    virtual StrategySelectionReturnValue
-        TrySetupAnyBlockConfig(const StrategySelectionParameters& strategySelectionParameters,
+    virtual MceStrategySelectionReturnValue
+        TrySetupAnyBlockConfig(const MceStrategySelectionParameters& strategySelectionParameters,
                                const std::vector<command_stream::BlockConfig>& allowedBlockConfigs) override;
 };
 
@@ -144,8 +99,8 @@ public:
 class Strategy7 : public IStrategyDefaultBlockSelection
 {
 public:
-    virtual StrategySelectionReturnValue TrySetup(const StrategySelectionParameters& strategySelectionParameters,
-                                                  const ethosn::command_stream::BlockConfig& blockConfig) override;
+    virtual MceStrategySelectionReturnValue TrySetup(const MceStrategySelectionParameters& strategySelectionParameters,
+                                                     const ethosn::command_stream::BlockConfig& blockConfig) override;
 };
 
 }    // namespace support_library

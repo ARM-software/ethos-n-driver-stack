@@ -552,7 +552,7 @@ Mappings CreateMappings(TestLayerType originalType,
 
     ethosNMappings = CreateSubstitutionMappings<SIZE>(originalType, replacementType, inputDimensions, outputDimensions);
 
-    //Test if there is atleast one mapping
+    //Test if there is at least one mapping
     ARMNN_ASSERT((ethosNMappings.size() >= 1));
     //Test if the mapping layer types are as intended
     BOOST_TEST(((mapStringToLayerType.find(ethosNMappings[0].m_ReplacementLayers[0].m_LayerTypeName)->second) ==

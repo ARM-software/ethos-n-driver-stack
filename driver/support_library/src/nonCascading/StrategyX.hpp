@@ -71,7 +71,7 @@ bool IsStrategyX(const command_stream::MceOperation& mceOperation,
                  const CompilerMceAlgorithm algorithm,
                  const std::vector<IStrategy*>& allowedStrategies);
 
-StrategySelectionReturnValue TryStrategyX(const StrategyXSelectionParameters& strategyXSelectionParameters);
+MceStrategySelectionReturnValue TryStrategyX(const StrategyXSelectionParameters& strategyXSelectionParameters);
 
 }    // namespace support_library
 }    // namespace ethosn

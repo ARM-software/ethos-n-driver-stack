@@ -21,7 +21,53 @@ class FuseOnlyPleOperationNode;
 class FormatConversionNode;
 class McePostProcessOperationNode;
 class RequantizeNode;
-class StrategySelectionParameters;
+
+struct MceStrategySelectionParameters
+{
+    MceStrategySelectionParameters(HardwareCapabilities capabilities,
+                                   SramAllocator sramAllocator,
+                                   TensorShape inputShape,
+                                   TensorShape mceOutputShape,
+                                   TensorShape outputShape,
+                                   DataFormat weightsFormat,
+                                   TensorShape weightsShape,
+                                   utils::ShapeMultiplier mceShapeMultiplier,
+                                   utils::ShapeMultiplier pleShapeMultiplier,
+                                   std::pair<bool, uint32_t> inputStaticAndOffset,
+                                   CompilerMceAlgorithm algorithm,
+                                   uint32_t depthMax = UINT32_MAX)
+        : capabilities{ capabilities }
+        , sramAllocator{ sramAllocator }
+        , inputShape{ inputShape }
+        , mceOutputShape{ mceOutputShape }
+        , outputShape{ outputShape }
+        , weightsFormat{ weightsFormat }
+        , weightsShape{ weightsShape }
+        , mceShapeMultiplier{ mceShapeMultiplier }
+        , pleShapeMultiplier{ pleShapeMultiplier }
+        , inputStaticAndOffset{ inputStaticAndOffset }
+        , algorithm{ algorithm }
+        , depthMax{ depthMax }
+    {}
+    // The sole purpose of this struct is to pack all the parameters given to ChooseAndSetupStrategy and
+    // make sure all the arguments are read only. Hence the copy constructor and assignment operator are
+    // deleted.
+    MceStrategySelectionParameters(const MceStrategySelectionParameters&) = delete;
+    MceStrategySelectionParameters& operator=(const MceStrategySelectionParameters&) = delete;
+
+    HardwareCapabilities capabilities;
+    SramAllocator sramAllocator;
+    TensorShape inputShape;
+    TensorShape mceOutputShape;
+    TensorShape outputShape;
+    DataFormat weightsFormat;
+    TensorShape weightsShape;
+    utils::ShapeMultiplier mceShapeMultiplier;
+    utils::ShapeMultiplier pleShapeMultiplier;
+    std::pair<bool, uint32_t> inputStaticAndOffset;
+    CompilerMceAlgorithm algorithm;
+    uint32_t depthMax;
+};
 
 struct LinearNodesOutput
 {
@@ -71,8 +117,8 @@ public:
 
     DotAttributes GetDotAttributes() override;
 
-    static StrategySelectionReturnValue
-        ChooseAndSetupStrategy(const StrategySelectionParameters& strategySelectionParameters,
+    static MceStrategySelectionReturnValue
+        ChooseAndSetupStrategy(const MceStrategySelectionParameters& strategySelectionParameters,
                                std::vector<IStrategy*> allowedStrategies,
                                std::vector<command_stream::BlockConfig> allowedBlockConfigs);
 

@@ -336,7 +336,7 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
         }
 
         // Analyze the current set of nodes that we have (calculate the strategies etc.), as this will determine whether we want to merge more.
-        StrategySelectionReturnValue selectedStrategy;
+        MceStrategySelectionReturnValue selectedStrategy;
         selectedStrategy.success = false;
         requiredOutputFormat     = CompilerDataFormat::NONE;
         if (mceOperation)
@@ -379,7 +379,7 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
             const TensorShape mceInputShape  = mceOperation->GetInputShape(0);
             const TensorShape mceOutputShape = mceOperation->GetShape();
 
-            StrategySelectionParameters strategySelectionParameters{
+            MceStrategySelectionParameters strategySelectionParameters{
                 capabilities,
                 // Reset the SramAllocator used to calculate strategies to the base one originally passed in.
                 sramAllocator, mceInputShape, mceOutputShape, lastNode->GetShape(),
@@ -679,14 +679,14 @@ command_stream::PleOperation McePlePass::GetPleOperation() const
     return m_PleOperation ? m_PleOperation->GetKernelOperation() : command_stream::PleOperation::PASSTHROUGH;
 }
 
-StrategySelectionReturnValue
-    McePlePass::ChooseAndSetupStrategy(const StrategySelectionParameters& strategySelectionParameters,
+MceStrategySelectionReturnValue
+    McePlePass::ChooseAndSetupStrategy(const MceStrategySelectionParameters& strategySelectionParameters,
                                        std::vector<IStrategy*> allowedStrategies,
                                        std::vector<command_stream::BlockConfig> allowedBlockConfigs)
 {
     // We try the "best" strategies first until we find one which is appropriate
     // This may change in the future when we use a dynamic programming approach
-    StrategySelectionReturnValue rv;
+    MceStrategySelectionReturnValue rv;
     rv.success = false;
 
     for (IStrategy* strategy : allowedStrategies)

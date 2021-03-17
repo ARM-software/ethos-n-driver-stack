@@ -7,6 +7,7 @@
 
 #include "../include/ethosn_support_library/Support.hpp"
 #include "Compiler.hpp"
+#include "McePlePass.hpp"
 #include "Pass.hpp"
 #include "StrategiesCommon.hpp"
 #include "Utils.hpp"
@@ -96,8 +97,8 @@ std::vector<command_stream::BlockConfig>
 
 }    // namespace
 
-StrategySelectionReturnValue IStrategyDefaultBlockSelection::TrySetupAnyBlockConfig(
-    const StrategySelectionParameters& strategySelectionParameters,
+MceStrategySelectionReturnValue IStrategyDefaultBlockSelection::TrySetupAnyBlockConfig(
+    const MceStrategySelectionParameters& strategySelectionParameters,
     const std::vector<command_stream::BlockConfig>& allowedBlockConfigs)
 {
     // Sort block configs so that the most efficient ones will be first
@@ -105,7 +106,7 @@ StrategySelectionReturnValue IStrategyDefaultBlockSelection::TrySetupAnyBlockCon
         allowedBlockConfigs, strategySelectionParameters.outputShape, strategySelectionParameters.weightsShape);
 
     // Try each config in turn, and choose the first that works
-    StrategySelectionReturnValue rv;
+    MceStrategySelectionReturnValue rv;
     rv.success = false;
 
     for (const auto& curBlockConfig : sortedBlockConfigs)
@@ -145,7 +146,7 @@ struct TryStripeShapesResult
 // fit into SRAM.
 // By keeping all the logic of the confusing rounding in this one function it lets the per-Strategy functions
 // be nice and simple and concentrate just on looping over possible stripe sizes.
-TryStripeShapesResult TryStripeShapes(const StrategySelectionParameters& strategySelectionParameters,
+TryStripeShapesResult TryStripeShapes(const MceStrategySelectionParameters& strategySelectionParameters,
                                       const TensorShape& requestedOutputStripe,
                                       const uint32_t maxNumWeightBuffersInTile = g_DefaultMaxNumWeightBuffersInTile,
                                       const uint32_t maxNumInputBuffersInTile  = g_DefaultMaxNumInputBuffersInTile)
@@ -418,10 +419,10 @@ TryStripeShapesResult TryStripeShapes(const StrategySelectionParameters& strateg
 
 using namespace utils;
 
-StrategySelectionReturnValue Strategy0::TrySetup(const StrategySelectionParameters& strategySelectionParameters,
-                                                 const ethosn::command_stream::BlockConfig& blockConfig)
+MceStrategySelectionReturnValue Strategy0::TrySetup(const MceStrategySelectionParameters& strategySelectionParameters,
+                                                    const ethosn::command_stream::BlockConfig& blockConfig)
 {
-    StrategySelectionReturnValue rv{};
+    MceStrategySelectionReturnValue rv{};
     rv.success                     = false;
     StrategyConfig& strategyConfig = rv.strategyConfig;
     SramAllocator& sramAllocator   = rv.sramAllocator;
@@ -483,10 +484,10 @@ StrategySelectionReturnValue Strategy0::TrySetup(const StrategySelectionParamete
     return rv;
 }
 
-StrategySelectionReturnValue Strategy1::TrySetup(const StrategySelectionParameters& strategySelectionParameters,
-                                                 const ethosn::command_stream::BlockConfig&)
+MceStrategySelectionReturnValue Strategy1::TrySetup(const MceStrategySelectionParameters& strategySelectionParameters,
+                                                    const ethosn::command_stream::BlockConfig&)
 {
-    StrategySelectionReturnValue rv;
+    MceStrategySelectionReturnValue rv;
     rv.success                     = false;
     StrategyConfig& strategyConfig = rv.strategyConfig;
     SramAllocator& sramAllocator   = rv.sramAllocator;
@@ -539,10 +540,10 @@ StrategySelectionReturnValue Strategy1::TrySetup(const StrategySelectionParamete
     return rv;
 }
 
-StrategySelectionReturnValue Strategy3::TrySetup(const StrategySelectionParameters& strategySelectionParameters,
-                                                 const ethosn::command_stream::BlockConfig&)
+MceStrategySelectionReturnValue Strategy3::TrySetup(const MceStrategySelectionParameters& strategySelectionParameters,
+                                                    const ethosn::command_stream::BlockConfig&)
 {
-    StrategySelectionReturnValue rv;
+    MceStrategySelectionReturnValue rv;
     rv.success                     = false;
     StrategyConfig& strategyConfig = rv.strategyConfig;
     SramAllocator& sramAllocator   = rv.sramAllocator;
@@ -561,11 +562,11 @@ StrategySelectionReturnValue Strategy3::TrySetup(const StrategySelectionParamete
     return rv;
 }
 
-StrategySelectionReturnValue
-    Strategy4::TrySetupAnyBlockConfig(const StrategySelectionParameters& strategySelectionParameters,
+MceStrategySelectionReturnValue
+    Strategy4::TrySetupAnyBlockConfig(const MceStrategySelectionParameters& strategySelectionParameters,
                                       const std::vector<command_stream::BlockConfig>& allowedBlockConfigs)
 {
-    StrategySelectionReturnValue rv;
+    MceStrategySelectionReturnValue rv;
     rv.success                     = false;
     StrategyConfig& strategyConfig = rv.strategyConfig;
     SramAllocator& sramAllocator   = rv.sramAllocator;
@@ -622,11 +623,11 @@ StrategySelectionReturnValue
     return rv;
 }
 
-StrategySelectionReturnValue
-    Strategy6::TrySetupAnyBlockConfig(const StrategySelectionParameters& strategySelectionParameters,
+MceStrategySelectionReturnValue
+    Strategy6::TrySetupAnyBlockConfig(const MceStrategySelectionParameters& strategySelectionParameters,
                                       const std::vector<command_stream::BlockConfig>& allowedBlockConfigs)
 {
-    StrategySelectionReturnValue rv;
+    MceStrategySelectionReturnValue rv;
     rv.success                     = false;
     StrategyConfig& strategyConfig = rv.strategyConfig;
     SramAllocator& sramAllocator   = rv.sramAllocator;
@@ -757,10 +758,10 @@ StrategySelectionReturnValue
 // Limitations:
 // (1) Input tensor split in depth and height directions, no split in width.
 // (2) only depthwise convolutions supported.
-StrategySelectionReturnValue Strategy7::TrySetup(const StrategySelectionParameters& strategySelectionParameters,
-                                                 const ethosn::command_stream::BlockConfig& blockConfig)
+MceStrategySelectionReturnValue Strategy7::TrySetup(const MceStrategySelectionParameters& strategySelectionParameters,
+                                                    const ethosn::command_stream::BlockConfig& blockConfig)
 {
-    StrategySelectionReturnValue rv;
+    MceStrategySelectionReturnValue rv;
     rv.success                     = false;
     StrategyConfig& strategyConfig = rv.strategyConfig;
     SramAllocator& sramAllocator   = rv.sramAllocator;

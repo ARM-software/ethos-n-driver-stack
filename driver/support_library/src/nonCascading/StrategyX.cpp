@@ -79,7 +79,7 @@ bool IsBlockConfigCompatible(const command_stream::BlockConfig& blockConfig,
 // (accounting for hardware and firmware constraints)
 // and what the tile sizes would be (accounting for buffering etc.) and checks if all this would
 // fit into SRAM.
-StrategySelectionReturnValue
+MceStrategySelectionReturnValue
     TryStripeShapes(const StrategyXSelectionParameters& strategyXSelectionParameters,
                     const TensorShape& requestedOutputStripe,
                     const uint32_t requestedInputChannels,
@@ -88,7 +88,7 @@ StrategySelectionReturnValue
                     const bool activationCompression               = false,
                     const WeightsReloadingOptions weightsReloading = WeightsReloadingOptions::NO_RELOADING)
 {
-    StrategySelectionReturnValue rv;
+    MceStrategySelectionReturnValue rv;
     rv.success = false;
 
     const command_stream::MceOperation& mceOperation = strategyXSelectionParameters.mceOperation;
@@ -384,9 +384,9 @@ StrategySelectionReturnValue
 
 // Try ZXY input traversal: streaming in Z, in X and Y and XYZ output traversal (output traversal
 // matters only for the Firmware).
-StrategySelectionReturnValue TryInputZXYOutputXYZ(const StrategyXSelectionParameters& strategyXSelectionParameters)
+MceStrategySelectionReturnValue TryInputZXYOutputXYZ(const StrategyXSelectionParameters& strategyXSelectionParameters)
 {
-    StrategySelectionReturnValue rv;
+    MceStrategySelectionReturnValue rv;
 
     rv.success = false;
 
@@ -478,7 +478,7 @@ StrategySelectionReturnValue TryInputZXYOutputXYZ(const StrategyXSelectionParame
                                                                 const bool avoidInputReloading,
                                                                 const WeightsReloadingOptions weightsReloading) {
         assert(!avoidInputReloading || allowInputBuffering);
-        StrategySelectionReturnValue rv =
+        MceStrategySelectionReturnValue rv =
             TryStripeShapes(strategyXSelectionParameters,
                             { 1, params.outputStripeHeight, params.outputStripeWidth, params.outputStripeChannel },
                             params.inputStripeChannel, allowInputBuffering, avoidInputReloading,
@@ -548,9 +548,9 @@ StrategySelectionReturnValue TryInputZXYOutputXYZ(const StrategyXSelectionParame
 
 // Try XY input traversal: streaming in X and Y and XYZ output traversal (output traversal)
 // matters only for the Firmware).
-StrategySelectionReturnValue TryInputXYOutputXYZ(const StrategyXSelectionParameters& strategyXSelectionParameters)
+MceStrategySelectionReturnValue TryInputXYOutputXYZ(const StrategyXSelectionParameters& strategyXSelectionParameters)
 {
-    StrategySelectionReturnValue rv;
+    MceStrategySelectionReturnValue rv;
     rv.success = false;
 
     const std::pair<const bool, const uint32_t>& inputStaticAndOffset =
@@ -619,7 +619,7 @@ StrategySelectionReturnValue TryInputXYOutputXYZ(const StrategyXSelectionParamet
     }
 
     auto TryConf = [&strategyXSelectionParameters](const Params params, const bool allowInputBuffering) {
-        StrategySelectionReturnValue rv =
+        MceStrategySelectionReturnValue rv =
             TryStripeShapes(strategyXSelectionParameters,
                             { 1, params.outputStripeHeight, params.outputStripeWidth, params.outputStripeChannel },
                             params.inputStripeChannel, allowInputBuffering);
@@ -686,9 +686,9 @@ bool IsStrategyX(const command_stream::MceOperation& mceOperation,
     return isSupportedMceOperation && isSupportedAlgorithm && isSupportedStrategy && isAllowedStrategy;
 }
 
-StrategySelectionReturnValue TryStrategyX(const StrategyXSelectionParameters& strategyXSelectionParameters)
+MceStrategySelectionReturnValue TryStrategyX(const StrategyXSelectionParameters& strategyXSelectionParameters)
 {
-    StrategySelectionReturnValue rv = TryInputXYOutputXYZ(strategyXSelectionParameters);
+    MceStrategySelectionReturnValue rv = TryInputXYOutputXYZ(strategyXSelectionParameters);
     if (rv.success)
     {
         return rv;

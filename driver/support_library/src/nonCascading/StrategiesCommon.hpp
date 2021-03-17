@@ -105,7 +105,7 @@ inline uint32_t AccountForFullDimension(const uint32_t outputTensorDim,
     }
 }
 
-struct StrategySelectionReturnValue
+struct MceStrategySelectionReturnValue
 {
     bool success;
     StrategyConfig strategyConfig;
