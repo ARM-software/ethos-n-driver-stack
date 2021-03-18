@@ -388,8 +388,9 @@ TryStripeShapesResult TryStripeShapes(const MceStrategySelectionParameters& stra
     }
 
     SramAllocator currentSramAllocator = strategySelectionParameters.sramAllocator;
+    SramAllocator::UserId userId       = strategySelectionParameters.userId;
     AllocationResult allocationResults =
-        FitsInSram(currentSramAllocator, capabilities, inputTile, weightTile, outputTile, inputStaticAndOffset);
+        FitsInSram(userId, currentSramAllocator, capabilities, inputTile, weightTile, outputTile, inputStaticAndOffset);
     if (!allocationResults.m_Success)
     {
         return {};

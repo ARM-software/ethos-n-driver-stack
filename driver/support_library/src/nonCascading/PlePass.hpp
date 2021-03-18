@@ -21,14 +21,16 @@ class FormatConversionNode;
 
 struct PleStrategySelectionParameter
 {
-    PleStrategySelectionParameter(const HardwareCapabilities& capabilities,
+    PleStrategySelectionParameter(SramAllocator::UserId userId,
+                                  const HardwareCapabilities& capabilities,
                                   SramAllocator sramAllocator,
                                   const std::vector<SramTensorAllocation>& inputSramAllocations,
                                   const std::vector<TensorShape>& inputShapes,
                                   const TensorShape& outputShape,
                                   const std::vector<std::pair<bool, uint32_t>>& inputsStaticAndOffset,
                                   const TensorShape& splittableDims)
-        : capabilities{ capabilities }
+        : userId{ userId }
+        , capabilities{ capabilities }
         , sramAllocator{ sramAllocator }
         , inputSramAllocations{ inputSramAllocations }
         , inputShapes{ inputShapes }
@@ -43,6 +45,7 @@ struct PleStrategySelectionParameter
     PleStrategySelectionParameter(const PleStrategySelectionParameter&) = delete;
     PleStrategySelectionParameter& operator=(const PleStrategySelectionParameter&) = delete;
 
+    SramAllocator::UserId userId;
     HardwareCapabilities capabilities;
     SramAllocator sramAllocator;
     const std::vector<SramTensorAllocation>& inputSramAllocations;

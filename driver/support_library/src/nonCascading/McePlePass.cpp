@@ -380,7 +380,7 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
             const TensorShape mceOutputShape = mceOperation->GetShape();
 
             MceStrategySelectionParameters strategySelectionParameters{
-                capabilities,
+                lastNode->GetId(), capabilities,
                 // Reset the SramAllocator used to calculate strategies to the base one originally passed in.
                 sramAllocator, mceInputShape, mceOutputShape, lastNode->GetShape(),
                 mceOperation->GetWeightsInfo().m_DataFormat, weightsShape, mceOperation->GetShapeMultiplier(),
@@ -393,6 +393,7 @@ LinearNodesOutput McePlePass::FindLinearWorkingNodes(Node* firstNode,
                             validStrategies))
             {
                 StrategyXSelectionParameters strategyXSelectionParameters{
+                    lastNode->GetId(),
                     mceOperation->GetOperation(),
                     mceOperation->GetUpsampleType(),
                     sramAllocator,
@@ -579,16 +580,17 @@ std::unique_ptr<ethosn::support_library::McePlePass>
     // Once we've found a valid strategy we can set the old SramAllocator to the updated one.
     sramAllocator = linearNodes.m_SramAllocator;
     // We can deallocate the weights and ple now.
-    sramAllocator.Free(linearNodes.m_StrategyConfig.weightsAllocation.offset);
-    sramAllocator.Free(linearNodes.m_StrategyConfig.pleAllocation.offset);
+    const Node* lastNode = linearNodes.m_WorkingNodes.back();
+    sramAllocator.Free(lastNode->GetId(), linearNodes.m_StrategyConfig.weightsAllocation.offset);
+    sramAllocator.Free(lastNode->GetId(), linearNodes.m_StrategyConfig.pleAllocation.offset);
     if (firstNode->GetInputLocation(0) != BufferLocation::Sram)
     {
-        sramAllocator.Free(linearNodes.m_StrategyConfig.inputAllocation.offset);
+        sramAllocator.Free(lastNode->GetId(), linearNodes.m_StrategyConfig.inputAllocation.offset);
     }
     // Set the output sram offset for the final node in the pass. To be used as the input for the next node
     if (linearNodes.m_OutputLocation == BufferLocation::Dram)
     {
-        sramAllocator.Free(linearNodes.m_StrategyConfig.outputAllocation.offset);
+        sramAllocator.Free(lastNode->GetId(), linearNodes.m_StrategyConfig.outputAllocation.offset);
     }
     uint32_t sramOffset = linearNodes.m_StrategyConfig.outputAllocation.offset;
 

@@ -5,7 +5,6 @@
 
 #include "StrategyX.hpp"
 
-#include "SramAllocator.hpp"
 #include "Strategies.hpp"
 #include "StrategiesCommon.hpp"
 #include "StrategyConfig.hpp"
@@ -358,8 +357,9 @@ MceStrategySelectionReturnValue
     SramAllocator currentSramAllocator = strategyXSelectionParameters.sramAllocator;
     const std::pair<const bool, const uint32_t>& inputStaticAndOffset =
         strategyXSelectionParameters.inputStaticAndOffset;
+    SramAllocator::UserId userId = strategyXSelectionParameters.userId;
     AllocationResult allocationResults =
-        FitsInSram(currentSramAllocator, capabilities, inputTile, weightTile, outputTile, inputStaticAndOffset);
+        FitsInSram(userId, currentSramAllocator, capabilities, inputTile, weightTile, outputTile, inputStaticAndOffset);
 
     rv.success = allocationResults.m_Success;
     if (!rv.success)

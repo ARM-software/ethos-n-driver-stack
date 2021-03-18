@@ -21,7 +21,8 @@ SramAllocator& SramAllocator::operator=(const SramAllocator& s)
     return *this;
 }
 
-std::pair<bool, uint32_t> SramAllocator::Allocate(uint32_t size, AllocationPreference pref, std::string debugName)
+std::pair<bool, uint32_t>
+    SramAllocator::Allocate(UserId userId, uint32_t size, AllocationPreference pref, std::string debugName)
 {
     if (pref == AllocationPreference::Start)
     {
@@ -29,7 +30,7 @@ std::pair<bool, uint32_t> SramAllocator::Allocate(uint32_t size, AllocationPrefe
         {
             if (size <= range->m_End - range->m_Begin)
             {
-                MemoryChunk chunk = { range->m_Begin, range->m_Begin + size, debugName };
+                MemoryChunk chunk = { range->m_Begin, range->m_Begin + size, { userId }, debugName };
                 m_UsedMemory.emplace_back(chunk);
                 range->m_Begin += size;
                 if (range->m_Begin == range->m_End)
@@ -48,7 +49,7 @@ std::pair<bool, uint32_t> SramAllocator::Allocate(uint32_t size, AllocationPrefe
         {
             if (size <= range->m_End - range->m_Begin)
             {
-                MemoryChunk chunk = { range->m_End - size, range->m_End, debugName };
+                MemoryChunk chunk = { range->m_End - size, range->m_End, { userId }, debugName };
                 m_UsedMemory.emplace_back(chunk);
                 range->m_End -= size;
                 if (range->m_Begin == range->m_End)
@@ -63,7 +64,15 @@ std::pair<bool, uint32_t> SramAllocator::Allocate(uint32_t size, AllocationPrefe
     return { false, 0 };
 }
 
-bool SramAllocator::Free(uint32_t offset)
+void SramAllocator::IncrementReferenceCount(UserId userId, uint32_t offset)
+{
+    auto MatchChunk    = [offset](const auto& chunk) { return (offset == chunk.m_Begin); };
+    auto memoryChunkIt = std::find_if(m_UsedMemory.begin(), m_UsedMemory.end(), MatchChunk);
+    assert(memoryChunkIt != m_UsedMemory.end());
+    memoryChunkIt->m_ListOfUsers.emplace(userId);
+}
+
+bool SramAllocator::Free(UserId userId, uint32_t offset)
 {
     auto MatchChunk = [offset](const auto& chunk) { return (offset == chunk.m_Begin); };
     // Remove the chunk from used memory and add it to the free memory.
@@ -74,13 +83,18 @@ bool SramAllocator::Free(uint32_t offset)
         return false;
     }
 
-    MemoryChunk memoryChunk = *memoryChunkIt;
-    m_UsedMemory.erase(memoryChunkIt);
-    m_FreeMemory.push_back(memoryChunk);
-
-    auto SortMemoryChunks = [](const auto& lhs, const auto& rhs) { return lhs.m_Begin < rhs.m_Begin; };
-    std::sort(m_FreeMemory.begin(), m_FreeMemory.end(), SortMemoryChunks);
-    CollapseRegions();
+    std::unordered_set<SramAllocator::UserId>& listOfUser = memoryChunkIt->m_ListOfUsers;
+    assert(listOfUser.find(userId) != listOfUser.end());
+    listOfUser.erase(userId);
+    if (listOfUser.size() == 0)
+    {
+        MemoryChunk memoryChunk = *memoryChunkIt;
+        m_UsedMemory.erase(memoryChunkIt);
+        m_FreeMemory.push_back(memoryChunk);
+        auto SortMemoryChunks = [](const auto& lhs, const auto& rhs) { return lhs.m_Begin < rhs.m_Begin; };
+        std::sort(m_FreeMemory.begin(), m_FreeMemory.end(), SortMemoryChunks);
+        CollapseRegions();
+    }
     return true;
 }
 
@@ -118,7 +132,7 @@ void SramAllocator::CollapseRegions()
 
 void SramAllocator::Reset()
 {
-    m_FreeMemory = { { 0, m_Capacity, "" } };
+    m_FreeMemory = { { 0, m_Capacity, {}, "" } };
     m_UsedMemory = {};
 }
 

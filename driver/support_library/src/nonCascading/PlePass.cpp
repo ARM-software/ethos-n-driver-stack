@@ -77,22 +77,22 @@ std::unique_ptr<PlePass> PlePass::CreateGreedily(const HardwareCapabilities& cap
         requiredOutputFormat = CompilerDataFormat::NONE;
         if (pleOperation)
         {
-            Node* firstNode = nodes.front();
-            Node* lastNode  = nodes.back();
+            Node* pleOpFirstNode = nodes.front();
+            Node* pleOpLastNode  = nodes.back();
 
             std::vector<TensorShape> inputShapes;
-            inputShapes.reserve(firstNode->GetInputs().size());
+            inputShapes.reserve(pleOpFirstNode->GetInputs().size());
             std::vector<std::pair<bool, uint32_t>> inputsStaticAndOffset;
-            inputsStaticAndOffset.reserve(firstNode->GetInputs().size());
-            for (uint32_t i = 0; i < firstNode->GetInputs().size(); ++i)
+            inputsStaticAndOffset.reserve(pleOpFirstNode->GetInputs().size());
+            for (uint32_t i = 0; i < pleOpFirstNode->GetInputs().size(); ++i)
             {
-                inputShapes.push_back(firstNode->GetInputShape(i));
-                inputsStaticAndOffset.push_back(
-                    { firstNode->GetInputLocation(i) == BufferLocation::Sram, firstNode->GetInputSramOffset(i) });
+                inputShapes.push_back(pleOpFirstNode->GetInputShape(i));
+                inputsStaticAndOffset.push_back({ pleOpFirstNode->GetInputLocation(i) == BufferLocation::Sram,
+                                                  pleOpFirstNode->GetInputSramOffset(i) });
             }
-            inputSramAllocations.resize(firstNode->GetInputs().size());
+            inputSramAllocations.resize(pleOpFirstNode->GetInputs().size());
 
-            const TensorShape& outputShape = lastNode->GetShape();
+            const TensorShape& outputShape = pleOpLastNode->GetShape();
             // Reset the SramAllocator used to calculate strategies to the base one originally passed in.
 
             currentSramAllocator       = sramAllocator;
@@ -117,16 +117,17 @@ std::unique_ptr<PlePass> PlePass::CreateGreedily(const HardwareCapabilities& cap
                 }
             }
 
-            if (capabilities.GetIsNchwSupported() && ((firstNode->GetInputFormat(0) == CompilerDataFormat::NCHW) ||
+            if (capabilities.GetIsNchwSupported() && ((pleOpFirstNode->GetInputFormat(0) == CompilerDataFormat::NCHW) ||
                                                       (nodes.back()->GetFormat() == CompilerDataFormat::NCHW)))
             {
                 splittableDims = { 0, 0, 0, 0 };
             }
 
-            PleStrategySelectionParameter pleStrategySelectionParameter{ capabilities,         currentSramAllocator,
-                                                                         inputSramAllocations, inputShapes,
-                                                                         outputShape,          inputsStaticAndOffset,
-                                                                         splittableDims };
+            PleStrategySelectionParameter pleStrategySelectionParameter{
+                pleOpLastNode->GetId(), capabilities,  currentSramAllocator,
+                inputSramAllocations,   inputShapes,   outputShape,
+                inputsStaticAndOffset,  splittableDims
+            };
             PleStrategySelectionReturnValue rv = ChooseAndSetupStrategy(pleStrategySelectionParameter);
 
             if (rv.success)
@@ -142,8 +143,8 @@ std::unique_ptr<PlePass> PlePass::CreateGreedily(const HardwareCapabilities& cap
                     requiredOutputFormat = CompilerDataFormat::NHWCB;
                 }
 
-                if (lastNode->GetFormat() == CompilerDataFormat::NHWCB &&
-                    lastNode->GetLocationHint() != LocationHint::RequireDram &&
+                if (pleOpLastNode->GetFormat() == CompilerDataFormat::NHWCB &&
+                    pleOpLastNode->GetLocationHint() != LocationHint::RequireDram &&
                     outputSramAllocation.stripeShape[1] >= outputShape[1] &&
                     outputSramAllocation.stripeShape[2] >= outputShape[2] &&
                     outputSramAllocation.stripeShape[3] >= outputShape[3])
@@ -208,18 +209,18 @@ std::unique_ptr<PlePass> PlePass::CreateGreedily(const HardwareCapabilities& cap
 
             // Once we've found a valid strategy we can set the old SramAllocator to the updated one.
             sramAllocator = currentSramAllocator;
-            sramAllocator.Free(pleSramAllocation.offset);
+            sramAllocator.Free(nodes.back()->GetId(), pleSramAllocation.offset);
             for (uint32_t i = 0; i < firstNode->GetInputs().size(); ++i)
             {
                 if (firstNode->GetInputLocation(i) != BufferLocation::Sram)
                 {
-                    sramAllocator.Free(inputSramAllocations[i].offset);
+                    sramAllocator.Free(nodes.back()->GetId(), inputSramAllocations[i].offset);
                 }
             }
             // Set the output sram offset for the final node in the pass. To be used as the input for the next node
             if (lastWorkingOutputLocation == BufferLocation::Dram)
             {
-                sramAllocator.Free(outputSramAllocation.offset);
+                sramAllocator.Free(nodes.back()->GetId(), outputSramAllocation.offset);
             }
             uint32_t sramOffset = outputSramAllocation.offset;
 
@@ -288,7 +289,9 @@ PleStrategySelectionReturnValue
 
     SramAllocator sramAllocator             = pleStrategySelectionParameter.sramAllocator;
     const HardwareCapabilities capabilities = pleStrategySelectionParameter.capabilities;
-    auto pleAllocateResult = sramAllocator.Allocate(capabilities.GetMaxPleSize(), AllocationPreference::Start, "ple");
+    SramAllocator::UserId userId            = pleStrategySelectionParameter.userId;
+    auto pleAllocateResult =
+        sramAllocator.Allocate(userId, capabilities.GetMaxPleSize(), AllocationPreference::Start, "ple");
 
     if (!pleAllocateResult.first)
     {
@@ -369,9 +372,10 @@ PleStrategySelectionReturnValue
         const TensorShape& outputShape  = pleStrategySelectionParameter.outputShape;
         const uint32_t numStripesInTile = outStripeSizeInSram >= GetNumElements(outputShape) ? 1u : maxNumStripesInTile;
         const HardwareCapabilities& capabilities = pleStrategySelectionParameter.capabilities;
-        auto outputAllocateResult =
-            trySramAllocator.Allocate((numStripesInTile * outStripeSizeInSram) / capabilities.GetNumberOfSrams(),
-                                      AllocationPreference::End, "output");
+        SramAllocator::UserId userId             = pleStrategySelectionParameter.userId;
+        auto outputAllocateResult                = trySramAllocator.Allocate(
+            userId, (numStripesInTile * outStripeSizeInSram) / capabilities.GetNumberOfSrams(),
+            AllocationPreference::End, "output");
 
         if (!outputAllocateResult.first)
         {
@@ -390,9 +394,9 @@ PleStrategySelectionReturnValue
             // Don't allocate inputs if they are already in SRAM
             if (!inputsStaticAndOffset[inputIndex].first)
             {
-                auto allocateResult =
-                    trySramAllocator.Allocate((numStripesInTile * inStripeSizeInSram) / capabilities.GetNumberOfSrams(),
-                                              AllocationPreference::Start, "input" + std::to_string(inputIndex));
+                auto allocateResult = trySramAllocator.Allocate(
+                    userId, (numStripesInTile * inStripeSizeInSram) / capabilities.GetNumberOfSrams(),
+                    AllocationPreference::Start, "input" + std::to_string(inputIndex));
 
                 if (!allocateResult.first)
                 {

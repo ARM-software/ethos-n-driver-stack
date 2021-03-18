@@ -7,6 +7,7 @@
 
 #include "GraphNodes.hpp"
 #include "Pass.hpp"
+#include "SramAllocator.hpp"
 #include "StrategiesCommon.hpp"
 
 namespace ethosn
@@ -14,9 +15,12 @@ namespace ethosn
 namespace support_library
 {
 
+class Node;
+
 struct StrategyXSelectionParameters
 {
-    StrategyXSelectionParameters(command_stream::MceOperation mceOperation,
+    StrategyXSelectionParameters(SramAllocator::UserId userId,
+                                 command_stream::MceOperation mceOperation,
                                  command_stream::UpsampleType upsampleType,
                                  SramAllocator sramAllocator,
                                  TensorShape inputShape,
@@ -30,7 +34,8 @@ struct StrategyXSelectionParameters
                                  utils::ShapeMultiplier pleShapeMultiplier,
                                  std::pair<const bool, const uint32_t> inputStaticAndOffset,
                                  uint32_t depthMax)
-        : mceOperation{ mceOperation }
+        : userId{ userId }
+        , mceOperation{ mceOperation }
         , upsampleType{ upsampleType }
         , sramAllocator{ sramAllocator }
         , inputShape{ inputShape }
@@ -50,6 +55,7 @@ struct StrategyXSelectionParameters
     StrategyXSelectionParameters(const StrategyXSelectionParameters&) = delete;
     StrategyXSelectionParameters& operator=(const StrategyXSelectionParameters&) = delete;
 
+    SramAllocator::UserId userId;
     command_stream::MceOperation mceOperation;
     command_stream::UpsampleType upsampleType;
     SramAllocator sramAllocator;

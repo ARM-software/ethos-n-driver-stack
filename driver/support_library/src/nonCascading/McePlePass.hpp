@@ -24,7 +24,8 @@ class RequantizeNode;
 
 struct MceStrategySelectionParameters
 {
-    MceStrategySelectionParameters(HardwareCapabilities capabilities,
+    MceStrategySelectionParameters(SramAllocator::UserId userId,
+                                   HardwareCapabilities capabilities,
                                    SramAllocator sramAllocator,
                                    TensorShape inputShape,
                                    TensorShape mceOutputShape,
@@ -36,7 +37,8 @@ struct MceStrategySelectionParameters
                                    std::pair<bool, uint32_t> inputStaticAndOffset,
                                    CompilerMceAlgorithm algorithm,
                                    uint32_t depthMax = UINT32_MAX)
-        : capabilities{ capabilities }
+        : userId{ userId }
+        , capabilities{ capabilities }
         , sramAllocator{ sramAllocator }
         , inputShape{ inputShape }
         , mceOutputShape{ mceOutputShape }
@@ -55,6 +57,7 @@ struct MceStrategySelectionParameters
     MceStrategySelectionParameters(const MceStrategySelectionParameters&) = delete;
     MceStrategySelectionParameters& operator=(const MceStrategySelectionParameters&) = delete;
 
+    SramAllocator::UserId userId;
     HardwareCapabilities capabilities;
     SramAllocator sramAllocator;
     TensorShape inputShape;
@@ -73,7 +76,7 @@ struct LinearNodesOutput
 {
     // Keep track of the last set of nodes which can create a pass.
     // This is to prevent the case where we are able to create a pass then try and add an additional node
-    // This then fails to create a pass which fails to prepare all the nodes. It should use the previously sucessful pass.
+    // This then fails to create a pass which fails to prepare all the nodes. It should use the previously successful pass.
     std::vector<Node*> m_WorkingNodes;
     MceOperationNode* m_MceOperation        = nullptr;
     FuseOnlyPleOperationNode* m_FuseOnlyPle = nullptr;

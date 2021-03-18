@@ -271,7 +271,7 @@ void Node::PrepareAfterPassAssignment(SramAllocator& sramAllocator)
             }
             if (canDeallocateInput)
             {
-                bool freed = sramAllocator.Free(inputNode->m_SramOffset);
+                bool freed = sramAllocator.Free(inputNode->GetId(), inputNode->m_SramOffset);
                 ETHOSN_UNUSED(freed);
                 assert(freed);
             }
@@ -463,6 +463,7 @@ DotAttributes Node::GetDotAttributes()
     std::stringstream result;
     const DebuggingContext& debuggingContext = GetDebuggingContext();
 
+    result << "Node Id: " << m_Id << "\n";
     result << "Creation source:" << debuggingContext.GetStringFromNode(this) << "\n";
     result << "CorrespondingOperationIds:";
     for (auto id : m_CorrespondingOperationIds)

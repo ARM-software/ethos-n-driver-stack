@@ -23,7 +23,8 @@ struct AllocationResult
     uint32_t m_PleOffset;
 };
 
-inline AllocationResult FitsInSram(SramAllocator& sramAllocator,
+inline AllocationResult FitsInSram(SramAllocator::UserId userId,
+                                   SramAllocator& sramAllocator,
                                    const HardwareCapabilities& capabilities,
                                    const uint32_t input,
                                    const uint32_t weight,
@@ -31,8 +32,9 @@ inline AllocationResult FitsInSram(SramAllocator& sramAllocator,
                                    std::pair<const bool, const uint32_t> inputStaticAndOffset)
 {
     AllocationResult res;
-    res.m_Success          = true;
-    auto pleAllocateResult = sramAllocator.Allocate(capabilities.GetMaxPleSize(), AllocationPreference::Start, "ple");
+    res.m_Success = true;
+    auto pleAllocateResult =
+        sramAllocator.Allocate(userId, capabilities.GetMaxPleSize(), AllocationPreference::Start, "ple");
     res.m_Success &= pleAllocateResult.first;
     res.m_PleOffset = pleAllocateResult.second;
 
@@ -43,8 +45,8 @@ inline AllocationResult FitsInSram(SramAllocator& sramAllocator,
     else
     {
         assert(input > 0);
-        auto inputAllocateResult =
-            sramAllocator.Allocate(input / capabilities.GetNumberOfSrams(), AllocationPreference::Start, "input");
+        auto inputAllocateResult = sramAllocator.Allocate(userId, input / capabilities.GetNumberOfSrams(),
+                                                          AllocationPreference::Start, "input");
         res.m_Success &= inputAllocateResult.first;
         res.m_InputOffset = inputAllocateResult.second;
     }
@@ -67,13 +69,13 @@ inline AllocationResult FitsInSram(SramAllocator& sramAllocator,
     // We don't allocate anything if there are no weights.
     assert(weight > 0);
     auto weightAllocateResult =
-        sramAllocator.Allocate(weight / capabilities.GetNumberOfSrams(), weightAllocationPreference, "weights");
+        sramAllocator.Allocate(userId, weight / capabilities.GetNumberOfSrams(), weightAllocationPreference, "weights");
     res.m_Success &= weightAllocateResult.first;
     res.m_WeightOffset = weightAllocateResult.second;
 
     assert(output > 0);
     auto outputAllocateResult =
-        sramAllocator.Allocate(output / capabilities.GetNumberOfSrams(), outputAllocationPreference, "outputs");
+        sramAllocator.Allocate(userId, output / capabilities.GetNumberOfSrams(), outputAllocationPreference, "outputs");
     res.m_Success &= outputAllocateResult.first;
     res.m_OutputOffset = outputAllocateResult.second;
 

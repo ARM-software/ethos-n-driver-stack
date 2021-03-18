@@ -27,10 +27,12 @@ namespace support_library
 
 using namespace utils;
 
-bool ConversionPass::ChooseAndSetupStripe(const HardwareCapabilities& capabilities,
-                                          SramAllocator& sramAllocator,
-                                          TensorShape& outputStripe,
-                                          const TensorShape& outputShape)
+namespace
+{
+bool ChooseAndSetupStripe(const HardwareCapabilities& capabilities,
+                          SramAllocator sramAllocator,
+                          TensorShape& outputStripe,
+                          const TensorShape& outputShape)
 {
     std::pair<bool, uint32_t> outputAllocateResult;
     AllocationPreference outputAllocationPreference = AllocationPreference::Start;
@@ -64,7 +66,10 @@ bool ConversionPass::ChooseAndSetupStripe(const HardwareCapabilities& capabiliti
                 };
                 const uint32_t output = TotalSizeBytesNHWCB(outputStripe);
 
-                outputAllocateResult = sramAllocator.Allocate(output / capabilities.GetNumberOfSrams(),
+                // We can use a dummy node id here because this function only verifies whether the allocated stripe
+                // fits in SRAM. The actual allocation happens in the calling function
+                NodeId dummyNodeId   = 0;
+                outputAllocateResult = sramAllocator.Allocate(dummyNodeId, output / capabilities.GetNumberOfSrams(),
                                                               outputAllocationPreference, "outputs attempt");
             }
         }
@@ -72,6 +77,7 @@ bool ConversionPass::ChooseAndSetupStripe(const HardwareCapabilities& capabiliti
 
     return outputAllocateResult.first;
 }
+}    // namespace
 
 std::unique_ptr<ethosn::support_library::ConversionPass> ConversionPass::CreateGreedily(
     const HardwareCapabilities& capabilities, size_t id, Node* firstNode, SramAllocator& sramAllocator)
@@ -159,8 +165,9 @@ std::unique_ptr<ethosn::support_library::ConversionPass> ConversionPass::CreateG
         else if (definiteNodes.front()->GetInputLocation(0) == BufferLocation::Dram)
         {
             // For DRAM -> DRAM conversion we use the biggest possible stripe shape in the Y-direction.
-            SramAllocator currentAllocator = sramAllocator;
-            ChooseAndSetupStripe(capabilities, currentAllocator, stripeShape, definiteNodes.back()->GetShape());
+            // This allocator is passed by value! I.E it is given as a hint to check whether the selected
+            // stripe fits in SRAM.
+            ChooseAndSetupStripe(capabilities, sramAllocator, stripeShape, definiteNodes.back()->GetShape());
 
             if (!capabilities.GetIsNchwSupported() && (definiteNodes.back()->GetFormat() == CompilerDataFormat::NCHW))
             {
@@ -182,9 +189,10 @@ std::unique_ptr<ethosn::support_library::ConversionPass> ConversionPass::CreateG
             assert(!"Unexpected location");
         }
 
-        uint32_t outputSize                            = TotalSizeBytesNHWCB(stripeShape);
-        std::pair<bool, uint32_t> outputAllocateResult = sramAllocator.Allocate(
-            outputSize / capabilities.GetNumberOfSrams(), outputSramAllocationPreference, "conversion pass output");
+        uint32_t outputSize = TotalSizeBytesNHWCB(stripeShape);
+        std::pair<bool, uint32_t> outputAllocateResult =
+            sramAllocator.Allocate(definiteNodes.back()->GetId(), outputSize / capabilities.GetNumberOfSrams(),
+                                   outputSramAllocationPreference, "conversion pass output");
 
         if (!outputAllocateResult.first)
         {
@@ -202,7 +210,7 @@ std::unique_ptr<ethosn::support_library::ConversionPass> ConversionPass::CreateG
 
         if (definiteNodes.front()->GetInputLocation(0) == BufferLocation::Dram)
         {
-            sramAllocator.Free(outputAllocateResult.second);
+            sramAllocator.Free(definiteNodes.back()->GetId(), outputAllocateResult.second);
         }
 
         std::unique_ptr<ethosn::support_library::ConversionPass> result =

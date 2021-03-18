@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -15,11 +15,6 @@ namespace support_library
 class ConversionPass : public Pass
 {
 public:
-    static bool ChooseAndSetupStripe(const HardwareCapabilities& capabilities,
-                                     SramAllocator& sramAllocator,
-                                     TensorShape& outputStripe,
-                                     const TensorShape& outputShape);
-
     static std::unique_ptr<ConversionPass> CreateGreedily(const HardwareCapabilities& capabilities,
                                                           size_t id,
                                                           Node* firstNode,

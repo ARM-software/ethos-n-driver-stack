@@ -65,7 +65,9 @@ AddedSeed AddSeed(const PlanId fPlId,
     assert(sTotSize.m_Tot >= sInSize.m_Tot);
     const uint32_t addSizeInBytes = canMerge ? (baseSizeInBytes + sTotSize.m_Tot - sInSize.m_Tot) : sTotSize.m_Tot;
 
-    allocated = alloc.Allocate(addSizeInBytes / caps.GetNumberOfSrams(), AllocationPreference::Start);
+    // We are not yet sure what could be a good userId here so we are using zero
+    SramAllocator::UserId userId = 0;
+    allocated = alloc.Allocate(userId, addSizeInBytes / caps.GetNumberOfSrams(), AllocationPreference::Start);
 
     if (!allocated.first)
     {

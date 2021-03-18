@@ -1,12 +1,15 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
 #include <string>
+#include <unordered_set>
 #include <vector>
+
+#include "Graph.hpp"
 
 namespace ethosn
 {
@@ -19,19 +22,13 @@ enum class AllocationPreference
     End,
 };
 
-struct MemoryChunk
-{
-    uint32_t m_Begin;
-    uint32_t m_End;
-    std::string m_Debug;
-};
-
 // A simple allocator to be used to allocate data in SRAM.
 // Assumes a small number of chunks allocated at once,
 // thus iterating over the internal vectors is fast, and minimal fragmentation
 class SramAllocator
 {
 public:
+    using UserId = size_t;
     SramAllocator()
         : m_Capacity(0)
         , m_FreeMemory()
@@ -53,10 +50,14 @@ public:
     SramAllocator& operator=(const SramAllocator& s);
 
     // Return whether allocating was successful and the offset of the requested size
-    std::pair<bool, uint32_t>
-        Allocate(uint32_t size, AllocationPreference pref = AllocationPreference::Start, std::string debugName = "");
+    std::pair<bool, uint32_t> Allocate(UserId nodeId,
+                                       uint32_t size,
+                                       AllocationPreference pref = AllocationPreference::Start,
+                                       std::string debugName     = "");
 
-    bool Free(uint32_t offset);
+    bool Free(UserId userId, uint32_t offset);
+
+    void IncrementReferenceCount(UserId userId, uint32_t offset);
 
     void Reset();
 
@@ -67,6 +68,14 @@ public:
     bool IsEmpty();
 
 private:
+    struct MemoryChunk
+    {
+        uint32_t m_Begin;
+        uint32_t m_End;
+        std::unordered_set<UserId> m_ListOfUsers;
+        std::string m_Debug;
+    };
+
     // Collapse regions of contiguous free memory into one chunk
     void CollapseRegions();
 
