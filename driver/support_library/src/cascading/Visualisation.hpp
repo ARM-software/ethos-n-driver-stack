@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -31,6 +31,7 @@ enum class CompilerMceAlgorithm;
 
 std::string ToString(Location l);
 std::string ToString(Lifetime l);
+std::string ToString(DataFormat f);
 std::string ToString(CompilerDataFormat f);
 std::string ToString(CompilerDataCompressedFormat f);
 std::string ToString(const TensorShape& s);
@@ -79,6 +80,10 @@ enum class DetailLevel
     Low,
     High
 };
+
+/// Saves a Network of Operations to a dot file format to visualise the network.
+/// detailLevel controls how much detail is shown on the visualisation.
+void SaveNetworkToDot(const Network& network, std::ostream& stream, DetailLevel detailLevel);
 
 /// Save OpGraph information to a text file
 void SaveOpGraphToTxtFile(const OpGraph& graph, std::ostream& stream);

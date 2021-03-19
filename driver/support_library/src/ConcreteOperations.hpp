@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -29,6 +29,10 @@ public:
     }
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "Input";
+    }
 
 private:
     TensorInfo m_Info;
@@ -43,6 +47,10 @@ public:
     TensorInfo GetTensorInfo() const;
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "Output";
+    }
 
 private:
     DataFormat m_OutputFormat;
@@ -70,6 +78,10 @@ public:
     std::vector<T> GetDataVectorAs() const;
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "Constant";
+    }
 
 private:
     std::vector<uint8_t> m_Data;
@@ -106,6 +118,10 @@ public:
                                                 const ConvolutionInfo& convInfo);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "Convolution";
+    }
 
 private:
     Constant& m_Bias;
@@ -144,6 +160,10 @@ public:
                                                 const ConvolutionInfo& convInfo);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "DepthwiseConvolution";
+    }
 
 private:
     Constant& m_Bias;
@@ -182,6 +202,10 @@ public:
                                                 const ConvolutionInfo& convInfo);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "TransposeConvolution";
+    }
 
 private:
     Constant& m_Bias;
@@ -205,6 +229,10 @@ public:
                                                 const ConcatenationInfo& concatInfo);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "Concatenation";
+    }
 
 private:
     ConcatenationInfo m_ConcatInfo;
@@ -222,6 +250,10 @@ public:
     static std::vector<TensorInfo> CalculateOutputTensorInfos(const TensorInfo& inputInfo, const SplitInfo& splitInfo);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "Split";
+    }
 
 private:
     SplitInfo m_SplitInfo;
@@ -241,6 +273,10 @@ public:
                                                 const QuantizationInfo& outputQuantizationInfo);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "Addition";
+    }
 };
 
 // Fully connected operation
@@ -274,6 +310,10 @@ public:
                                                 const FullyConnectedInfo& fullyConnectedInfo);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "FullyConnected";
+    }
 
 private:
     Constant& m_Bias;
@@ -292,6 +332,10 @@ public:
     }
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "Relu";
+    }
 
 private:
     ReluInfo m_ReluInfo;
@@ -309,6 +353,10 @@ public:
 
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const LeakyReluInfo& leakyReluInfo);
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "LeakyRelu";
+    }
 
 private:
     LeakyReluInfo m_LeakyReluInfo;
@@ -326,6 +374,10 @@ public:
 
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const RequantizeInfo& requantizeInfo);
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "Requantize";
+    }
 
 private:
     RequantizeInfo m_RequantizeInfo;
@@ -337,6 +389,10 @@ public:
     Softmax(const detail::PosInNetwork pos, uint32_t id, Operand& input);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "Softmax";
+    }
 };
 
 class Sigmoid : public VisitableOperation<Sigmoid>
@@ -347,6 +403,10 @@ public:
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "Sigmoid";
+    }
 };
 
 class Pooling : public VisitableOperation<Pooling>
@@ -362,6 +422,10 @@ public:
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const PoolingInfo& poolingInfo);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "Pooling";
+    }
 
 private:
     PoolingInfo m_PoolingInfo;
@@ -380,6 +444,10 @@ public:
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const TensorShape& newDimensions);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "Reshape";
+    }
 
 private:
     TensorShape m_NewDimensions;
@@ -398,6 +466,10 @@ public:
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const DepthToSpaceInfo& depthToSpaceInfo);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "DepthToSpace";
+    }
 
 private:
     DepthToSpaceInfo m_DepthToSpaceInfo;
@@ -416,6 +488,10 @@ public:
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const SpaceToDepthInfo& spaceToDepthInfo);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "SpaceToDepth";
+    }
 
 private:
     SpaceToDepthInfo m_SpaceToDepthInfo;
@@ -434,6 +510,10 @@ public:
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const TransposeInfo& transposeInfo);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "Transpose";
+    }
 
 private:
     TransposeInfo m_TransposeInfo;
@@ -452,6 +532,10 @@ public:
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const ResizeInfo& transposeInfo);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "Resize";
+    }
 
 private:
     ResizeInfo m_ResizeInfo;
@@ -466,6 +550,10 @@ public:
                  const EstimateOnlyInfo& info);
 
     void Print(std::ostream& os) final;
+    const char* GetTypeName() final
+    {
+        return "EstimateOnly";
+    }
 
 private:
 };

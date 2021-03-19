@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -75,6 +75,26 @@ std::string ToString(CascadingBufferFormat f)
             return "FCAF_DEEP";
         case CascadingBufferFormat::FCAF_WIDE:
             return "FCAF_WIDE";
+        default:
+            assert(!"Unknown data format");
+            return "";
+    }
+}
+
+std::string ToString(DataFormat f)
+{
+    switch (f)
+    {
+        case DataFormat::HWIM:
+            return "HWIM";
+        case DataFormat::HWIO:
+            return "HWIO";
+        case DataFormat::NCHW:
+            return "NCHW";
+        case DataFormat::NHWC:
+            return "NHWC";
+        case DataFormat::NHWCB:
+            return "NHWCB";
         default:
             assert(!"Unknown data format");
             return "";
@@ -307,7 +327,7 @@ DotAttributes::DotAttributes(std::string id, std::string label, std::string colo
 namespace
 {
 
-using NodeIds = std::unordered_map<void*, std::string>;
+using NodeIds = std::unordered_map<const void*, std::string>;
 
 /// Escapes any characters that have special meaning in the dot language.
 /// Unfortunately the escape sequence for newline also encodes the alignment (left, centre, right) of the text.
@@ -646,6 +666,64 @@ DotAttributes GetDotAttributes(Node* node, DetailLevel detailLevel)
     return result;
 }
 
+DotAttributes GetDotAttributes(Operation* operation, DetailLevel detailLevel)
+{
+    DotAttributes result;
+    result.m_Id    = SanitizeId("Operation" + std::to_string(operation->GetId()));
+    result.m_Shape = "oval";
+
+    std::stringstream label;
+    label << std::to_string(operation->GetId()) + ": " << operation->GetTypeName() << "\n";
+
+    struct LabelVisitor : NetworkVisitor
+    {
+        using NetworkVisitor::Visit;
+
+        LabelVisitor(std::stringstream& label, DetailLevel detailLevel)
+            : m_Label(label)
+            , m_DetailLevel(detailLevel)
+        {}
+
+        void Visit(Convolution& op) override
+        {
+            if (m_DetailLevel >= DetailLevel::High)
+            {
+                m_Label << "Weights shape:" << ToString(op.GetWeights().GetTensorInfo().m_Dimensions) << "\n";
+            }
+        }
+
+        std::stringstream& m_Label;
+        DetailLevel m_DetailLevel;
+    } visitor(label, detailLevel);
+    operation->Accept(visitor);
+
+    result.m_Label = label.str();
+
+    return result;
+}
+
+DotAttributes GetDotAttributes(Operand* operand, DetailLevel detailLevel)
+{
+    DotAttributes result;
+    result.m_Id    = SanitizeId("Operand" + std::to_string(operand->GetProducer().GetId()) + "_" +
+                             std::to_string(operand->GetProducerOutputIndex()));
+    result.m_Shape = "box";
+
+    std::stringstream label;
+    label << "Operand\n";
+
+    if (detailLevel == DetailLevel::High)
+    {
+        label << "Shape = " << ToString(operand->GetTensorInfo().m_Dimensions) << "\n";
+        label << "Format = " << ToString(operand->GetTensorInfo().m_DataFormat) << "\n";
+        label << "Type = " << ToString(operand->GetTensorInfo().m_DataType) << "\n";
+        label << "Quant. info = " << ToString(operand->GetTensorInfo().m_QuantizationInfo) << "\n";
+    }
+    result.m_Label = label.str();
+
+    return result;
+}
+
 void DumpNodeToDotFormat(DotAttributes attr, std::ostream& stream)
 {
     std::string label = Escape(attr.m_Label, attr.m_LabelAlignmentChar);
@@ -795,6 +873,56 @@ NodeIds SavePlanAsBody(const Plan& plan, std::ostream& stream, DetailLevel detai
 }
 
 }    // namespace
+
+void SaveNetworkToDot(const Network& network, std::ostream& stream, DetailLevel detailLevel)
+{
+    stream << "digraph SupportLibraryGraph"
+           << "\n";
+    stream << "{"
+           << "\n";
+
+    NodeIds nodeIds;
+    for (auto&& operation : network)
+    {
+        std::string operationNodeId = DumpToDotFormat(operation.get(), stream, detailLevel);
+        nodeIds[operation.get()]    = operationNodeId;
+
+        // Edges to inputs
+        uint32_t inputIdx = 0;
+        for (auto&& operand : operation->GetInputs())
+        {
+            stream << nodeIds.at(operand) << " -> " << operationNodeId;
+            // If the operation has multiple inputs, label each one as the order is important.
+            if (operation->GetInputs().size() > 1)
+            {
+                stream << "[ label=\"Input " << inputIdx << "\"]";
+            }
+            stream << "\n";
+            ++inputIdx;
+        }
+
+        // Output operands
+        uint32_t outputIdx = 0;
+        for (auto&& operand : operation->GetOutputs())
+        {
+            std::string operandNodeId = DumpToDotFormat(&operand, stream, detailLevel);
+            nodeIds[&operand]         = operandNodeId;
+
+            // Edge to output operand
+            stream << operationNodeId << " -> " << operandNodeId;
+            // If the operation has multiple outputs, label each one as the order is important.
+            if (operation->GetOutputs().size() > 1)
+            {
+                stream << "[ label=\"Output " << outputIdx << "\"]";
+            }
+            stream << "\n";
+            ++outputIdx;
+        }
+    }
+
+    stream << "}"
+           << "\n";
+}
 
 void SaveOpGraphToDot(const OpGraph& graph, std::ostream& stream, DetailLevel detailLevel)
 {

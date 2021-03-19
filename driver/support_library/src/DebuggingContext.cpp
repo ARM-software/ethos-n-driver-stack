@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -23,6 +23,18 @@ static thread_local DebuggingContext s_DebuggingContext(nullptr);
 DebuggingContext::DebuggingContext(const CompilationOptions::DebugInfo* compilationOptions)
     : m_DebugInfo(compilationOptions)
 {}
+
+void DebuggingContext::SaveNetworkToDot(CompilationOptions::DebugLevel level,
+                                        const Network& network,
+                                        const std::string& fileName,
+                                        DetailLevel detailLevel) const
+{
+    if (m_DebugInfo->m_DumpDebugFiles >= level)
+    {
+        std::ofstream dotStream(GetAbsolutePathOutputFileName(fileName));
+        ethosn::support_library::SaveNetworkToDot(network, dotStream, detailLevel);
+    }
+}
 
 void DebuggingContext::DumpGraph(CompilationOptions::DebugLevel level,
                                  const Graph& graph,

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -17,6 +17,109 @@
 using namespace ethosn::support_library;
 namespace sl = ethosn::support_library;
 using namespace ethosn::command_stream;
+
+/// Checks SaveNetworkToDot produces the expected output, focusing on the overall network topology (connections
+/// between operations) rather than on the details given for each individual operation.
+TEST_CASE("SaveNetworkToDot Network Topology", "[Visualisation]")
+{
+    // Build an arbitrary network, making sure to demonstrate multiple inputs, multiple outputs and multiple consumers.
+    Network network(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO));
+
+    Input& input = network.AddInput(sl::TensorInfo({ 1, 16, 16, 32 }));
+    network.AddOutput(input.GetOutput(0), sl::DataFormat::NHWCB);
+    Split& split          = network.AddSplit(input.GetOutput(0), SplitInfo(3, { 16, 16 }));
+    Concatenation& concat = network.AddConcatenation({ &split.GetOutput(0), &split.GetOutput(1) },
+                                                     ConcatenationInfo(3, QuantizationInfo()));
+    network.AddOutput(concat.GetOutput(0), sl::DataFormat::NHWCB);
+
+    // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("SaveNetworkToDot Network Topology.dot");
+        SaveNetworkToDot(network, stream, DetailLevel::Low);
+    }
+
+    // Save to a string and check against expected result
+    std::stringstream stream;
+    SaveNetworkToDot(network, stream, DetailLevel::Low);
+
+    std::string expected =
+        R"(digraph SupportLibraryGraph
+{
+Operation0[label = "0: Input\n", shape = oval]
+Operand0_0[label = "Operand\n", shape = box]
+Operation0 -> Operand0_0
+Operation2[label = "2: Split\n", shape = oval]
+Operand0_0 -> Operation2
+Operand2_0[label = "Operand\n", shape = box]
+Operation2 -> Operand2_0[ label="Output 0"]
+Operand2_1[label = "Operand\n", shape = box]
+Operation2 -> Operand2_1[ label="Output 1"]
+Operation3[label = "3: Concatenation\n", shape = oval]
+Operand2_0 -> Operation3[ label="Input 0"]
+Operand2_1 -> Operation3[ label="Input 1"]
+Operand3_0[label = "Operand\n", shape = box]
+Operation3 -> Operand3_0
+Operation4[label = "4: Output\n", shape = oval]
+Operand3_0 -> Operation4
+Operation1[label = "1: Output\n", shape = oval]
+Operand0_0 -> Operation1
+}
+)";
+
+    REQUIRE(stream.str() == expected);
+}
+
+/// Checks SaveNetworkToDot produces the expected output, focusing on the details given for each individual operation/
+/// operand rather than the overall graph topology (connections between operations and operands).
+TEST_CASE("SaveNetworkToDot Details", "[Visualisation]")
+{
+    // Build a simple network of operations, to check the details are printed correctly for each one.
+    Network network(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO));
+
+    Input& input   = network.AddInput(sl::TensorInfo({ 1, 16, 16, 32 }));
+    Constant& bias = network.AddConstant(
+        sl::TensorInfo({ 1, 1, 1, 32 }, sl::DataType::INT32_QUANTIZED, sl::DataFormat::NHWC, QuantizationInfo(0, 0.5f)),
+        std::vector<int32_t>(32, 0).data());
+    Constant& weights = network.AddConstant(sl::TensorInfo({ 3, 3, 32, 32 }, sl::DataType::UINT8_QUANTIZED,
+                                                           sl::DataFormat::HWIO, QuantizationInfo(0, 0.5f)),
+                                            std::vector<int32_t>(3 * 3 * 32 * 32, 0).data());
+    network.AddConvolution(input.GetOutput(0), bias, weights, ConvolutionInfo());
+
+    // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("SaveNetworkToDot Details.dot");
+        SaveNetworkToDot(network, stream, DetailLevel::High);
+    }
+
+    // Save to a string and check against expected result
+    std::stringstream stream;
+    SaveNetworkToDot(network, stream, DetailLevel::High);
+
+    std::string expected =
+        R"(digraph SupportLibraryGraph
+{
+Operation0[label = "0: Input\n", shape = oval]
+Operand0_0[label = "Operand\nShape = [1, 16, 16, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
+Operation0 -> Operand0_0
+Operation1[label = "1: Constant\n", shape = oval]
+Operand1_0[label = "Operand\nShape = [1, 1, 1, 32]\nFormat = NHWC\nType = INT32_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 0.500000\n", shape = box]
+Operation1 -> Operand1_0
+Operation2[label = "2: Constant\n", shape = oval]
+Operand2_0[label = "Operand\nShape = [3, 3, 32, 32]\nFormat = HWIO\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 0.500000\n", shape = box]
+Operation2 -> Operand2_0
+Operation3[label = "3: Convolution\nWeights shape:[3, 3, 32, 32]\n", shape = oval]
+Operand0_0 -> Operation3
+Operand3_0[label = "Operand\nShape = [1, 14, 14, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
+Operation3 -> Operand3_0
+}
+)";
+
+    REQUIRE(stream.str() == expected);
+}
 
 /// Checks SaveOpGraphToDot produces the expected output, focusing on the overall graph topology (connections
 /// between nodes) rather than on the details given for each individual node.

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -29,6 +29,11 @@ public:
         std::string creationSource;
     };
     DebuggingContext(const CompilationOptions::DebugInfo* compilationOptions);
+
+    void SaveNetworkToDot(CompilationOptions::DebugLevel level,
+                          const Network& network,
+                          const std::string& fileName,
+                          DetailLevel detailLevel) const;
     void DumpGraph(CompilationOptions::DebugLevel level, const Graph& graph, const std::string& fileName) const;
     void SaveGraphToDot(CompilationOptions::DebugLevel level,
                         const Graph& graph,

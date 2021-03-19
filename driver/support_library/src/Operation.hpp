@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -204,6 +204,7 @@ public:
     virtual void Accept(INetworkVisitor& visitor) = 0;
 
     virtual void Print(std::ostream& os) = 0;
+    virtual const char* GetTypeName()    = 0;
 
     // Position in container Network
     const detail::PosInNetwork m_Pos;

@@ -263,6 +263,11 @@ NetworkPerformanceData Compiler::PrivateEstimatePerformance()
 
 void Compiler::Convert()
 {
+    GetConstDebuggingContext().SaveNetworkToDot(CompilationOptions::DebugLevel::Medium, m_Network, "Network.dot",
+                                                DetailLevel::Low);
+    GetConstDebuggingContext().SaveNetworkToDot(CompilationOptions::DebugLevel::Medium, m_Network,
+                                                "NetworkDetailed.dot", DetailLevel::High);
+
     m_Graph = Graph(m_Network, m_Capabilities, m_EstimationOptions, m_CompilationOptions.m_StrictPrecision);
 
     DumpGraph("GraphInitial");
