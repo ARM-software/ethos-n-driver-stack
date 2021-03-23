@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -170,8 +170,6 @@ TEST_CASE("TopologyTest")
     std::shared_ptr<Constant> weights2 = AddConstant(network, weightsInfo, weightsData.data()).tensor;
     std::shared_ptr<Operand> conv2     = AddConvolution(network, *conv, *bias2, *weights2, conv2Info).tensor;
     std::shared_ptr<Output> output2    = AddOutput(network, *conv2).tensor;
-
-    std::cout << *network << std::endl;
 
     // Check that operations are visited in topological order
     std::unordered_set<const Operation*> visited;

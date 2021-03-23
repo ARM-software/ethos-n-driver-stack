@@ -28,7 +28,6 @@ public:
         return m_Info;
     }
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "Input";
@@ -46,7 +45,6 @@ public:
 
     TensorInfo GetTensorInfo() const;
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "Output";
@@ -77,7 +75,6 @@ public:
     template <typename T>
     std::vector<T> GetDataVectorAs() const;
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "Constant";
@@ -117,7 +114,6 @@ public:
                                                 const TensorInfo& weightsInfo,
                                                 const ConvolutionInfo& convInfo);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "Convolution";
@@ -159,7 +155,6 @@ public:
                                                 const TensorInfo& weightsInfo,
                                                 const ConvolutionInfo& convInfo);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "DepthwiseConvolution";
@@ -201,7 +196,6 @@ public:
                                                 const TensorInfo& weightsInfo,
                                                 const ConvolutionInfo& convInfo);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "TransposeConvolution";
@@ -228,7 +222,6 @@ public:
     static TensorInfo CalculateOutputTensorInfo(const std::vector<TensorInfo>& inputInfos,
                                                 const ConcatenationInfo& concatInfo);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "Concatenation";
@@ -249,7 +242,6 @@ public:
     }
     static std::vector<TensorInfo> CalculateOutputTensorInfos(const TensorInfo& inputInfo, const SplitInfo& splitInfo);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "Split";
@@ -272,7 +264,6 @@ public:
                                                 const TensorInfo& inputInfo1,
                                                 const QuantizationInfo& outputQuantizationInfo);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "Addition";
@@ -309,7 +300,6 @@ public:
                                                 const TensorInfo& weightsInfo,
                                                 const FullyConnectedInfo& fullyConnectedInfo);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "FullyConnected";
@@ -331,7 +321,6 @@ public:
         return m_ReluInfo;
     }
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "Relu";
@@ -352,7 +341,6 @@ public:
     }
 
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const LeakyReluInfo& leakyReluInfo);
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "LeakyRelu";
@@ -373,7 +361,6 @@ public:
     }
 
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const RequantizeInfo& requantizeInfo);
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "Requantize";
@@ -388,7 +375,6 @@ class Softmax : public VisitableOperation<Softmax>
 public:
     Softmax(const detail::PosInNetwork pos, uint32_t id, Operand& input);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "Softmax";
@@ -402,7 +388,6 @@ public:
 
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "Sigmoid";
@@ -421,7 +406,6 @@ public:
 
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const PoolingInfo& poolingInfo);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "Pooling";
@@ -443,7 +427,6 @@ public:
 
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const TensorShape& newDimensions);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "Reshape";
@@ -465,7 +448,6 @@ public:
 
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const DepthToSpaceInfo& depthToSpaceInfo);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "DepthToSpace";
@@ -487,7 +469,6 @@ public:
 
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const SpaceToDepthInfo& spaceToDepthInfo);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "SpaceToDepth";
@@ -509,7 +490,6 @@ public:
 
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const TransposeInfo& transposeInfo);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "Transpose";
@@ -531,7 +511,6 @@ public:
 
     static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo, const ResizeInfo& transposeInfo);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "Resize";
@@ -549,7 +528,6 @@ public:
                  const std::vector<Operand*>& inputs,
                  const EstimateOnlyInfo& info);
 
-    void Print(std::ostream& os) final;
     const char* GetTypeName() final
     {
         return "EstimateOnly";

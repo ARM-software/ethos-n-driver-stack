@@ -471,21 +471,6 @@ CompilerAlgorithm EthosNCompilerAlgorithmFromString(const char* mode)
     }
 }
 
-namespace debug
-{
-std::ostream& operator<<(std::ostream& os, Network& network)
-{
-    os << "Network (" << &network << ")" << std::endl;
-    for (const auto& operation : network)
-    {
-        operation->Print(os);
-    }
-    os << std::endl;
-
-    return os;
-}
-}    // namespace debug
-
 namespace
 {
 template <typename Op>

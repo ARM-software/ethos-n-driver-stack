@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -91,46 +91,12 @@ TensorInfo
     return TensorInfo(outputShape, inputInfo.m_DataType, inputInfo.m_DataFormat, convInfo.m_OutputQuantizationInfo);
 }
 
-void PrintOperation(std::ostream& os, const Operation& operation, const std::string& name, const std::string& extra)
-{
-    const size_t widthOfName = 12;
-
-    const std::string postName = std::string(widthOfName - std::min(widthOfName, name.length()), ' ');
-
-    os << "  " << std::setw(2) << DepthOf(operation) << ": ";
-    os << name.substr(0, widthOfName) << postName << " ( ";
-
-    for (const Operand* o : operation.GetInputs())
-    {
-        os << o << " ";
-    }
-
-    os << "->";
-
-    for (const Operand& o : operation.GetOutputs())
-    {
-        os << " " << &o;
-    }
-
-    os << " )" << extra << std::endl;
-}
-
-void PrintOperation(std::ostream& os, const Operation& operation, const std::string& name)
-{
-    PrintOperation(os, operation, name, "");
-}
-
 }    // namespace
 
 Input::Input(const detail::PosInNetwork pos, uint32_t id, const TensorInfo& info)
     : VisitableOperation<Input>(pos, id, {}, { info })
     , m_Info(info)
 {}
-
-void Input::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "Input");
-}
 
 Output::Output(const detail::PosInNetwork pos, uint32_t id, Operand& operand, const DataFormat format)
     : VisitableOperation<Output>(pos, id, { &operand }, {})
@@ -142,11 +108,6 @@ support_library::TensorInfo Output::GetTensorInfo() const
     TensorInfo info   = GetInput(0).GetTensorInfo();
     info.m_DataFormat = m_OutputFormat;
     return info;
-}
-
-void Output::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "Output");
 }
 
 Constant::Constant(const detail::PosInNetwork pos, uint32_t id, const TensorInfo& info, const void* data)
@@ -178,11 +139,6 @@ std::vector<T> Constant::GetDataVectorAs() const
 
 template std::vector<int32_t> Constant::GetDataVectorAs<int32_t>() const;
 
-void Constant::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "Constant");
-}
-
 Convolution::Convolution(const detail::PosInNetwork pos,
                          uint32_t id,
                          Operand& input,
@@ -201,19 +157,6 @@ support_library::TensorInfo Convolution::CalculateOutputTensorInfo(const TensorI
                                                                    const ConvolutionInfo& convInfo)
 {
     return CalcOutputTensorInfo<false>(inputInfo, weightsInfo, convInfo);
-}
-
-void Convolution::Print(std::ostream& os)
-{
-    std::stringstream ss;
-    // clang-format off
-    ss << " {"
-        << " bias: " << &m_Bias.GetOutput(0)
-        << ","
-        << " weights: " << &m_Weights.GetOutput(0)
-        << " }";
-    // clang-format on
-    PrintOperation(os, *this, "Convolution", ss.str());
 }
 
 DepthwiseConvolution::DepthwiseConvolution(const detail::PosInNetwork pos,
@@ -236,11 +179,6 @@ TensorInfo DepthwiseConvolution::CalculateOutputTensorInfo(const TensorInfo& inp
     return CalcOutputTensorInfo<false>(inputInfo, weightsInfo, convInfo);
 }
 
-void DepthwiseConvolution::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "DepthwiseConvolution");
-}
-
 TransposeConvolution::TransposeConvolution(const detail::PosInNetwork pos,
                                            uint32_t id,
                                            Operand& input,
@@ -259,19 +197,6 @@ support_library::TensorInfo TransposeConvolution::CalculateOutputTensorInfo(cons
                                                                             const ConvolutionInfo& convInfo)
 {
     return CalcOutputTensorInfo<true>(inputInfo, weightsInfo, convInfo);
-}
-
-void TransposeConvolution::Print(std::ostream& os)
-{
-    std::stringstream ss;
-    // clang-format off
-    ss << " {"
-        << " bias: " << &m_Bias.GetOutput(0)
-        << ","
-        << " weights: " << &m_Weights.GetOutput(0)
-        << " }";
-    // clang-format on
-    PrintOperation(os, *this, "TransposeConvolution", ss.str());
 }
 
 Addition::Addition(const detail::PosInNetwork pos,
@@ -301,11 +226,6 @@ TensorInfo Addition::CalculateOutputTensorInfo(const TensorInfo& inputInfo0,
     return outputInfo;
 }
 
-void Addition::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "Addition");
-}
-
 FullyConnected::FullyConnected(const detail::PosInNetwork pos,
                                uint32_t id,
                                Operand& input,
@@ -330,28 +250,10 @@ TensorInfo FullyConnected::CalculateOutputTensorInfo(const TensorInfo& inputInfo
                       inputInfo.m_DataFormat, fullyConnectedInfo.m_OutputQuantizationInfo);
 }
 
-void FullyConnected::Print(std::ostream& os)
-{
-    std::stringstream ss;
-    // clang-format off
-            ss << " {"
-               << " bias: " << &m_Bias.GetOutput(0)
-               << ","
-               << " weights: " << &m_Weights.GetOutput(0)
-               << " }";
-    // clang-format on
-    PrintOperation(os, *this, "FullyConnected", ss.str());
-}
-
 Relu::Relu(const detail::PosInNetwork pos, uint32_t id, Operand& input, const ReluInfo& reluInfo)
     : VisitableOperation<Relu>(pos, id, { &input }, { input.GetTensorInfo() })
     , m_ReluInfo(reluInfo)
 {}
-
-void Relu::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "Relu");
-}
 
 LeakyRelu::LeakyRelu(const detail::PosInNetwork pos, uint32_t id, Operand& input, const LeakyReluInfo& leakyReluInfo)
     : VisitableOperation<LeakyRelu>(
@@ -364,11 +266,6 @@ TensorInfo LeakyRelu::CalculateOutputTensorInfo(const TensorInfo& inputInfo, con
     TensorInfo outputInfo         = inputInfo;
     outputInfo.m_QuantizationInfo = leakyReluInfo.m_OutputQuantizationInfo;
     return outputInfo;
-}
-
-void LeakyRelu::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "LeakyRelu");
 }
 
 Requantize::Requantize(const detail::PosInNetwork pos,
@@ -387,19 +284,9 @@ TensorInfo Requantize::CalculateOutputTensorInfo(const TensorInfo& inputInfo, co
     return outputInfo;
 }
 
-void Requantize::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "Requantize");
-}
-
 Softmax::Softmax(const detail::PosInNetwork pos, uint32_t id, Operand& input)
     : VisitableOperation<Softmax>(pos, id, { &input }, { input.GetTensorInfo() })
 {}
-
-void Softmax::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "Softmax");
-}
 
 Sigmoid::Sigmoid(const detail::PosInNetwork pos, uint32_t id, Operand& input)
     : VisitableOperation<Sigmoid>(pos, id, { &input }, { CalculateOutputTensorInfo(input.GetTensorInfo()) })
@@ -413,11 +300,6 @@ TensorInfo Sigmoid::CalculateOutputTensorInfo(const TensorInfo& inputInfo)
     outInfo.m_QuantizationInfo = QuantizationInfo(zeroPoint, 1.f / 256);
 
     return outInfo;
-}
-
-void Sigmoid::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "Sigmoid");
 }
 
 Pooling::Pooling(const detail::PosInNetwork pos, uint32_t id, Operand& input, const PoolingInfo& poolingInfo)
@@ -439,17 +321,6 @@ TensorInfo Pooling::CalculateOutputTensorInfo(const TensorInfo& inputInfo, const
                       inputInfo.m_DataFormat, inputInfo.m_QuantizationInfo);
 }
 
-void Pooling::Print(std::ostream& os)
-{
-    std::stringstream ss;
-    // clang-format off
-    ss << " {"
-        << " type: " << static_cast<int>(m_PoolingInfo.m_PoolingType)
-        << " }";
-    // clang-format on
-    PrintOperation(os, *this, "Pooling", ss.str());
-}
-
 Reshape::Reshape(const detail::PosInNetwork pos, uint32_t id, Operand& input, const TensorShape& newDimensions)
     : VisitableOperation<Reshape>(
           pos, id, { &input }, { CalculateOutputTensorInfo(input.GetTensorInfo(), newDimensions) })
@@ -459,11 +330,6 @@ Reshape::Reshape(const detail::PosInNetwork pos, uint32_t id, Operand& input, co
 TensorInfo Reshape::CalculateOutputTensorInfo(const TensorInfo& inputInfo, const TensorShape& newDimensions)
 {
     return TensorInfo(newDimensions, inputInfo.m_DataType, inputInfo.m_DataFormat, inputInfo.m_QuantizationInfo);
-}
-
-void Reshape::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "Reshape");
 }
 
 Concatenation::Concatenation(const detail::PosInNetwork pos,
@@ -496,11 +362,6 @@ TensorInfo Concatenation::CalculateOutputTensorInfo(const std::vector<TensorInfo
     return outputInfo;
 }
 
-void Concatenation::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "Concatenation");
-}
-
 Split::Split(const detail::PosInNetwork pos, uint32_t id, Operand& input, const SplitInfo& splitInfo)
     : VisitableOperation<Split>(pos, id, { &input }, CalculateOutputTensorInfos(input.GetTensorInfo(), splitInfo))
     , m_SplitInfo(splitInfo)
@@ -516,11 +377,6 @@ std::vector<TensorInfo> Split::CalculateOutputTensorInfos(const TensorInfo& inpu
         result.push_back(outputInfo);
     }
     return result;
-}
-
-void Split::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "Split");
 }
 
 DepthToSpace::DepthToSpace(const detail::PosInNetwork pos,
@@ -544,11 +400,6 @@ TensorInfo DepthToSpace::CalculateOutputTensorInfo(const TensorInfo& inputInfo,
     return result;
 }
 
-void DepthToSpace::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "DepthToSpace");
-}
-
 SpaceToDepth::SpaceToDepth(const detail::PosInNetwork pos,
                            uint32_t id,
                            Operand& input,
@@ -570,11 +421,6 @@ TensorInfo SpaceToDepth::CalculateOutputTensorInfo(const TensorInfo& inputInfo,
     return result;
 }
 
-void SpaceToDepth::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "SpaceToDepth");
-}
-
 Transpose::Transpose(const detail::PosInNetwork pos, uint32_t id, Operand& input, const TransposeInfo& transposeInfo)
     : VisitableOperation<Transpose>(
           pos, id, { &input }, { CalculateOutputTensorInfo(input.GetTensorInfo(), transposeInfo) })
@@ -591,11 +437,6 @@ TensorInfo Transpose::CalculateOutputTensorInfo(const TensorInfo& inputInfo, con
     return result;
 }
 
-void Transpose::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "Transpose");
-}
-
 Resize::Resize(const detail::PosInNetwork pos, uint32_t id, Operand& input, const ResizeInfo& resizeInfo)
     : VisitableOperation<Resize>(pos, id, { &input }, { CalculateOutputTensorInfo(input.GetTensorInfo(), resizeInfo) })
     , m_ResizeInfo(resizeInfo)
@@ -610,22 +451,12 @@ TensorInfo Resize::CalculateOutputTensorInfo(const TensorInfo& inputInfo, const 
     return outputInfo;
 }
 
-void Resize::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "Resize");
-}
-
 EstimateOnly::EstimateOnly(const detail::PosInNetwork pos,
                            uint32_t id,
                            const std::vector<Operand*>& inputs,
                            const EstimateOnlyInfo& info)
     : VisitableOperation<EstimateOnly>(pos, id, inputs, info.m_OutputInfos)
 {}
-
-void EstimateOnly::Print(std::ostream& os)
-{
-    PrintOperation(os, *this, "EstimateOnly");
-}
 
 }    // namespace support_library
 

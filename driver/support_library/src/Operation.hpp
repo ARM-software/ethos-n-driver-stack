@@ -203,8 +203,7 @@ public:
     // See Visitor Pattern: https://en.wikipedia.org/wiki/Visitor_pattern
     virtual void Accept(INetworkVisitor& visitor) = 0;
 
-    virtual void Print(std::ostream& os) = 0;
-    virtual const char* GetTypeName()    = 0;
+    virtual const char* GetTypeName() = 0;
 
     // Position in container Network
     const detail::PosInNetwork m_Pos;
