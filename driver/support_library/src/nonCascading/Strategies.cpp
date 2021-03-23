@@ -704,8 +704,7 @@ MceStrategySelectionReturnValue
         }
     }
 
-    Optional<Strategy6Params> bestParams;
-    Optional<TryStripeShapesResult> bestTryResult;
+    Optional<std::pair<Strategy6Params, TryStripeShapesResult>> best;
     uint64_t bestCost = std::numeric_limits<uint64_t>::max();
     for (auto params : paramsList)
     {
@@ -733,20 +732,19 @@ MceStrategySelectionReturnValue
             // best-first order. The above cost metric does not account for everything.
             if (cost < bestCost)
             {
-                bestParams    = params;
-                bestTryResult = tryResult;
-                bestCost      = cost;
+                best     = std::make_pair(params, tryResult);
+                bestCost = cost;
             }
         }
     }
 
-    if (bestTryResult.has_value())
+    if (best.has_value())
     {
-        strategyConfig             = bestTryResult.value().m_StrategyConfig;
+        strategyConfig             = best.value().second.m_StrategyConfig;
         strategyConfig.strategy    = Strategy::STRATEGY_6;
-        strategyConfig.blockWidth  = bestParams.value().blockWidth;
-        strategyConfig.blockHeight = bestParams.value().blockHeight;
-        sramAllocator              = bestTryResult.value().m_UpdatedSramAllocator;
+        strategyConfig.blockWidth  = best.value().first.blockWidth;
+        strategyConfig.blockHeight = best.value().first.blockHeight;
+        sramAllocator              = best.value().second.m_UpdatedSramAllocator;
         rv.success                 = true;
         return rv;
     }
