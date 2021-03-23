@@ -19,7 +19,7 @@ namespace support_library
 {
 
 class HardwareCapabilities;
-class MceStrategySelectionParameters;
+struct MceStrategySelectionParameters;
 
 class IStrategy
 {
