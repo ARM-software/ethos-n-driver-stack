@@ -13,7 +13,7 @@
 
 // Version information
 #define ETHOSN_DRIVER_LIBRARY_VERSION_MAJOR 1
-#define ETHOSN_DRIVER_LIBRARY_VERSION_MINOR 0
+#define ETHOSN_DRIVER_LIBRARY_VERSION_MINOR 1
 #define ETHOSN_DRIVER_LIBRARY_VERSION_PATCH 0
 
 namespace ethosn
@@ -26,7 +26,17 @@ class NetworkImpl;
 struct Version
 {
     Version();
-    Version(const uint32_t Major, const uint32_t Minor, const uint32_t Patch);
+
+    constexpr Version(const uint32_t Major, const uint32_t Minor, const uint32_t Patch)
+        : Major(Major)
+        , Minor(Minor)
+        , Patch(Patch)
+    {}
+
+    bool operator==(const Version& ver) const
+    {
+        return Major == ver.Major && Minor == ver.Minor && Patch == ver.Patch;
+    }
 
     uint32_t Major;
     uint32_t Minor;
@@ -83,5 +93,8 @@ public:
 private:
     std::unique_ptr<NetworkImpl> m_NetworkImpl;
 };
+
+bool VerifyKernel();
+
 }    // namespace driver_library
 }    // namespace ethosn

@@ -697,9 +697,23 @@ static long ethosn_ioctl(struct file *const filep,
 {
 	struct ethosn_device *ethosn = filep->private_data;
 	void __user *const udata = (void __user *)arg;
-	int ret;
+	int ret = 0;
 
 	switch (cmd) {
+	case ETHOSN_IOCTL_GET_VERSION: {
+		struct ethosn_kernel_module_version act_version = {
+			.major = ETHOSN_KERNEL_MODULE_VERSION_MAJOR,
+			.minor = ETHOSN_KERNEL_MODULE_VERSION_MINOR,
+			.patch = ETHOSN_KERNEL_MODULE_VERSION_PATCH,
+		};
+
+		if (copy_to_user(udata, &act_version, sizeof(act_version))) {
+			ret = -EFAULT;
+			break;
+		}
+
+		break;
+	}
 	case ETHOSN_IOCTL_CREATE_BUFFER: {
 		struct ethosn_buffer_req buf_req;
 

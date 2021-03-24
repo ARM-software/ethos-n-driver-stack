@@ -19,6 +19,19 @@ TEST_CASE("TestLibraryVersion")
     REQUIRE(version.Patch == ETHOSN_DRIVER_LIBRARY_VERSION_PATCH);
 }
 
+TEST_CASE("TestVersionCompatibility")
+{
+    WHEN("VerifyKernel is invoked")
+    {
+        bool ret = VerifyKernel();
+
+        THEN("VerifyKernel should return True")
+        {
+            REQUIRE(ret);
+        }
+    }
+}
+
 TEST_CASE("GetFirmwareAndHardwareCapabilities")
 {
     std::vector<char> capsRaw = GetFirmwareAndHardwareCapabilities();

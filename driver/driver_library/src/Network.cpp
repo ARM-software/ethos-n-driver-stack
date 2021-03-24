@@ -31,12 +31,6 @@ Version::Version()
     , Patch(0)
 {}
 
-Version::Version(const uint32_t Major, const uint32_t Minor, const uint32_t Patch)
-    : Major(Major)
-    , Minor(Minor)
-    , Patch(Patch)
-{}
-
 Network::Network(const char* compiledNetworkData, size_t compiledNetworkSize)
     : m_NetworkImpl(
 #if defined(TARGET_MODEL)
@@ -65,6 +59,15 @@ void Network::SetDebugName(const char* name)
 {
     m_NetworkImpl->SetDebugName(name);
 }
+
+/// This verifies if the version of the kernel module is compatible or not.
+/// The check is performed at compile time as well as at run time.
+/// At compile time, it checks if the version defined in ethosn.h is supported
+/// or not. The supported version is defined in KmodNetwork.hpp.
+/// At run time, it checks if the version obtained from the kernel, matches
+/// with the version defined in ethosn.h or not.
+/// Returns True if there is a match else False.
+bool VerifyKernel();
 
 }    // namespace driver_library
 }    // namespace ethosn

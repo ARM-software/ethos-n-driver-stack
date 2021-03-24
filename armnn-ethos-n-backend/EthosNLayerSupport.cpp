@@ -17,7 +17,6 @@
 #include <armnn/Types.hpp>
 #include <armnn/TypesUtils.hpp>
 #include <armnn/utility/Assert.hpp>
-#include <ethosn_driver_library/Network.hpp>
 #include <ethosn_support_library/SupportQueries.hpp>
 
 #include <algorithm>

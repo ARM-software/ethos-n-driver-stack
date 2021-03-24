@@ -262,6 +262,11 @@ EthosNPreCompiledWorkload::EthosNPreCompiledWorkload(const PreCompiledQueueDescr
         throw InvalidArgumentException("EthosNPreCompiledWorkload requires a valid pre-compiled object");
     }
 
+    if (!ethosn::driver_library::VerifyKernel())
+    {
+        throw RuntimeException("Kernel version is not supported");
+    }
+
     if (!m_PreCompiledObject->IsPerfEstimationOnly())
     {
         Init(descriptor.m_Parameters, *m_PreCompiledObject->GetNetwork());

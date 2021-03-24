@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -87,6 +87,62 @@ std::vector<char> GetFirmwareAndHardwareCapabilities()
 
     close(fd);
     return caps;
+}
+
+bool IsKernelVersionMatching(const struct Version& ver)
+{
+    // The actual kernel module version obtained from a running system,
+    struct Version actKmodVer;
+
+    int fd = open(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE), O_RDONLY);
+    if (fd < 0)
+    {
+        throw std::runtime_error(std::string("Unable to open ") + std::string(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE)) +
+                                 std::string(": ") + strerror(errno));
+    }
+
+    int match = ioctl(fd, ETHOSN_IOCTL_GET_VERSION, &actKmodVer);
+
+    close(fd);
+
+    if (match < 0)
+    {
+        throw std::runtime_error(std::string("Kernel version cannot be obtained \n"));
+    }
+
+    if (ver == actKmodVer)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+constexpr bool IsKernelVersionSupported(const uint32_t& majorVersion)
+{
+    if ((majorVersion <= MAX_ETHOSN_KERNEL_MODULE_MAJOR_VERSION_SUPPORTED) &&
+        (majorVersion >= MIN_ETHOSN_KERNEL_MODULE_MAJOR_VERSION_SUPPORTED))
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool VerifyKernel()
+{
+    // The kernel module version that is defined in uapi/ethosn.h
+    static constexpr struct Version uapiKmodVer(ETHOSN_KERNEL_MODULE_VERSION_MAJOR, ETHOSN_KERNEL_MODULE_VERSION_MINOR,
+                                                ETHOSN_KERNEL_MODULE_VERSION_PATCH);
+
+    static_assert((IsKernelVersionSupported(ETHOSN_KERNEL_MODULE_VERSION_MAJOR)),
+                  "Kernel module version defined in ethosn.h is not supported");
+
+    return IsKernelVersionMatching(uapiKmodVer);
 }
 
 KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compiledNetworkSize)

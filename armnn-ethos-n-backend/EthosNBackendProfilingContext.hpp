@@ -1,11 +1,12 @@
 //
-// Copyright © 2020 Arm Limited. All rights reserved.
+// Copyright © 2020-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
 
 #include <armnn/backends/IBackendInternal.hpp>
 #include <armnn/backends/profiling/IBackendProfilingContext.hpp>
+#include <ethosn_driver_library/Network.hpp>
 #include <ethosn_driver_library/Profiling.hpp>
 
 namespace armnn
@@ -22,7 +23,12 @@ public:
         , m_SendTimelinePacket(backendProfiling->GetSendTimelinePacket())
         , m_BackendProfiling(backendProfiling)
         , m_CapturePeriod(0)
-    {}
+    {
+        if (!ethosn::driver_library::VerifyKernel())
+        {
+            throw RuntimeException("Kernel version is not supported");
+        }
+    }
 
     // The following is a rough sequence of calls from armnn :-
     // 1. RegisterCounters()

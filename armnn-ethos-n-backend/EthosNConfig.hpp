@@ -1,9 +1,10 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
 
+#include <armnn/Exceptions.hpp>
 #include <ethosn_driver_library/Network.hpp>
 #include <ethosn_support_library/Support.hpp>
 
@@ -52,6 +53,11 @@ struct EthosNConfig
 
     std::vector<char> GetCapabilities()
     {
+        if (!ethosn::driver_library::VerifyKernel())
+        {
+            throw RuntimeException("Kernel version is not supported");
+        }
+
         return m_PerfOnly ? ethosn::support_library::GetFwAndHwCapabilities(m_PerfVariant, m_PerfSramSizeBytesOverride)
                           : ethosn::driver_library::GetFirmwareAndHardwareCapabilities();
     }

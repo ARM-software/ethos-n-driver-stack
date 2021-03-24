@@ -16,7 +16,6 @@
 #include <armnn/utility/Assert.hpp>
 #include <armnnUtils/Permute.hpp>
 #include <backendsCommon/CpuTensorHandle.hpp>
-#include <ethosn_driver_library/Network.hpp>
 #include <ethosn_utils/VectorStream.hpp>
 
 #include <algorithm>

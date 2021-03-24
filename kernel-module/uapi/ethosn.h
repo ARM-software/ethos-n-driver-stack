@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2019 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -336,6 +336,8 @@ struct ethosn_log_firmware_header {
 	ETHOSN_IO(0x08)
 #define ETHOSN_IOCTL_GET_INTERMEDIATE_BUFFER \
 	ETHOSN_IO(0x09)
+#define ETHOSN_IOCTL_GET_VERSION \
+	ETHOSN_IO(0x0a)
 
 /*
  * Results from reading an inference file descriptor.
@@ -350,5 +352,22 @@ struct ethosn_log_firmware_header {
 #define MB_WRONLY 00000001
 #define MB_RDWR   00000002
 #define MB_ZERO   00000010
+
+/* Version information */
+#define ETHOSN_KERNEL_MODULE_VERSION_MAJOR 1
+#define ETHOSN_KERNEL_MODULE_VERSION_MINOR 0
+#define ETHOSN_KERNEL_MODULE_VERSION_PATCH 0
+
+/**
+ * struct ethosn_kernel_module_version - stores the kernel module's version info
+ * @major: This corresponds to the major version.
+ * @minor: This corresponds to the minor version.
+ * @patch: This corresponds to the patch version.
+ */
+struct ethosn_kernel_module_version {
+	uint32_t major;
+	uint32_t minor;
+	uint32_t patch;
+};
 
 #endif /* _ETHOSN_H_ */

@@ -12,6 +12,9 @@ namespace ethosn
 namespace driver_library
 {
 
+#define MAX_ETHOSN_KERNEL_MODULE_MAJOR_VERSION_SUPPORTED 1
+#define MIN_ETHOSN_KERNEL_MODULE_MAJOR_VERSION_SUPPORTED 1
+
 class KmodNetworkImpl : public NetworkImpl
 {
 public:
@@ -29,6 +32,9 @@ private:
 
     int m_NetworkFd;
 };
+
+bool IsKernelVersionMatching(const struct Version& ver);
+constexpr bool IsKernelVersionSupported(const uint32_t& majorVersion);
 
 }    // namespace driver_library
 }    // namespace ethosn

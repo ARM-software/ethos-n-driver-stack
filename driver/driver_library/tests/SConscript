@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2018-2021 Arm Limited. All rights reserved.
+# Copyright © 2018-2021 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -18,6 +18,9 @@ srcs = ['main.cpp',
         'DriverLibraryTests.cpp',
         'BufferTests.cpp',
         'ConfigTests.cpp']
+
+if env['target'] == 'kmod':
+    srcs.append('DriverLibraryKmodTests.cpp')
 
 internal_dir = os.path.join(env['driver_library_dir'], '..', '..', 'internal', 'driver', 'driver_library', 'tests')
 internal_srcs = []
