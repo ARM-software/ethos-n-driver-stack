@@ -10,6 +10,7 @@
 #include "Optimization.hpp"
 #include "SramAllocator.hpp"
 #include "cascading/Cascading.hpp"
+#include "cascading/EstimationUtils.hpp"
 #include "nonCascading/ConversionPass.hpp"
 #include "nonCascading/McePlePass.hpp"
 #include "nonCascading/NonCascading.hpp"
@@ -216,7 +217,7 @@ NetworkPerformanceData Compiler::EstimatePerformance()
         return cascadedPerformance;
     }
     // Both of the performances are valid, try to see which one is the best
-    if (utils::IsLeftMoreDataPerformantThanRight(nonCascadedPerformance, cascadedPerformance))
+    if (IsLeftMoreDataPerformantThanRight(nonCascadedPerformance, cascadedPerformance))
     {
         return nonCascadedPerformance;
     }

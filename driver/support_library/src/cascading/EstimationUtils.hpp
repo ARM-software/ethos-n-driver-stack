@@ -1,5 +1,5 @@
 //
-// Copyright © 2020 Arm Limited. All rights reserved.
+// Copyright © 2020-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -37,6 +37,10 @@ InputStats GetInputStats(const HardwareCapabilities& caps,
 OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeShape, const Location location);
 
 InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRatio);
+
+uint64_t GetPerformanceDataMetric(const PassStats& passStat);
+uint64_t GetMetric(const NetworkPerformanceData& netPerfData);
+bool IsLeftMoreDataPerformantThanRight(const NetworkPerformanceData& left, const NetworkPerformanceData& right);
 
 }    //namespace support_library
 }    //namespace ethosn

@@ -10,6 +10,7 @@
 #include "Cascading.hpp"
 #include "DebuggingContext.hpp"
 #include "Estimation.hpp"
+#include "EstimationUtils.hpp"
 #include "Part.hpp"
 #include "Plan.hpp"
 
@@ -748,8 +749,7 @@ Combination PruneCombinations(const GraphOfParts& parts,
                 EstimatedOpGraph curNetPerfData =
                     ethosn::support_library::EstimateOpGraph(combiOpGraph, caps, estimationOpts);
 
-                if (!result.has_value() ||
-                    utils::IsLeftMoreDataPerformantThanRight(curNetPerfData.m_PerfData, refNetPerfData))
+                if (!result.has_value() || IsLeftMoreDataPerformantThanRight(curNetPerfData.m_PerfData, refNetPerfData))
                 {
                     refNetPerfData = curNetPerfData.m_PerfData;
                     result         = combination;

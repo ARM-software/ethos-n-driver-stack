@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -616,10 +616,6 @@ struct ShapeMultiplier
 };
 
 constexpr ShapeMultiplier g_IdentityShapeMultiplier = { Fraction{ 1, 1 }, Fraction{ 1, 1 }, Fraction{ 1, 1 } };
-
-uint64_t GetPerformanceDataMetric(const PassStats& passStat);
-uint64_t GetMetric(const NetworkPerformanceData& netPerfData);
-bool IsLeftMoreDataPerformantThanRight(const NetworkPerformanceData& left, const NetworkPerformanceData& right);
 
 command_stream::DataType GetCommandDataType(const DataType supportLibraryDataType);
 

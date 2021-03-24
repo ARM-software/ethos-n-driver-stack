@@ -1,5 +1,5 @@
 //
-// Copyright © 2020-2021 Arm Limited. All rights reserved.
+// Copyright © 2020-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -251,6 +251,28 @@ InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRa
     ret.m_MemoryStats.m_DramParallel =
         static_cast<uint32_t>(static_cast<float>(stats.m_MemoryStats.m_DramParallel) * (1 - spaceSavingRatio));
     return ret;
+}
+
+uint64_t GetPerformanceDataMetric(const PassStats& passStat)
+{
+    return passStat.m_Input.m_MemoryStats.m_DramParallel + passStat.m_Input.m_MemoryStats.m_DramNonParallel +
+           passStat.m_Output.m_MemoryStats.m_DramParallel + passStat.m_Output.m_MemoryStats.m_DramNonParallel +
+           passStat.m_Weights.m_MemoryStats.m_DramParallel + passStat.m_Weights.m_MemoryStats.m_DramNonParallel;
+}
+
+uint64_t GetMetric(const NetworkPerformanceData& netPerfData)
+{
+    uint64_t performanceMetric = 0;
+    for (PassPerformanceData passPerfData : netPerfData.m_Stream)
+    {
+        performanceMetric += GetPerformanceDataMetric(passPerfData.m_Stats);
+    }
+    return performanceMetric;
+}
+
+bool IsLeftMoreDataPerformantThanRight(const NetworkPerformanceData& left, const NetworkPerformanceData& right)
+{
+    return GetMetric(left) < GetMetric(right);
 }
 
 }    // namespace support_library

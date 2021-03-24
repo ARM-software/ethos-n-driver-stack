@@ -256,28 +256,6 @@ uint32_t GetNumSubmapChannels(uint32_t nChannels,
     return result;
 }
 
-uint64_t GetPerformanceDataMetric(const PassStats& passStat)
-{
-    return passStat.m_Input.m_MemoryStats.m_DramParallel + passStat.m_Input.m_MemoryStats.m_DramNonParallel +
-           passStat.m_Output.m_MemoryStats.m_DramParallel + passStat.m_Output.m_MemoryStats.m_DramNonParallel +
-           passStat.m_Weights.m_MemoryStats.m_DramParallel + passStat.m_Weights.m_MemoryStats.m_DramNonParallel;
-}
-
-uint64_t GetMetric(const NetworkPerformanceData& netPerfData)
-{
-    uint64_t performanceMetric = 0;
-    for (PassPerformanceData passPerfData : netPerfData.m_Stream)
-    {
-        performanceMetric += GetPerformanceDataMetric(passPerfData.m_Stats);
-    }
-    return performanceMetric;
-}
-
-bool IsLeftMoreDataPerformantThanRight(const NetworkPerformanceData& left, const NetworkPerformanceData& right)
-{
-    return GetMetric(left) < GetMetric(right);
-}
-
 command_stream::DataType GetCommandDataType(const DataType supportLibraryDataType)
 {
     switch (supportLibraryDataType)

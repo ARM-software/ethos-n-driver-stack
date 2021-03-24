@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -10,6 +10,7 @@
 #include "../Utils.hpp"
 #include "DebuggingContext.hpp"
 #include "Estimation.hpp"
+#include "EstimationUtils.hpp"
 #include "Part.hpp"
 
 #include "../include/ethosn_support_library/Optional.hpp"
@@ -255,8 +256,7 @@ void Cascading::EstimatePerformance()
 
             if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
             {
-                debugPerformanceDumpFile << combinationIdx << ": " << utils::GetMetric(curNetPerfData.m_PerfData)
-                                         << std::endl;
+                debugPerformanceDumpFile << combinationIdx << ": " << GetMetric(curNetPerfData.m_PerfData) << std::endl;
                 if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
                 {
                     std::string folder = "Combinations/" + std::to_string(combinationIdx);
@@ -265,7 +265,7 @@ void Cascading::EstimatePerformance()
             }
 
             if (!bestCombinationIdx.has_value() ||
-                utils::IsLeftMoreDataPerformantThanRight(curNetPerfData.m_PerfData, m_PerformanceStream))
+                IsLeftMoreDataPerformantThanRight(curNetPerfData.m_PerfData, m_PerformanceStream))
             {
                 m_PerformanceStream = curNetPerfData.m_PerfData;
                 m_BestCombination   = &combination;
