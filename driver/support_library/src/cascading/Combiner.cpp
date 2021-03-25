@@ -825,31 +825,30 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
 
     Combinations currSeeds = CreateSeeds(parts, m_Metadata, m_Capabilities);
 
-    GrownSeeds grownSeeds;
-    std::deque<Combinations> history;
+    // It contains "Merged in Sram" combinations
+    GrownSeeds grownSeeds = {};
+    // It contains "Back to Dram" combinations
+    GrownSeeds haltedSeeds = {};
 
     uint32_t iteration = 0;
     do
     {
+        // Temporary result of pruning
+        Combinations pruned = {};
+
+        // Grow combinations "Merged in Sram"
         grownSeeds = GrowSeeds(currSeeds, parts, 0U, m_Metadata, m_Capabilities, GrowScheme::MergeOnly);
-        if (grownSeeds.m_Combinations.empty())
-        {
-            Combinations pruned = {};
-            if (currSeeds.empty() && history.size() > g_kHistoryDepth)
-            {
-                currSeeds = history.front();
-                history.clear();
-            }
-            pruned.push_back(PruneCombinations(parts, m_Capabilities, currSeeds, GetEstimationOptions()));
-            grownSeeds = GrowSeeds(pruned, parts, 0U, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
-        }
+
+        // Take the best combination of the lot
+        pruned.push_back(PruneCombinations(parts, m_Capabilities, currSeeds, GetEstimationOptions()));
+        // Grow combinations "Back to Dram"
+        haltedSeeds = GrowSeeds(pruned, parts, 0U, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
+
         currSeeds = grownSeeds.m_Combinations;
 
-        if (history.size() > g_kHistoryDepth)
-        {
-            history.pop_front();
-        }
-        history.push_back(currSeeds);
+        // Concatenate "Merged in Sram" and "Back to Dram"
+        currSeeds.insert(std::end(currSeeds), std::begin(haltedSeeds.m_Combinations),
+                         std::end(haltedSeeds.m_Combinations));
 
         if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
         {

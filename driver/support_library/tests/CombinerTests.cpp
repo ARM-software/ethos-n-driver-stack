@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1875,7 +1875,7 @@ TEST_CASE("Combine Simple")
     Cascading cascading(estOpt, compOpt, hwCaps);
     Combinations combs = cascading.Combine(gOfParts);
 
-    REQUIRE(combs.size() == 2U);
+    REQUIRE(combs.size() == 5U);
 
     // All the combinations are complete
     REQUIRE(combs.at(0).m_Elems.size() == 3U);
