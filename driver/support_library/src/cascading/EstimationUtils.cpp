@@ -253,26 +253,60 @@ InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRa
     return ret;
 }
 
-uint64_t GetPerformanceDataMetric(const PassStats& passStat)
+uint64_t GetPerformanceTotalDataMetric(const NetworkPerformanceData& netPerfData)
 {
-    return passStat.m_Input.m_MemoryStats.m_DramParallel + passStat.m_Input.m_MemoryStats.m_DramNonParallel +
-           passStat.m_Output.m_MemoryStats.m_DramParallel + passStat.m_Output.m_MemoryStats.m_DramNonParallel +
-           passStat.m_Weights.m_MemoryStats.m_DramParallel + passStat.m_Weights.m_MemoryStats.m_DramNonParallel;
+    return GetPerformanceParallelDataMetric(netPerfData) + GetPerformanceNonParallelDataMetric(netPerfData);
 }
 
-uint64_t GetMetric(const NetworkPerformanceData& netPerfData)
+uint64_t GetPerformanceNonParallelDataMetric(const NetworkPerformanceData& netPerfData)
 {
-    uint64_t performanceMetric = 0;
+    uint64_t nonParallelData = 0UL;
     for (PassPerformanceData passPerfData : netPerfData.m_Stream)
     {
-        performanceMetric += GetPerformanceDataMetric(passPerfData.m_Stats);
+        nonParallelData += passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel +
+                           passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel +
+                           passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel;
     }
-    return performanceMetric;
+    return nonParallelData;
+}
+
+uint64_t GetPerformanceParallelDataMetric(const NetworkPerformanceData& netPerfData)
+{
+    uint64_t parallelData = 0UL;
+    for (PassPerformanceData passPerfData : netPerfData.m_Stream)
+    {
+        parallelData += passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramParallel +
+                        passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramParallel +
+                        passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramParallel;
+    }
+    return parallelData;
 }
 
 bool IsLeftMoreDataPerformantThanRight(const NetworkPerformanceData& left, const NetworkPerformanceData& right)
 {
-    return GetMetric(left) < GetMetric(right);
+    uint64_t metricLeft  = GetPerformanceTotalDataMetric(left);
+    uint64_t metricRight = GetPerformanceTotalDataMetric(right);
+
+    if (metricLeft < metricRight)
+    {
+        return true;
+    }
+
+    if (metricLeft > metricRight)
+    {
+        return false;
+    }
+
+    // Total data metric are equal, check the non parallel data
+    metricLeft  = GetPerformanceNonParallelDataMetric(left);
+    metricRight = GetPerformanceNonParallelDataMetric(right);
+
+    if (metricLeft < metricRight)
+    {
+        return true;
+    }
+
+    return false;
 }
 
 }    // namespace support_library

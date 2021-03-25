@@ -256,7 +256,8 @@ void Cascading::EstimatePerformance()
 
             if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
             {
-                debugPerformanceDumpFile << combinationIdx << ": " << GetMetric(curNetPerfData.m_PerfData) << std::endl;
+                debugPerformanceDumpFile << combinationIdx << ": "
+                                         << GetPerformanceTotalDataMetric(curNetPerfData.m_PerfData) << std::endl;
                 if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
                 {
                     std::string folder = "Combinations/" + std::to_string(combinationIdx);

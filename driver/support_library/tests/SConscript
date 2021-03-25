@@ -55,7 +55,8 @@ srcs = ['main.cpp',
         'OptionalTests.cpp',
         'QuantizationInfoTests.cpp',
         'MceEstimationUtilsTests.cpp',
-        'ReinterpretQuantizationTests.cpp']
+        'ReinterpretQuantizationTests.cpp',
+        'EstimationUtilsTests.cpp']
 
 internal_dir = os.path.join(env['support_library_dir'], '..', '..', 'internal', 'driver', 'support_library', 'tests')
 internal_srcs = []

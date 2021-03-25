@@ -38,8 +38,9 @@ OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeSh
 
 InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRatio);
 
-uint64_t GetPerformanceDataMetric(const PassStats& passStat);
-uint64_t GetMetric(const NetworkPerformanceData& netPerfData);
+uint64_t GetPerformanceTotalDataMetric(const NetworkPerformanceData& netPerfData);
+uint64_t GetPerformanceParallelDataMetric(const NetworkPerformanceData& netPerfData);
+uint64_t GetPerformanceNonParallelDataMetric(const NetworkPerformanceData& netPerfData);
 bool IsLeftMoreDataPerformantThanRight(const NetworkPerformanceData& left, const NetworkPerformanceData& right);
 
 }    //namespace support_library
