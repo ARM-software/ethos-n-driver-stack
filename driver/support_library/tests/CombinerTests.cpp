@@ -664,7 +664,7 @@ TEST_CASE("CreateMetadata For Cascade With No Depthwise Splitting for Convolutio
     REQUIRE(metadata.front().m_Comp.begin()->second.size() == 3U);
 
     // The first plan ie planASramFullDepth is compatible with planBSramFullDepth, planBSramPartialdepth and planBDram
-    REQUIRE(metadata.front().m_Comp.begin()->second.find(0)->second.size() == 3);
+    REQUIRE(metadata.front().m_Comp.begin()->second.find(0)->second.size() == 4);
     // It gets merged with planBSramFullDepth first whose id is 0
     REQUIRE(metadata.front().m_Comp.begin()->second.find(0)->second.front().m_Id == 0);
     Glue* glue = &metadata.front().m_Comp.begin()->second.find(0)->second.front().m_Glue;
@@ -771,7 +771,7 @@ TEST_CASE("CreateMetadata For Cascade With Depthwise Splitting for DepthwiseConv
     REQUIRE(metadata.front().m_Comp.begin()->second.size() == 3U);
 
     // The first plan ie planASramFullDepth is compatible with planBSramFullDepth, planBSramPartialdepth and planBDram
-    REQUIRE(metadata.front().m_Comp.begin()->second.find(0)->second.size() == 3);
+    REQUIRE(metadata.front().m_Comp.begin()->second.find(0)->second.size() == 4);
     // It gets merged with planBSramFullDepth first whose id is 0
     REQUIRE(metadata.front().m_Comp.begin()->second.find(0)->second.front().m_Id == 0);
     Glue* glue = &metadata.front().m_Comp.begin()->second.find(0)->second.front().m_Glue;
@@ -779,7 +779,7 @@ TEST_CASE("CreateMetadata For Cascade With Depthwise Splitting for DepthwiseConv
     REQUIRE(glue->m_Graph.GetOps().size() == 0U);
 
     // The second plan ie planASramPartialDepth is compatible with both planBSramFullDepth, planBSramPartialdepth and planBDram
-    REQUIRE(metadata.front().m_Comp.begin()->second.find(1)->second.size() == 3);
+    REQUIRE(metadata.front().m_Comp.begin()->second.find(1)->second.size() == 4);
     // It gets merged with planBSramPartialdepth first whose id is 1.
     REQUIRE(metadata.front().m_Comp.begin()->second.find(1)->second.at(1).m_Id == 1);
     // For which it does not need a valid glue.
@@ -1440,78 +1440,51 @@ TEST_CASE("GrowSeeds Simple")
     Metadata metadata = CreateMetadata(gOfParts, hwCaps);
 
     Combinations combs = CreateSeeds(gOfParts, metadata, hwCaps);
-    // All plan are compatible, the total number of seeds is the product of the number of plans
+    // All plan are compatible, the total number of seeds is the product of the number of plans (plus "Back to Dram" plans)
     REQUIRE(combs.size() == 4U);
 
     GrownSeeds res = GrowSeeds(combs, gOfParts, 0U, metadata, hwCaps);
-    REQUIRE(res.m_Combinations.size() == 8U);
+    REQUIRE(res.m_Combinations.size() == 10U);
     REQUIRE(res.m_Terminated == false);
     res = GrowSeeds(res.m_Combinations, gOfParts, 0U, metadata, hwCaps);
-    REQUIRE(res.m_Combinations.size() == 8U);
+    REQUIRE(res.m_Combinations.size() == 10U);
     REQUIRE(res.m_Terminated == false);
     res = GrowSeeds(res.m_Combinations, gOfParts, 0U, metadata, hwCaps);
-    REQUIRE(res.m_Combinations.size() == 8U);
+    REQUIRE(res.m_Combinations.size() == 10U);
     REQUIRE(res.m_Terminated == true);
 
-    // All the combinations are complete
-    REQUIRE(res.m_Combinations.at(0).m_Elems.size() == 3U);
-    REQUIRE(res.m_Combinations.at(1).m_Elems.size() == 3U);
-    REQUIRE(res.m_Combinations.at(2).m_Elems.size() == 3U);
-    REQUIRE(res.m_Combinations.at(3).m_Elems.size() == 3U);
-    REQUIRE(res.m_Combinations.at(4).m_Elems.size() == 3U);
-    REQUIRE(res.m_Combinations.at(5).m_Elems.size() == 3U);
-    REQUIRE(res.m_Combinations.at(6).m_Elems.size() == 3U);
-    REQUIRE(res.m_Combinations.at(7).m_Elems.size() == 3U);
-
-    // All the combinations have the correct sequence of parts
-    REQUIRE(res.m_Combinations.at(0).m_Elems.at(0).m_PartId == 0);
-    REQUIRE(res.m_Combinations.at(0).m_Elems.at(1).m_PartId == 1U);
-    REQUIRE(res.m_Combinations.at(0).m_Elems.at(2).m_PartId == 2U);
-
-    REQUIRE(res.m_Combinations.at(1).m_Elems.at(0).m_PartId == 0);
-    REQUIRE(res.m_Combinations.at(1).m_Elems.at(1).m_PartId == 1U);
-    REQUIRE(res.m_Combinations.at(1).m_Elems.at(2).m_PartId == 2U);
-
-    REQUIRE(res.m_Combinations.at(2).m_Elems.at(0).m_PartId == 0);
-    REQUIRE(res.m_Combinations.at(2).m_Elems.at(1).m_PartId == 1U);
-    REQUIRE(res.m_Combinations.at(2).m_Elems.at(2).m_PartId == 2U);
-
-    REQUIRE(res.m_Combinations.at(3).m_Elems.at(0).m_PartId == 0);
-    REQUIRE(res.m_Combinations.at(3).m_Elems.at(1).m_PartId == 1U);
-    REQUIRE(res.m_Combinations.at(3).m_Elems.at(2).m_PartId == 2U);
-
-    REQUIRE(res.m_Combinations.at(4).m_Elems.at(0).m_PartId == 0);
-    REQUIRE(res.m_Combinations.at(4).m_Elems.at(1).m_PartId == 1U);
-    REQUIRE(res.m_Combinations.at(4).m_Elems.at(2).m_PartId == 2U);
-
-    REQUIRE(res.m_Combinations.at(5).m_Elems.at(0).m_PartId == 0);
-    REQUIRE(res.m_Combinations.at(5).m_Elems.at(1).m_PartId == 1U);
-    REQUIRE(res.m_Combinations.at(5).m_Elems.at(2).m_PartId == 2U);
-
-    REQUIRE(res.m_Combinations.at(6).m_Elems.at(0).m_PartId == 0);
-    REQUIRE(res.m_Combinations.at(6).m_Elems.at(1).m_PartId == 1U);
-    REQUIRE(res.m_Combinations.at(6).m_Elems.at(2).m_PartId == 2U);
-
-    REQUIRE(res.m_Combinations.at(7).m_Elems.at(0).m_PartId == 0);
-    REQUIRE(res.m_Combinations.at(7).m_Elems.at(1).m_PartId == 1U);
-    REQUIRE(res.m_Combinations.at(7).m_Elems.at(2).m_PartId == 2U);
+    for (size_t i = 0; i < res.m_Combinations.size(); ++i)
+    {
+        INFO("Combination number is: " << i);
+        // All the combinations are complete
+        REQUIRE(res.m_Combinations.at(i).m_Elems.size() == 3U);
+        // All the combinations have the correct sequence of parts
+        REQUIRE(res.m_Combinations.at(i).m_Elems.at(0).m_PartId == 0);
+        REQUIRE(res.m_Combinations.at(i).m_Elems.at(1).m_PartId == 1U);
+        REQUIRE(res.m_Combinations.at(i).m_Elems.at(2).m_PartId == 2U);
+    }
 
     // All the combinations have the correct diagnostic
     REQUIRE(res.m_Combinations.at(0).m_Scratch.m_AllocatedSram == 8U * 16U);
     REQUIRE(res.m_Combinations.at(0).m_Scratch.m_Score == 1U);
 
-    REQUIRE(res.m_Combinations.at(1).m_Scratch.m_AllocatedSram == 0U);
+    REQUIRE(res.m_Combinations.at(1).m_Scratch.m_AllocatedSram == 4U * 16U);
 
-    REQUIRE(res.m_Combinations.at(2).m_Scratch.m_AllocatedSram == 4U * 16U);
+    REQUIRE(res.m_Combinations.at(2).m_Scratch.m_AllocatedSram == 0);
 
-    REQUIRE(res.m_Combinations.at(3).m_Scratch.m_AllocatedSram == 0U);
+    REQUIRE(res.m_Combinations.at(3).m_Scratch.m_AllocatedSram == 4U * 16U);
 
-    REQUIRE(res.m_Combinations.at(4).m_Scratch.m_AllocatedSram == 8U * 16U);
-    REQUIRE(res.m_Combinations.at(4).m_Scratch.m_Score == 1U);
+    REQUIRE(res.m_Combinations.at(4).m_Scratch.m_AllocatedSram == 0);
 
-    REQUIRE(res.m_Combinations.at(5).m_Scratch.m_AllocatedSram == 0U);
+    REQUIRE(res.m_Combinations.at(5).m_Scratch.m_AllocatedSram == 8U * 16U);
 
     REQUIRE(res.m_Combinations.at(6).m_Scratch.m_AllocatedSram == 4U * 16U);
+
+    REQUIRE(res.m_Combinations.at(7).m_Scratch.m_AllocatedSram == 0);
+
+    REQUIRE(res.m_Combinations.at(8).m_Scratch.m_AllocatedSram == 4U * 16U);
+
+    REQUIRE(res.m_Combinations.at(9).m_Scratch.m_AllocatedSram == 0);
 }
 
 /// Checks GrowSeeds schemes mechanism
@@ -1746,53 +1719,36 @@ TEST_CASE("GrowSeeds Of Graph With Branches")
     REQUIRE(metadata.size() == 4U);
 
     Combinations combs = CreateSeeds(gOfParts, metadata, hwCaps);
-    // All plan are compatible, the total number of seeds is the product of the number of plans
-    REQUIRE(combs.size() == 4U);
+    // All plan are compatible, the total number of seeds is the product of the number of plans (plus "Back to Dram" plans)
+    REQUIRE(combs.size() == 5U);
 
     GrownSeeds res = GrowSeeds(combs, gOfParts, 0U, metadata, hwCaps);
-    REQUIRE(res.m_Combinations.size() == 6U);
+    REQUIRE(res.m_Combinations.size() == 7U);
     REQUIRE(res.m_Terminated == false);
     res = GrowSeeds(res.m_Combinations, gOfParts, 0U, metadata, hwCaps);
-    REQUIRE(res.m_Combinations.size() == 12U);
+    REQUIRE(res.m_Combinations.size() == 14U);
     REQUIRE(res.m_Terminated == false);
     res = GrowSeeds(res.m_Combinations, gOfParts, 0U, metadata, hwCaps);
-    REQUIRE(res.m_Combinations.size() == 12U);
+    REQUIRE(res.m_Combinations.size() == 14U);
     REQUIRE(res.m_Terminated == false);
     res = GrowSeeds(res.m_Combinations, gOfParts, 0U, metadata, hwCaps);
-    REQUIRE(res.m_Combinations.size() == 12U);
+    REQUIRE(res.m_Combinations.size() == 14U);
     REQUIRE(res.m_Terminated == false);
     res = GrowSeeds(res.m_Combinations, gOfParts, 0U, metadata, hwCaps);
-    REQUIRE(res.m_Combinations.size() == 12U);
+    REQUIRE(res.m_Combinations.size() == 14U);
     REQUIRE(res.m_Terminated == true);
 
-    // All the combinations are complete
-    REQUIRE(res.m_Combinations.at(0).m_Elems.size() == 4U);
-    REQUIRE(res.m_Combinations.at(1U).m_Elems.size() == 4U);
-    REQUIRE(res.m_Combinations.at(2U).m_Elems.size() == 4U);
-    REQUIRE(res.m_Combinations.at(3U).m_Elems.size() == 4U);
-    REQUIRE(res.m_Combinations.at(4U).m_Elems.size() == 4U);
-    REQUIRE(res.m_Combinations.at(5U).m_Elems.size() == 4U);
-    REQUIRE(res.m_Combinations.at(5U).m_Elems.size() == 4U);
-    REQUIRE(res.m_Combinations.at(6U).m_Elems.size() == 4U);
-    REQUIRE(res.m_Combinations.at(7U).m_Elems.size() == 4U);
-    REQUIRE(res.m_Combinations.at(8U).m_Elems.size() == 4U);
-    REQUIRE(res.m_Combinations.at(9U).m_Elems.size() == 4U);
-    REQUIRE(res.m_Combinations.at(10U).m_Elems.size() == 4U);
-    REQUIRE(res.m_Combinations.at(11U).m_Elems.size() == 4U);
+    size_t score = 0;
 
-    // Check that only a combination can merge A and B
-    REQUIRE(res.m_Combinations.at(0).m_Scratch.m_Score == 1U);
-    REQUIRE(res.m_Combinations.at(1U).m_Scratch.m_Score == 1U);
-    REQUIRE(res.m_Combinations.at(2U).m_Scratch.m_Score == 0);
-    REQUIRE(res.m_Combinations.at(3U).m_Scratch.m_Score == 0);
-    REQUIRE(res.m_Combinations.at(4U).m_Scratch.m_Score == 0);
-    REQUIRE(res.m_Combinations.at(5U).m_Scratch.m_Score == 0);
-    REQUIRE(res.m_Combinations.at(6U).m_Scratch.m_Score == 0);
-    REQUIRE(res.m_Combinations.at(7U).m_Scratch.m_Score == 0);
-    REQUIRE(res.m_Combinations.at(8U).m_Scratch.m_Score == 0);
-    REQUIRE(res.m_Combinations.at(9U).m_Scratch.m_Score == 0);
-    REQUIRE(res.m_Combinations.at(10U).m_Scratch.m_Score == 0);
-    REQUIRE(res.m_Combinations.at(11U).m_Scratch.m_Score == 0);
+    for (size_t i = 0; i < res.m_Combinations.size(); ++i)
+    {
+        INFO("Combination number is: " << i);
+        // All the combinations are complete
+        REQUIRE(res.m_Combinations.at(i).m_Elems.size() == 4U);
+        // Check that only two combinations can merge
+        score += res.m_Combinations.at(i).m_Scratch.m_Score;
+        REQUIRE(score <= 2U);
+    }
 }
 
 /// Checks that Combine generates all the combinations
@@ -1875,28 +1831,28 @@ TEST_CASE("Combine Simple")
     Cascading cascading(estOpt, compOpt, hwCaps);
     Combinations combs = cascading.Combine(gOfParts);
 
-    REQUIRE(combs.size() == 5U);
+    REQUIRE(combs.size() == 6U);
 
-    // All the combinations are complete
-    REQUIRE(combs.at(0).m_Elems.size() == 3U);
-    REQUIRE(combs.at(1).m_Elems.size() == 3U);
-
-    // All the combinations have the correct sequence of parts
-    REQUIRE(combs.at(0).m_Elems.at(0).m_PartId == 0);
-    REQUIRE(combs.at(0).m_Elems.at(1).m_PartId == 1U);
-    REQUIRE(combs.at(0).m_Elems.at(2).m_PartId == 2U);
-
-    REQUIRE(combs.at(1).m_Elems.at(0).m_PartId == 0);
-    REQUIRE(combs.at(1).m_Elems.at(1).m_PartId == 1U);
-    REQUIRE(combs.at(1).m_Elems.at(2).m_PartId == 2U);
-
+    for (size_t i = 0; i < combs.size(); ++i)
+    {
+        INFO("Combination number is: " << i);
+        // All the combinations are complete
+        REQUIRE(combs.at(i).m_Elems.size() == 3U);
+        // All the combinations have the correct sequence of parts
+        REQUIRE(combs.at(i).m_Elems.at(0).m_PartId == 0);
+        REQUIRE(combs.at(i).m_Elems.at(1).m_PartId == 1U);
+        REQUIRE(combs.at(i).m_Elems.at(2).m_PartId == 2U);
+    }
     REQUIRE(combs.at(0).m_Scratch.m_Score == 1U);
-
     REQUIRE(combs.at(1).m_Scratch.m_Score == 1U);
+    REQUIRE(combs.at(2).m_Scratch.m_Score == 0);
+    REQUIRE(combs.at(3).m_Scratch.m_Score == 0U);
+    REQUIRE(combs.at(4).m_Scratch.m_Score == 1U);
+    REQUIRE(combs.at(5).m_Scratch.m_Score == 1U);
 }
 
-/// Checks that Combine fails
-TEST_CASE("Combine Simple Fails")
+/// Checks that Combine back to Dram
+TEST_CASE("Combine Simple back to dram")
 {
     const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
     const EstimationOptions estOpt;
@@ -1942,8 +1898,13 @@ TEST_CASE("Combine Simple Fails")
     Cascading cascading(estOpt, compOpt, hwCaps);
     Combinations combs = cascading.Combine(gOfParts);
 
-    // Parts cannot be cascaded since Lifetime::Cascade data does not fit in Sram
-    REQUIRE(combs.size() == 0);
+    REQUIRE(combs.size() == 3U);
+    for (size_t i = 0; i < combs.size(); ++i)
+    {
+        INFO("Combination number is: " << i);
+        // Parts cannot be cascaded since Lifetime::Cascade data does not fit in Sram
+        REQUIRE(combs.at(0).m_Scratch.m_Score == 0);
+    }
 }
 
 /// Manually creates a Combination and then converts it to an OpGraph using GetOpGraphForCombination, and checking

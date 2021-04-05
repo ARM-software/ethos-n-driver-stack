@@ -366,8 +366,8 @@ bool AreMceOperationsCompatible(const Buffer* plan1OutputBuffer,
     return true;
 }
 
-PlanCompatibilityResult
-    ArePlansCompatible(const Plan& plan1, const Plan& plan2, const Edge& edge, const HardwareCapabilities& hwCap)
+PlanCompatibilityResult ArePlansCompatible(
+    const Plan& plan1, const Plan& plan2, const Edge& edge, const HardwareCapabilities& hwCap, const bool forceGlue)
 {
     // Sanity tests - make sure the two Plans are for adjacent Parts.
     // Note we lookup both buffers by the same Node, as the Graph does not explicitly store intermediate tensors -
@@ -409,7 +409,7 @@ PlanCompatibilityResult
     // Mce cannot keep partial results. So we need to have a glue (ie dma operation) between these plans to
     // stop merging them.
     if ((areBuffersEquivalent) &&
-        AreMceOperationsCompatible(plan1OutputBuffer, plan2InputBuffer, edge.GetDestination()))
+        AreMceOperationsCompatible(plan1OutputBuffer, plan2InputBuffer, edge.GetDestination()) && !forceGlue)
     {
         PlanCompatibilityResult result;
         result.m_IsCompatible = true;
@@ -548,6 +548,17 @@ Metadata CreateMetadata(const GraphOfParts& parts, const HardwareCapabilities& h
                             continue;
                         }
                         cPls.push_back(CompatiblePlan{ std::move(plCompRes.m_Glue), s });
+                        // Make sure that there is a "Back to Dram" combination of these two plans
+                        // if they are "Sram to Sram"
+                        if (!plCompRes.m_RequiresGlue && IsOutputBufferInSram(fPl, *dsEdge) &&
+                            IsInputBufferInSram(sPl, *dsEdge))
+                        {
+                            PlanCompatibilityResult plCompResForceGlue =
+                                ArePlansCompatible(fPl, sPl, *dsEdge, hwCap, true);
+                            // Nothing has changed, it must be still compatible
+                            assert(plCompResForceGlue.m_IsCompatible);
+                            cPls.push_back(CompatiblePlan{ std::move(plCompResForceGlue.m_Glue), s });
+                        }
                     }
                 }
                 if (cPls.size() > 0)
@@ -790,9 +801,15 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
 
             std::ofstream debugMergeablePlanDumpFile(
                 m_DebuggingContext.GetAbsolutePathOutputFileName(srcPartFolder + "/Cascaded_MergeablePlans.txt"));
+            std::ofstream debugGluedPlanDumpFile(
+                m_DebuggingContext.GetAbsolutePathOutputFileName(srcPartFolder + "/Cascaded_GluedPlans.txt"));
+            std::ofstream debugOutDramPlanDumpFile(
+                m_DebuggingContext.GetAbsolutePathOutputFileName(srcPartFolder + "/Cascaded_OutDramPlans.txt"));
 
-            uint32_t edgeCounter  = 0;
-            uint32_t mergeCounter = 0;
+            size_t edgeCounter      = 0;
+            size_t mergeCounter     = 0;
+            size_t outInDramCounter = 0;
+            size_t gluedCounter     = 0;
             for (const auto& itPa : fMOfPa.m_Comp)
             {
                 const InPart inPa   = parts.GetInputPart(*(itPa.first));
@@ -804,9 +821,10 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
                     for (const auto& itPl : itPls.second)
                     {
                         const Plan& dstPlan        = dstPart.GetPlan(itPl.m_Id);
+                        const size_t fileId        = mergeCounter + outInDramCounter + gluedCounter;
                         const std::string filename = dstPart.m_DebugTag + "_" + srcPlan.m_DebugTag + "_" +
                                                      dstPlan.m_DebugTag + "_Edge" + std::to_string(edgeCounter) +
-                                                     "_Detailed.dot";
+                                                     "_Detailed_" + std::to_string(fileId) + ".dot";
                         m_DebuggingContext.SaveOpGraphToDot(CompilationOptions::DebugLevel::None, itPl.m_Glue.m_Graph,
                                                             srcPartFolder + "/" + filename, DetailLevel::High);
 
@@ -815,10 +833,22 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
                             ++mergeCounter;
                             debugMergeablePlanDumpFile << srcPlan.m_DebugTag << ": " << dstPlan.m_DebugTag << std::endl;
                         }
+                        if (outInDram)
+                        {
+                            ++outInDramCounter;
+                            debugOutDramPlanDumpFile << srcPlan.m_DebugTag << ": " << dstPlan.m_DebugTag << std::endl;
+                        }
+                        if (!itPl.m_Glue.m_Graph.GetOps().empty())
+                        {
+                            ++gluedCounter;
+                            debugGluedPlanDumpFile << srcPlan.m_DebugTag << ": " << dstPlan.m_DebugTag << std::endl;
+                        }
                     }
                 }
                 ++edgeCounter;
                 debugMergeablePlanDumpFile << "Tot: " << mergeCounter << std::endl;
+                debugOutDramPlanDumpFile << "Tot: " << outInDramCounter << std::endl;
+                debugGluedPlanDumpFile << "Tot: " << gluedCounter << std::endl;
             }
         }
     }
@@ -830,7 +860,7 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
     // It contains "Back to Dram" combinations
     GrownSeeds haltedSeeds = {};
 
-    uint32_t iteration = 0;
+    size_t iteration = 0;
     do
     {
         // Temporary result of pruning
@@ -838,11 +868,15 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
 
         // Grow combinations "Merged in Sram"
         grownSeeds = GrowSeeds(currSeeds, parts, 0U, m_Metadata, m_Capabilities, GrowScheme::MergeOnly);
+        // Debug stats
+        const size_t numGrownCombinations = grownSeeds.m_Combinations.size();
 
         // Take the best combination of the lot
         pruned.push_back(PruneCombinations(parts, m_Capabilities, currSeeds, GetEstimationOptions()));
         // Grow combinations "Back to Dram"
         haltedSeeds = GrowSeeds(pruned, parts, 0U, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
+        // Debug stats
+        const size_t numHaltedCombinations = haltedSeeds.m_Combinations.size();
 
         currSeeds = grownSeeds.m_Combinations;
 
@@ -854,7 +888,12 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
         {
             std::string folder = "IntermediateCombinationsIteration" + std::to_string(iteration);
             MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
-            uint32_t combinationNumber = 0;
+
+            std::ofstream debugIterationStatsDumpFile(
+                m_DebuggingContext.GetAbsolutePathOutputFileName(folder + "/Stats.txt"));
+            debugIterationStatsDumpFile << "Num. grown combinations: " << numGrownCombinations << std::endl;
+            debugIterationStatsDumpFile << "Num. halted combinations: " << numHaltedCombinations << std::endl;
+            size_t combinationNumber = 0;
             for (const Combination& comb : currSeeds)
             {
                 std::string subfolder = folder + "/" + std::to_string(combinationNumber);
@@ -869,6 +908,9 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
                     break;
                 }
             }
+
+            m_DebuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, pruned.at(0), parts,
+                                                    folder + "/PrunedDetailed.dot", DetailLevel::High);
         }
         ++iteration;
     } while (!grownSeeds.m_Terminated);

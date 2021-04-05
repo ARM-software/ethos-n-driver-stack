@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -195,8 +195,8 @@ enum class GrowScheme
 };
 
 /// Checks whether two given plans are compatible, i.e. whether plan1 could be joined to plan2 along the given Edge.
-PlanCompatibilityResult
-    ArePlansCompatible(const Plan& plan1, const Plan& plan2, const Edge& edge, const HardwareCapabilities&);
+PlanCompatibilityResult ArePlansCompatible(
+    const Plan& plan1, const Plan& plan2, const Edge& edge, const HardwareCapabilities&, const bool forceGlue = false);
 
 // Create a Metadata structure containing all the compatible
 // succession of plans of two topologically consecutive parts.

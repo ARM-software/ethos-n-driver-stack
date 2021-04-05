@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -338,6 +338,18 @@ bool IsOutputBufferInDram(const Plan& plan, const Edge& edge)
 {
     const Buffer* buf = plan.GetOutputBuffer(edge.GetSource());
     return (buf == nullptr) ? true : ((buf->m_Location) == Location::Dram);
+}
+
+bool IsInputBufferInSram(const Plan& plan, const Edge& edge)
+{
+    const Buffer* buf = plan.GetInputBuffer(&edge);
+    return (buf == nullptr) ? false : ((buf->m_Location) == Location::Sram);
+}
+
+bool IsOutputBufferInSram(const Plan& plan, const Edge& edge)
+{
+    const Buffer* buf = plan.GetOutputBuffer(edge.GetSource());
+    return (buf == nullptr) ? false : ((buf->m_Location) == Location::Sram);
 }
 
 SizeInBytes GetTotSizeInBytes(const Plan& plan)
