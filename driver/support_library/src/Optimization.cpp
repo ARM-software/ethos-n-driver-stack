@@ -6,6 +6,7 @@
 #include "Optimization.hpp"
 
 #include "GraphNodes.hpp"
+#include "Utils.hpp"
 
 namespace ethosn
 {
@@ -348,6 +349,27 @@ bool MergeConstantAndFormatConversionNodes(Graph& graph, Node* node)
     return false;
 }
 
+template <typename T>
+std::vector<int32_t> ConvertConstantLayerDataToInt32(const std::vector<uint8_t>& constantLayerData,
+                                                     const float& orgScale,
+                                                     const float& newScale,
+                                                     const int32_t& zeroPoint)
+{
+    std::vector<T> data = ethosn::support_library::utils::GetDataVectorAs<T, uint8_t>(constantLayerData);
+    std::vector<int32_t> newConstantLayerData;
+
+    for (uint32_t k = 0; k < data.size(); ++k)
+    {
+        float fpValue;
+
+        fpValue = orgScale * static_cast<float>(data.at(k) - zeroPoint);
+
+        newConstantLayerData.push_back(static_cast<int32_t>(std::round(fpValue / newScale)));
+    }
+
+    return newConstantLayerData;
+}
+
 bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Node* node)
 {
     // Replace Constant node and Addition node with a new MceOperationNode.
@@ -435,30 +457,36 @@ bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Node* node)
 
                         QuantizationInfo constantNodeQuantizationInfo = constantNode->GetQuantizationInfo();
                         auto dataType                                 = constantNode->GetConstantDataType();
+
+                        // Currently, we support uint8 and int8 only for the constantNode
+                        assert((dataType == DataType::UINT8_QUANTIZED) || (dataType == DataType::INT8_QUANTIZED));
+
+                        std::vector<int32_t> newConstantLayerData;
+
                         if (dataType == DataType::UINT8_QUANTIZED)
                         {
-                            std::vector<int32_t> newConstantLayerData;
-                            for (uint32_t k = 0; k < constantLayerData.size(); ++k)
-                            {
-                                float fpValue = constantNodeQuantizationInfo.GetScale() *
-                                                static_cast<float>((constantLayerData.at(k) -
-                                                                    constantNodeQuantizationInfo.GetZeroPoint()));
-                                newConstantLayerData.push_back(
-                                    static_cast<int32_t>(std::round(fpValue / newConstantLayerScale)));
-                            }
-                            Node* mceNode = graph.CreateAndAddNodeWithDebug<MceOperationNode>(
-                                ETHOSN_FUNCTION_SIGNATURE, inputShape, outputShape, dataType, outputQuantInfo,
-                                weightInfo, weightsData, constantLayerInfo, newConstantLayerData, Stride{ 1, 1 },
-                                padding.m_Top, padding.m_Left,
-                                ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION, CompilerDataFormat::NHWCB,
-                                node->GetCorrespondingOperationIds());
-
-                            mceNode->AddCorrespondingOperationIDs(pleOperationNode->GetCorrespondingOperationIds());
-
-                            graph.InsertNodeAfter(inputNode, mceNode);
-                            graph.CollapseEdge(mceNode->GetOutput(0));
-                            return true;
+                            newConstantLayerData = ConvertConstantLayerDataToInt32<uint8_t>(
+                                constantLayerData, constantNodeQuantizationInfo.GetScale(), newConstantLayerScale,
+                                constantNodeQuantizationInfo.GetZeroPoint());
                         }
+                        else
+                        {
+                            newConstantLayerData = ConvertConstantLayerDataToInt32<int8_t>(
+                                constantLayerData, constantNodeQuantizationInfo.GetScale(), newConstantLayerScale,
+                                constantNodeQuantizationInfo.GetZeroPoint());
+                        }
+
+                        Node* mceNode = graph.CreateAndAddNodeWithDebug<MceOperationNode>(
+                            ETHOSN_FUNCTION_SIGNATURE, inputShape, outputShape, dataType, outputQuantInfo, weightInfo,
+                            weightsData, constantLayerInfo, newConstantLayerData, Stride{ 1, 1 }, padding.m_Top,
+                            padding.m_Left, ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
+                            CompilerDataFormat::NHWCB, node->GetCorrespondingOperationIds());
+
+                        mceNode->AddCorrespondingOperationIDs(pleOperationNode->GetCorrespondingOperationIds());
+
+                        graph.InsertNodeAfter(inputNode, mceNode);
+                        graph.CollapseEdge(mceNode->GetOutput(0));
+                        return true;
                     }
                 }
             }

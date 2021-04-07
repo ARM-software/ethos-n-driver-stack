@@ -418,7 +418,7 @@ void NetworkToGraphConverter::Visit(FullyConnected& fullyConnected)
         ETHOSN_FUNCTION_SIGNATURE, inputTensorInfo.m_Dimensions, outputTensorInfo.m_Dimensions,
         inputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo, weightsInfo,
         MaybeOverrideWeights(paddedWeightsData, weightsInfo), fullyConnected.GetBias().GetTensorInfo(),
-        fullyConnected.GetBias().GetDataVectorAs<int32_t>(), Stride(), 0, 0,
+        GetDataVectorAs<int32_t, uint8_t>(fullyConnected.GetBias().GetDataVector()), Stride(), 0, 0,
         command_stream::MceOperation::FULLY_CONNECTED, CompilerDataFormat::NHWCB, operationIds);
     nodes.push_back(fcNode);
 
@@ -733,7 +733,8 @@ void NetworkToGraphConverter::Visit(DepthwiseConvolution& depthwiseConvolution)
         depthwiseConvolution.GetOutput(0).GetTensorInfo().m_DataType,
         depthwiseConvolution.GetOutput(0).GetTensorInfo().m_QuantizationInfo, weightInfo,
         MaybeOverrideWeights(depthwiseConvolution.GetWeights().GetDataVector(), weightInfo),
-        depthwiseConvolution.GetBias().GetTensorInfo(), depthwiseConvolution.GetBias().GetDataVectorAs<int32_t>(),
+        depthwiseConvolution.GetBias().GetTensorInfo(),
+        GetDataVectorAs<int32_t, uint8_t>(depthwiseConvolution.GetBias().GetDataVector()),
         depthwiseConvolution.GetConvolutionInfo().m_Stride, depthwiseConvolution.GetConvolutionInfo().m_Padding.m_Top,
         depthwiseConvolution.GetConvolutionInfo().m_Padding.m_Left, operation, CompilerDataFormat::NHWCB, operationIds);
     nodes.push_back(convNode);
@@ -795,7 +796,7 @@ void NetworkToGraphConverter::Visit(Convolution& convolution)
         convolution.GetOutput(0).GetTensorInfo().m_Dimensions, convolution.GetOutput(0).GetTensorInfo().m_DataType,
         convolution.GetOutput(0).GetTensorInfo().m_QuantizationInfo, convolution.GetWeights().GetTensorInfo(),
         MaybeOverrideWeights(convolution.GetWeights().GetDataVector(), convolution.GetWeights().GetTensorInfo()),
-        convolution.GetBias().GetTensorInfo(), convolution.GetBias().GetDataVectorAs<int32_t>(),
+        convolution.GetBias().GetTensorInfo(), GetDataVectorAs<int32_t, uint8_t>(convolution.GetBias().GetDataVector()),
         convolution.GetConvolutionInfo().m_Stride, convolution.GetConvolutionInfo().m_Padding.m_Top,
         convolution.GetConvolutionInfo().m_Padding.m_Left, command_stream::MceOperation::CONVOLUTION,
         CompilerDataFormat::NHWCB, operationIds);
@@ -810,11 +811,11 @@ void NetworkToGraphConverter::Visit(TransposeConvolution& transposeConvolution)
     const TensorInfo& weightsInfo           = transposeConvolution.GetWeights().GetTensorInfo();
     const std::vector<uint8_t>& weightsData = transposeConvolution.GetWeights().GetDataVector();
     const TensorInfo& biasInfo              = transposeConvolution.GetBias().GetTensorInfo();
-    std::vector<int32_t> biasData           = transposeConvolution.GetBias().GetDataVectorAs<int32_t>();
-    const Padding& padding                  = transposeConvolution.GetConvolutionInfo().m_Padding;
-    const TensorInfo& inputInfo             = transposeConvolution.GetInput(0).GetTensorInfo();
-    const TensorInfo& outputInfo            = transposeConvolution.GetOutput(0).GetTensorInfo();
-    const std::set<uint32_t> operationIds   = { transposeConvolution.GetId(), transposeConvolution.GetBias().GetId(),
+    std::vector<int32_t> biasData = GetDataVectorAs<int32_t, uint8_t>(transposeConvolution.GetBias().GetDataVector());
+    const Padding& padding        = transposeConvolution.GetConvolutionInfo().m_Padding;
+    const TensorInfo& inputInfo   = transposeConvolution.GetInput(0).GetTensorInfo();
+    const TensorInfo& outputInfo  = transposeConvolution.GetOutput(0).GetTensorInfo();
+    const std::set<uint32_t> operationIds = { transposeConvolution.GetId(), transposeConvolution.GetBias().GetId(),
                                               transposeConvolution.GetWeights().GetId() };
 
     const SupportedLevel supportedLevel = m_Queries.IsTransposeConvolutionSupported(

@@ -666,6 +666,18 @@ TensorShape GetRoundedWeights(const TensorShape& originalShape, const CompilerMc
 constexpr int32_t g_IdentityWeightValue = 128;
 constexpr float g_IdentityWeightScale   = 1.f / static_cast<float>(g_IdentityWeightValue);
 
+/// Gets the internal data, reinterpreted as an array of the given type.
+/// Note this incurs a full copy of the data.
+template <typename T, typename S>
+inline std::vector<T> GetDataVectorAs(const std::vector<S>& data)
+{
+    assert(data.size() % sizeof(T) == 0);    // Otherwise won't fit exactly in result type.
+    size_t numElements = data.size() / sizeof(T);
+    std::vector<T> result(numElements);
+    std::memcpy(result.data(), data.data(), data.size());
+    return result;
+}
+
 }    // namespace utils
 
 }    // namespace support_library

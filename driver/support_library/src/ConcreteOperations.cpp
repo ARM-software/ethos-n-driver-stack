@@ -127,18 +127,6 @@ const std::vector<uint8_t>& Constant::GetDataVector() const
     return m_Data;
 }
 
-template <typename T>
-std::vector<T> Constant::GetDataVectorAs() const
-{
-    assert(m_Data.size() % sizeof(T) == 0);    // Otherwise won't fit exactly in result type.
-    size_t numElements = m_Data.size() / sizeof(T);
-    std::vector<T> result(numElements);
-    std::memcpy(result.data(), m_Data.data(), m_Data.size());
-    return result;
-}
-
-template std::vector<int32_t> Constant::GetDataVectorAs<int32_t>() const;
-
 Convolution::Convolution(const detail::PosInNetwork pos,
                          uint32_t id,
                          Operand& input,

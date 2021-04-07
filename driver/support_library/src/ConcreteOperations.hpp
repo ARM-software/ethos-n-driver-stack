@@ -70,11 +70,6 @@ public:
     /// Gets the internal data.
     const std::vector<uint8_t>& GetDataVector() const;
 
-    /// Gets the internal data, reinterpreted as an array of the given type.
-    /// Note this incurs a full copy of the data.
-    template <typename T>
-    std::vector<T> GetDataVectorAs() const;
-
     const char* GetTypeName() final
     {
         return "Constant";
