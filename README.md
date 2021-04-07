@@ -84,9 +84,9 @@ git clone --depth 1 https://github.com/catchorg/Catch2.git --branch v2.13.0 <pat
 ## Install the Linux source tree
 
 The Ethos-N driver stack source code depends on the Linux source tree to build the kernel module. You must configure the kernel to build the kernel module.
-Arm has tested version `4.9` of the Linux source tree in non-SMMU configurations and version '4.14' in SMMU configurations.
+Arm has tested version `4.9` of the Linux source tree in non-SMMU configurations and version `4.14`, `4.19`, `5.4` in SMMU configurations.
 
-1. Download version `4.9` or `4.14` of the Linux source tree from [www.kernel.org](http://www.kernel.org).
+1. Download version `4.9`, `4.14`, `4.19` or `5.4` of the Linux source tree from [www.kernel.org](http://www.kernel.org).
 2. How you compile the driver affects how you configure the Linux kernel source tree:
 
     * If you compile the driver natively, enter the following commands to configure the Linux kernel source tree:
@@ -125,12 +125,16 @@ git clone https://github.com/Arm-software/ethos-n-driver-stack
 ## Configure SMMU support
 
 Arm recommends that you configure the Linux kernel with Input/Output Memory Management Unit (IOMMU) support for use as one of the dependencies of the kernel driver.
-Arm has only tested version `4.14` of the Linux kernel with IOMMU support.
+Arm has tested versions `4.14`, `4.19` and `5.4` of the Linux kernel with IOMMU support.
 
 Add the following flag to your Linux configuration to include all the dependencies the kernel module needs:
-
 ```make
 CONFIG_ARM_SMMU_V3=y
+```
+
+Ensure to comment out the following one since the SMMU driver cannot handle the SMMU v1 or v2 and the SMMU v3 both enabled at the same time:
+```make
+# CONFIG_ARM_SMMU is not set
 ```
 
 If you run the NPU without an IOMMU, you must create a reserved memory area. The reserved memory area must begin on a 512MB aligned address and must not be larger than 512MB.
