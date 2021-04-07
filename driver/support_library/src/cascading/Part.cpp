@@ -1092,16 +1092,16 @@ std::vector<BlockConfig> GenerateBlockConfigs(Node* node)
     std::vector<BlockConfig> result;
 
     // All block configs possible
-    const std::vector<BlockConfig> allBlockConfigs = { { 16u, 16u }, { 32u, 8u }, { 8u, 32u },
-                                                       { 16u, 8u },  { 8u, 16u }, { 8u, 8u } };
+    const std::vector<BlockConfig> allBlockConfigs = { { 16u, 16u }, { 16u, 8u }, { 8u, 16u }, { 8u, 8u } };
 
     result = allBlockConfigs;
     if (IsObjectOfType<MceOperationNode>(node))
     {
-        if (GetObjectAs<MceOperationNode>(node)->GetOperation() == command_stream::MceOperation::FULLY_CONNECTED)
-        {
-            result = utils::Filter(allBlockConfigs, [](BlockConfig c) { return c == BlockConfig{ 8u, 8u }; });
-        }
+        result = utils::FilterMceBlockConfigs(GetObjectAs<MceOperationNode>(node), allBlockConfigs);
+    }
+    else if (IsObjectOfType<FuseOnlyPleOperationNode>(node))
+    {
+        result = utils::FilterPleBlockConfigs(GetObjectAs<FuseOnlyPleOperationNode>(node), allBlockConfigs);
     }
     return result;
 }

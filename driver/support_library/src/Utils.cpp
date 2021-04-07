@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "GraphNodes.hpp"
 #include "Utils.hpp"
 
 #include "Compiler.hpp"
@@ -422,6 +423,88 @@ TensorShape GetRoundedWeights(const TensorShape& originalShape, const CompilerMc
     }
 
     return newShape;
+}
+
+constexpr bool FilterToSize(const command_stream::BlockConfig& blockConfig, uint32_t width, uint32_t height)
+{
+    return blockConfig == command_stream::BlockConfig{ width, height };
+}
+
+bool FilterToSizes(const command_stream::BlockConfig& blockConfig,
+                   const std::initializer_list<command_stream::BlockConfig>& allowedConfigs)
+{
+    return std::find(allowedConfigs.begin(), allowedConfigs.end(), blockConfig) != allowedConfigs.end();
+}
+
+std::vector<command_stream::BlockConfig>
+    FilterMceBlockConfigs(const MceOperationNode* mceOperation,
+                          const std::vector<command_stream::BlockConfig>& allowedBlockConfigs)
+{
+    std::vector<command_stream::BlockConfig> res = allowedBlockConfigs;
+
+    if (mceOperation != nullptr)
+    {
+        const command_stream::MceOperation mceOp = mceOperation->GetOperation();
+
+        if (mceOp == command_stream::MceOperation::FULLY_CONNECTED)
+        {
+            auto FilterTo8x8 = [](const command_stream::BlockConfig& blockConfig) {
+                return FilterToSize(blockConfig, 8, 8);
+            };
+            // Fully Connected wants to force a 8x8 block size. We'll do this here by limiting the block configs.
+            res = Filter(res, FilterTo8x8);
+        }
+    }
+    return res;
+}
+
+std::vector<command_stream::BlockConfig>
+    FilterPleBlockConfigs(const FuseOnlyPleOperationNode* pleOperation,
+                          const std::vector<command_stream::BlockConfig>& allowedBlockConfigs)
+{
+    std::vector<command_stream::BlockConfig> res = allowedBlockConfigs;
+
+    if (pleOperation != nullptr)
+    {
+        const command_stream::PleOperation pleOp = pleOperation->GetKernelOperation();
+
+        if (pleOp == command_stream::PleOperation::DOWNSAMPLE_2X2)
+        {
+            auto filter = [](const auto& blockConfig) {
+                return FilterToSizes(blockConfig, { { 16U, 8U }, { 32U, 8U }, { 16U, 16U }, { 8U, 8U } });
+            };
+            res = Filter(res, filter);
+        }
+        else if (pleOp == command_stream::PleOperation::INTERLEAVE_2X2_2_2)
+        {
+            auto filter = [](const auto& blockConfig) { return FilterToSize(blockConfig, 16, 16); };
+            res         = Filter(res, filter);
+        }
+        else if (pleOp == command_stream::PleOperation::MAXPOOL_2X2_2_2)
+        {
+            // MaxPool 2x2 2,2 supports only 16x16, 32x8, 8x8
+            auto filter = [](const auto& blockConfig) {
+                return FilterToSizes(blockConfig, { { 16U, 16U }, { 32U, 8U }, { 8U, 8U } });
+            };
+            res = Filter(res, filter);
+        }
+        else if ((pleOp == command_stream::PleOperation::MEAN_XY_7X7) ||
+                 (pleOp == command_stream::PleOperation::MEAN_XY_8X8))
+        {
+            auto filter = [](const auto& blockConfig) { return FilterToSize(blockConfig, 8, 8); };
+            res         = Filter(res, filter);
+        }
+        else if (pleOp == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+                 pleOp == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD)
+        {
+            // The maxpool 3x3_2_2 and avgpool 3x3_1_1 ple kernels only support 8x8, 32x8 blocks
+            auto filter = [](const auto& blockConfig) {
+                return FilterToSizes(blockConfig, { { 32U, 8U }, { 8U, 8U } });
+            };
+            res = Filter(res, filter);
+        }
+    }
+    return res;
 }
 
 }    // namespace utils

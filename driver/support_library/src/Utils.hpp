@@ -36,6 +36,8 @@ extern LoggerType g_Logger;
 
 enum class CompilerDataCompressedFormat;
 class Node;
+class FuseOnlyPleOperationNode;
+class MceOperationNode;
 
 /// The types of algorithm an MceOperation can use or None if it hasn't been decided yet
 /// The decision of what algorithm to use is based on several factors including the AlgorithmHint.
@@ -662,6 +664,12 @@ inline NeedBoundary GetBoundaryRequirements(const uint32_t padBefore,
 
 CompilerMceAlgorithm FindBestConvAlgorithm(const HardwareCapabilities& caps, uint32_t w, uint32_t h);
 TensorShape GetRoundedWeights(const TensorShape& originalShape, const CompilerMceAlgorithm algorithm);
+std::vector<command_stream::BlockConfig>
+    FilterMceBlockConfigs(const MceOperationNode* mceOperation,
+                          const std::vector<command_stream::BlockConfig>& allowedBlockConfigs);
+std::vector<command_stream::BlockConfig>
+    FilterPleBlockConfigs(const FuseOnlyPleOperationNode* pleOperation,
+                          const std::vector<command_stream::BlockConfig>& allowedBlockConfigs);
 
 constexpr int32_t g_IdentityWeightValue = 128;
 constexpr float g_IdentityWeightScale   = 1.f / static_cast<float>(g_IdentityWeightValue);
