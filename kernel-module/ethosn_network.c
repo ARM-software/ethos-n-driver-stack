@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2019 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1086,12 +1086,17 @@ static void free_network(struct ethosn_network *network)
 				 ETHOSN_STREAM_COMMAND_STREAM);
 
 		/* Free allocated dma from core */
-		ethosn_dma_unmap_and_free(core->allocator,
-					  network->intermediate_data[i],
-					  ETHOSN_STREAM_DMA_INTERMEDIATE);
-		ethosn_dma_unmap_and_free(core->allocator,
-					  network->inference_data[i],
-					  ETHOSN_STREAM_COMMAND_STREAM);
+		if (network->intermediate_data)
+			ethosn_dma_unmap_and_free(
+				core->allocator,
+				network->intermediate_data[i],
+				ETHOSN_STREAM_DMA_INTERMEDIATE);
+
+		if (network->inference_data)
+			ethosn_dma_unmap_and_free(
+				core->allocator,
+				network->inference_data[i],
+				ETHOSN_STREAM_COMMAND_STREAM);
 	}
 
 	/* Free allocated dma from top level device */
