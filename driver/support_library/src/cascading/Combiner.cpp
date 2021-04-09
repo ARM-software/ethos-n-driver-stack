@@ -30,7 +30,8 @@ using namespace utils;
 namespace
 {
 
-constexpr uint32_t g_kHistoryDepth = 2U;
+// Memory threshold to use fast plan merging
+constexpr uint32_t g_kSramThreshold = 1024U * 1024U;
 
 using Allocated = std::pair<bool, uint32_t>;
 
@@ -858,7 +859,9 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
     // It contains "Merged in Sram" combinations
     GrownSeeds grownSeeds = {};
     // It contains "Back to Dram" combinations
-    GrownSeeds haltedSeeds = {};
+    GrownSeeds haltedSeeds = GrowSeeds(currSeeds, parts, 0U, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
+
+    const bool avoidBackToDram = m_Capabilities.GetTotalSramSize() > g_kSramThreshold;
 
     size_t iteration = 0;
     do
@@ -871,18 +874,21 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
         // Debug stats
         const size_t numGrownCombinations = grownSeeds.m_Combinations.size();
 
+        currSeeds = grownSeeds.m_Combinations;
+
+        if (!avoidBackToDram || grownSeeds.m_Combinations.empty())
+        {
+            // Concatenate "Merged in Sram" and "Back to Dram"
+            currSeeds.insert(std::end(currSeeds), std::begin(haltedSeeds.m_Combinations),
+                             std::end(haltedSeeds.m_Combinations));
+        }
+
         // Take the best combination of the lot
         pruned.push_back(PruneCombinations(parts, m_Capabilities, currSeeds, GetEstimationOptions()));
         // Grow combinations "Back to Dram"
         haltedSeeds = GrowSeeds(pruned, parts, 0U, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
         // Debug stats
         const size_t numHaltedCombinations = haltedSeeds.m_Combinations.size();
-
-        currSeeds = grownSeeds.m_Combinations;
-
-        // Concatenate "Merged in Sram" and "Back to Dram"
-        currSeeds.insert(std::end(currSeeds), std::begin(haltedSeeds.m_Combinations),
-                         std::end(haltedSeeds.m_Combinations));
 
         if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
         {

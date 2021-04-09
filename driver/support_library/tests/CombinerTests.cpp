@@ -1459,9 +1459,10 @@ TEST_CASE("GrowSeeds Simple")
         // All the combinations are complete
         REQUIRE(res.m_Combinations.at(i).m_Elems.size() == 3U);
         // All the combinations have the correct sequence of parts
-        REQUIRE(res.m_Combinations.at(i).m_Elems.at(0).m_PartId == 0);
-        REQUIRE(res.m_Combinations.at(i).m_Elems.at(1).m_PartId == 1U);
-        REQUIRE(res.m_Combinations.at(i).m_Elems.at(2).m_PartId == 2U);
+        for (size_t j = 0; j < parts.size(); ++j)
+        {
+            REQUIRE(res.m_Combinations.at(i).m_Elems.at(j).m_PartId == j);
+        }
     }
 
     // All the combinations have the correct diagnostic
@@ -1831,24 +1832,23 @@ TEST_CASE("Combine Simple")
     Cascading cascading(estOpt, compOpt, hwCaps);
     Combinations combs = cascading.Combine(gOfParts);
 
-    REQUIRE(combs.size() == 6U);
+    REQUIRE(combs.size() == 12U);
 
+    size_t score = 0;
     for (size_t i = 0; i < combs.size(); ++i)
     {
         INFO("Combination number is: " << i);
         // All the combinations are complete
         REQUIRE(combs.at(i).m_Elems.size() == 3U);
         // All the combinations have the correct sequence of parts
-        REQUIRE(combs.at(i).m_Elems.at(0).m_PartId == 0);
-        REQUIRE(combs.at(i).m_Elems.at(1).m_PartId == 1U);
-        REQUIRE(combs.at(i).m_Elems.at(2).m_PartId == 2U);
+        for (size_t j = 0; j < parts.size(); ++j)
+        {
+            REQUIRE(combs.at(i).m_Elems.at(j).m_PartId == j);
+        }
+        score += combs.at(i).m_Scratch.m_Score;
     }
-    REQUIRE(combs.at(0).m_Scratch.m_Score == 1U);
-    REQUIRE(combs.at(1).m_Scratch.m_Score == 1U);
-    REQUIRE(combs.at(2).m_Scratch.m_Score == 0);
-    REQUIRE(combs.at(3).m_Scratch.m_Score == 0U);
-    REQUIRE(combs.at(4).m_Scratch.m_Score == 1U);
-    REQUIRE(combs.at(5).m_Scratch.m_Score == 1U);
+    // Check that there is at least a merge
+    REQUIRE(score > 0);
 }
 
 /// Checks that Combine back to Dram
