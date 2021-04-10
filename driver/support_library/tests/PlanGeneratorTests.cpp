@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -568,7 +568,7 @@ Buffer_.* -> MceOp_.*\[ label="Input 1"\]
     part.CreatePlans();
 
     // Then
-    REQUIRE(part.m_Plans.size() == 76);
+    REQUIRE(part.m_Plans.size() == 74);
     SavePlansToDot(part.m_Plans, "plans_in_part_with_single_node");
     const auto& plan = part.GetPlan(0);
     std::stringstream str;

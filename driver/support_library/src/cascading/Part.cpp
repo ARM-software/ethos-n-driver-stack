@@ -878,6 +878,8 @@ void Part::CreatePlanWithIdentityPleOp(Node* node,
                                        Location outputBufferLocation,
                                        WeightEncoderCache& weightEncoderCache)
 {
+    using namespace utils;
+
     assert(node->GetInputs().size() > 0);
 
     // We need to generate 1-3 output stripes because we may need boundary data
@@ -898,6 +900,12 @@ void Part::CreatePlanWithIdentityPleOp(Node* node,
         Buffer* mceOutputBuff = buffers.back();
         Buffer* mceInputBuff  = buffers.front();
 
+        const uint32_t maxNumOutputStripes = DivRoundUp(MaxTileSize(mceOutputBuff->m_TensorShape, m_Capabilities),
+                                                        CalculateSizeInBytes(mceOutputBuff->m_StripeShape));
+        if (numPleOutputStripes > maxNumOutputStripes)
+        {
+            continue;
+        }
         // Add weights
         MceOperationNode* mceNode = GetObjectAs<MceOperationNode>(node);
         AddWeightBuffersAndDmaOpToMceOp(opGraph, mceInputBuff->m_StripeShape, mceOutputBuff->m_StripeShape,
@@ -1225,6 +1233,23 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
         Part::NumStripes numStripesCopy = numStripes;
         numStripesCopy.maxWeightStripes = std::min(numStripes.maxWeightStripes, 1u);
 
+        AddStripeInfos(inputStripe, outputStripe, numStripesCopy, inputShape, outputShape);
+    }
+
+    // Split only input in height while the output is full tensor
+    {
+        TensorShape inputEncoding     = { 0, blockConfig.m_BlockHeight(), 0, 0 };
+        const TensorShape& inputShape = node->GetInputShape(0);
+        TensorShape inputStripe       = CreateStripe(node->GetInputShape(0), inputEncoding, caps);
+
+        TensorShape outputEncoding      = { 0, 0, 0, 0 };
+        const TensorShape& outputShape  = node->GetShape();
+        TensorShape outputStripe        = CreateStripe(node->GetShape(), outputEncoding, caps);
+        Part::NumStripes numStripesCopy = numStripes;
+        numStripesCopy.minWeightStripes = std::min(numStripes.minWeightStripes, 1u);
+        numStripesCopy.maxWeightStripes = std::min(numStripes.maxWeightStripes, 1u);
+        numStripesCopy.minOutputStripes = std::min(numStripes.minOutputStripes, 1u);
+        numStripesCopy.maxOutputStripes = std::min(numStripes.maxOutputStripes, 1u);
         AddStripeInfos(inputStripe, outputStripe, numStripesCopy, inputShape, outputShape);
     }
 
