@@ -864,8 +864,8 @@ bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph, Layer* layer)
                 desc.m_BiasEnabled = false;
 
                 // Constant data are reused as weights for the Depthwise
-                void* weightData =
-                    PolymorphicPointerDowncast<ConstantLayer>(constantLayer)->m_LayerOutput->GetTensor<void>();
+                const void* weightData =
+                    PolymorphicPointerDowncast<ConstantLayer>(constantLayer)->m_LayerOutput->GetConstTensor<void>();
                 TensorInfo weightInfos(TensorShape({ 1, constShape[3], 1, 1 }), constInfos.GetDataType(),
                                        constInfos.GetQuantizationScale(), constInfos.GetQuantizationOffset());
 

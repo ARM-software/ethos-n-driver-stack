@@ -202,9 +202,8 @@ BOOST_AUTO_TEST_CASE(TestReplaceConstantMultiplicationWithDepthwise)
     BOOST_CHECK(outputPrevLayer == depthwiseLayer);
 
     // Depthwise weights should be exact with the Constant data
-    void* dwWeightRawData =
-        PolymorphicPointerDowncast<DepthwiseConvolution2dLayer>(depthwiseLayer)->m_Weight->GetTensor<void>();
-    const uint8_t* dwWeightData = static_cast<uint8_t*>(dwWeightRawData);
+    const uint8_t* dwWeightData =
+        PolymorphicPointerDowncast<DepthwiseConvolution2dLayer>(depthwiseLayer)->m_Weight->GetConstTensor<uint8_t>();
     std::vector<uint8_t> depthwiseWeights(dwWeightData, dwWeightData + constData.size());
     BOOST_CHECK(depthwiseWeights == constData);
 }
@@ -235,15 +234,15 @@ static void CheckConvolutionLayerDataEquals(const Layer* modLayer,
     const ConvolutionLayer* modLayerWithParam = PolymorphicDowncast<const ConvolutionLayer*>(modLayer);
     const ConvolutionLayer* expLayerWithParam = PolymorphicDowncast<const ConvolutionLayer*>(expLayer);
 
-    const std::unique_ptr<ScopedCpuTensorHandle>& modWeight = GetWeight(modLayerWithParam);
-    const std::unique_ptr<ScopedCpuTensorHandle>& expWeight = GetWeight(expLayerWithParam);
+    const std::shared_ptr<ConstCpuTensorHandle> modWeight = GetWeight(modLayerWithParam);
+    const std::shared_ptr<ConstCpuTensorHandle> expWeight = GetWeight(expLayerWithParam);
 
     bool weightEquals = modWeight->GetTensorInfo() == expWeight->GetTensorInfo();
     BOOST_TEST(weightEquals, paramName << " weights doesn't match at layer index: " << layerIdx
                                        << " nameMod: " << modLayer->GetName() << " nameExp: " << expLayer->GetName());
 
-    const std::unique_ptr<ScopedCpuTensorHandle>& modBias = GetBias(modLayerWithParam);
-    const std::unique_ptr<ScopedCpuTensorHandle>& expBias = GetBias(expLayerWithParam);
+    const std::shared_ptr<ConstCpuTensorHandle> modBias = GetBias(modLayerWithParam);
+    const std::shared_ptr<ConstCpuTensorHandle> expBias = GetBias(expLayerWithParam);
 
     bool biasEquals = modBias->GetTensorInfo() == expBias->GetTensorInfo();
     BOOST_TEST(biasEquals, paramName << " bias doesn't match at layer index: " << layerIdx

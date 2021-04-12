@@ -36,7 +36,7 @@ EthosNSubgraphViewConverter::EthosNSubgraphViewConverter(const SubgraphView& sub
 template <typename Layer>
 EthosNConstantPtr EthosNSubgraphViewConverter::AddBiases(const Layer& layer, bool biasEnabled)
 {
-    void* biasData = nullptr;
+    const void* biasData = nullptr;
     ethosn_lib::TensorInfo ethosnBiasInfo;
 
     auto inputInfo  = layer.GetInputSlot(0).GetConnectedOutputSlot()->GetTensorInfo();
@@ -49,7 +49,7 @@ EthosNConstantPtr EthosNSubgraphViewConverter::AddBiases(const Layer& layer, boo
     {
         ARMNN_ASSERT(layer.m_Bias != nullptr);
         ethosnBiasInfo = BuildEthosNBiasesInfo(layer.m_Bias->GetTensorInfo(), inputInfo, weightInfo);
-        biasData       = layer.m_Bias->template GetTensor<void>();
+        biasData       = layer.m_Bias->template GetConstTensor<void>();
     }
     else
     {
@@ -76,7 +76,7 @@ EthosNConstantPtr EthosNSubgraphViewConverter::AddWeights(const Layer& layer)
     const TensorShape& tensorShape = tensorInfo.GetShape();
 
     std::vector<uint8_t> swizzledWeightsData(tensorShape.GetNumElements(), 0);
-    SwizzleConvolutionWeightsData<uint8_t>(layer.m_Weight->template GetTensor<void>(), swizzledWeightsData.data(),
+    SwizzleConvolutionWeightsData<uint8_t>(layer.m_Weight->template GetConstTensor<void>(), swizzledWeightsData.data(),
                                            tensorShape, layer.GetParameters().m_DataLayout,
                                            layer.GetType() == LayerType::DepthwiseConvolution2d);
 
@@ -93,7 +93,7 @@ EthosNConstantPtr EthosNSubgraphViewConverter::AddWeights(const FullyConnectedLa
     const bool transposeWeights              = layer.GetParameters().m_TransposeWeightMatrix;
     ethosn_lib::TensorInfo ethosnWeightsInfo = BuildEthosNFullyConnectedWeightsInfo(weightsInfo, transposeWeights);
 
-    void* weightsData = layer.m_Weight->template GetTensor<void>();
+    const void* weightsData = layer.m_Weight->template GetConstTensor<void>();
 
     if (transposeWeights)
     {
@@ -238,7 +238,7 @@ void EthosNSubgraphViewConverter::AddConstantLayer(Layer* layer)
 
     ethosn_lib::TensorInfo tensorInfo =
         BuildEthosNTensorInfo(layer->GetOutputSlot(0).GetTensorInfo(), DataLayout::NHWC);
-    void* data = PolymorphicPointerDowncast<ConstantLayer>(layer)->m_LayerOutput->GetTensor<void>();
+    const void* data = PolymorphicPointerDowncast<ConstantLayer>(layer)->m_LayerOutput->GetConstTensor<void>();
 
     auto constantAndId = ethosn_lib::AddConstant(m_Network, tensorInfo, data);
 
