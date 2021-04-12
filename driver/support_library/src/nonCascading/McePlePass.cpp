@@ -133,25 +133,12 @@ std::vector<command_stream::BlockConfig>
 
     const uint32_t weightsWidth  = mceOperation->GetWeightsInfo().m_Dimensions[1];
     const uint32_t weightsHeight = mceOperation->GetWeightsInfo().m_Dimensions[0];
+    const bool isWinograd2d      = (weightsHeight > 1) && (weightsWidth > 1);
 
     std::vector<command_stream::BlockConfig> res = allowedBlockConfigs;
 
-    if (algorithm == CompilerMceAlgorithm::Winograd)
-    {
-        const bool isWinograd2d = (weightsHeight > 1) && (weightsWidth > 1);
-
-        // The maximum block size depends on if we are performing a 1D or 2D convolution
-        // We can do twice the number of outputs elements with 1D compared to 2D
-        // See the Block size limitations sections in the 2x2 Winograd Support document for further details
-
-        const uint32_t maxAllowedWxH = capabilities.GetTotalAccumulatorsPerOg() / (isWinograd2d ? 4U : 2U);
-
-        auto FilterMaxSize = [maxAllowedWxH](const command_stream::BlockConfig& blockConfig) {
-            return (blockConfig.m_BlockWidth() * blockConfig.m_BlockHeight()) <= maxAllowedWxH;
-        };
-
-        res = Filter(res, FilterMaxSize);
-    }
+    // Filter for algorithm
+    res = FilterAlgoBlockConfigs(algorithm, isWinograd2d, res, capabilities);
 
     // Filter for Mce operation
     res = FilterMceBlockConfigs(mceOperation, res);

@@ -670,6 +670,11 @@ std::vector<command_stream::BlockConfig>
 std::vector<command_stream::BlockConfig>
     FilterPleBlockConfigs(const FuseOnlyPleOperationNode* pleOperation,
                           const std::vector<command_stream::BlockConfig>& allowedBlockConfigs);
+std::vector<command_stream::BlockConfig>
+    FilterAlgoBlockConfigs(const CompilerMceAlgorithm algorithm,
+                           const bool is2d,
+                           const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
+                           const HardwareCapabilities& capabilities);
 
 constexpr int32_t g_IdentityWeightValue = 128;
 constexpr float g_IdentityWeightScale   = 1.f / static_cast<float>(g_IdentityWeightValue);

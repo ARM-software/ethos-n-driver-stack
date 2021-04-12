@@ -35,14 +35,25 @@ Node* CreateAndAddOutputNode(Graph& g)
     return g.CreateAndAddNode<OutputNode>(sl::DataType::UINT8_QUANTIZED, std::set<uint32_t>(), 0);
 }
 
-Node* CreateAndAddMceOperationNode(Graph& g, TS tsOut = TS())
+Node* CreateAndAddMceOperationNode(Graph& g, TS tsOut, const uint32_t kH, const uint32_t kW)
 {
+    const std::vector<uint8_t> weights(kH * kW, 1);
     return g.CreateAndAddNode<MceOperationNode>(
         TS(), tsOut, sl::DataType::UINT8_QUANTIZED, QI(),
-        TI({ 1, 1, 1, 1 }, ethosn::support_library::DataType::UINT8_QUANTIZED,
+        TI({ kH, kW, 1, 1 }, ethosn::support_library::DataType::UINT8_QUANTIZED,
            ethosn::support_library::DataFormat::HWIO, QuantizationInfo(0, 0.9f)),
-        std::vector<uint8_t>({ 1 }), TI({ 1, 1, 1, 1 }), std::vector<int32_t>{ 0 }, Stride(), 0, 0,
+        weights, TI({ 1, 1, 1, 1 }), std::vector<int32_t>{ 0 }, Stride(), 0, 0,
         ethosn::command_stream::MceOperation::CONVOLUTION, CompilerDataFormat::NHWCB, std::set<uint32_t>{ 1 });
+}
+
+Node* CreateAndAddMceOperationNode(Graph& g)
+{
+    return CreateAndAddMceOperationNode(g, TS(), 1, 1);
+}
+
+Node* CreateAndAddMceOperationNode(Graph& g, TS tsOut)
+{
+    return CreateAndAddMceOperationNode(g, tsOut, 1, 1);
 }
 
 Node* CreateAndAddMcePostProcessOperationNode(Graph& g)
@@ -1065,4 +1076,43 @@ TEST_CASE("PlanGenerator:BlockConfig")
     REQUIRE(pleOp != nullptr);
     REQUIRE(pleOp->m_Op == ethosn::command_stream::PleOperation::INTERLEAVE_2X2_2_2);
     REQUIRE(pleOp->m_BlockConfig == ethosn::command_stream::BlockConfig{ 16U, 16U });
+}
+
+TEST_CASE("PlanGenerator:Winograd")
+{
+    const EstimationOptions estOpt;
+    const CompilationOptions compOpt = GetDefaultCompilationOptions();
+    const HardwareCapabilities caps  = GetEthosN78HwCapabilities();
+    Graph g;
+
+    TS tsIn   = { 1, 32, 32, 3 };
+    TS tsOut  = { 1, 64, 64, 1 };
+    auto in   = CreateAndAddInputNode(g, tsIn);
+    auto node = CreateAndAddMceOperationNode(g, tsOut, 3, 3);
+    auto out  = CreateAndAddOutputNode(g);
+
+    // Graph must be connected to be valid
+    g.Connect(in, node, 0);
+    g.Connect(node, out, 0);
+
+    Part part(estOpt, compOpt, caps);
+    part.m_SubGraph.push_back(node);
+    part.CreatePlans();
+    SavePlansToDot(part.m_Plans, "plans_part_winograd");
+
+    for (const auto& plan : part.m_Plans)
+    {
+        auto ops = plan->m_OpGraph.GetOps();
+        REQUIRE(!ops.empty());
+        auto mceOp = dynamic_cast<MceOp*>(ops[0]);
+        REQUIRE(mceOp != nullptr);
+        if (mceOp->m_BlockConfig == ethosn::command_stream::BlockConfig{ 16U, 16U })
+        {
+            REQUIRE(mceOp->m_Algo == CompilerMceAlgorithm::Direct);
+        }
+        if (mceOp->m_BlockConfig == ethosn::command_stream::BlockConfig{ 8U, 8U })
+        {
+            REQUIRE(mceOp->m_Algo == CompilerMceAlgorithm::Winograd);
+        }
+    }
 }

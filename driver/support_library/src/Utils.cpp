@@ -507,6 +507,32 @@ std::vector<command_stream::BlockConfig>
     return res;
 }
 
+std::vector<command_stream::BlockConfig>
+    FilterAlgoBlockConfigs(const CompilerMceAlgorithm algorithm,
+                           const bool is2d,
+                           const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
+                           const HardwareCapabilities& capabilities)
+{
+    std::vector<command_stream::BlockConfig> res = allowedBlockConfigs;
+
+    if (algorithm == CompilerMceAlgorithm::Winograd)
+    {
+        // The maximum block size depends on if we are performing a 1D or 2D convolution
+        // We can do twice the number of outputs elements with 1D compared to 2D
+        // See the Block size limitations sections in the 2x2 Winograd Support document for further details
+
+        const uint32_t maxAllowedWxH = capabilities.GetTotalAccumulatorsPerOg() / (is2d ? 4U : 2U);
+
+        auto FilterMaxSize = [maxAllowedWxH](const command_stream::BlockConfig& blockConfig) {
+            return (blockConfig.m_BlockWidth() * blockConfig.m_BlockHeight()) <= maxAllowedWxH;
+        };
+
+        res = Filter(res, FilterMaxSize);
+    }
+
+    return res;
+}
+
 }    // namespace utils
 
 }    // namespace support_library

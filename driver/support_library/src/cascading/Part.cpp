@@ -259,8 +259,17 @@ std::unique_ptr<Op> CreateOpFromNode(const Node* node,
 
     if (mceOperationNode)
     {
-        MceOp op(Lifetime::Cascade, mceOperationNode->GetOperation(),
-                 mceOperationNode->GetEffectiveAlgorithm(caps, !compOpt.m_DisableWinograd), blockConfig, TensorShape{},
+        uint32_t kernelHeight   = mceOperationNode->GetWeightsInfo().m_Dimensions[0];
+        uint32_t kernelWidth    = mceOperationNode->GetWeightsInfo().m_Dimensions[1];
+        const bool isWinograd2d = (kernelHeight > 1) && (kernelWidth > 1);
+        const CompilerMceAlgorithm effectiveAlgo =
+            mceOperationNode->GetEffectiveAlgorithm(caps, !compOpt.m_DisableWinograd);
+
+        std::vector<command_stream::BlockConfig> res =
+            FilterAlgoBlockConfigs(effectiveAlgo, isWinograd2d, { blockConfig }, caps);
+        const CompilerMceAlgorithm mceOpAlgo = res.empty() ? CompilerMceAlgorithm::Direct : effectiveAlgo;
+
+        MceOp op(Lifetime::Cascade, mceOperationNode->GetOperation(), mceOpAlgo, blockConfig, TensorShape{},
                  TensorShape{}, TensorShape{}, TraversalOrder::Xyz, mceOperationNode->GetStride(),
                  mceOperationNode->GetPadLeft(), mceOperationNode->GetPadTop());
         return std::make_unique<MceOp>(std::move(op));
