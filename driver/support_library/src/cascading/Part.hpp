@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -59,7 +59,8 @@ public:
         TensorShape m_InputStripeShape;
         TensorShape m_OutputStripeShape;
         NumStripes m_NumStripes;
-        Lifetime m_Lifetime = Lifetime::Cascade;
+        command_stream::BlockConfig m_BlockConfig = { 8U, 8U };
+        Lifetime m_Lifetime                       = Lifetime::Cascade;
 
         bool operator<(const StripeInfos& rhs) const;
     };
@@ -97,6 +98,7 @@ private:
                            NumStripesType numWeightStripes,
                            Location inputBufferLocaton,
                            Location outputBufferLocation,
+                           command_stream::BlockConfig blockConfig,
                            WeightEncoderCache& weightEncoderCache);
     void GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEncoderCache);
     void GenerateWithStripeSizes(Node* node,
@@ -123,6 +125,7 @@ private:
                                         TensorShape outputStripe,
                                         NumStripesType numInputStripes,
                                         NumStripesType numWeightStripes,
+                                        command_stream::BlockConfig blockConfig,
                                         WeightEncoderCache& weightEncoderCache);
 
     void CreatePlanWithIdentityMceOp(FuseOnlyPleOperationNode* node,
@@ -131,6 +134,7 @@ private:
                                      TensorShape inputStripe,
                                      TensorShape outputStripe,
                                      NumStripesType numOutputStripes,
+                                     command_stream::BlockConfig blockConfig,
                                      WeightEncoderCache& weightEncoderCache);
 
     void AddOpToOpGraphWithInputOutputBuffers(OwnedOpGraph& opGraph,
@@ -143,6 +147,7 @@ private:
                                               NumStripesType numOutputStripes,
                                               Location inputBufferLocaton,
                                               Location outputBufferLocation,
+                                              command_stream::BlockConfig blockConfig,
                                               Plan::InputMapping& inputMappings,
                                               Plan::OutputMapping& outputMappings);
 
@@ -156,6 +161,7 @@ private:
                                      NumStripesType numWeightStripes,
                                      Location inputBufferLocaton,
                                      Location outputBufferLocation,
+                                     command_stream::BlockConfig blockConfig,
                                      WeightEncoderCache& weightEncoderCache);
 
     const EstimationOptions& m_EstimationOptions;

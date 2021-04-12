@@ -1033,3 +1033,36 @@ TEST_CASE("PlanGenerator: Mobilenet N57 1024", "[slow]")
         REQUIRE(ContainsPlanWithStripes(part.m_Plans, inputStripe, numInputStripes, outputStripe, numOutputStripes));
     }
 }
+
+TEST_CASE("PlanGenerator:BlockConfig")
+{
+    // Graph with FuseOnlyPleNode
+    const EstimationOptions estOpt;
+    const CompilationOptions compOpt = GetDefaultCompilationOptions();
+    const HardwareCapabilities caps  = GetEthosN78HwCapabilities();
+    Graph g;
+    auto part = BuildPartWithFuseOnlyPle(g, estOpt, compOpt, caps);
+
+    part.CreatePlans();
+    SavePlansToDot(part.m_Plans, "plans_part_blockconfig");
+
+    const auto& plan1 = part.GetPlan(0);
+    REQUIRE(plan1.m_OpGraph.GetBuffers().size() == 2);
+    auto ops1 = plan1.m_OpGraph.GetOps();
+    REQUIRE(ops1.size() == 1);
+    auto pleOp = dynamic_cast<PleOp*>(ops1.back());
+    REQUIRE(pleOp != nullptr);
+    REQUIRE(pleOp->m_Op == ethosn::command_stream::PleOperation::INTERLEAVE_2X2_2_2);
+    REQUIRE(pleOp->m_BlockConfig == ethosn::command_stream::BlockConfig{ 16U, 16U });
+
+    const auto& plan2 = part.GetPlan(1);
+    auto ops2         = plan2.m_OpGraph.GetOps();
+    REQUIRE(ops2.size() == 3);
+    auto mceOp = dynamic_cast<MceOp*>(ops2[0]);
+    REQUIRE(mceOp != nullptr);
+    REQUIRE(mceOp->m_BlockConfig == ethosn::command_stream::BlockConfig{ 16U, 16U });
+    pleOp = dynamic_cast<PleOp*>(ops2[2]);
+    REQUIRE(pleOp != nullptr);
+    REQUIRE(pleOp->m_Op == ethosn::command_stream::PleOperation::INTERLEAVE_2X2_2_2);
+    REQUIRE(pleOp->m_BlockConfig == ethosn::command_stream::BlockConfig{ 16U, 16U });
+}
