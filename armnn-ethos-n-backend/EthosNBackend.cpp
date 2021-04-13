@@ -65,7 +65,7 @@ Graph CloneGraph(const SubgraphView& originalSubgraph)
         Layer& originalSubgraphLayer = originalSubgraphInputSlot->GetOwningLayer();
         Layer* const clonedLayer     = originalToClonedLayerMap[&originalSubgraphLayer];
 
-        std::string originalLayerName =
+        const std::string& originalLayerName =
             originalSubgraphInputSlot->GetConnectedOutputSlot()->GetOwningLayer().GetNameStr();
 
         // add it as an input layer into the new graph
@@ -122,7 +122,7 @@ Graph CloneGraph(const SubgraphView& originalSubgraph)
 
         ARMNN_ASSERT(i < originalSubgraphLayer.GetNumOutputSlots());
 
-        std::string originalLayerName = os->GetConnection(0)->GetOwningLayer().GetNameStr();
+        const std::string& originalLayerName = os->GetConnection(0)->GetOwningLayer().GetNameStr();
 
         OutputSlot* outputSlotOfLayer     = &clonedLayer->GetOutputSlot(i);
         OutputLayer* const newOutputLayer = newGraph.AddLayer<OutputLayer>(slotCount, originalLayerName.c_str());
@@ -812,76 +812,62 @@ void ApplyMappings(std::vector<Mapping> mappings, Graph& newGraph)
     }
 }
 
+namespace
+{
+// Replaces the pattern Constant-Multiplication with an optimized DepthwiseConvolution2d operation.
+// Original pattern:
+// Input    ->
+//              Multiplication -> Output
+// Constant ->
+// Expected modified pattern:
+// Input -> DepthwiseConvolution2d -> Output
+//
 bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph, Layer* layer)
 {
-    // Replace the pattern Constant-Multiplication with an optimized DepthwiseConvolution2d operation.
-    // Original pattern:
-    // Input    ->
-    //              Multiplication -> Output
-    // Constant ->
-    // Expected modified pattern:
-    // Input -> DepthwiseConvolution2d -> Output
-    //
     if (layer->GetType() == LayerType::Multiplication)
     {
-        if ((layer->GetInputSlots()[0].GetConnectedOutputSlot()->GetOwningLayer().GetType() == LayerType::Constant) ||
-            (layer->GetInputSlots()[1].GetConnectedOutputSlot()->GetOwningLayer().GetType() == LayerType::Constant))
+        InputSlot* patternSubgraphInput = &layer->GetInputSlot(0);
+
+        Layer* inputLayer    = &patternSubgraphInput->GetConnectedOutputSlot()->GetOwningLayer();
+        Layer* constantLayer = &layer->GetInputSlots()[1].GetConnectedOutputSlot()->GetOwningLayer();
+
+        if (constantLayer->GetType() != LayerType::Constant)
         {
-            // Preference for the input to the Depthwise is given to the input at slot with index 0, where it is assumed
-            // to be non-constant, but is switched if otherwise.
-            uint8_t idxOfInput = 0;
-            uint8_t idxOfConst = 1;
+            patternSubgraphInput = &layer->GetInputSlot(1);
+            std::swap(inputLayer, constantLayer);
+        }
 
-            if (layer->GetInputSlots()[0].GetConnectedOutputSlot()->GetOwningLayer().GetType() == LayerType::Constant)
-            {
-                idxOfInput = 1;
-                idxOfConst = 0;
-            }
-
-            TensorInfo inputInfos = layer->GetInputSlots()[idxOfInput].GetConnectedOutputSlot()->GetTensorInfo();
-            TensorInfo constInfos = layer->GetInputSlots()[idxOfConst].GetConnectedOutputSlot()->GetTensorInfo();
-
-            TensorShape inputShape = inputInfos.GetShape();
-            TensorShape constShape = constInfos.GetShape();
-
-            Layer* constantLayer = &layer->GetInputSlots()[idxOfConst].GetConnectedOutputSlot()->GetOwningLayer();
+        if (constantLayer->GetType() == LayerType::Constant)
+        {
+            const TensorInfo& inputInfo = inputLayer->GetOutputSlot().GetTensorInfo();
+            const TensorInfo& constInfo = constantLayer->GetOutputSlot().GetTensorInfo();
 
             // Add a Depthwise only where the constant input is a scalar that takes the form { 1, 1, 1, C }.
-            // The scalar is used for the weights of the convolution.
-            if (((constShape[0] == 1) && (constShape[1] == 1) && (constShape[2] == 1)) &&
-                (inputShape[3] == constShape[3]))
+            // The scalar is used as weights for the convolution.
+            if (constInfo.GetShape() == TensorShape({ 1, 1, 1, inputInfo.GetShape()[3] }))
             {
-                DepthwiseConvolution2dDescriptor desc;
-                desc.m_StrideX     = 1;
-                desc.m_StrideY     = 1;
-                desc.m_PadBottom   = 0;
-                desc.m_PadLeft     = 0;
-                desc.m_PadRight    = 0;
-                desc.m_PadTop      = 0;
-                desc.m_DilationX   = 1;
-                desc.m_DilationY   = 1;
-                desc.m_DataLayout  = DataLayout::NHWC;
-                desc.m_BiasEnabled = false;
-
-                // Constant data are reused as weights for the Depthwise
-                const void* weightData =
-                    PolymorphicPointerDowncast<ConstantLayer>(constantLayer)->m_LayerOutput->GetConstTensor<void>();
-                TensorInfo weightInfos(TensorShape({ 1, constShape[3], 1, 1 }), constInfos.GetDataType(),
-                                       constInfos.GetQuantizationScale(), constInfos.GetQuantizationOffset());
-
-                ConstTensor weights(weightInfos, weightData);
-
                 Graph replacementGraph;
-                DepthwiseConvolution2dLayer* const depthwiseLayer =
+
+                DepthwiseConvolution2dDescriptor desc;
+                desc.m_DataLayout = DataLayout::NHWC;
+
+                const auto depthwiseLayer =
                     replacementGraph.AddLayer<DepthwiseConvolution2dLayer>(desc, "DepthwiseConv2d");
+
+                TensorInfo weightInfo = constInfo;
+                weightInfo.SetShape({ 1, constInfo.GetShape()[3], 1, 1 });
+
+                const void* weightData = PolymorphicPointerDowncast<const ConstantLayer>(constantLayer)
+                                             ->m_LayerOutput->GetConstTensor<void>();
+
+                const ConstTensor weights(weightInfo, weightData);
+
                 depthwiseLayer->m_Weight = std::make_unique<ScopedCpuTensorHandle>(weights);
 
-                SubgraphView patternSubgraph({ &layer->GetInputSlot(idxOfInput) }, { &layer->GetOutputSlot(0) },
+                SubgraphView patternSubgraph({ patternSubgraphInput }, { &layer->GetOutputSlot() },
                                              { layer, constantLayer });
 
-                SubgraphView substituteSubgraph{ depthwiseLayer };
-
-                graph.SubstituteSubgraph(patternSubgraph, substituteSubgraph);
+                graph.SubstituteSubgraph(patternSubgraph, SubgraphView{ depthwiseLayer });
 
                 return true;
             }
@@ -889,6 +875,7 @@ bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph, Layer* layer)
     }
     return false;
 }
+}    // namespace
 
 void ReplaceUnsupportedLayers(Graph& graph)
 {
@@ -925,9 +912,7 @@ void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
     g_EthosNConfig                 = GetEthosNConfig();
 
     // Graph is needed here to keep ownership of the layers
-    Graph newGraph = Graph();
-
-    newGraph = ethosnbackend::CloneGraph(subgraph);
+    Graph newGraph = ethosnbackend::CloneGraph(subgraph);
 
     // If we're in Performance Estimator mode, we might want to replace some of the layers we do not support with
     // layers we do, for performance estimation purposes

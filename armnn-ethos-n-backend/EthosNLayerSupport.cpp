@@ -1133,60 +1133,33 @@ bool EthosNLayerSupport::IsMultiplicationSupported(const TensorInfo& input0,
 
     ethosn_lib::TensorShape input0Shape = BuildEthosNTensorShape(input0.GetShape());
     ethosn_lib::TensorShape input1Shape = BuildEthosNTensorShape(input1.GetShape());
-    ethosn_lib::TensorShape outputShape = BuildEthosNTensorShape(output.GetShape());
 
-    // We assume one of the inputs is a constant in the form { 1, 1, 1, C }
-    bool isInput0Constant = (input0Shape[0] == 1) && (input0Shape[1] == 1) && (input0Shape[2] == 1);
-    bool isInput1Constant = (input1Shape[0] == 1) && (input1Shape[1] == 1) && (input1Shape[2] == 1);
+    bool isBroadcastShape0 = input0Shape == ethosn_lib::TensorShape{ 1, 1, 1, input0Shape[3] };
+    bool isBroadcastShape1 = input1Shape == ethosn_lib::TensorShape{ 1, 1, 1, input1Shape[3] };
 
-    if ((isInput0Constant || isInput1Constant) && (input0Shape[3] == input1Shape[3]))
+    if ((isBroadcastShape0 || isBroadcastShape1) && (input0Shape[3] == input1Shape[3]))
     {
-        TensorInfo inputToDepthwise{};
-        TensorInfo constant{};
-        ethosn_lib::TensorShape inputToDepthwiseShape{};
+        const TensorInfo& inputInfo    = isBroadcastShape0 ? input1 : input0;
+        const TensorInfo& constantInfo = isBroadcastShape0 ? input0 : input1;
 
-        if (isInput1Constant)
-        {
-            constant              = input1;
-            inputToDepthwise      = input0;
-            inputToDepthwiseShape = input0Shape;
-        }
-        else
-        {
-            constant              = input0;
-            inputToDepthwise      = input1;
-            inputToDepthwiseShape = input1Shape;
-        }
+        DepthwiseConvolution2dDescriptor desc;
+        desc.m_DataLayout  = DataLayout::NHWC;
+        desc.m_BiasEnabled = false;
 
-        if (inputToDepthwiseShape == outputShape)
-        {
-            DepthwiseConvolution2dDescriptor desc;
-            desc.m_StrideX     = 1;
-            desc.m_StrideY     = 1;
-            desc.m_PadBottom   = 0;
-            desc.m_PadLeft     = 0;
-            desc.m_PadRight    = 0;
-            desc.m_PadTop      = 0;
-            desc.m_DilationX   = 1;
-            desc.m_DilationY   = 1;
-            desc.m_DataLayout  = DataLayout::NHWC;
-            desc.m_BiasEnabled = false;
+        TensorInfo weightsInfo = constantInfo;
+        weightsInfo.SetShape({ 1, constantInfo.GetShape()[3], 1, 1 });
 
-            const TensorInfo weights(TensorShape({ 1, constant.GetShape()[3], 1, 1 }), constant.GetDataType(),
-                                     constant.GetQuantizationScale(), constant.GetQuantizationOffset());
+        bool supported = EthosNLayerSupport::IsDepthwiseConvolutionSupported(inputInfo, output, desc, weightsInfo,
+                                                                             EmptyOptional(), reasonIfUnsupported);
 
-            bool supported = EthosNLayerSupport::IsDepthwiseConvolutionSupported(
-                inputToDepthwise, output, desc, weights, EmptyOptional(), reasonIfUnsupported);
+        ReasonMessageHelper messageHelper;
+        messageHelper.SetString("Multiplication operation is not supported on Arm Ethos-N NPU backend and an attempt "
+                                "was made to substitute for DepthwiseConvolution2d, however the following error "
+                                "occured when checking for Depthwise support: " +
+                                reasonIfUnsupported.value());
 
-            ReasonMessageHelper messageHelper;
-            messageHelper.SetString("Multiplication operation is not supported on Arm Ethos-N NPU backend and an "
-                                    "attempt was made to substitute for DepthwiseConvolution2d, however the following "
-                                    "error occured when checking for Depthwise support: " +
-                                    reasonIfUnsupported.value());
-
-            SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
-            return supported;
-        }
+        SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
+        return supported;
     }
 
     return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);

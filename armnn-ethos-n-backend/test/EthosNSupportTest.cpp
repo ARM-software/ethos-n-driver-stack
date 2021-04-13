@@ -880,7 +880,7 @@ BOOST_AUTO_TEST_CASE(EstimateOnly5dFail)
 
 /// Checks the error message produced when the backend fails to claim support for Multiplication
 /// by attempting to substitute the operation with DepthwiseConvolution2d.
-BOOST_AUTO_TEST_CASE(TestMulSubstitutionFail)
+BOOST_AUTO_TEST_CASE(MulSubstitutionFail)
 {
     using namespace armnn;
     using namespace testing_utils;

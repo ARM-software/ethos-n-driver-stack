@@ -148,9 +148,9 @@ BOOST_AUTO_TEST_SUITE(EthosNDefaultLayerReplacement)
 //
 // Expected modified pattern:
 // Input -> DepthwiseConvolution2d -> Output
-BOOST_AUTO_TEST_CASE(TestReplaceConstantMultiplicationWithDepthwise)
+BOOST_AUTO_TEST_CASE(ConstMulToDepthwiseReplacement)
 {
-    std::unique_ptr<NetworkImpl> net = std::make_unique<NetworkImpl>();
+    auto net = std::make_unique<NetworkImpl>();
 
     TensorInfo inputInfo({ 1, 8, 8, 16 }, DataType::QAsymmU8, 1.0f, 0);
     TensorInfo constInfo({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);

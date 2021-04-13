@@ -126,8 +126,6 @@ void ApplyMappings(std::vector<Mapping> mappings, Graph& newGraph);
 
 void ReplaceUnsupportedLayers(Graph& graph);
 
-bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph, Layer* layer);
-
 }    // namespace ethosnbackend
 
 }    // namespace armnn
