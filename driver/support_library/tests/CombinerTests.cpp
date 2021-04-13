@@ -89,6 +89,53 @@ void CheckCommonDRAMBuffer(const PlanCompatibilityResult& resultSramSram)
     REQUIRE(resultSramSram.m_Glue.m_Output == resultSramSram.m_Glue.m_Graph.GetOps()[1]);
 }
 
+void CreateMceOpProducerWithBlockConfig(GraphOfParts& parts,
+                                        Node* node,
+                                        const BlockConfig& blockConfig,
+                                        const EstimationOptions& estOpt,
+                                        const CompilationOptions& compOpt,
+                                        const HardwareCapabilities& hwCaps)
+{
+    parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.m_Parts.back()->m_SubGraph.push_back(node);
+    std::unique_ptr<Plan> plan = std::make_unique<Plan>();
+    plan->m_OpGraph.AddBuffer(std::make_unique<Buffer>(
+        Lifetime::Cascade, Location::PleInputSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 16 },
+        TensorShape{ 1, 16, 16, 16 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
+    plan->m_OutputMappings = { { plan->m_OpGraph.GetBuffers()[0], node } };
+    MceOp op(Lifetime::Cascade, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, blockConfig,
+             TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 1, 1, 16 },
+             TraversalOrder::Xyz, Stride(), 0, 0);
+    plan->m_OpGraph.AddOp(std::make_unique<MceOp>(std::move(op)));
+    plan->m_OpGraph.SetProducer(plan->m_OpGraph.GetBuffers()[0], plan->m_OpGraph.GetOps()[0]);
+    parts.m_Parts.back()->m_Plans.push_back(std::move(plan));
+}
+
+void CreatePleOpConsumerWithBlockConfig(GraphOfParts& parts,
+                                        Node* node,
+                                        std::vector<BlockConfig>& blockConfigs,
+                                        const EstimationOptions& estOpt,
+                                        const CompilationOptions& compOpt,
+                                        const HardwareCapabilities& hwCaps)
+{
+    parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.m_Parts.back()->m_SubGraph.push_back(node);
+    std::unique_ptr<Plan> plan = std::make_unique<Plan>();
+    plan->m_OpGraph.AddBuffer(std::make_unique<Buffer>(
+        Lifetime::Cascade, Location::PleInputSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 16 },
+        TensorShape{ 1, 16, 16, 16 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
+    plan->m_InputMappings = { { plan->m_OpGraph.GetBuffers()[0], node->GetInput(0) } };
+    for (auto& blockConfig : blockConfigs)
+    {
+        PleOp op(Lifetime::Cascade, PleOperation::PASSTHROUGH, blockConfig, 1U, { TensorShape{ 1, 16, 16, 16 } },
+                 TensorShape{ 1, 16, 16, 16 });
+        plan->m_OpGraph.AddOp(std::make_unique<PleOp>(std::move(op)));
+
+        plan->m_OpGraph.AddConsumer(plan->m_OpGraph.GetBuffers()[0], plan->m_OpGraph.GetOps().back(), 0);
+    }
+    parts.m_Parts.back()->m_Plans.push_back(std::move(plan));
+}
+
 }    // namespace
 
 /// Simple Node type for tests.
@@ -581,6 +628,67 @@ TEST_CASE("ArePlansCompatible Glue with compatible activation compression")
                 }
             }
         }
+    }
+}
+
+TEST_CASE("ArePlansCompatible matching BlockConfigs")
+{
+    Graph graph;
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+
+    graph.Connect(nodeA, nodeB, 0);
+
+    GraphOfParts parts;
+
+    const EstimationOptions estOpt;
+    const CompilationOptions compOpt  = GetDefaultCompilationOptions();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    // Part consisting of node A
+    CreateMceOpProducerWithBlockConfig(parts, nodeA, BlockConfig{ 16U, 16U }, estOpt, compOpt, hwCaps);
+    Plan& planAToCheck = *(parts.m_Parts.back()->m_Plans.back());
+
+    // Part consisting of node B
+    std::vector<BlockConfig> configs = { BlockConfig{ 16U, 16U }, BlockConfig{ 16U, 16U } };
+    CreatePleOpConsumerWithBlockConfig(parts, nodeB, configs, estOpt, compOpt, hwCaps);
+    Plan& planBToCheck = *(parts.m_Parts.back()->m_Plans.back());
+
+    SECTION("Check compatibility for A -> B");
+    {
+        PlanCompatibilityResult resultAB = ArePlansCompatible(planAToCheck, planBToCheck, *nodeA->GetOutput(0), hwCaps);
+        REQUIRE(resultAB.m_IsCompatible == true);
+        REQUIRE(resultAB.m_RequiresGlue == false);
+    }
+}
+
+TEST_CASE("ArePlansCompatible non-matching BlockConfigs")
+{
+    Graph graph;
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+
+    graph.Connect(nodeA, nodeB, 0);
+
+    GraphOfParts parts;
+
+    const EstimationOptions estOpt;
+    const CompilationOptions compOpt  = GetDefaultCompilationOptions();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    // Part consisting of node A
+    CreateMceOpProducerWithBlockConfig(parts, nodeA, BlockConfig{ 16U, 16U }, estOpt, compOpt, hwCaps);
+    Plan& planAToCheck = *(parts.m_Parts.back()->m_Plans.back());
+
+    // Part consisting of node B
+    std::vector<BlockConfig> configs = { BlockConfig{ 16U, 16U }, BlockConfig{ 16U, 8U } };
+    CreatePleOpConsumerWithBlockConfig(parts, nodeB, configs, estOpt, compOpt, hwCaps);
+    Plan& planBToCheck = *(parts.m_Parts.back()->m_Plans.back());
+
+    SECTION("Check incompatibility for A -> B");
+    {
+        PlanCompatibilityResult resultAB = ArePlansCompatible(planAToCheck, planBToCheck, *nodeA->GetOutput(0), hwCaps);
+        REQUIRE(resultAB.m_IsCompatible == false);
     }
 }
 

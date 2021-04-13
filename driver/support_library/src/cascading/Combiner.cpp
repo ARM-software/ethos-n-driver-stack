@@ -342,8 +342,6 @@ CascadingBufferFormat GetBestCascadingBufferDramFormat(const TensorShape& tensor
     return CascadingBufferFormat::NHWCB;
 }
 
-}    // namespace
-
 bool AreMceOperationsCompatible(const Buffer* plan1OutputBuffer,
                                 const Buffer* plan2InputBuffer,
                                 const Node* destination)
@@ -366,6 +364,51 @@ bool AreMceOperationsCompatible(const Buffer* plan1OutputBuffer,
     }
     return true;
 }
+
+bool AreBlockConfigsCompatible(const Plan& plan1, const Plan& plan2, const Edge& edge)
+{
+    Buffer* bufferProduced = plan1.GetOutputBuffer(edge.GetSource());
+    Buffer* bufferConsumed = plan2.GetInputBuffer(&edge);
+
+    const bool areBuffersInPleInputSram =
+        bufferProduced->m_Location == Location::PleInputSram && bufferConsumed->m_Location == Location::PleInputSram;
+
+    if (areBuffersInPleInputSram)
+    {
+        ethosn::command_stream::BlockConfig producerBlockConfig = {};
+        size_t matching                                         = 0;
+
+        Op* opProducer = plan1.m_OpGraph.GetProducer(bufferProduced);
+
+        const MceOp* mceOp = dynamic_cast<const MceOp*>(opProducer);
+        if (!mceOp)
+        {
+            return true;
+        }
+        producerBlockConfig = mceOp->m_BlockConfig;
+
+        auto consumers = plan2.m_OpGraph.GetConsumers(bufferConsumed);
+        for (auto& consumer : consumers)
+        {
+            Op* opConsumer                                          = consumer.first;
+            ethosn::command_stream::BlockConfig consumerBlockConfig = {};
+
+            const PleOp* pleOp = dynamic_cast<const PleOp*>(opConsumer);
+            if (pleOp)
+            {
+                consumerBlockConfig = pleOp->m_BlockConfig;
+            }
+            if (producerBlockConfig == consumerBlockConfig)
+            {
+                ++matching;
+            }
+        }
+        return matching == consumers.size();
+    }
+    return true;
+}
+
+}    // namespace
 
 PlanCompatibilityResult ArePlansCompatible(
     const Plan& plan1, const Plan& plan2, const Edge& edge, const HardwareCapabilities& hwCap, const bool forceGlue)
@@ -410,7 +453,8 @@ PlanCompatibilityResult ArePlansCompatible(
     // Mce cannot keep partial results. So we need to have a glue (ie dma operation) between these plans to
     // stop merging them.
     if ((areBuffersEquivalent) &&
-        AreMceOperationsCompatible(plan1OutputBuffer, plan2InputBuffer, edge.GetDestination()) && !forceGlue)
+        AreMceOperationsCompatible(plan1OutputBuffer, plan2InputBuffer, edge.GetDestination()) &&
+        AreBlockConfigsCompatible(plan1, plan2, edge) && !forceGlue)
     {
         PlanCompatibilityResult result;
         result.m_IsCompatible = true;
