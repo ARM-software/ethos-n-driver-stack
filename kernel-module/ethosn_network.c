@@ -593,17 +593,20 @@ static int inference_release(struct inode *inode,
 			     struct file *filep)
 {
 	struct ethosn_inference *inference = filep->private_data;
-	struct ethosn_core *core = inference->core;
-	struct ethosn_device *ethosn = core->parent;
 
-	/* The inference queue belongs to the parent device and should
-	 * be protected by the parent's mutex.
+	/*
 	 * Note we don't use mutex_lock_interruptible here as we need to make
 	 * sure we release the network so we don't leak resources.
 	 * This would prevent the kernel module from being unloaded
 	 * when requested.
 	 */
 	if (inference->status == ETHOSN_INFERENCE_SCHEDULED) {
+		/*
+		 * Use the same mutex that is used for adding
+		 * inference to the list.
+		 */
+		struct ethosn_device *ethosn = inference->network->ethosn;
+
 		mutex_lock(
 			&ethosn->queue.inference_queue_mutex);
 		list_del(&inference->queue_node);
@@ -612,10 +615,11 @@ static int inference_release(struct inode *inode,
 	}
 
 	if (inference->status == ETHOSN_INFERENCE_RUNNING) {
+		struct ethosn_core *core = inference->core;
+
 		dev_warn(core->dev,
 			 "Reset Ethos-N due to error inference abort. handle=0x%pK\n",
 			 inference);
-
 		mutex_lock(&core->mutex);
 
 		(void)ethosn_reset_and_start_ethosn(core);
