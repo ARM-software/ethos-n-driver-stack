@@ -35,25 +35,35 @@ Node* CreateAndAddOutputNode(Graph& g)
     return g.CreateAndAddNode<OutputNode>(sl::DataType::UINT8_QUANTIZED, std::set<uint32_t>(), 0);
 }
 
-Node* CreateAndAddMceOperationNode(Graph& g, TS tsOut, const uint32_t kH, const uint32_t kW)
+Node* CreateAndAddMceOperationNode(Graph& g, TS tsOut, const uint32_t kH, const uint32_t kW, const Stride stride)
 {
     const std::vector<uint8_t> weights(kH * kW, 1);
     return g.CreateAndAddNode<MceOperationNode>(
         TS(), tsOut, sl::DataType::UINT8_QUANTIZED, QI(),
         TI({ kH, kW, 1, 1 }, ethosn::support_library::DataType::UINT8_QUANTIZED,
            ethosn::support_library::DataFormat::HWIO, QuantizationInfo(0, 0.9f)),
-        weights, TI({ 1, 1, 1, 1 }), std::vector<int32_t>{ 0 }, Stride(), 0, 0,
+        weights, TI({ 1, 1, 1, 1 }), std::vector<int32_t>{ 0 }, stride, 0, 0,
         ethosn::command_stream::MceOperation::CONVOLUTION, CompilerDataFormat::NHWCB, std::set<uint32_t>{ 1 });
 }
 
 Node* CreateAndAddMceOperationNode(Graph& g)
 {
-    return CreateAndAddMceOperationNode(g, TS(), 1, 1);
+    return CreateAndAddMceOperationNode(g, TS(), 1, 1, Stride());
 }
 
 Node* CreateAndAddMceOperationNode(Graph& g, TS tsOut)
 {
-    return CreateAndAddMceOperationNode(g, tsOut, 1, 1);
+    return CreateAndAddMceOperationNode(g, tsOut, 1, 1, Stride());
+}
+
+Node* CreateAndAddMceOperationNode(Graph& g, TS tsOut, const Stride stride)
+{
+    return CreateAndAddMceOperationNode(g, tsOut, 1, 1, stride);
+}
+
+Node* CreateAndAddMceOperationNode(Graph& g, TS tsOut, const uint32_t kH, const uint32_t kW)
+{
+    return CreateAndAddMceOperationNode(g, tsOut, kH, kW, Stride());
 }
 
 Node* CreateAndAddMcePostProcessOperationNode(Graph& g)
@@ -1115,4 +1125,45 @@ TEST_CASE("PlanGenerator:Winograd")
             REQUIRE(mceOp->m_Algo == CompilerMceAlgorithm::Winograd);
         }
     }
+}
+
+TEST_CASE("PlanGenerator:Split input in depth")
+{
+    const EstimationOptions estOpt;
+    const CompilationOptions compOpt = GetDefaultCompilationOptions();
+    const HardwareCapabilities caps  = GetEthosN78HwCapabilities();
+    Graph g;
+
+    TS tsIn   = { 1, 64, 64, 256 };
+    TS tsOut  = { 1, 64, 64, 64 };
+    auto in   = CreateAndAddInputNode(g, tsIn);
+    auto node = CreateAndAddMceOperationNode(g, tsOut, Stride{ 2U, 2U });
+    auto out  = CreateAndAddOutputNode(g);
+
+    // Graph must be connected to be valid
+    g.Connect(in, node, 0);
+    g.Connect(node, out, 0);
+
+    Part part(estOpt, compOpt, caps);
+    part.m_SubGraph.push_back(node);
+    part.CreatePlans();
+    SavePlansToDot(part.m_Plans, "plans_part_split_input_depth");
+
+    uint64_t match = 0;
+    for (const auto& plan : part.m_Plans)
+    {
+        REQUIRE(!ContainsInputStripe(plan->m_InputMappings, TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() }, 1));
+        REQUIRE(!ContainsInputStripe(plan->m_InputMappings, TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() }, 2));
+
+        if (ContainsInputStripe(plan->m_InputMappings, TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() * 4 }, 1))
+        {
+            ++match;
+        }
+
+        if (ContainsInputStripe(plan->m_InputMappings, TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() * 4 }, 2))
+        {
+            ++match;
+        }
+    }
+    REQUIRE(match > 0);
 }

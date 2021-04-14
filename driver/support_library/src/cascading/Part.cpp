@@ -1177,7 +1177,9 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
 
     Part::NumStripes numStripes;
 
-    if (IsObjectOfType<MceOperationNode>(node))
+    uint32_t strideMultiplier       = 1U;
+    const MceOperationNode* mceNode = GetObjectAs<MceOperationNode>(node);
+    if (mceNode)
     {
         // MceOperations output to PLE SRAM so are no "stripes"
         // At least 3 input stripes are needed because of
@@ -1191,6 +1193,7 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
             numStripes.minInputStripes = 1;
             numStripes.maxInputStripes = numStripes.minInputStripes + 1;
         }
+        strideMultiplier = mceNode->GetStride().m_X * mceNode->GetStride().m_Y;
     }
     else if (IsObjectOfType<FuseOnlyPleOperationNode>(node))
     {
@@ -1344,7 +1347,7 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
         // note we have to limit the height and width to the block size
         {
             TensorShape encoding          = { 0, blockConfig.m_BlockHeight(), blockConfig.m_BlockWidth(),
-                                     caps.GetNumberOfOgs() };
+                                     caps.GetNumberOfOgs() * strideMultiplier };
             const TensorShape& inputShape = node->GetInputShape(0);
             TensorShape inputStripe       = CreateStripe(node->GetInputShape(0), encoding, caps);
 
