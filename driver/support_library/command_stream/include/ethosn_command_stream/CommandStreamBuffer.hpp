@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -47,10 +47,25 @@ class CommandStreamBuffer
 public:
     using ConstIterator = CommandStreamConstIterator;
 
+    static constexpr size_t VersionHeaderSizeWords = 4;
+
     CommandStreamBuffer()
         : m_Data()
         , m_Count(0)
-    {}
+    {
+        // Tag to identify the command stream data structure using "FourCC" style
+        constexpr uint32_t fourcc = static_cast<uint32_t>('E') | (static_cast<uint32_t>('N') << 8) |
+                                    (static_cast<uint32_t>('C') << 16) | (static_cast<uint32_t>('S') << 24);
+
+        std::array<uint32_t, VersionHeaderSizeWords> header = { fourcc, ETHOSN_COMMAND_STREAM_VERSION_MAJOR,
+                                                                ETHOSN_COMMAND_STREAM_VERSION_MINOR,
+                                                                ETHOSN_COMMAND_STREAM_VERSION_PATCH };
+
+        for (uint32_t w : header)
+        {
+            m_Data.push_back(w);
+        }
+    }
 
     template <Opcode O>
     void EmplaceBack(const CommandData<O>& comData)
@@ -61,7 +76,7 @@ public:
 
     ConstIterator begin() const
     {
-        return ConstIterator(reinterpret_cast<const CommandHeader*>(m_Data.data()));
+        return ConstIterator(reinterpret_cast<const CommandHeader*>(m_Data.data() + VersionHeaderSizeWords));
     }
 
     ConstIterator end() const

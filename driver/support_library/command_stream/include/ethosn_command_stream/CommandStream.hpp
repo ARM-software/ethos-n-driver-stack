@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -101,14 +101,50 @@ public:
     using ConstIterator = CommandStreamConstIterator;
 
     CommandStream(const CommandHeader* begin, const CommandHeader* end)
-        : m_Begin(begin)
+        : m_VersionMajor(ETHOSN_COMMAND_STREAM_VERSION_MAJOR)
+        , m_VersionMinor(ETHOSN_COMMAND_STREAM_VERSION_MINOR)
+        , m_VersionPatch(ETHOSN_COMMAND_STREAM_VERSION_PATCH)
+        , m_Begin(begin)
         , m_End(end)
     {}
 
     CommandStream(const void* rawBegin, const void* rawEnd)
-        : CommandStream(reinterpret_cast<const CommandHeader*>(rawBegin),
-                        reinterpret_cast<const CommandHeader*>(rawEnd))
-    {}
+        : m_VersionMajor(0)
+        , m_VersionMinor(0)
+        , m_VersionPatch(0)
+        , m_Begin(nullptr)
+        , m_End(nullptr)
+    {
+        const uint32_t* rawBeginU32 = reinterpret_cast<const uint32_t*>(rawBegin);
+        const uint32_t* rawEndU32   = reinterpret_cast<const uint32_t*>(rawEnd);
+
+        constexpr ptrdiff_t versionHeaderSizeWords = 4;
+        if (rawEndU32 - rawBeginU32 < versionHeaderSizeWords)
+        {
+            return;
+        }
+
+        const uint32_t fourcc             = rawBeginU32[0];
+        constexpr uint32_t expectedFourcc = static_cast<uint32_t>('E') | (static_cast<uint32_t>('N') << 8) |
+                                            (static_cast<uint32_t>('C') << 16) | (static_cast<uint32_t>('S') << 24);
+        if (fourcc != expectedFourcc)
+        {
+            return;
+        }
+
+        m_VersionMajor = rawBeginU32[1];
+        m_VersionMinor = rawBeginU32[2];
+        m_VersionPatch = rawBeginU32[3];
+        if (m_VersionMajor != ETHOSN_COMMAND_STREAM_VERSION_MAJOR ||
+            m_VersionMinor != ETHOSN_COMMAND_STREAM_VERSION_MINOR ||
+            m_VersionPatch != ETHOSN_COMMAND_STREAM_VERSION_PATCH)
+        {
+            return;
+        }
+
+        m_Begin = reinterpret_cast<const CommandHeader*>(rawBeginU32 + versionHeaderSizeWords);
+        m_End   = reinterpret_cast<const CommandHeader*>(rawEnd);
+    }
 
     ConstIterator begin() const
     {
@@ -120,7 +156,28 @@ public:
         return ConstIterator(m_End);
     }
 
+    bool IsValid() const
+    {
+        return m_Begin != nullptr && m_End != nullptr;
+    }
+
+    uint32_t GetVersionMajor() const
+    {
+        return m_VersionMajor;
+    }
+    uint32_t GetVersionMinor() const
+    {
+        return m_VersionMinor;
+    }
+    uint32_t GetVersionPatch() const
+    {
+        return m_VersionPatch;
+    }
+
 private:
+    uint32_t m_VersionMajor;
+    uint32_t m_VersionMinor;
+    uint32_t m_VersionPatch;
     const CommandHeader* m_Begin;
     const CommandHeader* m_End;
 };
