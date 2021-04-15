@@ -1193,6 +1193,20 @@ static struct ethosn_big_fw_desc *find_big_fw_desc(struct ethosn_core *core,
 	return ERR_PTR(-EINVAL);
 }
 
+static int verify_firmware(struct ethosn_core *core,
+			   struct ethosn_big_fw *big_fw)
+{
+	if (big_fw->fw_ver_major != ETHOSN_FIRMWARE_VERSION_MAJOR) {
+		dev_dbg(core->dev,
+			"Wrong firmware version. Version %u.x.x is required.\n",
+			ETHOSN_FIRMWARE_VERSION_MAJOR);
+
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 /**
  * firmware_load - Load firmware binary with given name.
  * @core:		Pointer to Ethos-N core.
@@ -1220,6 +1234,11 @@ static int firmware_load(struct ethosn_core *core,
 	big_fw_desc = find_big_fw_desc(core, big_fw);
 	if (IS_ERR(big_fw_desc))
 		return -EINVAL;
+
+	/* Check FW binary version compatibility */
+	ret = verify_firmware(core, big_fw);
+	if (ret)
+		return ret;
 
 	dev_dbg(core->dev,
 		"Found FW. arch_min=0x%08x, arch_max=0x%08x, offset=0x%08x, size=0x%08x",
