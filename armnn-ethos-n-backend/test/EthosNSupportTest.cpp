@@ -77,7 +77,11 @@ BOOST_AUTO_TEST_SUITE(EthosNSupport)
 BOOST_AUTO_TEST_CASE(LibraryAccess)
 {
     const std::string version = ethosn_lib::GetLibraryVersion().ToString();
-    BOOST_TEST(version == "1.0.0");
+    const std::string macroVer =
+        ethosn_lib::Version(ETHOSN_SUPPORT_LIBRARY_VERSION_MAJOR, ETHOSN_SUPPORT_LIBRARY_VERSION_MINOR,
+                            ETHOSN_SUPPORT_LIBRARY_VERSION_PATCH)
+            .ToString();
+    BOOST_TEST(version == macroVer);
 }
 
 BOOST_AUTO_TEST_CASE(ConvertAdditionLayer)

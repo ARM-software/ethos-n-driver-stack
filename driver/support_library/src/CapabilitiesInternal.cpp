@@ -226,5 +226,27 @@ FirmwareAndHardwareCapabilities GetValidCapabilities(const std::vector<char>& ra
     return caps;
 }
 
+bool IsCommandStreamInRange(const FirmwareAndHardwareCapabilities& caps, const uint32_t& major, const uint32_t& minor)
+{
+    // If major version is start of range, check that minor version is above minimum
+    // Check if major version is within range
+    // If major version is end of range, check that minor version is below maximum
+    if (((major == caps.m_CommandStreamBeginRangeMajor) && (minor >= caps.m_CommandStreamBeginRangeMinor)) ||
+        ((major > caps.m_CommandStreamBeginRangeMajor) && (major < caps.m_CommandStreamEndRangeMajor)) ||
+        ((major == caps.m_CommandStreamEndRangeMajor) && (minor <= caps.m_CommandStreamEndRangeMinor)))
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool VerifySupportedCommandStream(const FirmwareAndHardwareCapabilities& caps)
+{
+    return IsCommandStreamInRange(caps, ETHOSN_COMMAND_STREAM_VERSION_MAJOR, ETHOSN_COMMAND_STREAM_VERSION_MINOR);
+};
+
 }    // namespace support_library
 }    // namespace ethosn

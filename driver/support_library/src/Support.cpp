@@ -309,6 +309,11 @@ std::vector<std::unique_ptr<CompiledNetwork>> Compile(const Network& network, co
 
     FirmwareAndHardwareCapabilities caps = GetValidCapabilities(network.GetCapabilities());
 
+    if (!VerifySupportedCommandStream(caps))
+    {
+        throw NotSupportedException("Command stream version not supported by capabilities.");
+    }
+
     // Cascading not supported while compilation
     if (options.m_CompilerAlgorithm == CompilerAlgorithm::CascadingOnly)
     {
@@ -336,6 +341,11 @@ NetworkPerformanceData EstimatePerformance(const Network& network,
                                            const EstimationOptions& estimationOptions)
 {
     FirmwareAndHardwareCapabilities caps = GetValidCapabilities(network.GetCapabilities());
+
+    if (!VerifySupportedCommandStream(caps))
+    {
+        throw NotSupportedException("Command stream version not supported by capabilities.");
+    }
 
     // Until full implementation of cascading in support library,
     // available  only as future optimistic estimate. i.e m_Current = false.
