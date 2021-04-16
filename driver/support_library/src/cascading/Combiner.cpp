@@ -236,8 +236,8 @@ Combinations CombineSeeds(const PlanId fPlId,
                           const Metadata& metadata,
                           SramAllocator& alloc,
                           const HardwareCapabilities& caps,
-                          const GrowScheme scheme = GrowScheme::Default,
-                          const bool create       = true)
+                          const GrowScheme scheme,
+                          const bool create)
 {
     Combinations result;
 
@@ -293,6 +293,36 @@ Combinations CombineSeeds(const PlanId fPlId,
     }
 
     return result;
+}
+
+Combinations CombineSeeds(const PlanId fPlId,
+                          const CompatiblePlans& fComPls,
+                          const Combination& comb,
+                          const PartId fPartId,
+                          const Edge* sEdge,
+                          const GraphOfParts& parts,
+                          const PlanId reqPlan,
+                          const Metadata& metadata,
+                          SramAllocator& alloc,
+                          const HardwareCapabilities& caps)
+{
+    return CombineSeeds(fPlId, fComPls, comb, fPartId, sEdge, parts, reqPlan, metadata, alloc, caps,
+                        GrowScheme::Default, true);
+}
+
+Combinations CombineSeeds(const PlanId fPlId,
+                          const CompatiblePlans& fComPls,
+                          const Combination& comb,
+                          const PartId fPartId,
+                          const Edge* sEdge,
+                          const GraphOfParts& parts,
+                          const PlanId reqPlan,
+                          const Metadata& metadata,
+                          SramAllocator& alloc,
+                          const HardwareCapabilities& caps,
+                          const GrowScheme scheme)
+{
+    return CombineSeeds(fPlId, fComPls, comb, fPartId, sEdge, parts, reqPlan, metadata, alloc, caps, scheme, true);
 }
 
 CascadingBufferFormat GetBestCascadingBufferDramFormat(const TensorShape& tensorShape,
@@ -406,6 +436,152 @@ bool AreBlockConfigsCompatible(const Plan& plan1, const Plan& plan2, const Edge&
         return matching == consumers.size();
     }
     return true;
+}
+
+Combination PruneCombinations(const GraphOfParts& parts,
+                              const HardwareCapabilities& caps,
+                              const Combinations& combs,
+                              const EstimationOptions& estimationOpts)
+{
+    if (combs.size() > 0)
+    {
+        utils::Optional<Combination> result;
+        NetworkPerformanceData refNetPerfData;
+        for (const Combination& combination : combs)
+        {
+            try
+            {
+                OpGraph combiOpGraph = GetOpGraphForCombination(combination, parts);
+                EstimatedOpGraph curNetPerfData =
+                    ethosn::support_library::EstimateOpGraph(combiOpGraph, caps, estimationOpts);
+
+                if (!result.has_value() || IsLeftMoreDataPerformantThanRight(curNetPerfData.m_PerfData, refNetPerfData))
+                {
+                    refNetPerfData = curNetPerfData.m_PerfData;
+                    result         = combination;
+                }
+            }
+            catch (const NotSupportedException&)
+            {
+                // Skip this combination
+            }
+        }
+        if (!result.has_value())
+        {
+            // If Estimation failed, pick the first combination
+            return combs.front();
+        }
+        return result.value();
+    }
+    return Combination{};
+}
+
+void DumpDebugInfo(const GraphOfParts& parts,
+                   const Combinations& combs,
+                   std::vector<size_t> stats,
+                   const DebuggingContext& debuggingContext,
+                   const std::string folder)
+{
+    using namespace ethosn::utils;
+
+    if (debuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+    {
+        MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
+
+        std::ofstream debugIterationStatsDumpFile(
+            debuggingContext.GetAbsolutePathOutputFileName(folder + "/Stats.txt"));
+        for (auto& val : stats)
+        {
+            debugIterationStatsDumpFile << "Val : " << val << std::endl;
+        }
+
+        size_t combinationNumber = 0;
+        for (const Combination& comb : combs)
+        {
+            std::string subfolder = folder + "/" + std::to_string(combinationNumber);
+            MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(subfolder).c_str());
+
+            debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, parts,
+                                                  subfolder + "/Detailed.dot", DetailLevel::High);
+
+            ++combinationNumber;
+            if (combinationNumber > debuggingContext.GetMaxNumDumps())
+            {
+                break;
+            }
+        }
+    }
+}
+
+void DumpDebugInfo(const GraphOfParts& parts,
+                   const Metadata& metadata,
+                   const DebuggingContext& debuggingContext,
+                   const std::string folder)
+{
+    using namespace ethosn::utils;
+    if (debuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+    {
+        MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
+
+        for (const MetadataOfPart& fMOfPa : metadata)
+        {
+            const Part& srcPart       = parts.GetPart(fMOfPa.m_PartId);
+            std::string srcPartFolder = folder + "/" + srcPart.m_DebugTag;
+            // Create source part folder
+            MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(srcPartFolder).c_str());
+
+            std::ofstream debugMergeablePlanDumpFile(
+                debuggingContext.GetAbsolutePathOutputFileName(srcPartFolder + "/Cascaded_MergeablePlans.txt"));
+            std::ofstream debugGluedPlanDumpFile(
+                debuggingContext.GetAbsolutePathOutputFileName(srcPartFolder + "/Cascaded_GluedPlans.txt"));
+            std::ofstream debugOutDramPlanDumpFile(
+                debuggingContext.GetAbsolutePathOutputFileName(srcPartFolder + "/Cascaded_OutDramPlans.txt"));
+
+            size_t edgeCounter      = 0;
+            size_t mergeCounter     = 0;
+            size_t outInDramCounter = 0;
+            size_t gluedCounter     = 0;
+            for (const auto& itPa : fMOfPa.m_Comp)
+            {
+                const InPart inPa   = parts.GetInputPart(*(itPa.first));
+                const Part& dstPart = parts.GetPart(inPa.second);
+                for (const auto& itPls : itPa.second)
+                {
+                    const Plan& srcPlan  = srcPart.GetPlan(itPls.first);
+                    const bool outInDram = IsOutputBufferInDram(srcPlan, *(itPa.first));
+                    for (const auto& itPl : itPls.second)
+                    {
+                        const Plan& dstPlan        = dstPart.GetPlan(itPl.m_Id);
+                        const size_t fileId        = mergeCounter + outInDramCounter + gluedCounter;
+                        const std::string filename = dstPart.m_DebugTag + "_" + srcPlan.m_DebugTag + "_" +
+                                                     dstPlan.m_DebugTag + "_Edge" + std::to_string(edgeCounter) +
+                                                     "_Detailed_" + std::to_string(fileId) + ".dot";
+                        debuggingContext.SaveOpGraphToDot(CompilationOptions::DebugLevel::None, itPl.m_Glue.m_Graph,
+                                                          srcPartFolder + "/" + filename, DetailLevel::High);
+                        if (!outInDram && itPl.m_Glue.m_Graph.GetOps().empty())
+                        {
+                            ++mergeCounter;
+                            debugMergeablePlanDumpFile << srcPlan.m_DebugTag << ": " << dstPlan.m_DebugTag << std::endl;
+                        }
+                        if (outInDram)
+                        {
+                            ++outInDramCounter;
+                            debugOutDramPlanDumpFile << srcPlan.m_DebugTag << ": " << dstPlan.m_DebugTag << std::endl;
+                        }
+                        if (!itPl.m_Glue.m_Graph.GetOps().empty())
+                        {
+                            ++gluedCounter;
+                            debugGluedPlanDumpFile << srcPlan.m_DebugTag << ": " << dstPlan.m_DebugTag << std::endl;
+                        }
+                    }
+                }
+                ++edgeCounter;
+                debugMergeablePlanDumpFile << "Tot: " << mergeCounter << std::endl;
+                debugOutDramPlanDumpFile << "Tot: " << outInDramCounter << std::endl;
+                debugGluedPlanDumpFile << "Tot: " << gluedCounter << std::endl;
+            }
+        }
+    }
 }
 
 }    // namespace
@@ -788,115 +964,11 @@ GrownSeeds GrowSeeds(const Combinations& combs,
     return result;
 }
 
-Combination PruneCombinations(const GraphOfParts& parts,
-                              const HardwareCapabilities& caps,
-                              const Combinations& combs,
-                              const EstimationOptions& estimationOpts)
-{
-    if (combs.size() > 0)
-    {
-        utils::Optional<Combination> result;
-        NetworkPerformanceData refNetPerfData;
-        for (const Combination& combination : combs)
-        {
-            try
-            {
-                OpGraph combiOpGraph = GetOpGraphForCombination(combination, parts);
-                EstimatedOpGraph curNetPerfData =
-                    ethosn::support_library::EstimateOpGraph(combiOpGraph, caps, estimationOpts);
-
-                if (!result.has_value() || IsLeftMoreDataPerformantThanRight(curNetPerfData.m_PerfData, refNetPerfData))
-                {
-                    refNetPerfData = curNetPerfData.m_PerfData;
-                    result         = combination;
-                }
-            }
-            catch (const NotSupportedException&)
-            {
-                // Skip this combination
-            }
-        }
-        if (!result.has_value())
-        {
-            // If Estimation failed, pick the first combination
-            return combs.front();
-        }
-        return result.value();
-    }
-    return Combination{};
-}
-
 Combinations Cascading::Combine(const GraphOfParts& parts)
 {
-    using namespace ethosn::utils;
-
     m_Metadata = CreateMetadata(parts, m_Capabilities);
 
-    if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
-    {
-        std::string folder = "Metadata";
-        MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
-
-        for (const MetadataOfPart& fMOfPa : m_Metadata)
-        {
-            const Part& srcPart       = parts.GetPart(fMOfPa.m_PartId);
-            std::string srcPartFolder = folder + "/" + srcPart.m_DebugTag;
-            // Create source part folder
-            MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(srcPartFolder).c_str());
-
-            std::ofstream debugMergeablePlanDumpFile(
-                m_DebuggingContext.GetAbsolutePathOutputFileName(srcPartFolder + "/Cascaded_MergeablePlans.txt"));
-            std::ofstream debugGluedPlanDumpFile(
-                m_DebuggingContext.GetAbsolutePathOutputFileName(srcPartFolder + "/Cascaded_GluedPlans.txt"));
-            std::ofstream debugOutDramPlanDumpFile(
-                m_DebuggingContext.GetAbsolutePathOutputFileName(srcPartFolder + "/Cascaded_OutDramPlans.txt"));
-
-            size_t edgeCounter      = 0;
-            size_t mergeCounter     = 0;
-            size_t outInDramCounter = 0;
-            size_t gluedCounter     = 0;
-            for (const auto& itPa : fMOfPa.m_Comp)
-            {
-                const InPart inPa   = parts.GetInputPart(*(itPa.first));
-                const Part& dstPart = parts.GetPart(inPa.second);
-                for (const auto& itPls : itPa.second)
-                {
-                    const Plan& srcPlan  = srcPart.GetPlan(itPls.first);
-                    const bool outInDram = IsOutputBufferInDram(srcPlan, *(itPa.first));
-                    for (const auto& itPl : itPls.second)
-                    {
-                        const Plan& dstPlan        = dstPart.GetPlan(itPl.m_Id);
-                        const size_t fileId        = mergeCounter + outInDramCounter + gluedCounter;
-                        const std::string filename = dstPart.m_DebugTag + "_" + srcPlan.m_DebugTag + "_" +
-                                                     dstPlan.m_DebugTag + "_Edge" + std::to_string(edgeCounter) +
-                                                     "_Detailed_" + std::to_string(fileId) + ".dot";
-                        m_DebuggingContext.SaveOpGraphToDot(CompilationOptions::DebugLevel::None, itPl.m_Glue.m_Graph,
-                                                            srcPartFolder + "/" + filename, DetailLevel::High);
-
-                        if (!outInDram && itPl.m_Glue.m_Graph.GetOps().empty())
-                        {
-                            ++mergeCounter;
-                            debugMergeablePlanDumpFile << srcPlan.m_DebugTag << ": " << dstPlan.m_DebugTag << std::endl;
-                        }
-                        if (outInDram)
-                        {
-                            ++outInDramCounter;
-                            debugOutDramPlanDumpFile << srcPlan.m_DebugTag << ": " << dstPlan.m_DebugTag << std::endl;
-                        }
-                        if (!itPl.m_Glue.m_Graph.GetOps().empty())
-                        {
-                            ++gluedCounter;
-                            debugGluedPlanDumpFile << srcPlan.m_DebugTag << ": " << dstPlan.m_DebugTag << std::endl;
-                        }
-                    }
-                }
-                ++edgeCounter;
-                debugMergeablePlanDumpFile << "Tot: " << mergeCounter << std::endl;
-                debugOutDramPlanDumpFile << "Tot: " << outInDramCounter << std::endl;
-                debugGluedPlanDumpFile << "Tot: " << gluedCounter << std::endl;
-            }
-        }
-    }
+    DumpDebugInfo(parts, m_Metadata, m_DebuggingContext, "Metadata");
 
     Combinations currSeeds = CreateSeeds(parts, m_Metadata, m_Capabilities);
 
@@ -915,8 +987,6 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
 
         // Grow combinations "Merged in Sram"
         grownSeeds = GrowSeeds(currSeeds, parts, 0U, m_Metadata, m_Capabilities, GrowScheme::MergeOnly);
-        // Debug stats
-        const size_t numGrownCombinations = grownSeeds.m_Combinations.size();
 
         currSeeds = grownSeeds.m_Combinations;
 
@@ -931,37 +1001,14 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
         pruned.push_back(PruneCombinations(parts, m_Capabilities, currSeeds, GetEstimationOptions()));
         // Grow combinations "Back to Dram"
         haltedSeeds = GrowSeeds(pruned, parts, 0U, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
-        // Debug stats
-        const size_t numHaltedCombinations = haltedSeeds.m_Combinations.size();
 
-        if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
-        {
-            std::string folder = "IntermediateCombinationsIteration" + std::to_string(iteration);
-            MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
+        DumpDebugInfo(parts, currSeeds, { currSeeds.size() }, m_DebuggingContext,
+                      "IntermediateCombinationsIteration" + std::to_string(iteration));
+        DumpDebugInfo(parts, haltedSeeds.m_Combinations, { haltedSeeds.m_Combinations.size() }, m_DebuggingContext,
+                      "IntermediateHaltedCombinationsIteration" + std::to_string(iteration));
+        DumpDebugInfo(parts, pruned, { pruned.size() }, m_DebuggingContext,
+                      "IntermediatePrunedCombinationsIteration" + std::to_string(iteration));
 
-            std::ofstream debugIterationStatsDumpFile(
-                m_DebuggingContext.GetAbsolutePathOutputFileName(folder + "/Stats.txt"));
-            debugIterationStatsDumpFile << "Num. grown combinations: " << numGrownCombinations << std::endl;
-            debugIterationStatsDumpFile << "Num. halted combinations: " << numHaltedCombinations << std::endl;
-            size_t combinationNumber = 0;
-            for (const Combination& comb : currSeeds)
-            {
-                std::string subfolder = folder + "/" + std::to_string(combinationNumber);
-                MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(subfolder).c_str());
-
-                m_DebuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, parts,
-                                                        subfolder + "/Detailed.dot", DetailLevel::High);
-
-                ++combinationNumber;
-                if (combinationNumber > m_DebuggingContext.GetMaxNumDumps())
-                {
-                    break;
-                }
-            }
-
-            m_DebuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, pruned.at(0), parts,
-                                                    folder + "/PrunedDetailed.dot", DetailLevel::High);
-        }
         ++iteration;
     } while (!grownSeeds.m_Terminated);
 
