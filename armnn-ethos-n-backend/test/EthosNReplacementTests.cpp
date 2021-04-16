@@ -21,6 +21,8 @@
 #include <boost/test/data/test_case.hpp>
 // clang-format on
 
+#include <numeric>
+
 using namespace armnn;
 
 namespace bdata = boost::unit_test::data;

@@ -249,7 +249,7 @@ std::vector<LayerTestResult<uint8_t, NumDims>>
     {
         optimizedNet = Optimize(network, backends, runtime->GetDeviceSpec(), OptimizerOptions(), messages);
     }
-    catch (const armnn::Exception& e)
+    catch (const armnn::Exception&)
     {
         throw RuntimeException(std::string("Failed to optimize network for ") + std::string(backends[0]),
                                CHECK_LOCATION());

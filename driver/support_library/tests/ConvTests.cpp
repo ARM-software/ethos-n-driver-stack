@@ -216,11 +216,11 @@ TEST_CASE("ConvolutionSupported")
         const auto inputDataType = GENERATE(DataType::UINT8_QUANTIZED, DataType::INT8_QUANTIZED);
 
         TensorInfo biasInfo({ 1, 1, 1, 1 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
-        biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 2.3e-10 });
+        biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 2.3e-10f });
         biasInfo.m_QuantizationInfo.SetZeroPoint(0);
         biasInfo.m_QuantizationInfo.SetQuantizationDim(3);
         TensorInfo weightsInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO);
-        weightsInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 2.3e-10 });
+        weightsInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 2.3e-10f });
         weightsInfo.m_QuantizationInfo.SetZeroPoint(0);
         weightsInfo.m_QuantizationInfo.SetQuantizationDim(3);
         ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 }, { 0, 1.f });
@@ -238,11 +238,11 @@ TEST_CASE("ConvolutionSupported")
         const auto inputDataType = GENERATE(DataType::UINT8_QUANTIZED, DataType::INT8_QUANTIZED);
 
         TensorInfo biasInfo({ 1, 1, 1, 1 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
-        biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 2.33e-10 });
+        biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 2.33e-10f });
         biasInfo.m_QuantizationInfo.SetZeroPoint(0);
         biasInfo.m_QuantizationInfo.SetQuantizationDim(3);
         TensorInfo weightsInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO);
-        weightsInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 2.33e-10 });
+        weightsInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 2.33e-10f });
         weightsInfo.m_QuantizationInfo.SetZeroPoint(0);
         weightsInfo.m_QuantizationInfo.SetQuantizationDim(3);
         ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 }, { 0, 1.f });
