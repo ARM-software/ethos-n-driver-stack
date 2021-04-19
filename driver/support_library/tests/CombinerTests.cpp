@@ -1551,13 +1551,13 @@ TEST_CASE("GrowSeeds Simple")
     // All plan are compatible, the total number of seeds is the product of the number of plans (plus "Back to Dram" plans)
     REQUIRE(combs.size() == 4U);
 
-    GrownSeeds res = GrowSeeds(combs, gOfParts, 0U, metadata, hwCaps);
+    GrownSeeds res = GrowSeeds(combs, gOfParts, metadata, hwCaps, GrowScheme::Default);
     REQUIRE(res.m_Combinations.size() == 10U);
     REQUIRE(res.m_Terminated == false);
-    res = GrowSeeds(res.m_Combinations, gOfParts, 0U, metadata, hwCaps);
+    res = GrowSeeds(res.m_Combinations, gOfParts, metadata, hwCaps, GrowScheme::Default);
     REQUIRE(res.m_Combinations.size() == 10U);
     REQUIRE(res.m_Terminated == false);
-    res = GrowSeeds(res.m_Combinations, gOfParts, 0U, metadata, hwCaps);
+    res = GrowSeeds(res.m_Combinations, gOfParts, metadata, hwCaps, GrowScheme::Default);
     REQUIRE(res.m_Combinations.size() == 10U);
     REQUIRE(res.m_Terminated == true);
 
@@ -1685,12 +1685,12 @@ TEST_CASE("GrowSeeds Schemes")
         }
     }
 
-    GrownSeeds res = GrowSeeds(combs, gOfParts, 0U, metadata, caps, GrowScheme::MergeOnly);
+    GrownSeeds res = GrowSeeds(combs, gOfParts, metadata, caps, GrowScheme::MergeOnly);
     // B and C cannot be merged
     REQUIRE(res.m_Combinations.size() == 0U);
 
     // C output data need to go to Dram
-    res = GrowSeeds(combs, gOfParts, 0U, metadata, caps, GrowScheme::DramOnly);
+    res = GrowSeeds(combs, gOfParts, metadata, caps, GrowScheme::DramOnly);
     REQUIRE(res.m_Combinations.size() == 8U);
 
     // Check that nothing has been merged
@@ -1831,19 +1831,19 @@ TEST_CASE("GrowSeeds Of Graph With Branches")
     // All plan are compatible, the total number of seeds is the product of the number of plans (plus "Back to Dram" plans)
     REQUIRE(combs.size() == 5U);
 
-    GrownSeeds res = GrowSeeds(combs, gOfParts, 0U, metadata, hwCaps);
+    GrownSeeds res = GrowSeeds(combs, gOfParts, metadata, hwCaps, GrowScheme::Default);
     REQUIRE(res.m_Combinations.size() == 7U);
     REQUIRE(res.m_Terminated == false);
-    res = GrowSeeds(res.m_Combinations, gOfParts, 0U, metadata, hwCaps);
+    res = GrowSeeds(res.m_Combinations, gOfParts, metadata, hwCaps, GrowScheme::Default);
     REQUIRE(res.m_Combinations.size() == 14U);
     REQUIRE(res.m_Terminated == false);
-    res = GrowSeeds(res.m_Combinations, gOfParts, 0U, metadata, hwCaps);
+    res = GrowSeeds(res.m_Combinations, gOfParts, metadata, hwCaps, GrowScheme::Default);
     REQUIRE(res.m_Combinations.size() == 14U);
     REQUIRE(res.m_Terminated == false);
-    res = GrowSeeds(res.m_Combinations, gOfParts, 0U, metadata, hwCaps);
+    res = GrowSeeds(res.m_Combinations, gOfParts, metadata, hwCaps, GrowScheme::Default);
     REQUIRE(res.m_Combinations.size() == 14U);
     REQUIRE(res.m_Terminated == false);
-    res = GrowSeeds(res.m_Combinations, gOfParts, 0U, metadata, hwCaps);
+    res = GrowSeeds(res.m_Combinations, gOfParts, metadata, hwCaps, GrowScheme::Default);
     REQUIRE(res.m_Combinations.size() == 14U);
     REQUIRE(res.m_Terminated == true);
 

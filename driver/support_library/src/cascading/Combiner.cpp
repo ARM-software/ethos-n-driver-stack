@@ -889,7 +889,6 @@ Combinations CreateSeeds(const GraphOfParts& parts, const Metadata& metadata, co
 
 GrownSeeds GrowSeeds(const Combinations& combs,
                      const GraphOfParts& parts,
-                     const size_t minScore,
                      const Metadata& metadata,
                      const HardwareCapabilities& caps,
                      const GrowScheme scheme)
@@ -904,11 +903,6 @@ GrownSeeds GrowSeeds(const Combinations& combs,
     for (const auto& currComb : combs)
     {
         if (currComb.m_Elems.empty())
-        {
-            continue;
-        }
-
-        if (currComb.m_Scratch.m_Score < minScore)
         {
             continue;
         }
@@ -977,11 +971,6 @@ GrownSeeds GrowSeeds(const Combinations& combs,
         {
             result.m_Combinations.push_back(currComb);
         }
-        // Record best score for this iteration
-        if ((result.m_Combinations.size() > 0) && (result.m_Combinations.back().m_Scratch.m_Score > result.m_BestScore))
-        {
-            result.m_BestScore = result.m_Combinations.back().m_Scratch.m_Score;
-        }
     }
     return result;
 }
@@ -997,7 +986,7 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
     // It contains "Merged in Sram" combinations
     GrownSeeds grownSeeds = {};
     // It contains "Back to Dram" combinations
-    GrownSeeds haltedSeeds = GrowSeeds(currSeeds, parts, 0U, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
+    GrownSeeds haltedSeeds = GrowSeeds(currSeeds, parts, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
 
     const bool avoidBackToDram = m_Capabilities.GetTotalSramSize() > g_kSramThreshold;
 
@@ -1008,7 +997,7 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
         Combinations pruned = {};
 
         // Grow combinations "Merged in Sram"
-        grownSeeds = GrowSeeds(currSeeds, parts, 0U, m_Metadata, m_Capabilities, GrowScheme::MergeOnly);
+        grownSeeds = GrowSeeds(currSeeds, parts, m_Metadata, m_Capabilities, GrowScheme::MergeOnly);
 
         currSeeds = grownSeeds.m_Combinations;
 
@@ -1023,7 +1012,7 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
         pruned.push_back(PruneCombinations(parts, m_Capabilities, currSeeds, GetEstimationOptions(), m_DebuggingContext,
                                            "IntermediatePrunedCombinationsIteration" + std::to_string(iteration)));
         // Grow combinations "Back to Dram"
-        haltedSeeds = GrowSeeds(pruned, parts, 0U, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
+        haltedSeeds = GrowSeeds(pruned, parts, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
 
         DumpDebugInfo(parts, currSeeds, { currSeeds.size() }, m_DebuggingContext,
                       "IntermediateCombinationsIteration" + std::to_string(iteration));

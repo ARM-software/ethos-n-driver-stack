@@ -183,7 +183,6 @@ using Metadata = std::deque<MetadataOfPart>;
 struct GrownSeeds
 {
     bool m_Terminated           = true;
-    size_t m_BestScore          = 0U;
     Combinations m_Combinations = {};
 };
 
@@ -220,12 +219,8 @@ Combinations CreateSeeds(const GraphOfParts&, const Metadata&, const HardwareCap
 
 // The input combinations seeds are grown by one plan at each iteration
 // until all the combinations have length equal to the number of parts.
-GrownSeeds GrowSeeds(const Combinations&,
-                     const GraphOfParts&,
-                     const size_t,
-                     const Metadata&,
-                     const HardwareCapabilities&,
-                     const GrowScheme scheme = GrowScheme::Default);
+GrownSeeds
+    GrowSeeds(const Combinations&, const GraphOfParts&, const Metadata&, const HardwareCapabilities&, const GrowScheme);
 
 /// Creates a single OpGraph which contains the full graph of Ops and Buffers for the given Combination.
 /// This handles merging of adjacent Plans and Glues to give a homogenous structure, suitable for
