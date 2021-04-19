@@ -549,6 +549,95 @@ void DumpDebugInfo(const GraphOfParts& parts,
     }
 }
 
+GrownSeeds GrowSeeds(const Combinations& combs,
+                     const GraphOfParts& parts,
+                     const Metadata& metadata,
+                     const HardwareCapabilities& caps,
+                     const GrowScheme scheme,
+                     const bool)
+{
+    const size_t numParts = parts.GetNumParts();
+    assert(numParts > 1U);
+
+    GrownSeeds result;
+
+    SramAllocator alloc(caps.GetTotalSramSize() / caps.GetNumberOfSrams());
+
+    for (const auto& currComb : combs)
+    {
+        if (currComb.m_Elems.empty())
+        {
+            continue;
+        }
+
+        // Get where it is with the combination
+        const PartId fPartId = currComb.m_Scratch.m_CurrPartId;
+        if (fPartId < numParts)
+        {
+
+            const NxtPa next             = GetNxtPart(fPartId, numParts, currComb, metadata);
+            const MetadataOfPart& fMOfPa = metadata.at(fPartId);
+
+            result.m_Terminated = false;
+
+            if (next.m_Found)
+            {
+                // Second part in topological order
+                const Edge* sEdge           = next.m_Dst;
+                DstPart::const_iterator eIt = fMOfPa.m_Destination.find(sEdge);
+                assert(eIt != fMOfPa.m_Destination.end());
+                const PartId sPartId = eIt->second;
+
+                const CompatiblePlansOfParts& comPlsOfPas = fMOfPa.m_Comp;
+                assert(comPlsOfPas.size());
+
+                const CompatiblePlansOfPart& comPlsOfPa = (comPlsOfPas.find(sEdge))->second;
+
+                const PlanFromSource fPl = GetPlanFromSource(fPartId, next.m_Comb, metadata);
+                const PlanFromSource sPl = GetPlanFromSource(sPartId, next.m_Comb, metadata);
+                const PlanId reqPlan     = sPl.m_Found ? sPl.m_Id : unassignedPlanId;
+
+                if (!fPl.m_Found)
+                {
+                    CompatiblePlansOfPart::const_iterator it = comPlsOfPa.begin();
+                    while (it != comPlsOfPa.end())
+                    {
+                        // Take the planId and the list of compatible plans of a connected part
+                        Combinations temp = CombineSeeds(it->first, it->second, next.m_Comb, fPartId, sEdge, parts,
+                                                         reqPlan, metadata, alloc, caps, scheme);
+                        result.m_Combinations.insert(std::end(result.m_Combinations), std::begin(temp), std::end(temp));
+                        ++it;
+                    }
+                }
+                else
+                {
+                    CompatiblePlansOfPart::const_iterator it = comPlsOfPa.find(fPl.m_Id);
+                    if (it != comPlsOfPa.end())
+                    {
+                        // Take the planId and the list of compatible plans of a connected part
+                        Combinations temp = CombineSeeds(it->first, it->second, next.m_Comb, fPartId, sEdge, parts,
+                                                         reqPlan, metadata, alloc, caps, scheme, false);
+                        result.m_Combinations.insert(std::end(result.m_Combinations), std::begin(temp), std::end(temp));
+                    }
+                }
+            }
+            else
+            {
+                // Output part
+                Combination grownComb    = next.m_Comb;
+                const PlanFromSource fPl = GetPlanFromSource(fPartId, next.m_Comb, metadata);
+                grownComb.m_Elems.push_back(Elem{ fPartId, fPl.m_Id, {} });
+                result.m_Combinations.push_back(grownComb);
+            }
+        }
+        else
+        {
+            result.m_Combinations.push_back(currComb);
+        }
+    }
+    return result;
+}
+
 Combination PruneCombinations(const GraphOfParts& parts,
                               const HardwareCapabilities& caps,
                               const Combinations& combs,
@@ -893,86 +982,7 @@ GrownSeeds GrowSeeds(const Combinations& combs,
                      const HardwareCapabilities& caps,
                      const GrowScheme scheme)
 {
-    const size_t numParts = parts.GetNumParts();
-    assert(numParts > 1U);
-
-    GrownSeeds result;
-
-    SramAllocator alloc(caps.GetTotalSramSize() / caps.GetNumberOfSrams());
-
-    for (const auto& currComb : combs)
-    {
-        if (currComb.m_Elems.empty())
-        {
-            continue;
-        }
-
-        // Get where it is with the combination
-        const PartId fPartId = currComb.m_Scratch.m_CurrPartId;
-        if (fPartId < numParts)
-        {
-
-            const NxtPa next             = GetNxtPart(fPartId, numParts, currComb, metadata);
-            const MetadataOfPart& fMOfPa = metadata.at(fPartId);
-
-            result.m_Terminated = false;
-
-            if (next.m_Found)
-            {
-                // Second part in topological order
-                const Edge* sEdge           = next.m_Dst;
-                DstPart::const_iterator eIt = fMOfPa.m_Destination.find(sEdge);
-                assert(eIt != fMOfPa.m_Destination.end());
-                const PartId sPartId = eIt->second;
-
-                const CompatiblePlansOfParts& comPlsOfPas = fMOfPa.m_Comp;
-                assert(comPlsOfPas.size());
-
-                const CompatiblePlansOfPart& comPlsOfPa = (comPlsOfPas.find(sEdge))->second;
-
-                const PlanFromSource fPl = GetPlanFromSource(fPartId, next.m_Comb, metadata);
-                const PlanFromSource sPl = GetPlanFromSource(sPartId, next.m_Comb, metadata);
-                const PlanId reqPlan     = sPl.m_Found ? sPl.m_Id : unassignedPlanId;
-
-                if (!fPl.m_Found)
-                {
-                    CompatiblePlansOfPart::const_iterator it = comPlsOfPa.begin();
-                    while (it != comPlsOfPa.end())
-                    {
-                        // Take the planId and the list of compatible plans of a connected part
-                        Combinations temp = CombineSeeds(it->first, it->second, next.m_Comb, fPartId, sEdge, parts,
-                                                         reqPlan, metadata, alloc, caps, scheme);
-                        result.m_Combinations.insert(std::end(result.m_Combinations), std::begin(temp), std::end(temp));
-                        ++it;
-                    }
-                }
-                else
-                {
-                    CompatiblePlansOfPart::const_iterator it = comPlsOfPa.find(fPl.m_Id);
-                    if (it != comPlsOfPa.end())
-                    {
-                        // Take the planId and the list of compatible plans of a connected part
-                        Combinations temp = CombineSeeds(it->first, it->second, next.m_Comb, fPartId, sEdge, parts,
-                                                         reqPlan, metadata, alloc, caps, scheme, false);
-                        result.m_Combinations.insert(std::end(result.m_Combinations), std::begin(temp), std::end(temp));
-                    }
-                }
-            }
-            else
-            {
-                // Output part
-                Combination grownComb    = next.m_Comb;
-                const PlanFromSource fPl = GetPlanFromSource(fPartId, next.m_Comb, metadata);
-                grownComb.m_Elems.push_back(Elem{ fPartId, fPl.m_Id, {} });
-                result.m_Combinations.push_back(grownComb);
-            }
-        }
-        else
-        {
-            result.m_Combinations.push_back(currComb);
-        }
-    }
-    return result;
+    return GrowSeeds(combs, parts, metadata, caps, scheme, false);
 }
 
 Combinations Cascading::Combine(const GraphOfParts& parts)
