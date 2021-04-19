@@ -237,7 +237,8 @@ Combinations CombineSeeds(const PlanId fPlId,
                           SramAllocator& alloc,
                           const HardwareCapabilities& caps,
                           const GrowScheme scheme,
-                          const bool create)
+                          const bool create,
+                          const bool oneSeed)
 {
     Combinations result;
 
@@ -259,10 +260,8 @@ Combinations CombineSeeds(const PlanId fPlId,
     const uint32_t baseSizeInBytes = create ? (fTotSize.m_Tot) : comb.m_Scratch.m_AllocatedSram;
 
     // Process all the list of compatible plans
-    for (uint32_t i = 0; i < fComPls.size(); ++i)
+    for (const CompatiblePlan& fComPl : fComPls)
     {
-        const CompatiblePlan& fComPl = fComPls.at(i);
-
         if (checkReqPlan && (fComPl.m_Id == reqPlan))
         {
             continue;
@@ -289,6 +288,10 @@ Combinations CombineSeeds(const PlanId fPlId,
         {
             // Add seed
             result.push_back(addedSeed.m_Combination);
+            if (oneSeed)
+            {
+                break;
+            }
         }
     }
 
@@ -307,7 +310,7 @@ Combinations CombineSeeds(const PlanId fPlId,
                           const HardwareCapabilities& caps)
 {
     return CombineSeeds(fPlId, fComPls, comb, fPartId, sEdge, parts, reqPlan, metadata, alloc, caps,
-                        GrowScheme::Default, true);
+                        GrowScheme::Default, true, false);
 }
 
 Combinations CombineSeeds(const PlanId fPlId,
@@ -320,9 +323,11 @@ Combinations CombineSeeds(const PlanId fPlId,
                           const Metadata& metadata,
                           SramAllocator& alloc,
                           const HardwareCapabilities& caps,
-                          const GrowScheme scheme)
+                          const GrowScheme scheme,
+                          const bool oneSeed)
 {
-    return CombineSeeds(fPlId, fComPls, comb, fPartId, sEdge, parts, reqPlan, metadata, alloc, caps, scheme, true);
+    return CombineSeeds(fPlId, fComPls, comb, fPartId, sEdge, parts, reqPlan, metadata, alloc, caps, scheme, true,
+                        oneSeed);
 }
 
 CascadingBufferFormat GetBestCascadingBufferDramFormat(const TensorShape& tensorShape,
@@ -554,7 +559,7 @@ GrownSeeds GrowSeeds(const Combinations& combs,
                      const Metadata& metadata,
                      const HardwareCapabilities& caps,
                      const GrowScheme scheme,
-                     const bool)
+                     const bool oneSeed)
 {
     const size_t numParts = parts.GetNumParts();
     assert(numParts > 1U);
@@ -599,14 +604,16 @@ GrownSeeds GrowSeeds(const Combinations& combs,
 
                 if (!fPl.m_Found)
                 {
-                    CompatiblePlansOfPart::const_iterator it = comPlsOfPa.begin();
-                    while (it != comPlsOfPa.end())
+                    for (const auto& it : comPlsOfPa)
                     {
                         // Take the planId and the list of compatible plans of a connected part
-                        Combinations temp = CombineSeeds(it->first, it->second, next.m_Comb, fPartId, sEdge, parts,
-                                                         reqPlan, metadata, alloc, caps, scheme);
+                        Combinations temp = CombineSeeds(it.first, it.second, next.m_Comb, fPartId, sEdge, parts,
+                                                         reqPlan, metadata, alloc, caps, scheme, oneSeed);
                         result.m_Combinations.insert(std::end(result.m_Combinations), std::begin(temp), std::end(temp));
-                        ++it;
+                        if (oneSeed && !result.m_Combinations.empty())
+                        {
+                            break;
+                        }
                     }
                 }
                 else
@@ -616,7 +623,7 @@ GrownSeeds GrowSeeds(const Combinations& combs,
                     {
                         // Take the planId and the list of compatible plans of a connected part
                         Combinations temp = CombineSeeds(it->first, it->second, next.m_Comb, fPartId, sEdge, parts,
-                                                         reqPlan, metadata, alloc, caps, scheme, false);
+                                                         reqPlan, metadata, alloc, caps, scheme, false, oneSeed);
                         result.m_Combinations.insert(std::end(result.m_Combinations), std::begin(temp), std::end(temp));
                     }
                 }
@@ -640,6 +647,7 @@ GrownSeeds GrowSeeds(const Combinations& combs,
 
 Combination PruneCombinations(const GraphOfParts& parts,
                               const HardwareCapabilities& caps,
+                              const Metadata& metadata,
                               const Combinations& combs,
                               const EstimationOptions& estimationOpts,
                               const DebuggingContext& debuggingContext,
@@ -655,21 +663,26 @@ Combination PruneCombinations(const GraphOfParts& parts,
         {
             try
             {
-                OpGraph combiOpGraph = GetOpGraphForCombination(combination, parts);
-                EstimatedOpGraph curNetPerfData =
-                    ethosn::support_library::EstimateOpGraph(combiOpGraph, caps, estimationOpts);
-                if (debuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+                GrownSeeds local = GrowSeeds({ combination }, parts, metadata, caps, GrowScheme::DramOnly, true);
+                if (!local.m_Combinations.empty())
                 {
-                    stats.push_back(combinationNumber);
-                    stats.push_back(GetPerformanceTotalDataMetric(curNetPerfData.m_PerfData));
-                    stats.push_back(GetPerformanceNonParallelDataMetric(curNetPerfData.m_PerfData));
-                    stats.push_back(GetPerformanceNumberOfPassesMetric(curNetPerfData.m_PerfData));
-                }
+                    OpGraph combiOpGraph = GetOpGraphForCombination(local.m_Combinations.front(), parts);
+                    EstimatedOpGraph curNetPerfData =
+                        ethosn::support_library::EstimateOpGraph(combiOpGraph, caps, estimationOpts);
+                    if (debuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+                    {
+                        stats.push_back(combinationNumber);
+                        stats.push_back(GetPerformanceTotalDataMetric(curNetPerfData.m_PerfData));
+                        stats.push_back(GetPerformanceNonParallelDataMetric(curNetPerfData.m_PerfData));
+                        stats.push_back(GetPerformanceNumberOfPassesMetric(curNetPerfData.m_PerfData));
+                    }
 
-                if (!result.has_value() || IsLeftMoreDataPerformantThanRight(curNetPerfData.m_PerfData, refNetPerfData))
-                {
-                    refNetPerfData = curNetPerfData.m_PerfData;
-                    result         = combination;
+                    if (!result.has_value() ||
+                        IsLeftMoreDataPerformantThanRight(curNetPerfData.m_PerfData, refNetPerfData))
+                    {
+                        refNetPerfData = curNetPerfData.m_PerfData;
+                        result         = combination;
+                    }
                 }
             }
             catch (const NotSupportedException&)
@@ -1003,9 +1016,6 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
     size_t iteration = 0;
     do
     {
-        // Temporary result of pruning
-        Combinations pruned = {};
-
         // Grow combinations "Merged in Sram"
         grownSeeds = GrowSeeds(currSeeds, parts, m_Metadata, m_Capabilities, GrowScheme::MergeOnly);
 
@@ -1019,16 +1029,17 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
         }
 
         // Take the best combination of the lot
-        pruned.push_back(PruneCombinations(parts, m_Capabilities, currSeeds, GetEstimationOptions(), m_DebuggingContext,
-                                           "IntermediatePrunedCombinationsIteration" + std::to_string(iteration)));
+        Combination pruned =
+            PruneCombinations(parts, m_Capabilities, m_Metadata, currSeeds, GetEstimationOptions(), m_DebuggingContext,
+                              "IntermediatePrunedCombinationsIteration" + std::to_string(iteration));
         // Grow combinations "Back to Dram"
-        haltedSeeds = GrowSeeds(pruned, parts, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
+        haltedSeeds = GrowSeeds({ pruned }, parts, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
 
         DumpDebugInfo(parts, currSeeds, { currSeeds.size() }, m_DebuggingContext,
                       "IntermediateCombinationsIteration" + std::to_string(iteration));
         DumpDebugInfo(parts, haltedSeeds.m_Combinations, { haltedSeeds.m_Combinations.size() }, m_DebuggingContext,
                       "IntermediateHaltedCombinationsIteration" + std::to_string(iteration));
-        DumpDebugInfo(parts, pruned, {}, m_DebuggingContext,
+        DumpDebugInfo(parts, { pruned }, {}, m_DebuggingContext,
                       "IntermediatePrunedCombinationsIteration" + std::to_string(iteration));
 
         ++iteration;
