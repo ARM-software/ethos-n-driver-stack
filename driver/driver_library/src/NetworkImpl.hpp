@@ -112,6 +112,7 @@ protected:
                  uint32_t numInputBuffers,
                  const char* cmmFilename,
                  uint8_t sections) const;
+    void DumpCommandStream(const char* cmdStreamFilename) const;
 
     std::vector<uint32_t> BuildInferenceData(uint64_t constantControlUnitDataBaseAddress,
                                              uint64_t constantDmaDataBaseAddress,

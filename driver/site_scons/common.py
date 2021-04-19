@@ -299,6 +299,10 @@ def get_utils_build_dir(env):
     return get_build_dir(env, env['utils_dir'])
 
 
+def get_lib_xml_to_binary_build_dir(env):
+    return get_build_dir(env, env['lib_xml_to_binary_dir'])
+
+
 def get_single_elem(elems, msg_context):
     "If a single element exists in the list, returns that. If length is not 1, it throws error"
     if len(elems) != 1:

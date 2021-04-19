@@ -7,8 +7,8 @@
 
 #include "../include/ethosn_driver_library/Network.hpp"
 #include "Utils.hpp"
-#if defined(ETHOSN_INTERNAL)
-#include "DumpCommandStream.hpp"
+#if defined(ETHOSN_ALLOW_COMMAND_STREAM_DUMP)
+#include "BinaryParser.hpp"
 #endif
 
 #include <ethosn_command_stream/CommandStream.hpp>
@@ -23,6 +23,7 @@
 #include <iostream>
 #include <map>
 #include <numeric>
+#include <sstream>
 #include <string>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -218,17 +219,6 @@ bool ReadBufferInfoArray(Reader& reader, std::vector<BufferInfo>& outData)
     return true;
 }
 
-void DumpCommandStream(const char* inputCmmFilename, const char* outputCmdStreamFilename)
-{
-#if defined(ETHOSN_INTERNAL)
-    DumpCommandStreamImpl(inputCmmFilename, outputCmdStreamFilename);
-#else
-    ETHOSN_UNUSED(inputCmmFilename);
-    ETHOSN_UNUSED(outputCmdStreamFilename);
-    std::cerr << "Command stream dumping is available only in internal builds" << std::endl;
-#endif
-}
-
 }    // namespace
 
 namespace ethosn
@@ -353,7 +343,7 @@ void NetworkImpl::DumpCmmBasedOnEnvVar(Buffer* const inputBuffers[], uint32_t nu
     if (cmmSections != 0)
     {
         DumpCmm(inputBuffers, numInputBuffers, cmmFilename.c_str(), cmmSections);
-        DumpCommandStream(cmmFilename.c_str(), (std::string("CommandStream_") + m_DebugName + ".xml").c_str());
+        DumpCommandStream((std::string("CommandStream_") + m_DebugName + ".xml").c_str());
     }
 }
 
@@ -509,6 +499,27 @@ std::vector<uint32_t> NetworkImpl::BuildInferenceData(uint64_t constantControlUn
     }
 
     return inferenceData;
+}
+
+void NetworkImpl::DumpCommandStream(const char* cmdStreamFilename) const
+{
+    if (!m_CompiledNetwork)
+    {
+        throw std::runtime_error("Missing m_CompiledNetwork");
+    }
+#if defined(ETHOSN_ALLOW_COMMAND_STREAM_DUMP)
+    BufferInfo cmdStreamInfo = m_CompiledNetwork->m_ConstantControlUnitDataBufferInfos[0];
+    const uint8_t* rawCmdStreamData =
+        m_CompiledNetwork->CalculateConstantControlUnitDataPtr(m_CompiledNetworkData.data());
+    std::stringstream binaryIn;
+    binaryIn.write(reinterpret_cast<const char*>(rawCmdStreamData) + cmdStreamInfo.m_Offset, cmdStreamInfo.m_Size);
+    std::ofstream xmlOut(cmdStreamFilename);
+    BinaryParser(binaryIn).WriteXml(xmlOut);
+#else
+    ETHOSN_UNUSED(cmdStreamFilename);
+    std::cerr << "Command stream dump requested but feature is not enabled. Please enable this feature at build time."
+              << std::endl;
+#endif
 }
 
 }    // namespace driver_library

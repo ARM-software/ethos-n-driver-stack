@@ -37,6 +37,8 @@ var.AddVariables(
     ('device_node', 'Device node in the dev filesystem', '/dev/ethosn0'),
     ('firmware_profiling_node', 'Firmware profiling node in the sys fileystem',
      '/sys/kernel/debug/ethosn0/firmware_profiling'),
+    BoolVariable('allow_command_stream_dump', 'Build the driver library with the ability to dump command streams. '
+                 'This requires additional build-time dependencies.', False),
 )
 
 env = Environment(variables=var)
@@ -50,6 +52,7 @@ env['driver_library_dir'] = 'driver_library'
 env['support_library_dir'] = 'support_library'
 env['command_stream_dir'] = os.path.join(env['support_library_dir'], 'command_stream')
 env['utils_dir'] = 'utils'
+env['lib_xml_to_binary_dir'] = os.path.join(env['command_stream_dir'], 'xml_to_binary')
 
 # These can be overridden by developer options, if applicable
 env['kernel_module_dir'] = os.path.join('..', 'kernel-module')
@@ -62,6 +65,7 @@ common.abs_path(env, ['command_stream_dir',
                       'driver_library_dir',
                       'support_library_dir',
                       'utils_dir',
+                      'lib_xml_to_binary_dir',
                       'kernel_module_dir'])
 
 
@@ -86,6 +90,10 @@ SConscript(dirs=[env['command_stream_dir']], variant_dir=common.get_command_stre
 
 env = env_backup.Clone()
 SConscript(dirs=[env['utils_dir']], variant_dir=common.get_utils_build_dir(env),
+           duplicate=False, exports='env')
+
+env = env_backup.Clone()
+SConscript(dirs=[env['lib_xml_to_binary_dir']], variant_dir=common.get_lib_xml_to_binary_build_dir(env),
            duplicate=False, exports='env')
 
 aliases = default_ans.keys()
