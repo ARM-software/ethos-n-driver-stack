@@ -438,44 +438,6 @@ bool AreBlockConfigsCompatible(const Plan& plan1, const Plan& plan2, const Edge&
     return true;
 }
 
-Combination PruneCombinations(const GraphOfParts& parts,
-                              const HardwareCapabilities& caps,
-                              const Combinations& combs,
-                              const EstimationOptions& estimationOpts)
-{
-    if (combs.size() > 0)
-    {
-        utils::Optional<Combination> result;
-        NetworkPerformanceData refNetPerfData;
-        for (const Combination& combination : combs)
-        {
-            try
-            {
-                OpGraph combiOpGraph = GetOpGraphForCombination(combination, parts);
-                EstimatedOpGraph curNetPerfData =
-                    ethosn::support_library::EstimateOpGraph(combiOpGraph, caps, estimationOpts);
-
-                if (!result.has_value() || IsLeftMoreDataPerformantThanRight(curNetPerfData.m_PerfData, refNetPerfData))
-                {
-                    refNetPerfData = curNetPerfData.m_PerfData;
-                    result         = combination;
-                }
-            }
-            catch (const NotSupportedException&)
-            {
-                // Skip this combination
-            }
-        }
-        if (!result.has_value())
-        {
-            // If Estimation failed, pick the first combination
-            return combs.front();
-        }
-        return result.value();
-    }
-    return Combination{};
-}
-
 void DumpDebugInfo(const GraphOfParts& parts,
                    const Combinations& combs,
                    std::vector<size_t> stats,
@@ -488,11 +450,14 @@ void DumpDebugInfo(const GraphOfParts& parts,
     {
         MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
 
-        std::ofstream debugIterationStatsDumpFile(
-            debuggingContext.GetAbsolutePathOutputFileName(folder + "/Stats.txt"));
-        for (auto& val : stats)
+        if (!stats.empty())
         {
-            debugIterationStatsDumpFile << "Val : " << val << std::endl;
+            std::ofstream debugIterationStatsDumpFile(
+                debuggingContext.GetAbsolutePathOutputFileName(folder + "/Stats.txt"));
+            for (auto& val : stats)
+            {
+                debugIterationStatsDumpFile << "Val : " << val << std::endl;
+            }
         }
 
         size_t combinationNumber = 0;
@@ -582,6 +547,63 @@ void DumpDebugInfo(const GraphOfParts& parts,
             }
         }
     }
+}
+
+Combination PruneCombinations(const GraphOfParts& parts,
+                              const HardwareCapabilities& caps,
+                              const Combinations& combs,
+                              const EstimationOptions& estimationOpts,
+                              const DebuggingContext& debuggingContext,
+                              const std::string folder)
+{
+    if (combs.size() > 0)
+    {
+        utils::Optional<Combination> result;
+        NetworkPerformanceData refNetPerfData;
+        std::vector<uint64_t> stats = {};
+        size_t combinationNumber    = 0;
+        for (const Combination& combination : combs)
+        {
+            try
+            {
+                OpGraph combiOpGraph = GetOpGraphForCombination(combination, parts);
+                EstimatedOpGraph curNetPerfData =
+                    ethosn::support_library::EstimateOpGraph(combiOpGraph, caps, estimationOpts);
+                if (debuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+                {
+                    stats.push_back(combinationNumber);
+                    stats.push_back(GetPerformanceTotalDataMetric(curNetPerfData.m_PerfData));
+                    stats.push_back(GetPerformanceNonParallelDataMetric(curNetPerfData.m_PerfData));
+                    stats.push_back(GetPerformanceNumberOfPassesMetric(curNetPerfData.m_PerfData));
+                }
+
+                if (!result.has_value() || IsLeftMoreDataPerformantThanRight(curNetPerfData.m_PerfData, refNetPerfData))
+                {
+                    refNetPerfData = curNetPerfData.m_PerfData;
+                    result         = combination;
+                }
+            }
+            catch (const NotSupportedException&)
+            {
+                // Skip this combination
+                if (debuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+                {
+                    stats.push_back(combinationNumber);
+                    stats.push_back(0UL);
+                }
+            }
+            ++combinationNumber;
+        }
+        DumpDebugInfo(parts, {}, stats, debuggingContext, folder);
+
+        if (!result.has_value())
+        {
+            // If Estimation failed, pick the first combination
+            return combs.front();
+        }
+        return result.value();
+    }
+    return Combination{};
 }
 
 }    // namespace
@@ -998,7 +1020,8 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
         }
 
         // Take the best combination of the lot
-        pruned.push_back(PruneCombinations(parts, m_Capabilities, currSeeds, GetEstimationOptions()));
+        pruned.push_back(PruneCombinations(parts, m_Capabilities, currSeeds, GetEstimationOptions(), m_DebuggingContext,
+                                           "IntermediatePrunedCombinationsIteration" + std::to_string(iteration)));
         // Grow combinations "Back to Dram"
         haltedSeeds = GrowSeeds(pruned, parts, 0U, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
 
@@ -1006,7 +1029,7 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
                       "IntermediateCombinationsIteration" + std::to_string(iteration));
         DumpDebugInfo(parts, haltedSeeds.m_Combinations, { haltedSeeds.m_Combinations.size() }, m_DebuggingContext,
                       "IntermediateHaltedCombinationsIteration" + std::to_string(iteration));
-        DumpDebugInfo(parts, pruned, { pruned.size() }, m_DebuggingContext,
+        DumpDebugInfo(parts, pruned, {}, m_DebuggingContext,
                       "IntermediatePrunedCombinationsIteration" + std::to_string(iteration));
 
         ++iteration;
