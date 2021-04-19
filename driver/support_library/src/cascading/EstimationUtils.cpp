@@ -282,30 +282,65 @@ uint64_t GetPerformanceParallelDataMetric(const NetworkPerformanceData& netPerfD
     return parallelData;
 }
 
+uint64_t GetPerformanceNumberOfPassesMetric(const NetworkPerformanceData& netPerfData)
+{
+    return netPerfData.m_Stream.size();
+}
+
+namespace
+{
+
+enum class MetricType
+{
+    Total,
+    Parallel,
+    NonParallel,
+    Passes
+};
+
+uint64_t GetPerformanceMetric(const NetworkPerformanceData& netPerfData, const MetricType metricType)
+{
+    switch (metricType)
+    {
+        case MetricType::Total:
+            return GetPerformanceTotalDataMetric(netPerfData);
+        case MetricType::Parallel:
+            return GetPerformanceParallelDataMetric(netPerfData);
+        case MetricType::NonParallel:
+            return GetPerformanceNonParallelDataMetric(netPerfData);
+        case MetricType::Passes:
+            return GetPerformanceNumberOfPassesMetric(netPerfData);
+        default:
+        {
+            std::string errorMessage = "Error in " + std::string(__func__) + ": metric type " +
+                                       std::to_string(static_cast<uint32_t>(metricType)) + " is not implemented";
+            throw std::invalid_argument(errorMessage);
+        }
+    }
+}
+
+}    // namespace
+
 bool IsLeftMoreDataPerformantThanRight(const NetworkPerformanceData& left, const NetworkPerformanceData& right)
 {
-    uint64_t metricLeft  = GetPerformanceTotalDataMetric(left);
-    uint64_t metricRight = GetPerformanceTotalDataMetric(right);
+    // Sequence of metric types to compare against
+    std::vector<MetricType> metricTypes = { MetricType::Total, MetricType::NonParallel, MetricType::Passes };
 
-    if (metricLeft < metricRight)
+    for (const auto& metricType : metricTypes)
     {
-        return true;
+        const uint64_t metricLeft  = GetPerformanceMetric(left, metricType);
+        const uint64_t metricRight = GetPerformanceMetric(right, metricType);
+
+        if (metricLeft < metricRight)
+        {
+            return true;
+        }
+
+        if (metricLeft > metricRight)
+        {
+            return false;
+        }
     }
-
-    if (metricLeft > metricRight)
-    {
-        return false;
-    }
-
-    // Total data metric are equal, check the non parallel data
-    metricLeft  = GetPerformanceNonParallelDataMetric(left);
-    metricRight = GetPerformanceNonParallelDataMetric(right);
-
-    if (metricLeft < metricRight)
-    {
-        return true;
-    }
-
     return false;
 }
 
