@@ -188,6 +188,30 @@ void NetworkToGraphConverter::Visit(Reshape& reshape)
     ConnectNodeChain(reshape, nodes);
 }
 
+void NetworkToGraphConverter::Visit(MeanXy& mean)
+{
+    const TensorInfo& tensorInfo = mean.GetOutput(0).GetTensorInfo();
+    const uint32_t inputHeight   = mean.GetInput(0).GetTensorInfo().m_Dimensions[1];
+    Node* n                      = nullptr;
+    command_stream::PleOperation op;
+    ShapeMultiplier shapeMultiplier = { 1, 1, 1 };
+
+    if (inputHeight == 7)
+    {
+        op = command_stream::PleOperation::MEAN_XY_7X7;
+    }
+    else
+    {
+        op = command_stream::PleOperation::MEAN_XY_8X8;
+    }
+
+    n = m_Graph.CreateAndAddNodeWithDebug<FuseOnlyPleOperationNode>(
+        ETHOSN_FUNCTION_SIGNATURE, tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo, op,
+        CompilerDataFormat::NHWCB, shapeMultiplier, std::set<uint32_t>{ mean.GetId() });
+
+    ConnectNode(mean, n);
+}
+
 void NetworkToGraphConverter::Visit(Pooling& pooling)
 {
     const TensorInfo& tensorInfo     = pooling.GetOutput(0).GetTensorInfo();

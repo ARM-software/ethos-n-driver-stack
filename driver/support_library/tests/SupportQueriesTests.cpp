@@ -282,6 +282,11 @@ TEST_CASE("Unsupported Tensor Depth", "[IsSupported][TVM]")
                           reason);
         CHECK_UNSUPPORTED_TENSOR_DEPTH_REASON(reason);
     }
+    SECTION("MeanXy")
+    {
+        CHECK_UNSUPPORTED(queries.IsMeanXySupported(inputInfo, &outputs[0], reason, sizeof(reason)), reason);
+        CHECK_UNSUPPORTED_TENSOR_DEPTH_REASON(reason);
+    }
     SECTION("Reshape")
     {
         // Generate 2 tests with invalid tensor depth:

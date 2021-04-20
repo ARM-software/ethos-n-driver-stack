@@ -1081,10 +1081,43 @@ bool EthosNLayerSupport::IsMaximumSupported(const TensorInfo& input0,
 
 bool EthosNLayerSupport::IsMeanSupported(const TensorInfo& input,
                                          const TensorInfo& output,
-                                         const MeanDescriptor&,
+                                         const MeanDescriptor& descriptor,
                                          Optional<std::string&> reasonIfUnsupported) const
 {
-    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
+    using ethosn_lib::SupportedLevel;
+
+    if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
+          IsTensorSupportedOnEthosN(output, reasonIfUnsupported)))
+    {
+        SetReason(reasonIfUnsupported, "Input/Output tensors are not supported");
+        return false;
+    }
+
+    if (!descriptor.m_KeepDims)
+    {
+        // The dimensions need to be preserved.
+        SetReason(reasonIfUnsupported, "The dimensions need to be preserved");
+        return false;
+    }
+
+    auto ethosnInput  = BuildEthosNTensorInfo(input, DataLayout::NHWC);
+    auto ethosnOutput = BuildEthosNTensorInfo(output, DataLayout::NHWC);
+
+    if (!((ethosnOutput.m_Dimensions[1] == 1) && (ethosnOutput.m_Dimensions[2] == 1) &&
+          (ethosnInput.m_Dimensions[3] == ethosnOutput.m_Dimensions[3]) &&
+          (ethosnInput.m_Dimensions[0] == ethosnOutput.m_Dimensions[0])))
+    {
+        SetReason(reasonIfUnsupported, "Mean is supported for XY dimensions only");
+        return false;
+    }
+
+    ReasonMessageHelper messageHelper;
+    SupportedLevel supportedLevel = m_Queries.IsMeanXySupported(ethosnInput, &ethosnOutput, messageHelper.GetBuffer(),
+                                                                messageHelper.GetBufferSize());
+
+    bool supported = CheckSupportedLevel(supportedLevel, g_EthosNConfig.m_PerfOnly);
+    SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
+    return supported;
 }
 
 bool EthosNLayerSupport::IsMemImportSupported(const armnn::TensorInfo&,

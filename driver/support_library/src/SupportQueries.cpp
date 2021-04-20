@@ -1561,6 +1561,57 @@ SupportedLevel
     return SupportedLevel::EstimateOnly;
 }
 
+SupportedLevel SupportQueries::IsMeanXySupported(const TensorInfo& inputInfo,
+                                                 TensorInfo* outputInfo,
+                                                 char* reason,
+                                                 size_t reasonMaxLength) const
+{
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to MeanXy layer", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsInputDataTypeSupported(inputInfo, "Input to MeanXy layer", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "Mean", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(((inputInfo.m_Dimensions[1] == 8) && (inputInfo.m_Dimensions[2] == 8)) ||
+          ((inputInfo.m_Dimensions[1] == 7) && (inputInfo.m_Dimensions[2] == 7))))
+    {
+        SetReason("MeanXy is supported for 7x7 and 8x8 as HeightxWidth only", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (outputInfo != nullptr)
+    {
+        const TensorInfo expectedOutputInfo = MeanXy::CalculateOutputTensorInfo(inputInfo);
+
+        if (utils::TotalSizeBytes(*outputInfo) == 0)
+        {
+            *outputInfo = expectedOutputInfo;
+        }
+        else if (*outputInfo != expectedOutputInfo)
+        {
+            SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
+            return SupportedLevel::Unsupported;
+        }
+    }
+
+    return SupportedLevel::Supported;
+}
+
 SupportedLevel SupportQueries::IsSigmoidSupported(const TensorInfo& inputInfo,
                                                   TensorInfo* outputInfo,
                                                   char* reason,

@@ -599,6 +599,42 @@ LayerTestResult<uint8_t, 4> PreCompiledConvolution2dWithSymetricSignedWeightsTes
                                                              armnn::DataType::QSymmS8);
 }
 
+LayerTestResult<uint8_t, 4> PreCompiledMeanXyTestImpl(armnn::IWorkloadFactory& workloadFactory,
+                                                      const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
+{
+    // Set up the input/output tensor info
+    TensorInfo inputInfo({ 1, 7, 7, 1 }, DataType::QAsymmU8, 2.0f, 0);
+    TensorInfo outputInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 2.0f, 0);
+    unsigned int numElements = inputInfo.GetNumElements();
+    std::vector<uint8_t> inputData(numElements);
+
+    for (uint8_t i = 0; i < numElements; i++)
+    {
+        inputData[i] = i;
+    }
+
+    std::vector<uint8_t> expectedOutputData = { 24 };
+
+    // Set up the Mean descriptor to calculate the mean along height and width
+    armnn::MeanDescriptor desc;
+    desc.m_KeepDims = true;
+    desc.m_Axis     = { 1, 2 };
+
+    // Construct the network
+    armnn::INetworkPtr net               = armnn::INetwork::Create();
+    IConnectableLayer* const inputLayer  = net->AddInputLayer(0, "input");
+    IConnectableLayer* const meanLayer   = net->AddMeanLayer(desc, "mean");
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output");
+
+    // Connect the layers
+    inputLayer->GetOutputSlot(0).Connect(meanLayer->GetInputSlot(0));
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+    meanLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+    meanLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
+
+    return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 0, outputInfo, expectedOutputData);
+}
+
 LayerTestResult<uint8_t, 4> PreCompiledMaxPooling2dTestImpl(armnn::IWorkloadFactory& workloadFactory,
                                                             const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
 {

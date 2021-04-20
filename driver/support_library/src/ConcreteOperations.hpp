@@ -405,6 +405,19 @@ public:
     }
 };
 
+class MeanXy : public VisitableOperation<MeanXy>
+{
+public:
+    MeanXy(const detail::PosInNetwork pos, uint32_t id, Operand& input);
+
+    static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo);
+
+    const char* GetTypeName() final
+    {
+        return "MeanXy";
+    }
+};
+
 class Pooling : public VisitableOperation<Pooling>
 {
 public:

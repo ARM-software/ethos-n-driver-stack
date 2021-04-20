@@ -275,6 +275,20 @@ void EthosNSubgraphViewConverter::AddConvolution2dLayer(Layer* layer)
         layer, ethosn_lib::AddConvolution(m_Network, *input.tensor, *biases, *weights, convolutionInfo.value()));
 }
 
+void EthosNSubgraphViewConverter::AddMeanXyLayer(Layer* layer)
+{
+    ARMNN_ASSERT(layer != nullptr);
+    ARMNN_ASSERT(layer->GetType() == LayerType::Mean);
+
+    MeanLayer& meanLayer      = *PolymorphicPointerDowncast<MeanLayer>(layer);
+    MeanDescriptor descriptor = meanLayer.GetParameters();
+
+    auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnectedOutputSlot());
+
+    // Mean has exactly one output that maps neatly to the NPU
+    InsertConvertedLayerSingleOutput(layer, ethosn_lib::AddMeanXy(m_Network, *input.tensor));
+}
+
 void EthosNSubgraphViewConverter::AddDepthwiseConvolution2dLayer(Layer* layer)
 {
     ARMNN_ASSERT(layer != nullptr);
@@ -609,6 +623,9 @@ EthosNOperand EthosNSubgraphViewConverter::AddOrRetrieveEthosNOperand(const Outp
             break;
         case LayerType::Resize:
             AddResizeLayer(layer);
+            break;
+        case LayerType::Mean:
+            AddMeanXyLayer(layer);
             break;
         default:
             if (m_EthosNConfig.m_PerfOnly)

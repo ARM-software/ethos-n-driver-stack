@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -83,6 +83,7 @@ private:
     void AddTransposeLayer(Layer* layer);
     void AddQuantizeLayer(Layer* layer);
     void AddResizeLayer(Layer* layer);
+    void AddMeanXyLayer(Layer* layer);
     /// @}
 
     void AddEstimateOnly(Layer* layer);

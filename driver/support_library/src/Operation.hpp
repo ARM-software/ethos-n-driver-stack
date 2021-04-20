@@ -34,6 +34,7 @@ class LeakyRelu;
 class Requantize;
 class Softmax;
 class Sigmoid;
+class MeanXy;
 class Pooling;
 class Reshape;
 class DepthToSpace;
@@ -87,6 +88,7 @@ public:
     virtual void Visit(Requantize& requantize)                           = 0;
     virtual void Visit(Softmax& softmax)                                 = 0;
     virtual void Visit(Sigmoid& sigmoid)                                 = 0;
+    virtual void Visit(MeanXy& mean)                                     = 0;
     virtual void Visit(Pooling& pooling)                                 = 0;
     virtual void Visit(Reshape& reshape)                                 = 0;
     virtual void Visit(DepthToSpace& depthToSpace)                       = 0;
@@ -134,6 +136,8 @@ public:
     void Visit(Softmax&) override
     {}
     void Visit(Sigmoid&) override
+    {}
+    void Visit(MeanXy&) override
     {}
     void Visit(Pooling&) override
     {}

@@ -57,6 +57,12 @@ LayerTestResult<uint8_t, 4> PreCompiledConvolution2dWithSymetricSignedWeightsTes
     return PreCompiledConvolution2dWithSymetricSignedWeightsTestImpl(workloadFactory, memoryManager);
 }
 
+LayerTestResult<uint8_t, 4> PreCompiledMeanXyTest(armnn::IWorkloadFactory& workloadFactory,
+                                                  const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager)
+{
+    return PreCompiledMeanXyTestImpl(workloadFactory, memoryManager);
+}
+
 LayerTestResult<uint8_t, 4>
     PreCompiledMaxPooling2dTest(armnn::IWorkloadFactory& workloadFactory,
                                 const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager)

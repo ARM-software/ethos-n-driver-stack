@@ -30,6 +30,9 @@ LayerTestResult<uint8_t, 4> PreCompiledConvolution2dWithAssymetricSignedWeightsT
 LayerTestResult<uint8_t, 4> PreCompiledConvolution2dWithSymetricSignedWeightsTestImpl(
     armnn::IWorkloadFactory& workloadFactory, const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager);
 
+LayerTestResult<uint8_t, 4> PreCompiledMeanXyTestImpl(armnn::IWorkloadFactory& workloadFactory,
+                                                      const armnn::IBackendInternal::IMemoryManagerSharedPtr&);
+
 LayerTestResult<uint8_t, 4>
     PreCompiledMaxPooling2dTestImpl(armnn::IWorkloadFactory& workloadFactory,
                                     const armnn::IBackendInternal::IMemoryManagerSharedPtr& memoryManager);

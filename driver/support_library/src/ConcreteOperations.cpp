@@ -316,6 +316,16 @@ Pooling::Pooling(const detail::PosInNetwork pos, uint32_t id, Operand& input, co
     , m_PoolingInfo(poolingInfo)
 {}
 
+MeanXy::MeanXy(const detail::PosInNetwork pos, uint32_t id, Operand& input)
+    : VisitableOperation<MeanXy>(pos, id, { &input }, { CalculateOutputTensorInfo(input.GetTensorInfo()) })
+{}
+
+TensorInfo MeanXy::CalculateOutputTensorInfo(const TensorInfo& inputInfo)
+{
+    return TensorInfo({ inputInfo.m_Dimensions[0], 1, 1, inputInfo.m_Dimensions[3] }, inputInfo.m_DataType,
+                      inputInfo.m_DataFormat, inputInfo.m_QuantizationInfo);
+}
+
 TensorInfo Pooling::CalculateOutputTensorInfo(const TensorInfo& inputInfo, const PoolingInfo& poolingInfo)
 {
     // clang-format off

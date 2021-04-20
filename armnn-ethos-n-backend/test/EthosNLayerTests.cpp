@@ -43,6 +43,8 @@ ARMNN_AUTO_TEST_CASE(PreCompiledFullyConnected4d, PreCompiledFullyConnected4dTes
 
 ARMNN_AUTO_TEST_CASE(PreCompiledMaxPooling2d, PreCompiledMaxPooling2dTest)
 
+ARMNN_AUTO_TEST_CASE(PreCompiledMeanXy, PreCompiledMeanXyTest)
+
 ARMNN_AUTO_TEST_CASE(PreCompiledSplitter, PreCompiledSplitterTest)
 
 ARMNN_AUTO_TEST_CASE(PreCompiledDepthToSpace, PreCompiledDepthToSpaceTest)

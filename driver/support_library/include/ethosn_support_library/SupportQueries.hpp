@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -217,6 +217,12 @@ public:
                                       TensorInfo* outputInfo = nullptr,
                                       char* reason           = nullptr,
                                       size_t reasonMaxLength = g_ReasonMaxLength) const;
+
+    // Checks whether a specific mean operation (across width and height) configuration is supported by the NPU
+    SupportedLevel IsMeanXySupported(const TensorInfo& inputInfo,
+                                     TensorInfo* outputInfo = nullptr,
+                                     char* reason           = nullptr,
+                                     size_t reasonMaxLength = g_ReasonMaxLength) const;
 
     // Checks whether a specific pooling operation configuration is supported by the NPU
     SupportedLevel IsPoolingSupported(const PoolingInfo& poolingInfo,

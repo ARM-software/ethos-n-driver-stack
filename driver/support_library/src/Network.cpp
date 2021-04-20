@@ -209,6 +209,18 @@ Sigmoid& Network::AddSigmoid(Operand& input)
     return AddOperationWithId<Sigmoid>({ &input.GetProducer() }, input);
 }
 
+MeanXy& Network::AddMeanXy(Operand& input)
+{
+    char reason[1024];
+    SupportedLevel supportedLevel = m_Queries.IsMeanXySupported(input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+    if (!CheckSupportedLevel(supportedLevel))
+    {
+        throw NotSupportedException(reason);
+    }
+
+    return AddOperationWithId<MeanXy>({ &input.GetProducer() }, input);
+}
+
 Pooling& Network::AddPooling(Operand& input, const PoolingInfo& poolingInfo)
 {
     char reason[1024];

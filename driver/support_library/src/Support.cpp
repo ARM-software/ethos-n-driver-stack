@@ -257,6 +257,11 @@ TensorAndId<Operand> AddSigmoid(const std::shared_ptr<Network>& network, Operand
     return GetSingleOutputResult(network, network->AddSigmoid(input));
 }
 
+TensorAndId<Operand> AddMeanXy(const std::shared_ptr<Network>& network, Operand& input)
+{
+    return GetSingleOutputResult(network, network->AddMeanXy(input));
+}
+
 TensorAndId<Operand> AddPooling(const std::shared_ptr<Network>& network, Operand& input, const PoolingInfo& poolingInfo)
 {
     return GetSingleOutputResult(network, network->AddPooling(input, poolingInfo));
