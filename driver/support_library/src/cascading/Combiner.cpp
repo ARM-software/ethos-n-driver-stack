@@ -765,6 +765,11 @@ PlanCompatibilityResult ArePlansCompatible(
     // One buffer may be in SRAM and the other in DRAM, in which case we can insert a single DMA op
     if (plan1OutputBuffer->m_Location == Location::Sram && plan2InputBuffer->m_Location == Location::Dram)
     {
+        // Data is going to DRAM, it only requires double buffering
+        if (plan1OutputBuffer->m_NumStripes > 2U)
+        {
+            return PlanCompatibilityResult{};
+        }
         PlanCompatibilityResult result;
         result.m_IsCompatible = true;
         result.m_RequiresGlue = true;
@@ -797,6 +802,12 @@ PlanCompatibilityResult ArePlansCompatible(
     {
         assert(plan1OutputBuffer->m_Format == CascadingBufferFormat::NHWCB);
         assert(plan2InputBuffer->m_Format == CascadingBufferFormat::NHWCB);
+
+        // Data is going to DRAM, it only requires double buffering
+        if (plan1OutputBuffer->m_NumStripes > 2U)
+        {
+            return PlanCompatibilityResult{};
+        }
 
         PlanCompatibilityResult result;
         result.m_IsCompatible = true;
@@ -900,9 +911,11 @@ Metadata CreateMetadata(const GraphOfParts& parts, const HardwareCapabilities& h
                         {
                             PlanCompatibilityResult plCompResForceGlue =
                                 ArePlansCompatible(fPl, sPl, *dsEdge, hwCap, true);
-                            // Nothing has changed, it must be still compatible
-                            assert(plCompResForceGlue.m_IsCompatible);
-                            cPls.push_back(CompatiblePlan{ std::move(plCompResForceGlue.m_Glue), s });
+                            // There is a restriction on number of stripes for plan when going "Back to Dram"
+                            if (plCompResForceGlue.m_IsCompatible)
+                            {
+                                cPls.push_back(CompatiblePlan{ std::move(plCompResForceGlue.m_Glue), s });
+                            }
                         }
                     }
                 }
