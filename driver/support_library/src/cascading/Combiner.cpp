@@ -30,9 +30,6 @@ using namespace utils;
 namespace
 {
 
-// Memory threshold to use fast plan merging
-constexpr uint32_t g_kSramThreshold = 1024U * 1024U;
-
 using Allocated = std::pair<bool, uint32_t>;
 
 struct AddedSeed
@@ -1024,7 +1021,7 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
     // It contains "Back to Dram" combinations
     GrownSeeds haltedSeeds = GrowSeeds(currSeeds, parts, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
 
-    const bool avoidBackToDram = m_Capabilities.GetTotalSramSize() > g_kSramThreshold;
+    const bool avoidBackToDram = parts.GetNumInvalidPlans() == 0;
 
     size_t iteration = 0;
     do

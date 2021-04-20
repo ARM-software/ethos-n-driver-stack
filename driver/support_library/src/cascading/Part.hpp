@@ -83,6 +83,7 @@ public:
 
     // All valid plans for this Part
     Plans m_Plans;
+    size_t m_NumInvalidPlans;
 
 private:
     void AddNewPlan(Plan::InputMapping&& inputMappings, Plan::OutputMapping&& outputMappings, OwnedOpGraph&& opGraph);
@@ -178,6 +179,17 @@ class GraphOfParts
 {
 public:
     GraphOfParts() = default;
+
+    size_t GetNumInvalidPlans() const
+    {
+        size_t result = 0;
+        for (const auto& part : m_Parts)
+        {
+            result += part->m_NumInvalidPlans;
+        }
+        return result;
+    }
+
     size_t GetNumParts() const;
     const Part& GetPart(const PartId id) const;
     const Parts& GetParts() const;

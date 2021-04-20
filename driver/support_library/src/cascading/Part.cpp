@@ -586,7 +586,8 @@ const Parts& GraphOfParts::GetParts() const
 
 void Part::CreatePlans()
 {
-    Node* node = m_SubGraph.front();
+    m_NumInvalidPlans = 0;
+    Node* node        = m_SubGraph.front();
     if (IsObjectOfType<InputNode>(node))
     {
         CreatePlanForInputNode(node, Lifetime::Atomic, TraversalOrder::Xyz);
@@ -624,6 +625,10 @@ void Part::AddNewPlan(Plan::InputMapping&& inputMappings, Plan::OutputMapping&& 
     if (IsPlanValid(m_Capabilities, *plan))
     {
         m_Plans.push_back(std::move(plan));
+    }
+    else
+    {
+        ++m_NumInvalidPlans;
     }
 }
 
