@@ -20,6 +20,8 @@
 #include <backendsCommon/IBackendContext.hpp>
 #include <backendsCommon/IMemoryManager.hpp>
 #include <backendsCommon/test/CommonTestUtils.hpp>
+#include <ethosn_driver_library/Network.hpp>
+#include <ethosn_support_library/Support.hpp>
 
 namespace armnn
 {
@@ -29,6 +31,26 @@ ARMNN_DLLEXPORT EthosNMappings g_EthosNMappings;
 
 namespace ethosnbackend
 {
+
+constexpr bool IsLibraryVersionSupported(const uint32_t& majorVer, const uint32_t& maxVer, const uint32_t& minVer)
+{
+    return (majorVer <= maxVer) && (majorVer >= minVer);
+}
+
+bool VerifyLibraries()
+{
+    constexpr bool IsDriverLibSupported = IsLibraryVersionSupported(ETHOSN_DRIVER_LIBRARY_VERSION_MAJOR,
+                                                                    MAX_ETHOSN_DRIVER_LIBRARY_MAJOR_VERSION_SUPPORTED,
+                                                                    MIN_ETHOSN_DRIVER_LIBRARY_MAJOR_VERSION_SUPPORTED);
+    static_assert(IsDriverLibSupported, "Driver library version is not supported by the backend");
+
+    constexpr bool IsSupportLibSupported = IsLibraryVersionSupported(
+        ETHOSN_SUPPORT_LIBRARY_VERSION_MAJOR, MAX_ETHOSN_SUPPORT_LIBRARY_MAJOR_VERSION_SUPPORTED,
+        MIN_ETHOSN_SUPPORT_LIBRARY_MAJOR_VERSION_SUPPORTED);
+    static_assert(IsSupportLibSupported, "Support library version is not supported by the backend");
+
+    return IsDriverLibSupported && IsSupportLibSupported;
+}
 
 template <typename T>
 T NextEnumValue(T current)
@@ -1015,6 +1037,10 @@ IBackendInternal::ILayerSupportSharedPtr EthosNBackend::GetLayerSupport() const
 
 OptimizationViews EthosNBackend::OptimizeSubgraphView(const SubgraphView& subgraph) const
 {
+    if (!ethosnbackend::VerifyLibraries())
+    {
+        throw RuntimeException("Driver or support library version is not supported by the backend");
+    }
     OptimizationViews optimizationViews;
     g_EthosNConfig   = GetEthosNConfig();
     g_EthosNMappings = GetMappings(g_EthosNConfig.m_PerfMappingFile);

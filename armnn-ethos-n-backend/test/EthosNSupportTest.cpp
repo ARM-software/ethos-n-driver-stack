@@ -6,6 +6,7 @@
 #include "EthosNLayerSupport.hpp"
 #include "EthosNTestUtils.hpp"
 
+#include <EthosNBackend.hpp>
 #include <EthosNBackendId.hpp>
 #include <EthosNSubgraphViewConverter.hpp>
 #include <EthosNTensorUtils.hpp>
@@ -82,6 +83,11 @@ BOOST_AUTO_TEST_CASE(LibraryAccess)
                             ETHOSN_SUPPORT_LIBRARY_VERSION_PATCH)
             .ToString();
     BOOST_TEST(version == macroVer);
+}
+
+BOOST_AUTO_TEST_CASE(LibrarySupport)
+{
+    BOOST_TEST(ethosnbackend::VerifyLibraries());
 }
 
 BOOST_AUTO_TEST_CASE(ConvertAdditionLayer)

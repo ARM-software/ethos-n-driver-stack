@@ -85,6 +85,15 @@ private:
 namespace ethosnbackend
 {
 
+#define MAX_ETHOSN_DRIVER_LIBRARY_MAJOR_VERSION_SUPPORTED 1
+#define MIN_ETHOSN_DRIVER_LIBRARY_MAJOR_VERSION_SUPPORTED 1
+#define MAX_ETHOSN_SUPPORT_LIBRARY_MAJOR_VERSION_SUPPORTED 1
+#define MIN_ETHOSN_SUPPORT_LIBRARY_MAJOR_VERSION_SUPPORTED 1
+
+constexpr bool IsLibraryVersionSupported(const uint32_t& majorVer, const uint32_t& maxVer, const uint32_t& minVer);
+
+bool VerifyLibraries();
+
 constexpr unsigned int STRIDE_X      = 0;
 constexpr unsigned int STRIDE_Y      = 1;
 constexpr unsigned int PAD_BOTTOM    = 0;
