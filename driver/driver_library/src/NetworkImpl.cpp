@@ -363,7 +363,7 @@ void NetworkImpl::DumpCmm(Buffer* const inputBuffers[],
 {
     if (!m_CompiledNetwork)
     {
-        throw std::runtime_error("Mising m_CompiledNetwork");
+        throw std::runtime_error("Missing m_CompiledNetwork");
     }
 
     constexpr uint32_t defaultMailboxAddr = 0x60000000;
@@ -475,7 +475,7 @@ std::vector<uint32_t> NetworkImpl::BuildInferenceData(uint64_t constantControlUn
 {
     if (!m_CompiledNetwork)
     {
-        throw std::runtime_error("Mising m_CompiledNetwork");
+        throw std::runtime_error("Missing m_CompiledNetwork");
     }
     std::vector<uint32_t> inferenceData;
 

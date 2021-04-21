@@ -251,7 +251,7 @@ void KmodNetworkImpl::DumpIntermediateBuffers()
 {
     if (!m_CompiledNetwork)
     {
-        throw std::runtime_error("Mising m_CompiledNetwork");
+        throw std::runtime_error("Missing m_CompiledNetwork");
     }
     std::cout << "Dumping intermediate buffers..." << std::endl;
 
