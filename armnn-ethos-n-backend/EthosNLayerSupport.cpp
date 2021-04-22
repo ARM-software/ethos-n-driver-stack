@@ -856,6 +856,13 @@ bool EthosNLayerSupport::IsBatchToSpaceNdSupported(const TensorInfo& input,
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
+bool EthosNLayerSupport::IsCastSupported(const TensorInfo& input,
+                                         const TensorInfo& output,
+                                         Optional<std::string&> reasonIfUnsupported) const
+{
+    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
+}
+
 bool EthosNLayerSupport::IsComparisonSupported(const TensorInfo& input0,
                                                const TensorInfo& input1,
                                                const TensorInfo& output,

@@ -225,7 +225,7 @@ ethosn_lib::TensorInfo BuildEthosNConvolutionWeightsInfo(const TensorInfo& weigh
 {
     const PermutationVector permutationVector =
         GetEthosNConvolutionWeightsPermutationVector(layerLayout, isDepthwiseConvolution);
-    TensorInfo swizzledWeightsInfo = armnnUtils::Permuted(weightsInfo, permutationVector, true);
+    TensorInfo swizzledWeightsInfo = armnnUtils::Permuted(weightsInfo, permutationVector);
 
     ethosn_lib::TensorInfo ethosnWeightsInfo = BuildEthosNTensorInfo(swizzledWeightsInfo, DataLayout::NHWC);
 
