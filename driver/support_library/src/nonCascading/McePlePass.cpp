@@ -899,9 +899,9 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
     convCmd.m_MceData().m_ActivationMax() = static_cast<int16_t>(activationBounds.max);
 
     assert(m_MceOperation->GetUpscaleFactor() <= 2);
-    convCmd.m_MceData().m_UpsampleMode() = m_MceOperation->GetUpsampleType();
+    convCmd.m_MceData().m_UpsampleType() = m_MceOperation->GetUpsampleType();
 
-    if (convCmd.m_MceData().m_UpsampleMode() == UpsampleType::BILINEAR)
+    if (convCmd.m_MceData().m_UpsampleType() == UpsampleType::BILINEAR)
     {
         // As only 2x resize is supported, drop mode is only possible for odd output width/height.
         convCmd.m_MceData().m_UpsampleEdgeModeRow() =

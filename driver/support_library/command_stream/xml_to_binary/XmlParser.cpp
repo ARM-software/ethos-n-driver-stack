@@ -231,7 +231,7 @@ void XmlParser::Pop(MceData& value)
     Pop("MCE_OP_INFO/ALGO", value.m_Algorithm());
     Pop("MCE_OP_INFO/ACTIVATION_MIN", value.m_ActivationMin());
     Pop("MCE_OP_INFO/ACTIVATION_MAX", value.m_ActivationMax());
-    Pop("MCE_OP_INFO/UPSAMPLE_MODE", value.m_UpsampleMode());
+    Pop("MCE_OP_INFO/UPSAMPLE_TYPE", value.m_UpsampleType());
 }
 
 void XmlParser::Pop(PleData& value)

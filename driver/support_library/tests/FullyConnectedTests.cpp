@@ -327,7 +327,7 @@ TEST_CASE("Fully Connected")
     fully_connected.m_MceData().m_Algorithm()               = MceAlgorithm::DIRECT;
     fully_connected.m_MceData().m_ActivationMin()           = 0;
     fully_connected.m_MceData().m_ActivationMax()           = 255;
-    fully_connected.m_MceData().m_UpsampleMode()            = UpsampleType::OFF;
+    fully_connected.m_MceData().m_UpsampleType()            = UpsampleType::OFF;
     fully_connected.m_MceData().m_OutputZeroPoint() =
         static_cast<int16_t>(fcInfo.m_OutputQuantizationInfo.GetZeroPoint());
 

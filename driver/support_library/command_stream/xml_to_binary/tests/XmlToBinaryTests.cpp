@@ -87,7 +87,7 @@ const std::string g_XmlStr =
             <ALGO>DIRECT</ALGO>
             <ACTIVATION_MIN>118</ACTIVATION_MIN>
             <ACTIVATION_MAX>255</ACTIVATION_MAX>
-            <UPSAMPLE_MODE>OFF</UPSAMPLE_MODE>
+            <UPSAMPLE_TYPE>OFF</UPSAMPLE_TYPE>
         </MCE_OP_INFO>
         <PLE_OP_INFO>
             <CE_SRAM>0x0</CE_SRAM>
@@ -166,7 +166,7 @@ const std::string g_XmlStr =
             <ALGO>DIRECT</ALGO>
             <ACTIVATION_MIN>0</ACTIVATION_MIN>
             <ACTIVATION_MAX>255</ACTIVATION_MAX>
-            <UPSAMPLE_MODE>OFF</UPSAMPLE_MODE>
+            <UPSAMPLE_TYPE>OFF</UPSAMPLE_TYPE>
         </MCE_OP_INFO>
         <PLE_OP_INFO>
             <CE_SRAM>0x0</CE_SRAM>
@@ -635,7 +635,7 @@ TEST_CASE("ExtractCommandStreamFromCMM")
                  <ALGO>DIRECT</ALGO>
                  <ACTIVATION_MIN>100</ACTIVATION_MIN>
                  <ACTIVATION_MAX>255</ACTIVATION_MAX>
-                 <UPSAMPLE_MODE>OFF</UPSAMPLE_MODE>
+                 <UPSAMPLE_TYPE>OFF</UPSAMPLE_TYPE>
                </MCE_OP_INFO>
                <PLE_OP_INFO>
                  <CE_SRAM>0x0</CE_SRAM>

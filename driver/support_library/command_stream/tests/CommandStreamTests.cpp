@@ -72,7 +72,7 @@ TEST_CASE("CommandStream")
             /* OutputShape = */ TensorShape{ 1U, 23U, 48U, 96U },
             /* OutputStripeShape = */ TensorShape{ 1U, 23U, 48U, 96U },
             /* OutputZeroPoint = */ int16_t{ 0 },
-            /* UpsampleMode = */ UpsampleType::OFF,
+            /* UpsampleType = */ UpsampleType::OFF,
             /* UpsampleEdgeModeRow = */ UpsampleEdgeMode::GENERATE,
             /* UpsampleEdgeModeCol = */ UpsampleEdgeMode::GENERATE,
             /* Operation = */ MceOperation::CONVOLUTION,

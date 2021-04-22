@@ -82,5 +82,5 @@ TEST_CASE("Add Resize to a network")
     // Check that the conv command is as expected.
     REQUIRE(convCmds.size() == 1);
     REQUIRE(convCmds[0].m_MceData().m_OutputShape() == TensorShape{ 1, 31, 31, 16 });
-    REQUIRE(convCmds[0].m_MceData().m_UpsampleMode() == UpsampleType::BILINEAR);
+    REQUIRE(convCmds[0].m_MceData().m_UpsampleType() == UpsampleType::BILINEAR);
 }

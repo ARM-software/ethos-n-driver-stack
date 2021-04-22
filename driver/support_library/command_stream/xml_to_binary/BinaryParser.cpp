@@ -432,7 +432,7 @@ void Parse(mxml_node_t& parent, const MceData& value)
     Parse(*mxmlNewElement(&mce, "ALGO"), value.m_Algorithm());
     Parse(*mxmlNewElement(&mce, "ACTIVATION_MIN"), value.m_ActivationMin());
     Parse(*mxmlNewElement(&mce, "ACTIVATION_MAX"), value.m_ActivationMax());
-    Parse(*mxmlNewElement(&mce, "UPSAMPLE_MODE"), value.m_UpsampleMode());
+    Parse(*mxmlNewElement(&mce, "UPSAMPLE_TYPE"), value.m_UpsampleType());
 }
 
 void Parse(mxml_node_t& parent, const PleOperation value)
