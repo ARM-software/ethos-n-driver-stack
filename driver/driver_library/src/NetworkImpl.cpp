@@ -262,7 +262,8 @@ CompiledNetworkInfo DeserializeCompiledNetwork(const char* data, size_t size)
     {
         throw CompiledNetworkException("Data too short");
     }
-    if (major != 1 || minor != 0 || patch != 0)
+    if (major < MIN_ETHOSN_COMPILED_NETWORK_MAJOR_VERSION_SUPPORTED ||
+        major > MAX_ETHOSN_COMPILED_NETWORK_MAJOR_VERSION_SUPPORTED)
     {
         throw CompiledNetworkException("Unsupported version");
     }

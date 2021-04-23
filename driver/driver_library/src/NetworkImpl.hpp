@@ -12,6 +12,10 @@
 #include <string>
 #include <vector>
 
+// Version information range to check against when deserializing a Compiled Network
+#define MAX_ETHOSN_COMPILED_NETWORK_MAJOR_VERSION_SUPPORTED 1
+#define MIN_ETHOSN_COMPILED_NETWORK_MAJOR_VERSION_SUPPORTED 1
+
 namespace ethosn
 {
 namespace driver_library
