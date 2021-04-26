@@ -654,7 +654,7 @@ TEST_CASE("ArePlansCompatible matching BlockConfigs")
     CreatePleOpConsumerWithBlockConfig(parts, nodeB, configs, estOpt, compOpt, hwCaps);
     Plan& planBToCheck = *(parts.m_Parts.back()->m_Plans.back());
 
-    SECTION("Check compatibility for A -> B");
+    SECTION("Check compatibility for A -> B")
     {
         PlanCompatibilityResult resultAB = ArePlansCompatible(planAToCheck, planBToCheck, *nodeA->GetOutput(0), hwCaps);
         REQUIRE(resultAB.m_IsCompatible == true);
@@ -685,7 +685,7 @@ TEST_CASE("ArePlansCompatible non-matching BlockConfigs")
     CreatePleOpConsumerWithBlockConfig(parts, nodeB, configs, estOpt, compOpt, hwCaps);
     Plan& planBToCheck = *(parts.m_Parts.back()->m_Plans.back());
 
-    SECTION("Check incompatibility for A -> B");
+    SECTION("Check incompatibility for A -> B")
     {
         PlanCompatibilityResult resultAB = ArePlansCompatible(planAToCheck, planBToCheck, *nodeA->GetOutput(0), hwCaps);
         REQUIRE(resultAB.m_IsCompatible == false);
