@@ -68,6 +68,8 @@ common.abs_path(env, ['command_stream_dir',
                       'lib_xml_to_binary_dir',
                       'kernel_module_dir'])
 
+Default(env['driver_library_dir'], env['support_library_dir'])
+
 
 Export('env')
 common.load_extras(env)
