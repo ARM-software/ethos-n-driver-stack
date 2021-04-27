@@ -1002,9 +1002,28 @@ void NetworkToGraphConverter::Visit(DepthToSpace& depthToSpace)
     ConnectNodeChain(depthToSpace, transposeConvNodes);
 }
 
-void NetworkToGraphConverter::Visit(SpaceToDepth&)
+void NetworkToGraphConverter::Visit(SpaceToDepth& spaceToDepth)
 {
-    return;
+    std::vector<Node*> nodes;
+    const TensorShape& inputDim  = spaceToDepth.GetInput(0).GetTensorInfo().m_Dimensions;
+    const TensorShape& outputDim = spaceToDepth.GetOutput(0).GetTensorInfo().m_Dimensions;
+    const DataType dataType      = spaceToDepth.GetInput(0).GetTensorInfo().m_DataType;
+
+    // The space to depth operator needs the input to be in NHWC
+    if (m_OperandToNode[&spaceToDepth.GetInput(0)]->GetFormat() != CompilerDataFormat::NHWC)
+    {
+        FormatConversionNode* conversionNode = m_Graph.CreateAndAddNode<FormatConversionNode>(
+            inputDim, dataType, spaceToDepth.GetInput(0).GetTensorInfo().m_QuantizationInfo, CompilerDataFormat::NHWC,
+            std::set<uint32_t>{ spaceToDepth.GetId() });
+        nodes.push_back(conversionNode);
+    }
+
+    SpaceToDepthNode* spaceToDepthNode = m_Graph.CreateAndAddNode<SpaceToDepthNode>(
+        outputDim, dataType, spaceToDepth.GetOutput(0).GetTensorInfo().m_QuantizationInfo, CompilerDataFormat::NHWC,
+        std::set<uint32_t>{ spaceToDepth.GetId() });
+    nodes.push_back(spaceToDepthNode);
+
+    ConnectNodeChain(spaceToDepth, nodes);
 }
 
 void NetworkToGraphConverter::Visit(Transpose&)

@@ -16,6 +16,7 @@
 #include "nonCascading/NonCascading.hpp"
 #include "nonCascading/PlePass.hpp"
 #include "nonCascading/Section.hpp"
+#include "nonCascading/SpaceToDepthPass.hpp"
 #include "nonCascading/Strategies.hpp"
 
 #include <fstream>
@@ -416,6 +417,10 @@ void Compiler::CreatePasses()
             if (!p)
             {
                 p = ConversionPass::CreateGreedily(m_Capabilities, passId, n, sramAllocator);
+            }
+            if (!p)
+            {
+                p = SpaceToDepthPass::CreateGreedily(m_Capabilities, passId, n, sramAllocator);
             }
 
             if (p)

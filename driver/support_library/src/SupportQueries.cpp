@@ -1926,10 +1926,46 @@ SupportedLevel SupportQueries::IsDepthToSpaceSupported(const TensorInfo& inputIn
     return SupportedLevel::Supported;
 }
 
-SupportedLevel SupportQueries::IsSpaceToDepthSupported(
-    const TensorInfo&, const SpaceToDepthInfo&, TensorInfo*, char*, size_t) const
+SupportedLevel SupportQueries::IsSpaceToDepthSupported(const TensorInfo& inputInfo,
+                                                       const SpaceToDepthInfo& spaceToDepthInfo,
+                                                       TensorInfo* outputInfo,
+                                                       char* reason,
+                                                       size_t reasonMaxLength) const
 {
-    return SupportedLevel::Unsupported;
+    if (!IsInputDataTypeSupported(inputInfo, "Input to space to depth", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (spaceToDepthInfo.m_BlockSize <= 1)
+    {
+        SetReason("Block size must be larger than 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (inputInfo.m_Dimensions[1] % spaceToDepthInfo.m_BlockSize != 0 ||
+        inputInfo.m_Dimensions[2] % spaceToDepthInfo.m_BlockSize != 0)
+    {
+        SetReason("Input width and height must be a multiple of the block size", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "Space to Depth", reason, reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
+    }
+
+    if (outputInfo != nullptr)
+    {
+        TensorInfo expectedOutputInfo = SpaceToDepth::CalculateOutputTensorInfo(inputInfo, spaceToDepthInfo);
+        if (*outputInfo != expectedOutputInfo)
+        {
+            SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
+            return SupportedLevel::Unsupported;
+        }
+    }
+
+    return SupportedLevel::Supported;
 }
 
 SupportedLevel SupportQueries::IsEstimateOnlySupported(const std::vector<TensorInfo>&,
