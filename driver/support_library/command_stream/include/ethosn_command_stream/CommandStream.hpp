@@ -8,6 +8,8 @@
 #include "Command.hpp"
 #include "CommandData.hpp"
 
+#include <cstddef>
+
 #define ETHOSN_COMMAND_STREAM_VERSION_MAJOR 1
 #define ETHOSN_COMMAND_STREAM_VERSION_MINOR 0
 #define ETHOSN_COMMAND_STREAM_VERSION_PATCH 0
