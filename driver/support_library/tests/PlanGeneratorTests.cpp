@@ -1185,3 +1185,27 @@ TEST_CASE("PlanGenerator:Split input in depth")
     }
     REQUIRE(match > 0);
 }
+
+TEST_CASE("PlanGenerator: Split output in depth")
+{
+    const EstimationOptions estOpt;
+    const CompilationOptions compOpt = GetDefaultCompilationOptions();
+    const HardwareCapabilities caps  = GetEthosN78HwCapabilities();
+    Graph g;
+
+    TS inputShape{ 1, 8, 8, 32 };
+    TS outputShape{ 1, 8, 8, 32 };
+    TS weightShape{ 3, 3, 32, 32 };
+    Part part = BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
+                                     ethosn::command_stream::MceOperation::CONVOLUTION, estOpt, compOpt, caps);
+    part.CreatePlans();
+
+    SavePlansToDot(part.m_Plans, "plans_split_output_in_depth");
+    {
+        TS inputStripe{ 1, 8, 8, 32 };
+        uint32_t numInputStripes = 1;
+        TS outputStripe{ 1, 8, 8, 8 };
+        uint32_t numOutputStripes = 2;
+        REQUIRE(ContainsPlanWithStripes(part.m_Plans, inputStripe, numInputStripes, outputStripe, numOutputStripes));
+    }
+}

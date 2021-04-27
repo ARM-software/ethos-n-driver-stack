@@ -1263,6 +1263,7 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
         TensorShape outputStripe        = CreateStripe(node->GetShape(), outputEncoding, caps);
         const TensorShape& outputShape  = node->GetShape();
         Part::NumStripes numStripesCopy = numStripes;
+        numStripesCopy.minWeightStripes = std::min(numStripes.minWeightStripes, 1u);
         numStripesCopy.maxWeightStripes = std::min(numStripes.maxWeightStripes, 1u);
 
         AddStripeInfos(inputStripe, outputStripe, numStripesCopy, inputShape, outputShape, blockConfig);
@@ -1307,6 +1308,7 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
             }
         }
 
+        numStripesCopy.minWeightStripes = std::min(numStripes.minWeightStripes, 1u);
         numStripesCopy.maxWeightStripes = std::min(numStripes.maxWeightStripes, 1u);
         AddStripeInfos(inputStripe, outputStripe, numStripesCopy, inputShape, outputShape, blockConfig);
     }
@@ -1333,6 +1335,7 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
             }
         }
 
+        numStripesCopy.minWeightStripes = std::min(numStripes.minWeightStripes, 1u);
         numStripesCopy.maxWeightStripes = std::min(numStripes.maxWeightStripes, 1u);
         AddStripeInfos(inputStripe, outputStripe, numStripesCopy, inputShape, outputShape, blockConfig);
     }
@@ -1349,6 +1352,7 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
             TensorShape outputStripe   = CreateStripe(node->GetShape(), outputEncoding, caps);
             // We have the full input tensor so we only have 1 stripe
             Part::NumStripes numStripesCopy = numStripes;
+            numStripesCopy.minInputStripes  = std::min(numStripes.minInputStripes, 1u);
             numStripesCopy.maxInputStripes  = std::min(numStripes.maxInputStripes, 1u);
             const TensorShape& outputShape  = node->GetShape();
             AddStripeInfos(inputStripe, outputStripe, numStripesCopy, inputShape, outputShape, blockConfig);
@@ -1380,6 +1384,7 @@ std::set<Part::StripeInfos> GenerateStripes(Node* node, const HardwareCapabiliti
             TensorShape outputStripe   = CreateStripe(node->GetShape(), outputEncoding, caps);
             // We have the full input tensor so we only have 1 stripe
             Part::NumStripes numStripesCopy = numStripes;
+            numStripesCopy.minInputStripes  = std::min(numStripes.minInputStripes, 1u);
             numStripesCopy.maxInputStripes  = std::min(numStripes.maxInputStripes, 1u);
             const TensorShape& outputShape  = node->GetShape();
             AddStripeInfos(inputStripe, outputStripe, numStripesCopy, inputShape, outputShape, blockConfig);
