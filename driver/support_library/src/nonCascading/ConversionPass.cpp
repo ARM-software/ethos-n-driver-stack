@@ -149,7 +149,7 @@ std::unique_ptr<ethosn::support_library::ConversionPass> ConversionPass::CreateG
     {
         // Allocate some SRAM for the output.
 
-        TensorShape stripeShape;
+        TensorShape stripeShape                             = {};
         AllocationPreference outputSramAllocationPreference = AllocationPreference::Start;
         if (definiteNodes.front()->GetInputLocation(0) == BufferLocation::Sram)
         {

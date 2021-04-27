@@ -224,7 +224,7 @@ struct StripesStats
 
 struct InputStats
 {
-    InputStats()
+    InputStats() noexcept
         : m_MemoryStats()
         , m_StripesStats()
     {}
