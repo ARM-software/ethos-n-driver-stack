@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2020-2021 Arm Limited.
+ * (C) COPYRIGHT 2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -31,10 +31,6 @@
 	status = "okay";
 };
 
-&smmu_ethosn1 {
-	status = "okay";
-};
-
 &ethosn {
 	reg = <0 0x6f300000 0 0x00100000>, <0 0x6d000000 0 0x00100000>;
 	status = "okay";
@@ -47,7 +43,7 @@
 
 	core1 {
 		compatible = "ethosn-core";
-		iommus = <&smmu_ethosn1 0>;
+		iommus = <&smmu_ethosn0 1>;
 		status = "okay";
 	};
 };
