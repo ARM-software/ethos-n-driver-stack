@@ -67,6 +67,7 @@ public:
 
     Part(const EstimationOptions& estOpt, const CompilationOptions& compOpt, const HardwareCapabilities& capabilities)
         : DebuggableObject("Part")
+        , m_NumInvalidPlans(0)
         , m_EstimationOptions(estOpt)
         , m_CompilationOptions(compOpt)
         , m_Capabilities(capabilities)

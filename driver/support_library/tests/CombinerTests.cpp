@@ -1920,6 +1920,7 @@ TEST_CASE("Combine Simple")
     (*(parts.back())).m_SubGraph.push_back(nodeA);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planASram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planADram)));
+    (*(parts.back())).m_NumInvalidPlans = 1;    // Disable the "avoid dram" mechanism.
 
     // Add nodeB and plans to partB
     parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
@@ -1999,6 +2000,7 @@ TEST_CASE("Combine Simple back to dram")
     parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeB);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBSram)));
+    (*(parts.back())).m_NumInvalidPlans = 1;    // Plan B does not actually fit in Sram
 
     compOpt.m_DebugInfo.m_DumpDebugFiles = CompilationOptions::DebugLevel::None;
     DebuggingContext debuggingCtxt(&compOpt.m_DebugInfo);
