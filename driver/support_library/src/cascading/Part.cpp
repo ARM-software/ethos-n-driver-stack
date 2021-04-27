@@ -720,6 +720,12 @@ void AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
     const uint32_t weightStripeSize  = mceOp->m_WeightsStripeShape[2];
     const uint32_t weightStripeDepth = GetWeightStripeDepth(weightInfo, mceOp);
 
+    // Encoder doesn't support multiple iterations with Winograd enabled
+    if (weightStripeSize < weightInfo.m_Dimensions[2])
+    {
+        mceOp->m_Algo = CompilerMceAlgorithm::Direct;
+    }
+
     Buffer* mceOutput = opGraph.GetOutput(mceOp);
     Buffer* mceInput  = opGraph.GetInputs(mceOp)[0];
 

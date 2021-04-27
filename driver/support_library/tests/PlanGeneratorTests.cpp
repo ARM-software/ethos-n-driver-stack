@@ -6,6 +6,7 @@
 #include "GlobalParameters.hpp"
 #include "GraphNodes.hpp"
 #include "TestUtils.hpp"
+#include "Utils.hpp"
 #include "cascading/Cascading.hpp"
 #include "cascading/Visualisation.hpp"
 #include "ethosn_support_library/Support.hpp"
@@ -35,15 +36,24 @@ Node* CreateAndAddOutputNode(Graph& g)
     return g.CreateAndAddNode<OutputNode>(sl::DataType::UINT8_QUANTIZED, std::set<uint32_t>(), 0);
 }
 
-Node* CreateAndAddMceOperationNode(Graph& g, TS tsOut, const uint32_t kH, const uint32_t kW, const Stride stride)
+Node* CreateAndAddMceOperationNode(
+    Graph& g, const TS& tsIn, const TS& tsOut, const uint32_t kH, const uint32_t kW, const Stride& stride)
 {
-    const std::vector<uint8_t> weights(kH * kW, 1);
+    const std::vector<uint8_t> weights(kH * kW * utils::GetChannels(tsIn) * utils::GetChannels(tsOut), 1);
+    const std::vector<int32_t> bias(utils::GetChannels(tsOut), 0);
     return g.CreateAndAddNode<MceOperationNode>(
         TS(), tsOut, sl::DataType::UINT8_QUANTIZED, QI(),
-        TI({ kH, kW, 1, 1 }, ethosn::support_library::DataType::UINT8_QUANTIZED,
-           ethosn::support_library::DataFormat::HWIO, QuantizationInfo(0, 0.9f)),
-        weights, TI({ 1, 1, 1, 1 }), std::vector<int32_t>{ 0 }, stride, 0, 0,
+        TI({ kH, kW, utils::GetChannels(tsIn), utils::GetChannels(tsOut) },
+           ethosn::support_library::DataType::UINT8_QUANTIZED, ethosn::support_library::DataFormat::HWIO,
+           QuantizationInfo(0, 0.9f)),
+        weights, TI({ 1, 1, 1, utils::GetChannels(tsOut) }), bias, stride, 0, 0,
         ethosn::command_stream::MceOperation::CONVOLUTION, CompilerDataFormat::NHWCB, std::set<uint32_t>{ 1 });
+}
+
+Node* CreateAndAddMceOperationNode(
+    Graph& g, const TS& tsOut, const uint32_t kH, const uint32_t kW, const Stride& stride)
+{
+    return CreateAndAddMceOperationNode(g, TS({ 1, 1, 1, 1 }), tsOut, kH, kW, stride);
 }
 
 Node* CreateAndAddMceOperationNode(Graph& g)
@@ -51,19 +61,19 @@ Node* CreateAndAddMceOperationNode(Graph& g)
     return CreateAndAddMceOperationNode(g, TS(), 1, 1, Stride());
 }
 
-Node* CreateAndAddMceOperationNode(Graph& g, TS tsOut)
+Node* CreateAndAddMceOperationNode(Graph& g, const TS& tsOut)
 {
     return CreateAndAddMceOperationNode(g, tsOut, 1, 1, Stride());
 }
 
-Node* CreateAndAddMceOperationNode(Graph& g, TS tsOut, const Stride stride)
+Node* CreateAndAddMceOperationNode(Graph& g, const TS& tsOut, const Stride& stride)
 {
     return CreateAndAddMceOperationNode(g, tsOut, 1, 1, stride);
 }
 
-Node* CreateAndAddMceOperationNode(Graph& g, TS tsOut, const uint32_t kH, const uint32_t kW)
+Node* CreateAndAddMceOperationNode(Graph& g, const TS& tsIn, const TS& tsOut, const uint32_t kH, const uint32_t kW)
 {
-    return CreateAndAddMceOperationNode(g, tsOut, kH, kW, Stride());
+    return CreateAndAddMceOperationNode(g, tsIn, tsOut, kH, kW, Stride());
 }
 
 Node* CreateAndAddMcePostProcessOperationNode(Graph& g)
@@ -1095,11 +1105,13 @@ TEST_CASE("PlanGenerator:Winograd")
     const HardwareCapabilities caps  = GetEthosN78HwCapabilities();
     Graph g;
 
-    TS tsIn   = { 1, 32, 32, 3 };
-    TS tsOut  = { 1, 64, 64, 1 };
-    auto in   = CreateAndAddInputNode(g, tsIn);
-    auto node = CreateAndAddMceOperationNode(g, tsOut, 3, 3);
-    auto out  = CreateAndAddOutputNode(g);
+    const uint32_t numIfms = 128;
+    const uint32_t numOfms = 256;
+    TS tsIn                = { 1, 32, 32, numIfms };
+    TS tsOut               = { 1, 64, 64, numOfms };
+    auto in                = CreateAndAddInputNode(g, tsIn);
+    auto node              = CreateAndAddMceOperationNode(g, tsIn, tsOut, 3, 3);
+    auto out               = CreateAndAddOutputNode(g);
 
     // Graph must be connected to be valid
     g.Connect(in, node, 0);
@@ -1116,13 +1128,19 @@ TEST_CASE("PlanGenerator:Winograd")
         REQUIRE(!ops.empty());
         auto mceOp = dynamic_cast<MceOp*>(ops[0]);
         REQUIRE(mceOp != nullptr);
-        if (mceOp->m_BlockConfig == ethosn::command_stream::BlockConfig{ 16U, 16U })
+        if (mceOp->m_WeightsStripeShape[2] < numIfms)
         {
             REQUIRE(mceOp->m_Algo == CompilerMceAlgorithm::Direct);
         }
-        if (mceOp->m_BlockConfig == ethosn::command_stream::BlockConfig{ 8U, 8U })
+        else if ((mceOp->m_BlockConfig == ethosn::command_stream::BlockConfig{ 8U, 8U }) ||
+                 (mceOp->m_BlockConfig == ethosn::command_stream::BlockConfig{ 8U, 16U }) ||
+                 (mceOp->m_BlockConfig == ethosn::command_stream::BlockConfig{ 16U, 8U }))
         {
             REQUIRE(mceOp->m_Algo == CompilerMceAlgorithm::Winograd);
+        }
+        else
+        {
+            REQUIRE(mceOp->m_Algo == CompilerMceAlgorithm::Direct);
         }
     }
 }
