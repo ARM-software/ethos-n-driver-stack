@@ -186,6 +186,13 @@ KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compile
         throw std::runtime_error(std::string("Unable to open ") + std::string(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE)) +
                                  std::string(": ") + strerror(errno));
     }
+
+    //check the driver library and the kernel
+    if (!VerifyKernel())
+    {
+        throw std::runtime_error(std::string("Wrong kernel module version\n"));
+    }
+
     m_NetworkFd = ioctl(ethosnFd, ETHOSN_IOCTL_REGISTER_NETWORK, &netReq);
     int err     = errno;
     close(ethosnFd);
