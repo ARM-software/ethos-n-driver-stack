@@ -372,7 +372,7 @@ TEST_CASE("Fully Connected")
     REQUIRE(cnImpl->GetConstantDmaDataBufferInfos() ==
             std::vector<CompiledNetworkImpl::BufferInfoInternal>{ { 2, 0, compiledWeightSize } });
     REQUIRE(cnImpl->GetInputBufferInfosInternal() ==
-            std::vector<CompiledNetworkImpl::BufferInfoInternal>{ { 1, 0, 0x600, 2, 0 } });
+            std::vector<CompiledNetworkImpl::BufferInfoInternal>{ { 1, 0, 0x800, 2, 0 } });
     REQUIRE(cnImpl->GetOutputBufferInfosInternal() ==
             std::vector<CompiledNetworkImpl::BufferInfoInternal>{ { 4, 0, 0x10, 3, 0 } });
     REQUIRE(cnImpl->GetIntermediateDataBufferInfos() == std::vector<CompiledNetworkImpl::BufferInfoInternal>{});

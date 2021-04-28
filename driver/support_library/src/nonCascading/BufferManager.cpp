@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -78,6 +78,13 @@ void BufferManager::ChangeToOutput(uint32_t bufferId, uint32_t sourceOperationId
     m_Buffers.at(bufferId).m_Type                       = BufferType::Output;
     m_Buffers.at(bufferId).m_SourceOperationId          = sourceOperationId;
     m_Buffers.at(bufferId).m_SourceOperationOutputIndex = sourceOperationOutputIndex;
+}
+
+void BufferManager::ChangeBufferAlignment(uint32_t bufferId, uint32_t alignment)
+{
+    const uint32_t bufferSize = m_Buffers.at(bufferId).m_Size;
+
+    m_Buffers.at(bufferId).m_Size = utils::RoundUpToNearestMultiple(bufferSize, alignment);
 }
 
 uint32_t BufferManager::GetSramOffset(uint32_t bufferId)

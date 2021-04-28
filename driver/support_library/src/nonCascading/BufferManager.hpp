@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -19,6 +19,8 @@ class CommandStreamBuffer;
 
 namespace support_library
 {
+
+constexpr uint32_t g_NhwcbBufferAlignment = 1024;
 
 enum class BufferType
 {
@@ -83,6 +85,8 @@ public:
 
     /// Changes the given buffer into an output.
     void ChangeToOutput(uint32_t bufferId, uint32_t sourceOperationId, uint32_t sourceOperationOutputIndex);
+
+    void ChangeBufferAlignment(uint32_t bufferId, uint32_t alignment);
 
     /// If the given buffer is an SRAM buffer then returns the offset in SRAM of the given buffer,
     /// otherwise returns zero.

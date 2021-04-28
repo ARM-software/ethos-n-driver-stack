@@ -616,8 +616,18 @@ void ReinterpretNode::Generate(command_stream::CommandStreamBuffer& cmdStream,
 
     if (!m_Pass)
     {
+        uint32_t bufferId = GetInput(0)->GetSource()->GetBufferId();
+
         // Map this node's output buffer to the same as its input
-        SetBufferId(GetInput(0)->GetSource()->GetBufferId());
+        SetBufferId(bufferId);
+
+        // If this is a node that reinterprets NHWC to NHWCB,
+        // then re-aligned the buffer size to 1k (1024) boundary.
+        if (GetBufferFormat() == command_stream::DataFormat::NHWCB &&
+            GetInput(0)->GetSource()->GetBufferFormat() == command_stream::DataFormat::NHWC)
+        {
+            bufferManager.ChangeBufferAlignment(bufferId, g_NhwcbBufferAlignment);
+        }
     }
 }
 
