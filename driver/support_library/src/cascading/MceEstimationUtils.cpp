@@ -170,9 +170,11 @@ std::vector<uint8_t> GenerateCompressibleData(size_t numElements, float spaceSav
 {
     std::vector<uint8_t> dummyWeightData(numElements);
     std::mt19937 gen;
-    std::uniform_int_distribution<> uniformDistribution(0, 255);
+    // Note that we use the generator manually rather than using a distribution, as distributions
+    // are not guaranteed to give consistent results across STL implementations and therefore makes
+    // the results harder to debug across machines/platforms/compilers etc.
     generate(dummyWeightData.begin(), dummyWeightData.end(),
-             [&]() -> uint8_t { return static_cast<uint8_t>(uniformDistribution(gen)); });
+             [&]() -> uint8_t { return static_cast<uint8_t>(gen() % 256); });
 
     // Generate zero data with the weight ratio provided
     std::bernoulli_distribution bernoulliDistribution(1.0f - spaceSavingProportion);
