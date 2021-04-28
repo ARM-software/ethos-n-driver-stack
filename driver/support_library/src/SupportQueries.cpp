@@ -1991,10 +1991,65 @@ SupportedLevel SupportQueries::IsEstimateOnlySupported(const std::vector<TensorI
     return SupportedLevel::EstimateOnly;
 }
 
-SupportedLevel
-    SupportQueries::IsTransposeSupported(const TransposeInfo&, const TensorInfo&, TensorInfo*, char*, size_t) const
+SupportedLevel SupportQueries::IsTransposeSupported(const TransposeInfo& transposeInfo,
+                                                    const TensorInfo& inputInfo,
+                                                    TensorInfo* outputInfo,
+                                                    char* reason,
+                                                    size_t reasonMaxLength) const
 {
-    return SupportedLevel::Unsupported;
+    if (!IsInputDataTypeSupported(inputInfo, "Input to transpose", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (inputInfo.m_DataFormat != DataFormat::NHWC && inputInfo.m_DataFormat != DataFormat::NHWCB)
+    {
+        SetReason("Input must be NHWC or NHWCB", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (transposeInfo.m_Permutation[0] != 0)
+    {
+        SetReason("Transpose of batch(0) axis is not allowed", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if ((transposeInfo.m_Permutation[1] > 3) || (transposeInfo.m_Permutation[2] > 3) ||
+        (transposeInfo.m_Permutation[3] > 3))
+    {
+        SetReason("Transpose of dimensions > 3 are not allowed", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if ((transposeInfo.m_Permutation[0] == transposeInfo.m_Permutation[1]) ||
+        (transposeInfo.m_Permutation[0] == transposeInfo.m_Permutation[2]) ||
+        (transposeInfo.m_Permutation[0] == transposeInfo.m_Permutation[3]) ||
+        (transposeInfo.m_Permutation[1] == transposeInfo.m_Permutation[2]) ||
+        (transposeInfo.m_Permutation[1] == transposeInfo.m_Permutation[3]) ||
+        (transposeInfo.m_Permutation[2] == transposeInfo.m_Permutation[3]))
+    {
+        SetReason("Transpose axes must be unique", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "Transpose", reason, reasonMaxLength))
+    {
+        return SupportedLevel::EstimateOnly;
+    }
+
+    if (outputInfo != nullptr)
+    {
+        TensorInfo expectedOutputInfo = Transpose::CalculateOutputTensorInfo(inputInfo, transposeInfo);
+
+        if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
+        {
+            SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
+            return SupportedLevel::Unsupported;
+        }
+        *outputInfo = expectedOutputInfo;
+    }
+
+    return SupportedLevel::Supported;
 }
 
 SupportedLevel SupportQueries::IsResizeSupported(const ResizeInfo& resizeInfo,

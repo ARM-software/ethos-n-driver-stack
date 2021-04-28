@@ -503,6 +503,13 @@ std::vector<command_stream::BlockConfig>
             };
             res = Filter(res, filter);
         }
+        else if (pleOp == command_stream::PleOperation::TRANSPOSE_XY)
+        {
+            // The transpose_xy ple kernel only support 8x8 blocks
+            auto filter = [&](const auto& blockConfig) { return FilterToSizes(blockConfig, { { 8U, 8U } }); };
+
+            res = Filter(res, filter);
+        }
     }
     return res;
 }

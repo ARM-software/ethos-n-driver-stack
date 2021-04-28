@@ -175,6 +175,15 @@ std::vector<IStrategy*> FilterStrategiesForPle(command_stream::PleOperation oper
                          strategies.end());
     }
 
+    // TransposeXY doesn't support any strategy that splits tensor in width or height
+    if (operation == command_stream::PleOperation::TRANSPOSE_XY)
+    {
+        auto IsPartialStrategies = [](IStrategy* s) {
+            return (dynamic_cast<Strategy0*>(s) || dynamic_cast<Strategy4*>(s) || dynamic_cast<Strategy6*>(s) ||
+                    dynamic_cast<Strategy7*>(s));
+        };
+        strategies.erase(std::remove_if(strategies.begin(), strategies.end(), IsPartialStrategies), strategies.end());
+    }
     return strategies;
 }
 

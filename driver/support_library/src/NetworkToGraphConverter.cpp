@@ -1036,9 +1036,163 @@ void NetworkToGraphConverter::Visit(SpaceToDepth& spaceToDepth)
     ConnectNodeChain(spaceToDepth, nodes);
 }
 
-void NetworkToGraphConverter::Visit(Transpose&)
+void NetworkToGraphConverter::Visit(Transpose& transpose)
 {
-    return;
+    std::vector<Node*> nodes;
+    const auto& inputOperand     = transpose.GetInput(0);
+    const auto& inputTensorInfo  = inputOperand.GetTensorInfo();
+    const auto& outputTensorInfo = transpose.GetOutput(0).GetTensorInfo();
+    auto& permutation            = transpose.GetTransposeInfo().m_Permutation;
+    // Figure out if transpose can be performed via data conversion node
+    // transposeInfo contains the tensor reordering in NHWC format for output
+    // i.e <0, 3, 1, 2> means N->N, C->H, W->H, H->C <N,H,W,C> becomes <N,C,W,H>.
+
+    const SupportedLevel supportedLevel = m_Queries.IsTransposeSupported(transpose.GetTransposeInfo(), inputTensorInfo);
+
+    if (supportedLevel == SupportedLevel::EstimateOnly)
+    {
+        Node* n = m_Graph.CreateAndAddNode<EstimateOnlyNode>(
+            outputTensorInfo.m_Dimensions, outputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo,
+            CompilerDataFormat::NHWCB, std::set<uint32_t>{ transpose.GetId() });
+        ConnectNode(transpose, n);
+        return;
+    }
+
+    // Transpose to 0 3 1 2 can be performed via converting between NHWC and NCHW formats.
+    // 0 3 1 2 => Data in NHWC in DRAM => Load NHWC => NHWCB, Save NCHW => Next layer interprets as NHWC
+    if ((permutation[1] == 3) && (permutation[2] == 1) && (permutation[3] == 2))
+    {
+        // Add conversion to NCHW and reinterpret it as NHWC with new dimensions later
+        if (m_OperandToNode[&inputOperand]->GetFormat() != CompilerDataFormat::NCHW)
+        {
+            FormatConversionNode* conversionNode = m_Graph.CreateAndAddNode<FormatConversionNode>(
+                inputTensorInfo.m_Dimensions, inputTensorInfo.m_DataType, inputTensorInfo.m_QuantizationInfo,
+                CompilerDataFormat::NCHW, std::set<uint32_t>{ transpose.GetId() });
+            nodes.push_back(conversionNode);
+        }
+
+        ReinterpretNode* reinterpretNode = m_Graph.CreateAndAddNode<ReinterpretNode>(
+            outputTensorInfo.m_Dimensions, outputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo,
+            CompilerDataFormat::NHWC, std::set<uint32_t>{ transpose.GetId() });
+        nodes.push_back(reinterpretNode);
+
+        ConnectNodeChain(transpose, nodes);
+    }
+    // Transpose to 0 2 3 1 can be performed via converting between NHWC and NCHW formats.
+    // 0 2 3 1 => Data in NHWC in DRAM => Load pretending it is NCHW => NWCHB, Save NHWC
+    // (which will actually save as NWCH) => Next layer interprets as NHWC
+    else if ((permutation[1] == 2) && (permutation[2] == 3) && (permutation[3] == 1))
+    {
+        // Convert to NHWC if necessary.
+        if (m_OperandToNode[&inputOperand]->GetFormat() != CompilerDataFormat::NHWC)
+        {
+            FormatConversionNode* conversionNode1 = m_Graph.CreateAndAddNode<FormatConversionNode>(
+                inputTensorInfo.m_Dimensions, inputTensorInfo.m_DataType, inputTensorInfo.m_QuantizationInfo,
+                CompilerDataFormat::NHWC, std::set<uint32_t>{ transpose.GetId() });
+            nodes.push_back(conversionNode1);
+        }
+
+        TensorShape intermediateShape = { inputTensorInfo.m_Dimensions[0], inputTensorInfo.m_Dimensions[2],
+                                          inputTensorInfo.m_Dimensions[3], inputTensorInfo.m_Dimensions[1] };
+
+        // Reinterpret NHWC as NCHW with new dimensions
+        ReinterpretNode* reinterpretNode = m_Graph.CreateAndAddNode<ReinterpretNode>(
+            intermediateShape, outputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo,
+            CompilerDataFormat::NCHW, std::set<uint32_t>{ transpose.GetId() });
+        nodes.push_back(reinterpretNode);
+
+        FormatConversionNode* conversionNode2 = m_Graph.CreateAndAddNode<FormatConversionNode>(
+            outputTensorInfo.m_Dimensions, outputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo,
+            CompilerDataFormat::NHWC, std::set<uint32_t>{ transpose.GetId() });
+        nodes.push_back(conversionNode2);
+        ConnectNodeChain(transpose, nodes);
+    }
+    // Transpose to 0 2 1 3 can be performed via H and W swapping PLE kernel
+    // Data in SRAM, PLE swap HW => NWHCB
+    else if ((permutation[1] == 2) && (permutation[2] == 1) && (permutation[3] == 3))
+    {
+        // Add fuse only ple operation with transpose kernel
+        Node* const pleTransposeNode = m_Graph.CreateAndAddNode<FuseOnlyPleOperationNode>(
+            outputTensorInfo.m_Dimensions, outputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo,
+            command_stream::PleOperation::TRANSPOSE_XY, CompilerDataFormat::NHWCB, g_IdentityShapeMultiplier,
+            std::set<uint32_t>{ transpose.GetId() });
+        nodes.push_back(pleTransposeNode);
+
+        ConnectNodeChain(transpose, nodes);
+    }
+    // Transpose to 0 1 3 2 utilizes converting between NHWC, NCHW formats and H & W swap ple kernel
+    // Load pretending it is NCHW => NWCHB, PLE swap HW (which is actually WC) => NCWHB, Save NCHW
+    // (which will actually save as NHCW) => Next layer interprets as NHWC
+    else if ((permutation[1] == 1) && (permutation[2] == 3) && (permutation[3] == 2))
+    {
+        // Convert to NHWC if necessary.
+        if (m_OperandToNode[&transpose.GetInput(0)]->GetFormat() != CompilerDataFormat::NHWC)
+        {
+            FormatConversionNode* conversionNode1 = m_Graph.CreateAndAddNode<FormatConversionNode>(
+                inputTensorInfo.m_Dimensions, inputTensorInfo.m_DataType, inputTensorInfo.m_QuantizationInfo,
+                CompilerDataFormat::NHWC, std::set<uint32_t>{ transpose.GetId() });
+            nodes.push_back(conversionNode1);
+        }
+
+        TensorShape intermediateShape1 = { inputTensorInfo.m_Dimensions[0], inputTensorInfo.m_Dimensions[2],
+                                           inputTensorInfo.m_Dimensions[3], inputTensorInfo.m_Dimensions[1] };
+
+        // Reinterpret NHWC as NCHW with new dimensions
+        ReinterpretNode* reinterpretNode = m_Graph.CreateAndAddNode<ReinterpretNode>(
+            intermediateShape1, outputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo,
+            CompilerDataFormat::NCHW, std::set<uint32_t>{ transpose.GetId() });
+        nodes.push_back(reinterpretNode);
+
+        TensorShape intermediateShape2 = { intermediateShape1[0], intermediateShape1[2], intermediateShape1[1],
+                                           intermediateShape1[3] };
+
+        // Add fuse only ple operation with transpose kernel
+        Node* const pleTransposeNode = m_Graph.CreateAndAddNode<FuseOnlyPleOperationNode>(
+            intermediateShape2, outputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo,
+            command_stream::PleOperation::TRANSPOSE_XY, CompilerDataFormat::NCHW, g_IdentityShapeMultiplier,
+            std::set<uint32_t>{ transpose.GetId() });
+        nodes.push_back(pleTransposeNode);
+
+        // Reinterpret NHWC as NCHW with new dimensions
+        ReinterpretNode* reinterpretNode2 = m_Graph.CreateAndAddNode<ReinterpretNode>(
+            outputTensorInfo.m_Dimensions, outputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo,
+            CompilerDataFormat::NHWC, std::set<uint32_t>{ transpose.GetId() });
+        nodes.push_back(reinterpretNode2);
+
+        ConnectNodeChain(transpose, nodes);
+    }
+    // Transpose to 0 3 2 1 utilizes converting between NHWC, NCHW formats and H & W swap ple kernel
+    // 0 3 2 1  => Data in NHWC in DRAM => Load pretending it is NCHW => NWCHB, PLE swap HW
+    // (which is actually WC) => NCWHB, Save NHWC (which will actually save as NCWH) => Next layer
+    // interprets as NHWC
+    else if ((permutation[1] == 3) && (permutation[2] == 2) && (permutation[3] == 1))
+    {
+        // Convert to NHWC if necessary.
+        if (m_OperandToNode[&transpose.GetInput(0)]->GetFormat() != CompilerDataFormat::NHWC)
+        {
+            FormatConversionNode* conversionNode1 = m_Graph.CreateAndAddNode<FormatConversionNode>(
+                inputTensorInfo.m_Dimensions, inputTensorInfo.m_DataType, inputTensorInfo.m_QuantizationInfo,
+                CompilerDataFormat::NHWC, std::set<uint32_t>{ transpose.GetId() });
+            nodes.push_back(conversionNode1);
+        }
+
+        TensorShape intermediateShape = { inputTensorInfo.m_Dimensions[0], inputTensorInfo.m_Dimensions[2],
+                                          inputTensorInfo.m_Dimensions[3], inputTensorInfo.m_Dimensions[1] };
+        // Reinterpret NHWC as NCHW with new dimensions
+        ReinterpretNode* reinterpretNode1 = m_Graph.CreateAndAddNode<ReinterpretNode>(
+            intermediateShape, outputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo,
+            CompilerDataFormat::NCHW, std::set<uint32_t>{ transpose.GetId() });
+        nodes.push_back(reinterpretNode1);
+
+        // Add fuse only ple operation with transpose kernel
+        Node* const pleTransposeNode = m_Graph.CreateAndAddNode<FuseOnlyPleOperationNode>(
+            outputTensorInfo.m_Dimensions, outputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo,
+            command_stream::PleOperation::TRANSPOSE_XY, CompilerDataFormat::NHWC, g_IdentityShapeMultiplier,
+            std::set<uint32_t>{ transpose.GetId() });
+        nodes.push_back(pleTransposeNode);
+
+        ConnectNodeChain(transpose, nodes);
+    }
 }
 
 void NetworkToGraphConverter::Visit(Resize& resize)

@@ -681,43 +681,38 @@ BOOST_AUTO_TEST_CASE(ConvertReshapeLayer)
 
 BOOST_AUTO_TEST_CASE(ConvertTransposeLayer)
 {
-    //Removed from the test because it is not part of the 20.08 delivery.
-    //To be re-enabled in 20.11
-    if (false)
-    {
-        Graph graph;
+    Graph graph;
 
-        // Create tensorinfo
-        const TensorInfo inputTensorInfo({ 1, 32, 16, 8 }, DataType::QAsymmU8, 1.0f, 0);
+    // Create tensorinfo
+    const TensorInfo inputTensorInfo({ 1, 32, 16, 8 }, DataType::QAsymmU8, 1.0f, 0);
 
-        // Construct graph
-        Layer* inputLayer = graph.AddLayer<InputLayer>(0, "input");
-        inputLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
+    // Construct graph
+    Layer* inputLayer = graph.AddLayer<InputLayer>(0, "input");
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
 
-        TransposeDescriptor descriptor;
-        descriptor.m_DimMappings = { 0, 2, 3, 1 };
+    TransposeDescriptor descriptor;
+    descriptor.m_DimMappings = { 0, 2, 3, 1 };
 
-        Layer* transposeLayer = graph.AddLayer<TransposeLayer>(descriptor, "transpose");
+    Layer* transposeLayer = graph.AddLayer<TransposeLayer>(descriptor, "transpose");
 
-        Layer* outputLayer = graph.AddLayer<OutputLayer>(0, "output");
+    Layer* outputLayer = graph.AddLayer<OutputLayer>(0, "output");
 
-        // Set up connections
-        inputLayer->GetOutputSlot(0).Connect(transposeLayer->GetInputSlot(0));
-        transposeLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+    // Set up connections
+    inputLayer->GetOutputSlot(0).Connect(transposeLayer->GetInputSlot(0));
+    transposeLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
-        // Construct sub-graph
-        SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
-            CreateInputsFrom({ transposeLayer }), CreateOutputsFrom({ transposeLayer }), { transposeLayer });
+    // Construct sub-graph
+    SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
+        CreateInputsFrom({ transposeLayer }), CreateOutputsFrom({ transposeLayer }), { transposeLayer });
 
-        // Set up Ethos-N  sub-graph converter
-        TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    // Set up Ethos-N  sub-graph converter
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
 
-        // Check that we are able to convert the sub-graph
-        BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
+    // Check that we are able to convert the sub-graph
+    BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
 
-        // Check that Ethos-N is able to compile the converted sub-graph
-        BOOST_CHECK_NO_THROW(converter.CompileNetwork());
-    }
+    // Check that Ethos-N is able to compile the converted sub-graph
+    BOOST_CHECK_NO_THROW(converter.CompileNetwork());
 }
 
 BOOST_AUTO_TEST_CASE(ConvertQuantizeLayer)

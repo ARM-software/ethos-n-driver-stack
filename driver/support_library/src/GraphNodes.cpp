@@ -404,7 +404,7 @@ bool FuseOnlyPleOperationNode::IsAgnosticToRequantisation() const
     return op == PleOperation::DOWNSAMPLE_2X2 || op == PleOperation::INTERLEAVE_2X2_2_2 ||
            op == PleOperation::MAXPOOL_2X2_2_2 || op == PleOperation::MAXPOOL_3X3_2_2_EVEN ||
            op == PleOperation::MAXPOOL_3X3_2_2_ODD || op == PleOperation::MEAN_XY_7X7 ||
-           op == PleOperation::MEAN_XY_8X8 || op == PleOperation::PASSTHROUGH;
+           op == PleOperation::MEAN_XY_8X8 || op == PleOperation::PASSTHROUGH || op == PleOperation::TRANSPOSE_XY;
 }
 
 bool FuseOnlyPleOperationNode::IsPrepared()
