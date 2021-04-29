@@ -363,6 +363,7 @@ The following features and feature combinations have known limitations in this E
     * InceptionV4
     * FSRCNN
     * Yolo V3
+    * ResNet v2-50
 
     _Running other networks may result in parts of the network being run by the Arm NN CPU reference backend._
 
