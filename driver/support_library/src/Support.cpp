@@ -316,7 +316,7 @@ std::vector<std::unique_ptr<CompiledNetwork>> Compile(const Network& network, co
 
     if (!VerifySupportedCommandStream(caps))
     {
-        throw NotSupportedException("Command stream version not supported by capabilities.");
+        throw NotSupportedException("Support library does not support compilation for the given target capabilities");
     }
 
     // Cascading not supported while compilation
@@ -349,7 +349,7 @@ NetworkPerformanceData EstimatePerformance(const Network& network,
 
     if (!VerifySupportedCommandStream(caps))
     {
-        throw NotSupportedException("Command stream version not supported by capabilities.");
+        throw NotSupportedException("Support library does not support compilation for the given target capabilities");
     }
 
     // Until full implementation of cascading in support library,
