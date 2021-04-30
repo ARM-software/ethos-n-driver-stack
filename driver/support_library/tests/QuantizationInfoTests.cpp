@@ -16,7 +16,6 @@ SCENARIO("QuantizationInfo: API - constructors")
     const float defaultScale       = 1.0f;
     const int32_t defaultZeroPoint = 0;
     const QuantizationInfo::QuantizationDim defaultDim;
-    const QuantizationScales defaultScales(defaultScale);
 
     GIVEN("No parameters")
     {
