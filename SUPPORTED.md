@@ -75,9 +75,11 @@
 - Pooling size 3x3, with stride 1,1 and same padding is supported, input height * width must be <= 61440
 - A "Mean" Average pooling is supported where he pooling size is 7 or 8 and the input width and height is equal to the pool size
 
+
 ## MeanXy
 - Supports mean reduction of HxW dimensions to 1x1.
 - Currently, it only supports Nx7x7xC or Nx8x8xC input with Nx1x1xC output in both cases.
+
 
 ## Max Pooling
 - Support configuration:
@@ -95,6 +97,15 @@
 ## Depth To Space
 - Block size of 2 is supported
 - Depth must be a multiple of the square of the block size
+
+
+## Space To Depth
+- Block size of greater than 1 is supported
+- Input width and height must be a multiple of the block size
+
+
+## Transpose
+- Transpose is allowed for height, width and channel dimensions only
 
 
 ## Resize
