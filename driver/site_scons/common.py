@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2018-2020 Arm Limited. All rights reserved.
+# Copyright © 2018-2021 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -118,7 +118,9 @@ def setup_common_env(env):
     '''
     # Secure Development Lifecycle
     # The following is a set of security compilation flags required
-    env.AppendUnique(CPPFLAGS=['-Werror', '-Wall', '-Wextra'])
+    env.AppendUnique(CPPFLAGS=['-Wall', '-Wextra'])
+    if env['werror']:
+        env.AppendUnique(CPPFLAGS=['-Werror'])
     # Increase the warning level for 'format' to 2, but disable the nonliteral case
     env.AppendUnique(CPPFLAGS=['-Wformat=2', '-Wno-format-nonliteral'])
     env.AppendUnique(CPPFLAGS=['-Wctor-dtor-privacy', '-Woverloaded-virtual', '-Wsign-promo', '-Wstrict-overflow=2',

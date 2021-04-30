@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2018-2021 Arm Limited. All rights reserved.
+# Copyright (C) 2018-2021 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -39,6 +39,7 @@ var.AddVariables(
      '/sys/kernel/debug/ethosn0/firmware_profiling'),
     BoolVariable('allow_command_stream_dump', 'Build the driver library with the ability to dump command streams. '
                  'This requires additional build-time dependencies.', False),
+    BoolVariable('werror', 'Build with -Werror', True),
 )
 
 env = Environment(variables=var)
