@@ -928,7 +928,8 @@ void ReplaceUnsupportedLayers(Graph& graph)
 
 void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
                                    const SubgraphView& subgraph,
-                                   const EthosNMappings& mappings)
+                                   const EthosNMappings& mappings,
+                                   const ModelOptions& modelOptions)
 {
     SubgraphView subgraphToCompile = subgraph;
     g_EthosNConfig                 = GetEthosNConfig();
@@ -954,7 +955,7 @@ void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
     try
     {
         // Attempt to convert and compile the sub-graph
-        compiledNetworks = EthosNSubgraphViewConverter(subgraphToCompile).CompileNetwork();
+        compiledNetworks = EthosNSubgraphViewConverter(subgraphToCompile, modelOptions).CompileNetwork();
     }
     catch (std::exception&)
     {
@@ -1037,6 +1038,12 @@ IBackendInternal::ILayerSupportSharedPtr EthosNBackend::GetLayerSupport() const
 
 OptimizationViews EthosNBackend::OptimizeSubgraphView(const SubgraphView& subgraph) const
 {
+    return EthosNBackend::OptimizeSubgraphView(subgraph, {});
+}
+
+OptimizationViews EthosNBackend::OptimizeSubgraphView(const SubgraphView& subgraph,
+                                                      const ModelOptions& modelOptions) const
+{
     if (!ethosnbackend::VerifyLibraries())
     {
         throw RuntimeException("Driver or support library version is not supported by the backend");
@@ -1046,7 +1053,7 @@ OptimizationViews EthosNBackend::OptimizeSubgraphView(const SubgraphView& subgra
     g_EthosNMappings = GetMappings(g_EthosNConfig.m_PerfMappingFile);
 
     // Create a pre-compiled layer
-    armnn::CreatePreCompiledLayerInGraph(optimizationViews, subgraph, g_EthosNMappings);
+    armnn::CreatePreCompiledLayerInGraph(optimizationViews, subgraph, g_EthosNMappings, modelOptions);
 
     return optimizationViews;
 }

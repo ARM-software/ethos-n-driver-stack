@@ -19,7 +19,8 @@ ARMNN_DLLEXPORT extern EthosNMappings g_EthosNMappings;
 
 void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
                                    const SubgraphView& subgraph,
-                                   const EthosNMappings& mappings);
+                                   const EthosNMappings& mappings,
+                                   const ModelOptions& modelOptions);
 
 class EthosNBackend : public IBackendInternal
 {
@@ -47,6 +48,9 @@ public:
     IBackendInternal::ILayerSupportSharedPtr GetLayerSupport() const override;
 
     OptimizationViews OptimizeSubgraphView(const SubgraphView& subgraph) const override;
+
+    OptimizationViews OptimizeSubgraphView(const SubgraphView& subgraph,
+                                           const ModelOptions& modelOptions) const override;
 };
 
 class EthosNBackendProfilingService

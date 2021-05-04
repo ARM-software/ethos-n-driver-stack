@@ -1,10 +1,11 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #include <EthosNBackend.hpp>
 #include <EthosNBackendId.hpp>
+#include <EthosNSubgraphViewConverter.hpp>
 #include <Graph.hpp>
 #include <Network.hpp>
 #include <armnn/BackendRegistry.hpp>
@@ -219,7 +220,7 @@ SubgraphView::SubgraphViewPtr BuildNonOptimizableSubgraph(Graph& graph)
 }
 
 // The input subgraph contains unsupported layers (the pooling layers have an unsupported configuration)
-void UnsupporteSubgraphTestImpl()
+void UnsupportedSubgraphTestImpl()
 {
     Graph graph;
 
@@ -412,7 +413,7 @@ void NonOptimizableSubgraphTestImpl()
 {
     Graph graph;
 
-    // Create a fully optimizable subgraph
+    // Create a non-optimizable subgraph
     SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildNonOptimizableSubgraph(graph);
     BOOST_TEST((subgraphPtr != nullptr));
 
@@ -465,7 +466,7 @@ BOOST_AUTO_TEST_SUITE(EthosNOptimizeSubGraph)
 
 BOOST_AUTO_TEST_CASE(UnsupportedSubgraph)
 {
-    UnsupporteSubgraphTestImpl();
+    UnsupportedSubgraphTestImpl();
 }
 BOOST_AUTO_TEST_CASE(FullyOptimizableSubgraph1)
 {
@@ -478,6 +479,83 @@ BOOST_AUTO_TEST_CASE(FullyOptimizableSubgraph2)
 BOOST_AUTO_TEST_CASE(NonOptimizableSubgraph)
 {
     NonOptimizableSubgraphTestImpl();
+}
+
+/// Checks that GetCompilationOptions correctly handles user-provided ModelOptions.
+BOOST_AUTO_TEST_CASE(TestGetCompilationOptions)
+{
+    EthosNConfig config;
+
+    // Default (winograd enabled)
+    BOOST_TEST(GetCompilationOptions(config, {}, 0).m_DisableWinograd == false);
+
+    // Disable winograd explicitly
+    BackendOptions optDisableWinograd(EthosNBackend::GetIdStatic(), { { "DisableWinograd", true } });
+    BOOST_TEST(GetCompilationOptions(config, { optDisableWinograd }, 0).m_DisableWinograd == true);
+
+    // Other backend options are ignored
+    BackendOptions optOtherBackend("OtherBackend", { { "DisableWinograd", true } });
+    BOOST_TEST(GetCompilationOptions(config, { optOtherBackend }, 0).m_DisableWinograd == false);
+
+    // Invalid option (unknown name)
+    BackendOptions optInvalidName(EthosNBackend::GetIdStatic(), { { "TestInvalidOption", true } });
+    BOOST_CHECK_THROW(GetCompilationOptions(config, { optInvalidName }, 0), InvalidArgumentException);
+
+    // Invalid option (wrong option type)
+    BackendOptions optInvalidType(EthosNBackend::GetIdStatic(), { { "DisableWinograd", "hello" } });
+    BOOST_CHECK_THROW(GetCompilationOptions(config, { optInvalidType }, 0), InvalidArgumentException);
+}
+
+/// Checks that the m_DisableWinograd option is correctly passed through to the support library.
+BOOST_AUTO_TEST_CASE(TestDisableWinograd)
+{
+    // Set up mock support library, which records the m_DisableWinograd option
+    class MockSupportLibrary : public EthosNSupportLibraryInterface
+    {
+    public:
+        std::vector<std::unique_ptr<ethosn_lib::CompiledNetwork>>
+            Compile(const ethosn_lib::Network&, const ethosn_lib::CompilationOptions& options) final
+        {
+            m_RecordedDisableWinograd.push_back(options.m_DisableWinograd);
+            return {};
+        }
+
+        std::vector<bool> m_RecordedDisableWinograd;
+    };
+    g_EthosNSupportLibraryInterface        = std::make_unique<MockSupportLibrary>();
+    MockSupportLibrary& mockSupportLibrary = static_cast<MockSupportLibrary&>(*g_EthosNSupportLibraryInterface);
+
+    // Make an arbitrary network
+    armnn::INetworkPtr net = armnn::INetwork::Create();
+    TensorInfo inputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
+    TensorInfo outputInfo({ 1, 4, 4, 1 }, DataType::QAsymmU8, 1.0f, 0);
+
+    IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+
+    DepthToSpaceDescriptor desc(2, DataLayout::NHWC);
+    IConnectableLayer* const spaceToDepthLayer = net->AddDepthToSpaceLayer(desc, "depthToSpace");
+    spaceToDepthLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
+    inputLayer->GetOutputSlot(0).Connect(spaceToDepthLayer->GetInputSlot(0));
+
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output");
+    spaceToDepthLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+
+    // Optimize for EthosNAcc with default options. This is expected to throw due to mock support library.
+    std::vector<BackendId> backends = { EthosNBackendId() };
+    IRuntimePtr runtime(IRuntime::Create(IRuntime::CreationOptions()));
+    OptimizerOptions optOpts;
+    BOOST_CHECK_THROW(Optimize(*net, backends, runtime->GetDeviceSpec(), optOpts), armnn::InvalidArgumentException);
+
+    // Check that support library was called correctly
+    BOOST_TEST(mockSupportLibrary.m_RecordedDisableWinograd.back() == false);
+
+    // Optimize for EthosNAcc (disable Winograd)
+    optOpts.m_ModelOptions = { BackendOptions(EthosNBackend::GetIdStatic(), { { "DisableWinograd", true } }) };
+    BOOST_CHECK_THROW(Optimize(*net, backends, runtime->GetDeviceSpec(), optOpts), armnn::InvalidArgumentException);
+
+    // Check that support library was called correctly
+    BOOST_TEST(mockSupportLibrary.m_RecordedDisableWinograd.back() == true);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

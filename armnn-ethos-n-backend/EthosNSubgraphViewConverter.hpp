@@ -42,10 +42,25 @@ struct EthosNOperand
     uint32_t outputIndex;
 };
 
+class EthosNSupportLibraryInterface
+{
+public:
+    virtual ~EthosNSupportLibraryInterface()
+    {}
+
+    virtual std::vector<std::unique_ptr<ethosn_lib::CompiledNetwork>>
+        Compile(const ethosn_lib::Network& network, const ethosn_lib::CompilationOptions& options)
+    {
+        return ethosn_lib::Compile(network, options);
+    }
+};
+
+ARMNN_DLLEXPORT extern std::unique_ptr<EthosNSupportLibraryInterface> g_EthosNSupportLibraryInterface;
+
 class EthosNSubgraphViewConverter : public ISubgraphViewConverter
 {
 public:
-    EthosNSubgraphViewConverter(const SubgraphView& subgraph);
+    EthosNSubgraphViewConverter(const SubgraphView& subgraph, ModelOptions modelOptions);
     ~EthosNSubgraphViewConverter() = default;
 
     std::vector<CompiledBlobPtr> CompileNetwork() override;
@@ -57,8 +72,8 @@ protected:
     void CreateUncompiledNetwork();
 
 private:
-    std::vector<CompiledBlobPtr> Estimate(const ethosn_lib::CompilationOptions& ethosnCompilationOpts);
-    std::vector<CompiledBlobPtr> Compile(const ethosn_lib::CompilationOptions& ethosnCompilationOpts);
+    std::vector<CompiledBlobPtr> Estimate();
+    std::vector<CompiledBlobPtr> Compile();
 
     /// Adds operation(s) to the Ethos-N network that correspond to the given Arm NN layer.
     /// This will update m_ConvertedOutputSlots.
@@ -138,6 +153,13 @@ private:
 
     /// Map from Ethos-N operation ID to the corresponding Arm NN layer name.
     std::map<uint32_t, std::string> m_EthosNOperationNameMapping;
+
+    /// Options that are passed to the support library.
+    ethosn_lib::CompilationOptions m_CompilationOptions;
 };
+
+/// Gets the compilation options to use based on the given EthosNConfig and ModelOptions.
+ethosn_lib::CompilationOptions
+    GetCompilationOptions(const EthosNConfig& config, const ModelOptions& modelOptions, uint32_t instanceId);
 
 }    // namespace armnn

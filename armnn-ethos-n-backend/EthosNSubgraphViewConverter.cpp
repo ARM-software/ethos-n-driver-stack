@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "EthosNSubgraphViewConverter.hpp"
-
+#include "EthosNBackend.hpp"
 #include "EthosNConfig.hpp"
+#include "EthosNSubgraphViewConverter.hpp"
 #include "EthosNTensorUtils.hpp"
 #include "LayersFwd.hpp"
 #include "workloads/EthosNPreCompiledWorkload.hpp"
@@ -19,19 +19,33 @@
 #include <ethosn_utils/VectorStream.hpp>
 
 #include <algorithm>
+#include <utility>
 
 namespace armnn
 {
 
 using namespace ethosntensorutils;
 
+ARMNN_DLLEXPORT std::unique_ptr<EthosNSupportLibraryInterface> g_EthosNSupportLibraryInterface =
+    std::make_unique<EthosNSupportLibraryInterface>();
+
 uint32_t EthosNSubgraphViewConverter::ms_NextInstanceId = 0;
 
-EthosNSubgraphViewConverter::EthosNSubgraphViewConverter(const SubgraphView& subgraph)
+EthosNSubgraphViewConverter::EthosNSubgraphViewConverter(const SubgraphView& subgraph, ModelOptions modelOptions)
     : m_InstanceId(ms_NextInstanceId++)
     , m_Subgraph(subgraph)
     , m_EthosNConfig(GetEthosNConfig())
-{}
+{
+    try
+    {
+        m_CompilationOptions = GetCompilationOptions(m_EthosNConfig, modelOptions, m_InstanceId);
+    }
+    catch (const InvalidArgumentException& e)
+    {
+        ARMNN_LOG(error) << "Failed to parse backend options - " << e.what();
+        throw;
+    }
+}
 
 template <typename Layer>
 EthosNConstantPtr EthosNSubgraphViewConverter::AddBiases(const Layer& layer, bool biasEnabled)
@@ -710,8 +724,7 @@ void DeleteAsType(const void* const blob)
 }
 }    // namespace
 
-std::vector<CompiledBlobPtr>
-    EthosNSubgraphViewConverter::Estimate(const ethosn_lib::CompilationOptions& ethosnCompilationOpts)
+std::vector<CompiledBlobPtr> EthosNSubgraphViewConverter::Estimate()
 {
     ethosn_lib::EstimationOptions ethosnEstimationOpts;
     ethosnEstimationOpts.m_ActivationCompressionSaving  = m_EthosNConfig.m_PerfActivationCompressionSaving;
@@ -720,12 +733,12 @@ std::vector<CompiledBlobPtr>
     ethosnEstimationOpts.m_Current                      = m_EthosNConfig.m_PerfCurrent;
     EthosNPreCompiledObject::PerfData perfData;
 
-    perfData.m_PerfOutFile               = ethosnCompilationOpts.m_DebugInfo.m_DebugDir + "/report.json";
+    perfData.m_PerfOutFile               = m_CompilationOptions.m_DebugInfo.m_DebugDir + "/report.json";
     perfData.m_PerfVariant               = m_EthosNConfig.m_PerfVariant;
     perfData.m_PerfSramSizeBytesOverride = m_EthosNConfig.m_PerfSramSizeBytesOverride;
     perfData.m_EstimationOptions         = ethosnEstimationOpts;
 
-    perfData.m_Data = ethosn_lib::EstimatePerformance(*m_Network, ethosnCompilationOpts, ethosnEstimationOpts);
+    perfData.m_Data = ethosn_lib::EstimatePerformance(*m_Network, m_CompilationOptions, ethosnEstimationOpts);
 
     auto preCompiledObj = std::make_unique<EthosNPreCompiledObject>(std::move(perfData), m_EthosNOperationNameMapping);
 
@@ -739,19 +752,7 @@ std::vector<CompiledBlobPtr>
 
 std::vector<CompiledBlobPtr> EthosNSubgraphViewConverter::CompileNetwork()
 {
-    // Get the capabilities from the driver library if this is running on real HW, or get representative ones
-    // if we are running perf-only.
-    ethosn_lib::CompilationOptions ethosnCompilationOpts;
-    ethosnCompilationOpts.m_DebugInfo.m_DumpDebugFiles = m_EthosNConfig.m_DumpDebugFiles
-                                                             ? ethosn_lib::CompilationOptions::DebugLevel::High
-                                                             : ethosn_lib::CompilationOptions::DebugLevel::None;
-    ethosnCompilationOpts.m_DebugInfo.m_DumpRam = m_EthosNConfig.m_DumpRam;
-    ethosnCompilationOpts.m_DebugInfo.m_DebugDir =
-        m_EthosNConfig.m_PerfOutDir + "/subgraph_" + std::to_string(m_InstanceId);
-    ethosnCompilationOpts.m_CompilerAlgorithm             = m_EthosNConfig.m_CompilerAlgorithm;
-    ethosnCompilationOpts.m_EnableIntermediateCompression = m_EthosNConfig.m_IntermediateCompression;
-
-    fs::create_directories(ethosnCompilationOpts.m_DebugInfo.m_DebugDir);
+    fs::create_directories(m_CompilationOptions.m_DebugInfo.m_DebugDir);
 
     // Compile the network into a list of generic type-agnostic "blobs"
     std::vector<CompiledBlobPtr> compiledBlobs;
@@ -761,7 +762,7 @@ std::vector<CompiledBlobPtr> EthosNSubgraphViewConverter::CompileNetwork()
         // Create a new network to be compiled by the Ethos-N backend
         CreateUncompiledNetwork();
 
-        compiledBlobs = m_EthosNConfig.m_PerfOnly ? Estimate(ethosnCompilationOpts) : Compile(ethosnCompilationOpts);
+        compiledBlobs = m_EthosNConfig.m_PerfOnly ? Estimate() : Compile();
     }
     catch (const std::exception&)
     {
@@ -775,12 +776,12 @@ std::vector<CompiledBlobPtr> EthosNSubgraphViewConverter::CompileNetwork()
     return compiledBlobs;
 }
 
-std::vector<CompiledBlobPtr>
-    EthosNSubgraphViewConverter::Compile(const ethosn_lib::CompilationOptions& ethosnCompilationOpts)
+std::vector<CompiledBlobPtr> EthosNSubgraphViewConverter::Compile()
 {
     std::vector<CompiledBlobPtr> compiledBlobs;
 
-    std::vector<EthosNCompiledNetworkPtr> compiledNetworks = ethosn_lib::Compile(*m_Network, ethosnCompilationOpts);
+    std::vector<EthosNCompiledNetworkPtr> compiledNetworks =
+        g_EthosNSupportLibraryInterface->Compile(*m_Network, m_CompilationOptions);
 
     // Create a list of generic type-agnostic compiled "blobs"
     for (EthosNCompiledNetworkPtr& compiledNetwork : compiledNetworks)
@@ -827,6 +828,48 @@ std::vector<CompiledBlobPtr>
     }
 
     return compiledBlobs;
+}
+
+ethosn_lib::CompilationOptions
+    GetCompilationOptions(const EthosNConfig& config, const ModelOptions& modelOptions, uint32_t instanceId)
+{
+    ethosn_lib::CompilationOptions result;
+    result.m_DebugInfo.m_DumpDebugFiles = config.m_DumpDebugFiles ? ethosn_lib::CompilationOptions::DebugLevel::High
+                                                                  : ethosn_lib::CompilationOptions::DebugLevel::None;
+    result.m_DebugInfo.m_DumpRam           = config.m_DumpRam;
+    result.m_DebugInfo.m_DebugDir          = config.m_PerfOutDir + "/subgraph_" + std::to_string(instanceId);
+    result.m_CompilerAlgorithm             = config.m_CompilerAlgorithm;
+    result.m_EnableIntermediateCompression = config.m_IntermediateCompression;
+
+    for (const auto& optionsGroup : modelOptions)
+    {
+        if (optionsGroup.GetBackendId() == EthosNBackend::GetIdStatic())
+        {
+            for (size_t i = 0; i < optionsGroup.GetOptionCount(); i++)
+            {
+                const BackendOptions::BackendOption& option = optionsGroup.GetOption(i);
+
+                if (option.GetName() == "DisableWinograd")
+                {
+                    if (option.GetValue().IsBool())
+                    {
+                        result.m_DisableWinograd = option.GetValue().AsBool();
+                    }
+                    else
+                    {
+                        throw armnn::InvalidArgumentException(
+                            "Invalid option type for DisableWinograd - must be bool.");
+                    }
+                }
+                else
+                {
+                    throw armnn::InvalidArgumentException("Invalid option - " + option.GetName());
+                }
+            }
+        }
+    }
+
+    return result;
 }
 
 }    // namespace armnn

@@ -61,7 +61,7 @@ class TestEthosNSubgraphViewConverter final : public EthosNSubgraphViewConverter
 {
 public:
     TestEthosNSubgraphViewConverter(const SubgraphView& subgraph)
-        : EthosNSubgraphViewConverter(subgraph)
+        : EthosNSubgraphViewConverter(subgraph, {})
     {}
 
     void TestCreateUncompiledNetwork()

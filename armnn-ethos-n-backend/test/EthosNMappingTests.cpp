@@ -788,7 +788,7 @@ void TestSubgraphSubstitution(TestLayerType originalType,
 
     // When
     OptimizationViews optimizationViews;
-    armnn::CreatePreCompiledLayerInGraph(optimizationViews, *subGraphOriginal, ethosNMappings);
+    armnn::CreatePreCompiledLayerInGraph(optimizationViews, *subGraphOriginal, ethosNMappings, {});
     ethosnbackend::ApplyMappings(ethosNMappings, graph2);
 
     // Then validate that armnn was able to compile the graph successfully
