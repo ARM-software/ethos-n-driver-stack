@@ -203,20 +203,24 @@ protected:
     /**
      * Find the optimal RLE parameters for the specified weights
      */
-    uint32_t FindRLEParams(WeightCompressionParamsV2& params, const std::deque<Weight>& weights) const;
+    uint32_t FindRLEParams(WeightCompressionParamsV2& params,
+                           const std::vector<uint8_t>& weights,
+                           const TensorInfo& weightsTensorInfo) const;
 
     /**
      * Find optimal compression parameter for the specified weights
      */
     void FindWeightCompressionParams(WeightCompressionParamsV2& newParams,
                                      const WeightCompressionParamsV2& prevParams,
-                                     const std::deque<Weight>& weights) const;
+                                     const std::vector<uint8_t>& weights,
+                                     const TensorInfo& weightsTensorInfo) const;
 
     /**
      * Select compression parameters based through analyzis of the weight stream.
      */
     const WeightCompressionParamsV2
-        SelectWeightCompressionParams(const std::deque<Weight>& weights,
+        SelectWeightCompressionParams(const std::vector<uint8_t>& weights,
+                                      const TensorInfo& weightsTensorInfo,
                                       const EncodingParams& params,
                                       const WeightCompressionParamsV2& prevCompParams) const;
 

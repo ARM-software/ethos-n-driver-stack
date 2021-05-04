@@ -530,10 +530,8 @@ WeightEncoder::EncodedOfm
     std::vector<uint8_t> weights = GetRawOfmStream(weightData, ofmIdx, iteration, weightsTensorInfo, strideY, strideX,
                                                    paddingTop, paddingLeft, iterationSize, operation, algorithm, false);
 
-    std::deque<Weight> uncompressedWeights = GetUncompressedWeights(weights, weightsTensorInfo);
-
     const WeightCompressionParamsV2 compParams =
-        SelectWeightCompressionParams(uncompressedWeights, params, prevCompParams);
+        SelectWeightCompressionParams(weights, weightsTensorInfo, params, prevCompParams);
 
     const uint32_t ofmBiasSize = GetOfmBiasSize(weightsTensorInfo);
 
@@ -568,6 +566,7 @@ WeightEncoder::EncodedOfm
 
     std::deque<WeightSymbol> weightSymbols, zeroSymbols;
 
+    std::deque<Weight> uncompressedWeights = GetUncompressedWeights(weights, weightsTensorInfo);
     PaletteZrunEncode(uncompressedWeights, compParams, weightSymbols, zeroSymbols);
 
     // Note the weight stream length will be filled later
@@ -853,25 +852,30 @@ bool WeightEncoderV2::FindPaletteParams(WeightCompressionParamsV2& params,
     return true;
 }
 
-uint32_t WeightEncoderV2::FindRLEParams(WeightCompressionParamsV2& params, const std::deque<Weight>& weights) const
+uint32_t WeightEncoderV2::FindRLEParams(WeightCompressionParamsV2& params,
+                                        const std::vector<uint8_t>& weights,
+                                        const TensorInfo& weightsTensorInfo) const
 {
     constexpr uint32_t maxNumQuotientBits = 31;
     constexpr uint32_t zDiv3              = static_cast<uint32_t>(ZDivisor::ZDIV_3);
 
     // Find how the zeroes are grouped among the weights
     std::vector<uint32_t> zeroGroups;
-    for (std::deque<Weight>::const_iterator wIt = weights.begin(); wIt != weights.end(); wIt += (wIt != weights.end()))
+    zeroGroups.reserve(weights.size());
+    const int32_t zeroPoint    = weightsTensorInfo.m_QuantizationInfo.GetZeroPoint();
+    const uint8_t rawZeroPoint = *reinterpret_cast<const uint8_t*>(&zeroPoint);
+    for (auto wIt = weights.begin(); wIt != weights.end(); wIt += (wIt != weights.end()))
     {
-        uint32_t numZeroes = 0;
-        for (; wIt != weights.end() && *wIt == 0; ++wIt)
+        const auto startIt = wIt;
+        while (wIt != weights.end() && *wIt == rawZeroPoint)
         {
-            ++numZeroes;
+            ++wIt;
         }
-
+        const uint32_t numZeroes = static_cast<uint32_t>(wIt - startIt);
         zeroGroups.push_back(numZeroes);
     }
 
-    if (weights.back() != 0)
+    if (weights.back() != rawZeroPoint)
     {
         zeroGroups.push_back(0);
     }
@@ -922,18 +926,37 @@ uint32_t WeightEncoderV2::FindRLEParams(WeightCompressionParamsV2& params, const
 
 void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& newParams,
                                                   const WeightCompressionParamsV2& prevParams,
-                                                  const std::deque<Weight>& weights) const
+                                                  const std::vector<uint8_t>& weights,
+                                                  const TensorInfo& weightsTensorInfo) const
 {
-    std::map<WeightSymbol, uint32_t> symbolFreq;
-    for (Weight weight : weights)
+    const int32_t zeroPoint = weightsTensorInfo.m_QuantizationInfo.GetZeroPoint();
+
+    // Make frequency table containing an entry for each different weight symbol
+    std::array<std::pair<WeightSymbol, uint32_t>, 256> frequencyTable;
+    // Initialize the table, filling in the weight symbol and zeroing the frequency
+    uint8_t rawWeight = 0;
+    for (auto& pair : frequencyTable)
     {
-        const WeightSymbol symbol = WeightToSymbol(weight);
-        symbolFreq[symbol]++;
+        Weight w    = (weightsTensorInfo.m_DataType == DataType::INT8_QUANTIZED ? *reinterpret_cast<int8_t*>(&rawWeight)
+                                                                             : rawWeight);
+        pair.first  = WeightToSymbol(static_cast<Weight>(w - zeroPoint));
+        pair.second = 0;
+        ++rawWeight;
+    }
+    for (uint8_t weight : weights)
+    {
+        frequencyTable[weight].second++;
     }
 
-    // The map is no longer needed so the pairs can be moved to the vector rather than copied.
-    std::vector<std::pair<WeightSymbol, uint32_t>> sortedSymbolFreqPairs(std::make_move_iterator(symbolFreq.begin()),
-                                                                         std::make_move_iterator(symbolFreq.end()));
+    // Convert to vector and sort
+    std::vector<std::pair<WeightSymbol, uint32_t>> sortedSymbolFreqPairs;
+    for (const std::pair<WeightSymbol, uint32_t>& p : frequencyTable)
+    {
+        if (p.second > 0)
+        {
+            sortedSymbolFreqPairs.push_back(p);
+        }
+    }
     std::sort(sortedSymbolFreqPairs.begin(), sortedSymbolFreqPairs.end(), [](const auto& a, const auto& b) {
         // If two symbols have the same frequency, place the larger symbol first to give it a better
         // chance to be placed in the palette.
@@ -954,7 +977,7 @@ void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& new
         // Only use RLE for the second pass
         if (pass > 0)
         {
-            bitCost += FindRLEParams(params, weights);
+            bitCost += FindRLEParams(params, weights, weightsTensorInfo);
             // If there are only zero weights, there is nothing more to do.
             if (sortedSymbolFreqPairs.size() == 1)
             {
@@ -1048,7 +1071,8 @@ void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& new
 }
 
 const WeightEncoderV2::WeightCompressionParamsV2
-    WeightEncoderV2::SelectWeightCompressionParams(const std::deque<Weight>& weights,
+    WeightEncoderV2::SelectWeightCompressionParams(const std::vector<uint8_t>& weights,
+                                                   const TensorInfo& weightsTensorInfo,
                                                    const EncodingParams& encodingParams,
                                                    const WeightCompressionParamsV2& prevCompParams) const
 {
@@ -1109,7 +1133,7 @@ const WeightEncoderV2::WeightCompressionParamsV2
             params.m_PaletteBits       = m_TestParams.m_PaletteBits;
             break;
         case WeightCompMode::AUTO:
-            FindWeightCompressionParams(params, prevCompParams, weights);
+            FindWeightCompressionParams(params, prevCompParams, weights, weightsTensorInfo);
             break;
         default:
             throw NotSupportedException("Unsupported weight compression mode");
