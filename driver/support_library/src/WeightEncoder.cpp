@@ -31,6 +31,7 @@ std::vector<Weight>
     ConvertToUncompressedWeights(const T* const weights, const size_t numWeights, const int32_t zeroPoint)
 {
     std::vector<Weight> uncompressedWeights;
+    uncompressedWeights.reserve(numWeights);
 
     const auto correctZeroPoint = [zeroPoint](const T w) { return static_cast<Weight>(w - zeroPoint); };
 
