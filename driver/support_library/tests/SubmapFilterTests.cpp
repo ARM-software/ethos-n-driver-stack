@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -13,7 +13,7 @@ using namespace ethosn::support_library;
 
 TEST_CASE("Get subfilters for 1x1 conv stride 1")
 {
-    auto filters = GetSubmapFilters(1, 1, 1, 1, 0, 0);
+    auto filters = GetSubmapFilters(1, 1, 1, 1, 0, 0, TensorShape{ 1, 1, 1, 1 });
     REQUIRE(filters.size() == 1);
     auto& a = filters[0];
     REQUIRE(a.GetFilterX() == 1);
@@ -21,7 +21,7 @@ TEST_CASE("Get subfilters for 1x1 conv stride 1")
 }
 TEST_CASE("Get subfilters for 1x3 conv stride 1")
 {
-    auto filters = GetSubmapFilters(3, 1, 1, 1, 0, 0);
+    auto filters = GetSubmapFilters(3, 1, 1, 1, 0, 0, TensorShape{ 1, 3, 1, 1 });
     REQUIRE(filters.size() == 1);
     auto& a = filters[0];
     REQUIRE(a.GetFilterX() == 3);
@@ -29,7 +29,7 @@ TEST_CASE("Get subfilters for 1x3 conv stride 1")
 }
 TEST_CASE("Get subfilters for 3x3 conv stride 1")
 {
-    auto filters = GetSubmapFilters(3, 3, 1, 1, 0, 0);
+    auto filters = GetSubmapFilters(3, 3, 1, 1, 0, 0, TensorShape{ 3, 3, 1, 1 });
     REQUIRE(filters.size() == 1);
     auto& a = filters[0];
     REQUIRE(a.GetFilterX() == 3);
@@ -37,7 +37,7 @@ TEST_CASE("Get subfilters for 3x3 conv stride 1")
 }
 TEST_CASE("Get subfilters for 1x1 conv stride 2")
 {
-    auto filters = GetSubmapFilters(1, 1, 2, 2, 0, 0);
+    auto filters = GetSubmapFilters(1, 1, 2, 2, 0, 0, TensorShape{ 1, 1, 1, 1 });
     REQUIRE(filters.size() == 4);
     auto& a = filters[0];
     auto& b = filters[1];
@@ -58,7 +58,7 @@ TEST_CASE("Get subfilters for 1x1 conv stride 2")
 
 TEST_CASE("Get subfilters for 3x3 conv stride 2")
 {
-    auto filters = GetSubmapFilters(3, 3, 2, 2, 0, 0);
+    auto filters = GetSubmapFilters(3, 3, 2, 2, 0, 0, TensorShape{ 3, 3, 1, 1 });
     REQUIRE(filters.size() == 4);
     auto& a = filters[0];
     auto& b = filters[1];
@@ -79,7 +79,7 @@ TEST_CASE("Get subfilters for 3x3 conv stride 2")
 
 TEST_CASE("Get subfilters for 3x3 conv stride 2 padding 1")
 {
-    auto filters = GetSubmapFilters(3, 3, 2, 2, 1, 1);
+    auto filters = GetSubmapFilters(3, 3, 2, 2, 1, 1, TensorShape{ 3, 3, 1, 1 });
     REQUIRE(filters.size() == 4);
     auto& a = filters[0];
     auto& b = filters[1];
@@ -98,13 +98,12 @@ TEST_CASE("Get subfilters for 3x3 conv stride 2 padding 1")
     REQUIRE(d.GetFilterY() == 2);
 
     const uint8_t weights[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-    utils::ConstTensorData wd(weights, { 3, 3, 1, 1 });
-    REQUIRE(a.GetWeightAt(wd, 0, 0, 0, 0) == 5);
+    REQUIRE(a.GetWeightAt(weights, 0, 0, 0, 0) == 5);
 }
 
 TEST_CASE("Get subfilters for 1x3 conv stride 2x1")
 {
-    auto filters = GetSubmapFilters(3, 1, 1, 2, 0, 0);
+    auto filters = GetSubmapFilters(3, 1, 1, 2, 0, 0, TensorShape{ 1, 3, 1, 1 });
     REQUIRE(filters.size() == 2);
     auto& a = filters[0];
     auto& b = filters[1];
@@ -116,9 +115,9 @@ TEST_CASE("Get subfilters for 1x3 conv stride 2x1")
     REQUIRE(b.GetFilterY() == 0);
 }
 
-TEST_CASE("Get subfilters for wide kernel 8x1 conv in Winograd mode")
+TEST_CASE("Get subfilters for wide kernel 1x8 conv in Winograd mode")
 {
-    auto filters = GetSubmapFilters(8, 1, 3, 3);
+    auto filters = GetSubmapFilters(8, 1, 3, 3, TensorShape{ 1, 8, 1, 1 });
     REQUIRE(filters.size() == 3);
     auto& a = filters[0];
     auto& b = filters[1];
@@ -140,9 +139,9 @@ TEST_CASE("Get subfilters for wide kernel 8x1 conv in Winograd mode")
     REQUIRE(c.GetOffsetY() == 0);
 }
 
-TEST_CASE("Get subfilters for wide kernel 1x8 conv in Direct mode")
+TEST_CASE("Get subfilters for wide kernel 8x1 conv in Direct mode")
 {
-    auto filters = GetSubmapFilters(1, 8, 3, 7);
+    auto filters = GetSubmapFilters(1, 8, 3, 7, TensorShape{ 8, 1, 1, 1 });
     REQUIRE(filters.size() == 3);
     auto& a = filters[0];
     auto& b = filters[1];

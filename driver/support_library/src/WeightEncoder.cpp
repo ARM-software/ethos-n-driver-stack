@@ -1933,14 +1933,14 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
 
     const uint32_t numUninterleavedIfmsPerIteration = iterationSize / (strideX * strideY);
 
-    utils::ConstTensorData wd(weightData, weightsTensorInfo.m_Dimensions);
     uint32_t filterX             = weightsTensorInfo.m_Dimensions[1];
     uint32_t filterY             = weightsTensorInfo.m_Dimensions[0];
     const uint32_t maxFilterSize = algorithm == CompilerMceAlgorithm::Direct ? 7 : 1;
     std::vector<SubmapFilter> subfilters =
-        GetSubmapFilters(filterX, filterY, strideX, strideY, paddingLeft, paddingTop);
-    const uint32_t wideKernelSize            = m_Capabilities.GetWideKernelSize();
-    std::vector<SubmapFilter> wideSubfilters = GetSubmapFilters(filterX, filterY, wideKernelSize, maxFilterSize);
+        GetSubmapFilters(filterX, filterY, strideX, strideY, paddingLeft, paddingTop, weightsTensorInfo.m_Dimensions);
+    const uint32_t wideKernelSize = m_Capabilities.GetWideKernelSize();
+    std::vector<SubmapFilter> wideSubfilters =
+        GetSubmapFilters(filterX, filterY, wideKernelSize, maxFilterSize, weightsTensorInfo.m_Dimensions);
 
     uint32_t numEngines      = m_Capabilities.GetNumberOfEngines();
     uint32_t numIgsPerEngine = m_Capabilities.GetIgsPerEngine();
@@ -2033,7 +2033,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
                                 AddWeightsForIfms(
                                     [&](uint32_t i) {
                                         return (isValidData && i < numIfms)
-                                                   ? filter.GetWeightAt(wd, y, x, i, ofmIdx)
+                                                   ? filter.GetWeightAt(weightData, y, x, i, ofmIdx)
                                                    : static_cast<uint8_t>(
                                                          weightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
                                     },
@@ -2081,7 +2081,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
 
                             // zero padding if the index is outside the range of the original kernel
                             uint8_t weight =
-                                isValidData ? filter.GetWeightAt(wd, y, x, channel, ofmIdx)
+                                isValidData ? filter.GetWeightAt(weightData, y, x, channel, ofmIdx)
                                             : static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
                             result.push_back(weight);
                             ++count;
@@ -2152,7 +2152,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
 
                 if (rawIdx < numIfms)
                 {
-                    weight = filter.GetWeightAt(wd, 0, 0, rawIdx, ofmIdx);
+                    weight = filter.GetWeightAt(weightData, 0, 0, rawIdx, ofmIdx);
                 }
                 else
                 {
@@ -2206,7 +2206,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
 
                         if (i == ifmIdx % ifmMod)
                         {
-                            weight = filter.GetWeightAt(wd, h, w, ifmIdx, channelMultiplierIdx);
+                            weight = filter.GetWeightAt(weightData, h, w, ifmIdx, channelMultiplierIdx);
                         }
                         else
                         {
