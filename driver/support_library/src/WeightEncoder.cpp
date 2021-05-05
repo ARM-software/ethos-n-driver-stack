@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <exception>
+#include <future>
 #include <iterator>
 #include <map>
 #include <utility>
@@ -1774,32 +1775,45 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
     const auto numWeightScales = weightsTensorInfo.m_QuantizationInfo.GetScales().size();
 
     // Process each OG independently
-    std::for_each(perOgOfms.begin(), perOgOfms.end(), [&](const std::vector<uint32_t>& ofms) {
-        for (uint32_t ofm : ofms)
-        {
-            const uint32_t iteration = ofm % numIterationsOfm;
-            const uint32_t ofmIdx    = ofm / numIterationsOfm;
+    std::vector<std::future<void>> waitHandles(numOfmInParallel);
+    for (size_t og = 0; og < numOfmInParallel; ++og)
+    {
+        waitHandles[og] = std::async(
+            [&](uint32_t og) {
+                for (uint32_t ofm : perOgOfms[og])
+                {
+                    const uint32_t iteration = ofm % numIterationsOfm;
+                    const uint32_t ofmIdx    = ofm / numIterationsOfm;
 
-            // Calculate encoding parameters from the various quantization infos
-            EncodingParams params;
-            double overallScale = (inputQuantizationInfo.GetScale() *
-                                   weightsTensorInfo.m_QuantizationInfo.GetScale(numWeightScales > 1 ? ofmIdx : 0)) /
-                                  outputQuantizationInfo.GetScale();
-            utils::CalculateQuantizedMultiplierSmallerThanOne(overallScale, params.m_OfmScaleFactor, params.m_OfmShift);
+                    // Calculate encoding parameters from the various quantization infos
+                    EncodingParams params;
+                    double overallScale =
+                        (inputQuantizationInfo.GetScale() *
+                         weightsTensorInfo.m_QuantizationInfo.GetScale(numWeightScales > 1 ? ofmIdx : 0)) /
+                        outputQuantizationInfo.GetScale();
+                    utils::CalculateQuantizedMultiplierSmallerThanOne(overallScale, params.m_OfmScaleFactor,
+                                                                      params.m_OfmShift);
 
-            params.m_OfmShift += GetOfmShiftOffset();
+                    params.m_OfmShift += GetOfmShiftOffset();
 
-            params.m_OfmBias         = biasData[ofmIdx];
-            params.m_OfmZeroPoint    = outputQuantizationInfo.GetZeroPoint();
-            params.m_FilterZeroPoint = weightsTensorInfo.m_QuantizationInfo.GetZeroPoint();
+                    params.m_OfmBias         = biasData[ofmIdx];
+                    params.m_OfmZeroPoint    = outputQuantizationInfo.GetZeroPoint();
+                    params.m_FilterZeroPoint = weightsTensorInfo.m_QuantizationInfo.GetZeroPoint();
 
-            EncodedOfm encodedOfm = EncodeOfm(weightsData, ofmIdx, numOfmInParallel, numIterationsOfm, stripeDepth,
-                                              iteration, weightsTensorInfo, strideY, strideX, paddingTop, paddingLeft,
-                                              iterationSize, operation, algorithm, params, compressionParams);
+                    EncodedOfm encodedOfm =
+                        EncodeOfm(weightsData, ofmIdx, numOfmInParallel, numIterationsOfm, stripeDepth, iteration,
+                                  weightsTensorInfo, strideY, strideX, paddingTop, paddingLeft, iterationSize,
+                                  operation, algorithm, params, compressionParams);
 
-            encodedStreams[ofm] = std::move(encodedOfm);
-        }
-    });
+                    encodedStreams[ofm] = std::move(encodedOfm);
+                }
+            },
+            og);
+    }
+    for (const auto& h : waitHandles)
+    {
+        h.wait();
+    }
 
     constexpr uint32_t dmaEngineAlignment = 16;
 
