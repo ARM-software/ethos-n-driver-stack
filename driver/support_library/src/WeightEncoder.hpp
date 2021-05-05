@@ -155,8 +155,7 @@ protected:
                                                    uint32_t numOfmsPerSram,
                                                    const uint32_t streamHeadersUpdateAlignment) const;
 
-    std::vector<std::vector<uint8_t>> MergeStreamsOg(const std::vector<std::vector<uint8_t>>& streams,
-                                                     const std::vector<uint32_t>& streamSize,
+    std::vector<std::vector<uint8_t>> MergeStreamsOg(const std::vector<EncodedOfm>& streams,
                                                      uint32_t numGroups,
                                                      const uint32_t streamHeadersUpdateAlignment) const;
 

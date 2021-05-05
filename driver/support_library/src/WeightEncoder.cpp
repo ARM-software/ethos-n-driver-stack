@@ -1759,39 +1759,47 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
         GenerateCompressionParams(numOfmInParallel);
 
     // Encode each OFM stream independently
-    std::vector<std::vector<uint8_t>> encodedStreams;
-    encodedStreams.reserve(numOfms * numIterationsOfm);
-    std::vector<uint32_t> encodedNumBits;
-    encodedNumBits.reserve(numOfms * numIterationsOfm);
-    const auto numWeightScales = weightsTensorInfo.m_QuantizationInfo.GetScales().size();
-
+    // Split the work for each OG so that the OFMs for each OG can be encoded in parallel.
+    // Assign each OFM to an OG
+    std::vector<std::vector<uint32_t>> perOgOfms(numOfmInParallel);
     for (uint32_t ofm = 0; ofm < (numOfms * numIterationsOfm); ++ofm)
     {
-        // numIterationsOfm >= 1, fully connected
-        //                   = 1, otherwise
-        uint32_t iteration = ofm % numIterationsOfm;
-        uint32_t ofmIdx    = ofm / numIterationsOfm;
-
-        // Calculate encoding parameters from the various quantization infos
-        EncodingParams params;
-        double overallScale = (inputQuantizationInfo.GetScale() *
-                               weightsTensorInfo.m_QuantizationInfo.GetScale(numWeightScales > 1 ? ofmIdx : 0)) /
-                              outputQuantizationInfo.GetScale();
-        utils::CalculateQuantizedMultiplierSmallerThanOne(overallScale, params.m_OfmScaleFactor, params.m_OfmShift);
-
-        params.m_OfmShift += GetOfmShiftOffset();
-
-        params.m_OfmBias         = biasData[ofmIdx];
-        params.m_OfmZeroPoint    = outputQuantizationInfo.GetZeroPoint();
-        params.m_FilterZeroPoint = weightsTensorInfo.m_QuantizationInfo.GetZeroPoint();
-
-        EncodedOfm encodedOfm = EncodeOfm(weightsData, ofmIdx, numOfmInParallel, numIterationsOfm, stripeDepth,
-                                          iteration, weightsTensorInfo, strideY, strideX, paddingTop, paddingLeft,
-                                          iterationSize, operation, algorithm, params, compressionParams);
-
-        encodedStreams.push_back(std::move(encodedOfm.m_EncodedWeights));
-        encodedNumBits.push_back(encodedOfm.m_NumOfBits);
+        const uint32_t ofmIdx = ofm / numIterationsOfm;
+        const uint32_t ogIdx  = (ofmIdx % stripeDepth) % numOfmInParallel;
+        perOgOfms[ogIdx].push_back(ofm);
     }
+
+    std::vector<EncodedOfm> encodedStreams;
+    encodedStreams.resize(numOfms * numIterationsOfm);
+    const auto numWeightScales = weightsTensorInfo.m_QuantizationInfo.GetScales().size();
+
+    // Process each OG independently
+    std::for_each(perOgOfms.begin(), perOgOfms.end(), [&](const std::vector<uint32_t>& ofms) {
+        for (uint32_t ofm : ofms)
+        {
+            const uint32_t iteration = ofm % numIterationsOfm;
+            const uint32_t ofmIdx    = ofm / numIterationsOfm;
+
+            // Calculate encoding parameters from the various quantization infos
+            EncodingParams params;
+            double overallScale = (inputQuantizationInfo.GetScale() *
+                                   weightsTensorInfo.m_QuantizationInfo.GetScale(numWeightScales > 1 ? ofmIdx : 0)) /
+                                  outputQuantizationInfo.GetScale();
+            utils::CalculateQuantizedMultiplierSmallerThanOne(overallScale, params.m_OfmScaleFactor, params.m_OfmShift);
+
+            params.m_OfmShift += GetOfmShiftOffset();
+
+            params.m_OfmBias         = biasData[ofmIdx];
+            params.m_OfmZeroPoint    = outputQuantizationInfo.GetZeroPoint();
+            params.m_FilterZeroPoint = weightsTensorInfo.m_QuantizationInfo.GetZeroPoint();
+
+            EncodedOfm encodedOfm = EncodeOfm(weightsData, ofmIdx, numOfmInParallel, numIterationsOfm, stripeDepth,
+                                              iteration, weightsTensorInfo, strideY, strideX, paddingTop, paddingLeft,
+                                              iterationSize, operation, algorithm, params, compressionParams);
+
+            encodedStreams[ofm] = std::move(encodedOfm);
+        }
+    });
 
     constexpr uint32_t dmaEngineAlignment = 16;
 
@@ -1821,21 +1829,22 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
     {
         const uint32_t firstOfmInStripe = stripeDepth * stripeIdx * numIterationsOfm;
         const uint32_t lastOfmInStripe  = std::min<uint32_t>(numOfms, stripeDepth * (stripeIdx + 1)) * numIterationsOfm;
-        std::vector<std::vector<uint8_t>> encodedOfmStreamsForThisStripe(std::begin(encodedStreams) + firstOfmInStripe,
-                                                                         std::begin(encodedStreams) + lastOfmInStripe);
         std::vector<std::vector<uint8_t>> streamPerOgForThisStripe;
         if (m_Capabilities.GetWeightCompressionVersion() == 0)
         {
+            std::vector<std::vector<uint8_t>> encodedOfmStreamsForThisStripe(lastOfmInStripe - firstOfmInStripe);
+            std::transform(std::begin(encodedStreams) + firstOfmInStripe, std::begin(encodedStreams) + lastOfmInStripe,
+                           encodedOfmStreamsForThisStripe.begin(),
+                           [](EncodedOfm& o) { return std::move(o.m_EncodedWeights); });
             streamPerOgForThisStripe = MergeStreams(encodedOfmStreamsForThisStripe, numOfmInParallel * numIterationsOfm,
                                                     1, 1, dmaEngineAlignment);
         }
         else
         {
-            std::vector<uint32_t> encodedOfmStreamSizesForThisStripe(std::begin(encodedNumBits) + firstOfmInStripe,
-                                                                     std::begin(encodedNumBits) + lastOfmInStripe);
+            std::vector<EncodedOfm> encodedOfmStreamsForThisStripe(std::begin(encodedStreams) + firstOfmInStripe,
+                                                                   std::begin(encodedStreams) + lastOfmInStripe);
             streamPerOgForThisStripe =
-                MergeStreamsOg(encodedOfmStreamsForThisStripe, encodedOfmStreamSizesForThisStripe,
-                               numOfmInParallel * numIterationsOfm, dmaEngineAlignment);
+                MergeStreamsOg(encodedOfmStreamsForThisStripe, numOfmInParallel * numIterationsOfm, dmaEngineAlignment);
         }
         streamPerStripeOg.insert(std::end(streamPerStripeOg), std::begin(streamPerOgForThisStripe),
                                  std::end(streamPerOgForThisStripe));
@@ -2703,8 +2712,7 @@ std::vector<std::vector<uint8_t>> WeightEncoder::MergeStreams(const std::vector<
     return result;
 }
 
-std::vector<std::vector<uint8_t>> WeightEncoder::MergeStreamsOg(const std::vector<std::vector<uint8_t>>& streams,
-                                                                const std::vector<uint32_t>& streamSize,
+std::vector<std::vector<uint8_t>> WeightEncoder::MergeStreamsOg(const std::vector<EncodedOfm>& streams,
                                                                 uint32_t numGroups,
                                                                 const uint32_t streamHeadersUpdateAlignment) const
 {
@@ -2728,7 +2736,7 @@ std::vector<std::vector<uint8_t>> WeightEncoder::MergeStreamsOg(const std::vecto
         for (uint32_t streamIdxWithinGroup = 0; streamIdxWithinGroup < group.size(); ++streamIdxWithinGroup)
         {
             uint32_t streamIdx                 = group[streamIdxWithinGroup];
-            const std::vector<uint8_t>& stream = streams[streamIdx];
+            const std::vector<uint8_t>& stream = streams[streamIdx].m_EncodedWeights;
 
             // start position in byte
             uint32_t start = numBitsStream / 8;
@@ -2739,7 +2747,7 @@ std::vector<std::vector<uint8_t>> WeightEncoder::MergeStreamsOg(const std::vecto
             // end position in word
             // Note Ethos-N78: weight stream header starts at the SRAM bit position
             // following the last bit of the preceding weight stream.
-            uint32_t endWord = numBitsStream + streamSize[streamIdx];
+            uint32_t endWord = numBitsStream + streams[streamIdx].m_NumOfBits;
             endWord          = (endWord + (streamHeadersUpdateAlignment * 8) - 1) / (streamHeadersUpdateAlignment * 8);
             uint16_t headerLength = static_cast<uint16_t>(endWord - startWord);
             uint8_t* headerPtr    = reinterpret_cast<uint8_t*>(&headerLength);
@@ -2767,7 +2775,7 @@ std::vector<std::vector<uint8_t>> WeightEncoder::MergeStreamsOg(const std::vecto
 
                 // current bit position in the merged bit stream
                 uint32_t bitPos     = numBitsStream & 7;
-                uint32_t remNumBits = streamSize[streamIdx];
+                uint32_t remNumBits = streams[streamIdx].m_NumOfBits;
 
                 for (uint32_t i = 0; i < static_cast<uint32_t>(stream.size()); ++i)
                 {
@@ -2814,7 +2822,7 @@ std::vector<std::vector<uint8_t>> WeightEncoder::MergeStreamsOg(const std::vecto
                 std::copy(tempStream.begin(), tempStream.end(), std::back_inserter(mergedGroup));
             }
 
-            numBitsStream += streamSize[streamIdx];
+            numBitsStream += streams[streamIdx].m_NumOfBits;
         }
     }
 
