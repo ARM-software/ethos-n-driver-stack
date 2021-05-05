@@ -321,4 +321,42 @@ TEST_CASE("Unsupported Tensor Depth", "[IsSupported][TVM]")
                           reason);
         CHECK_UNSUPPORTED_TENSOR_DEPTH_REASON(reason);
     }
+    SECTION("Transpose")
+    {
+        // Generate 2 tests with invalid tensor depth:
+        // - Unsupported caused by input
+        // - Unsupported caused by output
+        // clang-format off
+        const auto shapes = GENERATE(
+            //                          Input                                          TransposeInfo
+            std::vector<TensorShape>{ { 1, 16, 16, UNSUPPORTED_OUTPUT_DIM },         { 0, 2, 1, 3 } },
+            std::vector<TensorShape>{ { 1, 16, UNSUPPORTED_OUTPUT_DIM, OUTPUT_DIM }, { 0, 1, 3, 2 } }
+        );
+        // clang-format on
+
+        TensorInfo transposeInputInfo(shapes[0], DataType::UINT8_QUANTIZED, DataFormat::NHWC,
+                                      QuantizationInfo(0, 1.0f));
+        CHECK_UNSUPPORTED(
+            queries.IsTransposeSupported(shapes[1], transposeInputInfo, &outputs[0], reason, sizeof(reason)), reason);
+        CHECK_UNSUPPORTED_TENSOR_DEPTH_REASON(reason);
+    }
+    SECTION("SpaceToDepth")
+    {
+        constexpr uint8_t blockSize = 2;
+        // Generate 2 tests with invalid tensor depth:
+        // - Unsupported caused by input
+        // - Unsupported caused by output
+        // clang-format off
+        const auto shape = GENERATE(
+            TensorShape{ 1, 16, 16, UNSUPPORTED_OUTPUT_DIM },
+            TensorShape{ 1, blockSize * UNSUPPORTED_OUTPUT_DIM, blockSize * UNSUPPORTED_OUTPUT_DIM, OUTPUT_DIM }
+        );
+        // clang-format on
+
+        SpaceToDepthInfo info(blockSize);
+        TensorInfo spaceToDepthInputInfo(shape, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        CHECK_UNSUPPORTED(
+            queries.IsSpaceToDepthSupported(spaceToDepthInputInfo, info, &outputs[0], reason, sizeof(reason)), reason);
+        CHECK_UNSUPPORTED_TENSOR_DEPTH_REASON(reason);
+    }
 }

@@ -1932,6 +1932,11 @@ SupportedLevel SupportQueries::IsSpaceToDepthSupported(const TensorInfo& inputIn
                                                        char* reason,
                                                        size_t reasonMaxLength) const
 {
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to space to depth", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (!IsInputDataTypeSupported(inputInfo, "Input to space to depth", reason, reasonMaxLength))
     {
         return SupportedLevel::Unsupported;
@@ -1955,9 +1960,16 @@ SupportedLevel SupportQueries::IsSpaceToDepthSupported(const TensorInfo& inputIn
         return SupportedLevel::EstimateOnly;
     }
 
+    TensorInfo expectedOutputInfo = SpaceToDepth::CalculateOutputTensorInfo(inputInfo, spaceToDepthInfo);
+
+    if (!IsTensorDepthSupported(m_Capabilities, expectedOutputInfo, "Output of space to depth", reason,
+                                reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (outputInfo != nullptr)
     {
-        TensorInfo expectedOutputInfo = SpaceToDepth::CalculateOutputTensorInfo(inputInfo, spaceToDepthInfo);
         if (*outputInfo != expectedOutputInfo)
         {
             SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
@@ -1997,6 +2009,12 @@ SupportedLevel SupportQueries::IsTransposeSupported(const TransposeInfo& transpo
                                                     char* reason,
                                                     size_t reasonMaxLength) const
 {
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to transpose", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (!IsInputDataTypeSupported(inputInfo, "Input to transpose", reason, reasonMaxLength))
     {
         return SupportedLevel::Unsupported;
@@ -2037,10 +2055,15 @@ SupportedLevel SupportQueries::IsTransposeSupported(const TransposeInfo& transpo
         return SupportedLevel::EstimateOnly;
     }
 
+    TensorInfo expectedOutputInfo = Transpose::CalculateOutputTensorInfo(inputInfo, transposeInfo);
+
+    if (!IsTensorDepthSupported(m_Capabilities, expectedOutputInfo, "Output of transpose", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
     if (outputInfo != nullptr)
     {
-        TensorInfo expectedOutputInfo = Transpose::CalculateOutputTensorInfo(inputInfo, transposeInfo);
-
         if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
         {
             SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
