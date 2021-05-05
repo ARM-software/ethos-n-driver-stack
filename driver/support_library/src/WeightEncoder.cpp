@@ -45,7 +45,7 @@ std::deque<Weight>
 class BitstreamWriter
 {
 public:
-    BitstreamWriter();
+    BitstreamWriter(uint32_t capacityBits);
 
     // Returns the current write position in the bitstream (in bits)
     size_t GetOffset();
@@ -74,9 +74,11 @@ private:
     size_t m_EndPos;
 };
 
-BitstreamWriter::BitstreamWriter()
+BitstreamWriter::BitstreamWriter(uint32_t capacityBits)
     : m_EndPos(0)
-{}
+{
+    m_Bitstream.reserve(utils::DivRoundUp(capacityBits, 8));
+}
 
 size_t BitstreamWriter::GetOffset()
 {
@@ -242,6 +244,7 @@ IndexCompressor::IndexCompressor(std::vector<uint8_t>& result,
                                  const std::vector<uint8_t>& lut,
                                  bool lutReload)
     : WeightCompressor(result)
+    , m_Bitstream(0)
 {
     std::vector<uint8_t> lutUsed(256, 0);
 
@@ -562,8 +565,9 @@ WeightEncoder::EncodedOfm
     const bool ofmReload =
         isPerChannelQuantization || GetOfmReload(compParams, prevCompParams, ofmIdx < numOfmInParallel);
 
-    BitstreamWriter writer;
-
+    // Over-estimate of how many bits we need. This could be more accurate as we've already decided the best scheme.
+    const uint32_t capacityBits = std::max(static_cast<uint32_t>(weights.size()) * 8 * 2, 1024u);
+    BitstreamWriter writer(capacityBits);
     std::deque<WeightSymbol> weightSymbols, zeroSymbols;
 
     std::deque<Weight> uncompressedWeights = GetUncompressedWeights(weights, weightsTensorInfo);
