@@ -12,11 +12,11 @@
 #include "WeightEncoderV2.hpp"
 
 #include <algorithm>
-#include <deque>
 #include <exception>
 #include <iterator>
 #include <map>
 #include <utility>
+#include <vector>
 
 namespace ethosn
 {
@@ -27,10 +27,10 @@ namespace
 {
 using Weight = WeightEncoderV2::Weight;
 template <typename T>
-std::deque<Weight>
+std::vector<Weight>
     ConvertToUncompressedWeights(const T* const weights, const size_t numWeights, const int32_t zeroPoint)
 {
-    std::deque<Weight> uncompressedWeights;
+    std::vector<Weight> uncompressedWeights;
 
     const auto correctZeroPoint = [zeroPoint](const T w) { return static_cast<Weight>(w - zeroPoint); };
 
@@ -600,9 +600,9 @@ WeightEncoder::EncodedOfm
     // Over-estimate of how many bits we need. This could be more accurate as we've already decided the best scheme.
     const uint32_t capacityBits = std::max(static_cast<uint32_t>(weights.size()) * 8 * 2, 1024u);
     BitstreamWriter writer(capacityBits);
-    std::deque<WeightSymbol> weightSymbols, zeroSymbols;
+    std::vector<WeightSymbol> weightSymbols, zeroSymbols;
 
-    std::deque<Weight> uncompressedWeights = GetUncompressedWeights(weights, weightsTensorInfo);
+    std::vector<Weight> uncompressedWeights = GetUncompressedWeights(weights, weightsTensorInfo);
     PaletteZrunEncode(uncompressedWeights, compParams, weightSymbols, zeroSymbols);
 
     // Note the weight stream length will be filled later
@@ -1231,8 +1231,8 @@ bool WeightEncoderV2::GetOfmReload(const WeightCompressionParamsV2& compParams,
     return false;
 }
 
-std::deque<WeightEncoderV2::Weight> WeightEncoderV2::GetUncompressedWeights(const std::vector<uint8_t>& weights,
-                                                                            const TensorInfo& weightsTensorInfo) const
+std::vector<WeightEncoderV2::Weight> WeightEncoderV2::GetUncompressedWeights(const std::vector<uint8_t>& weights,
+                                                                             const TensorInfo& weightsTensorInfo) const
 {
     switch (weightsTensorInfo.m_DataType)
     {
@@ -1267,15 +1267,15 @@ WeightEncoderV2::WeightSymbol WeightEncoderV2::DirectEncode(const Weight weight,
     return x;
 }
 
-void WeightEncoderV2::PaletteZrunEncode(const std::deque<WeightEncoderV2::Weight>& uncompressedWeights,
+void WeightEncoderV2::PaletteZrunEncode(const std::vector<WeightEncoderV2::Weight>& uncompressedWeights,
                                         const WeightCompressionParamsV2& compParams,
-                                        std::deque<WeightSymbol>& weightSymbols,
-                                        std::deque<WeightSymbol>& zeroSymbols) const
+                                        std::vector<WeightSymbol>& weightSymbols,
+                                        std::vector<WeightSymbol>& zeroSymbols) const
 {
     // Please refer to Ethos-N78 MCE specification, section 6.8.6.3.2
     const std::map<Weight, uint8_t>& invPalette = compParams.m_InversePalette;
 
-    std::deque<Weight>::const_iterator wItr;
+    std::vector<Weight>::const_iterator wItr;
     uint32_t zeroCnt = 0;
 
     wItr = uncompressedWeights.begin();
@@ -1338,8 +1338,8 @@ void WeightEncoderV2::PaletteZrunEncode(const std::deque<WeightEncoderV2::Weight
     assert((zeroSymbols.size() == (weightSymbols.size() + 1)) || (compParams.m_Zdiv == ZDivisor::RLE_DISABLED));
 }
 
-void WeightEncoderV2::GRCCompressPackChunk(const std::deque<WeightSymbol>& weightSymbols,
-                                           const std::deque<WeightSymbol>& zeroSymbols,
+void WeightEncoderV2::GRCCompressPackChunk(const std::vector<WeightSymbol>& weightSymbols,
+                                           const std::vector<WeightSymbol>& zeroSymbols,
                                            const WeightCompressionParamsV2& compParams,
                                            BitstreamWriter& writer) const
 {

@@ -10,7 +10,6 @@
 #include "WeightEncoder.hpp"
 
 #include <cstdint>
-#include <deque>
 #include <vector>
 
 namespace ethosn
@@ -239,8 +238,8 @@ protected:
     /**
      * Convert 8-bit weights to 9-bit weights including zero point.
      */
-    std::deque<Weight> GetUncompressedWeights(const std::vector<uint8_t>& weights,
-                                              const TensorInfo& weightsTensorInfo) const;
+    std::vector<Weight> GetUncompressedWeights(const std::vector<uint8_t>& weights,
+                                               const TensorInfo& weightsTensorInfo) const;
 
     /**
      * Convert 9-bit signed weight to 9-bit unsigned weight symbol.
@@ -250,17 +249,17 @@ protected:
     /**
      * Palette or direct encode the uncompressed weight symbol stream.
      */
-    void PaletteZrunEncode(const std::deque<Weight>& uncompressedWeights,
+    void PaletteZrunEncode(const std::vector<Weight>& uncompressedWeights,
                            const WeightCompressionParamsV2& compParams,
-                           std::deque<WeightSymbol>& weightSymbols,
-                           std::deque<WeightSymbol>& zeroSymbols) const;
+                           std::vector<WeightSymbol>& weightSymbols,
+                           std::vector<WeightSymbol>& zeroSymbols) const;
 
     /**
      * Golomb Rice code the palette/direct weight symbol stream and pack the
      * symbols into chunks.
      */
-    void GRCCompressPackChunk(const std::deque<WeightSymbol>& weightSymbols,
-                              const std::deque<WeightSymbol>& zeroSymbols,
+    void GRCCompressPackChunk(const std::vector<WeightSymbol>& weightSymbols,
+                              const std::vector<WeightSymbol>& zeroSymbols,
                               const WeightCompressionParamsV2& compParams,
                               BitstreamWriter& writer) const;
 
