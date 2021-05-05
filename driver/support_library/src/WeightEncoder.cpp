@@ -112,7 +112,39 @@ void BitstreamWriter::Write(uint8_t elem, int numBits, size_t offset)
 
 void BitstreamWriter::Write(uint8_t elem, int numBits)
 {
-    Write(elem, numBits, m_EndPos);
+    if (numBits == 0)
+    {
+        return;
+    }
+    assert(numBits <= 8);
+
+    // Make sure there is enough space in the vector for the new bits, so we can index into it later
+    const size_t requiredSize = utils::DivRoundUp(static_cast<uint32_t>(m_EndPos) + numBits, 8);
+    if (requiredSize > m_Bitstream.size())
+    {
+        m_Bitstream.push_back(0);
+    }
+
+    // The operation is split into two parts - "a" and "b". a is the part which is appended to the partially-complete
+    // byte at the end of m_Bitstream, and b is the part which is appended as a new byte to m_Bitstream.
+    // There is always an "a", but not always a "b" (if the number of bits we are appending doesn't overflow into the
+    // next byte)
+
+    const uint32_t destBitIdxA = m_EndPos % 8;
+    const uint32_t numBitsA    = std::min<uint32_t>(8 - destBitIdxA, numBits);
+    const uint8_t bitsA        = static_cast<uint8_t>(elem & ((1u << numBitsA) - 1u));
+    uint8_t& destA             = m_Bitstream[m_EndPos / 8];
+    destA                      = static_cast<uint8_t>(destA | (bitsA << destBitIdxA));
+
+    const uint32_t numBitsB = numBits - numBitsA;
+    if (numBitsB > 0)
+    {
+        const uint8_t bitsB = static_cast<uint8_t>((elem >> numBitsA) & ((1u << numBitsB) - 1u));
+        uint8_t& destB      = m_Bitstream.back();
+        destB               = bitsB;
+    }
+
+    m_EndPos += numBits;
 }
 
 template <class T>
