@@ -1951,6 +1951,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
     bool tightlyPackLastSliceLastSubfilter = !prepareForZeroMaskCompression;
 
     std::vector<uint8_t> result;
+    result.reserve(filterX * filterY * iterationSize);
 
     auto AddWeightsForIfms = [&result](auto weightCalculationFunction, uint32_t channelStart,
                                        uint32_t numChannels) -> void {
