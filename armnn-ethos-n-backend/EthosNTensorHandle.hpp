@@ -1,10 +1,11 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
 
 #include "EthosNTensorUtils.hpp"
+#include "EthosNWorkloadUtils.hpp"
 
 #include "armnn/Exceptions.hpp"
 #include "armnn/TypesUtils.hpp"
@@ -23,7 +24,12 @@ class EthosNTensorHandle : public ITensorHandle
 public:
     explicit EthosNTensorHandle(const TensorInfo& tensorInfo)
         : m_TensorInfo(tensorInfo)
-        , m_Buffer(tensorInfo.GetNumElements(), ethosn::driver_library::DataFormat::NHWC)
+        // The input buffer size of fully connected is rounded up to the next 1024
+        // byte boundary by the support library. The ethosn backend needs to do
+        // the same to avoid buffer size mismatch.
+        , m_Buffer(
+              armnn::ethosnbackend::RoundUpToNearestMultiple(tensorInfo.GetNumElements(), static_cast<uint32_t>(1024)),
+              ethosn::driver_library::DataFormat::NHWC)
     {
         using namespace ethosntensorutils;
         // NOTE: The Ethos-N API is unclear on whether the size specified for a Buffer is the number of elements, or
