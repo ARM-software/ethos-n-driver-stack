@@ -104,7 +104,7 @@ public:
     const TensorShape& GetUninterleavedInputShape() const;
 
     const TensorInfo& GetWeightsInfo() const;
-    const std::vector<uint8_t>& GetWeightsData() const;
+    std::shared_ptr<const std::vector<uint8_t>> GetWeightsData() const;
 
     const TensorInfo& GetBiasInfo() const;
     const std::vector<int32_t>& GetBiasData() const;
@@ -146,7 +146,7 @@ public:
 private:
     TensorShape m_UninterleavedInputShape;
     TensorInfo m_WeightsInfo;
-    std::vector<uint8_t> m_WeightsData;
+    std::shared_ptr<const std::vector<uint8_t>> m_WeightsData;
     TensorInfo m_BiasInfo;
     std::vector<int32_t> m_BiasData;
     Stride m_Stride;

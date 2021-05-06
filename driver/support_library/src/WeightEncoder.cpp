@@ -1659,7 +1659,7 @@ EncodedWeights WeightEncoder::Encode(const MceOperationNode& mceOperation,
 {
     // clang-format off
     return Encode(mceOperation.GetWeightsInfo(),
-                  static_cast<const uint8_t*>(mceOperation.GetWeightsData().data()),
+                  static_cast<const uint8_t*>(mceOperation.GetWeightsData()->data()),
                   mceOperation.GetBiasInfo(),
                   mceOperation.GetBiasData().data(),
                   mceOperation.GetInputQuantizationInfo(0),

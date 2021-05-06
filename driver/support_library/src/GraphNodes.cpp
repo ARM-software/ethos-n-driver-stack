@@ -147,7 +147,7 @@ MceOperationNode::MceOperationNode(NodeId id,
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
     , m_UninterleavedInputShape(uninterleavedInputTensorShape)
     , m_WeightsInfo(weightsInfo)
-    , m_WeightsData(std::move(weightsData))
+    , m_WeightsData(std::make_shared<std::vector<uint8_t>>(std::move(weightsData)))
     , m_BiasInfo(biasInfo)
     , m_BiasData(std::move(biasData))
     , m_Stride(stride)
@@ -172,7 +172,7 @@ const ethosn::support_library::TensorInfo& MceOperationNode::GetWeightsInfo() co
     return m_WeightsInfo;
 }
 
-const std::vector<uint8_t>& MceOperationNode::GetWeightsData() const
+std::shared_ptr<const std::vector<uint8_t>> MceOperationNode::GetWeightsData() const
 {
     return m_WeightsData;
 }

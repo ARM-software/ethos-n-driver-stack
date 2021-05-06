@@ -125,7 +125,7 @@ public:
     struct Params
     {
         TensorInfo weightsTensorInfo;
-        std::vector<uint8_t> weightsData;
+        std::shared_ptr<const std::vector<uint8_t>> weightsData;
         TensorInfo biasTensorInfo;
         std::vector<int32_t> biasData;
         QuantizationInfo inputQuantizationInfo;
@@ -141,7 +141,7 @@ public:
 
         bool operator==(const Params& r) const
         {
-            return weightsTensorInfo == r.weightsTensorInfo && weightsData == r.weightsData &&
+            return weightsTensorInfo == r.weightsTensorInfo && *weightsData == *r.weightsData &&
                    biasTensorInfo == r.biasTensorInfo && biasData == r.biasData &&
                    inputQuantizationInfo == r.inputQuantizationInfo &&
                    outputQuantizationInfo == r.outputQuantizationInfo && stripeDepth == r.stripeDepth &&
@@ -157,7 +157,7 @@ public:
         if (it == m_Entries.end())
         {
             EncodedWeights w =
-                m_Encoder->Encode(params.weightsTensorInfo, params.weightsData.data(), params.biasTensorInfo,
+                m_Encoder->Encode(params.weightsTensorInfo, params.weightsData->data(), params.biasTensorInfo,
                                   params.biasData.data(), params.inputQuantizationInfo, params.outputQuantizationInfo,
                                   params.stripeDepth, params.strideY, params.strideX, params.paddingTop,
                                   params.paddingLeft, params.iterationSize, params.operation, params.algorithm);
@@ -180,7 +180,7 @@ private:
             // between each set of encoding params will be mostly (wholly?) in these fields that we are hashing,
             // and not the exact weight values
             size_t h = 17;
-            h        = h * 37 + std::hash<size_t>()(p.weightsData.size());
+            h        = h * 37 + std::hash<size_t>()(p.weightsData->size());
             h        = h * 37 + std::hash<size_t>()(p.biasData.size());
             h        = h * 37 + std::hash<uint32_t>()(p.stripeDepth);
             h        = h * 37 + std::hash<uint32_t>()(p.iterationSize);
@@ -673,7 +673,7 @@ void AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
                                      const TensorShape& outStripeShape,
                                      const uint32_t numWeightStripes,
                                      const TensorInfo& weightInfo,
-                                     const std::vector<uint8_t>& weightData,
+                                     std::shared_ptr<const std::vector<uint8_t>> weightData,
                                      const TensorInfo& biasInfo,
                                      const std::vector<int32_t>& biasData,
                                      Lifetime lifetime,
@@ -775,7 +775,7 @@ Buffer* Part::AddIdentityMceOpForSubGraph(OwnedOpGraph& opGraph,
 
     TensorShape weightStripe = CalculateWeightStripeShape(weightInfo, inputStripe, outputStripe);
 
-    std::vector<uint8_t> weightsData(1 * 1 * 1 * numIfm, 2);
+    std::shared_ptr<std::vector<uint8_t>> weightsData = std::make_shared<std::vector<uint8_t>>(1 * 1 * 1 * numIfm, 2);
     std::vector<int32_t> biasData(numIfm, 0);
 
     // Add MceOp.
