@@ -9,6 +9,7 @@
 #include "Utils.hpp"
 #include "cascading/Cascading.hpp"
 #include "cascading/Visualisation.hpp"
+#include "cascading/WeightEncoderCache.hpp"
 #include "ethosn_support_library/Support.hpp"
 
 #include <catch.hpp>

@@ -1,5 +1,5 @@
 //
-// Copyright © 2020 Arm Limited. All rights reserved.
+// Copyright © 2020,2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -24,7 +24,7 @@ MceStats GetMceStats(const HardwareCapabilities& caps,
                      const TensorShape& weightsShape);
 
 WeightsStats GetWeightsStats(const HardwareCapabilities& caps,
-                             EncodedWeights& encodedWeights,
+                             const EncodedWeights& encodedWeights,
                              const TensorInfo& info,
                              const TensorShape& stripeShape,
                              const uint32_t tileSize,

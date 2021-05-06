@@ -208,7 +208,7 @@ uint32_t GetWeightsNumReloads(const HardwareCapabilities& caps,
 }
 
 WeightsStats GetWeightsStats(const HardwareCapabilities& caps,
-                             EncodedWeights& encodedWeights,
+                             const EncodedWeights& encodedWeights,
                              const TensorInfo& info,
                              const TensorShape& stripeShape,
                              const uint32_t tileSize,

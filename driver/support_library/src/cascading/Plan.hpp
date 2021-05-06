@@ -290,7 +290,7 @@ public:
     uint32_t m_NumStripes;
 
     /// Relevant only if this is a weights buffer in Dram.
-    std::unique_ptr<EncodedWeights> m_EncodedWeights;
+    std::shared_ptr<EncodedWeights> m_EncodedWeights;
 };
 
 bool IsOutputBufferInDram(const Plan& plan, const Edge& edge);

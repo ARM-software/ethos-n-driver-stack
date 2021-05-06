@@ -10,6 +10,7 @@
 #include "GraphNodes.hpp"
 #include "Plan.hpp"
 #include "WeightEncoder.hpp"
+#include "WeightEncoderCache.hpp"
 
 #include <unordered_map>
 
@@ -114,86 +115,6 @@ CascadingBufferFormat GetCascadingBufferFormatFromCompilerDataFormat(const Compi
 }
 
 }    // namespace
-
-class WeightEncoderCache
-{
-public:
-    WeightEncoderCache(const HardwareCapabilities& caps)
-        : m_Encoder(WeightEncoder::CreateWeightEncoder(caps))
-    {}
-
-    struct Params
-    {
-        TensorInfo weightsTensorInfo;
-        std::shared_ptr<const std::vector<uint8_t>> weightsData;
-        TensorInfo biasTensorInfo;
-        std::vector<int32_t> biasData;
-        QuantizationInfo inputQuantizationInfo;
-        QuantizationInfo outputQuantizationInfo;
-        uint32_t stripeDepth;
-        uint32_t strideY;
-        uint32_t strideX;
-        uint32_t paddingTop;
-        uint32_t paddingLeft;
-        uint32_t iterationSize;
-        ethosn::command_stream::MceOperation operation;
-        CompilerMceAlgorithm algorithm;
-
-        bool operator==(const Params& r) const
-        {
-            return weightsTensorInfo == r.weightsTensorInfo && *weightsData == *r.weightsData &&
-                   biasTensorInfo == r.biasTensorInfo && biasData == r.biasData &&
-                   inputQuantizationInfo == r.inputQuantizationInfo &&
-                   outputQuantizationInfo == r.outputQuantizationInfo && stripeDepth == r.stripeDepth &&
-                   strideY == r.strideY && strideX == r.strideX && paddingTop == r.paddingTop &&
-                   paddingLeft == r.paddingLeft && iterationSize == r.iterationSize && operation == r.operation &&
-                   algorithm == r.algorithm;
-        }
-    };
-
-    EncodedWeights Encode(const Params& params)
-    {
-        auto it = m_Entries.find(params);
-        if (it == m_Entries.end())
-        {
-            EncodedWeights w =
-                m_Encoder->Encode(params.weightsTensorInfo, params.weightsData->data(), params.biasTensorInfo,
-                                  params.biasData.data(), params.inputQuantizationInfo, params.outputQuantizationInfo,
-                                  params.stripeDepth, params.strideY, params.strideX, params.paddingTop,
-                                  params.paddingLeft, params.iterationSize, params.operation, params.algorithm);
-            m_Entries[params] = w;
-            return w;
-        }
-        else
-        {
-            return it->second;
-        }
-    }
-
-private:
-    struct Hasher
-    {
-        size_t operator()(const Params& p) const
-        {
-            // This hash function is deliberately very simple and therefore you might think would lead to lots of
-            // collisions. However, because we are only using it in the context of a single Part, the differences
-            // between each set of encoding params will be mostly (wholly?) in these fields that we are hashing,
-            // and not the exact weight values
-            size_t h = 17;
-            h        = h * 37 + std::hash<size_t>()(p.weightsData->size());
-            h        = h * 37 + std::hash<size_t>()(p.biasData.size());
-            h        = h * 37 + std::hash<uint32_t>()(p.stripeDepth);
-            h        = h * 37 + std::hash<uint32_t>()(p.iterationSize);
-            // Note we cast the enum to an integral type, as some compilers (e.g. aarch64-linux-gnu-g++ 5.3.1)
-            // don't support using the enum type directly, even though the spec indicates that they should.
-            h = h * 37 + std::hash<uint32_t>()(static_cast<uint32_t>(p.algorithm));
-            return h;
-        }
-    };
-
-    std::unique_ptr<WeightEncoder> m_Encoder;
-    std::unordered_map<Params, EncodedWeights, Hasher> m_Entries;
-};
 
 bool Part::NumStripes::operator<(const NumStripes& rhs) const
 {
@@ -598,7 +519,7 @@ void Part::CreatePlans()
     }
     else
     {
-        WeightEncoderCache weightEncoderCache(m_Capabilities);
+        WeightEncoderCache weightEncoderCache{ m_Capabilities };
         GenerateWithTraversalOrders(node, weightEncoderCache);
     }
 
@@ -744,7 +665,7 @@ void AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
     wp.iterationSize                      = weightStripeSize;
     wp.operation                          = mceOp->m_Op;
     wp.algorithm                          = mceOp->m_Algo;
-    weightsBufferInDram->m_EncodedWeights = std::make_unique<EncodedWeights>(weightEncoderCache.Encode(wp));
+    weightsBufferInDram->m_EncodedWeights = weightEncoderCache.Encode(wp);
 
     // Use the encoded weights to determine the size of the sram and dram buffers
     weightsBufferInDram->m_SizeInBytes = static_cast<uint32_t>(weightsBufferInDram->m_EncodedWeights->m_Data.size());
