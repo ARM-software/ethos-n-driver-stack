@@ -12,7 +12,7 @@
 #include <armnn/INetwork.hpp>
 #include <armnn/utility/Assert.hpp>
 #include <armnn/utility/PolymorphicDowncast.hpp>
-#include <backendsCommon/CpuTensorHandle.hpp>
+#include <backendsCommon/TensorHandle.hpp>
 #include <backendsCommon/test/CommonTestUtils.hpp>
 
 // The include order is important. Turn off clang-format
@@ -236,15 +236,15 @@ static void CheckConvolutionLayerDataEquals(const Layer* modLayer,
     const ConvolutionLayer* modLayerWithParam = PolymorphicDowncast<const ConvolutionLayer*>(modLayer);
     const ConvolutionLayer* expLayerWithParam = PolymorphicDowncast<const ConvolutionLayer*>(expLayer);
 
-    const std::shared_ptr<ConstCpuTensorHandle> modWeight = GetWeight(modLayerWithParam);
-    const std::shared_ptr<ConstCpuTensorHandle> expWeight = GetWeight(expLayerWithParam);
+    const std::shared_ptr<ConstTensorHandle> modWeight = GetWeight(modLayerWithParam);
+    const std::shared_ptr<ConstTensorHandle> expWeight = GetWeight(expLayerWithParam);
 
     bool weightEquals = modWeight->GetTensorInfo() == expWeight->GetTensorInfo();
     BOOST_TEST(weightEquals, paramName << " weights doesn't match at layer index: " << layerIdx
                                        << " nameMod: " << modLayer->GetName() << " nameExp: " << expLayer->GetName());
 
-    const std::shared_ptr<ConstCpuTensorHandle> modBias = GetBias(modLayerWithParam);
-    const std::shared_ptr<ConstCpuTensorHandle> expBias = GetBias(expLayerWithParam);
+    const std::shared_ptr<ConstTensorHandle> modBias = GetBias(modLayerWithParam);
+    const std::shared_ptr<ConstTensorHandle> expBias = GetBias(expLayerWithParam);
 
     bool biasEquals = modBias->GetTensorInfo() == expBias->GetTensorInfo();
     BOOST_TEST(biasEquals, paramName << " bias doesn't match at layer index: " << layerIdx

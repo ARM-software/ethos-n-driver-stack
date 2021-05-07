@@ -15,7 +15,7 @@
 #include <armnn/Optional.hpp>
 #include <armnn/utility/Assert.hpp>
 #include <armnnUtils/Permute.hpp>
-#include <backendsCommon/CpuTensorHandle.hpp>
+#include <backendsCommon/TensorHandle.hpp>
 #include <ethosn_utils/VectorStream.hpp>
 
 #include <algorithm>

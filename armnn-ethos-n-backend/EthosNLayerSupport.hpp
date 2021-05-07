@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -7,7 +7,7 @@
 #include "EthosNConfig.hpp"
 #include "EthosNMapping.hpp"
 
-#include <armnn/ILayerSupport.hpp>
+#include <armnn/backends/ILayerSupport.hpp>
 #include <ethosn_support_library/SupportQueries.hpp>
 
 namespace armnn

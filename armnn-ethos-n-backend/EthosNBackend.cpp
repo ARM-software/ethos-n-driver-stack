@@ -884,7 +884,7 @@ bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph, Layer* layer)
 
                 const ConstTensor weights(weightInfo, weightData);
 
-                depthwiseLayer->m_Weight = std::make_unique<ScopedCpuTensorHandle>(weights);
+                depthwiseLayer->m_Weight = std::make_unique<ScopedTensorHandle>(weights);
 
                 SubgraphView patternSubgraph({ patternSubgraphInput }, { &layer->GetOutputSlot() },
                                              { layer, constantLayer });

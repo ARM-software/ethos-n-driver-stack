@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -57,7 +57,7 @@ std::unique_ptr<ITensorHandle>
     auto ethosnConfig = GetEthosNConfig();
     if (ethosnConfig.m_PerfOnly)
     {
-        return std::make_unique<ScopedCpuTensorHandle>(tensorInfo);
+        return std::make_unique<ScopedTensorHandle>(tensorInfo);
     }
     return std::make_unique<EthosNTensorHandle>(tensorInfo);
 }
