@@ -16,7 +16,7 @@ list(APPEND armnnEthosNBackendUnitTests_sources
      EthosNTensorUtilsTests.cpp
      EthosNTestUtils.hpp
      EthosNWorkloadFactoryHelper.hpp
-     EthosNReplacementTests.cpp
+     EthosNReplaceUnsupportedTests.cpp
      replacement-tests/SISOCatOneGraphFactory.cpp
 )
 
