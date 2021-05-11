@@ -1,5 +1,5 @@
 #
-# Copyright © 2018-2020 Arm Limited. All rights reserved.
+# Copyright © 2018-2021 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -23,6 +23,8 @@ list(APPEND armnnEthosNBackend_sources
     EthosNWorkloadFactory.cpp
     EthosNWorkloadFactory.hpp
     EthosNWorkloadUtils.hpp
+    EthosNReplaceUnsupported.hpp
+    EthosNReplaceUnsupported.cpp
 )
 
 add_library(armnnEthosNBackend OBJECT ${armnnEthosNBackend_sources})

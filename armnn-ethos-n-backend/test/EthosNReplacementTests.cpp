@@ -5,6 +5,7 @@
 #include "EthosNBackend.hpp"
 #include "EthosNBackendUtils.hpp"
 #include "EthosNMapping.hpp"
+#include "EthosNReplaceUnsupported.hpp"
 #include "EthosNTestUtils.hpp"
 #include "Network.hpp"
 #include "replacement-tests/SISOCatOneGraphFactory.hpp"

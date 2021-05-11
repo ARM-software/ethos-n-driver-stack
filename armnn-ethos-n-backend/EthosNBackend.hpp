@@ -137,8 +137,6 @@ Layer* CreatePooling2dLayer(Graph& graph, AdditionalLayerParams& params);
 
 void ApplyMappings(std::vector<Mapping> mappings, Graph& newGraph);
 
-void ReplaceUnsupportedLayers(Graph& graph);
-
 }    // namespace ethosnbackend
 
 }    // namespace armnn
