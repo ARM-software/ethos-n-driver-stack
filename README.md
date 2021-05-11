@@ -9,7 +9,7 @@ For more information, please refer to:
 
 ## About the Ethos-N driver stack
 
-The Ethos-N driver stack targets the Ethos-N78 NPU.
+The Ethos-N driver stack targets the Ethos-N77 and Ethos-N78 set of NPUs. _Note that support for Ethos-N77 has been **deprecated** and will be removed in 21.08._
 
 The Ethos-N driver stack consists of several components.
 
@@ -119,8 +119,8 @@ Enter the following commands to download Arm NN, the Ethos-N NPU driver, kernel 
 ```sh
 mkdir driver_stack
 cd driver_stack
-git clone https://github.com/Arm-software/armnn
-git clone https://github.com/Arm-software/ethos-n-driver-stack
+git clone https://github.com/Arm-software/armnn --branch v21.05
+git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 21.05
 ```
 
 ## Configure SMMU support
@@ -236,22 +236,22 @@ You must follow specific steps to build the Ethos-N NPU driver. You must build t
     ln -s <path_to>/driver_stack/ethos-n-driver-stack/armnn-ethos-n-backend ethos-n
     ```
 
-8. Build Arm NN for TensorFlow Lite. For instructions on building Arm NN, see <https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configuring-the-arm-nn-sdk-build-environment-for-tensorflow-lite>
+8. Build Arm NN for TensorFlow Lite. For instructions on building Arm NN, see <https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment>
 
-    The following build options are required to the CMake call in the **Build Arm NN** section of the guide:
+    The following build options are required to the CMake call in the [**Build Arm NN**](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment/build-arm-nn) section of the guide:
 
     ```cmake
     -DBUILD_TESTS=1
     -DARMNNREF=1
     -DETHOSN_SUPPORT=1
-    -DETHOSN_ROOT=<install_directory> # as provided in step6
+    -DETHOSN_ROOT=<install_directory>
     ```
 
     For cross compilation, please refer to <https://github.com/ARM-software/armnn/blob/master/BuildGuideCrossCompilation.md>
 
     As part of the Arm NN build, the process automatically builds the Ethos-N NPU driver plug-in for Arm NN.
 
-    _Arm uses TensorFlow Lite as an example. You can also build Arm NN for [TensorFlow](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configuring-the-arm-nn-sdk-build-environment-for-tensorflow), [Caffe](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment-for-caffe) or [ONNX](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configuring-the-arm-nn-sdk-build-environment-for-onnx)._
+    _Arm uses TensorFlow Lite as an example. You can also build Arm NN for [ONNX](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment/generate-the-build-dependencies-for-onnx)._
 
 9. If you require Android NNAPI support, see [the instructions](https://github.com/Arm-software/android-nn-driver#armnn-android-neural-networks-driver) for how to build the Arm NN Android NNAPI driver.
 

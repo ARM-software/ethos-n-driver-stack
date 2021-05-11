@@ -83,6 +83,7 @@
 
 ## Max Pooling
 - Support configuration:
+    - 1x1 pooling size, 2,2 stride (this is meant for downsample 2x2)
     - 2x2 pooling size, 2,2 stride, valid padding, input sizes must be even
     - 2x2 pooling size, 2,2 stride, same padding, input sizes must be odd
     - 3x3 pooling size, 2,2 stride, valid padding, input sizes must even, maximum tensor width is 417
