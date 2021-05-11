@@ -1779,7 +1779,7 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
     for (size_t og = 0; og < numOfmInParallel; ++og)
     {
         waitHandles[og] = std::async(
-            [&](uint32_t og) {
+            [&](size_t og) {
                 for (uint32_t ofm : perOgOfms[og])
                 {
                     const uint32_t iteration = ofm % numIterationsOfm;

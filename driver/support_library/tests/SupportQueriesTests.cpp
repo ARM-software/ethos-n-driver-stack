@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -347,7 +347,7 @@ TEST_CASE("Unsupported Tensor Depth", "[IsSupported][TVM]")
         // - Unsupported caused by input
         // - Unsupported caused by output
         // clang-format off
-        const auto shape = GENERATE(
+        const auto shape = GENERATE_COPY(
             TensorShape{ 1, 16, 16, UNSUPPORTED_OUTPUT_DIM },
             TensorShape{ 1, blockSize * UNSUPPORTED_OUTPUT_DIM, blockSize * UNSUPPORTED_OUTPUT_DIM, OUTPUT_DIM }
         );
