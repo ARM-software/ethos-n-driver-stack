@@ -1,5 +1,5 @@
 #
-# Copyright © 2018-2020 Arm Limited. All rights reserved.
+# Copyright © 2018-2021 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -8,7 +8,6 @@ list(APPEND armnnEthosNBackendUnitTests_sources
      EthosNCreateEstimationWorkloadTests.cpp
      EthosNCreateWorkloadTests.cpp
      EthosNLayerTests.cpp
-     EthosNLayerTests.hpp
      EthosNMappingTests.cpp
      EthosNMemCopyTests.cpp
      EthosNOptimizeSubgraphViewTests.cpp
@@ -17,8 +16,6 @@ list(APPEND armnnEthosNBackendUnitTests_sources
      EthosNTensorUtilsTests.cpp
      EthosNTestUtils.hpp
      EthosNWorkloadFactoryHelper.hpp
-     PreCompiledTestImpl.cpp
-     PreCompiledTestImpl.hpp
      EthosNReplacementTests.cpp
      replacement-tests/SISOCatOneGraphFactory.cpp
 )
