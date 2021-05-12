@@ -1373,7 +1373,16 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 		goto err_free_core_list;
 	}
 
-	/*ethosn->num_cores = 1; */
+	/*
+	 * Child device probing errors are not propagated back to the populate
+	 * call so verify that the expected number of cores were setup
+	 */
+	if (ethosn->num_cores != num_of_npus) {
+		dev_err(&pdev->dev, "Failed to populate all child devices\n");
+
+		goto err_depopulate_device;
+	}
+
 	dev_dbg(&pdev->dev, "Populated %d children\n", ethosn->num_cores);
 
 	mutex_init(&ethosn->mutex);
@@ -1388,7 +1397,7 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 
 		ret = ethosn_init_reserved_mem(&pdev->dev);
 		if (ret)
-			goto err_free_core_list;
+			goto err_depopulate_device;
 	}
 
 	/* Enumerate irqs */
@@ -1400,7 +1409,7 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 
 	if (num_irqs < 0) {
 		ret = num_irqs;
-		goto err_free_core_list;
+		goto err_depopulate_device;
 	}
 
 	/* At this point, all child device have been populated.
