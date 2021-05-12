@@ -20,6 +20,13 @@ namespace armnn
 class EthosNLayerSupport : public ILayerSupport
 {
 public:
+    enum class AdditionSupportedMode
+    {
+        None,      ///< Addition cannot be supported by this backend at all.
+        Native,    ///< Addition can be supported by this backend, by using an Addition operation in the support library.
+        ReplaceWithDepthwise,    //< Addition can be supported by this backend, by using a DepthwiseConvolution operation in the support library.
+    };
+
     EthosNLayerSupport(const EthosNConfig& config,
                        const EthosNMappings& mappings,
                        const std::vector<char>& capabilities);
@@ -33,6 +40,13 @@ public:
                              const TensorInfo& input1,
                              const TensorInfo& output,
                              Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
+
+    /// Provides more detail than IsAdditionSupported(), by stating *how* the addition can be supported
+    /// (native vs depthwise replacement)
+    AdditionSupportedMode GetAdditionSupportedMode(const TensorInfo& input0,
+                                                   const TensorInfo& input1,
+                                                   const TensorInfo& output,
+                                                   Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const;
 
     bool IsConcatSupported(const std::vector<const TensorInfo*> inputs,
                            const TensorInfo& output,
@@ -420,6 +434,13 @@ private:
     bool CheckEstimateOnlySupported(const std::vector<TensorInfo>& inputs,
                                     const std::vector<TensorInfo>& outputs,
                                     Optional<std::string&> reasonIfUnsupported) const;
+
+    bool IsAdditionSupportedByDepthwiseReplacement(const TensorInfo& input0,
+                                                   const TensorInfo& input1,
+                                                   const TensorInfo& output,
+                                                   const ethosn::support_library::TensorInfo& ethosnInput0,
+                                                   const ethosn::support_library::TensorInfo& ethosnInput1,
+                                                   Optional<std::string&> reasonIfUnsupported) const;
 
     EthosNConfig m_Config;
     EthosNMappings m_Mappings;

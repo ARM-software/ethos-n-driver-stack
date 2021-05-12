@@ -854,7 +854,7 @@ void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
     }
 
     // Constant configuration to always replace unsupported layer patterns
-    ethosnbackend::ReplaceUnsupportedLayers(newGraph);
+    ethosnbackend::ReplaceUnsupportedLayers(newGraph, config, mappings, capabilities);
 
     subgraphToCompile = ethosnbackend::ReinterpretGraphToSubgraph(newGraph);
 

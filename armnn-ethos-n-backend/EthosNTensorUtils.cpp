@@ -8,9 +8,10 @@
 #include <armnn/Descriptors.hpp>
 #include <armnn/Exceptions.hpp>
 #include <armnn/TypesUtils.hpp>
+#include <armnn/utility/Assert.hpp>
 #include <armnnUtils/Permute.hpp>
 
-#include <armnn/utility/Assert.hpp>
+#include <algorithm>
 
 namespace
 {
@@ -539,6 +540,61 @@ bool IsDataTypeSupportedOnEthosN(const DataType dataType)
         {
             return false;
         }
+    }
+}
+
+namespace
+{
+
+template <typename T>
+std::vector<int32_t> ConvertDataToInt32(const void* rawData,
+                                        const uint32_t numElements,
+                                        const float originalScale,
+                                        const int32_t originalZeroPoint,
+                                        const float newScale)
+{
+    const T* data = static_cast<const T*>(rawData);
+    std::vector<int32_t> newConstantLayerData;
+    newConstantLayerData.reserve(numElements);
+
+    std::transform(data, data + numElements, std::back_inserter(newConstantLayerData), [=](const T x) {
+        const float fpValue = originalScale * static_cast<float>(x - originalZeroPoint);
+        return static_cast<int32_t>(std::round(fpValue / newScale));
+    });
+
+    return newConstantLayerData;
+}
+
+}    // namespace
+
+armnn::Optional<std::vector<int32_t>> ConvertTensorValuesToSigned32(const void* srcData,
+                                                                    const armnn::TensorInfo& srcInfo,
+                                                                    const armnn::TensorInfo& dstInfo)
+{
+    if (dstInfo.GetDataType() != DataType::Signed32)
+    {
+        return EmptyOptional();
+    }
+    // The below rescaling function does not support a non-zero new offset
+    if (dstInfo.GetQuantizationOffset() != 0)
+    {
+        return EmptyOptional();
+    }
+    switch (srcInfo.GetDataType())
+    {
+        case DataType::QAsymmU8:
+            return ConvertDataToInt32<uint8_t>(srcData, srcInfo.GetNumElements(), srcInfo.GetQuantizationScale(),
+                                               srcInfo.GetQuantizationOffset(), dstInfo.GetQuantizationScale());
+        case DataType::QAsymmS8:
+            return ConvertDataToInt32<int8_t>(srcData, srcInfo.GetNumElements(), srcInfo.GetQuantizationScale(),
+                                              srcInfo.GetQuantizationOffset(), dstInfo.GetQuantizationScale());
+        case DataType::QSymmS8:
+            return ConvertDataToInt32<int8_t>(srcData, srcInfo.GetNumElements(), srcInfo.GetQuantizationScale(), 0,
+                                              dstInfo.GetQuantizationScale());
+        default:
+            // Unsupported constant data type.
+            // Note we should be able to easily add support by writing a conversion function like above
+            return EmptyOptional();
     }
 }
 

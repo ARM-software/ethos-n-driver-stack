@@ -893,4 +893,100 @@ BOOST_AUTO_TEST_CASE(MulSubstitutionFail)
     ARMNN_ASSERT(reasonIfUnsupported == expectedReasonIfSupported);
 }
 
+BOOST_AUTO_TEST_CASE(IsAdditionSupported)
+{
+    EthosNLayerSupport layerSupport(EthosNConfig(), EthosNMappings(), EthosNConfig().QueryCapabilities());
+
+    auto ExpectFail = [&layerSupport](const TensorInfo& input0, const TensorInfo& input1, const TensorInfo& output,
+                                      const char* expectedFailureReason) {
+        std::string failureReason;
+        BOOST_CHECK(!layerSupport.IsAdditionSupported(input0, input1, output, failureReason));
+        BOOST_CHECK(failureReason.find(expectedFailureReason) != std::string::npos);
+    };
+
+    // Failure case - 5D tensor
+    ExpectFail(TensorInfo({ 1, 2, 2, 4, 9 }, DataType::QAsymmU8, 1.0f, 0),
+               TensorInfo({ 1, 1, 1, 4 }, DataType::Signed32, 1.0f, 0),
+               TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 0.9f, 0), "The ethosn can only support up to 4D tensors");
+
+    // Success case - regular addition supported natively
+    BOOST_CHECK(layerSupport.GetAdditionSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                      TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                      TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+                EthosNLayerSupport::AdditionSupportedMode::Native);
+
+    // Failure case - broadcasting in an a way that can't be covered by the depthwise replacement
+    ExpectFail(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+               TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, 1.0f, 0),
+               TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+               "Cannot stretch along the requested dimensions.");
+
+    // Failure case - could be replaced by depthwise but we can't find a valid weight scale
+    ExpectFail(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 100000.0f, 0),
+               TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0),
+               TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+               "Addition operation was attempted to be substituted for DepthwiseConvolution2d, "
+               "however the following error occurred in the substitution: Couldn't find valid weight scale");
+
+    // Failure case - could be replaced by depthwise but support library rejects the depthwise config
+    // (in this case, input tensor too deep)
+    ExpectFail(TensorInfo({ 1, 2, 2, 100000 }, DataType::QAsymmU8, 1.0f, 0),
+               TensorInfo({ 1, 1, 1, 100000 }, DataType::QAsymmU8, 1.0f, 0),
+               TensorInfo({ 1, 2, 2, 100000 }, DataType::QAsymmU8, 1.0f, 0),
+               "Addition operation was attempted to be substituted for DepthwiseConvolution2d, "
+               "however the following error occurred when checking for Depthwise support: "
+               "Input to depthwise conv: Tensor max depth cannot fit in SRAM");
+
+    // Success case - supported by replacement with depthwise
+    BOOST_CHECK(layerSupport.GetAdditionSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                      TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                      TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+                EthosNLayerSupport::AdditionSupportedMode::ReplaceWithDepthwise);
+}
+
+// Checks the behaviour is IsAdditionSupported when in perf-only mode.
+// Because we call multiple support library IsSupported checks (due to the potential depthwise replacement),
+// the logic relating to perf-only is a bit complicated and warrants explicit testing.
+BOOST_AUTO_TEST_CASE(IsAdditionSupportedPerfOnly)
+{
+    EthosNConfig config;
+    config.m_PerfOnly = true;
+    EthosNLayerSupport layerSupport(config, EthosNMappings(), config.QueryCapabilities());
+
+    // Broadcast add (over width & height) is reported as EstimateOnly by the support library,
+    // but by replacing it with a depthwise we can support it fully, which is preferable.
+    // Therefore GetAdditionSupportedMode should request replacement with a depthwise even in perf-only mode.
+    BOOST_CHECK(layerSupport.GetAdditionSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                      TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                      TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+                EthosNLayerSupport::AdditionSupportedMode::ReplaceWithDepthwise);
+
+    // A case where native Addition is not supported at all (even in EstimateOnly, because the input data types are
+    // different), but replacement with depthwise can be done
+    BOOST_CHECK(layerSupport.GetAdditionSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                      TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmS8, 1.0f, 0),
+                                                      TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+                EthosNLayerSupport::AdditionSupportedMode::ReplaceWithDepthwise);
+
+    // Native addition is EstimateOnly (broadcast across channels) and no depthwise replacement possible
+    // because it's not the right kind of broadcast (this is NOT a case where the support library's IsDepthwiseSupported
+    // fails - it doesn't even get this far).
+    BOOST_CHECK(layerSupport.GetAdditionSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                      TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, 1.0f, 0),
+                                                      TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+                EthosNLayerSupport::AdditionSupportedMode::Native);
+
+    // There are some theoretically possible cases that can't be tested in practice because of the current
+    // support library IsSupported checks. If we mocked the support library IsSupported checks then we could better
+    // test the logic of the backend's GetAdditionSupportedMode() (a potential future improvement):
+    //
+    // 1. I do not believe it is currently possible for the depthwise to be EstimateOnly - it is either fully supported or
+    // not supported at all, because the depthwise layer that we would replace with never uses any weird strides
+    // or anything like that. Hence there are no tests for this case.
+    //
+    // 2. I do not believe it is currently possible for the native Addition to be EstimateOnly and the replacement
+    // depthwise to be rejected by the support library, because the only way I can find to make the depthwise
+    // rejected is to have a large tensor depth, but then would also results in the native Addition to be rejected.
+}
+
 BOOST_AUTO_TEST_SUITE_END()

@@ -8,6 +8,7 @@
 #include "EthosNBackend.hpp"
 #include "EthosNConfig.hpp"
 #include "EthosNMapping.hpp"
+#include "EthosNReplaceUnsupported.hpp"
 #include "EthosNTensorUtils.hpp"
 #include "InternalTypes.hpp"
 #include "LayerSupportCommon.hpp"
@@ -21,6 +22,8 @@
 
 #include <algorithm>
 #include <cstring>
+
+using namespace armnn::ethosnbackend;
 
 namespace armnn
 {
@@ -260,26 +263,105 @@ bool EthosNLayerSupport::IsAdditionSupported(const TensorInfo& input0,
                                              const TensorInfo& output,
                                              Optional<std::string&> reasonIfUnsupported) const
 {
+    return GetAdditionSupportedMode(input0, input1, output, reasonIfUnsupported) != AdditionSupportedMode::None;
+}
+
+bool EthosNLayerSupport::IsAdditionSupportedByDepthwiseReplacement(const TensorInfo& input0,
+                                                                   const TensorInfo& input1,
+                                                                   const TensorInfo& output,
+                                                                   const ethosn_lib::TensorInfo& ethosnInput0,
+                                                                   const ethosn_lib::TensorInfo& ethosnInput1,
+                                                                   Optional<std::string&> reasonIfUnsupported) const
+{
+    // If native addition is not supported, try substituting a pattern where a constant is broadcast-added for a DepthwiseConvolution2d.
+    // Therefore we need to check if this is the case, and check the corresponding supportedness for
+    // DepthwiseConvolution2d instead. Note that it is not possible at this stage to determine if one of the inputs
+    // is constant, so we have to assume that it is. If it turns out to not be constant, then the replacement won't
+    // take place and the support library will be asked to perform a broadcast add, which it will reject.
+    const ethosn_lib::TensorShape& input0Shape = ethosnInput0.m_Dimensions;
+    const ethosn_lib::TensorShape& input1Shape = ethosnInput1.m_Dimensions;
+
+    bool isBroadcastShape0 = input0Shape == ethosn_lib::TensorShape{ 1, 1, 1, input0Shape[3] };
+    bool isBroadcastShape1 = input1Shape == ethosn_lib::TensorShape{ 1, 1, 1, input1Shape[3] };
+
+    if ((!isBroadcastShape0 && !isBroadcastShape1) || (input0Shape[3] != input1Shape[3]))
+    {
+        return false;
+    }
+
+    const TensorInfo& inputInfo    = isBroadcastShape0 ? input1 : input0;
+    const TensorInfo& constantInfo = isBroadcastShape0 ? input0 : input1;
+
+    // Check if the replacement is possible (e.g. the data types are compatible), and if so get the configuration of the new layer
+    std::string failureReason;
+    Optional<ConstantAddToDepthwiseReplacementConfig> configOpt =
+        CalcConstantAddToDepthwiseReplacementConfig(inputInfo, constantInfo, output, failureReason);
+    if (!configOpt.has_value())
+    {
+        ReasonMessageHelper messageHelper;
+        messageHelper.SetString("Addition operation was attempted to be substituted for DepthwiseConvolution2d, "
+                                "however the following error occurred in the substitution: " +
+                                failureReason);
+        SetReason(reasonIfUnsupported, messageHelper.GetString());
+        return false;
+    }
+    const ConstantAddToDepthwiseReplacementConfig& config = configOpt.value();
+
+    std::string depthwiseReasonIfUnsupported;
+    bool supported = EthosNLayerSupport::IsDepthwiseConvolutionSupported(
+        inputInfo, output, config.m_Desc, config.m_WeightsInfo, config.m_BiasInfo, depthwiseReasonIfUnsupported);
+
+    ReasonMessageHelper messageHelper;
+    messageHelper.SetString("Addition operation was attempted to be substituted for DepthwiseConvolution2d, "
+                            "however the following error occurred when checking for Depthwise support: " +
+                            depthwiseReasonIfUnsupported);
+    SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
+    return supported;
+}
+
+armnn::EthosNLayerSupport::AdditionSupportedMode
+    EthosNLayerSupport::GetAdditionSupportedMode(const TensorInfo& input0,
+                                                 const TensorInfo& input1,
+                                                 const TensorInfo& output,
+                                                 Optional<std::string&> reasonIfUnsupported) const
+{
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(input0, reasonIfUnsupported) &&
           IsTensorSupportedOnEthosN(input1, reasonIfUnsupported) &&
           IsTensorSupportedOnEthosN(output, reasonIfUnsupported)))
     {
-        return false;
+        return AdditionSupportedMode::None;
     }
 
     auto ethosnInput0 = BuildEthosNTensorInfo(input0, DataLayout::NHWC);
     auto ethosnInput1 = BuildEthosNTensorInfo(input1, DataLayout::NHWC);
     auto ethosnOutput = BuildEthosNTensorInfo(output, DataLayout::NHWC);
 
+    // First try checking for support using a native addition
     ReasonMessageHelper messageHelper;
-    SupportedLevel supportedLevel =
+    SupportedLevel nativeSupportedLevel =
         m_Queries.IsAdditionSupported(ethosnInput0, ethosnInput1, ethosnOutput.m_QuantizationInfo, &ethosnOutput,
                                       messageHelper.GetBuffer(), messageHelper.GetBufferSize());
 
-    bool supported = CheckSupportedLevel(supportedLevel, m_Config.m_PerfOnly);
-    SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
-    return supported;
+    bool nativeSupported = CheckSupportedLevel(nativeSupportedLevel, m_Config.m_PerfOnly);
+    SetReasonIfUnsupported(nativeSupported, messageHelper, reasonIfUnsupported);
+    // If in perf-only mode, and we got EstimateOnly for native addition, don't early-out here but instead first check
+    // if the depthwise replacement would give us full support, as that is preferable.
+    if (nativeSupportedLevel == ethosn_lib::SupportedLevel::Supported)
+    {
+        return AdditionSupportedMode::Native;
+    }
+
+    // If native addition is not supported, try substituting a pattern where a constant is broadcast-added for a DepthwiseConvolution2d.
+    if (IsAdditionSupportedByDepthwiseReplacement(input0, input1, output, ethosnInput0, ethosnInput1,
+                                                  reasonIfUnsupported))
+    {
+        return AdditionSupportedMode::ReplaceWithDepthwise;
+    }
+    else
+    {
+        return nativeSupported ? AdditionSupportedMode::Native : AdditionSupportedMode::None;
+    }
 }
 
 bool EthosNLayerSupport::IsConcatSupported(const std::vector<const TensorInfo*> inputs,

@@ -88,8 +88,8 @@ TEST_CASE("IsAdditionSupported")
     SECTION("Supported cases")
     {
         const auto inputDataType = GENERATE(DataType::UINT8_QUANTIZED, DataType::INT8_QUANTIZED);
-        TensorInfo input0        = TensorInfo({ 1, 1, 1, 4 }, inputDataType, DataFormat::NHWC, { 0, 1.0f });
-        TensorInfo input1        = TensorInfo({ 1, 2, 3, 4 }, inputDataType, DataFormat::NHWC, { 0, 1.0f });
+        TensorInfo input0        = TensorInfo({ 1, 2, 3, 4 }, inputDataType, DataFormat::NHWC, { 2, 2.0f });
+        TensorInfo input1        = TensorInfo({ 1, 2, 3, 4 }, inputDataType, DataFormat::NHWC, { 7, 7.0f });
         QuantizationInfo outputQuantizationInfo;
 
         SECTION("Output info not provided")
@@ -106,21 +106,19 @@ TEST_CASE("IsAdditionSupported")
             REQUIRE(outputInfo == TensorInfo({ 1, 2, 3, 4 }, inputDataType, DataFormat::NHWC, { 0, 1.0f }));
         }
 
-        SECTION("Output info provided")
+        SECTION("Output info provided and correct")
         {
             TensorInfo outputInfo({ 1, 2, 3, 4 }, inputDataType, DataFormat::NHWC, { 0, 1.0f });
             REQUIRE(queries.IsAdditionSupported(input0, input1, outputQuantizationInfo, &outputInfo, reason,
                                                 sizeof(reason)) == SupportedLevel::Supported);
         }
 
-        SECTION("Bias Add is supported")
+        SECTION("Output info provided but incorrect")
         {
-            TensorInfo input0 = TensorInfo({ 1, 2, 3, 4 });
-            TensorInfo input1 = TensorInfo({ 1, 1, 1, 4 });
-            TensorInfo output = TensorInfo({ 1, 2, 3, 4 });
-            QuantizationInfo outputQuantizationInfo;
-            REQUIRE(queries.IsAdditionSupported(input0, input1, outputQuantizationInfo, &output) ==
-                    SupportedLevel::Supported);
+            TensorInfo outputInfo({ 1, 2, 3, 4 }, inputDataType, DataFormat::NHWC, { 9, 9.0f });
+            REQUIRE(queries.IsAdditionSupported(input0, input1, outputQuantizationInfo, &outputInfo, reason,
+                                                sizeof(reason)) == SupportedLevel::Unsupported);
+            REQUIRE(Contains(reason, "Provided outputInfo is incorrect"));
         }
     }
 }

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -235,6 +235,13 @@ inline ethosn_lib::ResizeInfo BuildEthosNResizeInfo(const armnn::ResizeDescripto
 }
 
 bool IsDataTypeSupportedOnEthosN(const armnn::DataType dataType);
+
+/// Converts the values in the given tensor from the source tensor info to the dest tensor info.
+/// This can change be used for example to change the data type and/or quantization params.
+/// Returns an empty optional if the conversion is not supported.
+Optional<std::vector<int32_t>> ConvertTensorValuesToSigned32(const void* srcData,
+                                                             const armnn::TensorInfo& srcInfo,
+                                                             const armnn::TensorInfo& dstInfo);
 
 }    // namespace ethosntensorutils
 }    // namespace armnn

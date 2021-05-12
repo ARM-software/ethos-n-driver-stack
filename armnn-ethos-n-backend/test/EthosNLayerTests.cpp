@@ -1367,6 +1367,53 @@ LayerTestResult<uint8_t, 4> PreCompiledConstMulToDepthwiseTest(armnn::IWorkloadF
     return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 1, outputInfo, expectedOutputData);
 }
 
+/// Checks that the backend optimization substituting the Constant-Addition layer
+/// pattern with a DepthwiseConvolution2d will produce correct results when ran by the Ethos-N.
+LayerTestResult<uint8_t, 4> PreCompiledConstAddToDepthwiseTest(armnn::IWorkloadFactory& workloadFactory,
+                                                               const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
+{
+    // Set up tensor infos
+    TensorInfo inputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
+    TensorInfo constInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 2.0f, 5);
+    TensorInfo outputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
+
+    std::vector<uint8_t> inputData{
+        // clang-format off
+        1, 2, 3, 4,           10, 20, 15, 30,
+        8, 6, 5, 4,           11, 21, 31, 41,
+        // clang-format on
+    };
+
+    std::vector<uint8_t> constData{ 5, 8, 2, 6 };    // Dequantized: 0.0, 6.0, -6.0, 2.0
+
+    ConstTensor constantTensor{ constInfo, constData };
+
+    // Construct a network with the Constant-Addition pattern
+    armnn::INetworkPtr net = armnn::INetwork::Create();
+
+    IConnectableLayer* const inputLayer  = net->AddInputLayer(0, "input");
+    IConnectableLayer* const constLayer  = net->AddConstantLayer(constantTensor);
+    IConnectableLayer* const addLayer    = net->AddAdditionLayer("addition");
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(1, "output");
+
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+    constLayer->GetOutputSlot(0).SetTensorInfo(constInfo);
+    addLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
+
+    inputLayer->GetOutputSlot(0).Connect(addLayer->GetInputSlot(0));
+    constLayer->GetOutputSlot(0).Connect(addLayer->GetInputSlot(1));
+    addLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+
+    std::vector<uint8_t> expectedOutputData{
+        // clang-format off
+        1, 8, 0, 6,         10, 26, 9, 32,
+        8, 12, 0, 6,        11, 27, 25, 44,
+        // clang-format on
+    };
+
+    return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 1, outputInfo, expectedOutputData);
+}
+
 BOOST_AUTO_TEST_SUITE(Compute_EthosN)
 
 using FactoryType = armnn::EthosNWorkloadFactory;
@@ -1412,6 +1459,8 @@ ARMNN_AUTO_TEST_CASE(PreCompiled2dTensor, PreCompiled2dTensorTest)
 ARMNN_AUTO_TEST_CASE(PreCompiled3dTensor, PreCompiled3dTensorTest)
 
 ARMNN_AUTO_TEST_CASE(PreCompiledConstMulToDepthwise, PreCompiledConstMulToDepthwiseTest)
+
+ARMNN_AUTO_TEST_CASE(PreCompiledConstAddToDepthwise, PreCompiledConstAddToDepthwiseTest)
 
 BOOST_AUTO_TEST_CASE(TestInvalidLayerName)
 {

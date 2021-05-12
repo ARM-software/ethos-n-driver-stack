@@ -1158,7 +1158,9 @@ SupportedLevel SupportQueries::IsAdditionSupported(const TensorInfo& inputInfo0,
     const bool isDim2Equal    = shape0[2] == shape1[2];
     const bool isDim3Equal    = shape0[3] == shape1[3];
 
-    // To be able to stretch along a dimension. The dimension size in one of the tensors must be 1.
+    // To be able to stretch along a dimension the dimension size in one of the tensors must be 1.
+    // Note that we no longer support any form of stretching, but the logic in this function has been
+    // preserved to make it easy to add back later if necessary.
     const bool canStretchDim1 = shape0[1] == 1 || shape1[1] == 1;
     const bool canStretchDim2 = shape0[2] == 1 || shape1[2] == 1;
     const bool canStretchDim3 = shape0[3] == 1 || shape1[3] == 1;
@@ -1244,12 +1246,10 @@ SupportedLevel SupportQueries::IsAdditionSupported(const TensorInfo& inputInfo0,
         *outputInfo = expectedOutputInfo;
     }
 
-    // We only support no stretching dimensions or stretching both height and width.
+    // We only support no stretching dimensions
     using DimFlags                                       = std::array<bool, 3>;
     DimFlags stretchDimensions                           = { !isDim1Equal, !isDim2Equal, !isDim3Equal };
-    std::array<DimFlags, 2> supportedStretchedDimensions = { DimFlags{ false, false, false },
-                                                             DimFlags{ true, true, false } };
-
+    std::array<DimFlags, 1> supportedStretchedDimensions = { DimFlags{ false, false, false } };
     if (!utils::Find(supportedStretchedDimensions, stretchDimensions).first)
     {
         SetReason("Cannot stretch along the requested dimensions.", reason, reasonMaxLength);
