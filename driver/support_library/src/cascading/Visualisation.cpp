@@ -688,7 +688,35 @@ DotAttributes GetDotAttributes(Operation* operation, DetailLevel detailLevel)
         {
             if (m_DetailLevel >= DetailLevel::High)
             {
-                m_Label << "Weights shape:" << ToString(op.GetWeights().GetTensorInfo().m_Dimensions) << "\n";
+                m_Label << "Weights: " << op.GetWeights().GetId() << "\n";
+                m_Label << "Bias: " << op.GetBias().GetId() << "\n";
+            }
+        }
+
+        void Visit(DepthwiseConvolution& op) override
+        {
+            if (m_DetailLevel >= DetailLevel::High)
+            {
+                m_Label << "Weights: " << op.GetWeights().GetId() << "\n";
+                m_Label << "Bias: " << op.GetBias().GetId() << "\n";
+            }
+        }
+
+        void Visit(TransposeConvolution& op) override
+        {
+            if (m_DetailLevel >= DetailLevel::High)
+            {
+                m_Label << "Weights: " << op.GetWeights().GetId() << "\n";
+                m_Label << "Bias: " << op.GetBias().GetId() << "\n";
+            }
+        }
+
+        void Visit(FullyConnected& op) override
+        {
+            if (m_DetailLevel >= DetailLevel::High)
+            {
+                m_Label << "Weights: " << op.GetWeights().GetId() << "\n";
+                m_Label << "Bias: " << op.GetBias().GetId() << "\n";
             }
         }
 

@@ -82,10 +82,21 @@ TEST_CASE("SaveNetworkToDot Details", "[Visualisation]")
     Constant& bias = network.AddConstant(
         sl::TensorInfo({ 1, 1, 1, 32 }, sl::DataType::INT32_QUANTIZED, sl::DataFormat::NHWC, QuantizationInfo(0, 0.5f)),
         std::vector<int32_t>(32, 0).data());
-    Constant& weights = network.AddConstant(sl::TensorInfo({ 3, 3, 32, 32 }, sl::DataType::UINT8_QUANTIZED,
-                                                           sl::DataFormat::HWIO, QuantizationInfo(0, 0.5f)),
-                                            std::vector<int32_t>(3 * 3 * 32 * 32, 0).data());
-    network.AddConvolution(input.GetOutput(0), bias, weights, ConvolutionInfo());
+    Constant& weightsConv = network.AddConstant(sl::TensorInfo({ 3, 3, 32, 32 }, sl::DataType::UINT8_QUANTIZED,
+                                                               sl::DataFormat::HWIO, QuantizationInfo(0, 0.5f)),
+                                                std::vector<int32_t>(3 * 3 * 32 * 32, 0).data());
+    network.AddConvolution(input.GetOutput(0), bias, weightsConv, ConvolutionInfo());
+    Constant& weightsDepthwise = network.AddConstant(
+        sl::TensorInfo({ 3, 3, 32, 1 }, sl::DataType::UINT8_QUANTIZED, sl::DataFormat::HWIM, QuantizationInfo(0, 0.5f)),
+        std::vector<int32_t>(3 * 3 * 32 * 1, 0).data());
+    network.AddDepthwiseConvolution(input.GetOutput(0), bias, weightsDepthwise, ConvolutionInfo());
+    network.AddTransposeConvolution(input.GetOutput(0), bias, weightsConv, ConvolutionInfo({}, { 2, 2 }));
+
+    Input& inputFc      = network.AddInput(sl::TensorInfo({ 1, 1, 1, 32 }));
+    Constant& weightsFc = network.AddConstant(sl::TensorInfo({ 1, 1, 32, 32 }, sl::DataType::UINT8_QUANTIZED,
+                                                             sl::DataFormat::HWIO, QuantizationInfo(0, 0.5f)),
+                                              std::vector<int32_t>(1 * 1 * 32 * 32, 0).data());
+    network.AddFullyConnected(inputFc.GetOutput(0), bias, weightsFc, FullyConnectedInfo());
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = false;
@@ -111,10 +122,31 @@ Operation1 -> Operand1_0
 Operation2[label = "2: Constant\n", shape = oval]
 Operand2_0[label = "Operand\nShape = [3, 3, 32, 32]\nFormat = HWIO\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 0.500000\n", shape = box]
 Operation2 -> Operand2_0
-Operation3[label = "3: Convolution\nWeights shape:[3, 3, 32, 32]\n", shape = oval]
+Operation6[label = "6: TransposeConvolution\nWeights: 2\nBias: 1\n", shape = oval]
+Operand0_0 -> Operation6
+Operand6_0[label = "Operand\nShape = [1, 33, 33, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
+Operation6 -> Operand6_0
+Operation3[label = "3: Convolution\nWeights: 2\nBias: 1\n", shape = oval]
 Operand0_0 -> Operation3
 Operand3_0[label = "Operand\nShape = [1, 14, 14, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
 Operation3 -> Operand3_0
+Operation4[label = "4: Constant\n", shape = oval]
+Operand4_0[label = "Operand\nShape = [3, 3, 32, 1]\nFormat = HWIM\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 0.500000\n", shape = box]
+Operation4 -> Operand4_0
+Operation5[label = "5: DepthwiseConvolution\nWeights: 4\nBias: 1\n", shape = oval]
+Operand0_0 -> Operation5
+Operand5_0[label = "Operand\nShape = [1, 14, 14, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
+Operation5 -> Operand5_0
+Operation7[label = "7: Input\n", shape = oval]
+Operand7_0[label = "Operand\nShape = [1, 1, 1, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
+Operation7 -> Operand7_0
+Operation8[label = "8: Constant\n", shape = oval]
+Operand8_0[label = "Operand\nShape = [1, 1, 32, 32]\nFormat = HWIO\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 0.500000\n", shape = box]
+Operation8 -> Operand8_0
+Operation9[label = "9: FullyConnected\nWeights: 8\nBias: 1\n", shape = oval]
+Operand7_0 -> Operation9
+Operand9_0[label = "Operand\nShape = [1, 1, 1, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
+Operation9 -> Operand9_0
 }
 )";
 
@@ -342,7 +374,7 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     estimatedOpGraph.m_OpToPass[&ple2] = 1;
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
-    bool dumpToFile = true;    //TODO:
+    bool dumpToFile = false;
     if (dumpToFile)
     {
         std::ofstream stream("SaveEstimatedOpGraphToDot.dot");
