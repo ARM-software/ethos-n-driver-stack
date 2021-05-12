@@ -1,4 +1,46 @@
-# Changelog
+# Changelog for Arm® Ethos™-N Driver Stack
+
+## 21.05
+
+### New Features
+
+- Support for Arm NN 21.05
+- Support for new operators:
+  - Max Pooling (1x1 and stride 2,2)
+  - Transpose
+  - Space To Depth
+  - MeanXy (when it is equivalent to average pool for 7x7 and 8x8)
+- Support for ResNet v2-50 added
+- All software components are versioned
+- Support for Linux® kernel version 4.19 and 5.4 added
+- The Arm NN backend now supports a boolean option to disable the use of Winograd when compiling a network
+
+### Public API changes
+
+- The version of the following libraries was updated:
+  - Support Library version updated to 1.0.0
+  - Driver Library version updated to 1.1.0
+  - Kernel module version updated to 1.0.0
+- The Support Library is no longer required at inference-time
+- Cleaned up QuantizationInfo constructor signatures in the Support library
+- The Driver Library's Network object is now constructed from a byte array rather than a Support Library CompiledNetwork object. This byte array can be obtained by calling Serialize() on the Support Library's CompiledNetwork object.
+- The Support Library's DeserializeCompiledNetwork function has been removed. Serialized Compiled Networks can now be loaded by the Driver Library instead.
+- The serialized format of a Support Library Compiled Network has changed and is not backwards compatible.
+- Methods that provided access to buffer information intended for internal use have been removed from the Support Library CompiledNetwork object
+- The Support Library's function for retrieving the buffer infos will return in the same order as the buffers were added by the user.
+- Added compatibility checks between various components.
+
+### Other changes
+
+- This driver release only supports the Ethos-N77 and Ethos-N78 NPUs
+- The Ethos-N77 support is deprecated and will be removed in 21.08.
+- Improved performance of the Support Library's weight encoder, leading to reduced network compilation time, up to 2x in some cases.
+- Users can new turn off warnings as errors (-Werror) by specifying werror=0 in scons.
+- An XML representation of the command stream can be dumped from the Driver Library by enabling a debug option
+
+### Known issues
+
+- None
 
 ## 21.02
 
@@ -158,7 +200,7 @@ The output of the network does not exactly match the Arm NN reference backend, a
 
 ### New Features
 
-- Support for TransposeConvolution in stand-alone and ArmNN backend
+- Support for TransposeConvolution in stand-alone and Arm NN backend
 - Support for the Split operator
 - Support for the DepthToSpace operator with a block size of 2x2
 - Support for the FSRCNN network
@@ -171,7 +213,7 @@ The output of the network does not exactly match the Arm NN reference backend, a
 ### Public API Changes
 
 - Added EstimatePerformance() and supporting types to the support library
-- ArmNN backend runs in performance estimation mode if enabled in a config file which location is specified via enviroment variable ARMNN_NPU_BACKEND_CONFIG_FILE
+- Arm NN backend runs in performance estimation mode if enabled in a config file which location is specified via enviroment variable ARMNN_NPU_BACKEND_CONFIG_FILE
 
 ### Other Changes
 
@@ -197,8 +239,8 @@ The output of the network does not exactly match the Arm NN reference backend, a
 - Improved support for the Concatenation operation
 - Improved support for operations with large inputs
 - Improved inference performance for networks with branching
-- ArmNN NPU backend compatible with ArmNN 19.08
-- Improved support for ArmNN Reshape operations with non-4D shapes
+- Arm NN NPU backend compatible with Arm NN 19.08
+- Improved support for Arm NN Reshape operations with non-4D shapes
 
 ### Public API Changes
 
@@ -214,3 +256,9 @@ The output of the network does not exactly match the Arm NN reference backend, a
 ### Known Issues
 
 - None
+
+# Trademarks and copyrights
+
+Arm and Ethos are registered trademarks or trademarks of Arm Limited (or its subsidiaries) in the US and/or elsewhere.
+
+Linux® is the registered trademark of Linus Torvalds in the U.S. and other countries.
