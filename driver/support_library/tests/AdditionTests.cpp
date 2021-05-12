@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -41,7 +41,7 @@ TEST_CASE("IsAdditionSupported")
             REQUIRE(Contains(reason, "Provided outputInfo is incorrect"));
         }
 
-        SECTION("Unsupoorted input data type")
+        SECTION("Unsupported input data type")
         {
             TensorInfo input0 = TensorInfo({ 1, 1, 1, 4 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, 1.0f });
             TensorInfo input1 = TensorInfo({ 1, 2, 3, 4 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, 1.0f });

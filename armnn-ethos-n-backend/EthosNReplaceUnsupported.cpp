@@ -49,8 +49,8 @@ bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph, Layer* layer)
                 DepthwiseConvolution2dDescriptor desc;
                 desc.m_DataLayout = DataLayout::NHWC;
 
-                const auto depthwiseLayer =
-                    replacementGraph.AddLayer<DepthwiseConvolution2dLayer>(desc, "DepthwiseConv2d");
+                const auto depthwiseLayer = replacementGraph.AddLayer<DepthwiseConvolution2dLayer>(
+                    desc, "Replacement for Constant-Multiplication");
 
                 TensorInfo weightInfo = constInfo;
                 weightInfo.SetShape({ 1, constInfo.GetShape()[3], 1, 1 });

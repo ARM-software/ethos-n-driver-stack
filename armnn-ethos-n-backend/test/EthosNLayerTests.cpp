@@ -248,15 +248,8 @@ std::vector<LayerTestResult<uint8_t, NumDims>>
     IRuntimePtr runtime(IRuntime::Create(IRuntime::CreationOptions()));
     std::vector<std::string> messages;
     IOptimizedNetworkPtr optimizedNet(nullptr, nullptr);
-    try
-    {
-        optimizedNet = Optimize(network, backends, runtime->GetDeviceSpec(), OptimizerOptions(), messages);
-    }
-    catch (const armnn::Exception&)
-    {
-        throw RuntimeException(std::string("Failed to optimize network for ") + std::string(backends[0]),
-                               CHECK_LOCATION());
-    }
+    optimizedNet = Optimize(network, backends, runtime->GetDeviceSpec(), OptimizerOptions(), messages);
+
     ARMNN_ASSERT(GetGraphForTesting(optimizedNet.get()).GetNumInputs() == inputInfos.size());
     ARMNN_ASSERT(GetGraphForTesting(optimizedNet.get()).GetNumOutputs() == outputInfos.size());
     // Find the pre-compiled layer in the optimised graph

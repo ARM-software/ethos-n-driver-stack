@@ -1189,14 +1189,15 @@ bool EthosNLayerSupport::IsMultiplicationSupported(const TensorInfo& input0,
         TensorInfo weightsInfo = constantInfo;
         weightsInfo.SetShape({ 1, constantInfo.GetShape()[3], 1, 1 });
 
-        bool supported = EthosNLayerSupport::IsDepthwiseConvolutionSupported(inputInfo, output, desc, weightsInfo,
-                                                                             EmptyOptional(), reasonIfUnsupported);
+        std::string depthwiseReasonIfUnsupported;
+        bool supported = EthosNLayerSupport::IsDepthwiseConvolutionSupported(
+            inputInfo, output, desc, weightsInfo, EmptyOptional(), depthwiseReasonIfUnsupported);
 
         ReasonMessageHelper messageHelper;
         messageHelper.SetString("Multiplication operation is not supported on Arm Ethos-N NPU backend and an attempt "
                                 "was made to substitute for DepthwiseConvolution2d, however the following error "
-                                "occured when checking for Depthwise support: " +
-                                reasonIfUnsupported.value());
+                                "occurred when checking for Depthwise support: " +
+                                depthwiseReasonIfUnsupported);
 
         SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
         return supported;

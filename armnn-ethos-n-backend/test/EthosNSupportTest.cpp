@@ -887,17 +887,6 @@ BOOST_AUTO_TEST_CASE(EstimateOnly5dFail)
 /// by attempting to substitute the operation with DepthwiseConvolution2d.
 BOOST_AUTO_TEST_CASE(MulSubstitutionFail)
 {
-    using namespace armnn;
-    using namespace testing_utils;
-
-    const TempDir tmpDir;
-
-    const std::string configFile = tmpDir.Str() + "/config.txt";
-    const EthosNConfig config    = { true, ethosn_lib::EthosNVariant::ETHOS_N77, 0, tmpDir.Str() };
-
-    CreateConfigFile(configFile, config);
-
-    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
     EthosNLayerSupport layerSupport;
 
     // input1 is assumed to be a constant and will be used for the weights of the convolution
@@ -908,7 +897,7 @@ BOOST_AUTO_TEST_CASE(MulSubstitutionFail)
     std::string reasonIfUnsupported;
     std::string expectedReasonIfSupported =
         "Multiplication operation is not supported on Arm Ethos-N NPU backend and an attempt was made to substitute "
-        "for DepthwiseConvolution2d, however the following error occured when checking for Depthwise support: Weight "
+        "for DepthwiseConvolution2d, however the following error occurred when checking for Depthwise support: Weight "
         "for conv must be UINT8_QUANTIZED or INT8_QUANTIZED";
 
     ARMNN_ASSERT(!layerSupport.IsMultiplicationSupported(input0, input1, output, reasonIfUnsupported));
