@@ -1,5 +1,5 @@
 //
-// Copyright © 2020 Arm Limited. All rights reserved.
+// Copyright © 2020-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -383,21 +383,32 @@ void armnn::ProcessPattern(const std::vector<std::string>& buf,
     }
 }
 
-std::vector<armnn::Mapping> armnn::GetMappings(std::string mappingFileFromConfig)
+armnn::EthosNMappings armnn::ParseMappings(const char* mappingContents)
 {
-    std::vector<armnn::Mapping> mappingsFromFile;
+    std::stringstream ss(mappingContents);
+    return ParseMappings(ss);
+}
 
-    if (mappingFileFromConfig.empty())
+std::vector<armnn::Mapping> armnn::ReadMappingsFromFile(const char* mappingFilename)
+{
+    if (mappingFilename == nullptr || strlen(mappingFilename) == 0)
     {
-        return mappingsFromFile;
+        return {};
     }
 
-    std::ifstream mappingFile(mappingFileFromConfig, std::ios_base::binary | std::ios_base::in);
+    std::ifstream mappingFile(mappingFilename, std::ios_base::binary | std::ios_base::in);
     if (!mappingFile.is_open())
     {
-        std::string error = "Failed to open mapping file: " + mappingFileFromConfig + "\n";
+        std::string error = "Failed to open mapping file: " + std::string(mappingFilename) + "\n";
         throw std::invalid_argument(error);
     }
+
+    return ParseMappings(mappingFile);
+}
+
+armnn::EthosNMappings armnn::ParseMappings(std::istream& stream)
+{
+    std::vector<armnn::Mapping> mappingsFromFile;
 
     std::string line;
 
@@ -408,7 +419,7 @@ std::vector<armnn::Mapping> armnn::GetMappings(std::string mappingFileFromConfig
     std::vector<SimpleLayer> patternLayers;
     std::vector<SimpleLayer> replacementLayers;
 
-    while (getline(mappingFile, line))
+    while (getline(stream, line))
     {
         line = Trim(line);
         if (line.size() == 0)

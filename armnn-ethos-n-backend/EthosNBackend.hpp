@@ -14,18 +14,17 @@
 namespace armnn
 {
 
-ARMNN_DLLEXPORT extern EthosNConfig g_EthosNConfig;
-ARMNN_DLLEXPORT extern EthosNMappings g_EthosNMappings;
-
 void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
                                    const SubgraphView& subgraph,
+                                   const EthosNConfig& config,
                                    const EthosNMappings& mappings,
+                                   const std::vector<char>& capabilities,
                                    const ModelOptions& modelOptions);
 
 class EthosNBackend : public IBackendInternal
 {
 public:
-    EthosNBackend()  = default;
+    EthosNBackend();
     ~EthosNBackend() = default;
 
     static const BackendId& GetIdStatic();
@@ -51,17 +50,30 @@ public:
 
     OptimizationViews OptimizeSubgraphView(const SubgraphView& subgraph,
                                            const ModelOptions& modelOptions) const override;
+
+private:
+    /// 'Global' settings for this backend, loaded from config file or queried from the HW.
+    /// @{
+    EthosNConfig m_Config;
+    EthosNMappings m_Mappings;
+    std::vector<char> m_Capabilities;
+    /// @}
+
+protected:
+    /// Cached source for the above fields - see comments in constructor for details.
+    /// Protected visibility for use in tests (see SetBackendGlobalConfig)
+    /// @{
+    ARMNN_DLLEXPORT static EthosNConfig ms_Config;
+    ARMNN_DLLEXPORT static EthosNMappings ms_Mappings;
+    ARMNN_DLLEXPORT static std::vector<char> ms_Capabilities;
+    /// @}
 };
 
 class EthosNBackendProfilingService
 {
 public:
     // Getter for the singleton instance
-    static EthosNBackendProfilingService& Instance()
-    {
-        static EthosNBackendProfilingService instance;
-        return instance;
-    }
+    static EthosNBackendProfilingService& Instance();
 
     profiling::EthosNBackendProfilingContext* GetContext()
     {

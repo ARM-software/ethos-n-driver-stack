@@ -213,7 +213,7 @@ Mappings CreateSubstitutionMappings(TestLayerType original,
     return mappings;
 }
 
-std::string CreateExclusionMappings(const EthosNConfig config = EthosNConfig())
+std::string CreateExclusionMappings()
 {
     std::string mappings;
 
@@ -230,16 +230,10 @@ std::string CreateExclusionMappings(const EthosNConfig config = EthosNConfig())
     mappings += "graph-replacement:\n";
     mappings += "Excluded  (firstInput) (firstOutput)\n";
 
-    std::ofstream mappingStream(config.m_PerfMappingFile);
-    if (mappingStream.is_open())
-    {
-        mappingStream << mappings;
-    }
-
     return mappings;
 }
 
-std::string CreateMappingsWithLayerName(const EthosNConfig config = EthosNConfig())
+std::string CreateMappingsWithLayerName()
 {
     std::string mappings;
 
@@ -250,16 +244,10 @@ std::string CreateMappingsWithLayerName(const EthosNConfig config = EthosNConfig
     mappings += "graph-replacement:\n";
     mappings += "Convolution2d  (firstInput) (firstOutput)\n";
 
-    std::ofstream mappingStream(config.m_PerfMappingFile);
-    if (mappingStream.is_open())
-    {
-        mappingStream << mappings;
-    }
-
     return mappings;
 }
 
-void CreateMappingsWithInvalidAdditionalArguments1(const EthosNConfig config = EthosNConfig())
+std::string CreateMappingsWithInvalidAdditionalArguments1()
 {
     std::string mapping;
 
@@ -271,14 +259,10 @@ void CreateMappingsWithInvalidAdditionalArguments1(const EthosNConfig config = E
     mapping += "graph-replacement:\n";
     mapping += "Convolution2d  (firstInput) (firstOutput) ((kernell=1x1))\n";
 
-    std::ofstream mappingStream(config.m_PerfMappingFile);
-    if (mappingStream.is_open())
-    {
-        mappingStream << mapping;
-    }
+    return mapping;
 }
 
-void CreateMappingsWithInvalidAdditionalArguments2(const EthosNConfig config = EthosNConfig())
+std::string CreateMappingsWithInvalidAdditionalArguments2()
 {
     std::string mapping;
 
@@ -290,14 +274,10 @@ void CreateMappingsWithInvalidAdditionalArguments2(const EthosNConfig config = E
     mapping += "graph-replacement:\n";
     mapping += "DepthwiseConvolution2d  (firstInput) (firstOutput) ((stride=1))\n";
 
-    std::ofstream mappingStream(config.m_PerfMappingFile);
-    if (mappingStream.is_open())
-    {
-        mappingStream << mapping;
-    }
+    return mapping;
 }
 
-void CreateMappingsWithInvalidAdditionalArguments3(const EthosNConfig config = EthosNConfig())
+std::string CreateMappingsWithInvalidAdditionalArguments3()
 {
     std::string mapping;
 
@@ -310,14 +290,10 @@ void CreateMappingsWithInvalidAdditionalArguments3(const EthosNConfig config = E
     mapping += "graph-replacement:\n";
     mapping += "Pooling2d  (firstInput) (firstOutput) ((name=depth))\n";
 
-    std::ofstream mappingStream(config.m_PerfMappingFile);
-    if (mappingStream.is_open())
-    {
-        mappingStream << mapping;
-    }
+    return mapping;
 }
 
-void CreateMappingsWithInvalidAdditionalArguments4(const EthosNConfig config = EthosNConfig())
+std::string CreateMappingsWithInvalidAdditionalArguments4()
 {
     std::string mapping;
 
@@ -330,14 +306,10 @@ void CreateMappingsWithInvalidAdditionalArguments4(const EthosNConfig config = E
     mapping += "graph-replacement:\n";
     mapping += "Pooling2d  (firstInput) (firstOutput) ((function=Max))\n";
 
-    std::ofstream mappingStream(config.m_PerfMappingFile);
-    if (mappingStream.is_open())
-    {
-        mappingStream << mapping;
-    }
+    return mapping;
 }
 
-void CreateMappingsWithValidAdditionalArguments(const EthosNConfig config = EthosNConfig())
+std::string CreateMappingsWithValidAdditionalArguments()
 {
     std::string mappings;
 
@@ -349,27 +321,14 @@ void CreateMappingsWithValidAdditionalArguments(const EthosNConfig config = Etho
     mappings += "Pooling2d,  (firstInput), (firstOutput), ((kernel=3x3), (stride=2x2), (padding=2x2x2x2), "
                 "(function=Average), (name=mypool))\n";
 
-    std::ofstream mappingStream(config.m_PerfMappingFile);
-    if (mappingStream.is_open())
-    {
-        mappingStream << mappings;
-    }
+    return mappings;
 }
 
-EthosNConfig CreateEthosNConfig(TempDir& tmpDir)
+EthosNConfig CreateEthosNConfig()
 {
-    const std::string configFile = tmpDir.Str() + "/config.txt";
-    {
-        std::ofstream configStream(configFile);
-        armnn::EthosNConfig config;
-        config.m_PerfOnly        = true;
-        config.m_PerfMappingFile = tmpDir.Str() + "/mapping.txt";
-        configStream << config;
-        std::ofstream mappingStream(config.m_PerfMappingFile);
-        mappingStream << "";
-    }
-    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
-    return armnn::GetEthosNConfig();
+    armnn::EthosNConfig config;
+    config.m_PerfOnly = true;
+    return config;
 }
 
 void CreateUnoptimizedNetwork(INetwork& net)
@@ -868,10 +827,7 @@ void TestSubgraphSubstitution(TestLayerType originalType,
     using namespace testing_utils;
     Graph graph, graph2;
 
-    TempDir tmpDir;
-    EthosNConfig ethosnConfig = CreateEthosNConfig(tmpDir);
-    auto backendObjPtr        = CreateBackendObject(EthosNBackendId());
-    BOOST_TEST((backendObjPtr != nullptr));
+    EthosNConfig ethosnConfig = CreateEthosNConfig();
 
     auto ethosNMappings = CreateMappings<SIZE>(originalType, replacementType, inputDimensions, outputDimensions);
 
@@ -885,7 +841,8 @@ void TestSubgraphSubstitution(TestLayerType originalType,
 
     // When
     OptimizationViews optimizationViews;
-    armnn::CreatePreCompiledLayerInGraph(optimizationViews, *subGraphOriginal, ethosNMappings, {});
+    armnn::CreatePreCompiledLayerInGraph(optimizationViews, *subGraphOriginal, ethosnConfig, ethosNMappings,
+                                         ethosnConfig.QueryCapabilities(), {});
     ethosnbackend::ApplyMappings(ethosNMappings, graph2);
 
     // Then validate that armnn was able to compile the graph successfully
@@ -1118,7 +1075,7 @@ BOOST_DATA_TEST_CASE(
     Mappings parsedMapping;
     try
     {
-        parsedMapping = GetMappings(fullFileName);
+        parsedMapping = ReadMappingsFromFile(fullFileName.c_str());
         gotException  = ExceptionCases::NoException;
     }
     catch (const armnn::ParseException& e)
@@ -1249,8 +1206,7 @@ BOOST_AUTO_TEST_CASE(TestAllSubgraphSubstitution)
 BOOST_AUTO_TEST_CASE(TestLayerInclusion)
 {
     // Given
-    TempDir tmpDir;
-    armnn::g_EthosNConfig = CreateEthosNConfig(tmpDir);
+    EthosNConfig config = CreateEthosNConfig();
     TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
     TensorInfo outputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f / 256, 0);
     ActivationDescriptor activationDescriptor;
@@ -1258,26 +1214,23 @@ BOOST_AUTO_TEST_CASE(TestLayerInclusion)
     std::string reason;
 
     // When
-    auto backendObjPtr = CreateBackendObject(EthosNBackendId());
-    BOOST_TEST((backendObjPtr != nullptr));
-    auto layerSupport = backendObjPtr->GetLayerSupport();
+    EthosNLayerSupport layerSupport(config, EthosNMappings(), config.QueryCapabilities());
 
     // Then
-    BOOST_TEST(layerSupport->IsActivationSupported(inputInfo, outputInfo, activationDescriptor, reason) == true);
+    BOOST_TEST(layerSupport.IsActivationSupported(inputInfo, outputInfo, activationDescriptor, reason) == true);
     BOOST_TEST(reason.empty());
-    BOOST_TEST(layerSupport->IsStandInSupported(std::vector<const TensorInfo*>{ &inputInfo },
-                                                std::vector<const TensorInfo*>{ &outputInfo }, standInDescriptor,
-                                                reason) == true);
+    BOOST_TEST(layerSupport.IsStandInSupported(std::vector<const TensorInfo*>{ &inputInfo },
+                                               std::vector<const TensorInfo*>{ &outputInfo }, standInDescriptor,
+                                               reason) == true);
     BOOST_TEST(reason.empty());
 }
 
 BOOST_AUTO_TEST_CASE(TestAdditionalParameters)
 {
     // Given
-    TempDir tmpDir;
-    armnn::g_EthosNConfig = CreateEthosNConfig(tmpDir);
+    EthosNConfig config = CreateEthosNConfig();
 
-    typedef void (*CreateMappingsWithAdditionalArgs)(const EthosNConfig);
+    typedef std::string (*CreateMappingsWithAdditionalArgs)();
     typedef struct
     {
         CreateMappingsWithAdditionalArgs createMappingFunc;
@@ -1306,9 +1259,7 @@ BOOST_AUTO_TEST_CASE(TestAdditionalParameters)
 
     for (auto test : testCases)
     {
-        test.createMappingFunc(armnn::g_EthosNConfig);
-
-        auto ethosNMappings = GetMappings(armnn::g_EthosNConfig.m_PerfMappingFile);
+        auto ethosNMappings = ParseMappings(test.createMappingFunc().c_str());
         Graph graph;
         std::string exceptionMessage = test.exceptionMessage;
         auto expectException         = test.exception;
@@ -1352,13 +1303,12 @@ BOOST_AUTO_TEST_CASE(TestAdditionalParameters)
 BOOST_AUTO_TEST_CASE(TestLayerSubstitutionWithName)
 {
     // Given
-    TempDir tmpDir;
     Graph graph;
-    armnn::g_EthosNConfig = CreateEthosNConfig(tmpDir);
-    CreateMappingsWithLayerName(armnn::g_EthosNConfig);
+    EthosNConfig config  = CreateEthosNConfig();
+    std::string mappings = CreateMappingsWithLayerName();
     std::array<const unsigned int, 4> inputDimensions{ { 1, 16, 16, 16 } };
     std::array<const unsigned int, 4> outputDimensions{ { 1, 16, 16, 16 } };
-    auto ethosNMappings    = GetMappings(armnn::g_EthosNConfig.m_PerfMappingFile);
+    auto ethosNMappings    = ParseMappings(mappings.c_str());
     auto originalLayerType = armnn::ethosnbackend::GetLayerType(ethosNMappings[0].m_PatternLayers[0].m_LayerTypeName);
     auto replacementLayerType =
         armnn::ethosnbackend::GetLayerType(ethosNMappings[0].m_ReplacementLayers[0].m_LayerTypeName);
@@ -1376,13 +1326,12 @@ BOOST_AUTO_TEST_CASE(TestLayerSubstitutionWithName)
 BOOST_AUTO_TEST_CASE(TestLayerSubstitutionWithNameMismatch)
 {
     // Given
-    TempDir tmpDir;
     Graph graph;
-    armnn::g_EthosNConfig = CreateEthosNConfig(tmpDir);
-    CreateMappingsWithLayerName(armnn::g_EthosNConfig);
+    EthosNConfig config  = CreateEthosNConfig();
+    std::string mappings = CreateMappingsWithLayerName();
     std::array<const unsigned int, 4> inputDimensions{ { 1, 16, 16, 16 } };
     std::array<const unsigned int, 4> outputDimensions{ { 1, 16, 16, 16 } };
-    auto ethosNMappings    = GetMappings(armnn::g_EthosNConfig.m_PerfMappingFile);
+    auto ethosNMappings    = ParseMappings(mappings.c_str());
     auto originalLayerType = armnn::ethosnbackend::GetLayerType(ethosNMappings[0].m_PatternLayers[0].m_LayerTypeName);
     auto replacementLayerType =
         armnn::ethosnbackend::GetLayerType(ethosNMappings[0].m_ReplacementLayers[0].m_LayerTypeName);
@@ -1411,10 +1360,9 @@ BOOST_AUTO_TEST_CASE(TestLayerSubstitutionWithNameMismatch)
 BOOST_AUTO_TEST_CASE(TestLayerExclusion)
 {
     // Given
-    TempDir tmpDir;
-    armnn::g_EthosNConfig = CreateEthosNConfig(tmpDir);
-    CreateExclusionMappings(armnn::g_EthosNConfig);
-    armnn::g_EthosNMappings = GetMappings(armnn::g_EthosNConfig.m_PerfMappingFile);
+    EthosNConfig config     = CreateEthosNConfig();
+    std::string mappingsStr = CreateExclusionMappings();
+    EthosNMappings mappings = ParseMappings(mappingsStr.c_str());
     TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
     TensorInfo outputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f / 256, 0);
     ActivationDescriptor activationDescriptor1;
@@ -1425,28 +1373,23 @@ BOOST_AUTO_TEST_CASE(TestLayerExclusion)
     std::string reason;
 
     // When
-    auto backendObjPtr = CreateBackendObject(EthosNBackendId());
-    BOOST_TEST((backendObjPtr != nullptr));
-    auto layerSupport = backendObjPtr->GetLayerSupport();
+    EthosNLayerSupport layerSupport(config, mappings, config.QueryCapabilities());
 
     // Then
-    BOOST_TEST(layerSupport->IsActivationSupported(inputInfo, outputInfo, activationDescriptor1, reason) == true);
-    BOOST_TEST(layerSupport->IsActivationSupported(inputInfo, outputInfo, activationDescriptor2, reason) == false);
+    BOOST_TEST(layerSupport.IsActivationSupported(inputInfo, outputInfo, activationDescriptor1, reason) == true);
+    BOOST_TEST(layerSupport.IsActivationSupported(inputInfo, outputInfo, activationDescriptor2, reason) == false);
     BOOST_TEST(reason == "Layer declared excluded in mapping file");
-    BOOST_TEST(layerSupport->IsStandInSupported(std::vector<const TensorInfo*>{ &inputInfo },
-                                                std::vector<const TensorInfo*>{ &outputInfo }, standInDescriptor,
-                                                reason) == false);
+    BOOST_TEST(layerSupport.IsStandInSupported(std::vector<const TensorInfo*>{ &inputInfo },
+                                               std::vector<const TensorInfo*>{ &outputInfo }, standInDescriptor,
+                                               reason) == false);
     BOOST_TEST(reason == "Layer declared excluded in mapping file");
 }
 
 BOOST_AUTO_TEST_CASE(TestLayerExclusionViaArmnn)
 {
     // Given
-    TempDir tmpDir;
-    EthosNConfig ethosnConfig = CreateEthosNConfig(tmpDir);
-    CreateExclusionMappings(ethosnConfig);
-    auto backendObjPtr = CreateBackendObject(EthosNBackendId());
-    BOOST_TEST((backendObjPtr != nullptr));
+    EthosNConfig ethosnConfig = CreateEthosNConfig();
+    std::string mappings      = CreateExclusionMappings();
     INetworkPtr net(INetwork::Create());
     CreateUnoptimizedNetwork(*net);
 
@@ -1476,8 +1419,7 @@ BOOST_AUTO_TEST_CASE(TestLayerExclusionViaArmnn)
 BOOST_AUTO_TEST_CASE(TestLayerInvalidExclusionViaArmnn)
 {
     // Given
-    TempDir tmpDir;
-    EthosNConfig ethosnConfig                = CreateEthosNConfig(tmpDir);
+    EthosNConfig ethosnConfig                = CreateEthosNConfig();
     const std::vector<std::string> mappings1 = {
         "input firstInput, 1x_x_x_",
         "output  firstOutput, 1x_x_x_",
@@ -1538,7 +1480,7 @@ BOOST_DATA_TEST_CASE(TestGraphReplace,
 
     const SubgraphView expectedGraphView(expectedGraph);
 
-    EthosNMappings parsedMapping = GetMappings(mappingFileName);
+    EthosNMappings parsedMapping = ReadMappingsFromFile(mappingFileName.c_str());
 
     ethosnbackend::ApplyMappings(parsedMapping, modifiedGraph);
     SubgraphView modifiedGraphView(modifiedGraph);

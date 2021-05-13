@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "EthosNTensorHandle.hpp"
@@ -24,7 +24,7 @@ template <typename PreCompiledWorkloadType, typename armnn::DataType dataType>
 void EthosNCreatePreCompiledWorkloadTest(bool withBias = false)
 {
     Graph graph;
-    EthosNWorkloadFactory factory;
+    EthosNWorkloadFactory factory{ EthosNConfig() };
     auto workload = CreatePreCompiledWorkloadTest<PreCompiledWorkloadType, dataType>(factory, graph, withBias);
 
     // Checks that inputs/outputs are as we expect them (see definition of CreatePreCompiledWorkloadTest).

@@ -51,7 +51,7 @@ struct EthosNConfig
         ethosn::support_library::CompilerAlgorithm::NonCascadingOnly;
     bool m_IntermediateCompression = true;
 
-    std::vector<char> GetCapabilities()
+    std::vector<char> QueryCapabilities() const
     {
         if (m_PerfOnly)
         {
@@ -70,7 +70,7 @@ struct EthosNConfig
 
 /// Reads the configuration for the Ethos-N backend from the file pointed by the environment
 /// variable with name EthosNConfig::CONFIG_FILE_ENV
-EthosNConfig GetEthosNConfig();
+EthosNConfig ReadEthosNConfig();
 
 }    // namespace armnn
 

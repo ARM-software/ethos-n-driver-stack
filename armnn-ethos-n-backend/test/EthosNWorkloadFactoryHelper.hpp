@@ -1,11 +1,12 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
 #include <EthosNBackend.hpp>
+#include <EthosNConfig.hpp>
 #include <EthosNWorkloadFactory.hpp>
 #include <backendsCommon/test/WorkloadFactoryHelper.hpp>
 
@@ -23,7 +24,7 @@ struct WorkloadFactoryHelper<armnn::EthosNWorkloadFactory>
 
     static armnn::EthosNWorkloadFactory GetFactory(const armnn::IBackendInternal::IMemoryManagerSharedPtr& = nullptr)
     {
-        return armnn::EthosNWorkloadFactory();
+        return armnn::EthosNWorkloadFactory(armnn::EthosNConfig());
     }
 };
 

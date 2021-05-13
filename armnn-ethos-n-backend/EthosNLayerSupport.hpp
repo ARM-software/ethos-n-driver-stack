@@ -20,7 +20,9 @@ namespace armnn
 class EthosNLayerSupport : public ILayerSupport
 {
 public:
-    EthosNLayerSupport();
+    EthosNLayerSupport(const EthosNConfig& config,
+                       const EthosNMappings& mappings,
+                       const std::vector<char>& capabilities);
 
     bool IsActivationSupported(const TensorInfo& input,
                                const TensorInfo& output,

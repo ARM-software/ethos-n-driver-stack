@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "EthosNConfig.hpp"
@@ -78,7 +78,7 @@ constexpr char EthosNConfig::PERF_CURRENT[];
 constexpr char EthosNConfig::COMPILER_ALGORITHM[];
 constexpr char EthosNConfig::INTERMEDIATE_COMPRESSION[];
 
-EthosNConfig GetEthosNConfig()
+EthosNConfig ReadEthosNConfig()
 {
     EthosNConfig config;
 

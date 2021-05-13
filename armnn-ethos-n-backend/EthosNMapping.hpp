@@ -1,5 +1,5 @@
 //
-// Copyright © 2019-2020 Arm Limited. All rights reserved.
+// Copyright © 2019-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -96,7 +96,9 @@ void ProcessPattern(const std::vector<std::string>& buf,
                     std::map<std::string, SimpleInputOutput>& tensors,
                     std::vector<SimpleLayer>& layers);
 
-EthosNMappings GetMappings(std::string mappingFileFromConfig);
+EthosNMappings ParseMappings(const char* mappingContents);
+EthosNMappings ParseMappings(std::istream& mappingContents);
+EthosNMappings ReadMappingsFromFile(const char* mappingFilename);
 
 std::vector<uint32_t> ParseNumbers(std::string& buf);
 

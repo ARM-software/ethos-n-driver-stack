@@ -1,11 +1,13 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
+#include "EthosNBackend.hpp"
 #include "EthosNConfig.hpp"
+#include "EthosNMapping.hpp"
 
 #include <Filesystem.hpp>
 #include <SubgraphView.hpp>
@@ -43,34 +45,6 @@ public:
 private:
     fs::path m_Dir;
 };
-
-inline void SetEnv(const char* const name, const char* const value)
-{
-#if defined(__unix__)
-    setenv(name, value, true);
-#else
-    // Speculative windows support (not tested)
-    _putenv_s(name, value);
-#endif
-}
-
-inline void CreateConfigFile(const std::string& configFile, const armnn::EthosNConfig& config)
-{
-    std::ofstream os(configFile);
-    os << armnn::EthosNConfig::PERF_VARIANT_VAR << " = "
-       << ethosn::support_library::EthosNVariantAsString(config.m_PerfVariant) << "\n";
-    os << armnn::EthosNConfig::PERF_ONLY_VAR << " = " << config.m_PerfOnly << "\n";
-    os << armnn::EthosNConfig::PERF_OUT_DIR_VAR << " = " << config.m_PerfOutDir << "\n";
-    os << armnn::EthosNConfig::PERF_MAPPING_FILE_VAR << " = " << config.m_PerfMappingFile << "\n";
-    os << armnn::EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING << " = " << config.m_PerfActivationCompressionSaving
-       << "\n";
-    if (config.m_PerfUseWeightCompressionOverride)
-    {
-        os << armnn::EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING << " = " << config.m_PerfWeightCompressionSaving
-           << "\n";
-    }
-    os << armnn::EthosNConfig::PERF_CURRENT << " = " << config.m_PerfCurrent << "\n";
-}
 
 inline std::string ReadFile(const std::string& file)
 {
@@ -112,5 +86,48 @@ inline bool operator==(const armnn::SubgraphView& lhs, const armnn::SubgraphView
 
     return (lhsLayerI == lhs.cend() && rhsLayerI == rhs.cend());
 }
+
+/// Sets the globally cached backend config data, so that different tests can run with different configs.
+/// Without this, the first test which instantiates an EthosNBackend object would load and set the config for all future
+/// tests using EthosNBackend and there would be no way to change this. Tests can use this function to override
+/// the cached values.
+inline void SetBackendGlobalConfig(const armnn::EthosNConfig& config,
+                                   const armnn::EthosNMappings& mappings,
+                                   const std::vector<char>& capabilities)
+{
+    class EthosNBackendEx : public armnn::EthosNBackend
+    {
+    public:
+        void SetBackendGlobalConfigForTesting(const armnn::EthosNConfig& config,
+                                              const armnn::EthosNMappings& mappings,
+                                              const std::vector<char>& capabilities)
+        {
+            ms_Config       = config;
+            ms_Mappings     = mappings;
+            ms_Capabilities = capabilities;
+        }
+    };
+
+    EthosNBackendEx().SetBackendGlobalConfigForTesting(config, mappings, capabilities);
+}
+
+/// Scope-controlled version of SetBackendGlobalConfig, which automatically restores
+/// default settings after being destroyed. This can be used to avoid messing up the config for tests
+/// that run afterwards.
+class BackendGlobalConfigSetter
+{
+public:
+    BackendGlobalConfigSetter(const armnn::EthosNConfig& config,
+                              const armnn::EthosNMappings& mappings,
+                              const std::vector<char>& capabilities)
+    {
+        SetBackendGlobalConfig(config, mappings, capabilities);
+    }
+    ~BackendGlobalConfigSetter()
+    {
+        // Setting an empty capabilities vector will trigger a reload on next EthosNBackend instantiation
+        SetBackendGlobalConfig(armnn::EthosNConfig(), armnn::EthosNMappings(), {});
+    }
+};
 
 }    // namespace testing_utils

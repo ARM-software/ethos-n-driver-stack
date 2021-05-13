@@ -1,9 +1,10 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
 
+#include "EthosNConfig.hpp"
 #include <OutputHandler.hpp>
 #include <backendsCommon/WorkloadFactory.hpp>
 
@@ -14,6 +15,10 @@ namespace armnn
 class EthosNWorkloadFactory : public IWorkloadFactory
 {
 public:
+    EthosNWorkloadFactory(const EthosNConfig& config)
+        : m_EthosNConfig(config)
+    {}
+
     const BackendId& GetBackendId() const override;
 
     static bool IsLayerSupported(const Layer& layer, Optional<DataType> dataType, std::string& outReasonIfUnsupported);
@@ -50,6 +55,8 @@ private:
     template <typename Workload, typename QueueDescriptorType, typename... Args>
     static std::unique_ptr<IWorkload>
         MakeWorkload(const QueueDescriptorType& descriptor, const WorkloadInfo& info, Args&&... args);
+
+    EthosNConfig m_EthosNConfig;
 };
 
 }    //namespace armnn

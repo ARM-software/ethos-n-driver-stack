@@ -54,8 +54,7 @@ std::unique_ptr<ITensorHandle>
     {
         return nullptr;
     }
-    auto ethosnConfig = GetEthosNConfig();
-    if (ethosnConfig.m_PerfOnly)
+    if (m_EthosNConfig.m_PerfOnly)
     {
         return std::make_unique<ScopedTensorHandle>(tensorInfo);
     }

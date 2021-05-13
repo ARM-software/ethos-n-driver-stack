@@ -18,32 +18,28 @@ BOOST_AUTO_TEST_SUITE(CreateEstimationWorkloadEthosN)
 // Tests that the NPU config file is parsed correctly
 BOOST_AUTO_TEST_CASE(ParseEthosNConfig)
 {
-    using namespace testing_utils;
+    // Note we don't use any helper function to write the file here,
+    // because we want this test to fail if the format of or names in the
+    // config file change, as this would be a change to the public API and should be explicitly acknowledged
+    // by updating this test case.
+    std::stringstream os;
+    os << armnn::EthosNConfig::PERF_ONLY_VAR << " = 1\n";
+    os << armnn::EthosNConfig::PERF_VARIANT_VAR << " = Ethos-N78_1TOPS_2PLE_RATIO\n";
+    os << armnn::EthosNConfig::PERF_SRAM_SIZE_BYTES_OVERRIDE_VAR << " = 12\n";
+    os << armnn::EthosNConfig::PERF_OUT_DIR_VAR << " = test\n";
+    os << armnn::EthosNConfig::DUMP_DEBUG_FILES_VAR << " = 1\n";
+    os << armnn::EthosNConfig::DUMP_RAM_VAR << " = 1\n";
+    os << armnn::EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING << " = 0.5\n";
+    os << armnn::EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING << " = 0.5\n";
+    os << armnn::EthosNConfig::PERF_CURRENT << " = 0\n";
+    os << armnn::EthosNConfig::COMPILER_ALGORITHM << " = Auto\n";
+    os << armnn::EthosNConfig::INTERMEDIATE_COMPRESSION << " = 1\n";
 
-    const TempDir tmpDir;
-    const std::string configFile = tmpDir.Str() + "/config.txt";
-    {
-        // Note we don't use CreateConfigFile() here, because we want this test to fail if the format of or names in the
-        // config file change, as this would be a change to the public API and should be explicitly acknowledged
-        // by updating this test case.
-        std::ofstream os(configFile);
-        os << armnn::EthosNConfig::PERF_ONLY_VAR << " = 1\n";
-        os << armnn::EthosNConfig::PERF_VARIANT_VAR << " = Ethos-N57\n";
-        os << armnn::EthosNConfig::PERF_SRAM_SIZE_BYTES_OVERRIDE_VAR << " = 12\n";
-        os << armnn::EthosNConfig::PERF_OUT_DIR_VAR << " = test\n";
-        os << armnn::EthosNConfig::DUMP_DEBUG_FILES_VAR << " = 1\n";
-        os << armnn::EthosNConfig::DUMP_RAM_VAR << " = 1\n";
-        os << armnn::EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING << " = 0.5\n";
-        os << armnn::EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING << " = 0.5\n";
-        os << armnn::EthosNConfig::PERF_CURRENT << " = 0\n";
-        os << armnn::EthosNConfig::COMPILER_ALGORITHM << " = Auto\n";
-        os << armnn::EthosNConfig::INTERMEDIATE_COMPRESSION << " = 1\n";
-    }
-    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
-
-    armnn::EthosNConfig config = armnn::GetEthosNConfig();
+    os.seekg(0);
+    armnn::EthosNConfig config;
+    os >> config;
     BOOST_CHECK(config.m_PerfOnly == true);
-    BOOST_CHECK(config.m_PerfVariant == ethosn::support_library::EthosNVariant::ETHOS_N57);
+    BOOST_CHECK(config.m_PerfVariant == ethosn::support_library::EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO);
     BOOST_CHECK(config.m_PerfSramSizeBytesOverride == 12);
     BOOST_CHECK(config.m_PerfOutDir == "test");
     BOOST_CHECK(config.m_DumpDebugFiles == true);
@@ -57,36 +53,28 @@ BOOST_AUTO_TEST_CASE(ParseEthosNConfig)
 
 BOOST_AUTO_TEST_CASE(ParseEthosNConfigCascadingOk)
 {
-    using namespace testing_utils;
+    std::stringstream os;
+    os << armnn::EthosNConfig::COMPILER_ALGORITHM << " = CascadingOnly\n";
 
-    const TempDir tmpDir;
-    const std::string configFile = tmpDir.Str() + "/config.txt";
-    {
-        std::ofstream os(configFile);
-        os << armnn::EthosNConfig::COMPILER_ALGORITHM << " = CascadingOnly\n";
-    }
-    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
+    os.seekg(0);
+    armnn::EthosNConfig config;
+    os >> config;
 
-    armnn::EthosNConfig config = armnn::GetEthosNConfig();
     BOOST_CHECK(config.m_CompilerAlgorithm == ethosn::support_library::CompilerAlgorithm::CascadingOnly);
 }
 
 BOOST_AUTO_TEST_CASE(ParseEthosNConfigCascadingNOk)
 {
-    using namespace testing_utils;
+    std::stringstream os;
+    os << armnn::EthosNConfig::COMPILER_ALGORITHM << " = foo\n";
 
-    const TempDir tmpDir;
-    const std::string configFile = tmpDir.Str() + "/config.txt";
-    {
-        std::ofstream os(configFile);
-        os << armnn::EthosNConfig::COMPILER_ALGORITHM << " = foo\n";
-    }
-    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
+    os.seekg(0);
+    armnn::EthosNConfig config;
 
     bool exceptionCaught = false;
     try
     {
-        armnn::EthosNConfig config = armnn::GetEthosNConfig();
+        os >> config;
     }
     catch (...)
     {
@@ -107,18 +95,15 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyWorkload)
 
     const TempDir tmpDir;
 
-    const std::string configFile = tmpDir.Str() + "/config.txt";
-
     armnn::EthosNConfig config{};
     config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
     config.m_PerfOnly    = true;
     config.m_PerfOutDir  = tmpDir.Str();
     config.m_PerfCurrent = true;
 
-    CreateConfigFile(configFile, config);
+    BackendGlobalConfigSetter configSetter(config, EthosNMappings(), config.QueryCapabilities());
 
-    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
-    armnn::EthosNWorkloadFactory factory;
+    armnn::EthosNWorkloadFactory factory(config);
     // To create a PreCompiled layer, create a network and Optimize it.
     armnn::INetworkPtr net = armnn::INetwork::Create();
 
@@ -277,18 +262,15 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyExistingWorkload)
 
     const TempDir tmpDir;
 
-    const std::string configFile = tmpDir.Str() + "/config.txt";
-
     armnn::EthosNConfig config{};
     config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
     config.m_PerfOnly    = true;
     config.m_PerfOutDir  = tmpDir.Str();
     config.m_PerfCurrent = true;
 
-    CreateConfigFile(configFile, config);
+    BackendGlobalConfigSetter configSetter(config, EthosNMappings(), config.QueryCapabilities());
 
-    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
-    armnn::EthosNWorkloadFactory factory;
+    armnn::EthosNWorkloadFactory factory(config);
     // To create a PreCompiled layer, create a network and Optimize it.
     armnn::INetworkPtr net = armnn::INetwork::Create();
 
@@ -455,29 +437,25 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
 
     const TempDir tmpDir;
 
-    const std::string configFile = tmpDir.Str() + "/config.txt";
-
     armnn::EthosNConfig config{};
-    config.m_PerfVariant     = ethosn::support_library::EthosNVariant::ETHOS_N77;
-    config.m_PerfOnly        = true;
-    config.m_PerfOutDir      = tmpDir.Str();
-    config.m_PerfMappingFile = tmpDir.Str() + "/mapping.txt";
-    config.m_PerfCurrent     = true;
+    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
+    config.m_PerfOnly    = true;
+    config.m_PerfOutDir  = tmpDir.Str();
+    config.m_PerfCurrent = true;
 
-    CreateConfigFile(configFile, config);
+    std::stringstream os;
+    os << "pattern:\n";
+    os << "input firstInput, 1x_x_x_\n";
+    os << "output firstOutput, 1x_x_x_\n";
+    os << "Activation, (firstInput), (firstOutput), ((function=TanH))\n";
+    os << "graph-replacement:\n";
+    os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
+    os.seekg(0);
+    EthosNMappings mappings = ParseMappings(os);
 
-    {
-        std::ofstream os(config.m_PerfMappingFile);
-        os << "pattern:\n";
-        os << "input firstInput, 1x_x_x_\n";
-        os << "output firstOutput, 1x_x_x_\n";
-        os << "Activation, (firstInput), (firstOutput), ((function=TanH))\n";
-        os << "graph-replacement:\n";
-        os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
-    }
+    BackendGlobalConfigSetter configSetter(config, mappings, config.QueryCapabilities());
 
-    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
-    armnn::EthosNWorkloadFactory factory;
+    armnn::EthosNWorkloadFactory factory(config);
     // To create a PreCompiled layer, create a network and Optimize it.
     armnn::INetworkPtr net = armnn::INetwork::Create();
 
@@ -624,30 +602,26 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
     using namespace testing_utils;
 
     const TempDir tmpDir;
-    const std::string configFile  = tmpDir.Str() + "/config.txt";
-    const std::string mappingFile = tmpDir.Str() + "/mapping.txt";
 
     armnn::EthosNConfig config{};
-    config.m_PerfVariant     = ethosn::support_library::EthosNVariant::ETHOS_N77;
-    config.m_PerfOnly        = true;
-    config.m_PerfOutDir      = tmpDir.Str();
-    config.m_PerfMappingFile = mappingFile;
-    config.m_PerfCurrent     = true;
+    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
+    config.m_PerfOnly    = true;
+    config.m_PerfOutDir  = tmpDir.Str();
+    config.m_PerfCurrent = true;
 
-    CreateConfigFile(configFile, config);
+    std::stringstream os;
+    os << "pattern:\n";
+    os << "input firstInput, 1x_x_x_\n";
+    os << "output firstOutput, 1x_x_x_\n";
+    os << "StandIn, (firstInput), (firstOutput), ((name=StandInTest))\n";
+    os << "graph-replacement:\n";
+    os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
+    os.seekg(0);
+    EthosNMappings mappings = ParseMappings(os);
 
-    {
-        std::ofstream os(mappingFile);
-        os << "pattern:\n";
-        os << "input firstInput, 1x_x_x_\n";
-        os << "output firstOutput, 1x_x_x_\n";
-        os << "StandIn, (firstInput), (firstOutput), ((name=StandInTest))\n";
-        os << "graph-replacement:\n";
-        os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
-    }
+    BackendGlobalConfigSetter configSetter(config, mappings, config.QueryCapabilities());
 
-    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
-    armnn::EthosNWorkloadFactory factory;
+    armnn::EthosNWorkloadFactory factory(config);
     // To create a PreCompiled layer, create a network and Optimize it.
     armnn::INetworkPtr net = armnn::INetwork::Create();
 
@@ -781,9 +755,6 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
 )";
 
     BOOST_TEST(result == golden);
-
-    BOOST_TEST(remove(configFile.c_str()) == 0);
-    BOOST_TEST(fs::remove_all(config.m_PerfOutDir.c_str()) > 0);
 }
 
 BOOST_AUTO_TEST_CASE(CreateEstimationWorkload)
@@ -795,20 +766,16 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkload)
 
     const TempDir tmpDir;
 
-    const std::string configFile = tmpDir.Str() + "/config.txt";
-
     armnn::EthosNConfig config{};
     config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
     config.m_PerfOnly    = true;
     config.m_PerfOutDir  = tmpDir.Str();
     config.m_PerfCurrent = true;
 
-    CreateConfigFile(configFile, config);
-
-    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
+    BackendGlobalConfigSetter configSetter(config, EthosNMappings(), config.QueryCapabilities());
 
     armnn::Graph graph;
-    armnn::EthosNWorkloadFactory factory;
+    armnn::EthosNWorkloadFactory factory(config);
     auto workload =
         CreatePreCompiledWorkloadTest<armnn::EthosNPreCompiledWorkload, armnn::DataType::QAsymmU8>(factory, graph);
 
@@ -898,8 +865,6 @@ BOOST_AUTO_TEST_CASE(EstimationCompressionOverride)
 
     const TempDir tmpDir;
 
-    const std::string configFile = tmpDir.Str() + "/config.txt";
-
     armnn::EthosNConfig config{};
     config.m_PerfVariant                      = ethosn::support_library::EthosNVariant::ETHOS_N77;
     config.m_PerfOnly                         = true;
@@ -909,12 +874,10 @@ BOOST_AUTO_TEST_CASE(EstimationCompressionOverride)
     config.m_PerfWeightCompressionSaving      = 0.8f;
     config.m_PerfCurrent                      = false;
 
-    CreateConfigFile(configFile, config);
-
-    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
+    BackendGlobalConfigSetter configSetter(config, EthosNMappings(), config.QueryCapabilities());
 
     armnn::Graph graph;
-    armnn::EthosNWorkloadFactory factory;
+    armnn::EthosNWorkloadFactory factory(config);
     auto workload =
         CreatePreCompiledWorkloadTest<armnn::EthosNPreCompiledWorkload, armnn::DataType::QAsymmU8>(factory, graph);
 
@@ -1024,17 +987,13 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkloadSplit)
 
     const TempDir tmpDir;
 
-    const std::string configFile = tmpDir.Str() + "/config.txt";
-
     armnn::EthosNConfig config{};
     config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
     config.m_PerfOnly    = true;
     config.m_PerfOutDir  = tmpDir.Str();
     config.m_PerfCurrent = true;
 
-    CreateConfigFile(configFile, config);
-
-    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
+    BackendGlobalConfigSetter configSetter(config, EthosNMappings(), config.QueryCapabilities());
 
     ExecuteEstimationNetworkSplit();
 

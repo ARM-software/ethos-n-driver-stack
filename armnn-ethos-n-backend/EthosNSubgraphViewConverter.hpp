@@ -60,7 +60,10 @@ ARMNN_DLLEXPORT extern std::unique_ptr<EthosNSupportLibraryInterface> g_EthosNSu
 class EthosNSubgraphViewConverter : public ISubgraphViewConverter
 {
 public:
-    EthosNSubgraphViewConverter(const SubgraphView& subgraph, ModelOptions modelOptions);
+    EthosNSubgraphViewConverter(const SubgraphView& subgraph,
+                                ModelOptions modelOptions,
+                                const EthosNConfig& config,
+                                const std::vector<char>& capabilities);
     ~EthosNSubgraphViewConverter() = default;
 
     std::vector<CompiledBlobPtr> CompileNetwork() override;
@@ -150,6 +153,7 @@ private:
     std::map<EthosNInputOutputId, uint32_t> m_EthosNOutputIdToOutputSlot;
 
     EthosNConfig m_EthosNConfig;
+    std::vector<char> m_Capabilities;
 
     /// Map from Ethos-N operation ID to the corresponding Arm NN layer name.
     std::map<uint32_t, std::string> m_EthosNOperationNameMapping;

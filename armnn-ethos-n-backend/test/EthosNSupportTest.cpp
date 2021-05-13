@@ -60,8 +60,10 @@ SubgraphView::SubgraphViewPtr BuildActivationSubgraph(Graph& graph, ActivationFu
 class TestEthosNSubgraphViewConverter final : public EthosNSubgraphViewConverter
 {
 public:
-    TestEthosNSubgraphViewConverter(const SubgraphView& subgraph)
-        : EthosNSubgraphViewConverter(subgraph, {})
+    TestEthosNSubgraphViewConverter(const SubgraphView& subgraph,
+                                    const EthosNConfig& config,
+                                    const std::vector<char>& capabilities)
+        : EthosNSubgraphViewConverter(subgraph, {}, config, capabilities)
     {}
 
     void TestCreateUncompiledNetwork()
@@ -117,7 +119,7 @@ BOOST_AUTO_TEST_CASE(ConvertAdditionLayer)
         CreateInputsFrom({ additionLayer }), CreateOutputsFrom({ additionLayer }), { additionLayer });
 
     // Set up Ethos-N sub-graph converter
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // Check that we are able to convert the sub-graph
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
@@ -163,7 +165,7 @@ BOOST_AUTO_TEST_CASE(ConvertConcatLayer)
         CreateSubgraphViewFrom(CreateInputsFrom({ concatLayer }), CreateOutputsFrom({ concatLayer }), { concatLayer });
 
     // Set up Ethos-N sub-graph converter
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // Check that we are able to convert the sub-graph
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
@@ -289,7 +291,7 @@ BOOST_AUTO_TEST_CASE(ConvertFullyConnectedLayer)
     SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
         CreateInputsFrom({ fullyConnectedLayer }), CreateOutputsFrom({ fullyConnectedLayer }), { fullyConnectedLayer });
 
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
 }
@@ -299,7 +301,7 @@ BOOST_AUTO_TEST_CASE(ConvertSigmoidLayer)
     Graph graph;
 
     SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::Sigmoid);
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // Check that we are able to convert the sub-graph
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
@@ -310,7 +312,7 @@ BOOST_AUTO_TEST_CASE(ConvertReLuLayer)
     Graph graph;
 
     SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::ReLu);
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // Check that we are able to convert the sub-graph
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
@@ -321,7 +323,7 @@ BOOST_AUTO_TEST_CASE(ConvertBoundedReLuLayer)
     Graph graph;
 
     SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::BoundedReLu);
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // Check that we are able to convert the sub-graph
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
@@ -333,19 +335,12 @@ BOOST_AUTO_TEST_CASE(ConvertLeakyReLuLayer)
 
     Graph graph;
 
-    const TempDir tmpDir;
-    const std::string configFile = tmpDir.Str() + "/config.txt";
-
     armnn::EthosNConfig config{};
     config.m_PerfOnly    = true;
-    config.m_PerfOutDir  = tmpDir.Str();
     config.m_PerfCurrent = true;
 
-    CreateConfigFile(configFile, config);
-    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
-
     SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::LeakyReLu);
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, config, config.QueryCapabilities());
 
     // Check that we are able to convert the sub-graph when performance only mode.
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
@@ -356,7 +351,7 @@ BOOST_AUTO_TEST_CASE(ConvertExecutionLeakyReLuLayer)
     Graph graph;
 
     SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::LeakyReLu);
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
 }
@@ -394,7 +389,7 @@ BOOST_AUTO_TEST_CASE(ConvertDepthwiseConvolutionLayer)
         CreateSubgraphViewFrom(CreateInputsFrom({ depthwiseConvolutionLayer }),
                                CreateOutputsFrom({ depthwiseConvolutionLayer }), { depthwiseConvolutionLayer });
 
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // Check that we are able to convert the sub-graph
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
@@ -438,7 +433,7 @@ BOOST_AUTO_TEST_CASE(ConvertConvolutionLayer)
         CreateSubgraphViewFrom(CreateInputsFrom({ convLayer }), CreateOutputsFrom({ convLayer }), { convLayer });
 
     // Set up Ethos-N sub-graph converter
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // Check that we are able to convert the sub-graph
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
@@ -484,7 +479,7 @@ BOOST_AUTO_TEST_CASE(ConvertTransposeConvolutionLayer)
         CreateSubgraphViewFrom(CreateInputsFrom({ convLayer }), CreateOutputsFrom({ convLayer }), { convLayer });
 
     // Set up Ethos-N sub-graph converter
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // This is not supported for now
     BOOST_CHECK_THROW(converter.TestCreateUncompiledNetwork(), ethosn_lib::NotSupportedException);
@@ -515,7 +510,7 @@ BOOST_AUTO_TEST_CASE(ConvertSoftmaxLayer)
         CreateInputsFrom({ softmaxLayer }), CreateOutputsFrom({ softmaxLayer }), { softmaxLayer });
 
     // Set up Ethos-N sub-graph converter
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     BOOST_CHECK_THROW(converter.TestCreateUncompiledNetwork(), ethosn_lib::NotSupportedException);
 }
@@ -569,7 +564,7 @@ BOOST_AUTO_TEST_CASE(ConvertAvgPooling2dLayerUnsupported)
         CreatePooling2dLayerSubgraph(graph, inputTensorShape, descriptor);
 
     // Get up the Ethos-N sub-graph converter
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // NOTE: Currently average 7x7 pooling for 7x7 input is supported, any stride is allowed
     BOOST_CHECK_THROW(converter.TestCreateUncompiledNetwork(), ethosn_lib::NotSupportedException);
@@ -600,7 +595,7 @@ BOOST_AUTO_TEST_CASE(ConvertAvgPooling2dLayerSupported)
         CreatePooling2dLayerSubgraph(graph, inputTensorShape, descriptor);
 
     // Set up Ethos-N sub-graph converter
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // Check that we are able to convert the sub-graph
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
@@ -634,7 +629,7 @@ BOOST_AUTO_TEST_CASE(ConvertMaxPooling2dLayerSupported)
         CreatePooling2dLayerSubgraph(graph, inputTensorShape, descriptor);
 
     // Set up Ethos-N sub-graph converter
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // Check that we are able to convert the sub-graph
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
@@ -670,7 +665,7 @@ BOOST_AUTO_TEST_CASE(ConvertReshapeLayer)
         CreateInputsFrom({ reshapeLayer }), CreateOutputsFrom({ reshapeLayer }), { reshapeLayer });
 
     // Set up Ethos-N  sub-graph converter
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // Check that we are able to convert the sub-graph
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
@@ -706,7 +701,7 @@ BOOST_AUTO_TEST_CASE(ConvertTransposeLayer)
         CreateInputsFrom({ transposeLayer }), CreateOutputsFrom({ transposeLayer }), { transposeLayer });
 
     // Set up Ethos-N  sub-graph converter
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // Check that we are able to convert the sub-graph
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
@@ -741,7 +736,7 @@ BOOST_AUTO_TEST_CASE(ConvertQuantizeLayer)
         CreateInputsFrom({ quantizeLayer }), CreateOutputsFrom({ quantizeLayer }), { quantizeLayer });
 
     // Set up Ethos-N  sub-graph converter
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // Check that we are able to convert the sub-graph
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
@@ -779,7 +774,7 @@ BOOST_AUTO_TEST_CASE(ConvertResizeLayer)
         CreateSubgraphViewFrom(CreateInputsFrom({ resizeLayer }), CreateOutputsFrom({ resizeLayer }), { resizeLayer });
 
     // Set up Ethos-N  sub-graph converter
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // Check that we are able to convert the sub-graph
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
@@ -825,7 +820,7 @@ BOOST_AUTO_TEST_CASE(TestConvolutionLayerWithLargeTensors)
         CreateSubgraphViewFrom(CreateInputsFrom({ convLayer }), CreateOutputsFrom({ convLayer }), { convLayer });
 
     // Set up Ethos-N sub-graph converter
-    TestEthosNSubgraphViewConverter converter(*subgraphPtr);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
     // Check that we are able to convert the sub-graph
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
@@ -867,15 +862,9 @@ BOOST_AUTO_TEST_CASE(EstimateOnly5dFail)
     using namespace armnn;
     using namespace testing_utils;
 
-    const TempDir tmpDir;
+    const EthosNConfig config = { true, ethosn_lib::EthosNVariant::ETHOS_N77, 0 };
 
-    const std::string configFile = tmpDir.Str() + "/config.txt";
-    const EthosNConfig config    = { true, ethosn_lib::EthosNVariant::ETHOS_N77, 0, tmpDir.Str() };
-
-    CreateConfigFile(configFile, config);
-
-    SetEnv(armnn::EthosNConfig::CONFIG_FILE_ENV, configFile.c_str());
-    EthosNLayerSupport layerSupport;
+    EthosNLayerSupport layerSupport(config, EthosNMappings(), config.QueryCapabilities());
     TensorInfo input  = TensorInfo({ 1, 1, 1, 1, 4 }, DataType::QAsymmU8, 1.f, 0);
     TensorInfo output = TensorInfo({ 1, 1, 1, 1, 4 }, DataType::QAsymmU8, 1.f, 0);
     std::string reasonIfUnsupported;
@@ -887,7 +876,7 @@ BOOST_AUTO_TEST_CASE(EstimateOnly5dFail)
 /// by attempting to substitute the operation with DepthwiseConvolution2d.
 BOOST_AUTO_TEST_CASE(MulSubstitutionFail)
 {
-    EthosNLayerSupport layerSupport;
+    EthosNLayerSupport layerSupport(EthosNConfig(), EthosNMappings(), EthosNConfig().QueryCapabilities());
 
     // input1 is assumed to be a constant and will be used for the weights of the convolution
     TensorInfo input0 = TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);

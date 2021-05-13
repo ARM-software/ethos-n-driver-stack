@@ -27,9 +27,6 @@
 namespace armnn
 {
 
-ARMNN_DLLEXPORT EthosNConfig g_EthosNConfig;
-ARMNN_DLLEXPORT EthosNMappings g_EthosNMappings;
-
 namespace ethosnbackend
 {
 
@@ -838,18 +835,19 @@ void ApplyMappings(std::vector<Mapping> mappings, Graph& newGraph)
 
 void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
                                    const SubgraphView& subgraph,
+                                   const EthosNConfig& config,
                                    const EthosNMappings& mappings,
+                                   const std::vector<char>& capabilities,
                                    const ModelOptions& modelOptions)
 {
     SubgraphView subgraphToCompile = subgraph;
-    g_EthosNConfig                 = GetEthosNConfig();
 
     // Graph is needed here to keep ownership of the layers
     Graph newGraph = ethosnbackend::CloneGraph(subgraph);
 
     // If we're in Performance Estimator mode, we might want to replace some of the layers we do not support with
     // layers we do, for performance estimation purposes
-    if (g_EthosNConfig.m_PerfOnly && !mappings.empty())
+    if (config.m_PerfOnly && !mappings.empty())
     {
         // apply the mapping to the subgraph to replace nodes in EstimatorOnly mode
         ethosnbackend::ApplyMappings(mappings, newGraph);
@@ -865,7 +863,8 @@ void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
     try
     {
         // Attempt to convert and compile the sub-graph
-        compiledNetworks = EthosNSubgraphViewConverter(subgraphToCompile, modelOptions).CompileNetwork();
+        compiledNetworks =
+            EthosNSubgraphViewConverter(subgraphToCompile, modelOptions, config, capabilities).CompileNetwork();
     }
     catch (std::exception&)
     {
@@ -904,6 +903,34 @@ void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
     optimizationViews.AddSubstitution({ std::move(subgraph), SubgraphView(&preCompiledLayer) });
 }
 
+ARMNN_DLLEXPORT armnn::EthosNConfig EthosNBackend::ms_Config;
+ARMNN_DLLEXPORT armnn::EthosNMappings EthosNBackend::ms_Mappings;
+ARMNN_DLLEXPORT std::vector<char> EthosNBackend::ms_Capabilities;
+
+EthosNBackend::EthosNBackend()
+{
+    // Although this EthosNBackend object is the 'main' object representing our backend, it is actually an ephemeral
+    // object which Arm NN instantiates and destroys many times during various operations. Therefore it is not wise
+    // to load config files and query the HW for capabilities here as it would be bad for performance and more
+    // importantly could lead to different parts of the backend disagreeing about configuration settings if the
+    // files on disk changed while running Arm NN. There is currently no object with an appropriate lifetime to handle
+    // this, so we have to handle this in a less ideal manner - we only load these things *once*, on first instantiation
+    // of this backend object. All future instantiations will use the same cached values.
+
+    if (ms_Capabilities.empty())
+    {
+        // First-time initialization
+        ms_Config       = ReadEthosNConfig();
+        ms_Mappings     = ReadMappingsFromFile(ms_Config.m_PerfMappingFile.c_str());
+        ms_Capabilities = ms_Config.QueryCapabilities();
+    }
+
+    // Copy the cached data into this object, for further use (passing to sub-objects etc.)
+    m_Config       = ms_Config;
+    m_Mappings     = ms_Mappings;
+    m_Capabilities = ms_Capabilities;
+}
+
 const BackendId& EthosNBackend::GetIdStatic()
 {
     static const BackendId s_Id{ EthosNBackendId() };
@@ -913,7 +940,7 @@ const BackendId& EthosNBackend::GetIdStatic()
 IBackendInternal::IWorkloadFactoryPtr
     EthosNBackend::CreateWorkloadFactory(const IBackendInternal::IMemoryManagerSharedPtr&) const
 {
-    return std::make_unique<EthosNWorkloadFactory>();
+    return std::make_unique<EthosNWorkloadFactory>(m_Config);
 }
 
 IBackendInternal::IBackendContextPtr EthosNBackend::CreateBackendContext(const IRuntime::CreationOptions&) const
@@ -942,8 +969,7 @@ IBackendInternal::IMemoryManagerUniquePtr EthosNBackend::CreateMemoryManager() c
 
 IBackendInternal::ILayerSupportSharedPtr EthosNBackend::GetLayerSupport() const
 {
-    static ILayerSupportSharedPtr layerSupport{ new EthosNLayerSupport };
-    return layerSupport;
+    return std::make_shared<EthosNLayerSupport>(m_Config, m_Mappings, m_Capabilities);
 }
 
 OptimizationViews EthosNBackend::OptimizeSubgraphView(const SubgraphView& subgraph) const
@@ -959,13 +985,18 @@ OptimizationViews EthosNBackend::OptimizeSubgraphView(const SubgraphView& subgra
         throw RuntimeException("Driver or support library version is not supported by the backend");
     }
     OptimizationViews optimizationViews;
-    g_EthosNConfig   = GetEthosNConfig();
-    g_EthosNMappings = GetMappings(g_EthosNConfig.m_PerfMappingFile);
 
     // Create a pre-compiled layer
-    armnn::CreatePreCompiledLayerInGraph(optimizationViews, subgraph, g_EthosNMappings, modelOptions);
+    armnn::CreatePreCompiledLayerInGraph(optimizationViews, subgraph, m_Config, m_Mappings, m_Capabilities,
+                                         modelOptions);
 
     return optimizationViews;
+}
+
+armnn::EthosNBackendProfilingService& EthosNBackendProfilingService::Instance()
+{
+    static EthosNBackendProfilingService instance;
+    return instance;
 }
 
 }    // namespace armnn

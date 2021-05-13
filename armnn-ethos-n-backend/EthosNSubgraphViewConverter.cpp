@@ -31,10 +31,14 @@ ARMNN_DLLEXPORT std::unique_ptr<EthosNSupportLibraryInterface> g_EthosNSupportLi
 
 uint32_t EthosNSubgraphViewConverter::ms_NextInstanceId = 0;
 
-EthosNSubgraphViewConverter::EthosNSubgraphViewConverter(const SubgraphView& subgraph, ModelOptions modelOptions)
+EthosNSubgraphViewConverter::EthosNSubgraphViewConverter(const SubgraphView& subgraph,
+                                                         ModelOptions modelOptions,
+                                                         const EthosNConfig& config,
+                                                         const std::vector<char>& capabilities)
     : m_InstanceId(ms_NextInstanceId++)
     , m_Subgraph(subgraph)
-    , m_EthosNConfig(GetEthosNConfig())
+    , m_EthosNConfig(config)
+    , m_Capabilities(capabilities)
 {
     try
     {
@@ -697,8 +701,8 @@ void EthosNSubgraphViewConverter::CreateUncompiledNetwork()
     }
 
     // Initialize a new network
-    m_Network = m_EthosNConfig.m_PerfOnly ? ethosn_lib::CreateEstimationNetwork(m_EthosNConfig.GetCapabilities())
-                                          : ethosn_lib::CreateNetwork(m_EthosNConfig.GetCapabilities());
+    m_Network = m_EthosNConfig.m_PerfOnly ? ethosn_lib::CreateEstimationNetwork(m_Capabilities)
+                                          : ethosn_lib::CreateNetwork(m_Capabilities);
 
     // Add inputs
     for (uint32_t inputSlotIdx = 0; inputSlotIdx < m_Subgraph.GetNumInputSlots(); ++inputSlotIdx)
