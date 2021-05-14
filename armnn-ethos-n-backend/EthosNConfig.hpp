@@ -53,13 +53,18 @@ struct EthosNConfig
 
     std::vector<char> GetCapabilities()
     {
-        if (!ethosn::driver_library::VerifyKernel())
+        if (m_PerfOnly)
         {
-            throw RuntimeException("Kernel version is not supported");
+            return ethosn::support_library::GetFwAndHwCapabilities(m_PerfVariant, m_PerfSramSizeBytesOverride);
         }
-
-        return m_PerfOnly ? ethosn::support_library::GetFwAndHwCapabilities(m_PerfVariant, m_PerfSramSizeBytesOverride)
-                          : ethosn::driver_library::GetFirmwareAndHardwareCapabilities();
+        else
+        {
+            if (!ethosn::driver_library::VerifyKernel())
+            {
+                throw RuntimeException("Kernel version is not supported");
+            }
+            return ethosn::driver_library::GetFirmwareAndHardwareCapabilities();
+        }
     }
 };
 

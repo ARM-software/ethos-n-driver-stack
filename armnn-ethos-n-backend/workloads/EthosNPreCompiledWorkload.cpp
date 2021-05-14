@@ -220,6 +220,11 @@ void SendProfilingEvents()
 void EthosNPreCompiledWorkload::Init(const PreCompiledDescriptor& descriptor,
                                      const EthosNPreCompiledObject::Network& network)
 {
+    if (!ethosn::driver_library::VerifyKernel())
+    {
+        throw RuntimeException("Kernel version is not supported");
+    }
+
     // Set up the buffers in the PreCompiledLayer::CreateWorkload() method, pass them in PreCompiledQueueDescriptor
     unsigned int numInputBuffers = descriptor.m_NumInputSlots;
     m_InputBuffers.resize(numInputBuffers);
@@ -260,11 +265,6 @@ EthosNPreCompiledWorkload::EthosNPreCompiledWorkload(const PreCompiledQueueDescr
     if (m_PreCompiledObject == nullptr)
     {
         throw InvalidArgumentException("EthosNPreCompiledWorkload requires a valid pre-compiled object");
-    }
-
-    if (!ethosn::driver_library::VerifyKernel())
-    {
-        throw RuntimeException("Kernel version is not supported");
     }
 
     if (!m_PreCompiledObject->IsPerfEstimationOnly())
