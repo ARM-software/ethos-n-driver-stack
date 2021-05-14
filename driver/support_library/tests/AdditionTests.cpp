@@ -50,6 +50,16 @@ TEST_CASE("IsAdditionSupported")
                                                 sizeof(reason)) == SupportedLevel::Unsupported);
             REQUIRE(Contains(reason, "Input to addition must be UINT8_QUANTIZED or INT8_QUANTIZED"));
         }
+
+        SECTION("Mismatching input data types")
+        {
+            TensorInfo input0 = TensorInfo({ 1, 1, 1, 4 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, { 0, 1.0f });
+            TensorInfo input1 = TensorInfo({ 1, 2, 3, 4 }, DataType::INT8_QUANTIZED, DataFormat::NHWC, { 0, 1.0f });
+            TensorInfo output;
+            REQUIRE(queries.IsAdditionSupported(input0, input1, outputQuantizationInfo, &output, reason,
+                                                sizeof(reason)) == SupportedLevel::Unsupported);
+            REQUIRE(Contains(reason, "Inputs to addition must have the same data type"));
+        }
     }
 
     SECTION("EstimateOnly cases")

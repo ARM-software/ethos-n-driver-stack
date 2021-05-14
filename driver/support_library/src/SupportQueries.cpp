@@ -1209,6 +1209,12 @@ SupportedLevel SupportQueries::IsAdditionSupported(const TensorInfo& inputInfo0,
         return SupportedLevel::Unsupported;
     }
 
+    if (inputInfo0.m_DataType != inputInfo1.m_DataType)
+    {
+        SetReason("Inputs to addition must have the same data type", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
     if (((inputInfo0.m_DataFormat != DataFormat::NHWC) && (inputInfo0.m_DataFormat != DataFormat::NHWCB)) ||
         ((inputInfo1.m_DataFormat != DataFormat::NHWC) && (inputInfo1.m_DataFormat != DataFormat::NHWCB)))
     {
