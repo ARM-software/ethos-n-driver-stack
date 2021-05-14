@@ -118,7 +118,7 @@ static void __iomem *ethosn_map_iomem(const struct ethosn_core *const core,
 	}
 
 	/* Map address space */
-	ptr = devm_ioremap_nocache(core->parent->dev, res->start, size);
+	ptr = devm_ioremap(core->parent->dev, res->start, size);
 	if (IS_ERR(ptr))
 		dev_err(core->dev,
 			"failed to map '%s': start=%llu size=%llu\n",

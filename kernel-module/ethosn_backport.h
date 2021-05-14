@@ -37,4 +37,12 @@
 typedef unsigned __bitwise __poll_t;
 #endif
 
+#if (KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE)
+static inline struct iommu_fwspec *dev_iommu_fwspec_get(struct device *dev)
+{
+	return dev->iommu_fwspec;
+}
+
+#endif
+
 #endif /* _ETHOSN_BACKPORT_H_ */

@@ -22,6 +22,7 @@
 
 #include "ethosn_device.h"
 
+#include "ethosn_backport.h"
 #include "ethosn_firmware.h"
 #include "ethosn_log.h"
 #include "ethosn_smc.h"
@@ -633,7 +634,7 @@ void ethosn_set_power_ctrl(struct ethosn_core *core,
  */
 int ethosn_set_mmu_stream_id(struct ethosn_core *core)
 {
-	struct iommu_fwspec *fwspec = core->dev->iommu_fwspec;
+	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(core->dev);
 	int ret = -EINVAL;
 	unsigned int stream_id;
 	static const int mmusid_0 = DL1_STREAM0_MMUSID;
