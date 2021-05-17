@@ -328,6 +328,9 @@ u32 ethosn_read_top_reg(struct ethosn_core *core,
 	return ioread32(ethosn_top_reg_addr(core->top_regs, page, offset));
 }
 
+/* Exported for use by ethosn-tests module * */
+EXPORT_SYMBOL(ethosn_read_top_reg);
+
 /**
  * ethosn_boot_firmware() - Boot firmware.
  * @core:	Pointer to Ethos-N core.
@@ -385,9 +388,6 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 	ret = ethosn_reset(core);
 	if (ret)
 		return ret;
-
-	/* Enable clock */
-	ethosn_set_power_ctrl(core, true);
 
 	/* Set MMU Stream id0 if iommu is present */
 	if (ethosn_smmu_available(core->dev)) {
