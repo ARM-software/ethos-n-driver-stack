@@ -77,23 +77,6 @@ struct ethosn_network {
 	struct file               *file;
 };
 
-struct ethosn_inference {
-	struct ethosn_core    *core;
-	struct ethosn_network *network;
-
-	struct list_head      queue_node;
-
-	struct ethosn_buffer  **inputs;
-	struct ethosn_buffer  **outputs;
-
-	u32                   status;
-
-	wait_queue_head_t     poll_wqh;
-
-	/* Reference counting */
-	struct kref           kref;
-};
-
 static struct device *net_to_dev(const struct ethosn_network *const net)
 {
 	return net->ethosn->dev;
@@ -325,14 +308,14 @@ err_free_bufs:
 }
 
 /**
- * schedule_inference() - Send an inference to Ethos-N
+ * ethosn_schedule_inference() - Send an inference to Ethos-N
  *
  * If an inference isn't already running, send it to Ethos-N for execution.
  * Return:
  * * 0 - OK
  * * Negative error code
  */
-static int schedule_inference(struct ethosn_inference *inference)
+int ethosn_schedule_inference(struct ethosn_inference *inference)
 {
 	struct ethosn_network *network = inference->network;
 	struct ethosn_core *core = inference->core;
@@ -441,13 +424,13 @@ out_inference_error:
 }
 
 /**
- * schedule_queued_inference() - Schedule a queue inference.
+ * ethosn_schedule_queued_inference() - Schedule a queue inference.
  * @core:	Ethos-N core.
  *
  * Pop the inference queue until either the queue is empty or an inference has
  * been successfully scheduled.
  */
-static void schedule_queued_inference(struct ethosn_core *core)
+void ethosn_schedule_queued_inference(struct ethosn_core *core)
 {
 	struct ethosn_inference *inference = NULL;
 	struct ethosn_device *ethosn = core->parent;
@@ -479,7 +462,7 @@ static void schedule_queued_inference(struct ethosn_core *core)
 		/* Schedule the inference on a particular core */
 		inference->core = core;
 
-		(void)schedule_inference(inference);
+		(void)ethosn_schedule_inference(inference);
 	}
 }
 
@@ -698,7 +681,7 @@ static int ethosn_inference_register(struct ethosn_network *network,
 
 		if (core->current_inference == NULL) {
 			found = true;
-			schedule_queued_inference(core);
+			ethosn_schedule_queued_inference(core);
 		}
 
 		mutex_unlock(&core->mutex);
@@ -1274,5 +1257,5 @@ void ethosn_network_poll(struct ethosn_core *core,
 	core->current_inference = NULL;
 
 	/* Schedule next queued inference. */
-	schedule_queued_inference(core);
+	ethosn_schedule_queued_inference(core);
 }

@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2020-2021 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -22,6 +22,7 @@
 
 #include "ethosn_device.h"
 #include "ethosn_core.h"
+#include "ethosn_network.h"
 
 #include <linux/kernel.h>
 #include <linux/device.h>
@@ -94,6 +95,8 @@ static int ethosn_child_pdev_probe(struct platform_device *pdev)
 	ethosn->core[core_id]->core_id = core_id;
 	ethosn->core[core_id]->parent = ethosn;
 
+	dev_set_drvdata(&pdev->dev, ethosn->core[core_id]);
+
 	dev_dbg(&pdev->dev, "Ethosn-core probed\n");
 
 	++ethosn->num_cores;
@@ -108,6 +111,57 @@ static const struct of_device_id ethosn_child_pdev_match[] = {
 
 MODULE_DEVICE_TABLE(of, ethosn_child_pdev_match);
 
+static int ethosn_pm_resume(struct device *dev)
+{
+	int ret;
+	struct ethosn_core *core = dev_get_drvdata(dev);
+
+	dev_dbg(dev, "Resuming device\n");
+
+	if (core) {
+		ret = ethosn_reset_and_start_ethosn(core);
+		if (ret)
+			return ret;
+
+		ret = mutex_lock_interruptible(&core->mutex);
+		if (ret)
+			return ret;
+
+		if (core->current_inference)
+			ethosn_schedule_inference(core->current_inference);
+		else
+			ethosn_schedule_queued_inference(core);
+
+		mutex_unlock(&core->mutex);
+	} else {
+		dev_dbg(dev, "Driver data not found. Fix this bug.\n");
+	}
+
+	return 0;
+}
+
+static int ethosn_pm_suspend_noirq(struct device *dev)
+{
+	struct ethosn_core *core = dev_get_drvdata(dev);
+
+	dev_dbg(dev, "Suspending device\n");
+
+	if (core == NULL)
+		dev_dbg(dev, "Driver data not found. Fix this bug.");
+
+	if (core->current_inference == NULL)
+		return 0;
+
+	core->current_inference->status = ETHOSN_INFERENCE_SCHEDULED;
+
+	return ethosn_reset(core);
+}
+
+const struct dev_pm_ops ethosn_pm_ops = {
+	.resume        = ethosn_pm_resume,
+	.suspend_noirq = ethosn_pm_suspend_noirq
+};
+
 static struct platform_driver ethosn_child_pdev_driver = {
 	.probe                  = &ethosn_child_pdev_probe,
 	.remove                 = &ethosn_child_pdev_remove,
@@ -115,6 +169,7 @@ static struct platform_driver ethosn_child_pdev_driver = {
 		.name           = ETHOSN_CORE_DRIVER_NAME,
 		.owner          = THIS_MODULE,
 		.of_match_table = of_match_ptr(ethosn_child_pdev_match),
+		.pm             = &ethosn_pm_ops
 	},
 };
 
