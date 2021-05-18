@@ -306,9 +306,9 @@ void CreateMappingsWithInvalidAdditionalArguments3(const EthosNConfig config = E
     mapping = "pattern:\n";
     mapping += "input firstInput 1x16x16x16\n";
     mapping += "output firstOutput 1x16x16x16\n";
-    mapping += "Pooling2d  (firstInput) (firstOutput) ((name=depth))\n";
-    mapping += "graph-replacement:\n";
     mapping += "Activation  (firstInput) (firstOutput) ((function=Sigmoid))\n";
+    mapping += "graph-replacement:\n";
+    mapping += "Pooling2d  (firstInput) (firstOutput) ((name=depth))\n";
 
     std::ofstream mappingStream(config.m_PerfMappingFile);
     if (mappingStream.is_open())
