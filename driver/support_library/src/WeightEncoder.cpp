@@ -894,8 +894,7 @@ uint32_t WeightEncoderV2::FindRLEParams(WeightCompressionParamsV2& params,
                                         const std::vector<uint8_t>& weights,
                                         const TensorInfo& weightsTensorInfo) const
 {
-    constexpr uint32_t maxNumQuotientBits = 31;
-    constexpr uint32_t zDiv3              = static_cast<uint32_t>(ZDivisor::ZDIV_3);
+    constexpr uint32_t zDiv3 = static_cast<uint32_t>(ZDivisor::ZDIV_3);
 
     // Find how the zeroes are grouped among the weights
     std::vector<uint32_t> zeroGroups;
@@ -928,21 +927,8 @@ uint32_t WeightEncoderV2::FindRLEParams(WeightCompressionParamsV2& params,
         uint32_t sumRemain = 0;
         for (uint32_t group : zeroGroups)
         {
-            const uint32_t numQuotientBits = (group >> i);
-            if (numQuotientBits > maxNumQuotientBits)
-            {
-                // Too many quotient bits, skip to next ZDiv
-                sumQuots = UINT32_MAX;
-                break;
-            }
-
-            sumQuots += numQuotientBits + 1;
+            sumQuots += (group >> i) + 1;
             sumRemain += i;
-        }
-
-        if (sumQuots == UINT32_MAX)
-        {
-            continue;
         }
 
         // Calculate the total bitcost for the RLE chunk packing with padding
