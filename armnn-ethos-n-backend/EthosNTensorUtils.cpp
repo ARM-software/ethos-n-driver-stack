@@ -391,7 +391,7 @@ Optional<ethosn_lib::TransposeInfo> BuildEthosNTransposeInfo(const armnn::Permut
     }
 
     std::array<uint32_t, 4> permutation;
-    std::copy(descriptor.begin(), descriptor.end(), permutation.begin());
+    std::copy(descriptor.begin(), descriptor.begin() + descriptor.GetSize(), permutation.begin());
 
     Optional<ethosn_lib::TransposeInfo> transposeInfo(permutation);
 
