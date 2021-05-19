@@ -43,7 +43,7 @@ The Arm Ethos-N NPU will boot up in either secure or non-secure mode depending o
 To use the NPU in secure mode, the target platform must have a [Trusted Firmware-A (TF-A)](https://www.trustedfirmware.org/projects/tf-a/) that includes the Arm Ethos-N NPU SiP service.
 
 The Arm Ethos-N NPU SiP service can be found in the TF-A source tree, along with a reference implementation for how to use it on the Arm Juno platform.
-For instructions on how to get the TF-A source and how to build it, see [TF-A documentation](https://trustedfirmware-a.readthedocs.io/en/latest/index.html).
+For instructions on how to get the TF-A source and how to build it, see [TF-A documentation](https://trustedfirmware-a.readthedocs.io/en/latest/index.html). _Note that TF-A version v2.5 or later must be used._
 The build flag needed to enable the Arm Ethos-N NPU SiP service for the Arm Juno platform can be found here [TF-A Arm Platform Build Options](https://trustedfirmware-a.readthedocs.io/en/latest/plat/arm/arm-build-options.html).
 
 For information about how to port TF-A to another platform, see [TF-A Porting Guide](https://trustedfirmware-a.readthedocs.io/en/latest/getting_started/porting-guide.html).
