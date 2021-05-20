@@ -9,7 +9,7 @@
   - Max Pooling (1x1 and stride 2,2)
   - Transpose
   - Space To Depth
-  - MeanXy (when it is equivalent to average pool for 7x7 and 8x8)
+  - MeanXy (for input 7x7 and 8x8)
 - Support for ResNet v2-50 added
 - All software components are versioned
 - Support for Linux® kernel version 4.19 and 5.4 added
