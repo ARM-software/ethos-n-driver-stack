@@ -24,7 +24,7 @@
 
 // Version information
 #define ETHOSN_SUPPORT_LIBRARY_VERSION_MAJOR 1
-#define ETHOSN_SUPPORT_LIBRARY_VERSION_MINOR 0
+#define ETHOSN_SUPPORT_LIBRARY_VERSION_MINOR 1
 #define ETHOSN_SUPPORT_LIBRARY_VERSION_PATCH 0
 
 namespace ethosn
@@ -1206,12 +1206,6 @@ TensorsAndId AddEstimateOnly(const std::shared_ptr<Network>& network,
 
 /// Gets the TensorInfo of the given Operand.
 TensorInfo GetTensorInfo(const std::shared_ptr<Operand>& operand);
-
-namespace debug
-{
-// Print operations in a Network in topological order
-std::ostream& operator<<(std::ostream& os, Network& network);
-}    // namespace debug
 
 }    // namespace support_library
 }    // namespace ethosn

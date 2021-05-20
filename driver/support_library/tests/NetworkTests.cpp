@@ -13,7 +13,6 @@
 #include <unordered_set>
 
 using namespace ethosn::support_library;
-using namespace ethosn::support_library::debug;
 
 /// Checks that iteration over the network yields operations in topological order.
 TEST_CASE("TopologyTest")

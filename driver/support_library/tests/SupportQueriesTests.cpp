@@ -15,7 +15,6 @@
 #include <unordered_set>
 
 using namespace ethosn::support_library;
-using namespace ethosn::support_library::debug;
 
 TEST_CASE("InputSupported", "[IsSupported]")
 {
