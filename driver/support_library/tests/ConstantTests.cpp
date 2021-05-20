@@ -1,10 +1,11 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../include/ethosn_support_library/SupportQueries.hpp"
+#include "../src/Compiler.hpp"
 #include "TestUtils.hpp"
 
 #include <catch.hpp>
@@ -12,7 +13,7 @@
 
 using namespace ethosn::support_library;
 
-TEST_CASE("ConstantSupported")
+TEST_CASE("ConstantSupported", "[Constant]")
 {
     SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
 
@@ -20,7 +21,7 @@ TEST_CASE("ConstantSupported")
     REQUIRE(queries.IsConstantSupported(info) == SupportedLevel::Supported);
 }
 
-TEST_CASE("Constant used as input to operation fails to compile")
+TEST_CASE("Constant used as input to operation compiles succesfully", "[Constant]")
 {
     // Create the network
     CompilationOptions options       = GetDefaultCompilationOptions();
@@ -34,67 +35,20 @@ TEST_CASE("Constant used as input to operation fails to compile")
     std::shared_ptr<Output> output = AddOutput(network, *constantOperand).tensor;
 
     // Compile it
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork = ethosn::support_library::Compile(*network, options);
+    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetworks =
+        ethosn::support_library::Compile(*network, options);
+    REQUIRE(compiledNetworks.size() == 1);
 
-    REQUIRE(compiledNetwork.size() == 0);
-}
-
-/// Checks that the support_library compiles the network as expected
-/// when an unconnected constant is added to the graph.
-TEST_CASE("Constant unconnected")
-{
-    constexpr float scale = 0.5;
-    TensorInfo inputInfo0{
-        { { 1, 16, 16, 16 } },
-        DataType::UINT8_QUANTIZED,
-        DataFormat::NHWC,
-        { 0, scale },
-    };
-    TensorInfo inputInfo1{
-        { { 1, 16, 16, 16 } },
-        DataType::UINT8_QUANTIZED,
-        DataFormat::NHWC,
-        { 0, scale },
-    };
-
-    TensorInfo constantInfo{
-        { { 1, 1, 1, 16 } },
-        DataType::UINT8_QUANTIZED,
-        DataFormat::NHWC,
-        { 0, scale },
-    };
-
-    const std::vector<uint8_t> constData(constantInfo.m_Dimensions[0] * constantInfo.m_Dimensions[1] *
-                                         constantInfo.m_Dimensions[2] * constantInfo.m_Dimensions[3]);
-
-    CompilationOptions options       = GetDefaultCompilationOptions();
-    std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
-
-    // Build up the network
-    std::shared_ptr<Operand> input0    = AddInput(network, inputInfo0).tensor;
-    std::shared_ptr<Operand> input1    = AddInput(network, inputInfo1).tensor;
-    std::shared_ptr<Constant> constant = AddConstant(network, constantInfo, constData.data()).tensor;
-    std::shared_ptr<Operand> addition  = AddAddition(network, *input0, *input1, inputInfo0.m_QuantizationInfo).tensor;
-    std::shared_ptr<Output> output     = AddOutput(network, *addition).tensor;
-
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
-
-    // Extract the PleOnly operations
+    // Check that it contains a single copy command, from input to output
     using namespace ethosn::command_stream;
-    CommandStream cmdStream = GetCommandStream(compiledNetwork[0].get());
-    std::vector<PleOnly> commands;
-    for (const auto& cmdHeader : cmdStream)
-    {
-        if (cmdHeader.m_Opcode() == Opcode::OPERATION_PLE_ONLY)
-        {
-            commands.push_back(cmdHeader.GetCommand<Opcode::OPERATION_PLE_ONLY>()->m_Data());
-        }
-    }
+    CommandStream cs = GetCommandStream(compiledNetworks[0].get());
+    auto it          = cs.begin();
+    REQUIRE(it->m_Opcode() == Opcode::OPERATION_CONVERT);
+    ++it;
+    REQUIRE(it == cs.end());
 
-    REQUIRE(commands.size() == 1);
-    REQUIRE(commands[0].m_NumInputInfos() == 2u);
-    REQUIRE(commands[0].m_InputInfo().m_TensorShape() == TensorShape{ 1, 16, 16, 16 });
-    REQUIRE(commands[0].m_InputInfo2().m_TensorShape() == TensorShape{ 1, 16, 16, 16 });
-    REQUIRE(commands[0].m_OutputInfo().m_TensorShape() == TensorShape{ 1, 16, 16, 16 });
+    // Check that the constant data is included in the compiled network
+    const CompiledNetworkImpl* cnImpl = static_cast<const CompiledNetworkImpl*>(compiledNetworks[0].get());
+    REQUIRE(cnImpl->GetConstantDmaDataBufferInfos().size() == 1);
+    REQUIRE(cnImpl->GetConstantDmaDataBufferInfos()[0].m_Size == 1 * 1 * 16 * 16);
 }

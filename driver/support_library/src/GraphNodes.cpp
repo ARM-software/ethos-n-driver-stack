@@ -106,10 +106,21 @@ void InputNode::Reset()
     m_Location = BufferLocation::Dram;
 }
 
+void ConstantNode::PrepareAfterPassAssignment(SramAllocator&)
+{
+    m_Location = BufferLocation::Dram;
+}
+
 bool ConstantNode::IsPrepared()
 {
-    // Constant can only be merged with other nodes or removed from the graph if unconnected.
-    return false;
+    return true;
+}
+
+void ConstantNode::Generate(command_stream::CommandStreamBuffer& cmdStream, BufferManager& bufferManager, bool dumpRam)
+{
+    Node::Generate(cmdStream, bufferManager, dumpRam);
+
+    SetBufferId(bufferManager.AddDramConstant(BufferType::ConstantDma, m_ConstantData));
 }
 
 DotAttributes ConstantNode::GetDotAttributes()

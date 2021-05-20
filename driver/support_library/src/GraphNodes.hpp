@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -74,7 +74,10 @@ public:
     const std::vector<uint8_t>& GetConstantData() const;
     const DataType& GetConstantDataType() const;
 
+    void PrepareAfterPassAssignment(SramAllocator& sramAllocator) override;
     bool IsPrepared() override;
+    void Generate(command_stream::CommandStreamBuffer& cmdStream, BufferManager& bufferManager, bool dumpRam) override;
+
     DotAttributes GetDotAttributes() override;
 
 private:
