@@ -9,7 +9,7 @@ For more information, please refer to:
 
 ## About the Ethos-N driver stack
 
-The Ethos-N driver stack targets the Ethos-N77 and Ethos-N78 set of NPUs. _Note that support for Ethos-N77 has been **deprecated** and will be removed in 21.08._
+The Ethos-N driver stack targets the Ethos-N78 set of NPUs.
 
 The Ethos-N driver stack consists of several components.
 
