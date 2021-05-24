@@ -25,6 +25,8 @@ namespace ethosn
 namespace support_library
 {
 
+using namespace utils;
+
 namespace
 {
 
@@ -2009,6 +2011,93 @@ SupportedLevel SupportQueries::IsEstimateOnlySupported(const std::vector<TensorI
     return SupportedLevel::EstimateOnly;
 }
 
+uint32_t DepthwiseConvSramEstimate(const TensorInfo& inputInfo, const std::vector<char>& caps)
+{
+    // Weight tensor shape of a 1x1 depthwise convolution
+    const TensorShape weightStripe = { 1, 1, inputInfo.m_Dimensions[3], 1 };
+    const uint32_t weightSize      = EstimateWeightSizeBytes(weightStripe, GetValidCapabilities(caps), true);
+
+    const uint32_t inputSize = TotalSizeBytesNHWCB(inputInfo);
+
+    // OFM size is the same as IFM's because we only swap H and W in SRAM,
+    // and NHWCB block width = height = 8.
+    const uint32_t outputSize = inputSize;
+    const uint32_t numSrams = GetValidCapabilities(caps).m_NumberOfEngines * GetValidCapabilities(caps).m_EmcPerEngine;
+    const uint32_t maxPleKernelSize = GetValidCapabilities(caps).m_MaxPleSize * numSrams;
+
+    // The total size consumed by a single stripe depthwise conv = IFM + OFM + WEIGHT + PLE
+    const uint32_t totalSize = inputSize + outputSize + weightSize + maxPleKernelSize;
+
+    return totalSize;
+}
+
+// Transpose only supports strategy 3. Hence any transpose request that needs IFM/OFM streaming is rejected
+bool IsTransposeTensorSupported(const std::vector<char>& caps,
+                                const TensorInfo& inputInfo,
+                                const TransposeInfo& transposeInfo)
+{
+    const uint32_t sramSize = static_cast<uint32_t>(GetTotalSramSize(caps));
+    uint32_t totalSize;
+    assert(GetElementSizeBytes(inputInfo.m_DataType) == 1 && "transpose only support 8-bit");
+
+    if (transposeInfo.m_Permutation[1] == 2 && transposeInfo.m_Permutation[2] == 3 &&
+        transposeInfo.m_Permutation[3] == 1)
+    {
+        // (0, 2, 3, 1)
+        // Loads to SRAM pretending it is NCHW->0231, then saves to DRAM as NHWC.
+        // The compiler will insert a format conversion node that convert from
+        // NCHW to NHWC.
+        // The compiler will usually assign a format conversion pass to the conversion
+        // node if it cannot assign it to a McePle plass due to the multiple stripes
+        // restriction.
+        totalSize = TotalSizeBytesNHWCB(inputInfo);
+    }
+    else if (transposeInfo.m_Permutation[1] == 1 && transposeInfo.m_Permutation[2] == 2 &&
+             transposeInfo.m_Permutation[3] == 3)
+    {
+        // (0, 1, 2, 3) should always be supported
+        totalSize = sramSize;
+    }
+    else
+    {
+        // The compiler will insert an identity mce op node before the format conversion or PLE node (created for transpose)
+        // that it has failed to assign a pass to (because only strategy 3 is allowed). In this way the compiler will be able
+        // to assign a pass to identity MCE op + format conversion/PLE as long as they can be fit into the SRAM. And the input
+        // tensor to transpose operation can be directly used to perform a "conservative" SRAM usage estimate.
+
+        TensorInfo tensorInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO);
+
+        if ((transposeInfo.m_Permutation[1] == 3 && transposeInfo.m_Permutation[2] == 1 &&
+             transposeInfo.m_Permutation[3] == 2) ||
+            (transposeInfo.m_Permutation[1] == 2 && transposeInfo.m_Permutation[2] == 1 &&
+             transposeInfo.m_Permutation[3] == 3))
+        {
+            // (0, 3, 1, 2)
+            // (0, 2, 1, 3)
+            // Both load data to SRAM as NHWC. Therefore the input to transpose is used to
+            // estimate the SRAM usage for the identity MCE operation
+            tensorInfo.m_Dimensions = inputInfo.m_Dimensions;
+        }
+        else if ((transposeInfo.m_Permutation[1] == 1 && transposeInfo.m_Permutation[2] == 3 &&
+                  transposeInfo.m_Permutation[3] == 2) ||
+                 (transposeInfo.m_Permutation[1] == 3 && transposeInfo.m_Permutation[2] == 2 &&
+                  transposeInfo.m_Permutation[3] == 1))
+
+        {
+            // (0, 1, 3, 2)
+            // (0, 3, 2, 1)
+            // Both load data to SRAM as NCHW. Therefore the input to transpose is permuted to
+            // estimate the SRAM usage for the identity MCE operation
+            tensorInfo.m_Dimensions = { 1, inputInfo.m_Dimensions[2], inputInfo.m_Dimensions[3],
+                                        inputInfo.m_Dimensions[1] };
+        }
+
+        totalSize = DepthwiseConvSramEstimate(tensorInfo, caps);
+    }
+
+    return (totalSize <= sramSize);
+}
+
 SupportedLevel SupportQueries::IsTransposeSupported(const TransposeInfo& transposeInfo,
                                                     const TensorInfo& inputInfo,
                                                     TensorInfo* outputInfo,
@@ -2076,6 +2165,12 @@ SupportedLevel SupportQueries::IsTransposeSupported(const TransposeInfo& transpo
             return SupportedLevel::Unsupported;
         }
         *outputInfo = expectedOutputInfo;
+    }
+
+    if (!IsTransposeTensorSupported(m_Capabilities, inputInfo, transposeInfo))
+    {
+        SetReason("The tensors are too large", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
     }
 
     return SupportedLevel::Supported;

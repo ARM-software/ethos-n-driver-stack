@@ -440,11 +440,14 @@ bool FuseOnlyPleOperationNode::FixGraph(Graph& graph, FixGraphSeverity severity)
     bool changed = Node::FixGraph(graph, severity);
     // If we couldn't be assigned into a pass then it may be because there is no convolution node before for us to
     // be assigned to. In this case make an identity convolution node. We might also need to insert identity depthwise
-    //  if a deep convolution followed by MaxPool 3x3 and the ifm will be splitted in width, please check the comment in McePlePass.cpp
+    // if a deep convolution followed by MaxPool 3x3 and the ifm will be splitted in width, or a transpose XY PLE
+    // operation to avoid it being split into stripes (transpose does not support multiple stripes).
+    // Please check the comment in McePlePass.cpp
 
     if (m_Pass == nullptr &&
         (m_InsertIdentityNodeHint || dynamic_cast<MceOperationNode*>(GetInput(0)->GetSource()) == nullptr ||
-         GetInput(0)->GetSource()->GetOutputs().size() > 1))
+         GetInput(0)->GetSource()->GetOutputs().size() > 1 ||
+         (severity == FixGraphSeverity::High && m_KernelOperation == command_stream::PleOperation::TRANSPOSE_XY)))
     {
         InsertIdentityNode(graph, GetInput(0));
         changed                  = true;
@@ -586,6 +589,19 @@ bool FormatConversionNode::FixGraph(Graph& graph, FixGraphSeverity severity)
          GetInputCompressedFormat(0) == CompilerDataCompressedFormat::FCAF_WIDE))
     {
         GetInput(0)->GetSource()->SetCompressionHint(CompressionHint::RequiredUncompressed);
+        changed = true;
+    }
+
+    // A format conversion node using NCHW is for transpose operation.
+    // If it couldn't be assigned into a pass then it may be because the convolution node before it needs
+    // multi-stripe operation that is not currenntly supported for transpose.
+    // Inserting a identity node when this happens so that the identity node and the format conversion node
+    // will be assigned into a McePle pass. In this way, the input tensor to the McePle pass will be the
+    // same as the one to the transpose operation, which in turn allows the support query to reject the
+    // transpose operation that cannot avoid multipe-stripe.
+    if (severity == FixGraphSeverity::High && m_Pass == nullptr && GetFormat() == CompilerDataFormat::NCHW)
+    {
+        InsertIdentityNode(graph, GetInput(0));
         changed = true;
     }
     return changed;
