@@ -119,7 +119,10 @@ Enter the following commands to download Arm NN, the Ethos-N NPU driver, kernel 
 ```sh
 mkdir driver_stack
 cd driver_stack
-git clone https://github.com/Arm-software/armnn --branch v21.05
+git clone https://github.com/Arm-software/armnn --branch master
+cd armnn/
+git reset --hard 77fe76bfa8cb798943821d1f3e432c228e1cdee3
+cd ..
 git clone https://github.com/Arm-software/ethos-n-driver-stack --branch develop
 ```
 
@@ -284,7 +287,7 @@ There are multiple ways to exercise the Ethos-N NPU driver.
     Set `LD_LIBRARY_PATH` so the supplied libraries can be found and run the **UnitTests for the Ethos-N NPU**.
 
     ```sh
-    LD_LIBRARY_PATH=<path_to_ethosn_libraries>:<path_to_armnn_libs> ./UnitTests --run_test=*EthosN*
+    LD_LIBRARY_PATH=<path_to_ethosn_libraries>:<path_to_armnn_libs> ./UnitTests --test-suite=*Ethos*
     ```
 
 2. Running the Ethos-N NPU driver user space unit tests.
