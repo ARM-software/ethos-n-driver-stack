@@ -21,11 +21,7 @@ bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph,
                                                 const EthosNMappings& mappings,
                                                 const std::vector<char>& capabilities);
 
-bool ReplaceConstantAdditionWithDepthwise(Graph& graph,
-                                          Layer* layer,
-                                          const EthosNConfig& config,
-                                          const EthosNMappings& mappings,
-                                          const std::vector<char>& capabilities);
+bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer);
 
 bool ReplaceScalarMultiplicationWithReinterpretQuantization(Graph& graph,
                                                             Layer* layer,
@@ -39,6 +35,13 @@ bool ReplaceMultiplication(Graph& graph,
                            const EthosNConfig& config,
                            const EthosNMappings& mappings,
                            const std::vector<char>& capabilities);
+bool ReplaceConstantAdditionWithReinterpretQuantization(Graph& graph, Layer* layer, std::string& outFailureReason);
+
+bool ReplaceAddition(Graph& graph,
+                     Layer* layer,
+                     const EthosNConfig& config,
+                     const EthosNMappings& mappings,
+                     const std::vector<char>& capabilities);
 
 void ReplaceUnsupportedLayers(Graph& graph,
                               const EthosNConfig& config,

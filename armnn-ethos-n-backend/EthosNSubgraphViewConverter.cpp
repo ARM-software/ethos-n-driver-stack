@@ -605,6 +605,14 @@ void EthosNSubgraphViewConverter::AddStandInLayer(Layer* layer)
         InsertConvertedLayerSingleOutput(
             layer, ethosn_lib::AddReinterpretQuantization(m_Network, *input.tensor, reinterpretQuantizeInfo));
     }
+    else if ((layer->GetNameStr() == "EthosNBackend:ReplaceScalarAddWithReinterpretQuantization") &&
+             (standInLayer.GetParameters().m_NumInputs == 1U) && (standInLayer.GetParameters().m_NumOutputs == 1U))
+    {
+        auto reinterpretQuantizeInfo =
+            BuildEthosNReinterpretQuantizationInfo(standInLayer.GetOutputSlot(0).GetTensorInfo());
+        InsertConvertedLayerSingleOutput(
+            layer, ethosn_lib::AddReinterpretQuantization(m_Network, *input.tensor, reinterpretQuantizeInfo));
+    }
     else
     {
         HandleUnknownLayer(layer);

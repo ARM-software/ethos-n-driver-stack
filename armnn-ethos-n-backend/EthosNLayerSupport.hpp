@@ -25,6 +25,7 @@ public:
         None,      ///< Addition cannot be supported by this backend at all.
         Native,    ///< Addition can be supported by this backend, by using an Addition operation in the support library.
         ReplaceWithDepthwise,    //< Addition can be supported by this backend, by using a DepthwiseConvolution operation in the support library.
+        ReplaceWithReinterpretQuantize,    //< Scalar Addition can be supported by this backend, using a Reinterpret Quantization operation in the support library.
     };
 
     enum class MultiplicationSupportedMode
@@ -461,6 +462,13 @@ private:
                                                    const ethosn::support_library::TensorInfo& ethosnInput0,
                                                    const ethosn::support_library::TensorInfo& ethosnInput1,
                                                    Optional<std::string&> reasonIfUnsupported) const;
+
+    bool IsAdditionSupportedByReinterpretQuantization(const TensorInfo& input0,
+                                                      const TensorInfo& input1,
+                                                      const TensorInfo& output,
+                                                      const ethosn::support_library::TensorInfo& ethosnInput0,
+                                                      const ethosn::support_library::TensorInfo& ethosnInput1,
+                                                      Optional<std::string&> reasonIfUnsupported) const;
 
     bool IsMultiplicationSupportedByDepthwiseReplacement(const TensorInfo& input0,
                                                          const TensorInfo& input1,

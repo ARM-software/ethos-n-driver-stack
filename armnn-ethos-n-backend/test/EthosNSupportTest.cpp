@@ -1170,6 +1170,21 @@ TEST_SUITE("EthosNSupport")
                                                     TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
               EthosNLayerSupport::AdditionSupportedMode::Native);
 
+        // Success case - addition supported by replacing it with ReinterpretQuantize
+        // Additionally, verifying that the correct AdditionSupportedMode value is returned
+        CHECK(layerSupport.GetAdditionSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                    TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0),
+                                                    TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+              EthosNLayerSupport::AdditionSupportedMode::ReplaceWithReinterpretQuantize);
+
+        // Failure case - addition could be supported by replacing it with ReinterpretQuantize
+        // but due to quantization scales of input and output info being not equal we get addition
+        // as unsupported operation.
+        ExpectFail(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                   TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0),
+                   TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 2.0f, 1),
+                   "Input and output quantization scales are not equal");
+
         // Failure case - broadcasting in an a way that can't be covered by the depthwise replacement
         ExpectFail(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
                    TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, 1.0f, 0),
@@ -1182,6 +1197,13 @@ TEST_SUITE("EthosNSupport")
                    TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
                    "Addition operation was attempted to be substituted for DepthwiseConvolution2d, "
                    "however the following error occurred in the substitution: Couldn't find valid weight scale");
+
+        // Failure case - could be replaced by reinterpret quantize but support library rejects the reinterpret quantize
+        // config (in this case, input tensor too deep)
+        ExpectFail(TensorInfo({ 1, 2, 2, 100000 }, DataType::QAsymmU8, 1.0f, 0),
+                   TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0),
+                   TensorInfo({ 1, 2, 2, 100000 }, DataType::QAsymmU8, 1.0f, 0),
+                   "Input to reinterpret quantization: Tensor max depth cannot fit in SRAM");
 
         // Failure case - could be replaced by depthwise but support library rejects the depthwise config
         // (in this case, input tensor too deep)
@@ -1197,6 +1219,12 @@ TEST_SUITE("EthosNSupport")
                                                     TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0),
                                                     TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
               EthosNLayerSupport::AdditionSupportedMode::ReplaceWithDepthwise);
+
+        // Success case - supported by replacement with Reinterpret Quantization
+        CHECK(layerSupport.GetAdditionSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                    TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0),
+                                                    TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+              EthosNLayerSupport::AdditionSupportedMode::ReplaceWithReinterpretQuantize);
     }
 
     // Checks the behaviour is IsAdditionSupported when in perf-only mode.

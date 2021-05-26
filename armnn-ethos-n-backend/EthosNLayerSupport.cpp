@@ -323,6 +323,54 @@ bool EthosNLayerSupport::IsAdditionSupportedByDepthwiseReplacement(const TensorI
     return supported;
 }
 
+bool EthosNLayerSupport::IsAdditionSupportedByReinterpretQuantization(const TensorInfo& input0,
+                                                                      const TensorInfo& input1,
+                                                                      const TensorInfo& output,
+                                                                      const ethosn_lib::TensorInfo& ethosnInput0,
+                                                                      const ethosn_lib::TensorInfo& ethosnInput1,
+                                                                      Optional<std::string&> reasonIfUnsupported) const
+{
+    // Support is claimed if a single input tensor is of shape {1,1,1,1}
+    // When constant is of that shape, backend will substitute the Constant-Addition patterns
+    // for ReinterpretQuantization.
+    auto ethosnOutput                          = BuildEthosNTensorInfo(output, DataLayout::NHWC);
+    const ethosn_lib::TensorShape& input0Shape = ethosnInput0.m_Dimensions;
+    const ethosn_lib::TensorShape& input1Shape = ethosnInput1.m_Dimensions;
+    bool isBroadcastShape0                     = input0Shape == ethosn_lib::TensorShape{ 1, 1, 1, 1 };
+    bool isBroadcastShape1                     = input1Shape == ethosn_lib::TensorShape{ 1, 1, 1, 1 };
+    bool supported                             = false;
+
+    using ethosn_lib::SupportedLevel;
+    if (isBroadcastShape0 || isBroadcastShape1)
+    {
+        auto reinterpretQuantizeInfo = BuildEthosNReinterpretQuantizationInfo(output);
+        ReasonMessageHelper messageHelper;
+
+        SupportedLevel supportedLevel =
+            m_Queries.IsReinterpretQuantizationSupported(reinterpretQuantizeInfo, ethosnInput0, &ethosnOutput,
+                                                         messageHelper.GetBuffer(), messageHelper.GetBufferSize());
+        supported = CheckSupportedLevel(supportedLevel, m_Config.m_PerfOnly);
+
+        if (supported)
+        {
+            // Checking if input and output scale quantities are equal (within margin of error)
+            // as this is a required condition for scalar addition to be valid
+            //
+            // NOTE: input and output data types should also be equal but this condition
+            // is already being checked by IsReinterpretQuantizationSupported
+            auto input = (isBroadcastShape0) ? input1 : input0;
+            supported  = std::abs(output.GetQuantizationScale() - input.GetQuantizationScale()) < 0.00001f;
+            if (!supported)
+                messageHelper.SetString("Input and output quantization scales are not equal");
+        }
+
+        SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
+        return supported;
+    }
+
+    return false;
+}
+
 armnn::EthosNLayerSupport::AdditionSupportedMode
     EthosNLayerSupport::GetAdditionSupportedMode(const TensorInfo& input0,
                                                  const TensorInfo& input1,
@@ -361,6 +409,11 @@ armnn::EthosNLayerSupport::AdditionSupportedMode
                                                   reasonIfUnsupported))
     {
         return AdditionSupportedMode::ReplaceWithDepthwise;
+    }
+    else if (IsAdditionSupportedByReinterpretQuantization(input0, input1, output, ethosnInput0, ethosnInput1,
+                                                          reasonIfUnsupported))
+    {
+        return AdditionSupportedMode::ReplaceWithReinterpretQuantize;
     }
     else
     {

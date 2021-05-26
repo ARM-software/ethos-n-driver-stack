@@ -1,5 +1,5 @@
 //
-// Copyright © 2020-2021 Arm Ltd.
+// Copyright © 2020-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "EthosNLayerSupport.hpp"
@@ -305,8 +305,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
             Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
                                           TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0), true,
                                           TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
-            CHECK(ReplaceConstantAdditionWithDepthwise(g, *g.begin(), EthosNConfig(), EthosNMappings(),
-                                                       EthosNConfig().QueryCapabilities()) == false);
+            CHECK(ReplaceConstantAdditionWithDepthwise(g, *g.begin()) == false);
         }
 
         // Failure case - addition that doesn't need replacing (as it is supported natively - not a broadcast)
@@ -315,18 +314,16 @@ TEST_SUITE("EthosNReplaceUnsupported")
                                           TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), true,
                                           TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
             AdditionLayer* addLayer = PolymorphicPointerDowncast<AdditionLayer>(GetFirstLayerWithName(g, "add"));
-            CHECK(ReplaceConstantAdditionWithDepthwise(g, addLayer, EthosNConfig(), EthosNMappings(),
-                                                       EthosNConfig().QueryCapabilities()) == false);
+            CHECK(ReplaceConstantAdditionWithDepthwise(g, addLayer) == false);
         }
 
-        // Error case - neither input is a constant
+        // Error case - neither input is a constant - Depthwise
         {
             Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
                                           TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
                                           TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
             AdditionLayer* addLayer = PolymorphicPointerDowncast<AdditionLayer>(GetFirstLayerWithName(g, "add"));
-            CHECK(ReplaceConstantAdditionWithDepthwise(g, addLayer, EthosNConfig(), EthosNMappings(),
-                                                       EthosNConfig().QueryCapabilities()) == false);
+            CHECK(ReplaceConstantAdditionWithDepthwise(g, addLayer) == false);
         }
 
         // Valid cases
@@ -339,8 +336,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
                                           isInput1Constant ? constantInfo : inputInfo, isInput1Constant,
                                           TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
             AdditionLayer* addLayer = PolymorphicPointerDowncast<AdditionLayer>(GetFirstLayerWithName(g, "add"));
-            CHECK(ReplaceConstantAdditionWithDepthwise(g, addLayer, EthosNConfig(), EthosNMappings(),
-                                                       EthosNConfig().QueryCapabilities()) == true);
+            CHECK(ReplaceConstantAdditionWithDepthwise(g, addLayer) == true);
 
             // Original pattern:
             // Input    ->
@@ -616,6 +612,49 @@ TEST_SUITE("EthosNReplaceUnsupported")
             CHECK(layerSupport.GetMultiplicationSupportedMode(input0, input1, output) ==
                   EthosNLayerSupport::MultiplicationSupportedMode::EstimateOnly);
             CHECK(ReplaceMultiplication(g, mulLayer, config, EthosNMappings(), config.QueryCapabilities()) == false);
+        }
+    }
+
+    TEST_CASE("ReplaceScalarAdditionWithReinterpretQuantizationTest")
+    {
+        std::string reason;
+
+        // Failure case - not an Addition layer
+        {
+            Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                          TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0), true,
+                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
+            CHECK(ReplaceConstantAdditionWithReinterpretQuantization(g, *g.begin(), reason) == false);
+        }
+
+        // Failure case - addition that doesn't need replacing (as it is supported natively)
+        // Fails as it does not need to be replaced by Reinterpret Quantization
+        {
+            Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), true,
+                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
+            AdditionLayer* addLayer = PolymorphicPointerDowncast<AdditionLayer>(GetFirstLayerWithName(g, "add"));
+            CHECK(ReplaceConstantAdditionWithReinterpretQuantization(g, addLayer, reason) == false);
+        }
+
+        // Error case - neither input is a constant which is a requirement for Reinterpret Quantization
+        {
+            Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                          TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
+            AdditionLayer* addLayer = PolymorphicPointerDowncast<AdditionLayer>(GetFirstLayerWithName(g, "add"));
+            CHECK(ReplaceConstantAdditionWithReinterpretQuantization(g, addLayer, reason) == false);
+        }
+
+        // Error case - Quantization info is not coherent (Output Offset different than expected)
+        // Positive constant means the output offset should be lower than input offset
+        {
+            Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 5), false,
+                                          TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0), true,
+                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 10));
+            AdditionLayer* addLayer = PolymorphicPointerDowncast<AdditionLayer>(GetFirstLayerWithName(g, "add"));
+            CHECK(ReplaceConstantAdditionWithReinterpretQuantization(g, addLayer, reason) == false);
+            CHECK(reason == "Quantization info for input, scalar and output are not coherent");
         }
     }
 }

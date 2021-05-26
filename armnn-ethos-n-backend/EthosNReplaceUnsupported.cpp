@@ -154,7 +154,6 @@ bool ReplaceScalarMultiplicationWithReinterpretQuantization(Graph& graph,
 
                 float constQuantScale     = constInfo.GetQuantizationScale();
                 float constQuantZeroPoint = static_cast<float>(constInfo.GetQuantizationOffset());
-
                 float calculatedOutputQuantScale =
                     inputInfo.GetQuantizationScale() * constQuantScale * (data - constQuantZeroPoint);
 
@@ -248,25 +247,9 @@ bool ReplaceMultiplication(Graph& graph,
 // Expected modified pattern:
 // Input -> DepthwiseConvolution2d -> Output
 //
-bool ReplaceConstantAdditionWithDepthwise(Graph& graph,
-                                          Layer* layer,
-                                          const EthosNConfig& config,
-                                          const EthosNMappings& mappings,
-                                          const std::vector<char>& capabilities)
+bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer)
 {
     if (layer->GetType() != LayerType::Addition)
-    {
-        return false;
-    }
-
-    // Only attempt to replace the layer with a depthwise if we can't support it with a native addition
-    EthosNLayerSupport supportChecks(config, mappings, capabilities);
-    bool needsReplacement =
-        supportChecks.GetAdditionSupportedMode(layer->GetInputSlot(0).GetConnectedOutputSlot()->GetTensorInfo(),
-                                               layer->GetInputSlot(1).GetConnectedOutputSlot()->GetTensorInfo(),
-                                               layer->GetOutputSlot(0).GetTensorInfo()) ==
-        EthosNLayerSupport::AdditionSupportedMode::ReplaceWithDepthwise;
-    if (!needsReplacement)
     {
         return false;
     }
@@ -342,6 +325,145 @@ bool ReplaceConstantAdditionWithDepthwise(Graph& graph,
     return true;
 }
 
+bool ReplaceConstantAdditionWithReinterpretQuantization(Graph& graph, Layer* layer, std::string& outFailureReason)
+{
+    if (layer->GetType() != LayerType::Addition)
+    {
+        return false;
+    }
+
+    InputSlot* patternSubgraphInput = &layer->GetInputSlot(0);
+
+    // Figure out which of the two inputs is the constant, swap if necessary
+    Layer* inputLayer    = &patternSubgraphInput->GetConnectedOutputSlot()->GetOwningLayer();
+    Layer* constantLayer = &layer->GetInputSlots()[1].GetConnectedOutputSlot()->GetOwningLayer();
+    if (constantLayer->GetType() != LayerType::Constant)
+    {
+        patternSubgraphInput = &layer->GetInputSlot(1);
+        std::swap(inputLayer, constantLayer);
+    }
+
+    // If still not constant, neither input is
+    if (constantLayer->GetType() != LayerType::Constant)
+    {
+        // Neither Layer is constant
+        return false;
+    }
+
+    // Get layer tensor info
+    const TensorInfo& constInfo  = constantLayer->GetOutputSlot().GetTensorInfo();
+    const TensorInfo& outputInfo = layer->GetOutputSlot().GetTensorInfo();
+    const TensorInfo& inputInfo  = inputLayer->GetOutputSlot().GetTensorInfo();
+
+    // Add a Reinterpret only where the constant input is a scalar that takes the form { 1, 1, 1, 1 }.
+    // The scalar is used as weights for the convolution.
+    if (constInfo.GetShape() == TensorShape({ 1, 1, 1, 1 }))
+    {
+
+        auto ConvertDataToFloat = [](Layer* layer, DataType dataType) {
+            switch (dataType)
+            {
+                case DataType::QAsymmU8:
+                    return static_cast<float>(PolymorphicPointerDowncast<const ConstantLayer>(layer)
+                                                  ->m_LayerOutput->GetConstTensor<uint8_t>()[0]);
+                case DataType::QSymmS8:
+                case DataType::QAsymmS8:
+                    return static_cast<float>(PolymorphicPointerDowncast<const ConstantLayer>(layer)
+                                                  ->m_LayerOutput->GetConstTensor<int8_t>()[0]);
+                case DataType::Signed32:
+                    return static_cast<float>(PolymorphicPointerDowncast<const ConstantLayer>(layer)
+                                                  ->m_LayerOutput->GetConstTensor<int32_t>()[0]);
+                default:
+                    throw Exception("Data type not supported");
+            }
+        };
+
+        // Get single value in constant layer
+        float data;
+        try
+        {
+            data = ConvertDataToFloat(constantLayer, constInfo.GetDataType());
+            data = data - static_cast<float>(constInfo.GetQuantizationOffset());
+            data = data * constInfo.GetQuantizationScale();
+        }
+        catch (const std::exception& e)
+        {
+            // Data type is not supported
+            outFailureReason = "Data type is not supported";
+            return false;
+        }
+
+        Graph replacementGraph;
+        StandInDescriptor desc;
+        desc.m_NumInputs  = 1;
+        desc.m_NumOutputs = 1;
+
+        // Ensure calculated 0 point equal to output zero point
+        float outputOffset = static_cast<float>(outputInfo.GetQuantizationOffset());
+        float inputOffset  = static_cast<float>(inputInfo.GetQuantizationOffset());
+
+        float calculatedOutputOffset = (inputOffset - (data / inputInfo.GetQuantizationScale()));
+
+        // If calculated and output offset values are outside margin of error, fail this replacement
+        if (std::abs(calculatedOutputOffset - outputOffset) > 1.0f)
+        {
+            outFailureReason = "Quantization info for input, scalar and output are not coherent";
+            return false;
+        }
+
+        // We are using a StandIn layer here as a generic layer since Arm NN has no LayerType::ReinterpretQuantize
+        // that we could directly add.
+        // We set a custom value to name parameter of the StandIn layer which then is used to add the
+        // ReinterpretQuantize layer from the Support Library.
+        const auto standInLayer =
+            replacementGraph.AddLayer<StandInLayer>(desc, "EthosNBackend:ReplaceScalarAddWithReinterpretQuantization");
+
+        SubgraphView patternSubgraph({ patternSubgraphInput }, { &layer->GetOutputSlot() }, { layer, constantLayer });
+        graph.SubstituteSubgraph(patternSubgraph, SubgraphView{ standInLayer });
+
+        return true;
+    }
+
+    return false;
+}
+
+bool ReplaceAddition(Graph& graph,
+                     Layer* layer,
+                     const EthosNConfig& config,
+                     const EthosNMappings& mappings,
+                     const std::vector<char>& capabilities)
+{
+    if (layer->GetType() == LayerType::Addition)
+    {
+        EthosNLayerSupport supportChecks(config, mappings, capabilities);
+        auto supportedMode = supportChecks.GetAdditionSupportedMode(
+            layer->GetInputSlot(0).GetConnectedOutputSlot()->GetTensorInfo(),
+            layer->GetInputSlot(1).GetConnectedOutputSlot()->GetTensorInfo(), layer->GetOutputSlot(0).GetTensorInfo());
+
+        std::string failureReason;
+
+        switch (supportedMode)
+        {
+            case EthosNLayerSupport::AdditionSupportedMode::None:
+                return false;
+                break;
+            case EthosNLayerSupport::AdditionSupportedMode::Native:
+                return false;
+                break;
+            case EthosNLayerSupport::AdditionSupportedMode::ReplaceWithDepthwise:
+                return ReplaceConstantAdditionWithDepthwise(graph, layer);
+                break;
+            case EthosNLayerSupport::AdditionSupportedMode::ReplaceWithReinterpretQuantize:
+                return ReplaceConstantAdditionWithReinterpretQuantization(graph, layer, failureReason);
+                break;
+            default:
+                throw Exception("Found unknown AddSupportedMode value");
+                break;
+        }
+    }
+    return false;
+}
+
 void ReplaceUnsupportedLayers(Graph& graph,
                               const EthosNConfig& config,
                               const EthosNMappings& mappings,
@@ -351,7 +473,7 @@ void ReplaceUnsupportedLayers(Graph& graph,
         bool (*)(Graph&, Layer*, const EthosNConfig&, const EthosNMappings&, const std::vector<char>&);
     const ReplacementFunc replacementFuncs[] = {
         &ReplaceMultiplication,
-        &ReplaceConstantAdditionWithDepthwise,
+        &ReplaceAddition,
     };
 
     bool madeChange;

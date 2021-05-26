@@ -1539,9 +1539,56 @@ LayerTestResult<uint8_t, 4>
     return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 1, outputInfo, expectedOutputData);
 }
 
+/// Checks that the backend optimization substituting the Scalar-Addition layer
+/// pattern with a ReinterpretQuantization will produce correct results when ran by the Ethos-N.
+LayerTestResult<uint8_t, 4>
+    PreCompiledScalarAddToReinterpretTest(armnn::IWorkloadFactory& workloadFactory,
+                                          const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
+{
+    // Set up tensor infos
+    TensorInfo inputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 1);
+    TensorInfo constInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 4);
+    TensorInfo outputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
+
+    std::vector<uint8_t> inputData{
+        // clang-format off
+        1, 2, 3, 4,           10, 20, 15, 30,
+        8, 6, 5, 4,           11, 21, 31, 41,
+        // clang-format on
+    };
+
+    std::vector<uint8_t> constData{ 5 };    // Dequantized: 1.0f
+
+    ConstTensor constantTensor{ constInfo, constData };
+
+    // Construct a network with the Constant-Addition pattern
+    armnn::INetworkPtr net = armnn::INetwork::Create();
+
+    IConnectableLayer* const inputLayer  = net->AddInputLayer(0, "input");
+    IConnectableLayer* const constLayer  = net->AddConstantLayer(constantTensor);
+    IConnectableLayer* const addLayer    = net->AddAdditionLayer("addition");
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(1, "output");
+
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+    constLayer->GetOutputSlot(0).SetTensorInfo(constInfo);
+    addLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
+
+    inputLayer->GetOutputSlot(0).Connect(addLayer->GetInputSlot(0));
+    constLayer->GetOutputSlot(0).Connect(addLayer->GetInputSlot(1));
+    addLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+
+    std::vector<uint8_t> expectedOutputData{
+        // clang-format off
+        1, 2, 3, 4,           10, 20, 15, 30,
+        8, 6, 5, 4,           11, 21, 31, 41,
+        // clang-format on
+    };
+
+    return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 1, outputInfo, expectedOutputData);
+}
+
 TEST_SUITE("Compute_EthosN")
 {
-
     using FactoryType = armnn::EthosNWorkloadFactory;
 
     ARMNN_AUTO_TEST_CASE(PreCompiledActivationRelu, PreCompiledActivationReluTest)
@@ -1591,6 +1638,8 @@ TEST_SUITE("Compute_EthosN")
     ARMNN_AUTO_TEST_CASE(PreCompiledConstMulToDepthwise, PreCompiledConstMulToDepthwiseTest)
 
     ARMNN_AUTO_TEST_CASE(PreCompiledConstAddToDepthwise, PreCompiledConstAddToDepthwiseTest)
+
+    ARMNN_AUTO_TEST_CASE(PreCompiledScalarAddToReinterpret, PreCompiledScalarAddToReinterpretTest)
 
     ARMNN_AUTO_TEST_CASE(PreCompiledConstMulToReinterpretQuantize, PreCompiledConstMulToReinterpretQuantizeTest)
 
