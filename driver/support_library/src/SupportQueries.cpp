@@ -1934,6 +1934,46 @@ SupportedLevel SupportQueries::IsDepthToSpaceSupported(const TensorInfo& inputIn
     return SupportedLevel::Supported;
 }
 
+bool IsSpaceToDepthFitInSram(const TensorInfo& inputInfo,
+                             const SpaceToDepthInfo& spaceToDepthInfo,
+                             const std::vector<char>& caps)
+{
+    const uint32_t numSrams = GetValidCapabilities(caps).m_NumberOfEngines * GetValidCapabilities(caps).m_EmcPerEngine;
+    const uint32_t sramSize = static_cast<uint32_t>(GetTotalSramSize(caps));
+
+    const uint32_t blockSize = spaceToDepthInfo.m_BlockSize;
+
+    const uint32_t ifmHeight   = GetHeight(inputInfo.m_Dimensions);
+    const uint32_t ifmChannels = GetChannels(inputInfo.m_Dimensions);
+
+    // usedEmcs must evenly divide ifmChannels * blockSize
+    uint32_t usedEmcs = std::min(numSrams, blockSize * ifmChannels);
+    while ((blockSize * ifmChannels) % usedEmcs != 0)
+    {
+        --usedEmcs;
+    }
+
+    // SpaceToDepth only splits the input tensor in Y-axis.
+    // Support query only needs to find if the smallest possible
+    // subdivision can be fit into SRAM.
+    TensorShape outIfmStripeShape = inputInfo.m_Dimensions;
+    for (uint32_t divisor = ifmHeight; divisor >= 1; --divisor)
+    {
+        if ((ifmHeight % divisor) == 0 && ((ifmHeight / divisor) % blockSize) == 0)
+        {
+            outIfmStripeShape[1] = ifmHeight / divisor;
+            break;
+        }
+    }
+
+    uint32_t s1, s2;
+
+    std::tie(s1, s2)         = CalculateSpaceToDepthBlockSizes(outIfmStripeShape, usedEmcs, blockSize);
+    const uint32_t sramUsage = CalculateSpaceToDepthSramUsage(blockSize, s1, s2) * numSrams;
+
+    return (sramUsage <= sramSize);
+}
+
 SupportedLevel SupportQueries::IsSpaceToDepthSupported(const TensorInfo& inputInfo,
                                                        const SpaceToDepthInfo& spaceToDepthInfo,
                                                        TensorInfo* outputInfo,
@@ -1983,6 +2023,12 @@ SupportedLevel SupportQueries::IsSpaceToDepthSupported(const TensorInfo& inputIn
             SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
             return SupportedLevel::Unsupported;
         }
+    }
+
+    if (!IsSpaceToDepthFitInSram(inputInfo, spaceToDepthInfo, m_Capabilities))
+    {
+        SetReason("The tensor is too large", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
     }
 
     return SupportedLevel::Supported;

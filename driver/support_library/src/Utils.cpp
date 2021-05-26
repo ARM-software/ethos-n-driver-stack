@@ -536,6 +536,34 @@ std::vector<command_stream::BlockConfig>
     return res;
 }
 
+unsigned CalculateSpaceToDepthSramUsage(uint32_t blockSize, uint32_t s1, uint32_t s2)
+{
+    // Without optimizing the SRAM usage, the algorithm would need s1 * blockSize + s2 * blockSize bytes / EMC.
+    // However, by overwriting data in SRAM from the first pass that's no longer needed in the second pass of the
+    // algorithm, SRAM requirement can be reduced to s1 + max(s1, s2) * (blockSize - 1) + s2.
+    // This is achieved by writing data to the start of SRAM in the first pass, but write data starting at the end
+    // of the SRAM in the second pass. Eventually, data written in the second pass will overwrite data from the first
+    // pass but when this happens, the data that's overwritten isn't needed anymore.
+    return s1 + std::max(s1, s2) * (blockSize - 1) + s2;
+}
+
+std::pair<uint32_t, uint32_t>
+    CalculateSpaceToDepthBlockSizes(const TensorShape tensor, uint32_t usedSrams, uint32_t blockSize)
+{
+    // Size of the subtensors produced in the first pass in bytes per EMC
+    // Subtensor dimension: (ifmHeight / blockSize, ifmWidth * ifmChannels / usedSrams, usedSrams)
+    // Note: The purpose of the divisions by 8 is to align the dimensions to 8x8.
+    uint32_t s1 = utils::DivRoundUp(GetWidth(tensor) * GetChannels(tensor), usedSrams * 8) *
+                  utils::DivRoundUp(GetHeight(tensor), blockSize * 8) * 64;
+
+    // Size of the subtensors produced in the second pass in bytes per EMC
+    // Subtensor dimension: (ifmWidth * ifmHeight / blockSize^2, blockSize * ifmChannels / usedSrams, usedSrams)
+    uint32_t s2 = utils::DivRoundUp(blockSize * GetChannels(tensor), usedSrams * 8) *
+                  utils::DivRoundUp(GetWidth(tensor) * GetHeight(tensor), blockSize * blockSize * 8) * 64;
+
+    return std::pair<uint32_t, uint32_t>(s1, s2);
+}
+
 }    // namespace utils
 
 }    // namespace support_library

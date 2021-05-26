@@ -664,6 +664,10 @@ inline std::vector<T> GetDataVectorAs(const std::vector<S>& data)
     return result;
 }
 
+unsigned CalculateSpaceToDepthSramUsage(uint32_t blockSize, uint32_t s1, uint32_t s2);
+
+std::pair<uint32_t, uint32_t>
+    CalculateSpaceToDepthBlockSizes(const TensorShape tensor, uint32_t usedSrams, uint32_t blockSize);
 }    // namespace utils
 
 }    // namespace support_library
