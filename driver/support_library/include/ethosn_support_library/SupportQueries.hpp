@@ -206,6 +206,13 @@ public:
                                          char* reason           = nullptr,
                                          size_t reasonMaxLength = g_ReasonMaxLength) const;
 
+    // Check whether a specific reinterpret quantization operation configuration is supported by the NPU
+    SupportedLevel IsReinterpretQuantizationSupported(const ReinterpretQuantizationInfo& reinterpretQuantizationInfo,
+                                                      const TensorInfo& inputInfo,
+                                                      TensorInfo* outputInfo = nullptr,
+                                                      char* reason           = nullptr,
+                                                      size_t reasonMaxLength = g_ReasonMaxLength) const;
+
     // Checks whether a softmax operation configuration is supported by the NPU
     SupportedLevel IsSoftmaxSupported(const TensorInfo& inputInfo,
                                       TensorInfo* outputInfo = nullptr,

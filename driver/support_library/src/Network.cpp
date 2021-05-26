@@ -141,6 +141,14 @@ FullyConnected& Network::AddFullyConnected(Operand& input,
 ReinterpretQuantization&
     Network::AddReinterpretQuantization(Operand& input, const ReinterpretQuantizationInfo& reinterpretQuantizationInfo)
 {
+    char reason[1024];
+    SupportedLevel supportedLevel = m_Queries.IsReinterpretQuantizationSupported(
+        reinterpretQuantizationInfo, input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+    if (!CheckSupportedLevel(supportedLevel))
+    {
+        throw NotSupportedException(reason);
+    }
+
     return AddOperationWithId<ReinterpretQuantization>({ &input.GetProducer() }, input, reinterpretQuantizationInfo);
 }
 

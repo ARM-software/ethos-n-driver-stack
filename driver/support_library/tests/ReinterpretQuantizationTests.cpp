@@ -14,6 +14,102 @@
 
 using namespace ethosn::support_library;
 
+TEST_CASE("ReinterpretQuantization Supported")
+{
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    SECTION("Output size same as input")
+    {
+        TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        TensorInfo output({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        REQUIRE(queries.IsReinterpretQuantizationSupported(ReinterpretQuantizationInfo(QuantizationInfo(0, 1.0f)),
+                                                           input, &output) == SupportedLevel::Supported);
+    }
+
+    SECTION("Output info filled in")
+    {
+        TensorInfo output;
+        TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        REQUIRE(queries.IsReinterpretQuantizationSupported(ReinterpretQuantizationInfo(QuantizationInfo(1, 1.0f)),
+                                                           input, &output) == SupportedLevel::Supported);
+        REQUIRE(output ==
+                TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(1, 1.0f)));
+    }
+}
+
+TEST_CASE("ReinterpretQuantization Unsupported")
+{
+    char reason[1024];
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    SECTION("Incorrect batch size")
+    {
+        TensorInfo input({ 2, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        REQUIRE(queries.IsReinterpretQuantizationSupported(ReinterpretQuantizationInfo(QuantizationInfo(0, 1.0f)),
+                                                           input, nullptr, reason,
+                                                           sizeof(reason)) == SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Batch size must be 1"));
+    }
+
+    SECTION("Incorrect tensor depth")
+    {
+        //Max available SRAM is 1024x1024 for ETHOS_N78_4TOPS_4PLE_RATIO
+        //Max supported tensor depth is 8x8xC where C is number of channel and 8x8xC <= 1024x1024
+        //Therefore, when C > 1024*1024/64 => C > 16384, this test fails
+        TensorInfo input({ 1, 16, 16, 16385 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        REQUIRE(queries.IsReinterpretQuantizationSupported(ReinterpretQuantizationInfo(QuantizationInfo(0, 1.0f)),
+                                                           input, nullptr, reason,
+                                                           sizeof(reason)) == SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Input to reinterpret quantization: Tensor max depth cannot fit in SRAM"));
+    }
+
+    SECTION("Incorrect input data type")
+    {
+        TensorInfo input({ 1, 16, 16, 16 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        REQUIRE(queries.IsReinterpretQuantizationSupported(ReinterpretQuantizationInfo(QuantizationInfo(0, 1.0f)),
+                                                           input, nullptr, reason,
+                                                           sizeof(reason)) == SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Input to reinterpret quantization must be UINT8_QUANTIZED or INT8_QUANTIZED"));
+    }
+
+    SECTION("Incorrect input data format")
+    {
+        TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NCHW, QuantizationInfo(0, 1.0f));
+        REQUIRE(queries.IsReinterpretQuantizationSupported(ReinterpretQuantizationInfo(QuantizationInfo(0, 1.0f)),
+                                                           input, nullptr, reason,
+                                                           sizeof(reason)) == SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Input to reinterpret quantization must be NHWC or NHWCB"));
+    }
+
+    SECTION("Incorrect output shape")
+    {
+        TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        TensorInfo output({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        REQUIRE(queries.IsReinterpretQuantizationSupported(ReinterpretQuantizationInfo(QuantizationInfo(0, 1.0f)),
+                                                           input, &output, reason,
+                                                           sizeof(reason)) == SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Provided outputInfo is incorrect"));
+    }
+
+    SECTION("Invalid zero point in input")
+    {
+        TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(-5, 1.0f));
+        REQUIRE(queries.IsReinterpretQuantizationSupported(ReinterpretQuantizationInfo(QuantizationInfo(0, 1.0f)),
+                                                           input, nullptr, reason,
+                                                           sizeof(reason)) == SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Zero point out of range for input info"));
+    }
+
+    SECTION("Invalid zero point in output")
+    {
+        TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        REQUIRE(queries.IsReinterpretQuantizationSupported(ReinterpretQuantizationInfo(QuantizationInfo(-10, 1.0f)),
+                                                           input, nullptr, reason,
+                                                           sizeof(reason)) == SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Zero point out of range for expected output info"));
+    }
+}
+
 namespace
 {
 const QuantizationInfo expectedQuantizationInfo(1, 1.1f);
@@ -29,7 +125,7 @@ std::shared_ptr<Network> GetNetworkToTest()
         { { 1, 128, 128, 16 } },
         DataType::UINT8_QUANTIZED,
         DataFormat::NHWC,
-        { -1, 0.5f },
+        { 0, 0.5f },
     };
 
     std::shared_ptr<Operand> input = AddInput(networkToTest, inputInfo).tensor;

@@ -1563,6 +1563,64 @@ SupportedLevel SupportQueries::IsRequantizeSupported(const RequantizeInfo& requa
 }
 
 SupportedLevel
+    SupportQueries::IsReinterpretQuantizationSupported(const ReinterpretQuantizationInfo& reinterpretQuantizationInfo,
+                                                       const TensorInfo& inputInfo,
+                                                       TensorInfo* outputInfo,
+                                                       char* reason,
+                                                       size_t reasonMaxLength) const
+{
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to reinterpret quantization", reason,
+                                reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsInputDataTypeSupported(inputInfo, "Input to reinterpret quantization", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (inputInfo.m_DataFormat != DataFormat::NHWC && inputInfo.m_DataFormat != DataFormat::NHWCB)
+    {
+        SetReason("Input to reinterpret quantization must be NHWC or NHWCB", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantisationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    TensorInfo expectedOutputInfo =
+        ReinterpretQuantization::CalculateOutputTensorInfo(inputInfo, reinterpretQuantizationInfo);
+
+    if (!(IsQuantisationZeroPointInRange(expectedOutputInfo)))
+    {
+        SetReason("Zero point out of range for expected output info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (outputInfo != nullptr)
+    {
+        if (utils::TotalSizeBytes(*outputInfo) != 0 && *outputInfo != expectedOutputInfo)
+        {
+            SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
+            return SupportedLevel::Unsupported;
+        }
+        *outputInfo = expectedOutputInfo;
+    }
+
+    return SupportedLevel::Supported;
+}
+
+SupportedLevel
     SupportQueries::IsSoftmaxSupported(const TensorInfo&, TensorInfo*, char* reason, size_t reasonMaxLength) const
 {
     SetReason("Softmax operation is not supported", reason, reasonMaxLength);
