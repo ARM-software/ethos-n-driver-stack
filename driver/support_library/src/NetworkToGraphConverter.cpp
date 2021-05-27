@@ -1193,6 +1193,20 @@ void NetworkToGraphConverter::Visit(Transpose& transpose)
 
         ConnectNodeChain(transpose, nodes);
     }
+    else if ((permutation[1] == 1) && (permutation[2] == 2) && (permutation[3] == 3))
+    {
+        // 0, 1, 2, 3 is equivalent to no-op.
+        // Inserting a reinterpret node that has identical output to the input
+        TensorShape intermediateShape = { inputTensorInfo.m_Dimensions[0], inputTensorInfo.m_Dimensions[1],
+                                          inputTensorInfo.m_Dimensions[2], inputTensorInfo.m_Dimensions[3] };
+
+        ReinterpretNode* reinterpretNode1 = m_Graph.CreateAndAddNode<ReinterpretNode>(
+            intermediateShape, outputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo,
+            m_OperandToNode[&transpose.GetInput(0)]->GetFormat(), std::set<uint32_t>{ transpose.GetId() });
+        nodes.push_back(reinterpretNode1);
+
+        ConnectNodeChain(transpose, nodes);
+    }
 }
 
 void NetworkToGraphConverter::Visit(Resize& resize)
