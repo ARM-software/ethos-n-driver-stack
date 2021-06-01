@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -15,7 +15,7 @@ using namespace ethosn::support_library;
 TEST_CASE("SimpleBranch")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
 
@@ -41,7 +41,7 @@ TEST_CASE("SimpleBranch")
 
     // Compile it
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+        ethosn::support_library::Compile(*network, CompilationOptions());
 
     // Extract all the conv commands
     using namespace ethosn::command_stream;
@@ -65,7 +65,7 @@ TEST_CASE("SimpleBranch")
 TEST_CASE("ReluAfterBranch")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
 
@@ -89,7 +89,7 @@ TEST_CASE("ReluAfterBranch")
 
     // Compile it
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+        ethosn::support_library::Compile(*network, CompilationOptions());
 
     // Extract all the conv commands
     using namespace ethosn::command_stream;
@@ -115,7 +115,7 @@ TEST_CASE("ReluAfterBranch")
 TEST_CASE("Branch in Sram")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> input =
         AddInput(network, TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB)).tensor;

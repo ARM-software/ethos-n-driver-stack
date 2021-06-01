@@ -162,7 +162,6 @@ SCENARIO("ReinterpretQuantization doesn't have any side effect on the command st
 {
     GIVEN("There is a network with the following operations Input -> Conv -> MaxPool -> Convolution -> Output")
     {
-        CompilationOptions options                         = GetDefaultCompilationOptions();
         std::shared_ptr<Network> networkWithoutReinterpret = CreateNetwork(GetRawDefaultCapabilities());
         AddOperationsToNetwork(networkWithoutReinterpret, false);
 
@@ -175,7 +174,7 @@ SCENARIO("ReinterpretQuantization doesn't have any side effect on the command st
 
             WHEN("Both network are succesfully compiled")
             {
-                CompilationOptions compilationOption = GetDefaultCompilationOptions();
+                CompilationOptions compilationOption;
                 std::vector<std::unique_ptr<CompiledNetwork>> compiledNetworkWithoutReinterpret =
                     ethosn::support_library::Compile(*networkWithoutReinterpret, compilationOption);
                 std::vector<std::unique_ptr<CompiledNetwork>> compiledNetworkWithReinterpret =

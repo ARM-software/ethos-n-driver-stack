@@ -256,7 +256,7 @@ TEST_CASE("Fully Connected")
     // populate the weight vector
     PopulateWeights(weightsData, numFcWeights);
 
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
 
     std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;

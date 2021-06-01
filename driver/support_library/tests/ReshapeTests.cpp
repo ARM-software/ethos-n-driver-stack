@@ -41,7 +41,7 @@ TEST_CASE("Test Single Reshape layer SRAM")
     const auto expectedDataType = utils::GetCommandDataType(inputDataType);
 
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> inputConv1 =
         AddInput(network, TensorInfo({ 1, 16, 16, 16 }, inputDataType, DataFormat::NHWCB)).tensor;
@@ -76,7 +76,7 @@ TEST_CASE("Test Single Reshape layer SRAM")
 
     // Compile it
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+        ethosn::support_library::Compile(*network, CompilationOptions());
 
     // Extract all the conv commands
     using namespace ethosn::command_stream;
@@ -125,7 +125,7 @@ TEST_CASE("Test Single Reshape layer SRAM")
 TEST_CASE("Test Multiple Reshape layers SRAM")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> inputConv1 =
         AddInput(network, TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB)).tensor;
@@ -163,7 +163,7 @@ TEST_CASE("Test Multiple Reshape layers SRAM")
 
     // Compile it
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+        ethosn::support_library::Compile(*network, CompilationOptions());
 
     // Extract all the conv commands
     using namespace ethosn::command_stream;
@@ -208,7 +208,7 @@ TEST_CASE("Test Multiple Reshape layers SRAM")
 TEST_CASE("Test Single Reshape layer DRAM")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> inputConv1 =
         AddInput(network, TensorInfo({ 1, 256, 128, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB)).tensor;
@@ -243,7 +243,7 @@ TEST_CASE("Test Single Reshape layer DRAM")
 
     // Compile it
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+        ethosn::support_library::Compile(*network, CompilationOptions());
 
     // Extract all the conv commands
     using namespace ethosn::command_stream;
@@ -278,7 +278,7 @@ TEST_CASE("Test Single Reshape layer DRAM")
 TEST_CASE("Test Multiple Reshape layers DRAM")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> inputConv1 =
         AddInput(network, TensorInfo({ 1, 256, 128, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB)).tensor;
@@ -316,7 +316,7 @@ TEST_CASE("Test Multiple Reshape layers DRAM")
 
     // Compile it
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+        ethosn::support_library::Compile(*network, CompilationOptions());
 
     // Extract all the conv commands
     using namespace ethosn::command_stream;
@@ -351,7 +351,7 @@ TEST_CASE("Test Multiple Reshape layers DRAM")
 TEST_CASE("Test Reshape as last layer NHWC Strategy 3")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> inputConv1 =
         AddInput(network, TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC)).tensor;
@@ -374,7 +374,7 @@ TEST_CASE("Test Reshape as last layer NHWC Strategy 3")
 
     // Compile it
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+        ethosn::support_library::Compile(*network, CompilationOptions());
 
     // Extract all the conv commands
     using namespace ethosn::command_stream;
@@ -413,7 +413,7 @@ TEST_CASE("Test Reshape as last layer NHWC Strategy 3")
 TEST_CASE("Test Reshape as last layer NHWCB")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> inputConv1 =
         AddInput(network, TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB)).tensor;
@@ -434,7 +434,7 @@ TEST_CASE("Test Reshape as last layer NHWCB")
 
     // Compile it
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+        ethosn::support_library::Compile(*network, CompilationOptions());
 
     // Extract all the conv commands
     using namespace ethosn::command_stream;
@@ -469,7 +469,7 @@ TEST_CASE("Test Reshape as last layer NHWCB")
 TEST_CASE("Test Reshape as last layer NHWCB DRAM with Strategy 0")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> inputConv1 =
         AddInput(network, TensorInfo({ 1, 256, 128, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB)).tensor;
@@ -494,7 +494,7 @@ TEST_CASE("Test Reshape as last layer NHWCB DRAM with Strategy 0")
 
     // Compile it
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+        ethosn::support_library::Compile(*network, CompilationOptions());
 
     // Extract all the conv commands
     using namespace ethosn::command_stream;

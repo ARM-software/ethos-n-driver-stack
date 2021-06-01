@@ -94,7 +94,7 @@ TEST_CASE("Validate Tile Size")
 TEST_CASE("GetNumInvalidPlans")
 {
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt  = GetDefaultCompilationOptions();
+    const CompilationOptions compOpt;
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     GraphOfParts gOfParts;

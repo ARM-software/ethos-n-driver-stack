@@ -472,7 +472,7 @@ TEST_CASE("SaveGraphToDot Graph Topology", "[Visualisation]")
     g.Connect(i3, o2, 1);
 
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt = GetDefaultCompilationOptions();
+    const CompilationOptions compOpt;
     // Assign some nodes into Parts. Note we don't assign all nodes to a part, so we can test that works correctly.
     auto part1        = std::make_unique<Part>(estOpt, compOpt, GetEthosN77HwCapabilities());
     part1->m_SubGraph = { i1, i2 };
@@ -534,8 +534,8 @@ labeljust=l
 TEST_CASE("SaveGraphToDot Node Details", "[Visualisation]")
 {
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt = GetDefaultCompilationOptions();
-    const HardwareCapabilities caps  = GetEthosN77HwCapabilities();
+    const CompilationOptions compOpt;
+    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
 
     // Build a simple graph of disconnected nodes, to check the details are printed correctly for each one.
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
@@ -613,8 +613,8 @@ TEST_CASE("SavePlansToDot Graph Topology", "[Visualisation]")
     planB->m_OpGraph = std::move(planBOpGraph);
 
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt = GetDefaultCompilationOptions();
-    const HardwareCapabilities caps  = GetEthosN77HwCapabilities();
+    const CompilationOptions compOpt;
+    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
     Part part(estOpt, compOpt, caps);
     part.m_SubGraph.push_back(nodeA);
     part.m_SubGraph.push_back(nodeB);
@@ -708,7 +708,7 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     GraphOfParts parts;
 
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt  = GetDefaultCompilationOptions();
+    const CompilationOptions compOpt;
     const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
 
     // Part consisting of node A

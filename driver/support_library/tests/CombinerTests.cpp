@@ -642,7 +642,7 @@ TEST_CASE("ArePlansCompatible matching BlockConfigs")
     GraphOfParts parts;
 
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt  = GetDefaultCompilationOptions();
+    const CompilationOptions compOpt;
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     // Part consisting of node A
@@ -673,7 +673,7 @@ TEST_CASE("ArePlansCompatible non-matching BlockConfigs")
     GraphOfParts parts;
 
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt  = GetDefaultCompilationOptions();
+    const CompilationOptions compOpt;
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     // Part consisting of node A
@@ -695,7 +695,7 @@ TEST_CASE("ArePlansCompatible non-matching BlockConfigs")
 TEST_CASE("CreateMetadata For Cascade With No Depthwise Splitting for Convolution")
 {
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt  = GetDefaultCompilationOptions();
+    const CompilationOptions compOpt;
     const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
 
     // Create graph A -> B
@@ -802,7 +802,7 @@ TEST_CASE("CreateMetadata For Cascade With No Depthwise Splitting for Convolutio
 TEST_CASE("CreateMetadata For Cascade With Depthwise Splitting for DepthwiseConvolution")
 {
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt  = GetDefaultCompilationOptions();
+    const CompilationOptions compOpt;
     const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
 
     // Create graph A -> B
@@ -908,7 +908,7 @@ TEST_CASE("CreateMetadata For Cascade With Depthwise Splitting for DepthwiseConv
 TEST_CASE("CreateMetadata Simple")
 {
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt  = GetDefaultCompilationOptions();
+    const CompilationOptions compOpt;
     const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
     // Create simple graph A -> B -> C
     Graph graph;
@@ -1041,7 +1041,7 @@ TEST_CASE("CreateMetadata Simple")
 TEST_CASE("CreateMetadata Of Graph With Branches")
 {
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt  = GetDefaultCompilationOptions();
+    const CompilationOptions compOpt;
     const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
     /* Create graph:
 
@@ -1397,7 +1397,7 @@ TEST_CASE("CreateMetadata Of Graph With Branches")
 TEST_CASE("CreateSeeds Simple")
 {
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt  = GetDefaultCompilationOptions();
+    const CompilationOptions compOpt;
     const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
     // Create simple graph A -> B
     Graph graph;
@@ -1477,7 +1477,7 @@ TEST_CASE("CreateSeeds Simple")
 TEST_CASE("GrowSeeds Simple")
 {
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt  = GetDefaultCompilationOptions();
+    const CompilationOptions compOpt;
     const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
     // Create simple graph A -> B -> C
     Graph graph;
@@ -1600,7 +1600,7 @@ TEST_CASE("GrowSeeds Simple")
 TEST_CASE("GrowSeeds Schemes")
 {
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt  = GetDefaultCompilationOptions();
+    const CompilationOptions compOpt;
     const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
     // Create simple graph A -> B -> C
     Graph graph;
@@ -1704,7 +1704,7 @@ TEST_CASE("GrowSeeds Schemes")
 TEST_CASE("GrowSeeds Of Graph With Branches")
 {
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt  = GetDefaultCompilationOptions();
+    const CompilationOptions compOpt;
     const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
     /* Create graph:
 
@@ -1864,7 +1864,7 @@ TEST_CASE("GrowSeeds Of Graph With Branches")
 TEST_CASE("Combine Simple")
 {
     const EstimationOptions estOpt;
-    CompilationOptions compOpt        = GetDefaultCompilationOptions();
+    CompilationOptions compOpt;
     compOpt.m_DisableWinograd         = GENERATE(false, true);
     const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
     // Create simple graph A -> B -> C
@@ -1934,7 +1934,7 @@ TEST_CASE("Combine Simple")
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planCSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planCDram)));
 
-    CompilationOptions compilationOptions           = GetDefaultCompilationOptions();
+    CompilationOptions compilationOptions;
     compilationOptions.m_DebugInfo.m_DumpDebugFiles = CompilationOptions::DebugLevel::None;
     DebuggingContext debuggingCtxt(&compilationOptions.m_DebugInfo);
     SetDebuggingContext(debuggingCtxt);
@@ -1965,7 +1965,7 @@ TEST_CASE("Combine Simple back to dram")
 {
     const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
     const EstimationOptions estOpt;
-    CompilationOptions compOpt = GetDefaultCompilationOptions();
+    CompilationOptions compOpt;
     // Create simple graph A -> B
     Graph graph;
     NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
@@ -2054,7 +2054,7 @@ TEST_CASE("GetOpGraphForCombination")
     GraphOfParts parts;
 
     const EstimationOptions estOpt;
-    const CompilationOptions compOpt  = GetDefaultCompilationOptions();
+    const CompilationOptions compOpt;
     const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
 
     // Part consisting of node A

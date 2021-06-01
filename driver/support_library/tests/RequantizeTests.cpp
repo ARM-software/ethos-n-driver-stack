@@ -92,7 +92,7 @@ TEST_CASE("Add Requantize to a network")
     SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
 
     const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC,
@@ -107,7 +107,7 @@ TEST_CASE("Add Requantize to a network")
 
     // Compile it
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+        ethosn::support_library::Compile(*network, CompilationOptions());
 
     // Extract all the conv commands
     using namespace ethosn::command_stream;
@@ -133,7 +133,7 @@ TEST_CASE("Single Requantize EstimateOnly")
 {
 
     // Create the estimation network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateEstimationNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
     std::shared_ptr<Operand> requantize =
@@ -171,8 +171,8 @@ TEST_CASE("Requantize output scale less than half input scale")
     auto requantize = AddRequantize(network, *input, requantInfo).tensor;
     auto output     = AddOutput(network, *requantize).tensor;
 
-    CompilationOptions compilationOptions = GetDefaultCompilationOptions();
-    compilationOptions.m_StrictPrecision  = true;
+    CompilationOptions compilationOptions;
+    compilationOptions.m_StrictPrecision = true;
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
         ethosn::support_library::Compile(*network, compilationOptions);
 

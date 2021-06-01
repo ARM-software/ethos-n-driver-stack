@@ -56,7 +56,7 @@ TEST_CASE("ResizeSupported")
 TEST_CASE("Add Resize to a network")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
     std::shared_ptr<Operand> resize =
@@ -64,8 +64,7 @@ TEST_CASE("Add Resize to a network")
     std::shared_ptr<Output> output = AddOutput(network, *resize).tensor;
 
     // Compile it
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork = ethosn::support_library::Compile(*network, options);
 
     // Extract all the conv commands
     using namespace ethosn::command_stream;

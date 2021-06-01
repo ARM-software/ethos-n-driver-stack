@@ -186,7 +186,7 @@ TEST_CASE("ConcatenationSupported")
 TEST_CASE("Concat NHWCB")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
 
     std::shared_ptr<Operand> input1 =
@@ -236,7 +236,7 @@ TEST_CASE("Concat NHWC")
     const auto expectedInputDataType = utils::GetCommandDataType(inputDataType);
 
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
 
     std::shared_ptr<Operand> input1 =
@@ -284,7 +284,7 @@ TEST_CASE("Concat NHWC")
 TEST_CASE("Concat with shared input")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
 
     std::shared_ptr<Operand> input1 =

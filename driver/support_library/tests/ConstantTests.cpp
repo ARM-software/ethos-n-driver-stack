@@ -24,7 +24,7 @@ TEST_CASE("ConstantSupported", "[Constant]")
 TEST_CASE("Constant used as input to operation compiles succesfully", "[Constant]")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
 
     std::shared_ptr<Constant> constant =

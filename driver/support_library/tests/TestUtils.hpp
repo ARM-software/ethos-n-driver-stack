@@ -30,10 +30,6 @@ std::vector<char> GetRawDefaultEthosN37Capabilities();
 std::vector<char> GetRawDefaultEthosN57Capabilities();
 std::vector<char> GetRawDefaultEthosN78Capabilities();
 
-CompilationOptions GetDefaultCompilationOptions();
-
-CompilationOptions GetDefaultEthosN78CompilationOptions();
-
 bool Contains(const char* string, const char* substring);
 
 std::vector<uint8_t> GetCommandStreamData(const ethosn::command_stream::CommandStreamBuffer& cmdStream);

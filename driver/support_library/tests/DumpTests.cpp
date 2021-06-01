@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -15,7 +15,7 @@ using namespace ethosn::support_library;
 TEST_CASE("DumpCmdDisabled")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
 
@@ -33,7 +33,7 @@ TEST_CASE("DumpCmdDisabled")
     std::shared_ptr<Output> output1 = AddOutput(network, *conv).tensor;
 
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+        ethosn::support_library::Compile(*network, CompilationOptions());
 
     // Check that there are no dump commands in the stream
     using namespace ethosn::command_stream;
@@ -50,7 +50,7 @@ TEST_CASE("DumpCmdDisabled")
 TEST_CASE("DumpCmdEnabled")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
 
@@ -88,7 +88,7 @@ TEST_CASE("DumpCmdEnabled")
 TEST_CASE("initialSramDump")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
     std::shared_ptr<Operand> relu    = AddRelu(network, *input, ReluInfo(10, 250)).tensor;

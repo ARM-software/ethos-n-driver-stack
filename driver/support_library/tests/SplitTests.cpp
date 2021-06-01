@@ -121,7 +121,7 @@ TEST_CASE("Split NHWCB")
     const auto expectedInputDataType = utils::GetCommandDataType(inputDataType);
 
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
 
     std::shared_ptr<Operand> input =
@@ -184,7 +184,7 @@ TEST_CASE("Split NHWC")
     const auto expectedOtputDataType = utils::GetCommandDataType(inputDataType);
 
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
 
     std::shared_ptr<Operand> input =

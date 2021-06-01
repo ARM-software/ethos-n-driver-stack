@@ -74,18 +74,6 @@ std::vector<char> GetRawDefaultEthosN78Capabilities()
     return GetRawCapabilities(fwHwCapabilities);
 }
 
-CompilationOptions GetDefaultCompilationOptions()
-{
-    CompilationOptions compilationOption;
-    return compilationOption;
-}
-
-CompilationOptions GetDefaultEthosN78CompilationOptions()
-{
-    CompilationOptions compilationOption;
-    return compilationOption;
-}
-
 bool Contains(const char* string, const char* substring)
 {
     return strstr(string, substring) != nullptr;

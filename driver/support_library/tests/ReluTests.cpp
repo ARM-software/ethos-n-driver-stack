@@ -36,7 +36,7 @@ TEST_CASE("ReluSupported")
 TEST_CASE("SingleRelu")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
     std::shared_ptr<Operand> relu    = AddRelu(network, *input, ReluInfo(10, 20)).tensor;
@@ -44,7 +44,7 @@ TEST_CASE("SingleRelu")
 
     // Compile it
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+        ethosn::support_library::Compile(*network, CompilationOptions());
 
     // Extract all the conv commands
     using namespace ethosn::command_stream;

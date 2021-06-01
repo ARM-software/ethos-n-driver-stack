@@ -120,7 +120,7 @@ TEST_CASE("PoolingSupported")
 TEST_CASE("SinglePool")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
 
@@ -136,7 +136,7 @@ TEST_CASE("SinglePool")
 
     // Compile it
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+        ethosn::support_library::Compile(*network, CompilationOptions());
 
     // Extract all the conv commands
     using namespace ethosn::command_stream;
@@ -159,7 +159,7 @@ TEST_CASE("SinglePool")
 TEST_CASE("Large input tensor Avg Pool")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 480, 128, 64 })).tensor;
 
@@ -171,7 +171,7 @@ TEST_CASE("Large input tensor Avg Pool")
 
     // Compile it
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+        ethosn::support_library::Compile(*network, CompilationOptions());
 
     REQUIRE(compiledNetwork.size() == 0);
 }

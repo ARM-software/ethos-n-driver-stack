@@ -49,14 +49,14 @@ TEST_CASE("LeakyReluSupported EstimateOnly negative alpha")
 TEST_CASE("LeakyRelu real network")
 {
     // Create the estimation network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
     std::shared_ptr<Operand> leakyRelu =
         AddLeakyRelu(network, *input, LeakyReluInfo(0.1f, QuantizationInfo(0, 0.1f))).tensor;
     std::shared_ptr<Output> output = AddOutput(network, *leakyRelu).tensor;
 
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork = Compile(*network, GetDefaultCompilationOptions());
+    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork = Compile(*network, options);
 
     using namespace ethosn::command_stream;
     CommandStream cmdStream = GetCommandStream(compiledNetwork[0].get());
@@ -81,7 +81,7 @@ TEST_CASE("LeakyRelu real network")
 TEST_CASE("LeakyRelu EstimateOnly")
 {
     // Create the estimation network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateEstimationNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 16, 16, 16 })).tensor;
     std::shared_ptr<Operand> leakyRelu =

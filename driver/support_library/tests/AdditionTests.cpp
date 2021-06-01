@@ -143,7 +143,7 @@ TEST_CASE("PleOnlyAddition2Tensors")
         { 0, inputScale },
     };
 
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
 
     // Build up the network
@@ -194,7 +194,7 @@ TEST_CASE("PleOnlyAddition2Tensors fails to build the network")
         { 0, inputScale },
     };
 
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     bool failed                      = false;
 

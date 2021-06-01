@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -15,7 +15,7 @@ using namespace ethosn::support_library;
 TEST_CASE("Test NHWC Input and NHWCB Output")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     std::shared_ptr<Operand> inputConv1 =
         AddInput(network, TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC)).tensor;
@@ -35,7 +35,7 @@ TEST_CASE("Test NHWC Input and NHWCB Output")
 
     // Compile it
     std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, GetDefaultCompilationOptions());
+        ethosn::support_library::Compile(*network, CompilationOptions());
 
     // Extract all the conv commands
     using namespace ethosn::command_stream;
@@ -59,7 +59,7 @@ TEST_CASE("Test NHWC Input and NHWCB Output")
 TEST_CASE("NhwcbCompressed")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultCompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
     auto input                       = AddInput(network, TensorInfo({ 1, 1024, 32, 16 }));
 
@@ -113,7 +113,7 @@ TEST_CASE("NhwcbCompressed")
 TEST_CASE("FcafDeepCompressed")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultEthosN78CompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultEthosN78Capabilities());
     auto input                       = AddInput(network, TensorInfo({ 1, 1024, 32, 32 }));
 
@@ -167,7 +167,7 @@ TEST_CASE("FcafDeepCompressed")
 TEST_CASE("FcafWideCompressed")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultEthosN78CompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultEthosN78Capabilities());
     auto input                       = AddInput(network, TensorInfo({ 1, 1024, 32, 16 }));
 
@@ -221,7 +221,7 @@ TEST_CASE("FcafWideCompressed")
 TEST_CASE("FcafDeepPartialCompressed")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultEthosN78CompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultEthosN78Capabilities());
     auto input                       = AddInput(network, TensorInfo({ 1, 1035, 28, 32 }));
 
@@ -275,7 +275,7 @@ TEST_CASE("FcafDeepPartialCompressed")
 TEST_CASE("FcafWidePartialCompressed")
 {
     // Create the network
-    CompilationOptions options       = GetDefaultEthosN78CompilationOptions();
+    CompilationOptions options;
     std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultEthosN78Capabilities());
     auto input                       = AddInput(network, TensorInfo({ 1, 1035, 28, 16 }));
 
