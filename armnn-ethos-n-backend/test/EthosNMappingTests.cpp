@@ -1300,6 +1300,196 @@ BOOST_AUTO_TEST_CASE(TestAdditionalParameters)
     }
 }
 
+// A test which parses a syntactically incorrect mapping file.
+// The file is syntactically incorrect as "pattern:" is missing as the first line.
+BOOST_AUTO_TEST_CASE(TestIncorrectSyntaxMappingFile1)
+{
+    using namespace testing_utils;
+
+    // Given
+    std::stringstream os;
+    os << "input firstInput, 1x_x_x_\n";
+    os << "output firstOutput, 1x_x_x_\n";
+    os << "Activation, (firstInput), (firstOutput), ((function=TanH))\n";
+    os << "graph-replacement:\n";
+    os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
+    os.seekg(0);
+
+    // When
+    try
+    {
+        EthosNMappings mappings = ParseMappings(os);
+    }
+    catch (armnn::ParseException e)
+    {
+        std::string err = "Syntax error in mapping file";
+        BOOST_TEST((e.what() == err));
+    }
+}
+
+// A test which parses a syntactically incorrect mapping file.
+// The file is syntactically incorrect as "graph-replacement:" is missing as the subsequent section after "pattern:".
+BOOST_AUTO_TEST_CASE(TestIncorrectSyntaxMappingFile2)
+{
+    using namespace testing_utils;
+
+    // Given
+    std::stringstream os;
+    os << "pattern:\n";
+    os << "input firstInput, 1x_x_x_\n";
+    os.seekg(0);
+
+    // When
+    try
+    {
+        EthosNMappings mappings = ParseMappings(os);
+    }
+    catch (armnn::ParseException e)
+    {
+        std::string err = "Syntax error in mapping file";
+        BOOST_TEST((e.what() == err));
+    }
+}
+
+// A test which parses a syntactically incorrect mapping file.
+// The file is syntactically incorrect as "pattern:" is missing as the first line.
+BOOST_AUTO_TEST_CASE(TestIncorrectSyntaxMappingFile3)
+{
+    using namespace testing_utils;
+
+    // Given
+    std::stringstream os;
+    os << "patternn:\n";
+    os << "input firstInput, 1x_x_x_\n";
+    os << "output firstOutput, 1x_x_x_\n";
+    os << "Activation, (firstInput), (firstOutput), ((function=TanH))\n";
+    os << "graph-replacement:\n";
+    os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
+    os.seekg(0);
+
+    // When
+    try
+    {
+        EthosNMappings mappings = ParseMappings(os);
+    }
+    catch (armnn::ParseException e)
+    {
+        std::string err = "Syntax error in mapping file";
+        BOOST_TEST((e.what() == err));
+    }
+}
+
+// A test which parses a syntactically incorrect mapping file.
+// The file is syntactically incorrect as "pattern:" is missing as the first line.
+BOOST_AUTO_TEST_CASE(TestIncorrectSyntaxMappingFile4)
+{
+    using namespace testing_utils;
+
+    // Given
+    std::stringstream os;
+    os << "graph-replacement:\n";
+    os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
+    os.seekg(0);
+
+    // When
+    try
+    {
+        EthosNMappings mappings = ParseMappings(os);
+    }
+    catch (armnn::ParseException e)
+    {
+        std::string err = "Syntax error in mapping file";
+        BOOST_TEST((e.what() == err));
+    }
+}
+
+// A test which parses a syntactically incorrect mapping file.
+// The file is syntactically incorrect as "pattern:" is missing as the first line.
+BOOST_AUTO_TEST_CASE(TestIncorrectSyntaxMappingFile5)
+{
+    using namespace testing_utils;
+
+    // Given
+    std::stringstream os;
+    os << "graph-replacement:\n";
+    os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
+    os << "pattern:\n";
+    os.seekg(0);
+
+    // When
+    try
+    {
+        EthosNMappings mappings = ParseMappings(os);
+    }
+    catch (armnn::ParseException e)
+    {
+        std::string err = "Syntax error in mapping file";
+        BOOST_TEST((e.what() == err));
+    }
+}
+
+// A test which parses an empty mapping file.
+BOOST_AUTO_TEST_CASE(TestEmptyMappingFile)
+{
+    using namespace testing_utils;
+
+    // Given
+    std::stringstream os;
+    os << "\n\t\n";
+    os.seekg(0);
+
+    // When
+    EthosNMappings mappings = ParseMappings(os);
+
+    // Then
+    BOOST_TEST((mappings.size() == 0));
+}
+
+// A test which parses a mapping file containing only comments.
+BOOST_AUTO_TEST_CASE(TestCommentsOnlyMappingFile)
+{
+    using namespace testing_utils;
+
+    // Given
+    std::stringstream os;
+    os << "# This is a mapping file";
+    os << "# This does not contain any mappings";
+    os.seekg(0);
+
+    // When
+    EthosNMappings mappings = ParseMappings(os);
+
+    // Then
+    BOOST_TEST((mappings.size() == 0));
+}
+
+// A test which parses a mapping file containing mappings and comments.
+BOOST_AUTO_TEST_CASE(TestMappingFileWithComments)
+{
+    using namespace testing_utils;
+
+    // Given
+    std::stringstream os;
+    os << "pattern:\n";
+    os << "# First input \n";
+    os << "input firstInput, 1x_x_x_\n";
+    os << "# First output \n";
+    os << "output firstOutput, 1x_x_x_\n";
+    os << "# Layer to be replaced \n";
+    os << "Activation, (firstInput), (firstOutput), ((function=TanH))\n";
+    os << "graph-replacement:\n";
+    os << "# Replacement layer \n";
+    os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
+
+    os.seekg(0);
+
+    // When
+    EthosNMappings mappings = ParseMappings(os);
+
+    // Then
+    BOOST_TEST((mappings.size() == 1));
+}
+
 BOOST_AUTO_TEST_CASE(TestLayerSubstitutionWithName)
 {
     // Given

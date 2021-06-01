@@ -409,7 +409,8 @@ std::vector<armnn::Mapping> armnn::ReadMappingsFromFile(const char* mappingFilen
 armnn::EthosNMappings armnn::ParseMappings(std::istream& stream)
 {
     std::vector<armnn::Mapping> mappingsFromFile;
-
+    bool isEmpty       = true;
+    bool isCommentOnly = true;
     std::string line;
 
     State state = State::Comments;
@@ -426,6 +427,16 @@ armnn::EthosNMappings armnn::ParseMappings(std::istream& stream)
         {
             continue;
         }
+
+        isEmpty = false;
+
+        if (line[0] == '#')
+        {
+            continue;
+        }
+
+        isCommentOnly = false;
+
         switch (state)
         {
             case State::Comments:
@@ -465,10 +476,25 @@ armnn::EthosNMappings armnn::ParseMappings(std::istream& stream)
         }
     }
 
-    // Process the last line since there is no more "pattern:" coming up next to trigger
-    //      a ProcessPattern() call (it's the end of the file)
-    armnn::ProcessPattern(buf, tensors, replacementLayers);
-    mappingsFromFile.emplace_back(tensors, patternLayers, replacementLayers);
+    if (!(buf.empty()) && (state == State::GraphReplacement))
+    {
+        // Process the last line since there is no more "pattern:" coming up next to trigger
+        //      a ProcessPattern() call (it's the end of the file)
+        ProcessPattern(buf, tensors, replacementLayers);
+        mappingsFromFile.emplace_back(tensors, patternLayers, replacementLayers);
+    }
+    else if (isEmpty)
+    {
+        ARMNN_LOG(warning) << "WARNING: Empty mapping file provided";
+    }
+    else if (isCommentOnly)
+    {
+        ARMNN_LOG(warning) << "WARNING: Mapping file contains only comments";
+    }
+    else
+    {
+        throw armnn::ParseException("Syntax error in mapping file");
+    }
 
     return mappingsFromFile;
 }
