@@ -213,7 +213,6 @@ TEST_CASE("FullyConnectedSupported")
 /// This is a simple test. It assumes the input data is one dimensional, i.e. reshaping already done.
 TEST_CASE("Fully Connected")
 {
-
     constexpr uint32_t ifmWidth       = 1;
     constexpr uint32_t ifmHeight      = 1;
     constexpr uint32_t ifmDepth       = 1536;
@@ -257,7 +256,7 @@ TEST_CASE("Fully Connected")
     PopulateWeights(weightsData, numFcWeights);
 
     CompilationOptions options;
-    std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
+    std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultEthosN77Capabilities());
 
     std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
     std::shared_ptr<Constant> weights = AddConstant(network, weightsInfo, weightsData.data()).tensor;

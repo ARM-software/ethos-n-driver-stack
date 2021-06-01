@@ -43,27 +43,27 @@ HardwareCapabilities GetEthosN37HwCapabilities()
     return HardwareCapabilities(GetEthosN37FwHwCapabilities());
 }
 
+namespace
+{
+
 std::vector<char> GetRawCapabilities(const FirmwareAndHardwareCapabilities& fwHwCapabilities)
 {
     return std::vector<char>(reinterpret_cast<const char*>(&fwHwCapabilities),
                              reinterpret_cast<const char*>(&fwHwCapabilities) + sizeof(fwHwCapabilities));
 }
 
+}    // namespace
+
 std::vector<char> GetRawDefaultCapabilities()
 {
+    FirmwareAndHardwareCapabilities fwHwCapabilities =
+        GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, 0);
+    return GetRawCapabilities(fwHwCapabilities);
+}
+
+std::vector<char> GetRawDefaultEthosN77Capabilities()
+{
     FirmwareAndHardwareCapabilities fwHwCapabilities = GetEthosN77FwHwCapabilities();
-    return GetRawCapabilities(fwHwCapabilities);
-}
-
-std::vector<char> GetRawDefaultEthosN37Capabilities()
-{
-    FirmwareAndHardwareCapabilities fwHwCapabilities = GetEthosN37FwHwCapabilities();
-    return GetRawCapabilities(fwHwCapabilities);
-}
-
-std::vector<char> GetRawDefaultEthosN57Capabilities()
-{
-    FirmwareAndHardwareCapabilities fwHwCapabilities = GetEthosN57FwHwCapabilities();
     return GetRawCapabilities(fwHwCapabilities);
 }
 

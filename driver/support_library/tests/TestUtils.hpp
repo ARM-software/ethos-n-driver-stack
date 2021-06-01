@@ -25,9 +25,7 @@ HardwareCapabilities GetEthosN57HwCapabilities();
 HardwareCapabilities GetEthosN37HwCapabilities();
 
 std::vector<char> GetRawDefaultCapabilities();
-
-std::vector<char> GetRawDefaultEthosN37Capabilities();
-std::vector<char> GetRawDefaultEthosN57Capabilities();
+std::vector<char> GetRawDefaultEthosN77Capabilities();
 std::vector<char> GetRawDefaultEthosN78Capabilities();
 
 bool Contains(const char* string, const char* substring);

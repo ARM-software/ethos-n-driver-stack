@@ -56,60 +56,6 @@ TEST_CASE("Test NHWC Input and NHWCB Output")
 }
 
 /// Tests a command stream comprising 2 convolutions which should produce compressed intermediate DRAM data.
-TEST_CASE("NhwcbCompressed")
-{
-    // Create the network
-    CompilationOptions options;
-    std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
-    auto input                       = AddInput(network, TensorInfo({ 1, 1024, 32, 16 }));
-
-    auto bias1 = AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED),
-                             std::vector<uint8_t>(16, 0).data());
-
-    auto bias2 = AddConstant(
-        network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.1f)),
-        std::vector<uint8_t>(16, 1).data());
-
-    auto weights1 = AddConstant(network, TensorInfo({ 3, 3, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
-                                std::vector<uint8_t>(3 * 3 * 16 * 16, 0).data());
-    auto weights2 = AddConstant(network, TensorInfo({ 3, 3, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
-                                std::vector<uint8_t>(3 * 3 * 16 * 16, 0).data());
-
-    // Add conv1 layer
-    auto conv1 = AddConvolution(network, *input.tensor, *bias1.tensor, *weights1.tensor,
-                                ConvolutionInfo(Padding(0, 0, 0, 0), Stride(1, 1), QuantizationInfo(0, 1.1f)));
-
-    // Add conv2 layer
-    auto conv2 = AddConvolution(network, *conv1.tensor, *bias2.tensor, *weights2.tensor,
-                                ConvolutionInfo(Padding(0, 0, 0, 0), Stride(1, 1), QuantizationInfo(0, 1.2f)));
-
-    auto output1 = AddOutput(network, *conv2.tensor);
-
-    // Compile it
-    options.m_EnableIntermediateCompression                       = true;
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork = ethosn::support_library::Compile(*network, options);
-
-    // Extract all the conv commands
-    using namespace ethosn::command_stream;
-    CommandStream cmdStream = GetCommandStream(compiledNetwork[0].get());
-    std::vector<McePle> convCmds;
-    for (const auto& cmdHeader : cmdStream)
-    {
-        if (cmdHeader.m_Opcode() == Opcode::OPERATION_MCE_PLE)
-        {
-            convCmds.push_back(cmdHeader.GetCommand<Opcode::OPERATION_MCE_PLE>()->m_Data());
-        }
-    }
-
-    // Check that the conv commands are as expected. Inputs and outputs to the network at NHWC
-    // the intermediate layers are NHWCB_COMPRESSED.
-    REQUIRE(convCmds.size() == 2);
-    REQUIRE(convCmds[0].m_InputInfo().m_DataFormat() == ethosn::command_stream::DataFormat::NHWC);
-    REQUIRE(convCmds[0].m_OutputInfo().m_DataFormat() == ethosn::command_stream::DataFormat::NHWCB_COMPRESSED);
-    REQUIRE(convCmds[1].m_InputInfo().m_DataFormat() == ethosn::command_stream::DataFormat::NHWCB_COMPRESSED);
-    REQUIRE(convCmds[1].m_OutputInfo().m_DataFormat() == ethosn::command_stream::DataFormat::NHWC);
-}
-
 TEST_CASE("FcafDeepCompressed")
 {
     // Create the network
@@ -164,6 +110,7 @@ TEST_CASE("FcafDeepCompressed")
     REQUIRE(convCmds[1].m_OutputInfo().m_DataFormat() == ethosn::command_stream::DataFormat::NHWC);
 }
 
+/// Tests a command stream comprising 2 convolutions which should produce compressed intermediate DRAM data.
 TEST_CASE("FcafWideCompressed")
 {
     // Create the network
