@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -112,7 +112,7 @@ TEST_CASE("Command stream compatibility")
 
     SECTION("Test with valid configuration")
     {
-        std::vector<char> capsFromSupportLibVect = GetFwAndHwCapabilities(EthosNVariant::ETHOS_N77, 0);
+        std::vector<char> capsFromSupportLibVect = GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, 0);
 
         FirmwareAndHardwareCapabilities capsFromOptsSL;
         memcpy(&capsFromOptsSL, capsFromSupportLibVect.data(), sizeof(FirmwareAndHardwareCapabilities));
@@ -123,7 +123,7 @@ TEST_CASE("Command stream compatibility")
 
 TEST_CASE("Correct capabilities")
 {
-    std::vector<char> capsFromSupportLibVect = GetFwAndHwCapabilities(EthosNVariant::ETHOS_N77, 0);
+    std::vector<char> capsFromSupportLibVect = GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, 0);
 
     FirmwareAndHardwareCapabilities capsFromOptsSL;
     memcpy(&capsFromOptsSL, capsFromSupportLibVect.data(), sizeof(FirmwareAndHardwareCapabilities));
@@ -136,25 +136,31 @@ TEST_CASE("Correct capabilities")
 
 TEST_CASE("Capabilities different variant")
 {
-    uint32_t n57SizeSram = 524288;
+    uint32_t eightTopsSizeSram = 2048 * 1024;
 
-    std::vector<char> capsFromSupportLibVect = GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57, 0);
+    std::vector<char> capsFromSupportLibVect = GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_8TOPS_2PLE_RATIO, 0);
 
     FirmwareAndHardwareCapabilities capsFromOptsSL;
     memcpy(&capsFromOptsSL, capsFromSupportLibVect.data(), sizeof(FirmwareAndHardwareCapabilities));
 
     // Test some random values after being turned from vector into FirmwareAndHardwareCapabilities again.
-    REQUIRE(capsFromOptsSL.m_TotalSramSize == n57SizeSram);
+    REQUIRE(capsFromOptsSL.m_TotalSramSize == eightTopsSizeSram);
 }
 
 TEST_CASE("Capabilities different SRAM size")
 {
-    uint32_t n57SizeSram                     = 524288;
-    std::vector<char> capsFromSupportLibVect = GetFwAndHwCapabilities(EthosNVariant::ETHOS_N77, n57SizeSram);
+    uint32_t overrideSramSize = 2048 * 1024;
+    std::vector<char> capsFromSupportLibVect =
+        GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, overrideSramSize);
 
     FirmwareAndHardwareCapabilities capsFromOptsSL;
     memcpy(&capsFromOptsSL, capsFromSupportLibVect.data(), sizeof(FirmwareAndHardwareCapabilities));
 
     // Test some random values after being turned from vector into FirmwareAndHardwareCapabilities again.
-    REQUIRE(capsFromOptsSL.m_TotalSramSize == n57SizeSram);
+    REQUIRE(capsFromOptsSL.m_TotalSramSize == overrideSramSize);
+}
+
+TEST_CASE("GetFwAndHwCapabilities unsupported")
+{
+    REQUIRE_THROWS_AS(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N77), NotSupportedException);
 }

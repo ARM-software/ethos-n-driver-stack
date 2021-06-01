@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -11,7 +11,7 @@ using namespace ethosn::support_library;
 
 TEST_CASE("SigmoidSupported")
 {
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     SECTION("Supported configuration")
     {

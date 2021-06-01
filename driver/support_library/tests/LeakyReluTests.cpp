@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -14,7 +14,7 @@ using namespace ethosn::support_library;
 
 TEST_CASE("LeakyReluSupported Supported")
 {
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     // Supported configuration
     TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
@@ -25,7 +25,7 @@ TEST_CASE("LeakyReluSupported Supported")
 
 TEST_CASE("LeakyReluSupported EstimateOnly alpha >= 1")
 {
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     // Supported configuration
     TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
@@ -36,7 +36,7 @@ TEST_CASE("LeakyReluSupported EstimateOnly alpha >= 1")
 
 TEST_CASE("LeakyReluSupported EstimateOnly negative alpha")
 {
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     // Supported configuration
     TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));

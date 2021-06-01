@@ -14,7 +14,7 @@ using namespace ethosn::support_library;
 
 TEST_CASE("ReshapeSupported")
 {
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     // Supported configuration
     TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
@@ -26,7 +26,7 @@ TEST_CASE("ReshapeSupported")
 
 TEST_CASE("ReshapeNotSupported")
 {
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     // Not Supported configuration
     TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));

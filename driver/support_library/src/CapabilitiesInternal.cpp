@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -93,7 +93,7 @@ FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant varian
             fwHwCapabilities.m_NumPleLanes     = 2;
             break;
         default:
-            throw NotSupportedException("Unsupported EthosN78 Variant");
+            throw NotSupportedException("Unsupported variant");
             break;
     }
 

@@ -45,7 +45,7 @@ TEST_CASE("PoolingSupported")
 {
     char reason[1024];
 
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     const Padding noPad    = { 0, 0, 0, 0 };
     const Padding padAfter = { 0, 1, 0, 1 };

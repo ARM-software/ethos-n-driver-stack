@@ -862,7 +862,7 @@ BOOST_AUTO_TEST_CASE(EstimateOnly5dFail)
     using namespace armnn;
     using namespace testing_utils;
 
-    const EthosNConfig config = { true, ethosn_lib::EthosNVariant::ETHOS_N77, 0 };
+    const EthosNConfig config = { true, ethosn_lib::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, 0 };
 
     EthosNLayerSupport layerSupport(config, EthosNMappings(), config.QueryCapabilities());
     TensorInfo input  = TensorInfo({ 1, 1, 1, 1, 4 }, DataType::QAsymmU8, 1.f, 0);

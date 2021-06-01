@@ -36,7 +36,7 @@ TEST_CASE("FullyConnectedSupported")
 {
     char reason[1024];
 
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     SECTION("InputInfo is not UINT8_QUANTIZED.")
     {

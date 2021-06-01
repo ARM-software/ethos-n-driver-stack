@@ -15,7 +15,7 @@ using namespace ethosn::support_library;
 
 TEST_CASE("ConstantSupported", "[Constant]")
 {
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     TensorInfo info({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
     REQUIRE(queries.IsConstantSupported(info) == SupportedLevel::Supported);

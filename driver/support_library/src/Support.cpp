@@ -90,42 +90,7 @@ const Version GetLibraryVersion()
 
 std::vector<char> GetFwAndHwCapabilities(EthosNVariant variant, uint32_t sramSizeBytes)
 {
-    FirmwareAndHardwareCapabilities capabilities;
-    switch (variant)
-    {
-        case EthosNVariant::ETHOS_N77:
-            capabilities = GetEthosN77FwHwCapabilities();
-            break;
-        case EthosNVariant::ETHOS_N57:
-            capabilities = GetEthosN57FwHwCapabilities();
-            break;
-        case EthosNVariant::ETHOS_N37:
-            capabilities = GetEthosN37FwHwCapabilities();
-            break;
-        case EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO:
-            // Fallthrough
-        case EthosNVariant::ETHOS_N78_1TOPS_4PLE_RATIO:
-            // Fallthrough
-        case EthosNVariant::ETHOS_N78_2TOPS_2PLE_RATIO:
-            // Fallthrough
-        case EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO:
-            // Fallthrough
-        case EthosNVariant::ETHOS_N78_4TOPS_2PLE_RATIO:
-            // Fallthrough
-        case EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO:
-            // Fallthrough
-        case EthosNVariant::ETHOS_N78_8TOPS_2PLE_RATIO:
-            capabilities = GetEthosN78FwHwCapabilities(variant, sramSizeBytes);
-            break;
-        default:
-            throw NotSupportedException("Unsupported Npu Variant");
-            break;
-    }
-
-    if (sramSizeBytes > 0)
-    {
-        capabilities.m_TotalSramSize = sramSizeBytes;
-    }
+    FirmwareAndHardwareCapabilities capabilities = GetEthosN78FwHwCapabilities(variant, sramSizeBytes);
 
     std::vector<char> ret;
     ret.resize(sizeof(capabilities));
@@ -391,12 +356,6 @@ const char* EthosNVariantAsString(EthosNVariant npuType)
 {
     switch (npuType)
     {
-        case EthosNVariant::ETHOS_N77:
-            return "Ethos-N77";
-        case EthosNVariant::ETHOS_N57:
-            return "Ethos-N57";
-        case EthosNVariant::ETHOS_N37:
-            return "Ethos-N37";
         case EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO:
             return "Ethos-N78_1TOPS_2PLE_RATIO";
         case EthosNVariant::ETHOS_N78_1TOPS_4PLE_RATIO:
@@ -418,19 +377,7 @@ const char* EthosNVariantAsString(EthosNVariant npuType)
 
 EthosNVariant EthosNVariantFromString(const char* npuType)
 {
-    if (!std::strcmp(npuType, EthosNVariantAsString(EthosNVariant::ETHOS_N77)))
-    {
-        return EthosNVariant::ETHOS_N77;
-    }
-    else if (!std::strcmp(npuType, EthosNVariantAsString(EthosNVariant::ETHOS_N57)))
-    {
-        return EthosNVariant::ETHOS_N57;
-    }
-    else if (!std::strcmp(npuType, EthosNVariantAsString(EthosNVariant::ETHOS_N37)))
-    {
-        return EthosNVariant::ETHOS_N37;
-    }
-    else if (!std::strcmp(npuType, EthosNVariantAsString(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO)))
+    if (!std::strcmp(npuType, EthosNVariantAsString(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO)))
     {
         return EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO;
     }

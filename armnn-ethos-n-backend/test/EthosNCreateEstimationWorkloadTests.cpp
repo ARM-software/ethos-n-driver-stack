@@ -96,7 +96,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyWorkload)
     const TempDir tmpDir;
 
     armnn::EthosNConfig config{};
-    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
+    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
     config.m_PerfOnly    = true;
     config.m_PerfOutDir  = tmpDir.Str();
     config.m_PerfCurrent = true;
@@ -179,7 +179,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyWorkload)
     const std::string golden = R"({
 	"Config":
 	{
-		"Variant": "Ethos-N77",
+		"Variant": "Ethos-N78_4TOPS_4PLE_RATIO",
 		"SramSizeBytesOverride": 0,
 		"ActivationCompressionSavings": 0,
 		"WeightCompressionSavings": "Not Specified",
@@ -220,7 +220,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyWorkload)
 				"Weights":
 				{
 					"DramParallelBytes": 0,
-					"DramNonParallelBytes": 512,
+					"DramNonParallelBytes": 256,
 					"SramBytes": 0,
 					"NumCentralStripes": 1,
 					"NumBoundaryStripes": 0,
@@ -263,7 +263,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyExistingWorkload)
     const TempDir tmpDir;
 
     armnn::EthosNConfig config{};
-    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
+    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
     config.m_PerfOnly    = true;
     config.m_PerfOutDir  = tmpDir.Str();
     config.m_PerfCurrent = true;
@@ -355,7 +355,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyExistingWorkload)
     const std::string golden = R"({
 	"Config":
 	{
-		"Variant": "Ethos-N77",
+		"Variant": "Ethos-N78_4TOPS_4PLE_RATIO",
 		"SramSizeBytesOverride": 0,
 		"ActivationCompressionSavings": 0,
 		"WeightCompressionSavings": "Not Specified",
@@ -396,7 +396,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyExistingWorkload)
 				"Weights":
 				{
 					"DramParallelBytes": 0,
-					"DramNonParallelBytes": 512,
+					"DramNonParallelBytes": 256,
 					"SramBytes": 0,
 					"NumCentralStripes": 1,
 					"NumBoundaryStripes": 0,
@@ -438,7 +438,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
     const TempDir tmpDir;
 
     armnn::EthosNConfig config{};
-    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
+    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
     config.m_PerfOnly    = true;
     config.m_PerfOutDir  = tmpDir.Str();
     config.m_PerfCurrent = true;
@@ -523,7 +523,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
     const std::string golden = R"({
 	"Config":
 	{
-		"Variant": "Ethos-N77",
+		"Variant": "Ethos-N78_4TOPS_4PLE_RATIO",
 		"SramSizeBytesOverride": 0,
 		"ActivationCompressionSavings": 0,
 		"WeightCompressionSavings": "Not Specified",
@@ -563,7 +563,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
 				"Weights":
 				{
 					"DramParallelBytes": 0,
-					"DramNonParallelBytes": 512,
+					"DramNonParallelBytes": 256,
 					"SramBytes": 0,
 					"NumCentralStripes": 1,
 					"NumBoundaryStripes": 0,
@@ -604,7 +604,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
     const TempDir tmpDir;
 
     armnn::EthosNConfig config{};
-    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
+    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
     config.m_PerfOnly    = true;
     config.m_PerfOutDir  = tmpDir.Str();
     config.m_PerfCurrent = true;
@@ -688,7 +688,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
     const std::string golden = R"({
 	"Config":
 	{
-		"Variant": "Ethos-N77",
+		"Variant": "Ethos-N78_4TOPS_4PLE_RATIO",
 		"SramSizeBytesOverride": 0,
 		"ActivationCompressionSavings": 0,
 		"WeightCompressionSavings": "Not Specified",
@@ -728,7 +728,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyStandInMapping)
 				"Weights":
 				{
 					"DramParallelBytes": 0,
-					"DramNonParallelBytes": 512,
+					"DramNonParallelBytes": 256,
 					"SramBytes": 0,
 					"NumCentralStripes": 1,
 					"NumBoundaryStripes": 0,
@@ -767,7 +767,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkload)
     const TempDir tmpDir;
 
     armnn::EthosNConfig config{};
-    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
+    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
     config.m_PerfOnly    = true;
     config.m_PerfOutDir  = tmpDir.Str();
     config.m_PerfCurrent = true;
@@ -788,7 +788,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkload)
     const std::string golden = R"({
 	"Config":
 	{
-		"Variant": "Ethos-N77",
+		"Variant": "Ethos-N78_4TOPS_4PLE_RATIO",
 		"SramSizeBytesOverride": 0,
 		"ActivationCompressionSavings": 0,
 		"WeightCompressionSavings": "Not Specified",
@@ -828,7 +828,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkload)
 				"Weights":
 				{
 					"DramParallelBytes": 0,
-					"DramNonParallelBytes": 512,
+					"DramNonParallelBytes": 768,
 					"SramBytes": 0,
 					"NumCentralStripes": 1,
 					"NumBoundaryStripes": 0,
@@ -866,7 +866,7 @@ BOOST_AUTO_TEST_CASE(EstimationCompressionOverride)
     const TempDir tmpDir;
 
     armnn::EthosNConfig config{};
-    config.m_PerfVariant                      = ethosn::support_library::EthosNVariant::ETHOS_N77;
+    config.m_PerfVariant                      = ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
     config.m_PerfOnly                         = true;
     config.m_PerfOutDir                       = tmpDir.Str();
     config.m_PerfActivationCompressionSaving  = 0.6f;
@@ -889,7 +889,7 @@ BOOST_AUTO_TEST_CASE(EstimationCompressionOverride)
     const std::string golden = R"({
 	"Config":
 	{
-		"Variant": "Ethos-N77",
+		"Variant": "Ethos-N78_4TOPS_4PLE_RATIO",
 		"SramSizeBytesOverride": 0,
 		"ActivationCompressionSavings": 0.6,
 		"WeightCompressionSavings": 0.8,
@@ -988,7 +988,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkloadSplit)
     const TempDir tmpDir;
 
     armnn::EthosNConfig config{};
-    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N77;
+    config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
     config.m_PerfOnly    = true;
     config.m_PerfOutDir  = tmpDir.Str();
     config.m_PerfCurrent = true;
@@ -1006,7 +1006,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkloadSplit)
     const std::string golden1 = R"({
 	"Config":
 	{
-		"Variant": "Ethos-N77",
+		"Variant": "Ethos-N78_4TOPS_4PLE_RATIO",
 		"SramSizeBytesOverride": 0,
 		"ActivationCompressionSavings": 0,
 		"WeightCompressionSavings": "Not Specified",
@@ -1046,7 +1046,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkloadSplit)
 				"Weights":
 				{
 					"DramParallelBytes": 0,
-					"DramNonParallelBytes": 256,
+					"DramNonParallelBytes": 512,
 					"SramBytes": 0,
 					"NumCentralStripes": 1,
 					"NumBoundaryStripes": 0,
@@ -1075,7 +1075,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkloadSplit)
     const std::string golden2 = R"({
 	"Config":
 	{
-		"Variant": "Ethos-N77",
+		"Variant": "Ethos-N78_4TOPS_4PLE_RATIO",
 		"SramSizeBytesOverride": 0,
 		"ActivationCompressionSavings": 0,
 		"WeightCompressionSavings": "Not Specified",
@@ -1115,7 +1115,7 @@ BOOST_AUTO_TEST_CASE(CreateEstimationWorkloadSplit)
 				"Weights":
 				{
 					"DramParallelBytes": 0,
-					"DramNonParallelBytes": 256,
+					"DramNonParallelBytes": 512,
 					"SramBytes": 0,
 					"NumCentralStripes": 1,
 					"NumBoundaryStripes": 0,

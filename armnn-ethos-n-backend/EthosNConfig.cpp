@@ -159,7 +159,7 @@ std::istream& operator>>(std::istream& configFile, armnn::EthosNConfig& config)
                     {
                         throw armnn::Exception("Invalid variant specified on line " + std::to_string(lineNo) + ": " +
                                                line +
-                                               "\nMust be one of: Ethos-N37, Ethos-N57, Ethos-N77, "
+                                               "\nMust be one of: "
                                                "Ethos-N78_1TOPS_2PLE_RATIO, Ethos-N78_1TOPS_4PLE_RATIO, "
                                                "Ethos-N78_2TOPS_2PLE_RATIO, Ethos-N78_2TOPS_4PLE_RATIO, "
                                                "Ethos-N78_4TOPS_2PLE_RATIO, Ethos-N78_4TOPS_4PLE_RATIO, "

@@ -84,7 +84,7 @@ TEST_CASE("ConvolutionSupported")
 {
     char reason[1024];
 
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     SECTION("Invalid case - zero kernel size")
     {
@@ -363,7 +363,7 @@ TEST_CASE("DepthwiseConvolutionSupported")
 {
     char reason[1024];
 
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     SECTION("Invalid case - zero kernel size")
     {

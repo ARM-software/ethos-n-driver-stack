@@ -109,7 +109,7 @@ TEST_CASE("TopologyTest")
     const std::vector<uint8_t> weightsFcData(utils::TotalSizeBytes(weightsFcInfo));
     const std::vector<uint8_t> biasFcData(utils::TotalSizeBytes(biasFcInfo));
 
-    std::shared_ptr<Network> network = CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N77, 60964864));
+    std::shared_ptr<Network> network = CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     // Constant -> Output
     std::shared_ptr<Constant> constant     = AddConstant(network, constInfo, constData.data()).tensor;

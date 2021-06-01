@@ -1052,13 +1052,11 @@ NetworkPerformanceData EstimatePerformance(const Network& network,
                                            const CompilationOptions& compilationOptions,
                                            const EstimationOptions& estimationOptions = {});
 
-// Ethos-N variants with different Compilation options
-// Please note this is used only for the Performance Estimator.
 enum class EthosNVariant
 {
-    ETHOS_N77,
-    ETHOS_N57,
-    ETHOS_N37,
+    ETHOS_N77,    ///< Not supported and will error at runtime if used. Kept for backwards-compatibility.
+    ETHOS_N57,    ///< Not supported and will error at runtime if used. Kept for backwards-compatibility.
+    ETHOS_N37,    ///< Not supported and will error at runtime if used. Kept for backwards-compatibility.
     ETHOS_N78_1TOPS_2PLE_RATIO,
     ETHOS_N78_1TOPS_4PLE_RATIO,
     ETHOS_N78_2TOPS_2PLE_RATIO,
@@ -1071,8 +1069,9 @@ enum class EthosNVariant
 const char* EthosNVariantAsString(EthosNVariant ethosnType);
 EthosNVariant EthosNVariantFromString(const char* ethosnType);
 
-// Gets firmware and hardware capabilities from this library in the absence of the real device.
-// Optionally SRAM size can be overridden.
+/// Gets firmware and hardware capabilities from this library in the absence of the real device.
+/// Optionally SRAM size can be overridden.
+/// Will throw a NotSupportedException if an unsupported variant is requested.
 std::vector<char> GetFwAndHwCapabilities(EthosNVariant variant, uint32_t sramSizeBytes = 0);
 
 /// Creates a new Network

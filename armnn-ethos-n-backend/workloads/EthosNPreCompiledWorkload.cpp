@@ -388,15 +388,6 @@ std::ostream& operator<<(std::ostream& os, const ethosn::support_library::EthosN
 {
     switch (variant)
     {
-        case ethosn::support_library::EthosNVariant::ETHOS_N37:
-            os << Quoted("Ethos-N37");
-            break;
-        case ethosn::support_library::EthosNVariant::ETHOS_N57:
-            os << Quoted("Ethos-N57");
-            break;
-        case ethosn::support_library::EthosNVariant::ETHOS_N77:
-            os << Quoted("Ethos-N77");
-            break;
         case ethosn::support_library::EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO:
             os << Quoted("Ethos-N78_1TOPS_2PLE_RATIO");
             break;

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -16,7 +16,7 @@ using namespace ethosn::support_library;
 
 TEST_CASE("Requantize Supported")
 {
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
     TensorInfo output({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
@@ -33,7 +33,7 @@ TEST_CASE("Requantize Supported")
 TEST_CASE("Requantize Unsupported")
 {
     char reason[1024];
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     SECTION("Incorrect output shape")
     {
@@ -75,7 +75,7 @@ TEST_CASE("Requantize Unsupported")
 TEST_CASE("Requantize EstimateOnly")
 {
     char reason[1024];
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     SECTION("Output Scale smaller than minimum")
     {
@@ -89,7 +89,7 @@ TEST_CASE("Requantize EstimateOnly")
 /// Tests that a network comprising a single Requantize creates an identity depthwise convolution beforehand.
 TEST_CASE("Add Requantize to a network")
 {
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     // Create the network
     CompilationOptions options       = GetDefaultCompilationOptions();

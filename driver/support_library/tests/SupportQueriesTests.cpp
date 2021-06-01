@@ -18,7 +18,7 @@ using namespace ethosn::support_library;
 
 TEST_CASE("InputSupported", "[IsSupported]")
 {
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     TensorInfo info({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
     REQUIRE(queries.IsInputSupported(info) == SupportedLevel::Supported);
@@ -26,7 +26,7 @@ TEST_CASE("InputSupported", "[IsSupported]")
 
 TEST_CASE("OutputSupported", "[IsSupported]")
 {
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     TensorInfo info({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
     REQUIRE(queries.IsOutputSupported(info, DataFormat::NHWC) == SupportedLevel::Supported);
@@ -34,7 +34,7 @@ TEST_CASE("OutputSupported", "[IsSupported]")
 
 TEST_CASE("OutputSupportedNHWCB", "[IsSupported]")
 {
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     TensorInfo info({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
     REQUIRE(queries.IsOutputSupported(info, DataFormat::NHWCB) == SupportedLevel::Supported);
@@ -42,7 +42,7 @@ TEST_CASE("OutputSupportedNHWCB", "[IsSupported]")
 
 SCENARIO("With QuantizationDim", "[IsSupported]")
 {
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     char reason[1024];
     QuantizationInfo quantInfo(0, 1.0f);
@@ -65,11 +65,11 @@ SCENARIO("With QuantizationDim", "[IsSupported]")
     }
 }
 
-constexpr const uint32_t UNSUPPORTED_OUTPUT_DIM = 33;
-constexpr const uint32_t UNSUPPORTED_WEIGHT_DIM = 64;
-constexpr const uint32_t INPUT_DIM              = 32;
-constexpr const uint32_t OUTPUT_DIM             = 32;
-constexpr const uint32_t TOTAL_SRAM             = 2048;
+constexpr const uint32_t UNSUPPORTED_OUTPUT_DIM = 33 * 256;
+constexpr const uint32_t UNSUPPORTED_WEIGHT_DIM = 64 * 256;
+constexpr const uint32_t INPUT_DIM              = 32 * 256;
+constexpr const uint32_t OUTPUT_DIM             = 32 * 256;
+constexpr const uint32_t TOTAL_SRAM             = 2048 * 256;
 
 #define CHECK_UNSUPPORTED_TENSOR_DEPTH_REASON(reason)                                                                  \
     do                                                                                                                 \
@@ -91,7 +91,7 @@ TEST_CASE("Unsupported Tensor Depth", "[IsSupported][TVM]")
     char reason[1024] = {
         0,
     };
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57, TOTAL_SRAM));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, TOTAL_SRAM));
     TensorInfo inputInfo({ 1, 16, 16, UNSUPPORTED_OUTPUT_DIM }, DataType::UINT8_QUANTIZED, DataFormat::NHWC,
                          QuantizationInfo(0, 1.0f));
     std::vector<TensorInfo> outputs(2);

@@ -15,7 +15,7 @@ using namespace ethosn::support_library;
 TEST_CASE("MeanXySupported", "[IsSupported]")
 {
     char reason[1024];
-    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N57));
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     GIVEN("An Input TensorInfo with supported dimensions")
     {
