@@ -474,9 +474,11 @@ TEST_CASE("SaveGraphToDot Graph Topology", "[Visualisation]")
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
     // Assign some nodes into Parts. Note we don't assign all nodes to a part, so we can test that works correctly.
-    auto part1        = std::make_unique<Part>(estOpt, compOpt, GetEthosN77HwCapabilities());
+    auto part1 =
+        std::make_unique<Part>(estOpt, compOpt, GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
     part1->m_SubGraph = { i1, i2 };
-    auto part2        = std::make_unique<Part>(estOpt, compOpt, GetEthosN77HwCapabilities());
+    auto part2 =
+        std::make_unique<Part>(estOpt, compOpt, GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
     part2->m_SubGraph = { m, o1, d };
     GraphOfParts parts;
     parts.m_Parts.push_back(std::move(part1));
@@ -535,7 +537,7 @@ TEST_CASE("SaveGraphToDot Node Details", "[Visualisation]")
 {
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
 
     // Build a simple graph of disconnected nodes, to check the details are printed correctly for each one.
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
@@ -614,7 +616,7 @@ TEST_CASE("SavePlansToDot Graph Topology", "[Visualisation]")
 
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     Part part(estOpt, compOpt, caps);
     part.m_SubGraph.push_back(nodeA);
     part.m_SubGraph.push_back(nodeB);
@@ -709,7 +711,7 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
 
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
 
     // Part consisting of node A
     parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));

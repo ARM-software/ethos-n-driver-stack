@@ -256,7 +256,7 @@ TEST_CASE("Fully Connected")
     PopulateWeights(weightsData, numFcWeights);
 
     CompilationOptions options;
-    std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultEthosN77Capabilities());
+    std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultEthosN78Capabilities());
 
     std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
     std::shared_ptr<Constant> weights = AddConstant(network, weightsInfo, weightsData.data()).tensor;
@@ -289,10 +289,10 @@ TEST_CASE("Fully Connected")
     fully_connected.m_WeightInfo().m_DataFormat()       = ethosn::command_stream::DataFormat::WEIGHT_STREAM;
     fully_connected.m_WeightInfo().m_TensorShape()      = { 1, 1, roundedUpIfms, numOutputs };
     fully_connected.m_WeightInfo().m_SupertensorShape() = { 1, 1, roundedUpIfms, numOutputs };
-    fully_connected.m_WeightInfo().m_StripeShape()      = { 1, 1, roundedUpIfms, 16 };
-    fully_connected.m_WeightInfo().m_TileSize()         = 0x10200;
+    fully_connected.m_WeightInfo().m_StripeShape()      = { 1, 1, roundedUpIfms, 8 };
+    fully_connected.m_WeightInfo().m_TileSize()         = 0x9400;
     fully_connected.m_WeightInfo().m_DramBufferId()     = 2;
-    fully_connected.m_WeightInfo().m_SramOffset()       = 0x80 + 0x1000;
+    fully_connected.m_WeightInfo().m_SramOffset()       = 0x100 + 0x1000;
     fully_connected.m_WeightInfo().m_ZeroPoint()        = 127;
     fully_connected.m_WeightInfo().m_DataLocation()     = ethosn::command_stream::DataLocation::DRAM;
 
@@ -303,10 +303,10 @@ TEST_CASE("Fully Connected")
     fully_connected.m_OutputInfo().m_TensorShape()       = { 1, 1, 1, numOutputs };
     fully_connected.m_OutputInfo().m_SupertensorShape()  = { 1, 1, 1, numOutputs };
     fully_connected.m_OutputInfo().m_SupertensorOffset() = { 0, 0, 0, 0 };
-    fully_connected.m_OutputInfo().m_StripeShape()       = { 1, 8, 8, 16 };
+    fully_connected.m_OutputInfo().m_StripeShape()       = { 1, 8, 8, 8 };
     fully_connected.m_OutputInfo().m_TileSize()          = 1 * 8 * 8 * 16;
     fully_connected.m_OutputInfo().m_DramBufferId()      = 4;
-    fully_connected.m_OutputInfo().m_SramOffset()        = 0xffc0;
+    fully_connected.m_OutputInfo().m_SramOffset()        = 0xdf80;
 
     fully_connected.m_OutputInfo().m_ZeroPoint() = static_cast<int16_t>(fcInfo.m_OutputQuantizationInfo.GetZeroPoint());
     fully_connected.m_OutputInfo().m_DataLocation()       = ethosn::command_stream::DataLocation::DRAM;
@@ -321,7 +321,7 @@ TEST_CASE("Fully Connected")
     fully_connected.m_MceData().m_PadLeft()                 = 0;
     fully_connected.m_MceData().m_UninterleavedInputShape() = { 1, 1, 1, 1536 };
     fully_connected.m_MceData().m_OutputShape()             = { 1, 1, 1, numOutputs };
-    fully_connected.m_MceData().m_OutputStripeShape()       = { 1, 8, 8, numOutputs };
+    fully_connected.m_MceData().m_OutputStripeShape()       = { 1, 8, 8, 8 };
     fully_connected.m_MceData().m_Operation()               = ethosn::command_stream::MceOperation::FULLY_CONNECTED;
     fully_connected.m_MceData().m_Algorithm()               = MceAlgorithm::DIRECT;
     fully_connected.m_MceData().m_ActivationMin()           = 0;
@@ -353,11 +353,14 @@ TEST_CASE("Fully Connected")
                                  0);
     expectedConstantControlUnitData.insert(expectedConstantControlUnitData.end(), padding.begin(), padding.end());
     std::vector<uint8_t> metaDataBuffer = {
-        0x0, 0x0, 0x0, 0x0, 0x0, 0x32, 0x0, 0x0,
+        // clang-format off
+        0x0, 0x0, 0x0, 0x0,         0x0, 0x15, 0x0, 0x0,
+        0x0, 0x15, 0x0, 0x0,        0x0, 0x15, 0x0, 0x0,
+        // clang-format on
     };
     expectedConstantControlUnitData.insert(expectedConstantControlUnitData.end(), metaDataBuffer.begin(),
                                            metaDataBuffer.end());
-    constexpr size_t compiledWeightSize = 12800;
+    constexpr size_t compiledWeightSize = 0x2a00;
 
     REQUIRE(compiledNetwork.size() == 1);
     const CompiledNetworkImpl* cnImpl = static_cast<const CompiledNetworkImpl*>(compiledNetwork[0].get());
@@ -365,7 +368,8 @@ TEST_CASE("Fully Connected")
     REQUIRE(cnImpl->GetConstantControlUnitDataBufferInfos() ==
             std::vector<CompiledNetworkImpl::BufferInfoInternal>{
                 { 0u, 0u, static_cast<uint32_t>(expectedCmdStreamData.size()) },
-                { 3u, static_cast<uint32_t>(expectedCmdStreamData.size() + 63) & ~63, 0x8 },
+                { 3u, static_cast<uint32_t>(expectedCmdStreamData.size() + 63) & ~63,
+                  static_cast<uint32_t>(metaDataBuffer.size()) },
             });
     REQUIRE(cnImpl->GetConstantDmaData().size() == compiledWeightSize);
     REQUIRE(cnImpl->GetConstantDmaDataBufferInfos() ==

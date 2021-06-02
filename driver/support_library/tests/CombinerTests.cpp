@@ -171,7 +171,7 @@ public:
 /// when given two adjacent plans that have compatible buffers (identical in this simple case)
 TEST_CASE("ArePlansCompatible Simple")
 {
-    const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     // Create simple graph A -> B -> C
     Graph graph;
     NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
@@ -227,7 +227,7 @@ TEST_CASE("ArePlansCompatible Simple")
 /// Checks that ArePlansCompatible correctly returns glue when DMA ops are required.
 TEST_CASE("ArePlansCompatible Glue")
 {
-    const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     // Create simple graph A -> B
     Graph graph;
     NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
@@ -314,7 +314,7 @@ TEST_CASE("ArePlansCompatible Glue with incompatible activation compression")
 
             AND_WHEN("Hardware configuration is Nx7")
             {
-                HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+                HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
                 THEN("DRAM buffer is CascadingBufferFormat::NHWCB (not compressed)")
                 {
                     PlanCompatibilityResult resultSramSram =
@@ -356,7 +356,7 @@ TEST_CASE("ArePlansCompatible Glue with incompatible activation compression")
 
             AND_WHEN("Hardware configuration is Nx7")
             {
-                HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+                HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
                 THEN("DRAM buffer is CascadingBufferFormat::NHWCB (not compressed)")
                 {
                     PlanCompatibilityResult resultSramSram =
@@ -420,35 +420,6 @@ TEST_CASE("ArePlansCompatible Glue with compatible activation compression")
         NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
         NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
         graph.Connect(nodeA, nodeB, 0);
-        WHEN("Hardware configuration is Nx7")
-        {
-            HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
-            AND_WHEN("SRAM Buffer A is compressible and SRAM buffer B is compressible")
-            {
-                Buffer planAOutputSram(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                       TensorShape{ 1, 16, 16, 32 }, TensorShape{ 1, 8, 16, 32 }, TraversalOrder::Xyz,
-                                       0, QuantizationInfo());
-                Plan planASram({}, { { &planAOutputSram, nodeA } });
-
-                Buffer planBInputSram(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                      TensorShape{ 1, 16, 16, 32 }, TensorShape{ 1, 16, 16, 32 }, TraversalOrder::Xyz,
-                                      0, QuantizationInfo());
-                Plan planBSram({ { &planBInputSram, nodeB->GetInput(0) } }, {});
-                constexpr TensorShape expectedTensorShape            = TensorShape{ 1, 16, 16, 32 };
-                constexpr uint32_t expectedSizeInByte                = 1 * 16 * 16 * 32;
-                constexpr CascadingBufferFormat expectedBufferFormat = CascadingBufferFormat::NHWCB_COMPRESSED;
-
-                THEN("DRAM buffer is CascadingBufferFormat::NHWCB_COMRESSED (compressed)")
-                {
-                    PlanCompatibilityResult resultSramSram =
-                        ArePlansCompatible(planASram, planBSram, *nodeA->GetOutput(0), hwCaps);
-                    CheckCommonDRAMBuffer(resultSramSram);
-                    REQUIRE(resultSramSram.m_Glue.m_Graph.GetBuffers()[0]->m_TensorShape == expectedTensorShape);
-                    REQUIRE(resultSramSram.m_Glue.m_Graph.GetBuffers()[0]->m_SizeInBytes == expectedSizeInByte);
-                    REQUIRE(resultSramSram.m_Glue.m_Graph.GetBuffers()[0]->m_Format == expectedBufferFormat);
-                }
-            }
-        }
         WHEN("Hardware configuration is N78")
         {
             HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
@@ -696,7 +667,7 @@ TEST_CASE("CreateMetadata For Cascade With No Depthwise Splitting for Convolutio
 {
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
 
     // Create graph A -> B
     Graph graph;
@@ -803,7 +774,7 @@ TEST_CASE("CreateMetadata For Cascade With Depthwise Splitting for DepthwiseConv
 {
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
 
     // Create graph A -> B
     Graph graph;
@@ -909,7 +880,7 @@ TEST_CASE("CreateMetadata Simple")
 {
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     // Create simple graph A -> B -> C
     Graph graph;
     NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
@@ -1042,7 +1013,7 @@ TEST_CASE("CreateMetadata Of Graph With Branches")
 {
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     /* Create graph:
 
               B - D
@@ -1398,7 +1369,7 @@ TEST_CASE("CreateSeeds Simple")
 {
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     // Create simple graph A -> B
     Graph graph;
     NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
@@ -1478,7 +1449,7 @@ TEST_CASE("GrowSeeds Simple")
 {
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     // Create simple graph A -> B -> C
     Graph graph;
     NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
@@ -1601,7 +1572,7 @@ TEST_CASE("GrowSeeds Schemes")
 {
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     // Create simple graph A -> B -> C
     Graph graph;
     NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
@@ -1670,7 +1641,7 @@ TEST_CASE("GrowSeeds Schemes")
 
     Metadata metadata = CreateMetadata(gOfParts, hwCaps);
 
-    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     Combinations combs              = CreateSeeds(gOfParts, metadata, caps);
     // All plan are compatible, the total number of seeds is the product of the number of plans
     REQUIRE(combs.size() == 4U);
@@ -1705,7 +1676,7 @@ TEST_CASE("GrowSeeds Of Graph With Branches")
 {
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     /* Create graph:
 
                   C
@@ -1866,7 +1837,7 @@ TEST_CASE("Combine Simple")
     const EstimationOptions estOpt;
     CompilationOptions compOpt;
     compOpt.m_DisableWinograd         = GENERATE(false, true);
-    const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     // Create simple graph A -> B -> C
     Graph graph;
     NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
@@ -1963,7 +1934,7 @@ TEST_CASE("Combine Simple")
 /// Checks that Combine back to Dram
 TEST_CASE("Combine Simple back to dram")
 {
-    const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     const EstimationOptions estOpt;
     CompilationOptions compOpt;
     // Create simple graph A -> B
@@ -2055,7 +2026,7 @@ TEST_CASE("GetOpGraphForCombination")
 
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
 
     // Part consisting of node A
     parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));

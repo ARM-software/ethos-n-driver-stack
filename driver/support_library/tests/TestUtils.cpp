@@ -33,16 +33,6 @@ HardwareCapabilities GetEthosN77HwCapabilities()
     return HardwareCapabilities(GetEthosN77FwHwCapabilities());
 }
 
-HardwareCapabilities GetEthosN57HwCapabilities()
-{
-    return HardwareCapabilities(GetEthosN57FwHwCapabilities());
-}
-
-HardwareCapabilities GetEthosN37HwCapabilities()
-{
-    return HardwareCapabilities(GetEthosN37FwHwCapabilities());
-}
-
 namespace
 {
 
@@ -61,16 +51,16 @@ std::vector<char> GetRawDefaultCapabilities()
     return GetRawCapabilities(fwHwCapabilities);
 }
 
-std::vector<char> GetRawDefaultEthosN77Capabilities()
-{
-    FirmwareAndHardwareCapabilities fwHwCapabilities = GetEthosN77FwHwCapabilities();
-    return GetRawCapabilities(fwHwCapabilities);
-}
-
 std::vector<char> GetRawDefaultEthosN78Capabilities()
 {
     FirmwareAndHardwareCapabilities fwHwCapabilities =
         GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, 0);
+    return GetRawCapabilities(fwHwCapabilities);
+}
+
+std::vector<char> GetRawEthosN78Capabilities(EthosNVariant variant, uint32_t sramSizeOverride)
+{
+    FirmwareAndHardwareCapabilities fwHwCapabilities = GetEthosN78FwHwCapabilities(variant, sramSizeOverride);
     return GetRawCapabilities(fwHwCapabilities);
 }
 

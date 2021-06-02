@@ -158,44 +158,6 @@ FirmwareAndHardwareCapabilities GetEthosN77FwHwCapabilities()
     return fwHwCapabilities;
 }
 
-FirmwareAndHardwareCapabilities GetEthosN57FwHwCapabilities()
-{
-    FirmwareAndHardwareCapabilities fwHwCapabilities;
-    uint32_t sramPerEngine                          = 64 * 1024;
-    fwHwCapabilities.m_NumberOfEngines              = 8;
-    fwHwCapabilities.m_IgsPerEngine                 = 1;
-    fwHwCapabilities.m_OgsPerEngine                 = 2;
-    fwHwCapabilities.m_EmcPerEngine                 = 1;
-    fwHwCapabilities.m_TotalSramSize                = fwHwCapabilities.m_NumberOfEngines * sramPerEngine;
-    fwHwCapabilities.m_NumPleLanes                  = 1;
-    fwHwCapabilities.m_WeightCompressionVersion     = 0;
-    fwHwCapabilities.m_ActivationCompressionVersion = 0;
-    fwHwCapabilities.m_IsNchwSupported              = 0;
-
-    SetCommonCapabilities(fwHwCapabilities);
-
-    return fwHwCapabilities;
-}
-
-FirmwareAndHardwareCapabilities GetEthosN37FwHwCapabilities()
-{
-    FirmwareAndHardwareCapabilities fwHwCapabilities;
-    uint32_t sramPerEngine                          = 128 * 1024;
-    fwHwCapabilities.m_NumberOfEngines              = 4;
-    fwHwCapabilities.m_IgsPerEngine                 = 2;
-    fwHwCapabilities.m_OgsPerEngine                 = 2;
-    fwHwCapabilities.m_EmcPerEngine                 = 2;
-    fwHwCapabilities.m_TotalSramSize                = fwHwCapabilities.m_NumberOfEngines * sramPerEngine;
-    fwHwCapabilities.m_NumPleLanes                  = 1;
-    fwHwCapabilities.m_WeightCompressionVersion     = 0;
-    fwHwCapabilities.m_ActivationCompressionVersion = 0;
-    fwHwCapabilities.m_IsNchwSupported              = 0;
-
-    SetCommonCapabilities(fwHwCapabilities);
-
-    return fwHwCapabilities;
-}
-
 void ValidateCapabilities(const std::vector<char>& rawCaps)
 {
     // Decode the capabilities struct by looking first at the header

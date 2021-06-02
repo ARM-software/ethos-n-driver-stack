@@ -15,7 +15,7 @@ using namespace ethosn::support_library;
 TEST_CASE("Validate Tile Size")
 {
     Graph graph;
-    const HardwareCapabilities hwCaps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
 
     SECTION("Check the tile calculation when the stripe is streamed in width and height")
     {

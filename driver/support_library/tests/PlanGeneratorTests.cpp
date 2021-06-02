@@ -501,7 +501,7 @@ TEST_CASE("PlanGenerator: Generate parts from graph without branching before MCE
     // Given
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     Graph g;
     BuildGraphWithoutBranchingBeforeMcePostProcessNode(g);
     REQUIRE(g.GetNodes().size() == 7);
@@ -525,7 +525,7 @@ TEST_CASE("PlanGenerator: Generate parts from graph with branching before MCE PP
     // Given
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     Graph g;
     BuildGraphWithBranchingBeforeMcePostProcessNode(g);
     REQUIRE(g.GetNodes().size() == 8);
@@ -551,7 +551,7 @@ TEST_CASE("PlanGenerator: Generate parts from graph with non MCE Operation node 
     // Given
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     Graph g;
     BuildGraphWithNonMceOpNodeBeforeMcePostProcessNode(g);
     REQUIRE(g.GetNodes().size() == 7);
@@ -577,7 +577,7 @@ TEST_CASE("PlanGenerator: Generate plans from a part with single node")
     const EstimationOptions estOpt;
     CompilationOptions compOpt;
     compOpt.m_DisableWinograd       = GENERATE(false, true);
-    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     Graph g;
     auto part = BuildSinglePartWithOneNode(g, estOpt, compOpt, caps);
     std::string expected =
@@ -621,7 +621,7 @@ TEST_CASE("PlanGenerator: Generate plans from a part with two fused nodes")
     const EstimationOptions estOpt;
     CompilationOptions compOpt;
     compOpt.m_DisableWinograd       = GENERATE(false, true);
-    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     Graph g;
     auto part = BuildSinglePartWithTwoNodes(g, estOpt, compOpt, caps);
     std::string expected =
@@ -666,7 +666,7 @@ TEST_CASE("PlanGenerator:FuseOnlyPleNode")
     // Graph with FuseOnlyPleNode
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     Graph g;
     auto part = BuildPartWithFuseOnlyPle(g, estOpt, compOpt, caps);
 
@@ -703,7 +703,7 @@ TEST_CASE("PlanGenerator:MceOperationNode")
     const EstimationOptions estOpt;
     CompilationOptions compOpt;
     compOpt.m_DisableWinograd       = GENERATE(false, true);
-    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     Graph g;
     auto part = BuildSinglePartWithOneNode(g, estOpt, compOpt, caps);
 
@@ -754,7 +754,7 @@ TEST_CASE("PlanGenerator: Generate plans from a part with single format conversi
     // Given
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     Graph g;
     auto part         = BuildPartWithLeadingFormatConversionNode(g, estOpt, compOpt, caps);
     const auto& edges = g.GetEdges();
@@ -802,7 +802,7 @@ TEST_CASE("PlanGenerator: Generate plans from a part with trailing format conver
     // Given
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     Graph g;
     auto part         = BuildPartWithTrailingFormatConversionNode(g, estOpt, compOpt, caps);
     const auto& edges = g.GetEdges();
@@ -862,7 +862,7 @@ TEST_CASE("PlanGenerator: Generate plans from a part with reinterpret node")
     // Given
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     Graph g;
     auto part         = BuildPartWithReinterpretNode(g, estOpt, compOpt, caps);
     const auto& edges = g.GetEdges();
@@ -941,7 +941,7 @@ TEST_CASE("PlanGenerator: FuseOnly")
 {
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN77HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
     Graph g;
 
     auto in      = g.CreateAndAddNode<InputNode>(TS{ 1, 224, 224, 64 }, std::set<uint32_t>{ 1 });
@@ -991,11 +991,11 @@ TEST_CASE("PlanGenerator: FuseOnly")
     }
 }
 
-TEST_CASE("PlanGenerator: Mobilenet N57 Conv", "[slow]")
+TEST_CASE("PlanGenerator: Mobilenet N78_2TOPS_4PLE_RATIO Conv", "[slow]")
 {
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN57HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO);
     Graph g;
 
     TS inputShape{ 1, 14, 14, 256 };
@@ -1017,11 +1017,11 @@ TEST_CASE("PlanGenerator: Mobilenet N57 Conv", "[slow]")
     }
 }
 
-TEST_CASE("PlanGenerator: Mobilenet N57 Depthwise")
+TEST_CASE("PlanGenerator: Mobilenet N78_2TOPS_4PLE_RATIO Depthwise")
 {
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN57HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO);
     Graph g;
 
     TS inputShape{ 1, 14, 14, 512 };
@@ -1042,11 +1042,11 @@ TEST_CASE("PlanGenerator: Mobilenet N57 Depthwise")
     }
 }
 
-TEST_CASE("PlanGenerator: Mobilenet N57 1024", "[slow]")
+TEST_CASE("PlanGenerator: Mobilenet N78_2TOPS_4PLE_RATIO 1024", "[slow]")
 {
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN57HwCapabilities();
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO);
     Graph g;
 
     TS inputShape{ 1, 7, 7, 512 };

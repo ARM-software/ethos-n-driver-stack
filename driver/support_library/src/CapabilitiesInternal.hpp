@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -13,10 +13,8 @@ namespace ethosn
 namespace support_library
 {
 
-FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant variant, uint32_t sramSize);
+FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant variant, uint32_t sramSize = 0);
 FirmwareAndHardwareCapabilities GetEthosN77FwHwCapabilities();
-FirmwareAndHardwareCapabilities GetEthosN57FwHwCapabilities();
-FirmwareAndHardwareCapabilities GetEthosN37FwHwCapabilities();
 
 /// Checks that capabilities vector is valid
 ///

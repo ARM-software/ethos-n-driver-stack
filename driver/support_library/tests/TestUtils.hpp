@@ -17,16 +17,11 @@ namespace support_library
 
 HardwareCapabilities GetEthosN78HwCapabilities();
 HardwareCapabilities GetEthosN78HwCapabilities(EthosNVariant variant, uint32_t sramSizeOverride = 0);
-
 HardwareCapabilities GetEthosN77HwCapabilities();
 
-HardwareCapabilities GetEthosN57HwCapabilities();
-
-HardwareCapabilities GetEthosN37HwCapabilities();
-
 std::vector<char> GetRawDefaultCapabilities();
-std::vector<char> GetRawDefaultEthosN77Capabilities();
 std::vector<char> GetRawDefaultEthosN78Capabilities();
+std::vector<char> GetRawEthosN78Capabilities(EthosNVariant variant, uint32_t sramSizeOverride = 0);
 
 bool Contains(const char* string, const char* substring);
 
