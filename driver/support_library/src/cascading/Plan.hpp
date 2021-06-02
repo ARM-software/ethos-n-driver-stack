@@ -52,7 +52,6 @@ enum class CascadingBufferFormat
     NCHW,
     NHWCB,
     WEIGHT,
-    NHWCB_COMPRESSED,
     FCAF_DEEP,
     FCAF_WIDE
 };

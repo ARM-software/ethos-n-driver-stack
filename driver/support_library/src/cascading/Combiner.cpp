@@ -327,8 +327,7 @@ Combinations CombineSeeds(const PlanId fPlId,
                         oneSeed);
 }
 
-CascadingBufferFormat GetBestCascadingBufferDramFormat(const TensorShape& tensorShape,
-                                                       const std::array<TensorShape, 2> inputOutputStripeShapes,
+CascadingBufferFormat GetBestCascadingBufferDramFormat(const std::array<TensorShape, 2> inputOutputStripeShapes,
                                                        const HardwareCapabilities& hwCap)
 {
     using SupportedCompressedFormats = std::vector<CascadingBufferFormat>;
@@ -342,18 +341,13 @@ CascadingBufferFormat GetBestCascadingBufferDramFormat(const TensorShape& tensor
             cascadingBufferSupportedTypePerStripe[sramStripeShapesIdx];
         const bool isFCAFEnabled = hwCap.GetActivationCompressionVersion() == 1;
 
-        if (!isFCAFEnabled && IsCompressionFormatCompatibleWithStripeAndShape(
-                                  CompilerDataCompressedFormat::NHWCB_COMPRESSED, tensorShape, currentStripeShape))
-        {
-            currentCascadedSupportedTypeList.push_back(CascadingBufferFormat::NHWCB_COMPRESSED);
-        }
         if (isFCAFEnabled && IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_DEEP,
-                                                                             tensorShape, currentStripeShape))
+                                                                             currentStripeShape))
         {
             currentCascadedSupportedTypeList.push_back(CascadingBufferFormat::FCAF_DEEP);
         }
         if (isFCAFEnabled && IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_WIDE,
-                                                                             tensorShape, currentStripeShape))
+                                                                             currentStripeShape))
         {
             currentCascadedSupportedTypeList.push_back(CascadingBufferFormat::FCAF_WIDE);
         }
@@ -814,8 +808,7 @@ PlanCompatibilityResult ArePlansCompatible(
         DmaOp* dma1Raw = dma1.get();
 
         CascadingBufferFormat cascadingBufferFormat = GetBestCascadingBufferDramFormat(
-            plan1OutputBuffer->m_TensorShape, { plan1OutputBuffer->m_StripeShape, plan2InputBuffer->m_StripeShape },
-            hwCap);
+            { plan1OutputBuffer->m_StripeShape, plan2InputBuffer->m_StripeShape }, hwCap);
         auto dramBuffer = std::make_unique<Buffer>(
             Lifetime::Atomic, Location::Dram, cascadingBufferFormat, plan1OutputBuffer->m_TensorShape,
             TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,

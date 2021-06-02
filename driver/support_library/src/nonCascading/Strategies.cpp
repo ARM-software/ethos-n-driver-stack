@@ -717,12 +717,11 @@ MceStrategySelectionReturnValue
             const uint64_t ifmBandwidth = tryResult.m_InputStats.m_MemoryStats.m_DramParallel +
                                           tryResult.m_InputStats.m_MemoryStats.m_DramNonParallel;
             const HardwareCapabilities& capabilities = strategySelectionParameters.capabilities;
-            const bool isOutputFcafCompatible =
-                capabilities.GetActivationCompressionVersion() == 1 &&
-                (IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_WIDE, outputShape,
-                                                                 outputStripeShape) ||
-                 IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_DEEP, outputShape,
-                                                                 outputStripeShape));
+            const bool isOutputFcafCompatible        = capabilities.GetActivationCompressionVersion() == 1 &&
+                                                (IsCompressionFormatCompatibleWithStripeAndShape(
+                                                     CompilerDataCompressedFormat::FCAF_WIDE, outputStripeShape) ||
+                                                 IsCompressionFormatCompatibleWithStripeAndShape(
+                                                     CompilerDataCompressedFormat::FCAF_DEEP, outputStripeShape));
 
             // Minimise IFM bandwidth, but also account for FCAF comatibility. FCAF is important not only for
             // bandwidth reduction, but reduces the chances that the firmware will need to do lots of small DMA chunks

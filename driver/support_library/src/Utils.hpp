@@ -336,32 +336,6 @@ inline uint32_t TotalSizeBytesNHWCB(const ethosn::support_library::TensorInfo& i
            utils::RoundUpToNearestMultiple(info.m_Dimensions[3], 16);
 }
 
-inline uint32_t TotalSizeBytesNHWCBCompressed(const ethosn::support_library::TensorInfo& info)
-{
-    assert(info.m_DataType == DataType::UINT8_QUANTIZED || info.m_DataType == DataType::INT8_QUANTIZED);
-    auto shape                            = info.m_Dimensions;
-    constexpr uint32_t brickGroupWidth    = 8;
-    constexpr uint32_t brickGroupHeight   = 8;
-    constexpr uint32_t brickGroupChannels = 16;
-
-    const uint32_t numBrickGroupRows  = DivRoundUp(shape[1], brickGroupHeight);
-    const uint32_t numBrickGroupCols  = DivRoundUp(shape[2], brickGroupWidth);
-    const uint32_t numBrickGroupDepth = DivRoundUp(shape[3], brickGroupChannels);
-
-    // The compressed row sizes are stored contiguously as 16 bit values at the beginning of the buffer and
-    // is aligned to 64 bytes.
-    // See the Activation Compression Specification
-    // The row sizes are defined to be 16-bits.
-    const uint32_t rowSizeMetaData = static_cast<uint32_t>(sizeof(uint16_t)) * numBrickGroupRows;
-
-    // Compressed NHWCB needs 1 byte of metadata per patch group.
-    const uint32_t sizeOfBrickGroupRow =
-        numBrickGroupDepth * numBrickGroupCols * (brickGroupWidth * brickGroupHeight + 1) * brickGroupChannels;
-
-    return utils::RoundUpToNearestMultiple(rowSizeMetaData, 64) +
-           utils::RoundUpToNearestMultiple(sizeOfBrickGroupRow, 64) * numBrickGroupRows;
-}
-
 inline uint32_t TotalSizeBytesFCAF(const ethosn::support_library::TensorShape& tensorShape,
                                    const ethosn::support_library::TensorShape& cellShape)
 {
@@ -640,7 +614,6 @@ constexpr DataTypeRange GetTypeLimits()
 command_stream::UpsampleType ConvertResizeAlgorithmToCommand(const ResizeAlgorithm algorithm);
 
 bool IsCompressionFormatCompatibleWithStripeAndShape(const CompilerDataCompressedFormat& compressionFormat,
-                                                     const TensorShape& nodeShape,
                                                      const TensorShape& stripeShape);
 
 struct NeedBoundary

@@ -15,8 +15,7 @@ namespace support_library
 
 bool IsCompressed(CascadingBufferFormat format)
 {
-    return format == CascadingBufferFormat::NHWCB_COMPRESSED || format == CascadingBufferFormat::FCAF_DEEP ||
-           format == CascadingBufferFormat::FCAF_WIDE;
+    return format == CascadingBufferFormat::FCAF_DEEP || format == CascadingBufferFormat::FCAF_WIDE;
 }
 
 const OpGraph::OpList& OpGraph::GetOps() const

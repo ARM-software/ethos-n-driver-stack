@@ -34,14 +34,11 @@ using namespace utils;
 uint32_t CalculateBufferSize(const TensorShape& shape, command_stream::DataFormat dataFormat)
 {
     assert(dataFormat == command_stream::DataFormat::NHWC || dataFormat == command_stream::DataFormat::NCHW ||
-           dataFormat == command_stream::DataFormat::NHWCB ||
-           dataFormat == command_stream::DataFormat::NHWCB_COMPRESSED ||
-           dataFormat == command_stream::DataFormat::FCAF_WIDE || dataFormat == command_stream::DataFormat::FCAF_DEEP);
+           dataFormat == command_stream::DataFormat::NHWCB || dataFormat == command_stream::DataFormat::FCAF_WIDE ||
+           dataFormat == command_stream::DataFormat::FCAF_DEEP);
 
     switch (dataFormat)
     {
-        case command_stream::DataFormat::NHWCB_COMPRESSED:
-            return TotalSizeBytesNHWCBCompressed(shape);
         case command_stream::DataFormat::FCAF_DEEP:
             return TotalSizeBytesFCAFDeep(shape);
         case command_stream::DataFormat::FCAF_WIDE:

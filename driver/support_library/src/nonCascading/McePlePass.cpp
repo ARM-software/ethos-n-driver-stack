@@ -33,22 +33,17 @@ namespace
 {
 
 bool IsCompressionFormatCompatible(const CompilerDataCompressedFormat& compressionFormat,
-                                   const TensorShape& nodeShape,
                                    const TensorShape& stripeShape,
                                    const Strategy& strategy,
                                    bool forwardEst)
 {
     // If SPA "forward-looking" estimate is configured, activation compression for Ethos-N78 will be
     // allowed for arbitrary tensor shapes except for Strategy 7, which are not supported by FCAF.
-    bool estimateOverride = forwardEst && (strategy != Strategy::STRATEGY_7);
-    bool tensorCompressible =
-        IsCompressionFormatCompatibleWithStripeAndShape(compressionFormat, nodeShape, stripeShape);
+    bool estimateOverride   = forwardEst && (strategy != Strategy::STRATEGY_7);
+    bool tensorCompressible = IsCompressionFormatCompatibleWithStripeAndShape(compressionFormat, stripeShape);
 
     switch (compressionFormat)
     {
-        case CompilerDataCompressedFormat::NHWCB_COMPRESSED:
-            // The stripe must be the full width and depth of the node input/output shape
-            return tensorCompressible;
         case CompilerDataCompressedFormat::FCAF_DEEP:
             // The stripe shape must be a multiple of the cells height (8), width (8) and depth (32)
             return (tensorCompressible || estimateOverride);
@@ -89,27 +84,18 @@ CompilerDataCompressedFormat GetIntermediateOutputCompressedFormat(const Hardwar
     {
         const Strategy strategy              = linearOutputNodes.m_StrategyConfig.strategy;
         const TensorShape& outputStripeShape = linearOutputNodes.m_StrategyConfig.outputAllocation.stripeShape;
-        const TensorShape& outputNodeShape   = outputNode.GetShape();
 
         // Attempt to find a compatible compression to use
-        if (capabilities.GetActivationCompressionVersion() == 0)
+        if (capabilities.GetActivationCompressionVersion() == 1)
         {
-            if (IsCompressionFormatCompatible(CompilerDataCompressedFormat::NHWCB_COMPRESSED, outputNodeShape,
-                                              outputStripeShape, strategy, forwardEst))
-            {
-                return CompilerDataCompressedFormat::NHWCB_COMPRESSED;
-            }
-        }
-        else
-        {
-            if (IsCompressionFormatCompatible(CompilerDataCompressedFormat::FCAF_DEEP, outputNodeShape,
-                                              outputStripeShape, strategy, forwardEst))
+            if (IsCompressionFormatCompatible(CompilerDataCompressedFormat::FCAF_DEEP, outputStripeShape, strategy,
+                                              forwardEst))
             {
                 return CompilerDataCompressedFormat::FCAF_DEEP;
             }
 
-            if (IsCompressionFormatCompatible(CompilerDataCompressedFormat::FCAF_WIDE, outputNodeShape,
-                                              outputStripeShape, strategy, forwardEst))
+            if (IsCompressionFormatCompatible(CompilerDataCompressedFormat::FCAF_WIDE, outputStripeShape, strategy,
+                                              forwardEst))
             {
                 return CompilerDataCompressedFormat::FCAF_WIDE;
             }
@@ -509,8 +495,7 @@ std::unique_ptr<ethosn::support_library::McePlePass>
     // If the compression format can't be used for the IFM, we need to give a hint to the previous
     // node that its output needs to be uncompressed.
     if (inputNode.GetInputCompressed(0) &&
-        !IsCompressionFormatCompatible(inputNode.GetInputCompressedFormat(0), inputNode.GetInputShape(0),
-                                       inputStripeShape, strategy, forwardEst))
+        !IsCompressionFormatCompatible(inputNode.GetInputCompressedFormat(0), inputStripeShape, strategy, forwardEst))
     {
         inputNode.GetInput(0)->GetSource()->SetFixGraphCompressionHint(CompressionHint::RequiredUncompressed);
         return std::unique_ptr<McePlePass>();

@@ -146,8 +146,6 @@ command_stream::DataFormat Node::GetBufferFormat() const
     {
         switch (m_CompressionFormat)
         {
-            case CompilerDataCompressedFormat::NHWCB_COMPRESSED:
-                return command_stream::DataFormat::NHWCB_COMPRESSED;
             case CompilerDataCompressedFormat::FCAF_DEEP:
                 return command_stream::DataFormat::FCAF_DEEP;
             case CompilerDataCompressedFormat::FCAF_WIDE:

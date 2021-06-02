@@ -330,14 +330,10 @@ command_stream::UpsampleType ConvertResizeAlgorithmToCommand(const ResizeAlgorit
 }
 
 bool IsCompressionFormatCompatibleWithStripeAndShape(const CompilerDataCompressedFormat& compressionFormat,
-                                                     const TensorShape& nodeShape,
                                                      const TensorShape& stripeShape)
 {
     switch (compressionFormat)
     {
-        case CompilerDataCompressedFormat::NHWCB_COMPRESSED:
-            // The stripe must be the full width and depth of the node input/output shape
-            return stripeShape[2] >= nodeShape[2] && stripeShape[3] >= nodeShape[3];
         case CompilerDataCompressedFormat::FCAF_DEEP:
             // The stripe shape must be a multiple of the cells height (8), width (8) and depth (32)
             return (((stripeShape[1] % 8) == 0) && ((stripeShape[2] % 8) == 0) && ((stripeShape[3] % 32) == 0));

@@ -69,8 +69,6 @@ std::string ToString(CascadingBufferFormat f)
             return "NHWCB";
         case CascadingBufferFormat::WEIGHT:
             return "WEIGHT";
-        case CascadingBufferFormat::NHWCB_COMPRESSED:
-            return "NHWCB_COMPRESSED";
         case CascadingBufferFormat::FCAF_DEEP:
             return "FCAF_DEEP";
         case CascadingBufferFormat::FCAF_WIDE:
@@ -127,8 +125,6 @@ std::string ToString(CompilerDataCompressedFormat f)
     {
         case CompilerDataCompressedFormat::NONE:
             return "NONE";
-        case CompilerDataCompressedFormat::NHWCB_COMPRESSED:
-            return "NHWCB_COMPRESSED";
         case CompilerDataCompressedFormat::FCAF_DEEP:
             return "FCAF_DEEP";
         case CompilerDataCompressedFormat::FCAF_WIDE:
@@ -282,8 +278,6 @@ std::string ToString(command_stream::DataFormat f)
             return "NHWC";
         case command_stream::DataFormat::NHWCB:
             return "NHWCB";
-        case command_stream::DataFormat::NHWCB_COMPRESSED:
-            return "NHWCB_COMPRESSED";
         case command_stream::DataFormat::WEIGHT_STREAM:
             return "WEIGHT_STREAM";
         default:
