@@ -327,13 +327,3 @@ def add_padding(align):
             new_sz = ((sz + align - 1) // align) * align
             f.write(b'\x00' * (new_sz - sz))
     return add_padding_fn
-
-
-def arch_regs_dir(env, variant=None):
-    if variant is None:
-        variant = get_single_elem(env['variants'], 'variants')
-
-    if variant == 'fenchurch':
-        return env['arch_regs_dir']
-
-    return env['arch_regs_nx7_dir']
