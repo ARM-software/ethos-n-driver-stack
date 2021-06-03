@@ -1196,16 +1196,7 @@ void NetworkToGraphConverter::Visit(Transpose& transpose)
     else if ((permutation[1] == 1) && (permutation[2] == 2) && (permutation[3] == 3))
     {
         // 0, 1, 2, 3 is equivalent to no-op.
-        // Inserting a reinterpret node that has identical output to the input
-        TensorShape intermediateShape = { inputTensorInfo.m_Dimensions[0], inputTensorInfo.m_Dimensions[1],
-                                          inputTensorInfo.m_Dimensions[2], inputTensorInfo.m_Dimensions[3] };
-
-        ReinterpretNode* reinterpretNode1 = m_Graph.CreateAndAddNode<ReinterpretNode>(
-            intermediateShape, outputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo,
-            m_OperandToNode[&transpose.GetInput(0)]->GetFormat(), std::set<uint32_t>{ transpose.GetId() });
-        nodes.push_back(reinterpretNode1);
-
-        ConnectNodeChain(transpose, nodes);
+        ConnectNoOp(transpose);
     }
 }
 
@@ -1269,6 +1260,17 @@ void NetworkToGraphConverter::Visit(EstimateOnly& estimateOnly)
 void NetworkToGraphConverter::ConnectNode(const Operation& operation, Node* node)
 {
     ConnectNodeChain(operation, { node });
+}
+
+void NetworkToGraphConverter::ConnectNoOp(const Operation& operation)
+{
+    // Sanity check for single input support
+    assert(operation.GetInputs().size() == 1);
+
+    for (size_t i = 0; i < operation.GetOutputs().size(); ++i)
+    {
+        m_OperandToNode[&operation.GetOutput(i)] = m_OperandToNode[&operation.GetInput(0)];
+    }
 }
 
 void NetworkToGraphConverter::ConnectNodeChain(const Operation& operation, const std::vector<Node*>& nodes)

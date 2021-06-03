@@ -60,6 +60,10 @@ private:
     /// The first node in the list will have its inputs connected to the nodes representing the inputs of the Operation.
     void ConnectNodeChain(const Operation& operation, const std::vector<Node*>& linearNodes);
 
+    // Connects a no-op operation into the graph
+    // The last node of the graph is assigned to the output of the operation.
+    void ConnectNoOp(const Operation& operation);
+
     std::vector<uint8_t> MaybeOverrideWeights(const std::vector<uint8_t>& userWeights,
                                               const TensorInfo& weightsInfo) const;
 
