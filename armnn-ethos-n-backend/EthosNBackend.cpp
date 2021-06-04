@@ -738,6 +738,10 @@ void ValidateMappingParameters(Mapping mapping)
     {
         errors = "Invalid Argument: N:1 mapping is not supported\n";
     }
+    else if (mapping.m_ReplacementLayers.size() != 1)
+    {
+        errors = "Invalid Argument: 1:N mapping is not supported\n";
+    }
     else if (!IsLayerType(pattern))
     {
         errors = "Invalid Argument: Pattern Layer Type is invalid\n";
