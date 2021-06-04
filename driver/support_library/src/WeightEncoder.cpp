@@ -1846,31 +1846,24 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
             streamPerOgForThisStripe =
                 MergeStreamsOg(encodedOfmStreamsForThisStripe, numOfmInParallel * numIterationsOfm, dmaEngineAlignment);
         }
-        streamPerStripeOg.insert(std::end(streamPerStripeOg), std::begin(streamPerOgForThisStripe),
-                                 std::end(streamPerOgForThisStripe));
+        streamPerStripeOg.insert(std::end(streamPerStripeOg), std::make_move_iterator(streamPerOgForThisStripe.begin()),
+                                 std::make_move_iterator(streamPerOgForThisStripe.end()));
     }
 
-    // Ensure all streams are of equal size as SRAM offsets are same on all CEs
     uint32_t maxLength = 0;
     for (const std::vector<uint8_t>& s : streamPerStripeOg)
     {
         maxLength = std::max(maxLength, static_cast<uint32_t>(s.size()));
     }
-    for (std::vector<uint8_t>& s : streamPerStripeOg)
-    {
-        s.resize(maxLength, 0);
-    }
 
+    // Ensure all streams are of equal size as SRAM offsets are same on all CEs
     // Because the weights will be DMA'd in stripes, there is an alignment requirement for the start of each stripe
     // (the DMA can only transfer blocks aligned to 16-bytes).
     // Therefore we pad each stream to 16 bytes.
-    for (std::vector<uint8_t>& stream : streamPerStripeOg)
+    maxLength = utils::RoundUpToNearestMultiple(maxLength, dmaEngineAlignment);
+    for (std::vector<uint8_t>& s : streamPerStripeOg)
     {
-        if (stream.size() % dmaEngineAlignment != 0)
-        {
-            size_t numZeroesToAdd = dmaEngineAlignment - stream.size() % dmaEngineAlignment;
-            std::fill_n(std::back_inserter(stream), numZeroesToAdd, 0);
-        }
+        s.resize(maxLength, 0);
     }
 
     // Merge together all the stripes into groups based on the SRAM they will be loaded into.
