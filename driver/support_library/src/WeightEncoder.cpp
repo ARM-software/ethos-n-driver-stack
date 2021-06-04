@@ -655,19 +655,19 @@ static uint8_t CalcBitWidth(size_t value, uint8_t minWidth)
     {
         ++bitwidth;
     }
-    // Nothing in the encoding can have more than 9 bits
-    assert(bitwidth <= 9);
     return bitwidth;
 }
 
-std::vector<std::pair<WeightEncoderV2::WeightSymbol, uint32_t>> WeightEncoderV2::CreateUncompressedSymbolFreqs(
+WeightEncoderV2::WeightSymbolFreqInfo WeightEncoderV2::CreateUncompressedSymbolFreqs(
     const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
     const std::map<Weight, uint8_t>& inversePalette,
     size_t paletteSize,
     uint8_t weightOffset) const
 {
-    std::vector<std::pair<WeightSymbol, uint32_t>> uncompressedSymbolFreqPairs;
-    uncompressedSymbolFreqPairs.reserve(symbolFreqPairs.size());
+    WeightSymbolFreqInfo symbolFreqInfo{};
+    symbolFreqInfo.m_SymbolFreqPairs.reserve(symbolFreqPairs.size());
+    symbolFreqInfo.m_MaxSymbol = 0;
+    symbolFreqInfo.m_MinSymbol = std::numeric_limits<WeightSymbol>::max();
 
     // Populate the vector with the symbols that should be compressed. If a symbol's weight value
     // can be found in the palette, it is replaced with the palette index. Otherwise, the symbol is
@@ -686,47 +686,56 @@ std::vector<std::pair<WeightEncoderV2::WeightSymbol, uint32_t>> WeightEncoderV2:
             uncompressedSymbol = static_cast<WeightSymbol>(symbolFreqPair.first + paletteSize - weightOffset);
         }
 
-        uncompressedSymbolFreqPairs.emplace_back(std::make_pair(uncompressedSymbol, symbolFreqPair.second));
+        symbolFreqInfo.m_MinSymbol = std::min(uncompressedSymbol, symbolFreqInfo.m_MinSymbol);
+        symbolFreqInfo.m_MaxSymbol = std::max(uncompressedSymbol, symbolFreqInfo.m_MaxSymbol);
+        symbolFreqInfo.m_SymbolFreqPairs.emplace_back(std::make_pair(uncompressedSymbol, symbolFreqPair.second));
     }
 
-    return uncompressedSymbolFreqPairs;
+    return symbolFreqInfo;
 }
 
-uint32_t
-    WeightEncoderV2::FindGRCParams(WeightCompressionParamsV2& params,
-                                   const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
-                                   const std::vector<std::pair<WeightSymbol, uint32_t>>& noPaletteSymbolFreqPairs) const
+uint32_t WeightEncoderV2::FindGRCParams(WeightCompressionParamsV2& params,
+                                        const WeightSymbolFreqInfo& symbolFreqPairInfo,
+                                        const WeightSymbolFreqInfo& noPaletteSymbolFreqPairInfo) const
 {
     constexpr uint8_t maxNumQuotientBits = 31;
+    constexpr uint32_t wDiv0             = static_cast<uint32_t>(WDivisor::WDIV_0);
+    constexpr uint32_t wDiv5             = static_cast<uint32_t>(WDivisor::WDIV_5);
 
     // If the no palette vector is not empty, it should be used for the uncompressed bitcost
-    const auto& uncompressedSymbolFreqPairs =
-        (noPaletteSymbolFreqPairs.empty() ? symbolFreqPairs : noPaletteSymbolFreqPairs);
+    const auto& uncompressedSymbolFreqInfo =
+        (noPaletteSymbolFreqPairInfo.m_SymbolFreqPairs.empty() ? symbolFreqPairInfo : noPaletteSymbolFreqPairInfo);
 
     // Calculate the bitcost to use uncompressed symbols
-    const WeightSymbol maxSymbol =
-        std::max_element(uncompressedSymbolFreqPairs.begin(), uncompressedSymbolFreqPairs.end())->first;
-    uint8_t symbolBitWidth       = CalcBitWidth(maxSymbol, 2);
+    uint8_t symbolBitWidth = CalcBitWidth(uncompressedSymbolFreqInfo.m_MaxSymbol, 2);
+
     uint32_t uncompressedBitcost = 0;
-    for (const auto& symbolFreqPair : uncompressedSymbolFreqPairs)
+    for (const auto& symbolFreqPair : uncompressedSymbolFreqInfo.m_SymbolFreqPairs)
     {
         uncompressedBitcost += (symbolFreqPair.second * symbolBitWidth);
     }
+
+    const uint32_t minWidth = CalcBitWidth(symbolFreqPairInfo.m_MinSymbol, 2);
+    const uint32_t maxWidth = CalcBitWidth(symbolFreqPairInfo.m_MaxSymbol, 1);
+    // If the largest symbol has a bit width larger than wDiv5, the start divisor must be adjusted to
+    // not exceed maxNumQuotientBits.
+    const uint32_t startDiv = std::max(maxWidth > wDiv5 ? maxWidth - wDiv5 : wDiv0, std::min(wDiv5, minWidth - 2));
+    const uint32_t endDiv   = std::min(wDiv5, maxWidth - 1);
 
     // Calculate the bitcost for each WDiv to find the one with the lowest overall bitcost. Use the
     // uncompressed bitcost as the initial best choice to include it in the selection process.
     uint32_t bestBitcost = uncompressedBitcost;
     WDivisor bestWDiv    = WDivisor::UNCOMPRESSED;
     bool truncated       = false;
-    for (uint8_t i = 0; i <= static_cast<uint8_t>(WDivisor::WDIV_5); ++i)
+    for (uint32_t i = startDiv; i <= endDiv; ++i)
     {
         uint32_t sumQuots        = 0;
         uint32_t sumTruncQuots   = 0;
         uint32_t wUnary1Len      = 0;
         uint32_t wUnary1TruncLen = 0;
         uint32_t sumRemain       = 0;
-        bool canTruncate         = (symbolFreqPairs.size() <= 3);
-        for (const auto& symbolFreqPair : symbolFreqPairs)
+        bool canTruncate         = (symbolFreqPairInfo.m_SymbolFreqPairs.size() <= 3);
+        for (const auto& symbolFreqPair : symbolFreqPairInfo.m_SymbolFreqPairs)
         {
             const uint32_t numQuotientBits = (symbolFreqPair.first >> i);
             canTruncate                    = canTruncate && numQuotientBits < 3;
@@ -890,42 +899,23 @@ bool WeightEncoderV2::FindPaletteParams(WeightCompressionParamsV2& params,
     return true;
 }
 
-uint32_t WeightEncoderV2::FindRLEParams(WeightCompressionParamsV2& params,
-                                        const std::vector<uint8_t>& weights,
-                                        const TensorInfo& weightsTensorInfo) const
+uint32_t WeightEncoderV2::FindRLEParams(WeightCompressionParamsV2& params, const ZeroGroupInfo& zeroGroupInfo) const
 {
     constexpr uint32_t zDiv3 = static_cast<uint32_t>(ZDivisor::ZDIV_3);
 
-    // Find how the zeroes are grouped among the weights
-    std::vector<uint32_t> zeroGroups;
-    zeroGroups.reserve(weights.size());
-    const int32_t zeroPoint    = weightsTensorInfo.m_QuantizationInfo.GetZeroPoint();
-    const uint8_t rawZeroPoint = *reinterpret_cast<const uint8_t*>(&zeroPoint);
-    for (auto wIt = weights.begin(); wIt != weights.end(); wIt += (wIt != weights.end()))
-    {
-        const auto startIt = wIt;
-        while (wIt != weights.end() && *wIt == rawZeroPoint)
-        {
-            ++wIt;
-        }
-        const uint32_t numZeroes = static_cast<uint32_t>(wIt - startIt);
-        zeroGroups.push_back(numZeroes);
-    }
-
-    if (weights.back() != rawZeroPoint)
-    {
-        zeroGroups.push_back(0);
-    }
+    const uint32_t minWidth = CalcBitWidth(zeroGroupInfo.m_MinGroup, 2);
+    const uint32_t maxWidth = CalcBitWidth(zeroGroupInfo.m_MaxGroup, 1);
+    const uint32_t startDiv = std::min(zDiv3, minWidth - 2);
+    const uint32_t endDiv   = std::min(zDiv3, maxWidth - 1);
 
     // Find the ZDiv with the lowest overall bitcost
     uint32_t bestBitcost = UINT32_MAX;
     ZDivisor bestZDiv    = ZDivisor::ZDIV_0;
-    for (uint32_t i = 0; i <= zDiv3; ++i)
+    for (uint32_t i = startDiv; i <= endDiv; ++i)
     {
-
         uint32_t sumQuots  = 0;
         uint32_t sumRemain = 0;
-        for (uint32_t group : zeroGroups)
+        for (uint32_t group : zeroGroupInfo.m_ZeroGroups)
         {
             sumQuots += (group >> i) + 1;
             sumRemain += i;
@@ -953,46 +943,79 @@ void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& new
                                                   const std::vector<uint8_t>& weights,
                                                   const TensorInfo& weightsTensorInfo) const
 {
-    const int32_t zeroPoint = weightsTensorInfo.m_QuantizationInfo.GetZeroPoint();
+    const int32_t zeroPoint           = weightsTensorInfo.m_QuantizationInfo.GetZeroPoint();
+    const uint8_t rawZeroPoint        = static_cast<uint8_t>(zeroPoint);
+    const uint32_t conversionOffset   = (weightsTensorInfo.m_DataType == DataType::INT8_QUANTIZED) ? 128U : 0;
+    const int32_t conversionZeroPoint = conversionOffset + zeroPoint;
 
     // Make frequency table containing an entry for each different weight symbol
     std::array<std::pair<WeightSymbol, uint32_t>, 256> frequencyTable;
+
     // Initialize the table, filling in the weight symbol and zeroing the frequency
-    uint8_t rawWeight = 0;
+    uint32_t rawWeight = 0;
     for (auto& pair : frequencyTable)
     {
-        Weight w    = (weightsTensorInfo.m_DataType == DataType::INT8_QUANTIZED ? *reinterpret_cast<int8_t*>(&rawWeight)
-                                                                             : rawWeight);
-        pair.first  = WeightToSymbol(static_cast<Weight>(w - zeroPoint));
+        const Weight weight =
+            static_cast<Weight>(static_cast<uint8_t>(rawWeight + conversionOffset) - conversionZeroPoint);
+        pair.first  = WeightToSymbol(weight);
         pair.second = 0;
         ++rawWeight;
     }
-    for (uint8_t weight : weights)
+
+    ZeroGroupInfo zeroGroupInfo{};
+    zeroGroupInfo.m_ZeroGroups.reserve(weights.size() + 1);
+    zeroGroupInfo.m_MaxGroup = 0U;
+    zeroGroupInfo.m_MinGroup = UINT32_MAX;
+    auto lastNonZeroIt       = weights.begin();
+    for (auto wIt = weights.begin(); wIt != weights.end(); ++wIt)
     {
-        frequencyTable[weight].second++;
+        frequencyTable[*wIt].second++;
+
+        if (*wIt != rawZeroPoint)
+        {
+            const uint32_t numZeroes = static_cast<uint32_t>(wIt - lastNonZeroIt);
+            zeroGroupInfo.m_ZeroGroups.push_back(numZeroes);
+            zeroGroupInfo.m_MinGroup = std::min(numZeroes, zeroGroupInfo.m_MinGroup);
+            zeroGroupInfo.m_MaxGroup = std::max(numZeroes, zeroGroupInfo.m_MaxGroup);
+            lastNonZeroIt            = wIt + 1;
+        }
     }
 
+    const uint32_t numZeroes = static_cast<uint32_t>(weights.end() - lastNonZeroIt);
+    zeroGroupInfo.m_ZeroGroups.push_back(numZeroes);
+    zeroGroupInfo.m_MinGroup = std::min(numZeroes, zeroGroupInfo.m_MinGroup);
+    zeroGroupInfo.m_MaxGroup = std::max(numZeroes, zeroGroupInfo.m_MaxGroup);
+
     // Convert to vector and sort
-    std::vector<std::pair<WeightSymbol, uint32_t>> sortedSymbolFreqPairs;
+    WeightSymbolFreqInfo sortedSymbolFreqInfo{};
+    sortedSymbolFreqInfo.m_MaxSymbol = 0U;
+    sortedSymbolFreqInfo.m_MinSymbol = std::numeric_limits<WeightSymbol>::max();
+    WeightSymbol minNonZeroSymbol    = std::numeric_limits<WeightSymbol>::max();
     for (const std::pair<WeightSymbol, uint32_t>& p : frequencyTable)
     {
         if (p.second > 0)
         {
-            sortedSymbolFreqPairs.push_back(p);
+            sortedSymbolFreqInfo.m_MinSymbol = std::min(sortedSymbolFreqInfo.m_MinSymbol, p.first);
+            minNonZeroSymbol                 = p.first > 0 ? std::min(minNonZeroSymbol, p.first) : minNonZeroSymbol;
+            sortedSymbolFreqInfo.m_MaxSymbol = std::max(sortedSymbolFreqInfo.m_MaxSymbol, p.first);
+            sortedSymbolFreqInfo.m_SymbolFreqPairs.push_back(p);
         }
     }
-    std::sort(sortedSymbolFreqPairs.begin(), sortedSymbolFreqPairs.end(), [](const auto& a, const auto& b) {
-        // If two symbols have the same frequency, place the larger symbol first to give it a better
-        // chance to be placed in the palette.
-        return a.second > b.second || (a.second == b.second && a.first > b.first);
-    });
 
-    auto zeroIter = find_if(sortedSymbolFreqPairs.begin(), sortedSymbolFreqPairs.end(),
-                            [](const std::pair<WeightSymbol, uint32_t>& e) { return e.first == 0; });
+    std::sort(sortedSymbolFreqInfo.m_SymbolFreqPairs.begin(), sortedSymbolFreqInfo.m_SymbolFreqPairs.end(),
+              [](const auto& a, const auto& b) {
+                  // If two symbols have the same frequency, place the larger symbol first to give it a better
+                  // chance to be placed in the palette.
+                  return a.second > b.second || (a.second == b.second && a.first > b.first);
+              });
+
+    auto zeroIter =
+        find_if(sortedSymbolFreqInfo.m_SymbolFreqPairs.begin(), sortedSymbolFreqInfo.m_SymbolFreqPairs.end(),
+                [](const std::pair<WeightSymbol, uint32_t>& e) { return e.first == 0; });
 
     std::vector<std::pair<uint32_t, WeightCompressionParamsV2>> passCostParamPairs;
     // If there are zero weights, run an extra pass with RLE enabled
-    uint32_t numPasses = zeroIter != sortedSymbolFreqPairs.end() ? 2 : 1;
+    uint32_t numPasses = zeroGroupInfo.m_MaxGroup > 0 ? 2 : 1;
     for (uint32_t pass = 0; pass < numPasses; ++pass)
     {
         WeightCompressionParamsV2 params = newParams;
@@ -1001,9 +1024,9 @@ void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& new
         // Only use RLE for the second pass
         if (pass > 0)
         {
-            bitCost += FindRLEParams(params, weights, weightsTensorInfo);
+            bitCost += FindRLEParams(params, zeroGroupInfo);
             // If there are only zero weights, there is nothing more to do.
-            if (sortedSymbolFreqPairs.size() == 1)
+            if (sortedSymbolFreqInfo.m_SymbolFreqPairs.size() == 1)
             {
                 // There are only zero weights so only the ZDivisor will be used. All other compression
                 // parameters should stay the same as the previous OFM.
@@ -1025,40 +1048,39 @@ void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& new
             }
 
             // Remove the zero weights from the vector as they are now handled by RLE
-            sortedSymbolFreqPairs.erase(zeroIter);
+            sortedSymbolFreqInfo.m_SymbolFreqPairs.erase(zeroIter);
+            sortedSymbolFreqInfo.m_MinSymbol = minNonZeroSymbol;
         }
 
         // Attempt to find palette parameters that fit the weight symbols
-        if (!FindPaletteParams(params, sortedSymbolFreqPairs))
+        if (!FindPaletteParams(params, sortedSymbolFreqInfo.m_SymbolFreqPairs))
         {
             // No palette will be used so find the smallest symbol to use as weight offset
-            const Weight minSymbol =
-                std::min_element(sortedSymbolFreqPairs.begin(), sortedSymbolFreqPairs.end())->first;
-            params.m_WeightOffset = WeightOffsetClamp(minSymbol);
+            params.m_WeightOffset = WeightOffsetClamp(sortedSymbolFreqInfo.m_MinSymbol);
             params.m_PaletteBits  = 0;
         }
 
         // To be able to find the best GRC params, we first need to create a vector with the final
         // symbols that should be compressed.
-        std::vector<std::pair<WeightSymbol, uint32_t>> uncompressedSymbolFreqs = CreateUncompressedSymbolFreqs(
-            sortedSymbolFreqPairs, params.m_InversePalette, params.m_Palette.size(), params.m_WeightOffset);
+        WeightSymbolFreqInfo uncompressedSymbolFreqInfo =
+            CreateUncompressedSymbolFreqs(sortedSymbolFreqInfo.m_SymbolFreqPairs, params.m_InversePalette,
+                                          params.m_Palette.size(), params.m_WeightOffset);
 
         // If a palette is used and it does not contain all the values, the GRC param finder needs an
         // additional vector where the palette is not used to correctly evaluate the cost of using
         // uncompressed mode.
-        std::vector<std::pair<WeightSymbol, uint32_t>> uncompressedNoPaletteSymbolFreqs;
+        WeightSymbolFreqInfo uncompressedNoPaletteSymbolFreqInfo;
         uint8_t noPaletteOffset = 0;
         // Inverse palette has the actual size without padding
-        if (params.m_InversePalette.size() != sortedSymbolFreqPairs.size())
+        if (params.m_InversePalette.size() != sortedSymbolFreqInfo.m_SymbolFreqPairs.size())
         {
-            noPaletteOffset =
-                WeightOffsetClamp(std::min_element(sortedSymbolFreqPairs.begin(), sortedSymbolFreqPairs.end())->first);
-            uncompressedNoPaletteSymbolFreqs =
-                CreateUncompressedSymbolFreqs(sortedSymbolFreqPairs, {}, 0, noPaletteOffset);
+            noPaletteOffset = WeightOffsetClamp(sortedSymbolFreqInfo.m_MinSymbol);
+            uncompressedNoPaletteSymbolFreqInfo =
+                CreateUncompressedSymbolFreqs(sortedSymbolFreqInfo.m_SymbolFreqPairs, {}, 0, noPaletteOffset);
         }
 
-        bitCost += FindGRCParams(params, uncompressedSymbolFreqs, uncompressedNoPaletteSymbolFreqs);
-        if (params.m_Wdiv == WDivisor::UNCOMPRESSED && !uncompressedNoPaletteSymbolFreqs.empty())
+        bitCost += FindGRCParams(params, uncompressedSymbolFreqInfo, uncompressedNoPaletteSymbolFreqInfo);
+        if (params.m_Wdiv == WDivisor::UNCOMPRESSED && !uncompressedNoPaletteSymbolFreqInfo.m_SymbolFreqPairs.empty())
         {
             params.m_Palette.clear();
             params.m_InversePalette.clear();
@@ -1066,10 +1088,7 @@ void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& new
             // Change to offset without the palette
             params.m_WeightOffset = noPaletteOffset;
             // Calculate the uncompressed bitwidth
-            const WeightSymbol maxSymbol =
-                std::max_element(uncompressedNoPaletteSymbolFreqs.begin(), uncompressedNoPaletteSymbolFreqs.end())
-                    ->first;
-            params.m_PaletteBits = CalcBitWidth(maxSymbol, 2) - 2;
+            params.m_PaletteBits = CalcBitWidth(uncompressedNoPaletteSymbolFreqInfo.m_MaxSymbol, 2) - 2;
         }
 
         params.m_PaletteReload =

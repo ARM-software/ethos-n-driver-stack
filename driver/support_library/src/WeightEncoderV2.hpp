@@ -115,6 +115,20 @@ protected:
         uint16_t m_Remainder;
     };
 
+    struct WeightSymbolFreqInfo
+    {
+        std::vector<std::pair<WeightSymbol, uint32_t>> m_SymbolFreqPairs;
+        WeightSymbol m_MinSymbol;
+        WeightSymbol m_MaxSymbol;
+    };
+
+    struct ZeroGroupInfo
+    {
+        std::vector<uint32_t> m_ZeroGroups;
+        uint32_t m_MinGroup;
+        uint32_t m_MaxGroup;
+    };
+
     virtual EncodedOfm EncodeOfm(const uint8_t* weightData,
                                  uint32_t ofmIdx,
                                  uint32_t numOfmInParallel,
@@ -172,7 +186,7 @@ protected:
      * Create vector of weight symbol frequency pairs where the DIROFS, Palette size and Palette has
      * been applied.
      */
-    std::vector<std::pair<WeightSymbol, uint32_t>>
+    WeightSymbolFreqInfo
         CreateUncompressedSymbolFreqs(const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
                                       const std::map<Weight, uint8_t>& inversePalette,
                                       size_t paletteSize,
@@ -182,8 +196,8 @@ protected:
      * Find the optimal GRC parameters for the specified weight symbol frequency pairs.
      */
     uint32_t FindGRCParams(WeightCompressionParamsV2& params,
-                           const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
-                           const std::vector<std::pair<WeightSymbol, uint32_t>>& noPaletteSymbolFreqPairs) const;
+                           const WeightSymbolFreqInfo& symbolFreqPairInfo,
+                           const WeightSymbolFreqInfo& noPaletteSymbolFreqPairInfo) const;
 
     /**
      * Create a palette of the specified size
@@ -202,9 +216,7 @@ protected:
     /**
      * Find the optimal RLE parameters for the specified weights
      */
-    uint32_t FindRLEParams(WeightCompressionParamsV2& params,
-                           const std::vector<uint8_t>& weights,
-                           const TensorInfo& weightsTensorInfo) const;
+    uint32_t FindRLEParams(WeightCompressionParamsV2& params, const ZeroGroupInfo& zeroGroupInfo) const;
 
     /**
      * Find optimal compression parameter for the specified weights
