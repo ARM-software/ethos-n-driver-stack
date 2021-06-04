@@ -79,6 +79,7 @@ std::vector<SubmapFilter> GetSubmapFilters(const uint32_t filterX,
     // PLE interleave operator and the firmware. This order has been chosen for the weight encoder because it allows
     // the PLE to have a fixed order (of which elements go where), independent of the IFM padding.
     std::vector<SubmapFilter> filters;
+    filters.reserve(strideY * strideX);
     for (uint32_t y = 0; y < strideY; ++y)
     {
         uint32_t shiftedY = (y + paddingTop) % strideY;
@@ -116,6 +117,7 @@ std::vector<SubmapFilter> GetSubmapFilters(const uint32_t filterX,
 
     // The order in which the submap filters are returned must be row-major.
     std::vector<SubmapFilter> filters;
+    filters.reserve(wFilterH * wFilterW);
     for (uint32_t h = 0; h < wFilterH; ++h)
     {
         for (uint32_t w = 0; w < wFilterW; ++w)
