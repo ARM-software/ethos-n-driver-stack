@@ -762,6 +762,56 @@ void ValidateMappingParameters(Mapping mapping)
     }
 }
 
+bool IsMappingAndLayerTensorsMatch(const Mapping& mapping, TensorInfo& inputTensor, TensorInfo& outputTensor)
+{
+    const auto& inputName   = mapping.m_PatternLayers[0].m_Inputs[0].m_Name;
+    const auto& outputName  = mapping.m_PatternLayers[0].m_Outputs[0];
+    const auto& inputShape  = mapping.m_InputsOutputs.at(inputName).m_Shape;
+    const auto& outputShape = mapping.m_InputsOutputs.at(outputName).m_Shape;
+
+    const auto cntInputTensorDimensions  = inputTensor.GetNumDimensions();
+    const auto cntOutputTensorDimensions = outputTensor.GetNumDimensions();
+    const auto& inputTensorShape         = inputTensor.GetShape();
+    const auto& outputTensorShape        = outputTensor.GetShape();
+
+    if (cntInputTensorDimensions != inputShape.size())
+    {
+        return false;
+    }
+
+    if (cntOutputTensorDimensions != outputShape.size())
+    {
+        return false;
+    }
+
+    auto compareShape = [](auto mappingTensorShape, auto tensorShape) {
+        unsigned index = 0;
+
+        for (auto dim : mappingTensorShape)
+        {
+            if ((dim != tensorShape[index]) && (dim != 0))
+            {
+                return false;
+            }
+            ++index;
+        }
+
+        return true;
+    };
+
+    if (!compareShape(inputShape, inputTensorShape))
+    {
+        return false;
+    }
+
+    if (!compareShape(outputShape, outputTensorShape))
+    {
+        return false;
+    }
+
+    return true;
+}
+
 void ApplyMappings(std::vector<Mapping> mappings, Graph& newGraph)
 {
     // substitute the layers as per the mapping
@@ -801,14 +851,13 @@ void ApplyMappings(std::vector<Mapping> mappings, Graph& newGraph)
                         (mapping.m_PatternLayers[0].m_Inputs == mapping.m_ReplacementLayers[0].m_Inputs) &&
                         (mapping.m_PatternLayers[0].m_Outputs == mapping.m_ReplacementLayers[0].m_Outputs))
                     {
-                        // The original layer has input tensor shape same as output tensor shape
-                        if (inputTensor.GetShape() == outputTensor.GetShape())
+                        // We should always check that the input and output tensor shapes are matching
+                        // to that mentioned in the mapping file
+                        bool ret = IsMappingAndLayerTensorsMatch(mapping, inputTensor, outputTensor);
+
+                        if (!ret)
                         {
-                            ARMNN_LOG(info) << "Input and Output tensors are of same shape\n";
-                        }
-                        else
-                        {
-                            ARMNN_LOG(info) << "Input and Output tensors are of different shape\n";
+                            continue;
                         }
 
                         // For some layer types like Activation, Pooling2d we need to match
@@ -816,7 +865,7 @@ void ApplyMappings(std::vector<Mapping> mappings, Graph& newGraph)
                         // m_LayerParams).
                         // Also if name is provided as part of m_LayerParams, it needs to be matched
                         // as well.
-                        bool ret = IsAdditionalParamsMatching(layer, mapping.m_PatternLayers[0]);
+                        ret = IsAdditionalParamsMatching(layer, mapping.m_PatternLayers[0]);
 
                         if (!ret)
                         {
