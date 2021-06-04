@@ -768,12 +768,13 @@ std::vector<CompiledBlobPtr> EthosNSubgraphViewConverter::CompileNetwork()
 
         compiledBlobs = m_EthosNConfig.m_PerfOnly ? Estimate() : Compile();
     }
-    catch (const std::exception&)
+    catch (const std::exception& e)
     {
         // An exception has been thrown when either trying to build the uncompiled network, or by the compiler.
         // Swallow it, as this API is not expected to throw, and return an empty list of compiled blobs instead,
         // it will be handled by the caller (the OptimizeSubgraphView method in the backend) when putting together
         // the OptimizationViews object to return as the optimization result
+        ARMNN_LOG(warning) << "Exception thrown in EthosNSubgraphViewConverter::CompileNetwork: " << e.what();
         compiledBlobs.clear();
     }
 
