@@ -97,13 +97,6 @@ std::unique_ptr<ethosn::support_library::ConversionPass> ConversionPass::CreateG
 
     // If our input is in DRAM then we can support any linear sequence of Conversion nodes (i.e. convert from NHWCB to NHWC or vice versa).
     bool isInputDram = (firstNode->GetInputLocation(0) == BufferLocation::Dram);
-    if (isInputDram && firstNode->GetInputCompressed(0) &&
-        (firstNode->GetInputCompressedFormat(0) == CompilerDataCompressedFormat::FCAF_DEEP ||
-         firstNode->GetInputCompressedFormat(0) == CompilerDataCompressedFormat::FCAF_WIDE))
-    {
-        // Firmware doesn't support loading FCAF formats from Dram in for OPERATION_CONVERT.
-        return std::unique_ptr<ConversionPass>();
-    }
     // If our input is in SRAM then we can also support NHWC reinterprets (i.e. reshapes) as long as the sequence ends in NHWCB
     bool isInputSram = (firstNode->GetInputLocation(0) == BufferLocation::Sram);
 
