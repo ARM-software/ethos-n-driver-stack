@@ -1320,7 +1320,7 @@ BOOST_AUTO_TEST_CASE(TestIncorrectSyntaxMappingFile1)
     {
         EthosNMappings mappings = ParseMappings(os);
     }
-    catch (armnn::ParseException e)
+    catch (const armnn::ParseException& e)
     {
         std::string err = "Syntax error in mapping file";
         BOOST_TEST((e.what() == err));
@@ -1344,7 +1344,7 @@ BOOST_AUTO_TEST_CASE(TestIncorrectSyntaxMappingFile2)
     {
         EthosNMappings mappings = ParseMappings(os);
     }
-    catch (armnn::ParseException e)
+    catch (const armnn::ParseException& e)
     {
         std::string err = "Syntax error in mapping file";
         BOOST_TEST((e.what() == err));
@@ -1372,7 +1372,7 @@ BOOST_AUTO_TEST_CASE(TestIncorrectSyntaxMappingFile3)
     {
         EthosNMappings mappings = ParseMappings(os);
     }
-    catch (armnn::ParseException e)
+    catch (const armnn::ParseException& e)
     {
         std::string err = "Syntax error in mapping file";
         BOOST_TEST((e.what() == err));
@@ -1396,7 +1396,7 @@ BOOST_AUTO_TEST_CASE(TestIncorrectSyntaxMappingFile4)
     {
         EthosNMappings mappings = ParseMappings(os);
     }
-    catch (armnn::ParseException e)
+    catch (const armnn::ParseException& e)
     {
         std::string err = "Syntax error in mapping file";
         BOOST_TEST((e.what() == err));
@@ -1421,7 +1421,7 @@ BOOST_AUTO_TEST_CASE(TestIncorrectSyntaxMappingFile5)
     {
         EthosNMappings mappings = ParseMappings(os);
     }
-    catch (armnn::ParseException e)
+    catch (const armnn::ParseException& e)
     {
         std::string err = "Syntax error in mapping file";
         BOOST_TEST((e.what() == err));
