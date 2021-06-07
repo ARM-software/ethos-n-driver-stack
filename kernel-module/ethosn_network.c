@@ -441,49 +441,6 @@ out_inference_error:
 }
 
 /**
- * get_free_core() - Get the next free core.
- * @ethosn:	ethosn_parent_device
- *
- * Iterates through the list of cores present in the parent device and returns
- * the first free core.
- *
- * Return: Pointer to ethosn_device (corresponding to the free core), else
- * NULL (if all the cores are busy)
- */
-static struct ethosn_core *get_free_core(struct ethosn_device *ethosn)
-{
-	int i = 0, ret = 0;
-	bool found = false;
-	struct ethosn_core *core = NULL;
-
-	while (i < ethosn->num_cores) {
-		/* Check the status of the core
-		 */
-		ret = mutex_lock_interruptible(&ethosn->core[i]->mutex);
-
-		if (ret)
-			goto end;
-
-		if (ethosn->core[i]->status == ETHOSN_CORE_FREE) {
-			core = ethosn->core[i];
-			core->status = ETHOSN_CORE_BUSY;
-			found = true;
-		}
-
-		mutex_unlock(&ethosn->core[i]->mutex);
-
-		if (found)
-			break;
-
-		i++;
-	}
-
-end:
-
-	return core;
-}
-
-/**
  * schedule_queued_inference() - Schedule a queue inference.
  * @core:	Ethos-N core.
  *
@@ -495,42 +452,34 @@ static void schedule_queued_inference(struct ethosn_core *core)
 	struct ethosn_inference *inference = NULL;
 	struct ethosn_device *ethosn = core->parent;
 	int ret = 0;
-	bool found = false;
+
+	/* This will be invoked from the irq handlers of multiple npus.
+	 * The inference queue needs to be protected against concurrent
+	 * operation.
+	 */
+	ret = mutex_lock_interruptible(
+		&ethosn->queue.inference_queue_mutex);
+	if (ret)
+		return;
 
 	if (!list_empty(&ethosn->queue.inference_queue)) {
-		/* This will be invoked from the irq handlers of multiple npus.
-		 * The inference queue needs to be protected against concurrent
-		 * operation.
-		 */
-		ret = mutex_lock_interruptible(
-			&ethosn->queue.inference_queue_mutex);
-		if (ret)
-			return;
-
-		found = false;
-
 		inference = list_first_entry(&ethosn->queue.inference_queue,
 					     typeof(*inference),
 					     queue_node);
-		if (inference == NULL) {
+		if (inference != NULL)
+			list_del(&inference->queue_node);
+		else
 			dev_dbg(ethosn->dev,
 				"Inference is NULL\n");
-			found = false;
-		} else {
-			found = true;
-		}
+	}
 
-		if (found) {
-			/* Schedule the inference on a particular core */
-			inference->core = core;
+	mutex_unlock(&ethosn->queue.inference_queue_mutex);
 
-			list_del(&inference->queue_node);
-		}
+	if (inference != NULL) {
+		/* Schedule the inference on a particular core */
+		inference->core = core;
 
-		mutex_unlock(&ethosn->queue.inference_queue_mutex);
-
-		if (found)
-			(void)schedule_inference(inference);
+		(void)schedule_inference(inference);
 	}
 }
 
@@ -627,12 +576,6 @@ static int inference_release(struct inode *inode,
 		ethosn_network_poll(core, inference,
 				    ETHOSN_INFERENCE_STATUS_ERROR);
 
-		/* If no inference was scheduled on the core, set the status
-		 * as free.
-		 */
-		if (core->current_inference == NULL)
-			core->status = ETHOSN_CORE_FREE;
-
 		mutex_unlock(&core->mutex);
 	}
 
@@ -693,6 +636,8 @@ static int ethosn_inference_register(struct ethosn_network *network,
 		.poll    = &inference_poll,
 		.read    = &inference_read,
 	};
+	int i = 0;
+	bool found = false;
 	struct ethosn_device *ethosn = network->ethosn;
 	struct ethosn_core *core = ethosn->core[0];
 	struct ethosn_inference *inference;
@@ -724,42 +669,47 @@ static int ethosn_inference_register(struct ethosn_network *network,
 	ethosn_log_uapi(core, ETHOSN_IOCTL_SCHEDULE_INFERENCE, &log,
 			sizeof(log));
 
-	ret = mutex_lock_interruptible(&ethosn->mutex);
+	ret = mutex_lock_interruptible(
+		&ethosn->queue.inference_queue_mutex);
+	/* Return the file descriptor */
 	if (ret) {
-		put_inference(inference);
-
-		return ret;
+		/* Queue node hasn't been added to the list.
+		 * Make sure that nothing is removed from the list on release
+		 */
+		inference->status = ETHOSN_INFERENCE_ERROR;
+		goto end;
 	}
 
 	/* Queue and schedule inference. */
 	list_add_tail(&inference->queue_node, &ethosn->queue.inference_queue);
 
-	mutex_unlock(&ethosn->mutex);
+	mutex_unlock(&ethosn->queue.inference_queue_mutex);
 
-	/* Get the next free core. */
-	core = get_free_core(ethosn);
+	for (i = 0; i < ethosn->num_cores && !found; i++) {
+		/* Check the status of the core
+		 */
+		core = ethosn->core[i];
 
-	if (!core) {
-		dev_dbg(ethosn->dev,
-			"Could not find any free core. Total cores = %d\n",
-			ethosn->num_cores);
-	} else {
 		ret = mutex_lock_interruptible(&core->mutex);
 
 		/* Return the file descriptor */
 		if (ret)
-			return ret_fd;
+			goto end;
 
-		schedule_queued_inference(core);
-
-		/* If no inference was scheduled on the core, set the status
-		 * as free.
-		 */
-		if (core->current_inference == NULL)
-			core->status = ETHOSN_CORE_FREE;
+		if (core->current_inference == NULL) {
+			found = true;
+			schedule_queued_inference(core);
+		}
 
 		mutex_unlock(&core->mutex);
 	}
+
+	if (!found)
+		dev_dbg(ethosn->dev,
+			"Could not find any free core. Total cores = %d\n",
+			ethosn->num_cores);
+
+end:
 
 	return ret_fd;
 }

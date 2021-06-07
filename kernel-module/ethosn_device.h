@@ -61,13 +61,6 @@ struct ethosn_device {
 	struct ethosn_dma_allocator   *allocator;
 };
 
-enum ethosn_core_status {
-	/* Set the core status as busy */
-	ETHOSN_CORE_BUSY = 0,
-	/* Set the core status as free */
-	ETHOSN_CORE_FREE = 1,
-};
-
 struct ethosn_core {
 	struct device               *dev;
 	uint32_t                    core_id;
@@ -119,10 +112,6 @@ struct ethosn_core {
 	atomic_t                irq_status;
 
 	struct ethosn_inference *current_inference;
-
-	/* Indicates if the core is busy or free.
-	 */
-	enum ethosn_core_status status;
 
 	/*
 	 * This tells us if the device initialization has been completed.

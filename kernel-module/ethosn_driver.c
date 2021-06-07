@@ -337,12 +337,6 @@ static void ethosn_irq_bottom(struct work_struct *work)
 
 end:
 
-	/* If no inference was scheduled on the core, set the status
-	 * as free.
-	 */
-	if (core->current_inference == NULL)
-		core->status = ETHOSN_CORE_FREE;
-
 	mutex_unlock(&core->mutex);
 }
 
