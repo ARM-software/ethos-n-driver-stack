@@ -964,7 +964,9 @@ bool OutputNode::FixGraph(Graph& graph, FixGraphSeverity severity)
     // Walk the graph to the inputs, a path with at least one pass in it is required
     // If there isn't one, it means an input goes straight to an output
     // which would make the input buffer the same as the output buffer, which is not supported by our API.
-    if (!ContainsPass(this))
+    // This counts as a more severe change because adding an extra node to the graph may be suboptimal in the case
+    // that other fixes to the graph are possible. For example the preceding node may be able to fix the graph itself.
+    if (severity == FixGraphSeverity::High && !ContainsPass(this))
     {
         InsertCopyNode(graph, GetInput(0));
         changed = true;
