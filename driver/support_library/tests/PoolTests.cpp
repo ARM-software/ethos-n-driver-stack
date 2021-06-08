@@ -79,6 +79,40 @@ TEST_CASE("PoolingSupported")
         REQUIRE(Contains(reason, "Provided outputInfo is incorrect"));
     }
 
+    // Input and output XY cannot be fit into SRAM (Z split is possible)
+    {
+        TensorInfo input({ 1, 480, 33, 64 });
+        PoolingInfo poolingInfo(3, 3, 1, 1, { 1, 1, 1, 1 }, PoolingType::AVG);
+        REQUIRE(queries.IsPoolingSupported(poolingInfo, input, nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::EstimateOnly);
+        REQUIRE(Contains(reason, "AVG pooling 3x3_1_1: maximum input width x height cannot fit into SRAM"));
+    }
+
+    // Input and output XY can be fit into SRAM (Z split is possible)
+    {
+        TensorInfo input({ 1, 480, 32, 64 });
+        PoolingInfo poolingInfo(3, 3, 1, 1, { 1, 1, 1, 1 }, PoolingType::AVG);
+        REQUIRE(queries.IsPoolingSupported(poolingInfo, input, nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::Supported);
+    }
+
+    // Input and output XY cannot be fit into SRAM (Z split is not possible)
+    {
+        TensorInfo input({ 1, 481, 64, 16 });
+        PoolingInfo poolingInfo(3, 3, 1, 1, { 1, 1, 1, 1 }, PoolingType::AVG);
+        REQUIRE(queries.IsPoolingSupported(poolingInfo, input, nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::EstimateOnly);
+        REQUIRE(Contains(reason, "AVG pooling 3x3_1_1: maximum input width x height cannot fit into SRAM"));
+    }
+
+    // Input and output XY can be fit into SRAM (Z split is not possible)
+    {
+        TensorInfo input({ 1, 480, 64, 16 });
+        PoolingInfo poolingInfo(3, 3, 1, 1, { 1, 1, 1, 1 }, PoolingType::AVG);
+        REQUIRE(queries.IsPoolingSupported(poolingInfo, input, nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::Supported);
+    }
+
     // EstimateOnly
     REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 2, 2 }, { 1, 1 }, noPad, PoolingType::MAX) ==
             SupportedLevel::EstimateOnly);
@@ -153,25 +187,4 @@ TEST_CASE("SinglePool")
     // Check that the conv commands are as expected. There should be one which has a pooling afterwards.
     REQUIRE(convCmds.size() == 1);
     REQUIRE(convCmds[0].m_PleData().m_Operation() == ethosn::command_stream::PleOperation::MAXPOOL_2X2_2_2);
-}
-
-/// Tests that a network comprising a Avg pooling with large input tensor can't compile.
-TEST_CASE("Large input tensor Avg Pool")
-{
-    // Create the network
-    CompilationOptions options;
-    std::shared_ptr<Network> network = CreateNetwork(GetRawDefaultCapabilities());
-    std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 480, 128, 64 })).tensor;
-
-    const Padding padAll = { 1, 1, 1, 1 };
-
-    std::shared_ptr<Operand> relu =
-        AddPooling(network, *input, PoolingInfo(3, 3, 1, 1, padAll, PoolingType::AVG)).tensor;
-    std::shared_ptr<Output> output = AddOutput(network, *relu).tensor;
-
-    // Compile it
-    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
-        ethosn::support_library::Compile(*network, CompilationOptions());
-
-    REQUIRE(compiledNetwork.size() == 0);
 }

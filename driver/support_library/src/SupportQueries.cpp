@@ -1722,6 +1722,36 @@ SupportedLevel SupportQueries::IsSigmoidSupported(const TensorInfo& inputInfo,
     return SupportedLevel::Supported;
 }
 
+bool IsAvgPool_3x3_1_1_FitSram(const uint32_t height,
+                               const uint32_t width,
+                               const uint32_t depth,
+                               const std::vector<char>& caps)
+{
+    const HardwareCapabilities hwCapabilities(GetValidCapabilities(caps));
+
+    const uint32_t inputXySizeNhwcb = utils::RoundUpToNearestMultiple(height, hwCapabilities.GetBrickGroupShape()[1]) *
+                                      utils::RoundUpToNearestMultiple(width, hwCapabilities.GetBrickGroupShape()[2]);
+
+    const uint32_t outputXySizeNhwcb = inputXySizeNhwcb;
+
+    const uint32_t totalSramSize = static_cast<uint32_t>(GetTotalSramSize(caps));
+
+    const uint32_t numSrams = hwCapabilities.GetNumberOfSrams();
+
+    const uint32_t sramSizePerEmc = utils::DivRoundUp(totalSramSize, numSrams);
+
+    // max kernel size per EMC
+    const uint32_t maxPleKernelSize = hwCapabilities.GetMaxPleSize();
+
+    // Note average pooling only allows split in Z axis and split in X or Y is NOT allowed.
+    // If input depth is smaller than number of SRAMs, then no split is allowed and number of strips in tile = 1
+    // Otherwise, the IFM and OFM can be split in depth and the number of stripes in tile = 2
+    // Refer to PlePass.cpp for more detail.
+    uint32_t numStripesTile = (depth > numSrams) ? 2 : 1;
+
+    return (numStripesTile * (inputXySizeNhwcb + outputXySizeNhwcb) + maxPleKernelSize) <= sramSizePerEmc;
+}
+
 SupportedLevel SupportQueries::IsPoolingSupported(const PoolingInfo& poolingInfo,
                                                   const TensorInfo& inputInfo,
                                                   TensorInfo* outputInfo,
@@ -1792,12 +1822,12 @@ SupportedLevel SupportQueries::IsPoolingSupported(const PoolingInfo& poolingInfo
                 return SupportedLevel::EstimateOnly;
             }
 
-            // Maximum width x height is implementation dependent
-            constexpr uint32_t maxXySize = (60U << 10U);
+            const uint32_t inputDepth = inputInfo.m_Dimensions[3];
 
-            if ((inputWidth * inputHeight) > maxXySize)
+            if (!IsAvgPool_3x3_1_1_FitSram(inputHeight, inputWidth, inputDepth, m_Capabilities))
             {
-                SetReason("AVG pooling 3x3_1_1: maximum input width x height (60K) exceeded", reason, reasonMaxLength);
+                SetReason("AVG pooling 3x3_1_1: maximum input width x height cannot fit into SRAM", reason,
+                          reasonMaxLength);
                 return SupportedLevel::EstimateOnly;
             }
         }
