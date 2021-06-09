@@ -577,8 +577,14 @@ static void iommu_stream_deinit(struct ethosn_allocator_internal *allocator,
 	if (!stream)
 		return;
 
-	devm_kfree(allocator->allocator.dev,
-		   stream->bitmap);
+	/* Parent and children share the streams, make sure that it is not
+	 * freed twice.
+	 */
+	if (stream->bitmap) {
+		devm_kfree(allocator->allocator.dev,
+			   stream->bitmap);
+		stream->bitmap = NULL;
+	}
 
 	if (!stream->page)
 		return;
