@@ -796,7 +796,9 @@ static long network_ioctl(struct file *filep,
 
 		ret = ethosn_inference_register(network, &infer_req);
 
-		dev_dbg(net_to_dev(network), "SCHEDULE_INFERENCE: %llu", time);
+		dev_dbg(net_to_dev(
+				network), "SCHEDULE_INFERENCE: time %llu",
+			time);
 
 		break;
 	}
@@ -1310,11 +1312,12 @@ void ethosn_network_poll(struct ethosn_core *core,
 				inference->outputs[i]->dma_info);
 
 		wake_up_poll(&inference->poll_wqh, EPOLLIN);
-		put_inference(inference);
 
 		dev_dbg(core->dev,
-			"END_INFERENCE: %llu on core_id = %d",
-			ktime_get_ns(), core->core_id);
+			"END_INFERENCE: inference 0x%pK time %llu on core_id = %d",
+			inference, ktime_get_ns(), core->core_id);
+
+		put_inference(inference);
 	}
 
 	/* Reset current running inference. */
