@@ -94,34 +94,6 @@ EthosNConfig ReadEthosNConfig()
 
 }    // namespace armnn
 
-std::ostream& operator<<(std::ostream& configFile, const armnn::EthosNConfig& config)
-{
-    configFile << armnn::EthosNConfig::PERF_ONLY_VAR << " = " << config.m_PerfOnly << std::endl;
-    configFile << armnn::EthosNConfig::PERF_VARIANT_VAR << " = "
-               << ethosn::support_library::EthosNVariantAsString(config.m_PerfVariant) << std::endl;
-    configFile << armnn::EthosNConfig::PERF_SRAM_SIZE_BYTES_OVERRIDE_VAR << " = " << config.m_PerfSramSizeBytesOverride
-               << std::endl;
-    configFile << armnn::EthosNConfig::PERF_OUT_DIR_VAR << " = " << config.m_PerfOutDir << std::endl;
-    configFile << armnn::EthosNConfig::PERF_MAPPING_FILE_VAR << " = " << config.m_PerfMappingFile << std::endl;
-    configFile << armnn::EthosNConfig::DUMP_DEBUG_FILES_VAR << " = " << config.m_DumpDebugFiles << std::endl;
-    configFile << armnn::EthosNConfig::DUMP_RAM_VAR << " = " << config.m_DumpRam << std::endl;
-    configFile << armnn::EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING << " = " << config.m_PerfWeightCompressionSaving
-               << std::endl;
-    configFile << armnn::EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING << " = "
-               << config.m_PerfActivationCompressionSaving << std::endl;
-    configFile << armnn::EthosNConfig::PERF_CURRENT << " = " << config.m_PerfCurrent << std::endl;
-    if (config.m_CompilerAlgorithm != ethosn::support_library::CompilerAlgorithm::Auto)
-    {
-        configFile << armnn::EthosNConfig::COMPILER_ALGORITHM << " = "
-                   << ethosn::support_library::EthosNCompilerAlgorithmAsString(config.m_CompilerAlgorithm) << std::endl;
-    }
-    configFile << armnn::EthosNConfig::INTERMEDIATE_COMPRESSION << " = " << config.m_IntermediateCompression
-               << std::endl;
-    configFile.flush();
-
-    return configFile;
-}
-
 std::istream& operator>>(std::istream& configFile, armnn::EthosNConfig& config)
 {
     if (configFile.good())
@@ -180,7 +152,24 @@ std::istream& operator>>(std::istream& configFile, armnn::EthosNConfig& config)
                 }
                 else if (m[1] == armnn::EthosNConfig::DUMP_DEBUG_FILES_VAR)
                 {
-                    config.m_DumpDebugFiles = TryConvertToBool(m[2], line, lineNo);
+                    if (m[2] == "None" || m[2] == "0")
+                    {
+                        config.m_DumpDebugFiles = ethosn::support_library::CompilationOptions::DebugLevel::None;
+                    }
+                    else if (m[2] == "Medium")
+                    {
+                        config.m_DumpDebugFiles = ethosn::support_library::CompilationOptions::DebugLevel::Medium;
+                    }
+                    else if (m[2] == "High" || m[2] == "1")
+                    {
+                        config.m_DumpDebugFiles = ethosn::support_library::CompilationOptions::DebugLevel::High;
+                    }
+                    else
+                    {
+                        throw armnn::Exception("Unable to convert to DebugLevel in config file on line " +
+                                               std::to_string(lineNo) + ": " + line +
+                                               ". Supported values are 0/1/None/Medium/High");
+                    }
                 }
                 else if (m[1] == armnn::EthosNConfig::DUMP_RAM_VAR)
                 {

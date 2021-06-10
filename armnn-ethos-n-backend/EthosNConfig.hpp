@@ -38,10 +38,11 @@ struct EthosNConfig
     bool m_PerfOnly = false;
     ethosn::support_library::EthosNVariant m_PerfVariant =
         ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
-    uint32_t m_PerfSramSizeBytesOverride    = 0;
-    std::string m_PerfOutDir                = "ethosn_perf";
-    std::string m_PerfMappingFile           = "";
-    bool m_DumpDebugFiles                   = false;
+    uint32_t m_PerfSramSizeBytesOverride = 0;
+    std::string m_PerfOutDir             = "ethosn_perf";
+    std::string m_PerfMappingFile        = "";
+    ethosn::support_library::CompilationOptions::DebugLevel m_DumpDebugFiles =
+        ethosn::support_library::CompilationOptions::DebugLevel::None;
     bool m_DumpRam                          = false;
     float m_PerfActivationCompressionSaving = 0.0f;
     bool m_PerfUseWeightCompressionOverride = false;

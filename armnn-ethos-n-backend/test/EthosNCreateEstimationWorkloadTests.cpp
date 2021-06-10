@@ -42,7 +42,7 @@ BOOST_AUTO_TEST_CASE(ParseEthosNConfig)
     BOOST_CHECK(config.m_PerfVariant == ethosn::support_library::EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO);
     BOOST_CHECK(config.m_PerfSramSizeBytesOverride == 12);
     BOOST_CHECK(config.m_PerfOutDir == "test");
-    BOOST_CHECK(config.m_DumpDebugFiles == true);
+    BOOST_CHECK(config.m_DumpDebugFiles == ethosn::support_library::CompilationOptions::DebugLevel::High);
     BOOST_CHECK(config.m_DumpRam == true);
     BOOST_CHECK(config.m_PerfActivationCompressionSaving == 0.5f);
     BOOST_CHECK(config.m_PerfWeightCompressionSaving == 0.5f);

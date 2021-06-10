@@ -839,8 +839,7 @@ ethosn_lib::CompilationOptions
     GetCompilationOptions(const EthosNConfig& config, const ModelOptions& modelOptions, uint32_t instanceId)
 {
     ethosn_lib::CompilationOptions result;
-    result.m_DebugInfo.m_DumpDebugFiles = config.m_DumpDebugFiles ? ethosn_lib::CompilationOptions::DebugLevel::High
-                                                                  : ethosn_lib::CompilationOptions::DebugLevel::None;
+    result.m_DebugInfo.m_DumpDebugFiles    = config.m_DumpDebugFiles;
     result.m_DebugInfo.m_DumpRam           = config.m_DumpRam;
     result.m_DebugInfo.m_DebugDir          = config.m_PerfOutDir + "/subgraph_" + std::to_string(instanceId);
     result.m_CompilerAlgorithm             = config.m_CompilerAlgorithm;
