@@ -487,7 +487,8 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 				 core->ethosn_mpu_enabled;
 
 		if (ethosn_read_top_reg(core, DL1_RP, GP_MAILBOX) == 0 &&
-		    core->fw_and_hw_caps.size > 0 && mem_ready)
+		    core->fw_and_hw_caps.size > 0U && mem_ready &&
+		    !core->profiling.is_waiting_for_firmware_ack)
 			break;
 
 		udelay(ETHOSN_RESET_WAIT_US);
@@ -929,6 +930,12 @@ EXPORT_SYMBOL(ethosn_write_message);
 
 int ethosn_send_fw_hw_capabilities_request(struct ethosn_core *core)
 {
+	/* If it's a firmware reboot (i.e. capabilities have been
+	 * already received once) don't request caps again
+	 */
+	if (core->fw_and_hw_caps.size > 0U)
+		return 0;
+
 	dev_dbg(core->dev, "-> FW & HW Capabilities\n");
 
 	return ethosn_write_message(core, ETHOSN_MESSAGE_FW_HW_CAPS_REQUEST,
@@ -1132,6 +1139,24 @@ int ethosn_send_stream_request(struct ethosn_core *core,
 	if (request.size == 0)
 		return -EFAULT;
 
+	switch (stream_id) {
+	case ETHOSN_STREAM_FIRMWARE:
+		core->ethosn_f_stream_configured = false;
+		break;
+
+	case ETHOSN_STREAM_WORKING_DATA:
+		core->ethosn_wd_stream_configured = false;
+		break;
+
+	case ETHOSN_STREAM_COMMAND_STREAM:
+		core->ethosn_cs_stream_configured = false;
+		break;
+
+	default:
+
+		return -EINVAL;
+	}
+
 	dev_dbg(core->dev,
 		"-> Stream=%u. size=0x%x", request.stream_id,
 		request.size);
@@ -1143,6 +1168,8 @@ int ethosn_send_stream_request(struct ethosn_core *core,
 
 int ethosn_send_mpu_enable_request(struct ethosn_core *core)
 {
+	core->ethosn_mpu_enabled = false;
+
 	dev_dbg(core->dev,
 		"-> Mpu enable.");
 

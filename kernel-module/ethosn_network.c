@@ -38,6 +38,7 @@
 #include <linux/kref.h>
 #include <linux/list.h>
 #include <linux/module.h>
+#include <linux/pm_runtime.h>
 #include <linux/poll.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
@@ -345,7 +346,7 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 				      dma_info->size,
 				      false,
 				      true);
-		if (WARN_ON(ret))
+		if (ret)
 			goto out_inference_error;
 	}
 
@@ -365,7 +366,7 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 				      dma_info->size,
 				      false,
 				      true);
-		if (WARN_ON(ret))
+		if (ret)
 			goto out_inference_error;
 	}
 
@@ -383,14 +384,14 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 			      true);
 
 	if (ret)
-		return ret;
+		goto out_inference_error;
 
 	if (ethosn_mailbox_empty(core->mailbox_request->cpu_addr) &&
 	    core->profiling.config.enable_profiling) {
 		/* Send sync message */
 		ret = ethosn_send_time_sync(core);
 		if (ret)
-			return ret;
+			goto out_inference_error;
 	}
 
 	/* kick off execution */
@@ -406,7 +407,7 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 	if (ret) {
 		core->current_inference = NULL;
 
-		return ret;
+		goto out_inference_error;
 	}
 
 	get_inference(inference);
@@ -668,20 +669,34 @@ static int ethosn_inference_register(struct ethosn_network *network,
 
 	mutex_unlock(&ethosn->queue.inference_queue_mutex);
 
-	for (i = 0; i < ethosn->num_cores && !found; i++) {
+	for (i = 0; i < ethosn->num_cores && !found; ++i) {
 		/* Check the status of the core
 		 */
 		core = ethosn->core[i];
 
+		pm_runtime_get_sync(core->dev);
+
 		ret = mutex_lock_interruptible(&core->mutex);
 
 		/* Return the file descriptor */
-		if (ret)
+		if (ret) {
+			pm_runtime_mark_last_busy(core->dev);
+			pm_runtime_put(core->dev);
+
 			goto end;
+		}
 
 		if (core->current_inference == NULL) {
 			found = true;
 			ethosn_schedule_queued_inference(core);
+		}
+
+		/* ethosn_schedule_queued_inference modifies current_inference,
+		 * put if nothing has been scheduled on this core
+		 */
+		if (!found || (found && !core->current_inference)) {
+			pm_runtime_mark_last_busy(core->dev);
+			pm_runtime_put(core->dev);
 		}
 
 		mutex_unlock(&core->mutex);
@@ -1258,4 +1273,12 @@ void ethosn_network_poll(struct ethosn_core *core,
 
 	/* Schedule next queued inference. */
 	ethosn_schedule_queued_inference(core);
+
+	/* ethosn_schedule_queued_inference modifies current_inference,
+	 * put if nothing has been scheduled on this core
+	 */
+	if (!core->current_inference) {
+		pm_runtime_mark_last_busy(core->dev);
+		pm_runtime_put(core->dev);
+	}
 }

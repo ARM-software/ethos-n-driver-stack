@@ -49,6 +49,7 @@
 #include <linux/uaccess.h>
 #include <linux/version.h>
 #include <linux/iommu.h>
+#include <linux/pm_runtime.h>
 
 #define ETHOSN_DRIVER_NAME    "ethosn"
 #define ETHOSN_DRIVER_VERSION "0.01"
@@ -815,13 +816,15 @@ static long ethosn_ioctl(struct file *const filep,
 			break;
 		}
 
+		pm_runtime_get_sync(core->dev);
+
 		ret = mutex_lock_interruptible(&core->mutex);
 		if (ret)
-			break;
+			goto configure_profiling_put;
 
 		if (copy_from_user(&new_config, udata, sizeof(new_config))) {
 			ret = -EFAULT;
-			goto configure_profiling_end;
+			goto configure_profiling_mutex;
 		}
 
 		dev_dbg(core->dev,
@@ -834,7 +837,7 @@ static long ethosn_ioctl(struct file *const filep,
 		ret = ethosn_configure_firmware_profiling(core, &new_config);
 
 		if (ret != 0)
-			goto configure_profiling_end;
+			goto configure_profiling_mutex;
 
 		if (core->profiling.config.enable_profiling &&
 		    !new_config.enable_profiling) {
@@ -844,8 +847,11 @@ static long ethosn_ioctl(struct file *const filep,
 
 		core->profiling.config = new_config;
 
-configure_profiling_end:
+configure_profiling_mutex:
 		mutex_unlock(&core->mutex);
+configure_profiling_put:
+		pm_runtime_mark_last_busy(core->dev);
+		pm_runtime_put(core->dev);
 
 		break;
 	}
@@ -911,17 +917,19 @@ get_counter_value_end:
 		uint32_t num_pongs_before = core->num_pongs_received;
 		int timeout;
 
+		pm_runtime_get_sync(core->dev);
+
 		/* Send a ping */
 		ret = mutex_lock_interruptible(&core->mutex);
 		if (ret)
-			break;
+			goto ping_put;
 
 		ret = ethosn_send_ping(core);
 
 		mutex_unlock(&core->mutex);
 
 		if (ret != 0)
-			break;
+			goto ping_put;
 
 		/* Wait for a pong to come back, with a timeout. */
 		for (timeout = 0; timeout < ETHOSN_PING_TIMEOUT_US;
@@ -936,10 +944,14 @@ get_counter_value_end:
 			dev_err(core->dev,
 				"Timeout while waiting for Ethos-N to pong\n");
 			ret = -ETIME;
-			break;
+			goto ping_put;
 		}
 
 		ret = 0;
+ping_put:
+		pm_runtime_mark_last_busy(core->dev);
+		pm_runtime_put(core->dev);
+
 		break;
 	}
 	default: {
@@ -1116,6 +1128,9 @@ static int ethosn_driver_probe(struct ethosn_core *core,
 	if (ret)
 		goto device_deinit;
 
+	pm_runtime_mark_last_busy(core->dev);
+	pm_runtime_put_autosuspend(core->dev);
+
 	dev_info(core->dev, "Ethos-N is running\n");
 
 	return 0;
@@ -1281,6 +1296,11 @@ static int ethosn_pdev_remove(struct platform_device *pdev)
 	while (i < ethosn->num_cores) {
 		struct ethosn_core *core = ethosn->core[i];
 
+		/* We need to disable the runtime pm and
+		 * hence wake up the core before tear down
+		 */
+		pm_runtime_disable(core->dev);
+
 		ethosn_device_deinit(core);
 		ethosn_dma_allocator_destroy(core->allocator);
 		i++;
@@ -1324,7 +1344,7 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 	/* We need to allocate the parent device (ie struct
 	 * ethosn_parent_device) only for the first time.
 	 */
-	dev_dbg(&pdev->dev, "Probing ethosn device with %d core\n",
+	dev_dbg(&pdev->dev, "Probing Ethos-N device with %d core\n",
 		num_of_npus);
 
 	ethosn = devm_kzalloc(&pdev->dev, sizeof(*ethosn),

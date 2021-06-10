@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2020 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -24,6 +24,12 @@
 #define _ETHOSN_CORE_H_
 
 #include <linux/types.h>
+
+#ifdef CONFIG_PM
+#define ETHOSN_AUTOSUSPEND_DELAY_MS 500
+#else
+#define ETHOSN_AUTOSUSPEND_DELAY_MS 0
+#endif  /* CONFIG_PM */
 
 int ethosn_core_platform_driver_register(void);
 
