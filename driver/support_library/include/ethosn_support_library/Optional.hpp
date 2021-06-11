@@ -1,5 +1,5 @@
 //
-// Copyright © 2020 Arm Limited. All rights reserved.
+// Copyright © 2020-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -318,6 +318,11 @@ public:
             return true;
         }
         return false;
+    }
+
+    bool operator!=(const Optional<T>& rhs) const
+    {
+        return !(*this == rhs);
     }
 };
 

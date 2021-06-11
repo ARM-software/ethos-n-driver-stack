@@ -324,6 +324,8 @@ Buffer1[label = "Buffer1\nLifetime = Cascade\nLocation = PleInputSram\nFormat = 
 TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
 {
     // Build a simple graph with two cascaded PleOps, which we then create a fake EstimatedOpGraph struct to describe.
+    // Include a DmaOp at the end which we will exclude from the EstimatedOpGraph, to test the case where some Ops
+    // haven't been estimated.
     OpGraph graph;
 
     Buffer inputBuffer(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB, { 1, 2, 3, 4 }, { 5, 6, 7, 8 },
@@ -356,10 +358,15 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     outputBuffer.m_DebugTag = "OutputBuffer";
     graph.AddBuffer(&outputBuffer);
 
+    DmaOp dma(Lifetime::Atomic, Location::Dram);
+    dma.m_DebugTag = "Dma";
+    graph.AddOp(&dma);
+
     graph.AddConsumer(&inputBuffer, &ple1, 0);
     graph.SetProducer(&intermediateBuffer, &ple1);
     graph.AddConsumer(&intermediateBuffer, &ple2, 0);
     graph.SetProducer(&outputBuffer, &ple2);
+    graph.AddConsumer(&outputBuffer, &dma, 0);
 
     // Create EstimatedOpGraph describing this graph being partitioned into two Passes that have been estimated,
     // with some dummy figures
@@ -372,6 +379,7 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     estimatedOpGraph.m_PerfData.m_Stream.push_back(pass2);
     estimatedOpGraph.m_OpToPass[&ple1] = 0;
     estimatedOpGraph.m_OpToPass[&ple2] = 1;
+    estimatedOpGraph.m_UnestimatedOps  = { &dma };
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = false;
@@ -388,6 +396,8 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     std::string expected =
         R"(digraph SupportLibraryGraph
 {
+labelloc = "t"
+label="1 Op(s) were unestimated!!"
 subgraph clusterPass0
 {
 label="Pass0"
@@ -401,14 +411,16 @@ subgraph clusterPass1
 label="Pass1"
 labeljust=l
 Ple2[label = "Ple2", shape = oval]
-OutputBuffer[label = "OutputBuffer", shape = box]
 Pass1_Perf[label = "{\l    \"OperationIds\": [ ],\l    \"ParentIds\": [],\l    \"Input\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Output\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Weights\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0,\l        \"CompressionSavings\": 0\l    },\l    \"Mce\":\l    {\l        \"Operations\": 0,\l        \"CycleCount\": 0\l    },\l    \"Ple\":\l    {\l        \"NumOfPatches\": 20,\l        \"Operation\": 0\l    }\l}", shape = box]
 }
+Dma[label = "Dma", shape = oval]
 IntermediateBuffer[label = "IntermediateBuffer", shape = box]
+OutputBuffer[label = "OutputBuffer", shape = box]
 InputBuffer -> Ple1
 Ple1 -> IntermediateBuffer
 IntermediateBuffer -> Ple2
 Ple2 -> OutputBuffer
+OutputBuffer -> Dma
 }
 )";
 

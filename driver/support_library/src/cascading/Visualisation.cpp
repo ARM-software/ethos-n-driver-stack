@@ -969,31 +969,56 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
     stream << "{"
            << "\n";
 
-    // Decide which Pass each Buffer belongs to (if any). This information is derived from the EstimatedOpGraph.
+    if (!estimationDetails.IsComplete())
+    {
+        stream << "labelloc = \"t\"\n";
+        stream << "label=\"" << estimationDetails.m_UnestimatedOps.size() << " Op(s) were unestimated!!\"\n";
+    }
+
+    // Decide which Pass each Buffer belongs to (if any). This information is not directly available in EstimatedOpGraph
+    // as that just contains the Pass for each *Op*, so we must derive this information.
     std::unordered_map<uint32_t, std::vector<Buffer*>> passToBuffers;
-    std::unordered_set<Buffer*> unassignedBuffers;
+    std::vector<Buffer*> unassignedBuffers;
     for (Buffer* b : graph.GetBuffers())
     {
-        // If all the buffers inputs and outputs are in the same Pass, then we assign the buffer to that pass too.
+        // If all the buffer's inputs and outputs are in the same Pass, then we assign the buffer to that pass too.
         // Otherwise leave it unassigned
-        std::vector<uint32_t> neighbourPassIdxs;
+        std::vector<Op*> neighbourOps;
         if (graph.GetProducer(b) != nullptr)
         {
-            neighbourPassIdxs.push_back(estimationDetails.m_OpToPass.at(graph.GetProducer(b)));
+            neighbourOps.push_back(graph.GetProducer(b));
         }
         for (auto consumer : graph.GetConsumers(b))
         {
-            neighbourPassIdxs.push_back(estimationDetails.m_OpToPass.at(consumer.first));
+            neighbourOps.push_back(consumer.first);
         }
 
-        if (!neighbourPassIdxs.empty() && std::all_of(neighbourPassIdxs.begin(), neighbourPassIdxs.end(),
-                                                      [&](uint32_t p) { return p == neighbourPassIdxs.front(); }))
+        utils::Optional<uint32_t> commonPassIdx;
+        for (Op* neighbour : neighbourOps)
         {
-            passToBuffers[neighbourPassIdxs.front()].push_back(b);
+            utils::Optional<uint32_t> passIdx =
+                estimationDetails.m_UnestimatedOps.count(neighbour) > 0
+                    ? utils::Optional<uint32_t>()
+                    : utils::Optional<uint32_t>(estimationDetails.m_OpToPass.find(neighbour)->second);
+
+            if (!commonPassIdx.has_value())
+            {
+                commonPassIdx = passIdx;
+            }
+            else if (commonPassIdx.has_value() && passIdx != commonPassIdx)
+            {
+                commonPassIdx = utils::Optional<uint32_t>();
+                break;
+            }
+        }
+
+        if (commonPassIdx.has_value())
+        {
+            passToBuffers[commonPassIdx.value()].push_back(b);
         }
         else
         {
-            unassignedBuffers.insert(b);
+            unassignedBuffers.push_back(b);
         }
     }
 
@@ -1041,6 +1066,17 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
 
         stream << "}"
                << "\n";
+    }
+
+    // Ops that aren't in a Pass. Sort these by something deterministic for reproducible behaviour (NOT pointer values!)
+    std::vector<Op*> unestimatedOps(estimationDetails.m_UnestimatedOps.begin(),
+                                    estimationDetails.m_UnestimatedOps.end());
+    std::sort(unestimatedOps.begin(), unestimatedOps.end(),
+              [](auto a, auto b) { return a->m_DebugTag < b->m_DebugTag; });
+    for (Op* o : unestimatedOps)
+    {
+        std::string nodeId = DumpToDotFormat(o, stream, detailLevel);
+        nodeIds[o]         = nodeId;
     }
 
     // Buffers that aren't in a Pass

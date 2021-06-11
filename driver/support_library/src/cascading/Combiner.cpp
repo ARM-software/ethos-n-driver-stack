@@ -658,20 +658,24 @@ Combination PruneCombinations(const GraphOfParts& parts,
                 if (!local.m_Combinations.empty())
                 {
                     OpGraph combiOpGraph = GetOpGraphForCombination(local.m_Combinations.front(), parts);
-                    EstimatedOpGraph curNetPerfData =
+                    EstimatedOpGraph estimatedOpGraph =
                         ethosn::support_library::EstimateOpGraph(combiOpGraph, caps, estimationOpts);
+                    if (!estimatedOpGraph.IsComplete())
+                    {
+                        throw NotSupportedException("Incomplete estimation");
+                    }
                     if (debuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
                     {
                         stats.push_back(combinationNumber);
-                        stats.push_back(GetPerformanceTotalDataMetric(curNetPerfData.m_PerfData));
-                        stats.push_back(GetPerformanceNonParallelDataMetric(curNetPerfData.m_PerfData));
-                        stats.push_back(GetPerformanceNumberOfPassesMetric(curNetPerfData.m_PerfData));
+                        stats.push_back(GetPerformanceTotalDataMetric(estimatedOpGraph.m_PerfData));
+                        stats.push_back(GetPerformanceNonParallelDataMetric(estimatedOpGraph.m_PerfData));
+                        stats.push_back(GetPerformanceNumberOfPassesMetric(estimatedOpGraph.m_PerfData));
                     }
 
                     if (!result.has_value() ||
-                        IsLeftMoreDataPerformantThanRight(curNetPerfData.m_PerfData, refNetPerfData))
+                        IsLeftMoreDataPerformantThanRight(estimatedOpGraph.m_PerfData, refNetPerfData))
                     {
-                        refNetPerfData = curNetPerfData.m_PerfData;
+                        refNetPerfData = estimatedOpGraph.m_PerfData;
                         result         = combination;
                     }
                 }

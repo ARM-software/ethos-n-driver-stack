@@ -1,5 +1,5 @@
 //
-// Copyright © 2020 Arm Limited. All rights reserved.
+// Copyright © 2020-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -29,11 +29,21 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
                                     const EstimationOptions& estimationOpts,
                                     std::unordered_set<Op*>& unestimatedOps);
 
+/// Result of estimating the performance of an OpGraph.
+/// This may be incomplete - i.e. some parts of the OpGraph may not have been estimated due to missing features
+/// in EstimateOpGraph(). Use IsComplete() to check this and handle as necessary.
 struct EstimatedOpGraph
 {
     NetworkPerformanceData m_PerfData;
     /// For each Op in the OpGraph that was estimated, which Pass in the NetworkPerformanceData it was included in.
     std::unordered_map<Op*, uint32_t> m_OpToPass;
+
+    std::unordered_set<Op*> m_UnestimatedOps;    ///< Any Ops that couldn't be estimated.
+
+    bool IsComplete() const
+    {
+        return m_UnestimatedOps.size() == 0;
+    }
 };
 
 EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,

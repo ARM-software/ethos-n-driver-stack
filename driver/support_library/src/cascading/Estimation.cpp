@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -326,8 +326,16 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
 
         if (IsObjectOfType<MceOp>(op) || IsObjectOfType<PleOp>(op))
         {
-            EstimatedPass estimatedPass =
-                EstimatePassGrownFrom(opGraph, op, capabilities, estimationOpts, unestimatedOps);
+            EstimatedPass estimatedPass;
+            try
+            {
+                estimatedPass = EstimatePassGrownFrom(opGraph, op, capabilities, estimationOpts, unestimatedOps);
+            }
+            catch (const NotSupportedException&)
+            {
+                // Some Ops will go unestimated, but this is fine. They will be reported in the result from this function
+                continue;
+            }
 
             result.m_PerfData.m_Stream.push_back({});
             PassPerformanceData& passData = result.m_PerfData.m_Stream.back();
@@ -347,12 +355,7 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
         }
     }
 
-    // Check that all Ops have been estimated.
-    if (!unestimatedOps.empty())
-    {
-        throw NotSupportedException("Not all Ops could be estimated");
-    }
-
+    result.m_UnestimatedOps = unestimatedOps;
     return result;
 }
 
