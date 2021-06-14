@@ -397,5 +397,41 @@ SizeInBytes GetInputsSizeInBytes(const Plan& plan)
     return result;
 }
 
+std::vector<Op*> GetSortedOps(const OpGraph& opGraph)
+{
+    std::vector<Op*> targets;
+    for (const auto& op : opGraph.GetOps())
+    {
+        auto outputBuf = opGraph.GetOutput(op);
+        if (outputBuf != nullptr)
+        {
+            const auto& consumers = opGraph.GetConsumers(outputBuf);
+            // If the op's output buffer doesn't have an output it is a leaf node
+            if (consumers.size() == 0)
+            {
+                targets.push_back(op);
+            }
+        }
+    }
+    std::vector<Op*> sorted;
+    // Define a function to get the incoming vertices for the topological sort
+    auto GetIncomingOps = [&](Op* op) {
+        std::vector<Op*> result;
+        const OpGraph::BufferList& inputBuffers = opGraph.GetInputs(op);
+        for (const auto& buf : inputBuffers)
+        {
+            Op* op = opGraph.GetProducer(buf);
+            if (op != nullptr)
+            {
+                result.push_back(op);
+            }
+        }
+        return result;
+    };
+    utils::GraphTopologicalSort<Op*, std::vector<Op*>>(targets, GetIncomingOps, sorted);
+
+    return sorted;
+}
+
 }    // namespace support_library
 }    // namespace ethosn

@@ -33,6 +33,97 @@ DataFormat GetWeightsFormat(const MceOp& mceOp)
 
 }    // namespace
 
+/// Estimates a conversion pass that contains the given DmaOp and possibly some of its neighbours.
+/// Removes Ops from the given unestimatedOps set that it has included in its estimation.
+EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
+                                              Op* op,
+                                              const EstimationOptions& estimationOpts,
+                                              std::unordered_set<Op*>& unestimatedOps)
+{
+    EstimatedPass result;
+
+    auto includeOp = [&](Op* op) {
+        unestimatedOps.erase(op);
+        result.m_Ops.insert(op);
+    };
+
+    assert(unestimatedOps.count(op) > 0);
+    DmaOp* dmaOp = GetObjectAs<DmaOp>(op);
+    assert(dmaOp != nullptr);
+
+    auto inputBuffers = opGraph.GetInputs(dmaOp);
+    if (inputBuffers.size() != 1)
+    {
+        throw NotSupportedException("The DmaOp must have only 1 input buffer");
+    }
+    Buffer* inputBuffer = inputBuffers[0];
+
+    Buffer* sramBuffer = opGraph.GetOutput(dmaOp);
+    if (sramBuffer == nullptr)
+    {
+        throw NotSupportedException("The DmaOp must have an output buffer");
+    }
+
+    if (sramBuffer->m_Location != Location::Sram)
+    {
+        throw NotSupportedException("The DmaOp's output buffer must be in Sram");
+    }
+
+    const auto& sramBufferConsumers = opGraph.GetConsumers(sramBuffer);
+    if (sramBufferConsumers.size() != 1)
+    {
+        throw NotSupportedException("The DmaOps output buffer must have only 1 consumer");
+    }
+
+    DmaOp* secondDmaOp = GetObjectAs<DmaOp>(sramBufferConsumers[0].first);
+    if (secondDmaOp == nullptr)
+    {
+        throw NotSupportedException("DmaOp must have a second Dma Op for a conversion pass");
+    }
+
+    Buffer* outputBuffer = opGraph.GetOutput(secondDmaOp);
+    if (outputBuffer == nullptr)
+    {
+        throw NotSupportedException("The second DmaOp must have an output buffer");
+    }
+
+    auto isInputCompressed  = IsCompressed(inputBuffer->m_Format);
+    auto isOutputCompressed = IsCompressed(outputBuffer->m_Format);
+    includeOp(dmaOp);
+    includeOp(secondDmaOp);
+
+    ConversionData inputConversionData;
+    inputConversionData.tensorShape = inputBuffer->m_TensorShape;
+    // The input and output buffers are in DRAM so don't have stripes, use the sram buffer to get the stripe information
+    inputConversionData.stripeShape = sramBuffer->m_StripeShape;
+    inputConversionData.isNhwc      = inputBuffer->m_Format == CascadingBufferFormat::NHWC;
+    bool isDramToDram = inputBuffer->m_Location == Location::Dram && outputBuffer->m_Location == Location::Dram;
+
+    if (!isDramToDram)
+    {
+        throw NotSupportedException("Only DRAM to DRAM conversion passes are supported at the moment");
+    }
+
+    ConversionData outputConversionData;
+    outputConversionData.tensorShape = outputBuffer->m_TensorShape;
+    outputConversionData.stripeShape = sramBuffer->m_StripeShape;
+    outputConversionData.isNhwc      = outputBuffer->m_Format == CascadingBufferFormat::NHWC;
+
+    result.m_Stats = GetConversionStats(inputConversionData, outputConversionData, isDramToDram);
+
+    if (isInputCompressed)
+    {
+        result.m_Stats.m_Input =
+            AccountForActivationCompression(result.m_Stats.m_Input, estimationOpts.m_ActivationCompressionSaving);
+    }
+    if (isOutputCompressed)
+    {
+        result.m_Stats.m_Output =
+            AccountForActivationCompression(result.m_Stats.m_Output, estimationOpts.m_ActivationCompressionSaving);
+    }
+    return result;
+}
+
 /// Estimates a pass that contains the given Op and possibly some of its neighbours.
 /// Removes Ops from the given unestimatedOps set that it has included in its estimation.
 EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
@@ -309,13 +400,30 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
 {
     EstimatedOpGraph result;
 
+    auto AddPassDataToResult = [&](const EstimatedPass& estimatedPass) {
+        result.m_PerfData.m_Stream.push_back({});
+        PassPerformanceData& passData = result.m_PerfData.m_Stream.back();
+        passData.m_Stats              = estimatedPass.m_Stats;
+        uint32_t passId               = static_cast<uint32_t>(result.m_PerfData.m_Stream.size()) - 1;
+
+        for (Op* op : estimatedPass.m_Ops)
+        {
+            // Merge operation ids
+            auto& ids = op->m_OperationIds;
+            passData.m_OperationIds.insert(ids.begin(), ids.end());
+
+            result.m_OpToPass[op] = passId;
+        }
+
+        passData.m_ParentIds = GetParentIds(result, opGraph, estimatedPass.m_Ops, passId);
+    };
     // In order to estimate performance using our existing estimation framework, we need to split up the graph into
     // a set of passes, and report stats for each pass independently.
-    // In general, a pass consists of an MceOp and/or PleOp, and optional DmaOps before and/or after.
+    // An MCE/PLE pass consists of an MceOp and/or PleOp, and optional DmaOps before and/or after.
+    // A Conversion pass consists of 2 DmaOps from Dram to Dram.
 
     // We traverse the graph looking for Mce/PleOps, and then look outwards for neighbouring DmaOps to include in that
-    // pass. Once we've found them all, we check that there aren't any leftover Ops that haven't been estimated.
-
+    // pass.
     std::unordered_set<Op*> unestimatedOps(opGraph.GetOps().begin(), opGraph.GetOps().end());
     for (Op* op : opGraph.GetOps())
     {
@@ -336,26 +444,62 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
                 // Some Ops will go unestimated, but this is fine. They will be reported in the result from this function
                 continue;
             }
+            AddPassDataToResult(estimatedPass);
+        }
+    }
 
-            result.m_PerfData.m_Stream.push_back({});
-            PassPerformanceData& passData = result.m_PerfData.m_Stream.back();
-            passData.m_Stats              = estimatedPass.m_Stats;
-            uint32_t passId               = static_cast<uint32_t>(result.m_PerfData.m_Stream.size()) - 1;
-
-            for (Op* op : estimatedPass.m_Ops)
+    // Once we've found all the MCE/PLE passes we now estimate conversion passes from any remaining unestimated ops.
+    if (!unestimatedOps.empty())
+    {
+        for (Op* op : opGraph.GetOps())
+        {
+            if (unestimatedOps.count(op) == 0)
             {
-                // Merge operation ids
-                auto& ids = op->m_OperationIds;
-                passData.m_OperationIds.insert(ids.begin(), ids.end());
-
-                result.m_OpToPass[op] = passId;
+                continue;    // This Op already estimated as part of another pass, so nothing else to do for it
             }
+            if (IsObjectOfType<DmaOp>(op))
+            {
+                EstimatedPass estimatedPass;
+                try
+                {
+                    estimatedPass = EstimateConversionPassGrownFrom(opGraph, op, estimationOpts, unestimatedOps);
+                }
+                catch (const NotSupportedException&)
+                {
+                    // Some Ops will go unestimated, but this is fine. They will be reported in the result from this function
+                    continue;
+                }
 
-            passData.m_ParentIds = GetParentIds(result, opGraph, estimatedPass.m_Ops, passId);
+                AddPassDataToResult(estimatedPass);
+            }
         }
     }
 
     result.m_UnestimatedOps = unestimatedOps;
+
+    // Sort the Opgraph since passes aren't generated in order
+    std::vector<Op*> sorted = GetSortedOps(opGraph);
+
+    NetworkPerformanceData sortedPassData;
+    // Track the passes already added
+    std::unordered_set<uint32_t> passesAdded;
+    for (Op* op : sorted)
+    {
+        auto passId = result.m_OpToPass.find(op);
+        if (passId != result.m_OpToPass.end())
+        {
+            // Don't add the same pass for different Ops
+            bool alreadyAdded = passesAdded.count(passId->second) > 0;
+            if (!alreadyAdded)
+            {
+                const PassPerformanceData& data = result.m_PerfData.m_Stream[passId->second];
+                sortedPassData.m_Stream.push_back(data);
+                passesAdded.insert(passId->second);
+            }
+        }
+    }
+    result.m_PerfData = sortedPassData;
+
     return result;
 }
 

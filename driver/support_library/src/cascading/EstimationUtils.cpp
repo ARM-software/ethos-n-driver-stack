@@ -243,6 +243,44 @@ PleStats GetPleStats(const HardwareCapabilities& caps,
     return pleststs;
 }
 
+PassStats GetConversionStats(const ConversionData& input, const ConversionData& output, bool isDramToDram)
+{
+    PassStats perfData;
+
+    const TensorShape& inputShape           = input.tensorShape;
+    const TensorShape& roundedUpInputShape  = utils::RoundUpHeightAndWidthToBrickGroup(inputShape);
+    const TensorShape& outputShape          = output.tensorShape;
+    const TensorShape& roundedUpOutputShape = utils::RoundUpHeightAndWidthToBrickGroup(outputShape);
+
+    const bool isInputNHWC  = input.isNhwc;
+    const bool isOutputNHWC = output.isNhwc;
+
+    const uint32_t inputSize  = inputShape[0] * inputShape[1] * inputShape[2] * inputShape[3];
+    const uint32_t outputSize = outputShape[0] * outputShape[1] * outputShape[2] * outputShape[3];
+
+    const uint32_t roundedUpInputSize =
+        roundedUpInputShape[0] * roundedUpInputShape[1] * roundedUpInputShape[2] * roundedUpInputShape[3];
+    const uint32_t roundedUpOutputSize =
+        roundedUpOutputShape[0] * roundedUpOutputShape[1] * roundedUpOutputShape[2] * roundedUpOutputShape[3];
+
+    if (isDramToDram)
+    {
+        perfData.m_Input.m_MemoryStats.m_DramNonParallel    = isInputNHWC ? inputSize : roundedUpInputSize;
+        perfData.m_Input.m_StripesStats.m_NumCentralStripes = utils::GetNumStripesTotal(inputShape, input.stripeShape);
+
+        perfData.m_Output.m_MemoryStats.m_DramNonParallel = isOutputNHWC ? outputSize : roundedUpOutputSize;
+        perfData.m_Output.m_StripesStats.m_NumCentralStripes =
+            utils::GetNumStripesTotal(outputShape, output.stripeShape);
+    }
+    else
+    {
+        // This is for Sram To Sram conversions. We only handle Dram To Dram or Sram to Sram.
+        perfData.m_Input.m_MemoryStats.m_Sram  = roundedUpInputSize;
+        perfData.m_Output.m_MemoryStats.m_Sram = roundedUpOutputSize;
+    }
+    return perfData;
+}
+
 InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRatio)
 {
     InputStats ret = stats;

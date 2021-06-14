@@ -326,38 +326,18 @@ void ConversionPass::Generate(command_stream::CommandStreamBuffer& cmdStream,
 
 PassStats ConversionPass::GetStats(const EstimationOptions& estimationOptions)
 {
-    PassStats perfData;
+    ConversionData inputConversionData;
+    inputConversionData.tensorShape = m_Nodes.front()->GetInputShape(0);
+    inputConversionData.stripeShape = m_StripeShape;
+    inputConversionData.isNhwc      = m_Nodes.front()->GetInputBufferFormat(0) == command_stream::DataFormat::NHWC;
+    bool isDramToDram               = m_Nodes.front()->GetInputLocation(0) != BufferLocation::Sram;
 
-    const TensorShape& inputShape           = m_Nodes.front()->GetInputShape(0);
-    const TensorShape& roundedUpInputShape  = RoundUpHeightAndWidthToBrickGroup(inputShape);
-    const BufferLocation inputLocation      = m_Nodes.front()->GetInputLocation(0);
-    const TensorShape& outputShape          = m_Nodes.back()->GetShape();
-    const TensorShape& roundedUpOutputShape = RoundUpHeightAndWidthToBrickGroup(outputShape);
+    ConversionData outputConversionData;
+    outputConversionData.tensorShape = m_Nodes.back()->GetShape();
+    outputConversionData.stripeShape = m_StripeShape;
+    outputConversionData.isNhwc      = m_Nodes.back()->GetBufferFormat() == command_stream::DataFormat::NHWC;
 
-    const bool isInputNHWC  = m_Nodes.front()->GetInputBufferFormat(0) == command_stream::DataFormat::NHWC;
-    const bool isOutputNHWC = m_Nodes.back()->GetBufferFormat() == command_stream::DataFormat::NHWC;
-
-    const uint32_t inputSize  = inputShape[0] * inputShape[1] * inputShape[2] * inputShape[3];
-    const uint32_t outputSize = outputShape[0] * outputShape[1] * outputShape[2] * outputShape[3];
-
-    const uint32_t roundedUpInputSize =
-        roundedUpInputShape[0] * roundedUpInputShape[1] * roundedUpInputShape[2] * roundedUpInputShape[3];
-    const uint32_t roundedUpOutputSize =
-        roundedUpOutputShape[0] * roundedUpOutputShape[1] * roundedUpOutputShape[2] * roundedUpOutputShape[3];
-
-    if (inputLocation != BufferLocation::Sram)
-    {
-        perfData.m_Input.m_MemoryStats.m_DramNonParallel    = isInputNHWC ? inputSize : roundedUpInputSize;
-        perfData.m_Input.m_StripesStats.m_NumCentralStripes = utils::GetNumStripesTotal(inputShape, m_StripeShape);
-
-        perfData.m_Output.m_MemoryStats.m_DramNonParallel    = isOutputNHWC ? outputSize : roundedUpOutputSize;
-        perfData.m_Output.m_StripesStats.m_NumCentralStripes = utils::GetNumStripesTotal(outputShape, m_StripeShape);
-    }
-    else
-    {
-        perfData.m_Input.m_MemoryStats.m_Sram  = roundedUpInputSize;
-        perfData.m_Output.m_MemoryStats.m_Sram = roundedUpOutputSize;
-    }
+    PassStats perfData = GetConversionStats(inputConversionData, outputConversionData, isDramToDram);
 
     if (m_Nodes.front()->GetInputCompressed(0))
     {

@@ -16,6 +16,16 @@ namespace support_library
 class Buffer;
 class HardwareCapabilities;
 
+struct ConversionData
+{
+    ConversionData() = default;
+    TensorShape tensorShape;
+    TensorShape stripeShape;
+    bool isNhwc;
+};
+
+PassStats GetConversionStats(const ConversionData& input, const ConversionData& output, bool isDramToDram);
+
 PleStats GetPleStats(const HardwareCapabilities& caps,
                      const std::vector<TensorShape>& inputShapes,
                      const command_stream::PleOperation& pleoperation);
