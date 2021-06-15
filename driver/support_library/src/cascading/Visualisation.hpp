@@ -73,6 +73,7 @@ struct DotAttributes
     char m_LabelAlignmentChar;
     std::string m_Shape;
     std::string m_Color;
+    std::string m_FontSize;
 };
 
 enum class DetailLevel

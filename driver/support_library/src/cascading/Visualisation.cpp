@@ -328,6 +328,13 @@ using NodeIds = std::unordered_map<const void*, std::string>;
 /// The codes are 'l' -> left, 'r' -> right, 'n' -> centre
 std::string Escape(std::string s, char alignmentChar = 'n')
 {
+    // If the string is multi-line, make sure it has a trailing newline, otherwise the resulting dot string will have
+    // incorrect alignment on the last line (it seems to default to centered, so e.g. left-justified multi-line strings
+    // will be wrong).
+    if (!s.empty() && s.find('\n') != std::string::npos && s.back() != '\n')
+    {
+        s += '\n';
+    }
     s = ethosn::utils::ReplaceAll(s, "\n", std::string("\\") + alignmentChar);
     s = ethosn::utils::ReplaceAll(s, "\"", "\\\"");
     s = ethosn::utils::ReplaceAll(s, "\t", "    ");    // Tabs don't seem to work at all (e.g. when used in JSON)
@@ -420,6 +427,13 @@ DotAttributes GetDotAttributes(Op* op, DetailLevel detailLevel)
     }
     result.m_Label = label.str();
 
+    // Show different Op types in different colours to make them easier to distinguish
+    DmaOp* dmaOp = dynamic_cast<DmaOp*>(op);
+    if (dmaOp != nullptr)
+    {
+        result.m_Color = "darkgoldenrod";
+    }
+
     return result;
 }
 
@@ -428,6 +442,9 @@ DotAttributes GetDotAttributes(Buffer* buffer, DetailLevel detailLevel)
     DotAttributes result;
     result.m_Id    = SanitizeId(buffer->m_DebugTag);
     result.m_Shape = "box";
+    // Highlight buffer locations with colour to make it easier to see where cascading has taken place
+    result.m_Color =
+        buffer->m_Location == Location::Dram ? "brown" : buffer->m_Location == Location::Sram ? "blue" : "";
 
     std::stringstream label;
     label << buffer->m_DebugTag;
@@ -779,10 +796,14 @@ void DumpSubgraphHeaderToDotFormat(DotAttributes attr, std::ostream& stream)
            << "\n";
     if (attr.m_Color.size() > 0)
     {
-        stream << ", color = " << attr.m_Color;
+        stream << "color = " << attr.m_Color << "\n";
     }
     stream << "labeljust=l"
            << "\n";
+    if (attr.m_FontSize.size() > 0)
+    {
+        stream << "fontsize = " << attr.m_FontSize << "\n";
+    }
 }
 
 void SaveOpGraphEdges(const OpGraph& graph, const NodeIds& nodeIds, std::ostream& stream)
@@ -1031,6 +1052,8 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
     {
         std::string passId = "Pass" + std::to_string(passIdx);
         DotAttributes passAttr(passId, passId, "");
+        // Passes tend to be large so it's nice to be able to see the names/indexes when zoomed far out
+        passAttr.m_FontSize = "56";
         DumpSubgraphHeaderToDotFormat(passAttr, stream);
 
         // Ops
@@ -1060,7 +1083,7 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
         std::stringstream perfJson;
         PrintPassPerformanceData(perfJson, ethosn::utils::Indent(0), estimationDetails.m_PerfData.m_Stream[passIdx]);
         DotAttributes perfAttr(passId + "_Perf", perfJson.str(), "");
-        perfAttr.m_Shape              = "box";
+        perfAttr.m_Shape              = "note";
         perfAttr.m_LabelAlignmentChar = 'l';
         DumpNodeToDotFormat(perfAttr, stream);
 

@@ -235,18 +235,18 @@ TEST_CASE("SaveOpGraphToDot Graph Topology", "[Visualisation]")
     std::string expected =
         R"(digraph SupportLibraryGraph
 {
-Dma_Ifm[label = "Dma Ifm", shape = oval]
-Dma_Weights[label = "Dma Weights", shape = oval]
+Dma_Ifm[label = "Dma Ifm", shape = oval, color = darkgoldenrod]
+Dma_Weights[label = "Dma Weights", shape = oval, color = darkgoldenrod]
 Mce[label = "Mce", shape = oval]
-Dma_Ofm[label = "Dma Ofm", shape = oval]
+Dma_Ofm[label = "Dma Ofm", shape = oval, color = darkgoldenrod]
 Consumer_1[label = "Consumer 1", shape = oval]
 Consumer_2[label = "Consumer 2", shape = oval]
-Dram_Ifm[label = "Dram Ifm", shape = box]
-Sram_Ifm[label = "Sram Ifm", shape = box]
-Dram_Weights[label = "Dram Weights", shape = box]
-Sram_Weights[label = "Sram Weights", shape = box]
-Sram_Ofm[label = "Sram Ofm", shape = box]
-Dram_Ofm[label = "Dram Ofm", shape = box]
+Dram_Ifm[label = "Dram Ifm", shape = box, color = brown]
+Sram_Ifm[label = "Sram Ifm", shape = box, color = brown]
+Dram_Weights[label = "Dram Weights", shape = box, color = brown]
+Sram_Weights[label = "Sram Weights", shape = box, color = brown]
+Sram_Ofm[label = "Sram Ofm", shape = box, color = brown]
+Dram_Ofm[label = "Dram Ofm", shape = box, color = brown]
 Dram_Ifm -> Dma_Ifm
 Dma_Ifm -> Sram_Ifm
 Sram_Ifm -> Mce[ label="Input 0"]
@@ -308,7 +308,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
         R"(digraph SupportLibraryGraph
 {
 Mce[label = "Mce\nLifetime = Atomic\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlock Config = 3x4\nInput Stripe Shape = [1, 2, 3, 4]\nOutput Stripe Shape = [5, 6, 7, 8]\nWeights Stripe Shape = [9, 10, 11, 12]\nOrder = Zxy\nStride = 10, 20\nPad L/T = 30, 40\nOperation Ids = []\n", shape = oval]
-Dma[label = "Dma\nLifetime = Cascade\nDmaOp\nLocation = Sram\nOperation Ids = []\n", shape = oval]
+Dma[label = "Dma\nLifetime = Cascade\nDmaOp\nLocation = Sram\nOperation Ids = []\n", shape = oval, color = darkgoldenrod]
 Ple[label = "Ple\nLifetime = Atomic\nPleOp\nOp = ADDITION\nBlock Config = 3x4\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nOperation Ids = []\n", shape = oval]
 Buffer1[label = "Buffer1\nLifetime = Cascade\nLocation = PleInputSram\nFormat = WEIGHT\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\nOrder = Zxy\nSize in bytes = 1234\n", shape = box]
 }
@@ -402,20 +402,22 @@ subgraph clusterPass0
 {
 label="Pass0"
 labeljust=l
+fontsize = 56
 Ple1[label = "Ple1", shape = oval]
-InputBuffer[label = "InputBuffer", shape = box]
-Pass0_Perf[label = "{\l    \"OperationIds\": [ ],\l    \"ParentIds\": [],\l    \"Input\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Output\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Weights\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0,\l        \"CompressionSavings\": 0\l    },\l    \"Mce\":\l    {\l        \"Operations\": 0,\l        \"CycleCount\": 0\l    },\l    \"Ple\":\l    {\l        \"NumOfPatches\": 10,\l        \"Operation\": 0\l    }\l}", shape = box]
+InputBuffer[label = "InputBuffer", shape = box, color = blue]
+Pass0_Perf[label = "{\l    \"OperationIds\": [ ],\l    \"ParentIds\": [],\l    \"Input\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Output\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Weights\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0,\l        \"CompressionSavings\": 0\l    },\l    \"Mce\":\l    {\l        \"Operations\": 0,\l        \"CycleCount\": 0\l    },\l    \"Ple\":\l    {\l        \"NumOfPatches\": 10,\l        \"Operation\": 0\l    }\l}\l", shape = note]
 }
 subgraph clusterPass1
 {
 label="Pass1"
 labeljust=l
+fontsize = 56
 Ple2[label = "Ple2", shape = oval]
-Pass1_Perf[label = "{\l    \"OperationIds\": [ ],\l    \"ParentIds\": [],\l    \"Input\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Output\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Weights\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0,\l        \"CompressionSavings\": 0\l    },\l    \"Mce\":\l    {\l        \"Operations\": 0,\l        \"CycleCount\": 0\l    },\l    \"Ple\":\l    {\l        \"NumOfPatches\": 20,\l        \"Operation\": 0\l    }\l}", shape = box]
+Pass1_Perf[label = "{\l    \"OperationIds\": [ ],\l    \"ParentIds\": [],\l    \"Input\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Output\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Weights\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0,\l        \"CompressionSavings\": 0\l    },\l    \"Mce\":\l    {\l        \"Operations\": 0,\l        \"CycleCount\": 0\l    },\l    \"Ple\":\l    {\l        \"NumOfPatches\": 20,\l        \"Operation\": 0\l    }\l}\l", shape = note]
 }
-Dma[label = "Dma", shape = oval]
-IntermediateBuffer[label = "IntermediateBuffer", shape = box]
-OutputBuffer[label = "OutputBuffer", shape = box]
+Dma[label = "Dma", shape = oval, color = darkgoldenrod]
+IntermediateBuffer[label = "IntermediateBuffer", shape = box, color = blue]
+OutputBuffer[label = "OutputBuffer", shape = box, color = blue]
 InputBuffer -> Ple1
 Ple1 -> IntermediateBuffer
 IntermediateBuffer -> Ple2
@@ -654,7 +656,7 @@ subgraph clusterPlan_1
 {
 label="Plan 1"
 labeljust=l
-Buffer_0[label = "Buffer 0", shape = box]
+Buffer_0[label = "Buffer 0", shape = box, color = brown]
 OutputLabelBuffer_0[label = "Output from Node 1
 ", shape = box]
 Buffer_0 -> OutputLabelBuffer_0[dir = back, arrowtail = box]
@@ -663,9 +665,9 @@ subgraph clusterPlan_5
 {
 label="Plan 5"
 labeljust=l
-DmaOp_3[label = "DmaOp 3", shape = oval]
-Buffer_2[label = "Buffer 2", shape = box]
-Buffer_4[label = "Buffer 4", shape = box]
+DmaOp_3[label = "DmaOp 3", shape = oval, color = darkgoldenrod]
+Buffer_2[label = "Buffer 2", shape = box, color = brown]
+Buffer_4[label = "Buffer 4", shape = box, color = brown]
 Buffer_2 -> DmaOp_3
 DmaOp_3 -> Buffer_4
 InputLabelBuffer_2[label = "Input from Node 0
@@ -896,13 +898,13 @@ subgraph clusterPlan_1
 {
 label="Plan 1"
 labeljust=l
-InputDram[label = "InputDram", shape = box]
+InputDram[label = "InputDram", shape = box, color = brown]
 }
 subgraph clusterPlan_1_Glue_0
 {
 label="Plan 1 Glue 0"
 labeljust=l
-InputDma[label = "InputDma", shape = oval]
+InputDma[label = "InputDma", shape = oval, color = darkgoldenrod]
 }
 InputDram -> InputDma
 subgraph clusterPlan_5
@@ -910,8 +912,8 @@ subgraph clusterPlan_5
 label="Plan 5"
 labeljust=l
 Mce1[label = "Mce1", shape = oval]
-InputSram[label = "InputSram", shape = box]
-IntermediateSramOutput[label = "IntermediateSramOutput", shape = box]
+InputSram[label = "InputSram", shape = box, color = blue]
+IntermediateSramOutput[label = "IntermediateSramOutput", shape = box, color = blue]
 InputSram -> Mce1
 Mce1 -> IntermediateSramOutput
 }
@@ -921,10 +923,10 @@ subgraph clusterPlan_10
 label="Plan 10"
 labeljust=l
 Mce2[label = "Mce2", shape = oval]
-IntermediateSramInput1[label = "IntermediateSramInput1", shape = box]
-OutputSram1[label = "OutputSram1", shape = box]
-IntermediateSramInput2[label = "IntermediateSramInput2", shape = box]
-OutputSram2[label = "OutputSram2", shape = box]
+IntermediateSramInput1[label = "IntermediateSramInput1", shape = box, color = blue]
+OutputSram1[label = "OutputSram1", shape = box, color = blue]
+IntermediateSramInput2[label = "IntermediateSramInput2", shape = box, color = blue]
+OutputSram2[label = "OutputSram2", shape = box, color = blue]
 IntermediateSramInput1 -> Mce2[ label="Input 0"]
 Mce2 -> OutputSram1
 IntermediateSramInput2 -> Mce2[ label="Input 1"]
@@ -937,36 +939,36 @@ subgraph clusterPlan_10_Glue_0
 {
 label="Plan 10 Glue 0"
 labeljust=l
-OutputDma1[label = "OutputDma1", shape = oval]
+OutputDma1[label = "OutputDma1", shape = oval, color = darkgoldenrod]
 }
 OutputSram1 -> OutputDma1
 subgraph clusterPlan_10_Glue_1
 {
 label="Plan 10 Glue 1"
 labeljust=l
-OutputDma2[label = "OutputDma2", shape = oval]
+OutputDma2[label = "OutputDma2", shape = oval, color = darkgoldenrod]
 }
 OutputSram1 -> OutputDma2
 subgraph clusterPlan_10_Glue_2
 {
 label="Plan 10 Glue 2"
 labeljust=l
-OutputDma3[label = "OutputDma3", shape = oval]
+OutputDma3[label = "OutputDma3", shape = oval, color = darkgoldenrod]
 }
 OutputSram2 -> OutputDma3
 subgraph clusterPlan_20
 {
 label="Plan 20"
 labeljust=l
-OutputDram1[label = "OutputDram1", shape = box]
+OutputDram1[label = "OutputDram1", shape = box, color = brown]
 }
 OutputDma1 -> OutputDram1
 subgraph clusterPlan_23
 {
 label="Plan 23"
 labeljust=l
-OutputDram2[label = "OutputDram2", shape = box]
-OutputDram3[label = "OutputDram3", shape = box]
+OutputDram2[label = "OutputDram2", shape = box, color = brown]
+OutputDram3[label = "OutputDram3", shape = box, color = brown]
 }
 OutputDma2 -> OutputDram2
 OutputDma3 -> OutputDram3
