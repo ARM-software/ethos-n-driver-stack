@@ -100,6 +100,9 @@ static int ethosn_rpm_resume(struct device *dev)
 	ret = ethosn_reset_and_start_ethosn(core);
 
 exit_rpm_resume:
+	if (!ret && core->profiling.config.enable_profiling)
+		++core->profiling.rpm_resume;
+
 	dev_dbg(dev, "Core rpm resume: %d\n", ret);
 
 	return ret;
@@ -144,6 +147,9 @@ static int ethosn_rpm_suspend(struct device *dev)
 		ret = -EBUSY;
 
 exit_rpm_suspend:
+	if (!ret && core->profiling.config.enable_profiling)
+		++core->profiling.rpm_suspend;
+
 	dev_dbg(dev, "Core rpm suspend: %d\n", ret);
 
 	return ret;
@@ -158,6 +164,14 @@ static const struct dev_pm_ops ethosn_pm_ops = {
 #else
 #define ETHOSN_PM_OPS (NULL)
 #endif  /* CONFIG_PM */
+
+int ethosn_get_autosuspend_delay(void)
+{
+	return ETHOSN_AUTOSUSPEND_DELAY_MS;
+}
+
+/* Exported for use by test module */
+EXPORT_SYMBOL(ethosn_get_autosuspend_delay);
 
 static struct ethosn_device *ethosn_driver(struct platform_device *pdev)
 {

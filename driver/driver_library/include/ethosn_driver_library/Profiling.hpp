@@ -1,5 +1,5 @@
 //
-// Copyright © 2019-2020 Arm Limited. All rights reserved.
+// Copyright © 2019-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -94,6 +94,11 @@ enum class PollCounterName
     KernelDriverNumMailboxMessagesSent,
     /// The number of mailbox messages received by the kernel driver.
     KernelDriverNumMailboxMessagesReceived,
+
+    /// The number of times that device goes into runtime suspend state.
+    KernelDriverNumRuntimePowerSuspend,
+    /// The number of times that device goes into runtime resume state.
+    KernelDriverNumRuntimePowerResume,
 
     /// The number of counter types in this enum.
     NumValues,

@@ -1,5 +1,5 @@
 //
-// Copyright © 2019-2020 Arm Limited. All rights reserved.
+// Copyright © 2019-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -216,6 +216,8 @@ uint64_t GetCounterValue(PollCounterName counter)
             return g_InferenceToLifetimeEventId.size();
         case PollCounterName::KernelDriverNumMailboxMessagesSent:    // Deliberate fallthrough
         case PollCounterName::KernelDriverNumMailboxMessagesReceived:
+        case PollCounterName::KernelDriverNumRuntimePowerSuspend:
+        case PollCounterName::KernelDriverNumRuntimePowerResume:
             return GetKernelDriverCounterValue(counter);
         default:
             assert(!"Invalid counter");

@@ -296,8 +296,13 @@ struct ethosn_profiling_config {
  *      ETHOSN_IOCTL_GET_COUNTER_VALUE.
  */
 enum ethosn_poll_counter_name {
+	/* Mailbox messages */
 	ETHOSN_POLL_COUNTER_NAME_MAILBOX_MESSAGES_SENT,
 	ETHOSN_POLL_COUNTER_NAME_MAILBOX_MESSAGES_RECEIVED,
+
+	/* Power management */
+	ETHOSN_POLL_COUNTER_NAME_RPM_SUSPEND,
+	ETHOSN_POLL_COUNTER_NAME_RPM_RESUME,
 };
 
 /**

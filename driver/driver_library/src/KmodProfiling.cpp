@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -119,6 +119,12 @@ uint64_t GetKernelDriverCounterValue(PollCounterName counter)
             break;
         case PollCounterName::KernelDriverNumMailboxMessagesReceived:
             kernelCounterName = ETHOSN_POLL_COUNTER_NAME_MAILBOX_MESSAGES_RECEIVED;
+            break;
+        case PollCounterName::KernelDriverNumRuntimePowerSuspend:
+            kernelCounterName = ETHOSN_POLL_COUNTER_NAME_RPM_SUSPEND;
+            break;
+        case PollCounterName::KernelDriverNumRuntimePowerResume:
+            kernelCounterName = ETHOSN_POLL_COUNTER_NAME_RPM_RESUME;
             break;
         default:
             assert(!"Invalid counter");

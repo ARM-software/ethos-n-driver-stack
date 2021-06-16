@@ -153,6 +153,18 @@ static char *rtrim(char *str,
 	return str;
 }
 
+/**
+ * reset_profiling_counters() - Resets all profiling counters
+ *
+ */
+static void reset_profiling_counters(struct ethosn_core *core)
+{
+	core->profiling.mailbox_messages_sent = 0;
+	core->profiling.mailbox_messages_received = 0;
+	core->profiling.rpm_suspend = 0;
+	core->profiling.rpm_resume = 0;
+}
+
 static int handle_message(struct ethosn_core *core)
 {
 	struct ethosn_message_header header;
@@ -840,10 +852,8 @@ static long ethosn_ioctl(struct file *const filep,
 			goto configure_profiling_mutex;
 
 		if (core->profiling.config.enable_profiling &&
-		    !new_config.enable_profiling) {
-			core->profiling.mailbox_messages_sent = 0;
-			core->profiling.mailbox_messages_received = 0;
-		}
+		    !new_config.enable_profiling)
+			reset_profiling_counters(core);
 
 		core->profiling.config = new_config;
 
@@ -883,6 +893,12 @@ configure_profiling_put:
 			break;
 		case ETHOSN_POLL_COUNTER_NAME_MAILBOX_MESSAGES_RECEIVED:
 			ret = core->profiling.mailbox_messages_received;
+			break;
+		case ETHOSN_POLL_COUNTER_NAME_RPM_SUSPEND:
+			ret = core->profiling.rpm_suspend;
+			break;
+		case ETHOSN_POLL_COUNTER_NAME_RPM_RESUME:
+			ret = core->profiling.rpm_resume;
 			break;
 		default:
 			ret = -EINVAL;
@@ -1113,8 +1129,7 @@ static int ethosn_driver_probe(struct ethosn_core *core,
 	/* Default to profiling disabled */
 	config.enable_profiling = false;
 	core->profiling.config = config;
-	core->profiling.mailbox_messages_sent = 0;
-	core->profiling.mailbox_messages_received = 0;
+	reset_profiling_counters(core);
 
 	core->profiling.is_waiting_for_firmware_ack = false;
 	core->profiling.firmware_buffer = NULL;
