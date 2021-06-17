@@ -273,6 +273,11 @@ TEST_CASE("Unsupported Tensor Depth", "[IsSupported][TVM]")
         CHECK_UNSUPPORTED(queries.IsSigmoidSupported(inputInfo, &outputs[0], reason, sizeof(reason)), reason);
         CHECK_UNSUPPORTED_TENSOR_DEPTH_REASON(reason);
     }
+    SECTION("Tanh")
+    {
+        CHECK_UNSUPPORTED(queries.IsTanhSupported(inputInfo, &outputs[0], reason, sizeof(reason)), reason);
+        CHECK_UNSUPPORTED_TENSOR_DEPTH_REASON(reason);
+    }
     SECTION("Pooling")
     {
         PoolingInfo poolingInfo(2, 2, 2, 2, { 0, 0, 0, 0 }, PoolingType::MAX);

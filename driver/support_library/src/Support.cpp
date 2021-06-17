@@ -222,6 +222,11 @@ TensorAndId<Operand> AddSigmoid(const std::shared_ptr<Network>& network, Operand
     return GetSingleOutputResult(network, network->AddSigmoid(input));
 }
 
+TensorAndId<Operand> AddTanh(const std::shared_ptr<Network>& network, Operand& input)
+{
+    return GetSingleOutputResult(network, network->AddTanh(input));
+}
+
 TensorAndId<Operand> AddMeanXy(const std::shared_ptr<Network>& network, Operand& input)
 {
     return GetSingleOutputResult(network, network->AddMeanXy(input));

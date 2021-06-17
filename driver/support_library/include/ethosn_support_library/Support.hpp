@@ -1172,6 +1172,9 @@ TensorAndId<Operand> AddSoftmax(const std::shared_ptr<Network>& network, Operand
 // Add Sigmoid to a Network. The returned shared_ptr ref-counts the network.
 TensorAndId<Operand> AddSigmoid(const std::shared_ptr<Network>& network, Operand& input);
 
+// Add Tanh to a Network. The returned shared_ptr ref-counts the network.
+TensorAndId<Operand> AddTanh(const std::shared_ptr<Network>& network, Operand& input);
+
 // Add Mean to a Network. The returned shared_ptr ref-counts the network.
 TensorAndId<Operand> AddMeanXy(const std::shared_ptr<Network>& network, Operand& input);
 

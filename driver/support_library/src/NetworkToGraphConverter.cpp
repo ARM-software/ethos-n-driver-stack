@@ -309,6 +309,21 @@ void NetworkToGraphConverter::Visit(Sigmoid& sigmoid)
     ConnectNode(sigmoid, pleSigmoid);
 }
 
+void NetworkToGraphConverter::Visit(Tanh& tanh)
+{
+    // Note Tanh and Sigmoid share the same PLE operation
+    // The differences are:
+    // (1) input scaling factor
+    // (2) output quantisation
+    const TensorInfo& tensorInfo = tanh.GetOutput(0).GetTensorInfo();
+    Node* const pleSigmoid       = m_Graph.CreateAndAddNodeWithDebug<FuseOnlyPleOperationNode>(
+        ETHOSN_FUNCTION_SIGNATURE, tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo,
+        command_stream::PleOperation::SIGMOID, CompilerDataFormat::NHWCB, g_IdentityShapeMultiplier,
+        std::set<uint32_t>{ tanh.GetId() });
+
+    ConnectNode(tanh, pleSigmoid);
+}
+
 void NetworkToGraphConverter::Visit(Softmax& softmax)
 {
     const SupportedLevel supportedLevel = m_Queries.IsSoftmaxSupported(softmax.GetInput(0).GetTensorInfo());

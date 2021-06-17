@@ -1722,6 +1722,50 @@ SupportedLevel SupportQueries::IsSigmoidSupported(const TensorInfo& inputInfo,
     return SupportedLevel::Supported;
 }
 
+SupportedLevel SupportQueries::IsTanhSupported(const TensorInfo& inputInfo,
+                                               TensorInfo* outputInfo,
+                                               char* reason,
+                                               size_t reasonMaxLength) const
+{
+    if (inputInfo.m_Dimensions[0] != 1)
+    {
+        SetReason("Batch size must be 1", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsTensorDepthSupported(m_Capabilities, inputInfo, "Input to tanh layer", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsInputDataTypeSupported(inputInfo, "Input to tanh layer", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "tanh", reason, reasonMaxLength))
+    {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (outputInfo != nullptr)
+    {
+        const TensorInfo expectedOutputInfo = Tanh::CalculateOutputTensorInfo(inputInfo);
+
+        if (utils::TotalSizeBytes(*outputInfo) == 0)
+        {
+            *outputInfo = expectedOutputInfo;
+        }
+        else if (*outputInfo != expectedOutputInfo)
+        {
+            SetReason("Provided outputInfo is incorrect", reason, reasonMaxLength);
+            return SupportedLevel::Unsupported;
+        }
+    }
+
+    return SupportedLevel::Supported;
+}
+
 bool IsAvgPool_3x3_1_1_FitSram(const uint32_t height,
                                const uint32_t width,
                                const uint32_t depth,

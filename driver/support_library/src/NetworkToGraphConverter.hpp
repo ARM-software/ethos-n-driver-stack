@@ -42,6 +42,7 @@ public:
     void Visit(Requantize& requantize) final;
     void Visit(Softmax& softmax) final;
     void Visit(Sigmoid& sigmoid) final;
+    void Visit(Tanh& tanh) final;
     void Visit(MeanXy& mean) final;
     void Visit(Pooling& pooling) final;
     void Visit(Reshape& reshape) final;

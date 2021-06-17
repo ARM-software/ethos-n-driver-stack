@@ -219,11 +219,17 @@ public:
                                       char* reason           = nullptr,
                                       size_t reasonMaxLength = g_ReasonMaxLength) const;
 
-    // Checks whether a specific sigmoid (aka 'logistic') operation configuration is supported by the NPU
+    // Checks whether a specific sigmoid operation configuration is supported by the NPU
     SupportedLevel IsSigmoidSupported(const TensorInfo& inputInfo,
                                       TensorInfo* outputInfo = nullptr,
                                       char* reason           = nullptr,
                                       size_t reasonMaxLength = g_ReasonMaxLength) const;
+
+    // Checks whether a specific tanh operation configuration is supported by the NPU
+    SupportedLevel IsTanhSupported(const TensorInfo& inputInfo,
+                                   TensorInfo* outputInfo = nullptr,
+                                   char* reason           = nullptr,
+                                   size_t reasonMaxLength = g_ReasonMaxLength) const;
 
     // Checks whether a specific mean operation (across width and height) configuration is supported by the NPU
     SupportedLevel IsMeanXySupported(const TensorInfo& inputInfo,

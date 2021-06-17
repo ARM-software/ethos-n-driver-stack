@@ -217,6 +217,18 @@ Sigmoid& Network::AddSigmoid(Operand& input)
     return AddOperationWithId<Sigmoid>({ &input.GetProducer() }, input);
 }
 
+Tanh& Network::AddTanh(Operand& input)
+{
+    char reason[1024];
+    SupportedLevel supportedLevel = m_Queries.IsTanhSupported(input.GetTensorInfo(), nullptr, reason, sizeof(reason));
+    if (!CheckSupportedLevel(supportedLevel))
+    {
+        throw NotSupportedException(reason);
+    }
+
+    return AddOperationWithId<Tanh>({ &input.GetProducer() }, input);
+}
+
 MeanXy& Network::AddMeanXy(Operand& input)
 {
     char reason[1024];

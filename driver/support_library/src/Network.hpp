@@ -124,6 +124,8 @@ public:
 
     Sigmoid& AddSigmoid(Operand& input);
 
+    Tanh& AddTanh(Operand& input);
+
     MeanXy& AddMeanXy(Operand& input);
 
     Pooling& AddPooling(Operand& input, const PoolingInfo& poolingInfo);

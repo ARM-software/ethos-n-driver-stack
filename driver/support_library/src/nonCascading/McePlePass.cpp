@@ -935,9 +935,17 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
 
         const double rescaleFactor = inputScale * (log2e * 256.);
 
+        // Note that tanh shares the same PLE kernel with sigmoid
+        // by applying different scaling factor to input and output
+        // The output tensor scaling factor is 1/256 for sigmoid
+        // and 1/128 for tanh.
+        assert(m_Nodes.back()->GetQuantizationInfo().GetScale() == (1.f / 128) ||
+               m_Nodes.back()->GetQuantizationInfo().GetScale() == (1.f / 256));
+        const double tanhFactor = (m_Nodes.back()->GetQuantizationInfo().GetScale() == (1.f / 128)) ? 2.0f : 1.0f;
+
         uint16_t mult;
         uint16_t shift;
-        CalculateRescaleMultiplierAndShift(rescaleFactor, mult, shift);
+        CalculateRescaleMultiplierAndShift(rescaleFactor * tanhFactor, mult, shift);
 
         int absMax = static_cast<int>(std::ceil(std::ldexp(1., 15U + shift) / mult)) - 1;
 

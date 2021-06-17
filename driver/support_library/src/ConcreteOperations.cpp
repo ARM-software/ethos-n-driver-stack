@@ -310,6 +310,20 @@ TensorInfo Sigmoid::CalculateOutputTensorInfo(const TensorInfo& inputInfo)
     return outInfo;
 }
 
+Tanh::Tanh(const detail::PosInNetwork pos, uint32_t id, Operand& input)
+    : VisitableOperation<Tanh>(pos, id, { &input }, { CalculateOutputTensorInfo(input.GetTensorInfo()) })
+{}
+
+TensorInfo Tanh::CalculateOutputTensorInfo(const TensorInfo& inputInfo)
+{
+    const int32_t zeroPoint = (inputInfo.m_DataType == DataType::INT8_QUANTIZED) ? 0 : 128;
+
+    TensorInfo outInfo         = inputInfo;
+    outInfo.m_QuantizationInfo = QuantizationInfo(zeroPoint, 1.f / 128);
+
+    return outInfo;
+}
+
 Pooling::Pooling(const detail::PosInNetwork pos, uint32_t id, Operand& input, const PoolingInfo& poolingInfo)
     : VisitableOperation<Pooling>(
           pos, id, { &input }, { CalculateOutputTensorInfo(input.GetTensorInfo(), poolingInfo) })

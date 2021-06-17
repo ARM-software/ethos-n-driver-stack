@@ -405,6 +405,19 @@ public:
     }
 };
 
+class Tanh : public VisitableOperation<Tanh>
+{
+public:
+    Tanh(const detail::PosInNetwork pos, uint32_t id, Operand& input);
+
+    static TensorInfo CalculateOutputTensorInfo(const TensorInfo& inputInfo);
+
+    const char* GetTypeName() final
+    {
+        return "Tanh";
+    }
+};
+
 class MeanXy : public VisitableOperation<MeanXy>
 {
 public:
