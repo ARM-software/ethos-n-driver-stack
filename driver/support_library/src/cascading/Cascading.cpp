@@ -269,7 +269,8 @@ void Cascading::EstimatePerformance()
         if (estimatedOpGraph.IsComplete())
         {
             if (!bestCombinationIdx.has_value() ||
-                IsLeftMoreDataPerformantThanRight(estimatedOpGraph.m_PerfData, m_PerformanceStream))
+                ComparePerformanceData(estimatedOpGraph.m_PerfData, m_PerformanceStream) ==
+                    PerformanceComparisonResult::LeftBetter)
             {
                 m_PerformanceStream = estimatedOpGraph.m_PerfData;
                 m_BestCombination   = &combination;

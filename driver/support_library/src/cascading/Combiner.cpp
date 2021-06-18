@@ -667,13 +667,12 @@ Combination PruneCombinations(const GraphOfParts& parts,
                     if (debuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
                     {
                         stats.push_back(combinationNumber);
-                        stats.push_back(GetPerformanceTotalDataMetric(estimatedOpGraph.m_PerfData));
-                        stats.push_back(GetPerformanceNonParallelDataMetric(estimatedOpGraph.m_PerfData));
-                        stats.push_back(GetPerformanceNumberOfPassesMetric(estimatedOpGraph.m_PerfData));
+                        std::vector<uint64_t> metrics = GetPerformanceMetrics(estimatedOpGraph.m_PerfData);
+                        stats.insert(stats.end(), metrics.begin(), metrics.end());
                     }
 
-                    if (!result.has_value() ||
-                        IsLeftMoreDataPerformantThanRight(estimatedOpGraph.m_PerfData, refNetPerfData))
+                    if (!result.has_value() || ComparePerformanceData(estimatedOpGraph.m_PerfData, refNetPerfData) ==
+                                                   PerformanceComparisonResult::LeftBetter)
                     {
                         refNetPerfData = estimatedOpGraph.m_PerfData;
                         result         = combination;

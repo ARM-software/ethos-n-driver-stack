@@ -217,7 +217,7 @@ NetworkPerformanceData Compiler::EstimatePerformance()
         return cascadedPerformance;
     }
     // Both of the performances are valid, try to see which one is the best
-    if (IsLeftMoreDataPerformantThanRight(nonCascadedPerformance, cascadedPerformance))
+    if (ComparePerformanceData(nonCascadedPerformance, cascadedPerformance) == PerformanceComparisonResult::LeftBetter)
     {
         return nonCascadedPerformance;
     }

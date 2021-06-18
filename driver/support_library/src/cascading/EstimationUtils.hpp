@@ -8,6 +8,8 @@
 #include "../WeightEncoder.hpp"
 #include "Plan.hpp"
 
+#include <vector>
+
 namespace ethosn
 {
 namespace support_library
@@ -52,7 +54,16 @@ uint64_t GetPerformanceTotalDataMetric(const NetworkPerformanceData& netPerfData
 uint64_t GetPerformanceParallelDataMetric(const NetworkPerformanceData& netPerfData);
 uint64_t GetPerformanceNonParallelDataMetric(const NetworkPerformanceData& netPerfData);
 uint64_t GetPerformanceNumberOfPassesMetric(const NetworkPerformanceData& netPerfData);
-bool IsLeftMoreDataPerformantThanRight(const NetworkPerformanceData& left, const NetworkPerformanceData& right);
+std::vector<uint64_t> GetPerformanceMetrics(const NetworkPerformanceData& netPerfData);
+
+enum class PerformanceComparisonResult
+{
+    Equal,
+    LeftBetter,
+    RightBetter
+};
+PerformanceComparisonResult ComparePerformanceData(const NetworkPerformanceData& left,
+                                                   const NetworkPerformanceData& right);
 
 }    //namespace support_library
 }    //namespace ethosn

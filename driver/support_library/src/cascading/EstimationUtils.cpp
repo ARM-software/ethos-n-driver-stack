@@ -357,29 +357,38 @@ uint64_t GetPerformanceMetric(const NetworkPerformanceData& netPerfData, const M
     }
 }
 
+// Sequence of metric types to compare against
+std::vector<MetricType> g_MetricOrder = { MetricType::Total, MetricType::NonParallel, MetricType::Passes };
+
 }    // namespace
 
-bool IsLeftMoreDataPerformantThanRight(const NetworkPerformanceData& left, const NetworkPerformanceData& right)
+std::vector<uint64_t> GetPerformanceMetrics(const NetworkPerformanceData& netPerfData)
 {
-    // Sequence of metric types to compare against
-    std::vector<MetricType> metricTypes = { MetricType::Total, MetricType::NonParallel, MetricType::Passes };
+    std::vector<uint64_t> result(g_MetricOrder.size());
+    std::transform(g_MetricOrder.begin(), g_MetricOrder.end(), result.begin(),
+                   [&](MetricType m) { return GetPerformanceMetric(netPerfData, m); });
+    return result;
+}
 
-    for (const auto& metricType : metricTypes)
+PerformanceComparisonResult ComparePerformanceData(const NetworkPerformanceData& left,
+                                                   const NetworkPerformanceData& right)
+{
+    for (const auto& metricType : g_MetricOrder)
     {
         const uint64_t metricLeft  = GetPerformanceMetric(left, metricType);
         const uint64_t metricRight = GetPerformanceMetric(right, metricType);
 
         if (metricLeft < metricRight)
         {
-            return true;
+            return PerformanceComparisonResult::LeftBetter;
         }
 
         if (metricLeft > metricRight)
         {
-            return false;
+            return PerformanceComparisonResult::RightBetter;
         }
     }
-    return false;
+    return PerformanceComparisonResult::Equal;
 }
 
 }    // namespace support_library

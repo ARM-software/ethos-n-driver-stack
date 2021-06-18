@@ -9,8 +9,8 @@
 
 using namespace ethosn::support_library;
 
-/// Tests method IsLeftMoreDataPerformantThanRight
-TEST_CASE("Left less dram data performant than right")
+/// Tests method ComparePerformanceData
+TEST_CASE("Right more performant than left (less total dram bandwidth)", "[EstimationUtils]")
 {
     PassPerformanceData pass             = {};
     NetworkPerformanceData perfDataLeft  = {};
@@ -58,11 +58,11 @@ TEST_CASE("Left less dram data performant than right")
     REQUIRE(GetPerformanceNumberOfPassesMetric(perfDataRight) == 2UL);
 
     // Right is more performant than left for total dram
-    REQUIRE(!IsLeftMoreDataPerformantThanRight(perfDataLeft, perfDataRight));
+    REQUIRE(ComparePerformanceData(perfDataLeft, perfDataRight) == PerformanceComparisonResult::RightBetter);
 }
 
-/// Tests method IsLeftMoreDataPerformantThanRight
-TEST_CASE("Left more dram data performant than right")
+/// Tests method ComparePerformanceData
+TEST_CASE("Left more performant than right (same total dram bandwidth but less non-parallel)", "[EstimationUtils]")
 {
     PassPerformanceData pass             = {};
     NetworkPerformanceData perfDataLeft  = {};
@@ -97,11 +97,11 @@ TEST_CASE("Left more dram data performant than right")
     REQUIRE(GetPerformanceNumberOfPassesMetric(perfDataRight) == 1UL);
 
     // Left is more performant than right for non parallel dram
-    REQUIRE(IsLeftMoreDataPerformantThanRight(perfDataLeft, perfDataRight));
+    REQUIRE(ComparePerformanceData(perfDataLeft, perfDataRight) == PerformanceComparisonResult::LeftBetter);
 }
 
-/// Tests method IsLeftMoreDataPerformantThanRight
 TEST_CASE("Left more pass data performant than right")
+/// Tests method ComparePerformanceData
 {
     PassPerformanceData pass             = {};
     NetworkPerformanceData perfDataLeft  = {};
@@ -145,5 +145,5 @@ TEST_CASE("Left more pass data performant than right")
     REQUIRE(GetPerformanceNumberOfPassesMetric(perfDataRight) == 2UL);
 
     // Left is more performant than right for number of passes
-    REQUIRE(IsLeftMoreDataPerformantThanRight(perfDataLeft, perfDataRight));
+    REQUIRE(ComparePerformanceData(perfDataLeft, perfDataRight) == PerformanceComparisonResult::LeftBetter);
 }
