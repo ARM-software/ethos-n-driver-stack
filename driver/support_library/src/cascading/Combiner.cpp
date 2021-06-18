@@ -1035,19 +1035,27 @@ Combinations Cascading::Combine(const GraphOfParts& parts)
                              std::end(haltedSeeds.m_Combinations));
         }
 
+        if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+        {
+            using namespace ethosn::utils;
+            MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("IntermediateCombinations").c_str());
+            MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("IntermediateHaltedCombinations").c_str());
+            MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("IntermediatePrunedCombinations").c_str());
+        }
+
         // Take the best combination of the lot
         Combination pruned =
             PruneCombinations(parts, m_Capabilities, m_Metadata, currSeeds, GetEstimationOptions(), m_DebuggingContext,
-                              "IntermediatePrunedCombinationsIteration" + std::to_string(iteration));
+                              "IntermediatePrunedCombinations/Iteration" + std::to_string(iteration));
         // Grow combinations "Back to Dram"
         haltedSeeds = GrowSeeds({ pruned }, parts, m_Metadata, m_Capabilities, GrowScheme::DramOnly);
 
         DumpDebugInfo(parts, currSeeds, { currSeeds.size() }, m_DebuggingContext,
-                      "IntermediateCombinationsIteration" + std::to_string(iteration));
+                      "IntermediateCombinations/Iteration" + std::to_string(iteration));
         DumpDebugInfo(parts, haltedSeeds.m_Combinations, { haltedSeeds.m_Combinations.size() }, m_DebuggingContext,
-                      "IntermediateHaltedCombinationsIteration" + std::to_string(iteration));
+                      "IntermediateHaltedCombinations/Iteration" + std::to_string(iteration));
         DumpDebugInfo(parts, { pruned }, {}, m_DebuggingContext,
-                      "IntermediatePrunedCombinationsIteration" + std::to_string(iteration));
+                      "IntermediatePrunedCombinations/Iteration" + std::to_string(iteration));
 
         ++iteration;
     } while (!grownSeeds.m_Terminated);
