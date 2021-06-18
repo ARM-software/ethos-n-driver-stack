@@ -7,6 +7,8 @@
 
 #include "Plan.hpp"
 
+#include <numeric>
+
 namespace ethosn
 {
 namespace support_library
@@ -320,9 +322,10 @@ uint64_t GetPerformanceParallelDataMetric(const NetworkPerformanceData& netPerfD
     return parallelData;
 }
 
-uint64_t GetPerformanceNumberOfPassesMetric(const NetworkPerformanceData& netPerfData)
+uint64_t GetPerformanceMceCycleCountMetric(const NetworkPerformanceData& netPerfData)
 {
-    return netPerfData.m_Stream.size();
+    return std::accumulate(netPerfData.m_Stream.begin(), netPerfData.m_Stream.end(), 0ULL,
+                           [](uint64_t a, const PassPerformanceData& p) { return a + p.m_Stats.m_Mce.m_CycleCount; });
 }
 
 namespace
@@ -333,7 +336,7 @@ enum class MetricType
     Total,
     Parallel,
     NonParallel,
-    Passes
+    MceCycleCount
 };
 
 uint64_t GetPerformanceMetric(const NetworkPerformanceData& netPerfData, const MetricType metricType)
@@ -346,8 +349,8 @@ uint64_t GetPerformanceMetric(const NetworkPerformanceData& netPerfData, const M
             return GetPerformanceParallelDataMetric(netPerfData);
         case MetricType::NonParallel:
             return GetPerformanceNonParallelDataMetric(netPerfData);
-        case MetricType::Passes:
-            return GetPerformanceNumberOfPassesMetric(netPerfData);
+        case MetricType::MceCycleCount:
+            return GetPerformanceMceCycleCountMetric(netPerfData);
         default:
         {
             std::string errorMessage = "Error in " + std::string(__func__) + ": metric type " +
@@ -358,7 +361,7 @@ uint64_t GetPerformanceMetric(const NetworkPerformanceData& netPerfData, const M
 }
 
 // Sequence of metric types to compare against
-std::vector<MetricType> g_MetricOrder = { MetricType::Total, MetricType::NonParallel, MetricType::Passes };
+std::vector<MetricType> g_MetricOrder = { MetricType::Total, MetricType::NonParallel, MetricType::MceCycleCount };
 
 }    // namespace
 

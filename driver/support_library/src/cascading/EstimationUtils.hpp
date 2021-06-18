@@ -53,7 +53,7 @@ InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRa
 uint64_t GetPerformanceTotalDataMetric(const NetworkPerformanceData& netPerfData);
 uint64_t GetPerformanceParallelDataMetric(const NetworkPerformanceData& netPerfData);
 uint64_t GetPerformanceNonParallelDataMetric(const NetworkPerformanceData& netPerfData);
-uint64_t GetPerformanceNumberOfPassesMetric(const NetworkPerformanceData& netPerfData);
+uint64_t GetPerformanceMceCycleCountMetric(const NetworkPerformanceData& netPerfData);
 std::vector<uint64_t> GetPerformanceMetrics(const NetworkPerformanceData& netPerfData);
 
 enum class PerformanceComparisonResult

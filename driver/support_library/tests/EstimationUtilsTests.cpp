@@ -22,8 +22,9 @@ TEST_CASE("Right more performant than left (less total dram bandwidth)", "[Estim
     pass.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel   = 1UL;
     pass.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel = 2UL;
     pass.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel  = 1UL;
+    pass.m_Stats.m_Mce.m_CycleCount                        = 1UL;
 
-    // Add (6,4)
+    // Add (6,4,1)
     perfDataLeft.m_Stream.push_back(pass);
 
     pass.m_Stats.m_Input.m_MemoryStats.m_DramParallel      = 2UL;
@@ -32,10 +33,11 @@ TEST_CASE("Right more performant than left (less total dram bandwidth)", "[Estim
     pass.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel   = 2UL;
     pass.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel = 1UL;
     pass.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel  = 1UL;
-    // Add (7,4)
+    pass.m_Stats.m_Mce.m_CycleCount                        = 2UL;
+    // Add (7,4,2)
     perfDataLeft.m_Stream.push_back(pass);
 
-    // Add (7,4)
+    // Add (7,4,2)
     perfDataRight.m_Stream.push_back(pass);
     pass.m_Stats.m_Input.m_MemoryStats.m_DramParallel      = 2UL;
     pass.m_Stats.m_Weights.m_MemoryStats.m_DramParallel    = 1UL;
@@ -43,19 +45,20 @@ TEST_CASE("Right more performant than left (less total dram bandwidth)", "[Estim
     pass.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel   = 2UL;
     pass.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel = 1UL;
     pass.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel  = 1UL;
-    // Add (4,4)
+    pass.m_Stats.m_Mce.m_CycleCount                        = 3UL;
+    // Add (4,4,3)
     perfDataRight.m_Stream.push_back(pass);
 
     REQUIRE(perfDataLeft.m_Stream.size() == 2UL);
     REQUIRE(GetPerformanceTotalDataMetric(perfDataLeft) == 21UL);
     REQUIRE(GetPerformanceParallelDataMetric(perfDataLeft) == 13UL);
     REQUIRE(GetPerformanceNonParallelDataMetric(perfDataLeft) == 8UL);
-    REQUIRE(GetPerformanceNumberOfPassesMetric(perfDataLeft) == 2UL);
+    REQUIRE(GetPerformanceMceCycleCountMetric(perfDataLeft) == 3UL);
 
     REQUIRE(GetPerformanceTotalDataMetric(perfDataRight) == 19UL);
     REQUIRE(GetPerformanceParallelDataMetric(perfDataRight) == 11UL);
     REQUIRE(GetPerformanceNonParallelDataMetric(perfDataRight) == 8UL);
-    REQUIRE(GetPerformanceNumberOfPassesMetric(perfDataRight) == 2UL);
+    REQUIRE(GetPerformanceMceCycleCountMetric(perfDataRight) == 5UL);
 
     // Right is more performant than left for total dram
     REQUIRE(ComparePerformanceData(perfDataLeft, perfDataRight) == PerformanceComparisonResult::RightBetter);
@@ -74,7 +77,8 @@ TEST_CASE("Left more performant than right (same total dram bandwidth but less n
     pass.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel   = 2UL;
     pass.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel = 1UL;
     pass.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel  = 1UL;
-    // Add (9,4)
+    pass.m_Stats.m_Mce.m_CycleCount                        = 1UL;
+    // Add (9,4,1)
     perfDataLeft.m_Stream.push_back(pass);
 
     pass.m_Stats.m_Input.m_MemoryStats.m_DramParallel      = 4UL;
@@ -83,25 +87,26 @@ TEST_CASE("Left more performant than right (same total dram bandwidth but less n
     pass.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel   = 1UL;
     pass.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel = 2UL;
     pass.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel  = 2UL;
-    // Add (8,5)
+    pass.m_Stats.m_Mce.m_CycleCount                        = 2UL;
+    // Add (8,5,2)
     perfDataRight.m_Stream.push_back(pass);
 
     REQUIRE(GetPerformanceTotalDataMetric(perfDataLeft) == 13UL);
     REQUIRE(GetPerformanceParallelDataMetric(perfDataLeft) == 9UL);
     REQUIRE(GetPerformanceNonParallelDataMetric(perfDataLeft) == 4UL);
-    REQUIRE(GetPerformanceNumberOfPassesMetric(perfDataLeft) == 1UL);
+    REQUIRE(GetPerformanceMceCycleCountMetric(perfDataLeft) == 1UL);
 
     REQUIRE(GetPerformanceTotalDataMetric(perfDataRight) == 13UL);
     REQUIRE(GetPerformanceParallelDataMetric(perfDataRight) == 8UL);
     REQUIRE(GetPerformanceNonParallelDataMetric(perfDataRight) == 5UL);
-    REQUIRE(GetPerformanceNumberOfPassesMetric(perfDataRight) == 1UL);
+    REQUIRE(GetPerformanceMceCycleCountMetric(perfDataRight) == 2UL);
 
     // Left is more performant than right for non parallel dram
     REQUIRE(ComparePerformanceData(perfDataLeft, perfDataRight) == PerformanceComparisonResult::LeftBetter);
 }
 
-TEST_CASE("Left more pass data performant than right")
 /// Tests method ComparePerformanceData
+TEST_CASE("Left more performant than right (same dram bandwidths but less MCE cycles)", "[EstimationUtils]")
 {
     PassPerformanceData pass             = {};
     NetworkPerformanceData perfDataLeft  = {};
@@ -113,7 +118,8 @@ TEST_CASE("Left more pass data performant than right")
     pass.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel   = 2UL;
     pass.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel = 1UL;
     pass.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel  = 1UL;
-    // Add (9,4)
+    pass.m_Stats.m_Mce.m_CycleCount                        = 1UL;
+    // Add (9,4,1)
     perfDataLeft.m_Stream.push_back(pass);
 
     pass.m_Stats.m_Input.m_MemoryStats.m_DramParallel      = 2UL;
@@ -122,7 +128,8 @@ TEST_CASE("Left more pass data performant than right")
     pass.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel   = 0UL;
     pass.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel = 1UL;
     pass.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel  = 1UL;
-    // Add (5,2)
+    pass.m_Stats.m_Mce.m_CycleCount                        = 2UL;
+    // Add (5,2,2)
     perfDataRight.m_Stream.push_back(pass);
 
     pass.m_Stats.m_Input.m_MemoryStats.m_DramParallel      = 2UL;
@@ -131,18 +138,19 @@ TEST_CASE("Left more pass data performant than right")
     pass.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel   = 1UL;
     pass.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel = 0UL;
     pass.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel  = 1UL;
-    // Add (4,2)
+    pass.m_Stats.m_Mce.m_CycleCount                        = 3UL;
+    // Add (4,2,3)
     perfDataRight.m_Stream.push_back(pass);
 
     REQUIRE(GetPerformanceTotalDataMetric(perfDataLeft) == 13UL);
     REQUIRE(GetPerformanceParallelDataMetric(perfDataLeft) == 9UL);
     REQUIRE(GetPerformanceNonParallelDataMetric(perfDataLeft) == 4UL);
-    REQUIRE(GetPerformanceNumberOfPassesMetric(perfDataLeft) == 1UL);
+    REQUIRE(GetPerformanceMceCycleCountMetric(perfDataLeft) == 1UL);
 
     REQUIRE(GetPerformanceTotalDataMetric(perfDataRight) == 13UL);
     REQUIRE(GetPerformanceParallelDataMetric(perfDataRight) == 9UL);
     REQUIRE(GetPerformanceNonParallelDataMetric(perfDataRight) == 4UL);
-    REQUIRE(GetPerformanceNumberOfPassesMetric(perfDataRight) == 2UL);
+    REQUIRE(GetPerformanceMceCycleCountMetric(perfDataRight) == 5UL);
 
     // Left is more performant than right for number of passes
     REQUIRE(ComparePerformanceData(perfDataLeft, perfDataRight) == PerformanceComparisonResult::LeftBetter);
