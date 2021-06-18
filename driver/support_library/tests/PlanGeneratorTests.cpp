@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "CapabilitiesInternal.hpp"
 #include "GlobalParameters.hpp"
 #include "GraphNodes.hpp"
 #include "TestUtils.hpp"
@@ -217,29 +218,6 @@ Part BuildSinglePartWithOneNode(Graph& g,
     return part;
 }
 
-Part BuildSinglePartWithTwoNodes(Graph& g,
-                                 const EstimationOptions& estOpt,
-                                 const CompilationOptions& compOpt,
-                                 const HardwareCapabilities& caps)
-{
-    TS tsIn    = { 1, 32, 32, 3 };
-    TS tsOut   = { 1, 64, 64, 1 };
-    auto in    = CreateAndAddInputNode(g, tsIn);
-    auto node1 = CreateAndAddMceOperationNode(g, tsOut);
-    auto node2 = CreateAndAddMcePostProcessOperationNode(g);
-    auto out   = CreateAndAddOutputNode(g);
-
-    // Graph must be connected to be valid
-    g.Connect(in, node1, 0);
-    g.Connect(node1, node2, 0);
-    g.Connect(node2, out, 0);
-
-    Part part(estOpt, compOpt, caps);
-    part.m_SubGraph.push_back(node1);
-    part.m_SubGraph.push_back(node2);
-    return part;
-}
-
 Part BuildPartWithFuseOnlyPle(Graph& g,
                               const EstimationOptions& estOpt,
                               const CompilationOptions& compOpt,
@@ -442,22 +420,23 @@ bool ContainsOutputStripe(const Plan::OutputMapping& outputMappings,
     return false;
 }
 
-std::pair<bool, size_t> GetPlanIndexContainingStripes(const Plans& plans,
-                                                      const TensorShape& inputStripe,
-                                                      const uint32_t numInputStripes,
-                                                      const TensorShape& outputStripe,
-                                                      const uint32_t numOutputStripes)
+std::vector<size_t> GetPlanIndexContainingStripes(const Plans& plans,
+                                                  const TensorShape& inputStripe,
+                                                  const uint32_t numInputStripes,
+                                                  const TensorShape& outputStripe,
+                                                  const uint32_t numOutputStripes)
 {
+    std::vector<size_t> res;
     for (uint32_t i = 0; i < plans.size(); ++i)
     {
         bool containsInputStripe  = ContainsInputStripe(plans[i]->m_InputMappings, inputStripe, numInputStripes);
         bool containsOutputStripe = ContainsOutputStripe(plans[i]->m_OutputMappings, outputStripe, numOutputStripes);
         if (containsInputStripe && containsOutputStripe)
         {
-            return { true, i };
+            res.push_back(i);
         }
     }
-    return { false, 0 };
+    return res;
 }
 
 bool ContainsPlanWithStripes(const Plans& plans,
@@ -466,7 +445,7 @@ bool ContainsPlanWithStripes(const Plans& plans,
                              const TensorShape& outputStripe,
                              const uint32_t numOutputStripes)
 {
-    return GetPlanIndexContainingStripes(plans, inputStripe, numInputStripes, outputStripe, numOutputStripes).first;
+    return !GetPlanIndexContainingStripes(plans, inputStripe, numInputStripes, outputStripe, numOutputStripes).empty();
 }
 
 void SavePlansToDot(const Plans& plans, const std::string test)
@@ -571,96 +550,6 @@ TEST_CASE("PlanGenerator: Generate parts from graph with non MCE Operation node 
     REQUIRE(parts[6]->m_SubGraph.size() == 1);
 }
 
-TEST_CASE("PlanGenerator: Generate plans from a part with single node")
-{
-    // Given
-    const EstimationOptions estOpt;
-    CompilationOptions compOpt;
-    compOpt.m_DisableWinograd       = GENERATE(false, true);
-    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
-    Graph g;
-    auto part = BuildSinglePartWithOneNode(g, estOpt, compOpt, caps);
-    std::string expected =
-        R"(digraph SupportLibraryGraph
-\{
-.*
-Buffer_.* -> MceOp_.*\[ label="Input 0"\]
-MceOp_.* -> Buffer_.*
-Buffer_.* -> DmaOp_.*
-DmaOp_.* -> Buffer_.*
-Buffer_.* -> MceOp_.*\[ label="Input 1"\]
-\{.*\}?
-\}.*
-)";
-    expected.erase(std::remove(expected.begin(), expected.end(), '\n'), expected.end());
-    std::regex re(expected);
-    std::smatch m;
-
-    // When
-    part.CreatePlans();
-
-    // Then
-    REQUIRE(part.m_Plans.size() == 74);
-    SavePlansToDot(part.m_Plans, "plans_in_part_with_single_node");
-    const auto& plan = part.GetPlan(0);
-    std::stringstream str;
-    SaveOpGraphToDot(plan.m_OpGraph, str, DetailLevel::Low);
-    std::string s = str.str();
-    s.erase(std::remove(s.begin(), s.end(), '\n'), s.end());
-    bool result = std::regex_match(s, m, re);
-    REQUIRE(result);
-    REQUIRE(plan.m_OpGraph.GetOps().size() == 2);
-    REQUIRE(plan.m_OpGraph.GetBuffers().size() == 4);
-    REQUIRE(plan.m_InputMappings.size() == 1);
-    REQUIRE(plan.m_OutputMappings.size() == 1);
-}
-
-TEST_CASE("PlanGenerator: Generate plans from a part with two fused nodes")
-{
-    // Given
-    const EstimationOptions estOpt;
-    CompilationOptions compOpt;
-    compOpt.m_DisableWinograd       = GENERATE(false, true);
-    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
-    Graph g;
-    auto part = BuildSinglePartWithTwoNodes(g, estOpt, compOpt, caps);
-    std::string expected =
-        R"(digraph SupportLibraryGraph
-\{
-.*
-Buffer_.* -> MceOp_.*\[ label="Input 0"\]
-MceOp_.* -> Buffer_.*
-Buffer_.* -> MceOp_.*
-MceOp_.* -> Buffer_.*
-Buffer_.* -> DmaOp_.*
-DmaOp_.* -> Buffer_.*
-Buffer_.* -> MceOp_.*\[ label="Input 1"\]
-\{.*\}?
-\}.*
-)";
-    expected.erase(std::remove(expected.begin(), expected.end(), '\n'), expected.end());
-    std::regex re(expected);
-    std::smatch m;
-
-    // When
-    part.CreatePlans();
-
-    // Then
-    REQUIRE(part.m_Plans.size() == 19);
-    SavePlansToDot(part.m_Plans, "plans_in_part_with_two_fused_nodes");
-    const auto& plan = part.GetPlan(0);
-    std::stringstream str;
-    SaveOpGraphToDot(plan.m_OpGraph, str, DetailLevel::Low);
-    std::string s = str.str();
-    s.erase(std::remove(s.begin(), s.end(), '\n'), s.end());
-    bool result = std::regex_match(s, m, re);
-    REQUIRE(result);
-    REQUIRE(plan.m_OpGraph.GetOps().size() == 3);
-    REQUIRE(plan.m_OpGraph.GetBuffers().size() == 5);
-    REQUIRE(plan.m_InputMappings.size() == 1);
-    REQUIRE(plan.m_OutputMappings.size() == 1);
-}
-
 TEST_CASE("PlanGenerator:FuseOnlyPleNode")
 {
     // Graph with FuseOnlyPleNode
@@ -673,7 +562,9 @@ TEST_CASE("PlanGenerator:FuseOnlyPleNode")
     part.CreatePlans();
     SavePlansToDot(part.m_Plans, "plans_part_fuseonlyple");
 
-    const auto& plan1 = part.GetPlan(0);
+    REQUIRE(part.m_Plans.size() == 15);
+
+    const auto& plan1 = part.GetPlan(11);
     REQUIRE(plan1.m_OpGraph.GetBuffers().size() == 2);
     auto buffers1 = plan1.m_OpGraph.GetBuffers();
     auto ops1     = plan1.m_OpGraph.GetOps();
@@ -711,26 +602,26 @@ TEST_CASE("PlanGenerator:MceOperationNode")
     SavePlansToDot(part.m_Plans, "plans_part_mceoperation");
 
     const auto& plan1 = part.GetPlan(0);
-    REQUIRE(plan1.m_OpGraph.GetBuffers().size() == 4);
+    REQUIRE(plan1.m_OpGraph.GetBuffers().size() == 5);
     auto buffers1 = plan1.m_OpGraph.GetBuffers();
     auto ops1     = plan1.m_OpGraph.GetOps();
-    REQUIRE(buffers1[0]->m_Location == Location::Sram);
-    REQUIRE(buffers1[1]->m_Location == Location::PleInputSram);
-    REQUIRE(ops1.size() == 2);
+    REQUIRE(buffers1[0]->m_Location == Location::PleInputSram);
+    REQUIRE(buffers1[1]->m_Location == Location::Sram);
+    REQUIRE(ops1.size() == 3);
     REQUIRE(dynamic_cast<MceOp*>(ops1.front()) != nullptr);
 
-    const auto& plan2 = part.GetPlan(1);
+    const auto& plan2 = part.GetPlan(2);
     REQUIRE(plan2.m_OpGraph.GetBuffers().size() == 5);
     const OpGraph::BufferList& buffers2 = plan2.m_OpGraph.GetBuffers();
     auto ops2                           = plan2.m_OpGraph.GetOps();
-    REQUIRE(buffers2[0]->m_Location == Location::Sram);
-    REQUIRE(buffers2[1]->m_Location == Location::PleInputSram);
+    REQUIRE(buffers2[0]->m_Location == Location::PleInputSram);
+    REQUIRE(buffers2[1]->m_Location == Location::Sram);
     REQUIRE(buffers2[2]->m_Location == Location::Dram);
     REQUIRE(buffers2[3]->m_Location == Location::Sram);
-    REQUIRE(buffers2[4]->m_Location == Location::Sram);
 
     REQUIRE(ops2.size() == 3);
     REQUIRE(dynamic_cast<MceOp*>(ops2[0]) != nullptr);
+    REQUIRE(dynamic_cast<DmaOp*>(ops2[1]) != nullptr);
     REQUIRE(dynamic_cast<PleOp*>(ops2[2]) != nullptr);
 
     // Check the weights have been encoded properly
@@ -764,10 +655,10 @@ TEST_CASE("PlanGenerator: Generate plans from a part with single format conversi
 
     // When
     part.CreatePlans();
+    SavePlansToDot(part.m_Plans, "plans_in_part_with_leading_format_conversion_node");
 
     // Then
-    REQUIRE(part.m_Plans.size() == 8);
-    SavePlansToDot(part.m_Plans, "plans_in_part_with_leading_format_conversion_node");
+    REQUIRE(part.m_Plans.size() == 18);
 
     const auto input  = edges[0].get();
     const auto output = nodes[1].get();
@@ -814,8 +705,8 @@ TEST_CASE("PlanGenerator: Generate plans from a part with trailing format conver
     part.CreatePlans();
 
     // Then
-    REQUIRE(part.m_Plans.size() == 11);
     SavePlansToDot(part.m_Plans, "plans_in_part_with_trailing_format_conversion_node");
+    REQUIRE(part.m_Plans.size() == 22);
 
     const auto input  = edges[0].get();
     const auto output = nodes[1].get();
@@ -984,15 +875,24 @@ TEST_CASE("PlanGenerator: FuseOnly")
         TS outputStripe{ 1, 8, 112, 256 };
         uint32_t numOutputStripes = 1;
 
-        auto planIndex =
+        auto planIndices =
             GetPlanIndexContainingStripes(part.m_Plans, inputStripe, numInputStripes, outputStripe, numOutputStripes);
-        REQUIRE(planIndex.first);
-        auto& plan      = part.m_Plans[planIndex.second];
-        auto ops        = plan->m_OpGraph.GetOps();
-        auto foundMceOp = utils::FindIndexIf(ops, [](Op* op) { return IsObjectOfType<MceOp>(op); });
-        auto foundPleOp = utils::FindIndexIf(ops, [](Op* op) { return IsObjectOfType<PleOp>(op); });
-        REQUIRE(foundMceOp.first);
-        REQUIRE(foundPleOp.first);
+        REQUIRE(!planIndices.empty());
+        bool foundMceOp = false;
+        bool foundPleOp = false;
+        for (auto planIndex : planIndices)
+        {
+            auto& plan = part.m_Plans[planIndex];
+            auto ops   = plan->m_OpGraph.GetOps();
+            foundMceOp = utils::FindIndexIf(ops, [](Op* op) { return IsObjectOfType<MceOp>(op); }).first;
+            foundPleOp = utils::FindIndexIf(ops, [](Op* op) { return IsObjectOfType<PleOp>(op); }).first;
+            if (foundMceOp && foundPleOp)
+            {
+                break;
+            }
+        }
+        REQUIRE(foundMceOp);
+        REQUIRE(foundPleOp);
     }
     // Ensure there is a plan with the correct ratio of input and output stripe sizes.
     {
@@ -1094,9 +994,9 @@ TEST_CASE("PlanGenerator:BlockConfig")
     SavePlansToDot(part.m_Plans, "plans_part_blockconfig");
 
     const auto& plan1 = part.GetPlan(0);
-    REQUIRE(plan1.m_OpGraph.GetBuffers().size() == 2);
+    REQUIRE(plan1.m_OpGraph.GetBuffers().size() == 5);
     auto ops1 = plan1.m_OpGraph.GetOps();
-    REQUIRE(ops1.size() == 1);
+    REQUIRE(ops1.size() == 3);
     auto pleOp = dynamic_cast<PleOp*>(ops1.back());
     REQUIRE(pleOp != nullptr);
     REQUIRE(pleOp->m_Op == ethosn::command_stream::PleOperation::INTERLEAVE_2X2_2_2);
@@ -1222,6 +1122,14 @@ TEST_CASE("PlanGenerator: Split output in depth")
         uint32_t numInputStripes = 1;
         TS outputStripe{ 1, 8, 8, 8 };
         uint32_t numOutputStripes = 2;
-        REQUIRE(ContainsPlanWithStripes(part.m_Plans, inputStripe, numInputStripes, outputStripe, numOutputStripes));
+        REQUIRE(std::any_of(part.m_Plans.begin(), part.m_Plans.end(), [&](auto& p) {
+            auto mceOp = dynamic_cast<MceOp*>(p->m_OpGraph.GetOps()[0]);
+            REQUIRE(mceOp != nullptr);
+            return ContainsInputStripe(p->m_InputMappings, inputStripe, numInputStripes) &&
+                   ContainsOutputStripe(p->m_OutputMappings, outputStripe, numOutputStripes) &&
+                   // Check also the algorithm, to make sure we include output-depth-split plans with Winograd enabled
+                   // (these were previously missing)
+                   mceOp->m_Algo == CompilerMceAlgorithm::Winograd;
+        }));
     }
 }
