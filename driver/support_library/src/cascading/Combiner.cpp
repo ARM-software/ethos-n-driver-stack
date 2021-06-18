@@ -721,11 +721,25 @@ PlanCompatibilityResult ArePlansCompatible(
         return result;
     }
 
-    // Some properties of the buffers must match, for example if the quantisation info is different then even inserting
-    // a DMA glue isn't going to help.
-    bool areBuffersCompatible = plan1OutputBuffer->m_QuantizationInfo == plan2InputBuffer->m_QuantizationInfo &&
-                                plan1OutputBuffer->m_TensorShape == plan2InputBuffer->m_TensorShape;
-    if (!areBuffersCompatible)
+    // Some properties of the buffers must match, as we can't fix everything these by inserting a glue.
+    // This would normally indicate there is an issue with the plans generated, and is more of a sanity check.
+    //
+    // Note that m_QuantizationInfo does not need to match between the buffers, as it is possible to *reinterpret* the
+    // quantisation of a buffer without having to insert any glue (i.e. it's a no-op). We will use this to implement the
+    // ReinterpretQuantization Operation.
+
+    // The same goes for shape, but only in limited circumstances (e.g. you can't reinterpret a 1x1x1x1 as a 1x100x100x100
+    // because there wouldn't be enough data, and there are probably additional limitations for non-linear formats like
+    // NHWCB, FCAF). For now we are conservative and only allow this for simple NHWC cases where the full tensor is
+    // reinterpreted with a different shape, which we use to implement "DRAM Reshape" Operations as a no-op.
+    bool areShapesDifferent = plan1OutputBuffer->m_TensorShape != plan2InputBuffer->m_TensorShape;
+    bool isValidNhwcReinterpret =
+        plan1OutputBuffer->m_Format == CascadingBufferFormat::NHWC &&
+        plan2InputBuffer->m_Format == CascadingBufferFormat::NHWC &&
+        GetNumElements(plan1OutputBuffer->m_TensorShape) == GetNumElements(plan2InputBuffer->m_TensorShape);
+
+    bool areBuffersIncompatible = areShapesDifferent && !isValidNhwcReinterpret;
+    if (areBuffersIncompatible)
     {
         // Not compatible as the output buffer can't be used directly as the input buffer, and we can't convert
         // between them using a glue (at least not with the current implementation of this function).
@@ -734,8 +748,8 @@ PlanCompatibilityResult ArePlansCompatible(
         return result;
     }
 
-    // Check if the buffers on the boundary are compatible, i.e. the same, such that the plans could be directly merged
-    // without any additional DMA ops required
+    // Check if the buffers on the boundary are compatible, i.e. the same (or similar enough that they can be reinterpreted),
+    // such that the plans could be directly merged without any additional DMA ops required
     bool areBuffersEquivalent = plan1OutputBuffer->m_Location == plan2InputBuffer->m_Location &&
                                 plan1OutputBuffer->m_Format == plan2InputBuffer->m_Format &&
                                 plan1OutputBuffer->m_StripeShape == plan2InputBuffer->m_StripeShape &&
@@ -1149,10 +1163,14 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
                 if (incomingGlueOps.find(inputEdge) == incomingGlueOps.end())
                 {
                     sharedBuffer = edgeConnectionBuffers.find(inputEdge)->second;
+                    // This buffer itself may have been merged (e.g. for plans that have a single buffer for both
+                    // input and output, like reinterpret Dram)
+                    sharedBuffer = getEffectiveBuffer(sharedBuffer);
                 }
             }
             if (sharedBuffer)
             {
+                assert(result.Contains(sharedBuffer));
                 // Record the fact that this buffer has been shared, so that when making connections (below), we
                 // connect to the correct buffer.
                 mergedBuffers[b] = sharedBuffer;

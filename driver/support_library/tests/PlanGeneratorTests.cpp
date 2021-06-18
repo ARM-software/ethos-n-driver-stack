@@ -851,14 +851,6 @@ TEST_CASE("PlanGenerator: Generate plans from a part with trailing format conver
 
 TEST_CASE("PlanGenerator: Generate plans from a part with reinterpret node")
 {
-    auto assertPlan = [](const Plan& plan) -> void {
-        REQUIRE(plan.m_OpGraph.GetOps().size() == 1);
-        REQUIRE(IsObjectOfType<DummyOp>(plan.m_OpGraph.GetOps()[0]));
-        REQUIRE(plan.m_OpGraph.GetBuffers().size() == 2);
-        REQUIRE(plan.m_InputMappings.size() == 1);
-        REQUIRE(plan.m_OutputMappings.size() == 1);
-    };
-
     // Given
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
@@ -872,21 +864,44 @@ TEST_CASE("PlanGenerator: Generate plans from a part with reinterpret node")
 
     // When
     part.CreatePlans();
-
-    // Then
-    REQUIRE(part.m_Plans.size() == 2);
     SavePlansToDot(part.m_Plans, "plans_in_part_with_reinterpret_node");
 
+    // Then
     const auto input  = edges[0].get();
     const auto output = nodes[1].get();
-    AssertPart(part, input, output, assertPlan);
+    REQUIRE(part.m_Plans.size() == 2);
 
-    RequireInputBuffer(part, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
-    RequireInputBuffer(part, input, CascadingBufferFormat::NHWC, Location::VirtualSram, 1, { 1, 32, 32, 4 },
-                       { 1, 32, 32, 16 });
-    RequireOutputBuffer(part, output, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 64, 64, 1 }, { 0, 0, 0, 0 });
-    RequireOutputBuffer(part, output, CascadingBufferFormat::NHWC, Location::VirtualSram, 1, { 1, 64, 64, 1 },
-                        { 1, 64, 64, 16 });
+    {
+        const Plan& dramPlan = *part.m_Plans[0];
+        CHECK(dramPlan.m_OpGraph.GetOps().empty());
+        REQUIRE(dramPlan.m_OpGraph.GetBuffers().size() == 1);
+        const Buffer* b = dramPlan.m_OpGraph.GetBuffers()[0];
+        CHECK(dramPlan.GetInputBuffer(input) == b);
+        CHECK(dramPlan.GetOutputBuffer(output) == b);
+        CHECK(b->m_Location == Location::Dram);
+    }
+
+    {
+        const Plan& virtualSramPlan = *part.m_Plans[1];
+
+        REQUIRE(virtualSramPlan.m_OpGraph.GetOps().size() == 1);
+        CHECK(IsObjectOfType<DummyOp>(virtualSramPlan.m_OpGraph.GetOps()[0]));
+        CHECK(virtualSramPlan.m_OpGraph.GetBuffers().size() == 2);
+        CHECK(virtualSramPlan.m_InputMappings.size() == 1);
+        CHECK(virtualSramPlan.m_OutputMappings.size() == 1);
+
+        const Buffer* inputBuffer = virtualSramPlan.GetInputBuffer(input);
+        CHECK((inputBuffer->m_Format == CascadingBufferFormat::NHWC &&
+               inputBuffer->m_Location == Location::VirtualSram && inputBuffer->m_NumStripes == 1 &&
+               inputBuffer->m_TensorShape == TensorShape{ 1, 32, 32, 4 } &&
+               inputBuffer->m_StripeShape == TensorShape{ 1, 32, 32, 16 }));
+
+        const Buffer* outputBuffer = virtualSramPlan.GetOutputBuffer(output);
+        CHECK((outputBuffer->m_Format == CascadingBufferFormat::NHWC &&
+               outputBuffer->m_Location == Location::VirtualSram && outputBuffer->m_NumStripes == 1 &&
+               outputBuffer->m_TensorShape == TensorShape{ 1, 64, 64, 1 } &&
+               outputBuffer->m_StripeShape == TensorShape{ 1, 64, 64, 16 }));
+    }
 }
 
 Part BuildPartWithMceNodeStride(Graph& g,

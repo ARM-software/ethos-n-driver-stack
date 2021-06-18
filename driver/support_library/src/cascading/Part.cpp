@@ -1064,6 +1064,28 @@ std::vector<BlockConfig> GenerateBlockConfigs(Node* node)
     return result;
 }
 
+/// Creates a plan which simply reinterprets the input tensor properties of the given node with its output tensor
+/// properties. No Ops are created - just a single Dram buffer which is tagged as both the input and output of the Plan.
+std::unique_ptr<Plan> CreateReinterpretDramPlan(Node* node)
+{
+    assert(node->GetInputs().size() == 1);
+
+    CascadingBufferFormat format = GetCascadingBufferFormatFromCompilerDataFormat(node->GetInputFormat(0));
+    OwnedOpGraph opGraph;
+    opGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, format, TraversalOrder::Xyz));
+    Buffer* buffer             = opGraph.GetBuffers()[0];
+    buffer->m_TensorShape      = node->GetShape();
+    buffer->m_SizeInBytes      = CalculateBufferSize(node->GetInputShape(0), format);
+    buffer->m_QuantizationInfo = node->GetQuantizationInfo();
+
+    std::unique_ptr<Plan> p     = std::make_unique<Plan>();
+    p->m_OpGraph                = std::move(opGraph);
+    p->m_InputMappings[buffer]  = node->GetInput(0);
+    p->m_OutputMappings[buffer] = node;
+
+    return p;
+}
+
 void Part::GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEncoderCache)
 {
     std::vector<BlockConfig> blockConfigs = GenerateBlockConfigs(node);
@@ -1092,8 +1114,15 @@ void Part::GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEnc
     }
     else if (IsObjectOfType<ReinterpretNode>(node))
     {
-        CreatePlanForNode(node, Lifetime::Cascade, TraversalOrder::Xyz, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, 0U, 0U, 0u,
-                          Location::Dram, Location::Dram, BlockConfig{}, weightEncoderCache);
+        // For now we are only considering ReinterpretNode generated as part of Reshape (it can also be generated
+        // for other reasons, which we haven't considered yet but these can hopefully be handled similarly).
+        // We can handle this in two ways - one is a simple reinterpret in Dram and the other is via an SRAM reshape.
+        // Sram reshape is not fully implemented in cascading yet, but the idea is that we use a "virtual" buffer
+        // location (VirtualSram) so that we can match up plans between the adjacent FormatConversionNodes and
+        // the ReinterpretNode. This would likely be a lot simpler if we had access to the Reshape directly inside
+        // cascading, and it hadn't gone through the Conversion step.
+        m_Plans.push_back(CreateReinterpretDramPlan(node));
+
         CreatePlanForNode(node, Lifetime::Cascade, TraversalOrder::Xyz, inputStripe, outputStripe, 1U, 1U, 0u,
                           Location::VirtualSram, Location::VirtualSram, BlockConfig{}, weightEncoderCache);
     }
