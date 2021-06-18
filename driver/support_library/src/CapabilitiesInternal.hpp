@@ -14,7 +14,6 @@ namespace support_library
 {
 
 FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant variant, uint32_t sramSize = 0);
-FirmwareAndHardwareCapabilities GetEthosN77FwHwCapabilities();
 
 /// Checks that capabilities vector is valid
 ///

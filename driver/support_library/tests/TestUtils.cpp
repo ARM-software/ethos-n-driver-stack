@@ -28,11 +28,6 @@ HardwareCapabilities GetEthosN78HwCapabilities(EthosNVariant variant, uint32_t s
     return HardwareCapabilities(fwHwCapabilities);
 }
 
-HardwareCapabilities GetEthosN77HwCapabilities()
-{
-    return HardwareCapabilities(GetEthosN77FwHwCapabilities());
-}
-
 namespace
 {
 

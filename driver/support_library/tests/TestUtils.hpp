@@ -17,7 +17,6 @@ namespace support_library
 
 HardwareCapabilities GetEthosN78HwCapabilities();
 HardwareCapabilities GetEthosN78HwCapabilities(EthosNVariant variant, uint32_t sramSizeOverride = 0);
-HardwareCapabilities GetEthosN77HwCapabilities();
 
 std::vector<char> GetRawDefaultCapabilities();
 std::vector<char> GetRawDefaultEthosN78Capabilities();
