@@ -1455,7 +1455,7 @@ struct ethosn_device *ethosn_get_global_device_for_testing(void)
 	return ethosn_global_device_for_testing;
 }
 
-/* Exported for use by ethosn-tests module */
+/* Exported for use by test module */
 EXPORT_SYMBOL(ethosn_get_global_device_for_testing);
 
 static const struct of_device_id ethosn_pdev_match[] = {

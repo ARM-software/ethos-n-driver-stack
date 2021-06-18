@@ -69,7 +69,7 @@ static bool stashing_enabled;
 module_param_named(stashing, stashing_enabled, bool, 0440);
 
 /* Exposes global access to the most-recently created Ethos-N core for testing
- * purposes. See ethosn-tests module
+ * purposes.
  */
 static struct ethosn_core *ethosn_global_core_for_testing;
 
@@ -130,7 +130,7 @@ bool ethosn_smmu_available(struct device *dev)
 	return has_smmu;
 }
 
-/* Exported for use by ethosn-tests module */
+/* Exported for use by test module */
 EXPORT_SYMBOL(ethosn_smmu_available);
 
 /**
@@ -325,7 +325,7 @@ void ethosn_write_top_reg(struct ethosn_core *core,
 	iowrite32(value, ethosn_top_reg_addr(core->top_regs, page, offset));
 }
 
-/* Exported for use by ethosn-tests module * */
+/* Exported for use by test module * */
 EXPORT_SYMBOL(ethosn_write_top_reg);
 
 u32 ethosn_read_top_reg(struct ethosn_core *core,
@@ -335,7 +335,7 @@ u32 ethosn_read_top_reg(struct ethosn_core *core,
 	return ioread32(ethosn_top_reg_addr(core->top_regs, page, offset));
 }
 
-/* Exported for use by ethosn-tests module */
+/* Exported for use by test module */
 EXPORT_SYMBOL(ethosn_read_top_reg);
 
 /**
@@ -924,7 +924,7 @@ int ethosn_write_message(struct ethosn_core *core,
 	return 0;
 }
 
-/* Exported for use by ethosn-tests module * */
+/* Exported for use by test module * */
 EXPORT_SYMBOL(ethosn_write_message);
 
 int ethosn_send_fw_hw_capabilities_request(struct ethosn_core *core)
@@ -1759,7 +1759,7 @@ bool ethosn_stashing_enabled(void)
 	return stashing_enabled;
 }
 
-/* Exported for use by ethosn-tests module */
+/* Exported for use by test module */
 EXPORT_SYMBOL(ethosn_stashing_enabled);
 
 struct ethosn_core *ethosn_get_global_core_for_testing(void)
@@ -1767,5 +1767,5 @@ struct ethosn_core *ethosn_get_global_core_for_testing(void)
 	return ethosn_global_core_for_testing;
 }
 
-/* Exported for use by ethosn-tests module */
+/* Exported for use by test module */
 EXPORT_SYMBOL(ethosn_get_global_core_for_testing);

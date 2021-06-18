@@ -457,18 +457,16 @@ bool ethosn_mailbox_empty(struct ethosn_queue *queue);
 int ethosn_clock_frequency(void);
 
 /* ethosn_get_global_core_for_testing() - Exposes global access to the
- *                                       most-recently created Ethos-N core
- *                                       (in case of single core) or core0 (in
- *                                       case of multicore) for testing
- * purposes.
- *                                       See ethosn-tests module.
+ *                                        most-recently created Ethos-N core
+ *                                        (in case of single core) or core0 (in
+ *                                        case of multicore) for testing
+ *                                        purposes.
  */
 struct ethosn_core *ethosn_get_global_core_for_testing(void);
 
 /* ethosn_get_global_device_for_testing() - Exposes global access to the
- *                                       Ethos-N parent device for testing
- * purposes.
- *                                       See ethosn-tests module.
+ *                                          Ethos-N parent device for testing
+ *                                          purposes.
  */
 struct ethosn_device *ethosn_get_global_device_for_testing(void);
 
