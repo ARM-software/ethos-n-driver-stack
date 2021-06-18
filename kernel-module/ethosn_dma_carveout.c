@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2019 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -174,7 +174,12 @@ static resource_size_t carveout_get_addr_size(
 
 static void carveout_allocator_destroy(struct ethosn_dma_allocator *allocator)
 {
-	struct device *dev = allocator->dev;
+	struct device *dev;
+
+	if (!allocator)
+		return;
+
+	dev = allocator->dev;
 
 	memset(allocator, 0, sizeof(struct ethosn_dma_allocator));
 	devm_kfree(dev, allocator);

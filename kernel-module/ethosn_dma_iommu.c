@@ -596,19 +596,28 @@ static void iommu_stream_deinit(struct ethosn_allocator_internal *allocator,
 			    PAGE_SIZE);
 
 	__free_page(stream->page);
+	stream->page = NULL;
 }
 
 static void iommu_allocator_destroy(struct ethosn_dma_allocator *_allocator)
 {
-	struct ethosn_allocator_internal *allocator =
-		container_of(_allocator, typeof(*allocator), allocator);
+	struct ethosn_allocator_internal *allocator;
+	struct device *dev;
+
+	if (!_allocator)
+		return;
+
+	allocator = container_of(_allocator, typeof(*allocator), allocator);
+	dev = _allocator->dev;
 
 	iommu_stream_deinit(allocator, ETHOSN_STREAM_FIRMWARE);
 	iommu_stream_deinit(allocator, ETHOSN_STREAM_WORKING_DATA);
 	iommu_stream_deinit(allocator, ETHOSN_STREAM_COMMAND_STREAM);
 	iommu_stream_deinit(allocator, ETHOSN_STREAM_DMA);
 	iommu_stream_deinit(allocator, ETHOSN_STREAM_DMA_INTERMEDIATE);
-	devm_kfree(_allocator->dev, allocator);
+
+	memset(allocator, 0, sizeof(struct ethosn_allocator_internal));
+	devm_kfree(dev, allocator);
 }
 
 struct ethosn_dma_allocator *ethosn_dma_iommu_allocator_create(
