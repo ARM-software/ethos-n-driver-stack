@@ -100,6 +100,11 @@ enum class PollCounterName
     /// The number of times that device goes into runtime resume state.
     KernelDriverNumRuntimePowerResume,
 
+    /// The number of times that device goes into suspend state.
+    KernelDriverNumPowerSuspend,
+    /// The number of times that device goes into resume state.
+    KernelDriverNumPowerResume,
+
     /// The number of counter types in this enum.
     NumValues,
 };

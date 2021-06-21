@@ -81,6 +81,9 @@ static int ethosn_pm_resume(struct device *dev)
 	mutex_unlock(&core->mutex);
 
 exit_pm_resume:
+	if (!ret && core->profiling.config.enable_profiling)
+		++core->profiling.pm_resume_count;
+
 	dev_dbg(dev, "Core pm resume: %d\n", ret);
 
 	return ret;
@@ -101,7 +104,7 @@ static int ethosn_rpm_resume(struct device *dev)
 
 exit_rpm_resume:
 	if (!ret && core->profiling.config.enable_profiling)
-		++core->profiling.rpm_resume;
+		++core->profiling.rpm_resume_count;
 
 	dev_dbg(dev, "Core rpm resume: %d\n", ret);
 
@@ -119,14 +122,19 @@ static int ethosn_pm_suspend_noirq(struct device *dev)
 		goto exit_pm_suspend;
 	}
 
-	if (core->current_inference)
+	if (core->current_inference) {
 		core->current_inference->status = ETHOSN_INFERENCE_SCHEDULED;
-	else
+		ethosn_put_inference(core->current_inference);
+	} else {
 		/* Get if nothing was scheduled on this core */
 		pm_runtime_get_noresume(core->dev);
+	}
 
 	ret = ethosn_reset(core);
 exit_pm_suspend:
+	if (!ret && core->profiling.config.enable_profiling)
+		++core->profiling.pm_suspend_count;
+
 	dev_dbg(dev, "Core pm suspend: %d\n", ret);
 
 	return ret;
@@ -148,7 +156,7 @@ static int ethosn_rpm_suspend(struct device *dev)
 
 exit_rpm_suspend:
 	if (!ret && core->profiling.config.enable_profiling)
-		++core->profiling.rpm_suspend;
+		++core->profiling.rpm_suspend_count;
 
 	dev_dbg(dev, "Core rpm suspend: %d\n", ret);
 

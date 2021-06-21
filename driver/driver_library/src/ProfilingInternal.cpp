@@ -218,6 +218,8 @@ uint64_t GetCounterValue(PollCounterName counter)
         case PollCounterName::KernelDriverNumMailboxMessagesReceived:
         case PollCounterName::KernelDriverNumRuntimePowerSuspend:
         case PollCounterName::KernelDriverNumRuntimePowerResume:
+        case PollCounterName::KernelDriverNumPowerSuspend:
+        case PollCounterName::KernelDriverNumPowerResume:
             return GetKernelDriverCounterValue(counter);
         default:
             assert(!"Invalid counter");

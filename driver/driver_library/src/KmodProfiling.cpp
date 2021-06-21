@@ -124,6 +124,12 @@ uint64_t GetKernelDriverCounterValue(PollCounterName counter)
         case PollCounterName::KernelDriverNumRuntimePowerResume:
             kernelCounterName = ETHOSN_POLL_COUNTER_NAME_RPM_RESUME;
             break;
+        case PollCounterName::KernelDriverNumPowerSuspend:
+            kernelCounterName = ETHOSN_POLL_COUNTER_NAME_PM_SUSPEND;
+            break;
+        case PollCounterName::KernelDriverNumPowerResume:
+            kernelCounterName = ETHOSN_POLL_COUNTER_NAME_PM_RESUME;
+            break;
         default:
             assert(!"Invalid counter");
     }

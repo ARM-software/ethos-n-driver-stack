@@ -243,7 +243,7 @@ static void get_inference(struct ethosn_inference *inference)
 	kref_get(&inference->kref);
 }
 
-static int put_inference(struct ethosn_inference *inference)
+int ethosn_put_inference(struct ethosn_inference *inference)
 {
 	return kref_put(&inference->kref, &inference_kref_release);
 }
@@ -492,8 +492,14 @@ struct ethosn_inference *inference_create(struct ethosn_network *network,
 	int ret;
 
 	if ((ifr_req->num_inputs != network->num_inputs) ||
-	    (ifr_req->num_outputs != network->num_outputs))
+	    (ifr_req->num_outputs != network->num_outputs)) {
+		dev_err(network->ethosn->dev,
+			"Input/output mismatch: %d != %d or %d != %d",
+			ifr_req->num_inputs, network->num_inputs,
+			ifr_req->num_outputs, network->num_outputs);
+
 		return ERR_PTR(-EINVAL);
+	}
 
 	inference = kzalloc(sizeof(*inference), GFP_KERNEL);
 	if (!inference)
@@ -527,7 +533,7 @@ struct ethosn_inference *inference_create(struct ethosn_network *network,
 	return inference;
 
 err_put_inference:
-	put_inference(inference);
+	ethosn_put_inference(inference);
 
 	return ERR_PTR(ret);
 }
@@ -574,7 +580,7 @@ static int inference_release(struct inode *inode,
 
 	wake_up_poll(&inference->poll_wqh, EPOLLHUP);
 
-	put_inference(inference);
+	ethosn_put_inference(inference);
 
 	return 0;
 }
@@ -647,7 +653,7 @@ static int ethosn_inference_register(struct ethosn_network *network,
 				  O_RDONLY | O_CLOEXEC);
 
 	if (ret_fd < 0) {
-		put_inference(inference);
+		ethosn_put_inference(inference);
 
 		return ret_fd;
 	}
@@ -1274,7 +1280,7 @@ void ethosn_network_poll(struct ethosn_core *core,
 			"END_INFERENCE: inference 0x%pK time %llu on core_id = %d",
 			inference, ktime_get_ns(), core->core_id);
 
-		put_inference(inference);
+		ethosn_put_inference(inference);
 	}
 
 	/* Reset current running inference. */

@@ -151,8 +151,10 @@ struct ethosn_core {
 		struct ethosn_profiling_config config;
 		uint32_t                       mailbox_messages_sent;
 		uint32_t                       mailbox_messages_received;
-		uint32_t                       rpm_suspend;
-		uint32_t                       rpm_resume;
+		uint32_t                       rpm_suspend_count;
+		uint32_t                       rpm_resume_count;
+		uint32_t                       pm_suspend_count;
+		uint32_t                       pm_resume_count;
 
 		/* The buffer currently being written to by the firmware to
 		 * record profiling entries.

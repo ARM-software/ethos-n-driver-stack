@@ -161,8 +161,10 @@ static void reset_profiling_counters(struct ethosn_core *core)
 {
 	core->profiling.mailbox_messages_sent = 0;
 	core->profiling.mailbox_messages_received = 0;
-	core->profiling.rpm_suspend = 0;
-	core->profiling.rpm_resume = 0;
+	core->profiling.rpm_suspend_count = 0;
+	core->profiling.rpm_resume_count = 0;
+	core->profiling.pm_suspend_count = 0;
+	core->profiling.pm_resume_count = 0;
 }
 
 static void update_busy_core(struct ethosn_core *core)
@@ -934,10 +936,16 @@ configure_profiling_put:
 			ret = core->profiling.mailbox_messages_received;
 			break;
 		case ETHOSN_POLL_COUNTER_NAME_RPM_SUSPEND:
-			ret = core->profiling.rpm_suspend;
+			ret = core->profiling.rpm_suspend_count;
 			break;
 		case ETHOSN_POLL_COUNTER_NAME_RPM_RESUME:
-			ret = core->profiling.rpm_resume;
+			ret = core->profiling.rpm_resume_count;
+			break;
+		case ETHOSN_POLL_COUNTER_NAME_PM_SUSPEND:
+			ret = core->profiling.pm_suspend_count;
+			break;
+		case ETHOSN_POLL_COUNTER_NAME_PM_RESUME:
+			ret = core->profiling.pm_resume_count;
 			break;
 		default:
 			ret = -EINVAL;
