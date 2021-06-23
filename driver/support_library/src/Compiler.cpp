@@ -179,8 +179,9 @@ NetworkPerformanceData Compiler::EstimatePerformance()
             nonCascadedPerformance      = PrivateEstimatePerformance();
             nonCascadedPerformanceValid = true;
         }
-        catch (...)
+        catch (const std::exception& e)
         {
+            g_Logger.Warning("Non-cascading estimation failed with: %s", e.what());
             //Nothing to do. nonCascadedPerformanceValid == false already
         }
     }
@@ -196,8 +197,9 @@ NetworkPerformanceData Compiler::EstimatePerformance()
                 cascadedPerformance      = PrivateEstimatePerformance();
                 cascadedPerformanceValid = true;
             }
-            catch (...)
+            catch (const std::exception& e)
             {
+                g_Logger.Warning("Cascading estimation failed with: %s", e.what());
                 //Nothing to do. cascadedPerformanceValid == false already
             }
         }
