@@ -307,6 +307,17 @@ BOOST_AUTO_TEST_CASE(ConvertSigmoidLayer)
     BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
 }
 
+BOOST_AUTO_TEST_CASE(ConvertTanhLayer)
+{
+    Graph graph;
+
+    SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::TanH);
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
+
+    // Check that we are able to convert the sub-graph
+    BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
+}
+
 BOOST_AUTO_TEST_CASE(ConvertReLuLayer)
 {
     Graph graph;

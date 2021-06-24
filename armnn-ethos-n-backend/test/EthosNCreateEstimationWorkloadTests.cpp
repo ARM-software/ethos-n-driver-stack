@@ -426,8 +426,8 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyExistingWorkload)
     BOOST_TEST(result == golden);
 }
 
-// A test which estimates the performance of an unsupported (tanh) operation
-// it should return a proper estimate for the tanh using the mapping
+// A test which estimates the performance of an unsupported (sqrt) operation
+// it should return a proper estimate for the sqrt using the mapping
 BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
 {
     // Reset backend-internal subgraph converter instance id
@@ -447,7 +447,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
     os << "pattern:\n";
     os << "input firstInput, 1x_x_x_\n";
     os << "output firstOutput, 1x_x_x_\n";
-    os << "Activation, (firstInput), (firstOutput), ((function=TanH))\n";
+    os << "Activation, (firstInput), (firstOutput), ((function=Sqrt))\n";
     os << "graph-replacement:\n";
     os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
     os.seekg(0);
@@ -463,10 +463,10 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyUnsupportedWithMapping)
     BOOST_TEST(inputLayer);
 
     ActivationDescriptor tanDesc;
-    tanDesc.m_A                               = 100;
-    tanDesc.m_B                               = 0;
-    tanDesc.m_Function                        = ActivationFunction::TanH;
-    armnn::IConnectableLayer* const tanhLayer = net->AddActivationLayer(tanDesc, "TanH layer");
+    tanDesc.m_A                               = 1;
+    tanDesc.m_B                               = 1;
+    tanDesc.m_Function                        = ActivationFunction::Sqrt;
+    armnn::IConnectableLayer* const tanhLayer = net->AddActivationLayer(tanDesc, "Sqrt layer");
     BOOST_TEST(tanhLayer);
 
     armnn::IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output layer");

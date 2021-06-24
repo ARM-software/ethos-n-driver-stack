@@ -450,9 +450,11 @@ void ValidateActivationLayerParameters(SimpleLayer& layer)
         case ActivationFunction::Sigmoid:
         case ActivationFunction::ReLu:
         case ActivationFunction::LeakyReLu:
+        case ActivationFunction::TanH:
             break;
         default:
-            errors = "Invalid Value: Activation functions other than Sigmoid, ReLu and LeakyRelu are not supported\n";
+            errors =
+                "Invalid Value: Activation functions other than Sigmoid, Tanh, ReLu and LeakyRelu are not supported\n";
             throw armnn::InvalidArgumentException(errors);
             break;
     }

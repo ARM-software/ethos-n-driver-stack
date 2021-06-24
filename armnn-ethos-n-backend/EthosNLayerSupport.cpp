@@ -243,6 +243,12 @@ bool EthosNLayerSupport::IsActivationSupported(const TensorInfo& input,
                                                           messageHelper.GetBufferSize());
             break;
         }
+        case ActivationFunction::TanH:
+        {
+            supportedLevel = m_Queries.IsTanhSupported(ethosnInput, &ethosnOutput, messageHelper.GetBuffer(),
+                                                       messageHelper.GetBufferSize());
+            break;
+        }
         default:
         {
             messageHelper.SetString("Unsupported activation function: " +

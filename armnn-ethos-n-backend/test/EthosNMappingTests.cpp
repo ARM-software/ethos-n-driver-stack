@@ -882,6 +882,15 @@ static TestParseMappingFileData TestParseMappingFileDataset[] = {
               TestLayerType({ LayerType::Activation, "Sigmoid" })),
       } },
     { //.fileName =
+      "inActivationBoundedReLu_outActivationTanh.txt",
+      //.layers =
+      {
+          std::make_tuple(
+              //             .layer, .name
+              TestLayerType({ LayerType::Activation, "BoundedReLu" }),
+              TestLayerType({ LayerType::Activation, "TanH" })),
+      } },
+    { //.fileName =
       "inActivationBoundedReLu_outConvolution2d.txt",
       //.layers =
       {
@@ -1106,6 +1115,17 @@ BOOST_AUTO_TEST_CASE(TestAllSubgraphSubstitution)
         org.name          = "BoundedReLu";
         replacement.layer = LayerType::Activation;
         replacement.name  = "Sigmoid";
+        TestSubgraphSubstitution<4>(org, replacement, inputDimensions, outputDimensions);
+    }
+
+    {
+        std::array<const unsigned int, 4> inputDimensions{ { 1, 16, 16, 16 } };
+        std::array<const unsigned int, 4> outputDimensions{ { 1, 16, 16, 16 } };
+
+        org.layer         = LayerType::Activation;
+        org.name          = "BoundedReLu";
+        replacement.layer = LayerType::Activation;
+        replacement.name  = "TanH";
         TestSubgraphSubstitution<4>(org, replacement, inputDimensions, outputDimensions);
     }
 

@@ -216,6 +216,11 @@ void EthosNSubgraphViewConverter::AddActivationLayer(Layer* layer)
             newOperand = ethosn_lib::AddSigmoid(m_Network, *input1.tensor);
             break;
         }
+        case ActivationFunction::TanH:
+        {
+            newOperand = ethosn_lib::AddTanh(m_Network, *input1.tensor);
+            break;
+        }
         default:
         {
             if (m_EthosNConfig.m_PerfOnly)
