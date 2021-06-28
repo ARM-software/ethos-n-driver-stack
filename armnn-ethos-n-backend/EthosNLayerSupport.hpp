@@ -27,6 +27,14 @@ public:
         ReplaceWithDepthwise,    //< Addition can be supported by this backend, by using a DepthwiseConvolution operation in the support library.
     };
 
+    enum class MultiplicationSupportedMode
+    {
+        None,                    ///<Multiplication cannot be supported by this backend at all.
+        ReplaceWithDepthwise,    ///<Multiplication can be supported by this backend, by replacing Multiplication operation with a DepthwiseConvolution operation in the support library.
+        ReplaceWithReinterpretQuantize,    ///<Multiplication can be supported by this backend, by replacing Multiplication operation with a ReinterpretQuantize operation in the Support Library.
+        EstimateOnly,                      //<Estimate only support
+    };
+
     EthosNLayerSupport(const EthosNConfig& config,
                        const EthosNMappings& mappings,
                        const std::vector<char>& capabilities);
@@ -322,6 +330,14 @@ public:
                                    const TensorInfo& output,
                                    Optional<std::string&> reasonIfUnsupported) const override;
 
+    /// Provides more detail than IsMultiplicationSupported(), by stating *how* the multiplication can be supported
+    /// (ReinterpretQuantize vs Depthwise replacement)
+    MultiplicationSupportedMode
+        GetMultiplicationSupportedMode(const TensorInfo& input0,
+                                       const TensorInfo& input1,
+                                       const TensorInfo& output,
+                                       Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const;
+
     bool IsNormalizationSupported(const TensorInfo& input,
                                   const TensorInfo& output,
                                   const NormalizationDescriptor& descriptor,
@@ -441,6 +457,17 @@ private:
                                                    const ethosn::support_library::TensorInfo& ethosnInput0,
                                                    const ethosn::support_library::TensorInfo& ethosnInput1,
                                                    Optional<std::string&> reasonIfUnsupported) const;
+
+    bool IsMultiplicationSupportedByDepthwiseReplacement(const TensorInfo& input0,
+                                                         const TensorInfo& input1,
+                                                         const TensorInfo& output,
+                                                         Optional<std::string&> reasonIfUnsupported) const;
+
+    bool
+        IsMultiplicationSupportedByReinterpretQuantizationReplacement(const TensorInfo& input0,
+                                                                      const TensorInfo& input1,
+                                                                      const TensorInfo& output,
+                                                                      Optional<std::string&> reasonIfUnsupported) const;
 
     EthosNConfig m_Config;
     EthosNMappings m_Mappings;

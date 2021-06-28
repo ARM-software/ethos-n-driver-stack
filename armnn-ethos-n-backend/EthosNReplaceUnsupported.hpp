@@ -15,13 +15,30 @@ struct EthosNConfig;
 namespace ethosnbackend
 {
 
-bool ReplaceConstantMultiplicationWithDepthwise(
-    Graph& graph, Layer* layer, const EthosNConfig&, const EthosNMappings&, const std::vector<char>&);
+bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph,
+                                                Layer* layer,
+                                                const EthosNConfig& config,
+                                                const EthosNMappings& mappings,
+                                                const std::vector<char>& capabilities);
+
 bool ReplaceConstantAdditionWithDepthwise(Graph& graph,
                                           Layer* layer,
                                           const EthosNConfig& config,
                                           const EthosNMappings& mappings,
                                           const std::vector<char>& capabilities);
+
+bool ReplaceScalarMultiplicationWithReinterpretQuantization(Graph& graph,
+                                                            Layer* layer,
+                                                            const EthosNConfig& config,
+                                                            const EthosNMappings& mappings,
+                                                            const std::vector<char>& capabilities,
+                                                            std::string& outFailureReason);
+
+bool ReplaceMultiplication(Graph& graph,
+                           Layer* layer,
+                           const EthosNConfig& config,
+                           const EthosNMappings& mappings,
+                           const std::vector<char>& capabilities);
 
 void ReplaceUnsupportedLayers(Graph& graph,
                               const EthosNConfig& config,

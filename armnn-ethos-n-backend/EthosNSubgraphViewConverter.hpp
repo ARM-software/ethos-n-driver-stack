@@ -102,7 +102,12 @@ private:
     void AddQuantizeLayer(Layer* layer);
     void AddResizeLayer(Layer* layer);
     void AddMeanXyLayer(Layer* layer);
+    void AddStandInLayer(Layer* layer);
     /// @}
+
+    /// When in PerfOnly mode, this function tries to add estimate only layer from Support Library if the layer in
+    /// consideration is unknown.
+    void HandleUnknownLayer(Layer* layer);
 
     void AddEstimateOnly(Layer* layer);
     /// Converts the layer that owns the given OutputSlot and adds it to the Ethos-N network.

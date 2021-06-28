@@ -1414,6 +1414,58 @@ LayerTestResult<uint8_t, 4> PreCompiledConstAddToDepthwiseTest(armnn::IWorkloadF
     return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 1, outputInfo, expectedOutputData);
 }
 
+/// Checks that the backend optimization substituting the Constant-Multiplication layer
+/// pattern with a ReinterpretQuantizaion will produce correct results when ran by the Ethos-N.
+LayerTestResult<uint8_t, 4>
+    PreCompiledConstMulToReinterpretQuantizeTest(armnn::IWorkloadFactory& workloadFactory,
+                                                 const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
+{
+    // Set up tensor infos
+    //Floating point input range is [0,2]
+    TensorInfo inputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 0.007814894430339336f, 0);
+    //Floating point constant range is [0,127.5]
+    TensorInfo constInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.5f, 0);
+    //Floating point output range is [0,255]
+    TensorInfo outputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1, 0);
+
+    std::vector<uint8_t> inputData{
+        // clang-format off
+        1, 2, 3, 4,           10, 20, 15, 30,
+        8, 6, 5, 4,           11, 21, 31, 41,
+        // clang-format on
+    };
+
+    //Floating point value of constant is 127.5
+    std::vector<uint8_t> constData{ 255 };
+
+    ConstTensor constantTensor{ constInfo, constData };
+
+    // Construct a network with the Constant-Multiplication pattern
+    armnn::INetworkPtr net = armnn::INetwork::Create();
+
+    IConnectableLayer* const inputLayer  = net->AddInputLayer(0, "input");
+    IConnectableLayer* const constLayer  = net->AddConstantLayer(constantTensor);
+    IConnectableLayer* const mulLayer    = net->AddMultiplicationLayer("multiplication");
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(1, "output");
+
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+    constLayer->GetOutputSlot(0).SetTensorInfo(constInfo);
+    mulLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
+
+    inputLayer->GetOutputSlot(0).Connect(mulLayer->GetInputSlot(0));
+    constLayer->GetOutputSlot(0).Connect(mulLayer->GetInputSlot(1));
+    mulLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+
+    std::vector<uint8_t> expectedOutputData{
+        // clang-format off
+        1, 2, 3, 4,           10, 20, 15, 30,
+        8, 6, 5, 4,           11, 21, 31, 41,
+        // clang-format on
+    };
+
+    return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 1, outputInfo, expectedOutputData);
+}
+
 BOOST_AUTO_TEST_SUITE(Compute_EthosN)
 
 using FactoryType = armnn::EthosNWorkloadFactory;
@@ -1461,6 +1513,8 @@ ARMNN_AUTO_TEST_CASE(PreCompiled3dTensor, PreCompiled3dTensorTest)
 ARMNN_AUTO_TEST_CASE(PreCompiledConstMulToDepthwise, PreCompiledConstMulToDepthwiseTest)
 
 ARMNN_AUTO_TEST_CASE(PreCompiledConstAddToDepthwise, PreCompiledConstAddToDepthwiseTest)
+
+ARMNN_AUTO_TEST_CASE(PreCompiledConstMulToReinterpretQuantize, PreCompiledConstMulToReinterpretQuantizeTest)
 
 BOOST_AUTO_TEST_CASE(TestInvalidLayerName)
 {

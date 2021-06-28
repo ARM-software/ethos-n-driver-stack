@@ -17,8 +17,7 @@ namespace utils
 {
 
 /// Optional is a drop in replacement for std::optional until we migrate
-/// to c++-17. Only a subset of the optional features are implemented that
-/// we intend to use in ArmNN.
+/// to c++-17. Only a subset of the optional features are implemented.
 
 /// There are two distinct implementations here:
 ///

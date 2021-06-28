@@ -1246,20 +1246,65 @@ bool EthosNLayerSupport::IsMultiplicationSupported(const TensorInfo& input0,
                                                    const TensorInfo& output,
                                                    Optional<std::string&> reasonIfUnsupported) const
 {
-    // Support for Multiplication operations is claimed where either input tensor has the shape { 1, 1, 1, C },
-    // to catch cases where the input is a Constant of that shape. The backend will then substitute the
-    // Constant-Multiplication pattern for DepthwiseConvolution2d, otherwise failing to compile the subgraph
-    // where the shape and layer type requirements are not met.
+    return GetMultiplicationSupportedMode(input0, input1, output, reasonIfUnsupported) !=
+           MultiplicationSupportedMode::None;
+}
+
+armnn::EthosNLayerSupport::MultiplicationSupportedMode
+    EthosNLayerSupport::GetMultiplicationSupportedMode(const TensorInfo& input0,
+                                                       const TensorInfo& input1,
+                                                       const TensorInfo& output,
+                                                       Optional<std::string&> reasonIfUnsupported) const
+{
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(input0, reasonIfUnsupported) &&
           IsTensorSupportedOnEthosN(input1, reasonIfUnsupported) &&
           IsTensorSupportedOnEthosN(output, reasonIfUnsupported)))
     {
-        return false;
+        return MultiplicationSupportedMode::None;
     }
 
-    ethosn_lib::TensorShape input0Shape = BuildEthosNTensorShape(input0.GetShape());
-    ethosn_lib::TensorShape input1Shape = BuildEthosNTensorShape(input1.GetShape());
+    // Check first if multiplication is supported by depthwise replacement or not.
+    if (IsMultiplicationSupportedByDepthwiseReplacement(input0, input1, output, reasonIfUnsupported))
+    {
+        return MultiplicationSupportedMode::ReplaceWithDepthwise;
+    }
+
+    // If multiplication by depthwise replacement is not supported, try substituting a pattern where a
+    // constant is broadcast-multiplied with a ReinterpretQuantize.
+    if (IsMultiplicationSupportedByReinterpretQuantizationReplacement(input0, input1, output, reasonIfUnsupported))
+    {
+        return MultiplicationSupportedMode::ReplaceWithReinterpretQuantize;
+    }
+
+    // If none of the replacements work, we check for estimate only support.
+    if (CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported))
+    {
+        return MultiplicationSupportedMode::EstimateOnly;
+    }
+
+    return MultiplicationSupportedMode::None;
+}
+
+bool EthosNLayerSupport::IsMultiplicationSupportedByDepthwiseReplacement(
+    const TensorInfo& input0,
+    const TensorInfo& input1,
+    const TensorInfo& output,
+    Optional<std::string&> reasonIfUnsupported) const
+{
+    // Support for Multiplication operations is claimed where either of the input tensors has the
+    // shape { 1, 1, 1, C }. When the input is a Constant of the said shape, the backend will then
+    // substitute the Constant-Multiplication pattern for DepthwiseConvolution2d. Therfore, supportdness
+    // for DepthwiseConvolution2D is checked. Note that it is not possible at this stage to determine
+    // if one of the inputs is constant, so we have to assume that it is. If it turns out to not be
+    // constant, then the replacement won't take place.
+
+    auto ethosnInput0 = BuildEthosNTensorInfo(input0, DataLayout::NHWC);
+    auto ethosnInput1 = BuildEthosNTensorInfo(input1, DataLayout::NHWC);
+    auto ethosnOutput = BuildEthosNTensorInfo(output, DataLayout::NHWC);
+
+    const ethosn_lib::TensorShape& input0Shape = ethosnInput0.m_Dimensions;
+    const ethosn_lib::TensorShape& input1Shape = ethosnInput1.m_Dimensions;
 
     bool isBroadcastShape0 = input0Shape == ethosn_lib::TensorShape{ 1, 1, 1, input0Shape[3] };
     bool isBroadcastShape1 = input1Shape == ethosn_lib::TensorShape{ 1, 1, 1, input1Shape[3] };
@@ -1290,7 +1335,65 @@ bool EthosNLayerSupport::IsMultiplicationSupported(const TensorInfo& input0,
         return supported;
     }
 
-    return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
+    return false;
+}
+
+bool EthosNLayerSupport::IsMultiplicationSupportedByReinterpretQuantizationReplacement(
+    const TensorInfo& input0,
+    const TensorInfo& input1,
+    const TensorInfo& output,
+    Optional<std::string&> reasonIfUnsupported) const
+{
+    // Support for Multiplication operations is claimed where either of the input tensors has the
+    // shape { 1, 1, 1, 1 }. When the input is a Constant of the said shape, the backend will then
+    // substitute the Constant-Multiplication pattern for ReinterpretQuantization. Therfore, supportdness
+    // for ReinterpretQuantization is checked. Note that it is not possible at this stage to determine
+    // if one of the inputs is constant, so we have to assume that it is. If it turns out to not be
+    // constant, then the replacement won't take place.
+
+    auto ethosnInput0 = BuildEthosNTensorInfo(input0, DataLayout::NHWC);
+    auto ethosnInput1 = BuildEthosNTensorInfo(input1, DataLayout::NHWC);
+    auto ethosnOutput = BuildEthosNTensorInfo(output, DataLayout::NHWC);
+
+    const ethosn_lib::TensorShape& input0Shape = ethosnInput0.m_Dimensions;
+    const ethosn_lib::TensorShape& input1Shape = ethosnInput1.m_Dimensions;
+
+    bool isBroadcastShape0 = input0Shape == ethosn_lib::TensorShape{ 1, 1, 1, 1 };
+    bool isBroadcastShape1 = input1Shape == ethosn_lib::TensorShape{ 1, 1, 1, 1 };
+
+    using ethosn_lib::SupportedLevel;
+    if ((isBroadcastShape0 || isBroadcastShape1) && (input0Shape[3] != input1Shape[3]))
+    {
+        auto reinterpretQuantizeInfo = BuildEthosNReinterpretQuantizationInfo(output);
+
+        ReasonMessageHelper messageHelper;
+
+        bool supported;
+        auto ethosnInput = isBroadcastShape0 ? ethosnInput1 : ethosnInput0;
+        auto input       = isBroadcastShape0 ? input1 : input0;
+
+        SupportedLevel supportedLevel =
+            m_Queries.IsReinterpretQuantizationSupported(reinterpretQuantizeInfo, ethosnInput, &ethosnOutput,
+                                                         messageHelper.GetBuffer(), messageHelper.GetBufferSize());
+        supported = CheckSupportedLevel(supportedLevel, m_Config.m_PerfOnly);
+
+        if (supported)
+        {
+            // Checking if input and output zero points are equal
+            // as this is a required condition for scalar multiplication to be valid
+            //
+            // NOTE: input and output data types should also be equal but this condition
+            // is already being checked by IsReinterpretQuantizationSupported
+            supported = output.GetQuantizationOffset() == input.GetQuantizationOffset();
+            if (!supported)
+                messageHelper.SetString("Input and output quantization offsets are not equal");
+        }
+
+        SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
+        return supported;
+    }
+
+    return false;
 }
 
 bool EthosNLayerSupport::IsNormalizationSupported(const TensorInfo& input,

@@ -16,7 +16,8 @@ namespace armnn
 namespace ethosnbackend
 {
 
-// Replaces the pattern Constant-Multiplication with an optimized DepthwiseConvolution2d operation.
+// Replaces the pattern Constant-Multiplication with an optimized DepthwiseConvolution2d operation,
+// if appropriate.
 // Original pattern:
 // Input    ->
 //              Multiplication -> Output
@@ -34,6 +35,7 @@ bool ReplaceConstantMultiplicationWithDepthwise(
         Layer* inputLayer    = &patternSubgraphInput->GetConnectedOutputSlot()->GetOwningLayer();
         Layer* constantLayer = &layer->GetInputSlots()[1].GetConnectedOutputSlot()->GetOwningLayer();
 
+        // Figure out which of the two inputs is the constant
         if (constantLayer->GetType() != LayerType::Constant)
         {
             patternSubgraphInput = &layer->GetInputSlot(1);
@@ -74,6 +76,162 @@ bool ReplaceConstantMultiplicationWithDepthwise(
 
                 return true;
             }
+        }
+    }
+    return false;
+}
+
+// Replaces the pattern Constant-Multiplication with a ReinterpretQuantize operation, if appropriate.
+// Original pattern:
+// Input    ->
+//              Multiplication -> Output
+// Constant ->
+// Expected modified pattern:
+// Input -> ReinterpretQuantize -> Output
+//
+bool ReplaceScalarMultiplicationWithReinterpretQuantization(Graph& graph,
+                                                            Layer* layer,
+                                                            const EthosNConfig&,
+                                                            const EthosNMappings&,
+                                                            const std::vector<char>&,
+                                                            std::string& outFailureReason)
+{
+    if (layer->GetType() == LayerType::Multiplication)
+    {
+        InputSlot* patternSubgraphInput = &layer->GetInputSlot(0);
+
+        Layer* inputLayer    = &patternSubgraphInput->GetConnectedOutputSlot()->GetOwningLayer();
+        Layer* constantLayer = &layer->GetInputSlots()[1].GetConnectedOutputSlot()->GetOwningLayer();
+
+        // Figure out which of the two inputs is the constant
+        if (constantLayer->GetType() != LayerType::Constant)
+        {
+            patternSubgraphInput = &layer->GetInputSlot(1);
+            std::swap(inputLayer, constantLayer);
+        }
+
+        if (constantLayer->GetType() == LayerType::Constant)
+        {
+            const TensorInfo& constInfo  = constantLayer->GetOutputSlot().GetTensorInfo();
+            const TensorInfo& outputInfo = layer->GetOutputSlot().GetTensorInfo();
+            const TensorInfo& inputInfo  = inputLayer->GetOutputSlot().GetTensorInfo();
+
+            // Add a ReinterpretQuantize only where the constant input is a scalar that takes the form { 1, 1, 1, 1 }.
+            if (constInfo.GetShape() == TensorShape({ 1, 1, 1, 1 }))
+            {
+                auto ConvertDataToFloat = [](Layer* layer, DataType dataType) {
+                    switch (dataType)
+                    {
+                        case DataType::QAsymmU8:
+                            return static_cast<float>(PolymorphicPointerDowncast<const ConstantLayer>(layer)
+                                                          ->m_LayerOutput->GetConstTensor<uint8_t>()[0]);
+                        case DataType::QSymmS8:
+                        case DataType::QAsymmS8:
+                            return static_cast<float>(PolymorphicPointerDowncast<const ConstantLayer>(layer)
+                                                          ->m_LayerOutput->GetConstTensor<int8_t>()[0]);
+                        case DataType::Signed32:
+                            return static_cast<float>(PolymorphicPointerDowncast<const ConstantLayer>(layer)
+                                                          ->m_LayerOutput->GetConstTensor<int32_t>()[0]);
+                        default:
+                            throw Exception("Data type not supported");
+                    }
+                };
+
+                float data;
+                try
+                {
+                    data = ConvertDataToFloat(constantLayer, constInfo.GetDataType());
+                }
+                catch (const std::exception& e)
+                {
+                    // Data type is not supported
+                    outFailureReason = "Data type is not supported";
+                    return false;
+                }
+
+                float constQuantScale     = constInfo.GetQuantizationScale();
+                float constQuantZeroPoint = static_cast<float>(constInfo.GetQuantizationOffset());
+
+                float calculatedOutputQuantScale =
+                    inputInfo.GetQuantizationScale() * constQuantScale * (data - constQuantZeroPoint);
+
+                // This check will ensure that the quantisation info of the output, input and constant are coherent with each other.
+                // The tolerance value has been selected as 0.004 as 1/255 = 0.0039 and after rounding off we get 0.004.
+                if (std::abs(calculatedOutputQuantScale - outputInfo.GetQuantizationScale()) > 0.004f)
+                {
+                    outFailureReason = "Quantization info for input, scalar and output are not coherent";
+                    return false;
+                }
+
+                Graph replacementGraph;
+
+                StandInDescriptor desc;
+                desc.m_NumInputs  = 1;
+                desc.m_NumOutputs = 1;
+
+                // We are using a StandIn layer here as a generic layer since Arm NN has no LayerType::ReinterpretQuantize
+                // that we could directly add.
+                // We set a custom value to name parameter of the StandIn layer which then is used to add the
+                // ReinterpretQuantize layer from the Support Library.
+                const auto standInLayer = replacementGraph.AddLayer<StandInLayer>(
+                    desc, "EthosNBackend:ReplaceScalarMulWithReinterpretQuantization");
+
+                SubgraphView patternSubgraph({ patternSubgraphInput }, { &layer->GetOutputSlot() },
+                                             { layer, constantLayer });
+
+                graph.SubstituteSubgraph(patternSubgraph, SubgraphView{ standInLayer });
+
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Replaces the pattern Constant-Multiplication with either a DepthwiseConvolution2d operation or a ReinterpretQuantize operation, whichever is appropriate.
+// Original pattern:
+// Input    ->
+//              Multiplication -> Output
+// Constant ->
+// Expected modified pattern:
+// Input -> DepthwiseConvolution2d -> Output
+//                 OR
+// Input -> ReinterpretQuantize -> Output
+//
+bool ReplaceMultiplication(Graph& graph,
+                           Layer* layer,
+                           const EthosNConfig& config,
+                           const EthosNMappings& mappings,
+                           const std::vector<char>& capabilities)
+{
+    if (layer->GetType() == LayerType::Multiplication)
+    {
+        EthosNLayerSupport supportChecks(config, mappings, capabilities);
+
+        EthosNLayerSupport::MultiplicationSupportedMode supportedMode = supportChecks.GetMultiplicationSupportedMode(
+            layer->GetInputSlot(0).GetConnectedOutputSlot()->GetTensorInfo(),
+            layer->GetInputSlot(1).GetConnectedOutputSlot()->GetTensorInfo(), layer->GetOutputSlot(0).GetTensorInfo());
+
+        std::string failureReason;
+
+        switch (supportedMode)
+        {
+            case EthosNLayerSupport::MultiplicationSupportedMode::None:
+                return false;
+                break;
+            case EthosNLayerSupport::MultiplicationSupportedMode::EstimateOnly:
+                return false;
+                break;
+            case EthosNLayerSupport::MultiplicationSupportedMode::ReplaceWithDepthwise:
+                return ReplaceConstantMultiplicationWithDepthwise(graph, layer, config, mappings, capabilities);
+                break;
+            case EthosNLayerSupport::MultiplicationSupportedMode::ReplaceWithReinterpretQuantize:
+                return ReplaceScalarMultiplicationWithReinterpretQuantization(graph, layer, config, mappings,
+                                                                              capabilities, failureReason);
+                break;
+            default:
+                throw Exception("Found unknown MultiplicationSupportedMode value");
+                break;
         }
     }
     return false;
@@ -189,7 +347,7 @@ void ReplaceUnsupportedLayers(Graph& graph,
     using ReplacementFunc =
         bool (*)(Graph&, Layer*, const EthosNConfig&, const EthosNMappings&, const std::vector<char>&);
     const ReplacementFunc replacementFuncs[] = {
-        &ReplaceConstantMultiplicationWithDepthwise,
+        &ReplaceMultiplication,
         &ReplaceConstantAdditionWithDepthwise,
     };
 

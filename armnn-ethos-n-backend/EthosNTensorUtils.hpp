@@ -225,6 +225,16 @@ inline ethosn_lib::RequantizeInfo BuildEthosNRequantizeInfo(const armnn::TensorI
     return BuildEthosNRequantizeInfo(outputInfo.GetQuantizationScale(), outputInfo.GetQuantizationOffset());
 }
 
+ethosn_lib::ReinterpretQuantizationInfo BuildEthosNReinterpretQuantizationInfo(const float quantizationScale,
+                                                                               const int quantizationOffset);
+
+inline ethosn_lib::ReinterpretQuantizationInfo
+    BuildEthosNReinterpretQuantizationInfo(const armnn::TensorInfo& outputInfo)
+{
+    return BuildEthosNReinterpretQuantizationInfo(outputInfo.GetQuantizationScale(),
+                                                  outputInfo.GetQuantizationOffset());
+}
+
 ethosn_lib::ResizeInfo
     BuildEthosNResizeInfo(const armnn::ResizeDescriptor& descriptor, float quantizationScale, int quantizationOffset);
 

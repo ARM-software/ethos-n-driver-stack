@@ -580,6 +580,47 @@ void EthosNSubgraphViewConverter::AddEstimateOnly(Layer* layer)
     ethosn_lib::EstimateOnlyInfo estimateInfo(ethosnOutputInfos);
     InsertConvertedLayerMultipleOutput(layer, ethosn_lib::AddEstimateOnly(m_Network, inputOperands, estimateInfo));
 }
+
+// StandIn Layer is to be used as a generic layer whenever a layer is not defined in the Arm NN.
+void EthosNSubgraphViewConverter::AddStandInLayer(Layer* layer)
+{
+    ARMNN_ASSERT(layer != nullptr);
+    ARMNN_ASSERT(layer->GetType() == LayerType::StandIn);
+    StandInLayer& standInLayer = *PolymorphicPointerDowncast<StandInLayer>(layer);
+
+    auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnectedOutputSlot());
+
+    // StandIn layer being used to add a ReinterpretQuantization operation.
+    if ((layer->GetNameStr() == "EthosNBackend:ReplaceScalarMulWithReinterpretQuantization") &&
+        (standInLayer.GetParameters().m_NumInputs == 1U) && (standInLayer.GetParameters().m_NumOutputs == 1U))
+    {
+        auto reinterpretQuantizeInfo =
+            BuildEthosNReinterpretQuantizationInfo(standInLayer.GetOutputSlot(0).GetTensorInfo());
+
+        InsertConvertedLayerSingleOutput(
+            layer, ethosn_lib::AddReinterpretQuantization(m_Network, *input.tensor, reinterpretQuantizeInfo));
+    }
+    else
+    {
+        HandleUnknownLayer(layer);
+    }
+}
+
+void EthosNSubgraphViewConverter::HandleUnknownLayer(Layer* layer)
+{
+    if (m_EthosNConfig.m_PerfOnly)
+    {
+        ARMNN_LOG(info) << "\"" << layer->GetNameStr() << "\" is replaced with an estimate only node "
+                        << "LayerType: " << GetLayerTypeAsCString(layer->GetType());
+        AddEstimateOnly(layer);
+    }
+    else
+    {
+        throw Exception("Conversion not supported for layer type " +
+                        std::string(GetLayerTypeAsCString(layer->GetType())));
+    }
+}
+
 EthosNOperand EthosNSubgraphViewConverter::AddOrRetrieveEthosNOperand(const OutputSlot* outputSlot)
 {
     ARMNN_ASSERT(outputSlot != nullptr);
@@ -644,6 +685,9 @@ EthosNOperand EthosNSubgraphViewConverter::AddOrRetrieveEthosNOperand(const Outp
         case LayerType::Quantize:
             AddQuantizeLayer(layer);
             break;
+        case LayerType::StandIn:
+            AddStandInLayer(layer);
+            break;
         case LayerType::Resize:
             AddResizeLayer(layer);
             break;
@@ -651,18 +695,7 @@ EthosNOperand EthosNSubgraphViewConverter::AddOrRetrieveEthosNOperand(const Outp
             AddMeanXyLayer(layer);
             break;
         default:
-            if (m_EthosNConfig.m_PerfOnly)
-            {
-                ARMNN_LOG(info) << "\"" << layer->GetNameStr() << "\" is replaced with an estimate only node "
-                                << "LayerType: " << GetLayerTypeAsCString(layer->GetType());
-                AddEstimateOnly(layer);
-                break;
-            }
-            else
-            {
-                throw Exception("Conversion not supported for layer type " +
-                                std::string(GetLayerTypeAsCString(layer->GetType())));
-            }
+            HandleUnknownLayer(layer);
     }
 
     // Return the Ethos-N operand that should now have been added

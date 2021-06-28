@@ -840,6 +840,131 @@ BOOST_AUTO_TEST_CASE(TestConvolutionLayerWithLargeTensors)
     BOOST_CHECK_NO_THROW(converter.CompileNetwork());
 }
 
+BOOST_AUTO_TEST_CASE(TestStandInFail)
+{
+    using namespace armnn;
+
+    Graph graph;
+
+    const TensorInfo inputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
+    const TensorInfo outputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
+
+    // Construct Graph
+    Layer* const inputLayer = graph.AddLayer<InputLayer>(0, "input");
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+
+    StandInDescriptor desc;
+    desc.m_NumInputs  = 1;
+    desc.m_NumOutputs = 1;
+
+    const auto standInLayer = graph.AddLayer<StandInLayer>(desc, "RandomStandInLayer");
+
+    standInLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
+
+    Layer* const outputLayer = graph.AddLayer<OutputLayer>(0, "output");
+
+    inputLayer->GetOutputSlot(0).Connect(standInLayer->GetInputSlot(0));
+    standInLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+
+    // Retrieve Subgraph
+    SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
+        CreateInputsFrom({ standInLayer }), CreateOutputsFrom({ standInLayer }), { standInLayer });
+
+    armnn::EthosNConfig config{};
+
+    // Set up Ethos-N sub-graph converter
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, config, config.QueryCapabilities());
+
+    auto isMessageCorrect = [](const armnn::Exception& ex) {
+        return (std::string(ex.what()) == "Conversion not supported for layer type StandIn");
+    };
+
+    // We won't be able to convert the sub-graph since StandIn layer is not supported with the provided name parameter.
+    BOOST_CHECK_EXCEPTION(converter.TestCreateUncompiledNetwork(), armnn::Exception, isMessageCorrect);
+}
+
+BOOST_AUTO_TEST_CASE(TestStandInPerfOnlyPass)
+{
+    using namespace armnn;
+
+    Graph graph;
+
+    const TensorInfo inputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
+    const TensorInfo outputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
+
+    // Construct Graph
+    Layer* const inputLayer = graph.AddLayer<InputLayer>(0, "input");
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+
+    StandInDescriptor desc;
+    desc.m_NumInputs  = 1;
+    desc.m_NumOutputs = 1;
+
+    const auto standInLayer = graph.AddLayer<StandInLayer>(desc, "Random:StandInLayer");
+
+    standInLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
+
+    Layer* const outputLayer = graph.AddLayer<OutputLayer>(0, "output");
+
+    inputLayer->GetOutputSlot(0).Connect(standInLayer->GetInputSlot(0));
+    standInLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+
+    // Retrieve Subgraph
+    SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
+        CreateInputsFrom({ standInLayer }), CreateOutputsFrom({ standInLayer }), { standInLayer });
+
+    armnn::EthosNConfig config{};
+    config.m_PerfOnly    = true;
+    config.m_PerfCurrent = true;
+
+    // Set up Ethos-N sub-graph converter
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, config, config.QueryCapabilities());
+
+    // Check that we are able to convert the sub-graph
+    BOOST_CHECK_NO_THROW(converter.TestCreateUncompiledNetwork());
+}
+
+BOOST_AUTO_TEST_CASE(TestStandInPerfOnlyFail)
+{
+    using namespace armnn;
+
+    Graph graph;
+
+    const TensorInfo inputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
+    const TensorInfo outputInfo({ 1, 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
+
+    // Construct Graph
+    Layer* const inputLayer = graph.AddLayer<InputLayer>(0, "input");
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+
+    StandInDescriptor desc;
+    desc.m_NumInputs  = 1;
+    desc.m_NumOutputs = 1;
+
+    const auto standInLayer = graph.AddLayer<StandInLayer>(desc, "Random:StandInLayer");
+
+    standInLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
+
+    Layer* const outputLayer = graph.AddLayer<OutputLayer>(0, "output");
+
+    inputLayer->GetOutputSlot(0).Connect(standInLayer->GetInputSlot(0));
+    standInLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+
+    // Retrieve Subgraph
+    SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
+        CreateInputsFrom({ standInLayer }), CreateOutputsFrom({ standInLayer }), { standInLayer });
+
+    armnn::EthosNConfig config{};
+    config.m_PerfOnly    = true;
+    config.m_PerfCurrent = true;
+
+    // Set up Ethos-N sub-graph converter
+    TestEthosNSubgraphViewConverter converter(*subgraphPtr, config, config.QueryCapabilities());
+
+    // Invalid TensorShape: max number of dimensions exceeded in EthosNAcc backend 5 > 4
+    BOOST_CHECK_THROW(converter.TestCreateUncompiledNetwork(), armnn::InvalidArgumentException);
+}
+
 BOOST_AUTO_TEST_CASE(TestEthosNBackendFail)
 {
     using namespace armnn;
@@ -902,6 +1027,119 @@ BOOST_AUTO_TEST_CASE(MulSubstitutionFail)
 
     ARMNN_ASSERT(!layerSupport.IsMultiplicationSupported(input0, input1, output, reasonIfUnsupported));
     ARMNN_ASSERT(reasonIfUnsupported == expectedReasonIfSupported);
+}
+
+BOOST_AUTO_TEST_CASE(IsMultiplicationSupported)
+{
+    EthosNLayerSupport layerSupport(EthosNConfig(), EthosNMappings(), EthosNConfig().QueryCapabilities());
+
+    auto ExpectFail = [&layerSupport](const TensorInfo& input0, const TensorInfo& input1, const TensorInfo& output,
+                                      const char* expectedFailureReason) {
+        std::string failureReason;
+        BOOST_CHECK(!layerSupport.IsMultiplicationSupported(input0, input1, output, failureReason));
+        BOOST_CHECK(failureReason.find(expectedFailureReason) != std::string::npos);
+    };
+
+    // Failure case - 5D tensor
+    ExpectFail(TensorInfo({ 1, 2, 2, 4, 9 }, DataType::QAsymmU8, 1.0f, 0),
+               TensorInfo({ 1, 1, 1, 4 }, DataType::Signed32, 0.9f, 0),
+               TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0), "The ethosn can only support up to 4D tensors");
+
+    // Success case - multiplication supported by replacing it with Depthwise
+    // Additionally, verifying that the correct MultiplicationSupportedMode value is returned
+    BOOST_CHECK(layerSupport.GetMultiplicationSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                            TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.9f, 0),
+                                                            TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+                EthosNLayerSupport::MultiplicationSupportedMode::ReplaceWithDepthwise);
+
+    // Success case - multiplication supported by replacing it with ReinterpretQuantize
+    // Additionally, verifying that the correct MultiplicationSupportedMode value is returned
+    BOOST_CHECK(layerSupport.GetMultiplicationSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                            TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.009f, 0),
+                                                            TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+                EthosNLayerSupport::MultiplicationSupportedMode::ReplaceWithReinterpretQuantize);
+
+    // Failure case - multiplication could be supported by replacing it with ReinterpretQuantize
+    // but due to zero points of input and output info being not equal we get multiplication
+    // as unsupported operation.
+    // Additionally, verifying that the correct MultiplicationSupportedMode value is returned
+    ExpectFail(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+               TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.009f, 0),
+               TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 1),
+               "Input and output quantization offsets are not equal");
+
+    // Failure case - multiplication could be supported by replacing it with ReinterpretQuantize
+    // but due to data types of input and output info being not equal we get multiplication
+    // as unsupported operation.
+    // Additionally, verifying that the correct MultiplicationSupportedMode value is returned
+    ExpectFail(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+               TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 1),
+               TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmS8, 1.0f, 0), "Provided outputInfo is incorrect");
+
+    // Failure case - multiplication not supported
+    // Additionally, verifying that the correct MultiplicationSupportedMode value is returned
+    BOOST_CHECK(layerSupport.GetMultiplicationSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                            TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, 0.009f, 0),
+                                                            TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+                EthosNLayerSupport::MultiplicationSupportedMode::None);
+
+    // Failure case - broadcasting in an a way that can't be covered by the replacement
+    ExpectFail(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+               TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, 0.9f, 0),
+               TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0), "");
+
+    // Failure case - could be replaced by depthwise but we can't find a valid weight scale
+    ExpectFail(
+        TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 100000.0f, 0),
+        TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.9f, 0),
+        TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+        "Multiplication operation is not supported on Arm Ethos-N NPU backend and an attempt was made to substitute "
+        "for DepthwiseConvolution2d, however the following error occurred when checking for Depthwise support: "
+        "Depthwise Convolution: Overall scale (of the input * weights / output) should be in the range");
+
+    // Failure case - could be replaced by reinterpret quantize but support library rejects the reinterpret quantize
+    // config (in this case, input tensor too deep)
+    ExpectFail(TensorInfo({ 1, 2, 2, 100000 }, DataType::QAsymmU8, 1.0f, 0),
+               TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.009f, 0),
+               TensorInfo({ 1, 2, 2, 100000 }, DataType::QAsymmU8, 1.0f, 0),
+               "Input to reinterpret quantization: Tensor max depth cannot fit in SRAM");
+
+    // Failure case - could be replaced by depthwise but support library rejects the depthwise config
+    // (in this case, input tensor too deep)
+    ExpectFail(TensorInfo({ 1, 2, 2, 100000 }, DataType::QAsymmU8, 1.0f, 0),
+               TensorInfo({ 1, 1, 1, 100000 }, DataType::QAsymmU8, 0.9f, 0),
+               TensorInfo({ 1, 2, 2, 100000 }, DataType::QAsymmU8, 1.0f, 0),
+               "Multiplication operation is not supported on Arm Ethos-N NPU backend and an attempt was made to "
+               "substitute for DepthwiseConvolution2d, however the following error occurred when checking for "
+               "Depthwise support: Input to depthwise conv: Tensor max depth cannot fit in SRAM");
+}
+
+BOOST_AUTO_TEST_CASE(IsMultiplicationSupportedPerfOnly)
+{
+    EthosNConfig config;
+    config.m_PerfOnly = true;
+    EthosNLayerSupport layerSupport(config, EthosNMappings(), config.QueryCapabilities());
+
+    // Success case - multiplication supported by replacing it with Depthwise
+    // Additionally, Verifying that the correct MultiplicationSupportedMode value is returned
+    BOOST_CHECK(layerSupport.GetMultiplicationSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                            TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.9f, 0),
+                                                            TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+                EthosNLayerSupport::MultiplicationSupportedMode::ReplaceWithDepthwise);
+
+    // Success case - multiplication supported by replacing it with ReinterpretQuantize
+    // Additionally, Verifying that the correct MultiplicationSupportedMode value is returned
+    BOOST_CHECK(layerSupport.GetMultiplicationSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                            TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.009f, 0),
+                                                            TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+                EthosNLayerSupport::MultiplicationSupportedMode::ReplaceWithReinterpretQuantize);
+
+    // Success case - multiplication supported in EstimateOnly mode
+    // Additionally, Verifying that the correct MultiplicationSupportedMode value is returned
+    BOOST_CHECK(layerSupport.GetMultiplicationSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                            TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, 0.009f, 0),
+                                                            TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+                EthosNLayerSupport::MultiplicationSupportedMode::EstimateOnly);
 }
 
 BOOST_AUTO_TEST_CASE(IsAdditionSupported)

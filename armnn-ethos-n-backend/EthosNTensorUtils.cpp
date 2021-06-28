@@ -408,6 +408,17 @@ ethosn_lib::RequantizeInfo BuildEthosNRequantizeInfo(const float quantizationSca
     return requantizeInfo;
 }
 
+ethosn_lib::ReinterpretQuantizationInfo BuildEthosNReinterpretQuantizationInfo(const float quantizationScale,
+                                                                               const int quantizationOffset)
+{
+    ethosn_lib::ReinterpretQuantizationInfo reinterpretQuantizationInfo;
+
+    reinterpretQuantizationInfo.m_OutputQuantizationInfo =
+        ethosn_lib::QuantizationInfo(quantizationOffset, quantizationScale);
+
+    return reinterpretQuantizationInfo;
+}
+
 ethosn_lib::ResizeInfo
     BuildEthosNResizeInfo(const armnn::ResizeDescriptor& descriptor, float quantizationScale, int quantizationOffset)
 {

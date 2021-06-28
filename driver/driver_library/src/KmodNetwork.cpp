@@ -330,7 +330,7 @@ void KmodNetworkImpl::DumpIntermediateBuffers()
 
                     std::ofstream fs(dumpFilename.c_str());
                     WriteHex(fs, 0, data + bufferInfoIt->m_Offset, bufferInfoIt->m_Size);
-                    std::cout << "Dumped EthosN intermediate buffer " << bufferInfoIt->m_Id << " to " << dumpFilename
+                    std::cout << "Dumped intermediate buffer " << bufferInfoIt->m_Id << " to " << dumpFilename
                               << std::endl;
                 }
             }
