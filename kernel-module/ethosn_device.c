@@ -384,127 +384,6 @@ static int ethosn_boot_firmware(struct ethosn_core *core)
 	return 0;
 }
 
-int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
-{
-	int timeout;
-	int ret;
-
-	dev_info(core->dev, "Reset the ethosn\n");
-
-	/* Reset the Ethos-N core */
-	ret = ethosn_reset(core);
-	if (ret)
-		return ret;
-
-	/* Set MMU Stream id0 if iommu is present */
-	if (ethosn_smmu_available(core->dev)) {
-		ret = ethosn_set_mmu_stream_id(core);
-		if (ret)
-			return ret;
-	}
-
-	/* Configure address extension for stream 0, 1 and 2 */
-	ret = ethosn_set_addr_ext(
-		core, ETHOSN_STREAM_FIRMWARE,
-		ethosn_dma_get_addr_base(core->allocator,
-					 ETHOSN_STREAM_FIRMWARE),
-		&core->firmware_map);
-	if (ret)
-		return ret;
-
-	ret = ethosn_set_addr_ext(
-		core, ETHOSN_STREAM_WORKING_DATA,
-		ethosn_dma_get_addr_base(core->allocator,
-					 ETHOSN_STREAM_WORKING_DATA),
-		&core->work_data_map);
-	if (ret)
-		return ret;
-
-	ret = ethosn_set_addr_ext(
-		core, ETHOSN_STREAM_COMMAND_STREAM,
-		ethosn_dma_get_addr_base(core->allocator,
-					 ETHOSN_STREAM_COMMAND_STREAM),
-		&core->dma_map);
-	if (ret)
-		return ret;
-
-	if (core->force_firmware_level_interrupts)
-		ethosn_write_top_reg(core, DL1_RP, GP_IRQ, 1);
-
-	/* Initialize the mailbox */
-	ret = ethosn_mailbox_init(core);
-	if (ret)
-		return ret;
-
-	/* Boot the firmware */
-	ret = ethosn_boot_firmware(core);
-	if (ret)
-		return ret;
-
-	/* Init streams regions */
-	ret = ethosn_streams_init(core);
-	if (ret != 0)
-		return ret;
-
-	/* Ping firmware */
-	ret = ethosn_send_ping(core);
-	if (ret != 0)
-		return ret;
-
-	/* Enable stashing */
-	ret = ethosn_send_stash_request(core);
-	if (ret != 0)
-		return ret;
-
-	/* Send FW and HW capabilities request */
-	ret = ethosn_send_fw_hw_capabilities_request(core);
-	if (ret != 0)
-		return ret;
-
-	/* Set FW's profiling state. This is also set whenever profiling is
-	 * enabled/disabled, but we need to do it on each reboot in case
-	 * the firmware crashes, so that its profiling state is restored.
-	 */
-	ret = ethosn_configure_firmware_profiling(core,
-						  &core->profiling.config);
-	if (ret != 0)
-		return ret;
-
-	dev_info(core->dev, "Waiting for Ethos-N\n");
-
-	/* Wait for firmware to set GP2 to 0 which indicates that it has booted.
-	 * Also wait for it to reply with the FW & HW caps message.
-	 * This is necessary so that the user can't query us for the caps before
-	 * they are ready.
-	 * Also wait for the memory regions to be correctly setup. This is
-	 * necessary to execute inferences.
-	 */
-	for (timeout = 0; timeout < ETHOSN_RESET_TIMEOUT_US;
-	     timeout += ETHOSN_RESET_WAIT_US) {
-		bool mem_ready = core->ethosn_f_stream_configured &&
-				 core->ethosn_wd_stream_configured &&
-				 core->ethosn_cs_stream_configured &&
-				 core->ethosn_mpu_enabled;
-
-		if (ethosn_read_top_reg(core, DL1_RP, GP_MAILBOX) == 0 &&
-		    core->fw_and_hw_caps.size > 0U && mem_ready &&
-		    !core->profiling.is_waiting_for_firmware_ack)
-			break;
-
-		udelay(ETHOSN_RESET_WAIT_US);
-	}
-
-	if (timeout >= ETHOSN_RESET_TIMEOUT_US) {
-		dev_err(core->dev, "Timeout while waiting for Ethos-N\n");
-
-		return -ETIME;
-	}
-
-	core->firmware_running = true;
-
-	return 0;
-}
-
 void ethosn_notify_firmware(struct ethosn_core *core)
 {
 	struct dl1_setirq_int_r irq = {
@@ -1306,10 +1185,14 @@ static int firmware_load(struct ethosn_core *core,
 	size = max_t(size_t, ETHOSN_CODE_SIZE, big_fw_desc->size);
 
 	/* Allocate memory for firmware code */
-	core->firmware =
-		ethosn_dma_alloc_and_map(core->allocator, size,
-					 ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
-					 ETHOSN_STREAM_FIRMWARE, GFP_KERNEL);
+	if (!core->firmware)
+		core->firmware =
+			ethosn_dma_alloc_and_map(core->allocator, size,
+						 ETHOSN_PROT_READ |
+						 ETHOSN_PROT_WRITE,
+						 ETHOSN_STREAM_FIRMWARE,
+						 GFP_KERNEL);
+
 	if (IS_ERR(core->firmware))
 		goto release_fw;
 
@@ -1318,23 +1201,31 @@ static int firmware_load(struct ethosn_core *core,
 	ethosn_dma_sync_for_device(core->allocator, core->firmware);
 
 	/* Allocate stack */
-	core->firmware_stack =
-		ethosn_dma_alloc_and_map(core->allocator, ETHOSN_STACK_SIZE,
-					 ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
-					 ETHOSN_STREAM_WORKING_DATA,
-					 GFP_KERNEL);
+	if (!core->firmware_stack)
+		core->firmware_stack =
+			ethosn_dma_alloc_and_map(core->allocator,
+						 ETHOSN_STACK_SIZE,
+						 ETHOSN_PROT_READ |
+						 ETHOSN_PROT_WRITE,
+						 ETHOSN_STREAM_WORKING_DATA,
+						 GFP_KERNEL);
+
 	if (IS_ERR(core->firmware_stack))
 		goto free_firmware;
 
 	ethosn_dma_sync_for_device(core->allocator, core->firmware_stack);
 
 	/* Allocate vtable */
-	core->firmware_vtable =
-		ethosn_dma_alloc_and_map(core->allocator,
-					 ETHOSN_VTABLE_SIZE * sizeof(uint32_t),
-					 ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
-					 ETHOSN_STREAM_FIRMWARE,
-					 GFP_KERNEL);
+	if (!core->firmware_vtable)
+		core->firmware_vtable =
+			ethosn_dma_alloc_and_map(core->allocator,
+						 ETHOSN_VTABLE_SIZE *
+						 sizeof(uint32_t),
+						 ETHOSN_PROT_READ |
+						 ETHOSN_PROT_WRITE,
+						 ETHOSN_STREAM_FIRMWARE,
+						 GFP_KERNEL);
+
 	if (IS_ERR(core->firmware_vtable))
 		goto free_stack;
 
@@ -1370,7 +1261,7 @@ static int firmware_init(struct ethosn_core *core)
 	int i;
 	int ret;
 
-	for (i = 0; i < ARRAY_SIZE(firmware_names); i++) {
+	for (i = 0; i < ARRAY_SIZE(firmware_names); ++i) {
 		ret = firmware_load(core, firmware_names[i]);
 		if (!ret)
 			break;
@@ -1381,6 +1272,132 @@ static int firmware_init(struct ethosn_core *core)
 
 		return ret;
 	}
+
+	return 0;
+}
+
+int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
+{
+	int timeout;
+	int ret;
+
+	dev_info(core->dev, "Reset the ethosn\n");
+
+	/* Load the firmware */
+	ret = firmware_init(core);
+	if (ret)
+		return ret;
+
+	/* Reset the Ethos-N core */
+	ret = ethosn_reset(core);
+	if (ret)
+		return ret;
+
+	/* Set MMU Stream id0 if iommu is present */
+	if (ethosn_smmu_available(core->dev)) {
+		ret = ethosn_set_mmu_stream_id(core);
+		if (ret)
+			return ret;
+	}
+
+	/* Configure address extension for stream 0, 1 and 2 */
+	ret = ethosn_set_addr_ext(
+		core, ETHOSN_STREAM_FIRMWARE,
+		ethosn_dma_get_addr_base(core->allocator,
+					 ETHOSN_STREAM_FIRMWARE),
+		&core->firmware_map);
+	if (ret)
+		return ret;
+
+	ret = ethosn_set_addr_ext(
+		core, ETHOSN_STREAM_WORKING_DATA,
+		ethosn_dma_get_addr_base(core->allocator,
+					 ETHOSN_STREAM_WORKING_DATA),
+		&core->work_data_map);
+	if (ret)
+		return ret;
+
+	ret = ethosn_set_addr_ext(
+		core, ETHOSN_STREAM_COMMAND_STREAM,
+		ethosn_dma_get_addr_base(core->allocator,
+					 ETHOSN_STREAM_COMMAND_STREAM),
+		&core->dma_map);
+	if (ret)
+		return ret;
+
+	if (core->force_firmware_level_interrupts)
+		ethosn_write_top_reg(core, DL1_RP, GP_IRQ, 1);
+
+	/* Initialize the mailbox */
+	ret = ethosn_mailbox_init(core);
+	if (ret)
+		return ret;
+
+	/* Boot the firmware */
+	ret = ethosn_boot_firmware(core);
+	if (ret)
+		return ret;
+
+	/* Init streams regions */
+	ret = ethosn_streams_init(core);
+	if (ret != 0)
+		return ret;
+
+	/* Ping firmware */
+	ret = ethosn_send_ping(core);
+	if (ret != 0)
+		return ret;
+
+	/* Enable stashing */
+	ret = ethosn_send_stash_request(core);
+	if (ret != 0)
+		return ret;
+
+	/* Send FW and HW capabilities request */
+	ret = ethosn_send_fw_hw_capabilities_request(core);
+	if (ret != 0)
+		return ret;
+
+	/* Set FW's profiling state. This is also set whenever profiling is
+	 * enabled/disabled, but we need to do it on each reboot in case
+	 * the firmware crashes, so that its profiling state is restored.
+	 */
+	ret = ethosn_configure_firmware_profiling(core,
+						  &core->profiling.config);
+	if (ret != 0)
+		return ret;
+
+	dev_info(core->dev, "Waiting for Ethos-N\n");
+
+	/* Wait for firmware to set GP2 to 0 which indicates that it has booted.
+	 * Also wait for it to reply with the FW & HW caps message.
+	 * This is necessary so that the user can't query us for the caps before
+	 * they are ready.
+	 * Also wait for the memory regions to be correctly setup. This is
+	 * necessary to execute inferences.
+	 */
+	for (timeout = 0; timeout < ETHOSN_RESET_TIMEOUT_US;
+	     timeout += ETHOSN_RESET_WAIT_US) {
+		bool mem_ready = core->ethosn_f_stream_configured &&
+				 core->ethosn_wd_stream_configured &&
+				 core->ethosn_cs_stream_configured &&
+				 core->ethosn_mpu_enabled;
+
+		if (ethosn_read_top_reg(core, DL1_RP, GP_MAILBOX) == 0 &&
+		    core->fw_and_hw_caps.size > 0U && mem_ready &&
+		    !core->profiling.is_waiting_for_firmware_ack)
+			break;
+
+		udelay(ETHOSN_RESET_WAIT_US);
+	}
+
+	if (timeout >= ETHOSN_RESET_TIMEOUT_US) {
+		dev_err(core->dev, "Timeout while waiting for Ethos-N\n");
+
+		return -ETIME;
+	}
+
+	core->firmware_running = true;
 
 	return 0;
 }
