@@ -550,25 +550,38 @@ void NetworkToGraphConverter::Visit(Concatenation& concatenation)
         }
     }
 
+    std::vector<Node*> nodes;
     Node* n = m_Graph.CreateAndAddNodeWithDebug<ConcatNode>(
         ETHOSN_FUNCTION_SIGNATURE, concatenation.GetOutput(0).GetTensorInfo().m_Dimensions,
         concatenation.GetOutput(0).GetTensorInfo().m_DataType,
         concatenation.GetConcatenationInfo().m_OutputQuantizationInfo, format, axis,
         std::set<uint32_t>{ concatenation.GetId() });
 
-    ConnectNode(concatenation, n);
+    nodes.push_back(n);
+
+    // Add a format conversion to NHWCB if needed because operations work best with NHWCB.
+    if (nodes.front()->GetFormat() != CompilerDataFormat::NHWCB)
+    {
+        const TensorInfo& tensorInfo         = concatenation.GetOutput(0).GetTensorInfo();
+        FormatConversionNode* conversionNode = m_Graph.CreateAndAddNodeWithDebug<FormatConversionNode>(
+            ETHOSN_FUNCTION_SIGNATURE, tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo,
+            CompilerDataFormat::NHWCB, std::set<uint32_t>{ concatenation.GetId() });
+        nodes.push_back(conversionNode);
+    }
+
+    ConnectNodeChain(concatenation, nodes);
 
     // If input are not in the required format then add FormatConversionNodes to them
     std::vector<std::pair<Edge*, Node*>> edgeToAddConversion;
     for (uint32_t i = 0; i < numInputs; ++i)
     {
-        if (n->GetInputFormat(i) != format)
+        if (nodes.front()->GetInputFormat(i) != format)
         {
             const TensorInfo& tensorInfo = concatenation.GetInput(i).GetTensorInfo();
             Node* reformat               = m_Graph.CreateAndAddNodeWithDebug<FormatConversionNode>(
                 ETHOSN_FUNCTION_SIGNATURE, tensorInfo.m_Dimensions, tensorInfo.m_DataType,
                 tensorInfo.m_QuantizationInfo, format, std::set<uint32_t>{ concatenation.GetId() });
-            edgeToAddConversion.push_back({ n->GetInput(i), reformat });
+            edgeToAddConversion.push_back({ nodes.front()->GetInput(i), reformat });
         }
     }
     for (uint32_t i = 0; i < edgeToAddConversion.size(); ++i)
@@ -582,13 +595,13 @@ void NetworkToGraphConverter::Visit(Concatenation& concatenation)
     std::vector<std::pair<Edge*, Node*>> edgeToAddRequantize;
     for (uint32_t i = 0; i < numInputs; ++i)
     {
-        if (n->GetInputQuantizationInfo(i) != outputQuantInfo)
+        if (nodes.front()->GetInputQuantizationInfo(i) != outputQuantInfo)
         {
             Node* requant = m_Graph.CreateAndAddNodeWithDebug<RequantizeNode>(
                 ETHOSN_FUNCTION_SIGNATURE, concatenation.GetInput(i).GetTensorInfo().m_Dimensions,
                 concatenation.GetInput(i).GetTensorInfo().m_DataType, outputQuantInfo, format,
                 std::set<uint32_t>{ concatenation.GetId() });
-            edgeToAddRequantize.push_back({ n->GetInput(i), requant });
+            edgeToAddRequantize.push_back({ nodes.front()->GetInput(i), requant });
         }
     }
     for (uint32_t i = 0; i < edgeToAddRequantize.size(); ++i)
@@ -609,7 +622,7 @@ void NetworkToGraphConverter::Visit(Concatenation& concatenation)
         const TensorInfo& tensorInfo = concatenation.GetInput(i).GetTensorInfo();
         Node* copy = m_Graph.CreateAndAddNode<CopyNode>(tensorInfo.m_Dimensions, tensorInfo.m_DataType, outputQuantInfo,
                                                         format, std::set<uint32_t>{ concatenation.GetId() });
-        edgeToAddCopy.push_back({ n->GetInput(i), copy });
+        edgeToAddCopy.push_back({ nodes.front()->GetInput(i), copy });
     }
     for (uint32_t i = 0; i < edgeToAddCopy.size(); ++i)
     {
