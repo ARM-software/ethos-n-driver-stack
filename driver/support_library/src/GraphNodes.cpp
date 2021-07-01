@@ -999,9 +999,25 @@ EstimateOnlyNode::EstimateOnlyNode(NodeId id,
                                    DataType dataType,
                                    const QuantizationInfo& outputQuantizationInfo,
                                    CompilerDataFormat format,
-                                   std::set<uint32_t> correspondingOperationIds)
+                                   std::set<uint32_t> correspondingOperationIds,
+                                   const char* reasons)
     : Node(id, outputTensorShape, dataType, outputQuantizationInfo, format, correspondingOperationIds)
-{}
+{
+    assert(reasons != nullptr);
+
+    m_ReasonForEstimateOnly = reasons;
+
+    if (m_ReasonForEstimateOnly.size() == 0)
+    {
+        g_Logger.Warning("Reason is missing for estimate only node");
+        m_ReasonForEstimateOnly.assign("Unknown.");
+    }
+
+    if (m_ReasonForEstimateOnly.back() != '.')
+    {
+        m_ReasonForEstimateOnly += ".";
+    }
+}
 
 bool EstimateOnlyNode::IsPrepared()
 {
@@ -1012,8 +1028,8 @@ void EstimateOnlyNode::Estimate(NetworkPerformanceData& perfData, const Estimati
 {
     for (const auto it : GetCorrespondingOperationIds())
     {
-        perfData.m_OperationIdFailureReasons.emplace(
-            it, "Could not be estimated: Please provide a mapping file entry for this operation");
+        perfData.m_OperationIdFailureReasons.emplace(it, "Could not be estimated: " + m_ReasonForEstimateOnly +
+                                                             " Please provide a mapping file entry for this operation");
     }
 }
 

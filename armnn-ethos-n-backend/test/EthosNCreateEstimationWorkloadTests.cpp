@@ -241,7 +241,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyWorkload)
 		],
 		"Issues":
 		{
-			"2": "Could not be estimated: Please provide a mapping file entry for this operation"
+			"2": "Could not be estimated: EstimationOnly operations have zero performance impact. Please provide a mapping file entry for this operation"
 		}
 	}
 }
@@ -417,7 +417,7 @@ BOOST_AUTO_TEST_CASE(EstimationOnlyExistingWorkload)
 		],
 		"Issues":
 		{
-			"2": "Could not be estimated: Please provide a mapping file entry for this operation"
+			"2": "Could not be estimated: Unsupported configuration in AVG pooling. Please provide a mapping file entry for this operation"
 		}
 	}
 }

@@ -249,15 +249,17 @@ void NetworkToGraphConverter::Visit(Pooling& pooling)
         PoolingType::AVG,
     };
 
+    char reason[1024];
+
     const SupportedLevel supportedLevel =
-        m_Queries.IsPoolingSupported(poolingInfo, pooling.GetInput(0).GetTensorInfo());
+        m_Queries.IsPoolingSupported(poolingInfo, pooling.GetInput(0).GetTensorInfo(), nullptr, reason, sizeof(reason));
 
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
         const auto& outInfo = pooling.GetOutput(0).GetTensorInfo();
         Node* n             = m_Graph.CreateAndAddNodeWithDebug<EstimateOnlyNode>(
             ETHOSN_FUNCTION_SIGNATURE, outInfo.m_Dimensions, outInfo.m_DataType, outInfo.m_QuantizationInfo,
-            CompilerDataFormat::NHWCB, std::set<uint32_t>{ pooling.GetId() });
+            CompilerDataFormat::NHWCB, std::set<uint32_t>{ pooling.GetId() }, reason);
         ConnectNode(pooling, n);
         return;
     }
@@ -326,14 +328,17 @@ void NetworkToGraphConverter::Visit(Tanh& tanh)
 
 void NetworkToGraphConverter::Visit(Softmax& softmax)
 {
-    const SupportedLevel supportedLevel = m_Queries.IsSoftmaxSupported(softmax.GetInput(0).GetTensorInfo());
+    char reason[1024];
+
+    const SupportedLevel supportedLevel =
+        m_Queries.IsSoftmaxSupported(softmax.GetInput(0).GetTensorInfo(), nullptr, reason, sizeof(reason));
 
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
         const auto& outInfo = softmax.GetOutput(0).GetTensorInfo();
         Node* n             = m_Graph.CreateAndAddNodeWithDebug<EstimateOnlyNode>(
             ETHOSN_FUNCTION_SIGNATURE, outInfo.m_Dimensions, outInfo.m_DataType, outInfo.m_QuantizationInfo,
-            CompilerDataFormat::NHWCB, std::set<uint32_t>{ softmax.GetId() });
+            CompilerDataFormat::NHWCB, std::set<uint32_t>{ softmax.GetId() }, reason);
         ConnectNode(softmax, n);
         return;
     }
@@ -486,12 +491,15 @@ void NetworkToGraphConverter::Visit(Addition& addition)
     const QuantizationInfo& quantInfoInput1 = inputInfo1.m_QuantizationInfo;
     const QuantizationInfo& quantInfoOutput = outputInfo.m_QuantizationInfo;
 
-    const SupportedLevel supportedLevel = m_Queries.IsAdditionSupported(inputInfo0, inputInfo1, quantInfoOutput);
+    char reason[1024];
+
+    const SupportedLevel supportedLevel =
+        m_Queries.IsAdditionSupported(inputInfo0, inputInfo1, quantInfoOutput, nullptr, reason, sizeof(reason));
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
         Node* n = m_Graph.CreateAndAddNodeWithDebug<EstimateOnlyNode>(
             ETHOSN_FUNCTION_SIGNATURE, outputInfo.m_Dimensions, outputInfo.m_DataType, quantInfoOutput,
-            CompilerDataFormat::NHWCB, std::set<uint32_t>{ addition.GetId() });
+            CompilerDataFormat::NHWCB, std::set<uint32_t>{ addition.GetId() }, reason);
         ConnectNode(addition, n);
         return;
     }
@@ -522,15 +530,17 @@ void NetworkToGraphConverter::Visit(Concatenation& concatenation)
             inputInfos.push_back(concatenation.GetInput(i).GetTensorInfo());
         }
 
-        const SupportedLevel supportedLevel =
-            m_Queries.IsConcatenationSupported(inputInfos, concatenation.GetConcatenationInfo());
+        char reason[1024];
+
+        const SupportedLevel supportedLevel = m_Queries.IsConcatenationSupported(
+            inputInfos, concatenation.GetConcatenationInfo(), nullptr, reason, sizeof(reason));
 
         if (supportedLevel == SupportedLevel::EstimateOnly)
         {
             const auto& outInfo = concatenation.GetOutput(0).GetTensorInfo();
             Node* n             = m_Graph.CreateAndAddNodeWithDebug<EstimateOnlyNode>(
                 ETHOSN_FUNCTION_SIGNATURE, outInfo.m_Dimensions, outInfo.m_DataType, outInfo.m_QuantizationInfo,
-                CompilerDataFormat::NHWCB, std::set<uint32_t>{ concatenation.GetId() });
+                CompilerDataFormat::NHWCB, std::set<uint32_t>{ concatenation.GetId() }, reason);
             ConnectNode(concatenation, n);
             return;
         }
@@ -636,7 +646,10 @@ void NetworkToGraphConverter::Visit(Split& split)
     const SplitInfo& splitInfo = split.GetSplitInfo();
 
     {
-        const SupportedLevel supportedLevel = m_Queries.IsSplitSupported(inputTensorInfo, splitInfo);
+        char reason[1024];
+
+        const SupportedLevel supportedLevel =
+            m_Queries.IsSplitSupported(inputTensorInfo, splitInfo, nullptr, reason, sizeof(reason));
         if (supportedLevel == SupportedLevel::EstimateOnly)
         {
             const auto& input = split.GetInput(0);
@@ -646,7 +659,8 @@ void NetworkToGraphConverter::Visit(Split& split)
                 const TensorInfo& tensorInfo       = it.GetTensorInfo();
                 EstimateOnlyNode* estimateOnlyNode = m_Graph.CreateAndAddNodeWithDebug<EstimateOnlyNode>(
                     ETHOSN_FUNCTION_SIGNATURE, tensorInfo.m_Dimensions, tensorInfo.m_DataType,
-                    tensorInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB, std::set<uint32_t>{ split.GetId() });
+                    tensorInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB, std::set<uint32_t>{ split.GetId() },
+                    reason);
 
                 m_OperandToNode[&it] = estimateOnlyNode;
                 m_Graph.Connect(inputNode, estimateOnlyNode);
@@ -716,16 +730,19 @@ void NetworkToGraphConverter::Visit(DepthwiseConvolution& depthwiseConvolution)
     const std::set<uint32_t> operationIds = { depthwiseConvolution.GetId(), depthwiseConvolution.GetBias().GetId(),
                                               depthwiseConvolution.GetWeights().GetId() };
 
+    char reason[1024];
+
     const SupportedLevel supportedLevel = m_Queries.IsDepthwiseConvolutionSupported(
         depthwiseConvolution.GetBias().GetTensorInfo(), depthwiseConvolution.GetWeights().GetTensorInfo(),
-        depthwiseConvolution.GetConvolutionInfo(), depthwiseConvolution.GetInput(0).GetTensorInfo());
+        depthwiseConvolution.GetConvolutionInfo(), depthwiseConvolution.GetInput(0).GetTensorInfo(), nullptr, reason,
+        sizeof(reason));
 
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
         const auto& outInfo = depthwiseConvolution.GetOutput(0).GetTensorInfo();
         Node* n = m_Graph.CreateAndAddNodeWithDebug<EstimateOnlyNode>(ETHOSN_FUNCTION_SIGNATURE, outInfo.m_Dimensions,
                                                                       outInfo.m_DataType, outInfo.m_QuantizationInfo,
-                                                                      CompilerDataFormat::NHWCB, operationIds);
+                                                                      CompilerDataFormat::NHWCB, operationIds, reason);
         ConnectNode(depthwiseConvolution, n);
         return;
     }
@@ -800,16 +817,18 @@ void NetworkToGraphConverter::Visit(Convolution& convolution)
     const std::set<uint32_t> operationIds = { convolution.GetId(), convolution.GetBias().GetId(),
                                               convolution.GetWeights().GetId() };
 
+    char reason[1024];
+
     const SupportedLevel supportedLevel = m_Queries.IsConvolutionSupported(
         convolution.GetBias().GetTensorInfo(), convolution.GetWeights().GetTensorInfo(),
-        convolution.GetConvolutionInfo(), convolution.GetInput(0).GetTensorInfo());
+        convolution.GetConvolutionInfo(), convolution.GetInput(0).GetTensorInfo(), nullptr, reason, sizeof(reason));
 
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
         const auto& outInfo = convolution.GetOutput(0).GetTensorInfo();
         Node* n = m_Graph.CreateAndAddNodeWithDebug<EstimateOnlyNode>(ETHOSN_FUNCTION_SIGNATURE, outInfo.m_Dimensions,
                                                                       outInfo.m_DataType, outInfo.m_QuantizationInfo,
-                                                                      CompilerDataFormat::NHWCB, operationIds);
+                                                                      CompilerDataFormat::NHWCB, operationIds, reason);
         ConnectNode(convolution, n);
         return;
     }
@@ -870,16 +889,19 @@ void NetworkToGraphConverter::Visit(TransposeConvolution& transposeConvolution)
     const std::set<uint32_t> operationIds = { transposeConvolution.GetId(), transposeConvolution.GetBias().GetId(),
                                               transposeConvolution.GetWeights().GetId() };
 
+    char reason[1024];
+
     const SupportedLevel supportedLevel = m_Queries.IsTransposeConvolutionSupported(
         transposeConvolution.GetBias().GetTensorInfo(), transposeConvolution.GetWeights().GetTensorInfo(),
-        transposeConvolution.GetConvolutionInfo(), transposeConvolution.GetInput(0).GetTensorInfo());
+        transposeConvolution.GetConvolutionInfo(), transposeConvolution.GetInput(0).GetTensorInfo(), nullptr, reason,
+        sizeof(reason));
 
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
         const auto& outInfo = transposeConvolution.GetOutput(0).GetTensorInfo();
         Node* n = m_Graph.CreateAndAddNodeWithDebug<EstimateOnlyNode>(ETHOSN_FUNCTION_SIGNATURE, outInfo.m_Dimensions,
                                                                       outInfo.m_DataType, outInfo.m_QuantizationInfo,
-                                                                      CompilerDataFormat::NHWCB, operationIds);
+                                                                      CompilerDataFormat::NHWCB, operationIds, reason);
         ConnectNode(transposeConvolution, n);
         return;
     }
@@ -939,15 +961,17 @@ void NetworkToGraphConverter::Visit(Input& input)
 
 void NetworkToGraphConverter::Visit(DepthToSpace& depthToSpace)
 {
-    const SupportedLevel supportedLevel =
-        m_Queries.IsDepthToSpaceSupported(depthToSpace.GetInput(0).GetTensorInfo(), depthToSpace.GetDepthToSpaceInfo());
+    char reason[1024];
+
+    const SupportedLevel supportedLevel = m_Queries.IsDepthToSpaceSupported(
+        depthToSpace.GetInput(0).GetTensorInfo(), depthToSpace.GetDepthToSpaceInfo(), nullptr, reason, sizeof(reason));
 
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
         const auto& outInfo = depthToSpace.GetOutput(0).GetTensorInfo();
         Node* n             = m_Graph.CreateAndAddNodeWithDebug<EstimateOnlyNode>(
             ETHOSN_FUNCTION_SIGNATURE, outInfo.m_Dimensions, outInfo.m_DataType, outInfo.m_QuantizationInfo,
-            CompilerDataFormat::NHWCB, std::set<uint32_t>{ depthToSpace.GetId() });
+            CompilerDataFormat::NHWCB, std::set<uint32_t>{ depthToSpace.GetId() }, reason);
         ConnectNode(depthToSpace, n);
         return;
     }
@@ -1075,13 +1099,15 @@ void NetworkToGraphConverter::Visit(Transpose& transpose)
     // transposeInfo contains the tensor reordering in NHWC format for output
     // i.e <0, 3, 1, 2> means N->N, C->H, W->H, H->C <N,H,W,C> becomes <N,C,W,H>.
 
-    const SupportedLevel supportedLevel = m_Queries.IsTransposeSupported(transpose.GetTransposeInfo(), inputTensorInfo);
+    char reason[1024];
+    const SupportedLevel supportedLevel =
+        m_Queries.IsTransposeSupported(transpose.GetTransposeInfo(), inputTensorInfo, nullptr, reason, sizeof(reason));
 
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
         Node* n = m_Graph.CreateAndAddNode<EstimateOnlyNode>(
             outputTensorInfo.m_Dimensions, outputTensorInfo.m_DataType, outputTensorInfo.m_QuantizationInfo,
-            CompilerDataFormat::NHWCB, std::set<uint32_t>{ transpose.GetId() });
+            CompilerDataFormat::NHWCB, std::set<uint32_t>{ transpose.GetId() }, reason);
         ConnectNode(transpose, n);
         return;
     }
@@ -1266,13 +1292,15 @@ void NetworkToGraphConverter::Visit(Resize& resize)
 
 void NetworkToGraphConverter::Visit(EstimateOnly& estimateOnly)
 {
+    char reason[] = "EstimationOnly operations have zero performance impact";
+
     // Add an EstimateOnly node for each output of the EstimateOnly operation
     for (const auto& it : estimateOnly.GetOutputs())
     {
         const TensorInfo& tensorInfo       = it.GetTensorInfo();
         EstimateOnlyNode* estimateOnlyNode = m_Graph.CreateAndAddNodeWithDebug<EstimateOnlyNode>(
             ETHOSN_FUNCTION_SIGNATURE, tensorInfo.m_Dimensions, tensorInfo.m_DataType, tensorInfo.m_QuantizationInfo,
-            CompilerDataFormat::NHWCB, std::set<uint32_t>{ estimateOnly.GetId() });
+            CompilerDataFormat::NHWCB, std::set<uint32_t>{ estimateOnly.GetId() }, reason);
 
         m_OperandToNode[&it] = estimateOnlyNode;
 

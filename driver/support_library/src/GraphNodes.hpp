@@ -420,13 +420,17 @@ public:
                      DataType dataType,
                      const QuantizationInfo& outputQuantizationInfo,
                      CompilerDataFormat format,
-                     std::set<uint32_t> correspondingOperationIds);
+                     std::set<uint32_t> correspondingOperationIds,
+                     const char* reasons);
 
     bool IsPrepared() override;
 
     void Estimate(NetworkPerformanceData& perfStream, const EstimationOptions& estimationOptions) override;
 
     DotAttributes GetDotAttributes() override;
+
+private:
+    std::string m_ReasonForEstimateOnly;
 };
 
 MceOperationNode* CreateIdentityMceOpNode(Graph& graph, Node* previousNode);
