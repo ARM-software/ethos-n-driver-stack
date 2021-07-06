@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -152,8 +152,7 @@ protected:
     std::vector<std::vector<uint8_t>> MergeStreams(const std::vector<std::vector<uint8_t>>& streams,
                                                    uint32_t numGroups,
                                                    uint32_t numIterations,
-                                                   uint32_t numOfmsPerSram,
-                                                   const uint32_t streamHeadersUpdateAlignment) const;
+                                                   uint32_t numOfmsPerSram) const;
 
     std::vector<std::vector<uint8_t>> MergeStreamsOg(const std::vector<EncodedOfm>& streams,
                                                      uint32_t numGroups,
