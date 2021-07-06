@@ -461,8 +461,18 @@ bool EthosNLayerSupport::IsConvolution2dSupported(const TensorInfo& input,
     auto ethosnBias = biases.has_value() ? BuildEthosNBiasesInfo(biases.value(), input, weights)
                                          : BuildEthosNBiasesInfo(ethosnOutput.m_Dimensions[3], input, weights);
 
-    constexpr bool isDepthwiseConvolution = false;
-    auto ethosnWeights = BuildEthosNConvolutionWeightsInfo(weights, descriptor.m_DataLayout, isDepthwiseConvolution);
+    ethosn_lib::TensorInfo ethosnWeights;
+    try
+    {
+        constexpr bool isDepthwiseConvolution = false;
+        ethosnWeights =
+            BuildEthosNConvolutionWeightsInfo(weights, input, descriptor.m_DataLayout, isDepthwiseConvolution);
+    }
+    catch (const InvalidArgumentException& e)
+    {
+        SetReason(reasonIfUnsupported, e.what());
+        return false;
+    }
 
     auto convolutionInfo = BuildEthosNConvolutionInfo(descriptor, output.GetQuantizationOffset(),
                                                       output.GetQuantizationScale(), reasonIfUnsupported);
@@ -496,6 +506,7 @@ bool EthosNLayerSupport::IsDepthwiseConvolutionSupported(const TensorInfo& input
     {
         return false;
     }
+
     if (descriptor.m_DataLayout != DataLayout::NHWC)
     {
         // In order to support other layouts we would need to do more than just use this layout when creating the
@@ -510,8 +521,18 @@ bool EthosNLayerSupport::IsDepthwiseConvolutionSupported(const TensorInfo& input
     auto ethosnBias = biases.has_value() ? BuildEthosNBiasesInfo(biases.value(), input, weights)
                                          : BuildEthosNBiasesInfo(ethosnOutput.m_Dimensions[3], input, weights);
 
-    constexpr bool isDepthwiseConvolution = true;
-    auto ethosnWeights = BuildEthosNConvolutionWeightsInfo(weights, descriptor.m_DataLayout, isDepthwiseConvolution);
+    ethosn_lib::TensorInfo ethosnWeights;
+    try
+    {
+        constexpr bool isDepthwiseConvolution = true;
+        ethosnWeights =
+            BuildEthosNConvolutionWeightsInfo(weights, input, descriptor.m_DataLayout, isDepthwiseConvolution);
+    }
+    catch (const InvalidArgumentException& e)
+    {
+        SetReason(reasonIfUnsupported, e.what());
+        return false;
+    }
 
     auto convolutionInfo = BuildEthosNConvolutionInfo(descriptor, output.GetQuantizationOffset(),
                                                       output.GetQuantizationScale(), reasonIfUnsupported);
@@ -559,8 +580,18 @@ bool EthosNLayerSupport::IsTransposeConvolution2dSupported(const TensorInfo& inp
     auto ethosnBias = biases.has_value() ? BuildEthosNBiasesInfo(biases.value(), input, weights)
                                          : BuildEthosNBiasesInfo(ethosnOutput.m_Dimensions[3], input, weights);
 
-    constexpr bool isDepthwiseConvolution = false;
-    auto ethosnWeights = BuildEthosNConvolutionWeightsInfo(weights, descriptor.m_DataLayout, isDepthwiseConvolution);
+    ethosn_lib::TensorInfo ethosnWeights;
+    try
+    {
+        constexpr bool isDepthwiseConvolution = false;
+        ethosnWeights =
+            BuildEthosNConvolutionWeightsInfo(weights, input, descriptor.m_DataLayout, isDepthwiseConvolution);
+    }
+    catch (const InvalidArgumentException& e)
+    {
+        SetReason(reasonIfUnsupported, e.what());
+        return false;
+    }
 
     auto convolutionInfo =
         BuildEthosNConvolutionInfo(descriptor, output.GetQuantizationOffset(), output.GetQuantizationScale());
@@ -1317,7 +1348,8 @@ bool EthosNLayerSupport::IsMultiplicationSupportedByDepthwiseReplacement(
         desc.m_BiasEnabled = false;
 
         TensorInfo weightsInfo = constantInfo;
-        weightsInfo.SetShape({ 1, constantInfo.GetShape()[3], 1, 1 });
+        unsigned int M         = output.GetShape()[3] / inputInfo.GetShape()[3];
+        weightsInfo.SetShape({ 1, 1, 1, constantInfo.GetShape()[3] * M });    //1HW(I*M)
 
         std::string depthwiseReasonIfUnsupported;
         bool supported = EthosNLayerSupport::IsDepthwiseConvolutionSupported(
@@ -1515,6 +1547,13 @@ bool EthosNLayerSupport::IsResizeSupported(const TensorInfo& input,
 }
 
 bool EthosNLayerSupport::IsRsqrtSupported(const TensorInfo& input,
+                                          const TensorInfo& output,
+                                          Optional<std::string&> reasonIfUnsupported) const
+{
+    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
+}
+
+bool EthosNLayerSupport::IsShapeSupported(const TensorInfo& input,
                                           const TensorInfo& output,
                                           Optional<std::string&> reasonIfUnsupported) const
 {

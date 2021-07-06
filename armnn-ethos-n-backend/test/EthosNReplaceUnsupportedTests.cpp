@@ -233,7 +233,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
             ConstantAddToDepthwiseReplacementConfig config = result.value();
             CHECK(config.m_Desc.m_BiasEnabled == true);
             CHECK(config.m_Desc.m_DataLayout == DataLayout::NHWC);
-            CHECK(config.m_WeightsInfo == TensorInfo(TensorShape{ 1, 3, 1, 1 }, DataType::QAsymmU8, 0.5f, 0));
+            CHECK(config.m_WeightsInfo == TensorInfo(TensorShape{ 1, 1, 1, 3 }, DataType::QAsymmU8, 0.5f, 0));
             CHECK(config.m_WeightsQuantizedValue == 2);
             CHECK(config.m_BiasInfo == TensorInfo(TensorShape{ 1, 1, 1, 3 }, DataType::Signed32, 0.5f, 0));
         }
@@ -375,7 +375,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
             // Check weights tensor info and data
             CHECK(depthwiseLayer->m_Weight->GetTensorInfo() ==
-                  TensorInfo(TensorShape{ 1, 4, 1, 1 }, DataType::QAsymmU8, 0.5f, 0));
+                  TensorInfo(TensorShape{ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.5f, 0));
             const uint8_t* dwWeightData = depthwiseLayer->m_Weight->GetConstTensor<uint8_t>();
             CHECK(std::all_of(dwWeightData, dwWeightData + depthwiseLayer->m_Weight->GetShape().GetNumElements(),
                               [](auto x) { return x == 2; }));

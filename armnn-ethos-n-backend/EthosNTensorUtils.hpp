@@ -23,6 +23,45 @@ namespace ethosntensorutils
 {
 
 template <typename T>
+void Swizzle1HWOToHWIM(const void* inputBuffer,
+                       void* outputBuffer,
+                       const armnn::TensorShape& inputShape,
+                       unsigned int depthMultiplier)
+{
+    ARMNN_ASSERT(inputBuffer != nullptr);
+    ARMNN_ASSERT(outputBuffer != nullptr);
+
+    ARMNN_ASSERT(inputShape.GetNumDimensions() == 4);
+
+    const T* typedInputData = reinterpret_cast<const T*>(inputBuffer);
+    std::vector<T> output;
+    output.reserve(inputShape.GetNumElements());
+
+    uint32_t dimH = inputShape[1];
+    uint32_t dimW = inputShape[2];
+    uint32_t dimI = inputShape[3] / depthMultiplier;
+    uint32_t dimM = depthMultiplier;
+
+    for (unsigned int indH = 0; indH < dimH; indH++)
+    {
+        for (unsigned int indW = 0; indW < dimW; indW++)
+        {
+            for (unsigned int indI = 0; indI < dimI; indI++)
+            {
+                for (unsigned int indM = 0; indM < dimM; indM++)
+                {
+                    uint32_t flatIndex = (indH * dimW * dimI * dimM) + (indW * dimI * dimM) + (indI * dimM) + indM;
+                    T elem             = typedInputData[flatIndex];
+                    output.push_back(elem);
+                }
+            }
+        }
+    }
+
+    memcpy(outputBuffer, output.data(), inputShape.GetNumElements() * sizeof(T));
+}
+
+template <typename T>
 void SwizzleOHWIToHWIO(const void* inputBuffer, void* outputBuffer, const armnn::TensorShape& inputShape)
 {
     ARMNN_ASSERT(inputBuffer != nullptr);
@@ -99,12 +138,13 @@ void SwizzleConvolutionWeightsData(const void* inputBuffer,
                                    void* outputBuffer,
                                    const armnn::TensorShape& inputShape,
                                    DataLayout layerLayout,
-                                   bool isDepthwiseConvolution)
+                                   bool isDepthwiseConvolution,
+                                   unsigned int depthMultiplier)
 {
     if (isDepthwiseConvolution)
     {
-        // DepthwiseConvolution: MIHW -> HWIM (equivalent to OIHW -> HWIO)
-        SwizzleOIHWToHWIO<T>(inputBuffer, outputBuffer, inputShape);
+        /// Weights for depthwise have a datalayout of [1,H,W,O] = [1,H,W,I*M] -> HWIM
+        Swizzle1HWOToHWIM<T>(inputBuffer, outputBuffer, inputShape, depthMultiplier);
     }
     else
     {
@@ -133,6 +173,7 @@ ethosn_lib::TensorInfo BuildEthosNTensorInfo(const Optional<TensorInfo>& tensorI
 /// @}
 
 ethosn_lib::TensorInfo BuildEthosNConvolutionWeightsInfo(const armnn::TensorInfo& weightsInfo,
+                                                         const armnn::TensorInfo& inputInfo,
                                                          DataLayout layerLayout,
                                                          bool isDepthwiseConvolution);
 

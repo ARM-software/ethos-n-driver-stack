@@ -378,7 +378,7 @@ TEST_SUITE("EthosNSupport")
 
         const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
         const TensorInfo outputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
-        const TensorInfo weightInfo({ 1, 16, 1, 1 }, DataType::QAsymmU8, 0.9f, 0);
+        const TensorInfo weightInfo({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
         const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0);
 
         Layer* const inputLayer = graph.AddLayer<InputLayer>(0, "input");
@@ -1242,5 +1242,76 @@ TEST_SUITE("EthosNSupport")
         // 2. I do not believe it is currently possible for the native Addition to be EstimateOnly and the replacement
         // depthwise to be rejected by the support library, because the only way I can find to make the depthwise
         // rejected is to have a large tensor depth, but then would also results in the native Addition to be rejected.
+    }
+
+    TEST_CASE("IsDepthwiseConvolutionSupported")
+    {
+
+        EthosNLayerSupport layerSupport(EthosNConfig(), EthosNMappings(), EthosNConfig().QueryCapabilities());
+        auto ExpectFail = [&layerSupport](const TensorInfo& input, const TensorInfo& output,
+                                          const DepthwiseConvolution2dDescriptor& descriptor, const TensorInfo& weights,
+                                          const Optional<TensorInfo>& biases, const char* expectedFailureReason) {
+            std::string failureReason;
+            CHECK(!layerSupport.IsDepthwiseConvolutionSupported(input, output, descriptor, weights, biases,
+                                                                failureReason));
+            CHECK(failureReason.find(expectedFailureReason) != std::string::npos);
+        };
+
+        const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
+        const TensorInfo outputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
+        const TensorInfo weightInfo({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
+        const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0);
+
+        DepthwiseConvolution2dDescriptor depthwiseConvolutionDescriptor;
+        depthwiseConvolutionDescriptor.m_BiasEnabled = true;
+        depthwiseConvolutionDescriptor.m_DataLayout  = DataLayout::NHWC;
+        depthwiseConvolutionDescriptor.m_StrideX     = 1;
+        depthwiseConvolutionDescriptor.m_StrideY     = 1;
+
+        SUBCASE("Working IsDepthwiseConvolutionSupported()")
+        {
+            // Check a good case
+            std::string failureReason;
+            CHECK(layerSupport.IsDepthwiseConvolutionSupported(inputInfo, outputInfo, depthwiseConvolutionDescriptor,
+                                                               weightInfo, biasInfo, failureReason));
+        }
+
+        SUBCASE("IsDepthwiseConvolutionSupported() Don't handle 16 bit")
+        {
+            const TensorInfo inputInfo16({ 1, 16, 16, 16 }, DataType::QSymmS16, 1.0f, 0);
+            const TensorInfo outputInfo16({ 1, 16, 16, 16 }, DataType::QSymmS16, 1.0f, 0);
+            const TensorInfo weightInfo16({ 1, 1, 1, 16 }, DataType::QSymmS16, 0.9f, 0);
+            const TensorInfo biasInfo16({ 1, 1, 1, 16 }, DataType::QSymmS16, 0.9f, 0);
+            ExpectFail(inputInfo16, outputInfo, depthwiseConvolutionDescriptor, weightInfo, biasInfo,
+                       "Unsupported data type: QSymm16");
+            ExpectFail(inputInfo, outputInfo16, depthwiseConvolutionDescriptor, weightInfo, biasInfo,
+                       "Unsupported data type: QSymm16");
+            ExpectFail(inputInfo, outputInfo, depthwiseConvolutionDescriptor, weightInfo16, biasInfo,
+                       "Unsupported data type: QSymm16");
+            ExpectFail(inputInfo, outputInfo, depthwiseConvolutionDescriptor, weightInfo, biasInfo16,
+                       "Unsupported data type: QSymm16");
+        }
+
+        SUBCASE("IsDepthwiseConvolutionSupported() only handle NHWC")
+        {
+            DepthwiseConvolution2dDescriptor depthwiseConvolutionDescriptorNCHW;
+            depthwiseConvolutionDescriptorNCHW.m_BiasEnabled = true;
+            depthwiseConvolutionDescriptorNCHW.m_DataLayout  = DataLayout::NCHW;
+            depthwiseConvolutionDescriptorNCHW.m_StrideX     = 1;
+            depthwiseConvolutionDescriptorNCHW.m_StrideY     = 1;
+            ExpectFail(inputInfo, outputInfo, depthwiseConvolutionDescriptorNCHW, weightInfo, biasInfo,
+                       "DataLayout must be NHWC");
+        }
+
+        SUBCASE("IsDepthwiseConvolutionSupported() should not handle PerAxisQuantization")
+        {
+            TensorInfo weightInfoPerAxisQuantization({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
+            CHECK(!weightInfoPerAxisQuantization.HasPerAxisQuantization());
+            weightInfoPerAxisQuantization.SetQuantizationDim(Optional<unsigned int>(2));
+            CHECK(weightInfoPerAxisQuantization.HasPerAxisQuantization());
+            ExpectFail(
+                inputInfo, outputInfo, depthwiseConvolutionDescriptor, weightInfoPerAxisQuantization, biasInfo,
+                "Can't convert tensor from [1,H,W,Cout] to [H,W,Cin,M] when per channel quantization is applied.");
+        }
     }
 }

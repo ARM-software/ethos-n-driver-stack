@@ -59,8 +59,11 @@ bool ReplaceConstantMultiplicationWithDepthwise(
                 const auto depthwiseLayer = replacementGraph.AddLayer<DepthwiseConvolution2dLayer>(
                     desc, "Replacement for Constant-Multiplication");
 
-                TensorInfo weightInfo = constInfo;
-                weightInfo.SetShape({ 1, constInfo.GetShape()[3], 1, 1 });
+                TensorInfo weightInfo        = constInfo;
+                const TensorInfo& outputInfo = layer->GetOutputSlot(0).GetTensorInfo();
+                unsigned int M               = outputInfo.GetShape()[3] / inputInfo.GetShape()[3];
+                ARMNN_ASSERT_MSG(M == 1, "Constant multiplication only support 1x1x1xC, so M should always be 1 here");
+                weightInfo.SetShape({ 1, 1, 1, constInfo.GetShape()[3] * M });    //1HW(I*M)
 
                 const void* weightData = PolymorphicPointerDowncast<const ConstantLayer>(constantLayer)
                                              ->m_LayerOutput->GetConstTensor<void>();
@@ -421,8 +424,11 @@ Optional<ConstantAddToDepthwiseReplacementConfig>
     // Therefore the bias data needs to be rescaled to this.
     const float newConstantLayerScale = weightScale * inputInfo.GetQuantizationScale();
 
-    result.m_WeightsInfo =
-        TensorInfo(TensorShape{ 1, inputInfo.GetShape()[3], 1, 1 }, DataType::QAsymmU8, weightScale, 0);
+    unsigned int M = outputInfo.GetShape()[3] / inputInfo.GetShape()[3];
+    ARMNN_ASSERT_MSG(M == 1, "Constant add only support 1x1x1xC, so M should always be 1 here");
+
+    result.m_WeightsInfo = TensorInfo(TensorShape{ 1, 1, 1, inputInfo.GetShape()[3] * M }, DataType::QAsymmU8,
+                                      weightScale, 0);    //1HW(I*M)
 
     result.m_BiasInfo = TensorInfo(constantInfo.GetShape(), DataType::Signed32, newConstantLayerScale, 0);
 

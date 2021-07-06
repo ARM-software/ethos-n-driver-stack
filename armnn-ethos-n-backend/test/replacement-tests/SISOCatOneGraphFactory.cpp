@@ -153,8 +153,8 @@ std::unique_ptr<NetworkImpl> SISOCatOneGraphFactory::GetExpectedModifiedGraph() 
     depthwiseConvolution2dDesc.m_BiasEnabled = true;
     depthwiseConvolution2dDesc.m_DataLayout  = DataLayout::NHWC;
 
-    std::vector<uint8_t> weightDataDepthConv2d(1 * 16 * 1 * 1);
-    std::vector<unsigned int> weightDimensionsDepthConv2d = { 1, 16, 1, 1 };
+    std::vector<uint8_t> weightDataDepthConv2d(1 * 1 * 1 * 16);
+    std::vector<unsigned int> weightDimensionsDepthConv2d = { 1, 1, 1, 16 };    //1HW(I*M)
     ConstTensor weightsDepthConv2d(TensorInfo(4, weightDimensionsDepthConv2d.data(), DataType::QAsymmU8, 0.5),
                                    weightDataDepthConv2d);
 

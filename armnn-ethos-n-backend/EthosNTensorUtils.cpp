@@ -200,33 +200,56 @@ ethosn_lib::TensorInfo BuildEthosNTensorInfo(const Optional<TensorInfo>& tensorI
     return ethosn_lib::TensorInfo();
 }
 
-PermutationVector GetEthosNConvolutionWeightsPermutationVector(DataLayout layerLayout, bool isDepthwiseConvolution)
+armnn::TensorInfo GetEthosNConvolutionWeightsPermutationTensorInfo(const armnn::TensorInfo& weightsInfo,
+                                                                   const armnn::TensorInfo& inputInfo,
+                                                                   DataLayout layerLayout,
+                                                                   bool isDepthwiseConvolution)
 {
     if (isDepthwiseConvolution)
     {
-        // MIHW to HWIM
-        return PermutationVector({ 3, 2, 0, 1 });
-    }
+        // Arm NN weights for depthwise have a datalayout of [1,H,W,O] where O is output cannels e.g. (I*M) -> HWIM
+        // Reshape weights  [ 1, H, W, I*M ] --> [ H, W, I, M ]
 
-    switch (layerLayout)
+        if (weightsInfo.HasPerAxisQuantization())
+        {
+            throw InvalidArgumentException("Can't convert tensor from [1,H,W,Cout] to [H,W,Cin,M] when per channel "
+                                           "quantization is applied.");
+        }
+
+        TensorInfo weightsInfoPermuted = weightsInfo;
+        auto weightsShape              = weightsInfo.GetShape();
+        unsigned int depthMultiplier   = weightsShape[3] / inputInfo.GetShape()[3];
+        weightsInfoPermuted.SetShape({ weightsShape[1], weightsShape[2], inputInfo.GetShape()[3], depthMultiplier });
+        return weightsInfoPermuted;
+    }
+    else
     {
-        case DataLayout::NCHW:
-            // OIHW to HWIO
-            return PermutationVector({ 3, 2, 0, 1 });
-        default:
-            // OHWI to HWIO
-            ARMNN_ASSERT(layerLayout == DataLayout::NHWC);
-            return PermutationVector({ 3, 0, 1, 2 });
+        switch (layerLayout)
+        {
+            case DataLayout::NCHW:
+            {
+                // OIHW to HWIO
+                PermutationVector permutationVector = PermutationVector({ 3, 2, 0, 1 });
+                return armnnUtils::Permuted(weightsInfo, permutationVector);
+            }
+            default:
+            {
+                // OHWI to HWIO
+                ARMNN_ASSERT(layerLayout == DataLayout::NHWC);
+                PermutationVector permutationVector = PermutationVector({ 3, 0, 1, 2 });
+                return armnnUtils::Permuted(weightsInfo, permutationVector);
+            }
+        }
     }
 }
 
-ethosn_lib::TensorInfo BuildEthosNConvolutionWeightsInfo(const TensorInfo& weightsInfo,
+ethosn_lib::TensorInfo BuildEthosNConvolutionWeightsInfo(const armnn::TensorInfo& weightsInfo,
+                                                         const armnn::TensorInfo& inputInfo,
                                                          DataLayout layerLayout,
                                                          bool isDepthwiseConvolution)
 {
-    const PermutationVector permutationVector =
-        GetEthosNConvolutionWeightsPermutationVector(layerLayout, isDepthwiseConvolution);
-    TensorInfo swizzledWeightsInfo = armnnUtils::Permuted(weightsInfo, permutationVector);
+    TensorInfo swizzledWeightsInfo =
+        GetEthosNConvolutionWeightsPermutationTensorInfo(weightsInfo, inputInfo, layerLayout, isDepthwiseConvolution);
 
     ethosn_lib::TensorInfo ethosnWeightsInfo = BuildEthosNTensorInfo(swizzledWeightsInfo, DataLayout::NHWC);
 

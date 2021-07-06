@@ -342,16 +342,15 @@ LayerTestResult<uint8_t, 4> PreCompiledConvolution2dTestImpl(armnn::IWorkloadFac
                                                              unsigned int kernelSize,
                                                              const ConvolutionDescriptor& descriptor)
 {
-    constexpr bool isDepthwise = std::is_same<ConvolutionDescriptor, DepthwiseConvolution2dDescriptor>::value;
-
     ARMNN_ASSERT(descriptor.m_BiasEnabled == true);
     ARMNN_ASSERT(descriptor.m_DataLayout == DataLayout::NHWC);
 
     // Set up tensor shapes and infos
     const TensorShape inputShape({ 1, inputSize, inputSize, channels });
     const TensorShape outputShape({ 1, outputSize, outputSize, channels });
-    const TensorShape kernelShape = isDepthwise ? TensorShape({ 1, channels, kernelSize, kernelSize })
-                                                : TensorShape({ 1, kernelSize, kernelSize, channels });
+
+    // If depthwise is true we should set kernelshape to 1HW(I*M) but as M=1 we end up with the same as in the non depthwise case
+    const TensorShape kernelShape = TensorShape({ 1, kernelSize, kernelSize, channels });
     const TensorShape biasesShape({ 1, 1, 1, channels });
 
     // NOTE: inputScale * weightsScale / outputScale must be >= 0.0 and < 1.0
@@ -361,18 +360,9 @@ LayerTestResult<uint8_t, 4> PreCompiledConvolution2dTestImpl(armnn::IWorkloadFac
     TensorInfo biasesInfo(biasesShape, DataType::Signed32, 1.0f, 0);
 
     // Populate weight and bias data
+    // If depthwise is true we should permute to 1HW(I*M) but as M=1 we end up with the same weightsData as we have
+    // when not depthwise we don't need to do anything.
     std::vector<uint8_t> weightsData = CreateIdentityConvolutionKernel(kernelSize, channels);
-
-    if (isDepthwise)
-    {
-        // Swizzle weight data
-        std::vector<uint8_t> swizzledWeightsData(weightsData.size(), 0);
-        const PermutationVector permutationVector = { 0, 2, 3, 1 };
-        armnnUtils::Permute(kernelShape, permutationVector, reinterpret_cast<const uint8_t*>(weightsData.data()),
-                            swizzledWeightsData.data(), sizeof(uint8_t));
-
-        weightsData = std::move(swizzledWeightsData);
-    }
 
     // NOTE: We need to multiply the elements of the identity kernel by 2
     // to compensate for the scaling factor

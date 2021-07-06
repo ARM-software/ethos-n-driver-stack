@@ -87,16 +87,21 @@ EthosNConstantPtr EthosNSubgraphViewConverter::AddWeights(const Layer& layer)
 {
     ARMNN_ASSERT(layer.m_Weight != nullptr);
 
-    const TensorInfo& tensorInfo       = layer.m_Weight->GetTensorInfo();
-    ethosn_lib::TensorInfo weightsInfo = BuildEthosNConvolutionWeightsInfo(
-        tensorInfo, layer.GetParameters().m_DataLayout, layer.GetType() == LayerType::DepthwiseConvolution2d);
+    const TensorInfo& inputInfo  = layer.GetInputSlot(0).GetConnectedOutputSlot()->GetTensorInfo();
+    const TensorInfo& tensorInfo = layer.m_Weight->GetTensorInfo();
+    ethosn_lib::TensorInfo weightsInfo =
+        BuildEthosNConvolutionWeightsInfo(tensorInfo, inputInfo, layer.GetParameters().m_DataLayout,
+                                          layer.GetType() == LayerType::DepthwiseConvolution2d);
 
     const TensorShape& tensorShape = tensorInfo.GetShape();
+
+    const TensorInfo& outputInfo = layer.GetOutputSlot(0).GetTensorInfo();
+    unsigned int depthMultiplier = outputInfo.GetShape()[3] / inputInfo.GetShape()[3];
 
     std::vector<uint8_t> swizzledWeightsData(tensorShape.GetNumElements(), 0);
     SwizzleConvolutionWeightsData<uint8_t>(layer.m_Weight->template GetConstTensor<void>(), swizzledWeightsData.data(),
                                            tensorShape, layer.GetParameters().m_DataLayout,
-                                           layer.GetType() == LayerType::DepthwiseConvolution2d);
+                                           layer.GetType() == LayerType::DepthwiseConvolution2d, depthMultiplier);
 
     return ethosn_lib::AddConstant(m_Network, weightsInfo, swizzledWeightsData.data()).tensor;
 }

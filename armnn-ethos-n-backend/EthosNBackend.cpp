@@ -394,8 +394,8 @@ Layer* CreateConvolutionLayer(LayerType type,
 
         ARMNN_LOG(info) << "The replacement is DepthwiseConvolution2d \n";
 
-        // The weightDimensions are of the format MIHW
-        const unsigned int weightDimensions[4]{ channelMultiplier, inputChannels, kernelHeight, kernelWidth };
+        // The weightDimensions are of the format 1HW(I*M)
+        const unsigned int weightDimensions[4]{ 1, kernelHeight, kernelWidth, (inputChannels * channelMultiplier) };
         TensorInfo weight(4, weightDimensions, weightDatatype, 0.5f, 0);
 
         // The bias is of the format 1x1x1x(inputChannels * channelMultiplier)
