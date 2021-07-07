@@ -138,7 +138,13 @@ Ensure to comment out the following one since the SMMU driver cannot handle the 
 # CONFIG_ARM_SMMU is not set
 ```
 
-If you run the NPU without an IOMMU, you must create a reserved memory area. The reserved memory area must begin on a 512MB aligned address and must not be larger than 512MB.
+If you run the NPU without an IOMMU, you must create a reserved memory area. This is used to store working data for the NPU, for example the firmware code and network data. The size of the reserved memory area should be chosen based on your specific use case. The amount of memory needed depends on several factors, including the number of NPU cores and the size of the networks being used. We recommend that you test to ensure the chosen size suits your needs. There are several restrictions on the properties of the reserved memory area. If these are not met then the kernel module will not load successfully or the NPU will not behave as expected:
+
+1. The reserved memory area must begin on a 512MB aligned address
+2. The reserved memory area must not be larger than 512MB
+3. The reserved memory area must not be smaller than 4MB
+4. The size of the reserved memory area must be a power-of-two
+5. If the reserved memory area is smaller than 512MB, the NPU may still perform speculative memory reads to addresses up to 512MB from the starting address, which must not fail. The values returned from these speculative reads will not affect the behaviour of the NPU. This means that the NPU must have read access to a full 512MB region, however the portion of the 512MB region which is not in the reserved memory area does not need to be backed by physical memory.
 
 ## Build the Ethos-N NPU driver
 

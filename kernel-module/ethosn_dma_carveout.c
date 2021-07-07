@@ -28,6 +28,24 @@
 #include <linux/iommu.h>
 #include <linux/of_address.h>
 
+/* This value was found experimentally by checking the smallest size which
+ * the kernel module could successfully load and run a small inference on.
+ */
+#define CARVEOUT_MIN_SIZE (resource_size_t)(4 * 1024 * 1024)
+
+/* The NCU MCU provides the lower 29 bits worth of address space and uses
+ * the address extension register to provide the upper bits. As we don't
+ * currently support changing the address extension register at runtime, the
+ * NCU MCU is limited to these 29 bits (512 MB).
+ */
+#define CARVEOUT_MAX_SIZE (resource_size_t)(512 * 1024 * 1024)
+
+/* Our current implementation of ethosn_set_addr_ext() means that the lower
+ * 29 bits of the carveout base address is ignored, so the address must be
+ * aligned otherwise the NPU would write to addresses below the base address.
+ */
+#define CARVEOUT_ALIGNMENT (resource_size_t)(512 * 1024 * 1024)
+
 struct ethosn_allocator_internal {
 	struct ethosn_dma_allocator allocator;
 
@@ -202,8 +220,10 @@ struct ethosn_dma_allocator *ethosn_dma_carveout_allocator_create(
 	};
 	struct ethosn_allocator_internal *allocator;
 	struct device_node *res_mem;
+	struct resource res_mem_details;
+	resource_size_t carveout_size;
 
-	/* Iterrates backwards device tree to find a memory-region phandle */
+	/* Iterates backwards device tree to find a memory-region phandle */
 	do {
 		res_mem = of_parse_phandle(dev->of_node, "memory-region", 0);
 		if (res_mem)
@@ -218,6 +238,53 @@ struct ethosn_dma_allocator *ethosn_dma_carveout_allocator_create(
 
 	if (!res_mem)
 		return ERR_PTR(-EINVAL);
+
+	/* Print the details of the carveout region for debugging */
+	if (of_address_to_resource(res_mem, 0, &res_mem_details))
+		return ERR_PTR(-EINVAL);
+
+	carveout_size = resource_size(&res_mem_details);
+
+	dev_dbg(dev,
+		"Allocating carveout memory region start=%#llx, size=%#llx.\n",
+		res_mem_details.start, carveout_size);
+
+	/* Validate that the memory region configured by the integrator meets
+	 * our requirements.
+	 */
+	if (res_mem_details.start % CARVEOUT_ALIGNMENT != 0) {
+		dev_err(dev,
+			"Carveout memory region at %#llx has incorrect alignment. It must be aligned to a %#llx boundary.\n",
+			res_mem_details.start, CARVEOUT_ALIGNMENT);
+
+		return ERR_PTR(-EINVAL);
+	}
+
+	if (carveout_size < CARVEOUT_MIN_SIZE) {
+		dev_err(dev,
+			"Carveout memory region with size %#llx is too small. It must be no smaller than %#llx.\n",
+			carveout_size, CARVEOUT_MIN_SIZE);
+
+		return ERR_PTR(-EINVAL);
+	}
+
+	if (carveout_size > CARVEOUT_MAX_SIZE) {
+		dev_err(dev,
+			"Carveout memory region with size %#llx is too large. It must be no larger than %#llx.\n",
+			carveout_size, CARVEOUT_MAX_SIZE);
+
+		return ERR_PTR(-EINVAL);
+	}
+
+	if (!is_power_of_2(carveout_size)) {
+		/* This is a restriction of the NCU MCU MPU.
+		 */
+		dev_err(dev,
+			"Carveout memory region size %#llx is not a power-of-two. It must be a power-of-two.\n",
+			carveout_size);
+
+		return ERR_PTR(-EINVAL);
+	}
 
 	allocator = devm_kzalloc(dev,
 				 sizeof(struct ethosn_allocator_internal),
