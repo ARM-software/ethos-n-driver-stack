@@ -51,6 +51,20 @@ struct ethosn_inference_queue {
 	struct list_head inference_queue;
 };
 
+/*
+ * This enum contains different error condition that can be reported
+ * by our driver.
+ *
+ * The decision of adding a new error into this list must be carefully
+ * considered as this way of reporting this kind of error pollutes the
+ * production code.
+ */
+enum ethosn_status_code {
+	WRONG_CORE_SCHEDULE,
+	CONCURRENT_INFERENCE_DETECTED,
+	INFERENCE_SCHEDULED_ON_BUSY_CORE
+};
+
 struct ethosn_device {
 	struct ethosn_core            **core;
 	struct device                 *dev;
@@ -59,6 +73,8 @@ struct ethosn_device {
 	int                           num_cores;
 	struct ethosn_inference_queue queue;
 	struct ethosn_dma_allocator   *allocator;
+	uint32_t                      current_busy_cores;
+	uint32_t                      status_mask;
 };
 
 struct ethosn_core {

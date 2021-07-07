@@ -165,6 +165,32 @@ static void reset_profiling_counters(struct ethosn_core *core)
 	core->profiling.rpm_resume = 0;
 }
 
+static void update_busy_core(struct ethosn_core *core)
+{
+	struct ethosn_device *ethosn = core->parent;
+
+	uint32_t core_id = core->core_id;
+	uint32_t core_mask = (1 << core_id);
+
+	if ((ethosn->current_busy_cores & core_mask) == 0) {
+		dev_err(core->dev,
+			"Scheduler has scheduled an inference on the wrong core");
+		ethosn->status_mask |= (1 << WRONG_CORE_SCHEDULE);
+	} else {
+		ethosn->current_busy_cores &= ~(1 << core->core_id);
+	}
+
+	/* If after clearing our core id, the current_busy_cores
+	 * isn't zero, it means that another inference is executing
+	 * concurrently.
+	 */
+	if (ethosn->current_busy_cores != 0) {
+		dev_info(ethosn->dev, "Concurrent inferences detected");
+		ethosn->status_mask |=
+			(1 << CONCURRENT_INFERENCE_DETECTED);
+	}
+}
+
 static int handle_message(struct ethosn_core *core)
 {
 	struct ethosn_message_header header;
@@ -238,6 +264,7 @@ static int handle_message(struct ethosn_core *core)
 		status = rsp->status == ETHOSN_INFERENCE_STATUS_OK ?
 			 ETHOSN_INFERENCE_COMPLETED : ETHOSN_INFERENCE_ERROR;
 
+		update_busy_core(core);
 		ethosn_network_poll(core, inference, status);
 		break;
 	}
@@ -623,6 +650,16 @@ static ssize_t num_cores_show(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "%d\n", ethosn->num_cores);
 }
 
+static ssize_t status_mask_show(struct device *dev,
+				struct device_attribute *attr,
+				char *buf)
+{
+	struct ethosn_device *ethosn = dev_get_drvdata(dev);
+
+	return scnprintf(buf, PAGE_SIZE, "%#x\n",
+			 ethosn->status_mask);
+}
+
 static const DEVICE_ATTR_RO(architecture);
 static const DEVICE_ATTR_RO(product);
 static const DEVICE_ATTR_RO(version);
@@ -633,6 +670,7 @@ static const DEVICE_ATTR_RO(ple_features);
 static const DEVICE_ATTR_RO(ecoid);
 static const DEVICE_ATTR_WO(firmware_reset);
 static const DEVICE_ATTR_RO(num_cores);
+static const DEVICE_ATTR_RO(status_mask);
 
 static const struct attribute *attrs[] = {
 	&dev_attr_architecture.attr,
@@ -645,6 +683,7 @@ static const struct attribute *attrs[] = {
 	&dev_attr_ecoid.attr,
 	&dev_attr_firmware_reset.attr,
 	&dev_attr_num_cores.attr,
+	&dev_attr_status_mask.attr,
 	NULL
 };
 
@@ -1370,6 +1409,9 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 	ethosn_global_device_for_testing = ethosn;
 
 	ethosn->dev = &pdev->dev;
+
+	ethosn->current_busy_cores = 0;
+	ethosn->status_mask = 0;
 
 	/* Create a top level allocator for parent device
 	 */

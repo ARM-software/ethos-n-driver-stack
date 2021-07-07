@@ -320,10 +320,18 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 {
 	struct ethosn_network *network = inference->network;
 	struct ethosn_core *core = inference->core;
+	struct ethosn_device *ethosn = core->parent;
 	uint32_t core_id = core->core_id;
 	struct device *dev = core->dev;
 	u32 i;
 	int ret;
+
+	if (inference->status == ETHOSN_INFERENCE_RUNNING) {
+		dev_err(core->dev, "Core %d got an inference while busy",
+			core->core_id);
+		ethosn->status_mask |=
+			(1 << INFERENCE_SCHEDULED_ON_BUSY_CORE);
+	}
 
 	if (inference->status != ETHOSN_INFERENCE_SCHEDULED)
 		return 0;
@@ -411,6 +419,7 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 	}
 
 	get_inference(inference);
+	ethosn->current_busy_cores |= (1 << core_id);
 	dev_dbg(dev, "Scheduled inference 0x%pK on core_id = %d\n", inference,
 		core->core_id);
 
