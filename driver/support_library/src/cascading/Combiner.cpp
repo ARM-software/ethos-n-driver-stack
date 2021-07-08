@@ -327,8 +327,7 @@ Combinations CombineSeeds(const PlanId fPlId,
                         oneSeed);
 }
 
-CascadingBufferFormat GetBestCascadingBufferDramFormat(const std::array<TensorShape, 2> inputOutputStripeShapes,
-                                                       const HardwareCapabilities& hwCap)
+CascadingBufferFormat GetBestCascadingBufferDramFormat(const std::array<TensorShape, 2> inputOutputStripeShapes)
 {
     using SupportedCompressedFormats = std::vector<CascadingBufferFormat>;
 
@@ -339,15 +338,14 @@ CascadingBufferFormat GetBestCascadingBufferDramFormat(const std::array<TensorSh
         const TensorShape& currentStripeShape = inputOutputStripeShapes[sramStripeShapesIdx];
         SupportedCompressedFormats& currentCascadedSupportedTypeList =
             cascadingBufferSupportedTypePerStripe[sramStripeShapesIdx];
-        const bool isFCAFEnabled = hwCap.GetActivationCompressionVersion() == 1;
 
-        if (isFCAFEnabled && IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_DEEP,
-                                                                             currentStripeShape))
+        if (IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_DEEP,
+                                                            currentStripeShape))
         {
             currentCascadedSupportedTypeList.push_back(CascadingBufferFormat::FCAF_DEEP);
         }
-        if (isFCAFEnabled && IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_WIDE,
-                                                                             currentStripeShape))
+        if (IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_WIDE,
+                                                            currentStripeShape))
         {
             currentCascadedSupportedTypeList.push_back(CascadingBufferFormat::FCAF_WIDE);
         }
@@ -707,6 +705,8 @@ Combination PruneCombinations(const GraphOfParts& parts,
 PlanCompatibilityResult ArePlansCompatible(
     const Plan& plan1, const Plan& plan2, const Edge& edge, const HardwareCapabilities& hwCap, const bool forceGlue)
 {
+    ETHOSN_UNUSED(hwCap);
+
     // Sanity tests - make sure the two Plans are for adjacent Parts.
     // Note we lookup both buffers by the same Node, as the Graph does not explicitly store intermediate tensors -
     // they are implicitly attached to each Node (which are defined to have a single output).
@@ -824,8 +824,8 @@ PlanCompatibilityResult ArePlansCompatible(
         auto dma1      = std::make_unique<DmaOp>();
         DmaOp* dma1Raw = dma1.get();
 
-        CascadingBufferFormat cascadingBufferFormat = GetBestCascadingBufferDramFormat(
-            { plan1OutputBuffer->m_StripeShape, plan2InputBuffer->m_StripeShape }, hwCap);
+        CascadingBufferFormat cascadingBufferFormat =
+            GetBestCascadingBufferDramFormat({ plan1OutputBuffer->m_StripeShape, plan2InputBuffer->m_StripeShape });
         auto dramBuffer = std::make_unique<Buffer>(
             Lifetime::Atomic, Location::Dram, cascadingBufferFormat, plan1OutputBuffer->m_TensorShape,
             TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,

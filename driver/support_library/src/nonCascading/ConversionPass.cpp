@@ -90,10 +90,6 @@ std::unique_ptr<ethosn::support_library::ConversionPass> ConversionPass::CreateG
     {
         return std::unique_ptr<ConversionPass>();    // InputNode
     }
-    if (!capabilities.GetIsNchwSupported() && (firstNode->GetInputFormat(0) == CompilerDataFormat::NCHW))
-    {
-        return std::unique_ptr<ConversionPass>();    // Support NCHW conversion based on hardware capability
-    }
 
     // If our input is in DRAM then we can support any linear sequence of Conversion nodes (i.e. convert from NHWCB to NHWC or vice versa).
     bool isInputDram = (firstNode->GetInputLocation(0) == BufferLocation::Dram);
@@ -161,11 +157,6 @@ std::unique_ptr<ethosn::support_library::ConversionPass> ConversionPass::CreateG
             // This allocator is passed by value! I.E it is given as a hint to check whether the selected
             // stripe fits in SRAM.
             ChooseAndSetupStripe(capabilities, sramAllocator, stripeShape, definiteNodes.back()->GetShape());
-
-            if (!capabilities.GetIsNchwSupported() && (definiteNodes.back()->GetFormat() == CompilerDataFormat::NCHW))
-            {
-                return std::unique_ptr<ConversionPass>();    // Support NCHW conversion based on hardware capability
-            }
 
             // Conversion pass involving NCHW only supports strategy 3
             if (((definiteNodes.front()->GetInputFormat(0) == CompilerDataFormat::NCHW) ||

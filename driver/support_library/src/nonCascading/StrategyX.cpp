@@ -302,10 +302,6 @@ MceStrategySelectionReturnValue
     // To support activation compression, MCE and output stripes will need to be decoupled.
     if (activationCompression)
     {
-        // Sanity check: can only consider activation compression
-        // for N78 that uses FCAF formats.
-        assert(capabilities.GetActivationCompressionVersion() == 1);
-
         // The output stripe depth must be multiple of FCAF cell depth in
         // case it gets compressed.
         // FCAF wide (HxWxC=8x16x16) is the most likely format to be used for compression.
@@ -422,10 +418,10 @@ MceStrategySelectionReturnValue TryInputZXYOutputXYZ(const StrategyXSelectionPar
     std::vector<bool> activationCompressionOptions;
 
     // Activation compression options:
-    // {true, false} --- N78 and not fully connected.
+    // {true, false} --- not fully connected.
     // {false}       --- otherwise
     const HardwareCapabilities& capabilities = strategyXSelectionParameters.capabilities;
-    if (capabilities.GetActivationCompressionVersion() == 1 && !isFullyConnected)
+    if (!isFullyConnected)
     {
         activationCompressionOptions.push_back(true);
     }

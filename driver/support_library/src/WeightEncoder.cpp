@@ -1270,17 +1270,7 @@ void WeightEncoderV2::WritePayloadHeader(BitstreamWriter& writer,
  */
 std::unique_ptr<WeightEncoder> WeightEncoder::CreateWeightEncoder(const HardwareCapabilities& capabilities)
 {
-    const uint32_t version = capabilities.GetWeightCompressionVersion();
-
-    if (version == 1)
-    {
-        return std::make_unique<WeightEncoderV2>(capabilities);
-    }
-    else
-    {
-        throw VersionMismatchException(std::string("Unsupported weight compressor version: ") +
-                                       std::to_string(version));
-    }
+    return std::make_unique<WeightEncoderV2>(capabilities);
 }
 
 WeightEncoder::WeightEncoder(const HardwareCapabilities& capabilities)

@@ -117,8 +117,8 @@ std::unique_ptr<PlePass> PlePass::CreateGreedily(const HardwareCapabilities& cap
                 }
             }
 
-            if (capabilities.GetIsNchwSupported() && ((pleOpFirstNode->GetInputFormat(0) == CompilerDataFormat::NCHW) ||
-                                                      (nodes.back()->GetFormat() == CompilerDataFormat::NCHW)))
+            if (((pleOpFirstNode->GetInputFormat(0) == CompilerDataFormat::NCHW) ||
+                 (nodes.back()->GetFormat() == CompilerDataFormat::NCHW)))
             {
                 splittableDims = { 0, 0, 0, 0 };
             }
@@ -171,12 +171,6 @@ std::unique_ptr<PlePass> PlePass::CreateGreedily(const HardwareCapabilities& cap
     {
         if (lastWorkingStrategySelected)
         {
-            if (!capabilities.GetIsNchwSupported() && ((firstNode->GetInputFormat(0) == CompilerDataFormat::NCHW) ||
-                                                       (nodes.back()->GetFormat() == CompilerDataFormat::NCHW)))
-            {
-                return std::unique_ptr<PlePass>();
-            }
-
             // Compression format can't be used for the IFM, we need to give a hint to the previous
             // node that its output needs to be uncompressed.
             // Non legacy code does not support it quite yet.

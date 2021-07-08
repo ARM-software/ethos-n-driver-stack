@@ -101,24 +101,9 @@ uint32_t HardwareCapabilities::GetTotalAccumulatorsPerOg() const
     return m_FirmwareAndHardwareCapabilities.m_TotalAccumulatorsPerOg;
 }
 
-uint32_t HardwareCapabilities::GetWeightCompressionVersion() const
-{
-    return m_FirmwareAndHardwareCapabilities.m_WeightCompressionVersion;
-}
-
 uint32_t HardwareCapabilities::GetNumberOfPleLanes() const
 {
     return m_FirmwareAndHardwareCapabilities.m_NumPleLanes;
-}
-
-uint32_t HardwareCapabilities::GetActivationCompressionVersion() const
-{
-    return m_FirmwareAndHardwareCapabilities.m_ActivationCompressionVersion;
-}
-
-uint32_t HardwareCapabilities::GetIsNchwSupported() const
-{
-    return m_FirmwareAndHardwareCapabilities.m_IsNchwSupported;
 }
 
 namespace utils
@@ -161,13 +146,10 @@ uint32_t EstimateWeightSizeBytes(const TensorShape& shape, const HardwareCapabil
     uint32_t numIfmsPerCe         = isHwim ? 1 + (capabilities.GetNumberOfSrams() / 8) : numIfmsRounded;
     uint32_t numBytesPerOfm       = std::get<0>(shape) * std::get<1>(shape) * numIfmsPerCe;
 
-    if (capabilities.GetWeightCompressionVersion() > 0)
-    {
-        // Worst case scenario.
-        // See Ethos-N78 MCE specification 6.8.6.3.2 & 6.8.6.3.3 for more information.
-        numBytesPerOfm = (numBytesPerOfm * 9 + 7) / 8;
-        numBytesPerOfm += ((17 + 1 + 3 + 3 + 1 + 1 + 5 + 5 + 3 + 32 * 9) + 7) / 8;
-    }
+    // Worst case scenario.
+    // See Ethos-N78 MCE specification 6.8.6.3.2 & 6.8.6.3.3 for more information.
+    numBytesPerOfm = (numBytesPerOfm * 9 + 7) / 8;
+    numBytesPerOfm += ((17 + 1 + 3 + 3 + 1 + 1 + 5 + 5 + 3 + 32 * 9) + 7) / 8;
 
     // The weights tensor has a small header at the start of each output channel.
     numBytesPerOfm += 14;

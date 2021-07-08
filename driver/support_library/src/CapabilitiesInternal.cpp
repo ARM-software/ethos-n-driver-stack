@@ -183,7 +183,13 @@ bool IsCommandStreamInRange(const FirmwareAndHardwareCapabilities& caps, const u
 bool VerifySupportedCommandStream(const FirmwareAndHardwareCapabilities& caps)
 {
     return IsCommandStreamInRange(caps, ETHOSN_COMMAND_STREAM_VERSION_MAJOR, ETHOSN_COMMAND_STREAM_VERSION_MINOR);
-};
+}
+
+bool AreCapabilitiesSupported(const FirmwareAndHardwareCapabilities& caps)
+{
+    return VerifySupportedCommandStream(caps) && caps.m_WeightCompressionVersion == 1 &&
+           caps.m_ActivationCompressionVersion == 1 && caps.m_IsNchwSupported == 1;
+}
 
 }    // namespace support_library
 }    // namespace ethosn

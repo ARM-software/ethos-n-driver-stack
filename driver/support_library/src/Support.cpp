@@ -284,7 +284,7 @@ std::vector<std::unique_ptr<CompiledNetwork>> Compile(const Network& network, co
 
     FirmwareAndHardwareCapabilities caps = GetValidCapabilities(network.GetCapabilities());
 
-    if (!VerifySupportedCommandStream(caps))
+    if (!AreCapabilitiesSupported(caps))
     {
         throw NotSupportedException("Support library does not support compilation for the given target capabilities");
     }
@@ -317,7 +317,7 @@ NetworkPerformanceData EstimatePerformance(const Network& network,
 {
     FirmwareAndHardwareCapabilities caps = GetValidCapabilities(network.GetCapabilities());
 
-    if (!VerifySupportedCommandStream(caps))
+    if (!AreCapabilitiesSupported(caps))
     {
         throw NotSupportedException("Support library does not support compilation for the given target capabilities");
     }

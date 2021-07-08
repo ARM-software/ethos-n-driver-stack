@@ -716,9 +716,7 @@ MceStrategySelectionReturnValue
         {
             const uint64_t ifmBandwidth = tryResult.m_InputStats.m_MemoryStats.m_DramParallel +
                                           tryResult.m_InputStats.m_MemoryStats.m_DramNonParallel;
-            const HardwareCapabilities& capabilities = strategySelectionParameters.capabilities;
-            const bool isOutputFcafCompatible        = capabilities.GetActivationCompressionVersion() == 1 &&
-                                                (IsCompressionFormatCompatibleWithStripeAndShape(
+            const bool isOutputFcafCompatible = (IsCompressionFormatCompatibleWithStripeAndShape(
                                                      CompilerDataCompressedFormat::FCAF_WIDE, outputStripeShape) ||
                                                  IsCompressionFormatCompatibleWithStripeAndShape(
                                                      CompilerDataCompressedFormat::FCAF_DEEP, outputStripeShape));

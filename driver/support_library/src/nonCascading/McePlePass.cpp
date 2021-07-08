@@ -66,8 +66,7 @@ bool IsNodeCompressible(const Node& node)
     return hintIsOk && isFormatCompressible;
 }
 
-CompilerDataCompressedFormat GetIntermediateOutputCompressedFormat(const HardwareCapabilities& capabilities,
-                                                                   bool enableIntermediateCompression,
+CompilerDataCompressedFormat GetIntermediateOutputCompressedFormat(bool enableIntermediateCompression,
                                                                    const LinearNodesOutput& linearOutputNodes,
                                                                    bool forwardEst)
 {
@@ -86,19 +85,16 @@ CompilerDataCompressedFormat GetIntermediateOutputCompressedFormat(const Hardwar
         const TensorShape& outputStripeShape = linearOutputNodes.m_StrategyConfig.outputAllocation.stripeShape;
 
         // Attempt to find a compatible compression to use
-        if (capabilities.GetActivationCompressionVersion() == 1)
+        if (IsCompressionFormatCompatible(CompilerDataCompressedFormat::FCAF_DEEP, outputStripeShape, strategy,
+                                          forwardEst))
         {
-            if (IsCompressionFormatCompatible(CompilerDataCompressedFormat::FCAF_DEEP, outputStripeShape, strategy,
-                                              forwardEst))
-            {
-                return CompilerDataCompressedFormat::FCAF_DEEP;
-            }
+            return CompilerDataCompressedFormat::FCAF_DEEP;
+        }
 
-            if (IsCompressionFormatCompatible(CompilerDataCompressedFormat::FCAF_WIDE, outputStripeShape, strategy,
-                                              forwardEst))
-            {
-                return CompilerDataCompressedFormat::FCAF_WIDE;
-            }
+        if (IsCompressionFormatCompatible(CompilerDataCompressedFormat::FCAF_WIDE, outputStripeShape, strategy,
+                                          forwardEst))
+        {
+            return CompilerDataCompressedFormat::FCAF_WIDE;
         }
     }
 
@@ -454,14 +450,6 @@ std::unique_ptr<ethosn::support_library::McePlePass>
         return std::unique_ptr<McePlePass>();
     }
 
-    // Support NCHW as input or output only if hardware capability supports
-    if (!capabilities.GetIsNchwSupported() &&
-        ((linearNodes.m_WorkingNodes.front()->GetInputFormat(0) == CompilerDataFormat::NCHW) ||
-         (linearNodes.m_WorkingNodes.back()->GetFormat() == CompilerDataFormat::NCHW)))
-    {
-        return std::unique_ptr<McePlePass>();
-    }
-
     // reading/writing in NCHW format, only strategy3 is allowed
     if (((linearNodes.m_WorkingNodes.front()->GetInputFormat(0) == CompilerDataFormat::NCHW) ||
          (linearNodes.m_WorkingNodes.back()->GetFormat() == CompilerDataFormat::NCHW)) &&
@@ -503,7 +491,7 @@ std::unique_ptr<ethosn::support_library::McePlePass>
     assert(linearNodes.m_OutputLocation != BufferLocation::None);
 
     const CompilerDataCompressedFormat intermediateOutputCompressedFormat =
-        GetIntermediateOutputCompressedFormat(capabilities, enableIntermediateCompression, linearNodes, forwardEst);
+        GetIntermediateOutputCompressedFormat(enableIntermediateCompression, linearNodes, forwardEst);
 
     // Once we've found a valid strategy we can set the old SramAllocator to the updated one.
     sramAllocator = linearNodes.m_SramAllocator;
