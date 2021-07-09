@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited.
+ * (C) COPYRIGHT 2018-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -65,7 +65,7 @@ module_param_named(profiling, profiling_enabled, bool, 0664);
 static int clock_frequency = 1000;
 module_param_named(clock_frequency, clock_frequency, int, 0440);
 
-static bool stashing_enabled;
+static bool stashing_enabled = true;
 module_param_named(stashing, stashing_enabled, bool, 0440);
 
 /* Exposes global access to the most-recently created Ethos-N core for testing
