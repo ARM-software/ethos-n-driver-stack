@@ -23,7 +23,7 @@ class WeightEncoderCache
 {
 public:
     WeightEncoderCache(const HardwareCapabilities& caps)
-        : m_Encoder(WeightEncoder::CreateWeightEncoder(caps))
+        : m_Encoder(caps)
     {}
 
     struct Params
@@ -61,10 +61,10 @@ public:
         if (it == m_Entries.end())
         {
             EncodedWeights w =
-                m_Encoder->Encode(params.weightsTensorInfo, params.weightsData->data(), params.biasTensorInfo,
-                                  params.biasData.data(), params.inputQuantizationInfo, params.outputQuantizationInfo,
-                                  params.stripeDepth, params.strideY, params.strideX, params.paddingTop,
-                                  params.paddingLeft, params.iterationSize, params.operation, params.algorithm);
+                m_Encoder.Encode(params.weightsTensorInfo, params.weightsData->data(), params.biasTensorInfo,
+                                 params.biasData.data(), params.inputQuantizationInfo, params.outputQuantizationInfo,
+                                 params.stripeDepth, params.strideY, params.strideX, params.paddingTop,
+                                 params.paddingLeft, params.iterationSize, params.operation, params.algorithm);
             it = m_Entries.insert({ params, std::make_shared<EncodedWeights>(w) }).first;
         }
         return it->second;
@@ -91,7 +91,7 @@ private:
         }
     };
 
-    std::unique_ptr<WeightEncoder> m_Encoder;
+    WeightEncoder m_Encoder;
     std::unordered_map<Params, std::shared_ptr<EncodedWeights>, Hasher> m_Entries;
 };
 

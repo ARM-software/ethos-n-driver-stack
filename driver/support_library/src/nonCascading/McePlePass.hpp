@@ -160,7 +160,7 @@ private:
     std::vector<RequantizeNode*> m_RequantizeNodes;
     std::vector<CopyNode*> m_CopyNodes;
 
-    std::unique_ptr<WeightEncoder> m_WeightEncoder;
+    WeightEncoder m_WeightEncoder;
 
     /// Tensor sram allocation information
     StrategyConfig m_StrategyConfig;

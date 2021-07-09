@@ -529,7 +529,7 @@ McePlePass::McePlePass(const HardwareCapabilities& capabilities,
     , m_ExtractSubtensorNode(nullptr)
     , m_MceOperation(nullptr)
     , m_PleOperation(nullptr)
-    , m_WeightEncoder(WeightEncoder::CreateWeightEncoder(capabilities))
+    , m_WeightEncoder(capabilities)
     , m_StrategyConfig(strategyConfig)
 {
     m_Nodes = nodes;
@@ -747,7 +747,7 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
     uint32_t weightStripeDepth;
     std::tie(weightStripeSize, weightStripeDepth) = GetWeightStripeSizeAndDepth();
     EncodedWeights encodedWeights =
-        m_WeightEncoder->Encode(*m_MceOperation, weightStripeDepth, weightStripeSize, quantizationInfo);
+        m_WeightEncoder.Encode(*m_MceOperation, weightStripeDepth, weightStripeSize, quantizationInfo);
 
     // Check that the weight tile can hold the expected number of stripes
     if (m_StrategyConfig.weightsAllocation.tileSize <
@@ -1042,7 +1042,7 @@ PassStats McePlePass::GetStats(const EstimationOptions& estimationOptions)
     uint32_t weightStripeDepth;
     std::tie(weightStripeSize, weightStripeDepth) = GetWeightStripeSizeAndDepth();
     EncodedWeights encodedWeights =
-        m_WeightEncoder->Encode(*m_MceOperation, weightStripeDepth, weightStripeSize, quantizationInfo);
+        m_WeightEncoder.Encode(*m_MceOperation, weightStripeDepth, weightStripeSize, quantizationInfo);
 
     perfData.m_Weights = GetWeightsStats(m_Capabilities, encodedWeights, weightsInfo, weightsStripeShape,
                                          weightsTileSize, inputShape, inputStripeShape);

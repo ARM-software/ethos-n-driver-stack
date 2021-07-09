@@ -9,7 +9,6 @@
 #include "GraphNodes.hpp"
 #include "SubmapFilter.hpp"
 #include "Utils.hpp"
-#include "WeightEncoderV2.hpp"
 
 #include <algorithm>
 #include <exception>
@@ -26,7 +25,9 @@ namespace support_library
 
 namespace
 {
-using Weight = WeightEncoderV2::Weight;
+
+using Weight = WeightEncoder::Weight;
+
 template <typename T>
 std::vector<Weight>
     ConvertToUncompressedWeights(const T* const weights, const size_t numWeights, const int32_t zeroPoint)
@@ -42,8 +43,7 @@ std::vector<Weight>
 }
 }    // namespace
 
-// BitstreamWriter is a helper class that supports writing packed bitfields into a vector.
-
+/// BitstreamWriter is a helper class that supports writing packed bitfields into a vector.
 class BitstreamWriter
 {
 public:
@@ -134,17 +134,17 @@ const std::vector<uint8_t>& BitstreamWriter::GetBitstream()
     return m_Bitstream;
 }
 
-WeightEncoderV2::WeightEncoderV2(const HardwareCapabilities& capabilities)
-    : WeightEncoder(capabilities)
+WeightEncoder::WeightEncoder(const HardwareCapabilities& capabilities)
+    : m_Capabilities(capabilities)
     , m_Mode(WeightCompMode::AUTO)
     , m_IfmConsumedPerEnginex3d4((3 * capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 4)
     , m_IfmConsumedPerEngined2((capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 2)
 {}
 
-WeightEncoderV2::WeightEncoderV2(const HardwareCapabilities& capabilities,
-                                 WeightCompMode mode,
-                                 const WeightEncoderV2::WeightCompressionParamsV2& params)
-    : WeightEncoder(capabilities)
+WeightEncoder::WeightEncoder(const HardwareCapabilities& capabilities,
+                             WeightCompMode mode,
+                             const WeightEncoder::WeightCompressionParams& params)
+    : m_Capabilities(capabilities)
     , m_Mode(mode)
     , m_TestParams(params)
     , m_IfmConsumedPerEnginex3d4((3 * capabilities.GetIgsPerEngine() * capabilities.GetNumberOfEngines()) / 4)
@@ -152,35 +152,35 @@ WeightEncoderV2::WeightEncoderV2(const HardwareCapabilities& capabilities,
 {}
 
 std::vector<std::unique_ptr<WeightEncoder::WeightCompressionParams>>
-    WeightEncoderV2::GenerateCompressionParams(uint32_t numOfmInParallel)
+    WeightEncoder::GenerateCompressionParams(uint32_t numOfmInParallel)
 {
     std::vector<std::unique_ptr<WeightCompressionParams>> params(numOfmInParallel);
-    std::generate(params.begin(), params.end(), std::make_unique<WeightCompressionParamsV2>);
+    std::generate(params.begin(), params.end(), std::make_unique<WeightCompressionParams>);
     return params;
 }
 
 WeightEncoder::EncodedOfm
-    WeightEncoderV2::EncodeOfm(const uint8_t* weightData,
-                               uint32_t ofmIdx,
-                               uint32_t numOfmInParallel,
-                               uint32_t numIterationsOfm,
-                               uint32_t stripeDepth,
-                               uint32_t iteration,
-                               const TensorInfo& weightsTensorInfo,
-                               uint32_t strideY,
-                               uint32_t strideX,
-                               uint32_t paddingTop,
-                               uint32_t paddingLeft,
-                               uint32_t iterationSize,
-                               ethosn::command_stream::MceOperation operation,
-                               CompilerMceAlgorithm algorithm,
-                               const EncodingParams& params,
-                               std::vector<std::unique_ptr<WeightCompressionParams>>& compressionParams)
+    WeightEncoder::EncodeOfm(const uint8_t* weightData,
+                             uint32_t ofmIdx,
+                             uint32_t numOfmInParallel,
+                             uint32_t numIterationsOfm,
+                             uint32_t stripeDepth,
+                             uint32_t iteration,
+                             const TensorInfo& weightsTensorInfo,
+                             uint32_t strideY,
+                             uint32_t strideX,
+                             uint32_t paddingTop,
+                             uint32_t paddingLeft,
+                             uint32_t iterationSize,
+                             ethosn::command_stream::MceOperation operation,
+                             CompilerMceAlgorithm algorithm,
+                             const EncodingParams& params,
+                             std::vector<std::unique_ptr<WeightCompressionParams>>& compressionParams)
 {
     uint32_t wdIdx = (ofmIdx % stripeDepth) % numOfmInParallel;
 
     // Grab a reference to previous compression parameters
-    WeightCompressionParamsV2& prevCompParams = static_cast<WeightCompressionParamsV2&>(*compressionParams[wdIdx]);
+    WeightCompressionParams& prevCompParams = static_cast<WeightCompressionParams&>(*compressionParams[wdIdx]);
 
     if (!prevCompParams.m_InitialParameters)
     {
@@ -201,7 +201,7 @@ WeightEncoder::EncodedOfm
     std::vector<uint8_t> weights = GetRawOfmStream(weightData, ofmIdx, iteration, weightsTensorInfo, strideY, strideX,
                                                    paddingTop, paddingLeft, iterationSize, operation, algorithm, false);
 
-    const WeightCompressionParamsV2 compParams =
+    const WeightCompressionParams compParams =
         SelectWeightCompressionParams(weights, weightsTensorInfo, params, prevCompParams);
 
     const uint32_t ofmBiasSize = GetOfmBiasSize(weightsTensorInfo);
@@ -257,15 +257,18 @@ WeightEncoder::EncodedOfm
     return { std::move(writer.GetBitstream()), static_cast<uint32_t>(writer.GetOffset()) };
 }
 
-uint32_t WeightEncoderV2::GetOfmShiftOffset() const
+uint32_t WeightEncoder::GetOfmShiftOffset() const
 {
     return 16;
 }
 
-uint32_t WeightEncoderV2::GetNumOfmInParallel(const uint32_t numOfm,
-                                              const uint32_t numSrams,
-                                              const uint32_t stripeDepth,
-                                              const DataFormat dataFormat) const
+/// Number of Ofm processed in parallel which is the minimum number of
+/// weights streams that need to be loaded at the same time for all the
+/// mce interfaces to start producing an Ofm each.
+uint32_t WeightEncoder::GetNumOfmInParallel(const uint32_t numOfm,
+                                            const uint32_t numSrams,
+                                            const uint32_t stripeDepth,
+                                            const DataFormat dataFormat) const
 {
     if (dataFormat == DataFormat::HWIO)
     {
@@ -277,7 +280,8 @@ uint32_t WeightEncoderV2::GetNumOfmInParallel(const uint32_t numOfm,
     }
 }
 
-std::pair<uint32_t, uint32_t> WeightEncoderV2::GetHwimWeightPadding(const bool, const uint32_t, const uint32_t) const
+/// Get HWIM encoding parameters
+std::pair<uint32_t, uint32_t> WeightEncoder::GetHwimWeightPadding(const bool, const uint32_t, const uint32_t) const
 {
     return std::make_pair(1, 1);
 }
@@ -292,11 +296,11 @@ static uint8_t CalcBitWidth(size_t value, uint8_t minWidth)
     return bitwidth;
 }
 
-WeightEncoderV2::WeightSymbolFreqInfo WeightEncoderV2::CreateUncompressedSymbolFreqs(
-    const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
-    const std::map<Weight, uint8_t>& inversePalette,
-    size_t paletteSize,
-    uint8_t weightOffset) const
+WeightEncoder::WeightSymbolFreqInfo
+    WeightEncoder::CreateUncompressedSymbolFreqs(const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
+                                                 const std::map<Weight, uint8_t>& inversePalette,
+                                                 size_t paletteSize,
+                                                 uint8_t weightOffset) const
 {
     WeightSymbolFreqInfo symbolFreqInfo{};
     symbolFreqInfo.m_SymbolFreqPairs.reserve(symbolFreqPairs.size());
@@ -328,9 +332,9 @@ WeightEncoderV2::WeightSymbolFreqInfo WeightEncoderV2::CreateUncompressedSymbolF
     return symbolFreqInfo;
 }
 
-uint32_t WeightEncoderV2::FindGRCParams(WeightCompressionParamsV2& params,
-                                        const WeightSymbolFreqInfo& symbolFreqPairInfo,
-                                        const WeightSymbolFreqInfo& noPaletteSymbolFreqPairInfo) const
+uint32_t WeightEncoder::FindGRCParams(WeightCompressionParams& params,
+                                      const WeightSymbolFreqInfo& symbolFreqPairInfo,
+                                      const WeightSymbolFreqInfo& noPaletteSymbolFreqPairInfo) const
 {
     constexpr uint8_t maxNumQuotientBits = 31;
     constexpr uint32_t wDiv0             = static_cast<uint32_t>(WDivisor::WDIV_0);
@@ -421,10 +425,10 @@ uint32_t WeightEncoderV2::FindGRCParams(WeightCompressionParamsV2& params,
     return bestBitcost;
 }
 
-void WeightEncoderV2::CreatePalette(WeightCompressionParamsV2& params,
-                                    const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
-                                    uint8_t paletteSize,
-                                    bool palettePadding) const
+void WeightEncoder::CreatePalette(WeightCompressionParams& params,
+                                  const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs,
+                                  uint8_t paletteSize,
+                                  bool palettePadding) const
 {
     // See Ethos-N78 MCE Specification, section 6.8.6.3.4
     std::vector<uint16_t> palette(paletteSize);
@@ -451,8 +455,8 @@ void WeightEncoderV2::CreatePalette(WeightCompressionParamsV2& params,
     params.m_InversePalette = std::move(inversePalette);
 }
 
-bool WeightEncoderV2::FindPaletteParams(WeightCompressionParamsV2& params,
-                                        const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs) const
+bool WeightEncoder::FindPaletteParams(WeightCompressionParams& params,
+                                      const std::vector<std::pair<WeightSymbol, uint32_t>>& symbolFreqPairs) const
 {
     // See Ethos-N78 MCE Specification, section 6.8.6.3.4
     constexpr uint8_t maxPaletteSize            = 32;
@@ -533,7 +537,7 @@ bool WeightEncoderV2::FindPaletteParams(WeightCompressionParamsV2& params,
     return true;
 }
 
-uint32_t WeightEncoderV2::FindRLEParams(WeightCompressionParamsV2& params, const ZeroGroupInfo& zeroGroupInfo) const
+uint32_t WeightEncoder::FindRLEParams(WeightCompressionParams& params, const ZeroGroupInfo& zeroGroupInfo) const
 {
     constexpr uint32_t zDiv3 = static_cast<uint32_t>(ZDivisor::ZDIV_3);
 
@@ -572,10 +576,10 @@ uint32_t WeightEncoderV2::FindRLEParams(WeightCompressionParamsV2& params, const
     return bestBitcost;
 }
 
-void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& newParams,
-                                                  const WeightCompressionParamsV2& prevParams,
-                                                  const std::vector<uint8_t>& weights,
-                                                  const TensorInfo& weightsTensorInfo) const
+void WeightEncoder::FindWeightCompressionParams(WeightCompressionParams& newParams,
+                                                const WeightCompressionParams& prevParams,
+                                                const std::vector<uint8_t>& weights,
+                                                const TensorInfo& weightsTensorInfo) const
 {
     const int32_t zeroPoint           = weightsTensorInfo.m_QuantizationInfo.GetZeroPoint();
     const uint8_t rawZeroPoint        = static_cast<uint8_t>(zeroPoint);
@@ -647,13 +651,13 @@ void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& new
         find_if(sortedSymbolFreqInfo.m_SymbolFreqPairs.begin(), sortedSymbolFreqInfo.m_SymbolFreqPairs.end(),
                 [](const std::pair<WeightSymbol, uint32_t>& e) { return e.first == 0; });
 
-    std::vector<std::pair<uint32_t, WeightCompressionParamsV2>> passCostParamPairs;
+    std::vector<std::pair<uint32_t, WeightCompressionParams>> passCostParamPairs;
     // If there are zero weights, run an extra pass with RLE enabled
     uint32_t numPasses = zeroGroupInfo.m_MaxGroup > 0 ? 2 : 1;
     for (uint32_t pass = 0; pass < numPasses; ++pass)
     {
-        WeightCompressionParamsV2 params = newParams;
-        uint32_t bitCost                 = 0;
+        WeightCompressionParams params = newParams;
+        uint32_t bitCost               = 0;
 
         // Only use RLE for the second pass
         if (pass > 0)
@@ -747,13 +751,13 @@ void WeightEncoderV2::FindWeightCompressionParams(WeightCompressionParamsV2& new
     newParams         = std::min_element(passCostParamPairs.begin(), passCostParamPairs.end(), min_cost_cmp)->second;
 }
 
-const WeightEncoderV2::WeightCompressionParamsV2
-    WeightEncoderV2::SelectWeightCompressionParams(const std::vector<uint8_t>& weights,
-                                                   const TensorInfo& weightsTensorInfo,
-                                                   const EncodingParams& encodingParams,
-                                                   const WeightCompressionParamsV2& prevCompParams) const
+const WeightEncoder::WeightCompressionParams
+    WeightEncoder::SelectWeightCompressionParams(const std::vector<uint8_t>& weights,
+                                                 const TensorInfo& weightsTensorInfo,
+                                                 const EncodingParams& encodingParams,
+                                                 const WeightCompressionParams& prevCompParams) const
 {
-    WeightCompressionParamsV2 params(encodingParams);
+    WeightCompressionParams params(encodingParams);
 
     switch (m_Mode)
     {
@@ -820,7 +824,7 @@ const WeightEncoderV2::WeightCompressionParamsV2
     return params;
 }
 
-uint32_t WeightEncoderV2::GetOfmBiasSize(const TensorInfo& weightsTensorInfo) const
+uint32_t WeightEncoder::GetOfmBiasSize(const TensorInfo& weightsTensorInfo) const
 {
     // See Ethos-N78 MCE Specification, section 6.8.6.2.2
     uint32_t ofmBiasSize = 3;
@@ -841,9 +845,9 @@ uint32_t WeightEncoderV2::GetOfmBiasSize(const TensorInfo& weightsTensorInfo) co
     return ofmBiasSize;
 }
 
-bool WeightEncoderV2::GetOfmReload(const WeightCompressionParamsV2& compParams,
-                                   const WeightCompressionParamsV2& prevCompParams,
-                                   const bool firstOfm) const
+bool WeightEncoder::GetOfmReload(const WeightCompressionParams& compParams,
+                                 const WeightCompressionParams& prevCompParams,
+                                 const bool firstOfm) const
 {
     // If this is the first OFM, then we shall always reload the OFM parameters
     if (firstOfm)
@@ -872,8 +876,8 @@ bool WeightEncoderV2::GetOfmReload(const WeightCompressionParamsV2& compParams,
     return false;
 }
 
-std::vector<WeightEncoderV2::Weight> WeightEncoderV2::GetUncompressedWeights(const std::vector<uint8_t>& weights,
-                                                                             const TensorInfo& weightsTensorInfo) const
+std::vector<WeightEncoder::Weight> WeightEncoder::GetUncompressedWeights(const std::vector<uint8_t>& weights,
+                                                                         const TensorInfo& weightsTensorInfo) const
 {
     switch (weightsTensorInfo.m_DataType)
     {
@@ -891,8 +895,8 @@ std::vector<WeightEncoderV2::Weight> WeightEncoderV2::GetUncompressedWeights(con
     }
 }
 
-WeightEncoderV2::WeightSymbol WeightEncoderV2::DirectEncode(const Weight weight,
-                                                            const WeightCompressionParamsV2& compParams) const
+WeightEncoder::WeightSymbol WeightEncoder::DirectEncode(const Weight weight,
+                                                        const WeightCompressionParams& compParams) const
 {
     WeightSymbol x = WeightToSymbol(weight);
 
@@ -908,10 +912,10 @@ WeightEncoderV2::WeightSymbol WeightEncoderV2::DirectEncode(const Weight weight,
     return x;
 }
 
-void WeightEncoderV2::PaletteZrunEncode(const std::vector<WeightEncoderV2::Weight>& uncompressedWeights,
-                                        const WeightCompressionParamsV2& compParams,
-                                        std::vector<WeightSymbol>& weightSymbols,
-                                        std::vector<WeightSymbol>& zeroSymbols) const
+void WeightEncoder::PaletteZrunEncode(const std::vector<WeightEncoder::Weight>& uncompressedWeights,
+                                      const WeightCompressionParams& compParams,
+                                      std::vector<WeightSymbol>& weightSymbols,
+                                      std::vector<WeightSymbol>& zeroSymbols) const
 {
     // Please refer to Ethos-N78 MCE specification, section 6.8.6.3.2
     const std::map<Weight, uint8_t>& invPalette = compParams.m_InversePalette;
@@ -979,10 +983,10 @@ void WeightEncoderV2::PaletteZrunEncode(const std::vector<WeightEncoderV2::Weigh
     assert((zeroSymbols.size() == (weightSymbols.size() + 1)) || (compParams.m_Zdiv == ZDivisor::RLE_DISABLED));
 }
 
-void WeightEncoderV2::GRCCompressPackChunk(const std::vector<WeightSymbol>& weightSymbols,
-                                           const std::vector<WeightSymbol>& zeroSymbols,
-                                           const WeightCompressionParamsV2& compParams,
-                                           BitstreamWriter& writer) const
+void WeightEncoder::GRCCompressPackChunk(const std::vector<WeightSymbol>& weightSymbols,
+                                         const std::vector<WeightSymbol>& zeroSymbols,
+                                         const WeightCompressionParams& compParams,
+                                         BitstreamWriter& writer) const
 {
 
     bool unCompressed = compParams.m_Wdiv == WDivisor::UNCOMPRESSED;
@@ -1211,14 +1215,14 @@ void WeightEncoderV2::GRCCompressPackChunk(const std::vector<WeightSymbol>& weig
     } while (prevWenable || prevZenable);
 }
 
-void WeightEncoderV2::WriteWeightHeader(BitstreamWriter& writer,
-                                        const uint32_t streamLength,
-                                        const uint64_t ofmBias,
-                                        const size_t ofmBiasLength,
-                                        const bool ofmReload,
-                                        const uint32_t ofmScaling,
-                                        const uint32_t ofmShift,
-                                        const uint32_t ofmZeroPointCorrection) const
+void WeightEncoder::WriteWeightHeader(BitstreamWriter& writer,
+                                      const uint32_t streamLength,
+                                      const uint64_t ofmBias,
+                                      const size_t ofmBiasLength,
+                                      const bool ofmReload,
+                                      const uint32_t ofmScaling,
+                                      const uint32_t ofmShift,
+                                      const uint32_t ofmZeroPointCorrection) const
 {
     // See Ethos-N78 MCE Specification, section 6.8.6.2.2
     writer.Write(&streamLength, 16);
@@ -1233,9 +1237,9 @@ void WeightEncoderV2::WriteWeightHeader(BitstreamWriter& writer,
     }
 }
 
-void WeightEncoderV2::WritePayloadHeader(BitstreamWriter& writer,
-                                         const size_t payloadLength,
-                                         const WeightCompressionParamsV2& compParams)
+void WeightEncoder::WritePayloadHeader(BitstreamWriter& writer,
+                                       const size_t payloadLength,
+                                       const WeightCompressionParams& compParams)
 {
     // See Ethos-N78 MCE Specification, section 6.8.6.3.3
     writer.Write(&payloadLength, 17);
@@ -1264,18 +1268,6 @@ void WeightEncoderV2::WritePayloadHeader(BitstreamWriter& writer,
         }
     }
 }
-
-/*
- * Weight encoder base class
- */
-std::unique_ptr<WeightEncoder> WeightEncoder::CreateWeightEncoder(const HardwareCapabilities& capabilities)
-{
-    return std::make_unique<WeightEncoderV2>(capabilities);
-}
-
-WeightEncoder::WeightEncoder(const HardwareCapabilities& capabilities)
-    : m_Capabilities(capabilities)
-{}
 
 EncodedWeights WeightEncoder::Encode(const MceOperationNode& mceOperation,
                                      uint32_t stripeDepth,
