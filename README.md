@@ -120,7 +120,7 @@ Enter the following commands to download Arm NN, the Ethos-N NPU driver, kernel 
 mkdir driver_stack
 cd driver_stack
 git clone https://github.com/Arm-software/armnn --branch v21.05
-git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 21.05
+git clone https://github.com/Arm-software/ethos-n-driver-stack --branch develop
 ```
 
 ## Configure SMMU support
