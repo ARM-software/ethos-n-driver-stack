@@ -10,8 +10,6 @@
 #include "EthosNMapping.hpp"
 #include "EthosNReplaceUnsupported.hpp"
 #include "EthosNTensorUtils.hpp"
-#include "InternalTypes.hpp"
-#include "LayerSupportCommon.hpp"
 
 #include <armnn/Descriptors.hpp>
 #include <armnn/Tensor.hpp>

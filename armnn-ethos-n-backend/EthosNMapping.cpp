@@ -6,7 +6,6 @@
 #include "EthosNLayerSupport.hpp"
 #include "EthosNMapping.hpp"
 
-#include <InternalTypes.hpp>
 #include <armnn/Exceptions.hpp>
 #include <armnn/Logging.hpp>
 

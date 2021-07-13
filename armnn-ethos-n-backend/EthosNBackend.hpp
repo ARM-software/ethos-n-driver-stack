@@ -9,7 +9,7 @@
 #include "EthosNMapping.hpp"
 
 #include <armnn/backends/IBackendInternal.hpp>
-#include <backendsCommon/OptimizationViews.hpp>
+#include <armnn/backends/OptimizationViews.hpp>
 
 namespace armnn
 {

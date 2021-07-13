@@ -9,7 +9,7 @@
 
 #include "armnn/Exceptions.hpp"
 #include "armnn/TypesUtils.hpp"
-#include "backendsCommon/ITensorHandle.hpp"
+#include "armnn/backends/ITensorHandle.hpp"
 
 #include <CompatibleTypes.hpp>
 #include <armnn/utility/Assert.hpp>

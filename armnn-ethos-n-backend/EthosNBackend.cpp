@@ -14,12 +14,11 @@
 #include "EthosNSubgraphViewConverter.hpp"
 #include "EthosNWorkloadFactory.hpp"
 
-#include <Optimizer.hpp>
 #include <armnn/BackendRegistry.hpp>
 #include <armnn/Logging.hpp>
+#include <armnn/backends/IBackendContext.hpp>
+#include <armnn/backends/IMemoryManager.hpp>
 #include <armnn/utility/Assert.hpp>
-#include <backendsCommon/IBackendContext.hpp>
-#include <backendsCommon/IMemoryManager.hpp>
 #include <backendsCommon/test/CommonTestUtils.hpp>
 #include <ethosn_driver_library/Network.hpp>
 #include <ethosn_support_library/Support.hpp>

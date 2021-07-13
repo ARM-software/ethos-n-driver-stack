@@ -7,7 +7,6 @@
 #include <EthosNBackendId.hpp>
 #include <EthosNSubgraphViewConverter.hpp>
 #include <Graph.hpp>
-#include <Network.hpp>
 #include <armnn/BackendRegistry.hpp>
 #include <backendsCommon/test/CommonTestUtils.hpp>
 #include <doctest/doctest.h>

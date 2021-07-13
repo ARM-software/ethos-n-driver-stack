@@ -7,8 +7,6 @@
 
 #include "../EthosNConfig.hpp"
 #include "backendsCommon/Workload.hpp"
-#include "backendsCommon/WorkloadData.hpp"
-#include "backendsCommon/WorkloadInfo.hpp"
 
 #include <ethosn_driver_library/Buffer.hpp>
 #include <ethosn_driver_library/Inference.hpp>

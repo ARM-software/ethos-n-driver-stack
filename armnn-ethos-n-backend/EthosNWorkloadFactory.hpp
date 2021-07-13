@@ -5,7 +5,6 @@
 #pragma once
 
 #include "EthosNConfig.hpp"
-#include <OutputHandler.hpp>
 #include <backendsCommon/WorkloadFactory.hpp>
 
 namespace armnn

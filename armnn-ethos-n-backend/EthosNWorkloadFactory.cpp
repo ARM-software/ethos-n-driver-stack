@@ -11,7 +11,6 @@
 
 #include <Layer.hpp>
 #include <armnn/Utils.hpp>
-#include <backendsCommon/MakeWorkloadHelper.hpp>
 #include <backendsCommon/MemCopyWorkload.hpp>
 
 namespace armnn

@@ -7,7 +7,6 @@
 #include "EthosNConfig.hpp"
 #include "EthosNSubgraphViewConverter.hpp"
 #include "EthosNTensorUtils.hpp"
-#include "LayersFwd.hpp"
 #include "workloads/EthosNPreCompiledWorkload.hpp"
 
 #include <Filesystem.hpp>

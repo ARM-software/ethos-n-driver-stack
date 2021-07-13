@@ -3,16 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 #include <Graph.hpp>
-#include <Network.hpp>
-#include <QuantizeHelper.hpp>
-#include <Runtime.hpp>
 #include <armnn/Exceptions.hpp>
 #include <armnn/INetwork.hpp>
 #include <armnn/utility/Assert.hpp>
 #include <armnnUtils/Permute.hpp>
 #include <backendsCommon/WorkloadFactory.hpp>
-#include <backendsCommon/test/LayerTests.hpp>
-#include <backendsCommon/test/TensorCopyUtils.hpp>
 #include <test/TensorHelpers.hpp>
 #include <test/UnitTests.hpp>
 
