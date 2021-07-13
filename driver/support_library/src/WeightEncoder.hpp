@@ -203,8 +203,7 @@ protected:
                                          uint32_t paddingLeft,
                                          uint32_t iterationSize,
                                          ethosn::command_stream::MceOperation operation,
-                                         CompilerMceAlgorithm algorithm,
-                                         bool prepareForZeroMaskCompression) const;
+                                         CompilerMceAlgorithm algorithm) const;
 
     /// Generate vector of weight compression parameters
     std::vector<std::unique_ptr<WeightCompressionParams>> GenerateCompressionParams(uint32_t numOfmInParallel);

@@ -199,7 +199,7 @@ WeightEncoder::EncodedOfm
     }
 
     std::vector<uint8_t> weights = GetRawOfmStream(weightData, ofmIdx, iteration, weightsTensorInfo, strideY, strideX,
-                                                   paddingTop, paddingLeft, iterationSize, operation, algorithm, false);
+                                                   paddingTop, paddingLeft, iterationSize, operation, algorithm);
 
     const WeightCompressionParams compParams =
         SelectWeightCompressionParams(weights, weightsTensorInfo, params, prevCompParams);
@@ -1537,8 +1537,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
                                                     uint32_t paddingLeft,
                                                     uint32_t iterationSize,
                                                     ethosn::command_stream::MceOperation operation,
-                                                    CompilerMceAlgorithm algorithm,
-                                                    bool prepareForZeroMaskCompression) const
+                                                    CompilerMceAlgorithm algorithm) const
 {
     assert(algorithm != CompilerMceAlgorithm::None);
 
@@ -1555,11 +1554,6 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
 
     uint32_t numEngines      = m_Capabilities.GetNumberOfEngines();
     uint32_t numIgsPerEngine = m_Capabilities.GetIgsPerEngine();
-    // When not using zero mask compression we must tightly pack the final subfilter in the final slice
-    // (where each slice is the set of weights for as many IFMs as there are IGs).
-    // However when zero mask compression is enabled the HW behaves differently and requires this to be padded
-    // with zeroes.
-    bool tightlyPackLastSliceLastSubfilter = !prepareForZeroMaskCompression;
 
     std::vector<uint8_t> result;
     result.reserve(filterX * filterY * iterationSize);
@@ -1612,10 +1606,10 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
                     // If there are multiple subfilters, the data in all except the last must be padded to the number of IFM
                     // channels equal to the number of IGs. The last one may be left without padding, if this is the last
                     // slice and we are not using zero compression.
+                    // We must tightly pack the final subfilter in the final slice
+                    // (where each slice is the set of weights for as many IFMs as there are IGs).
                     const uint32_t numChannels =
-                        (filterIdx == subfilters.size() - 1 && tightlyPackLastSliceLastSubfilter)
-                            ? channelsInThisSlice
-                            : numIfmsProcessedInParallel;
+                        (filterIdx == subfilters.size() - 1) ? channelsInThisSlice : numIfmsProcessedInParallel;
 
                     // When the dimensions of the kernel are such that cannot be decomposed in as many submap kernels as strideX * strideY
                     // it needs to elide the submapped IFM that don't need to be used.
@@ -1699,16 +1693,6 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
                             ++count;
                         }
                     }
-                }
-            }
-            // With zero compression when the number of weights per subkernel is a non-multiple of 16
-            // the last subkernel will be padded with zeros.
-            if (prepareForZeroMaskCompression)
-            {
-                for (uint32_t i = count; i < utils::RoundUpToNearestMultiple(count, m_Capabilities.GetNumberOfSrams());
-                     ++i)
-                {
-                    result.push_back(static_cast<uint8_t>(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint()));
                 }
             }
         }
@@ -1801,7 +1785,7 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
             const SubmapFilter& filter = subfilters[filterIdx];
 
             // Get encoding params
-            bool usePadding               = (filterIdx == subfilters.size() - 1) && tightlyPackLastSliceLastSubfilter;
+            bool usePadding               = (filterIdx == subfilters.size() - 1);
             uint32_t numChannels          = 0;
             uint32_t ifmMod               = 0;
             std::tie(numChannels, ifmMod) = GetHwimWeightPadding(usePadding, ifmIdx, numIfmsProcessedInParallel);
