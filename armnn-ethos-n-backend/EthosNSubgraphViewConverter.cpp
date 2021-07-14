@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "EthosNSubgraphViewConverter.hpp"
+
 #include "EthosNBackend.hpp"
 #include "EthosNConfig.hpp"
-#include "EthosNSubgraphViewConverter.hpp"
 #include "EthosNTensorUtils.hpp"
 #include "workloads/EthosNPreCompiledWorkload.hpp"
 
@@ -765,7 +766,7 @@ void DeleteAsType(const void* const blob)
 }
 }    // namespace
 
-std::vector<CompiledBlobPtr> EthosNSubgraphViewConverter::Estimate()
+std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Estimate()
 {
     ethosn_lib::EstimationOptions ethosnEstimationOpts;
     ethosnEstimationOpts.m_ActivationCompressionSaving  = m_EthosNConfig.m_PerfActivationCompressionSaving;
@@ -783,7 +784,7 @@ std::vector<CompiledBlobPtr> EthosNSubgraphViewConverter::Estimate()
 
     auto preCompiledObj = std::make_unique<EthosNPreCompiledObject>(std::move(perfData), m_EthosNOperationNameMapping);
 
-    std::vector<CompiledBlobPtr> compiledBlobs;
+    std::vector<PreCompiledObjectPtr> compiledBlobs;
 
     // Convert the EthosNPreCompiledObject into a "blob" (void) object and attach the custom blob deleter
     compiledBlobs.emplace_back(preCompiledObj.release(), DeleteAsType<EthosNPreCompiledObject>);
@@ -791,12 +792,12 @@ std::vector<CompiledBlobPtr> EthosNSubgraphViewConverter::Estimate()
     return compiledBlobs;
 }
 
-std::vector<CompiledBlobPtr> EthosNSubgraphViewConverter::CompileNetwork()
+std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::CompileNetwork()
 {
     fs::create_directories(m_CompilationOptions.m_DebugInfo.m_DebugDir);
 
     // Compile the network into a list of generic type-agnostic "blobs"
-    std::vector<CompiledBlobPtr> compiledBlobs;
+    std::vector<PreCompiledObjectPtr> compiledBlobs;
 
     try
     {
@@ -818,9 +819,9 @@ std::vector<CompiledBlobPtr> EthosNSubgraphViewConverter::CompileNetwork()
     return compiledBlobs;
 }
 
-std::vector<CompiledBlobPtr> EthosNSubgraphViewConverter::Compile()
+std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
 {
-    std::vector<CompiledBlobPtr> compiledBlobs;
+    std::vector<PreCompiledObjectPtr> compiledBlobs;
 
     std::vector<EthosNCompiledNetworkPtr> compiledNetworks =
         g_EthosNSupportLibraryInterface->Compile(*m_Network, m_CompilationOptions);

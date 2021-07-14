@@ -5,7 +5,6 @@
 #pragma once
 
 #include "EthosNConfig.hpp"
-#include "ISubgraphViewConverter.hpp"
 #include "SubgraphView.hpp"
 
 #include <ethosn_support_library/Support.hpp>
@@ -57,7 +56,7 @@ public:
 
 ARMNN_DLLEXPORT extern std::unique_ptr<EthosNSupportLibraryInterface> g_EthosNSupportLibraryInterface;
 
-class EthosNSubgraphViewConverter : public ISubgraphViewConverter
+class EthosNSubgraphViewConverter
 {
 public:
     EthosNSubgraphViewConverter(const SubgraphView& subgraph,
@@ -66,7 +65,7 @@ public:
                                 const std::vector<char>& capabilities);
     ~EthosNSubgraphViewConverter() = default;
 
-    std::vector<CompiledBlobPtr> CompileNetwork() override;
+    std::vector<PreCompiledObjectPtr> CompileNetwork();
 
     static void ResetNextInstanceId();
 
@@ -75,8 +74,8 @@ protected:
     void CreateUncompiledNetwork();
 
 private:
-    std::vector<CompiledBlobPtr> Estimate();
-    std::vector<CompiledBlobPtr> Compile();
+    std::vector<PreCompiledObjectPtr> Estimate();
+    std::vector<PreCompiledObjectPtr> Compile();
 
     /// Adds operation(s) to the Ethos-N network that correspond to the given Arm NN layer.
     /// This will update m_ConvertedOutputSlots.
