@@ -31,8 +31,8 @@ srcs = [os.path.join('src', 'Inference.cpp'),
 if env['target'] == 'kmod':
     srcs += [os.path.join('src', 'KmodNetwork.cpp'),
              os.path.join('src', 'KmodProfiling.cpp')]
-    env.AppendUnique(CPPDEFINES=['DEVICE_NODE={}'.format(env['device_node'])])
-    env.AppendUnique(CPPDEFINES=['FIRMWARE_PROFILING_NODE={}'.format(env['firmware_profiling_node'])])
+    env.AppendUnique(CPPDEFINES=[r'DEVICE_NODE=\"{}\"'.format(env['device_node'])])
+    env.AppendUnique(CPPDEFINES=[r'FIRMWARE_PROFILING_NODE=\"{}\"'.format(env['firmware_profiling_node'])])
 else:
     srcs += [os.path.join('src', 'NullKmodProfiling.cpp')]
 

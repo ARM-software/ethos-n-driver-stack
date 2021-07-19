@@ -59,11 +59,10 @@ namespace driver_library
 
 std::vector<char> GetFirmwareAndHardwareCapabilities()
 {
-    int fd = open(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE), O_RDONLY);
+    int fd = open(DEVICE_NODE, O_RDONLY);
     if (fd < 0)
     {
-        throw std::runtime_error(std::string("Unable to open ") + std::string(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE)) +
-                                 std::string(": ") + strerror(errno));
+        throw std::runtime_error(std::string("Unable to open " DEVICE_NODE ": ") + strerror(errno));
     }
 
     // Query how big the capabilities data is.
@@ -94,11 +93,10 @@ bool IsKernelVersionMatching(const struct Version& ver)
     // The actual kernel module version obtained from a running system,
     struct Version actKmodVer;
 
-    int fd = open(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE), O_RDONLY);
+    int fd = open(DEVICE_NODE, O_RDONLY);
     if (fd < 0)
     {
-        throw std::runtime_error(std::string("Unable to open ") + std::string(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE)) +
-                                 std::string(": ") + strerror(errno));
+        throw std::runtime_error(std::string("Unable to open " DEVICE_NODE ": ") + strerror(errno));
     }
 
     int match = ioctl(fd, ETHOSN_IOCTL_GET_VERSION, &actKmodVer);
@@ -180,11 +178,10 @@ KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compile
     netReq.cu_data.size    = static_cast<uint32_t>(compiledNetwork.m_ConstantControlUnitDataSize);
     netReq.cu_data.data    = compiledNetwork.CalculateConstantControlUnitDataPtr(compiledNetworkData);
 
-    int ethosnFd = open(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE), O_RDONLY);
+    int ethosnFd = open(DEVICE_NODE, O_RDONLY);
     if (ethosnFd < 0)
     {
-        throw std::runtime_error(std::string("Unable to open ") + std::string(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE)) +
-                                 std::string(": ") + strerror(errno));
+        throw std::runtime_error(std::string("Unable to open " DEVICE_NODE ": ") + strerror(errno));
     }
 
     //check the driver library and the kernel

@@ -54,11 +54,10 @@ bool ConfigureKernelDriver(Configuration config)
         std::cerr << "Warning more than 6 hardware counters specified, only the first 6 will be used.\n";
         return false;
     }
-    int ethosnFd = open(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE), O_RDONLY);
+    int ethosnFd = open(DEVICE_NODE, O_RDONLY);
     if (ethosnFd < 0)
     {
-        throw std::runtime_error(std::string("Unable to open ") + std::string(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE)) +
-                                 std::string(": ") + strerror(errno));
+        throw std::runtime_error(std::string("Unable to open " DEVICE_NODE ": ") + strerror(errno));
     }
 
     ethosn_profiling_config kernelConfig;
@@ -92,7 +91,7 @@ bool ConfigureKernelDriver(Configuration config)
     // Re-open if profiling is now enabled
     if (kernelConfig.enable_profiling)
     {
-        g_FirmwareBufferFd = open(ETHOSN_STRINGIZE_VALUE_OF(FIRMWARE_PROFILING_NODE), O_RDONLY);
+        g_FirmwareBufferFd = open(FIRMWARE_PROFILING_NODE, O_RDONLY);
     }
     else
     {
@@ -104,11 +103,10 @@ bool ConfigureKernelDriver(Configuration config)
 
 uint64_t GetKernelDriverCounterValue(PollCounterName counter)
 {
-    int ethosnFd = open(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE), O_RDONLY);
+    int ethosnFd = open(DEVICE_NODE, O_RDONLY);
     if (ethosnFd < 0)
     {
-        throw std::runtime_error(std::string("Unable to open ") + std::string(ETHOSN_STRINGIZE_VALUE_OF(DEVICE_NODE)) +
-                                 std::string(": ") + strerror(errno));
+        throw std::runtime_error(std::string("Unable to open " DEVICE_NODE ": ") + strerror(errno));
     }
 
     ethosn_poll_counter_name kernelCounterName;

@@ -1,12 +1,9 @@
 //
-// Copyright © 2020 Arm Limited. All rights reserved.
+// Copyright © 2020-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
-
-#define ETHOSN_STRINGIZE(x) #x
-#define ETHOSN_STRINGIZE_VALUE_OF(x) ETHOSN_STRINGIZE(x)
 
 #define ETHOSN_CAT(a, b) a##b
 #define ETHOSN_CAT_VALUES_OF(a, b) ETHOSN_CAT(a, b)
