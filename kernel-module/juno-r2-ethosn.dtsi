@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2020-2021 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -36,7 +36,7 @@
 		};
 	};
 
-	ethosn: ethosn@6f300000 {
+	ethosn0: ethosn@6f300000 {
 		compatible = "ethosn";
 		status = "disabled";
 		/* The Juno FPGA integration combines all of the Ethos-N's interrupts
@@ -46,4 +46,16 @@
 		#address-cells = <0x0>;
 		#size-cells = <0x0>;
 	};
+
+	ethosn1: ethosn@6d000000 {
+		compatible = "ethosn";
+		status = "disabled";
+		/* The Juno FPGA integration combines all of the Ethos-N's interrupts
+		 * into a single level-sensitive interrupt line. */
+		interrupts = <0 168 4>, <0 168 4>, <0 168 4>;
+		interrupt-names = "err", "job", "debug";
+		#address-cells = <0x0>;
+		#size-cells = <0x0>;
+	};
+
 };

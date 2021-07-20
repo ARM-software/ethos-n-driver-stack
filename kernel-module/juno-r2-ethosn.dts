@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2020 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -26,7 +26,7 @@
 	status = "okay";
 };
 
-&ethosn {
+&ethosn0 {
 	reg = <0 0x6f300000 0 0x00100000>;
 	memory-region = <&ethosn_reserved>;
 	status = "okay";

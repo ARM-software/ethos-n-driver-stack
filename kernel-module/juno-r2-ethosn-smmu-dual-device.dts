@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2020-2021 Arm Limited.
+ * (C) COPYRIGHT 2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -21,23 +21,38 @@
  */
 
 /include/ "juno-r2-ethosn.dtsi"
+/include/ "juno-r2-smmu.dtsi"
 
-&ethosn_reserved {
+/*
+ * Note:- The smmu stream id defined in ethosn needs to be a unique value amongst
+ * all the stream ids for the various devices attached to the same smmu.
+ */
+&smmu_ethosn0 {
+	status = "okay";
+};
+
+&smmu_ethosn1 {
 	status = "okay";
 };
 
 &ethosn0 {
-	reg = <0 0x6f300000 0 0x00100000>, <0 0x6d000000 0 0x00100000>;
-	memory-region = <&ethosn_reserved>;
+	reg = <0 0x6f300000 0 0x00100000>;
 	status = "okay";
 
 	core0 {
 		compatible = "ethosn-core";
+		iommus = <&smmu_ethosn0 0>;
 		status = "okay";
 	};
+};
 
-	core1 {
+&ethosn1 {
+	reg = <0 0x6d000000 0 0x00100000>;
+	status = "okay";
+
+	core0 {
 		compatible = "ethosn-core";
+		iommus = <&smmu_ethosn1 0>;
 		status = "okay";
 	};
 };

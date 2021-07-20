@@ -31,7 +31,7 @@
 	status = "okay";
 };
 
-&ethosn {
+&ethosn0 {
 	reg = <0 0x6f300000 0 0x00100000>, <0 0x6d000000 0 0x00100000>;
 	status = "okay";
 
