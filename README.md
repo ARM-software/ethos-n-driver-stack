@@ -56,7 +56,7 @@ To build the Ethos-N NPU software, you require some tools. You must install the 
 * [Git](https://git-scm.com/) [Recommended: `2.17.1`].  A version control system that software developers use for source code management.
 * [SCons](https://scons.org/) [Recommended: `v3.0.1`].  An open-source software construction tool.
 * [Make](https://www.gnu.org/software/make/) [Recommended: `4.1`].  A build automation tool.
-* [Sparse](https://www.kernel.org/doc/html/v4.12/dev-tools/sparse.html) [Recommended: `0.5.1`].  A semantic parser for C.
+* [Sparse](git://git.kernel.org/pub/scm/devel/sparse/sparse.git) [Recommended: `v0.6.3`].  A semantic parser for C.
 * [GNU C and C++ and compilers](https://gcc.gnu.org/) [Recommended: `7.5.0`].  Open-source tools for Arm processors.
 
 ### Install the build tools
@@ -67,7 +67,6 @@ You must use specific tools to build the Ethos-N NPU driver. You can use a packa
 sudo apt install git \
     scons \
     make \
-    sparse \
     gcc-aarch64-linux-gnu \
     g++-aarch64-linux-gnu \
     gcc \
@@ -76,6 +75,14 @@ sudo apt install git \
     libssl-dev \
     bc
 ```
+
+You will need to build and install sparse [Recommended: `v0.6.3`]:
+```sh
+git clone git://git.kernel.org/pub/scm/devel/sparse/sparse.git <path_to_sparse>/sparse --branch v0.6.3
+cd <path_to_sparse>/sparse
+sudo make PREFIX=/usr install
+```
+
 Additionally if you want to build unit tests for the Ethos-N NPU user space libraries, you need Catch2 [Recommended: `v2.13.0`]:
 
 ```sh
@@ -85,9 +92,9 @@ git clone --depth 1 https://github.com/catchorg/Catch2.git --branch v2.13.0 <pat
 ## Install the Linux source tree
 
 The Ethos-N driver stack source code depends on the Linux source tree to build the kernel module. You must configure the kernel to build the kernel module.
-Arm has tested version `4.9` of the Linux source tree in non-SMMU configurations and version `4.14`, `4.19`, `5.4` in SMMU configurations.
+Arm has tested version `4.9` of the Linux source tree in non-SMMU configurations and version `4.14`, `4.19`, `5.4`, `5.10` in SMMU configurations.
 
-1. Download version `4.9`, `4.14`, `4.19` or `5.4` of the Linux source tree from [www.kernel.org](http://www.kernel.org).
+1. Download version `4.9`, `4.14`, `4.19`, `5.4` or `5.10` of the Linux source tree from [www.kernel.org](http://www.kernel.org).
 2. How you compile the driver affects how you configure the Linux kernel source tree:
 
     * If you compile the driver natively, enter the following commands to configure the Linux kernel source tree:
@@ -129,7 +136,7 @@ git clone https://github.com/Arm-software/ethos-n-driver-stack --branch develop
 ## Configure SMMU support
 
 Arm recommends that you configure the Linux kernel with Input/Output Memory Management Unit (IOMMU) support for use as one of the dependencies of the kernel driver.
-Arm has tested versions `4.14`, `4.19` and `5.4` of the Linux kernel with IOMMU support.
+Arm has tested versions `4.14`, `4.19`, `5.4` and `5.10` of the Linux kernel with IOMMU support.
 
 Add the following flag to your Linux configuration to include all the dependencies the kernel module needs:
 ```make
