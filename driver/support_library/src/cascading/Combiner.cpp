@@ -852,7 +852,7 @@ Metadata CreateMetadata(const GraphOfParts& parts, const HardwareCapabilities& h
 {
     const size_t numParts = parts.GetNumParts();
     assert(numParts > 1U);
-    assert(numParts <= std::numeric_limits<int32_t>::max());
+    assert(numParts <= static_cast<size_t>(std::numeric_limits<int32_t>::max()));
 
     Metadata result;
     IncompatiblePlans incompPlans(numParts);
