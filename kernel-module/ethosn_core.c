@@ -252,7 +252,7 @@ static bool ethosn_is_sleeping(struct ethosn_core *core)
 	return sysctlr0.bits.sleeping;
 }
 
-static int ethosn_pm_resume(struct device *dev)
+static int ethosn_pm_common_resume(struct device *dev)
 {
 	int ret;
 	struct ethosn_core *core = dev_get_drvdata(dev);
@@ -287,6 +287,13 @@ exit_pm_resume:
 	if (!ret && core->profiling.config.enable_profiling)
 		++core->profiling.pm_resume_count;
 
+	return ret;
+}
+
+static int ethosn_pm_resume(struct device *dev)
+{
+	int ret = ethosn_pm_common_resume(dev);
+
 	dev_dbg(dev, "Core pm resume: %d\n", ret);
 
 	return ret;
@@ -314,7 +321,7 @@ exit_rpm_resume:
 	return ret;
 }
 
-static int ethosn_pm_suspend_noirq(struct device *dev)
+static int ethosn_pm_common_suspend(struct device *dev)
 {
 	int ret = 0;
 	struct ethosn_core *core = dev_get_drvdata(dev);
@@ -356,6 +363,13 @@ exit_pm_suspend:
 	if (!ret && core->profiling.config.enable_profiling)
 		++core->profiling.pm_suspend_count;
 
+	return ret;
+}
+
+static int ethosn_pm_suspend_noirq(struct device *dev)
+{
+	int ret = ethosn_pm_common_suspend(dev);
+
 	dev_dbg(dev, "Core pm suspend: %d\n", ret);
 
 	return ret;
@@ -384,9 +398,29 @@ exit_rpm_suspend:
 	return ret;
 }
 
+static int ethosn_pm_freeze_noirq(struct device *dev)
+{
+	int ret = ethosn_pm_common_suspend(dev);
+
+	dev_dbg(dev, "Core pm freeze: %d\n", ret);
+
+	return ret;
+}
+
+static int ethosn_pm_restore(struct device *dev)
+{
+	int ret = ethosn_pm_common_resume(dev);
+
+	dev_dbg(dev, "Core pm restore: %d\n", ret);
+
+	return ret;
+}
+
 static const struct dev_pm_ops ethosn_pm_ops = {
 	.resume        = ethosn_pm_resume,
 	.suspend_noirq = ethosn_pm_suspend_noirq,
+	.restore       = ethosn_pm_restore,
+	.freeze_noirq  = ethosn_pm_freeze_noirq,
 	SET_RUNTIME_PM_OPS(ethosn_rpm_suspend, ethosn_rpm_resume, NULL)
 };
 #define ETHOSN_PM_OPS (&ethosn_pm_ops)
