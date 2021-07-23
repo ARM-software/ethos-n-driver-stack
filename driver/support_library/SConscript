@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2018-2021 Arm Limited. All rights reserved.
+# Copyright © 2018-2021 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -50,6 +50,7 @@ srcs = [os.path.join('src', 'Support.cpp'),
         os.path.join('src', 'cascading', 'Part.cpp'),
         os.path.join('src', 'cascading', 'Plan.cpp'),
         os.path.join('src', 'cascading', 'Combiner.cpp'),
+        os.path.join('src', 'cascading', 'CombinerDFS.cpp'),
         os.path.join('src', 'cascading', 'Visualisation.cpp'),
         os.path.join('src', 'nonCascading', 'NonCascading.cpp'),
         os.path.join('src', 'cascading', 'Estimation.cpp'),
