@@ -67,7 +67,6 @@ bool IsCompressed(CascadingBufferFormat format);
 class Buffer;
 class Op;
 
-using PartId = size_t;
 using PlanId = size_t;
 
 /// A graph of connected Ops and Buffers.

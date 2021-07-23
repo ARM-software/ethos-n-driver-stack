@@ -31,6 +31,7 @@ bool IsObjectOfType(const B* obj)
     return (GetObjectAs<D>(obj) != nullptr);
 }
 
+using PartId         = size_t;
 using Plans          = std::vector<std::unique_ptr<Plan>>;
 using StripeSizeType = TensorShape::value_type;
 
@@ -148,8 +149,12 @@ public:
         std::set<DmaOnlyInfo> m_DmaOnlyInfos;
     };
 
-    Part(const EstimationOptions& estOpt, const CompilationOptions& compOpt, const HardwareCapabilities& capabilities)
+    Part(PartId id,
+         const EstimationOptions& estOpt,
+         const CompilationOptions& compOpt,
+         const HardwareCapabilities& capabilities)
         : DebuggableObject("Part")
+        , m_PartId(id)
         , m_NumInvalidPlans(0)
         , m_EstimationOptions(estOpt)
         , m_CompilationOptions(compOpt)
@@ -167,6 +172,7 @@ public:
 
     // All valid plans for this Part
     Plans m_Plans;
+    PartId m_PartId;
     size_t m_NumInvalidPlans;
 
 private:
@@ -284,7 +290,15 @@ public:
     InPart GetInputPart(const Edge& e) const;
     OutPart GetOutputPart(const Edge& e) const;
 
+    PartId GeneratePartId()
+    {
+        PartId currId = m_NextPartId;
+        ++m_NextPartId;
+        return currId;
+    }
+
     Parts m_Parts;
+    PartId m_NextPartId = 0;
 };
 
 uint32_t CalculateTileSize(Node* node,

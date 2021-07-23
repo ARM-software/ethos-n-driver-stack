@@ -213,7 +213,7 @@ Part BuildSinglePartWithOneNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    Part part(estOpt, compOpt, caps);
+    Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     return part;
 }
@@ -233,7 +233,7 @@ Part BuildPartWithFuseOnlyPle(Graph& g,
     g.Connect(in, node1, 0);
     g.Connect(node1, out, 0);
 
-    Part part(estOpt, compOpt, caps);
+    Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node1);
     return part;
 }
@@ -253,7 +253,7 @@ Part BuildPartWithLeadingFormatConversionNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    Part part(estOpt, compOpt, caps);
+    Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     return part;
 }
@@ -273,7 +273,7 @@ Part BuildPartWithTrailingFormatConversionNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    Part part(estOpt, compOpt, caps);
+    Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     return part;
 }
@@ -293,7 +293,7 @@ Part BuildPartWithReinterpretNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    Part part(estOpt, compOpt, caps);
+    Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     return part;
 }
@@ -825,7 +825,7 @@ Part BuildPartWithMceNodeStride(Graph& g,
     g.Connect(in, mceNode, 0);
     g.Connect(mceNode, out, 0);
 
-    Part part(estOpt, compOpt, caps);
+    Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(mceNode);
 
     return part;
@@ -861,7 +861,7 @@ TEST_CASE("PlanGenerator: FuseOnly")
     g.Connect(in, pleNode, 0);
     g.Connect(pleNode, out, 0);
 
-    Part part(estOpt, compOpt, caps);
+    Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(pleNode);
 
     part.CreatePlans();
@@ -1033,7 +1033,7 @@ TEST_CASE("PlanGenerator:Winograd")
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    Part part(estOpt, compOpt, caps);
+    Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     part.CreatePlans();
     SavePlansToDot(part.m_Plans, "plans_part_winograd");
@@ -1078,7 +1078,7 @@ TEST_CASE("PlanGenerator:Split input in depth")
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    Part part(estOpt, compOpt, caps);
+    Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     part.CreatePlans();
     SavePlansToDot(part.m_Plans, "plans_part_split_input_depth");

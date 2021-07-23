@@ -81,7 +81,7 @@ GraphOfParts CreateGraphOfParts(const Graph& graph,
     auto AddNodeToPart    = [](Node* node, Part& part) -> void { part.m_SubGraph.push_back(node); };
     auto AddNodeToNewPart = [&](Node* node) -> void {
         // Insert node into new part.
-        parts.push_back(std::make_unique<Part>(estOpt, compOpt, capabilities));
+        parts.push_back(std::make_unique<Part>(graphOfParts.GeneratePartId(), estOpt, compOpt, capabilities));
         AddNodeToPart(node, *(parts.back()));
     };
     auto FindPartFromSourceAndAddNode = [&](Node* ppOpNode) -> void {

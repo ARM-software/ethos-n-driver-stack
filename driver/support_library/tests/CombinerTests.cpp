@@ -96,7 +96,7 @@ void CreateMceOpProducerWithBlockConfig(GraphOfParts& parts,
                                         const CompilationOptions& compOpt,
                                         const HardwareCapabilities& hwCaps)
 {
-    parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.m_Parts.push_back(std::make_unique<Part>(parts.GeneratePartId(), estOpt, compOpt, hwCaps));
     parts.m_Parts.back()->m_SubGraph.push_back(node);
     std::unique_ptr<Plan> plan = std::make_unique<Plan>();
     plan->m_OpGraph.AddBuffer(std::make_unique<Buffer>(
@@ -118,7 +118,7 @@ void CreatePleOpConsumerWithBlockConfig(GraphOfParts& parts,
                                         const CompilationOptions& compOpt,
                                         const HardwareCapabilities& hwCaps)
 {
-    parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.m_Parts.push_back(std::make_unique<Part>(parts.GeneratePartId(), estOpt, compOpt, hwCaps));
     parts.m_Parts.back()->m_SubGraph.push_back(node);
     std::unique_ptr<Plan> plan = std::make_unique<Plan>();
     plan->m_OpGraph.AddBuffer(std::make_unique<Buffer>(
@@ -774,18 +774,20 @@ TEST_CASE("CreateMetadata For Cascade With No Depthwise Splitting for Convolutio
     Parts& parts = gOfParts.m_Parts;
 
     // Add nodeA and plans to partA
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeA);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planASramFullDepth)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planASramPartialDepth)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planADram)));
 
     // Add nodeB and plans to partB
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeB);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBSramFullDepth)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBSramPartialDepth)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBDram)));
+
+    REQUIRE(parts.size() == gOfParts.GeneratePartId());
 
     Metadata metadata = CreateMetadata(gOfParts, hwCaps);
 
@@ -881,14 +883,14 @@ TEST_CASE("CreateMetadata For Cascade With Depthwise Splitting for DepthwiseConv
     Parts& parts = gOfParts.m_Parts;
 
     // Add nodeA and plans to partA
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeA);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planASramFullDepth)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planASramPartialDepth)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planADram)));
 
     // Add nodeB and plans to partB
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeB);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBSramFullDepth)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBSramPartialDepth)));
@@ -978,19 +980,19 @@ TEST_CASE("CreateMetadata Simple")
     Parts& parts = gOfParts.m_Parts;
 
     // Add nodeA and plans to partA
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeA);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planASram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planADram)));
 
     // Add nodeB and plans to partB
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeB);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBDram)));
 
     // Add nodeC and plans to partC
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeC);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planCSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planCDram)));
@@ -1194,37 +1196,37 @@ TEST_CASE("CreateMetadata Of Graph With Branches")
 
     // Topological sort:  A, B, D, C, E, F
     // Add nodeA and plans to partA
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeA);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planASram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planADram)));
 
     // Add nodeB and plans to partB
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeB);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBDram)));
 
     // Add nodeC and plans to partD
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeD);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planDSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planDDram)));
 
     // Add nodeC and plans to partC
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeC);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planCSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planCDram)));
 
     // Add nodeC and plans to partE
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeE);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planESram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planEDram)));
 
     // Add nodeC and plans to partF
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeF);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planFSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planFDram)));
@@ -1449,13 +1451,13 @@ TEST_CASE("CreateSeeds Simple")
     Parts& parts = gOfParts.m_Parts;
 
     // Add nodeA and plans to partA
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeA);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planASram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planADram)));
 
     // Add nodeB and plans to partB
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeB);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBDram)));
@@ -1551,19 +1553,19 @@ TEST_CASE("GrowSeeds Simple")
     Parts& parts = gOfParts.m_Parts;
 
     // Add nodeA and plans to partA
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeA);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planASram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planADram)));
 
     // Add nodeB and plans to partB
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeB);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBDram)));
 
     // Add nodeC and plans to partC
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeC);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planCSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planCDram)));
@@ -1673,20 +1675,21 @@ TEST_CASE("GrowSeeds Schemes")
 
     GraphOfParts gOfParts;
     Parts& parts = gOfParts.m_Parts;
+
     // Add nodeA and plans to partA
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeA);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planASram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planADram)));
 
     // Add nodeB and plans to partB
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeB);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBDram)));
 
     // Add nodeC and plans to partC
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeC);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planCSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planCDram)));
@@ -1822,25 +1825,25 @@ TEST_CASE("GrowSeeds Of Graph With Branches")
 
     // Topological sort:  A, B, C, D
     // Add nodeA and plans to partA
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeA);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planASram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planADram)));
 
     // Add nodeB and plans to partB
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeB);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBDram)));
 
     // Add nodeC and plans to partC
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeC);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planCSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planCDram)));
 
     // Add nodeC and plans to partD
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeD);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planDSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planDDram)));
@@ -1939,20 +1942,20 @@ TEST_CASE("Combine Simple")
     Parts& parts = gOfParts.m_Parts;
 
     // Add nodeA and plans to partA
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeA);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planASram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planADram)));
     (*(parts.back())).m_NumInvalidPlans = 1;    // Disable the "avoid dram" mechanism.
 
     // Add nodeB and plans to partB
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeB);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBDram)));
 
     // Add nodeC and plans to partC
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeC);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planCSram)));
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planCDram)));
@@ -2015,12 +2018,12 @@ TEST_CASE("Combine Simple back to dram")
     Parts& parts = gOfParts.m_Parts;
 
     // Add nodeA and plans to partA
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeA);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planASram)));
 
     // Add nodeB and plans to partB
-    parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
     (*(parts.back())).m_SubGraph.push_back(nodeB);
     (*(parts.back())).m_Plans.push_back(std::make_unique<Plan>(std::move(planBSram)));
     (*(parts.back())).m_NumInvalidPlans = 1;    // Plan B does not actually fit in Sram
@@ -2082,7 +2085,7 @@ TEST_CASE("GetOpGraphForCombination")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
 
     // Part consisting of node A
-    parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.m_Parts.push_back(std::make_unique<Part>(parts.GeneratePartId(), estOpt, compOpt, hwCaps));
     parts.m_Parts.back()->m_SubGraph.push_back(nodeA);
     std::unique_ptr<Plan> planA = std::make_unique<Plan>();
     planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
@@ -2100,7 +2103,7 @@ TEST_CASE("GetOpGraphForCombination")
     glueA_BC.m_Output                        = glueA_BC.m_Graph.GetOps()[0];
 
     // Part consisting of node B
-    parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.m_Parts.push_back(std::make_unique<Part>(parts.GeneratePartId(), estOpt, compOpt, hwCaps));
     parts.m_Parts.back()->m_SubGraph.push_back(nodeB);
     std::unique_ptr<Plan> planB = std::make_unique<Plan>();
     planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
@@ -2112,7 +2115,7 @@ TEST_CASE("GetOpGraphForCombination")
     parts.m_Parts.back()->m_Plans.push_back(std::move(planB));
 
     // Part consisting of node C
-    parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.m_Parts.push_back(std::make_unique<Part>(parts.GeneratePartId(), estOpt, compOpt, hwCaps));
     parts.m_Parts.back()->m_SubGraph.push_back(nodeC);
     std::unique_ptr<Plan> planC = std::make_unique<Plan>();
     planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
@@ -2124,7 +2127,7 @@ TEST_CASE("GetOpGraphForCombination")
     parts.m_Parts.back()->m_Plans.push_back(std::move(planC));
 
     // Part consisting of nodes D and E
-    parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.m_Parts.push_back(std::make_unique<Part>(parts.GeneratePartId(), estOpt, compOpt, hwCaps));
     parts.m_Parts.back()->m_SubGraph.push_back(nodeD);
     parts.m_Parts.back()->m_SubGraph.push_back(nodeE);
     std::unique_ptr<Plan> planDE = std::make_unique<Plan>();
@@ -2181,7 +2184,7 @@ TEST_CASE("GetOpGraphForCombination")
     glueE_G.m_Output                        = glueE_G.m_Graph.GetOps()[0];
 
     // Part consisting of node F
-    parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.m_Parts.push_back(std::make_unique<Part>(parts.GeneratePartId(), estOpt, compOpt, hwCaps));
     parts.m_Parts.back()->m_SubGraph.push_back(nodeF);
     std::unique_ptr<Plan> planF = std::make_unique<Plan>();
     planF->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
@@ -2192,7 +2195,7 @@ TEST_CASE("GetOpGraphForCombination")
     parts.m_Parts.back()->m_Plans.push_back(std::move(planF));
 
     // Part consisting of node G
-    parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.m_Parts.push_back(std::make_unique<Part>(parts.GeneratePartId(), estOpt, compOpt, hwCaps));
     parts.m_Parts.back()->m_SubGraph.push_back(nodeG);
     std::unique_ptr<Plan> planG = std::make_unique<Plan>();
     planG->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,

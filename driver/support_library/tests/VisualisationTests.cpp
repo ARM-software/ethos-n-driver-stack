@@ -488,11 +488,11 @@ TEST_CASE("SaveGraphToDot Graph Topology", "[Visualisation]")
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
     // Assign some nodes into Parts. Note we don't assign all nodes to a part, so we can test that works correctly.
-    auto part1 =
-        std::make_unique<Part>(estOpt, compOpt, GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+    auto part1        = std::make_unique<Part>(0, estOpt, compOpt,
+                                        GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
     part1->m_SubGraph = { i1, i2 };
-    auto part2 =
-        std::make_unique<Part>(estOpt, compOpt, GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+    auto part2        = std::make_unique<Part>(1, estOpt, compOpt,
+                                        GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
     part2->m_SubGraph = { m, o1, d };
     GraphOfParts parts;
     parts.m_Parts.push_back(std::move(part1));
@@ -565,7 +565,7 @@ TEST_CASE("SaveGraphToDot Node Details", "[Visualisation]")
         CompilerDataFormat::NHWCB, std::set<uint32_t>{ 2 });
 
     // Arbitrarily Put all nodes into one part
-    auto part1        = std::make_unique<Part>(estOpt, compOpt, caps);
+    auto part1        = std::make_unique<Part>(0, estOpt, compOpt, caps);
     part1->m_SubGraph = { i, m };
     GraphOfParts parts;
     parts.m_Parts.push_back(std::move(part1));
@@ -631,7 +631,7 @@ TEST_CASE("SavePlansToDot Graph Topology", "[Visualisation]")
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
     const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
-    Part part(estOpt, compOpt, caps);
+    Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(nodeA);
     part.m_SubGraph.push_back(nodeB);
     part.m_Plans.push_back(std::move(planA));
@@ -726,9 +726,11 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
+    PartId partId                     = 0;
 
     // Part consisting of node A
-    parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));
+    ++partId;
     parts.m_Parts.back()->m_SubGraph.push_back(nodeA);
     std::unique_ptr<Plan> planA = std::make_unique<Plan>();
     planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
@@ -746,7 +748,8 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     glueA_BC.m_Output                        = glueA_BC.m_Graph.GetOps()[0];
 
     // Part consisting of nodes B and C
-    parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));
+    ++partId;
     parts.m_Parts.back()->m_SubGraph.push_back(nodeB);
     parts.m_Parts.back()->m_SubGraph.push_back(nodeC);
     std::unique_ptr<Plan> planBC = std::make_unique<Plan>();
@@ -770,7 +773,8 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     parts.m_Parts.back()->m_Plans.push_back(std::move(planBC));
 
     // Part consisting of nodes D and E
-    parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));
+    ++partId;
     parts.m_Parts.back()->m_SubGraph.push_back(nodeD);
     parts.m_Parts.back()->m_SubGraph.push_back(nodeE);
     std::unique_ptr<Plan> planDE = std::make_unique<Plan>();
@@ -827,7 +831,8 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     glueE_G.m_Output                        = glueE_G.m_Graph.GetOps()[0];
 
     // Part consisting of node F
-    parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));
+    ++partId;
     parts.m_Parts.back()->m_SubGraph.push_back(nodeF);
     std::unique_ptr<Plan> planF = std::make_unique<Plan>();
     planF->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
@@ -838,7 +843,7 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     parts.m_Parts.back()->m_Plans.push_back(std::move(planF));
 
     // Part consisting of node G
-    parts.m_Parts.push_back(std::make_unique<Part>(estOpt, compOpt, hwCaps));
+    parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));
     parts.m_Parts.back()->m_SubGraph.push_back(nodeG);
     std::unique_ptr<Plan> planG = std::make_unique<Plan>();
     planG->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
