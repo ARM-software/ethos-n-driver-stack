@@ -206,9 +206,8 @@ TEST_CASE("ConvolutionSupported")
             queries.IsConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason, sizeof(reason));
         INFO(reason);
         REQUIRE(isSupported == SupportedLevel::Unsupported);
-        REQUIRE(Contains(
-            reason,
-            "Convolution must have quantization parameters with same number of elements as the quantisation dim"));
+        REQUIRE(Contains(reason, "Convolution: Biases must have quantization scales with same number of elements as "
+                                 "the quantisation dim. Expected: 3, got: 2."));
     }
 
     SECTION("Unsupported conv overall scale: too small")
@@ -458,5 +457,149 @@ TEST_CASE("DepthwiseConvolutionSupported")
         TensorInfo weightsInfo({ 1, 1, 1, 32 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM);
         REQUIRE(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo) ==
                 SupportedLevel::Supported);
+    }
+
+    SECTION("Supported per-input-channel weights quantization")
+    {
+        TensorInfo biasInfo({ 1, 1, 1, 3 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
+        biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f, 0.3f });
+        biasInfo.m_QuantizationInfo.SetZeroPoint(0);
+        biasInfo.m_QuantizationInfo.SetQuantizationDim(3);
+        TensorInfo weightsInfo({ 1, 1, 3, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM);
+        weightsInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f, 0.3f });
+        weightsInfo.m_QuantizationInfo.SetZeroPoint(0);
+        weightsInfo.m_QuantizationInfo.SetQuantizationDim(2);
+        ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 });
+        TensorInfo inputInfo({ 1, 1, 1, 3 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB, { 0, 1.f });
+        CHECK(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                      sizeof(reason)) == SupportedLevel::Supported);
+    }
+
+    SECTION("Unsupported bias quantization dim")
+    {
+        TensorInfo biasInfo({ 1, 1, 1, 3 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
+        biasInfo.m_QuantizationInfo.SetQuantizationDim(0);
+        TensorInfo weightsInfo({ 1, 1, 3, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM);
+        ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 });
+        TensorInfo inputInfo({ 1, 1, 1, 3 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB, { 0, 1.f });
+        CHECK(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                      sizeof(reason)) == SupportedLevel::Unsupported);
+        CHECK(Contains(reason, "Per channel quantization axis must be 3 for Biases"));
+    }
+    SECTION("Unsupported bias num scales (inconsistent with tensor dimension)")
+    {
+        TensorInfo biasInfo({ 1, 1, 1, 3 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
+        biasInfo.m_QuantizationInfo.SetQuantizationDim(3);
+        biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f });    // There should be three of these
+        TensorInfo weightsInfo({ 1, 1, 3, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM);
+        ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 });
+        TensorInfo inputInfo({ 1, 1, 1, 3 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB, { 0, 1.f });
+        CHECK(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                      sizeof(reason)) == SupportedLevel::Unsupported);
+        CHECK(Contains(reason, "Biases must have quantization scales with same number of elements as the quantisation "
+                               "dim. Expected: 3, got: 2."));
+    }
+
+    SECTION("Unsupported weights quantization dim")
+    {
+        TensorInfo biasInfo({ 1, 1, 1, 3 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
+        TensorInfo weightsInfo({ 1, 1, 3, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM);
+        weightsInfo.m_QuantizationInfo.SetQuantizationDim(3);
+        ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 });
+        TensorInfo inputInfo({ 1, 1, 1, 3 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB, { 0, 1.f });
+        CHECK(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                      sizeof(reason)) == SupportedLevel::Unsupported);
+        CHECK(Contains(reason, "Per channel quantization axis must be 2 for Weights"));
+    }
+    SECTION("Unsupported weights num scales")
+    {
+        TensorInfo biasInfo({ 1, 1, 1, 3 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
+        TensorInfo weightsInfo({ 1, 1, 3, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM);
+        weightsInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f });    // There should be three of these
+        weightsInfo.m_QuantizationInfo.SetQuantizationDim(2);
+        ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 });
+        TensorInfo inputInfo({ 1, 1, 1, 3 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB, { 0, 1.f });
+        CHECK(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                      sizeof(reason)) == SupportedLevel::Unsupported);
+        CHECK(Contains(reason, "Weights must have quantization scales with same number of elements as the quantisation "
+                               "dim. Expected: 3, got: 2."));
+    }
+
+    SECTION("Unsupported input quantization dim")
+    {
+        TensorInfo biasInfo({ 1, 1, 1, 3 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
+        TensorInfo weightsInfo({ 1, 1, 3, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM);
+        ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 });
+        TensorInfo inputInfo({ 1, 1, 1, 3 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB, { 0, 1.f });
+        inputInfo.m_QuantizationInfo.SetQuantizationDim(3);
+        CHECK(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                      sizeof(reason)) == SupportedLevel::Unsupported);
+        CHECK(Contains(reason, "Quantization Dim should not be used on Input"));
+    }
+    SECTION("Unsupported input num scales")
+    {
+        TensorInfo biasInfo({ 1, 1, 1, 3 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
+        TensorInfo weightsInfo({ 1, 1, 3, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM);
+        ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 });
+        TensorInfo inputInfo({ 1, 1, 1, 3 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB, { 0, 1.f });
+        inputInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f });
+        CHECK(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                      sizeof(reason)) == SupportedLevel::Unsupported);
+        CHECK(Contains(reason, "Input quantization scales must have a size of 1"));
+    }
+
+    SECTION("Unsupported output quantization dim")
+    {
+        TensorInfo biasInfo({ 1, 1, 1, 3 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
+        TensorInfo weightsInfo({ 1, 1, 3, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM);
+        ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 });
+        convInfo.m_OutputQuantizationInfo.SetQuantizationDim(3);
+        TensorInfo inputInfo({ 1, 1, 1, 3 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB, { 0, 1.f });
+        CHECK(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                      sizeof(reason)) == SupportedLevel::Unsupported);
+        CHECK(Contains(reason, "Quantization Dim should not be used on Output"));
+    }
+    SECTION("Unsupported output num scales")
+    {
+        TensorInfo biasInfo({ 1, 1, 1, 3 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
+        TensorInfo weightsInfo({ 1, 1, 3, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM);
+        ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 });
+        convInfo.m_OutputQuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f });
+        TensorInfo inputInfo({ 1, 1, 1, 3 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB, { 0, 1.f });
+        CHECK(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                      sizeof(reason)) == SupportedLevel::Unsupported);
+        CHECK(Contains(reason, "Output quantization scales must have a size of 1"));
+    }
+
+    SECTION("Unsupported - bias scales inconsistent with input * weights")
+    {
+        TensorInfo biasInfo({ 1, 1, 1, 3 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
+        biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f, 0.3f });
+        biasInfo.m_QuantizationInfo.SetZeroPoint(0);
+        biasInfo.m_QuantizationInfo.SetQuantizationDim(3);
+        TensorInfo weightsInfo({ 1, 1, 3, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM);
+        ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 });
+        TensorInfo inputInfo({ 1, 1, 1, 3 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB, { 0, 1.f });
+        CHECK(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                      sizeof(reason)) == SupportedLevel::EstimateOnly);
+        CHECK(Contains(reason, "Bias for depthwise conv must have quantization parameters with zero point of 0 and "
+                               "scale of input scale x weight scale"));
+    }
+
+    SECTION("Unsupported overall scale on one channel")
+    {
+        TensorInfo biasInfo({ 1, 1, 1, 3 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
+        biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f, 3.0f });
+        biasInfo.m_QuantizationInfo.SetZeroPoint(0);
+        biasInfo.m_QuantizationInfo.SetQuantizationDim(3);
+        TensorInfo weightsInfo({ 1, 1, 3, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM);
+        weightsInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f, 3.0f });
+        weightsInfo.m_QuantizationInfo.SetZeroPoint(0);
+        weightsInfo.m_QuantizationInfo.SetQuantizationDim(2);
+        ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 });
+        TensorInfo inputInfo({ 1, 1, 1, 3 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB, { 0, 1.f });
+        CHECK(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                      sizeof(reason)) == SupportedLevel::EstimateOnly);
+        CHECK(Contains(reason, "Overall scale (of the input * weights / output) should be in the range"));
     }
 }

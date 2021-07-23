@@ -581,6 +581,93 @@ LayerTestResult<uint8_t, 4> PreCompiledConvolution2dWithSymetricSignedWeightsTes
                                                          armnn::DataType::QSymmS8);
 }
 
+LayerTestResult<uint8_t, 4>
+    PreCompiledConvolution2dPerChannelQuantTest(armnn::IWorkloadFactory& workloadFactory,
+                                                const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
+{
+    // Define tensors
+    TensorInfo inputInfo({ 1, 1, 1, 2 }, DataType::QAsymmU8, 1.0f, 0);
+    std::vector<uint8_t> inputData{ 1, 2 };    // Representing 1.0, 2.0
+
+    TensorInfo weightsInfo({ 2, 1, 1, 2 }, DataType::QAsymmU8);    // OHWI
+    weightsInfo.SetQuantizationDim(0);
+    weightsInfo.SetQuantizationScales({ 2.0f, 3.0f });
+    std::vector<uint8_t> weightsData{ 1, 2, 3, 4 };    // Representing 2.0, 4.0, 9.0, 12.0
+    ConstTensor weights(weightsInfo, weightsData);
+
+    TensorInfo biasInfo({ 1, 1, 1, 2 }, DataType::Signed32);
+    biasInfo.SetQuantizationDim(3);
+    biasInfo.SetQuantizationScales({ 2.0f, 3.0f });
+    std::vector<int32_t> biasData{ 0, 10 };    // Representing 0.0, 30.0
+    ConstTensor bias(biasInfo, biasData);
+
+    TensorInfo outputInfo({ 1, 1, 1, 2 }, DataType::QAsymmU8, 5.0f, 0);
+    std::vector<uint8_t> expectedOutputData = { 2, 13 };    // Representing 10.0, 33.0
+
+    // Construct the network
+    armnn::Convolution2dDescriptor desc;
+    desc.m_BiasEnabled = true;
+    desc.m_DataLayout  = DataLayout::NHWC;
+
+    armnn::INetworkPtr net              = armnn::INetwork::Create();
+    IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
+    IConnectableLayer* const convLayer = net->AddConvolution2dLayer(desc, weights, Optional<ConstTensor>(bias), "conv");
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output");
+
+    // Connect the layers
+    inputLayer->GetOutputSlot(0).Connect(convLayer->GetInputSlot(0));
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+    convLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+    convLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
+
+    // Execute and compare to expected result
+    return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 0, outputInfo, expectedOutputData);
+}
+
+LayerTestResult<uint8_t, 4>
+    PreCompiledDepthwiseConvolution2dPerChannelQuantTest(armnn::IWorkloadFactory& workloadFactory,
+                                                         const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
+{
+    // Define tensors
+    TensorInfo inputInfo({ 1, 1, 1, 2 }, DataType::QAsymmU8, 1.0f, 0);
+    std::vector<uint8_t> inputData{ 1, 2 };    // Representing 1.0, 2.0
+
+    TensorInfo weightsInfo({ 1, 1, 1, 2 }, DataType::QAsymmU8);    // 1HW(I*M)
+    weightsInfo.SetQuantizationDim(3);
+    weightsInfo.SetQuantizationScales({ 2.0f, 3.0f });
+    std::vector<uint8_t> weightsData{ 1, 2 };    // Representing 2.0, 6.0
+    ConstTensor weights(weightsInfo, weightsData);
+
+    TensorInfo biasInfo({ 1, 1, 1, 2 }, DataType::Signed32);
+    biasInfo.SetQuantizationDim(3);
+    biasInfo.SetQuantizationScales({ 2.0f, 3.0f });
+    std::vector<int32_t> biasData{ 9, 10 };    // Representing 18.0, 30.0
+    ConstTensor bias(biasInfo, biasData);
+
+    TensorInfo outputInfo({ 1, 1, 1, 2 }, DataType::QAsymmU8, 5.0f, 0);
+    std::vector<uint8_t> expectedOutputData = { 4, 8 };    // Representing 20.0, 42.0
+
+    // Construct the network
+    armnn::DepthwiseConvolution2dDescriptor desc;
+    desc.m_BiasEnabled = true;
+    desc.m_DataLayout  = DataLayout::NHWC;
+
+    armnn::INetworkPtr net              = armnn::INetwork::Create();
+    IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
+    IConnectableLayer* const convLayer =
+        net->AddDepthwiseConvolution2dLayer(desc, weights, Optional<ConstTensor>(bias), "conv");
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output");
+
+    // Connect the layers
+    inputLayer->GetOutputSlot(0).Connect(convLayer->GetInputSlot(0));
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+    convLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+    convLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
+
+    // Execute and compare to expected result
+    return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 0, outputInfo, expectedOutputData);
+}
+
 LayerTestResult<uint8_t, 4> PreCompiledMeanXyTest(armnn::IWorkloadFactory& workloadFactory,
                                                   const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
 {
@@ -1466,6 +1553,8 @@ TEST_SUITE("Compute_EthosN")
 
     ARMNN_AUTO_TEST_CASE(PreCompiledDepthwiseConvolution2d, PreCompiledDepthwiseConvolution2dTest)
     ARMNN_AUTO_TEST_CASE(PreCompiledDepthwiseConvolution2dStride2x2, PreCompiledDepthwiseConvolution2dStride2x2Test)
+    ARMNN_AUTO_TEST_CASE(PreCompiledDepthwiseConvolution2dPerChannelQuant,
+                         PreCompiledDepthwiseConvolution2dPerChannelQuantTest)
 
     ARMNN_AUTO_TEST_CASE(PreCompiledTransposeConvolution2dStride2x2, PreCompiledTransposeConvolution2dStride2x2Test)
 
@@ -1474,6 +1563,8 @@ TEST_SUITE("Compute_EthosN")
 
     ARMNN_AUTO_TEST_CASE(PreCompiledConvolution2dWithSymetricSignedWeights,
                          PreCompiledConvolution2dWithSymetricSignedWeightsTest)
+
+    ARMNN_AUTO_TEST_CASE(PreCompiledConvolution2dPerChannelQuant, PreCompiledConvolution2dPerChannelQuantTest)
 
     ARMNN_AUTO_TEST_CASE(PreCompiledFullyConnected, PreCompiledFullyConnectedTest, TensorShape{ 1, 8 })
     ARMNN_AUTO_TEST_CASE(PreCompiledFullyConnected4d, PreCompiledFullyConnectedTest, TensorShape{ 1, 2, 2, 3 })

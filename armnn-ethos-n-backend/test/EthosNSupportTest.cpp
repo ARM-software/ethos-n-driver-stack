@@ -1246,7 +1246,6 @@ TEST_SUITE("EthosNSupport")
 
     TEST_CASE("IsDepthwiseConvolutionSupported")
     {
-
         EthosNLayerSupport layerSupport(EthosNConfig(), EthosNMappings(), EthosNConfig().QueryCapabilities());
         auto ExpectFail = [&layerSupport](const TensorInfo& input, const TensorInfo& output,
                                           const DepthwiseConvolution2dDescriptor& descriptor, const TensorInfo& weights,
@@ -1303,15 +1302,24 @@ TEST_SUITE("EthosNSupport")
                        "DataLayout must be NHWC");
         }
 
-        SUBCASE("IsDepthwiseConvolutionSupported() should not handle PerAxisQuantization")
+        SUBCASE("IsDepthwiseConvolutionSupported() should not handle PerAxisQuantization on dim other than O (I*M)")
         {
             TensorInfo weightInfoPerAxisQuantization({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
-            CHECK(!weightInfoPerAxisQuantization.HasPerAxisQuantization());
             weightInfoPerAxisQuantization.SetQuantizationDim(Optional<unsigned int>(2));
-            CHECK(weightInfoPerAxisQuantization.HasPerAxisQuantization());
-            ExpectFail(
-                inputInfo, outputInfo, depthwiseConvolutionDescriptor, weightInfoPerAxisQuantization, biasInfo,
-                "Can't convert tensor from [1,H,W,Cout] to [H,W,Cin,M] when per channel quantization is applied.");
+            ExpectFail(inputInfo, outputInfo, depthwiseConvolutionDescriptor, weightInfoPerAxisQuantization, biasInfo,
+                       "Can't convert tensor from [1,H,W,Cout] to [H,W,Cin,M] when per channel "
+                       "quantization is applied on a dimension other than the last, or M != 1.");
+        }
+
+        SUBCASE("IsDepthwiseConvolutionSupported() should not handle PerAxisQuantization when M != 1")
+        {
+            TensorInfo weightInfoPerAxisQuantization({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
+            const TensorInfo inputInfo8Channels({ 1, 16, 16, 8 }, DataType::QAsymmU8, 1.0f, 0);
+            weightInfoPerAxisQuantization.SetQuantizationDim(Optional<unsigned int>(3));
+            ExpectFail(inputInfo8Channels, outputInfo, depthwiseConvolutionDescriptor, weightInfoPerAxisQuantization,
+                       biasInfo,
+                       "Can't convert tensor from [1,H,W,Cout] to [H,W,Cin,M] when per channel "
+                       "quantization is applied on a dimension other than the last, or M != 1.");
         }
     }
 }

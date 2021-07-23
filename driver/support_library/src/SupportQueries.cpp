@@ -182,14 +182,36 @@ bool IsQuantizationDimSupported(const TensorInfo& info,
 
         if (info.m_QuantizationInfo.GetScales().size() != info.m_Dimensions[dim])
         {
-            SetReason("%s must have quantization parameters with same number of elements as the quantisation dim",
-                      reason, reasonMaxLength, what);
+            SetReason("%s: %s must have quantization scales with same number of elements as the quantisation dim. "
+                      "Expected: %d, got: %d.",
+                      reason, reasonMaxLength, what, name, info.m_Dimensions[dim],
+                      info.m_QuantizationInfo.GetScales().size());
             return false;
         }
     }
 
     return true;
 }
+
+namespace
+{
+
+uint32_t GetQuantizationDim(DataFormat format)
+{
+    switch (format)
+    {
+        case DataFormat::HWIO:
+            return 3U;
+        case DataFormat::HWIM:
+            return 2U;
+        case DataFormat::NHWC:
+            return 3U;
+        default:
+            return std::numeric_limits<uint32_t>::max();
+    }
+}
+
+}    // namespace
 
 bool IsQuantizationDimSupported(const TensorInfo* biasInfo,
                                 const TensorInfo* weightsInfo,
@@ -201,7 +223,8 @@ bool IsQuantizationDimSupported(const TensorInfo* biasInfo,
 {
     if (biasInfo != nullptr)
     {
-        if (!IsQuantizationDimSupported(*biasInfo, 3U, "Biases", what, reason, reasonMaxLength))
+        if (!IsQuantizationDimSupported(*biasInfo, GetQuantizationDim(biasInfo->m_DataFormat), "Biases", what, reason,
+                                        reasonMaxLength))
         {
             return false;
         }
@@ -209,7 +232,8 @@ bool IsQuantizationDimSupported(const TensorInfo* biasInfo,
 
     if (weightsInfo != nullptr)
     {
-        if (!IsQuantizationDimSupported(*weightsInfo, 3U, "Weights", what, reason, reasonMaxLength))
+        if (!IsQuantizationDimSupported(*weightsInfo, GetQuantizationDim(weightsInfo->m_DataFormat), "Weights", what,
+                                        reason, reasonMaxLength))
         {
             return false;
         }

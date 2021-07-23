@@ -210,16 +210,25 @@ armnn::TensorInfo GetEthosNConvolutionWeightsPermutationTensorInfo(const armnn::
         // Arm NN weights for depthwise have a datalayout of [1,H,W,O] where O is output cannels e.g. (I*M) -> HWIM
         // Reshape weights  [ 1, H, W, I*M ] --> [ H, W, I, M ]
 
-        if (weightsInfo.HasPerAxisQuantization())
-        {
-            throw InvalidArgumentException("Can't convert tensor from [1,H,W,Cout] to [H,W,Cin,M] when per channel "
-                                           "quantization is applied.");
-        }
-
         TensorInfo weightsInfoPermuted = weightsInfo;
         auto weightsShape              = weightsInfo.GetShape();
         unsigned int depthMultiplier   = weightsShape[3] / inputInfo.GetShape()[3];
         weightsInfoPermuted.SetShape({ weightsShape[1], weightsShape[2], inputInfo.GetShape()[3], depthMultiplier });
+
+        // The quantization dim also needs permuting, but this can only be done if M=1 otherwise we'd need to
+        // have multiple quantization dims for the result, which isn't representable
+        if (weightsInfo.HasPerAxisQuantization())
+        {
+            if (!(weightsInfo.GetQuantizationDim() == Optional<unsigned int>(3)) || depthMultiplier != 1)
+            {
+                throw InvalidArgumentException(
+                    "Can't convert tensor from [1,H,W,Cout] to [H,W,Cin,M] when per channel "
+                    "quantization is applied on a dimension other than the last, or M != 1.");
+            }
+
+            weightsInfoPermuted.SetQuantizationDim(2);
+        }
+
         return weightsInfoPermuted;
     }
     else
