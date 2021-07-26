@@ -646,11 +646,13 @@ void Part::CreatePlans()
 
 void Part::AddNewPlan(Plan::InputMapping&& inputMappings, Plan::OutputMapping&& outputMappings, OwnedOpGraph&& opGraph)
 {
-    auto plan       = std::make_unique<Plan>(std::move(inputMappings), std::move(outputMappings));
+    // Can't assign an Id until the plan is deemed valid
+    auto plan       = std::make_unique<Plan>(0, std::move(inputMappings), std::move(outputMappings));
     plan->m_OpGraph = std::move(opGraph);
 
     if (IsPlanValid(m_Capabilities, *plan))
     {
+        plan->m_PlanId = GeneratePlanId();
         m_Plans.push_back(std::move(plan));
     }
     else
@@ -1282,11 +1284,13 @@ std::vector<BlockConfig> GenerateBlockConfigs(Node* node)
 
 /// Creates a plan which simply reinterprets the input tensor properties of the given node with its output tensor
 /// properties. No Ops are created - just a single Dram buffer which is tagged as both the input and output of the Plan.
-std::unique_ptr<Plan> CreateReinterpretDramPlan(Node* node)
+void Part::CreateReinterpretDramPlan(Node* node)
 {
     assert(node->GetInputs().size() == 1);
 
     CascadingBufferFormat format = GetCascadingBufferFormatFromCompilerDataFormat(node->GetInputFormat(0));
+    Plan::InputMapping inputMappings;
+    Plan::OutputMapping outputMappings;
     OwnedOpGraph opGraph;
     opGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, format, TraversalOrder::Xyz));
     Buffer* buffer             = opGraph.GetBuffers()[0];
@@ -1294,12 +1298,9 @@ std::unique_ptr<Plan> CreateReinterpretDramPlan(Node* node)
     buffer->m_SizeInBytes      = CalculateBufferSize(node->GetInputShape(0), format);
     buffer->m_QuantizationInfo = node->GetQuantizationInfo();
 
-    std::unique_ptr<Plan> p     = std::make_unique<Plan>();
-    p->m_OpGraph                = std::move(opGraph);
-    p->m_InputMappings[buffer]  = node->GetInput(0);
-    p->m_OutputMappings[buffer] = node;
-
-    return p;
+    inputMappings[buffer]  = node->GetInput(0);
+    outputMappings[buffer] = node;
+    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph));
 }
 
 void Part::GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEncoderCache)
@@ -1331,7 +1332,7 @@ void Part::GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEnc
         // location (VirtualSram) so that we can match up plans between the adjacent FormatConversionNodes and
         // the ReinterpretNode. This would likely be a lot simpler if we had access to the Reshape directly inside
         // cascading, and it hadn't gone through the Conversion step.
-        m_Plans.push_back(CreateReinterpretDramPlan(node));
+        CreateReinterpretDramPlan(node);
 
         {
             DmaOnlyInfo dmaInfo;

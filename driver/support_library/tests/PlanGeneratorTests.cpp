@@ -564,8 +564,10 @@ TEST_CASE("PlanGenerator:FuseOnlyPleNode")
 
     REQUIRE(part.m_Plans.size() == 15);
 
-    const auto& plan1 = part.GetPlan(11);
+    constexpr PlanId planId = 11;
+    const auto& plan1       = part.GetPlan(planId);
     REQUIRE(plan1.m_OpGraph.GetBuffers().size() == 2);
+    REQUIRE(plan1.m_PlanId == planId);
     auto buffers1 = plan1.m_OpGraph.GetBuffers();
     auto ops1     = plan1.m_OpGraph.GetOps();
     REQUIRE(buffers1[0]->m_Location == Location::PleInputSram);

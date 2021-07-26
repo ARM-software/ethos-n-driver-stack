@@ -167,6 +167,13 @@ public:
     std::vector<const Edge*> GetInputs() const;
     std::vector<const Edge*> GetOutputs() const;
 
+    PlanId GeneratePlanId()
+    {
+        PlanId currId = m_NextPlanId;
+        ++m_NextPlanId;
+        return currId;
+    }
+
     // SubGraph of Nodes for this Part
     Nodes m_SubGraph;
 
@@ -174,6 +181,7 @@ public:
     Plans m_Plans;
     PartId m_PartId;
     size_t m_NumInvalidPlans;
+    PlanId m_NextPlanId = 0;
 
 private:
     void AddNewPlan(Plan::InputMapping&& inputMappings, Plan::OutputMapping&& outputMappings, OwnedOpGraph&& opGraph);
@@ -207,6 +215,7 @@ private:
                                        StripeInfos& stripeInfos,
                                        Location inputBufferLocaton,
                                        Location outputBufferLocation);
+    void CreateReinterpretDramPlan(Node* node);
     void CreateMceAndIdentityPlePlans(Node* node,
                                       const MceAndPleInfo& info,
                                       TraversalOrder order,

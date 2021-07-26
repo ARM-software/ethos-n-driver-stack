@@ -168,7 +168,9 @@ public:
     using OutputMapping = std::map<Buffer*, Node*>;
 
     Plan();
+    Plan(PlanId planId);
     Plan(InputMapping&& inputMappings, OutputMapping&& outputMappings);
+    Plan(PlanId planId, InputMapping&& inputMappings, OutputMapping&& outputMappings);
 
     /// Gets the Buffer corresponding to the given Edge, which should be an input to the Part that this Plan is for.
     /// Returns nullptr if the Edge is unrecognised.
@@ -186,6 +188,8 @@ public:
     /// Specifies which of the Buffers in the above OpGraph are outputs from this plan, and which Nodes from the Graph
     /// these correspond to.
     OutputMapping m_OutputMappings;
+
+    PlanId m_PlanId;
 };
 
 class Op : public DebuggableObject
