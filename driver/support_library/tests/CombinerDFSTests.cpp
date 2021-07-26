@@ -117,16 +117,6 @@ TEST_CASE("IsPartSiso", "[CombinerDFS]")
     REQUIRE(combiner.IsPartSiso(*gOfParts.m_Parts.at(2).get()) == false);
     REQUIRE(combiner.IsPartSiso(*gOfParts.m_Parts.at(3).get()) == false);
     REQUIRE(combiner.IsPartSiso(*gOfParts.m_Parts.at(4).get()) == false);
-
-    // All parts have been cached
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::SISO)).size() == gOfParts.m_Parts.size());
-    // Other maps have been updated
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::SIMO)).size() == 1);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::SIMO))[1] == false);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MISO)).size() == 1);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MISO))[1] == false);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MIMO)).size() == 1);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MIMO))[1] == false);
 }
 
 TEST_CASE("IsPartSimo", "[CombinerDFS]")
@@ -171,17 +161,6 @@ TEST_CASE("IsPartSimo", "[CombinerDFS]")
     REQUIRE(combiner.IsPartSimo(*gOfParts.m_Parts.at(2).get()) == true);
     REQUIRE(combiner.IsPartSimo(*gOfParts.m_Parts.at(3).get()) == false);
     REQUIRE(combiner.IsPartSimo(*gOfParts.m_Parts.at(4).get()) == false);
-
-    // All parts have been cached
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::SIMO)).size() == gOfParts.m_Parts.size());
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::SIMO))[2] == true);
-    // Other maps have been updated
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::SISO)).size() == 1);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::SISO))[1] == false);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MISO)).size() == 1);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MISO))[2] == false);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MIMO)).size() == 1);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MIMO))[2] == false);
 }
 
 TEST_CASE("IsPartMiso", "[CombinerDFS]")
@@ -222,17 +201,6 @@ TEST_CASE("IsPartMiso", "[CombinerDFS]")
     REQUIRE(combiner.IsPartMiso(*gOfParts.m_Parts.at(1).get()) == false);
     REQUIRE(combiner.IsPartMiso(*gOfParts.m_Parts.at(2).get()) == true);
     REQUIRE(combiner.IsPartMiso(*gOfParts.m_Parts.at(3).get()) == false);
-
-    // All parts have been cached
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MISO)).size() == gOfParts.m_Parts.size());
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MISO))[2] == true);
-    // Other maps have been updated
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::SISO)).size() == 1);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::SISO))[2] == false);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::SIMO)).size() == 1);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::SIMO))[2] == false);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MIMO)).size() == 1);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MIMO))[2] == false);
 }
 
 TEST_CASE("IsPartMimo", "[CombinerDFS]")
@@ -277,20 +245,9 @@ TEST_CASE("IsPartMimo", "[CombinerDFS]")
     REQUIRE(combiner.IsPartMimo(*gOfParts.m_Parts.at(2).get()) == true);
     REQUIRE(combiner.IsPartMimo(*gOfParts.m_Parts.at(3).get()) == false);
     REQUIRE(combiner.IsPartMimo(*gOfParts.m_Parts.at(4).get()) == false);
-
-    // All parts have been cached
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MIMO)).size() == gOfParts.m_Parts.size());
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MIMO))[2] == true);
-    // Other maps have been updated
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::SISO)).size() == 1);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::SISO))[2] == false);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::SIMO)).size() == 1);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::SIMO))[2] == false);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MISO)).size() == 1);
-    REQUIRE(combiner.m_InOutMap.at(static_cast<uint32_t>(dfs::InOutFormat::MISO))[2] == false);
 }
 
-TEST_CASE("IsPartInput", "[CombinerDFS]")
+TEST_CASE("IsPartInput and IsPartOutput", "[CombinerDFS]")
 {
     Graph graph;
     // Create graph:
@@ -328,10 +285,78 @@ TEST_CASE("IsPartInput", "[CombinerDFS]")
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
     REQUIRE(combiner.IsPartInput(*gOfParts.m_Parts.at(0).get()) == true);
+    REQUIRE(combiner.IsPartOutput(*gOfParts.m_Parts.at(0).get()) == false);
+
     REQUIRE(combiner.IsPartInput(*gOfParts.m_Parts.at(1).get()) == true);
+    REQUIRE(combiner.IsPartOutput(*gOfParts.m_Parts.at(1).get()) == false);
+
     REQUIRE(combiner.IsPartInput(*gOfParts.m_Parts.at(2).get()) == false);
+    REQUIRE(combiner.IsPartOutput(*gOfParts.m_Parts.at(2).get()) == false);
+
     REQUIRE(combiner.IsPartInput(*gOfParts.m_Parts.at(3).get()) == false);
+    REQUIRE(combiner.IsPartOutput(*gOfParts.m_Parts.at(3).get()) == true);
+
     REQUIRE(combiner.IsPartInput(*gOfParts.m_Parts.at(4).get()) == false);
+    REQUIRE(combiner.IsPartOutput(*gOfParts.m_Parts.at(4).get()) == true);
+}
+
+TEST_CASE("IsPartSo and IsPartMo", "[CombinerDFS]")
+{
+    Graph graph;
+    // Create graph:
+    //
+    //  A    E
+    //  |    |
+    //   - - C - D
+    //       |
+    //       B - F
+    //
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
+    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
+    NameOnlyNode* nodeE = graph.CreateAndAddNode<NameOnlyNode>("e");
+    NameOnlyNode* nodeF = graph.CreateAndAddNode<NameOnlyNode>("f");
+
+    graph.Connect(nodeA, nodeC, 0);
+    graph.Connect(nodeB, nodeC, 0);
+    graph.Connect(nodeB, nodeF, 0);
+    graph.Connect(nodeC, nodeD, 0);
+    graph.Connect(nodeC, nodeE, 0);
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    GraphOfParts gOfParts;
+    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeF }, estOpt, compOpt, hwCaps);
+
+    CheckPartId(gOfParts);
+
+    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+
+    REQUIRE(combiner.IsPartSo(*gOfParts.m_Parts.at(0).get()) == true);
+    REQUIRE(combiner.IsPartMo(*gOfParts.m_Parts.at(0).get()) == false);
+
+    REQUIRE(combiner.IsPartSo(*gOfParts.m_Parts.at(1).get()) == false);
+    REQUIRE(combiner.IsPartMo(*gOfParts.m_Parts.at(1).get()) == true);
+
+    REQUIRE(combiner.IsPartSo(*gOfParts.m_Parts.at(2).get()) == false);
+    REQUIRE(combiner.IsPartMo(*gOfParts.m_Parts.at(2).get()) == true);
+
+    REQUIRE(combiner.IsPartSo(*gOfParts.m_Parts.at(3).get()) == false);
+    REQUIRE(combiner.IsPartMo(*gOfParts.m_Parts.at(3).get()) == false);
+
+    REQUIRE(combiner.IsPartSo(*gOfParts.m_Parts.at(4).get()) == false);
+    REQUIRE(combiner.IsPartMo(*gOfParts.m_Parts.at(4).get()) == false);
+
+    REQUIRE(combiner.IsPartSo(*gOfParts.m_Parts.at(5).get()) == false);
+    REQUIRE(combiner.IsPartMo(*gOfParts.m_Parts.at(5).get()) == false);
 }
 
 /// Manually creates a Combination and then converts it to an OpGraph using GetOpGraphForCombination, and checking
@@ -742,4 +767,63 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
     // It has the correct tag
     REQUIRE(glueTest->m_Graph.GetOps()[0]->m_DebugTag == "DmaBC");
     REQUIRE(comb.m_Elems.at(partB.m_PartId).m_PlanId == planB.m_PlanId);
+}
+
+TEST_CASE("FindBestCombinationForPart cache", "[CombinerDFS]")
+{
+    Graph graph;
+    // Create graph:
+    //
+    //  A - B - C
+    //
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
+
+    graph.Connect(nodeA, nodeB, 0);
+    graph.Connect(nodeB, nodeC, 0);
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    GraphOfParts gOfParts;
+    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
+
+    CheckPartId(gOfParts);
+
+    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+
+    Part& partA = *gOfParts.m_Parts.at(0).get();
+    Part& partB = *gOfParts.m_Parts.at(1).get();
+    Part& partC = *gOfParts.m_Parts.at(2).get();
+
+    // Map is empty
+    REQUIRE(combiner.m_CombinationPerPartMap.size() == 0);
+    dfs::Combination comb = combiner.FindBestCombinationForPart(partA);
+    // Map has partA
+    REQUIRE(combiner.m_CombinationPerPartMap.size() == 1);
+    auto mapIt = combiner.m_CombinationPerPartMap.find(&partA);
+    REQUIRE(mapIt != combiner.m_CombinationPerPartMap.end());
+    comb = combiner.FindBestCombinationForPart(partA);
+    // Map has still only partA
+    REQUIRE(combiner.m_CombinationPerPartMap.size() == 1);
+    comb = combiner.FindBestCombinationForPart(partB);
+    // Map has partB
+    REQUIRE(combiner.m_CombinationPerPartMap.size() == 2);
+    mapIt = combiner.m_CombinationPerPartMap.find(&partB);
+    REQUIRE(mapIt != combiner.m_CombinationPerPartMap.end());
+    comb = combiner.FindBestCombinationForPart(partB);
+    // Map has still only partA and partB
+    REQUIRE(combiner.m_CombinationPerPartMap.size() == 2);
+    comb = combiner.FindBestCombinationForPart(partC);
+    // Map has partC
+    REQUIRE(combiner.m_CombinationPerPartMap.size() == 3);
+    mapIt = combiner.m_CombinationPerPartMap.find(&partC);
+    REQUIRE(mapIt != combiner.m_CombinationPerPartMap.end());
+    comb = combiner.FindBestCombinationForPart(partC);
+    // Map has still only partA, partB and partC
+    REQUIRE(combiner.m_CombinationPerPartMap.size() == 3);
 }

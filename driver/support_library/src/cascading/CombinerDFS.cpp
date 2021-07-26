@@ -21,101 +21,44 @@ namespace depth_first_search
 
 using namespace utils;
 
-bool Combiner::IsPartInput(const Part& part)
+bool Combiner::IsPartInput(const Part& part) const
 {
-    return (0 == part.m_SubGraph[0]->GetInputs().size());
+    return (0 == part.GetInputs().size());
 }
 
-template <InOutFormat format>
-bool Combiner::IsPartFormat(const Part& part)
+bool Combiner::IsPartOutput(const Part& part) const
 {
-    const PartId partId = part.m_PartId;
-
-    // Return cached result
-    uint32_t id = static_cast<uint32_t>(format);
-    auto mapIt  = m_InOutMap.at(id).find(partId);
-    if (mapIt != m_InOutMap.at(id).end())
-    {
-        return mapIt->second;
-    }
-
-    // Result is not cached
-    bool result;
-    switch (format)
-    {
-        case InOutFormat::SISO:
-            result = IsPartSisoImpl(part);
-            break;
-        case InOutFormat::SIMO:
-            result = IsPartSimoImpl(part);
-            break;
-        case InOutFormat::MISO:
-            result = IsPartMisoImpl(part);
-            break;
-        case InOutFormat::MIMO:
-            result = IsPartMimoImpl(part);
-            break;
-        default:
-            break;
-    }
-
-    // cache the result
-    m_InOutMap.at(id).insert(std::make_pair(partId, result));
-    if (result)
-    {
-        for (uint32_t index = 0; index < static_cast<uint32_t>(InOutFormat::NUM_INOUT_FORMATS); ++index)
-        {
-            if (index != id)
-            {
-                m_InOutMap.at(index).insert(std::make_pair(partId, false));
-            }
-        }
-    }
-    return result;
+    return (0 == part.GetOutputs().size());
 }
 
-bool Combiner::IsPartSisoImpl(const Part& part) const
+bool Combiner::IsPartSo(const Part& part) const
+{
+    return (part.GetOutputs().size() == 1);
+}
+
+bool Combiner::IsPartMo(const Part& part) const
+{
+    return (part.GetOutputs().size() > 1);
+}
+
+bool Combiner::IsPartSiso(const Part& part) const
 {
     return (part.GetInputs().size() == 1 && part.GetOutputs().size() == 1);
 }
 
-// Check if a part is Single Input Single Output.
-bool Combiner::IsPartSiso(const Part& part)
-{
-    return IsPartFormat<InOutFormat::SISO>(part);
-}
-
-bool Combiner::IsPartSimoImpl(const Part& part) const
+bool Combiner::IsPartSimo(const Part& part) const
 {
     return (part.GetInputs().size() == 1 && part.GetOutputs().size() > 1);
 }
 
-// Check if a part is Single Input Multiple Output.
-bool Combiner::IsPartSimo(const Part& part)
-{
-    return IsPartFormat<InOutFormat::SIMO>(part);
-}
-
-bool Combiner::IsPartMisoImpl(const Part& part) const
+bool Combiner::IsPartMiso(const Part& part) const
 {
     return (part.GetInputs().size() > 1 && part.GetOutputs().size() == 1);
 }
 
-// Check if a part is Multiple Input Single Output.
-bool Combiner::IsPartMiso(const Part& part)
-{
-    return IsPartFormat<InOutFormat::MISO>(part);
-}
-
-bool Combiner::IsPartMimoImpl(const Part& part) const
+bool Combiner::IsPartMimo(const Part& part) const
 {
     return (part.GetInputs().size() > 1 && part.GetOutputs().size() > 1);
-}
-
-// Check if a part is Multiple Input Multiple Output.
-bool Combiner::IsPartMimo(const Part& part)
-{
-    return IsPartFormat<InOutFormat::MIMO>(part);
 }
 
 const Part* Combiner::GetNextPart(const Part& part) const
@@ -260,7 +203,7 @@ Combination Combiner::ContinueSection(const Part& part, const Combination& comb,
     // End the current section and start a new one.
     // There is a single edge between the combination comb and
     // and the current part
-    Combination result = comb + FindBestCombinationsForPart(part);
+    Combination result = comb + FindBestCombinationForPart(part);
 
     if (IsPartSiso(part))
     {
@@ -326,18 +269,19 @@ Combination Combiner::ContinueSection(const Part& part, const Combination& comb,
 //      partN      ||    CombinationW
 //  -----------------------------------
 //
-// TODO: needs the caching wrapper
-Combination Combiner::FindBestCombinationsForPartImpl(const Part& part)
+Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
 {
     // This is going to be a new combination, so this
     // is empty initialized
     Combination result = {};
-    // There are four scenarios:
+    // There are some scenarios:
     //  - Part is Single Input Single Output i.e. SISO
     //  - Part is Single Input Multiple Output i.e. SIMO
     //  - Part is Multiple Input Multiple Output i.e. MIMO
     //  - Part is Multiple Input Sinlge Output i.e. MISO
-    if (IsPartSiso(part) || IsPartMiso(part))
+    //  - Part is Output i.e. no next part
+    //  - Part is Input i.e. SO or MO
+    if (IsPartSo(part))
     {
         // SISO and MISO are equivalent since what counts
         // is the number of output parts which in both cases
@@ -354,7 +298,18 @@ Combination Combiner::FindBestCombinationsForPartImpl(const Part& part)
     }
     else
     {
-        assert(IsPartSimo(part) || IsPartMimo(part));
+        // ContinueSection operates only on SISO parts
+        // so Output parts and Multiple Output parts
+        // cannot be merged for now
+
+        // Select best plan for the part
+        for (const auto& plan : part.m_Plans)
+        {
+            // Glue will be added later on
+            Combination head(part, *plan.get());
+            Combinations options = { result, head };
+            result               = GetBestCombination(options);
+        }
 
         // SIMO part:
         //
@@ -365,18 +320,17 @@ Combination Combiner::FindBestCombinationsForPartImpl(const Part& part)
         //
         // This part is a lonely one, it needs to start
         // as many new sections as the number of output parts
-        // TODO: Some of the ongoing sections might not be ended, the
-        //       recursion goes depth first and does not walk the parts
-        //       necessarily in a topological order that allows to end
-        //       all the input sections to a MIMO/MISO part. For exmaple
-        //       the input edge into a MISO part might come from a differnt
-        //       input of the whole graph. This should be handled when
-        //       merging sections?!?
+        // Some of the ongoing sections might not be ended, the
+        // recursion goes depth first and does not walk the parts
+        // necessarily in a topological order that allows to end
+        // all the input sections to a MIMO/MISO part. For exmaple
+        // the input edge into a MISO part might come from a differnt
+        // input of the whole graph. This should not be a concern
 
         for (const auto& destPart : GetDestinationParts(part))
         {
-            // TODO: operator "+" (or anything equivalent) should add the glue? for all the inputs?
-            result = result + FindBestCombinationsForPart(*destPart);
+            // Glue needs to be added here for each destination
+            result = result + FindBestCombinationForPart(*destPart);
         }
     }
     return result;
@@ -396,16 +350,26 @@ Combination Combiner::FindBestCombinationsForPartImpl(const Part& part)
 //      partN      ||    CombinationW
 //  -----------------------------------
 //
-Combination Combiner::FindBestCombinationsForPart(const Part& part)
+Combination Combiner::FindBestCombinationForPart(const Part& part)
 {
-    return FindBestCombinationsForPartImpl(part);
+    Combination result;
+    auto combIt = m_CombinationPerPartMap.find(&part);
+    if (combIt != m_CombinationPerPartMap.end())
+    {
+        result = combIt->second;
+    }
+    else
+    {
+        result = FindBestCombinationForPartImpl(part);
+        m_CombinationPerPartMap.insert(std::make_pair(&part, result));
+    }
+    return result;
 }
 
 Combiner::Combiner(const GraphOfParts& graphOfParts, const HardwareCapabilities& caps, const EstimationOptions& estOpt)
     : m_GraphOfParts(graphOfParts)
     , m_Caps(caps)
     , m_EstOpt(estOpt)
-    , m_InOutMap(static_cast<uint32_t>(InOutFormat::NUM_INOUT_FORMATS))
 {}
 
 void Combiner::Run()
@@ -418,7 +382,7 @@ void Combiner::Run()
             continue;
         }
         // Result combinations (each per input) can just be merged
-        m_BestCombination = m_BestCombination + FindBestCombinationsForPart(*part.get());
+        m_BestCombination = m_BestCombination + FindBestCombinationForPart(*part.get());
     }
 }
 

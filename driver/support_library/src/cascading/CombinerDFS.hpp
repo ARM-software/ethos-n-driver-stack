@@ -129,15 +129,6 @@ struct Combination
     Elems m_Elems;
 };
 
-enum class InOutFormat : uint8_t
-{
-    SISO = 0,
-    SIMO,
-    MISO,
-    MIMO,
-    NUM_INOUT_FORMATS
-};
-
 using Combinations = std::vector<Combination>;
 
 struct Combiner
@@ -146,19 +137,15 @@ struct Combiner
              const HardwareCapabilities& capabilities,
              const EstimationOptions& estOpt);
 
-    bool IsPartInput(const Part& part);
+    bool IsPartInput(const Part& part) const;
+    bool IsPartOutput(const Part& part) const;
 
-    bool IsPartSiso(const Part& part);
-    bool IsPartSisoImpl(const Part& part) const;
-
-    bool IsPartSimo(const Part& part);
-    bool IsPartSimoImpl(const Part& part) const;
-
-    bool IsPartMiso(const Part& part);
-    bool IsPartMisoImpl(const Part& part) const;
-
-    bool IsPartMimo(const Part& part);
-    bool IsPartMimoImpl(const Part& part) const;
+    bool IsPartSo(const Part& part) const;
+    bool IsPartMo(const Part& part) const;
+    bool IsPartSiso(const Part& part) const;
+    bool IsPartSimo(const Part& part) const;
+    bool IsPartMiso(const Part& part) const;
+    bool IsPartMimo(const Part& part) const;
 
     bool IsPlanMergeable(const Combination& comb, const Part& part, const Plan& plan);
     bool IsPlanMergeableImpl(const Combination& comb, const Part& part, const Plan& plan) const;
@@ -168,17 +155,14 @@ struct Combiner
 
     bool IsPlanAllocated(SramAllocator& alloc, const Combination& comb, const Part& part, const Plan& plan);
 
-    template <InOutFormat format>
-    bool IsPartFormat(const Part& part);
-
     Combination GetBestCombination() const;
     Combination GetBestCombination(Combinations& combs) const;
 
     const Part* GetNextPart(const Part& part) const;
     std::vector<const Part*> GetDestinationParts(const Part& part);
 
-    Combination FindBestCombinationsForPart(const Part& part);
-    Combination FindBestCombinationsForPartImpl(const Part& part);
+    Combination FindBestCombinationForPart(const Part& part);
+    Combination FindBestCombinationForPartImpl(const Part& part);
 
     Combination ContinueSection(const Part& part, const Combination& comb, const SramAllocator& alloc);
 
@@ -190,7 +174,7 @@ struct Combiner
 
     Combination m_BestCombination;
 
-    std::vector<std::map<const PartId, const bool>> m_InOutMap;
+    std::map<const Part*, const Combination> m_CombinationPerPartMap;
 };
 
 OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfParts& parts);
