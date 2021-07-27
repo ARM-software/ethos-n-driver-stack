@@ -360,7 +360,7 @@ public:
     bool IsPrepared() override;
     void Generate(command_stream::CommandStreamBuffer& cmdStream, BufferManager& bufferManager, bool dumpRam) override;
     DotAttributes GetDotAttributes() override;
-
+    bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
     void PrepareAfterPassAssignment(SramAllocator& sramAllocator) override;
 };
 

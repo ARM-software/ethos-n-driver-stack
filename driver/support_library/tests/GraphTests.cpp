@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -253,4 +253,125 @@ TEST_CASE("FixGraph InputNode -> ReinterpretNode -> OutputNode Adds CopyNode")
 
     REQUIRE(graph.GetNodes().size() == 4);
     REQUIRE(dynamic_cast<CopyNode*>(graph.GetNodes()[3].get()));
+}
+
+/// Checks that going from any Node to ReinterpretNode works fine when the Node before
+/// ReinterpretNode outputs in compressed format.
+/// Fix graph should set the CompressionHint for the node prior to ReinterpretNode
+/// to CompressionHint::RequiredUncompressed.
+TEST_CASE("FixGraph modifies CompressionHint for ReinterpretNode")
+{
+    // Create the graph
+    Graph graph;
+
+    Node* input = graph.CreateAndAddNode<InputNode>(
+        TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC), std::set<uint32_t>{ 0 });
+
+    Node* formatConversion = graph.CreateAndAddNode<FormatConversionNode>(
+        TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, QuantizationInfo(), CompilerDataFormat::NHWCB,
+        std::set<uint32_t>{ 0 });
+
+    ethosn::support_library::utils::ShapeMultiplier shapeMultiplier = { utils::Fraction{ 1, 1 },
+                                                                        utils::Fraction{ 1, 1 },
+                                                                        utils::Fraction{ 1, 1 } };
+    Node* fuseOnlyPleOperation                                      = graph.CreateAndAddNode<FuseOnlyPleOperationNode>(
+        TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, QuantizationInfo(),
+        ethosn::command_stream::PleOperation::SIGMOID, CompilerDataFormat::NHWCB, shapeMultiplier,
+        std::set<uint32_t>{ 1 });
+    fuseOnlyPleOperation->SetCompressedFormat(CompilerDataCompressedFormat::FCAF_WIDE);
+
+    Node* reinterpret0 =
+        graph.CreateAndAddNode<ReinterpretNode>(TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED,
+                                                QuantizationInfo(), CompilerDataFormat::NHWCB, std::set<uint32_t>{ 2 });
+    reinterpret0->SetCompressedFormat(CompilerDataCompressedFormat::FCAF_WIDE);
+
+    Node* reinterpret1 =
+        graph.CreateAndAddNode<ReinterpretNode>(TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED,
+                                                QuantizationInfo(), CompilerDataFormat::NHWCB, std::set<uint32_t>{ 3 });
+    reinterpret1->SetCompressedFormat(CompilerDataCompressedFormat::FCAF_WIDE);
+
+    graph.Connect(input, formatConversion);
+    graph.Connect(formatConversion, fuseOnlyPleOperation);
+    graph.Connect(fuseOnlyPleOperation, reinterpret0);
+    graph.Connect(reinterpret0, reinterpret1);
+
+    const FuseOnlyPleOperationNode* fuseOnlyPleNode =
+        dynamic_cast<const FuseOnlyPleOperationNode*>(graph.GetNodes()[2].get());
+    const ReinterpretNode* reinterpretNode0 = dynamic_cast<const ReinterpretNode*>(graph.GetNodes()[3].get());
+    const ReinterpretNode* reinterpretNode1 = dynamic_cast<const ReinterpretNode*>(graph.GetNodes()[4].get());
+
+    // Checks before fixing the graph
+    REQUIRE(fuseOnlyPleNode->GetCompressionHint() != CompressionHint::RequiredUncompressed);
+    REQUIRE(reinterpretNode0->GetCompressionHint() != CompressionHint::RequiredUncompressed);
+    REQUIRE(reinterpretNode1->GetCompressionHint() != CompressionHint::RequiredUncompressed);
+
+    // Fixing the node that outputs to 2nd ReinterpretNode
+    reinterpret1->FixGraph(graph, FixGraphSeverity::Highest);
+
+    REQUIRE(graph.GetNodes().size() == 5);
+    fuseOnlyPleNode  = dynamic_cast<const FuseOnlyPleOperationNode*>(graph.GetNodes()[2].get());
+    reinterpretNode0 = dynamic_cast<const ReinterpretNode*>(graph.GetNodes()[3].get());
+    reinterpretNode1 = dynamic_cast<const ReinterpretNode*>(graph.GetNodes()[4].get());
+
+    REQUIRE(fuseOnlyPleNode->GetCompressionHint() != CompressionHint::RequiredUncompressed);
+    REQUIRE(reinterpretNode0->GetCompressionHint() == CompressionHint::RequiredUncompressed);
+    REQUIRE(reinterpretNode1->GetCompressionHint() != CompressionHint::RequiredUncompressed);
+
+    // Fixing the node that outputs to 1st ReinterpretNode
+    reinterpret0->FixGraph(graph, FixGraphSeverity::Highest);
+
+    REQUIRE(graph.GetNodes().size() == 5);
+    fuseOnlyPleNode  = dynamic_cast<const FuseOnlyPleOperationNode*>(graph.GetNodes()[2].get());
+    reinterpretNode0 = dynamic_cast<const ReinterpretNode*>(graph.GetNodes()[3].get());
+    reinterpretNode1 = dynamic_cast<const ReinterpretNode*>(graph.GetNodes()[4].get());
+
+    REQUIRE(fuseOnlyPleNode->GetCompressionHint() == CompressionHint::RequiredUncompressed);
+    REQUIRE(reinterpretNode0->GetCompressionHint() == CompressionHint::RequiredUncompressed);
+    REQUIRE(reinterpretNode1->GetCompressionHint() != CompressionHint::RequiredUncompressed);
+}
+
+/// Checks that a ReinterpretNode is prepared only when the previous node's
+/// output is uncompressed.
+TEST_CASE("IsPrepared returns an appropriate bool value for ReinterpretNode")
+{
+    // Create the graph
+    Graph graph;
+
+    ethosn::support_library::utils::ShapeMultiplier shapeMultiplier = { utils::Fraction{ 1, 1 },
+                                                                        utils::Fraction{ 1, 1 },
+                                                                        utils::Fraction{ 1, 1 } };
+    Node* fuseOnlyPleOperation                                      = graph.CreateAndAddNode<FuseOnlyPleOperationNode>(
+        TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, QuantizationInfo(),
+        ethosn::command_stream::PleOperation::SIGMOID, CompilerDataFormat::NHWCB, shapeMultiplier,
+        std::set<uint32_t>{ 1 });
+    fuseOnlyPleOperation->SetCompressedFormat(CompilerDataCompressedFormat::FCAF_WIDE);
+
+    Node* reinterpret0 =
+        graph.CreateAndAddNode<ReinterpretNode>(TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED,
+                                                QuantizationInfo(), CompilerDataFormat::NHWCB, std::set<uint32_t>{ 2 });
+    reinterpret0->SetCompressedFormat(CompilerDataCompressedFormat::FCAF_WIDE);
+
+    Node* reinterpret1 =
+        graph.CreateAndAddNode<ReinterpretNode>(TensorShape{ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED,
+                                                QuantizationInfo(), CompilerDataFormat::NHWCB, std::set<uint32_t>{ 3 });
+    reinterpret1->SetCompressedFormat(CompilerDataCompressedFormat::FCAF_WIDE);
+
+    graph.Connect(fuseOnlyPleOperation, reinterpret0);
+    graph.Connect(reinterpret0, reinterpret1);
+
+    REQUIRE(!graph.GetNodes()[1].get()->IsPrepared());
+    REQUIRE(!graph.GetNodes()[2].get()->IsPrepared());
+
+    // Mimicking the effect of changing the first ReinterpretNode's previous node's output from
+    // compressed to an uncompressed format.
+    graph.GetNodes()[0].get()->SetCompressedFormat(CompilerDataCompressedFormat::NONE);
+
+    REQUIRE(graph.GetNodes()[1].get()->IsPrepared());
+    REQUIRE(!graph.GetNodes()[2].get()->IsPrepared());
+
+    // Mimicking the effect of changing the second ReinterpretNode's previous node's output from
+    // compressed to an uncompressed format.
+    graph.GetNodes()[1].get()->SetCompressedFormat(CompilerDataCompressedFormat::NONE);
+    REQUIRE(graph.GetNodes()[1].get()->IsPrepared());
+    REQUIRE(graph.GetNodes()[2].get()->IsPrepared());
 }

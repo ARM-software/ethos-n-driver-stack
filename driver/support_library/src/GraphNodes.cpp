@@ -632,6 +632,19 @@ ReinterpretNode::ReinterpretNode(NodeId id,
 
 bool ReinterpretNode::IsPrepared()
 {
+    // Currently, the input to ReinterpretNode must be uncompressed because
+    // output quantization info used for ReinterpretQuantization is used
+    // from user-provided Network. This information is based on uncompressed data.
+    // But if the data is compressed its zero point changes which results
+    // into wrong results as the original input quant info might not be same as the
+    // compressed input quant info which can result into wrong output generation
+    // by ReinterpretNode.
+    // Therefore, it has to be ensured that compression and decomression happen
+    // with same zero point.
+    if (GetInput(0)->GetSource()->GetCompressed())
+    {
+        return false;
+    }
     return true;
 }
 
@@ -645,6 +658,13 @@ void ReinterpretNode::Generate(command_stream::CommandStreamBuffer& cmdStream,
     {
         uint32_t bufferId = GetInput(0)->GetSource()->GetBufferId();
 
+        // Setting the same compression format as the input because
+        // this extra information is essential to comprehend the
+        // input data in correct compressed format.
+        // Although, currently, we don't support compressed input
+        // to a ReinterpretNode.
+        SetCompressedFormat(GetInputCompressedFormat(0));
+
         // Map this node's output buffer to the same as its input
         SetBufferId(bufferId);
 
@@ -656,6 +676,21 @@ void ReinterpretNode::Generate(command_stream::CommandStreamBuffer& cmdStream,
             bufferManager.ChangeBufferAlignment(bufferId, g_NhwcbBufferAlignment);
         }
     }
+}
+
+bool ReinterpretNode::FixGraph(Graph& graph, FixGraphSeverity severity)
+{
+    bool changed = Node::FixGraph(graph, severity);
+
+    if (GetInput(0)->GetSource()->GetCompressionHint() != CompressionHint::RequiredUncompressed)
+    {
+        // This sets the hints for previous node such that the ReinterpretNode always receives
+        // uncompressed inputs.
+        GetInput(0)->GetSource()->SetCompressionHint(CompressionHint::RequiredUncompressed);
+        changed = true;
+    }
+
+    return changed;
 }
 
 DotAttributes ReinterpretNode::GetDotAttributes()
