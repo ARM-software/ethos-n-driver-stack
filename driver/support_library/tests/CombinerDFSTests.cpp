@@ -599,3 +599,91 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
 
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[6]).size() == 0);
 }
+
+TEST_CASE("GetNextPart", "[CombinerDFS]")
+{
+    Graph graph;
+    /* Create graph:
+
+      A - B - C - D
+
+    */
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
+    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
+
+    graph.Connect(nodeA, nodeB, 0);
+    graph.Connect(nodeB, nodeC, 0);
+    graph.Connect(nodeC, nodeD, 0);
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    GraphOfParts gOfParts;
+    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
+
+    size_t count = 0;
+    for (auto&& p : gOfParts.m_Parts)
+    {
+        REQUIRE(p->m_PartId == count);
+        ++count;
+    }
+
+    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+
+    REQUIRE(combiner.GetNextPart(*gOfParts.m_Parts.at(0).get()) == gOfParts.m_Parts.at(1).get());
+    REQUIRE(combiner.GetNextPart(*gOfParts.m_Parts.at(1).get()) == gOfParts.m_Parts.at(2).get());
+    REQUIRE(combiner.GetNextPart(*gOfParts.m_Parts.at(2).get()) == gOfParts.m_Parts.at(3).get());
+    REQUIRE(combiner.GetNextPart(*gOfParts.m_Parts.at(3).get()) == nullptr);
+}
+
+TEST_CASE("GetDestinationParts", "[CombinerDFS]")
+{
+    Graph graph;
+    /* Create graph:
+             C
+            /
+      A - B - D
+
+    */
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
+    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
+
+    graph.Connect(nodeA, nodeB, 0);
+    graph.Connect(nodeB, nodeC, 0);
+    graph.Connect(nodeB, nodeD, 0);
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    GraphOfParts gOfParts;
+    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
+
+    size_t count = 0;
+    for (auto&& p : gOfParts.m_Parts)
+    {
+        REQUIRE(p->m_PartId == count);
+        ++count;
+    }
+
+    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+
+    REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(0).get()).size() == 1);
+    REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(0).get()).at(0) == gOfParts.m_Parts.at(1).get());
+    REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(1).get()).size() == 2);
+    REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(1).get()).at(0) == gOfParts.m_Parts.at(2).get());
+    REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(1).get()).at(1) == gOfParts.m_Parts.at(3).get());
+    REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(2).get()).size() == 0);
+    REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(3).get()).size() == 0);
+}

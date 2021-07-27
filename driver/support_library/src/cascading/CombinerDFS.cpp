@@ -120,13 +120,51 @@ bool Combiner::IsPartMimo(const Part& part)
 
 const Part* Combiner::GetNextPart(const Part& part) const
 {
-    return &part;
+    // Sanity check. This function only supports the
+    // use cases SISO, input and ouput parts required
+    // in this file.
+    assert(part.GetInputs().size() <= 1 && part.GetOutputs().size() <= 1);
+
+    // It is an output part
+    if (part.GetOutputs().size() == 0)
+    {
+        return nullptr;
+    }
+
+    // output edge of this part
+    const Edge* edge = part.GetOutputs().at(0);
+
+    // Find the next part that takes the output edge as its input
+    InPart nextPart = m_GraphOfParts.GetInputPart(*edge);
+
+    if (nextPart.first)
+    {
+        PartId id = nextPart.second;
+        return &(m_GraphOfParts.GetPart(id));
+    }
+    else
+    {
+        return nullptr;
+    }
 }
 
 std::vector<const Part*> Combiner::GetDestinationParts(const Part& part)
 {
-    ETHOSN_UNUSED(part);
     std::vector<const Part*> result;
+
+    std::vector<const Edge*> outputEdges = part.GetOutputs();
+
+    for (auto& edge : outputEdges)
+    {
+        InPart nextPart = m_GraphOfParts.GetInputPart(*edge);
+
+        if (nextPart.first)
+        {
+            PartId id = nextPart.second;
+            result.push_back(&(m_GraphOfParts.GetPart(id)));
+        }
+    }
+
     return result;
 }
 
