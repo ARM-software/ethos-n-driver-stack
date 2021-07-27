@@ -400,16 +400,6 @@ std::string GetBufferString(Buffer* buffer)
     return stream.str();
 }
 
-std::string GetCombinationString(const Combination* comb)
-{
-    std::stringstream stream;
-    stream << "\n";
-    stream << "Current Part ID = " << std::to_string(comb->m_Scratch.m_CurrPartId) << "\n";
-    stream << "Allocated Sram = " << std::to_string(comb->m_Scratch.m_AllocatedSram) << "\n";
-    stream << "Score = " << std::to_string(comb->m_Scratch.m_Score) << "\n";
-    return stream.str();
-}
-
 DotAttributes GetDotAttributes(Op* op, DetailLevel detailLevel)
 {
     DotAttributes result;
@@ -470,18 +460,6 @@ DotAttributes GetDotAttributes(const Plan* plan, DetailLevel)
     DotAttributes result;
     result.m_Id    = SanitizeId(plan->m_DebugTag);
     result.m_Label = plan->m_DebugTag;
-    return result;
-}
-
-DotAttributes GetDotAttributes(const Combination* comb, DetailLevel)
-{
-    DotAttributes result;
-
-    std::stringstream label;
-    label << "Scratch";
-    label << GetCombinationString(comb);
-    result.m_Label = label.str();
-
     return result;
 }
 
@@ -1221,12 +1199,6 @@ void SaveCombinationToDot(const Combination& combination,
     stream << "{"
            << "\n";
 
-    // Save Scratch at the top
-    DotAttributes attr = GetDotAttributes(&combination, detailLevel);
-    DumpSubgraphHeaderToDotFormat(attr, stream);
-    stream << "{"
-           << "\n";
-
     NodeIds nodeIds;
     std::unordered_map<const Edge*, std::string> edgeInputs;
 
@@ -1236,7 +1208,7 @@ void SaveCombinationToDot(const Combination& combination,
         const Plan& plan = part.GetPlan(elem.m_PlanId);
 
         // Save Plans as isolated subgraph
-        attr = GetDotAttributes(&plan, detailLevel);
+        DotAttributes attr = GetDotAttributes(&plan, detailLevel);
         DumpSubgraphHeaderToDotFormat(attr, stream);
         NodeIds newNodeIds = SaveOpGraphAsBody(plan.m_OpGraph, stream, detailLevel);
         nodeIds.insert(newNodeIds.begin(), newNodeIds.end());
@@ -1292,10 +1264,6 @@ void SaveCombinationToDot(const Combination& combination,
         }
     }
 
-    stream << "}"
-           << "\n";
-    stream << "}"
-           << "\n";
     stream << "}"
            << "\n";
 }

@@ -8,8 +8,6 @@
 #include "Part.hpp"
 #include "Plan.hpp"
 
-#include <map>
-
 namespace ethosn
 {
 namespace support_library
@@ -35,31 +33,10 @@ struct Glue
 /// A single element in a combination
 struct Elem
 {
-    struct Link
-    {
-        PlanId m_Id;
-        const Glue* m_Glue;
-    };
-    using Glues = std::unordered_map<const Edge*, Link>;
+    using Glues = std::map<const Edge*, const Glue*>;
 
-    PartId m_PartId;
     PlanId m_PlanId;
     Glues m_Glues;
-};
-
-struct Scratch
-{
-    using Indexes = std::unordered_map<PartId, size_t>;
-    using Dst     = std::vector<const Edge*>;
-    using Edges   = std::unordered_map<PartId, Dst>;
-
-    uint32_t m_AllocatedSram;
-
-    Indexes m_Idx;
-    Edges m_Edges;
-    PartId m_CurrPartId;
-
-    size_t m_Score = 0;
 };
 
 struct Combination
@@ -69,7 +46,7 @@ struct Combination
 
     Combination(const Part& part, const Plan& plan)
     {
-        m_Elems.push_back({ part.m_PartId, plan.m_PlanId, {} });
+        m_Elems.insert(std::make_pair(part.m_PartId, Elem{ plan.m_PlanId, {} }));
     }
 
     Combination operator+(const Combination& rhs) const
@@ -77,7 +54,7 @@ struct Combination
         return rhs;
     }
 
-    using Elems          = std::vector<Elem>;
+    using Elems          = std::map<PartId, Elem>;
     Combination& operator=(const Combination& c) = default;
 
     /// Helpers
@@ -86,11 +63,6 @@ struct Combination
     {
         return m_Elems.size();
     }
-    /// @}
-
-    /// Scratch
-    /// @{
-    Scratch m_Scratch;
     /// @}
 
     Elems m_Elems;

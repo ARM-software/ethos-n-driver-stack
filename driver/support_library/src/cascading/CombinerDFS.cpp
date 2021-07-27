@@ -403,10 +403,10 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
 
     // Add each Elem, one at a time. It is assumed that these are toplogically sorted, so we can assume that all
     // parts used as input to each part have already been processed.
-    for (const Elem& elem : combination.m_Elems)
+    for (auto& elemIt : combination.m_Elems)
     {
-        const Part& part = parts.GetPart(elem.m_PartId);
-        const Plan& plan = part.GetPlan(elem.m_PlanId);
+        const Part& part = parts.GetPart(elemIt.first);
+        const Plan& plan = part.GetPlan(elemIt.second.m_PlanId);
 
         // Add any glues for each incoming edge of this Part, and remember which Op we will need to connect the plan's
         // input buffers to
@@ -524,10 +524,10 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
             for (Edge* outputEdge : output.second->GetOutputs())
             {
                 edgeConnectionBuffers[outputEdge] = output.first;
-                auto glueIt                       = elem.m_Glues.find(outputEdge);
-                if (glueIt != elem.m_Glues.end() && !glueIt->second.m_Glue->m_Graph.GetOps().empty())
+                auto glueIt                       = elemIt.second.m_Glues.find(outputEdge);
+                if (glueIt != elemIt.second.m_Glues.end() && !glueIt->second->m_Graph.GetOps().empty())
                 {
-                    glues[outputEdge] = glueIt->second.m_Glue;
+                    glues[outputEdge] = glueIt->second;
                 }
             }
         }

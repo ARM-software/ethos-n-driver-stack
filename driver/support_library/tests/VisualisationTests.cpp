@@ -860,10 +860,6 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
 
     // Create Combination with all the plans and glues
     Combination comb;
-    comb.m_Scratch.m_CurrPartId    = 1;
-    comb.m_Scratch.m_AllocatedSram = 2;
-    comb.m_Scratch.m_Score         = 3;
-
     Elem elemA  = { 0, 0, { { nodeB->GetInput(0), { 0, &glueA_BC } } } };
     Elem elemBC = { 1, 0, {} };
     Elem elemDE = { 2,
@@ -893,11 +889,6 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
 
     std::string expected =
         R"(digraph SupportLibraryGraph
-{
-subgraph cluster
-{
-label="Scratch\nCurrent Part ID = 1\nAllocated Sram = 2\nScore = 3\n"
-labeljust=l
 {
 subgraph clusterPlan_1
 {
@@ -977,8 +968,6 @@ OutputDram3[label = "OutputDram3", shape = box, color = brown]
 }
 OutputDma2 -> OutputDram2
 OutputDma3 -> OutputDram3
-}
-}
 }
 )";
 
