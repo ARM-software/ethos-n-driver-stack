@@ -34,6 +34,16 @@ void AddNodesToPart(GraphOfParts& gOfParts,
     }
 }
 
+void CheckPartId(GraphOfParts& gOfParts)
+{
+    size_t count = 0;
+    for (auto&& p : gOfParts.m_Parts)
+    {
+        REQUIRE(p->m_PartId == count);
+        ++count;
+    }
+}
+
 }    // namespace
 
 /// Simple Node type for tests.
@@ -68,15 +78,14 @@ public:
 TEST_CASE("IsPartSiso", "[CombinerDFS]")
 {
     Graph graph;
-    /* Create graph:
-
-                  D
-                 /
-        A - B - C
-                 \
-                  E
-
-    */
+    // Create graph:
+    //
+    //          D
+    //          |
+    //  A - B - C
+    //          |
+    //          E
+    //
     NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
     NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
     NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
@@ -99,12 +108,7 @@ TEST_CASE("IsPartSiso", "[CombinerDFS]")
     AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
     AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);
 
-    size_t count = 0;
-    for (auto&& p : gOfParts.m_Parts)
-    {
-        REQUIRE(p->m_PartId == count);
-        ++count;
-    }
+    CheckPartId(gOfParts);
 
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
@@ -128,15 +132,14 @@ TEST_CASE("IsPartSiso", "[CombinerDFS]")
 TEST_CASE("IsPartSimo", "[CombinerDFS]")
 {
     Graph graph;
-    /* Create graph:
-
-                  D
-                 /
-        A - B - C
-                 \
-                  E
-
-    */
+    // Create graph:
+    //
+    //          D
+    //          |
+    //  A - B - C
+    //          |
+    //          E
+    //
     NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
     NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
     NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
@@ -159,12 +162,7 @@ TEST_CASE("IsPartSimo", "[CombinerDFS]")
     AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
     AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);
 
-    size_t count = 0;
-    for (auto&& p : gOfParts.m_Parts)
-    {
-        REQUIRE(p->m_PartId == count);
-        ++count;
-    }
+    CheckPartId(gOfParts);
 
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
@@ -189,15 +187,14 @@ TEST_CASE("IsPartSimo", "[CombinerDFS]")
 TEST_CASE("IsPartMiso", "[CombinerDFS]")
 {
     Graph graph;
-    /* Create graph:
-
-      A
-       \
-        C - D
-       /
-      B
-
-    */
+    // Create graph:
+    //
+    //  A
+    //  |
+    //  C - D
+    //  |
+    //  B
+    //
     NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
     NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
     NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
@@ -217,12 +214,7 @@ TEST_CASE("IsPartMiso", "[CombinerDFS]")
     AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
     AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
 
-    size_t count = 0;
-    for (auto&& p : gOfParts.m_Parts)
-    {
-        REQUIRE(p->m_PartId == count);
-        ++count;
-    }
+    CheckPartId(gOfParts);
 
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
@@ -246,15 +238,14 @@ TEST_CASE("IsPartMiso", "[CombinerDFS]")
 TEST_CASE("IsPartMimo", "[CombinerDFS]")
 {
     Graph graph;
-    /* Create graph:
-
-      A   D
-       \ /
-        C
-       / \
-      B   E
-
-    */
+    // Create graph:
+    //
+    //  A    E
+    //  |    |
+    //   - - C - D
+    //       |
+    //       B
+    //
     NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
     NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
     NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
@@ -277,12 +268,7 @@ TEST_CASE("IsPartMimo", "[CombinerDFS]")
     AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
     AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);
 
-    size_t count = 0;
-    for (auto&& p : gOfParts.m_Parts)
-    {
-        REQUIRE(p->m_PartId == count);
-        ++count;
-    }
+    CheckPartId(gOfParts);
 
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
@@ -307,15 +293,14 @@ TEST_CASE("IsPartMimo", "[CombinerDFS]")
 TEST_CASE("IsPartInput", "[CombinerDFS]")
 {
     Graph graph;
-    /* Create graph:
-
-      A   D
-       \ /
-        C
-       / \
-      B   E
-
-    */
+    // Create graph:
+    //
+    //  A    E
+    //  |    |
+    //   - - C - D
+    //       |
+    //       B
+    //
     NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
     NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
     NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
@@ -338,12 +323,7 @@ TEST_CASE("IsPartInput", "[CombinerDFS]")
     AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
     AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);
 
-    size_t count = 0;
-    for (auto&& p : gOfParts.m_Parts)
-    {
-        REQUIRE(p->m_PartId == count);
-        ++count;
-    }
+    CheckPartId(gOfParts);
 
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
@@ -603,11 +583,10 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
 TEST_CASE("GetNextPart", "[CombinerDFS]")
 {
     Graph graph;
-    /* Create graph:
-
-      A - B - C - D
-
-    */
+    // Create graph:
+    //
+    //   A - B - C - D
+    //
     NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
     NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
     NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
@@ -627,12 +606,7 @@ TEST_CASE("GetNextPart", "[CombinerDFS]")
     AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
     AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
 
-    size_t count = 0;
-    for (auto&& p : gOfParts.m_Parts)
-    {
-        REQUIRE(p->m_PartId == count);
-        ++count;
-    }
+    CheckPartId(gOfParts);
 
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
@@ -645,12 +619,12 @@ TEST_CASE("GetNextPart", "[CombinerDFS]")
 TEST_CASE("GetDestinationParts", "[CombinerDFS]")
 {
     Graph graph;
-    /* Create graph:
-             C
-            /
-      A - B - D
-
-    */
+    // Create graph:
+    //
+    //       C
+    //       |
+    //   A - B - D
+    //
     NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
     NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
     NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
@@ -670,12 +644,7 @@ TEST_CASE("GetDestinationParts", "[CombinerDFS]")
     AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
     AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
 
-    size_t count = 0;
-    for (auto&& p : gOfParts.m_Parts)
-    {
-        REQUIRE(p->m_PartId == count);
-        ++count;
-    }
+    CheckPartId(gOfParts);
 
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
@@ -686,4 +655,91 @@ TEST_CASE("GetDestinationParts", "[CombinerDFS]")
     REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(1).get()).at(1) == gOfParts.m_Parts.at(3).get());
     REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(2).get()).size() == 0);
     REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(3).get()).size() == 0);
+}
+
+TEST_CASE("Combination operator+", "[CombinerDFS]")
+{
+    Graph graph;
+    // Create graph:
+    //
+    //  A - B - C
+    //
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
+
+    graph.Connect(nodeA, nodeB, 0);
+    graph.Connect(nodeB, nodeC, 0);
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    GraphOfParts gOfParts;
+    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
+
+    CheckPartId(gOfParts);
+
+    Part& partA = *gOfParts.m_Parts.at(0).get();
+    Part& partB = *gOfParts.m_Parts.at(1).get();
+    Part& partC = *gOfParts.m_Parts.at(2).get();
+
+    Plan planA(0);
+    Plan planB(1);
+    Plan planC(2);
+
+    dfs::Combination combA(partA, planA);
+    dfs::Combination combB(partB, planB);
+    dfs::Combination combC(partC, planC);
+
+    REQUIRE(combA.m_Elems.size() == 1);
+    REQUIRE(combB.m_Elems.size() == 1);
+    REQUIRE(combC.m_Elems.size() == 1);
+
+    dfs::Combination comb;
+    REQUIRE(comb.m_Elems.size() == 0);
+
+    comb = combA + combB + combC;
+    REQUIRE(comb.m_Elems.size() == 3);
+    // All parts are in the final combination
+    for (size_t i = 0; i < gOfParts.m_Parts.size(); ++i)
+    {
+        Part& part = *gOfParts.m_Parts.at(i).get();
+        REQUIRE(comb.m_Elems.find(part.m_PartId) != comb.m_Elems.end());
+    }
+
+    // Nothing changes if combA is added again
+    comb = comb + combA;
+    REQUIRE(comb.m_Elems.size() == 3);
+
+    // There is no glue
+    for (size_t i = 0; i < gOfParts.m_Parts.size(); ++i)
+    {
+        Part& part = *gOfParts.m_Parts.at(i).get();
+        for (auto& glueIt : comb.m_Elems.at(part.m_PartId).m_Glues)
+        {
+            REQUIRE(glueIt.second == nullptr);
+        }
+    }
+
+    // Simple glue between B and C
+    dfs::Glue glueB_C;
+    glueB_C.m_Graph.AddOp(std::make_unique<DmaOp>());
+    glueB_C.m_Graph.GetOps()[0]->m_DebugTag = "DmaBC";
+    glueB_C.m_InputSlot                     = { glueB_C.m_Graph.GetOps()[0], 0 };
+    glueB_C.m_Output                        = glueB_C.m_Graph.GetOps()[0];
+
+    dfs::Combination combBGlue(partB, nodeC->GetInput(0), &glueB_C);
+
+    comb = comb + combBGlue;
+    // Number of elemnts didn't change
+    REQUIRE(comb.m_Elems.size() == 3);
+    // Glue has been added
+    REQUIRE(comb.m_Elems.at(partB.m_PartId).m_Glues.size() == 1);
+    const dfs::Glue* glueTest = comb.m_Elems.at(partB.m_PartId).m_Glues.at(nodeC->GetInput(0));
+    // It has the correct tag
+    REQUIRE(glueTest->m_Graph.GetOps()[0]->m_DebugTag == "DmaBC");
+    REQUIRE(comb.m_Elems.at(partB.m_PartId).m_PlanId == planB.m_PlanId);
 }

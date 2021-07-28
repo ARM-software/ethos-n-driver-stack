@@ -67,7 +67,8 @@ bool IsCompressed(CascadingBufferFormat format);
 class Buffer;
 class Op;
 
-using PlanId = size_t;
+using PlanId                     = size_t;
+constexpr PlanId g_InvalidPlanId = static_cast<PlanId>(-1);
 
 /// A graph of connected Ops and Buffers.
 ///

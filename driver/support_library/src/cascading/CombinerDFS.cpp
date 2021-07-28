@@ -257,7 +257,9 @@ Combination Combiner::GetBestCombination() const
 //    in the seciton take up all the memory
 Combination Combiner::ContinueSection(const Part& part, const Combination& comb, const SramAllocator& alloc)
 {
-    // End the current section and start a new one
+    // End the current section and start a new one.
+    // There is a single edge between the combination comb and
+    // and the current part
     Combination result = comb + FindBestCombinationsForPart(part);
 
     if (IsPartSiso(part))
@@ -296,7 +298,9 @@ Combination Combiner::ContinueSection(const Part& part, const Combination& comb,
                 continue;
             }
 
-            // Add current part and plan to the combination
+            // Add current part and plan to the combination,
+            // no glue is required. Current part is SISO and
+            // has a single input/output
             Combination section = comb + Combination(part, *plan.get());
             // Options to be estimated
             Combinations options = { result, ContinueSection(nextPart, section, tempAlloc) };
@@ -369,10 +373,10 @@ Combination Combiner::FindBestCombinationsForPartImpl(const Part& part)
         //       input of the whole graph. This should be handled when
         //       merging sections?!?
 
-        for (const auto& part : GetDestinationParts(part))
+        for (const auto& destPart : GetDestinationParts(part))
         {
             // TODO: operator "+" (or anything equivalent) should add the glue? for all the inputs?
-            result = result + FindBestCombinationsForPart(*part);
+            result = result + FindBestCombinationsForPart(*destPart);
         }
     }
     return result;
@@ -413,10 +417,17 @@ void Combiner::Run()
         {
             continue;
         }
+        // Result combinations (each per input) can just be merged
         m_BestCombination = m_BestCombination + FindBestCombinationsForPart(*part.get());
     }
 }
 
+// Take in input a combination and generate an OpGraph.
+// This is used in:
+//  - Combiner logic:   it needs to estimate the combination and this is done on an
+//                      OpGraph in order to select the best combination between two
+//                      or more
+//  - Estimation logic: it can only estimate OpGraphs and not raw combinations.
 OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfParts& parts)
 {
     OpGraph result;

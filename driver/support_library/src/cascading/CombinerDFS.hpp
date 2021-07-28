@@ -44,14 +44,75 @@ struct Combination
     Combination()
     {}
 
+    // Create a combination with a single element without any edge/glue information
     Combination(const Part& part, const Plan& plan)
+        : Combination(part, plan, nullptr, nullptr)
+    {}
+
+    // Create a combination with a single element without plan information,
+    // this is used when updating edge/glue information for a part with
+    // multiple outputs where the plan has been already selected and
+    // won't be changed when merging combinations
+    Combination(const Part& part, const Edge* edge, const Glue* glue)
+        : Combination(part, g_InvalidPlanId, edge, glue)
+    {}
+
+    // Create a combination with a single element with edge/glue information,
+    // if no edge/glue information is provided (e.g. nullptr) the combination
+    // will consider the case where no glue is required on any output edge of
+    // the part
+    Combination(const Part& part, const Plan& plan, const Edge* edge, const Glue* glue)
     {
-        m_Elems.insert(std::make_pair(part.m_PartId, Elem{ plan.m_PlanId, {} }));
+        // Create a new element
+        Elem elem = { plan.m_PlanId, {} };
+        // Insert glue value (it can be null if no glue is required)
+        // if a valid edge is provided
+        if (edge)
+        {
+            elem.m_Glues.insert(std::make_pair(edge, glue));
+        }
+        else
+        {
+            // Consider no glue on all the output edges (i.e. mergeable)
+            for (auto& edge : part.GetOutputs())
+            {
+                elem.m_Glues.insert(std::make_pair(edge, nullptr));
+            }
+        }
+        m_Elems.insert(std::make_pair(part.m_PartId, elem));
     }
 
     Combination operator+(const Combination& rhs) const
     {
-        return rhs;
+        Combination result = *this;
+        for (auto& rhsElemIt : rhs.m_Elems)
+        {
+            auto resultElemIt = result.m_Elems.find(rhsElemIt.first);
+            if (resultElemIt != result.m_Elems.end())
+            {
+                assert(resultElemIt->second.m_PlanId == rhsElemIt.second.m_PlanId ||
+                       rhsElemIt.second.m_PlanId == g_InvalidPlanId);
+                for (auto& glueIt : rhsElemIt.second.m_Glues)
+                {
+                    auto edgeIt = resultElemIt->second.m_Glues.find(glueIt.first);
+                    if (edgeIt != resultElemIt->second.m_Glues.end())
+                    {
+                        // Take the glue value of rhs
+                        edgeIt->second = glueIt.second;
+                    }
+                    else
+                    {
+                        // Add edge/glue information
+                        resultElemIt->second.m_Glues.insert(glueIt);
+                    }
+                }
+            }
+            else
+            {
+                result.m_Elems.insert(rhsElemIt);
+            }
+        }
+        return result;
     }
 
     using Elems          = std::map<PartId, Elem>;
