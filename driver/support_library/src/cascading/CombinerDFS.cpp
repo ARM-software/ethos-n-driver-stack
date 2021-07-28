@@ -29,60 +29,93 @@ bool Combiner::IsPartInput(const Part& part)
 template <InOutFormat format>
 bool Combiner::IsPartFormat(const Part& part)
 {
-    ETHOSN_UNUSED(part);
-    return false;
+    const PartId partId = part.m_PartId;
+
+    // Return cached result
+    uint32_t id = static_cast<uint32_t>(format);
+    auto mapIt  = m_InOutMap.at(id).find(partId);
+    if (mapIt != m_InOutMap.at(id).end())
+    {
+        return mapIt->second;
+    }
+
+    // Result is not cached
+    bool result;
+    switch (format)
+    {
+        case InOutFormat::SISO:
+            result = IsPartSisoImpl(part);
+            break;
+        case InOutFormat::SIMO:
+            result = IsPartSimoImpl(part);
+            break;
+        case InOutFormat::MISO:
+            result = IsPartMisoImpl(part);
+            break;
+        case InOutFormat::MIMO:
+            result = IsPartMimoImpl(part);
+            break;
+        default:
+            break;
+    }
+
+    // cache the result
+    m_InOutMap.at(id).insert(std::make_pair(partId, result));
+    if (result)
+    {
+        for (uint32_t index = 0; index < static_cast<uint32_t>(InOutFormat::NUM_INOUT_FORMATS); ++index)
+        {
+            if (index != id)
+            {
+                m_InOutMap.at(index).insert(std::make_pair(partId, false));
+            }
+        }
+    }
+    return result;
 }
 
 bool Combiner::IsPartSisoImpl(const Part& part) const
 {
-    ETHOSN_UNUSED(part);
-    return false;
+    return (part.GetInputs().size() == 1 && part.GetOutputs().size() == 1);
 }
 
 // Check if a part is Single Input Single Output.
 bool Combiner::IsPartSiso(const Part& part)
 {
-    ETHOSN_UNUSED(part);
-    return false;
+    return IsPartFormat<InOutFormat::SISO>(part);
 }
 
 bool Combiner::IsPartSimoImpl(const Part& part) const
 {
-    ETHOSN_UNUSED(part);
-    return false;
+    return (part.GetInputs().size() == 1 && part.GetOutputs().size() > 1);
 }
 
 // Check if a part is Single Input Multiple Output.
 bool Combiner::IsPartSimo(const Part& part)
 {
-    ETHOSN_UNUSED(part);
-    return false;
+    return IsPartFormat<InOutFormat::SIMO>(part);
 }
 
 bool Combiner::IsPartMisoImpl(const Part& part) const
 {
-    ETHOSN_UNUSED(part);
-    return false;
+    return (part.GetInputs().size() > 1 && part.GetOutputs().size() == 1);
 }
 
 // Check if a part is Multiple Input Single Output.
 bool Combiner::IsPartMiso(const Part& part)
 {
-    ETHOSN_UNUSED(part);
-    return false;
+    return IsPartFormat<InOutFormat::MISO>(part);
 }
 
 bool Combiner::IsPartMimoImpl(const Part& part) const
 {
-    ETHOSN_UNUSED(part);
-    return false;
+    return (part.GetInputs().size() > 1 && part.GetOutputs().size() > 1);
 }
 
 // Check if a part is Multiple Input Multiple Output.
 bool Combiner::IsPartMimo(const Part& part)
 {
-    ETHOSN_UNUSED(part);
-    return false;
+    return IsPartFormat<InOutFormat::MIMO>(part);
 }
 
 const Part* Combiner::GetNextPart(const Part& part) const
