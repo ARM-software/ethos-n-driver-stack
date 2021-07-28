@@ -371,14 +371,14 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
             // Check weights tensor info and data
             CHECK(depthwiseLayer->m_Weight->GetTensorInfo() ==
-                  TensorInfo(TensorShape{ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.5f, 0));
+                  TensorInfo(TensorShape{ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.5f, 0, true));
             const uint8_t* dwWeightData = depthwiseLayer->m_Weight->GetConstTensor<uint8_t>();
             CHECK(std::all_of(dwWeightData, dwWeightData + depthwiseLayer->m_Weight->GetShape().GetNumElements(),
                               [](auto x) { return x == 2; }));
 
             // Check bias tensor info and data
             CHECK(depthwiseLayer->m_Bias->GetTensorInfo() ==
-                  TensorInfo(TensorShape{ 1, 1, 1, 4 }, DataType::Signed32, 0.5f, 0));
+                  TensorInfo(TensorShape{ 1, 1, 1, 4 }, DataType::Signed32, 0.5f, 0, true));
             const int32_t* dwBiasData = depthwiseLayer->m_Bias->GetConstTensor<int32_t>();
             std::vector<int32_t> expectedBiasData;
             switch (constantDataType)

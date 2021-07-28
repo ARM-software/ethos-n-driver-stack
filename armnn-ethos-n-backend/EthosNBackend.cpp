@@ -360,10 +360,10 @@ Layer* CreateConvolutionLayer(LayerType type,
 
         // The weightDimensions are of the format OHWI
         const unsigned int weightDimensions[4]{ inputChannels, kernelHeight, kernelWidth, inputChannels };
-        TensorInfo weight(4, weightDimensions, weightDatatype, 0.5f, 0);
+        TensorInfo weight(4, weightDimensions, weightDatatype, 0.5f, 0, true);
 
         // The bias is of the format 1x1x1xoutputChannels
-        TensorInfo bias = TensorInfo({ 1, 1, 1, inputChannels }, biasDataType, 0.9f, 0);
+        TensorInfo bias = TensorInfo({ 1, 1, 1, inputChannels }, biasDataType, 0.9f, 0, true);
 
         auto desc = CreateConv2dDescriptor(additionalLayerParams);
 
@@ -378,10 +378,10 @@ Layer* CreateConvolutionLayer(LayerType type,
 
         // The weightDimensions are of the format OHWI
         const unsigned int weightDimensions[4]{ inputChannels, kernelHeight, kernelWidth, inputChannels };
-        TensorInfo weight(4, weightDimensions, weightDatatype, 0.5f, 0);
+        TensorInfo weight(4, weightDimensions, weightDatatype, 0.5f, 0, true);
 
         // The bias is of the format 1x1x1xoutputChannels
-        TensorInfo bias = TensorInfo({ 1, 1, 1, inputChannels }, biasDataType, 0.9f, 0);
+        TensorInfo bias = TensorInfo({ 1, 1, 1, inputChannels }, biasDataType, 0.9f, 0, true);
 
         auto desc = CreateTransConv2dDescriptor(additionalLayerParams);
 
@@ -396,10 +396,10 @@ Layer* CreateConvolutionLayer(LayerType type,
 
         // The weightDimensions are of the format 1HW(I*M)
         const unsigned int weightDimensions[4]{ 1, kernelHeight, kernelWidth, (inputChannels * channelMultiplier) };
-        TensorInfo weight(4, weightDimensions, weightDatatype, 0.5f, 0);
+        TensorInfo weight(4, weightDimensions, weightDatatype, 0.5f, 0, true);
 
         // The bias is of the format 1x1x1x(inputChannels * channelMultiplier)
-        TensorInfo bias = TensorInfo({ 1, 1, 1, (inputChannels * channelMultiplier) }, biasDataType, 0.9f, 0);
+        TensorInfo bias = TensorInfo({ 1, 1, 1, (inputChannels * channelMultiplier) }, biasDataType, 0.9f, 0, true);
 
         auto desc = CreateDepthConvDescriptor(additionalLayerParams);
 
