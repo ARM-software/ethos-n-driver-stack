@@ -879,3 +879,133 @@ TEST_CASE("ArePlansCompatible", "[CombinerDFS]")
     REQUIRE(combiner.ArePlansCompatible(*(gOfParts.m_Parts.at(0)->m_Plans.at(0)),
                                         *(gOfParts.m_Parts.at(1)->m_Plans.at(0)), *edge) == true);
 }
+
+TEST_CASE("GluePartToCombination", "[CombinerDFS]")
+{
+    Graph graph;
+    // Create graph:
+    //
+    //        B
+    //  A     |
+    //  |     v
+    //   - -> D <- - C
+    //
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
+    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
+
+    graph.Connect(nodeA, nodeD, 0);
+    graph.Connect(nodeB, nodeD, 1);
+    graph.Connect(nodeC, nodeD, 2);
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    GraphOfParts gOfParts;
+    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
+    std::unique_ptr<Plan> planA = std::make_unique<Plan>(gOfParts.m_Parts.back()->GeneratePlanId());
+    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], nodeA } };
+    // Add plan to last part
+    gOfParts.m_Parts.back()->m_Plans.push_back(std::move(planA));
+
+    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
+    std::unique_ptr<Plan> planB = std::make_unique<Plan>(gOfParts.m_Parts.back()->GeneratePlanId());
+    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB->m_OutputMappings = { { planB->m_OpGraph.GetBuffers()[0], nodeB } };
+    // Add plan to last part
+    gOfParts.m_Parts.back()->m_Plans.push_back(std::move(planB));
+
+    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
+    std::unique_ptr<Plan> planC = std::make_unique<Plan>(gOfParts.m_Parts.back()->GeneratePlanId());
+    planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC->m_OutputMappings = { { planC->m_OpGraph.GetBuffers()[0], nodeC } };
+    // Add plan to last part
+    gOfParts.m_Parts.back()->m_Plans.push_back(std::move(planC));
+
+    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
+    std::unique_ptr<Plan> planD = std::make_unique<Plan>(gOfParts.m_Parts.back()->GeneratePlanId());
+    planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 48 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+
+    planD->m_InputMappings = { { planD->m_OpGraph.GetBuffers()[0], nodeD->GetInput(0) },
+                               { planD->m_OpGraph.GetBuffers()[1], nodeD->GetInput(1) },
+                               { planD->m_OpGraph.GetBuffers()[2], nodeD->GetInput(2) } };
+    // Add plan to last part
+    gOfParts.m_Parts.back()->m_Plans.push_back(std::move(planD));
+
+    CheckPartId(gOfParts);
+
+    const Part& partA = GetPart(gOfParts, 0);
+    const Part& partB = GetPart(gOfParts, 1);
+    const Part& partC = GetPart(gOfParts, 2);
+    const Part& partD = GetPart(gOfParts, 3);
+
+    dfs::Combination combA(partA, partA.GetPlan(0));
+    dfs::Combination combB(partB, partB.GetPlan(0));
+    dfs::Combination combC(partC, partC.GetPlan(0));
+    dfs::Combination combD(partD, partD.GetPlan(0));
+
+    // Merge the combinations
+    dfs::Combination comb = combA + combB + combC + combD;
+
+    // There is no glue
+    for (size_t i = 0; i < gOfParts.m_Parts.size(); ++i)
+    {
+        Part& part = GetPart(gOfParts, i);
+        for (auto& glueIt : comb.m_Elems.at(part.m_PartId).m_Glues)
+        {
+            REQUIRE(glueIt.second == nullptr);
+        }
+    }
+
+    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+
+    const auto& sources = combiner.GetSourceParts(partD);
+
+    dfs::Combination combGlued = combiner.GluePartToCombination(partD, comb, sources);
+
+    REQUIRE(combGlued.m_Elems.size() == 4);
+    // There is a glue for each input part
+    REQUIRE(combiner.m_GluesVector.size() == 3);
+
+    for (size_t i = 0; i < combiner.m_GluesVector.size(); ++i)
+    {
+        if (!(combiner.m_GluesVector.at(i).get())->m_Graph.GetBuffers().empty())
+        {
+            REQUIRE((combiner.m_GluesVector.at(i).get())->m_Graph.GetOps().size() == 2);
+            REQUIRE((combiner.m_GluesVector.at(i).get())->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
+        }
+        else
+        {
+            REQUIRE((combiner.m_GluesVector.at(i).get())->m_Graph.GetOps().size() == 1);
+        }
+    }
+
+    // A and B have glue and the buffer in Dram is in the expected format
+    auto elemIt = combGlued.m_Elems.find(partA.m_PartId);
+    REQUIRE(elemIt != combGlued.m_Elems.end());
+    REQUIRE(elemIt->second.m_Glues.begin()->second->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
+    REQUIRE(elemIt->second.m_Glues.begin()->second->m_Graph.GetBuffers().at(0)->m_Format ==
+            CascadingBufferFormat::FCAF_DEEP);
+    elemIt = combGlued.m_Elems.find(partB.m_PartId);
+    REQUIRE(elemIt != combGlued.m_Elems.end());
+    REQUIRE(elemIt->second.m_Glues.begin()->second->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
+    REQUIRE(elemIt->second.m_Glues.begin()->second->m_Graph.GetBuffers().at(0)->m_Format ==
+            CascadingBufferFormat::FCAF_WIDE);
+}

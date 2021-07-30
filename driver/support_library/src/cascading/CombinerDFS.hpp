@@ -160,15 +160,25 @@ struct Combiner
 
     Combination GetBestCombination() const;
     Combination GetBestCombination(Combinations& combs) const;
+    CascadingBufferFormat
+        GetBestCascadingBufferDramFormat(const std::array<TensorShape, 2> inputOutputStripeShapes) const;
 
     const Plan& GetPlanForPartFromCombination(const Part& part, const Combination& comb) const;
     std::vector<std::pair<const Part*, const Edge*>> GetSourceParts(const Part& part) const;
     std::vector<std::pair<const Part*, const Edge*>> GetDestinationParts(const Part& part) const;
+    std::pair<bool, const Glue*> GetGlue(const Buffer* outputBuffer, const Buffer* inputBuffer);
 
     Combination FindBestCombinationForPart(const Part& part);
     Combination FindBestCombinationForPartImpl(const Part& part);
 
     Combination ContinueSection(const Part& part, const Combination& comb, const SramAllocator& alloc);
+
+    std::unique_ptr<Glue> GenerateGlueBetweenSramAndDram() const;
+    std::unique_ptr<Glue> GenerateGlueBetweenSramAndSram(const Buffer* buffer,
+                                                         const CascadingBufferFormat cascadingBufferFormat) const;
+    Combination GluePartToCombination(const Part& part,
+                                      const Combination& comb,
+                                      const std::vector<std::pair<const Part*, const Edge*>>& sources);
 
     void Run();
 
@@ -179,6 +189,7 @@ struct Combiner
     Combination m_BestCombination;
 
     std::map<const Part*, const Combination> m_CombinationPerPartMap;
+    std::vector<std::unique_ptr<Glue>> m_GluesVector;
 };
 
 OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfParts& parts);

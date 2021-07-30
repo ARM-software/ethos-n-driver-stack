@@ -309,6 +309,185 @@ Combination Combiner::GetBestCombination() const
     return m_BestCombination;
 }
 
+CascadingBufferFormat
+    Combiner::GetBestCascadingBufferDramFormat(const std::array<TensorShape, 2> inputOutputStripeShapes) const
+{
+    using SupportedCompressedFormats = std::vector<CascadingBufferFormat>;
+
+    constexpr size_t sramStripeShapesSize = inputOutputStripeShapes.size();
+    SupportedCompressedFormats cascadingBufferSupportedTypePerStripe[sramStripeShapesSize];
+    for (size_t sramStripeShapesIdx = 0; sramStripeShapesIdx < sramStripeShapesSize; sramStripeShapesIdx++)
+    {
+        const TensorShape& currentStripeShape = inputOutputStripeShapes[sramStripeShapesIdx];
+        SupportedCompressedFormats& currentCascadedSupportedTypeList =
+            cascadingBufferSupportedTypePerStripe[sramStripeShapesIdx];
+
+        if (IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_DEEP,
+                                                            currentStripeShape))
+        {
+            currentCascadedSupportedTypeList.push_back(CascadingBufferFormat::FCAF_DEEP);
+        }
+        if (IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_WIDE,
+                                                            currentStripeShape))
+        {
+            currentCascadedSupportedTypeList.push_back(CascadingBufferFormat::FCAF_WIDE);
+        }
+    }
+
+    SupportedCompressedFormats supportedTypes;
+    static_assert(ETHOSN_ARRAY_SIZE(cascadingBufferSupportedTypePerStripe) == 2, "");
+    std::set_intersection(cascadingBufferSupportedTypePerStripe[0].begin(),
+                          cascadingBufferSupportedTypePerStripe[0].end(),
+                          cascadingBufferSupportedTypePerStripe[1].begin(),
+                          cascadingBufferSupportedTypePerStripe[1].end(), std::back_inserter(supportedTypes));
+
+    if (!supportedTypes.empty())
+    {
+        return supportedTypes.front();
+    }
+
+    return CascadingBufferFormat::NHWCB;
+}
+
+// This table shows all possible buffer location permutations
+// that requires glue.
+//
+//   Entry  |    Out Plan Location     ||      In Plan Location
+//  ===========================================================
+//          |                          ||
+//     1    |         SRAM             ||         DRAM
+//          |                          ||
+//  -----------------------------------------------------------
+//          |                          ||
+//     2    |         DRAM             ||         SRAM
+//          |                          ||
+//  -----------------------------------------------------------
+//          |                          ||
+//     3    |         SRAM             ||         SRAM
+//          |                          ||
+//  -----------------------------------------------------------
+//
+// Entries 1 and 2 are pratically the same, there is a need
+// of a DMA operation to bring data from a given input to
+// an output, buffer in DRAM has been already allocated and
+// for that reason there is no choice to make about format.
+//
+std::unique_ptr<Glue> Combiner::GenerateGlueBetweenSramAndDram() const
+{
+    auto result     = std::make_unique<Glue>();
+    Glue* resultRaw = result.get();
+    auto dma        = std::make_unique<DmaOp>();
+    DmaOp* dmaRaw   = dma.get();
+    resultRaw->m_Graph.AddOp(std::move(dma));
+    resultRaw->m_InputSlot = { dmaRaw, 0 };
+    resultRaw->m_Output    = dmaRaw;
+
+    return result;
+}
+
+// For entry 3 (see table above) there are as many glues possible as the
+// number of buffer formats in DRAM i.e. :
+//  - NHWCB
+//  - FCAF_DEEP
+//  - FCAF_WIDE
+//
+std::unique_ptr<Glue> Combiner::GenerateGlueBetweenSramAndSram(const Buffer* buffer,
+                                                               const CascadingBufferFormat cascadingBufferFormat) const
+{
+    auto result     = std::make_unique<Glue>();
+    Glue* resultRaw = result.get();
+
+    auto dramBuffer = std::make_unique<Buffer>(
+        Lifetime::Atomic, Location::Dram, cascadingBufferFormat, buffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
+        TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(buffer->m_TensorShape), buffer->m_QuantizationInfo);
+
+    auto dma1             = std::make_unique<DmaOp>();
+    DmaOp* dma1Raw        = dma1.get();
+    Buffer* dramBufferRaw = dramBuffer.get();
+    auto dma2             = std::make_unique<DmaOp>();
+    DmaOp* dma2Raw        = dma2.get();
+    resultRaw->m_Graph.AddOp(std::move(dma1));
+    resultRaw->m_Graph.AddOp(std::move(dma2));
+    resultRaw->m_Graph.AddBuffer(std::move(dramBuffer));
+    resultRaw->m_Graph.SetProducer(dramBufferRaw, dma1Raw);
+    resultRaw->m_Graph.AddConsumer(dramBufferRaw, dma2Raw, 0);
+    resultRaw->m_InputSlot = { dma1Raw, 0 };
+    resultRaw->m_Output    = dma2Raw;
+
+    return result;
+}
+
+std::pair<bool, const Glue*> Combiner::GetGlue(const Buffer* outputBuffer, const Buffer* inputBuffer)
+{
+    if ((outputBuffer->m_Location == Location::Sram && inputBuffer->m_Location == Location::Dram) ||
+        (outputBuffer->m_Location == Location::Dram && inputBuffer->m_Location == Location::Sram))
+    {
+        m_GluesVector.push_back(GenerateGlueBetweenSramAndDram());
+        return std::make_pair(true, m_GluesVector.back().get());
+    }
+    else if (outputBuffer->m_Location == Location::Sram && inputBuffer->m_Location == Location::Sram)
+    {
+        CascadingBufferFormat cascadingBufferFormat =
+            GetBestCascadingBufferDramFormat({ outputBuffer->m_StripeShape, inputBuffer->m_StripeShape });
+
+        m_GluesVector.push_back(GenerateGlueBetweenSramAndSram(inputBuffer, cascadingBufferFormat));
+        return std::make_pair(true, m_GluesVector.back().get());
+    }
+    else if (outputBuffer->m_Location == Location::Dram && inputBuffer->m_Location == Location::Dram)
+    {
+        // Provide an empty Glue in this case, there is nothing to do
+        return std::make_pair(true, nullptr);
+    }
+    // If here it means that buffers are not glue-able
+    // e.g. input buffer location is PleInputSram
+    return std::make_pair(false, nullptr);
+}
+
+Combination Combiner::GluePartToCombination(const Part& part,
+                                            const Combination& comb,
+                                            const std::vector<std::pair<const Part*, const Edge*>>& sources)
+{
+    Combination result = comb;
+
+    // Get the plan for the part to be glued with all source parts
+    const Plan& destPlan = GetPlanForPartFromCombination(part, comb);
+
+    // Iterate on all the source parts i.e. edges
+    for (const auto& source : sources)
+    {
+        // Find the source part in the combination,
+        // it might happen that some branches haven't
+        // been populated yet, that's fine, it will
+        // just skip them
+        auto elemIt = comb.m_Elems.find(source.first->m_PartId);
+        if (elemIt != comb.m_Elems.end())
+        {
+            const Plan& sourcePlan = source.first->GetPlan(elemIt->second.m_PlanId);
+
+            // Sanity tests - make sure the two Plans are for adjacent Parts.
+            // Note we lookup both buffers by the same Node, as the Graph does not explicitly store intermediate tensors -
+            // they are implicitly attached to each Node (which are defined to have a single output).
+            const Buffer* outputBuffer = sourcePlan.GetOutputBuffer(source.second->GetSource());
+            const Buffer* inputBuffer  = destPlan.GetInputBuffer(source.second);
+            assert(outputBuffer != nullptr && inputBuffer != nullptr);
+
+            auto glueResult = GetGlue(outputBuffer, inputBuffer);
+            if (!glueResult.first)
+            {
+                // This combination is not valid, clear it
+                return Combination{};
+            }
+
+            if (glueResult.second == nullptr)
+            {
+                continue;
+            }
+            result = result + Combination(*source.first, source.second, glueResult.second);
+        }
+    }
+    return result;
+}
+
 // Try to merge plans from the given Part onto the given Combination.
 // This may not happen because:
 //  - Plan cannot be merged e.g. different strategies
@@ -324,7 +503,7 @@ Combination Combiner::ContinueSection(const Part& part, const Combination& comb,
     // End the current section and start a new one.
     // There is a single edge between the combination comb and
     // and the current part
-    Combination result = comb + FindBestCombinationForPart(part);
+    Combination result = GluePartToCombination(part, comb + FindBestCombinationForPart(part), sources);
 
     if (IsPartSiso(part))
     {
@@ -455,7 +634,8 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
         {
             // Glue needs to be added here for each destination
             const auto& sources = GetSourceParts(*destPart.first);
-            result              = result + FindBestCombinationForPart(*destPart.first);
+            result =
+                GluePartToCombination(*destPart.first, result + FindBestCombinationForPart(*destPart.first), sources);
         }
     }
     return result;
