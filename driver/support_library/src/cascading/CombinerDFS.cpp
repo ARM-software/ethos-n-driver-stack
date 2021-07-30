@@ -61,89 +61,206 @@ bool Combiner::IsPartMimo(const Part& part) const
     return (part.GetInputs().size() > 1 && part.GetOutputs().size() > 1);
 }
 
-const Part* Combiner::GetNextPart(const Part& part) const
+const Plan& Combiner::GetPlanForPartFromCombination(const Part& part, const Combination& comb) const
 {
-    // Sanity check. This function only supports the
-    // use cases SISO, input and ouput parts required
-    // in this file.
-    assert(part.GetInputs().size() <= 1 && part.GetOutputs().size() <= 1);
+    // Combination comb must contain part already
+    auto elemIt = comb.m_Elems.find(part.m_PartId);
+    assert(elemIt != comb.m_Elems.end());
 
-    // It is an output part
-    if (part.GetOutputs().size() == 0)
-    {
-        return nullptr;
-    }
-
-    // output edge of this part
-    const Edge* edge = part.GetOutputs().at(0);
-
-    // Find the next part that takes the output edge as its input
-    InPart nextPart = m_GraphOfParts.GetInputPart(*edge);
-
-    if (nextPart.first)
-    {
-        PartId id = nextPart.second;
-        return &(m_GraphOfParts.GetPart(id));
-    }
-    else
-    {
-        return nullptr;
-    }
+    // Get the plan for the part
+    return part.GetPlan(elemIt->second.m_PlanId);
 }
 
-std::vector<const Part*> Combiner::GetDestinationParts(const Part& part)
+std::vector<std::pair<const Part*, const Edge*>> Combiner::GetSourceParts(const Part& part) const
 {
-    std::vector<const Part*> result;
+    std::vector<std::pair<const Part*, const Edge*>> result;
 
-    std::vector<const Edge*> outputEdges = part.GetOutputs();
-
-    for (auto& edge : outputEdges)
+    for (const auto& edge : part.GetInputs())
     {
-        InPart nextPart = m_GraphOfParts.GetInputPart(*edge);
+        InPart sourcePart = m_GraphOfParts.GetOutputPart(*edge);
 
-        if (nextPart.first)
+        if (sourcePart.first)
         {
-            PartId id = nextPart.second;
-            result.push_back(&(m_GraphOfParts.GetPart(id)));
+            PartId id = sourcePart.second;
+            result.push_back(std::make_pair(&m_GraphOfParts.GetPart(id), edge));
         }
     }
 
     return result;
 }
 
-bool Combiner::IsPlanMergeableImpl(const Combination& comb, const Part& part, const Plan& plan) const
+std::vector<std::pair<const Part*, const Edge*>> Combiner::GetDestinationParts(const Part& part) const
 {
-    ETHOSN_UNUSED(comb);
-    ETHOSN_UNUSED(part);
-    ETHOSN_UNUSED(plan);
-    return false;
+    std::vector<std::pair<const Part*, const Edge*>> result;
+
+    for (auto& edge : part.GetOutputs())
+    {
+        InPart nextPart = m_GraphOfParts.GetInputPart(*edge);
+
+        if (nextPart.first)
+        {
+            PartId id = nextPart.second;
+            result.push_back(std::make_pair(&m_GraphOfParts.GetPart(id), edge));
+        }
+    }
+
+    return result;
 }
 
-bool Combiner::IsPlanMergeable(const Combination& comb, const Part& part, const Plan& plan)
+bool Combiner::AreMceOperationsCompatible(const Buffer* plan1OutputBuffer,
+                                          const Buffer* plan2InputBuffer,
+                                          const Node* destination) const
 {
-    return IsPlanMergeableImpl(comb, part, plan);
+    const MceOperationNode* mceOperationNode = dynamic_cast<const MceOperationNode*>(destination);
+    if ((mceOperationNode) && (plan1OutputBuffer->m_Location != Location::Dram))
+    {
+        const TensorShape& inputBufferShape = plan2InputBuffer->m_TensorShape;
+        const TensorShape& inputStripeShape = plan2InputBuffer->m_StripeShape;
+
+        if ((mceOperationNode->GetOperation() == ethosn::command_stream::MceOperation::CONVOLUTION) ||
+            (mceOperationNode->GetOperation() == ethosn::command_stream::MceOperation::FULLY_CONNECTED))
+        {
+            if (GetChannels(inputStripeShape) < GetChannels(inputBufferShape))
+            {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
-bool Combiner::IsPlanAllowedImpl(const Combination& comb, const Part& part, const Plan& plan) const
+bool Combiner::AreBlockConfigsCompatible(const Plan& plan1, const Plan& plan2, const Edge& edge) const
 {
-    ETHOSN_UNUSED(comb);
-    ETHOSN_UNUSED(part);
-    ETHOSN_UNUSED(plan);
-    return false;
+    Buffer* bufferProduced = plan1.GetOutputBuffer(edge.GetSource());
+    Buffer* bufferConsumed = plan2.GetInputBuffer(&edge);
+
+    const bool areBuffersInPleInputSram =
+        bufferProduced->m_Location == Location::PleInputSram && bufferConsumed->m_Location == Location::PleInputSram;
+
+    if (areBuffersInPleInputSram)
+    {
+        ethosn::command_stream::BlockConfig producerBlockConfig = {};
+        size_t matching                                         = 0;
+
+        Op* opProducer = plan1.m_OpGraph.GetProducer(bufferProduced);
+
+        const MceOp* mceOp = dynamic_cast<const MceOp*>(opProducer);
+        if (!mceOp)
+        {
+            return true;
+        }
+        producerBlockConfig = mceOp->m_BlockConfig;
+
+        auto consumers = plan2.m_OpGraph.GetConsumers(bufferConsumed);
+        for (auto& consumer : consumers)
+        {
+            Op* opConsumer                                          = consumer.first;
+            ethosn::command_stream::BlockConfig consumerBlockConfig = {};
+
+            const PleOp* pleOp = dynamic_cast<const PleOp*>(opConsumer);
+            if (pleOp)
+            {
+                consumerBlockConfig = pleOp->m_BlockConfig;
+            }
+            if (producerBlockConfig == consumerBlockConfig)
+            {
+                ++matching;
+            }
+        }
+        return matching == consumers.size();
+    }
+    return true;
 }
 
-bool Combiner::IsPlanAllowed(const Combination& comb, const Part& part, const Plan& plan)
+bool Combiner::ArePlansCompatibleImpl(const Plan& sPlan, const Plan& dPlan, const Edge& edge) const
 {
-    return IsPlanAllowedImpl(comb, part, plan);
+    const Buffer* planInputBuffer   = dPlan.GetInputBuffer(&edge);
+    const Buffer* sPlanOutputBuffer = sPlan.GetOutputBuffer(edge.GetSource());
+
+    // two plans should be connected along the edge we were told about.
+    if (sPlanOutputBuffer == nullptr || planInputBuffer == nullptr)
+    {
+        return false;
+    }
+
+    // Note that m_QuantizationInfo does not need to match between the buffers, as it is possible to *reinterpret* the
+    // quantisation of a buffer without having to insert any glue (i.e. it's a no-op). We will use this to implement the
+    // ReinterpretQuantization Operation.
+
+    // The same goes for shape, but only in limited circumstances (e.g. you can't reinterpret a 1x1x1x1 as a 1x100x100x100
+    // because there wouldn't be enough data, and there are probably additional limitations for non-linear formats like
+    // NHWCB, FCAF). For now we are conservative and only allow this for simple NHWC cases where the full tensor is
+    // reinterpreted with a different shape, which we use to implement "DRAM Reshape" Operations as a no-op.
+    bool areShapesDifferent = sPlanOutputBuffer->m_TensorShape != planInputBuffer->m_TensorShape;
+    bool isValidNhwcReinterpret =
+        sPlanOutputBuffer->m_Format == CascadingBufferFormat::NHWC &&
+        planInputBuffer->m_Format == CascadingBufferFormat::NHWC &&
+        GetNumElements(sPlanOutputBuffer->m_TensorShape) == GetNumElements(planInputBuffer->m_TensorShape);
+
+    bool areBuffersIncompatible = areShapesDifferent && !isValidNhwcReinterpret;
+
+    if (areBuffersIncompatible)
+    {
+        return false;
+    }
+
+    // Check if the buffers on the boundary are compatible, i.e. the same (or similar enough that they can be reinterpreted),
+    // such that the plans could be directly merged without any additional DMA ops required. Both locations must
+    // be on SRAM.
+    bool areBuffersEquivalent =
+        sPlanOutputBuffer->m_Location == planInputBuffer->m_Location && planInputBuffer->m_Location != Location::Dram &&
+        sPlanOutputBuffer->m_Location != Location::Dram && sPlanOutputBuffer->m_Format == planInputBuffer->m_Format &&
+        sPlanOutputBuffer->m_StripeShape == planInputBuffer->m_StripeShape &&
+        sPlanOutputBuffer->m_Order == planInputBuffer->m_Order &&
+        sPlanOutputBuffer->m_SizeInBytes == planInputBuffer->m_SizeInBytes &&
+        sPlanOutputBuffer->m_NumStripes == planInputBuffer->m_NumStripes;
+
+    if ((!areBuffersEquivalent) ||
+        !AreMceOperationsCompatible(sPlanOutputBuffer, planInputBuffer, edge.GetDestination()) ||
+        !AreBlockConfigsCompatible(sPlan, dPlan, edge))
+    {
+        return false;
+    }
+
+    return true;
 }
 
-bool Combiner::IsPlanAllocated(SramAllocator& alloc, const Combination& comb, const Part& part, const Plan& plan)
+bool Combiner::ArePlansCompatible(const Plan& sPlan, const Plan& dPlan, const Edge& edge)
 {
-    ETHOSN_UNUSED(alloc);
-    ETHOSN_UNUSED(comb);
-    ETHOSN_UNUSED(part);
-    ETHOSN_UNUSED(plan);
-    return false;
+    return ArePlansCompatibleImpl(sPlan, dPlan, edge);
+}
+
+// Check if there is sufficient SRAM for plan to fit
+// into the SRAM allocation for the combination that
+// is compatible with the plan
+bool Combiner::IsPlanAllocated(SramAllocator& alloc, const Plan& plan)
+{
+    // Get input and total SRAM sizes required for the plan
+    const SizeInBytes sTotSize = GetTotSizeInBytes(plan);
+    const SizeInBytes sInSize  = GetInputsSizeInBytes(plan);
+
+    using Allocated = std::pair<bool, uint32_t>;
+    Allocated allocated;
+    SramAllocator localAlloc = alloc;
+
+    // We are not yet sure what could be a good userId here so we are using zero
+    SramAllocator::UserId userId = 0;
+
+    // Note this function assumes the plan can be merged with the combination
+    // that is associated with the sram allocation. Therefore, the additional
+    // sram usage of this plan is the total size - input size.
+    allocated = localAlloc.Allocate(userId, (sTotSize.m_Tot - sInSize.m_Tot) / m_Caps.GetNumberOfSrams(),
+                                    AllocationPreference::Start);
+
+    if (allocated.first)
+    {
+        alloc = localAlloc;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 Combination Combiner::GetBestCombination(Combinations& combs) const
@@ -200,6 +317,10 @@ Combination Combiner::GetBestCombination() const
 //    in the seciton take up all the memory
 Combination Combiner::ContinueSection(const Part& part, const Combination& comb, const SramAllocator& alloc)
 {
+    // Get source part and plan from the combination
+    const auto& sources = GetSourceParts(part);
+    const Plan& sPlan   = GetPlanForPartFromCombination(*sources.at(0).first, comb);
+
     // End the current section and start a new one.
     // There is a single edge between the combination comb and
     // and the current part
@@ -219,24 +340,26 @@ Combination Combiner::ContinueSection(const Part& part, const Combination& comb,
         //  - Allocated i.e. there is space in SRAM to accomodate
         //    all the buffers required by the plan
 
-        const Part& nextPart = *GetNextPart(part);
+        // sanity check SISO is the only use case.
+        assert(part.GetInputs().size() == 1 && part.GetOutputs().size() == 1 && sources.size() == 1);
+
+        const Part& nextPart = *(GetDestinationParts(part).at(0).first);
+        assert(GetDestinationParts(part).size() == 1);
+
+        const Edge& edge = *sources.at(0).second;
+
         for (const auto& plan : part.m_Plans)
         {
             // Make a copy of the allocator since every plan needs to have its own,
             // each potential section won't allocate from the same allocator.
             SramAllocator tempAlloc = alloc;
 
-            if (!IsPlanMergeable(comb, part, *plan.get()))
+            if (!ArePlansCompatible(sPlan, *plan.get(), edge))
             {
                 continue;
             }
 
-            if (!IsPlanAllowed(comb, part, *plan.get()))
-            {
-                continue;
-            }
-
-            if (!IsPlanAllocated(tempAlloc, comb, part, *plan.get()))
+            if (!IsPlanAllocated(tempAlloc, *plan.get()))
             {
                 continue;
             }
@@ -286,7 +409,8 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
         // SISO and MISO are equivalent since what counts
         // is the number of output parts which in both cases
         // is one
-        const Part& nextPart = *GetNextPart(part);
+        const Part& nextPart = *(GetDestinationParts(part).at(0).first);
+        assert(GetDestinationParts(part).size() == 1);
         for (const auto& plan : part.m_Plans)
         {
             // This is the start of a new section, reset the allocated Sram
@@ -330,7 +454,8 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
         for (const auto& destPart : GetDestinationParts(part))
         {
             // Glue needs to be added here for each destination
-            result = result + FindBestCombinationForPart(*destPart);
+            const auto& sources = GetSourceParts(*destPart.first);
+            result              = result + FindBestCombinationForPart(*destPart.first);
         }
     }
     return result;

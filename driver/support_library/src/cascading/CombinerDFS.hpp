@@ -147,19 +147,23 @@ struct Combiner
     bool IsPartMiso(const Part& part) const;
     bool IsPartMimo(const Part& part) const;
 
-    bool IsPlanMergeable(const Combination& comb, const Part& part, const Plan& plan);
-    bool IsPlanMergeableImpl(const Combination& comb, const Part& part, const Plan& plan) const;
+    bool AreMceOperationsCompatible(const Buffer* plan1OutputBuffer,
+                                    const Buffer* plan2InputBuffer,
+                                    const Node* destination) const;
 
-    bool IsPlanAllowed(const Combination& comb, const Part& part, const Plan& plan);
-    bool IsPlanAllowedImpl(const Combination& comb, const Part& part, const Plan& plan) const;
+    bool AreBlockConfigsCompatible(const Plan& plan1, const Plan& plan2, const Edge& edge) const;
 
-    bool IsPlanAllocated(SramAllocator& alloc, const Combination& comb, const Part& part, const Plan& plan);
+    bool ArePlansCompatible(const Plan& sPlan, const Plan& dPlan, const Edge& edge);
+    bool ArePlansCompatibleImpl(const Plan& sPlan, const Plan& dPlan, const Edge& edge) const;
+
+    bool IsPlanAllocated(SramAllocator& alloc, const Plan& plan);
 
     Combination GetBestCombination() const;
     Combination GetBestCombination(Combinations& combs) const;
 
-    const Part* GetNextPart(const Part& part) const;
-    std::vector<const Part*> GetDestinationParts(const Part& part);
+    const Plan& GetPlanForPartFromCombination(const Part& part, const Combination& comb) const;
+    std::vector<std::pair<const Part*, const Edge*>> GetSourceParts(const Part& part) const;
+    std::vector<std::pair<const Part*, const Edge*>> GetDestinationParts(const Part& part) const;
 
     Combination FindBestCombinationForPart(const Part& part);
     Combination FindBestCombinationForPartImpl(const Part& part);

@@ -34,7 +34,7 @@ void AddNodesToPart(GraphOfParts& gOfParts,
     }
 }
 
-void CheckPartId(GraphOfParts& gOfParts)
+void CheckPartId(const GraphOfParts& gOfParts)
 {
     size_t count = 0;
     for (auto&& p : gOfParts.m_Parts)
@@ -42,6 +42,11 @@ void CheckPartId(GraphOfParts& gOfParts)
         REQUIRE(p->m_PartId == count);
         ++count;
     }
+}
+
+Part& GetPart(const GraphOfParts& gOfParts, const PartId partId)
+{
+    return *gOfParts.m_Parts.at(partId).get();
 }
 
 }    // namespace
@@ -112,11 +117,11 @@ TEST_CASE("IsPartSiso", "[CombinerDFS]")
 
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
-    REQUIRE(combiner.IsPartSiso(*gOfParts.m_Parts.at(0).get()) == false);
-    REQUIRE(combiner.IsPartSiso(*gOfParts.m_Parts.at(1).get()) == true);
-    REQUIRE(combiner.IsPartSiso(*gOfParts.m_Parts.at(2).get()) == false);
-    REQUIRE(combiner.IsPartSiso(*gOfParts.m_Parts.at(3).get()) == false);
-    REQUIRE(combiner.IsPartSiso(*gOfParts.m_Parts.at(4).get()) == false);
+    REQUIRE(combiner.IsPartSiso(GetPart(gOfParts, 0)) == false);
+    REQUIRE(combiner.IsPartSiso(GetPart(gOfParts, 1)) == true);
+    REQUIRE(combiner.IsPartSiso(GetPart(gOfParts, 2)) == false);
+    REQUIRE(combiner.IsPartSiso(GetPart(gOfParts, 3)) == false);
+    REQUIRE(combiner.IsPartSiso(GetPart(gOfParts, 4)) == false);
 }
 
 TEST_CASE("IsPartSimo", "[CombinerDFS]")
@@ -156,11 +161,11 @@ TEST_CASE("IsPartSimo", "[CombinerDFS]")
 
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
-    REQUIRE(combiner.IsPartSimo(*gOfParts.m_Parts.at(0).get()) == false);
-    REQUIRE(combiner.IsPartSimo(*gOfParts.m_Parts.at(1).get()) == false);
-    REQUIRE(combiner.IsPartSimo(*gOfParts.m_Parts.at(2).get()) == true);
-    REQUIRE(combiner.IsPartSimo(*gOfParts.m_Parts.at(3).get()) == false);
-    REQUIRE(combiner.IsPartSimo(*gOfParts.m_Parts.at(4).get()) == false);
+    REQUIRE(combiner.IsPartSimo(GetPart(gOfParts, 0)) == false);
+    REQUIRE(combiner.IsPartSimo(GetPart(gOfParts, 1)) == false);
+    REQUIRE(combiner.IsPartSimo(GetPart(gOfParts, 2)) == true);
+    REQUIRE(combiner.IsPartSimo(GetPart(gOfParts, 3)) == false);
+    REQUIRE(combiner.IsPartSimo(GetPart(gOfParts, 4)) == false);
 }
 
 TEST_CASE("IsPartMiso", "[CombinerDFS]")
@@ -197,10 +202,10 @@ TEST_CASE("IsPartMiso", "[CombinerDFS]")
 
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
-    REQUIRE(combiner.IsPartMiso(*gOfParts.m_Parts.at(0).get()) == false);
-    REQUIRE(combiner.IsPartMiso(*gOfParts.m_Parts.at(1).get()) == false);
-    REQUIRE(combiner.IsPartMiso(*gOfParts.m_Parts.at(2).get()) == true);
-    REQUIRE(combiner.IsPartMiso(*gOfParts.m_Parts.at(3).get()) == false);
+    REQUIRE(combiner.IsPartMiso(GetPart(gOfParts, 0)) == false);
+    REQUIRE(combiner.IsPartMiso(GetPart(gOfParts, 1)) == false);
+    REQUIRE(combiner.IsPartMiso(GetPart(gOfParts, 2)) == true);
+    REQUIRE(combiner.IsPartMiso(GetPart(gOfParts, 3)) == false);
 }
 
 TEST_CASE("IsPartMimo", "[CombinerDFS]")
@@ -240,11 +245,11 @@ TEST_CASE("IsPartMimo", "[CombinerDFS]")
 
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
-    REQUIRE(combiner.IsPartMimo(*gOfParts.m_Parts.at(0).get()) == false);
-    REQUIRE(combiner.IsPartMimo(*gOfParts.m_Parts.at(1).get()) == false);
-    REQUIRE(combiner.IsPartMimo(*gOfParts.m_Parts.at(2).get()) == true);
-    REQUIRE(combiner.IsPartMimo(*gOfParts.m_Parts.at(3).get()) == false);
-    REQUIRE(combiner.IsPartMimo(*gOfParts.m_Parts.at(4).get()) == false);
+    REQUIRE(combiner.IsPartMimo(GetPart(gOfParts, 0)) == false);
+    REQUIRE(combiner.IsPartMimo(GetPart(gOfParts, 1)) == false);
+    REQUIRE(combiner.IsPartMimo(GetPart(gOfParts, 2)) == true);
+    REQUIRE(combiner.IsPartMimo(GetPart(gOfParts, 3)) == false);
+    REQUIRE(combiner.IsPartMimo(GetPart(gOfParts, 4)) == false);
 }
 
 TEST_CASE("IsPartInput and IsPartOutput", "[CombinerDFS]")
@@ -284,20 +289,20 @@ TEST_CASE("IsPartInput and IsPartOutput", "[CombinerDFS]")
 
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
-    REQUIRE(combiner.IsPartInput(*gOfParts.m_Parts.at(0).get()) == true);
-    REQUIRE(combiner.IsPartOutput(*gOfParts.m_Parts.at(0).get()) == false);
+    REQUIRE(combiner.IsPartInput(GetPart(gOfParts, 0)) == true);
+    REQUIRE(combiner.IsPartOutput(GetPart(gOfParts, 0)) == false);
 
-    REQUIRE(combiner.IsPartInput(*gOfParts.m_Parts.at(1).get()) == true);
-    REQUIRE(combiner.IsPartOutput(*gOfParts.m_Parts.at(1).get()) == false);
+    REQUIRE(combiner.IsPartInput(GetPart(gOfParts, 1)) == true);
+    REQUIRE(combiner.IsPartOutput(GetPart(gOfParts, 1)) == false);
 
-    REQUIRE(combiner.IsPartInput(*gOfParts.m_Parts.at(2).get()) == false);
-    REQUIRE(combiner.IsPartOutput(*gOfParts.m_Parts.at(2).get()) == false);
+    REQUIRE(combiner.IsPartInput(GetPart(gOfParts, 2)) == false);
+    REQUIRE(combiner.IsPartOutput(GetPart(gOfParts, 2)) == false);
 
-    REQUIRE(combiner.IsPartInput(*gOfParts.m_Parts.at(3).get()) == false);
-    REQUIRE(combiner.IsPartOutput(*gOfParts.m_Parts.at(3).get()) == true);
+    REQUIRE(combiner.IsPartInput(GetPart(gOfParts, 3)) == false);
+    REQUIRE(combiner.IsPartOutput(GetPart(gOfParts, 3)) == true);
 
-    REQUIRE(combiner.IsPartInput(*gOfParts.m_Parts.at(4).get()) == false);
-    REQUIRE(combiner.IsPartOutput(*gOfParts.m_Parts.at(4).get()) == true);
+    REQUIRE(combiner.IsPartInput(GetPart(gOfParts, 4)) == false);
+    REQUIRE(combiner.IsPartOutput(GetPart(gOfParts, 4)) == true);
 }
 
 TEST_CASE("IsPartSo and IsPartMo", "[CombinerDFS]")
@@ -340,23 +345,23 @@ TEST_CASE("IsPartSo and IsPartMo", "[CombinerDFS]")
 
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
-    REQUIRE(combiner.IsPartSo(*gOfParts.m_Parts.at(0).get()) == true);
-    REQUIRE(combiner.IsPartMo(*gOfParts.m_Parts.at(0).get()) == false);
+    REQUIRE(combiner.IsPartSo(GetPart(gOfParts, 0)) == true);
+    REQUIRE(combiner.IsPartMo(GetPart(gOfParts, 0)) == false);
 
-    REQUIRE(combiner.IsPartSo(*gOfParts.m_Parts.at(1).get()) == false);
-    REQUIRE(combiner.IsPartMo(*gOfParts.m_Parts.at(1).get()) == true);
+    REQUIRE(combiner.IsPartSo(GetPart(gOfParts, 1)) == false);
+    REQUIRE(combiner.IsPartMo(GetPart(gOfParts, 1)) == true);
 
-    REQUIRE(combiner.IsPartSo(*gOfParts.m_Parts.at(2).get()) == false);
-    REQUIRE(combiner.IsPartMo(*gOfParts.m_Parts.at(2).get()) == true);
+    REQUIRE(combiner.IsPartSo(GetPart(gOfParts, 2)) == false);
+    REQUIRE(combiner.IsPartMo(GetPart(gOfParts, 2)) == true);
 
-    REQUIRE(combiner.IsPartSo(*gOfParts.m_Parts.at(3).get()) == false);
-    REQUIRE(combiner.IsPartMo(*gOfParts.m_Parts.at(3).get()) == false);
+    REQUIRE(combiner.IsPartSo(GetPart(gOfParts, 3)) == false);
+    REQUIRE(combiner.IsPartMo(GetPart(gOfParts, 3)) == false);
 
-    REQUIRE(combiner.IsPartSo(*gOfParts.m_Parts.at(4).get()) == false);
-    REQUIRE(combiner.IsPartMo(*gOfParts.m_Parts.at(4).get()) == false);
+    REQUIRE(combiner.IsPartSo(GetPart(gOfParts, 4)) == false);
+    REQUIRE(combiner.IsPartMo(GetPart(gOfParts, 4)) == false);
 
-    REQUIRE(combiner.IsPartSo(*gOfParts.m_Parts.at(5).get()) == false);
-    REQUIRE(combiner.IsPartMo(*gOfParts.m_Parts.at(5).get()) == false);
+    REQUIRE(combiner.IsPartSo(GetPart(gOfParts, 5)) == false);
+    REQUIRE(combiner.IsPartMo(GetPart(gOfParts, 5)) == false);
 }
 
 /// Manually creates a Combination and then converts it to an OpGraph using GetOpGraphForCombination, and checking
@@ -605,42 +610,6 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[6]).size() == 0);
 }
 
-TEST_CASE("GetNextPart", "[CombinerDFS]")
-{
-    Graph graph;
-    // Create graph:
-    //
-    //   A - B - C - D
-    //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
-
-    graph.Connect(nodeA, nodeB, 0);
-    graph.Connect(nodeB, nodeC, 0);
-    graph.Connect(nodeC, nodeD, 0);
-
-    const CompilationOptions compOpt;
-    const EstimationOptions estOpt;
-    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
-
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
-
-    CheckPartId(gOfParts);
-
-    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
-
-    REQUIRE(combiner.GetNextPart(*gOfParts.m_Parts.at(0).get()) == gOfParts.m_Parts.at(1).get());
-    REQUIRE(combiner.GetNextPart(*gOfParts.m_Parts.at(1).get()) == gOfParts.m_Parts.at(2).get());
-    REQUIRE(combiner.GetNextPart(*gOfParts.m_Parts.at(2).get()) == gOfParts.m_Parts.at(3).get());
-    REQUIRE(combiner.GetNextPart(*gOfParts.m_Parts.at(3).get()) == nullptr);
-}
-
 TEST_CASE("GetDestinationParts", "[CombinerDFS]")
 {
     Graph graph;
@@ -673,13 +642,13 @@ TEST_CASE("GetDestinationParts", "[CombinerDFS]")
 
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
-    REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(0).get()).size() == 1);
-    REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(0).get()).at(0) == gOfParts.m_Parts.at(1).get());
-    REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(1).get()).size() == 2);
-    REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(1).get()).at(0) == gOfParts.m_Parts.at(2).get());
-    REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(1).get()).at(1) == gOfParts.m_Parts.at(3).get());
-    REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(2).get()).size() == 0);
-    REQUIRE(combiner.GetDestinationParts(*gOfParts.m_Parts.at(3).get()).size() == 0);
+    REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 0)).size() == 1);
+    REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 0)).at(0).first == &GetPart(gOfParts, 1));
+    REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 1)).size() == 2);
+    REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 1)).at(0).first == &GetPart(gOfParts, 2));
+    REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 1)).at(1).first == &GetPart(gOfParts, 3));
+    REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 2)).size() == 0);
+    REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 3)).size() == 0);
 }
 
 TEST_CASE("Combination operator+", "[CombinerDFS]")
@@ -707,9 +676,9 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
 
     CheckPartId(gOfParts);
 
-    Part& partA = *gOfParts.m_Parts.at(0).get();
-    Part& partB = *gOfParts.m_Parts.at(1).get();
-    Part& partC = *gOfParts.m_Parts.at(2).get();
+    Part& partA = GetPart(gOfParts, 0);
+    Part& partB = GetPart(gOfParts, 1);
+    Part& partC = GetPart(gOfParts, 2);
 
     Plan planA(0);
     Plan planB(1);
@@ -731,7 +700,7 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
     // All parts are in the final combination
     for (size_t i = 0; i < gOfParts.m_Parts.size(); ++i)
     {
-        Part& part = *gOfParts.m_Parts.at(i).get();
+        Part& part = GetPart(gOfParts, i);
         REQUIRE(comb.m_Elems.find(part.m_PartId) != comb.m_Elems.end());
     }
 
@@ -742,7 +711,7 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
     // There is no glue
     for (size_t i = 0; i < gOfParts.m_Parts.size(); ++i)
     {
-        Part& part = *gOfParts.m_Parts.at(i).get();
+        Part& part = GetPart(gOfParts, i);
         for (auto& glueIt : comb.m_Elems.at(part.m_PartId).m_Glues)
         {
             REQUIRE(glueIt.second == nullptr);
@@ -796,9 +765,9 @@ TEST_CASE("FindBestCombinationForPart cache", "[CombinerDFS]")
 
     dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
 
-    Part& partA = *gOfParts.m_Parts.at(0).get();
-    Part& partB = *gOfParts.m_Parts.at(1).get();
-    Part& partC = *gOfParts.m_Parts.at(2).get();
+    Part& partA = GetPart(gOfParts, 0);
+    Part& partB = GetPart(gOfParts, 1);
+    Part& partC = GetPart(gOfParts, 2);
 
     // Map is empty
     REQUIRE(combiner.m_CombinationPerPartMap.size() == 0);
@@ -826,4 +795,87 @@ TEST_CASE("FindBestCombinationForPart cache", "[CombinerDFS]")
     comb = combiner.FindBestCombinationForPart(partC);
     // Map has still only partA, partB and partC
     REQUIRE(combiner.m_CombinationPerPartMap.size() == 3);
+}
+
+TEST_CASE("GetSourceParts", "[CombinerDFS]")
+{
+    Graph graph;
+    // Create graph:
+    //      A
+    //      |
+    //  B - C - D
+    //
+    //
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
+    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
+
+    graph.Connect(nodeA, nodeC, 0);
+    graph.Connect(nodeB, nodeC, 0);
+    graph.Connect(nodeC, nodeD, 0);
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    GraphOfParts gOfParts;
+    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
+    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
+
+    CheckPartId(gOfParts);
+
+    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+
+    REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(0).get()).size() == 0);
+    REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(1).get()).size() == 0);
+    REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(2).get()).size() == 2);
+    REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(2).get()).at(0).first == gOfParts.m_Parts.at(1).get());
+    REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(2).get()).at(1).first == gOfParts.m_Parts.at(0).get());
+    REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(3).get()).size() == 1);
+    REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(3).get()).at(0).first == gOfParts.m_Parts.at(2).get());
+}
+
+TEST_CASE("ArePlansCompatible", "[CombinerDFS]")
+{
+    Graph graph;
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+
+    graph.Connect(nodeA, nodeB, 0);
+
+    GraphOfParts gOfParts;
+
+    const EstimationOptions estOpt;
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
+
+    // Part consisting of node A
+    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
+    std::unique_ptr<Plan> planA = std::make_unique<Plan>();
+    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDram";
+    planA->m_OutputMappings                          = { { planA->m_OpGraph.GetBuffers()[0], nodeA } };
+    gOfParts.m_Parts.back()->m_Plans.push_back(std::move(planA));
+
+    // Part consisting of node B
+    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
+    std::unique_ptr<Plan> planB = std::make_unique<Plan>();
+    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram1";
+    planB->m_InputMappings                           = { { planB->m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
+    planB->m_OutputMappings                          = { { planB->m_OpGraph.GetBuffers()[0], nodeB } };
+    gOfParts.m_Parts.back()->m_Plans.push_back(std::move(planB));
+
+    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+
+    const Edge* edge = nodeA->GetOutput(0);
+    REQUIRE(combiner.ArePlansCompatible(*(gOfParts.m_Parts.at(0)->m_Plans.at(0)),
+                                        *(gOfParts.m_Parts.at(1)->m_Plans.at(0)), *edge) == true);
 }
