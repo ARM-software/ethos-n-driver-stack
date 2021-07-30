@@ -362,7 +362,7 @@ struct ethosn_log_firmware_header {
 
 /* Version information */
 #define ETHOSN_KERNEL_MODULE_VERSION_MAJOR 1
-#define ETHOSN_KERNEL_MODULE_VERSION_MINOR 0
+#define ETHOSN_KERNEL_MODULE_VERSION_MINOR 1
 #define ETHOSN_KERNEL_MODULE_VERSION_PATCH 0
 
 /**
