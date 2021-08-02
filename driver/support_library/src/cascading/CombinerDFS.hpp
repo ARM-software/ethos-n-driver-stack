@@ -156,7 +156,8 @@ struct Combiner
     bool ArePlansCompatible(const Plan& sPlan, const Plan& dPlan, const Edge& edge);
     bool ArePlansCompatibleImpl(const Plan& sPlan, const Plan& dPlan, const Edge& edge) const;
 
-    bool IsPlanAllocated(SramAllocator& alloc, const Plan& plan);
+    bool IsPlanAllocated(SramAllocator& alloc, const Plan& plan) const;
+    bool IsPlanInputGlueable(const Plan& plan) const;
 
     Combination GetBestCombination() const;
     Combination GetBestCombination(Combinations& combs) const;

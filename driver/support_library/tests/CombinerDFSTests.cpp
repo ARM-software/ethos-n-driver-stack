@@ -1009,3 +1009,47 @@ TEST_CASE("GluePartToCombination", "[CombinerDFS]")
     REQUIRE(elemIt->second.m_Glues.begin()->second->m_Graph.GetBuffers().at(0)->m_Format ==
             CascadingBufferFormat::FCAF_WIDE);
 }
+
+TEST_CASE("IsPlanInputGlueable", "[CombinerDFS]")
+{
+    GraphOfParts gOfParts;
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    std::unique_ptr<Plan> planA = std::make_unique<Plan>();
+    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(
+        Lifetime::Atomic, Location::VirtualSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 64, 64, 64 },
+        TensorShape{ 1, 8, 16, 48 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+
+    planA->m_InputMappings = { { planA->m_OpGraph.GetBuffers()[0], nullptr },
+                               { planA->m_OpGraph.GetBuffers()[1], nullptr },
+                               { planA->m_OpGraph.GetBuffers()[2], nullptr } };
+
+    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+
+    REQUIRE(combiner.IsPlanInputGlueable(*planA.get()) == false);
+
+    std::unique_ptr<Plan> planB = std::make_unique<Plan>();
+    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 48 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+
+    planB->m_InputMappings = { { planB->m_OpGraph.GetBuffers()[0], nullptr },
+                               { planB->m_OpGraph.GetBuffers()[1], nullptr },
+                               { planB->m_OpGraph.GetBuffers()[2], nullptr } };
+
+    REQUIRE(combiner.IsPlanInputGlueable(*planB.get()) == true);
+}

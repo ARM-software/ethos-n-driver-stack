@@ -233,7 +233,7 @@ bool Combiner::ArePlansCompatible(const Plan& sPlan, const Plan& dPlan, const Ed
 // Check if there is sufficient SRAM for plan to fit
 // into the SRAM allocation for the combination that
 // is compatible with the plan
-bool Combiner::IsPlanAllocated(SramAllocator& alloc, const Plan& plan)
+bool Combiner::IsPlanAllocated(SramAllocator& alloc, const Plan& plan) const
 {
     // Get input and total SRAM sizes required for the plan
     const SizeInBytes sTotSize = GetTotSizeInBytes(plan);
@@ -261,6 +261,23 @@ bool Combiner::IsPlanAllocated(SramAllocator& alloc, const Plan& plan)
     {
         return false;
     }
+}
+
+bool Combiner::IsPlanInputGlueable(const Plan& plan) const
+{
+    for (auto inputMapping : plan.m_InputMappings)
+    {
+        const Buffer* buf = inputMapping.first;
+        switch (buf->m_Location)
+        {
+            case Location::Dram:
+            case Location::Sram:
+                continue;
+            default:
+                return false;
+        }
+    }
+    return true;
 }
 
 Combination Combiner::GetBestCombination(Combinations& combs) const
@@ -592,6 +609,11 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
         assert(GetDestinationParts(part).size() == 1);
         for (const auto& plan : part.m_Plans)
         {
+            if (!IsPlanInputGlueable(*plan.get()))
+            {
+                continue;
+            }
+
             // This is the start of a new section, reset the allocated Sram
             SramAllocator alloc(m_Caps.GetTotalSramSize() / m_Caps.GetNumberOfSrams());
             Combination head(part, *plan.get());
@@ -608,6 +630,11 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
         // Select best plan for the part
         for (const auto& plan : part.m_Plans)
         {
+            if (!IsPlanInputGlueable(*plan.get()))
+            {
+                continue;
+            }
+
             // Glue will be added later on
             Combination head(part, *plan.get());
             Combinations options = { result, head };
