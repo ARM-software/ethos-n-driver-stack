@@ -7,19 +7,133 @@
 
 #include "../SramAllocator.hpp"
 #include "../Utils.hpp"
+#include "Cascading.hpp"
 #include "Estimation.hpp"
 #include "EstimationUtils.hpp"
 #include "Part.hpp"
 #include "Plan.hpp"
 
+#include <ethosn_utils/Filesystem.hpp>
+
+#include <fstream>
+
 namespace ethosn
 {
 namespace support_library
 {
-namespace depth_first_search
-{
 
 using namespace utils;
+
+namespace
+{
+
+void DumpDebugInfo(const GraphOfParts& parts,
+                   const Combinations& combs,
+                   std::vector<size_t> stats,
+                   const DebuggingContext& debuggingContext,
+                   const std::string folder)
+{
+    using namespace ethosn::utils;
+    if (debuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+    {
+        MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
+
+        if (!stats.empty())
+        {
+            std::ofstream debugIterationStatsDumpFile(
+                debuggingContext.GetAbsolutePathOutputFileName(folder + "/Stats.txt"));
+            for (auto& val : stats)
+            {
+                debugIterationStatsDumpFile << "Val : " << val << std::endl;
+            }
+        }
+
+        size_t combinationNumber = 0;
+        for (const Combination& comb : combs)
+        {
+            std::string subfolder = folder + "/" + std::to_string(combinationNumber);
+            MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(subfolder).c_str());
+
+            if (!comb.m_Elems.empty())
+            {
+                debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, parts,
+                                                      subfolder + "/Detailed.dot", DetailLevel::High);
+            }
+
+            ++combinationNumber;
+            if (combinationNumber > debuggingContext.GetMaxNumDumps())
+            {
+                break;
+            }
+        }
+    }
+}
+
+bool MatchingBlocks(const Plan& planProducer, const Plan& planConsumer, Buffer* produced, Buffer* consumed)
+{
+    ethosn::command_stream::BlockConfig producerBlockConfig = {};
+    size_t matching                                         = 0;
+
+    Op* opProducer = planProducer.m_OpGraph.GetProducer(produced);
+
+    const MceOp* mceOpProd = dynamic_cast<const MceOp*>(opProducer);
+    const PleOp* pleOpProd = dynamic_cast<const PleOp*>(opProducer);
+    if (mceOpProd)
+    {
+        producerBlockConfig = mceOpProd->m_BlockConfig;
+    }
+    else if (pleOpProd)
+    {
+        producerBlockConfig = pleOpProd->m_BlockConfig;
+    }
+    else
+    {
+        // It's something else that does not have
+        // the concept of block config
+        return true;
+    }
+
+    auto consumers = planConsumer.m_OpGraph.GetConsumers(consumed);
+    for (auto& consumer : consumers)
+    {
+        Op* opConsumer                                          = consumer.first;
+        ethosn::command_stream::BlockConfig consumerBlockConfig = {};
+
+        const PleOp* pleOpCons = dynamic_cast<const PleOp*>(opConsumer);
+        const MceOp* mceOpCons = dynamic_cast<const MceOp*>(opConsumer);
+        if (pleOpCons)
+        {
+            consumerBlockConfig = pleOpCons->m_BlockConfig;
+        }
+        else if (mceOpCons)
+        {
+            consumerBlockConfig = mceOpCons->m_BlockConfig;
+        }
+        else
+        {
+            // It's something else that does not have
+            // the concept of block config
+            ++matching;
+        }
+        // If here producerBlockConfig is not empty, while
+        // consumerBlockConfig is empty if matching has been
+        // already incremented in the else above, there is
+        // no risk of incrementing matching twice
+        if (producerBlockConfig == consumerBlockConfig)
+        {
+            ++matching;
+        }
+    }
+    return matching == consumers.size();
+}
+
+}    // namespace
+
+void Combiner::UpdateStats(const StatsType type)
+{
+    assert(static_cast<size_t>(type) < StatsTypes.size());
+    ++m_Stats[static_cast<size_t>(type)];
+}
 
 bool Combiner::IsPartInput(const Part& part) const
 {
@@ -139,35 +253,7 @@ bool Combiner::AreBlockConfigsCompatible(const Plan& plan1, const Plan& plan2, c
 
     if (areBuffersInPleInputSram)
     {
-        ethosn::command_stream::BlockConfig producerBlockConfig = {};
-        size_t matching                                         = 0;
-
-        Op* opProducer = plan1.m_OpGraph.GetProducer(bufferProduced);
-
-        const MceOp* mceOp = dynamic_cast<const MceOp*>(opProducer);
-        if (!mceOp)
-        {
-            return true;
-        }
-        producerBlockConfig = mceOp->m_BlockConfig;
-
-        auto consumers = plan2.m_OpGraph.GetConsumers(bufferConsumed);
-        for (auto& consumer : consumers)
-        {
-            Op* opConsumer                                          = consumer.first;
-            ethosn::command_stream::BlockConfig consumerBlockConfig = {};
-
-            const PleOp* pleOp = dynamic_cast<const PleOp*>(opConsumer);
-            if (pleOp)
-            {
-                consumerBlockConfig = pleOp->m_BlockConfig;
-            }
-            if (producerBlockConfig == consumerBlockConfig)
-            {
-                ++matching;
-            }
-        }
-        return matching == consumers.size();
+        return MatchingBlocks(plan1, plan2, bufferProduced, bufferConsumed);
     }
     return true;
 }
@@ -280,6 +366,40 @@ bool Combiner::IsPlanInputGlueable(const Plan& plan) const
     return true;
 }
 
+bool Combiner::ArePlansAllowedToMerge(const Plan& reference, const Plan& current, const Edge& edge) const
+{
+    Buffer* referenceOutBuffer = reference.GetOutputBuffer(edge.GetSource());
+    Buffer* currentInBuffer    = current.GetInputBuffer(&edge);
+
+    // Plans in a section must use the same block configuration
+    if (!MatchingBlocks(reference, current, referenceOutBuffer, currentInBuffer))
+    {
+        return false;
+    }
+
+    // Plans in a section must use the same streaming strategy
+    for (auto inputMapping : reference.m_InputMappings)
+    {
+        const Buffer* referenceInBuffer = inputMapping.first;
+        const bool refSplitH =
+            GetHeight(referenceInBuffer->m_StripeShape) < GetHeight(referenceInBuffer->m_TensorShape);
+        const bool refSplitW = GetWidth(referenceInBuffer->m_StripeShape) < GetWidth(referenceInBuffer->m_TensorShape);
+        const bool refSplitC =
+            GetChannels(referenceInBuffer->m_StripeShape) < GetChannels(referenceInBuffer->m_TensorShape);
+
+        const bool currSplitH = GetHeight(currentInBuffer->m_StripeShape) < GetHeight(currentInBuffer->m_TensorShape);
+        const bool currSplitW = GetWidth(currentInBuffer->m_StripeShape) < GetWidth(currentInBuffer->m_TensorShape);
+        const bool currSplitC =
+            GetChannels(currentInBuffer->m_StripeShape) < GetChannels(currentInBuffer->m_TensorShape);
+        if (refSplitH != currSplitH || refSplitW != currSplitW || refSplitC != currSplitC)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 Combination Combiner::GetBestCombination(Combinations& combs) const
 {
     if (combs.size() > 0)
@@ -312,7 +432,14 @@ Combination Combiner::GetBestCombination(Combinations& combs) const
 
         if (!result.has_value())
         {
-            // If Estimation failed, pick the first combination
+            // If estimation failed, pick the first non empty combination
+            for (const Combination& combination : combs)
+            {
+                if (!combination.m_Elems.empty())
+                {
+                    return combination;
+                }
+            }
             return combs.front();
         }
         return result.value();
@@ -513,6 +640,8 @@ Combination Combiner::GluePartToCombination(const Part& part,
 //    in the seciton take up all the memory
 Combination Combiner::ContinueSection(const Part& part, const Combination& comb, const SramAllocator& alloc)
 {
+    UpdateStats(StatsType::ContinueSection);
+
     // Get source part and plan from the combination
     const auto& sources = GetSourceParts(part);
     const Plan& sPlan   = GetPlanForPartFromCombination(*sources.at(0).first, comb);
@@ -556,6 +685,11 @@ Combination Combiner::ContinueSection(const Part& part, const Combination& comb,
             }
 
             if (!IsPlanAllocated(tempAlloc, *plan.get()))
+            {
+                continue;
+            }
+
+            if (!ArePlansAllowedToMerge(sPlan, *plan.get(), edge))
             {
                 continue;
             }
@@ -685,6 +819,8 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
 Combination Combiner::FindBestCombinationForPart(const Part& part)
 {
     Combination result;
+    UpdateStats(StatsType::FindBestCombinationForPart);
+
     auto combIt = m_CombinationPerPartMap.find(&part);
     if (combIt != m_CombinationPerPartMap.end())
     {
@@ -694,18 +830,31 @@ Combination Combiner::FindBestCombinationForPart(const Part& part)
     {
         result = FindBestCombinationForPartImpl(part);
         m_CombinationPerPartMap.insert(std::make_pair(&part, result));
+
+        DumpDebugInfo(m_GraphOfParts, { result }, m_Stats, m_DebuggingContext,
+                      "FindBestCombinationForPart/Part" + std::to_string(part.m_PartId));
     }
     return result;
 }
 
-Combiner::Combiner(const GraphOfParts& graphOfParts, const HardwareCapabilities& caps, const EstimationOptions& estOpt)
+Combiner::Combiner(const GraphOfParts& graphOfParts,
+                   const HardwareCapabilities& caps,
+                   const EstimationOptions& estOpt,
+                   const DebuggingContext& debuggingContext)
     : m_GraphOfParts(graphOfParts)
     , m_Caps(caps)
     , m_EstOpt(estOpt)
+    , m_DebuggingContext(debuggingContext)
 {}
 
 void Combiner::Run()
 {
+    using namespace ethosn::utils;
+    if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+    {
+        MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("FindBestCombinationForPart").c_str());
+    }
+
     for (auto&& part : m_GraphOfParts.m_Parts)
     {
         // Process only parts that have an input node
@@ -716,6 +865,15 @@ void Combiner::Run()
         // Result combinations (each per input) can just be merged
         m_BestCombination = m_BestCombination + FindBestCombinationForPart(*part.get());
     }
+}
+
+Combinations Cascading::Combine(const GraphOfParts& parts)
+{
+    ETHOSN_UNUSED(parts);
+
+    m_Combiner.Run();
+
+    return { m_Combiner.GetBestCombination() };
 }
 
 // Take in input a combination and generate an OpGraph.
@@ -814,9 +972,8 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
                     sharedBuffer = getEffectiveBuffer(sharedBuffer);
                 }
             }
-            if (sharedBuffer)
+            if (sharedBuffer && result.Contains(sharedBuffer))
             {
-                assert(result.Contains(sharedBuffer));
                 // Record the fact that this buffer has been shared, so that when making connections (below), we
                 // connect to the correct buffer.
                 mergedBuffers[b] = sharedBuffer;
@@ -870,7 +1027,8 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
             {
                 edgeConnectionBuffers[outputEdge] = output.first;
                 auto glueIt                       = elemIt.second.m_Glues.find(outputEdge);
-                if (glueIt != elemIt.second.m_Glues.end() && !glueIt->second->m_Graph.GetOps().empty())
+                if (glueIt != elemIt.second.m_Glues.end() && glueIt->second &&
+                    !glueIt->second->m_Graph.GetOps().empty())
                 {
                     glues[outputEdge] = glueIt->second;
                 }
@@ -881,6 +1039,5 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
     return result;
 }
 
-}    // namespace depth_first_search
 }    // namespace support_library
 }    // namespace ethosn

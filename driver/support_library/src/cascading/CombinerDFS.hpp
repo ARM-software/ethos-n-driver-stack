@@ -8,11 +8,11 @@
 #include "Part.hpp"
 #include "Plan.hpp"
 
+#include "DebuggingContext.hpp"
+
 namespace ethosn
 {
 namespace support_library
-{
-namespace depth_first_search
 {
 /// The graph of Ops and Buffers that would need to be inserted between two plans to make the compatible,
 /// for example some DmaOps.
@@ -129,13 +129,23 @@ struct Combination
     Elems m_Elems;
 };
 
+enum class StatsType
+{
+    ContinueSection,
+    FindBestCombinationForPart
+};
+
+constexpr std::initializer_list<StatsType> StatsTypes = { StatsType::ContinueSection,
+                                                          StatsType::FindBestCombinationForPart };
+
 using Combinations = std::vector<Combination>;
 
 struct Combiner
 {
     Combiner(const GraphOfParts& graphOfParts,
              const HardwareCapabilities& capabilities,
-             const EstimationOptions& estOpt);
+             const EstimationOptions& estOpt,
+             const DebuggingContext& debuggingContext);
 
     bool IsPartInput(const Part& part) const;
     bool IsPartOutput(const Part& part) const;
@@ -158,6 +168,7 @@ struct Combiner
 
     bool IsPlanAllocated(SramAllocator& alloc, const Plan& plan) const;
     bool IsPlanInputGlueable(const Plan& plan) const;
+    bool ArePlansAllowedToMerge(const Plan& reference, const Plan& current, const Edge& edge) const;
 
     Combination GetBestCombination() const;
     Combination GetBestCombination(Combinations& combs) const;
@@ -181,20 +192,24 @@ struct Combiner
                                       const Combination& comb,
                                       const std::vector<std::pair<const Part*, const Edge*>>& sources);
 
+    void UpdateStats(const StatsType type);
+
     void Run();
 
     const GraphOfParts& m_GraphOfParts;
     const HardwareCapabilities& m_Caps;
     const EstimationOptions& m_EstOpt;
+    const DebuggingContext& m_DebuggingContext;
 
     Combination m_BestCombination;
 
     std::map<const Part*, const Combination> m_CombinationPerPartMap;
     std::vector<std::unique_ptr<Glue>> m_GluesVector;
+
+    std::vector<size_t> m_Stats{ std::vector<size_t>(StatsTypes.size(), 0) };
 };
 
 OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfParts& parts);
 
-}    // namespace depth_first_search
 }    // namespace support_library
 }    // namespace ethosn

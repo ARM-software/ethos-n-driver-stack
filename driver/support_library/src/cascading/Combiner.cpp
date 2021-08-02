@@ -25,6 +25,8 @@ namespace ethosn
 namespace support_library
 {
 
+namespace breadth_first_search
+{
 using namespace utils;
 
 namespace
@@ -1236,5 +1238,6 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
     return result;
 }
 
+}    // namespace breadth_first_search
 }    // namespace support_library
 }    // namespace ethosn

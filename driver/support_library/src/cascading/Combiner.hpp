@@ -16,6 +16,8 @@ namespace ethosn
 {
 namespace support_library
 {
+namespace breadth_first_search
+{
 /// The graph of Ops and Buffers that would need to be inserted between two plans to make the compatible,
 /// for example some DmaOps.
 struct Glue
@@ -226,6 +228,6 @@ GrownSeeds
 /// This handles merging of adjacent Plans and Glues to give a homogenous structure, suitable for
 /// Estimation or Generation into a command stream.
 OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfParts& parts);
-
+}    // namespace breadth_first_search
 }    // namespace support_library
 }    // namespace ethosn

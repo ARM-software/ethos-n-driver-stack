@@ -13,8 +13,6 @@
 
 #include <fstream>
 
-namespace dfs = ethosn::support_library::depth_first_search;
-
 using namespace ethosn::support_library;
 using namespace ethosn::command_stream;
 
@@ -104,6 +102,7 @@ TEST_CASE("IsPartSiso", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     GraphOfParts gOfParts;
@@ -115,7 +114,7 @@ TEST_CASE("IsPartSiso", "[CombinerDFS]")
 
     CheckPartId(gOfParts);
 
-    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
     REQUIRE(combiner.IsPartSiso(GetPart(gOfParts, 0)) == false);
     REQUIRE(combiner.IsPartSiso(GetPart(gOfParts, 1)) == true);
@@ -148,6 +147,7 @@ TEST_CASE("IsPartSimo", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     GraphOfParts gOfParts;
@@ -159,7 +159,7 @@ TEST_CASE("IsPartSimo", "[CombinerDFS]")
 
     CheckPartId(gOfParts);
 
-    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
     REQUIRE(combiner.IsPartSimo(GetPart(gOfParts, 0)) == false);
     REQUIRE(combiner.IsPartSimo(GetPart(gOfParts, 1)) == false);
@@ -190,6 +190,7 @@ TEST_CASE("IsPartMiso", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     GraphOfParts gOfParts;
@@ -200,7 +201,7 @@ TEST_CASE("IsPartMiso", "[CombinerDFS]")
 
     CheckPartId(gOfParts);
 
-    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
     REQUIRE(combiner.IsPartMiso(GetPart(gOfParts, 0)) == false);
     REQUIRE(combiner.IsPartMiso(GetPart(gOfParts, 1)) == false);
@@ -232,6 +233,7 @@ TEST_CASE("IsPartMimo", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     GraphOfParts gOfParts;
@@ -243,7 +245,7 @@ TEST_CASE("IsPartMimo", "[CombinerDFS]")
 
     CheckPartId(gOfParts);
 
-    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
     REQUIRE(combiner.IsPartMimo(GetPart(gOfParts, 0)) == false);
     REQUIRE(combiner.IsPartMimo(GetPart(gOfParts, 1)) == false);
@@ -276,6 +278,7 @@ TEST_CASE("IsPartInput and IsPartOutput", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     GraphOfParts gOfParts;
@@ -287,7 +290,7 @@ TEST_CASE("IsPartInput and IsPartOutput", "[CombinerDFS]")
 
     CheckPartId(gOfParts);
 
-    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
     REQUIRE(combiner.IsPartInput(GetPart(gOfParts, 0)) == true);
     REQUIRE(combiner.IsPartOutput(GetPart(gOfParts, 0)) == false);
@@ -331,6 +334,7 @@ TEST_CASE("IsPartSo and IsPartMo", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     GraphOfParts gOfParts;
@@ -343,7 +347,7 @@ TEST_CASE("IsPartSo and IsPartMo", "[CombinerDFS]")
 
     CheckPartId(gOfParts);
 
-    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
     REQUIRE(combiner.IsPartSo(GetPart(gOfParts, 0)) == true);
     REQUIRE(combiner.IsPartMo(GetPart(gOfParts, 0)) == false);
@@ -416,7 +420,7 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     gOfParts.m_Parts.back()->m_Plans.push_back(std::move(planA));
 
     // Glue between A and B
-    dfs::Glue glueA_BC;
+    Glue glueA_BC;
     glueA_BC.m_Graph.AddOp(std::make_unique<DmaOp>());
     glueA_BC.m_Graph.GetOps()[0]->m_DebugTag = "InputDma";
     glueA_BC.m_InputSlot                     = { glueA_BC.m_Graph.GetOps()[0], 0 };
@@ -479,21 +483,21 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     gOfParts.m_Parts.back()->m_Plans.push_back(std::move(planDE));
 
     // Glue between D and F
-    dfs::Glue glueD_F;
+    Glue glueD_F;
     glueD_F.m_Graph.AddOp(std::make_unique<DmaOp>());
     glueD_F.m_Graph.GetOps()[0]->m_DebugTag = "OutputDma1";
     glueD_F.m_InputSlot                     = { glueD_F.m_Graph.GetOps()[0], 0 };
     glueD_F.m_Output                        = glueD_F.m_Graph.GetOps()[0];
 
     // Glue between D and G
-    dfs::Glue glueD_G;
+    Glue glueD_G;
     glueD_G.m_Graph.AddOp(std::make_unique<DmaOp>());
     glueD_G.m_Graph.GetOps()[0]->m_DebugTag = "OutputDma2";
     glueD_G.m_InputSlot                     = { glueD_G.m_Graph.GetOps()[0], 0 };
     glueD_G.m_Output                        = glueD_G.m_Graph.GetOps()[0];
 
     // Glue between E and G
-    dfs::Glue glueE_G;
+    Glue glueE_G;
     glueE_G.m_Graph.AddOp(std::make_unique<DmaOp>());
     glueE_G.m_Graph.GetOps()[0]->m_DebugTag = "OutputDma3";
     glueE_G.m_InputSlot                     = { glueE_G.m_Graph.GetOps()[0], 0 };
@@ -525,21 +529,21 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     gOfParts.m_Parts.back()->m_Plans.push_back(std::move(planG));
 
     // Create Combination with all the plans and glues
-    dfs::Combination comb;
+    Combination comb;
 
     //using Glues = std::map<const Edge*, const Glue*>;
     //PlanId m_PlanId;
     //Glues m_Glues
 
-    dfs::Elem elemA  = { 0, { { nodeB->GetInput(0), { &glueA_BC } } } };
-    dfs::Elem elemB  = { 0, {} };
-    dfs::Elem elemC  = { 0, {} };
-    dfs::Elem elemDE = { 0,
-                         { { nodeF->GetInput(0), { &glueD_F } },
-                           { nodeG->GetInput(0), { &glueD_G } },
-                           { nodeG->GetInput(1), { &glueE_G } } } };
-    dfs::Elem elemF  = { 0, {} };
-    dfs::Elem elemG  = { 0, {} };
+    Elem elemA  = { 0, { { nodeB->GetInput(0), { &glueA_BC } } } };
+    Elem elemB  = { 0, {} };
+    Elem elemC  = { 0, {} };
+    Elem elemDE = { 0,
+                    { { nodeF->GetInput(0), { &glueD_F } },
+                      { nodeG->GetInput(0), { &glueD_G } },
+                      { nodeG->GetInput(1), { &glueE_G } } } };
+    Elem elemF  = { 0, {} };
+    Elem elemG  = { 0, {} };
     comb.m_Elems.insert(std::make_pair(0, elemA));
     comb.m_Elems.insert(std::make_pair(1, elemB));
     comb.m_Elems.insert(std::make_pair(2, elemC));
@@ -630,6 +634,7 @@ TEST_CASE("GetDestinationParts", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     GraphOfParts gOfParts;
@@ -640,7 +645,7 @@ TEST_CASE("GetDestinationParts", "[CombinerDFS]")
 
     CheckPartId(gOfParts);
 
-    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
     REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 0)).size() == 1);
     REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 0)).at(0).first == &GetPart(gOfParts, 1));
@@ -684,15 +689,15 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
     Plan planB(1);
     Plan planC(2);
 
-    dfs::Combination combA(partA, planA);
-    dfs::Combination combB(partB, planB);
-    dfs::Combination combC(partC, planC);
+    Combination combA(partA, planA);
+    Combination combB(partB, planB);
+    Combination combC(partC, planC);
 
     REQUIRE(combA.m_Elems.size() == 1);
     REQUIRE(combB.m_Elems.size() == 1);
     REQUIRE(combC.m_Elems.size() == 1);
 
-    dfs::Combination comb;
+    Combination comb;
     REQUIRE(comb.m_Elems.size() == 0);
 
     comb = combA + combB + combC;
@@ -719,20 +724,20 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
     }
 
     // Simple glue between B and C
-    dfs::Glue glueB_C;
+    Glue glueB_C;
     glueB_C.m_Graph.AddOp(std::make_unique<DmaOp>());
     glueB_C.m_Graph.GetOps()[0]->m_DebugTag = "DmaBC";
     glueB_C.m_InputSlot                     = { glueB_C.m_Graph.GetOps()[0], 0 };
     glueB_C.m_Output                        = glueB_C.m_Graph.GetOps()[0];
 
-    dfs::Combination combBGlue(partB, nodeC->GetInput(0), &glueB_C);
+    Combination combBGlue(partB, nodeC->GetInput(0), &glueB_C);
 
     comb = comb + combBGlue;
     // Number of elemnts didn't change
     REQUIRE(comb.m_Elems.size() == 3);
     // Glue has been added
     REQUIRE(comb.m_Elems.at(partB.m_PartId).m_Glues.size() == 1);
-    const dfs::Glue* glueTest = comb.m_Elems.at(partB.m_PartId).m_Glues.at(nodeC->GetInput(0));
+    const Glue* glueTest = comb.m_Elems.at(partB.m_PartId).m_Glues.at(nodeC->GetInput(0));
     // It has the correct tag
     REQUIRE(glueTest->m_Graph.GetOps()[0]->m_DebugTag == "DmaBC");
     REQUIRE(comb.m_Elems.at(partB.m_PartId).m_PlanId == planB.m_PlanId);
@@ -754,6 +759,7 @@ TEST_CASE("FindBestCombinationForPart cache", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     GraphOfParts gOfParts;
@@ -763,7 +769,7 @@ TEST_CASE("FindBestCombinationForPart cache", "[CombinerDFS]")
 
     CheckPartId(gOfParts);
 
-    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
     Part& partA = GetPart(gOfParts, 0);
     Part& partB = GetPart(gOfParts, 1);
@@ -771,7 +777,7 @@ TEST_CASE("FindBestCombinationForPart cache", "[CombinerDFS]")
 
     // Map is empty
     REQUIRE(combiner.m_CombinationPerPartMap.size() == 0);
-    dfs::Combination comb = combiner.FindBestCombinationForPart(partA);
+    Combination comb = combiner.FindBestCombinationForPart(partA);
     // Map has partA
     REQUIRE(combiner.m_CombinationPerPartMap.size() == 1);
     auto mapIt = combiner.m_CombinationPerPartMap.find(&partA);
@@ -817,6 +823,7 @@ TEST_CASE("GetSourceParts", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     GraphOfParts gOfParts;
@@ -827,7 +834,7 @@ TEST_CASE("GetSourceParts", "[CombinerDFS]")
 
     CheckPartId(gOfParts);
 
-    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
     REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(0).get()).size() == 0);
     REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(1).get()).size() == 0);
@@ -850,6 +857,7 @@ TEST_CASE("ArePlansCompatible", "[CombinerDFS]")
 
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
 
     // Part consisting of node A
@@ -873,7 +881,7 @@ TEST_CASE("ArePlansCompatible", "[CombinerDFS]")
     planB->m_OutputMappings                          = { { planB->m_OpGraph.GetBuffers()[0], nodeB } };
     gOfParts.m_Parts.back()->m_Plans.push_back(std::move(planB));
 
-    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
     const Edge* edge = nodeA->GetOutput(0);
     REQUIRE(combiner.ArePlansCompatible(*(gOfParts.m_Parts.at(0)->m_Plans.at(0)),
@@ -901,6 +909,7 @@ TEST_CASE("GluePartToCombination", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     GraphOfParts gOfParts;
@@ -956,13 +965,13 @@ TEST_CASE("GluePartToCombination", "[CombinerDFS]")
     const Part& partC = GetPart(gOfParts, 2);
     const Part& partD = GetPart(gOfParts, 3);
 
-    dfs::Combination combA(partA, partA.GetPlan(0));
-    dfs::Combination combB(partB, partB.GetPlan(0));
-    dfs::Combination combC(partC, partC.GetPlan(0));
-    dfs::Combination combD(partD, partD.GetPlan(0));
+    Combination combA(partA, partA.GetPlan(0));
+    Combination combB(partB, partB.GetPlan(0));
+    Combination combC(partC, partC.GetPlan(0));
+    Combination combD(partD, partD.GetPlan(0));
 
     // Merge the combinations
-    dfs::Combination comb = combA + combB + combC + combD;
+    Combination comb = combA + combB + combC + combD;
 
     // There is no glue
     for (size_t i = 0; i < gOfParts.m_Parts.size(); ++i)
@@ -974,11 +983,11 @@ TEST_CASE("GluePartToCombination", "[CombinerDFS]")
         }
     }
 
-    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
     const auto& sources = combiner.GetSourceParts(partD);
 
-    dfs::Combination combGlued = combiner.GluePartToCombination(partD, comb, sources);
+    Combination combGlued = combiner.GluePartToCombination(partD, comb, sources);
 
     REQUIRE(combGlued.m_Elems.size() == 4);
     // There is a glue for each input part
@@ -1015,6 +1024,7 @@ TEST_CASE("IsPlanInputGlueable", "[CombinerDFS]")
     GraphOfParts gOfParts;
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     std::unique_ptr<Plan> planA = std::make_unique<Plan>();
@@ -1032,7 +1042,7 @@ TEST_CASE("IsPlanInputGlueable", "[CombinerDFS]")
                                { planA->m_OpGraph.GetBuffers()[1], nullptr },
                                { planA->m_OpGraph.GetBuffers()[2], nullptr } };
 
-    dfs::Combiner combiner(gOfParts, hwCaps, estOpt);
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
     REQUIRE(combiner.IsPlanInputGlueable(*planA.get()) == false);
 
@@ -1052,4 +1062,112 @@ TEST_CASE("IsPlanInputGlueable", "[CombinerDFS]")
                                { planB->m_OpGraph.GetBuffers()[2], nullptr } };
 
     REQUIRE(combiner.IsPlanInputGlueable(*planB.get()) == true);
+}
+
+TEST_CASE("ArePlansAllowedToMerge", "[CombinerDFS]")
+{
+    Graph graph;
+    // Create graph:
+    //
+    //  --> A - - > B
+    //
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+    NameOnlyNode* node  = graph.CreateAndAddNode<NameOnlyNode>("");
+
+    graph.Connect(node, nodeA, 0);
+    graph.Connect(nodeA, nodeB, 0);
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    GraphOfParts gOfParts;
+    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
+    std::unique_ptr<Plan> planA = std::make_unique<Plan>(gOfParts.m_Parts.back()->GeneratePlanId());
+    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+
+    planA->m_OpGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION,
+                                                   CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+                                                   TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 },
+                                                   TensorShape{ 1, 1, 1, 64 }, TraversalOrder::Xyz, Stride(), 0, 0));
+
+    planA->m_OpGraph.SetProducer(planA->m_OpGraph.GetBuffers()[1], planA->m_OpGraph.GetOps()[0]);
+    planA->m_InputMappings  = { { planA->m_OpGraph.GetBuffers()[0], nodeA->GetInput(0) } };
+    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[1], nodeA } };
+    // Add plan to last part
+    gOfParts.m_Parts.back()->m_Plans.push_back(std::move(planA));
+
+    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
+    std::unique_ptr<Plan> planB = std::make_unique<Plan>(gOfParts.m_Parts.back()->GeneratePlanId());
+    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB->m_OpGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION,
+                                                   CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+                                                   TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 },
+                                                   TensorShape{ 1, 1, 1, 64 }, TraversalOrder::Xyz, Stride(), 0, 0));
+
+    planB->m_OpGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION,
+                                                   CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+                                                   TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 },
+                                                   TensorShape{ 1, 1, 1, 64 }, TraversalOrder::Xyz, Stride(), 0, 0));
+
+    planB->m_OpGraph.AddConsumer(planB->m_OpGraph.GetBuffers()[0], planB->m_OpGraph.GetOps()[0], 0);
+    planB->m_OpGraph.AddConsumer(planB->m_OpGraph.GetBuffers()[0], planB->m_OpGraph.GetOps()[1], 0);
+    planB->m_InputMappings = { { planB->m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
+    // Add plan to last part
+    gOfParts.m_Parts.back()->m_Plans.push_back(std::move(planB));
+
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+
+    const Part& partA = GetPart(gOfParts, 0);
+    const Part& partB = GetPart(gOfParts, 1);
+
+    REQUIRE(combiner.ArePlansAllowedToMerge(partA.GetPlan(0), partB.GetPlan(0), *nodeB->GetInput(0)) == true);
+
+    // Create a new plan with a different Block Config i.e. 8x32
+    std::unique_ptr<Plan> planBdiffBlockConfig = std::make_unique<Plan>(gOfParts.m_Parts.back()->GeneratePlanId());
+    planBdiffBlockConfig->m_OpGraph.AddBuffer(std::make_unique<Buffer>(
+        Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 64, 64, 64 },
+        TensorShape{ 1, 8, 16, 16 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planBdiffBlockConfig->m_OpGraph.AddOp(
+        std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                BlockConfig{ 16u, 16u }, TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 },
+                                TensorShape{ 1, 1, 1, 64 }, TraversalOrder::Xyz, Stride(), 0, 0));
+
+    planBdiffBlockConfig->m_OpGraph.AddOp(
+        std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                BlockConfig{ 8u, 32u }, TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 },
+                                TensorShape{ 1, 1, 1, 64 }, TraversalOrder::Xyz, Stride(), 0, 0));
+
+    planBdiffBlockConfig->m_OpGraph.AddConsumer(planBdiffBlockConfig->m_OpGraph.GetBuffers()[0],
+                                                planBdiffBlockConfig->m_OpGraph.GetOps()[0], 0);
+    planBdiffBlockConfig->m_OpGraph.AddConsumer(planBdiffBlockConfig->m_OpGraph.GetBuffers()[0],
+                                                planBdiffBlockConfig->m_OpGraph.GetOps()[1], 0);
+    planBdiffBlockConfig->m_InputMappings = { { planBdiffBlockConfig->m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
+    // Add plan to last part
+    gOfParts.m_Parts.back()->m_Plans.push_back(std::move(planBdiffBlockConfig));
+
+    // They cannot be merged
+    REQUIRE(combiner.ArePlansAllowedToMerge(partA.GetPlan(0), partB.GetPlan(1), *nodeB->GetInput(0)) == false);
+
+    // Create a new plan with a different streaming strategy
+    std::unique_ptr<Plan> planBdiffStrategy = std::make_unique<Plan>(gOfParts.m_Parts.back()->GeneratePlanId());
+    planBdiffStrategy->m_OpGraph.AddBuffer(std::make_unique<Buffer>(
+        Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 64, 64, 64 },
+        TensorShape{ 1, 8, 16, 64 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+
+    planBdiffStrategy->m_InputMappings = { { planBdiffStrategy->m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
+    // Add plan to last part
+    gOfParts.m_Parts.back()->m_Plans.push_back(std::move(planBdiffStrategy));
+
+    // Consumer plan is streaming full depth while producer plan is not
+    REQUIRE(combiner.ArePlansAllowedToMerge(partA.GetPlan(0), partB.GetPlan(2), *nodeB->GetInput(0)) == false);
 }

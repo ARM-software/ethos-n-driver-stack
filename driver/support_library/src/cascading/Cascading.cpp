@@ -166,6 +166,7 @@ Cascading::Cascading(const EstimationOptions& estOpt,
                      const HardwareCapabilities& hwCap)
     : IEstimationStrategy(estOpt, compOpt, hwCap)
     , m_BestCombination(nullptr)
+    , m_Combiner(m_GraphOfParts, hwCap, estOpt, m_DebuggingContext)
 {
     // Constructor
 }

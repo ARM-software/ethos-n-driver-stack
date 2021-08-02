@@ -5,7 +5,7 @@
 
 #include "GraphNodes.hpp"
 #include "TestUtils.hpp"
-#include "cascading/Combiner.hpp"
+#include "cascading/CombinerDFS.hpp"
 #include "cascading/Estimation.hpp"
 #include "cascading/Part.hpp"
 #include "cascading/Plan.hpp"
@@ -860,20 +860,19 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
 
     // Create Combination with all the plans and glues
     Combination comb;
-    Elem elemA  = { 0, 0, { { nodeB->GetInput(0), { 0, &glueA_BC } } } };
-    Elem elemBC = { 1, 0, {} };
-    Elem elemDE = { 2,
-                    0,
-                    { { nodeF->GetInput(0), { 0, &glueD_F } },
-                      { nodeG->GetInput(0), { 0, &glueD_G } },
-                      { nodeG->GetInput(1), { 0, &glueE_G } } } };
-    Elem elemF  = { 3, 0, {} };
-    Elem elemG  = { 4, 0, {} };
-    comb.m_Elems.push_back(elemA);
-    comb.m_Elems.push_back(elemBC);
-    comb.m_Elems.push_back(elemDE);
-    comb.m_Elems.push_back(elemF);
-    comb.m_Elems.push_back(elemG);
+    Elem elemA  = { 0, { { nodeB->GetInput(0), { &glueA_BC } } } };
+    Elem elemBC = { 0, {} };
+    Elem elemDE = { 0,
+                    { { nodeF->GetInput(0), { &glueD_F } },
+                      { nodeG->GetInput(0), { &glueD_G } },
+                      { nodeG->GetInput(1), { &glueE_G } } } };
+    Elem elemF  = { 0, {} };
+    Elem elemG  = { 0, {} };
+    comb.m_Elems.insert(std::make_pair(0, elemA));
+    comb.m_Elems.insert(std::make_pair(1, elemBC));
+    comb.m_Elems.insert(std::make_pair(2, elemDE));
+    comb.m_Elems.insert(std::make_pair(3, elemF));
+    comb.m_Elems.insert(std::make_pair(4, elemG));
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = false;

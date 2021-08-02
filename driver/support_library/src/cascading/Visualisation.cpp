@@ -5,7 +5,7 @@
 
 #include "Visualisation.hpp"
 
-#include "Combiner.hpp"
+#include "CombinerDFS.hpp"
 #include "Estimation.hpp"
 #include "Graph.hpp"
 #include "GraphNodes.hpp"
@@ -1202,10 +1202,10 @@ void SaveCombinationToDot(const Combination& combination,
     NodeIds nodeIds;
     std::unordered_map<const Edge*, std::string> edgeInputs;
 
-    for (const Elem& elem : combination.m_Elems)
+    for (auto& elemIt : combination.m_Elems)
     {
-        const Part& part = graphOfParts.GetPart(elem.m_PartId);
-        const Plan& plan = part.GetPlan(elem.m_PlanId);
+        const Part& part = graphOfParts.GetPart(elemIt.first);
+        const Plan& plan = part.GetPlan(elemIt.second.m_PlanId);
 
         // Save Plans as isolated subgraph
         DotAttributes attr = GetDotAttributes(&plan, detailLevel);
@@ -1219,9 +1219,12 @@ void SaveCombinationToDot(const Combination& combination,
         auto inputEdges = part.GetInputs();
         for (const Edge* inputEdge : inputEdges)
         {
-            std::string source = edgeInputs.at(inputEdge);
-            std::string dest   = nodeIds.at(plan.GetInputBuffer(inputEdge));
-            stream << source << " -> " << dest << "\n";
+            if (edgeInputs.find(inputEdge) != edgeInputs.end())
+            {
+                std::string source = edgeInputs.at(inputEdge);
+                std::string dest   = nodeIds.at(plan.GetInputBuffer(inputEdge));
+                stream << source << " -> " << dest << "\n";
+            }
         }
 
         // Deal with each output edge, which may have a glue attached
@@ -1229,10 +1232,11 @@ void SaveCombinationToDot(const Combination& combination,
         auto outputEdges     = part.GetOutputs();
         for (const Edge* outputEdge : outputEdges)
         {
-            auto glueIt      = elem.m_Glues.find(outputEdge);
-            const Glue* glue = glueIt != elem.m_Glues.end() && !glueIt->second.m_Glue->m_Graph.GetOps().empty()
-                                   ? glueIt->second.m_Glue
-                                   : nullptr;
+            auto glueIt = elemIt.second.m_Glues.find(outputEdge);
+            const Glue* glue =
+                glueIt != elemIt.second.m_Glues.end() && glueIt->second && !glueIt->second->m_Graph.GetOps().empty()
+                    ? glueIt->second
+                    : nullptr;
             if (glue != nullptr)
             {
                 // Save Glue as isolated subgraph

@@ -1,11 +1,11 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
-#include "Combiner.hpp"
+#include "CombinerDFS.hpp"
 #include "IEstimationStrategy.hpp"
 #include "Part.hpp"
 
@@ -37,7 +37,7 @@ private:
 
     NetworkPerformanceData m_PerformanceStream;
     const Combination* m_BestCombination;
-    Metadata m_Metadata;
+    Combiner m_Combiner;
     Combinations m_ValidCombinations;
     GraphOfParts m_GraphOfParts;
 };
