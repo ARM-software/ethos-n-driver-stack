@@ -71,13 +71,24 @@ struct ethosn_dma_info *ethosn_dma_alloc(struct ethosn_dma_allocator *allocator,
 
 	dma_info = ops->alloc(allocator, size, gfp);
 
-	if (IS_ERR_OR_NULL(dma_info))
+	if (IS_ERR_OR_NULL(dma_info)) {
 		dev_err(allocator->dev, "failed to dma_alloc %zu bytes\n",
 			size);
-	else
-		dev_dbg(allocator->dev,
-			"DMA alloc. handle=0x%pK, cpu_addr=0x%pK, size=%zu\n",
-			dma_info, dma_info->cpu_addr, size);
+		goto exit;
+	}
+
+	dev_dbg(allocator->dev,
+		"DMA alloc. handle=0x%pK, cpu_addr=0x%pK, size=%zu\n",
+		dma_info, dma_info->cpu_addr, size);
+
+	/* Zero the memory. This ensures the previous contents of the
+	 * memory doesn't affect us (if the same physical memory
+	 * is re-used). This means we get deterministic results in
+	 * cases where parts of an intermediate buffer are read
+	 * before being written.
+	 */
+	memset(dma_info->cpu_addr, 0, size);
+	ops->sync_for_device(allocator, dma_info);
 
 exit:
 
