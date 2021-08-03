@@ -315,14 +315,14 @@ bool Node::FixGraph(Graph& graph, FixGraphSeverity)
                 // The McePlePass can simply include *one* of the two FormatConversionNodes for what it needs, and the other
                 // can be handled by the preceding/following pass.
                 FormatConversionNode* firstConversion = graph.CreateAndAddNodeWithDebug<FormatConversionNode>(
-                    ETHOSN_FUNCTION_SIGNATURE, GetShape(), GetDataType(), GetQuantizationInfo(), requiredFormat,
+                    "FixGraphConvertOutputTo First", GetShape(), GetDataType(), GetQuantizationInfo(), requiredFormat,
                     GetCorrespondingOperationIds());
                 firstConversion->SetOptimizationHint(
                     OptimizationHint::
                         DoNotMerge);    // Prevent the two nodes from being merged by optimization - otherwise we won't be able to use it in McePlePass.
                 graph.SplitEdge(GetOutput(0), firstConversion);
                 FormatConversionNode* secondConversion = graph.CreateAndAddNodeWithDebug<FormatConversionNode>(
-                    ETHOSN_FUNCTION_SIGNATURE, GetShape(), GetDataType(), GetQuantizationInfo(), GetFormat(),
+                    "FixGraphConvertOutputTo Second", GetShape(), GetDataType(), GetQuantizationInfo(), GetFormat(),
                     GetCorrespondingOperationIds());
                 graph.SplitEdge(firstConversion->GetOutput(0), secondConversion);
 

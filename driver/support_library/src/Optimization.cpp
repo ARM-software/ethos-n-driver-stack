@@ -165,7 +165,7 @@ bool ReorderReinterpretAndRequantizeNodes(Graph& graph, Node* node)
     {
         Node* oldRequantNode = dynamic_cast<RequantizeNode*>(reinterpetNode->GetOutput(0)->GetDestination());
         Node* newRequant     = graph.CreateAndAddNodeWithDebug<RequantizeNode>(
-            ETHOSN_FUNCTION_SIGNATURE, reinterpetNode->GetInputShape(0), oldRequantNode->GetDataType(),
+            "ReorderReinterpretAndRequantizeNodes", reinterpetNode->GetInputShape(0), oldRequantNode->GetDataType(),
             oldRequantNode->GetQuantizationInfo(), oldRequantNode->GetInputFormat(0),
             oldRequantNode->GetCorrespondingOperationIds());
         graph.SplitEdge(reinterpetNode->GetInput(0), newRequant);
@@ -198,7 +198,7 @@ bool ReorderConcatAndCopyNodes(Graph& graph, Node* node)
         for (uint32_t i = 0; i < concatenationNode->GetInputs().size(); ++i)
         {
             Node* newCopy = graph.CreateAndAddNodeWithDebug<CopyNode>(
-                ETHOSN_FUNCTION_SIGNATURE, concatenationNode->GetInputShape(i), oldCopyNode->GetDataType(),
+                "ReorderConcatAndCopyNodes", concatenationNode->GetInputShape(i), oldCopyNode->GetDataType(),
                 oldCopyNode->GetQuantizationInfo(), concatenationNode->GetInputFormat(i),
                 oldCopyNode->GetCorrespondingOperationIds());
             graph.SplitEdge(concatenationNode->GetInput(i), newCopy);
@@ -232,7 +232,7 @@ bool ReorderConcatAndRequantizeNodes(Graph& graph, Node* node)
         for (uint32_t i = 0; i < concatenationNode->GetInputs().size(); ++i)
         {
             Node* newRequant = graph.CreateAndAddNodeWithDebug<RequantizeNode>(
-                ETHOSN_FUNCTION_SIGNATURE, concatenationNode->GetInputShape(i), oldRequantNode->GetDataType(),
+                "ReorderConcatAndRequantizeNodes", concatenationNode->GetInputShape(i), oldRequantNode->GetDataType(),
                 oldRequantNode->GetQuantizationInfo(), concatenationNode->GetInputFormat(i),
                 oldRequantNode->GetCorrespondingOperationIds());
             graph.SplitEdge(concatenationNode->GetInput(i), newRequant);
@@ -312,9 +312,9 @@ bool MergeConstantAndReinterpretNodes(Graph& graph, Node* node)
         ReinterpretNode* reinterpetNode = dynamic_cast<ReinterpretNode*>(constantNode->GetOutput(0)->GetDestination());
         const TensorInfo constantInfo(reinterpetNode->GetShape(), constantNode->GetConstantDataType(), DataFormat::NHWC,
                                       constantNode->GetQuantizationInfo());
-        Node* newConstantNode = graph.CreateAndAddNodeWithDebug<ConstantNode>(ETHOSN_FUNCTION_SIGNATURE, constantInfo,
-                                                                              constantNode->GetConstantData(),
-                                                                              node->GetCorrespondingOperationIds());
+        Node* newConstantNode = graph.CreateAndAddNodeWithDebug<ConstantNode>(
+            "MergeConstantAndReinterpretNodes", constantInfo, constantNode->GetConstantData(),
+            node->GetCorrespondingOperationIds());
         // preserve the operation ids from the nodes that are being removed
         newConstantNode->AddCorrespondingOperationIDs(reinterpetNode->GetCorrespondingOperationIds());
 

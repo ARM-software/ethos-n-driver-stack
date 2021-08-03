@@ -46,7 +46,7 @@ void InsertCopyNode(Graph& graph, Edge* edge)
 {
     Node* prevNode     = edge->GetSource();
     CopyNode* copyNode = graph.CreateAndAddNodeWithDebug<CopyNode>(
-        ETHOSN_FUNCTION_SIGNATURE, prevNode->GetShape(), prevNode->GetDataType(), prevNode->GetQuantizationInfo(),
+        "InsertCopyNode", prevNode->GetShape(), prevNode->GetDataType(), prevNode->GetQuantizationInfo(),
         prevNode->GetFormat(), prevNode->GetCorrespondingOperationIds());
     graph.SplitEdge(edge, copyNode);
 }
@@ -835,8 +835,9 @@ bool ExtractSubtensorNode::FixGraph(Graph& graph, FixGraphSeverity)
         if (identityNode->GetFormat() != GetFormat())
         {
             Node* reformat = graph.CreateAndAddNodeWithDebug<FormatConversionNode>(
-                ETHOSN_FUNCTION_SIGNATURE, identityNode->GetShape(), identityNode->GetDataType(),
-                identityNode->GetQuantizationInfo(), GetFormat(), GetCorrespondingOperationIds());
+                "ExtractSubtensorNode identity conv format fixup", identityNode->GetShape(),
+                identityNode->GetDataType(), identityNode->GetQuantizationInfo(), GetFormat(),
+                GetCorrespondingOperationIds());
             graph.InsertNodeAfter(identityNode, reformat);
         }
     }
@@ -1088,7 +1089,7 @@ MceOperationNode* CreateIdentityMceOpNode(Graph& graph, Node* previousNode)
     TensorInfo biasInfo{ { 1, 1, 1, numIfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
 
     MceOperationNode* result = graph.CreateAndAddNodeWithDebug<MceOperationNode>(
-        ETHOSN_FUNCTION_SIGNATURE, previousNode->GetShape(), previousNode->GetShape(), previousNode->GetDataType(),
+        "CreateIdentityMceOpNode", previousNode->GetShape(), previousNode->GetShape(), previousNode->GetDataType(),
         previousNode->GetQuantizationInfo(), weightInfo, weightsData, biasInfo, biasData, Stride{ 1, 1 }, 0, 0,
         ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION, CompilerDataFormat::NHWCB,
         previousNode->GetCorrespondingOperationIds());
