@@ -9,8 +9,8 @@
 #include "EthosNConfig.hpp"
 #include "EthosNMapping.hpp"
 
-#include <Filesystem.hpp>
 #include <SubgraphView.hpp>
+#include <armnnUtils/Filesystem.hpp>
 
 #include <cstdlib>
 #include <fstream>

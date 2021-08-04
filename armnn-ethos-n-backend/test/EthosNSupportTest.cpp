@@ -280,6 +280,20 @@ TEST_SUITE("EthosNSupport")
             graph.AddLayer<FullyConnectedLayer>(fullyConnectedDescriptor, "fullyConn");
         fullyConnectedLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
+        // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
+        // as separate layers with connections. For now, we need to do both.
+        auto weights           = graph.AddLayer<ConstantLayer>("Weights");
+        weights->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
+        weights->m_LayerOutput->Allocate();
+        weights->GetOutputSlot().SetTensorInfo(weightInfo);
+        weights->GetOutputSlot().Connect(fullyConnectedLayer->GetInputSlot(1));
+
+        auto bias           = graph.AddLayer<ConstantLayer>("Bias");
+        bias->m_LayerOutput = std::make_unique<ScopedTensorHandle>(biasesInfo);
+        bias->m_LayerOutput->Allocate();
+        bias->GetOutputSlot().SetTensorInfo(biasesInfo);
+        bias->GetOutputSlot().Connect(fullyConnectedLayer->GetInputSlot(2));
+
         SetWeightAndBias(fullyConnectedLayer, weightInfo, biasesInfo);
 
         // Add OutputLayer
@@ -290,8 +304,8 @@ TEST_SUITE("EthosNSupport")
         fullyConnectedLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
         SubgraphView::SubgraphViewPtr subgraphPtr =
-            CreateSubgraphViewFrom(CreateInputsFrom({ fullyConnectedLayer }),
-                                   CreateOutputsFrom({ fullyConnectedLayer }), { fullyConnectedLayer });
+            CreateSubgraphViewFrom({ &fullyConnectedLayer->GetInputSlot(0) },
+                                   { &fullyConnectedLayer->GetOutputSlot(0) }, { fullyConnectedLayer });
 
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 

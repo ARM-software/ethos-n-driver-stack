@@ -18,10 +18,3 @@ output firstOutput 1x16x16x16
 ElementwiseUnary (firstInput) (firstOutput) ((function=Rsqrt))
 graph-replacement:
 Convolution2d (firstInput) (firstOutput), ((dilation=1x1),(kernel=1x1),(padding=0x0x0x0),(stride=1x1),(name=Convolution2d))
-
-pattern:
-input firstInput 1x16x16x16
-output firstOutput 1x16x16x16
-FullyConnected (firstInput) (firstOutput)
-graph-replacement:
-DepthwiseConvolution2d (firstInput) (firstOutput), ((dilation=1x1),(kernel=1x1),(padding=0x0x0x0),(stride=1x1),(name=DepthwiseConvolution2d))

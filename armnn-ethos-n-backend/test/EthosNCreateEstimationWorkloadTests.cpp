@@ -10,7 +10,7 @@
 #include "EthosNWorkloadFactory.hpp"
 #include "EthosNWorkloads.hpp"
 
-#include <Filesystem.hpp>
+#include <armnnUtils/Filesystem.hpp>
 #include <test/CreateWorkload.hpp>
 
 #include <doctest/doctest.h>

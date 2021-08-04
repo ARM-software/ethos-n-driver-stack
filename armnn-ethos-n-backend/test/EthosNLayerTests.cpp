@@ -993,8 +993,12 @@ LayerTestResult<uint8_t, 2> PreCompiledFullyConnectedTest(armnn::IWorkloadFactor
     ConstTensor biases(biasesInfo, biasesData);
 
     IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
+
+    ARMNN_NO_DEPRECATE_WARN_BEGIN
     IConnectableLayer* const fullyConnectedLayer =
         net->AddFullyConnectedLayer(descriptor, weights, Optional<ConstTensor>(biases), "fullyConnected");
+    ARMNN_NO_DEPRECATE_WARN_BEGIN
+
     IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output");
 
     // Connect the layers

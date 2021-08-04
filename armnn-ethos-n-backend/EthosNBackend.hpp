@@ -140,10 +140,10 @@ LayerType GetLayerType(std::string layerTypeName);
 
 Layer* CreateActivationLayer(Graph& graph, std::string activationFunction, std::string layerName);
 
-Layer* CreateFullyConnectedLayer(Graph& graph,
-                                 const TensorInfo& inputTensor,
-                                 const TensorInfo& outputTensor,
-                                 AdditionalLayerParams& params);
+SubgraphView CreateFullyConnectedLayer(Graph& graph,
+                                       const TensorInfo& inputTensor,
+                                       const TensorInfo& outputTensor,
+                                       AdditionalLayerParams& params);
 
 Layer* CreatePooling2dLayer(Graph& graph, AdditionalLayerParams& params);
 

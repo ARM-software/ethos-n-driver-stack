@@ -1766,4 +1766,17 @@ bool EthosNLayerSupport::IsTransposeSupported(const TensorInfo& input,
     return supported;
 }
 
+bool EthosNLayerSupport::IsUnidirectionalSequenceLstmSupported(const TensorInfo&,
+                                                               const TensorInfo&,
+                                                               const TensorInfo&,
+                                                               const TensorInfo&,
+                                                               const Optional<TensorInfo>&,
+                                                               const Optional<TensorInfo>&,
+                                                               const LstmDescriptor&,
+                                                               const LstmInputParamsInfo&,
+                                                               Optional<std::string&>) const
+{
+    return false;
+}
+
 }    // namespace armnn

@@ -656,7 +656,8 @@ TEST_SUITE("EthosNMapping")
         Graph & graph, SimpleLayer layer, std::array<const unsigned int, SIZE> inputDimensions,
         std::array<const unsigned int, SIZE> outputDimensions)
     {
-        Layer *inputLayer, *outputLayer, *operationLayer;
+        Layer *inputLayer, *outputLayer;
+        SubgraphView operationSubgraph({}, {}, {});
         Shape inputOutputTensorShape;
         std::map<std::string, LayerType> mapStringToLayerType = armnn::ethosnbackend::GetMapStringToLayerType();
         LayerType type = mapStringToLayerType.find(layer.m_LayerTypeName)->second;
@@ -671,26 +672,29 @@ TEST_SUITE("EthosNMapping")
             std::string activationFuncOriginalLayer = layer.m_LayerParams.find("function")->second;
             std::string name                        = layer.m_LayerParams["name"];
 
-            operationLayer = ethosnbackend::CreateActivationLayer(graph, activationFuncOriginalLayer, name);
+            operationSubgraph =
+                SubgraphView(ethosnbackend::CreateActivationLayer(graph, activationFuncOriginalLayer, name));
         }
         else if ((type == LayerType::Convolution2d) || (type == LayerType::TransposeConvolution2d) ||
                  (type == LayerType::DepthwiseConvolution2d))
         {
             unsigned int inputChannels = inputInfo.GetShape()[3];
             DataType weightDataType    = inputInfo.GetDataType();
-            operationLayer = ethosnbackend::CreateConvolutionLayer(type, graph, inputChannels, layer.m_LayerParams,
-                                                                   weightDataType, DataType::Signed32);
+            operationSubgraph          = SubgraphView(ethosnbackend::CreateConvolutionLayer(
+                type, graph, inputChannels, layer.m_LayerParams, weightDataType, DataType::Signed32));
         }
         else if (type == LayerType::FullyConnected)
         {
-            operationLayer =
+            operationSubgraph =
                 ethosnbackend::CreateFullyConnectedLayer(graph, inputInfo, outputInfo, layer.m_LayerParams);
         }
         else if (type == LayerType::Pooling2d)
         {
-            operationLayer = ethosnbackend::CreatePooling2dLayer(graph, layer.m_LayerParams);
+            operationSubgraph = SubgraphView(ethosnbackend::CreatePooling2dLayer(graph, layer.m_LayerParams));
         }
 
+        CHECK(operationSubgraph.GetLayers().size() > 0);
+        Layer* operationLayer = *operationSubgraph.GetLayers().begin();
         CHECK(operationLayer);
         operationLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
@@ -707,8 +711,7 @@ TEST_SUITE("EthosNMapping")
         operationLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
         // Create the subgraph view for the whole network
-        return CreateSubgraphViewFrom(CreateInputsFrom({ operationLayer }), CreateOutputsFrom({ operationLayer }),
-                                      { operationLayer });
+        return std::make_unique<armnn::SubgraphView>(operationSubgraph);
     }
 
     // This function assumes that there is only one operation layer in the subgraph.

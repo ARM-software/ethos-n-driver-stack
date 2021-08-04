@@ -1,5 +1,5 @@
 //
-// Copyright © 2020-2021 Arm Ltd.
+// Copyright © 2020-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "SISOCatOneGraphFactory.hpp"
@@ -47,15 +47,6 @@ std::unique_ptr<NetworkImpl> SISOCatOneGraphFactory::GetInitialGraph() const
     armnn::IConnectableLayer* rsqrtLayer = net->AddElementwiseUnaryLayer(rsqrtDesc, "Rsqrt");
     CHECK(rsqrtLayer);
 
-    //Layer 4
-    unsigned int dims[] = { 10, 1, 1, 1 };
-    std::vector<float> convWeightsData(10);
-    armnn::ConstTensor weights(armnn::TensorInfo(4, dims, armnn::DataType::Float32), convWeightsData);
-    armnn::FullyConnectedDescriptor fullyConnectedDesc;
-    armnn::IConnectableLayer* const fullyConnectedLayer =
-        net->AddFullyConnectedLayer(fullyConnectedDesc, weights, armnn::EmptyOptional(), "fully connected");
-    CHECK(fullyConnectedLayer);
-
     armnn::IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output layer");
     CHECK(outputLayer);
 
@@ -76,11 +67,8 @@ std::unique_ptr<NetworkImpl> SISOCatOneGraphFactory::GetInitialGraph() const
     softmaxLayer->GetOutputSlot(0).Connect(rsqrtLayer->GetInputSlot(0));
     softmaxLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
 
-    rsqrtLayer->GetOutputSlot(0).Connect(fullyConnectedLayer->GetInputSlot(0));
-    rsqrtLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
-
-    fullyConnectedLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
-    fullyConnectedLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
+    rsqrtLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+    rsqrtLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
 
     return net;
 }
@@ -140,34 +128,6 @@ std::unique_ptr<NetworkImpl> SISOCatOneGraphFactory::GetExpectedModifiedGraph() 
         convolution2dDesc, weightsConv2d, Optional<ConstTensor>(biasesConv2d), "Convolution2d");
     CHECK(convolution2dLayer);
 
-    //Layer 4
-    armnn::DepthwiseConvolution2dDescriptor depthwiseConvolution2dDesc;
-    depthwiseConvolution2dDesc.m_DilationX   = 1;
-    depthwiseConvolution2dDesc.m_DilationY   = 1;
-    depthwiseConvolution2dDesc.m_PadBottom   = 0;
-    depthwiseConvolution2dDesc.m_PadLeft     = 0;
-    depthwiseConvolution2dDesc.m_PadRight    = 0;
-    depthwiseConvolution2dDesc.m_PadTop      = 0;
-    depthwiseConvolution2dDesc.m_StrideX     = 1;
-    depthwiseConvolution2dDesc.m_StrideY     = 1;
-    depthwiseConvolution2dDesc.m_BiasEnabled = true;
-    depthwiseConvolution2dDesc.m_DataLayout  = DataLayout::NHWC;
-
-    std::vector<uint8_t> weightDataDepthConv2d(1 * 1 * 1 * 16);
-    std::vector<unsigned int> weightDimensionsDepthConv2d = { 1, 1, 1, 16 };    //1HW(I*M)
-    ConstTensor weightsDepthConv2d(TensorInfo(4, weightDimensionsDepthConv2d.data(), DataType::QAsymmU8, 0.5),
-                                   weightDataDepthConv2d);
-
-    std::vector<unsigned int> biasesDataDepthConv2d(1 * 1 * 1 * 16);
-    std::vector<unsigned int> biasDimensionsDepthConv2d = { 1, 1, 1, 16 };
-    ConstTensor biasesDepthConv2d(TensorInfo(4, biasDimensionsDepthConv2d.data(), DataType::Signed32, 0.899999976f),
-                                  biasesDataDepthConv2d);
-
-    armnn::IConnectableLayer* depthwiseConvolution2dLayer =
-        net->AddDepthwiseConvolution2dLayer(depthwiseConvolution2dDesc, weightsDepthConv2d,
-                                            Optional<ConstTensor>(biasesDepthConv2d), "DepthwiseConvolution2d");
-    CHECK(depthwiseConvolution2dLayer);
-
     armnn::IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output layer");
     CHECK(outputLayer);
 
@@ -188,11 +148,8 @@ std::unique_ptr<NetworkImpl> SISOCatOneGraphFactory::GetExpectedModifiedGraph() 
     pooling2dLayer->GetOutputSlot(0).Connect(convolution2dLayer->GetInputSlot(0));
     pooling2dLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
 
-    convolution2dLayer->GetOutputSlot(0).Connect(depthwiseConvolution2dLayer->GetInputSlot(0));
-    convolution2dLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
-
-    depthwiseConvolution2dLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
-    depthwiseConvolution2dLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
+    convolution2dLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+    convolution2dLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
 
     return net;
 }

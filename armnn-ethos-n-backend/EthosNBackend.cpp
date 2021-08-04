@@ -470,10 +470,10 @@ void ValidateConvolutionLayerParameters(SimpleLayer& layer)
     }
 }
 
-Layer* CreateFullyConnectedLayer(Graph& graph,
-                                 const TensorInfo& inputTensor,
-                                 const TensorInfo& outputTensor,
-                                 AdditionalLayerParams& params)
+SubgraphView CreateFullyConnectedLayer(Graph& graph,
+                                       const TensorInfo& inputTensor,
+                                       const TensorInfo& outputTensor,
+                                       AdditionalLayerParams& params)
 {
     FullyConnectedDescriptor desc;
     auto name = params["name"];
@@ -492,9 +492,24 @@ Layer* CreateFullyConnectedLayer(Graph& graph,
 
     ARMNN_LOG(info) << "Creating a Fully Connected layer \n";
     auto layer = graph.AddLayer<FullyConnectedLayer>(desc, name.c_str());
+
+    // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
+    // as separate layers with connections. For now, we need to do both.
+    auto weights           = graph.AddLayer<ConstantLayer>(("Weights for " + name).c_str());
+    weights->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
+    weights->m_LayerOutput->Allocate();
+    weights->GetOutputSlot().SetTensorInfo(weightInfo);
+    weights->GetOutputSlot().Connect(layer->GetInputSlot(1));
+
+    auto bias           = graph.AddLayer<ConstantLayer>(("Bias for " + name).c_str());
+    bias->m_LayerOutput = std::make_unique<ScopedTensorHandle>(biasesInfo);
+    bias->m_LayerOutput->Allocate();
+    bias->GetOutputSlot().SetTensorInfo(biasesInfo);
+    bias->GetOutputSlot().Connect(layer->GetInputSlot(2));
+
     SetWeightAndBias(layer, weightInfo, biasesInfo);
 
-    return layer;
+    return SubgraphView({ &layer->GetInputSlot(0) }, { &layer->GetOutputSlot(0) }, { layer, weights, bias });
 }
 
 Layer* CreatePooling2dLayer(Graph& graph, AdditionalLayerParams& params)
@@ -516,7 +531,7 @@ Layer* CreatePooling2dLayer(Graph& graph, AdditionalLayerParams& params)
 void SubstituteLayer(
     Mapping& mapping, Layer* layer, const TensorInfo& inputTensor, const TensorInfo& outputTensor, Graph& newGraph)
 {
-    Layer* newLayer = nullptr;
+    SubgraphView newSubgraph({}, {}, {});
     std::string errors;
     std::string replacementLayerTypeName = mapping.m_ReplacementLayers[0].m_LayerTypeName;
     AdditionalLayerParams params         = mapping.m_ReplacementLayers[0].m_LayerParams;
@@ -531,8 +546,8 @@ void SubstituteLayer(
         ARMNN_LOG(info) << "The replacement is activation function " << funcName->second << "\n";
 
         ValidateActivationLayerParameters(mapping.m_ReplacementLayers[0]);
-        newLayer =
-            CreateActivationLayer(newGraph, funcName->second, mapping.m_ReplacementLayers[0].m_LayerParams["name"]);
+        newSubgraph = SubgraphView(
+            CreateActivationLayer(newGraph, funcName->second, mapping.m_ReplacementLayers[0].m_LayerParams["name"]));
     }
     else if ((type == LayerType::Convolution2d) || (type == LayerType::TransposeConvolution2d) ||
              (type == LayerType::DepthwiseConvolution2d))
@@ -540,17 +555,17 @@ void SubstituteLayer(
         unsigned int inputChannels = inputTensor.GetShape()[3];
 
         ValidateConvolutionLayerParameters(mapping.m_ReplacementLayers[0]);
-        newLayer = CreateConvolutionLayer(type, newGraph, inputChannels, params, inputTensor.GetDataType(),
-                                          DataType::Signed32);
+        newSubgraph = SubgraphView(CreateConvolutionLayer(type, newGraph, inputChannels, params,
+                                                          inputTensor.GetDataType(), DataType::Signed32));
     }
     else if (type == LayerType::FullyConnected)
     {
-        newLayer = CreateFullyConnectedLayer(newGraph, inputTensor, outputTensor, params);
+        newSubgraph = CreateFullyConnectedLayer(newGraph, inputTensor, outputTensor, params);
     }
     else if (type == LayerType::Pooling2d)
     {
         ValidatePoolingLayerParameters(mapping.m_ReplacementLayers[0]);
-        newLayer = CreatePooling2dLayer(newGraph, params);
+        newSubgraph = SubgraphView(CreatePooling2dLayer(newGraph, params));
     }
     else
     {
@@ -561,13 +576,13 @@ void SubstituteLayer(
         throw armnn::InvalidArgumentException(errors);
     }
 
-    ARMNN_ASSERT((newLayer != nullptr));
+    ARMNN_ASSERT(newSubgraph.GetLayers().size() > 0);
 
-    SubgraphView newSubgraphFromLayer = SubgraphView(layer);
+    SubgraphView originalSubgraph = SubgraphView(layer);
 
     // SubstituteSubgraph() currently cannot be called on a Graph that contains only one layer.
     // CloneGraph() and ReinterpretGraphToSubgraph() are used to work around this.
-    newGraph.SubstituteSubgraph(newSubgraphFromLayer, newLayer);
+    newGraph.SubstituteSubgraph(originalSubgraph, newSubgraph);
 }
 
 // Check for additional parameters required for certain layer types

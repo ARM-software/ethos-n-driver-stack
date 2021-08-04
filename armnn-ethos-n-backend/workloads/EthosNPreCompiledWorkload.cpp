@@ -10,9 +10,9 @@
 #include "EthosNWorkloadUtils.hpp"
 #include "LabelsAndEventClasses.hpp"
 
-#include <Threads.hpp>
 #include <armnn/ArmNN.hpp>
 #include <armnn/utility/Assert.hpp>
+#include <armnnUtils/Threads.hpp>
 #include <ethosn_driver_library/Network.hpp>
 #include <ethosn_support_library/Support.hpp>
 

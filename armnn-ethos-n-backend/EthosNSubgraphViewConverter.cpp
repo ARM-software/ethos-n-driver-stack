@@ -10,10 +10,10 @@
 #include "EthosNTensorUtils.hpp"
 #include "workloads/EthosNPreCompiledWorkload.hpp"
 
-#include <Filesystem.hpp>
 #include <armnn/Logging.hpp>
 #include <armnn/Optional.hpp>
 #include <armnn/utility/Assert.hpp>
+#include <armnnUtils/Filesystem.hpp>
 #include <armnnUtils/Permute.hpp>
 #include <backendsCommon/TensorHandle.hpp>
 #include <ethosn_utils/VectorStream.hpp>
