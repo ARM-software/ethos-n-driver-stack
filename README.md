@@ -357,6 +357,14 @@ There are multiple ways to exercise the Ethos-N NPU driver.
     LD_LIBRARY_PATH=<path_to_ethosn_libraries>:<path_to_armnn_libs> ./tests/ExecuteNetwork -f tflite-binary -i input -y qasymm8 -o MobilenetV1/Predictions/Reshape_1 -z qasymm8 -d input_data.txt -m mobilenet_v1_1.0_224_quant.tflite -c EthosNAcc -c CpuRef
     ```
 
+## Power Management
+
+The Ethos-N NPU supports the following power management features to allow efficient power usage:
+* Suspend: Once the suspend command has been given, the NPU is brought to a low power state and the NPU's state is kept in RAM. This feature is sometimes referred to as 'suspend to RAM'.
+* Sleep: This is a runtime power management feature that dynamically puts the NPU in a low-power state when it is not being used; the rest of the system still functions normally.
+
+The Ethos-N NPU kernel module implements the Linux Power Management (PM) callbacks. This gives the flexibility to the system integrator to integrate the Ethos-N NPU in any power domain.
+
 ## Firmware Binary
 
 The `ethosn.bin` has been compiled with the following security related flags:
@@ -392,6 +400,10 @@ The driver expects that the minimum amount of memory available for an Arm Ethos-
 Systems that implement Arm SMMU require a memory footprint of 3 MB to create all the page translations for the NPU memory accesses.
 
 For more information on memory requirements and limitations, please see the documentation for your SoC.
+
+### Power management limitations
+
+Hibernate (sometimes referred to as 'suspend to disk') is not supported.
 
 ## License
 
