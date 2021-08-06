@@ -132,11 +132,9 @@ struct Combination
 enum class StatsType
 {
     ContinueSection,
-    FindBestCombinationForPart
+    FindBestCombinationForPart,
+    NumStats,
 };
-
-constexpr std::initializer_list<StatsType> StatsTypes = { StatsType::ContinueSection,
-                                                          StatsType::FindBestCombinationForPart };
 
 using Combinations = std::vector<Combination>;
 
@@ -206,7 +204,7 @@ struct Combiner
     std::map<const Part*, const Combination> m_CombinationPerPartMap;
     std::vector<std::unique_ptr<Glue>> m_GluesVector;
 
-    std::vector<size_t> m_Stats{ std::vector<size_t>(StatsTypes.size(), 0) };
+    std::vector<size_t> m_Stats{ std::vector<size_t>(static_cast<size_t>(StatsType::NumStats), 0) };
 };
 
 OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfParts& parts);

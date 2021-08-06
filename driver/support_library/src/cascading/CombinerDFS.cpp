@@ -131,7 +131,7 @@ bool MatchingBlocks(const Plan& planProducer, const Plan& planConsumer, Buffer* 
 
 void Combiner::UpdateStats(const StatsType type)
 {
-    assert(static_cast<size_t>(type) < StatsTypes.size());
+    assert(type < StatsType::NumStats);
     ++m_Stats[static_cast<size_t>(type)];
 }
 
