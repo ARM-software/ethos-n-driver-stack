@@ -65,10 +65,7 @@ static int ethosn_pm_resume(struct device *dev)
 	if (ret)
 		goto exit_pm_resume;
 
-	if (core->current_inference)
-		ethosn_schedule_inference(core->current_inference);
-	else
-		ethosn_schedule_queued_inference(core);
+	ethosn_schedule_queued_inference(core);
 
 	/* ethosn_schedule_queued_inference modifies current_inference,
 	 * put if nothing has been scheduled on this core
@@ -115,6 +112,7 @@ static int ethosn_pm_suspend_noirq(struct device *dev)
 {
 	int ret = 0;
 	struct ethosn_core *core = dev_get_drvdata(dev);
+	struct ethosn_device *ethosn;
 
 	if (!core) {
 		dev_dbg(dev, "Driver data not found\n");
@@ -125,6 +123,23 @@ static int ethosn_pm_suspend_noirq(struct device *dev)
 	if (core->current_inference) {
 		core->current_inference->status = ETHOSN_INFERENCE_SCHEDULED;
 		ethosn_put_inference(core->current_inference);
+		ethosn = core->parent;
+
+		ret = mutex_lock_interruptible(
+			&ethosn->queue.inference_queue_mutex);
+
+		if (ret) {
+			ret = -EFAULT;
+			goto exit_pm_suspend;
+		}
+
+		/* Queue the inference again */
+		list_add(&core->current_inference->queue_node,
+			 &ethosn->queue.inference_queue);
+
+		mutex_unlock(&ethosn->queue.inference_queue_mutex);
+
+		core->current_inference = NULL;
 	} else {
 		/* Get if nothing was scheduled on this core */
 		pm_runtime_get_noresume(core->dev);
