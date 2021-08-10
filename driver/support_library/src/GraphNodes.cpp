@@ -1064,8 +1064,8 @@ void EstimateOnlyNode::Estimate(NetworkPerformanceData& perfData, const Estimati
 {
     for (const auto it : GetCorrespondingOperationIds())
     {
-        perfData.m_OperationIdFailureReasons.emplace(it, "Could not be estimated: " + m_ReasonForEstimateOnly +
-                                                             " Please provide a mapping file entry for this operation");
+        perfData.m_OperationIdFailureReasons.emplace(
+            it, "Could not be estimated and has zero performance impact. Reason: " + m_ReasonForEstimateOnly);
     }
 }
 

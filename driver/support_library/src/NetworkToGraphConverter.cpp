@@ -1289,7 +1289,8 @@ void NetworkToGraphConverter::Visit(Resize& resize)
 
 void NetworkToGraphConverter::Visit(EstimateOnly& estimateOnly)
 {
-    char reason[] = "EstimationOnly operations have zero performance impact";
+    std::string reasonStr = estimateOnly.GetReason();
+    const char* reason    = (reasonStr.length() == 0) ? "EstimateOnly operation added explicitly." : reasonStr.data();
 
     // Add an EstimateOnly node for each output of the EstimateOnly operation
     for (const auto& it : estimateOnly.GetOutputs())

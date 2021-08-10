@@ -343,7 +343,7 @@ EstimateOnly& Network::AddEstimateOnly(const std::vector<Operand*>& inputs, cons
         producers.push_back(&(*it)->GetProducer());
     }
 
-    return AddOperationWithId<EstimateOnly>(producers, inputs, estimateOnly.m_OutputInfos);
+    return AddOperationWithId<EstimateOnly>(producers, inputs, estimateOnly);
 }
 
 ethosn::support_library::detail::PosInNetwork::Type

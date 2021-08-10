@@ -570,7 +570,13 @@ public:
         return "EstimateOnly";
     }
 
+    const std::string& GetReason() const
+    {
+        return m_ReasonForEstimateOnly;
+    }
+
 private:
+    std::string m_ReasonForEstimateOnly;
 };
 
 }    // namespace support_library

@@ -230,8 +230,10 @@ void EthosNSubgraphViewConverter::AddActivationLayer(Layer* layer)
         {
             if (m_EthosNConfig.m_PerfOnly)
             {
+                std::string reasonForEstimateOnly = "Unsupported activation function.";
                 ethosn_lib::EstimateOnlyInfo estimateInfo(
-                    { BuildEthosNTensorInfo(activationLayer.GetOutputSlot(0).GetTensorInfo(), DataLayout::NHWC) });
+                    { BuildEthosNTensorInfo(activationLayer.GetOutputSlot(0).GetTensorInfo(), DataLayout::NHWC) },
+                    reasonForEstimateOnly);
                 auto tensorsAndId = ethosn_lib::AddEstimateOnly(m_Network, { input1.tensor.get() }, estimateInfo);
                 newOperand        = { tensorsAndId.tensors[0], tensorsAndId.operationId };
                 break;
@@ -564,7 +566,7 @@ void EthosNSubgraphViewConverter::AddResizeLayer(Layer* layer)
     InsertConvertedLayerSingleOutput(layer, ethosn_lib::AddResize(m_Network, *input.tensor, resizeInfo));
 }
 
-void EthosNSubgraphViewConverter::AddEstimateOnly(Layer* layer)
+void EthosNSubgraphViewConverter::AddEstimateOnly(Layer* layer, const std::string& reasonForEstimateOnly)
 {
     ARMNN_ASSERT(layer != nullptr);
 
@@ -582,7 +584,7 @@ void EthosNSubgraphViewConverter::AddEstimateOnly(Layer* layer)
     {
         ethosnOutputInfos.push_back(BuildEthosNTensorInfo(layer->GetOutputSlot(i).GetTensorInfo(), DataLayout::NHWC));
     }
-    ethosn_lib::EstimateOnlyInfo estimateInfo(ethosnOutputInfos);
+    ethosn_lib::EstimateOnlyInfo estimateInfo(ethosnOutputInfos, reasonForEstimateOnly);
     InsertConvertedLayerMultipleOutput(layer, ethosn_lib::AddEstimateOnly(m_Network, inputOperands, estimateInfo));
 }
 
@@ -615,17 +617,18 @@ void EthosNSubgraphViewConverter::AddStandInLayer(Layer* layer)
     }
     else
     {
-        HandleUnknownLayer(layer);
+        std::string reason = "StandIn layer is not supported.";
+        HandleUnknownLayer(layer, reason);
     }
 }
 
-void EthosNSubgraphViewConverter::HandleUnknownLayer(Layer* layer)
+void EthosNSubgraphViewConverter::HandleUnknownLayer(Layer* layer, const std::string& reason)
 {
     if (m_EthosNConfig.m_PerfOnly)
     {
         ARMNN_LOG(info) << "\"" << layer->GetNameStr() << "\" is replaced with an estimate only node "
                         << "LayerType: " << GetLayerTypeAsCString(layer->GetType());
-        AddEstimateOnly(layer);
+        AddEstimateOnly(layer, reason);
     }
     else
     {
@@ -708,7 +711,8 @@ EthosNOperand EthosNSubgraphViewConverter::AddOrRetrieveEthosNOperand(const Outp
             AddMeanXyLayer(layer);
             break;
         default:
-            HandleUnknownLayer(layer);
+            std::string reason = layer->GetNameStr() + " is not currently supported.";
+            HandleUnknownLayer(layer, reason);
     }
 
     // Return the Ethos-N operand that should now have been added

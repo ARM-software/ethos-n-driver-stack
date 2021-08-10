@@ -106,9 +106,9 @@ private:
 
     /// When in PerfOnly mode, this function tries to add estimate only layer from Support Library if the layer in
     /// consideration is unknown.
-    void HandleUnknownLayer(Layer* layer);
+    void HandleUnknownLayer(Layer* layer, const std::string& reason);
 
-    void AddEstimateOnly(Layer* layer);
+    void AddEstimateOnly(Layer* layer, const std::string& reason);
     /// Converts the layer that owns the given OutputSlot and adds it to the Ethos-N network.
     /// Returns the corresponding Ethos-N operand representing the same output as the given OutputSlot.
     /// If the layer has already been converted then this returns the existing corresponding Ethos-N operand and does

@@ -24,7 +24,7 @@
 
 // Version information
 #define ETHOSN_SUPPORT_LIBRARY_VERSION_MAJOR 1
-#define ETHOSN_SUPPORT_LIBRARY_VERSION_MINOR 1
+#define ETHOSN_SUPPORT_LIBRARY_VERSION_MINOR 2
 #define ETHOSN_SUPPORT_LIBRARY_VERSION_PATCH 0
 
 namespace ethosn
@@ -814,8 +814,13 @@ struct ResizeInfo
 
 struct EstimateOnlyInfo
 {
-    EstimateOnlyInfo(const std::vector<TensorInfo>& outputInfos)
+    EstimateOnlyInfo(const std::vector<TensorInfo>& outputInfos, const std::string& reasonForEstimateOnly)
         : m_OutputInfos(outputInfos)
+        , m_ReasonForEstimateOnly(reasonForEstimateOnly)
+    {}
+
+    EstimateOnlyInfo(const std::vector<TensorInfo>& outputInfos)
+        : EstimateOnlyInfo(outputInfos, "EstimateOnly operation added explicitly.")
     {}
 
     bool operator==(const EstimateOnlyInfo& rhs) const
@@ -829,6 +834,7 @@ struct EstimateOnlyInfo
     }
 
     std::vector<TensorInfo> m_OutputInfos;
+    std::string m_ReasonForEstimateOnly;
 };
 
 struct BufferInfo

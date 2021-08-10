@@ -244,7 +244,7 @@ TEST_SUITE("CreateEstimationWorkloadEthosN")
 		],
 		"Issues":
 		{
-			"2": "Could not be estimated: EstimationOnly operations have zero performance impact. Please provide a mapping file entry for this operation"
+			"2": "Could not be estimated and has zero performance impact. Reason: abs layer is not currently supported."
 		}
 	}
 }
@@ -420,7 +420,7 @@ TEST_SUITE("CreateEstimationWorkloadEthosN")
 		],
 		"Issues":
 		{
-			"2": "Could not be estimated: Unsupported configuration in AVG pooling. Please provide a mapping file entry for this operation"
+			"2": "Could not be estimated and has zero performance impact. Reason: Unsupported configuration in AVG pooling."
 		}
 	}
 }
