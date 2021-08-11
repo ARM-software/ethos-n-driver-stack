@@ -1,5 +1,5 @@
 #
-# (C) COPYRIGHT 2018-2021 Arm Limited. All rights reserved.
+# (C) COPYRIGHT 2018-2021 Arm Limited.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -26,6 +26,7 @@ obj-$(CONFIG_ETHOSN_TEST) += ../internal/kernel-module/tests/ethosn-tests.o
 ethosn-objs := ethosn_driver.o \
              ethosn_device.o \
              ethosn_core.o \
+             ethosn_backport.o \
              ethosn_buffer.o \
              ethosn_dma.o \
              ethosn_dma_carveout.o \

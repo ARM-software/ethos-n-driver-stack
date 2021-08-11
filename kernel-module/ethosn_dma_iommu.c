@@ -22,6 +22,7 @@
 
 #include "ethosn_dma_iommu.h"
 
+#include "ethosn_backport.h"
 #include "ethosn_device.h"
 
 #include <linux/iommu.h>
@@ -198,14 +199,10 @@ static void iommu_free_pages(struct ethosn_dma_allocator *allocator,
 {
 	int i;
 
-	for (i = 0; i < nr_pages; ++i) {
-		if (dma_addr[i])
-			dma_unmap_page(allocator->dev, dma_addr[i],
-				       PAGE_SIZE, DMA_BIDIRECTIONAL);
-
-		if (pages[i])
-			__free_page(pages[i]);
-	}
+	for (i = 0; i < nr_pages; ++i)
+		if (dma_addr[i] && pages[i])
+			dma_free_pages(allocator->dev, PAGE_SIZE, pages[i],
+				       dma_addr[i], DMA_BIDIRECTIONAL);
 }
 
 static struct ethosn_dma_info *iommu_alloc(
@@ -245,14 +242,12 @@ static struct ethosn_dma_info *iommu_alloc(
 		goto free_pages_list;
 
 	for (i = 0; i < nr_pages; ++i) {
-		pages[i] = alloc_page(gfp);
+		pages[i] = dma_alloc_pages(allocator->dev, PAGE_SIZE,
+					   &dma_addr[i], DMA_BIDIRECTIONAL,
+					   gfp);
+
 		if (!pages[i])
 			goto free_pages;
-
-		dma_addr[i] =
-			dma_map_page(allocator->dev, pages[i], 0,
-				     PAGE_SIZE,
-				     DMA_BIDIRECTIONAL);
 
 		if (dma_mapping_error(allocator->dev, dma_addr[i])) {
 			dev_err(allocator->dev,

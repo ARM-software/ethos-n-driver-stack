@@ -20,45 +20,48 @@
  *
  */
 
-#ifndef _ETHOSN_BACKPORT_H_
-#define _ETHOSN_BACKPORT_H_
-
-#include <linux/dma-mapping.h>
-#include <linux/fs.h>
-#include <linux/eventpoll.h>
-#include <linux/version.h>
-
-#if !defined(EPOLLERR)
-#define EPOLLERR        POLLERR
-#define EPOLLIN         POLLIN
-#define EPOLLHUP        POLLHUP
-#define EPOLLRDNORM     POLLRDNORM
-#endif
-
-#if (KERNEL_VERSION(4, 16, 0) > LINUX_VERSION_CODE)
-typedef unsigned __bitwise __poll_t;
-#endif
-
-#if (KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE)
-static inline struct iommu_fwspec *dev_iommu_fwspec_get(struct device *dev)
-{
-	return dev->iommu_fwspec;
-}
-
-#endif
+#include "ethosn_backport.h"
 
 #if (KERNEL_VERSION(5, 10, 0) > LINUX_VERSION_CODE)
 struct page *dma_alloc_pages(struct device *dev,
 			     size_t size,
 			     dma_addr_t *dma_handle,
 			     enum dma_data_direction dir,
-			     gfp_t gfp);
+			     gfp_t gfp)
+{
+	struct page *page;
+
+	if (size != PAGE_SIZE) {
+		dev_dbg(dev,
+			"Backport implementation only supports size equal to PAGE_SIZE=%lu\n",
+			PAGE_SIZE);
+
+		return NULL;
+	}
+
+	page = alloc_page(gfp);
+	if (!page)
+		return NULL;
+
+	*dma_handle = dma_map_page(dev, page, 0,
+				   size,
+				   dir);
+
+	return page;
+}
 
 void dma_free_pages(struct device *dev,
 		    size_t size,
 		    struct page *page,
 		    dma_addr_t dma_handle,
-		    enum dma_data_direction dir);
-#endif
+		    enum dma_data_direction dir)
+{
+	if (dma_handle)
+		dma_unmap_page(dev, dma_handle,
+			       size, dir);
 
-#endif /* _ETHOSN_BACKPORT_H_ */
+	if (page)
+		__free_page(page);
+}
+
+#endif
