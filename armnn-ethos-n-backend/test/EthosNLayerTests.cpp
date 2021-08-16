@@ -8,7 +8,6 @@
 #include <armnn/utility/Assert.hpp>
 #include <armnnUtils/Permute.hpp>
 #include <backendsCommon/WorkloadFactory.hpp>
-#include <test/TensorHelpers.hpp>
 #include <test/UnitTests.hpp>
 
 #include "EthosNWorkloadFactoryHelper.hpp"

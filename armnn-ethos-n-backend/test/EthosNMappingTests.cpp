@@ -12,7 +12,6 @@
 #include <EthosNBackend.hpp>
 #include <EthosNBackendId.hpp>
 #include <EthosNBackendUtils.hpp>
-#include <Network.hpp>
 #include <armnn/Logging.hpp>
 #include <armnn/utility/Assert.hpp>
 #include <backendsCommon/test/CommonTestUtils.hpp>
