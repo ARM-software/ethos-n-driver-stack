@@ -65,7 +65,7 @@ FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant varian
             fwHwCapabilities.m_NumPleLanes     = 2;
             break;
         default:
-            throw NotSupportedException("Unsupported variant");
+            throw NotSupportedException("Unsupported NPU variant");
             break;
     }
 
