@@ -1,5 +1,5 @@
 //
-// Copyright © 2019-2020 Arm Limited. All rights reserved.
+// Copyright © 2019-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -96,8 +96,8 @@ void RecordLifetimeEvent(T* object,
 /// Implemented by the backend (model, kernel module etc.)
 /// in either KmodProfiling.cpp or NullKmodProfiling.cpp.
 /// @{
-bool ConfigureKernelDriver(Configuration config);
-uint64_t GetKernelDriverCounterValue(PollCounterName counter);
+bool ConfigureKernelDriver(Configuration config, const std::string& device);
+uint64_t GetKernelDriverCounterValue(PollCounterName counter, const std::string& device);
 /// Append all entries reported by the kernel driver to the given vector.
 bool AppendKernelDriverEntries();
 /// @}

@@ -9,6 +9,7 @@
 #include <cassert>
 #include <chrono>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace ethosn
@@ -49,6 +50,7 @@ struct Configuration
 
 /// Re-configures the profiling options for the ethosn driver stack based on the given Configuration object.
 bool Configure(Configuration config);
+bool Configure(Configuration config, const std::string& device);
 
 /// All the counters that can be requested using Configure(...) and ScheduleInference(...)
 /// and collected using ReportNewProfilingData(...).
@@ -114,6 +116,7 @@ enum class PollCounterName
 /// then the result is undefined.
 /// This function is thread-safe.
 uint64_t GetCounterValue(PollCounterName counter);
+uint64_t GetCounterValue(PollCounterName counter, const std::string& device);
 
 /// A single entry in the vector returned by ReportNewProfilingData.
 /// This can represent a timeline event or a counter sample.

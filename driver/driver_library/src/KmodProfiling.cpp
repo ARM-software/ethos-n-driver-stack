@@ -47,17 +47,17 @@ int g_FirmwareBufferFd = 0;
 // Clock frequency expressed in MHz (it is provided by the kernel module).
 int g_ClockFrequencyMhz = 0;
 
-bool ConfigureKernelDriver(Configuration config)
+bool ConfigureKernelDriver(Configuration config, const std::string& device)
 {
     if (config.m_NumHardwareCounters > 6)
     {
         std::cerr << "Warning more than 6 hardware counters specified, only the first 6 will be used.\n";
         return false;
     }
-    int ethosnFd = open(DEVICE_NODE, O_RDONLY);
+    int ethosnFd = open(device.c_str(), O_RDONLY);
     if (ethosnFd < 0)
     {
-        throw std::runtime_error(std::string("Unable to open " DEVICE_NODE ": ") + strerror(errno));
+        throw std::runtime_error(std::string("Unable to open " + device + ": ") + strerror(errno));
     }
 
     ethosn_profiling_config kernelConfig;
@@ -101,12 +101,12 @@ bool ConfigureKernelDriver(Configuration config)
     return true;
 }
 
-uint64_t GetKernelDriverCounterValue(PollCounterName counter)
+uint64_t GetKernelDriverCounterValue(PollCounterName counter, const std::string& device)
 {
-    int ethosnFd = open(DEVICE_NODE, O_RDONLY);
+    int ethosnFd = open(device.c_str(), O_RDONLY);
     if (ethosnFd < 0)
     {
-        throw std::runtime_error(std::string("Unable to open " DEVICE_NODE ": ") + strerror(errno));
+        throw std::runtime_error(std::string("Unable to open " + device + ": ") + strerror(errno));
     }
 
     ethosn_poll_counter_name kernelCounterName;

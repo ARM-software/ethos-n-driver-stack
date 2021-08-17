@@ -20,9 +20,14 @@ env.PrependUnique(CPPPATH=[os.path.join(env['command_stream_dir'], 'include'),
                            env['kernel_module_dir']])
 # Set the appropriate CPP define for the target.
 env.Append(CPPDEFINES=['TARGET_' + env['target'].upper()])
+# Device node information
+env.AppendUnique(CPPDEFINES=[r'DEVICE_NODE=\"{}{}\"'.format(env['device_node_prefix'], env['device_node_base_id'])])
+env.AppendUnique(CPPDEFINES=[r'DEVICE_NODE_PREFIX=\"{}\"'.format(env['device_node_prefix'])])
+env.AppendUnique(CPPDEFINES=[r'DEVICE_NODE_BASE_ID={}'.format(env['device_node_base_id'])])
 
 srcs = [os.path.join('src', 'Inference.cpp'),
         os.path.join('src', 'Buffer.cpp'),
+        os.path.join('src', 'Device.cpp'),
         os.path.join('src', 'Network.cpp'),
         os.path.join('src', 'ProfilingInternal.cpp'),
         os.path.join('src', 'DumpProfiling.cpp'),
@@ -31,7 +36,6 @@ srcs = [os.path.join('src', 'Inference.cpp'),
 if env['target'] == 'kmod':
     srcs += [os.path.join('src', 'KmodNetwork.cpp'),
              os.path.join('src', 'KmodProfiling.cpp')]
-    env.AppendUnique(CPPDEFINES=[r'DEVICE_NODE=\"{}\"'.format(env['device_node'])])
     env.AppendUnique(CPPDEFINES=[r'FIRMWARE_PROFILING_NODE=\"{}\"'.format(env['firmware_profiling_node'])])
 else:
     srcs += [os.path.join('src', 'NullKmodProfiling.cpp')]

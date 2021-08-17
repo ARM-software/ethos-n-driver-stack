@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "../include/ethosn_driver_library/Device.hpp"
 #include "../include/ethosn_driver_library/Network.hpp"
 #include "../src/KmodNetwork.hpp"
 
@@ -47,4 +48,9 @@ TEST_CASE("TestVersionMatch")
             }
         }
     }
+}
+
+TEST_CASE("GetNumberOfDevices")
+{
+    REQUIRE(GetNumberOfDevices() >= 1U);
 }

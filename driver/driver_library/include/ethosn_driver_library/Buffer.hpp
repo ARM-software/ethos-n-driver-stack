@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 
 namespace ethosn
 {
@@ -28,6 +29,7 @@ public:
 
     // Ethos-N allocates the buffer.
     Buffer(uint32_t size, DataFormat format);
+    Buffer(uint32_t size, DataFormat format, const std::string& device);
 
     // Data is copied from src into the buffer.
     // This won't work for output buffers if using kmod backend unless any access after creation is via GetMappedBuffer().
@@ -39,6 +41,7 @@ public:
     // original pointer. Otherwise, there's no guarantee the inference will run with the correct data.
     // FIXME: Fix as part of Jira NNXSW-610 - Refactor Driver Library
     Buffer(uint8_t* src, uint32_t size, DataFormat format);
+    Buffer(uint8_t* src, uint32_t size, DataFormat format, const std::string& device);
 
     ~Buffer();
 

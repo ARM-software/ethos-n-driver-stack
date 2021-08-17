@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -21,12 +21,12 @@ namespace driver_library
 namespace profiling
 {
 
-bool ConfigureKernelDriver(Configuration)
+bool ConfigureKernelDriver(Configuration, const std::string&)
 {
     return true;
 }
 
-uint64_t GetKernelDriverCounterValue(PollCounterName)
+uint64_t GetKernelDriverCounterValue(PollCounterName, const std::string&)
 {
     return 0;
 }

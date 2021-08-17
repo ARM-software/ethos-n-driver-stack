@@ -25,9 +25,9 @@ uint64_t GetNextTimeLineEventId()
     return g_NextTimelineEventId;
 }
 
-bool ApplyConfiguration(Configuration config)
+bool ApplyConfiguration(Configuration config, const std::string& device)
 {
-    bool hasKernelConfigureSucceeded = ConfigureKernelDriver(config);
+    bool hasKernelConfigureSucceeded = ConfigureKernelDriver(config, device);
 
     if (hasKernelConfigureSucceeded && g_CurrentConfiguration.m_EnableProfiling && !config.m_EnableProfiling)
     {
@@ -159,6 +159,9 @@ Configuration GetConfigFromString(const char* str)
     return config;
 }
 
+// In scenarios with multiple devices it is a known limitation that
+// profiling configuration for devices other than the default one may
+// be out of sync.
 Configuration GetDefaultConfiguration()
 {
     const char* profilingConfigEnv = std::getenv("ETHOSN_DRIVER_LIBRARY_PROFILING_CONFIG");
@@ -168,7 +171,7 @@ Configuration GetDefaultConfiguration()
     }
     auto config = GetConfigFromString(profilingConfigEnv);
 
-    if (!ApplyConfiguration(config))
+    if (!ApplyConfiguration(config, DEVICE_NODE))
     {
         return Configuration();
     }
@@ -183,14 +186,19 @@ std::map<Buffer*, uint64_t> g_BufferToLifetimeEventId       = {};
 std::map<Inference*, uint64_t> g_InferenceToLifetimeEventId = {};
 uint64_t g_NextTimelineEventId                              = g_DriverLibraryEventIdBase;
 
-bool Configure(Configuration config)
+bool Configure(Configuration config, const std::string& device)
 {
-    bool isConfigurationApplied = ApplyConfiguration(config);
+    bool isConfigurationApplied = ApplyConfiguration(config, device);
     if (isConfigurationApplied)
     {
         g_CurrentConfiguration = config;
     }
     return isConfigurationApplied;
+}
+
+bool Configure(Configuration config)
+{
+    return Configure(config, DEVICE_NODE);
 }
 
 std::vector<ProfilingEntry> ReportNewProfilingData()
@@ -201,7 +209,7 @@ std::vector<ProfilingEntry> ReportNewProfilingData()
     return res;
 }
 
-uint64_t GetCounterValue(PollCounterName counter)
+uint64_t GetCounterValue(PollCounterName counter, const std::string& device)
 {
     if (!g_CurrentConfiguration.m_EnableProfiling)
     {
@@ -220,11 +228,16 @@ uint64_t GetCounterValue(PollCounterName counter)
         case PollCounterName::KernelDriverNumRuntimePowerResume:
         case PollCounterName::KernelDriverNumPowerSuspend:
         case PollCounterName::KernelDriverNumPowerResume:
-            return GetKernelDriverCounterValue(counter);
+            return GetKernelDriverCounterValue(counter, device);
         default:
             assert(!"Invalid counter");
             return 0;
     }
+}
+
+uint64_t GetCounterValue(PollCounterName counter)
+{
+    return GetCounterValue(counter, DEVICE_NODE);
 }
 
 const char* MetadataCategoryToCString(ProfilingEntry::MetadataCategory category)

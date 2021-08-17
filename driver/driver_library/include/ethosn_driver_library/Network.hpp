@@ -13,7 +13,7 @@
 
 // Version information
 #define ETHOSN_DRIVER_LIBRARY_VERSION_MAJOR 1
-#define ETHOSN_DRIVER_LIBRARY_VERSION_MINOR 2
+#define ETHOSN_DRIVER_LIBRARY_VERSION_MINOR 3
 #define ETHOSN_DRIVER_LIBRARY_VERSION_PATCH 0
 
 namespace ethosn
@@ -49,6 +49,7 @@ const Version GetLibraryVersion();
 /// This data should be passed to the Support Library (in its CompilationOptions constructor)
 /// to provide details of what features of the hardware it should compile for.
 std::vector<char> GetFirmwareAndHardwareCapabilities();
+std::vector<char> GetFirmwareAndHardwareCapabilities(const std::string& device);
 
 /// Exception type thrown when there is a problem with a compiled network passed to the API.
 class CompiledNetworkException : public std::exception
@@ -77,6 +78,7 @@ public:
     /// This data is copied into the driver where necessary and does not need to kept alive by the caller.
     /// @throws CompiledNetworkException if the given Compiled Network data is not valid.
     Network(const char* compiledNetworkData, size_t compiledNetworkSize);
+    Network(const char* compiledNetworkData, size_t compiledNetworkSize, const std::string& device);
 
     ~Network();
 

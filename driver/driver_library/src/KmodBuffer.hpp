@@ -6,6 +6,7 @@
 #pragma once
 
 #include "../include/ethosn_driver_library/Buffer.hpp"
+#include "../include/ethosn_driver_library/Network.hpp"
 #include "Utils.hpp"
 
 #include <uapi/ethosn.h>
@@ -31,7 +32,7 @@ namespace driver_library
 class Buffer::BufferImpl
 {
 public:
-    BufferImpl(uint32_t size, DataFormat format)
+    BufferImpl(uint32_t size, DataFormat format, const std::string& device)
         : m_Data(nullptr)
         , m_Size(size)
         , m_Format(format)
@@ -41,10 +42,16 @@ public:
             MB_RDWR,
         };
 
-        int ethosnFd = open(DEVICE_NODE, O_RDONLY);
+        int ethosnFd = open(device.c_str(), O_RDONLY);
         if (ethosnFd < 0)
         {
-            throw std::runtime_error(std::string("Unable to open " DEVICE_NODE ": ") + strerror(errno));
+            throw std::runtime_error(std::string("Unable to open " + device + ": ") + strerror(errno));
+        }
+
+        // Check compatibility between driver library and the kernel
+        if (!VerifyKernel())
+        {
+            throw std::runtime_error(std::string("Wrong kernel module version\n"));
         }
 
         m_BufferFd = ioctl(ethosnFd, ETHOSN_IOCTL_CREATE_BUFFER, &outputBufReq);
@@ -64,8 +71,8 @@ public:
         }
     }
 
-    BufferImpl(uint8_t* src, uint32_t size, DataFormat format)
-        : BufferImpl(size, format)
+    BufferImpl(uint8_t* src, uint32_t size, DataFormat format, const std::string& device)
+        : BufferImpl(size, format, device)
     {
         std::copy_n(src, size, m_Data);
     }

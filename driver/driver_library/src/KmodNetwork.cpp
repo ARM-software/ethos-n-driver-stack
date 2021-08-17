@@ -57,12 +57,18 @@ namespace ethosn
 namespace driver_library
 {
 
-std::vector<char> GetFirmwareAndHardwareCapabilities()
+std::vector<char> GetFirmwareAndHardwareCapabilities(const std::string& device)
 {
-    int fd = open(DEVICE_NODE, O_RDONLY);
+    int fd = open(device.c_str(), O_RDONLY);
     if (fd < 0)
     {
-        throw std::runtime_error(std::string("Unable to open " DEVICE_NODE ": ") + strerror(errno));
+        throw std::runtime_error(std::string("Unable to open " + device + ": ") + strerror(errno));
+    }
+
+    // Check compatibility between driver library and the kernel
+    if (!VerifyKernel())
+    {
+        throw std::runtime_error(std::string("Wrong kernel module version\n"));
     }
 
     // Query how big the capabilities data is.
@@ -143,7 +149,7 @@ bool VerifyKernel()
     return IsKernelVersionMatching(uapiKmodVer);
 }
 
-KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compiledNetworkSize)
+KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compiledNetworkSize, const std::string& device)
     : NetworkImpl(compiledNetworkData, compiledNetworkSize, false)
 {
     CompiledNetworkInfo compiledNetwork = DeserializeCompiledNetwork(compiledNetworkData, compiledNetworkSize);
@@ -178,13 +184,13 @@ KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compile
     netReq.cu_data.size    = static_cast<uint32_t>(compiledNetwork.m_ConstantControlUnitDataSize);
     netReq.cu_data.data    = compiledNetwork.CalculateConstantControlUnitDataPtr(compiledNetworkData);
 
-    int ethosnFd = open(DEVICE_NODE, O_RDONLY);
+    int ethosnFd = open(device.c_str(), O_RDONLY);
     if (ethosnFd < 0)
     {
-        throw std::runtime_error(std::string("Unable to open " DEVICE_NODE ": ") + strerror(errno));
+        throw std::runtime_error(std::string("Unable to open " + device + ": ") + strerror(errno));
     }
 
-    //check the driver library and the kernel
+    // Check compatibility between driver library and the kernel
     if (!VerifyKernel())
     {
         throw std::runtime_error(std::string("Wrong kernel module version\n"));

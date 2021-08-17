@@ -6,6 +6,7 @@
 #include "../include/ethosn_driver_library/Network.hpp"
 
 #include "NetworkImpl.hpp"
+#include <ethosn_utils/Macros.hpp>
 #ifdef TARGET_MODEL
 #include "ModelNetwork.hpp"
 #elif defined(TARGET_KMOD)
@@ -31,18 +32,24 @@ Version::Version()
     , Patch(0)
 {}
 
-Network::Network(const char* compiledNetworkData, size_t compiledNetworkSize)
+Network::Network(const char* compiledNetworkData, size_t compiledNetworkSize, const std::string& device)
     : m_NetworkImpl(
 #if defined(TARGET_MODEL)
           std::make_unique<ModelNetworkImpl>(compiledNetworkData, compiledNetworkSize)
 #elif defined(TARGET_KMOD)
-          std::make_unique<KmodNetworkImpl>(compiledNetworkData, compiledNetworkSize)
+          std::make_unique<KmodNetworkImpl>(compiledNetworkData, compiledNetworkSize, device)
 #elif defined(TARGET_DUMPONLY)
           std::make_unique<NetworkImpl>(compiledNetworkData, compiledNetworkSize, false)
 #else
 #error "Unknown target backend."
 #endif
       )
+{
+    ETHOSN_UNUSED(device);
+}
+
+Network::Network(const char* compiledNetworkData, size_t compiledNetworkSize)
+    : Network(compiledNetworkData, compiledNetworkSize, DEVICE_NODE)
 {}
 
 Network::~Network() = default;
@@ -68,6 +75,11 @@ void Network::SetDebugName(const char* name)
 /// with the version defined in ethosn.h or not.
 /// Returns True if there is a match else False.
 bool VerifyKernel();
+
+std::vector<char> GetFirmwareAndHardwareCapabilities()
+{
+    return GetFirmwareAndHardwareCapabilities(DEVICE_NODE);
+}
 
 }    // namespace driver_library
 }    // namespace ethosn
