@@ -1666,8 +1666,8 @@ static void dfs_init(struct ethosn_core *core)
 	char name[16];
 
 	/* Create debugfs directory */
-	snprintf(name, sizeof(name), "ethosn%u", core->dev->id);
-	core->debug_dir = debugfs_create_dir(name, NULL);
+	snprintf(name, sizeof(name), "core%u", core->core_id);
+	core->debug_dir = debugfs_create_dir(name, core->parent->debug_dir);
 	if (IS_ERR_OR_NULL(core->debug_dir))
 		return;
 

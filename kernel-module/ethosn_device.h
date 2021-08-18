@@ -70,11 +70,13 @@ struct ethosn_device {
 	struct device                 *dev;
 	struct cdev                   cdev;
 	struct mutex                  mutex;
+	int                           parent_id;
 	int                           num_cores;
 	struct ethosn_inference_queue queue;
 	struct ethosn_dma_allocator   *allocator;
 	uint32_t                      current_busy_cores;
 	uint32_t                      status_mask;
+	struct dentry                 *debug_dir;
 };
 
 struct ethosn_core {

@@ -36,8 +36,8 @@ var.AddVariables(
                  'build', PathVariable.PathIsDirCreate),
     ('device_node_prefix', 'Device node prefix in the dev filesystem', '/dev/ethosn'),
     ('device_node_base_id', 'Device node identifier in the dev filesystem', '0'),
-    ('firmware_profiling_node', 'Firmware profiling node in the sys fileystem',
-     '/sys/kernel/debug/ethosn0/firmware_profiling'),
+    ('firmware_profiling_node', 'Firmware profiling node in the sys filesystem',
+     '/sys/kernel/debug/ethosn0/core0/firmware_profiling'),
     BoolVariable('allow_command_stream_dump', 'Build the driver library with the ability to dump command streams. '
                  'This requires additional build-time dependencies.', False),
     BoolVariable('werror', 'Build with -Werror', True),

@@ -1083,13 +1083,15 @@ static void ethosn_device_release(void *const opaque)
 	}
 
 	sysfs_remove_files(&ethosn->dev->kobj, attrs);
+	debugfs_remove_recursive(ethosn->debug_dir);
 
 	device_destroy(&ethosn_class, cdev->dev);
 	cdev_del(cdev);
 	ida_simple_remove(&ethosn_ida, MINOR(cdev->dev));
 }
 
-static int ethosn_device_create(struct ethosn_device *ethosn)
+static int ethosn_device_create(struct ethosn_device *ethosn,
+				int id)
 {
 	static const struct file_operations ethosn_fops = {
 		.owner          = THIS_MODULE,
@@ -1102,11 +1104,7 @@ static int ethosn_device_create(struct ethosn_device *ethosn)
 
 	struct device *sysdev;
 	dev_t devt;
-	int id, ret;
-
-	id = ida_simple_get(&ethosn_ida, 0, ETHOSN_MAX_DEVICES, GFP_KERNEL);
-	if (id < 0)
-		return id;
+	int ret;
 
 	devt = MKDEV(ethosn_major, id);
 
@@ -1116,7 +1114,8 @@ static int ethosn_device_create(struct ethosn_device *ethosn)
 	ret = cdev_add(&ethosn->cdev, devt, 1);
 	if (ret) {
 		dev_err(ethosn->dev, "unable to add character device\n");
-		goto err_remove_ida;
+
+		return ret;
 	}
 
 	sysdev = device_create(&ethosn_class, ethosn->dev, devt, ethosn,
@@ -1139,8 +1138,6 @@ destroy_device:
 	device_destroy(&ethosn_class, ethosn->cdev.dev);
 err_remove_chardev:
 	cdev_del(&ethosn->cdev);
-err_remove_ida:
-	ida_simple_remove(&ethosn_ida, id);
 
 	return ret;
 }
@@ -1433,6 +1430,8 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 	unsigned int num_of_npus = 0;
 	int resource_idx = 0;
 	struct ethosn_device *ethosn = NULL;
+	int platform_id = -1;
+	char name[16];
 
 	dma_set_mask_and_coherent(&pdev->dev,
 				  DMA_BIT_MASK(ETHOSN_SMMU_MAX_ADDR_BITS));
@@ -1445,11 +1444,17 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	platform_id = ida_simple_get(&ethosn_ida, 0,
+				     ETHOSN_MAX_DEVICES,
+				     GFP_KERNEL);
+	if (platform_id < 0)
+		return platform_id;
+
 	/* We need to allocate the parent device (ie struct
 	 * ethosn_parent_device) only for the first time.
 	 */
-	dev_dbg(&pdev->dev, "Probing Ethos-N device with %d core\n",
-		num_of_npus);
+	dev_dbg(&pdev->dev, "Probing Ethos-N device id %u with %u core%s\n",
+		platform_id, num_of_npus, num_of_npus > 1 ? "s" : "");
 
 	ethosn = devm_kzalloc(&pdev->dev, sizeof(*ethosn),
 			      GFP_KERNEL);
@@ -1458,10 +1463,14 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 
 	ethosn_global_device_for_testing = ethosn;
 
+	ethosn->parent_id = platform_id;
 	ethosn->dev = &pdev->dev;
 
 	ethosn->current_busy_cores = 0;
 	ethosn->status_mask = 0;
+
+	snprintf(name, sizeof(name), "ethosn%u", ethosn->parent_id);
+	ethosn->debug_dir = debugfs_create_dir(name, NULL);
 
 	/* Create a top level allocator for parent device
 	 */
@@ -1558,7 +1567,7 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 			goto err_depopulate_device;
 	}
 
-	ret = ethosn_device_create(ethosn);
+	ret = ethosn_device_create(ethosn, platform_id);
 	if (ret)
 		goto err_depopulate_device;
 
@@ -1573,6 +1582,7 @@ err_destroy_allocator:
 err_free_ethosn:
 	devm_kfree(&pdev->dev, ethosn);
 err_early_exit:
+	ida_simple_remove(&ethosn_ida, platform_id);
 
 	return ret;
 }
