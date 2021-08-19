@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -26,7 +26,6 @@ bool MergeConcatNodes(Graph& graph, Node* node);
 bool RemoveUnconnectedNode(Graph& graph, Node* node);
 bool MergeConstantAndReinterpretNodes(Graph& graph, Node* node);
 bool MergeConstantAndFormatConversionNodes(Graph& graph, Node* node);
-bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Node* node);
 
 }    // namespace support_library
 }    // namespace ethosn
