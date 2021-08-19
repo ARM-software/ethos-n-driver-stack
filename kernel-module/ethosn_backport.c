@@ -65,3 +65,53 @@ void dma_free_pages(struct device *dev,
 }
 
 #endif
+void ethosn_iommu_put_domain_for_dev(struct device *dev,
+				     struct iommu_domain *domain)
+{
+#if (KERNEL_VERSION(4, 20, 0) > LINUX_VERSION_CODE)
+
+	return;
+#else
+	struct iommu_group *group;
+
+	if (!dev)
+		return;
+
+	if (!domain)
+		return;
+
+	group = iommu_group_get(dev);
+	if (!group)
+		return;
+
+	iommu_detach_group(domain, group);
+	iommu_group_put(group);
+	iommu_domain_free(domain);
+#endif
+}
+
+struct iommu_domain *ethosn_iommu_get_domain_for_dev(struct device *dev)
+{
+	struct iommu_domain *domain = NULL;
+
+#if (KERNEL_VERSION(4, 20, 0) > LINUX_VERSION_CODE)
+	domain = iommu_get_domain_for_dev(dev);
+#else
+	struct iommu_group *group = iommu_group_get(dev);
+	int ret;
+
+	if (group) {
+		domain = iommu_domain_alloc(dev->bus);
+		if (domain) {
+			ret = iommu_attach_group(domain, group);
+			if (ret)
+				domain = NULL;
+		}
+
+		iommu_group_put(group);
+	}
+
+#endif
+
+	return domain;
+}

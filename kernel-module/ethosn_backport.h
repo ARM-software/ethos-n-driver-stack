@@ -25,6 +25,7 @@
 
 #include <linux/dma-mapping.h>
 #include <linux/fs.h>
+#include <linux/iommu.h>
 #include <linux/eventpoll.h>
 #include <linux/version.h>
 
@@ -60,5 +61,9 @@ void dma_free_pages(struct device *dev,
 		    dma_addr_t dma_handle,
 		    enum dma_data_direction dir);
 #endif
+void ethosn_iommu_put_domain_for_dev(struct device *dev,
+				     struct iommu_domain *domain);
+
+struct iommu_domain *ethosn_iommu_get_domain_for_dev(struct device *dev);
 
 #endif /* _ETHOSN_BACKPORT_H_ */

@@ -597,12 +597,14 @@ static void iommu_stream_deinit(struct ethosn_allocator_internal *allocator,
 static void iommu_allocator_destroy(struct ethosn_dma_allocator *_allocator)
 {
 	struct ethosn_allocator_internal *allocator;
+	struct iommu_domain *domain;
 	struct device *dev;
 
 	if (!_allocator)
 		return;
 
 	allocator = container_of(_allocator, typeof(*allocator), allocator);
+	domain = allocator->ethosn_iommu_domain.iommu_domain;
 	dev = _allocator->dev;
 
 	iommu_stream_deinit(allocator, ETHOSN_STREAM_FIRMWARE);
@@ -613,6 +615,8 @@ static void iommu_allocator_destroy(struct ethosn_dma_allocator *_allocator)
 
 	memset(allocator, 0, sizeof(struct ethosn_allocator_internal));
 	devm_kfree(dev, allocator);
+
+	ethosn_iommu_put_domain_for_dev(dev, domain);
 }
 
 struct ethosn_dma_allocator *ethosn_dma_iommu_allocator_create(
@@ -639,11 +643,11 @@ struct ethosn_dma_allocator *ethosn_dma_iommu_allocator_create(
 		.sync_for_cpu    = iommu_sync_for_cpu,
 	};
 	struct ethosn_allocator_internal *allocator;
-	struct iommu_domain *domain;
+	struct iommu_domain *domain = NULL;
 	size_t bitmap_size;
 	int ret;
 
-	domain = iommu_get_domain_for_dev(dev);
+	domain = ethosn_iommu_get_domain_for_dev(dev);
 
 	allocator = devm_kzalloc(dev,
 				 sizeof(struct ethosn_allocator_internal),
