@@ -35,6 +35,212 @@
 #define ETHOSN_CORE_DRIVER_NAME    "ethosn-core"
 #define ETHOSN_CORE_NUM_MAX        64
 
+static ssize_t architecture_show(struct device *dev,
+				 struct device_attribute *attr,
+				 char *buf)
+{
+	struct ethosn_core *core = dev_get_drvdata(dev);
+	struct dl1_npu_id_r scylla_id;
+
+	scylla_id.word = ethosn_read_top_reg(core, DL1_RP, DL1_NPU_ID);
+
+	return scnprintf(buf, PAGE_SIZE, "%u.%u.%u\n",
+			 scylla_id.bits.arch_major, scylla_id.bits.arch_minor,
+			 scylla_id.bits.arch_rev);
+}
+
+static ssize_t product_show(struct device *dev,
+			    struct device_attribute *attr,
+			    char *buf)
+{
+	struct ethosn_core *core = dev_get_drvdata(dev);
+	struct dl1_npu_id_r scylla_id;
+
+	scylla_id.word = ethosn_read_top_reg(core, DL1_RP, DL1_NPU_ID);
+
+	return scnprintf(buf, PAGE_SIZE, "%u\n", scylla_id.bits.product_major);
+}
+
+static ssize_t version_show(struct device *dev,
+			    struct device_attribute *attr,
+			    char *buf)
+{
+	struct ethosn_core *core = dev_get_drvdata(dev);
+	struct dl1_npu_id_r scylla_id;
+
+	scylla_id.word = ethosn_read_top_reg(core, DL1_RP, DL1_NPU_ID);
+
+	return scnprintf(buf, PAGE_SIZE, "%u.%u.%u\n",
+			 scylla_id.bits.version_major,
+			 scylla_id.bits.version_minor,
+			 scylla_id.bits.version_status);
+}
+
+static ssize_t unit_count_show(struct device *dev,
+			       struct device_attribute *attr,
+			       char *buf)
+{
+	struct ethosn_core *core = dev_get_drvdata(dev);
+	struct dl1_unit_count_r unit_count;
+
+	unit_count.word = ethosn_read_top_reg(core, DL1_RP, DL1_UNIT_COUNT);
+
+	return scnprintf(buf, PAGE_SIZE,
+			 "quad_count=%u\n"
+			 "engines_per_quad=%u\n"
+			 "dfc_emc_per_engine=%u\n",
+			 unit_count.bits.quad_count,
+			 unit_count.bits.engines_per_quad,
+			 unit_count.bits.dfc_emc_per_engine);
+}
+
+static ssize_t mce_features_show(struct device *dev,
+				 struct device_attribute *attr,
+				 char *buf)
+{
+	struct ethosn_core *core = dev_get_drvdata(dev);
+	struct dl1_mce_features_r mce;
+
+	mce.word = ethosn_read_top_reg(core, DL1_RP, DL1_MCE_FEATURES);
+
+	return scnprintf(buf, PAGE_SIZE,
+			 "ifm_generated_per_engine=%u\n"
+			 "ofm_generated_per_engine=%u\n"
+			 "mce_num_macs=%u\n"
+			 "mce_num_acc=%u\n"
+			 "winograd_support=%u\n"
+			 "tsu_16bit_sequence_support=%u\n"
+			 "ofm_scaling_16bit_support=%u\n",
+			 mce.bits.ifm_generated_per_engine,
+			 mce.bits.ofm_generated_per_engine,
+			 mce.bits.mce_num_macs,
+			 mce.bits.mce_num_acc,
+			 mce.bits.winograd_support,
+			 mce.bits.tsu_16bit_sequence_support,
+			 mce.bits.ofm_scaling_16bit_support);
+}
+
+static ssize_t dfc_features_show(struct device *dev,
+				 struct device_attribute *attr,
+				 char *buf)
+{
+	struct ethosn_core *core = dev_get_drvdata(dev);
+	struct dl1_dfc_features_r dfc;
+
+	dfc.word = ethosn_read_top_reg(core, DL1_RP, DL1_DFC_FEATURES);
+
+	return scnprintf(buf, PAGE_SIZE,
+			 "dfc_mem_size_per_emc=%u\n"
+			 "bank_count=%u\n",
+			 dfc.bits.dfc_mem_size_per_emc << 12,
+			 dfc.bits.bank_count);
+}
+
+static ssize_t ple_features_show(struct device *dev,
+				 struct device_attribute *attr,
+				 char *buf)
+{
+	struct ethosn_core *core = dev_get_drvdata(dev);
+	struct dl1_ple_features_r ple;
+
+	ple.word = ethosn_read_top_reg(core, DL1_RP, DL1_PLE_FEATURES);
+
+	return scnprintf(buf, PAGE_SIZE,
+			 "ple_input_mem_size=%u\n"
+			 "ple_output_mem_size=%u\n"
+			 "ple_vrf_mem_size=%u\n"
+			 "ple_mem_size=%u\n",
+			 ple.bits.ple_input_mem_size << 8,
+			 ple.bits.ple_output_mem_size << 8,
+			 ple.bits.ple_vrf_mem_size << 4,
+			 ple.bits.ple_mem_size << 8);
+}
+
+static ssize_t ecoid_show(struct device *dev,
+			  struct device_attribute *attr,
+			  char *buf)
+{
+	struct ethosn_core *core = dev_get_drvdata(dev);
+	struct dl1_ecoid_r ecoid;
+
+	ecoid.word = ethosn_read_top_reg(core, DL1_RP, DL1_ECOID);
+
+	return scnprintf(buf, PAGE_SIZE, "%x\n", ecoid.bits.ecoid);
+}
+
+static ssize_t firmware_reset_store(struct device *dev,
+				    struct device_attribute *attr,
+				    const char *buf,
+				    size_t count)
+{
+	struct ethosn_core *core = dev_get_drvdata(dev);
+	int ret;
+
+	ret = ethosn_reset_and_start_ethosn(core);
+	if (ret != 0)
+		return ret;
+
+	return count;
+}
+
+static ssize_t variant_show(struct device *dev,
+			    struct device_attribute *attr,
+			    char *buf)
+{
+	struct ethosn_core *core = dev_get_drvdata(dev);
+
+	struct dl1_unit_count_r unit_count;
+	struct dl1_mce_features_r mce_features;
+	struct dl1_vector_engine_features_r ve_features;
+	struct dl1_dfc_features_r dfc_features;
+
+	uint32_t engines, igs, ogs, tops, ple_ratio, sram;
+
+	mce_features.word = ethosn_read_top_reg(core, DL1_RP, DL1_MCE_FEATURES);
+	unit_count.word = ethosn_read_top_reg(core, DL1_RP, DL1_UNIT_COUNT);
+	ve_features.word = ethosn_read_top_reg(core, DL1_RP,
+					       DL1_VECTOR_ENGINE_FEATURES);
+	dfc_features.word = ethosn_read_top_reg(core, DL1_RP, DL1_DFC_FEATURES);
+
+	engines = unit_count.bits.quad_count * unit_count.bits.engines_per_quad;
+	igs = engines * mce_features.bits.ifm_generated_per_engine;
+	ogs = engines * mce_features.bits.ofm_generated_per_engine;
+	/* Calculate TOPS, assuming the standard frequency of 1GHz. */
+	tops = (mce_features.bits.mce_num_macs * igs * ogs * 2) / 1024;
+	ple_ratio = ((ve_features.bits.ple_lanes + 1) * engines) / tops;
+	sram = (dfc_features.bits.dfc_mem_size_per_emc << 12) *
+	       unit_count.bits.dfc_emc_per_engine * engines;
+
+	return scnprintf(buf, PAGE_SIZE,
+			 "%uTOPS_%uPLE_RATIO_%uKB\n",
+			 tops, ple_ratio, sram / 1024);
+}
+
+static const DEVICE_ATTR_RO(architecture);
+static const DEVICE_ATTR_RO(product);
+static const DEVICE_ATTR_RO(version);
+static const DEVICE_ATTR_RO(unit_count);
+static const DEVICE_ATTR_RO(mce_features);
+static const DEVICE_ATTR_RO(dfc_features);
+static const DEVICE_ATTR_RO(ple_features);
+static const DEVICE_ATTR_RO(ecoid);
+static const DEVICE_ATTR_WO(firmware_reset);
+static const DEVICE_ATTR_RO(variant);
+
+static const struct attribute *attrs[] = {
+	&dev_attr_architecture.attr,
+	&dev_attr_product.attr,
+	&dev_attr_version.attr,
+	&dev_attr_unit_count.attr,
+	&dev_attr_mce_features.attr,
+	&dev_attr_dfc_features.attr,
+	&dev_attr_ple_features.attr,
+	&dev_attr_ecoid.attr,
+	&dev_attr_firmware_reset.attr,
+	&dev_attr_variant.attr,
+	NULL
+};
+
 #ifdef CONFIG_PM
 static bool ethosn_is_sleeping(struct ethosn_core *core)
 {
@@ -205,7 +411,11 @@ static struct ethosn_device *ethosn_driver(struct platform_device *pdev)
 
 static int ethosn_child_pdev_remove(struct platform_device *pdev)
 {
-	dev_dbg(&pdev->dev, "Removed the ethosn-core device\n");
+	struct ethosn_core *core = dev_get_drvdata(&pdev->dev);
+
+	sysfs_remove_files(&core->dev->kobj, attrs);
+	dev_dbg(&pdev->dev, "Removed core %u from ethosn %u\n",
+		core->core_id, core->parent->parent_id);
 
 	return 0;
 }
@@ -257,14 +467,18 @@ static int ethosn_child_pdev_probe(struct platform_device *pdev)
 	ethosn->core[core_id]->core_id = core_id;
 	ethosn->core[core_id]->parent = ethosn;
 
+	dev_set_drvdata(&pdev->dev, ethosn->core[core_id]);
+
+	ret = sysfs_create_files(&ethosn->core[core_id]->dev->kobj, attrs);
+	if (ret)
+		return -ENOMEM;
+
 	pm_runtime_set_autosuspend_delay(&pdev->dev,
 					 ETHOSN_AUTOSUSPEND_DELAY_MS);
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_get_noresume(&pdev->dev);
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
-
-	dev_set_drvdata(&pdev->dev, ethosn->core[core_id]);
 
 	dev_dbg(&pdev->dev, "Core probed\n");
 
