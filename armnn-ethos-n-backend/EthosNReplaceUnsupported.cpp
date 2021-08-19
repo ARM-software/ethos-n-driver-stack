@@ -145,7 +145,7 @@ bool ReplaceScalarMultiplicationWithReinterpretQuantization(Graph& graph,
                 {
                     data = ConvertDataToFloat(constantLayer, constInfo.GetDataType());
                 }
-                catch (const std::exception& e)
+                catch (const std::exception&)
                 {
                     // Data type is not supported
                     outFailureReason = "Data type is not supported";
@@ -386,7 +386,7 @@ bool ReplaceConstantAdditionWithReinterpretQuantization(Graph& graph, Layer* lay
             data = data - static_cast<float>(constInfo.GetQuantizationOffset());
             data = data * constInfo.GetQuantizationScale();
         }
-        catch (const std::exception& e)
+        catch (const std::exception&)
         {
             // Data type is not supported
             outFailureReason = "Data type is not supported";
