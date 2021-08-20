@@ -56,7 +56,7 @@ To build the Ethos-N NPU software, you require some tools. You must install the 
 * [Git](https://git-scm.com/) [Recommended: `2.17.1`].  A version control system that software developers use for source code management.
 * [SCons](https://scons.org/) [Recommended: `v3.0.1`].  An open-source software construction tool.
 * [Make](https://www.gnu.org/software/make/) [Recommended: `4.1`].  A build automation tool.
-* [Sparse](git://git.kernel.org/pub/scm/devel/sparse/sparse.git) [Recommended: `v0.6.3`].  A semantic parser for C.
+* [Sparse](https://git.kernel.org/pub/scm/devel/sparse/sparse.git) [Recommended: `v0.6.3`].  A semantic parser for C.
 * [GNU C and C++ and compilers](https://gcc.gnu.org/) [Recommended: `7.5.0`].  Open-source tools for Arm processors.
 
 ### Install the build tools
@@ -387,6 +387,7 @@ The following features and feature combinations have known limitations in this E
     * Yolo V3
     * ResNet v2-50
     * SRGAN
+    * U-Net
 
     _Running other networks may result in parts of the network being run by the Arm NN CPU reference backend._
 
