@@ -92,6 +92,7 @@
 
 ## Requantize
 - Output scale must be bigger than input scale / 128
+- Requantize with different input/output type is supported
 
 
 ## Reshape

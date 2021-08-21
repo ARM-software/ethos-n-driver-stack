@@ -289,6 +289,10 @@ TensorInfo Requantize::CalculateOutputTensorInfo(const TensorInfo& inputInfo, co
 {
     TensorInfo outputInfo         = inputInfo;
     outputInfo.m_QuantizationInfo = requantizeInfo.m_OutputQuantizationInfo;
+    if (requantizeInfo.m_OutputDataType.has_value())
+    {
+        outputInfo.m_DataType = requantizeInfo.m_OutputDataType.value();
+    }
     return outputInfo;
 }
 

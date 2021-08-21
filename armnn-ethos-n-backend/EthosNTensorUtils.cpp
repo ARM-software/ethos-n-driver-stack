@@ -431,11 +431,15 @@ Optional<ethosn_lib::TransposeInfo> BuildEthosNTransposeInfo(const armnn::Permut
     return transposeInfo;
 }
 
-ethosn_lib::RequantizeInfo BuildEthosNRequantizeInfo(const float quantizationScale, const int quantizationOffset)
+ethosn_lib::RequantizeInfo BuildEthosNRequantizeInfo(const float quantizationScale,
+                                                     const int quantizationOffset,
+                                                     const DataType quantizationDataType)
 {
     ethosn_lib::RequantizeInfo requantizeInfo;
 
     requantizeInfo.m_OutputQuantizationInfo = ethosn_lib::QuantizationInfo(quantizationOffset, quantizationScale);
+
+    requantizeInfo.m_OutputDataType = ConvertDataType(quantizationDataType);
 
     return requantizeInfo;
 }

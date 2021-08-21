@@ -125,6 +125,12 @@ bool IsInputDataTypeSupported(const TensorInfo& info, const char* what, char* re
     return isSupported;
 }
 
+inline bool
+    IsQuantizationOutputSupported(const TensorInfo& info, const char* what, char* reason, size_t reasonMaxLength)
+{
+    return IsInputDataTypeSupported(info, what, reason, reasonMaxLength);
+}
+
 bool IsWeightsDataTypeSupported(const TensorInfo& info, const char* what, char* reason, size_t reasonMaxLength)
 {
     bool isSupported = IsDataTypeIn(info, { DataType::INT8_QUANTIZED, DataType::UINT8_QUANTIZED });
@@ -1570,6 +1576,11 @@ SupportedLevel SupportQueries::IsRequantizeSupported(const RequantizeInfo& requa
     if (!(IsQuantisationZeroPointInRange(expectedOutputInfo)))
     {
         SetReason("Zero point out of range", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationOutputSupported(expectedOutputInfo, "Expected quantization output", reason, reasonMaxLength))
+    {
         return SupportedLevel::Unsupported;
     }
 

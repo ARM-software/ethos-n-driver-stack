@@ -655,6 +655,7 @@ struct RequantizeInfo
     }
 
     QuantizationInfo m_OutputQuantizationInfo;
+    support_library::utils::Optional<DataType> m_OutputDataType;
 };
 
 // Parameters that specify a pooling operation

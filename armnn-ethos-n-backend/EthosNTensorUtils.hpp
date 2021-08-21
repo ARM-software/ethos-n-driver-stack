@@ -259,11 +259,14 @@ Optional<ethosn_lib::SplitInfo> BuildEthosNSplitInfo(const TensorShape& inputSha
 
 Optional<ethosn_lib::TransposeInfo> BuildEthosNTransposeInfo(const armnn::PermutationVector& descriptor);
 
-ethosn_lib::RequantizeInfo BuildEthosNRequantizeInfo(const float quantizationScale, const int quantizationOffset);
+ethosn_lib::RequantizeInfo BuildEthosNRequantizeInfo(const float quantizationScale,
+                                                     const int quantizationOffset,
+                                                     const DataType quantizationDataType);
 
 inline ethosn_lib::RequantizeInfo BuildEthosNRequantizeInfo(const armnn::TensorInfo& outputInfo)
 {
-    return BuildEthosNRequantizeInfo(outputInfo.GetQuantizationScale(), outputInfo.GetQuantizationOffset());
+    return BuildEthosNRequantizeInfo(outputInfo.GetQuantizationScale(), outputInfo.GetQuantizationOffset(),
+                                     outputInfo.GetDataType());
 }
 
 ethosn_lib::ReinterpretQuantizationInfo BuildEthosNReinterpretQuantizationInfo(const float quantizationScale,

@@ -28,6 +28,37 @@ TEST_CASE("Requantize Supported")
         REQUIRE(queries.IsRequantizeSupported(RequantizeInfo(QuantizationInfo(0, 1.f / 127.99f)), input, nullptr) ==
                 SupportedLevel::Supported);
     }
+
+    SECTION("Requantize with different input/output valid type")
+    {
+        RequantizeInfo requantizeInfo   = RequantizeInfo(QuantizationInfo(-10, 1.0f));
+        requantizeInfo.m_OutputDataType = DataType::INT8_QUANTIZED;
+        REQUIRE(queries.IsRequantizeSupported(RequantizeInfo(requantizeInfo), input, nullptr) ==
+                SupportedLevel::Supported);
+    }
+
+    SECTION("Successful case (output info with INT8_QUANTIZED type is supported and filled in)")
+    {
+        TensorInfo outputInfo;
+        RequantizeInfo requantizeInfo   = RequantizeInfo(QuantizationInfo(0, 1.0f));
+        requantizeInfo.m_OutputDataType = DataType::INT8_QUANTIZED;
+        REQUIRE(queries.IsRequantizeSupported(RequantizeInfo(requantizeInfo), input, &outputInfo) ==
+                SupportedLevel::Supported);
+        REQUIRE(outputInfo ==
+                TensorInfo({ 1, 16, 16, 16 }, DataType::INT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f)));
+    }
+
+    SECTION("Successful case (output info with UINT8_QUANTIZED type is supported and filled in)")
+    {
+        TensorInfo input({ 1, 16, 16, 16 }, DataType::INT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(-128, 1.0f));
+        TensorInfo outputInfo;
+        RequantizeInfo requantizeInfo   = RequantizeInfo(QuantizationInfo(0, 1.0f));
+        requantizeInfo.m_OutputDataType = DataType::UINT8_QUANTIZED;
+        REQUIRE(queries.IsRequantizeSupported(RequantizeInfo(requantizeInfo), input, &outputInfo) ==
+                SupportedLevel::Supported);
+        REQUIRE(outputInfo ==
+                TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f)));
+    }
 }
 
 TEST_CASE("Requantize Unsupported")
@@ -47,7 +78,7 @@ TEST_CASE("Requantize Unsupported")
     SECTION("Invalid zero point")
     {
         TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
-        REQUIRE(queries.IsRequantizeSupported(RequantizeInfo(QuantizationInfo(-10, 1.0f)), input, nullptr, reason,
+        REQUIRE(queries.IsRequantizeSupported(RequantizeInfo(QuantizationInfo(-129, 1.0f)), input, nullptr, reason,
                                               sizeof(reason)) == SupportedLevel::Unsupported);
         REQUIRE(Contains(reason, "Zero point out of range"));
     }
@@ -69,6 +100,26 @@ TEST_CASE("Requantize Unsupported")
         REQUIRE(queries.IsRequantizeSupported(RequantizeInfo(quantizationInfo), input, nullptr, reason,
                                               sizeof(reason)) == SupportedLevel::Unsupported);
         REQUIRE(Contains(reason, "Output quantization scales must have a size of 1"));
+    }
+
+    SECTION("Requantize with different input/output invalid type")
+    {
+        TensorInfo input({ 1, 1, 1, 2 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        RequantizeInfo requantizeInfo   = RequantizeInfo(QuantizationInfo(0, 1.0f));
+        requantizeInfo.m_OutputDataType = DataType::INT32_QUANTIZED;
+        REQUIRE(queries.IsRequantizeSupported(RequantizeInfo(requantizeInfo), input, nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::Unsupported);
+    }
+
+    SECTION("Requantize with incorrect outputInfo")
+    {
+        TensorInfo input({ 1, 16, 16, 16 }, DataType::INT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(-128, 1.0f));
+        TensorInfo output({ 1, 16, 16, 16 }, DataType::INT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(-128, 1.0f));
+        RequantizeInfo requantizeInfo   = RequantizeInfo(QuantizationInfo(0, 1.0f));
+        requantizeInfo.m_OutputDataType = DataType::UINT8_QUANTIZED;
+        REQUIRE(queries.IsRequantizeSupported(RequantizeInfo(requantizeInfo), input, &output, reason, sizeof(reason)) ==
+                SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Provided outputInfo is incorrect"));
     }
 }
 
@@ -177,6 +228,67 @@ TEST_CASE("Requantize output scale less than half input scale")
         ethosn::support_library::Compile(*network, compilationOptions);
 
     REQUIRE(compiledNetwork.size() == 1);
+}
+
+// Tests that a network with a Requantization with a different input/output data type can compile
+TEST_CASE("Compile a network with Requantize layer with different input/output types")
+{
+    const DataType inputType = GENERATE(DataType::UINT8_QUANTIZED, DataType::INT8_QUANTIZED);
+    const DataType outputType =
+        (inputType == DataType::UINT8_QUANTIZED) ? DataType::INT8_QUANTIZED : DataType::UINT8_QUANTIZED;
+
+    auto network = CreateNetwork(GetRawDefaultCapabilities());
+
+    TensorInfo inputInfo{
+        { { 1, 16, 16, 16 } },
+        inputType,
+        DataFormat::NHWCB,
+        { 128, 0.0627451017f },
+    };
+
+    RequantizeInfo requantInfo({ 0, 0.03f });
+    requantInfo.m_OutputDataType = outputType;
+
+    auto input      = AddInput(network, inputInfo).tensor;
+    auto requantize = AddRequantize(network, *input, requantInfo).tensor;
+    auto output     = AddOutput(network, *requantize).tensor;
+
+    ethosn::command_stream::DataType inputTypeInCommandStream;
+    ethosn::command_stream::DataType outputTypeInCommandStream;
+
+    if (inputType == DataType::UINT8_QUANTIZED)
+    {
+        inputTypeInCommandStream  = ethosn::command_stream::DataType::U8;
+        outputTypeInCommandStream = ethosn::command_stream::DataType::S8;
+    }
+    else
+    {
+        inputTypeInCommandStream  = ethosn::command_stream::DataType::S8;
+        outputTypeInCommandStream = ethosn::command_stream::DataType::U8;
+    }
+
+    CompilationOptions compilationOptions;
+    compilationOptions.m_StrictPrecision = true;
+    std::vector<std::unique_ptr<CompiledNetwork>> compiledNetwork =
+        ethosn::support_library::Compile(*network, compilationOptions);
+
+    REQUIRE(compiledNetwork.size() == 1);
+
+    // Extract the input/output data types of quantize layer
+    using namespace ethosn::command_stream;
+    CommandStream cmdStream = GetCommandStream(compiledNetwork[0].get());
+    std::vector<McePle> commands;
+    for (const auto& cmdHeader : cmdStream)
+    {
+        if (cmdHeader.m_Opcode() == Opcode::OPERATION_MCE_PLE)
+        {
+            commands.push_back(cmdHeader.GetCommand<Opcode::OPERATION_MCE_PLE>()->m_Data());
+        }
+    }
+
+    REQUIRE(commands.size() == 1);
+    REQUIRE(commands[0].m_InputInfo().m_DataType() == inputTypeInCommandStream);
+    REQUIRE(commands[0].m_OutputInfo().m_DataType() == outputTypeInCommandStream);
 }
 
 TEST_CASE("RequantizeNode::Apply UINT8")
