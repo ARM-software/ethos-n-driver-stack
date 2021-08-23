@@ -1,5 +1,53 @@
 # Changelog for Arm® Ethos™-N Driver Stack
 
+## 21.08
+
+### New Features
+
+- Support for Arm NN 21.08
+- Support for Linux® kernel version 5.10
+- Support for new networks:
+  - SRGAN
+  - U-Net
+- Support for new operations:
+  - Tanh
+- Improved support for operations:
+  - 'Constant' operations are now supported as inputs to all other operation types
+  - Multiplication of a variable by a scalar constant is now supported by the Arm NN Ethos-N backend in cases where the quantized values in the output are the same as the input
+  - Addition of a variable with a scalar constant is now supported by the Arm NN Ethos-N backend in cases where the quantized values in the output are the same as the input
+- Support for Power Management:
+  - Suspend: Once the suspend command has been given, the NPU is brought to a low power state and the NPU's state is kept in RAM. This feature is sometimes referred to as 'suspend to RAM'.
+  - Sleep: This is a runtime power management feature that dynamically puts the NPU in a low-power state when it is not being used; the rest of the system still functions normally.
+
+### Public API Changes
+- The versions of the following libraries were updated:
+  - Support Library version updated to 1.1.0
+  - Driver Library version updated to 1.2.0
+  - Kernel module version updated to 1.1.0
+- The Support Library's GetFwAndHwCapabilities() function will now throw an exception if the capabilities for Ethos-N37, Ethos-N57 or Ethos-N77 are requested
+- The Support Library will now throw an exception if compilation or performance estimation is attempted for Ethos-N37, Ethos-N57 or Ethos-N77
+- Added power management profiling counters to kernel module and Driver Library
+- Added an IsReinterpretQuantizationSupported method to the Support Library to check if the given operation is supported
+
+### Other Changes
+- This driver release supports only the Ethos-N78 NPU
+- The previously deprecated Ethos-N77 support has been removed
+- The Support Library no longer directly supports broadcasted addition between a constant and non-constant tensor. For users of Arm NN, most cases of this are now handled by the Arm NN Ethos-N backend instead by performing a graph replacement. Other users of the Support Library can handle this similarly.
+- Improved weight compression for zero weights
+- Improved network compilation performance by speeding up weight encoder compression parameter selection
+- Improved robustness of supported checks for Space To Depth and Transpose. The support library now rejects any Transpose or Space To Depth operations that cannot fit into SRAM,
+- Improved robustness of supported checks for average pooling with wide or tall input tensor. Average pooling is now rejected by the support library if it cannot fit into SRAM.
+- Fixed a crash in the Support Library's IsAdditionSupported function when the two input data types are different
+- Fixed a crash in the support library when compiling a network with a Transpose operation with permutation vector 0123
+- Fixed an issue where a network with only Requantize operations fails to compile
+- Fixed an issue where some networks with Concatenation operations failed to compile
+- Fixed an issue where the output of a network could contain uninitialized data outside of the valid tensor region when the output format is NHWCB
+- Fixed an issue where consecutive inferences could overwrite each other's outputs
+
+### Known Issues
+- The output of a network can contain non-zero data outside of the valid tensor region when the output format is NHWCB
+- The network pattern Constant → Reshape → Addition, where the Addition is broadcasting this input along width and height, is no longer supported by the support library or the Arm NN backend.
+
 ## 21.05
 
 ### New Features
