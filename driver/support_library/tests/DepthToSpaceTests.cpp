@@ -58,6 +58,14 @@ TEST_CASE("queries.IsDepthToSpaceSupported")
         REQUIRE(Contains(reason, "Only block size of 2 is supported"));
     }
 
+    SECTION("Invalid zero point")
+    {
+        TensorInfo inputInfo({ 1, 1, 1, 4 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(-10, 1.0f));
+        REQUIRE(queries.IsDepthToSpaceSupported(inputInfo, DepthToSpaceInfo(2), nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Zero point out of range for input info"));
+    }
+
     SECTION("Successful cases")
     {
         const auto inputDataType = GENERATE(DataType::INT8_QUANTIZED, DataType::UINT8_QUANTIZED);

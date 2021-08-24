@@ -26,12 +26,20 @@ TEST_CASE("ReshapeSupported")
 
 TEST_CASE("ReshapeNotSupported")
 {
+    char reason[1024];
     SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     // Not Supported configuration
     TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
     TensorInfo output({ 1, 16, 1, 32 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
     REQUIRE(queries.IsReshapeSupported({ 1, 16, 1, 32 }, input, &output) == SupportedLevel::Unsupported);
+
+    // Invalid zero point
+    input.m_Dimensions = { 1, 16, 2, 16 };
+    input.m_QuantizationInfo.SetZeroPoint(-10);
+    REQUIRE(queries.IsReshapeSupported({ 1, 16, 1, 32 }, input, nullptr, reason, sizeof(reason)) ==
+            SupportedLevel::Unsupported);
+    REQUIRE(Contains(reason, "Zero point out of range for input info"));
 }
 
 /// Tests Single Reshape Command using SRAM to SRAM reshape

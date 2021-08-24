@@ -30,6 +30,12 @@ TEST_CASE("ReluSupported")
     REQUIRE(queries.IsReluSupported(ReluInfo(0x42, 42), input, &output, reason, reasonLength) ==
             SupportedLevel::Unsupported);
     REQUIRE(std::string(reason) == "Relu has lower bound > upper bound");
+
+    // Test for zero point check
+    input.m_QuantizationInfo.SetZeroPoint(-129);
+    REQUIRE(queries.IsReluSupported(ReluInfo(0, 255), input, nullptr, reason, reasonLength) ==
+            SupportedLevel::Unsupported);
+    REQUIRE(std::string(reason) == "Zero point out of range for input info");
 }
 
 /// Tests that a network comprising a single Relu creates an identity depthwise convolution beforehand.

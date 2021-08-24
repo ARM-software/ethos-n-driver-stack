@@ -85,6 +85,15 @@ TEST_CASE("SplitSupported")
     REQUIRE(Contains(reason, "Split along the channels dimension (axis 3) requires all output sizes (specified in "
                              "splitInfo.m_Sizes) to be multiples of 16"));
 
+    // Zero point outside of valid range
+    {
+        REQUIRE(queries.IsSplitSupported(TensorInfo({ 1, 16, 16, 64 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC,
+                                                    QuantizationInfo(-10, 2)),
+                                         SplitInfo(3, { 30, 34 }), nullptr, reason,
+                                         sizeof(reason)) == SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Zero point out of range for input info"));
+    }
+
     // Successful case (output info provided)
     {
         std::vector<TensorInfo> outputInfos{

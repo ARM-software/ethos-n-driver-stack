@@ -153,14 +153,18 @@ bool IsBiasDataTypeSupported(const TensorInfo& info, const char* what, char* rea
     return isSupported;
 }
 
-bool IsQuantisationZeroPointInRange(const TensorInfo& tensor)
+bool IsQuantizationZeroPointInRange(const DataType type, const QuantizationInfo& quantInfo)
 {
-    const utils::DataTypeRange dataTypeRange = utils::GetRangeOfDataType(tensor.m_DataType);
+    const utils::DataTypeRange dataTypeRange = utils::GetRangeOfDataType(type);
     const int32_t minAllowed                 = dataTypeRange.min;
     const int32_t maxAllowed                 = dataTypeRange.max;
-
-    const int32_t zeroPoint = tensor.m_QuantizationInfo.GetZeroPoint();
+    const int32_t zeroPoint                  = quantInfo.GetZeroPoint();
     return (zeroPoint >= minAllowed) && (zeroPoint <= maxAllowed);
+}
+
+bool IsQuantizationZeroPointInRange(const TensorInfo& tensor)
+{
+    return IsQuantizationZeroPointInRange(tensor.m_DataType, tensor.m_QuantizationInfo);
 }
 
 bool HasQuantizationDim(const TensorInfo& info)
@@ -188,7 +192,7 @@ bool IsQuantizationDimSupported(const TensorInfo& info,
 
         if (info.m_QuantizationInfo.GetScales().size() != info.m_Dimensions[dim])
         {
-            SetReason("%s: %s must have quantization scales with same number of elements as the quantisation dim. "
+            SetReason("%s: %s must have quantization scales with same number of elements as the quantization dim. "
                       "Expected: %d, got: %d.",
                       reason, reasonMaxLength, what, name, info.m_Dimensions[dim],
                       info.m_QuantizationInfo.GetScales().size());
@@ -387,6 +391,12 @@ SupportedLevel SupportQueries::IsInputSupported(const TensorInfo& inputInfo,
         *outputInfo = expectedOutputInfo;
     }
 
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
     return SupportedLevel::Supported;
 }
 
@@ -428,6 +438,12 @@ SupportedLevel SupportQueries::IsOutputSupported(const TensorInfo& inputInfo,
         return SupportedLevel::Unsupported;
     }
 
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
     return SupportedLevel::Supported;
 }
 
@@ -436,6 +452,12 @@ SupportedLevel
 {
     if (!IsTensorDepthSupported(m_Capabilities, constantInfo, "Constant layer", reason, reasonMaxLength))
     {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(constantInfo)))
+    {
+        SetReason("Zero point out of range for constant info", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -545,10 +567,22 @@ SupportedLevel SupportQueries::IsConvolutionSupported(const TensorInfo& biasInfo
         *outputInfo = expectedOutputInfo;
     }
 
-    if (!(IsQuantisationZeroPointInRange(weightsInfo)))
+    if (!(IsQuantizationZeroPointInRange(weightsInfo)))
     {
-        SetReason("Zero point value of weight is not in range", reason, reasonMaxLength);
-        return SupportedLevel::EstimateOnly;
+        SetReason("Zero point out of range for weights info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo.m_DataType, convInfo.m_OutputQuantizationInfo)))
+    {
+        SetReason("Zero point out of range for convInfo", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
     }
 
     if (biasInfo.m_QuantizationInfo.GetZeroPoint() != 0)
@@ -713,10 +747,22 @@ SupportedLevel SupportQueries::IsDepthwiseConvolutionSupported(const TensorInfo&
         return SupportedLevel::EstimateOnly;
     }
 
-    if (!(IsQuantisationZeroPointInRange(weightsInfo)))
+    if (!(IsQuantizationZeroPointInRange(weightsInfo)))
     {
-        SetReason("Zero point value of weight is not in range", reason, reasonMaxLength);
-        return SupportedLevel::EstimateOnly;
+        SetReason("Zero point out of range for weights info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo.m_DataType, convInfo.m_OutputQuantizationInfo)))
+    {
+        SetReason("Zero point out of range for convInfo", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
     }
 
     QuantizationScales intermediateScales =
@@ -869,10 +915,22 @@ SupportedLevel SupportQueries::IsTransposeConvolutionSupported(const TensorInfo&
         *outputInfo = expectedOutputInfo;
     }
 
-    if (!(IsQuantisationZeroPointInRange(weightsInfo)))
+    if (!(IsQuantizationZeroPointInRange(weightsInfo)))
     {
-        SetReason("Zero point value of weight is not in range", reason, reasonMaxLength);
+        SetReason("Zero point out of range for weights info", reason, reasonMaxLength);
         return SupportedLevel::EstimateOnly;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo.m_DataType, convInfo.m_OutputQuantizationInfo)))
+    {
+        SetReason("Zero point out of range for convInfo", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
     }
 
     QuantizationScales intermediateScales =
@@ -1000,6 +1058,21 @@ SupportedLevel SupportQueries::IsConcatenationSupported(const std::vector<Tensor
         return SupportedLevel::Unsupported;
     }
 
+    for (TensorInfo inputInfo : inputInfos)
+    {
+        if (!(IsQuantizationZeroPointInRange(inputInfo)))
+        {
+            SetReason("Zero point out of range for at least one input info", reason, reasonMaxLength);
+            return SupportedLevel::Unsupported;
+        }
+
+        if (!(IsQuantizationZeroPointInRange(inputInfo.m_DataType, concatInfo.m_OutputQuantizationInfo)))
+        {
+            SetReason("Zero point out of range for concatInfo", reason, reasonMaxLength);
+            return SupportedLevel::Unsupported;
+        }
+    }
+
     // We implement requantize with identity convolutions so the same quantization restrictions apply
     float outputScale = concatInfo.m_OutputQuantizationInfo.GetScale();
     for (const auto& info : inputInfos)
@@ -1117,6 +1190,12 @@ SupportedLevel SupportQueries::IsSplitSupported(const TensorInfo& inputInfo,
         return SupportedLevel::Unsupported;
     }
 
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
     if (outputInfos != nullptr)
     {
         if (outputInfos->size() != numOutputs)
@@ -1217,6 +1296,18 @@ SupportedLevel SupportQueries::IsAdditionSupported(const TensorInfo& inputInfo0,
         return SupportedLevel::Unsupported;
     }
 
+    if (!(IsQuantizationZeroPointInRange(inputInfo0)))
+    {
+        SetReason("Zero point out of range for input0 info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo1)))
+    {
+        SetReason("Zero point out of range for input1 info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
     // From the AndroidNN spec:
     // Two dimensions are compatible when:
     //  they are equal, or
@@ -1246,6 +1337,12 @@ SupportedLevel SupportQueries::IsAdditionSupported(const TensorInfo& inputInfo0,
     if (inputInfo0.m_DataType != inputInfo1.m_DataType)
     {
         SetReason("Inputs to addition must have the same data type", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo0.m_DataType, outputQuantizationInfo)))
+    {
+        SetReason("Zero point out of range for outputQuantizationInfo", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -1370,6 +1467,24 @@ SupportedLevel SupportQueries::IsFullyConnectedSupported(const TensorInfo& biasI
         return SupportedLevel::Unsupported;
     }
 
+    if (!(IsQuantizationZeroPointInRange(weightsInfo)))
+    {
+        SetReason("Zero point out of range for weights info", reason, reasonMaxLength);
+        return SupportedLevel::EstimateOnly;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo.m_DataType, fullyConnectedInfo.m_OutputQuantizationInfo)))
+    {
+        SetReason("Zero point out of range for fullyConnectedInfo", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
     TensorInfo expectedOutputInfo =
         FullyConnected::CalculateOutputTensorInfo(inputInfo, weightsInfo, fullyConnectedInfo);
 
@@ -1393,12 +1508,6 @@ SupportedLevel SupportQueries::IsFullyConnectedSupported(const TensorInfo& biasI
     {
         SetReason("Input to fully connected is expected to be one dimensional using the channels dimension.", reason,
                   reasonMaxLength);
-        return SupportedLevel::EstimateOnly;
-    }
-
-    if (!(IsQuantisationZeroPointInRange(weightsInfo)))
-    {
-        SetReason("Zero point value of weight is not in range", reason, reasonMaxLength);
         return SupportedLevel::EstimateOnly;
     }
 
@@ -1461,6 +1570,12 @@ SupportedLevel SupportQueries::IsReluSupported(const ReluInfo& reluInfo,
         return SupportedLevel::Unsupported;
     }
 
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
     if (outputInfo != nullptr)
     {
         TensorInfo expectedOutputInfo = inputInfo;
@@ -1506,6 +1621,18 @@ SupportedLevel SupportQueries::IsLeakyReluSupported(const LeakyReluInfo& leakyRe
     if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, &leakyReluInfo.m_OutputQuantizationInfo, "Leaky Relu",
                                     reason, reasonMaxLength))
     {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo.m_DataType, leakyReluInfo.m_OutputQuantizationInfo)))
+    {
+        SetReason("Zero point out of range for leakyReluInfo", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -1573,10 +1700,28 @@ SupportedLevel SupportQueries::IsRequantizeSupported(const RequantizeInfo& requa
 
     TensorInfo expectedOutputInfo = Requantize::CalculateOutputTensorInfo(inputInfo, requantizeInfo);
 
-    if (!(IsQuantisationZeroPointInRange(expectedOutputInfo)))
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
     {
-        SetReason("Zero point out of range", reason, reasonMaxLength);
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
+    }
+
+    if (requantizeInfo.m_OutputDataType.has_value())
+    {
+        if (!(IsQuantizationZeroPointInRange(requantizeInfo.m_OutputDataType.value(),
+                                             requantizeInfo.m_OutputQuantizationInfo)))
+        {
+            SetReason("Zero point out of range for requantizeInfo", reason, reasonMaxLength);
+            return SupportedLevel::Unsupported;
+        }
+    }
+    else
+    {
+        if (!(IsQuantizationZeroPointInRange(inputInfo.m_DataType, requantizeInfo.m_OutputQuantizationInfo)))
+        {
+            SetReason("Zero point out of range for requantizeInfo", reason, reasonMaxLength);
+            return SupportedLevel::Unsupported;
+        }
     }
 
     if (!IsQuantizationOutputSupported(expectedOutputInfo, "Expected quantization output", reason, reasonMaxLength))
@@ -1627,18 +1772,18 @@ SupportedLevel
         return SupportedLevel::Unsupported;
     }
 
-    if (!(IsQuantisationZeroPointInRange(inputInfo)))
+    TensorInfo expectedOutputInfo =
+        ReinterpretQuantization::CalculateOutputTensorInfo(inputInfo, reinterpretQuantizationInfo);
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
     {
         SetReason("Zero point out of range for input info", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
-    TensorInfo expectedOutputInfo =
-        ReinterpretQuantization::CalculateOutputTensorInfo(inputInfo, reinterpretQuantizationInfo);
-
-    if (!(IsQuantisationZeroPointInRange(expectedOutputInfo)))
+    if (!(IsQuantizationZeroPointInRange(inputInfo.m_DataType, reinterpretQuantizationInfo.m_OutputQuantizationInfo)))
     {
-        SetReason("Zero point out of range for expected output info", reason, reasonMaxLength);
+        SetReason("Zero point out of range for reinterpretQuantizationInfo", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -1685,6 +1830,12 @@ SupportedLevel SupportQueries::IsMeanXySupported(const TensorInfo& inputInfo,
 
     if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "Mean", reason, reasonMaxLength))
     {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -1739,6 +1890,12 @@ SupportedLevel SupportQueries::IsSigmoidSupported(const TensorInfo& inputInfo,
         return SupportedLevel::Unsupported;
     }
 
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
     if (outputInfo != nullptr)
     {
         const TensorInfo expectedOutputInfo = Sigmoid::CalculateOutputTensorInfo(inputInfo);
@@ -1780,6 +1937,12 @@ SupportedLevel SupportQueries::IsTanhSupported(const TensorInfo& inputInfo,
 
     if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "tanh", reason, reasonMaxLength))
     {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -1865,6 +2028,12 @@ SupportedLevel SupportQueries::IsPoolingSupported(const PoolingInfo& poolingInfo
 
     if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "Pooling", reason, reasonMaxLength))
     {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -2017,6 +2186,12 @@ SupportedLevel SupportQueries::IsReshapeSupported(const TensorShape& newDimensio
         return SupportedLevel::Unsupported;
     }
 
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
     TensorInfo expectedOutputInfo = Reshape::CalculateOutputTensorInfo(inputInfo, newDimensions);
 
     if (!IsTensorDepthSupported(m_Capabilities, expectedOutputInfo, "Output of reshape", reason, reasonMaxLength))
@@ -2074,6 +2249,12 @@ SupportedLevel SupportQueries::IsDepthToSpaceSupported(const TensorInfo& inputIn
 
     if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "Depth to Space", reason, reasonMaxLength))
     {
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 
@@ -2175,6 +2356,12 @@ SupportedLevel SupportQueries::IsSpaceToDepthSupported(const TensorInfo& inputIn
         return SupportedLevel::EstimateOnly;
     }
 
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
     TensorInfo expectedOutputInfo = SpaceToDepth::CalculateOutputTensorInfo(inputInfo, spaceToDepthInfo);
 
     if (!IsTensorDepthSupported(m_Capabilities, expectedOutputInfo, "Output of space to depth", reason,
@@ -2207,6 +2394,13 @@ SupportedLevel SupportQueries::IsEstimateOnlySupported(const std::vector<TensorI
                                                        char* reason,
                                                        size_t reasonMaxLength) const
 {
+    if (!std::all_of(info.m_OutputInfos.begin(), info.m_OutputInfos.end(),
+                     [](TensorInfo x) { return IsQuantizationZeroPointInRange(x); }))
+    {
+        SetReason("Zero point out of range for at least one output info in EstimateOnlyInfo", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
     if (outputInfos != nullptr)
     {
         for (uint32_t i = 0; i < outputInfos->size(); ++i)
@@ -2363,6 +2557,12 @@ SupportedLevel SupportQueries::IsTransposeSupported(const TransposeInfo& transpo
         return SupportedLevel::EstimateOnly;
     }
 
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
     TensorInfo expectedOutputInfo = Transpose::CalculateOutputTensorInfo(inputInfo, transposeInfo);
 
     if (!IsTensorDepthSupported(m_Capabilities, expectedOutputInfo, "Output of transpose", reason, reasonMaxLength))
@@ -2437,6 +2637,18 @@ SupportedLevel SupportQueries::IsResizeSupported(const ResizeInfo& resizeInfo,
     if ((resizeInfo.m_NewWidth & 1) ^ (resizeInfo.m_NewHeight & 1))
     {
         SetReason("Requested width and height must be both even or both odd", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo)))
+    {
+        SetReason("Zero point out of range for input info", reason, reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!(IsQuantizationZeroPointInRange(inputInfo.m_DataType, resizeInfo.m_OutputQuantizationInfo)))
+    {
+        SetReason("Zero point out of range for resizeInfo", reason, reasonMaxLength);
         return SupportedLevel::Unsupported;
     }
 

@@ -75,12 +75,23 @@ TEST_CASE("Requantize Unsupported")
         REQUIRE(Contains(reason, "Provided outputInfo is incorrect"));
     }
 
-    SECTION("Invalid zero point")
+    SECTION("Invalid zero point for inputInfo")
+    {
+        TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(-10, 1.0f));
+        RequantizeInfo requantizeInfo = RequantizeInfo(QuantizationInfo(0, 1.0f));
+        REQUIRE(queries.IsRequantizeSupported(requantizeInfo, input, nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Zero point out of range for input info"));
+    }
+
+    SECTION("Invalid zero point for RequantizeInfo")
     {
         TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
-        REQUIRE(queries.IsRequantizeSupported(RequantizeInfo(QuantizationInfo(-129, 1.0f)), input, nullptr, reason,
-                                              sizeof(reason)) == SupportedLevel::Unsupported);
-        REQUIRE(Contains(reason, "Zero point out of range"));
+        RequantizeInfo requantizeInfo   = RequantizeInfo(QuantizationInfo(-129, 1.0f));
+        requantizeInfo.m_OutputDataType = DataType::INT8_QUANTIZED;
+        REQUIRE(queries.IsRequantizeSupported(requantizeInfo, input, nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Zero point out of range for requantizeInfo"));
     }
 
     SECTION("Per channel quantization not supported")
@@ -243,7 +254,7 @@ TEST_CASE("Compile a network with Requantize layer with different input/output t
         { { 1, 16, 16, 16 } },
         inputType,
         DataFormat::NHWCB,
-        { 128, 0.0627451017f },
+        { 127, 0.0627451017f },
     };
 
     RequantizeInfo requantInfo({ 0, 0.03f });

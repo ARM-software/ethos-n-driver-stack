@@ -113,6 +113,15 @@ TEST_CASE("PoolingSupported")
                 SupportedLevel::Supported);
     }
 
+    // Invalid zero point for input info
+    {
+        TensorInfo input({ 1, 16, 16, 32 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(-10, 1.0f));
+        PoolingInfo poolingInfo(3, 3, 1, 1, { 1, 1, 1, 1 }, PoolingType::AVG);
+        REQUIRE(queries.IsPoolingSupported(poolingInfo, input, nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Zero point out of range for input info"));
+    }
+
     // EstimateOnly
     REQUIRE(IsPoolingSupportedImpl(queries, { 16, 16 }, { 2, 2 }, { 1, 1 }, noPad, PoolingType::MAX) ==
             SupportedLevel::EstimateOnly);

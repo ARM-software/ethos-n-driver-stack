@@ -4,6 +4,7 @@
 //
 
 #include "../include/ethosn_support_library/SupportQueries.hpp"
+#include "TestUtils.hpp"
 
 #include <catch.hpp>
 
@@ -11,6 +12,7 @@ using namespace ethosn::support_library;
 
 TEST_CASE("SigmoidSupported")
 {
+    char reason[1024];
     SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     SECTION("Supported configuration")
@@ -35,5 +37,12 @@ TEST_CASE("SigmoidSupported")
         TensorInfo output({ 1, 8, 8, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC,
                           QuantizationInfo(0, 1.0f / 256));
         REQUIRE(queries.IsSigmoidSupported(input, &output) == SupportedLevel::Unsupported);
+    }
+
+    SECTION("Invalid zero point")
+    {
+        TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(-10, 1.0f));
+        REQUIRE(queries.IsSigmoidSupported(input, nullptr, reason, sizeof(reason)) == SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Zero point out of range for input info"));
     }
 }

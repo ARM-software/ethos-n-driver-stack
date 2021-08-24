@@ -45,6 +45,24 @@ TEST_CASE("LeakyReluSupported EstimateOnly negative alpha")
             SupportedLevel::EstimateOnly);
 }
 
+TEST_CASE("LeakyReluSupported Unsupported zero point out of range")
+{
+    char reason[1024];
+    SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Check unsupported for zero point out of range in inputinfo
+    TensorInfo input({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(-10, 1.0f));
+    REQUIRE(queries.IsLeakyReluSupported(LeakyReluInfo(0.1f, QuantizationInfo(0, 1.0f)), input, nullptr, reason,
+                                         sizeof(reason)) == SupportedLevel::Unsupported);
+    REQUIRE(Contains(reason, "Zero point out of range for input info"));
+
+    // Check unsupported for zero point out of range for outputinfo
+    input.m_QuantizationInfo.SetZeroPoint(0);
+    REQUIRE(queries.IsLeakyReluSupported(LeakyReluInfo(0.1f, QuantizationInfo(-10, 1.0f)), input, nullptr, reason,
+                                         sizeof(reason)) == SupportedLevel::Unsupported);
+    REQUIRE(Contains(reason, "Zero point out of range for leakyReluInfo"));
+}
+
 /// Tests that leaky relu produces a valid command stream
 TEST_CASE("LeakyRelu real network")
 {

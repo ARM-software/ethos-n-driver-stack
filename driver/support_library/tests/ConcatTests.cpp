@@ -133,6 +133,37 @@ TEST_CASE("ConcatenationSupported")
         REQUIRE(Contains(reason, "Output scales must be bigger than input scale / 128"));
     }
 
+    SECTION("Invalid zero point")
+    {
+        std::vector<TensorInfo> inputInfos = {
+            TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC),
+            TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC)
+        };
+        TensorInfo outputInfo({ 1, 16, 16, 32 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC,
+                              QuantizationInfo(0, 1.0f));
+        ConcatenationInfo ConcatInfo(3, QuantizationInfo(0, 1.0f));
+
+        SECTION("Invalid input zero point")
+        {
+            inputInfos[0].m_QuantizationInfo.SetZeroPoint(-10);
+            REQUIRE(queries.IsConcatenationSupported(inputInfos, ConcatInfo, &outputInfo, reason, sizeof(reason)) ==
+                    SupportedLevel::Unsupported);
+            INFO(reason);
+            REQUIRE(Contains(reason, "Zero point out of range for at least one input info"));
+        }
+
+        SECTION("Invalid concatInfo zero point")
+        {
+            inputInfos[0].m_QuantizationInfo.SetZeroPoint(0);
+            inputInfos[1].m_QuantizationInfo.SetZeroPoint(0);
+            ConcatInfo.m_OutputQuantizationInfo.SetZeroPoint(-10);
+            REQUIRE(queries.IsConcatenationSupported(inputInfos, ConcatInfo, &outputInfo, reason, sizeof(reason)) ==
+                    SupportedLevel::Unsupported);
+            INFO(reason);
+            REQUIRE(Contains(reason, "Zero point out of range for concatInfo"));
+        }
+    }
+
     SECTION("Output scale just fits")
     {
         REQUIRE(queries.IsConcatenationSupported(

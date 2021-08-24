@@ -60,6 +60,22 @@ TEST_CASE("IsAdditionSupported")
                                                 sizeof(reason)) == SupportedLevel::Unsupported);
             REQUIRE(Contains(reason, "Inputs to addition must have the same data type"));
         }
+
+        SECTION("Invalid zero point range")
+        {
+            TensorInfo input0 = TensorInfo({ 1, 1, 1, 4 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, { 0, 1.0f });
+            TensorInfo input1 = TensorInfo({ 1, 1, 1, 4 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, { -10, 1.0f });
+            REQUIRE(queries.IsAdditionSupported(input0, input1, outputQuantizationInfo, nullptr, reason,
+                                                sizeof(reason)) == SupportedLevel::Unsupported);
+            INFO(reason);
+            REQUIRE(Contains(reason, "Zero point out of range for input1 info"));
+
+            input1.m_QuantizationInfo.SetZeroPoint(0);
+            REQUIRE(queries.IsAdditionSupported(input0, input1, QuantizationInfo(-10, 1.0f), nullptr, reason,
+                                                sizeof(reason)) == SupportedLevel::Unsupported);
+            INFO(reason);
+            REQUIRE(Contains(reason, "Zero point out of range for outputQuantizationInfo"));
+        }
     }
 
     SECTION("EstimateOnly cases")

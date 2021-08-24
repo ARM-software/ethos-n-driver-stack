@@ -149,16 +149,38 @@ TEST_CASE("TransposeConvSupported")
         REQUIRE(Contains(reason, "Provided outputInfo is incorrect"));
     }
 
-    // Weights zero point outside of valid range
+    // Zero point outside of valid range
     {
         TensorInfo biasInfo({ 1, 1, 1, 1 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
         TensorInfo weightsInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO,
-                               QuantizationInfo(1234, 1.0f));
+                               QuantizationInfo(-10, 1.0f));
         ConvolutionInfo convInfo;
         TensorInfo inputInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC);
-        REQUIRE(queries.IsTransposeConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
-                                                        sizeof(reason)) == SupportedLevel::EstimateOnly);
-        REQUIRE(Contains(reason, "Zero point value of weight is not in range"));
+
+        // Invalid weight zero point
+        {
+            REQUIRE(queries.IsTransposeConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                            sizeof(reason)) == SupportedLevel::EstimateOnly);
+            REQUIRE(Contains(reason, "Zero point out of range for weights info"));
+        }
+
+        // Invalid input zero point
+        {
+            weightsInfo.m_QuantizationInfo.SetZeroPoint(0);
+            inputInfo.m_QuantizationInfo.SetZeroPoint(-10);
+            REQUIRE(queries.IsTransposeConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                            sizeof(reason)) == SupportedLevel::Unsupported);
+            REQUIRE(Contains(reason, "Zero point out of range for input info"));
+        }
+
+        // Invalid convInfo zero point
+        {
+            inputInfo.m_QuantizationInfo.SetZeroPoint(0);
+            convInfo.m_OutputQuantizationInfo.SetZeroPoint(-10);
+            REQUIRE(queries.IsTransposeConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                            sizeof(reason)) == SupportedLevel::Unsupported);
+            REQUIRE(Contains(reason, "Zero point out of range for convInfo"));
+        }
     }
 
     // Bias quantization params

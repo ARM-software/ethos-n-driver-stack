@@ -76,4 +76,15 @@ TEST_CASE("MeanXySupported", "[IsSupported]")
             REQUIRE(output == expectedOutput);
         }
     }
+
+    GIVEN("Input TensorInfo with out of range zero point")
+    {
+        TensorInfo input({ 1, 7, 7, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(-10, 1.0f));
+
+        THEN("MeanXy shall not be supported")
+        {
+            REQUIRE(queries.IsMeanXySupported(input, nullptr, reason, sizeof(reason)) == SupportedLevel::Unsupported);
+            REQUIRE(Contains(reason, "Zero point out of range for input info"));
+        }
+    }
 }

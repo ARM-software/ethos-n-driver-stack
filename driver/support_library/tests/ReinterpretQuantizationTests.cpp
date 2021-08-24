@@ -106,7 +106,7 @@ TEST_CASE("ReinterpretQuantization Unsupported")
         REQUIRE(queries.IsReinterpretQuantizationSupported(ReinterpretQuantizationInfo(QuantizationInfo(-10, 1.0f)),
                                                            input, nullptr, reason,
                                                            sizeof(reason)) == SupportedLevel::Unsupported);
-        REQUIRE(Contains(reason, "Zero point out of range for expected output info"));
+        REQUIRE(Contains(reason, "Zero point out of range for reinterpretQuantizationInfo"));
     }
 }
 

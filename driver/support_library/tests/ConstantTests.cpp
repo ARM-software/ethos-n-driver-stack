@@ -15,10 +15,21 @@ using namespace ethosn::support_library;
 
 TEST_CASE("ConstantSupported", "[Constant]")
 {
+    char reason[1024];
     SupportQueries queries(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
-    TensorInfo info({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
-    REQUIRE(queries.IsConstantSupported(info) == SupportedLevel::Supported);
+    SECTION("Supported")
+    {
+        TensorInfo info({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        REQUIRE(queries.IsConstantSupported(info) == SupportedLevel::Supported);
+    }
+
+    SECTION("Invalid zero point")
+    {
+        TensorInfo info({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(-10, 1.0f));
+        REQUIRE(queries.IsConstantSupported(info, reason, sizeof(reason)) == SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Zero point out of range"));
+    }
 }
 
 TEST_CASE("Constant used as input to operation compiles succesfully", "[Constant]")

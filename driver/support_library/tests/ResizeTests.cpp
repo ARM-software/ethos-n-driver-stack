@@ -50,6 +50,18 @@ TEST_CASE("ResizeSupported")
     REQUIRE(queries.IsResizeSupported(ResizeInfo(ResizeAlgorithm::BILINEAR, 31, 32, QuantizationInfo(0, 1.0f)), input,
                                       &output, reason, reasonLength) == SupportedLevel::Unsupported);
     REQUIRE(std::string(reason) == "Requested width and height must be both even or both odd");
+
+    // Test support string reporting with invalid zero point for input
+    input.m_QuantizationInfo.SetZeroPoint(-129);
+    REQUIRE(queries.IsResizeSupported(ResizeInfo(ResizeAlgorithm::BILINEAR, 32, 32, QuantizationInfo(0, 1.0f)), input,
+                                      nullptr, reason, reasonLength) == SupportedLevel::Unsupported);
+    REQUIRE(std::string(reason) == "Zero point out of range for input info");
+
+    // Test support string reporting with invalid zero point for resizeInfo
+    input.m_QuantizationInfo.SetZeroPoint(0);
+    REQUIRE(queries.IsResizeSupported(ResizeInfo(ResizeAlgorithm::BILINEAR, 32, 32, QuantizationInfo(-129, 1.0f)),
+                                      input, nullptr, reason, reasonLength) == SupportedLevel::Unsupported);
+    REQUIRE(std::string(reason) == "Zero point out of range for resizeInfo");
 }
 
 /// Tests that a network comprising a resize is converted in an identity depthwise convolution with the correct upsample parameter.

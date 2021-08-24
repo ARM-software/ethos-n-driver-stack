@@ -159,6 +159,29 @@ TEST_CASE("FullyConnectedSupported")
         REQUIRE(Contains(reason, "Provided outputInfo is incorrect"));
     }
 
+    SECTION("Invalid zero point range")
+    {
+        TensorInfo weights{ { 1, 1, 4096, 1000 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, { -10, 1.0f } };
+        TensorInfo input({ 1, 1, 1, 4096 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        TensorInfo bias{ { 1, 1, 1, 1000 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, 1.0f } };
+        FullyConnectedInfo fcInfo;
+        REQUIRE(queries.IsFullyConnectedSupported(bias, weights, fcInfo, input, nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::EstimateOnly);
+        REQUIRE(Contains(reason, "Zero point out of range for weights info"));
+
+        weights.m_QuantizationInfo.SetZeroPoint(0);
+        input.m_QuantizationInfo.SetZeroPoint(-10);
+        REQUIRE(queries.IsFullyConnectedSupported(bias, weights, fcInfo, input, nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Zero point out of range for input info"));
+
+        input.m_QuantizationInfo.SetZeroPoint(0);
+        fcInfo.m_OutputQuantizationInfo.SetZeroPoint(-10);
+        REQUIRE(queries.IsFullyConnectedSupported(bias, weights, fcInfo, input, nullptr, reason, sizeof(reason)) ==
+                SupportedLevel::Unsupported);
+        REQUIRE(Contains(reason, "Zero point out of range for fullyConnectedInfo"));
+    }
+
     SECTION("EstimateOnly for implicit reshape on input")
     {
         TensorInfo input({ 1, 8, 8, 5 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));

@@ -207,7 +207,7 @@ TEST_CASE("ConvolutionSupported")
         INFO(reason);
         REQUIRE(isSupported == SupportedLevel::Unsupported);
         REQUIRE(Contains(reason, "Convolution: Biases must have quantization scales with same number of elements as "
-                                 "the quantisation dim. Expected: 3, got: 2."));
+                                 "the quantization dim. Expected: 3, got: 2."));
     }
 
     SECTION("Unsupported conv overall scale: too small")
@@ -283,6 +283,41 @@ TEST_CASE("ConvolutionSupported")
         INFO(reason);
         REQUIRE(isSupported == SupportedLevel::Unsupported);
         REQUIRE(Contains(reason, "Per channel quantization axis must be 3"));
+    }
+
+    SECTION("Invalid zero point")
+    {
+        TensorInfo weightsInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, QuantizationInfo(0, 1.0f));
+        TensorInfo inputInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        TensorInfo biasInfo({ 1, 1, 1, 1 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 });
+
+        SECTION("Invalid weight zero point")
+        {
+            weightsInfo.m_QuantizationInfo.SetZeroPoint(-10);
+            REQUIRE(queries.IsConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                   sizeof(reason)) == SupportedLevel::Unsupported);
+            INFO(reason);
+            REQUIRE(Contains(reason, "Zero point out of range for weights info"));
+        }
+
+        SECTION("Invalid input zero point")
+        {
+            inputInfo.m_QuantizationInfo.SetZeroPoint(-10);
+            REQUIRE(queries.IsConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                   sizeof(reason)) == SupportedLevel::Unsupported);
+            INFO(reason);
+            REQUIRE(Contains(reason, "Zero point out of range for input info"));
+        }
+
+        SECTION("Invalid convInfo zero point")
+        {
+            convInfo.m_OutputQuantizationInfo.SetZeroPoint(-10);
+            REQUIRE(queries.IsConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                   sizeof(reason)) == SupportedLevel::Unsupported);
+            INFO(reason);
+            REQUIRE(Contains(reason, "Zero point out of range for convInfo"));
+        }
     }
 
     // A configuration we should never need to support but could potentially estimate
@@ -496,7 +531,7 @@ TEST_CASE("DepthwiseConvolutionSupported")
         TensorInfo inputInfo({ 1, 1, 1, 3 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB, { 0, 1.f });
         CHECK(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
                                                       sizeof(reason)) == SupportedLevel::Unsupported);
-        CHECK(Contains(reason, "Biases must have quantization scales with same number of elements as the quantisation "
+        CHECK(Contains(reason, "Biases must have quantization scales with same number of elements as the quantization "
                                "dim. Expected: 3, got: 2."));
     }
 
@@ -521,7 +556,7 @@ TEST_CASE("DepthwiseConvolutionSupported")
         TensorInfo inputInfo({ 1, 1, 1, 3 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB, { 0, 1.f });
         CHECK(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
                                                       sizeof(reason)) == SupportedLevel::Unsupported);
-        CHECK(Contains(reason, "Weights must have quantization scales with same number of elements as the quantisation "
+        CHECK(Contains(reason, "Weights must have quantization scales with same number of elements as the quantization "
                                "dim. Expected: 3, got: 2."));
     }
 
@@ -601,5 +636,40 @@ TEST_CASE("DepthwiseConvolutionSupported")
         CHECK(queries.IsDepthwiseConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
                                                       sizeof(reason)) == SupportedLevel::EstimateOnly);
         CHECK(Contains(reason, "Overall scale (of the input * weights / output) should be in the range"));
+    }
+
+    SECTION("Invalid zero point")
+    {
+        TensorInfo weightsInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, QuantizationInfo(0, 1.0f));
+        TensorInfo inputInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        TensorInfo biasInfo({ 1, 1, 1, 1 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
+        ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 });
+
+        SECTION("Invalid weights zero point")
+        {
+            weightsInfo.m_QuantizationInfo.SetZeroPoint(-10);
+            REQUIRE(queries.IsConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                   sizeof(reason)) == SupportedLevel::Unsupported);
+            INFO(reason);
+            REQUIRE(Contains(reason, "Zero point out of range for weights info"));
+        }
+
+        SECTION("Invalid input zero point")
+        {
+            inputInfo.m_QuantizationInfo.SetZeroPoint(-10);
+            REQUIRE(queries.IsConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                   sizeof(reason)) == SupportedLevel::Unsupported);
+            INFO(reason);
+            REQUIRE(Contains(reason, "Zero point out of range for input info"));
+        }
+
+        SECTION("Invalid output zero point")
+        {
+            convInfo.m_OutputQuantizationInfo.SetZeroPoint(-10);
+            REQUIRE(queries.IsConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,
+                                                   sizeof(reason)) == SupportedLevel::Unsupported);
+            INFO(reason);
+            REQUIRE(Contains(reason, "Zero point out of range for convInfo"));
+        }
     }
 }
