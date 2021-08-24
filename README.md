@@ -27,14 +27,14 @@ The following software component is available under an Arm proprietary license:
 
 Arm NN and the Arm NN Android neural networks driver are external downloads and links are provided below. All other components are part of this driver stack release.
 
-## Platform requirements
+## Target platform requirements
 
 Your (target) platform must meet specific requirements to run the Ethos-N NPU driver. Your platform must have:
 
 * An Armv8-A application processor.
 * An Arm Ethos-N NPU.
 * At least 4GB of RAM.
-* At least 5GB of free storage space.
+* At least 16GB of free storage space.
 
 ## Secure mode
 
@@ -50,7 +50,7 @@ For information about how to port TF-A to another platform, see [TF-A Porting Gu
 
 ## Build tools
 
-To build the Ethos-N NPU software, you require some tools. You must install the following tools on your development platform:
+To build the Ethos-N NPU software, you require some tools. You must install the following tools on the platform you perform the compilation, that is either your target platform or the host platform when cross compiling. We have only tested building the driver stack on the `Ubuntu 18.04 LTS x86 64-bit` Linux distribution. The required tools are:
 
 * A Linux distribution.  An open-source operating system.
 * [Git](https://git-scm.com/) [Recommended: `2.17.1`].  A version control system that software developers use for source code management.
@@ -119,9 +119,9 @@ The Ethos-N driver stack is written using portable `C++14` and the build system 
 
 ### Download the Ethos-N driver stack
 
-You must download the different components of the driver stack to build the driver. The different components of the driver stack are available for download in different ways.
+You must download Arm NN and Ethos-N driver stack to build the Ethos-N driver stack. The Ethos-N driver stack download contains the Ethos-N NPU driver, kernel module, backend and firmware binaries file.
 
-Enter the following commands to download Arm NN, the Ethos-N NPU driver, kernel module, and other components you require:
+Enter the following commands to download the above mentioned components:
 
 ```sh
 mkdir driver_stack
@@ -241,6 +241,7 @@ You must follow specific steps to build the Ethos-N NPU driver. You must build t
         cd <path_to>/driver_stack/ethos-n-driver-stack/driver
         scons platform=aarch64 install_prefix=<install_directory> install
         ```
+    _Note that `<install_directory>` is the location where files built from the Ethos-N NPU driver will be stored.
 
 7. Enter the following commands to link the Ethos-N NPU backend to the Arm NN source tree:
 
@@ -265,6 +266,8 @@ You must follow specific steps to build the Ethos-N NPU driver. You must build t
     As part of the Arm NN build, the process automatically builds the Ethos-N NPU driver plug-in for Arm NN.
 
     _Arm uses TensorFlow Lite as an example. You can also build Arm NN for [ONNX](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment/generate-the-build-dependencies-for-onnx)._
+
+    _Please make sure that all the requirements for Arm NN are satisfied before building._
 
 9. If you require Android NNAPI support, see [the instructions](https://github.com/Arm-software/android-nn-driver#armnn-android-neural-networks-driver) for how to build the Arm NN Android NNAPI driver.
 
