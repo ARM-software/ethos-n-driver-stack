@@ -20,6 +20,7 @@
 #include <armnn/backends/IMemoryManager.hpp>
 #include <armnn/utility/Assert.hpp>
 #include <backendsCommon/test/CommonTestUtils.hpp>
+#include <ethosn_driver_library/Device.hpp>
 #include <ethosn_driver_library/Network.hpp>
 #include <ethosn_support_library/Support.hpp>
 
@@ -1011,6 +1012,51 @@ IBackendInternal::IWorkloadFactoryPtr
     return std::make_unique<EthosNWorkloadFactory>(m_Config);
 }
 
+IBackendInternal::IWorkloadFactoryPtr
+    EthosNBackend::CreateWorkloadFactory(const IBackendInternal::IMemoryManagerSharedPtr&,
+                                         const ModelOptions& modelOptions) const
+{
+    for (const auto& optionsGroup : modelOptions)
+    {
+        if (optionsGroup.GetBackendId() == EthosNBackend::GetIdStatic())
+        {
+            for (size_t i = 0; i < optionsGroup.GetOptionCount(); ++i)
+            {
+                const BackendOptions::BackendOption& option = optionsGroup.GetOption(i);
+
+                if (option.GetName() == "Device")
+                {
+                    if (option.GetValue().IsString())
+                    {
+                        const std::string deviceVal = option.GetValue().AsString();
+
+                        return std::make_unique<EthosNWorkloadFactory>(m_Config, deviceVal);
+                    }
+                    else
+                    {
+                        throw armnn::InvalidArgumentException("Invalid value type for Device - must be string.");
+                    }
+                }
+            }
+        }
+    }
+
+    return std::make_unique<EthosNWorkloadFactory>(m_Config);
+}
+
+BackendCapabilities EthosNBackend::GetCapabilities() const
+{
+    BackendCapabilities ethosnCap(EthosNBackend::GetIdStatic());
+    ethosnCap.AddOption(
+        BackendOptions::BackendOption("DeviceNamePrefix", ethosn::driver_library::GetDeviceNamePrefix()));
+    ethosnCap.AddOption(BackendOptions::BackendOption(
+        "DeviceBaseId", static_cast<uint32_t>(ethosn::driver_library::GetDeviceBaseId())));
+    ethosnCap.AddOption(BackendOptions::BackendOption(
+        "NumberOfDevices", static_cast<uint32_t>(ethosn::driver_library::GetNumberOfDevices())));
+
+    return ethosnCap;
+}
+
 IBackendInternal::IBackendContextPtr EthosNBackend::CreateBackendContext(const IRuntime::CreationOptions&) const
 {
     return IBackendContextPtr{};
@@ -1037,6 +1083,29 @@ IBackendInternal::IMemoryManagerUniquePtr EthosNBackend::CreateMemoryManager() c
 
 IBackendInternal::ILayerSupportSharedPtr EthosNBackend::GetLayerSupport() const
 {
+    return std::make_shared<EthosNLayerSupport>(m_Config, m_Mappings, m_Capabilities);
+}
+
+IBackendInternal::ILayerSupportSharedPtr EthosNBackend::GetLayerSupport(const ModelOptions& modelOptions) const
+{
+    for (const auto& optionsGroup : modelOptions)
+    {
+        if (optionsGroup.GetBackendId() == EthosNBackend::GetIdStatic())
+        {
+            for (size_t i = 0; i < optionsGroup.GetOptionCount(); ++i)
+            {
+                const BackendOptions::BackendOption& option = optionsGroup.GetOption(i);
+
+                if (option.GetName() == "Device")
+                {
+                    if (!option.GetValue().IsString())
+                    {
+                        throw armnn::InvalidArgumentException("Invalid value type for Device - must be string.");
+                    }
+                }
+            }
+        }
+    }
     return std::make_shared<EthosNLayerSupport>(m_Config, m_Mappings, m_Capabilities);
 }
 

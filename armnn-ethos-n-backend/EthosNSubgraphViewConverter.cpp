@@ -920,6 +920,11 @@ ethosn_lib::CompilationOptions
                             "Invalid option type for DisableWinograd - must be bool.");
                     }
                 }
+                else if (option.GetName() == "Device")
+                {
+                    // Device option is allowed
+                    // But not used here
+                }
                 else
                 {
                     throw armnn::InvalidArgumentException("Invalid option - " + option.GetName());

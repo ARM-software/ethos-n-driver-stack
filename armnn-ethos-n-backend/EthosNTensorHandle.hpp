@@ -23,13 +23,12 @@ class EthosNTensorHandle : public ITensorHandle
 {
 public:
     explicit EthosNTensorHandle(const TensorInfo& tensorInfo)
+        : EthosNTensorHandle(tensorInfo, {})
+    {}
+
+    explicit EthosNTensorHandle(const TensorInfo& tensorInfo, const std::string& deviceId)
         : m_TensorInfo(tensorInfo)
-        // The input buffer size of fully connected is rounded up to the next 1024
-        // byte boundary by the support library. The ethosn backend needs to do
-        // the same to avoid buffer size mismatch.
-        , m_Buffer(
-              armnn::ethosnbackend::RoundUpToNearestMultiple(tensorInfo.GetNumElements(), static_cast<uint32_t>(1024)),
-              ethosn::driver_library::DataFormat::NHWC)
+        , m_Buffer(CreateBuffer(tensorInfo, deviceId))
     {
         using namespace ethosntensorutils;
         // NOTE: The Ethos-N API is unclear on whether the size specified for a Buffer is the number of elements, or
@@ -42,6 +41,24 @@ public:
             throw InvalidArgumentException(std::string("Unsupported data type ") +
                                                std::string(GetDataTypeName(tensorInfo.GetDataType())),
                                            CHECK_LOCATION());
+        }
+    }
+
+    ethosn::driver_library::Buffer CreateBuffer(const TensorInfo& tensorInfo, const std::string& deviceId)
+    {
+        // The input buffer size of fully connected is rounded up to the next 1024
+        // byte boundary by the support library. The backend needs to do
+        // the same to avoid buffer size mismatch.
+        uint32_t bufferSize =
+            armnn::ethosnbackend::RoundUpToNearestMultiple(tensorInfo.GetNumElements(), static_cast<uint32_t>(1024));
+
+        if (deviceId.empty())
+        {
+            return ethosn::driver_library::Buffer(bufferSize, ethosn::driver_library::DataFormat::NHWC);
+        }
+        else
+        {
+            return ethosn::driver_library::Buffer(bufferSize, ethosn::driver_library::DataFormat::NHWC, deviceId);
         }
     }
 

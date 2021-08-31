@@ -218,7 +218,8 @@ void SendProfilingEvents()
 }    // anonymous namespace
 
 void EthosNPreCompiledWorkload::Init(const PreCompiledDescriptor& descriptor,
-                                     const EthosNPreCompiledObject::Network& network)
+                                     const EthosNPreCompiledObject::Network& network,
+                                     const std::string& deviceId)
 {
     if (!ethosn::driver_library::VerifyKernel())
     {
@@ -251,13 +252,23 @@ void EthosNPreCompiledWorkload::Init(const PreCompiledDescriptor& descriptor,
             &(static_cast<EthosNTensorHandle*>(m_Data.m_Outputs[outputSlotIdx])->GetBuffer());
     }
 
-    m_Network = std::make_unique<ethosn::driver_library::Network>(network.m_SerializedCompiledNetwork.data(),
-                                                                  network.m_SerializedCompiledNetwork.size());
+    if (deviceId.empty())
+    {
+        m_Network = std::make_unique<ethosn::driver_library::Network>(network.m_SerializedCompiledNetwork.data(),
+                                                                      network.m_SerializedCompiledNetwork.size());
+    }
+    else
+    {
+        m_Network = std::make_unique<ethosn::driver_library::Network>(
+            network.m_SerializedCompiledNetwork.data(), network.m_SerializedCompiledNetwork.size(), deviceId);
+    }
+
     m_Network->SetDebugName(std::to_string(m_Guid).c_str());
 }
 
 EthosNPreCompiledWorkload::EthosNPreCompiledWorkload(const PreCompiledQueueDescriptor& descriptor,
-                                                     const WorkloadInfo& info)
+                                                     const WorkloadInfo& info,
+                                                     const std::string& deviceId)
     : BaseWorkload<PreCompiledQueueDescriptor>(descriptor, info)
     , m_PreCompiledObject(static_cast<const EthosNPreCompiledObject*>(descriptor.m_PreCompiledObject))
 {
@@ -269,7 +280,7 @@ EthosNPreCompiledWorkload::EthosNPreCompiledWorkload(const PreCompiledQueueDescr
 
     if (!m_PreCompiledObject->IsPerfEstimationOnly())
     {
-        Init(descriptor.m_Parameters, *m_PreCompiledObject->GetNetwork());
+        Init(descriptor.m_Parameters, *m_PreCompiledObject->GetNetwork(), deviceId);
     }
 }
 

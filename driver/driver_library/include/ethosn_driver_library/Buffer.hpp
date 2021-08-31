@@ -25,6 +25,8 @@ enum class DataFormat
 class Buffer
 {
 public:
+    Buffer(Buffer&& buffer);
+
     // FIXME: Need an API where an external buffer is provided, without any copy. (Jira NNXSW-605)
 
     // Ethos-N allocates the buffer.

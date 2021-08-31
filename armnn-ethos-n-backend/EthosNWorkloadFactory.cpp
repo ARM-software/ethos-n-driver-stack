@@ -57,7 +57,15 @@ std::unique_ptr<ITensorHandle>
     {
         return std::make_unique<ScopedTensorHandle>(tensorInfo);
     }
-    return std::make_unique<EthosNTensorHandle>(tensorInfo);
+
+    if (m_DeviceId.empty())
+    {
+        return std::make_unique<EthosNTensorHandle>(tensorInfo);
+    }
+    else
+    {
+        return std::make_unique<EthosNTensorHandle>(tensorInfo, m_DeviceId);
+    }
 }
 
 std::unique_ptr<ITensorHandle> EthosNWorkloadFactory::CreateTensorHandle(const TensorInfo& tensorInfo, const bool) const
@@ -68,7 +76,7 @@ std::unique_ptr<ITensorHandle> EthosNWorkloadFactory::CreateTensorHandle(const T
 std::unique_ptr<IWorkload> EthosNWorkloadFactory::CreatePreCompiled(const PreCompiledQueueDescriptor& descriptor,
                                                                     const WorkloadInfo& info) const
 {
-    return std::make_unique<EthosNPreCompiledWorkload>(descriptor, info);
+    return std::make_unique<EthosNPreCompiledWorkload>(descriptor, info, m_DeviceId);
 }
 
 std::unique_ptr<IWorkload> EthosNWorkloadFactory::CreateOutput(const OutputQueueDescriptor& descriptor,

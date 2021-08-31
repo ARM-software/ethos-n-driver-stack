@@ -38,6 +38,12 @@ public:
     IBackendInternal::IWorkloadFactoryPtr
         CreateWorkloadFactory(const IBackendInternal::IMemoryManagerSharedPtr& memoryManager = nullptr) const override;
 
+    IBackendInternal::IWorkloadFactoryPtr
+        CreateWorkloadFactory(const IBackendInternal::IMemoryManagerSharedPtr& memoryManager = nullptr,
+                              const ModelOptions& modelOptions                               = {}) const override;
+
+    BackendCapabilities GetCapabilities() const override;
+
     IBackendInternal::IBackendContextPtr CreateBackendContext(const IRuntime::CreationOptions&) const override;
 
     IBackendInternal::IBackendProfilingContextPtr
@@ -45,6 +51,7 @@ public:
                                       IBackendProfilingPtr& backendProfiling) override;
 
     IBackendInternal::ILayerSupportSharedPtr GetLayerSupport() const override;
+    IBackendInternal::ILayerSupportSharedPtr GetLayerSupport(const ModelOptions& modelOptions) const override;
 
     OptimizationViews OptimizeSubgraphView(const SubgraphView& subgraph) const override;
 

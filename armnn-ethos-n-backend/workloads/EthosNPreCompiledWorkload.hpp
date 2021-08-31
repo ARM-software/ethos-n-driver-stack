@@ -120,11 +120,15 @@ private:
 class EthosNPreCompiledWorkload : public BaseWorkload<PreCompiledQueueDescriptor>
 {
 public:
-    EthosNPreCompiledWorkload(const PreCompiledQueueDescriptor& descriptor, const WorkloadInfo& info);
+    EthosNPreCompiledWorkload(const PreCompiledQueueDescriptor& descriptor,
+                              const WorkloadInfo& info,
+                              const std::string& deviceId);
     void Execute() const override;
 
 private:
-    void Init(const PreCompiledDescriptor& descriptor, const EthosNPreCompiledObject::Network& network);
+    void Init(const PreCompiledDescriptor& descriptor,
+              const EthosNPreCompiledObject::Network& network,
+              const std::string& deviceId);
     void SavePerformanceJson() const;
 
     // The workload does not own the EthosNPreCompiledObject, the ownership is still retained by the pre-compiled layer
