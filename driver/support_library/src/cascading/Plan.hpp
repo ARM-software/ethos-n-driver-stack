@@ -9,6 +9,7 @@
 #include "../GraphNodes.hpp"
 #include "../WeightEncoder.hpp"
 
+#include "../include/ethosn_support_library/Optional.hpp"
 #include <ethosn_command_stream/CommandStream.hpp>
 
 #include <map>
@@ -193,6 +194,11 @@ public:
     Op(const char* defaultTagPrefix, Lifetime lifetime);
     virtual ~Op() = default;
 
+    virtual utils::Optional<command_stream::BlockConfig> GetBlockConfig()
+    {
+        return utils::Optional<command_stream::BlockConfig>{};
+    }
+
     Lifetime m_Lifetime;
     std::set<uint32_t> m_OperationIds;
 };
@@ -222,6 +228,11 @@ public:
           uint32_t padLeft,
           uint32_t padTop);
 
+    utils::Optional<command_stream::BlockConfig> GetBlockConfig() override
+    {
+        return m_BlockConfig;
+    }
+
     command_stream::MceOperation m_Op;
     CompilerMceAlgorithm m_Algo;
     command_stream::BlockConfig m_BlockConfig;
@@ -244,6 +255,11 @@ public:
           uint32_t numInputs,
           std::vector<TensorShape> inputStripeShapes,
           TensorShape outputStripeShape);
+
+    utils::Optional<command_stream::BlockConfig> GetBlockConfig() override
+    {
+        return m_BlockConfig;
+    }
 
     command_stream::PleOperation m_Op;
     command_stream::BlockConfig m_BlockConfig;

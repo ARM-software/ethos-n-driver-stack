@@ -71,22 +71,18 @@ void DumpDebugInfo(const GraphOfParts& parts,
 
 bool MatchingBlocks(const Plan& planProducer, const Plan& planConsumer, Buffer* produced, Buffer* consumed)
 {
-    ethosn::command_stream::BlockConfig producerBlockConfig = {};
-    size_t matching                                         = 0;
+    size_t matching = 0;
 
     Op* opProducer = planProducer.m_OpGraph.GetProducer(produced);
+    if (!opProducer)
+    {
+        // There is no producer for this buffer
+        return true;
+    }
 
-    const MceOp* mceOpProd = dynamic_cast<const MceOp*>(opProducer);
-    const PleOp* pleOpProd = dynamic_cast<const PleOp*>(opProducer);
-    if (mceOpProd)
-    {
-        producerBlockConfig = mceOpProd->m_BlockConfig;
-    }
-    else if (pleOpProd)
-    {
-        producerBlockConfig = pleOpProd->m_BlockConfig;
-    }
-    else
+    const auto producerBlockConfig = opProducer->GetBlockConfig();
+
+    if (!producerBlockConfig.has_value())
     {
         // It's something else that does not have
         // the concept of block config
@@ -96,20 +92,10 @@ bool MatchingBlocks(const Plan& planProducer, const Plan& planConsumer, Buffer* 
     auto consumers = planConsumer.m_OpGraph.GetConsumers(consumed);
     for (auto& consumer : consumers)
     {
-        Op* opConsumer                                          = consumer.first;
-        ethosn::command_stream::BlockConfig consumerBlockConfig = {};
+        Op* opConsumer                 = consumer.first;
+        const auto consumerBlockConfig = opConsumer->GetBlockConfig();
 
-        const PleOp* pleOpCons = dynamic_cast<const PleOp*>(opConsumer);
-        const MceOp* mceOpCons = dynamic_cast<const MceOp*>(opConsumer);
-        if (pleOpCons)
-        {
-            consumerBlockConfig = pleOpCons->m_BlockConfig;
-        }
-        else if (mceOpCons)
-        {
-            consumerBlockConfig = mceOpCons->m_BlockConfig;
-        }
-        else
+        if (!consumerBlockConfig.has_value())
         {
             // It's something else that does not have
             // the concept of block config
@@ -119,7 +105,7 @@ bool MatchingBlocks(const Plan& planProducer, const Plan& planConsumer, Buffer* 
         // consumerBlockConfig is empty if matching has been
         // already incremented in the else above, there is
         // no risk of incrementing matching twice
-        if (producerBlockConfig == consumerBlockConfig)
+        else if (producerBlockConfig.value() == consumerBlockConfig.value())
         {
             ++matching;
         }
