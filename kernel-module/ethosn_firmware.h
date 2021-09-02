@@ -47,8 +47,8 @@
  * This is common for the fat binary (ethosn.bin) and the individual
  * firmware binaries (sub-components of the fat binary).
  */
-#define ETHOSN_FIRMWARE_VERSION_MAJOR 1
-#define ETHOSN_FIRMWARE_VERSION_MINOR 1
+#define ETHOSN_FIRMWARE_VERSION_MAJOR 2
+#define ETHOSN_FIRMWARE_VERSION_MINOR 0
 #define ETHOSN_FIRMWARE_VERSION_PATCH 0
 
 /** Max length of a cache line. Used to separate host and Ethos-N data. */

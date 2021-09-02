@@ -122,9 +122,9 @@ uint32_t AppendBufferAligned(std::vector<uint8_t>& dest, uint32_t alignment, con
 
 void BufferManager::Allocate()
 {
-    // There is a restriction on the alignment of DRAM accesses for NHWCB and NHWCB_COMPRESSED formats.
+    // There is a restriction on the alignment of DRAM accesses for the NHWCB and FCAF formats.
     // NHWCB needs to be 16 byte aligned.
-    // NHWCB_COMPRESSED needs to be 64 byte aligned.
+    // FCAF needs to be 64 byte aligned.
     constexpr uint32_t alignment = 64;
     uint32_t intermediatesOffset = 0;
     uint32_t inputsOffset        = 0;

@@ -325,11 +325,7 @@ void XmlParser::Pop(const std::string& key, DataFormat& value)
 {
     std::string str = Pop(key);
 
-    if (str == "NHWCB_COMPRESSED")
-    {
-        value = DataFormat::NHWCB_COMPRESSED;
-    }
-    else if (str == "NHWCB")
+    if (str == "NHWCB")
     {
         value = DataFormat::NHWCB;
     }

@@ -141,11 +141,6 @@ void Parse(mxml_node_t& parent, const DataFormat value)
 {
     switch (value)
     {
-        case DataFormat::NHWCB_COMPRESSED:
-        {
-            Parse(parent, "NHWCB_COMPRESSED");
-            break;
-        }
         case DataFormat::NHWCB:
         {
             Parse(parent, "NHWCB");
