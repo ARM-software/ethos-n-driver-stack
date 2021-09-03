@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -358,12 +358,6 @@ struct AlignedBinaryTuple : public impl::AlignedStruct<A, Ts...>
         static_assert(sizeof(AlignedBinaryTuple) == Size, "Unexpected padding in DataStruct");
     }
 
-    constexpr AlignedBinaryTuple& operator=(const AlignedBinaryTuple& other)
-    {
-        Assign(std::index_sequence_for<Ts...>{}, other);
-        return *this;
-    }
-
     // Read-only access of tuple element I
     template <size_t I>
     constexpr const Type<I>& Get() const
@@ -406,18 +400,6 @@ private:
     template <size_t... Is, typename... Us>
     constexpr AlignedBinaryTuple(const std::index_sequence<Is...>&, const Us&... us)
         : Base(Type<Is>{ us }...)
-    {}
-
-    // Assign corresponding fields in other to fields in this.
-    // Use std::index_sequence_for<Ts...>{} to generate the helper parameter pack Is
-    template <size_t... Is>
-    constexpr void Assign(const std::index_sequence<Is...>&, const AlignedBinaryTuple& other)
-    {
-        Expand((Get<Is>() = other.Get<Is>())...);
-    }
-    // Helper function to evaluate the parameter unpack above
-    template <typename... Us>
-    constexpr void Expand(const Us&...)
     {}
 
     // Return true if all fields in this and other compare equal.
