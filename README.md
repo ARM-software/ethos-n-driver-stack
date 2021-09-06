@@ -92,7 +92,7 @@ git clone --depth 1 https://github.com/catchorg/Catch2.git --branch v2.13.0 <pat
 ## Install the Linux source tree
 
 The Ethos-N driver stack source code depends on the Linux source tree to build the kernel module. You must configure the kernel to build the kernel module.
-Arm has tested version `4.9` of the Linux source tree in non-SMMU configurations and version `4.14`, `4.19`, `5.4`, `5.10` in SMMU configurations.
+Arm has tested version `4.9` of the Linux source tree in non-SMMU configurations and version `4.14`, `4.19`, `5.4`, `5.10` in SMMU configurations. _Note that version 4.14 and 4.19 are deprecated in SMMU configurations and will be unsupported from next release._
 
 1. Download version `4.9`, `4.14`, `4.19`, `5.4` or `5.10` of the Linux source tree from [www.kernel.org](http://www.kernel.org).
 2. How you compile the driver affects how you configure the Linux kernel source tree:
@@ -132,8 +132,8 @@ git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 21.08
 
 ## Configure SMMU support
 
-Arm recommends that you configure the Linux kernel with Input/Output Memory Management Unit (IOMMU) support for use as one of the dependencies of the kernel driver.
-Arm has tested versions `4.14`, `4.19`, `5.4` and `5.10` of the Linux kernel with IOMMU support.
+Arm recommends that you configure the Linux kernel with Arm SMMU support for use as one of the dependencies of the kernel driver.
+Arm has tested versions `4.14`, `4.19`, `5.4` and `5.10` of the Linux kernel with SMMU support. _Note that version 4.14 and 4.19 are deprecated in SMMU configurations and will be unsupported from next release._
 
 Add the following flag to your Linux configuration to include all the dependencies the kernel module needs:
 ```make
@@ -145,7 +145,7 @@ Ensure to comment out the following one since the SMMU driver cannot handle the 
 # CONFIG_ARM_SMMU is not set
 ```
 
-If you run the NPU without an IOMMU, you must create a reserved memory area. This is used to store working data for the NPU, for example the firmware code and network data. The size of the reserved memory area should be chosen based on your specific use case. The amount of memory needed depends on several factors, including the number of NPU cores and the size of the networks being used. We recommend that you test to ensure the chosen size suits your needs. There are several restrictions on the properties of the reserved memory area. If these are not met then the kernel module will not load successfully or the NPU will not behave as expected:
+If you run the NPU without an SMMU, you must create a reserved memory area. This is used to store working data for the NPU, for example the firmware code and network data. The size of the reserved memory area should be chosen based on your specific use case. The amount of memory needed depends on several factors, including the number of NPU cores and the size of the networks being used. We recommend that you test to ensure the chosen size suits your needs. There are several restrictions on the properties of the reserved memory area. If these are not met then the kernel module will not load successfully or the NPU will not behave as expected:
 
 1. The reserved memory area must begin on a 512MB aligned address
 2. The reserved memory area must not be larger than 512MB
