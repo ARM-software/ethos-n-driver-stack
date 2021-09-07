@@ -298,17 +298,16 @@ Part BuildPartWithReinterpretNode(Graph& g,
     return part;
 }
 
-void AssertPart(const Part& part,
+void AssertPart(const Plans& plans,
                 const Edge* input,
                 const Node* output,
                 const std::function<void(const Plan&)>& assertPlan)
 {
-    for (Plans::size_type i = 0; i < part.m_Plans.size(); ++i)
+    for (const auto& plan : plans)
     {
-        const auto& plan = part.GetPlan(i);
-        assertPlan(plan);
-        auto inputBuffer         = plan.GetInputBuffer(input);
-        auto outputBuffer        = plan.GetOutputBuffer(output);
+        assertPlan(*plan);
+        auto inputBuffer         = plan->GetInputBuffer(input);
+        auto outputBuffer        = plan->GetOutputBuffer(output);
         inputBuffer->m_DebugTag  = std::string("Input buffer: ") + inputBuffer->m_DebugTag;
         outputBuffer->m_DebugTag = std::string("Output buffer: ") + outputBuffer->m_DebugTag;
     }
@@ -322,7 +321,7 @@ std::ostream& operator<<(std::ostream& os, const ethosn::support_library::Tensor
 
 using StripeShape = TensorShape;
 
-void RequireInputBuffer(const Part& part,
+void RequireInputBuffer(const Plans& plans,
                         const Edge* edge,
                         CascadingBufferFormat format,
                         Location location,
@@ -330,9 +329,9 @@ void RequireInputBuffer(const Part& part,
                         TensorShape ts,
                         StripeShape ss)
 {
-    for (uint32_t i = 0; i < part.GetNumPlans(); ++i)
+    for (const auto& plan : plans)
     {
-        const Buffer* buffer = part.GetPlan(i).GetInputBuffer(edge);
+        const Buffer* buffer = plan->GetInputBuffer(edge);
         REQUIRE(buffer);
         if ((buffer->m_Format == format) && (buffer->m_Location == location) && (buffer->m_NumStripes == stripes) &&
             (buffer->m_TensorShape == ts) && (buffer->m_StripeShape == ss))
@@ -344,10 +343,10 @@ void RequireInputBuffer(const Part& part,
     oss << "Looking for InputBuffer with tensor: " << ts << ", stripe: " << ss << ", num stripes: " << stripes
         << ", location: " << static_cast<int>(location) << ", format: " << static_cast<int>(format) << "\n";
     oss << "Plans for part: \n";
-    for (uint32_t i = 0; i < part.GetNumPlans(); ++i)
+    for (const auto& plan : plans)
     {
-        const Buffer* buffer = part.GetPlan(i).GetInputBuffer(edge);
-        oss << "Plan: " << i << ", buffer: " << buffer->m_DebugTag << ", tensor: ";
+        const Buffer* buffer = plan->GetInputBuffer(edge);
+        oss << ", buffer: " << buffer->m_DebugTag << ", tensor: ";
         oss << buffer->m_TensorShape << ", stripe: ";
         oss << buffer->m_StripeShape;
         oss << ", num stripes: " << buffer->m_NumStripes << ", location: " << static_cast<int>(buffer->m_Location)
@@ -357,7 +356,7 @@ void RequireInputBuffer(const Part& part,
     REQUIRE(false);
 }
 
-void RequireOutputBuffer(const Part& part,
+void RequireOutputBuffer(const Plans& plans,
                          const Node* node,
                          CascadingBufferFormat format,
                          Location location,
@@ -365,9 +364,9 @@ void RequireOutputBuffer(const Part& part,
                          TensorShape ts,
                          StripeShape ss)
 {
-    for (uint32_t i = 0; i < part.GetNumPlans(); ++i)
+    for (const auto& plan : plans)
     {
-        const Buffer* buffer = part.GetPlan(i).GetOutputBuffer(node);
+        const Buffer* buffer = plan->GetOutputBuffer(node);
         REQUIRE(buffer);
         if ((buffer->m_Format == format) && (buffer->m_Location == location) && (buffer->m_NumStripes == stripes) &&
             (buffer->m_TensorShape == ts) && (buffer->m_StripeShape == ss))
@@ -379,10 +378,10 @@ void RequireOutputBuffer(const Part& part,
     oss << "Looking for OutputBuffer with tensor: " << ts << ", stripe: " << ss << ", num stripes: " << stripes
         << ", location: " << static_cast<int>(location) << ", format: " << static_cast<int>(format) << "\n";
     oss << "Plans for part: \n";
-    for (uint32_t i = 0; i < part.GetNumPlans(); ++i)
+    for (const auto& plan : plans)
     {
-        const Buffer* buffer = part.GetPlan(i).GetOutputBuffer(node);
-        oss << "Plan: " << i << ", buffer: " << buffer->m_DebugTag << ", tensor: ";
+        const Buffer* buffer = plan->GetOutputBuffer(node);
+        oss << ", buffer: " << buffer->m_DebugTag << ", tensor: ";
         oss << buffer->m_TensorShape << ", stripe: ";
         oss << buffer->m_StripeShape;
         oss << ", num stripes: " << stripes << ", location: " << static_cast<int>(buffer->m_Location)
@@ -559,26 +558,25 @@ TEST_CASE("PlanGenerator:FuseOnlyPleNode")
     Graph g;
     auto part = BuildPartWithFuseOnlyPle(g, estOpt, compOpt, caps);
 
-    part.CreatePlans();
-    SavePlansToDot(part.m_Plans, "plans_part_fuseonlyple");
+    Plans plans = part.GetPlans();
+    SavePlansToDot(plans, "plans_part_fuseonlyple");
 
-    REQUIRE(part.m_Plans.size() == 15);
+    REQUIRE(plans.size() == 15);
 
-    constexpr PlanId planId = 11;
-    const auto& plan1       = part.GetPlan(planId);
-    REQUIRE(plan1.m_OpGraph.GetBuffers().size() == 2);
-    REQUIRE(plan1.m_PlanId == planId);
-    auto buffers1 = plan1.m_OpGraph.GetBuffers();
-    auto ops1     = plan1.m_OpGraph.GetOps();
+    constexpr size_t planId = 11;
+    const auto& plan1       = plans[planId];
+    REQUIRE(plan1->m_OpGraph.GetBuffers().size() == 2);
+    auto buffers1 = plan1->m_OpGraph.GetBuffers();
+    auto ops1     = plan1->m_OpGraph.GetOps();
     REQUIRE(buffers1[0]->m_Location == Location::PleInputSram);
     REQUIRE(buffers1[1]->m_Location == Location::Sram);
     REQUIRE(ops1.size() == 1);
     REQUIRE(dynamic_cast<PleOp*>(ops1.back()) != nullptr);
 
-    const auto& plan2 = part.GetPlan(1);
-    REQUIRE(plan2.m_OpGraph.GetBuffers().size() == 5);
-    auto buffers2 = plan2.m_OpGraph.GetBuffers();
-    auto ops2     = plan2.m_OpGraph.GetOps();
+    const auto& plan2 = plans[1];
+    REQUIRE(plan2->m_OpGraph.GetBuffers().size() == 5);
+    auto buffers2 = plan2->m_OpGraph.GetBuffers();
+    auto ops2     = plan2->m_OpGraph.GetOps();
     REQUIRE(buffers2[0]->m_Location == Location::Sram);
     REQUIRE(buffers2[1]->m_Location == Location::PleInputSram);
     REQUIRE(buffers2[2]->m_Location == Location::Dram);
@@ -600,22 +598,22 @@ TEST_CASE("PlanGenerator:MceOperationNode")
     Graph g;
     auto part = BuildSinglePartWithOneNode(g, estOpt, compOpt, caps);
 
-    part.CreatePlans();
-    SavePlansToDot(part.m_Plans, "plans_part_mceoperation");
+    Plans plans = part.GetPlans();
+    SavePlansToDot(plans, "plans_part_mceoperation");
 
-    const auto& plan1 = part.GetPlan(0);
-    REQUIRE(plan1.m_OpGraph.GetBuffers().size() == 5);
-    auto buffers1 = plan1.m_OpGraph.GetBuffers();
-    auto ops1     = plan1.m_OpGraph.GetOps();
+    const auto& plan1 = plans[0];
+    REQUIRE(plan1->m_OpGraph.GetBuffers().size() == 5);
+    auto buffers1 = plan1->m_OpGraph.GetBuffers();
+    auto ops1     = plan1->m_OpGraph.GetOps();
     REQUIRE(buffers1[0]->m_Location == Location::PleInputSram);
     REQUIRE(buffers1[1]->m_Location == Location::Sram);
     REQUIRE(ops1.size() == 3);
     REQUIRE(dynamic_cast<MceOp*>(ops1.front()) != nullptr);
 
-    const auto& plan2 = part.GetPlan(2);
-    REQUIRE(plan2.m_OpGraph.GetBuffers().size() == 5);
-    const OpGraph::BufferList& buffers2 = plan2.m_OpGraph.GetBuffers();
-    auto ops2                           = plan2.m_OpGraph.GetOps();
+    const auto& plan2 = plans[2];
+    REQUIRE(plan2->m_OpGraph.GetBuffers().size() == 5);
+    const OpGraph::BufferList& buffers2 = plan2->m_OpGraph.GetBuffers();
+    auto ops2                           = plan2->m_OpGraph.GetOps();
     REQUIRE(buffers2[0]->m_Location == Location::PleInputSram);
     REQUIRE(buffers2[1]->m_Location == Location::Sram);
     REQUIRE(buffers2[2]->m_Location == Location::Dram);
@@ -656,29 +654,34 @@ TEST_CASE("PlanGenerator: Generate plans from a part with single format conversi
     REQUIRE(nodes.size() == 3);
 
     // When
-    part.CreatePlans();
-    SavePlansToDot(part.m_Plans, "plans_in_part_with_leading_format_conversion_node");
+    Plans plans = part.GetPlans();
+    SavePlansToDot(plans, "plans_in_part_with_leading_format_conversion_node");
 
     // Then
-    REQUIRE(part.m_Plans.size() == 18);
+    REQUIRE(plans.size() == 18);
 
     const auto input  = edges[0].get();
     const auto output = nodes[1].get();
-    AssertPart(part, input, output, assertPlan);
+    AssertPart(plans, input, output, assertPlan);
 
-    RequireInputBuffer(part, input, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 32, 32, 4 }, { 1, 8, 8, 16 });
-    RequireOutputBuffer(part, output, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 64, 64, 1 }, { 0, 0, 0, 0 });
+    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 32, 32, 4 },
+                       { 1, 8, 8, 16 });
+    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 64, 64, 1 },
+                        { 0, 0, 0, 0 });
 
-    RequireInputBuffer(part, input, CascadingBufferFormat::NHWCB, Location::Sram, 2, { 1, 32, 32, 4 }, { 1, 8, 8, 16 });
-    RequireOutputBuffer(part, output, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 64, 64, 1 }, { 0, 0, 0, 0 });
+    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWCB, Location::Sram, 2, { 1, 32, 32, 4 },
+                       { 1, 8, 8, 16 });
+    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 64, 64, 1 },
+                        { 0, 0, 0, 0 });
 
-    RequireInputBuffer(part, input, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 32, 32, 4 },
+    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 32, 32, 4 },
                        { 1, 32, 32, 16 });
-    RequireOutputBuffer(part, output, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 64, 64, 1 }, { 0, 0, 0, 0 });
+    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 64, 64, 1 },
+                        { 0, 0, 0, 0 });
 
-    RequireInputBuffer(part, input, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 32, 32, 4 },
+    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 32, 32, 4 },
                        { 1, 32, 32, 16 });
-    RequireOutputBuffer(part, output, CascadingBufferFormat::NHWC, Location::VirtualSram, 1, { 1, 64, 64, 1 },
+    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWC, Location::VirtualSram, 1, { 1, 64, 64, 1 },
                         { 1, 64, 64, 16 });
 }
 
@@ -704,41 +707,41 @@ TEST_CASE("PlanGenerator: Generate plans from a part with trailing format conver
     REQUIRE(nodes.size() == 3);
 
     // When
-    part.CreatePlans();
+    Plans plans = part.GetPlans();
 
     // Then
-    SavePlansToDot(part.m_Plans, "plans_in_part_with_trailing_format_conversion_node");
-    REQUIRE(part.m_Plans.size() == 22);
+    SavePlansToDot(plans, "plans_in_part_with_trailing_format_conversion_node");
+    REQUIRE(plans.size() == 22);
 
     const auto input  = edges[0].get();
     const auto output = nodes[1].get();
-    AssertPart(part, input, output, assertPlan);
+    AssertPart(plans, input, output, assertPlan);
 
-    RequireInputBuffer(part, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
-    RequireOutputBuffer(part, output, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 },
+    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
+    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 },
                         { 1, 8, 8, 16 });
 
-    RequireInputBuffer(part, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
-    RequireOutputBuffer(part, output, CascadingBufferFormat::NHWCB, Location::Sram, 2, { 1, 64, 64, 1 },
+    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
+    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWCB, Location::Sram, 2, { 1, 64, 64, 1 },
                         { 1, 8, 8, 16 });
 
-    RequireInputBuffer(part, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
-    RequireOutputBuffer(part, output, CascadingBufferFormat::NHWCB, Location::Sram, 3, { 1, 64, 64, 1 },
+    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
+    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWCB, Location::Sram, 3, { 1, 64, 64, 1 },
                         { 1, 8, 8, 16 });
 
-    RequireInputBuffer(part, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
-    RequireOutputBuffer(part, output, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 },
+    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
+    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 },
                         { 1, 8, 16, 16 });
 
-    RequireInputBuffer(part, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
-    RequireOutputBuffer(part, output, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 },
+    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
+    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 },
                         { 1, 16, 8, 16 });
 
-    RequireInputBuffer(part, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
-    RequireOutputBuffer(part, output, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 },
+    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
+    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 },
                         { 1, 64, 64, 16 });
 
-    RequireInputBuffer(part, input, CascadingBufferFormat::NHWC, Location::VirtualSram, 1, { 1, 32, 32, 4 },
+    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWC, Location::VirtualSram, 1, { 1, 32, 32, 4 },
                        { 1, 32, 32, 16 });
 }
 
@@ -756,16 +759,16 @@ TEST_CASE("PlanGenerator: Generate plans from a part with reinterpret node")
     REQUIRE(nodes.size() == 3);
 
     // When
-    part.CreatePlans();
-    SavePlansToDot(part.m_Plans, "plans_in_part_with_reinterpret_node");
+    Plans plans = part.GetPlans();
+    SavePlansToDot(plans, "plans_in_part_with_reinterpret_node");
 
     // Then
     const auto input  = edges[0].get();
     const auto output = nodes[1].get();
-    REQUIRE(part.m_Plans.size() == 2);
+    REQUIRE(plans.size() == 2);
 
     {
-        const Plan& dramPlan = *part.m_Plans[0];
+        const Plan& dramPlan = *plans[0];
         CHECK(dramPlan.m_OpGraph.GetOps().empty());
         REQUIRE(dramPlan.m_OpGraph.GetBuffers().size() == 1);
         const Buffer* b = dramPlan.m_OpGraph.GetBuffers()[0];
@@ -775,7 +778,7 @@ TEST_CASE("PlanGenerator: Generate plans from a part with reinterpret node")
     }
 
     {
-        const Plan& virtualSramPlan = *part.m_Plans[1];
+        const Plan& virtualSramPlan = *plans[1];
 
         REQUIRE(virtualSramPlan.m_OpGraph.GetOps().size() == 1);
         CHECK(IsObjectOfType<DummyOp>(virtualSramPlan.m_OpGraph.GetOps()[0]));
@@ -866,9 +869,9 @@ TEST_CASE("PlanGenerator: FuseOnly")
     Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(pleNode);
 
-    part.CreatePlans();
+    Plans plans = part.GetPlans();
 
-    SavePlansToDot(part.m_Plans, "plans_in_part_with_fuse_only");
+    SavePlansToDot(plans, "plans_in_part_with_fuse_only");
 
     // Ensure there is a plan with the correct stripes and the has an mce and ple op.
     {
@@ -878,13 +881,13 @@ TEST_CASE("PlanGenerator: FuseOnly")
         uint32_t numOutputStripes = 1;
 
         auto planIndices =
-            GetPlanIndexContainingStripes(part.m_Plans, inputStripe, numInputStripes, outputStripe, numOutputStripes);
+            GetPlanIndexContainingStripes(plans, inputStripe, numInputStripes, outputStripe, numOutputStripes);
         REQUIRE(!planIndices.empty());
         bool foundMceOp = false;
         bool foundPleOp = false;
         for (auto planIndex : planIndices)
         {
-            auto& plan = part.m_Plans[planIndex];
+            auto& plan = plans[planIndex];
             auto ops   = plan->m_OpGraph.GetOps();
             foundMceOp = utils::FindIndexIf(ops, [](Op* op) { return IsObjectOfType<MceOp>(op); }).first;
             foundPleOp = utils::FindIndexIf(ops, [](Op* op) { return IsObjectOfType<PleOp>(op); }).first;
@@ -904,7 +907,7 @@ TEST_CASE("PlanGenerator: FuseOnly")
         uint32_t numOutputStripes = 1;
 
         // Ensure there is a plan with the correct stripes and the has an mce and ple op.
-        REQUIRE(ContainsPlanWithStripes(part.m_Plans, inputStripe, numInputStripes, outputStripe, numOutputStripes));
+        REQUIRE(ContainsPlanWithStripes(plans, inputStripe, numInputStripes, outputStripe, numOutputStripes));
     }
 }
 
@@ -921,16 +924,17 @@ TEST_CASE("PlanGenerator: Mobilenet N78_2TOPS_4PLE_RATIO Conv", "[slow]")
 
     Part part = BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
                                      ethosn::command_stream::MceOperation::CONVOLUTION, estOpt, compOpt, caps);
-    part.CreatePlans();
 
-    SavePlansToDot(part.m_Plans, "plans_mobilenet_conv");
+    Plans plans = part.GetPlans();
+
+    SavePlansToDot(plans, "plans_mobilenet_conv");
 
     {
         TS inputStripe{ 1, 16, 16, 256 };
         uint32_t numInputStripes = 1;
         TS outputStripe{ 1, 16, 16, 512 };
         uint32_t numOutputStripes = 1;
-        REQUIRE(ContainsPlanWithStripes(part.m_Plans, inputStripe, numInputStripes, outputStripe, numOutputStripes));
+        REQUIRE(ContainsPlanWithStripes(plans, inputStripe, numInputStripes, outputStripe, numOutputStripes));
     }
 }
 
@@ -947,15 +951,16 @@ TEST_CASE("PlanGenerator: Mobilenet N78_2TOPS_4PLE_RATIO Depthwise")
     Part part =
         BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
                              ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION, estOpt, compOpt, caps);
-    part.CreatePlans();
 
-    SavePlansToDot(part.m_Plans, "plans_mobilenet_depthwise");
+    Plans plans = part.GetPlans();
+
+    SavePlansToDot(plans, "plans_mobilenet_depthwise");
     {
         TS inputStripe{ 1, 16, 16, 512 };
         uint32_t numInputStripes = 1;
         TS outputStripe{ 1, 16, 16, 512 };
         uint32_t numOutputStripes = 1;
-        REQUIRE(ContainsPlanWithStripes(part.m_Plans, inputStripe, numInputStripes, outputStripe, numOutputStripes));
+        REQUIRE(ContainsPlanWithStripes(plans, inputStripe, numInputStripes, outputStripe, numOutputStripes));
     }
 }
 
@@ -971,15 +976,16 @@ TEST_CASE("PlanGenerator: Mobilenet N78_2TOPS_4PLE_RATIO 1024", "[slow]")
     TS weightShape{ 1, 1, 512, 1024 };
     Part part = BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
                                      ethosn::command_stream::MceOperation::CONVOLUTION, estOpt, compOpt, caps);
-    part.CreatePlans();
 
-    SavePlansToDot(part.m_Plans, "plans_mobilenet_1024");
+    Plans plans = part.GetPlans();
+
+    SavePlansToDot(plans, "plans_mobilenet_1024");
     {
         TS inputStripe{ 1, 8, 8, 512 };
         uint32_t numInputStripes = 1;
         TS outputStripe{ 1, 8, 8, 16 };
         uint32_t numOutputStripes = 2;
-        REQUIRE(ContainsPlanWithStripes(part.m_Plans, inputStripe, numInputStripes, outputStripe, numOutputStripes));
+        REQUIRE(ContainsPlanWithStripes(plans, inputStripe, numInputStripes, outputStripe, numOutputStripes));
     }
 }
 
@@ -992,20 +998,20 @@ TEST_CASE("PlanGenerator:BlockConfig")
     Graph g;
     auto part = BuildPartWithFuseOnlyPle(g, estOpt, compOpt, caps);
 
-    part.CreatePlans();
-    SavePlansToDot(part.m_Plans, "plans_part_blockconfig");
+    Plans plans = part.GetPlans();
+    SavePlansToDot(plans, "plans_part_blockconfig");
 
-    const auto& plan1 = part.GetPlan(0);
-    REQUIRE(plan1.m_OpGraph.GetBuffers().size() == 5);
-    auto ops1 = plan1.m_OpGraph.GetOps();
+    const auto& plan1 = plans[0];
+    REQUIRE(plan1->m_OpGraph.GetBuffers().size() == 5);
+    auto ops1 = plan1->m_OpGraph.GetOps();
     REQUIRE(ops1.size() == 3);
     auto pleOp = dynamic_cast<PleOp*>(ops1.back());
     REQUIRE(pleOp != nullptr);
     REQUIRE(pleOp->m_Op == ethosn::command_stream::PleOperation::INTERLEAVE_2X2_2_2);
     REQUIRE(pleOp->m_BlockConfig == ethosn::command_stream::BlockConfig{ 16U, 16U });
 
-    const auto& plan2 = part.GetPlan(1);
-    auto ops2         = plan2.m_OpGraph.GetOps();
+    const auto& plan2 = plans[1];
+    auto ops2         = plan2->m_OpGraph.GetOps();
     REQUIRE(ops2.size() == 3);
     auto mceOp = dynamic_cast<MceOp*>(ops2[0]);
     REQUIRE(mceOp != nullptr);
@@ -1037,10 +1043,10 @@ TEST_CASE("PlanGenerator:Winograd")
 
     Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
-    part.CreatePlans();
-    SavePlansToDot(part.m_Plans, "plans_part_winograd");
+    Plans plans = part.GetPlans();
+    SavePlansToDot(plans, "plans_part_winograd");
 
-    for (const auto& plan : part.m_Plans)
+    for (const auto& plan : plans)
     {
         auto ops = plan->m_OpGraph.GetOps();
         REQUIRE(!ops.empty());
@@ -1082,11 +1088,11 @@ TEST_CASE("PlanGenerator:Split input in depth")
 
     Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
-    part.CreatePlans();
-    SavePlansToDot(part.m_Plans, "plans_part_split_input_depth");
+    Plans plans = part.GetPlans();
+    SavePlansToDot(plans, "plans_part_split_input_depth");
 
     uint64_t match = 0;
-    for (const auto& plan : part.m_Plans)
+    for (const auto& plan : plans)
     {
         REQUIRE(!ContainsInputStripe(plan->m_InputMappings, TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() }, 1));
         REQUIRE(!ContainsInputStripe(plan->m_InputMappings, TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() }, 2));
@@ -1114,17 +1120,17 @@ TEST_CASE("PlanGenerator: Split output in depth")
     TS inputShape{ 1, 8, 8, 32 };
     TS outputShape{ 1, 8, 8, 32 };
     TS weightShape{ 3, 3, 32, 32 };
-    Part part = BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
+    Part part   = BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
                                      ethosn::command_stream::MceOperation::CONVOLUTION, estOpt, compOpt, caps);
-    part.CreatePlans();
+    Plans plans = part.GetPlans();
 
-    SavePlansToDot(part.m_Plans, "plans_split_output_in_depth");
+    SavePlansToDot(plans, "plans_split_output_in_depth");
     {
         TS inputStripe{ 1, 8, 8, 32 };
         uint32_t numInputStripes = 1;
         TS outputStripe{ 1, 8, 8, 8 };
         uint32_t numOutputStripes = 2;
-        REQUIRE(std::any_of(part.m_Plans.begin(), part.m_Plans.end(), [&](auto& p) {
+        REQUIRE(std::any_of(plans.begin(), plans.end(), [&](auto& p) {
             auto mceOp = dynamic_cast<MceOp*>(p->m_OpGraph.GetOps()[0]);
             REQUIRE(mceOp != nullptr);
             return ContainsInputStripe(p->m_InputMappings, inputStripe, numInputStripes) &&

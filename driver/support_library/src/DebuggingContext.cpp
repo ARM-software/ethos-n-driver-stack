@@ -61,14 +61,14 @@ void DebuggingContext::SaveGraphToDot(CompilationOptions::DebugLevel level,
 }
 
 void DebuggingContext::SavePlansToDot(CompilationOptions::DebugLevel level,
-                                      const Part& part,
+                                      const Plans& plans,
                                       const std::string& fileName,
                                       DetailLevel detailLevel) const
 {
     if (m_DebugInfo->m_DumpDebugFiles >= level)
     {
         std::ofstream stream(GetAbsolutePathOutputFileName(fileName));
-        ethosn::support_library::SavePlansToDot(part, stream, detailLevel);
+        ethosn::support_library::SavePlansToDot(plans, stream, detailLevel);
     }
 }
 

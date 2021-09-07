@@ -1145,14 +1145,14 @@ void SaveGraphToDot(const Graph& graph, const GraphOfParts* graphOfParts, std::o
            << "\n";
 }
 
-void SavePlansToDot(const Part& part, std::ostream& stream, DetailLevel detailLevel)
+void SavePlansToDot(const Plans& plans, std::ostream& stream, DetailLevel detailLevel)
 {
     stream << "digraph SupportLibraryGraph"
            << "\n";
     stream << "{"
            << "\n";
 
-    for (auto&& plan : part.m_Plans)
+    for (auto&& plan : plans)
     {
         DotAttributes attr = GetDotAttributes(plan.get(), detailLevel);
         DumpSubgraphHeaderToDotFormat(attr, stream);
@@ -1205,7 +1205,7 @@ void SaveCombinationToDot(const Combination& combination,
     for (auto& elemIt : combination.m_Elems)
     {
         const Part& part = graphOfParts.GetPart(elemIt.first);
-        const Plan& plan = part.GetPlan(elemIt.second.m_PlanId);
+        const Plan& plan = *elemIt.second.m_Plan;
 
         // Save Plans as isolated subgraph
         DotAttributes attr = GetDotAttributes(&plan, detailLevel);

@@ -457,17 +457,6 @@ bool IsPlanValid(const HardwareCapabilities& caps, const Plan& plan)
     return true;
 }
 
-const Plan& Part::GetPlan(const PlanId id) const
-{
-    assert(id < m_Plans.size());
-    return *m_Plans.at(id).get();
-}
-
-size_t Part::GetNumPlans() const
-{
-    return m_Plans.size();
-}
-
 std::vector<const Edge*> Part::GetInputs() const
 {
     assert(m_SubGraph.size());
@@ -610,58 +599,52 @@ const Parts& GraphOfParts::GetParts() const
     return m_Parts;
 }
 
-void Part::CreatePlans()
+Plans Part::GetPlans() const
 {
-    m_NumInvalidPlans = 0;
-    Node* node        = m_SubGraph.front();
+    Node* node = m_SubGraph.front();
+    Plans ret;
     if (IsObjectOfType<InputNode>(node))
     {
-        CreatePlanForInputNode(node, Lifetime::Atomic, TraversalOrder::Xyz);
+        CreatePlanForInputNode(node, Lifetime::Atomic, TraversalOrder::Xyz, ret);
     }
     else if (IsObjectOfType<OutputNode>(node))
     {
-        CreatePlanForOutputNode(node, Lifetime::Atomic, TraversalOrder::Xyz);
+        CreatePlanForOutputNode(node, Lifetime::Atomic, TraversalOrder::Xyz, ret);
     }
     else
     {
         WeightEncoderCache weightEncoderCache{ m_Capabilities };
-        GenerateWithTraversalOrders(node, weightEncoderCache);
-    }
-
-    if (m_Plans.empty())
-    {
-        throw NotSupportedException("No plans generated for this part");
+        GenerateWithTraversalOrders(node, weightEncoderCache, ret);
     }
 
     // Add operation ids
     std::set<uint32_t> opIds = node->GetCorrespondingOperationIds();
-    for (auto&& plan : m_Plans)
+    for (auto&& plan : ret)
     {
         for (auto&& op : plan->m_OpGraph.GetOps())
         {
             op->m_OperationIds.insert(opIds.begin(), opIds.end());
         }
     }
+    return ret;
 }
 
-void Part::AddNewPlan(Plan::InputMapping&& inputMappings, Plan::OutputMapping&& outputMappings, OwnedOpGraph&& opGraph)
+void Part::AddNewPlan(Plan::InputMapping&& inputMappings,
+                      Plan::OutputMapping&& outputMappings,
+                      OwnedOpGraph&& opGraph,
+                      Plans& plans) const
 {
     // Can't assign an Id until the plan is deemed valid
-    auto plan       = std::make_unique<Plan>(0, std::move(inputMappings), std::move(outputMappings));
+    auto plan       = std::make_unique<Plan>(std::move(inputMappings), std::move(outputMappings));
     plan->m_OpGraph = std::move(opGraph);
 
     if (IsPlanValid(m_Capabilities, *plan))
     {
-        plan->m_PlanId = GeneratePlanId();
-        m_Plans.push_back(std::move(plan));
-    }
-    else
-    {
-        ++m_NumInvalidPlans;
+        plans.push_back(std::move(plan));
     }
 }
 
-void Part::CreatePlanForInputNode(Node* node, Lifetime lifetime, TraversalOrder order)
+void Part::CreatePlanForInputNode(Node* node, Lifetime lifetime, TraversalOrder order, Plans& plans) const
 {
     Plan::InputMapping inputMappings;
     Plan::OutputMapping outputMappings;
@@ -674,10 +657,10 @@ void Part::CreatePlanForInputNode(Node* node, Lifetime lifetime, TraversalOrder 
     buffer->m_QuantizationInfo   = node->GetQuantizationInfo();
     outputMappings[buffer.get()] = node;
     opGraph.AddBuffer(std::move(buffer));
-    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph));
+    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
 }
 
-void Part::CreatePlanForOutputNode(Node* node, Lifetime lifetime, TraversalOrder order)
+void Part::CreatePlanForOutputNode(Node* node, Lifetime lifetime, TraversalOrder order, Plans& plans) const
 {
     Plan::InputMapping inputMappings;
     Plan::OutputMapping outputMappings;
@@ -694,7 +677,7 @@ void Part::CreatePlanForOutputNode(Node* node, Lifetime lifetime, TraversalOrder
         inputMappings[buffer.get()]    = edge;
         opGraph.AddBuffer(std::move(buffer));
     }
-    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph));
+    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
 }
 
 struct ConvData
@@ -792,7 +775,7 @@ std::pair<Buffer*, Buffer*> Part::AddIdentityMceOpForSubGraph(OwnedOpGraph& opGr
                                                               const TensorShape& inpShape,
                                                               const QuantizationInfo& inpQuantInfo,
                                                               TraversalOrder order,
-                                                              WeightEncoderCache& weightEncoderCache)
+                                                              WeightEncoderCache& weightEncoderCache) const
 {
     const OpGraph::BufferList& buffers = opGraph.GetBuffers();
     const OpGraph::OpList& ops         = opGraph.GetOps();
@@ -858,7 +841,7 @@ void Part::AddOpToOpGraphWithInputOutputBuffers(OwnedOpGraph& opGraph,
                                                 Location inputBufferLocation,
                                                 Location outputBufferLocation,
                                                 Plan::InputMapping& inputMappings,
-                                                Plan::OutputMapping& outputMappings)
+                                                Plan::OutputMapping& outputMappings) const
 {
     (void)outputMappings;    //Currently unused but expected to be used whenever multi output will be supported
     auto lifetime = info.m_Lifetime;
@@ -1014,7 +997,8 @@ std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
 void Part::CreateMceOnlyPlans(Node* node,
                               const MceOnlyInfo& info,
                               TraversalOrder order,
-                              WeightEncoderCache& weightEncoderCache)
+                              WeightEncoderCache& weightEncoderCache,
+                              Plans& plans) const
 {
     auto lifetime             = info.m_Lifetime;
     MceOperationNode* mceNode = GetObjectAs<MceOperationNode>(node);
@@ -1052,7 +1036,7 @@ void Part::CreateMceOnlyPlans(Node* node,
                                     node->GetInputQuantizationInfo(0), convData, weightEncoderCache, m_Capabilities);
                 inputMappings[inBufferAndOp.first] = node->GetInput(0);
                 outputMappings[outBuffer]          = this->m_SubGraph.back();
-                AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph));
+                AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
             }
         }
     }
@@ -1061,7 +1045,8 @@ void Part::CreateMceOnlyPlans(Node* node,
 void Part::CreateMceAndIdentityPlePlans(Node* node,
                                         const MceAndPleInfo& info,
                                         TraversalOrder order,
-                                        WeightEncoderCache& weightEncoderCache)
+                                        WeightEncoderCache& weightEncoderCache,
+                                        Plans& plans) const
 {
     auto lifetime             = info.m_Lifetime;
     MceOperationNode* mceNode = GetObjectAs<MceOperationNode>(node);
@@ -1109,7 +1094,7 @@ void Part::CreateMceAndIdentityPlePlans(Node* node,
                     opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
                     inputMappings[inBufferAndMceOp.first]   = node->GetInput(0);
                     outputMappings[outBufferAndPleOp.first] = this->m_SubGraph.back();
-                    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph));
+                    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
                 }
             }
         }
@@ -1119,7 +1104,8 @@ void Part::CreateMceAndIdentityPlePlans(Node* node,
 void Part::CreateIdentityMceAndFusedPlePlans(Node* node,
                                              const MceAndPleInfo& info,
                                              TraversalOrder order,
-                                             WeightEncoderCache& weightEncoderCache)
+                                             WeightEncoderCache& weightEncoderCache,
+                                             Plans& plans) const
 {
     auto lifetime = info.m_Lifetime;
     // Create plan with identity mce op and ple op
@@ -1158,14 +1144,14 @@ void Part::CreateIdentityMceAndFusedPlePlans(Node* node,
                     opGraph.AddConsumer(mceInAndOutBuffer.second, outBufferAndPleOp.second, 0);
                     inputMappings[mceInAndOutBuffer.first]  = node->GetInput(0);
                     outputMappings[outBufferAndPleOp.first] = this->m_SubGraph.back();
-                    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph));
+                    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
                 }
             }
         }
     }
 }
 
-void Part::CreateFuseOnlyPlans(Node* node, const PleOnlyInfo& info, TraversalOrder order)
+void Part::CreateFuseOnlyPlans(Node* node, const PleOnlyInfo& info, TraversalOrder order, Plans& plans) const
 {
     auto lifetime = info.m_Lifetime;
     for (auto numOutputStripes = info.m_Memory.m_Output.m_Range.m_Min;
@@ -1196,7 +1182,7 @@ void Part::CreateFuseOnlyPlans(Node* node, const PleOnlyInfo& info, TraversalOrd
             opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
             inputMappings[pleInBuffer]              = node->GetInput(0);
             outputMappings[outBufferAndPleOp.first] = this->m_SubGraph.back();
-            AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph));
+            AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
         }
     }
 }
@@ -1206,7 +1192,8 @@ void Part::CreateFormatConversionPlans(Node* node,
                                        NumMemoryStripes& numMemoryStripes,
                                        TraversalOrder order,
                                        Location inputBufferLocaton,
-                                       Location outputBufferLocation)
+                                       Location outputBufferLocation,
+                                       Plans& plans) const
 {
     OwnedOpGraph opGraph;
     Plan::InputMapping inputMappings;
@@ -1215,13 +1202,11 @@ void Part::CreateFormatConversionPlans(Node* node,
     AddOpToOpGraphWithInputOutputBuffers(opGraph, node, order, dmaInfo, numMemoryStripes, inputBufferLocaton,
                                          outputBufferLocation, inputMappings, outputMappings);
     outputMappings[buffers.back()] = this->m_SubGraph.back();
-    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph));
+    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
 }
 
-void Part::CreateVirtualSramPlans(Node* node,
-                                  DmaOnlyInfo& dmaInfo,
-                                  NumMemoryStripes& numMemoryStripes,
-                                  TraversalOrder order)
+void Part::CreateVirtualSramPlans(
+    Node* node, DmaOnlyInfo& dmaInfo, NumMemoryStripes& numMemoryStripes, TraversalOrder order, Plans& plans) const
 {
     OwnedOpGraph opGraph;
     Plan::InputMapping inputMappings;
@@ -1243,7 +1228,7 @@ void Part::CreateVirtualSramPlans(Node* node,
         default:
             throw NotSupportedException("Unsupported compiler data format. Only NHWC and NHWCB is currently handled.");
     }
-    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph));
+    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
 }
 
 void Part::CreateOpGraphAndPlan(Node* node,
@@ -1251,7 +1236,8 @@ void Part::CreateOpGraphAndPlan(Node* node,
                                 NumMemoryStripes& numMemoryStripes,
                                 TraversalOrder order,
                                 Location input,
-                                Location output)
+                                Location output,
+                                Plans& plans) const
 {
     OwnedOpGraph opGraph;
     Plan::InputMapping inputMappings;
@@ -1260,7 +1246,7 @@ void Part::CreateOpGraphAndPlan(Node* node,
     AddOpToOpGraphWithInputOutputBuffers(opGraph, node, order, dmaInfo, numMemoryStripes, input, output, inputMappings,
                                          outputMappings);
     outputMappings[buffers.back()] = node;
-    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph));
+    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
 }
 
 std::vector<BlockConfig> GenerateBlockConfigs(Node* node)
@@ -1284,7 +1270,7 @@ std::vector<BlockConfig> GenerateBlockConfigs(Node* node)
 
 /// Creates a plan which simply reinterprets the input tensor properties of the given node with its output tensor
 /// properties. No Ops are created - just a single Dram buffer which is tagged as both the input and output of the Plan.
-void Part::CreateReinterpretDramPlan(Node* node)
+void Part::CreateReinterpretDramPlan(Node* node, Plans& plans) const
 {
     assert(node->GetInputs().size() == 1);
 
@@ -1300,13 +1286,17 @@ void Part::CreateReinterpretDramPlan(Node* node)
 
     inputMappings[buffer]  = node->GetInput(0);
     outputMappings[buffer] = node;
-    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph));
+    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
 }
 
-void Part::GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEncoderCache)
+void Part::GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEncoderCache, Plans& plans) const
 {
+    if (node->GetInputs().size() == 0)
+    {
+        return;
+    }
     std::vector<BlockConfig> blockConfigs = GenerateBlockConfigs(node);
-    GenerateWithStripeSizes(node, blockConfigs, TraversalOrder::Xyz, weightEncoderCache);
+    GenerateWithStripeSizes(node, blockConfigs, TraversalOrder::Xyz, weightEncoderCache, plans);
     // TODO: Add the same function call with traversal order ZXY
 
     auto inputStripe  = CreateStripe(node->GetInputShape(0), TensorShape{ 0, 0, 0, 0 }, m_Capabilities);
@@ -1321,7 +1311,7 @@ void Part::GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEnc
         NumMemoryStripes numMemoryStripes;
         numMemoryStripes.m_Input  = 1;
         numMemoryStripes.m_Output = 1;
-        CreateVirtualSramPlans(node, dmaInfo, numMemoryStripes, TraversalOrder::Xyz);
+        CreateVirtualSramPlans(node, dmaInfo, numMemoryStripes, TraversalOrder::Xyz, plans);
     }
     else if (IsObjectOfType<ReinterpretNode>(node))
     {
@@ -1332,7 +1322,7 @@ void Part::GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEnc
         // location (VirtualSram) so that we can match up plans between the adjacent FormatConversionNodes and
         // the ReinterpretNode. This would likely be a lot simpler if we had access to the Reshape directly inside
         // cascading, and it hadn't gone through the Conversion step.
-        CreateReinterpretDramPlan(node);
+        CreateReinterpretDramPlan(node, plans);
 
         {
             DmaOnlyInfo dmaInfo;
@@ -1343,7 +1333,7 @@ void Part::GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEnc
             numMemoryStripes.m_Input  = 1;
             numMemoryStripes.m_Output = 1;
             CreateOpGraphAndPlan(node, dmaInfo, numMemoryStripes, TraversalOrder::Xyz, Location::VirtualSram,
-                                 Location::VirtualSram);
+                                 Location::VirtualSram, plans);
         }
     }
 }
@@ -1409,7 +1399,7 @@ void GenerateStripes(Node* node,
     {
         throw NotSupportedException("Standalone PLE operations not yet supported");
     }
-    else
+    else if (IsObjectOfType<FormatConversionNode>(node) || IsObjectOfType<ReinterpretNode>(node))
     {
         // Format conversion and reinterpret need to be able to combine with the input of an MceOperation and the output of a FusedPleOperation
         numStripesInput    = { 1, 2 };
@@ -1417,6 +1407,10 @@ void GenerateStripes(Node* node,
         numStripesWeights  = { 0, 0 };
         numStripesPleInput = { 0, 0 };
         mceOutputShape     = node->GetShape();
+    }
+    else
+    {
+        return;
     }
 
     auto ApplyShapeMult = [&](TensorShape shape) {
@@ -1775,7 +1769,8 @@ void GenerateStripes(Node* node,
 void Part::GenerateWithStripeSizes(Node* node,
                                    const std::vector<BlockConfig>& blockConfigs,
                                    TraversalOrder order,
-                                   WeightEncoderCache& weightEncoderCache)
+                                   WeightEncoderCache& weightEncoderCache,
+                                   Plans& plans) const
 {
     Part::StripeInfos stripeInfos;
     for (auto blockConfig : blockConfigs)
@@ -1783,36 +1778,38 @@ void Part::GenerateWithStripeSizes(Node* node,
         GenerateStripes(node, m_Capabilities, blockConfig, &stripeInfos);
     }
 
-    GenerateWithNumStripes(node, order, stripeInfos, weightEncoderCache);
+    GenerateWithNumStripes(node, order, stripeInfos, weightEncoderCache, plans);
 }
 
 void Part::GenerateMcePlans(Node* node,
                             TraversalOrder order,
                             Part::StripeInfos& stripeInfos,
-                            WeightEncoderCache& weightEncoderCache)
+                            WeightEncoderCache& weightEncoderCache,
+                            Plans& plans) const
 {
     for (const Part::MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
-        CreateMceAndIdentityPlePlans(node, i, order, weightEncoderCache);
+        CreateMceAndIdentityPlePlans(node, i, order, weightEncoderCache, plans);
     }
     for (const Part::MceOnlyInfo& i : stripeInfos.m_MceOnlyInfos)
     {
-        CreateMceOnlyPlans(node, i, order, weightEncoderCache);
+        CreateMceOnlyPlans(node, i, order, weightEncoderCache, plans);
     }
 }
 
 void Part::GenerateFuseOnlyPlePlans(Node* node,
                                     TraversalOrder order,
                                     Part::StripeInfos& stripeInfos,
-                                    WeightEncoderCache& weightEncoderCache)
+                                    WeightEncoderCache& weightEncoderCache,
+                                    Plans& plans) const
 {
     for (const Part::MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
-        CreateIdentityMceAndFusedPlePlans(node, i, order, weightEncoderCache);
+        CreateIdentityMceAndFusedPlePlans(node, i, order, weightEncoderCache, plans);
     }
     for (const Part::PleOnlyInfo& i : stripeInfos.m_PleOnlyInfos)
     {
-        CreateFuseOnlyPlans(node, i, order);
+        CreateFuseOnlyPlans(node, i, order, plans);
     }
 }
 
@@ -1820,7 +1817,8 @@ void Part::GenerateFormatConversionPlans(Node* node,
                                          TraversalOrder order,
                                          StripeInfos& stripeInfos,
                                          Location inputBufferLocaton,
-                                         Location outputBufferLocation)
+                                         Location outputBufferLocation,
+                                         Plans& plans) const
 {
     for (auto i : stripeInfos.m_DmaOnlyInfos)
     {
@@ -1844,7 +1842,8 @@ void Part::GenerateFormatConversionPlans(Node* node,
                 numMemoryStripes.m_Input  = numInputStripes;
                 numMemoryStripes.m_Output = numOutputStripes;
                 numMemoryStripes.m_Weight = 0;
-                CreateFormatConversionPlans(node, i, numMemoryStripes, order, inputBufferLocaton, outputBufferLocation);
+                CreateFormatConversionPlans(node, i, numMemoryStripes, order, inputBufferLocaton, outputBufferLocation,
+                                            plans);
             }
         }
     }
@@ -1853,15 +1852,16 @@ void Part::GenerateFormatConversionPlans(Node* node,
 void Part::GenerateWithNumStripes(Node* node,
                                   TraversalOrder order,
                                   Part::StripeInfos& stripeInfos,
-                                  WeightEncoderCache& weightEncoderCache)
+                                  WeightEncoderCache& weightEncoderCache,
+                                  Plans& plans) const
 {
     if (IsObjectOfType<MceOperationNode>(node))
     {
-        GenerateMcePlans(node, order, stripeInfos, weightEncoderCache);
+        GenerateMcePlans(node, order, stripeInfos, weightEncoderCache, plans);
     }
     else if (IsObjectOfType<FuseOnlyPleOperationNode>(node))
     {
-        GenerateFuseOnlyPlePlans(node, order, stripeInfos, weightEncoderCache);
+        GenerateFuseOnlyPlePlans(node, order, stripeInfos, weightEncoderCache, plans);
     }
     else if (IsObjectOfType<FormatConversionNode>(node))
     {
@@ -1869,10 +1869,10 @@ void Part::GenerateWithNumStripes(Node* node,
         switch (format)
         {
             case CompilerDataFormat::NHWC:
-                GenerateFormatConversionPlans(node, order, stripeInfos, Location::Sram, Location::Dram);
+                GenerateFormatConversionPlans(node, order, stripeInfos, Location::Sram, Location::Dram, plans);
                 break;
             case CompilerDataFormat::NHWCB:
-                GenerateFormatConversionPlans(node, order, stripeInfos, Location::Dram, Location::Sram);
+                GenerateFormatConversionPlans(node, order, stripeInfos, Location::Dram, Location::Sram, plans);
                 break;
             default:
                 break;

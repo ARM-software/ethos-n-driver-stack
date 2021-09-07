@@ -615,7 +615,7 @@ TEST_CASE("SavePlansToDot Graph Topology", "[Visualisation]")
     OwnedOpGraph planAOpGraph;
     planAOpGraph.AddBuffer(std::make_unique<Buffer>());
     auto planA =
-        std::make_unique<Plan>(Plan::InputMapping{}, Plan::OutputMapping{ { planAOpGraph.GetBuffers()[0], nodeB } });
+        std::make_shared<Plan>(Plan::InputMapping{}, Plan::OutputMapping{ { planAOpGraph.GetBuffers()[0], nodeB } });
     planA->m_OpGraph = std::move(planAOpGraph);
 
     OwnedOpGraph planBOpGraph;
@@ -624,30 +624,28 @@ TEST_CASE("SavePlansToDot Graph Topology", "[Visualisation]")
     planBOpGraph.AddBuffer(std::make_unique<Buffer>());
     planBOpGraph.AddConsumer(planBOpGraph.GetBuffers()[0], planBOpGraph.GetOps()[0], 0);
     planBOpGraph.SetProducer(planBOpGraph.GetBuffers()[1], planBOpGraph.GetOps()[0]);
-    auto planB = std::make_unique<Plan>(Plan::InputMapping{ { planBOpGraph.GetBuffers()[0], nodeB->GetInput(0) } },
+    auto planB = std::make_shared<Plan>(Plan::InputMapping{ { planBOpGraph.GetBuffers()[0], nodeB->GetInput(0) } },
                                         Plan::OutputMapping{ { planBOpGraph.GetBuffers()[1], nodeB } });
     planB->m_OpGraph = std::move(planBOpGraph);
 
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
-    Part part(0, estOpt, compOpt, caps);
-    part.m_SubGraph.push_back(nodeA);
-    part.m_SubGraph.push_back(nodeB);
-    part.m_Plans.push_back(std::move(planA));
-    part.m_Plans.push_back(std::move(planB));
+
+    Plans plans;
+    plans.push_back(planA);
+    plans.push_back(planB);
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = false;
     if (dumpToFile)
     {
         std::ofstream stream("SavePlansToDot Graph Topology.dot");
-        SavePlansToDot(part, stream, DetailLevel::Low);
+        SavePlansToDot(plans, stream, DetailLevel::Low);
     }
 
     // Save to a string and check against expected result
     std::stringstream stream;
-    SavePlansToDot(part, stream, DetailLevel::Low);
+    SavePlansToDot(plans, stream, DetailLevel::Low);
 
     std::string expected =
         R"(digraph SupportLibraryGraph
@@ -732,13 +730,12 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));
     ++partId;
     parts.m_Parts.back()->m_SubGraph.push_back(nodeA);
-    std::unique_ptr<Plan> planA = std::make_unique<Plan>();
+    std::shared_ptr<Plan> planA = std::make_shared<Plan>();
     planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 0, QuantizationInfo()));
     planA->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDram";
     planA->m_OutputMappings                          = { { planA->m_OpGraph.GetBuffers()[0], nodeA } };
-    parts.m_Parts.back()->m_Plans.push_back(std::move(planA));
 
     // Glue between A and BC
     Glue glueA_BC;
@@ -752,7 +749,7 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     ++partId;
     parts.m_Parts.back()->m_SubGraph.push_back(nodeB);
     parts.m_Parts.back()->m_SubGraph.push_back(nodeC);
-    std::unique_ptr<Plan> planBC = std::make_unique<Plan>();
+    std::shared_ptr<Plan> planBC = std::make_shared<Plan>();
     planBC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                          TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                          TraversalOrder::Xyz, 4, QuantizationInfo()));
@@ -770,14 +767,13 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     planBC->m_OpGraph.GetOps()[0]->m_DebugTag = "Mce1";
     planBC->m_OpGraph.AddConsumer(planBC->m_OpGraph.GetBuffers()[0], planBC->m_OpGraph.GetOps()[0], 0);
     planBC->m_OpGraph.SetProducer(planBC->m_OpGraph.GetBuffers()[1], planBC->m_OpGraph.GetOps()[0]);
-    parts.m_Parts.back()->m_Plans.push_back(std::move(planBC));
 
     // Part consisting of nodes D and E
     parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));
     ++partId;
     parts.m_Parts.back()->m_SubGraph.push_back(nodeD);
     parts.m_Parts.back()->m_SubGraph.push_back(nodeE);
-    std::unique_ptr<Plan> planDE = std::make_unique<Plan>();
+    std::shared_ptr<Plan> planDE = std::make_shared<Plan>();
     planDE->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                          TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                          TraversalOrder::Xyz, 4, QuantizationInfo()));
@@ -807,7 +803,6 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     planDE->m_OpGraph.AddConsumer(planDE->m_OpGraph.GetBuffers()[2], planDE->m_OpGraph.GetOps()[0], 1);
     planDE->m_OpGraph.SetProducer(planDE->m_OpGraph.GetBuffers()[1], planDE->m_OpGraph.GetOps()[0]);
     planDE->m_OpGraph.SetProducer(planDE->m_OpGraph.GetBuffers()[3], planDE->m_OpGraph.GetOps()[0]);
-    parts.m_Parts.back()->m_Plans.push_back(std::move(planDE));
 
     // Glue between D and F
     Glue glueD_F;
@@ -834,18 +829,17 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));
     ++partId;
     parts.m_Parts.back()->m_SubGraph.push_back(nodeF);
-    std::unique_ptr<Plan> planF = std::make_unique<Plan>();
+    std::shared_ptr<Plan> planF = std::make_shared<Plan>();
     planF->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 0, QuantizationInfo()));
     planF->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputDram1";
     planF->m_InputMappings                           = { { planF->m_OpGraph.GetBuffers()[0], nodeF->GetInput(0) } };
-    parts.m_Parts.back()->m_Plans.push_back(std::move(planF));
 
     // Part consisting of node G
     parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));
     parts.m_Parts.back()->m_SubGraph.push_back(nodeG);
-    std::unique_ptr<Plan> planG = std::make_unique<Plan>();
+    std::shared_ptr<Plan> planG = std::make_shared<Plan>();
     planG->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 0, QuantizationInfo()));
@@ -856,18 +850,17 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     planG->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputDram3";
     planG->m_InputMappings                           = { { planG->m_OpGraph.GetBuffers()[0], nodeG->GetInput(0) },
                                { planG->m_OpGraph.GetBuffers()[1], nodeG->GetInput(1) } };
-    parts.m_Parts.back()->m_Plans.push_back(std::move(planG));
 
     // Create Combination with all the plans and glues
     Combination comb;
-    Elem elemA  = { 0, { { nodeB->GetInput(0), { &glueA_BC } } } };
-    Elem elemBC = { 0, {} };
-    Elem elemDE = { 0,
+    Elem elemA  = { planA, { { nodeB->GetInput(0), { &glueA_BC } } } };
+    Elem elemBC = { planBC, {} };
+    Elem elemDE = { planDE,
                     { { nodeF->GetInput(0), { &glueD_F } },
                       { nodeG->GetInput(0), { &glueD_G } },
                       { nodeG->GetInput(1), { &glueE_G } } } };
-    Elem elemF  = { 0, {} };
-    Elem elemG  = { 0, {} };
+    Elem elemF  = { planF, {} };
+    Elem elemG  = { planG, {} };
     comb.m_Elems.insert(std::make_pair(0, elemA));
     comb.m_Elems.insert(std::make_pair(1, elemBC));
     comb.m_Elems.insert(std::make_pair(2, elemDE));

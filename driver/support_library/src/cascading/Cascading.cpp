@@ -151,16 +151,6 @@ GraphOfParts CreateGraphOfParts(const Graph& graph,
     return graphOfParts;
 }
 
-void CreatePlans(Parts& parts)
-{
-    for (auto& part : parts)
-    {
-        part->CreatePlans();
-    }
-
-    return;
-}
-
 Cascading::Cascading(const EstimationOptions& estOpt,
                      const CompilationOptions& compOpt,
                      const HardwareCapabilities& hwCap)
@@ -183,27 +173,9 @@ NetworkPerformanceData Cascading::Estimate(Graph& graph)
     m_DebuggingContext.SaveGraphToDot(CompilationOptions::DebugLevel::Medium, graph, &m_GraphOfParts,
                                       "Cascaded_GraphOfPartsDetailed.dot", DetailLevel::High);
 
-    CreatePlans(m_GraphOfParts.m_Parts);
-
     if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
     {
-        std::ofstream debugPlanCountsDumpFile(
-            m_DebuggingContext.GetAbsolutePathOutputFileName("Cascaded_PlanCounts.txt"));
-
         MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("Parts").c_str());
-
-        for (auto&& part : m_GraphOfParts.m_Parts)
-        {
-            std::string folder = "Parts/" + part->m_DebugTag;
-            MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
-
-            debugPlanCountsDumpFile << part->m_DebugTag << ": " << part->GetNumPlans() << std::endl;
-
-            m_DebuggingContext.SavePlansToDot(CompilationOptions::DebugLevel::Medium, *part, folder + "/Plans.dot",
-                                              DetailLevel::Low);
-            m_DebuggingContext.SavePlansToDot(CompilationOptions::DebugLevel::Medium, *part,
-                                              folder + "/PlansDetailed.dot", DetailLevel::High);
-        }
     }
 
     m_ValidCombinations = Combine(m_GraphOfParts);

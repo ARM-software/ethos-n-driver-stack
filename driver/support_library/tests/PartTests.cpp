@@ -90,22 +90,3 @@ TEST_CASE("Validate Tile Size")
         REQUIRE(tileSize == 172032U);
     }
 }
-
-TEST_CASE("GetNumInvalidPlans")
-{
-    const EstimationOptions estOpt;
-    const CompilationOptions compOpt;
-    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
-
-    GraphOfParts gOfParts;
-    Parts& parts = gOfParts.m_Parts;
-
-    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
-    (*(parts.back())).m_NumInvalidPlans = 1UL;
-    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
-    (*(parts.back())).m_NumInvalidPlans = 2UL;
-    parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
-    (*(parts.back())).m_NumInvalidPlans = 3UL;
-
-    REQUIRE(gOfParts.GetNumInvalidPlans() == 6UL);
-}

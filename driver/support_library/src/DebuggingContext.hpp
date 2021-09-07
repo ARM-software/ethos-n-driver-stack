@@ -41,7 +41,7 @@ public:
                         const std::string& fileName,
                         DetailLevel detailLevel) const;
     void SavePlansToDot(CompilationOptions::DebugLevel level,
-                        const Part& part,
+                        const Plans& plans,
                         const std::string& fileName,
                         DetailLevel detailLevel) const;
     void SaveOpGraphToDot(CompilationOptions::DebugLevel level,

@@ -32,10 +32,11 @@ bool IsObjectOfType(const B* obj)
 }
 
 using PartId         = size_t;
-using Plans          = std::vector<std::unique_ptr<Plan>>;
 using StripeSizeType = TensorShape::value_type;
 
 class WeightEncoderCache;
+
+using Plans = std::vector<std::shared_ptr<Plan>>;
 
 class Part : public DebuggableObject
 {
@@ -155,97 +156,91 @@ public:
          const HardwareCapabilities& capabilities)
         : DebuggableObject("Part")
         , m_PartId(id)
-        , m_NumInvalidPlans(0)
         , m_EstimationOptions(estOpt)
         , m_CompilationOptions(compOpt)
         , m_Capabilities(capabilities)
     {}
 
-    void CreatePlans();
-    const Plan& GetPlan(const PlanId id) const;
-    size_t GetNumPlans() const;
+    Plans GetPlans() const;
+
     std::vector<const Edge*> GetInputs() const;
     std::vector<const Edge*> GetOutputs() const;
-
-    PlanId GeneratePlanId()
-    {
-        PlanId currId = m_NextPlanId;
-        ++m_NextPlanId;
-        return currId;
-    }
 
     // SubGraph of Nodes for this Part
     Nodes m_SubGraph;
 
     // All valid plans for this Part
-    Plans m_Plans;
     PartId m_PartId;
-    size_t m_NumInvalidPlans;
-    PlanId m_NextPlanId = 0;
 
 private:
-    void AddNewPlan(Plan::InputMapping&& inputMappings, Plan::OutputMapping&& outputMappings, OwnedOpGraph&& opGraph);
+    void AddNewPlan(Plan::InputMapping&& inputMappings,
+                    Plan::OutputMapping&& outputMappings,
+                    OwnedOpGraph&& opGraph,
+                    Plans& plans) const;
     void CreateOpGraphAndPlan(Node* node,
                               DmaOnlyInfo& dmaInfo,
                               NumMemoryStripes& numMemoryStripes,
                               TraversalOrder order,
                               Location input,
-                              Location output);
-    void CreatePlanForInputNode(Node* node, Lifetime lifetime, TraversalOrder order);
-    void CreatePlanForOutputNode(Node* node, Lifetime lifetime, TraversalOrder order);
-    void GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEncoderCache);
+                              Location output,
+                              Plans& plans) const;
+    void CreatePlanForInputNode(Node* node, Lifetime lifetime, TraversalOrder order, Plans& plans) const;
+    void CreatePlanForOutputNode(Node* node, Lifetime lifetime, TraversalOrder order, Plans& plans) const;
+    void GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEncoderCache, Plans& plans) const;
     void GenerateWithStripeSizes(Node* node,
                                  const std::vector<command_stream::BlockConfig>& blockConfigs,
                                  TraversalOrder order,
-                                 WeightEncoderCache& weightEncoderCache);
+                                 WeightEncoderCache& weightEncoderCache,
+                                 Plans& plans) const;
     void GenerateWithNumStripes(Node* node,
                                 TraversalOrder order,
                                 StripeInfos& stripeInfos,
-                                WeightEncoderCache& weightEncoderCache);
+                                WeightEncoderCache& weightEncoderCache,
+                                Plans& plans) const;
     void GenerateMcePlans(Node* node,
                           TraversalOrder order,
                           StripeInfos& stripeInfos,
-                          WeightEncoderCache& weightEncoderCache);
+                          WeightEncoderCache& weightEncoderCache,
+                          Plans& plans) const;
     void GenerateFuseOnlyPlePlans(Node* node,
                                   TraversalOrder order,
                                   StripeInfos& stripeInfos,
-                                  WeightEncoderCache& weightEncoderCache);
+                                  WeightEncoderCache& weightEncoderCache,
+                                  Plans& plans) const;
     void GenerateFormatConversionPlans(Node* node,
                                        TraversalOrder order,
                                        StripeInfos& stripeInfos,
                                        Location inputBufferLocaton,
-                                       Location outputBufferLocation);
-    void CreateReinterpretDramPlan(Node* node);
+                                       Location outputBufferLocation,
+                                       Plans& plans) const;
+    void CreateReinterpretDramPlan(Node* node, Plans& plans) const;
     void CreateMceAndIdentityPlePlans(Node* node,
                                       const MceAndPleInfo& info,
                                       TraversalOrder order,
-                                      WeightEncoderCache& weightEncoderCache);
+                                      WeightEncoderCache& weightEncoderCache,
+                                      Plans& plans) const;
     void CreateMceOnlyPlans(Node* node,
                             const MceOnlyInfo& info,
                             TraversalOrder order,
-                            WeightEncoderCache& weightEncoderCache);
+                            WeightEncoderCache& weightEncoderCache,
+                            Plans& plans) const;
     void CreateIdentityMceAndFusedPlePlans(Node* node,
                                            const MceAndPleInfo& info,
                                            TraversalOrder order,
-                                           WeightEncoderCache& weightEncoderCache);
-    void CreateFuseOnlyPlans(Node* node, const PleOnlyInfo& info, TraversalOrder order);
-
-    void CreateComputePlans(Node* node,
-                            StripeInfos& stripeInfos,
-                            TraversalOrder order,
-                            WeightEncoderCache& weightEncoderCache);
+                                           WeightEncoderCache& weightEncoderCache,
+                                           Plans& plans) const;
+    void CreateFuseOnlyPlans(Node* node, const PleOnlyInfo& info, TraversalOrder order, Plans& plans) const;
 
     void CreateFormatConversionPlans(Node* node,
                                      DmaOnlyInfo& dmaInfo,
                                      NumMemoryStripes& numMemoryStripes,
                                      TraversalOrder order,
                                      Location inputBufferLocaton,
-                                     Location outputBufferLocation);
+                                     Location outputBufferLocation,
+                                     Plans& plans) const;
 
-    void CreateVirtualSramPlans(Node* node,
-                                DmaOnlyInfo& dmaInfo,
-                                NumMemoryStripes& numMemoryStripes,
-                                TraversalOrder order);
+    void CreateVirtualSramPlans(
+        Node* node, DmaOnlyInfo& dmaInfo, NumMemoryStripes& numMemoryStripes, TraversalOrder order, Plans& plans) const;
 
     std::pair<Buffer*, Buffer*> AddIdentityMceOpForSubGraph(OwnedOpGraph& opGraph,
                                                             Lifetime lifetime,
@@ -255,7 +250,7 @@ private:
                                                             const TensorShape& inpShape,
                                                             const QuantizationInfo& inpQuantInfo,
                                                             TraversalOrder order,
-                                                            WeightEncoderCache& weightEncoderCache);
+                                                            WeightEncoderCache& weightEncoderCache) const;
 
     void AddOpToOpGraphWithInputOutputBuffers(OwnedOpGraph& opGraph,
                                               Node* node,
@@ -265,7 +260,7 @@ private:
                                               Location inputBufferLocation,
                                               Location outputBufferLocation,
                                               Plan::InputMapping& inputMappings,
-                                              Plan::OutputMapping& outputMappings);
+                                              Plan::OutputMapping& outputMappings) const;
 
     const EstimationOptions& m_EstimationOptions;
     const CompilationOptions& m_CompilationOptions;
@@ -281,16 +276,6 @@ class GraphOfParts
 {
 public:
     GraphOfParts() = default;
-
-    size_t GetNumInvalidPlans() const
-    {
-        size_t result = 0;
-        for (const auto& part : m_Parts)
-        {
-            result += part->m_NumInvalidPlans;
-        }
-        return result;
-    }
 
     size_t GetNumParts() const;
     const Part& GetPart(const PartId id) const;

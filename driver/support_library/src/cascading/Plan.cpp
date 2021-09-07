@@ -148,25 +148,13 @@ void OpGraph::AddConsumer(Buffer* buffer, Op* consumerOp, uint32_t opInputIdx)
 }
 
 Plan::Plan()
-    : Plan(0, {}, {})
-{}
-
-Plan::Plan(PlanId planId)
-    : Plan(planId, {}, {})
+    : Plan({}, {})
 {}
 
 Plan::Plan(InputMapping&& inputMappings, OutputMapping&& outputMappings)
     : DebuggableObject("Plan")
     , m_InputMappings(std::move(inputMappings))
     , m_OutputMappings(std::move(outputMappings))
-    , m_PlanId(0)
-{}
-
-Plan::Plan(PlanId planId, InputMapping&& inputMappings, OutputMapping&& outputMappings)
-    : DebuggableObject("Plan")
-    , m_InputMappings(std::move(inputMappings))
-    , m_OutputMappings(std::move(outputMappings))
-    , m_PlanId(planId)
 {}
 
 Buffer* Plan::GetInputBuffer(const Edge* inputEdge) const

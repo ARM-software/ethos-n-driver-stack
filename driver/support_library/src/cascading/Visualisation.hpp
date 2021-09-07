@@ -19,7 +19,7 @@ namespace support_library
 class Graph;
 class OpGraph;
 class GraphOfParts;
-class Part;
+class Plan;
 struct EstimatedOpGraph;
 struct Combination;
 enum class Location;
@@ -28,6 +28,8 @@ enum class CompilerDataFormat;
 enum class CompilerDataCompressedFormat;
 enum class TraversalOrder;
 enum class CompilerMceAlgorithm;
+
+using Plans = std::vector<std::shared_ptr<Plan>>;
 
 std::string ToString(Location l);
 std::string ToString(Lifetime l);
@@ -111,7 +113,7 @@ void SaveGraphToDot(const Graph& graph,
 
 /// Saves all the plans generated for the given part to a dot file format to visualise them.
 /// detailLevel controls how much detail is shown on the visualisation.
-void SavePlansToDot(const Part& part, std::ostream& stream, DetailLevel detailLevel);
+void SavePlansToDot(const Plans& plans, std::ostream& stream, DetailLevel detailLevel);
 
 /// Saves a Combination of Plans and Glues to a dot file format to visualise it.
 /// detailLevel controls how much detail is shown on the visualisation.

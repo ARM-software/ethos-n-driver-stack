@@ -182,7 +182,7 @@ const Plan& Combiner::GetPlanForPartFromCombination(const Part& part, const Comb
     assert(elemIt != comb.m_Elems.end());
 
     // Get the plan for the part
-    return part.GetPlan(elemIt->second.m_PlanId);
+    return *elemIt->second.m_Plan;
 }
 
 std::vector<std::pair<const Part*, const Edge*>> Combiner::GetSourceParts(const Part& part) const
@@ -606,7 +606,7 @@ Combination Combiner::GluePartToCombination(const Part& part,
         auto elemIt = comb.m_Elems.find(source.first->m_PartId);
         if (elemIt != comb.m_Elems.end())
         {
-            const Plan& sourcePlan = source.first->GetPlan(elemIt->second.m_PlanId);
+            const Plan& sourcePlan = *elemIt->second.m_Plan;
 
             // Sanity tests - make sure the two Plans are for adjacent Parts.
             // Note we lookup both buffers by the same Node, as the Graph does not explicitly store intermediate tensors -
@@ -673,7 +673,10 @@ Combination Combiner::ContinueSection(const Part& part, const Combination& comb,
 
         const Edge& edge = *sources.at(0).second;
 
-        for (const auto& plan : part.m_Plans)
+        Plans plans = part.GetPlans();
+        SavePartsPlans(part, plans);
+
+        for (const auto& plan : plans)
         {
             // Make a copy of the allocator since every plan needs to have its own,
             // each potential section won't allocate from the same allocator.
@@ -697,7 +700,7 @@ Combination Combiner::ContinueSection(const Part& part, const Combination& comb,
             // Add current part and plan to the combination,
             // no glue is required. Current part is SISO and
             // has a single input/output
-            Combination section = comb + Combination(part, *plan.get());
+            Combination section = comb + Combination(part, plan);
             // Options to be estimated
             Combinations options = { result, ContinueSection(nextPart, section, tempAlloc) };
             result               = GetBestCombination(options);
@@ -727,6 +730,10 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
     // This is going to be a new combination, so this
     // is empty initialized
     Combination result = {};
+
+    Plans plans = part.GetPlans();
+    SavePartsPlans(part, plans);
+
     // There are some scenarios:
     //  - Part is Single Input Single Output i.e. SISO
     //  - Part is Single Input Multiple Output i.e. SIMO
@@ -741,7 +748,8 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
         // is one
         const Part& nextPart = *(GetDestinationParts(part).at(0).first);
         assert(GetDestinationParts(part).size() == 1);
-        for (const auto& plan : part.m_Plans)
+
+        for (const auto& plan : plans)
         {
             if (!IsPlanInputGlueable(*plan.get()))
             {
@@ -750,7 +758,7 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
 
             // This is the start of a new section, reset the allocated Sram
             SramAllocator alloc(m_Caps.GetTotalSramSize() / m_Caps.GetNumberOfSrams());
-            Combination head(part, *plan.get());
+            Combination head(part, plan);
             Combinations options = { result, ContinueSection(nextPart, head, alloc) };
             result               = GetBestCombination(options);
         }
@@ -762,7 +770,7 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
         // cannot be merged for now
 
         // Select best plan for the part
-        for (const auto& plan : part.m_Plans)
+        for (const auto& plan : plans)
         {
             if (!IsPlanInputGlueable(*plan.get()))
             {
@@ -770,7 +778,7 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
             }
 
             // Glue will be added later on
-            Combination head(part, *plan.get());
+            Combination head(part, plan);
             Combinations options = { result, head };
             result               = GetBestCombination(options);
         }
@@ -909,7 +917,7 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
     for (auto& elemIt : combination.m_Elems)
     {
         const Part& part = parts.GetPart(elemIt.first);
-        const Plan& plan = part.GetPlan(elemIt.second.m_PlanId);
+        const Plan& plan = *elemIt.second.m_Plan;
 
         // Add any glues for each incoming edge of this Part, and remember which Op we will need to connect the plan's
         // input buffers to
@@ -966,10 +974,18 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
                 Edge* inputEdge = inputEdgeIt->second;
                 if (incomingGlueOps.find(inputEdge) == incomingGlueOps.end())
                 {
-                    sharedBuffer = edgeConnectionBuffers.find(inputEdge)->second;
-                    // This buffer itself may have been merged (e.g. for plans that have a single buffer for both
-                    // input and output, like reinterpret Dram)
-                    sharedBuffer = getEffectiveBuffer(sharedBuffer);
+                    auto edgeBuffer = edgeConnectionBuffers.find(inputEdge);
+                    // This code assumed that the combination spans the entire network
+                    // The following check is needed as there can be input and outputs nodes
+                    // which means there wouldn't be a shared buffer.
+                    // This is okay as this combination won't be able to be estimated and thus
+                    // another combination will be picked.
+                    if (edgeBuffer != edgeConnectionBuffers.end())
+                    {
+                        // This buffer itself may have been merged (e.g. for plans that have a single buffer for both
+                        // input and output, like reinterpret Dram)
+                        sharedBuffer = getEffectiveBuffer(edgeBuffer->second);
+                    }
                 }
             }
             if (sharedBuffer && result.Contains(sharedBuffer))
@@ -1037,6 +1053,25 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
     }
 
     return result;
+}
+
+void Combiner::SavePartsPlans(const Part& part, const Plans& plans) const
+{
+    if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
+    {
+        std::ofstream debugPlanCountsDumpFile(
+            m_DebuggingContext.GetAbsolutePathOutputFileName("Cascaded_PlanCounts.txt"));
+
+        std::string folder = "Parts/" + part.m_DebugTag;
+        ethosn::utils::MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
+
+        debugPlanCountsDumpFile << part.m_DebugTag << ": " << plans.size() << std::endl;
+
+        m_DebuggingContext.SavePlansToDot(CompilationOptions::DebugLevel::Medium, plans, folder + "/Plans.dot",
+                                          DetailLevel::Low);
+        m_DebuggingContext.SavePlansToDot(CompilationOptions::DebugLevel::Medium, plans, folder + "/PlansDetailed.dot",
+                                          DetailLevel::High);
+    }
 }
 
 }    // namespace support_library

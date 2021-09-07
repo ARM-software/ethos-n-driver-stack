@@ -35,7 +35,7 @@ struct Elem
 {
     using Glues = std::map<const Edge*, const Glue*>;
 
-    PlanId m_PlanId;
+    std::shared_ptr<Plan> m_Plan;
     Glues m_Glues;
 };
 
@@ -45,7 +45,7 @@ struct Combination
     {}
 
     // Create a combination with a single element without any edge/glue information
-    Combination(const Part& part, const Plan& plan)
+    Combination(const Part& part, std::shared_ptr<Plan> plan)
         : Combination(part, plan, nullptr, nullptr)
     {}
 
@@ -54,17 +54,17 @@ struct Combination
     // multiple outputs where the plan has been already selected and
     // won't be changed when merging combinations
     Combination(const Part& part, const Edge* edge, const Glue* glue)
-        : Combination(part, g_InvalidPlanId, edge, glue)
+        : Combination(part, nullptr, edge, glue)
     {}
 
     // Create a combination with a single element with edge/glue information,
     // if no edge/glue information is provided (e.g. nullptr) the combination
     // will consider the case where no glue is required on any output edge of
     // the part
-    Combination(const Part& part, const Plan& plan, const Edge* edge, const Glue* glue)
+    Combination(const Part& part, std::shared_ptr<Plan> plan, const Edge* edge, const Glue* glue)
     {
         // Create a new element
-        Elem elem = { plan.m_PlanId, {} };
+        Elem elem = { plan, {} };
         // Insert glue value (it can be null if no glue is required)
         // if a valid edge is provided
         if (edge)
@@ -90,8 +90,8 @@ struct Combination
             auto resultElemIt = result.m_Elems.find(rhsElemIt.first);
             if (resultElemIt != result.m_Elems.end())
             {
-                assert(resultElemIt->second.m_PlanId == rhsElemIt.second.m_PlanId ||
-                       rhsElemIt.second.m_PlanId == g_InvalidPlanId);
+                assert(rhsElemIt.second.m_Plan.get() == nullptr ||
+                       resultElemIt->second.m_Plan == rhsElemIt.second.m_Plan);
                 for (auto& glueIt : rhsElemIt.second.m_Glues)
                 {
                     auto edgeIt = resultElemIt->second.m_Glues.find(glueIt.first);
@@ -189,6 +189,8 @@ struct Combiner
     Combination GluePartToCombination(const Part& part,
                                       const Combination& comb,
                                       const std::vector<std::pair<const Part*, const Edge*>>& sources);
+
+    void SavePartsPlans(const Part& part, const Plans& plans) const;
 
     void UpdateStats(const StatsType type);
 
