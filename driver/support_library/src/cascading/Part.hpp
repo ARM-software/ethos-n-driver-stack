@@ -161,7 +161,7 @@ public:
         , m_Capabilities(capabilities)
     {}
 
-    Plans GetPlans() const;
+    virtual Plans GetPlans() const;
 
     std::vector<const Edge*> GetInputs() const;
     std::vector<const Edge*> GetOutputs() const;

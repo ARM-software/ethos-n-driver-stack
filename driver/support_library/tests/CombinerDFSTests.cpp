@@ -1143,3 +1143,97 @@ TEST_CASE("ArePlansAllowedToMerge", "[CombinerDFS]")
     // Consumer plan is streaming full depth while producer plan is not
     REQUIRE(combiner.ArePlansAllowedToMerge(planA, planBdiffStrategy, *nodeB->GetInput(0)) == false);
 }
+
+TEST_CASE("PlanCache", "[CombinerDFS]")
+{
+
+    Graph graph;
+    // Create graph:
+    //
+    //  --> A - - > B
+    //
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+    NameOnlyNode* node  = graph.CreateAndAddNode<NameOnlyNode>("");
+
+    graph.Connect(node, nodeA, 0);
+    graph.Connect(nodeA, nodeB, 0);
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    GraphOfParts gOfParts;
+    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+
+    planA.m_OpGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION,
+                                                  CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+                                                  TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 },
+                                                  TensorShape{ 1, 1, 1, 64 }, TraversalOrder::Xyz, Stride(), 0, 0));
+
+    planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[1], planA.m_OpGraph.GetOps()[0]);
+    planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[0], nodeA->GetInput(0) } };
+    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[1], nodeA } };
+
+    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
+    Plan planB;
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_OpGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION,
+                                                  CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+                                                  TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 },
+                                                  TensorShape{ 1, 1, 1, 64 }, TraversalOrder::Xyz, Stride(), 0, 0));
+
+    planB.m_OpGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION,
+                                                  CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+                                                  TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 },
+                                                  TensorShape{ 1, 1, 1, 64 }, TraversalOrder::Xyz, Stride(), 0, 0));
+
+    planB.m_OpGraph.AddConsumer(planB.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetOps()[0], 0);
+    planB.m_OpGraph.AddConsumer(planB.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetOps()[1], 0);
+    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
+
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+
+    class MockPart : public Part
+    {
+        using Part::Part;
+
+    public:
+        Plans GetPlans() const override
+        {
+            (*m_GetPlansCalled)++;
+            return Plans{};
+        }
+
+        uint64_t* m_GetPlansCalled;
+    };
+
+    uint64_t numGetPlansCalled = 0;
+
+    MockPart mockPart1(PartId(0), estOpt, compOpt, hwCaps);
+    mockPart1.m_GetPlansCalled = &numGetPlansCalled;
+    MockPart mockPart2(PartId(1), estOpt, compOpt, hwCaps);
+    mockPart2.m_GetPlansCalled = &numGetPlansCalled;
+
+    // There are 0 entries in the cache starting off
+    REQUIRE(*mockPart1.m_GetPlansCalled == 0);
+    combiner.GetPlansCached(mockPart1);
+    // Now there should be 1 after we've generated 1 set of plans for part0
+    REQUIRE(*mockPart1.m_GetPlansCalled == 1);
+    // Generating plans for part0 again shouldn't increase the number of plans in the cache
+    combiner.GetPlansCached(mockPart1);
+    REQUIRE(*mockPart1.m_GetPlansCalled == 1);
+    // Generating plans for part1 should increase the number of plans in the cache
+    combiner.GetPlansCached(mockPart2);
+    REQUIRE(*mockPart2.m_GetPlansCalled == 2);
+}

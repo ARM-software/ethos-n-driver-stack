@@ -14,6 +14,9 @@ namespace ethosn
 {
 namespace support_library
 {
+
+using PlanCache = std::map<PartId, Plans>;
+
 /// The graph of Ops and Buffers that would need to be inserted between two plans to make the compatible,
 /// for example some DmaOps.
 struct Glue
@@ -138,8 +141,9 @@ enum class StatsType
 
 using Combinations = std::vector<Combination>;
 
-struct Combiner
+class Combiner
 {
+public:
     Combiner(const GraphOfParts& graphOfParts,
              const HardwareCapabilities& capabilities,
              const EstimationOptions& estOpt,
@@ -196,6 +200,13 @@ struct Combiner
 
     void Run();
 
+    Plans GetPlansCached(const Part& part);
+
+    std::vector<std::unique_ptr<Glue>> m_GluesVector;
+
+    std::map<const Part*, const Combination> m_CombinationPerPartMap;
+
+private:
     const GraphOfParts& m_GraphOfParts;
     const HardwareCapabilities& m_Caps;
     const EstimationOptions& m_EstOpt;
@@ -203,8 +214,7 @@ struct Combiner
 
     Combination m_BestCombination;
 
-    std::map<const Part*, const Combination> m_CombinationPerPartMap;
-    std::vector<std::unique_ptr<Glue>> m_GluesVector;
+    PlanCache m_PlanCache;
 
     std::vector<size_t> m_Stats{ std::vector<size_t>(static_cast<size_t>(StatsType::NumStats), 0) };
 };

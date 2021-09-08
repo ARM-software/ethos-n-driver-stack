@@ -673,8 +673,7 @@ Combination Combiner::ContinueSection(const Part& part, const Combination& comb,
 
         const Edge& edge = *sources.at(0).second;
 
-        Plans plans = part.GetPlans();
-        SavePartsPlans(part, plans);
+        Plans plans = GetPlansCached(part);
 
         for (const auto& plan : plans)
         {
@@ -731,8 +730,7 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
     // is empty initialized
     Combination result = {};
 
-    Plans plans = part.GetPlans();
-    SavePartsPlans(part, plans);
+    Plans plans = GetPlansCached(part);
 
     // There are some scenarios:
     //  - Part is Single Input Single Output i.e. SISO
@@ -1053,6 +1051,22 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
     }
 
     return result;
+}
+
+Plans Combiner::GetPlansCached(const Part& part)
+{
+    auto plansInCache = m_PlanCache.find(part.m_PartId);
+    if (plansInCache != m_PlanCache.end())
+    {
+        return plansInCache->second;
+    }
+    else
+    {
+        auto plans = part.GetPlans();
+        SavePartsPlans(part, plans);
+        m_PlanCache.emplace(part.m_PartId, plans);
+        return plans;
+    }
 }
 
 void Combiner::SavePartsPlans(const Part& part, const Plans& plans) const
