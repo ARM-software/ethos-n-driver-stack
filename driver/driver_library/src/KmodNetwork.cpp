@@ -66,7 +66,7 @@ std::vector<char> GetFirmwareAndHardwareCapabilities(const std::string& device)
     }
 
     // Check compatibility between driver library and the kernel
-    if (!VerifyKernel())
+    if (!VerifyKernel(device))
     {
         throw std::runtime_error(std::string("Wrong kernel module version\n"));
     }
@@ -94,15 +94,15 @@ std::vector<char> GetFirmwareAndHardwareCapabilities(const std::string& device)
     return caps;
 }
 
-bool IsKernelVersionMatching(const struct Version& ver)
+bool IsKernelVersionMatching(const struct Version& ver, const std::string& device)
 {
     // The actual kernel module version obtained from a running system,
     struct Version actKmodVer;
 
-    int fd = open(DEVICE_NODE, O_RDONLY);
+    int fd = open(device.c_str(), O_RDONLY);
     if (fd < 0)
     {
-        throw std::runtime_error(std::string("Unable to open " DEVICE_NODE ": ") + strerror(errno));
+        throw std::runtime_error(std::string("Unable to open " + device + ": ") + strerror(errno));
     }
 
     int match = ioctl(fd, ETHOSN_IOCTL_GET_VERSION, &actKmodVer);
@@ -124,6 +124,11 @@ bool IsKernelVersionMatching(const struct Version& ver)
     }
 }
 
+bool IsKernelVersionMatching(const struct Version& ver)
+{
+    return IsKernelVersionMatching(ver, DEVICE_NODE);
+}
+
 constexpr bool IsKernelVersionSupported(const uint32_t& majorVersion)
 {
     if ((majorVersion <= MAX_ETHOSN_KERNEL_MODULE_MAJOR_VERSION_SUPPORTED) &&
@@ -137,7 +142,7 @@ constexpr bool IsKernelVersionSupported(const uint32_t& majorVersion)
     }
 }
 
-bool VerifyKernel()
+bool VerifyKernel(const std::string& device)
 {
     // The kernel module version that is defined in uapi/ethosn.h
     static constexpr struct Version uapiKmodVer(ETHOSN_KERNEL_MODULE_VERSION_MAJOR, ETHOSN_KERNEL_MODULE_VERSION_MINOR,
@@ -146,7 +151,12 @@ bool VerifyKernel()
     static_assert((IsKernelVersionSupported(ETHOSN_KERNEL_MODULE_VERSION_MAJOR)),
                   "Kernel module version defined in ethosn.h is not supported");
 
-    return IsKernelVersionMatching(uapiKmodVer);
+    return IsKernelVersionMatching(uapiKmodVer, device);
+}
+
+bool VerifyKernel()
+{
+    return VerifyKernel(DEVICE_NODE);
 }
 
 KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compiledNetworkSize, const std::string& device)
@@ -191,7 +201,7 @@ KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compile
     }
 
     // Check compatibility between driver library and the kernel
-    if (!VerifyKernel())
+    if (!VerifyKernel(device))
     {
         throw std::runtime_error(std::string("Wrong kernel module version\n"));
     }

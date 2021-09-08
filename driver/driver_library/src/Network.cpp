@@ -75,6 +75,7 @@ void Network::SetDebugName(const char* name)
 /// with the version defined in ethosn.h or not.
 /// Returns True if there is a match else False.
 bool VerifyKernel();
+bool VerifyKernel(const std::string& device);
 
 std::vector<char> GetFirmwareAndHardwareCapabilities()
 {

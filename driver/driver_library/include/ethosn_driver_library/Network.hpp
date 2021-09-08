@@ -97,6 +97,7 @@ private:
 };
 
 bool VerifyKernel();
+bool VerifyKernel(const std::string& device);
 
 }    // namespace driver_library
 }    // namespace ethosn

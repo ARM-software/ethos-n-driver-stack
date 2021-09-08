@@ -221,7 +221,9 @@ void EthosNPreCompiledWorkload::Init(const PreCompiledDescriptor& descriptor,
                                      const EthosNPreCompiledObject::Network& network,
                                      const std::string& deviceId)
 {
-    if (!ethosn::driver_library::VerifyKernel())
+    const bool kernelVerified =
+        deviceId.empty() ? ethosn::driver_library::VerifyKernel() : ethosn::driver_library::VerifyKernel(deviceId);
+    if (!kernelVerified)
     {
         throw RuntimeException("Kernel version is not supported");
     }

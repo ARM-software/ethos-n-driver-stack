@@ -34,6 +34,7 @@ private:
 };
 
 bool IsKernelVersionMatching(const struct Version& ver);
+bool IsKernelVersionMatching(const struct Version& ver, const std::string& device);
 constexpr bool IsKernelVersionSupported(const uint32_t& majorVersion);
 
 }    // namespace driver_library

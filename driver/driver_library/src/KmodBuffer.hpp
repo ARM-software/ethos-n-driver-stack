@@ -49,7 +49,7 @@ public:
         }
 
         // Check compatibility between driver library and the kernel
-        if (!VerifyKernel())
+        if (!VerifyKernel(device))
         {
             throw std::runtime_error(std::string("Wrong kernel module version\n"));
         }
