@@ -472,6 +472,11 @@ void SavePlansToDot(const Plans& plans, const std::string test)
     stripesFile << stripes.str() << std::endl;
 }
 
+Plans GetPlansForwarding(const Part& part)
+{
+    return part.GetPlans(CascadeType::Middle, ethosn::command_stream::BlockConfig{}, nullptr, 0);
+}
+
 }    // namespace
 
 TEST_CASE("PlanGenerator: Generate parts from graph without branching before MCE PP node")
@@ -558,7 +563,7 @@ TEST_CASE("PlanGenerator:FuseOnlyPleNode")
     Graph g;
     auto part = BuildPartWithFuseOnlyPle(g, estOpt, compOpt, caps);
 
-    Plans plans = part.GetPlans();
+    Plans plans = GetPlansForwarding(part);
     SavePlansToDot(plans, "plans_part_fuseonlyple");
 
     REQUIRE(plans.size() == 15);
@@ -598,7 +603,7 @@ TEST_CASE("PlanGenerator:MceOperationNode")
     Graph g;
     auto part = BuildSinglePartWithOneNode(g, estOpt, compOpt, caps);
 
-    Plans plans = part.GetPlans();
+    Plans plans = GetPlansForwarding(part);
     SavePlansToDot(plans, "plans_part_mceoperation");
 
     const auto& plan1 = plans[0];
@@ -654,7 +659,7 @@ TEST_CASE("PlanGenerator: Generate plans from a part with single format conversi
     REQUIRE(nodes.size() == 3);
 
     // When
-    Plans plans = part.GetPlans();
+    Plans plans = GetPlansForwarding(part);
     SavePlansToDot(plans, "plans_in_part_with_leading_format_conversion_node");
 
     // Then
@@ -707,7 +712,7 @@ TEST_CASE("PlanGenerator: Generate plans from a part with trailing format conver
     REQUIRE(nodes.size() == 3);
 
     // When
-    Plans plans = part.GetPlans();
+    Plans plans = GetPlansForwarding(part);
 
     // Then
     SavePlansToDot(plans, "plans_in_part_with_trailing_format_conversion_node");
@@ -759,7 +764,7 @@ TEST_CASE("PlanGenerator: Generate plans from a part with reinterpret node")
     REQUIRE(nodes.size() == 3);
 
     // When
-    Plans plans = part.GetPlans();
+    Plans plans = GetPlansForwarding(part);
     SavePlansToDot(plans, "plans_in_part_with_reinterpret_node");
 
     // Then
@@ -869,7 +874,7 @@ TEST_CASE("PlanGenerator: FuseOnly")
     Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(pleNode);
 
-    Plans plans = part.GetPlans();
+    Plans plans = GetPlansForwarding(part);
 
     SavePlansToDot(plans, "plans_in_part_with_fuse_only");
 
@@ -925,7 +930,7 @@ TEST_CASE("PlanGenerator: Mobilenet N78_2TOPS_4PLE_RATIO Conv", "[slow]")
     Part part = BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
                                      ethosn::command_stream::MceOperation::CONVOLUTION, estOpt, compOpt, caps);
 
-    Plans plans = part.GetPlans();
+    Plans plans = GetPlansForwarding(part);
 
     SavePlansToDot(plans, "plans_mobilenet_conv");
 
@@ -952,7 +957,7 @@ TEST_CASE("PlanGenerator: Mobilenet N78_2TOPS_4PLE_RATIO Depthwise")
         BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
                              ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION, estOpt, compOpt, caps);
 
-    Plans plans = part.GetPlans();
+    Plans plans = GetPlansForwarding(part);
 
     SavePlansToDot(plans, "plans_mobilenet_depthwise");
     {
@@ -977,7 +982,7 @@ TEST_CASE("PlanGenerator: Mobilenet N78_2TOPS_4PLE_RATIO 1024", "[slow]")
     Part part = BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
                                      ethosn::command_stream::MceOperation::CONVOLUTION, estOpt, compOpt, caps);
 
-    Plans plans = part.GetPlans();
+    Plans plans = GetPlansForwarding(part);
 
     SavePlansToDot(plans, "plans_mobilenet_1024");
     {
@@ -998,7 +1003,7 @@ TEST_CASE("PlanGenerator:BlockConfig")
     Graph g;
     auto part = BuildPartWithFuseOnlyPle(g, estOpt, compOpt, caps);
 
-    Plans plans = part.GetPlans();
+    Plans plans = GetPlansForwarding(part);
     SavePlansToDot(plans, "plans_part_blockconfig");
 
     const auto& plan1 = plans[0];
@@ -1043,7 +1048,7 @@ TEST_CASE("PlanGenerator:Winograd")
 
     Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
-    Plans plans = part.GetPlans();
+    Plans plans = GetPlansForwarding(part);
     SavePlansToDot(plans, "plans_part_winograd");
 
     for (const auto& plan : plans)
@@ -1088,7 +1093,7 @@ TEST_CASE("PlanGenerator:Split input in depth")
 
     Part part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
-    Plans plans = part.GetPlans();
+    Plans plans = GetPlansForwarding(part);
     SavePlansToDot(plans, "plans_part_split_input_depth");
 
     uint64_t match = 0;
@@ -1122,7 +1127,7 @@ TEST_CASE("PlanGenerator: Split output in depth")
     TS weightShape{ 3, 3, 32, 32 };
     Part part   = BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
                                      ethosn::command_stream::MceOperation::CONVOLUTION, estOpt, compOpt, caps);
-    Plans plans = part.GetPlans();
+    Plans plans = GetPlansForwarding(part);
 
     SavePlansToDot(plans, "plans_split_output_in_depth");
     {

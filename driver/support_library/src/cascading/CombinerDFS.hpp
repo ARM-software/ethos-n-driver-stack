@@ -15,7 +15,7 @@ namespace ethosn
 namespace support_library
 {
 
-using PlanCache = std::map<PartId, Plans>;
+using PlanCache = std::unordered_map<PartId, Plans>;
 
 /// The graph of Ops and Buffers that would need to be inserted between two plans to make the compatible,
 /// for example some DmaOps.
@@ -200,7 +200,25 @@ public:
 
     void Run();
 
-    Plans GetPlansCached(const Part& part);
+    template <typename... Args>
+    Plans GetPlansCached(const Part& part, Args&&... args)
+    {
+        // Note the cache only uses the part id (instead of all the plan parameters)
+        // because when specific plan generation is used the plans should be unique and
+        // the cache can be removed.
+        auto planInCache = m_PlanCache.find(part.m_PartId);
+        if (planInCache != m_PlanCache.end())
+        {
+            return planInCache->second;
+        }
+        else
+        {
+            auto plans = part.GetPlans(std::forward<Args>(args)...);
+            SavePartsPlans(part, plans);
+            m_PlanCache.emplace(part.m_PartId, plans);
+            return plans;
+        }
+    }
 
     std::vector<std::unique_ptr<Glue>> m_GluesVector;
 

@@ -599,8 +599,15 @@ const Parts& GraphOfParts::GetParts() const
     return m_Parts;
 }
 
-Plans Part::GetPlans() const
+Plans Part::GetPlans(CascadeType cascadeType,
+                     BlockConfig blockConfig,
+                     Buffer* sramBuffer,
+                     uint32_t numWeightStripes) const
 {
+    ETHOSN_UNUSED(cascadeType);
+    ETHOSN_UNUSED(blockConfig);
+    ETHOSN_UNUSED(sramBuffer);
+    ETHOSN_UNUSED(numWeightStripes);
     Node* node = m_SubGraph.front();
     Plans ret;
     if (IsObjectOfType<InputNode>(node))

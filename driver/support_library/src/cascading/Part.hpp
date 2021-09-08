@@ -13,6 +13,14 @@ namespace ethosn
 namespace support_library
 {
 
+enum class CascadeType
+{
+    Beginning,
+    Middle,
+    End,
+    Lonely
+};
+
 template <typename D, typename B>
 D* GetObjectAs(B* obj)
 {
@@ -34,9 +42,9 @@ bool IsObjectOfType(const B* obj)
 using PartId         = size_t;
 using StripeSizeType = TensorShape::value_type;
 
-class WeightEncoderCache;
-
 using Plans = std::vector<std::shared_ptr<Plan>>;
+
+class WeightEncoderCache;
 
 class Part : public DebuggableObject
 {
@@ -161,7 +169,10 @@ public:
         , m_Capabilities(capabilities)
     {}
 
-    virtual Plans GetPlans() const;
+    virtual Plans GetPlans(CascadeType cascadeType,
+                           ethosn::command_stream::BlockConfig blockConfig,
+                           Buffer* sramBuffer,
+                           uint32_t numWeightStripes) const;
 
     std::vector<const Edge*> GetInputs() const;
     std::vector<const Edge*> GetOutputs() const;

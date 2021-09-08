@@ -1209,7 +1209,7 @@ TEST_CASE("PlanCache", "[CombinerDFS]")
         using Part::Part;
 
     public:
-        Plans GetPlans() const override
+        Plans GetPlans(CascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const override
         {
             (*m_GetPlansCalled)++;
             return Plans{};
@@ -1227,13 +1227,13 @@ TEST_CASE("PlanCache", "[CombinerDFS]")
 
     // There are 0 entries in the cache starting off
     REQUIRE(*mockPart1.m_GetPlansCalled == 0);
-    combiner.GetPlansCached(mockPart1);
+    combiner.GetPlansCached(mockPart1, CascadeType::Middle, ethosn::command_stream::BlockConfig{}, nullptr, 0);
     // Now there should be 1 after we've generated 1 set of plans for part0
     REQUIRE(*mockPart1.m_GetPlansCalled == 1);
     // Generating plans for part0 again shouldn't increase the number of plans in the cache
-    combiner.GetPlansCached(mockPart1);
+    combiner.GetPlansCached(mockPart1, CascadeType::Middle, ethosn::command_stream::BlockConfig{}, nullptr, 0);
     REQUIRE(*mockPart1.m_GetPlansCalled == 1);
     // Generating plans for part1 should increase the number of plans in the cache
-    combiner.GetPlansCached(mockPart2);
+    combiner.GetPlansCached(mockPart2, CascadeType::Middle, ethosn::command_stream::BlockConfig{}, nullptr, 0);
     REQUIRE(*mockPart2.m_GetPlansCalled == 2);
 }
