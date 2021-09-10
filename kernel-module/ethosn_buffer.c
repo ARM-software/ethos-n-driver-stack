@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2019 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2021 Arm Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -230,7 +230,7 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 
 	if (buf_req->flags & MB_ZERO) {
 		memset(buf->dma_info->cpu_addr, 0, buf->dma_info->size);
-		dev_dbg(ethosn->dev, "Zeroed ethosn buffer 0x%pK\n", buf);
+		dev_dbg(ethosn->dev, "Zeroed device buffer 0x%pK\n", buf);
 	}
 
 	log.request = *buf_req;

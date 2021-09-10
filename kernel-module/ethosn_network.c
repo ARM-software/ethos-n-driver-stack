@@ -284,7 +284,7 @@ static struct ethosn_buffer **read_buffer_fds(struct ethosn_network *network,
 		if (buf->ethosn->dev != net_to_dev(network)) {
 			dev_err(net_to_dev(
 					network),
-				"ethosn buffer 0x%pK belongs to a different dev\n",
+				"device buffer 0x%pK belongs to a different dev\n",
 				buf);
 			error = -EINVAL;
 			goto err_free_bufs;
@@ -408,7 +408,7 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 				   network->inference_data[core_id]);
 	core->current_inference = inference;
 
-	/* send the inference to the core (ethosn) assigned to it */
+	/* send the inference to the core assigned to it */
 	ret = ethosn_send_inference(core,
 				    network->inference_data[core_id]->iova_addr,
 				    (ptrdiff_t)inference);

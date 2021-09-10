@@ -1018,24 +1018,6 @@ int ethosn_send_stream_request(struct ethosn_core *core,
 	if (request.size == 0)
 		return -EFAULT;
 
-	switch (stream_id) {
-	case ETHOSN_STREAM_FIRMWARE:
-		core->ethosn_f_stream_configured = false;
-		break;
-
-	case ETHOSN_STREAM_WORKING_DATA:
-		core->ethosn_wd_stream_configured = false;
-		break;
-
-	case ETHOSN_STREAM_COMMAND_STREAM:
-		core->ethosn_cs_stream_configured = false;
-		break;
-
-	default:
-
-		return -EINVAL;
-	}
-
 	dev_dbg(core->dev,
 		"-> Stream=%u. size=0x%x", request.stream_id,
 		request.size);
@@ -1047,8 +1029,6 @@ int ethosn_send_stream_request(struct ethosn_core *core,
 
 int ethosn_send_mpu_enable_request(struct ethosn_core *core)
 {
-	core->ethosn_mpu_enabled = false;
-
 	dev_dbg(core->dev,
 		"-> Mpu enable.");
 
@@ -1281,7 +1261,10 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 	int timeout;
 	int ret;
 
-	dev_info(core->dev, "Reset the ethosn\n");
+	dev_info(core->dev, "Reset core device\n");
+
+	/* Firmware is not running */
+	core->firmware_running = false;
 
 	/* Load the firmware */
 	ret = firmware_init(core);
@@ -1338,6 +1321,28 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 	if (ret)
 		return ret;
 
+	dev_info(core->dev, "Waiting for core device\n");
+
+	/* Wait for firmware to set GP_MAILBOX to 0 which indicates that it has
+	 * booted
+	 */
+	for (timeout = 0; timeout < ETHOSN_RESET_TIMEOUT_US;
+	     timeout += ETHOSN_RESET_WAIT_US) {
+		if (ethosn_read_top_reg(core, DL1_RP, GP_MAILBOX) == 0)
+			break;
+
+		udelay(ETHOSN_RESET_WAIT_US);
+	}
+
+	if (timeout >= ETHOSN_RESET_TIMEOUT_US) {
+		dev_err(core->dev, "Timeout while waiting for core device\n");
+
+		return -ETIME;
+	}
+
+	/* Firmware is now up and running */
+	core->firmware_running = true;
+
 	/* Init streams regions */
 	ret = ethosn_streams_init(core);
 	if (ret != 0)
@@ -1366,38 +1371,6 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 						  &core->profiling.config);
 	if (ret != 0)
 		return ret;
-
-	dev_info(core->dev, "Waiting for Ethos-N\n");
-
-	/* Wait for firmware to set GP2 to 0 which indicates that it has booted.
-	 * Also wait for it to reply with the FW & HW caps message.
-	 * This is necessary so that the user can't query us for the caps before
-	 * they are ready.
-	 * Also wait for the memory regions to be correctly setup. This is
-	 * necessary to execute inferences.
-	 */
-	for (timeout = 0; timeout < ETHOSN_RESET_TIMEOUT_US;
-	     timeout += ETHOSN_RESET_WAIT_US) {
-		bool mem_ready = core->ethosn_f_stream_configured &&
-				 core->ethosn_wd_stream_configured &&
-				 core->ethosn_cs_stream_configured &&
-				 core->ethosn_mpu_enabled;
-
-		if (ethosn_read_top_reg(core, DL1_RP, GP_MAILBOX) == 0 &&
-		    core->fw_and_hw_caps.size > 0U && mem_ready &&
-		    !core->profiling.is_waiting_for_firmware_ack)
-			break;
-
-		udelay(ETHOSN_RESET_WAIT_US);
-	}
-
-	if (timeout >= ETHOSN_RESET_TIMEOUT_US) {
-		dev_err(core->dev, "Timeout while waiting for Ethos-N\n");
-
-		return -ETIME;
-	}
-
-	core->firmware_running = true;
 
 	return 0;
 }

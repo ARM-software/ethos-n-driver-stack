@@ -217,23 +217,14 @@ static int handle_message(struct ethosn_core *core)
 	case ETHOSN_MESSAGE_STREAM_RESPONSE: {
 		struct ethosn_message_stream_response *rsp =
 			core->mailbox_message;
-		bool configured = rsp->status == ETHOSN_STREAM_STATUS_OK;
 
 		dev_dbg(core->dev, "<- Stream=%u. status=%u\n",
 			rsp->stream_id, rsp->status);
-
-		if (rsp->stream_id == ETHOSN_STREAM_FIRMWARE)
-			core->ethosn_f_stream_configured = configured;
-		else if (rsp->stream_id == ETHOSN_STREAM_WORKING_DATA)
-			core->ethosn_wd_stream_configured = configured;
-		else if (rsp->stream_id == ETHOSN_STREAM_COMMAND_STREAM)
-			core->ethosn_cs_stream_configured = configured;
 
 		break;
 	}
 	case ETHOSN_MESSAGE_MPU_ENABLE_RESPONSE: {
 		dev_dbg(core->dev, "<- Mpu enabled\n");
-		core->ethosn_mpu_enabled = true;
 		break;
 	}
 	case ETHOSN_MESSAGE_FW_HW_CAPS_RESPONSE: {
@@ -373,7 +364,7 @@ static void ethosn_irq_bottom(struct work_struct *work)
 		ethosn_dump_gps(core);
 
 		dev_warn(core->dev,
-			 "Reset Ethos-N core due to error interrupt. irq_status=0x%08x\n",
+			 "Reset core due to error interrupt. irq_status=0x%08x\n",
 			 status.word);
 
 		if (core->firmware_running) {
@@ -671,8 +662,8 @@ static long ethosn_ioctl(struct file *const filep,
 
 		/* If the user provided a NULL pointer then simply return the
 		 * size of the data.
-		 * If they provided a valid pointer then copy the data to them.
-		 **/
+		 * If they provided a valid pointer then copy the data to them
+		 */
 		if (!udata) {
 			ret = core->fw_and_hw_caps.size;
 		} else {
@@ -685,6 +676,12 @@ static long ethosn_ioctl(struct file *const filep,
 				ret = 0;
 			}
 		}
+
+		/* It may happen that users ask for capabilities before the
+		 * firmware has responded, in that case a fault is reported
+		 */
+		if (core->fw_and_hw_caps.size == 0)
+			ret = -EAGAIN;
 
 		mutex_unlock(&core->mutex);
 
@@ -836,7 +833,7 @@ get_counter_value_end:
 
 		if (timeout >= ETHOSN_PING_TIMEOUT_US) {
 			dev_err(core->dev,
-				"Timeout while waiting for Ethos-N to pong\n");
+				"Timeout while waiting for device to pong\n");
 			ret = -ETIME;
 			goto ping_put;
 		}
@@ -1502,7 +1499,7 @@ static int ethosn_class_init(void)
 
 	ret = class_register(&ethosn_class);
 	if (ret) {
-		pr_err("class_register failed for ethosn\n");
+		pr_err("class_register failed for device\n");
 		goto cleanup_ethosn;
 	}
 

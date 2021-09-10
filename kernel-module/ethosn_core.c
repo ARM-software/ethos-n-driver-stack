@@ -448,7 +448,7 @@ static int ethosn_child_pdev_remove(struct platform_device *pdev)
 	struct ethosn_core *core = dev_get_drvdata(&pdev->dev);
 
 	sysfs_remove_files(&core->dev->kobj, attrs);
-	dev_dbg(&pdev->dev, "Removed core %u from ethosn %u\n",
+	dev_dbg(&pdev->dev, "Removed core %u from parent %u\n",
 		core->core_id, core->parent->parent_id);
 
 	return 0;

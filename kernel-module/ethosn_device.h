@@ -112,12 +112,6 @@ struct ethosn_core {
 		size_t size;
 	}            fw_and_hw_caps;
 
-	/* Information on memory regions */
-	bool         ethosn_f_stream_configured;
-	bool         ethosn_wd_stream_configured;
-	bool         ethosn_cs_stream_configured;
-	bool         ethosn_mpu_enabled;
-
 	struct mutex mutex;
 
 	/* Whether to tell the firmware to send level-sensitive interrupts
