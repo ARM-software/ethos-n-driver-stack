@@ -763,38 +763,45 @@ TEST_CASE("FindBestCombinationForPart cache", "[CombinerDFS]")
 
     CheckPartId(gOfParts);
 
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
-
     Part& partA = GetPart(gOfParts, 0);
     Part& partB = GetPart(gOfParts, 1);
     Part& partC = GetPart(gOfParts, 2);
 
+    class MockCombiner : public Combiner
+    {
+        using Combiner::Combiner;
+
+    public:
+        Combination FindBestCombinationForPartImpl(const Part&) override
+        {
+            m_NumFindBestCombinationForPartImplCalled++;
+            return Combination{};
+        }
+
+        uint64_t m_NumFindBestCombinationForPartImplCalled = 0;
+    };
+
+    MockCombiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+
     // Map is empty
-    REQUIRE(combiner.m_CombinationPerPartMap.size() == 0);
     Combination comb = combiner.FindBestCombinationForPart(partA);
     // Map has partA
-    REQUIRE(combiner.m_CombinationPerPartMap.size() == 1);
-    auto mapIt = combiner.m_CombinationPerPartMap.find(&partA);
-    REQUIRE(mapIt != combiner.m_CombinationPerPartMap.end());
+    REQUIRE(combiner.m_NumFindBestCombinationForPartImplCalled == 1);
     comb = combiner.FindBestCombinationForPart(partA);
     // Map has still only partA
-    REQUIRE(combiner.m_CombinationPerPartMap.size() == 1);
+    REQUIRE(combiner.m_NumFindBestCombinationForPartImplCalled == 1);
     comb = combiner.FindBestCombinationForPart(partB);
     // Map has partB
-    REQUIRE(combiner.m_CombinationPerPartMap.size() == 2);
-    mapIt = combiner.m_CombinationPerPartMap.find(&partB);
-    REQUIRE(mapIt != combiner.m_CombinationPerPartMap.end());
+    REQUIRE(combiner.m_NumFindBestCombinationForPartImplCalled == 2);
     comb = combiner.FindBestCombinationForPart(partB);
     // Map has still only partA and partB
-    REQUIRE(combiner.m_CombinationPerPartMap.size() == 2);
+    REQUIRE(combiner.m_NumFindBestCombinationForPartImplCalled == 2);
     comb = combiner.FindBestCombinationForPart(partC);
     // Map has partC
-    REQUIRE(combiner.m_CombinationPerPartMap.size() == 3);
-    mapIt = combiner.m_CombinationPerPartMap.find(&partC);
-    REQUIRE(mapIt != combiner.m_CombinationPerPartMap.end());
+    REQUIRE(combiner.m_NumFindBestCombinationForPartImplCalled == 3);
     comb = combiner.FindBestCombinationForPart(partC);
     // Map has still only partA, partB and partC
-    REQUIRE(combiner.m_CombinationPerPartMap.size() == 3);
+    REQUIRE(combiner.m_NumFindBestCombinationForPartImplCalled == 3);
 }
 
 TEST_CASE("GetSourceParts", "[CombinerDFS]")
@@ -974,19 +981,13 @@ TEST_CASE("GluePartToCombination", "[CombinerDFS]")
 
     REQUIRE(combGlued.m_Elems.size() == 4);
     // There is a glue for each input part
-    REQUIRE(combiner.m_GluesVector.size() == 3);
-
-    for (size_t i = 0; i < combiner.m_GluesVector.size(); ++i)
+    for (auto elem : combGlued.m_Elems)
     {
-        if (!(combiner.m_GluesVector.at(i).get())->m_Graph.GetBuffers().empty())
+        if (elem.first == partD.m_PartId)
         {
-            REQUIRE((combiner.m_GluesVector.at(i).get())->m_Graph.GetOps().size() == 2);
-            REQUIRE((combiner.m_GluesVector.at(i).get())->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
+            continue;
         }
-        else
-        {
-            REQUIRE((combiner.m_GluesVector.at(i).get())->m_Graph.GetOps().size() == 1);
-        }
+        CHECK(!elem.second.m_Glues.empty());
     }
 
     // A and B have glue and the buffer in Dram is in the expected format

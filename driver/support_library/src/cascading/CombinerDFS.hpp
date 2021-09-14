@@ -183,7 +183,7 @@ public:
     std::pair<bool, const Glue*> GetGlue(const Buffer* outputBuffer, const Buffer* inputBuffer);
 
     Combination FindBestCombinationForPart(const Part& part);
-    Combination FindBestCombinationForPartImpl(const Part& part);
+    virtual Combination FindBestCombinationForPartImpl(const Part& part);
 
     Combination ContinueSection(const Part& part, const Combination& comb, const SramAllocator& alloc);
 
@@ -220,10 +220,6 @@ public:
         }
     }
 
-    std::vector<std::unique_ptr<Glue>> m_GluesVector;
-
-    std::map<const Part*, const Combination> m_CombinationPerPartMap;
-
 private:
     const GraphOfParts& m_GraphOfParts;
     const HardwareCapabilities& m_Caps;
@@ -232,6 +228,8 @@ private:
 
     Combination m_BestCombination;
 
+    std::vector<std::unique_ptr<Glue>> m_GluesVector;
+    std::map<const Part*, const Combination> m_CombinationPerPartMap;
     PlanCache m_PlanCache;
 
     std::vector<size_t> m_Stats{ std::vector<size_t>(static_cast<size_t>(StatsType::NumStats), 0) };
