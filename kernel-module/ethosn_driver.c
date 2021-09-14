@@ -948,20 +948,20 @@ static int ethosn_driver_probe(struct ethosn_core *core,
 			       bool force_firmware_level_interrupts)
 {
 	struct ethosn_profiling_config config = {};
-	int ret = ethosn_smc_version_check(core);
+	int ret = ethosn_smc_version_check(core->dev);
 
 #ifdef ETHOSN_NS
 	int secure;
 
 	/*
-	 * If the Arm Ethos-N NPU SiP service is available verify the NPU's
+	 * If the SiP service is available verify the NPU's
 	 * secure status. If not, assume it's non-secure.
 	 */
 	secure = !ret ? ethosn_smc_is_secure(core) : 0;
 	if (secure) {
 		if (secure == 1) {
 			dev_err(core->dev,
-				"NPU in secure mode, non-secure kernel not supported.\n");
+				"Device in secure mode, non-secure kernel not supported.\n");
 			secure = -EPERM;
 		}
 
@@ -971,7 +971,7 @@ static int ethosn_driver_probe(struct ethosn_core *core,
 #else
 	if (ret) {
 		dev_err(core->dev,
-			"Arm Ethos-N NPU SiP service required for secure kernel.\n");
+			"SiP service required for secure kernel.\n");
 
 		return -EPERM;
 	}
@@ -980,6 +980,7 @@ static int ethosn_driver_probe(struct ethosn_core *core,
 
 	mutex_init(&core->mutex);
 
+	core->phys_addr = top_regs->start;
 	core->top_regs = ethosn_map_iomem(core, top_regs, TOP_REG_SIZE);
 	if (IS_ERR(core->top_regs))
 		return PTR_ERR(core->top_regs);

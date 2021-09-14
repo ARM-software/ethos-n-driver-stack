@@ -86,6 +86,7 @@ struct ethosn_core {
 	struct debugfs_regset32     debug_regset;
 
 	void __iomem                *top_regs;
+	uintptr_t                   phys_addr;
 	int                         queue_size;
 
 	struct ethosn_device        *parent;

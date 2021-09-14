@@ -29,14 +29,14 @@
 
 /**
  * ethosn_smc_version_check() - Check SiP service version compatibility
- * @core:	Pointer to Ethos-N core.
+ * @device:	Pointer to the struct device on which to log the error if any.
  *
  * Checks that the Arm Ethos-N NPU SiP service is available and that it is
  * running a compatible version.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_smc_version_check(struct ethosn_core *core);
+int ethosn_smc_version_check(struct device *dev);
 
 /**
  * ethosn_smc_is_secure() - Call SiP service to get the NPU's secure status
