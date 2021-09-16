@@ -66,4 +66,10 @@ void ethosn_iommu_put_domain_for_dev(struct device *dev,
 
 struct iommu_domain *ethosn_iommu_get_domain_for_dev(struct device *dev);
 
+int ethosn_bitmap_find_next_zero_area(struct device *dev,
+				      void **bitmap,
+				      size_t bits,
+				      int nr_pages,
+				      unsigned long *start);
+
 #endif /* _ETHOSN_BACKPORT_H_ */

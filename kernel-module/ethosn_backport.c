@@ -115,3 +115,42 @@ struct iommu_domain *ethosn_iommu_get_domain_for_dev(struct device *dev)
 
 	return domain;
 }
+
+int ethosn_bitmap_find_next_zero_area(struct device *dev,
+				      void **bitmap,
+				      size_t bits,
+				      int nr_pages,
+				      unsigned long *start)
+{
+#if (KERNEL_VERSION(4, 20, 0) > LINUX_VERSION_CODE)
+	*start = bitmap_find_next_zero_area(*bitmap, bits, 0,
+					    nr_pages, 0);
+	if (*start > bits)
+		return -ENOMEM;
+
+#else
+
+retry:
+	*start = bitmap_find_next_zero_area(*bitmap, bits, 0,
+					    nr_pages, 0);
+	if (*start > bits) {
+		size_t bitmap_size = bits / BITS_PER_BYTE;
+		void *tmp_bitmap_ptr =
+			devm_kzalloc(dev, bitmap_size * 2,
+				     GFP_KERNEL);
+
+		if (!tmp_bitmap_ptr)
+			return -ENOMEM;
+
+		bitmap_copy(tmp_bitmap_ptr, *bitmap, bitmap_size);
+		bitmap_size *= 2;
+		bits = bitmap_size * BITS_PER_BYTE;
+		devm_kfree(dev, *bitmap);
+		*bitmap = tmp_bitmap_ptr;
+		goto retry;
+	}
+
+#endif
+
+	return 0;
+}

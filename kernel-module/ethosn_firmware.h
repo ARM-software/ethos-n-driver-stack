@@ -485,11 +485,10 @@ struct ethosn_message_time_sync_request {
  * Streams identifier
  */
 enum  ethosn_stream_id {
-	ETHOSN_STREAM_FIRMWARE         = 0,
-	ETHOSN_STREAM_WORKING_DATA     = 1,
-	ETHOSN_STREAM_COMMAND_STREAM   = 2,
-	ETHOSN_STREAM_DMA              = 3,
-	ETHOSN_STREAM_DMA_INTERMEDIATE = 4,
+	ETHOSN_STREAM_FIRMWARE       = 0,
+	ETHOSN_STREAM_WORKING_DATA   = 1,
+	ETHOSN_STREAM_COMMAND_STREAM = 2,
+	ETHOSN_STREAM_DMA            = 3,
 };
 
 /**

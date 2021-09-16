@@ -1011,7 +1011,7 @@ static int alloc_init_inference_data(struct ethosn_network *network,
 				core->allocator,
 				req->intermediate_data_size,
 				ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
-				ETHOSN_STREAM_DMA_INTERMEDIATE,
+				ETHOSN_STREAM_DMA,
 				GFP_KERNEL);
 
 		if (IS_ERR_OR_NULL(network->intermediate_data[i]))
@@ -1061,7 +1061,7 @@ static void free_network(struct ethosn_network *network)
 			ethosn_dma_unmap_and_free(
 				core->allocator,
 				network->intermediate_data[i],
-				ETHOSN_STREAM_DMA_INTERMEDIATE);
+				ETHOSN_STREAM_DMA);
 
 		if (network->inference_data)
 			ethosn_dma_unmap_and_free(
