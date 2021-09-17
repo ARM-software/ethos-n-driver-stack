@@ -804,8 +804,8 @@ static int init_bindings(struct ethosn_network *network,
 
 	if (copy_from_user(binfos, binfos_user, binfos_size)) {
 		dev_err(net_to_dev(network), "Error reading binfos\n");
-
-		return -EFAULT;
+		ret = -EFAULT;
+		goto out_free_binfos;
 	}
 
 	ret = update_bindings(network,
