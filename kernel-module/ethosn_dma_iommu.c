@@ -282,9 +282,9 @@ early_exit:
 
 static void iommu_unmap_iova_pages(struct ethosn_dma_info_internal *dma_info,
 				   struct iommu_domain *domain,
-				   struct ethosn_iommu_stream *stream)
+				   struct ethosn_iommu_stream *stream,
+				   int nr_pages)
 {
-	int nr_pages = DIV_ROUND_UP(dma_info->info.size, PAGE_SIZE);
 	int i;
 
 	for (i = 0; i < nr_pages; ++i) {
@@ -304,8 +304,6 @@ static void iommu_unmap_iova_pages(struct ethosn_dma_info_internal *dma_info,
 					IOMMU_READ);
 		}
 	}
-
-	iommu_free_iova(dma_info->info.iova_addr, stream, nr_pages);
 }
 
 static int iommu_iova_map(struct ethosn_dma_allocator *allocator,
@@ -345,6 +343,16 @@ static int iommu_iova_map(struct ethosn_dma_allocator *allocator,
 	if ((prot & ETHOSN_PROT_WRITE) == ETHOSN_PROT_WRITE)
 		iommu_prot |= IOMMU_WRITE;
 
+	if ((dma_info->info.iova_addr) &&
+	    (dma_info->info.iova_addr != start_addr)) {
+		dev_err(allocator->dev,
+			"Invalid iova: 0x%llX != 0x%llX\n",
+			dma_info->info.iova_addr, start_addr);
+		goto free_iova;
+	}
+
+	dma_info->info.iova_addr = start_addr;
+
 	dev_dbg(allocator->dev,
 		"%s: mapping %lu bytes starting at 0x%llX prot 0x%x\n",
 		__func__, dma_info->info.size, start_addr, iommu_prot);
@@ -372,22 +380,33 @@ static int iommu_iova_map(struct ethosn_dma_allocator *allocator,
 		}
 	}
 
-	if ((dma_info->info.iova_addr) &&
-	    (dma_info->info.iova_addr != start_addr)) {
-		dev_err(allocator->dev,
-			"Invalid iova: 0x%llX != 0x%llX\n",
-			dma_info->info.iova_addr, start_addr);
-		goto unmap_pages;
-	}
-
-	dma_info->info.iova_addr = start_addr;
-
 ret:
 
 	return 0;
 
 unmap_pages:
-	iommu_unmap_iova_pages(dma_info, domain->iommu_domain, stream);
+	/* remap the current i-th page if it needs to */
+	if (stream->page)
+		iommu_map(
+			domain->iommu_domain,
+			start_addr + i * PAGE_SIZE,
+			page_to_phys(stream->page),
+			PAGE_SIZE,
+			IOMMU_READ);
+
+	/* Unmap only the actual number of pages mapped i.e. i */
+	iommu_unmap_iova_pages(dma_info, domain->iommu_domain, stream, i);
+
+free_iova:
+
+	/* iommu_alloc_iova allocs the total number of pages,
+	 * so it needs to free all of iovas irrespectively of
+	 * how many have been actually mapped.
+	 * Use start_addr since dma_info isn't updated in the
+	 * case of error.
+	 */
+	iommu_free_iova(start_addr, stream, nr_pages);
+
 early_exit:
 
 	return -ENOMEM;
@@ -409,8 +428,14 @@ static void iommu_iova_unmap(struct ethosn_dma_allocator *allocator,
 	if (!stream)
 		return;
 
-	if (dma_info->info.size)
-		iommu_unmap_iova_pages(dma_info, domain->iommu_domain, stream);
+	if (dma_info->info.size) {
+		int nr_pages = DIV_ROUND_UP(dma_info->info.size, PAGE_SIZE);
+
+		iommu_unmap_iova_pages(dma_info, domain->iommu_domain, stream,
+				       nr_pages);
+
+		iommu_free_iova(dma_info->info.iova_addr, stream, nr_pages);
+	}
 }
 
 static void iommu_free(struct ethosn_dma_allocator *allocator,
