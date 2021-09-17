@@ -16,6 +16,7 @@
 #include <ethosn_firmware.h>
 
 #include <cassert>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -315,6 +316,7 @@ Inference* NetworkImpl::ScheduleInference(Buffer* const inputBuffers[],
     InferenceResult status = InferenceResult::Completed;
     if (fwrite(&status, sizeof(status), 1, tempFile) != 1)
     {
+        std::fclose(tempFile);
         return nullptr;
     }
     fseek(tempFile, 0, SEEK_SET);
