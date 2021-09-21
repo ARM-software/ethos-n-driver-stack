@@ -1461,8 +1461,14 @@ SupportedLevel SupportQueries::IsFullyConnectedSupported(const TensorInfo& biasI
         return SupportedLevel::Unsupported;
     }
 
-    if (!IsQuantizationDimSupported(&biasInfo, &weightsInfo, &inputInfo, &fullyConnectedInfo.m_OutputQuantizationInfo,
-                                    "Fully Connected", reason, reasonMaxLength))
+    if (weightsInfo.m_QuantizationInfo.GetScales().size() != 1 || biasInfo.m_QuantizationInfo.GetScales().size() != 1)
+    {
+        SetReason("Multiple quantization scales is not supported for FullyConnected operation", reason,
+                  reasonMaxLength);
+        return SupportedLevel::Unsupported;
+    }
+
+    if (!IsQuantizationDimSupported(nullptr, nullptr, &inputInfo, nullptr, "Fully Connected", reason, reasonMaxLength))
     {
         return SupportedLevel::Unsupported;
     }

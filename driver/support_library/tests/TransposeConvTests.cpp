@@ -325,4 +325,53 @@ TEST_CASE("TransposeConvSupported")
                                              QuantizationInfo(0, 8.1f)));
         }
     }
+
+    // Tests for transpose_conv per channel quantization
+    {
+        const auto inputDataType = GENERATE(DataType::UINT8_QUANTIZED, DataType::INT8_QUANTIZED);
+
+        TensorInfo biasInfo({ 1, 1, 1, 3 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
+        biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f, 0.3f });
+        biasInfo.m_QuantizationInfo.SetZeroPoint(0);
+        biasInfo.m_QuantizationInfo.SetQuantizationDim(3);
+        TensorInfo weightsInfo({ 1, 1, 1, 3 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO);
+        weightsInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f, 0.3f });
+        weightsInfo.m_QuantizationInfo.SetZeroPoint(0);
+        weightsInfo.m_QuantizationInfo.SetQuantizationDim(3);
+        ConvolutionInfo convInfo(Padding(0, 0, 0, 0), Stride(2, 2));
+        TensorInfo inputInfo({ 1, 1, 1, 1 }, inputDataType, DataFormat::NHWCB, { 0, 1.f });
+
+        // Supported case
+        {
+            auto isSupported = queries.IsTransposeConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo,
+                                                                       nullptr, reason, sizeof(reason));
+            INFO(reason);
+            REQUIRE(isSupported == SupportedLevel::Supported);
+        }
+
+        // Unsupported due to incorrect bias scale
+        {
+            inputInfo.m_QuantizationInfo.SetScale(2.f);
+            auto isSupported = queries.IsTransposeConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo,
+                                                                       nullptr, reason, sizeof(reason));
+            INFO(reason);
+            REQUIRE(isSupported == SupportedLevel::EstimateOnly);
+            REQUIRE(Contains(reason,
+                             "Bias for transpose conv must have quantization parameters with zero point of 0 and "
+                             "scale of input scale x weight scale"));
+        }
+
+        // Unsupported due to unmatching scales sizes
+        {
+            inputInfo.m_QuantizationInfo.SetScale(1.f);
+            biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f });
+            auto isSupported = queries.IsTransposeConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo,
+                                                                       nullptr, reason, sizeof(reason));
+            INFO(reason);
+            REQUIRE(isSupported == SupportedLevel::Unsupported);
+            REQUIRE(Contains(
+                reason, "Transpose Convolution: Biases must have quantization scales with same number of elements as "
+                        "the quantization dim. Expected: 3, got: 2."));
+        }
+    }
 }

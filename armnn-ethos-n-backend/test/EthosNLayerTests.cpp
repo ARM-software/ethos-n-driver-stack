@@ -601,7 +601,10 @@ LayerTestResult<uint8_t, 4>
     ConstTensor bias(biasInfo, biasData);
 
     TensorInfo outputInfo({ 1, 1, 1, 2 }, DataType::QAsymmU8, 5.0f, 0);
-    std::vector<uint8_t> expectedOutputData = { 2, 13 };    // Representing 10.0, 33.0
+    std::vector<uint8_t> expectedOutputData = { 2, 13 };    // Representing 10.0, 65.0
+    // Hardware rounds the output values by the quantization scale, so real exact output value here
+    // is (10.0, 63.0), which is rounded to real value of (10.0, 65.0), which is represented by the
+    // quantized value of (2, 13)
 
     // Construct the network
     armnn::Convolution2dDescriptor desc;
@@ -655,6 +658,70 @@ LayerTestResult<uint8_t, 4>
     IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
     IConnectableLayer* const convLayer =
         net->AddDepthwiseConvolution2dLayer(desc, weights, Optional<ConstTensor>(bias), "conv");
+    IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output");
+
+    // Connect the layers
+    inputLayer->GetOutputSlot(0).Connect(convLayer->GetInputSlot(0));
+    inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+    convLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+    convLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
+
+    // Execute and compare to expected result
+    return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 0, outputInfo, expectedOutputData);
+}
+LayerTestResult<uint8_t, 4>
+    PreCompiledTransposeConvolution2dPerChannelQuantTest(armnn::IWorkloadFactory& workloadFactory,
+                                                         const armnn::IBackendInternal::IMemoryManagerSharedPtr&)
+{
+    // Define tensors
+    TensorInfo inputInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, 2.0f, 0);
+    std::vector<uint8_t> inputData{ 3, 1, 1, 2 };    // Representing 6.0, 2.0, 2.0, 4.0
+
+    TensorInfo weightsInfo({ 2, 2, 2, 1 }, DataType::QAsymmU8);
+    weightsInfo.SetQuantizationDim(0);
+    weightsInfo.SetQuantizationScales({ 2.0f, 3.0f });
+    std::vector<uint8_t> weightsData{ 1, 2, 3, 4, 1, 2, 3, 4 };
+    // Representing 1st output channel weights:
+    //  2.0, 4.0,
+    //  6.0, 8.0
+    // 2nd output channel weights:
+    //  3.0, 6.0,
+    //  9.0, 12.0
+    ConstTensor weights(weightsInfo, weightsData);
+
+    TensorInfo biasInfo({ 1, 1, 1, 2 }, DataType::Signed32);
+    biasInfo.SetQuantizationDim(3);
+    biasInfo.SetQuantizationScales({ 4.0f, 6.0f });
+    std::vector<int32_t> biasData{ 1, 2 };    // Representing 4.0, 12.0
+    ConstTensor bias(biasInfo, biasData);
+
+    TensorInfo outputInfo({ 1, 3, 3, 2 }, DataType::QAsymmU8, 10.0f, 0);
+    std::vector<uint8_t> expectedOutputData = { 5, 8, 2, 3, 2, 4, 1, 2, 1, 2, 2, 4, 2, 4, 3, 5, 4, 6 };
+    // The quantized values are the real values divided by the scale and rounded to the nearest int
+    // They represent real values at 1st channel:
+    //  52.0, 16.0, 20.0,
+    //  12.0, 12.0, 20.0,
+    //  20.0, 28.0, 36.0
+    // 2nd channel:
+    //  84.0, 30.0, 36.0,
+    //  24.0, 24.0, 36.0,
+    //  36.0, 48.0, 60.0
+    // The tests allows for +/-1 error tolerance but we will use the exact answers for our test here
+
+    armnn::TransposeConvolution2dDescriptor desc;
+    desc.m_StrideX     = 2;
+    desc.m_StrideY     = 2;
+    desc.m_PadLeft     = 1;
+    desc.m_PadRight    = 0;
+    desc.m_PadTop      = 1;
+    desc.m_PadBottom   = 0;
+    desc.m_BiasEnabled = true;
+    desc.m_DataLayout  = DataLayout::NHWC;
+
+    // Construct the network
+    armnn::INetworkPtr net               = armnn::INetwork::Create();
+    IConnectableLayer* const inputLayer  = net->AddInputLayer(0, "input");
+    IConnectableLayer* const convLayer   = AddConvolutionLayerToNetwork(*net, desc, weights, bias);
     IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output");
 
     // Connect the layers
@@ -1613,6 +1680,8 @@ TEST_SUITE("Compute_EthosN")
                          PreCompiledDepthwiseConvolution2dPerChannelQuantTest)
 
     ARMNN_AUTO_TEST_CASE(PreCompiledTransposeConvolution2dStride2x2, PreCompiledTransposeConvolution2dStride2x2Test)
+    ARMNN_AUTO_TEST_CASE(PreCompiledTransposeConvolution2dPerChannelQuant,
+                         PreCompiledTransposeConvolution2dPerChannelQuantTest)
 
     ARMNN_AUTO_TEST_CASE(PreCompiledConvolution2dWithAssymetricSignedWeights,
                          PreCompiledConvolution2dWithAssymetricSignedWeightsTest)
