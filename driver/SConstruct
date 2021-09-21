@@ -30,8 +30,9 @@ var.AddVariables(
     EnumVariable('asserts', "Enable asserts. 'debug' means it is enabled if 'debug=1'", 'debug',
                  allowed_values=('0', '1', 'debug')),
     BoolVariable('sanitize', 'Build with sanitizers for gcc', False),
-    EnumVariable('platform', 'Build for a given platform', 'native',
-                 allowed_values=('native', 'aarch64')),
+    EnumVariable('platform', 'Build for a given platform. An Android build option "android-ndk" is present in the ' +
+                 'build system, however the build for Android platforms is not currently officially supported.',
+                 'native', allowed_values=('native', 'aarch64', 'android-ndk')),
     PathVariable('build_dir', 'Build output directory',
                  'build', PathVariable.PathIsDirCreate),
     ('device_node_prefix', 'Device node prefix in the dev filesystem', '/dev/ethosn'),
@@ -41,6 +42,9 @@ var.AddVariables(
     BoolVariable('allow_command_stream_dump', 'Build the driver library with the ability to dump command streams. '
                  'This requires additional build-time dependencies.', False),
     BoolVariable('werror', 'Build with -Werror', True),
+    PathVariable('android_ndk_dir', 'Android NDK directory, used only if platform=android-ndk',
+                 '', PathVariable.PathAccept),
+
 )
 
 env = Environment(variables=var)

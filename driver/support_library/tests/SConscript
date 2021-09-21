@@ -77,7 +77,12 @@ if os.path.isdir(internal_dir):
 # Add internal unit tests
 srcs.extend(internal_srcs)
 
-unitTests = env.Program('UnitTests', srcs, LIBS=ethosn_support_shared)
+libs = [ethosn_support_shared]
+# Catch2 uses android log APIs (could probably disable this in a catch config somewhere instead)
+if env['platform'] == 'android-ndk':
+    libs.append('log')
+
+unitTests = env.Program('UnitTests', srcs, LIBS=libs)
 testAlias = env.Alias('support-library-unit-tests', [unitTests], unitTests[0].abspath)
 env.Alias('unit-tests', testAlias)
 AlwaysBuild(testAlias)

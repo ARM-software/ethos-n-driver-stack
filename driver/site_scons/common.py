@@ -162,6 +162,12 @@ def setup_common_env(env):
         env.AppendUnique(LINKFLAGS=flags)
 
 
+def remove_flags(flags_list, environment):
+    for flag_to_remove in flags_list:
+        if flag_to_remove in environment:
+            environment.remove(flag_to_remove)
+
+
 def setup_toolchain(env, toolchain):
     '''
     Setup the scons toolchain using predefined toolchains.
@@ -185,6 +191,32 @@ def setup_toolchain(env, toolchain):
                     AS='armclang --target=arm-arm-none-eabi',
                     AR='armar',
                     RANLIB='armar -s')
+        # List of flags armclang doesnt understand so should be removed from the inherited common set of flags
+        if 'CPPFLAGS' in env:
+            flags = ['-Wlogical-op', '-Wnoexcept', '-Wstrict-null-sentinel']
+            remove_flags(flags, env['CPPFLAGS'])
+        if 'LINKFLAGS' in env:
+            flags = ['-Wl,--enable-new-dtags']
+            remove_flags(flags, env['LINKFLAGS'])
+    elif toolchain == 'android-ndk':
+        bin_path = os.path.join(env['android_ndk_dir'], 'toolchains', 'llvm', 'prebuilt', 'linux-x86_64', 'bin')
+        env.PrependENVPath('PATH', bin_path)
+        env.Replace(CC=os.path.join(bin_path, 'clang++') + ' -target aarch64-linux-android21',
+                    CXX=os.path.join(bin_path, 'clang++') + ' -target aarch64-linux-android21',
+                    LINK=os.path.join(bin_path, 'clang++') + ' -target aarch64-linux-android21',
+                    AS=os.path.join(bin_path, 'llvm-as') + ' -target aarch64-linux-android21',
+                    AR=os.path.join(bin_path, 'llvm-ar'),
+                    RANLIB=os.path.join(bin_path, 'llvm-ranlib'))
+        # List of flags Android's clang++ doesnt understand so should be removed from the inherited common set of flags
+        if 'CPPFLAGS' in env:
+            flags = ['-Wlogical-op', '-Wnoexcept', '-Wstrict-null-sentinel']
+            remove_flags(flags, env['CPPFLAGS'])
+        if 'LINKFLAGS' in env:
+            flags = ['-Wl,--enable-new-dtags']
+            remove_flags(flags, env['LINKFLAGS'])
+
+        # Temporary warnings disabled to workaround compile errors
+        env.AppendUnique(CPPFLAGS=['-Wno-sign-conversion'])
 
 
 def validate_dir(env, path, exception_type):
