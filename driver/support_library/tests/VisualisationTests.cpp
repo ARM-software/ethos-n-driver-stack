@@ -628,7 +628,6 @@ TEST_CASE("SavePlansToDot Graph Topology", "[Visualisation]")
                                         Plan::OutputMapping{ { planBOpGraph.GetBuffers()[1], nodeB } });
     planB->m_OpGraph = std::move(planBOpGraph);
 
-    const EstimationOptions estOpt;
     const CompilationOptions compOpt;
 
     Plans plans;

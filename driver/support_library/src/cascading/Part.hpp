@@ -167,6 +167,11 @@ public:
         , m_EstimationOptions(estOpt)
         , m_CompilationOptions(compOpt)
         , m_Capabilities(capabilities)
+    {
+        ETHOSN_UNUSED(m_EstimationOptions);
+    }
+
+    virtual ~Part()
     {}
 
     virtual Plans GetPlans(CascadeType cascadeType,

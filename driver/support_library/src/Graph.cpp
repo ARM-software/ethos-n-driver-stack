@@ -748,8 +748,8 @@ void Graph::InsertNodeAfter(Node* position, Node* newNode)
     std::vector<Edge*> outputs = position->GetOutputs();    // Copy the output edges as these will change as we loop
     for (Edge* e : outputs)
     {
-        Node* dest        = e->GetDestination();
-        uint32_t inputIdx = RemoveEdge(e);
+        Node* dest       = e->GetDestination();
+        int32_t inputIdx = RemoveEdge(e);
         Connect(newNode, dest, inputIdx);
     }
     Connect(position, newNode);

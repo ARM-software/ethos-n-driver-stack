@@ -391,12 +391,12 @@ TensorShape GetRoundedWeights(const TensorShape& originalShape, const CompilerMc
         // unless H, W = 1
         if (originalShape[0] != 1)
         {
-            newShape[0] = utils::RoundUpToNearestMultiple(originalShape[0], 3);
+            newShape[0] = utils::RoundUpToNearestMultiple(originalShape[0], 3U);
         }
 
         if (originalShape[1] != 1)
         {
-            newShape[1] = utils::RoundUpToNearestMultiple(originalShape[1], 3);
+            newShape[1] = utils::RoundUpToNearestMultiple(originalShape[1], 3U);
         }
     }
 

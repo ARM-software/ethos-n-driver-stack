@@ -350,8 +350,8 @@ ethosn::support_library::detail::PosInNetwork::Type
     Network::PosAfter(const std::vector<const Operation*>& parents) const
 {
     const auto compare = [this](const Operation* op1, const Operation* op2) {
-        const size_t i1 = std::distance(m_Operations.begin(), op1->m_Pos.m_Value);
-        const size_t i2 = std::distance(m_Operations.begin(), op2->m_Pos.m_Value);
+        const ptrdiff_t i1 = std::distance(m_Operations.begin(), op1->m_Pos.m_Value);
+        const ptrdiff_t i2 = std::distance(m_Operations.begin(), op2->m_Pos.m_Value);
 
         return i1 < i2;
     };

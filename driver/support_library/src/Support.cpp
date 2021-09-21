@@ -452,15 +452,16 @@ QuantizationScales ApplyWithBroadcast(const QuantizationScales& lhs, const Quant
 {
     if (lhs.size() == 1)
     {
-        return QuantizationScales(op(lhs[0], rhs));
+        return QuantizationScales(op(lhs[0], static_cast<const std::valarray<float>&>(rhs)));
     }
     else if (rhs.size() == 1)
     {
-        return QuantizationScales(op(lhs, rhs[0]));
+        return QuantizationScales(op(static_cast<const std::valarray<float>&>(lhs), rhs[0]));
     }
     else
     {
-        return QuantizationScales(op(static_cast<const std::valarray<float>&>(lhs), rhs));
+        return QuantizationScales(
+            op(static_cast<const std::valarray<float>&>(lhs), static_cast<const std::valarray<float>&>(rhs)));
     }
 }
 }    // namespace

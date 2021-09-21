@@ -351,8 +351,7 @@ void Compiler::Prepare()
             // Remove duplicates
             std::sort(failedOpIds.begin(), failedOpIds.end());
 
-            std::vector<uint32_t>::iterator iter =
-                std::unique(failedOpIds.begin(), failedOpIds.begin() + failedOpIds.size());
+            std::vector<uint32_t>::iterator iter = std::unique(failedOpIds.begin(), failedOpIds.end());
 
             failedOpIds.resize(std::distance(failedOpIds.begin(), iter));
 

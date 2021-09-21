@@ -494,7 +494,7 @@ void PlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, BufferMan
     uint32_t inputBufferId = m_Nodes.front()->GetInput(0)->GetSource()->GetBufferId();
 
     // Continue setting up command
-    pleCmd.m_NumInputInfos() = static_cast<uint32_t>(m_PleOperation->GetInputs().size());
+    pleCmd.m_NumInputInfos() = static_cast<int32_t>(m_PleOperation->GetInputs().size());
 
     pleCmd.m_InputInfo().m_DataType()          = GetCommandDataType(m_PleOperation->GetInputDataType(0));
     pleCmd.m_InputInfo().m_DataFormat()        = m_PleOperation->GetInputBufferFormat(0);

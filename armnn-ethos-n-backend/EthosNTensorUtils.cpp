@@ -170,7 +170,7 @@ ethosn_lib::TensorInfo BuildEthosNTensorInfo(const armnn::TensorInfo& tensorInfo
     const ethosn_lib::DataFormat ethosnDataFormat = ConvertDataLayout(dataLayout);
     const ethosn_lib::DataType ethosnDataType     = ConvertDataType(tensorInfo.GetDataType());
     const int32_t zeroPoint = IsTensorDataTypeSymmetric(tensorInfo) ? 0 : tensorInfo.GetQuantizationOffset();
-    ethosn_lib::QuantizationInfo ethosnQuantizationInfo(zeroPoint, { 1.0f });
+    ethosn_lib::QuantizationInfo ethosnQuantizationInfo(zeroPoint, 1.0f);
     if (tensorInfo.HasMultipleQuantizationScales())
     {
         ethosnQuantizationInfo.SetScales(tensorInfo.GetQuantizationScales());

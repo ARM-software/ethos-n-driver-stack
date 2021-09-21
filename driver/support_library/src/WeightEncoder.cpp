@@ -53,11 +53,11 @@ public:
     size_t GetOffset();
 
     // Write an element to end of the stream.
-    void Write(uint8_t elem, int numBits);
+    void Write(uint8_t elem, uint32_t numBits);
 
     // Write an element to the stream. Offset specifies where to start writing in the stream.
     template <class T>
-    void Write(const T* elem, int numBits);
+    void Write(const T* elem, uint32_t numBits);
 
     // Returns the stream as a uint8_t vector
     const std::vector<uint8_t>& GetBitstream();
@@ -78,7 +78,7 @@ size_t BitstreamWriter::GetOffset()
     return m_EndPos;
 }
 
-void BitstreamWriter::Write(uint8_t elem, int numBits)
+void BitstreamWriter::Write(uint8_t elem, uint32_t numBits)
 {
     if (numBits == 0)
     {
@@ -116,14 +116,18 @@ void BitstreamWriter::Write(uint8_t elem, int numBits)
 }
 
 template <class T>
-void BitstreamWriter::Write(const T* elem, int numBits)
+void BitstreamWriter::Write(const T* elem, uint32_t numBits)
 {
     const uint8_t* p = reinterpret_cast<const uint8_t*>(elem);
 
     while (numBits > 0)
     {
-        Write(*p, std::min(numBits, 8));
+        Write(*p, std::min(numBits, 8U));
 
+        if (numBits <= 8)
+        {
+            break;
+        }
         numBits -= 8;
         ++p;
     }
@@ -242,8 +246,8 @@ WeightEncoder::EncodedOfm
     PaletteZrunEncode(uncompressedWeights, compParams, weightSymbols, zeroSymbols);
 
     // Note the weight stream length will be filled later
-    WriteWeightHeader(writer, 0xffff, params.m_OfmBias, ofmBiasSize, ofmReload, params.m_OfmScaleFactor,
-                      params.m_OfmShift, params.m_OfmZeroPoint);
+    WriteWeightHeader(writer, 0xffff, static_cast<uint64_t>(params.m_OfmBias), ofmBiasSize, ofmReload,
+                      params.m_OfmScaleFactor, params.m_OfmShift, params.m_OfmZeroPoint);
 
     uint32_t pldLen = static_cast<uint32_t>(weightSymbols.size());
 
@@ -438,7 +442,7 @@ void WeightEncoder::CreatePalette(WeightCompressionParams& params,
     assert(paletteSize > 0 && paletteSize <= 32);
 
     WeightSymbol maxSymbol = std::max_element(symbolFreqPairs.begin(), symbolFreqPairs.begin() + noPaddingSize)->first;
-    const uint32_t maxWeightMag    = AbsWeight(SymbolToWeight(maxSymbol));
+    const uint32_t maxWeightMag    = static_cast<uint32_t>(AbsWeight(SymbolToWeight(maxSymbol)));
     const uint32_t paletteBitWidth = CalcBitWidth(maxWeightMag, 2) + (maxWeightMag > 1);
     const uint32_t signBitPos      = paletteBitWidth - 1;
 
@@ -584,7 +588,7 @@ void WeightEncoder::FindWeightCompressionParams(WeightCompressionParams& newPara
     const int32_t zeroPoint           = weightsTensorInfo.m_QuantizationInfo.GetZeroPoint();
     const uint8_t rawZeroPoint        = static_cast<uint8_t>(zeroPoint);
     const uint32_t conversionOffset   = (weightsTensorInfo.m_DataType == DataType::INT8_QUANTIZED) ? 128U : 0;
-    const int32_t conversionZeroPoint = conversionOffset + zeroPoint;
+    const int32_t conversionZeroPoint = static_cast<int32_t>(conversionOffset) + zeroPoint;
 
     // Make frequency table containing an entry for each different weight symbol
     std::array<std::pair<WeightSymbol, uint32_t>, 256> frequencyTable;
@@ -1011,8 +1015,8 @@ void WeightEncoder::GRCCompressPackChunk(const std::vector<WeightSymbol>& weight
     // GRC divisor for zero runs symbols
     int32_t zDivisor = static_cast<int32_t>(compParams.m_Zdiv);
 
-    int32_t nWeights = static_cast<uint32_t>(weightSymbols.size());
-    int32_t nZeros   = static_cast<uint32_t>(zeroSymbols.size());
+    int32_t nWeights = static_cast<int32_t>(weightSymbols.size());
+    int32_t nZeros   = static_cast<int32_t>(zeroSymbols.size());
 
     // weight and zero symbol positions used for flow control by bit stream packing
     int32_t wPos = 0;
@@ -1072,7 +1076,7 @@ void WeightEncoder::GRCCompressPackChunk(const std::vector<WeightSymbol>& weight
                     {
                         // GRC step 1: quotient and remainder
 
-                        int32_t value = weightSymbols[wPos];
+                        int32_t value = static_cast<int32_t>(weightSymbols[static_cast<size_t>(wPos)]);
 
                         assert(value < 512);
 
@@ -1137,7 +1141,7 @@ void WeightEncoder::GRCCompressPackChunk(const std::vector<WeightSymbol>& weight
                 {
                     if (zPos < nZeros)
                     {
-                        int32_t value = zeroSymbols[zPos];
+                        int32_t value = static_cast<int32_t>(zeroSymbols[static_cast<size_t>(zPos)]);
                         zQuot         = value >> zDivisor;
                         zRmd          = value & ((1 << zDivisor) - 1);
                     }
@@ -1168,17 +1172,17 @@ void WeightEncoder::GRCCompressPackChunk(const std::vector<WeightSymbol>& weight
 
         if (wEnable && !unCompressed)
         {
-            writer.Write(reinterpret_cast<const uint8_t*>(&wUnary0), maxNumWunary0Bits);
+            writer.Write(reinterpret_cast<const uint8_t*>(&wUnary0), static_cast<uint32_t>(maxNumWunary0Bits));
         }
 
         if (zEnable)
         {
-            writer.Write(reinterpret_cast<const uint8_t*>(&zUnary), zUnaryLen);
+            writer.Write(reinterpret_cast<const uint8_t*>(&zUnary), static_cast<uint32_t>(zUnaryLen));
         }
 
         if (wEnable && !unCompressed)
         {
-            writer.Write(reinterpret_cast<const uint8_t*>(&wUnary1), wUnary1Len);
+            writer.Write(reinterpret_cast<const uint8_t*>(&wUnary1), static_cast<uint32_t>(wUnary1Len));
         }
 
         if (!wRemain[rmdPrevIdx].empty())
@@ -1188,7 +1192,7 @@ void WeightEncoder::GRCCompressPackChunk(const std::vector<WeightSymbol>& weight
             {
                 assert(*it <= 31 || unCompressed);
                 int32_t value = *it;
-                writer.Write(reinterpret_cast<const uint8_t*>(&value), wDivisor);
+                writer.Write(reinterpret_cast<const uint8_t*>(&value), static_cast<uint32_t>(wDivisor));
             }
 
             wRemain[rmdPrevIdx].clear();
@@ -1200,7 +1204,7 @@ void WeightEncoder::GRCCompressPackChunk(const std::vector<WeightSymbol>& weight
             for (it = zRemain[rmdPrevIdx].begin(); it != zRemain[rmdPrevIdx].end(); ++it)
             {
                 assert(*it <= 7);
-                writer.Write(static_cast<uint8_t>(*it), zDivisor);
+                writer.Write(static_cast<uint8_t>(*it), static_cast<uint32_t>(zDivisor));
             }
 
             zRemain[rmdPrevIdx].clear();
@@ -1226,7 +1230,7 @@ void WeightEncoder::WriteWeightHeader(BitstreamWriter& writer,
 {
     // See Ethos-N78 MCE Specification, section 6.8.6.2.2
     writer.Write(&streamLength, 16);
-    writer.Write(&ofmBias, static_cast<int>(ofmBiasLength) * 8);
+    writer.Write(&ofmBias, static_cast<uint32_t>(ofmBiasLength * 8U));
     writer.Write(&ofmReload, 1);
 
     if (ofmReload)
@@ -1262,7 +1266,7 @@ void WeightEncoder::WritePayloadHeader(BitstreamWriter& writer,
             std::vector<uint16_t>::const_iterator itr;
             for (itr = compParams.m_Palette.begin(); itr != compParams.m_Palette.end(); ++itr)
             {
-                Weight value = *itr;
+                Weight value = static_cast<Weight>(*itr);
                 writer.Write(&value, compParams.m_PaletteBits + 2);
             }
         }
@@ -1413,9 +1417,10 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
 
                     params.m_OfmShift += GetOfmShiftOffset();
 
-                    params.m_OfmBias         = biasData[ofmIdx];
-                    params.m_OfmZeroPoint    = outputQuantizationInfo.GetZeroPoint();
-                    params.m_FilterZeroPoint = weightsTensorInfo.m_QuantizationInfo.GetZeroPoint();
+                    params.m_OfmBias      = biasData[ofmIdx];
+                    params.m_OfmZeroPoint = static_cast<uint32_t>(outputQuantizationInfo.GetZeroPoint());
+                    params.m_FilterZeroPoint =
+                        static_cast<uint32_t>(weightsTensorInfo.m_QuantizationInfo.GetZeroPoint());
 
                     EncodedOfm encodedOfm =
                         EncodeOfm(weightsData, ofmIdx, numOfmInParallel, numIterationsOfm, stripeDepth, iteration,
@@ -2097,7 +2102,7 @@ std::vector<uint8_t> WeightEncoder::InterleaveStreams(const std::vector<std::vec
                           std::back_inserter(result));
             }
 
-            uint32_t numZeroesToAdd = numBytesPerStream - numBytesToCopy;
+            uint32_t numZeroesToAdd = numBytesPerStream - static_cast<uint32_t>(numBytesToCopy);
             if (numZeroesToAdd)
             {
                 std::fill_n(std::back_inserter(result), numZeroesToAdd, 0);

@@ -1,5 +1,5 @@
 //
-// Copyright © 2020 Arm Limited. All rights reserved.
+// Copyright © 2020-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -18,8 +18,9 @@ T Quantize(float value, float scale, int32_t offset)
     constexpr T max = std::numeric_limits<T>::max();
     constexpr T min = std::numeric_limits<T>::lowest();
 
-    float clampedValue = std::min(std::max(static_cast<float>(round(value / scale) + offset), static_cast<float>(min)),
-                                  static_cast<float>(max));
+    float clampedValue = std::min(
+        std::max(static_cast<float>(round(value / scale) + static_cast<float>(offset)), static_cast<float>(min)),
+        static_cast<float>(max));
     auto quantizedBits = static_cast<T>(clampedValue);
     return quantizedBits;
 }

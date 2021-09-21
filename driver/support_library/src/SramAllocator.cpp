@@ -125,7 +125,7 @@ void SramAllocator::CollapseRegions()
         if (m_FreeMemory[i - 1].m_End == m_FreeMemory[i].m_Begin)
         {
             m_FreeMemory[i - 1].m_End = m_FreeMemory[i].m_End;
-            m_FreeMemory.erase(m_FreeMemory.begin() + i);
+            m_FreeMemory.erase(m_FreeMemory.begin() + static_cast<ptrdiff_t>(i));
         }
     }
 }

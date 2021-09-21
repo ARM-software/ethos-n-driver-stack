@@ -320,8 +320,8 @@ MceStrategySelectionReturnValue
             // multiple MCE stripes would need to be accumulated to form a output stripe that
             // is deep enough for FCAF.
             outputStripeChannels = minFcafDepth;
-            outputStripeHeight   = RoundUpToNearestMultiple(outputShape[1], 8);
-            outputStripeWidth    = RoundUpToNearestMultiple(outputShape[2], 8);
+            outputStripeHeight   = RoundUpToNearestMultiple(outputShape[1], 8U);
+            outputStripeWidth    = RoundUpToNearestMultiple(outputShape[2], 8U);
         }
     }
 

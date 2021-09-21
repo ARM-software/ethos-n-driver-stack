@@ -217,7 +217,8 @@ inline void CalculateQuantizedMultiplierSmallerThanOne(double multiplier, uint16
         const int exp = std::ilogb(multiplier);
         outShift      = static_cast<uint32_t>(-exp - 1);
         assert(outShift < 32);
-        uint32_t outScaleU32 = static_cast<uint32_t>(std::lround(std::scalbn(multiplier, 16U + outShift)));
+        uint32_t outScaleU32 =
+            static_cast<uint32_t>(std::lround(std::scalbn(multiplier, static_cast<int>(16U + outShift))));
         assert(outScaleU32 <= (1U << 16));
         if (outScaleU32 == (1U << 16))
         {
@@ -310,8 +311,8 @@ constexpr uint32_t TotalSizeBytes(const ethosn::support_library::TensorInfo& inf
 inline ethosn::support_library::TensorShape
     RoundUpHeightAndWidthToBrickGroup(const ethosn::support_library::TensorShape& shape)
 {
-    ethosn::support_library::TensorShape roundUp{ shape[0], utils::RoundUpToNearestMultiple(shape[1], 8),
-                                                  utils::RoundUpToNearestMultiple(shape[2], 8), shape[3] };
+    ethosn::support_library::TensorShape roundUp{ shape[0], utils::RoundUpToNearestMultiple(shape[1], 8U),
+                                                  utils::RoundUpToNearestMultiple(shape[2], 8U), shape[3] };
     return roundUp;
 }
 
@@ -328,9 +329,9 @@ inline uint32_t MaxTileSize(const ethosn::support_library::TensorShape& shape, c
 inline uint32_t TotalSizeBytesNHWCB(const ethosn::support_library::TensorInfo& info)
 {
     return GetElementSizeBytes(info.m_DataType) * info.m_Dimensions[0] *
-           utils::RoundUpToNearestMultiple(info.m_Dimensions[1], 8) *
-           utils::RoundUpToNearestMultiple(info.m_Dimensions[2], 8) *
-           utils::RoundUpToNearestMultiple(info.m_Dimensions[3], 16);
+           utils::RoundUpToNearestMultiple(info.m_Dimensions[1], 8U) *
+           utils::RoundUpToNearestMultiple(info.m_Dimensions[2], 8U) *
+           utils::RoundUpToNearestMultiple(info.m_Dimensions[3], 16U);
 }
 
 inline uint32_t TotalSizeBytesFCAF(const ethosn::support_library::TensorShape& tensorShape,
