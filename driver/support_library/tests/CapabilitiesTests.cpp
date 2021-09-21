@@ -164,3 +164,27 @@ TEST_CASE("GetFwAndHwCapabilities unsupported")
 {
     REQUIRE_THROWS_AS(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N77), NotSupportedException);
 }
+
+TEST_CASE("GetFwAndHwCapabilities with unsupported SRAM sizes")
+{
+    // SRAM too small
+    REQUIRE_THROWS_WITH(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, 2048),
+                        "User configured SRAM size is smaller than the minimum allowed for this variant");
+    // SRAM too large
+    REQUIRE_THROWS_WITH(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, 16 * 512 * 1024),
+                        "User configured SRAM size is larger than the maximum allowed for this variant");
+    // SRAM not a multiple of 16
+    REQUIRE_THROWS_WITH(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, 16 * 33 * 1024),
+                        "User configured SRAM size per Emc is not a multiple of 16");
+}
+
+TEST_CASE("GetFwAndHwCapabilities with supported SRAM sizes")
+{
+    // Check edge of supported range
+    REQUIRE_NOTHROW(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, 16 * 32 * 1024));
+    REQUIRE_NOTHROW(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, 16 * 128 * 1024));
+
+    // Exception should not be thrown on additional min and max SRAM size
+    REQUIRE_NOTHROW(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, 16 * 56 * 1024));
+    REQUIRE_NOTHROW(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, 16 * 256 * 1024));
+}

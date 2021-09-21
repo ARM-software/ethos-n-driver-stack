@@ -82,10 +82,6 @@ FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant varian
         uint32_t numEmcs          = (fwHwCapabilities.m_NumberOfEngines * fwHwCapabilities.m_IgsPerEngine);
         uint32_t sramSizePerEmcKb = (sramSize / numEmcs);
 
-        assert((sramSizePerEmcKb == additionalMinSramSizePerEmcKb) ||
-               (sramSizePerEmcKb == additionalMaxSramSizePerEmcKb) ||
-               ((sramSizePerEmcKb >= minSramSizePerEmcKb) && (sramSizePerEmcKb <= maxSramSizePerEmcKb) &&
-                (sramSizePerEmcKb % sramSizeIncrementPerEmcKb == 0)));
         if (sramSizePerEmcKb < minSramSizePerEmcKb)
         {
             throw NotSupportedException(
