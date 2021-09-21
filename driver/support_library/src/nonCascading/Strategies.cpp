@@ -13,6 +13,8 @@
 #include "Utils.hpp"
 #include "cascading/EstimationUtils.hpp"
 
+#include <stdexcept>
+
 namespace ethosn
 {
 namespace support_library
@@ -291,6 +293,7 @@ TryStripeShapesResult TryStripeShapes(const MceStrategySelectionParameters& stra
     {
         // Weight tensor must be HWIO or HWIM
         assert(false);
+        throw std::runtime_error("Invalid weight data format");
     }
 
     // Work out the tile sizes by deciding how many stripes we want in each tile
