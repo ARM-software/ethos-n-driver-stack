@@ -354,7 +354,7 @@ PleStrategySelectionReturnValue
     auto tryAlloc = [&sramAllocator, &pleStrategySelectionParameter,
                      &pleSramAllocation](const TensorShapeList& inputStripes, const TensorShape& outputStripe,
                                          const uint32_t maxNumStripesInTile) {
-        PleStrategySelectionReturnValue rv;
+        PleStrategySelectionReturnValue rv{};
         rv.pleSramAllocation = pleSramAllocation;
         rv.success           = false;
 
