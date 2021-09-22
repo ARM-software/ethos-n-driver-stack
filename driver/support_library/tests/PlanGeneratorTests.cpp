@@ -9,6 +9,7 @@
 #include "TestUtils.hpp"
 #include "Utils.hpp"
 #include "cascading/Cascading.hpp"
+#include "cascading/PartV1.hpp"
 #include "cascading/Visualisation.hpp"
 #include "cascading/WeightEncoderCache.hpp"
 #include "ethosn_support_library/Support.hpp"
@@ -197,11 +198,10 @@ void BuildGraphWithNonMceOpNodeBeforeMcePostProcessNode(Graph& g)
     g.Connect(mpp, n2, 0);
     g.Connect(n2, o2, 0);
 }
-
-Part BuildSinglePartWithOneNode(Graph& g,
-                                const EstimationOptions& estOpt,
-                                const CompilationOptions& compOpt,
-                                const HardwareCapabilities& caps)
+PartV1 BuildSinglePartWithOneNode(Graph& g,
+                                  const EstimationOptions& estOpt,
+                                  const CompilationOptions& compOpt,
+                                  const HardwareCapabilities& caps)
 {
     TS tsIn   = { 1, 32, 32, 3 };
     TS tsOut  = { 1, 64, 64, 1 };
@@ -213,15 +213,15 @@ Part BuildSinglePartWithOneNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    Part part(0, estOpt, compOpt, caps);
+    PartV1 part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     return part;
 }
 
-Part BuildPartWithFuseOnlyPle(Graph& g,
-                              const EstimationOptions& estOpt,
-                              const CompilationOptions& compOpt,
-                              const HardwareCapabilities& caps)
+PartV1 BuildPartWithFuseOnlyPle(Graph& g,
+                                const EstimationOptions& estOpt,
+                                const CompilationOptions& compOpt,
+                                const HardwareCapabilities& caps)
 {
     TS ts                                  = { 1, 8, 1, 1 };
     utils::ShapeMultiplier shapeMultiplier = { { 1, 2 }, { 1, 2 }, 1 };
@@ -233,15 +233,15 @@ Part BuildPartWithFuseOnlyPle(Graph& g,
     g.Connect(in, node1, 0);
     g.Connect(node1, out, 0);
 
-    Part part(0, estOpt, compOpt, caps);
+    PartV1 part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node1);
     return part;
 }
 
-Part BuildPartWithLeadingFormatConversionNode(Graph& g,
-                                              const EstimationOptions& estOpt,
-                                              const CompilationOptions& compOpt,
-                                              const HardwareCapabilities& caps)
+PartV1 BuildPartWithLeadingFormatConversionNode(Graph& g,
+                                                const EstimationOptions& estOpt,
+                                                const CompilationOptions& compOpt,
+                                                const HardwareCapabilities& caps)
 {
     TS tsIn   = { 1, 32, 32, 4 };
     TS tsOut  = { 1, 64, 64, 1 };
@@ -253,15 +253,15 @@ Part BuildPartWithLeadingFormatConversionNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    Part part(0, estOpt, compOpt, caps);
+    PartV1 part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     return part;
 }
 
-Part BuildPartWithTrailingFormatConversionNode(Graph& g,
-                                               const EstimationOptions& estOpt,
-                                               const CompilationOptions& compOpt,
-                                               const HardwareCapabilities& caps)
+PartV1 BuildPartWithTrailingFormatConversionNode(Graph& g,
+                                                 const EstimationOptions& estOpt,
+                                                 const CompilationOptions& compOpt,
+                                                 const HardwareCapabilities& caps)
 {
     TS tsIn   = { 1, 32, 32, 4 };
     TS tsOut  = { 1, 64, 64, 1 };
@@ -273,15 +273,15 @@ Part BuildPartWithTrailingFormatConversionNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    Part part(0, estOpt, compOpt, caps);
+    PartV1 part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     return part;
 }
 
-Part BuildPartWithReinterpretNode(Graph& g,
-                                  const EstimationOptions& estOpt,
-                                  const CompilationOptions& compOpt,
-                                  const HardwareCapabilities& caps)
+PartV1 BuildPartWithReinterpretNode(Graph& g,
+                                    const EstimationOptions& estOpt,
+                                    const CompilationOptions& compOpt,
+                                    const HardwareCapabilities& caps)
 {
     TS tsIn   = { 1, 32, 32, 4 };
     TS tsOut  = { 1, 64, 64, 1 };
@@ -293,45 +293,50 @@ Part BuildPartWithReinterpretNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    Part part(0, estOpt, compOpt, caps);
+    PartV1 part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     return part;
 }
-
-void AssertPart(const Plans& plans,
-                const Edge* input,
-                const Node* output,
-                const std::function<void(const Plan&)>& assertPlan)
+void AssertPart(const Plans& plans, const std::function<void(const Plan&)>& assertPlan)
 {
     for (const auto& plan : plans)
     {
         assertPlan(*plan);
-        auto inputBuffer         = plan->GetInputBuffer(input);
-        auto outputBuffer        = plan->GetOutputBuffer(output);
-        inputBuffer->m_DebugTag  = std::string("Input buffer: ") + inputBuffer->m_DebugTag;
-        outputBuffer->m_DebugTag = std::string("Output buffer: ") + outputBuffer->m_DebugTag;
     }
-}
-
-std::ostream& operator<<(std::ostream& os, const ethosn::support_library::TensorShape& ts)
-{
-    os << "{ " << ts[0] << ", " << ts[1] << ", " << ts[2] << ", " << ts[3] << " }";
-    return os;
 }
 
 using StripeShape = TensorShape;
 
 void RequireInputBuffer(const Plans& plans,
-                        const Edge* edge,
                         CascadingBufferFormat format,
                         Location location,
                         uint32_t stripes,
                         TensorShape ts,
                         StripeShape ss)
 {
+    bool found = false;
     for (const auto& plan : plans)
     {
-        const Buffer* buffer = plan->GetInputBuffer(edge);
+        auto foundBuffer = utils::FindIndexIf(plan->m_InputMappings, [&](auto& bufAndSlot) {
+            const Buffer* buffer = bufAndSlot.first;
+            if ((buffer->m_Format == format) && (buffer->m_Location == location) && (buffer->m_NumStripes == stripes) &&
+                (buffer->m_TensorShape == ts) && (buffer->m_StripeShape == ss))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        });
+        if (foundBuffer.first)
+        {
+            found = true;
+            break;
+        }
+    }
+    REQUIRE(found);
+    /*const Buffer* buffer = plan->GetInputBuffer(edge);
         REQUIRE(buffer);
         if ((buffer->m_Format == format) && (buffer->m_Location == location) && (buffer->m_NumStripes == stripes) &&
             (buffer->m_TensorShape == ts) && (buffer->m_StripeShape == ss))
@@ -353,20 +358,39 @@ void RequireInputBuffer(const Plans& plans,
             << ", format: " << static_cast<int>(buffer->m_Format) << "\n";
     }
     INFO(oss.str());
-    REQUIRE(false);
+    REQUIRE(false);*/
 }
 
 void RequireOutputBuffer(const Plans& plans,
-                         const Node* node,
                          CascadingBufferFormat format,
                          Location location,
                          uint32_t stripes,
                          TensorShape ts,
                          StripeShape ss)
 {
+    bool found = false;
     for (const auto& plan : plans)
     {
-        const Buffer* buffer = plan->GetOutputBuffer(node);
+        auto foundBuffer = utils::FindIndexIf(plan->m_OutputMappings, [&](auto& bufAndSlot) {
+            const Buffer* buffer = bufAndSlot.first;
+            if ((buffer->m_Format == format) && (buffer->m_Location == location) && (buffer->m_NumStripes == stripes) &&
+                (buffer->m_TensorShape == ts) && (buffer->m_StripeShape == ss))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        });
+        if (foundBuffer.first)
+        {
+            found = true;
+            break;
+        }
+    }
+    REQUIRE(found);
+    /*const Buffer* buffer = plan->GetOutputBuffer(node);
         REQUIRE(buffer);
         if ((buffer->m_Format == format) && (buffer->m_Location == location) && (buffer->m_NumStripes == stripes) &&
             (buffer->m_TensorShape == ts) && (buffer->m_StripeShape == ss))
@@ -388,7 +412,7 @@ void RequireOutputBuffer(const Plans& plans,
             << ", format: " << static_cast<int>(buffer->m_Format) << "\n";
     }
     INFO(oss.str());
-    REQUIRE(false);
+    REQUIRE(false);*/
 }
 
 bool ContainsInputStripe(const Plan::InputMapping& inputMappings,
@@ -472,11 +496,10 @@ void SavePlansToDot(const Plans& plans, const std::string test)
     stripesFile << stripes.str() << std::endl;
 }
 
-Plans GetPlansForwarding(const Part& part)
+Plans GetPlansForwarding(const BasePart& part)
 {
     return part.GetPlans(CascadeType::Middle, ethosn::command_stream::BlockConfig{}, nullptr, 0);
 }
-
 }    // namespace
 
 TEST_CASE("PlanGenerator: Generate parts from graph without branching before MCE PP node")
@@ -495,12 +518,12 @@ TEST_CASE("PlanGenerator: Generate parts from graph without branching before MCE
 
     // Then, no part has two nodes becuase of non-MCE Op before PP Op.
     REQUIRE(parts.size() == 6);
-    REQUIRE(parts[0]->m_SubGraph.size() == 1);
-    REQUIRE(parts[1]->m_SubGraph.size() == 2);
-    REQUIRE(parts[2]->m_SubGraph.size() == 1);
-    REQUIRE(parts[3]->m_SubGraph.size() == 1);
-    REQUIRE(parts[4]->m_SubGraph.size() == 1);
-    REQUIRE(parts[5]->m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[0]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[1]).m_SubGraph.size() == 2);
+    REQUIRE(static_cast<PartV1&>(*parts[2]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[3]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[4]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[5]).m_SubGraph.size() == 1);
 }
 
 TEST_CASE("PlanGenerator: Generate parts from graph with branching before MCE PP node")
@@ -519,16 +542,15 @@ TEST_CASE("PlanGenerator: Generate parts from graph with branching before MCE PP
 
     // Then, no parts have two nodes because of branching.
     REQUIRE(parts.size() == 8);
-    REQUIRE(parts[0]->m_SubGraph.size() == 1);
-    REQUIRE(parts[1]->m_SubGraph.size() == 1);
-    REQUIRE(parts[2]->m_SubGraph.size() == 1);
-    REQUIRE(parts[3]->m_SubGraph.size() == 1);
-    REQUIRE(parts[4]->m_SubGraph.size() == 1);
-    REQUIRE(parts[5]->m_SubGraph.size() == 1);
-    REQUIRE(parts[6]->m_SubGraph.size() == 1);
-    REQUIRE(parts[7]->m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[0]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[1]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[2]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[3]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[4]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[5]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[6]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[7]).m_SubGraph.size() == 1);
 }
-
 TEST_CASE("PlanGenerator: Generate parts from graph with non MCE Operation node before MCE PP node")
 {
     // Given
@@ -545,13 +567,13 @@ TEST_CASE("PlanGenerator: Generate parts from graph with non MCE Operation node 
 
     // Then, no part has two nodes becuase of non-MCE Op before PP Op.
     REQUIRE(parts.size() == 7);
-    REQUIRE(parts[0]->m_SubGraph.size() == 1);
-    REQUIRE(parts[1]->m_SubGraph.size() == 1);
-    REQUIRE(parts[2]->m_SubGraph.size() == 1);
-    REQUIRE(parts[3]->m_SubGraph.size() == 1);
-    REQUIRE(parts[4]->m_SubGraph.size() == 1);
-    REQUIRE(parts[5]->m_SubGraph.size() == 1);
-    REQUIRE(parts[6]->m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[0]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[1]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[2]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[3]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[4]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[5]).m_SubGraph.size() == 1);
+    REQUIRE(static_cast<PartV1&>(*parts[6]).m_SubGraph.size() == 1);
 }
 
 TEST_CASE("PlanGenerator:FuseOnlyPleNode")
@@ -636,7 +658,6 @@ TEST_CASE("PlanGenerator:MceOperationNode")
     REQUIRE(buffers2[2]->m_SizeInBytes == buffers2[2]->m_EncodedWeights->m_Data.size());
     REQUIRE(buffers2[3]->m_SizeInBytes == buffers2[2]->m_EncodedWeights->m_MaxSize);
 }
-
 TEST_CASE("PlanGenerator: Generate plans from a part with single format conversion node")
 {
     auto assertPlan = [](const Plan& plan) -> void {
@@ -665,28 +686,19 @@ TEST_CASE("PlanGenerator: Generate plans from a part with single format conversi
     // Then
     REQUIRE(plans.size() == 18);
 
-    const auto input  = edges[0].get();
-    const auto output = nodes[1].get();
-    AssertPart(plans, input, output, assertPlan);
+    AssertPart(plans, assertPlan);
 
-    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 32, 32, 4 },
-                       { 1, 8, 8, 16 });
-    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 64, 64, 1 },
-                        { 0, 0, 0, 0 });
+    RequireInputBuffer(plans, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 32, 32, 4 }, { 1, 8, 8, 16 });
+    RequireOutputBuffer(plans, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 64, 64, 1 }, { 0, 0, 0, 0 });
 
-    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWCB, Location::Sram, 2, { 1, 32, 32, 4 },
-                       { 1, 8, 8, 16 });
-    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 64, 64, 1 },
-                        { 0, 0, 0, 0 });
+    RequireInputBuffer(plans, CascadingBufferFormat::NHWCB, Location::Sram, 2, { 1, 32, 32, 4 }, { 1, 8, 8, 16 });
+    RequireOutputBuffer(plans, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 64, 64, 1 }, { 0, 0, 0, 0 });
 
-    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 32, 32, 4 },
-                       { 1, 32, 32, 16 });
-    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 64, 64, 1 },
-                        { 0, 0, 0, 0 });
+    RequireInputBuffer(plans, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 32, 32, 4 }, { 1, 32, 32, 16 });
+    RequireOutputBuffer(plans, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 64, 64, 1 }, { 0, 0, 0, 0 });
 
-    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 32, 32, 4 },
-                       { 1, 32, 32, 16 });
-    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWC, Location::VirtualSram, 1, { 1, 64, 64, 1 },
+    RequireInputBuffer(plans, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 32, 32, 4 }, { 1, 32, 32, 16 });
+    RequireOutputBuffer(plans, CascadingBufferFormat::NHWC, Location::VirtualSram, 1, { 1, 64, 64, 1 },
                         { 1, 64, 64, 16 });
 }
 
@@ -718,35 +730,27 @@ TEST_CASE("PlanGenerator: Generate plans from a part with trailing format conver
     SavePlansToDot(plans, "plans_in_part_with_trailing_format_conversion_node");
     REQUIRE(plans.size() == 22);
 
-    const auto input  = edges[0].get();
-    const auto output = nodes[1].get();
-    AssertPart(plans, input, output, assertPlan);
+    AssertPart(plans, assertPlan);
 
-    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
-    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 },
-                        { 1, 8, 8, 16 });
+    RequireInputBuffer(plans, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
+    RequireOutputBuffer(plans, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 }, { 1, 8, 8, 16 });
 
-    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
-    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWCB, Location::Sram, 2, { 1, 64, 64, 1 },
-                        { 1, 8, 8, 16 });
+    RequireInputBuffer(plans, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
+    RequireOutputBuffer(plans, CascadingBufferFormat::NHWCB, Location::Sram, 2, { 1, 64, 64, 1 }, { 1, 8, 8, 16 });
 
-    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
-    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWCB, Location::Sram, 3, { 1, 64, 64, 1 },
-                        { 1, 8, 8, 16 });
+    RequireInputBuffer(plans, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
+    RequireOutputBuffer(plans, CascadingBufferFormat::NHWCB, Location::Sram, 3, { 1, 64, 64, 1 }, { 1, 8, 8, 16 });
 
-    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
-    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 },
-                        { 1, 8, 16, 16 });
+    RequireInputBuffer(plans, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
+    RequireOutputBuffer(plans, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 }, { 1, 8, 16, 16 });
 
-    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
-    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 },
-                        { 1, 16, 8, 16 });
+    RequireInputBuffer(plans, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
+    RequireOutputBuffer(plans, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 }, { 1, 16, 8, 16 });
 
-    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
-    RequireOutputBuffer(plans, output, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 },
-                        { 1, 64, 64, 16 });
+    RequireInputBuffer(plans, CascadingBufferFormat::NHWC, Location::Dram, 0, { 1, 32, 32, 4 }, { 0, 0, 0, 0 });
+    RequireOutputBuffer(plans, CascadingBufferFormat::NHWCB, Location::Sram, 1, { 1, 64, 64, 1 }, { 1, 64, 64, 16 });
 
-    RequireInputBuffer(plans, input, CascadingBufferFormat::NHWC, Location::VirtualSram, 1, { 1, 32, 32, 4 },
+    RequireInputBuffer(plans, CascadingBufferFormat::NHWC, Location::VirtualSram, 1, { 1, 32, 32, 4 },
                        { 1, 32, 32, 16 });
 }
 
@@ -768,17 +772,17 @@ TEST_CASE("PlanGenerator: Generate plans from a part with reinterpret node")
     SavePlansToDot(plans, "plans_in_part_with_reinterpret_node");
 
     // Then
-    const auto input  = edges[0].get();
-    const auto output = nodes[1].get();
     REQUIRE(plans.size() == 2);
 
     {
         const Plan& dramPlan = *plans[0];
         CHECK(dramPlan.m_OpGraph.GetOps().empty());
         REQUIRE(dramPlan.m_OpGraph.GetBuffers().size() == 1);
-        const Buffer* b = dramPlan.m_OpGraph.GetBuffers()[0];
-        CHECK(dramPlan.GetInputBuffer(input) == b);
-        CHECK(dramPlan.GetOutputBuffer(output) == b);
+        Buffer* b        = dramPlan.m_OpGraph.GetBuffers()[0];
+        auto foundInput  = dramPlan.m_InputMappings.count(b) == 1;
+        auto foundOutput = dramPlan.m_OutputMappings.count(b) == 1;
+        CHECK(foundInput);
+        CHECK(foundOutput);
         CHECK(b->m_Location == Location::Dram);
     }
 
@@ -791,13 +795,13 @@ TEST_CASE("PlanGenerator: Generate plans from a part with reinterpret node")
         CHECK(virtualSramPlan.m_InputMappings.size() == 1);
         CHECK(virtualSramPlan.m_OutputMappings.size() == 1);
 
-        const Buffer* inputBuffer = virtualSramPlan.GetInputBuffer(input);
+        const Buffer* inputBuffer = virtualSramPlan.m_OpGraph.GetBuffers()[0];
         CHECK((inputBuffer->m_Format == CascadingBufferFormat::NHWC &&
                inputBuffer->m_Location == Location::VirtualSram && inputBuffer->m_NumStripes == 1 &&
                inputBuffer->m_TensorShape == TensorShape{ 1, 32, 32, 4 } &&
                inputBuffer->m_StripeShape == TensorShape{ 1, 32, 32, 16 }));
 
-        const Buffer* outputBuffer = virtualSramPlan.GetOutputBuffer(output);
+        const Buffer* outputBuffer = virtualSramPlan.m_OpGraph.GetBuffers()[1];
         CHECK((outputBuffer->m_Format == CascadingBufferFormat::NHWC &&
                outputBuffer->m_Location == Location::VirtualSram && outputBuffer->m_NumStripes == 1 &&
                outputBuffer->m_TensorShape == TensorShape{ 1, 64, 64, 1 } &&
@@ -805,15 +809,15 @@ TEST_CASE("PlanGenerator: Generate plans from a part with reinterpret node")
     }
 }
 
-Part BuildPartWithMceNodeStride(Graph& g,
-                                TS inputShape,
-                                TS outputShape,
-                                TS weightShape,
-                                ethosn::command_stream::MceOperation op,
-                                Stride stride,
-                                const EstimationOptions& estOpt,
-                                const CompilationOptions& compOpt,
-                                const HardwareCapabilities& caps)
+PartV1 BuildPartWithMceNodeStride(Graph& g,
+                                  TS inputShape,
+                                  TS outputShape,
+                                  TS weightShape,
+                                  ethosn::command_stream::MceOperation op,
+                                  Stride stride,
+                                  const EstimationOptions& estOpt,
+                                  const CompilationOptions& compOpt,
+                                  const HardwareCapabilities& caps)
 {
     TI weightInfo           = weightShape;
     weightInfo.m_DataFormat = op == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION
@@ -835,20 +839,20 @@ Part BuildPartWithMceNodeStride(Graph& g,
     g.Connect(in, mceNode, 0);
     g.Connect(mceNode, out, 0);
 
-    Part part(0, estOpt, compOpt, caps);
+    PartV1 part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(mceNode);
 
     return part;
 }
 
-Part BuildPartWithMceNode(Graph& g,
-                          TS inputShape,
-                          TS outputShape,
-                          TS weightShape,
-                          ethosn::command_stream::MceOperation op,
-                          const EstimationOptions& estOpt,
-                          const CompilationOptions& compOpt,
-                          const HardwareCapabilities& caps)
+PartV1 BuildPartWithMceNode(Graph& g,
+                            TS inputShape,
+                            TS outputShape,
+                            TS weightShape,
+                            ethosn::command_stream::MceOperation op,
+                            const EstimationOptions& estOpt,
+                            const CompilationOptions& compOpt,
+                            const HardwareCapabilities& caps)
 {
     return BuildPartWithMceNodeStride(g, inputShape, outputShape, weightShape, op, Stride(1, 1), estOpt, compOpt, caps);
 }
@@ -871,7 +875,7 @@ TEST_CASE("PlanGenerator: FuseOnly")
     g.Connect(in, pleNode, 0);
     g.Connect(pleNode, out, 0);
 
-    Part part(0, estOpt, compOpt, caps);
+    PartV1 part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(pleNode);
 
     Plans plans = GetPlansForwarding(part);
@@ -927,8 +931,8 @@ TEST_CASE("PlanGenerator: Mobilenet N78_2TOPS_4PLE_RATIO Conv", "[slow]")
     TS outputShape{ 1, 14, 14, 512 };
     TS weightShape{ 1, 1, 256, 512 };
 
-    Part part = BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
-                                     ethosn::command_stream::MceOperation::CONVOLUTION, estOpt, compOpt, caps);
+    PartV1 part = BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
+                                       ethosn::command_stream::MceOperation::CONVOLUTION, estOpt, compOpt, caps);
 
     Plans plans = GetPlansForwarding(part);
 
@@ -953,7 +957,7 @@ TEST_CASE("PlanGenerator: Mobilenet N78_2TOPS_4PLE_RATIO Depthwise")
     TS inputShape{ 1, 14, 14, 512 };
     TS outputShape{ 1, 14, 14, 512 };
     TS weightShape{ 1, 1, 512, 1 };
-    Part part =
+    PartV1 part =
         BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
                              ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION, estOpt, compOpt, caps);
 
@@ -979,8 +983,8 @@ TEST_CASE("PlanGenerator: Mobilenet N78_2TOPS_4PLE_RATIO 1024", "[slow]")
     TS inputShape{ 1, 7, 7, 512 };
     TS outputShape{ 1, 7, 7, 1024 };
     TS weightShape{ 1, 1, 512, 1024 };
-    Part part = BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
-                                     ethosn::command_stream::MceOperation::CONVOLUTION, estOpt, compOpt, caps);
+    PartV1 part = BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
+                                       ethosn::command_stream::MceOperation::CONVOLUTION, estOpt, compOpt, caps);
 
     Plans plans = GetPlansForwarding(part);
 
@@ -1046,7 +1050,7 @@ TEST_CASE("PlanGenerator:Winograd")
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    Part part(0, estOpt, compOpt, caps);
+    PartV1 part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     Plans plans = GetPlansForwarding(part);
     SavePlansToDot(plans, "plans_part_winograd");
@@ -1091,7 +1095,7 @@ TEST_CASE("PlanGenerator:Split input in depth")
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    Part part(0, estOpt, compOpt, caps);
+    PartV1 part(0, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     Plans plans = GetPlansForwarding(part);
     SavePlansToDot(plans, "plans_part_split_input_depth");
@@ -1125,8 +1129,8 @@ TEST_CASE("PlanGenerator: Split output in depth")
     TS inputShape{ 1, 8, 8, 32 };
     TS outputShape{ 1, 8, 8, 32 };
     TS weightShape{ 3, 3, 32, 32 };
-    Part part   = BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
-                                     ethosn::command_stream::MceOperation::CONVOLUTION, estOpt, compOpt, caps);
+    PartV1 part = BuildPartWithMceNode(g, inputShape, outputShape, weightShape,
+                                       ethosn::command_stream::MceOperation::CONVOLUTION, estOpt, compOpt, caps);
     Plans plans = GetPlansForwarding(part);
 
     SavePlansToDot(plans, "plans_split_output_in_depth");
@@ -1146,3 +1150,4 @@ TEST_CASE("PlanGenerator: Split output in depth")
         }));
     }
 }
+//#endif

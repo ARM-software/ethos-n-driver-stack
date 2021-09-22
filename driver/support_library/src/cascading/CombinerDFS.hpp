@@ -44,7 +44,7 @@ struct GlueInfo
 /// A single element in a combination
 struct Elem
 {
-    using Glues = std::map<const Edge*, GlueInfo>;
+    using Glues = std::unordered_map<PartInputSlot, GlueInfo>;
 
     std::shared_ptr<Plan> m_Plan;
     Glues m_Glues;
@@ -58,8 +58,8 @@ struct Combination
     {}
 
     // Create a combination with a single element without any edge/glue information
-    Combination(const Part& part, std::shared_ptr<Plan> plan, size_t orderRank)
-        : Combination(part, plan, nullptr, nullptr, orderRank, false)
+    Combination(const BasePart& part, std::shared_ptr<Plan> plan, size_t orderRank, const GraphOfParts& graphOfParts)
+        : Combination(part, plan, nullptr, nullptr, orderRank, false, graphOfParts)
     {}
 
     // Create a combination with a single element without plan information,
@@ -68,40 +68,50 @@ struct Combination
     // won't be changed when merging combinations
     // Note glue should not change the header ID and rank of the
     // combination
-    Combination(const Part& part, const Edge* edge, const Glue* glue)
-        : Combination(part, nullptr, edge, glue, SIZE_MAX, true)
+    Combination(const BasePart& part, const PartInputSlot* edge, const Glue* glue, const GraphOfParts& graphOfParts)
+        : Combination(part, nullptr, edge, glue, SIZE_MAX, true, graphOfParts)
     {}
 
-    Combination(const Part& part, const Edge* edge, const Glue* glue, bool outDma)
-        : Combination(part, nullptr, edge, glue, SIZE_MAX, outDma)
+    Combination(const BasePart& part,
+                const PartInputSlot* edge,
+                const Glue* glue,
+                bool outDma,
+                const GraphOfParts& graphOfParts)
+        : Combination(part, nullptr, edge, glue, SIZE_MAX, outDma, graphOfParts)
     {}
 
     // Create a combination with a single element with edge/glue information,
     // if no edge/glue information is provided (e.g. nullptr) the combination
     // will consider the case where no glue is required on any output edge of
     // the part
-    Combination(
-        const Part& part, std::shared_ptr<Plan> plan, const Edge* edge, const Glue* glue, size_t orderRank, bool outDma)
+    Combination(const BasePart& part,
+                std::shared_ptr<Plan> plan,
+                const PartInputSlot* slot,
+                const Glue* glue,
+                size_t orderRank,
+                bool outDma,
+                const GraphOfParts& graphOfParts)
     {
         // Create a new element
         Elem elem = { plan, {} };
         // Insert glue value (it can be null if no glue is required)
         // if a valid edge is provided
-        if (edge)
+        if (slot)
         {
             GlueInfo glueInfo = { glue, outDma };
-            elem.m_Glues.insert(std::make_pair(edge, glueInfo));
+            elem.m_Glues.insert(std::make_pair(*slot, glueInfo));
         }
         else
         {
             // Consider no glue on all the output edges (i.e. mergeable)
-            for (auto& edge : part.GetOutputs())
+            const auto& destSlots = graphOfParts.GetDestinationConnections(part.GetPartId());
+            for (auto& slots : destSlots)
             {
                 GlueInfo glueInfo = { nullptr, false };
-                elem.m_Glues.insert(std::make_pair(edge, glueInfo));
+                elem.m_Glues.insert(std::make_pair(slots.m_Destination, glueInfo));
             }
         }
-        m_Elems.insert(std::make_pair(part.m_PartId, elem));
+        m_Elems.insert(std::make_pair(part.GetPartId(), elem));
 
         // Update the Header's rank in topological order
         m_HeadOrderRank = orderRank;
@@ -110,7 +120,7 @@ struct Combination
         // if this is a glue.
         if (orderRank != g_InvalidCombRank)
         {
-            m_PartIdsInOrder.push_back(part.m_PartId);
+            m_PartIdsInOrder.push_back(part.GetPartId());
         }
     }
 
@@ -195,46 +205,45 @@ public:
              const EstimationOptions& estOpt,
              const DebuggingContext& debuggingContext);
 
-    bool IsPartInput(const Part& part) const;
-    bool IsPartOutput(const Part& part) const;
+    bool IsPartInput(const BasePart& part) const;
+    bool IsPartOutput(const BasePart& part) const;
 
-    bool IsPartSo(const Part& part) const;
-    bool IsPartMo(const Part& part) const;
-    bool IsPartSiso(const Part& part) const;
-    bool IsPartSimo(const Part& part) const;
-    bool IsPartMiso(const Part& part) const;
-    bool IsPartMimo(const Part& part) const;
+    bool IsPartSo(const BasePart& part) const;
+    bool IsPartMo(const BasePart& part) const;
+    bool IsPartSiso(const BasePart& part) const;
+    bool IsPartSimo(const BasePart& part) const;
+    bool IsPartMiso(const BasePart& part) const;
+    bool IsPartMimo(const BasePart& part) const;
 
     bool AreMceOperationsCompatible(const Buffer* plan1OutputBuffer,
                                     const Buffer* plan2InputBuffer,
-                                    const Node* destination) const;
+                                    const PartOutputSlot& outputSlot) const;
 
-    bool AreBlockConfigsCompatible(const Plan& plan1, const Plan& plan2, const Edge& edge) const;
+    bool AreBlockConfigsCompatible(const Plan& plan1, const Plan& plan2, const PartOutputSlot& outputSlot) const;
 
-    bool ArePlansCompatible(const Plan& sPlan, const Plan& dPlan, const Edge& edge);
-    bool ArePlansCompatibleImpl(const Plan& sPlan, const Plan& dPlan, const Edge& edge) const;
+    bool ArePlansCompatible(const Plan& sPlan, const Plan& dPlan, const PartConnection& outputSlot);
+    bool ArePlansCompatibleImpl(const Plan& sPlan, const Plan& dPlan, const PartConnection& outputSlot) const;
 
     bool IsPlanAllocated(SramAllocator& alloc, const Plan& plan) const;
     bool IsPlanInputGlueable(const Plan& plan) const;
-    bool ArePlansAllowedToMerge(const Plan& reference, const Plan& current, const Edge& edge) const;
+    bool ArePlansAllowedToMerge(const Plan& reference, const Plan& current, const PartConnection& outputSlot) const;
 
     Combination GetBestCombination() const;
     Combination GetBestCombination(Combinations& combs) const;
     CascadingBufferFormat
         GetBestCascadingBufferDramFormat(const std::array<TensorShape, 2> inputOutputStripeShapes) const;
 
-    const Plan& GetPlanForPartFromCombination(const Part& part, const Combination& comb) const;
-    std::vector<std::pair<const Part*, const Edge*>> GetSourceParts(const Part& part) const;
-    std::vector<const Edge*> GetEdgeConnectTwoParts(const Part& dPart, const Part& sPart) const;
-    std::vector<std::pair<const Part*, const Edge*>> GetDestinationParts(const Part& part) const;
+    const Plan& GetPlanForPartFromCombination(const BasePart& part, const Combination& comb) const;
     std::pair<bool, const Glue*> GetGlue(const Buffer* outputBuffer, const Buffer* inputBuffer);
     std::pair<bool, const Glue*> GetSharedGlue(const Buffer* outputBuffer, std::vector<const Buffer*>& inputBuffer);
 
-    Combination FindBestCombinationForPart(const Part& part);
-    virtual Combination FindBestCombinationForPartImpl(const Part& part);
+    Combination FindBestCombinationForPart(const BasePart& part);
+    virtual Combination FindBestCombinationForPartImpl(const BasePart& part);
 
-    Combination
-        ContinueSection(const Part& part, const Part& sPart, const Combination& comb, const SramAllocator& alloc);
+    Combination ContinueSection(const BasePart& part,
+                                const BasePart& sPart,
+                                const Combination& comb,
+                                const SramAllocator& alloc);
 
     std::unique_ptr<Glue> GenerateGlueBetweenSramAndDram() const;
     std::unique_ptr<Glue> GenerateGlueBetweenSramAndSram(const Buffer* buffer,
@@ -242,20 +251,20 @@ public:
     std::unique_ptr<Glue> GenerateGlueBetweenSramAndSrams(const Buffer* buffer,
                                                           const CascadingBufferFormat cascadingBufferFormat,
                                                           uint32_t numOfOuputs) const;
-    Combination GluePartToCombinationDestToSrcs(const Part& part,
+    Combination GluePartToCombinationDestToSrcs(const BasePart& part,
                                                 const Combination& comb,
-                                                const std::vector<std::pair<const Part*, const Edge*>>& sources);
+                                                const std::vector<PartConnection>& sources);
 
-    Combination GluePartToCombinationSrcToDests(const Part& sPart,
+    Combination GluePartToCombinationSrcToDests(const BasePart& sPart,
                                                 const Combination& comb,
-                                                const std::vector<std::pair<const Part*, const Edge*>>& destPartEdge);
+                                                const std::vector<PartConnection>& destPartEdge);
 
-    const Part* GetNextPart(const Part* part)
+    const BasePart* GetNextPart(const BasePart* part)
     {
-        return m_PartOrderTable[part->m_PartId].second;
+        return m_PartOrderTable[part->GetPartId()].second;
     }
 
-    void SavePartsPlans(const Part& part, const Plans& plans) const;
+    void SavePartsPlans(const BasePart& part, const Plans& plans) const;
 
     void UpdateStats(const StatsType type);
 
@@ -267,17 +276,19 @@ public:
         Visited,
     };
 
-    bool Visit(const Part* current, std::vector<const Part*>& outSorted, std::map<const Part*, PartState>& partStates);
+    bool Visit(const BasePart* current,
+               std::vector<const BasePart*>& outSorted,
+               std::map<const BasePart*, PartState>& partStates);
 
     bool TopologicalSortParts();
 
     template <typename... Args>
-    Plans GetPlansCached(const Part& part, Args&&... args)
+    Plans GetPlansCached(const BasePart& part, Args&&... args)
     {
         // Note the cache only uses the part id (instead of all the plan parameters)
         // because when specific plan generation is used the plans should be unique and
         // the cache can be removed.
-        auto planInCache = m_PlanCache.find(part.m_PartId);
+        auto planInCache = m_PlanCache.find(part.GetPartId());
         if (planInCache != m_PlanCache.end())
         {
             return planInCache->second;
@@ -286,7 +297,7 @@ public:
         {
             auto plans = part.GetPlans(std::forward<Args>(args)...);
             SavePartsPlans(part, plans);
-            m_PlanCache.emplace(part.m_PartId, plans);
+            m_PlanCache.emplace(part.GetPartId(), plans);
             return plans;
         }
     }
@@ -297,13 +308,13 @@ private:
     const EstimationOptions& m_EstOpt;
     const DebuggingContext& m_DebuggingContext;
 
-    const Part* m_FirstPartAfterSort = nullptr;
-    std::vector<std::pair<size_t, const Part*>> m_PartOrderTable;
+    const BasePart* m_FirstPartAfterSort = nullptr;
+    std::vector<std::pair<size_t, const BasePart*>> m_PartOrderTable;
 
     Combination m_BestCombination;
 
     std::vector<std::unique_ptr<Glue>> m_GluesVector;
-    std::unordered_map<const Part*, const Combination> m_CombinationPerPartMap;
+    std::unordered_map<const BasePart*, const Combination> m_CombinationPerPartMap;
     PlanCache m_PlanCache;
 
     std::vector<size_t> m_Stats{ std::vector<size_t>(static_cast<size_t>(StatsType::NumStats), 0) };

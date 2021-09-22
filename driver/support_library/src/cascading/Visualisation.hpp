@@ -103,13 +103,9 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
                                std::ostream& stream,
                                DetailLevel detailLevel);
 
-/// Saves a Graph of Nodes to a dot file format to visualise the graph.
-/// Optionally includes groupings of Nodes into Parts, if provided a GraphOfParts object.
+/// Saves a Graph of Parts to a dot file format to visualise the graph.
 /// detailLevel controls how much detail is shown on the visualisation.
-void SaveGraphToDot(const Graph& graph,
-                    const GraphOfParts* graphOfParts,
-                    std::ostream& stream,
-                    DetailLevel detailLevel);
+void SaveGraphToDot(const GraphOfParts& graphOfParts, std::ostream& stream, DetailLevel detailLevel);
 
 /// Saves all the plans generated for the given part to a dot file format to visualise them.
 /// detailLevel controls how much detail is shown on the visualisation.

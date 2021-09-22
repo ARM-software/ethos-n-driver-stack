@@ -36,8 +36,7 @@ public:
                           DetailLevel detailLevel) const;
     void DumpGraph(CompilationOptions::DebugLevel level, const Graph& graph, const std::string& fileName) const;
     void SaveGraphToDot(CompilationOptions::DebugLevel level,
-                        const Graph& graph,
-                        const GraphOfParts* graphOfParts,
+                        const GraphOfParts& graphOfParts,
                         const std::string& fileName,
                         DetailLevel detailLevel) const;
     void SavePlansToDot(CompilationOptions::DebugLevel level,

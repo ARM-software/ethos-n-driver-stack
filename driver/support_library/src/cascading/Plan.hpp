@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "../Graph.hpp"
-#include "../GraphNodes.hpp"
 #include "../WeightEncoder.hpp"
+#include "DebuggableObject.hpp"
+#include "Part.hpp"
 
 #include "../include/ethosn_support_library/Optional.hpp"
 #include <ethosn_command_stream/CommandStream.hpp>
@@ -147,44 +147,29 @@ private:
     std::vector<std::unique_ptr<Buffer>> m_Buffers;
 };
 
-struct DebuggableObject
-{
-public:
-    DebuggableObject(const char* defaultTagPrefix);
-
-    /// This can be used to help identify this object for debugging purposes, and is used in visulisations (dot files)
-    /// to identify this object. It shouldn't have any effect on network compilation or estimation.
-    std::string m_DebugTag;
-    int m_DebugId;
-
-    /// Counter for generating unique debug tags (see DebuggableObject constructor).
-    /// This is publicly exposed so can be manipulated by tests.
-    static int ms_IdCounter;
-};
-
 class Plan : public DebuggableObject
 {
 public:
-    using InputMapping  = std::map<Buffer*, Edge*>;
-    using OutputMapping = std::map<Buffer*, Node*>;
+    using InputMapping  = std::map<Buffer*, PartInputSlot>;
+    using OutputMapping = std::map<Buffer*, PartOutputSlot>;
 
     Plan();
     Plan(InputMapping&& inputMappings, OutputMapping&& outputMappings);
 
-    /// Gets the Buffer corresponding to the given Edge, which should be an input to the Part that this Plan is for.
-    /// Returns nullptr if the Edge is unrecognised.
-    Buffer* GetInputBuffer(const Edge* inputEdge) const;
-    /// Gets the Buffer corresponding to the given Node, which should be an output from the Part that this Plan is for.
-    /// Returns nullptr if the Node is unrecognised.
-    Buffer* GetOutputBuffer(const Node* outputNode) const;
+    /// Gets the Buffer corresponding to the given part's input slot, which should be an input to the Part that this Plan is for.
+    /// Returns nullptr if the slot is unrecognised.
+    Buffer* GetInputBuffer(const PartInputSlot& partInputSlot) const;
+    /// Gets the Buffer corresponding to the given part's output slot, which should be an output from the Part that this Plan is for.
+    /// Returns nullptr if the slot is unrecognised.
+    Buffer* GetOutputBuffer(const PartOutputSlot& partOutputSlot) const;
 
     /// The graph of Ops and Buffers which define how this plan would be executed.
     OwnedOpGraph m_OpGraph;
 
-    /// Specifies which of the Buffers in the above OpGraph are inputs to this plan, and which Edges from the Graph
-    /// these correspond to.
+    /// Specifies which of the Buffers in the above OpGraph are inputs to this plan, and which Part inputs
+    /// these correspond to
     InputMapping m_InputMappings;
-    /// Specifies which of the Buffers in the above OpGraph are outputs from this plan, and which Nodes from the Graph
+    /// Specifies which of the Buffers in the above OpGraph are outputs from this plan, and which Part outputs
     /// these correspond to.
     OutputMapping m_OutputMappings;
 };

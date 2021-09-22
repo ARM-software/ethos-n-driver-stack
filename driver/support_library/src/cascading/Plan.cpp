@@ -178,11 +178,11 @@ Plan::Plan(InputMapping&& inputMappings, OutputMapping&& outputMappings)
     , m_OutputMappings(std::move(outputMappings))
 {}
 
-Buffer* Plan::GetInputBuffer(const Edge* inputEdge) const
+Buffer* Plan::GetInputBuffer(const PartInputSlot& partInputSlot) const
 {
     for (const auto& pair : m_InputMappings)
     {
-        if (pair.second == inputEdge)
+        if (pair.second == partInputSlot)
         {
             return pair.first;
         }
@@ -190,11 +190,11 @@ Buffer* Plan::GetInputBuffer(const Edge* inputEdge) const
     return nullptr;
 }
 
-Buffer* Plan::GetOutputBuffer(const Node* outputNode) const
+Buffer* Plan::GetOutputBuffer(const PartOutputSlot& partOutputSlot) const
 {
     for (const auto& pair : m_OutputMappings)
     {
-        if (pair.second == outputNode)
+        if (pair.second == partOutputSlot)
         {
             return pair.first;
         }
@@ -218,18 +218,6 @@ Buffer* OwnedOpGraph::AddBuffer(std::unique_ptr<Buffer> buffer)
     OpGraph::AddBuffer(raw);
     m_Buffers.emplace_back(std::move(buffer));
     return raw;
-}
-
-int DebuggableObject::ms_IdCounter = 0;
-
-DebuggableObject::DebuggableObject(const char* defaultTagPrefix)
-{
-    // Generate an arbitrary and unique (but deterministic) default debug tag for this object.
-    // This means that if no-one sets anything more useful, we still have a way to identify it.
-    m_DebugTag = std::string(defaultTagPrefix) + " " + std::to_string(ms_IdCounter);
-    //m_DebugId is very useful for conditional breakpoints
-    m_DebugId = ms_IdCounter;
-    ++ms_IdCounter;
 }
 
 Op::Op(const char* defaultTagPrefix)
@@ -354,21 +342,21 @@ Buffer::Buffer(Lifetime lifetime,
     , m_NumStripes(0)
 {}
 
-bool IsOutputBufferInDram(const Plan& plan, const Edge& edge)
+bool IsOutputBufferInDram(const Plan& plan, const PartOutputSlot& outputSlot)
 {
-    const Buffer* buf = plan.GetOutputBuffer(edge.GetSource());
+    const Buffer* buf = plan.GetOutputBuffer(outputSlot);
     return (buf == nullptr) ? true : ((buf->m_Location) == Location::Dram);
 }
 
-bool IsInputBufferInSram(const Plan& plan, const Edge& edge)
+bool IsInputBufferInSram(const Plan& plan, const PartInputSlot& inputSlot)
 {
-    const Buffer* buf = plan.GetInputBuffer(&edge);
+    const Buffer* buf = plan.GetInputBuffer(inputSlot);
     return (buf == nullptr) ? false : ((buf->m_Location) == Location::Sram);
 }
 
-bool IsOutputBufferInSram(const Plan& plan, const Edge& edge)
+bool IsOutputBufferInSram(const Plan& plan, const PartOutputSlot& outputSlot)
 {
-    const Buffer* buf = plan.GetOutputBuffer(edge.GetSource());
+    const Buffer* buf = plan.GetOutputBuffer(outputSlot);
     return (buf == nullptr) ? false : ((buf->m_Location) == Location::Sram);
 }
 

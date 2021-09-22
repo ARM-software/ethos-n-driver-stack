@@ -7,7 +7,7 @@
 #include "TestUtils.hpp"
 #include "cascading/CombinerDFS.hpp"
 #include "cascading/Estimation.hpp"
-#include "cascading/Part.hpp"
+#include "cascading/PartV1.hpp"
 #include "cascading/Plan.hpp"
 #include "cascading/Visualisation.hpp"
 
@@ -429,30 +429,6 @@ OutputBuffer -> Dma
     REQUIRE(stream.str() == expected);
 }
 
-/// Simple Node type for tests.
-/// Includes a friendly name and ignores shape, quantisation info etc. so that tests
-/// can focus on graph topology.
-class NameOnlyNode : public Node
-{
-public:
-    NameOnlyNode(NodeId id, std::string name)
-        : Node(id,
-               TensorShape(),
-               sl::DataType::UINT8_QUANTIZED,
-               QuantizationInfo(),
-               CompilerDataFormat::NONE,
-               std::set<uint32_t>{ 0 })
-        , m_Name(name)
-    {}
-
-    bool IsPrepared() override
-    {
-        return false;
-    }
-
-    std::string m_Name;
-};
-
 /// Checks SaveGraphToDot produces the expected output, focusing on the overall graph topology (connections
 /// between nodes and parts) rather than on the details given for each individual node.
 TEST_CASE("SaveGraphToDot Graph Topology", "[Visualisation]")
@@ -464,81 +440,99 @@ TEST_CASE("SaveGraphToDot Graph Topology", "[Visualisation]")
     ///      --- S --------D ---- O2
     /// I2 /                    /
     ///                       I3
+    ///
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
 
-    Graph g;
-    NameOnlyNode* i1 = g.CreateAndAddNode<NameOnlyNode>("I1");
-    NameOnlyNode* i2 = g.CreateAndAddNode<NameOnlyNode>("I2");
-    NameOnlyNode* s  = g.CreateAndAddNode<NameOnlyNode>("S");
-    NameOnlyNode* m  = g.CreateAndAddNode<NameOnlyNode>("M");
-    NameOnlyNode* d  = g.CreateAndAddNode<NameOnlyNode>("D");
-    NameOnlyNode* o1 = g.CreateAndAddNode<NameOnlyNode>("O1");
-    NameOnlyNode* o2 = g.CreateAndAddNode<NameOnlyNode>("O2");
-    NameOnlyNode* i3 = g.CreateAndAddNode<NameOnlyNode>("I3");
+    GraphOfParts graph;
 
-    g.Connect(i1, s, 0);
-    g.Connect(i2, s, 1);
-    g.Connect(s, m);
-    g.Connect(m, o1, 0);
-    g.Connect(s, d);
-    g.Connect(d, o1, 1);
-    g.Connect(d, o2, 0);
-    g.Connect(i3, o2, 1);
+    auto& parts = graph.m_Parts;
 
-    const EstimationOptions estOpt;
+    auto i1             = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto i2             = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto s              = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto m              = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto d              = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto o1             = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto o2             = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto i3             = std::make_unique<MockPart>(graph.GeneratePartId());
+    const BasePart& pi1 = *i1;
+    const BasePart& pi2 = *i2;
+    const BasePart& ps  = *s;
+    const BasePart& pm  = *m;
+    const BasePart& pd  = *d;
+    const BasePart& po1 = *o1;
+    const BasePart& po2 = *o2;
+    const BasePart& pi3 = *i3;
+    parts.push_back(std::move(i1));
+    parts.push_back(std::move(i2));
+    parts.push_back(std::move(s));
+    parts.push_back(std::move(m));
+    parts.push_back(std::move(d));
+    parts.push_back(std::move(o1));
+    parts.push_back(std::move(o2));
+    parts.push_back(std::move(i3));
+
+    PartOutputSlot i1Output  = { pi1.GetPartId(), 0 };
+    PartOutputSlot i2Output  = { pi2.GetPartId(), 0 };
+    PartInputSlot sInput0    = { ps.GetPartId(), 0 };
+    PartInputSlot sInput1    = { ps.GetPartId(), 1 };
+    PartOutputSlot sOutput0  = { ps.GetPartId(), 0 };
+    PartOutputSlot sOutput1  = { ps.GetPartId(), 1 };
+    PartInputSlot mInput0    = { pm.GetPartId(), 0 };
+    PartOutputSlot mOutput0  = { pm.GetPartId(), 0 };
+    PartInputSlot dInput0    = { pd.GetPartId(), 0 };
+    PartOutputSlot dOutput0  = { pd.GetPartId(), 0 };
+    PartOutputSlot dOutput1  = { pd.GetPartId(), 1 };
+    PartInputSlot o1Input0   = { po1.GetPartId(), 0 };
+    PartInputSlot o1Input1   = { po1.GetPartId(), 1 };
+    PartInputSlot o2Input0   = { po2.GetPartId(), 0 };
+    PartInputSlot o2Input1   = { po2.GetPartId(), 1 };
+    PartOutputSlot i3Output0 = { pi3.GetPartId(), 0 };
+
+    graph.m_Connections[sInput0]  = i1Output;
+    graph.m_Connections[sInput1]  = i2Output;
+    graph.m_Connections[dInput0]  = sOutput0;
+    graph.m_Connections[mInput0]  = sOutput1;
+    graph.m_Connections[o1Input0] = mOutput0;
+    graph.m_Connections[o1Input1] = dOutput0;
+    graph.m_Connections[o2Input0] = dOutput1;
+    graph.m_Connections[o2Input1] = i3Output0;
+
+    DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
+
     const CompilationOptions compOpt;
-    // Assign some nodes into Parts. Note we don't assign all nodes to a part, so we can test that works correctly.
-    auto part1        = std::make_unique<Part>(0, estOpt, compOpt,
-                                        GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
-    part1->m_SubGraph = { i1, i2 };
-    auto part2        = std::make_unique<Part>(1, estOpt, compOpt,
-                                        GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
-    part2->m_SubGraph = { m, o1, d };
-    GraphOfParts parts;
-    parts.m_Parts.push_back(std::move(part1));
-    parts.m_Parts.push_back(std::move(part2));
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = false;
     if (dumpToFile)
     {
         std::ofstream stream("SaveGraphToDot Graph Topology.dot");
-        SaveGraphToDot(g, &parts, stream, DetailLevel::Low);
+        SaveGraphToDot(graph, stream, DetailLevel::Low);
     }
 
     // Save to a string and check against expected result
     std::stringstream stream;
-    SaveGraphToDot(g, &parts, stream, DetailLevel::Low);
+    SaveGraphToDot(graph, stream, DetailLevel::Low);
 
     std::string expected =
         R"(digraph SupportLibraryGraph
 {
-subgraph clusterPart_0
-{
-label="Part 0"
-labeljust=l
-0[label = "Node 0\n", shape = oval]
-1[label = "Node 1\n", shape = oval]
-}
-subgraph clusterPart_1
-{
-label="Part 1"
-labeljust=l
-3[label = "Node 3\n", shape = oval]
-5[label = "Node 5\n", shape = oval]
-4[label = "Node 4\n", shape = oval]
-}
-2[label = "Node 2\n", shape = oval]
-6[label = "Node 6\n", shape = oval]
-7[label = "Node 7\n", shape = oval]
-0 -> 2[ label="Input 0"]
-1 -> 2[ label="Input 1"]
-2 -> 3
-3 -> 5[ label="Input 0"]
-2 -> 4
-4 -> 5[ label="Input 1"]
-4 -> 6[ label="Input 0"]
-7 -> 6[ label="Input 1"]
+BasePart_0[label = "BasePart 0"]
+BasePart_1[label = "BasePart 1"]
+BasePart_2[label = "BasePart 2"]
+BasePart_3[label = "BasePart 3"]
+BasePart_4[label = "BasePart 4"]
+BasePart_5[label = "BasePart 5"]
+BasePart_6[label = "BasePart 6"]
+BasePart_7[label = "BasePart 7"]
+BasePart_0 -> BasePart_2[ headlabel="Slot 0"]
+BasePart_1 -> BasePart_2[ headlabel="Slot 1"]
+BasePart_2 -> BasePart_3[ taillabel="Slot 1"]
+BasePart_2 -> BasePart_4[ taillabel="Slot 0"]
+BasePart_3 -> BasePart_5[ headlabel="Slot 0"]
+BasePart_4 -> BasePart_5[ taillabel="Slot 0"][ headlabel="Slot 1"]
+BasePart_4 -> BasePart_6[ taillabel="Slot 1"][ headlabel="Slot 0"]
+BasePart_7 -> BasePart_6[ headlabel="Slot 1"]
 }
 )";
 
@@ -557,7 +551,6 @@ TEST_CASE("SaveGraphToDot Node Details", "[Visualisation]")
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
 
     Graph g;
-    InputNode* i        = g.CreateAndAddNode<InputNode>(TensorShape{ 1, 2, 3, 4 }, std::set<uint32_t>{ 1 });
     MceOperationNode* m = g.CreateAndAddNode<MceOperationNode>(
         TensorShape(), TensorShape{ 5, 6, 7, 8 }, sl::DataType::UINT8_QUANTIZED, QuantizationInfo(),
         ethosn::support_library::TensorInfo(), std::vector<uint8_t>(), ethosn::support_library::TensorInfo(),
@@ -565,8 +558,8 @@ TEST_CASE("SaveGraphToDot Node Details", "[Visualisation]")
         CompilerDataFormat::NHWCB, std::set<uint32_t>{ 2 });
 
     // Arbitrarily Put all nodes into one part
-    auto part1        = std::make_unique<Part>(0, estOpt, compOpt, caps);
-    part1->m_SubGraph = { i, m };
+    auto part1        = std::make_unique<PartV1>(0, estOpt, compOpt, caps);
+    part1->m_SubGraph = { m };
     GraphOfParts parts;
     parts.m_Parts.push_back(std::move(part1));
 
@@ -575,23 +568,17 @@ TEST_CASE("SaveGraphToDot Node Details", "[Visualisation]")
     if (dumpToFile)
     {
         std::ofstream stream("SaveGraphToDot Node Details.dot");
-        SaveGraphToDot(g, &parts, stream, DetailLevel::High);
+        SaveGraphToDot(parts, stream, DetailLevel::High);
     }
 
     // Save to a string and check against expected result
     std::stringstream stream;
-    SaveGraphToDot(g, &parts, stream, DetailLevel::High);
+    SaveGraphToDot(parts, stream, DetailLevel::High);
 
     std::string expected =
         R"(digraph SupportLibraryGraph
 {
-subgraph clusterPart_0
-{
-label="Part 0"
-labeljust=l
-0[label = "Node 0\nInputNode\nCorrespondingOperationIds: 1\nShape = [1, 2, 3, 4]\nFormat = NHWC\nCompressedFormat = NONE\n", shape = oval]
-1[label = "Node 1\nMceOperationNode\nFULLY_CONNECTED\nCorrespondingOperationIds: 2\nShape = [5, 6, 7, 8]\nFormat = NHWCB\nCompressedFormat = NONE\n", shape = oval]
-}
+BasePart_0[label = "BasePart 0\nNode 0\nMceOperationNode\nFULLY_CONNECTED\nCorrespondingOperationIds: 2\nShape = [5, 6, 7, 8]\nFormat = NHWCB\nCompressedFormat = NONE\n"]
 }
 )";
 
@@ -612,20 +599,23 @@ TEST_CASE("SavePlansToDot Graph Topology", "[Visualisation]")
     graph.Connect(nodeA, nodeB);
 
     // Generate two plans for the node. These plans are not realistic at all.
+    PartOutputSlot planAOutputSlot = PartOutputSlot{ 0, 0 };
     OwnedOpGraph planAOpGraph;
     planAOpGraph.AddBuffer(std::make_unique<Buffer>());
-    auto planA =
-        std::make_shared<Plan>(Plan::InputMapping{}, Plan::OutputMapping{ { planAOpGraph.GetBuffers()[0], nodeB } });
+    auto planA       = std::make_shared<Plan>(Plan::InputMapping{},
+                                        Plan::OutputMapping{ { planAOpGraph.GetBuffers()[0], planAOutputSlot } });
     planA->m_OpGraph = std::move(planAOpGraph);
 
     OwnedOpGraph planBOpGraph;
+    PartInputSlot planBInputSlot   = PartInputSlot{ 1, 0 };
+    PartOutputSlot planBOutputSlot = PartOutputSlot{ 1, 0 };
     planBOpGraph.AddBuffer(std::make_unique<Buffer>());
     planBOpGraph.AddOp(std::make_unique<DmaOp>());
     planBOpGraph.AddBuffer(std::make_unique<Buffer>());
     planBOpGraph.AddConsumer(planBOpGraph.GetBuffers()[0], planBOpGraph.GetOps()[0], 0);
     planBOpGraph.SetProducer(planBOpGraph.GetBuffers()[1], planBOpGraph.GetOps()[0]);
-    auto planB = std::make_shared<Plan>(Plan::InputMapping{ { planBOpGraph.GetBuffers()[0], nodeB->GetInput(0) } },
-                                        Plan::OutputMapping{ { planBOpGraph.GetBuffers()[1], nodeB } });
+    auto planB       = std::make_shared<Plan>(Plan::InputMapping{ { planBOpGraph.GetBuffers()[0], planBInputSlot } },
+                                        Plan::OutputMapping{ { planBOpGraph.GetBuffers()[1], planBOutputSlot } });
     planB->m_OpGraph = std::move(planBOpGraph);
 
     const CompilationOptions compOpt;
@@ -654,8 +644,7 @@ subgraph clusterPlan_1
 label="Plan 1"
 labeljust=l
 Buffer_0[label = "Buffer 0", shape = box, color = brown]
-OutputLabelBuffer_0[label = "Output from Node 1
-", shape = box]
+OutputLabelBuffer_0[label = "Output Slot 0", shape = box]
 Buffer_0 -> OutputLabelBuffer_0[dir = back, arrowtail = box]
 }
 subgraph clusterPlan_5
@@ -667,11 +656,9 @@ Buffer_2[label = "Buffer 2", shape = box, color = brown]
 Buffer_4[label = "Buffer 4", shape = box, color = brown]
 Buffer_2 -> DmaOp_3
 DmaOp_3 -> Buffer_4
-InputLabelBuffer_2[label = "Input from Node 0
-", shape = box]
+InputLabelBuffer_2[label = "Input Slot 0", shape = box]
 InputLabelBuffer_2 -> Buffer_2[arrowhead = box]
-OutputLabelBuffer_4[label = "Output from Node 1
-", shape = box]
+OutputLabelBuffer_4[label = "Output Slot 0", shape = box]
 Buffer_4 -> OutputLabelBuffer_4[dir = back, arrowtail = box]
 }
 }
@@ -685,93 +672,105 @@ Buffer_4 -> OutputLabelBuffer_4[dir = back, arrowtail = box]
 /// Details of each node are covered by other tests.
 ///
 /// The topology of the Combination is chosen to test cases including:
-///   * Plans without any inputs
-///   * Plans without any outputs
-///   * Two plans being connected via a glue
-///   * Two plans being connected without a glue
-///   * A plan having two plans using its output, each with a different glue.
-///   * Two plans being connected by two different glues (for two different connections)
+///   * Plans without any inputs (A)
+///   * Plans without any outputs (F, G)
+///   * Two plans being connected via a glue (A -> BC)
+///   * Two plans being connected without a glue (BC -> DE)
+///   * A part having two plans using its output, each with a different glue (DE -> F/G)
+///   * Two plans being connected by two different glues (for two different connections) (DE -> G)
+///   * A chain of plans containing just a single buffer each, each of which "reinterprets" its input to output (B -> C)
 ///
-///  ( A ) -> g -> ( BC ) -> ( D ) ---> g -> ( F )
-///                       \  (   ) \'
-///                        | (   )  \-> g -> (   )
-///                        | (   )           ( G )
-///                        \-( E ) -->  g -> (   )
+///  ( A ) -> g -> ( B ) -> ( C ) -> ( D ) ---> g -> ( F )
+///                               \  (   ) \'
+///                                | (   )  \-> g -> (   )
+///                                | (   )           ( G )
+///                                \-( E ) -->  g -> (   )
 TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
 {
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
 
-    Graph graph;
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
-    NameOnlyNode* nodeE = graph.CreateAndAddNode<NameOnlyNode>("e");
-    NameOnlyNode* nodeF = graph.CreateAndAddNode<NameOnlyNode>("f");
-    NameOnlyNode* nodeG = graph.CreateAndAddNode<NameOnlyNode>("g");
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
 
-    graph.Connect(nodeA, nodeB, 0);
-    graph.Connect(nodeB, nodeC, 0);
-    graph.Connect(nodeC, nodeD, 0);
-    graph.Connect(nodeC, nodeE, 0);
-    graph.Connect(nodeD, nodeF, 0);
-    graph.Connect(nodeD, nodeG, 0);
-    graph.Connect(nodeE, nodeG, 1);
+    auto pA         = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB         = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC         = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pDE        = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pF         = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pG         = std::make_unique<MockPart>(graph.GeneratePartId());
+    PartId partAId  = pA->GetPartId();
+    PartId partBId  = pB->GetPartId();
+    PartId partCId  = pC->GetPartId();
+    PartId partDEId = pDE->GetPartId();
+    PartId partFId  = pF->GetPartId();
+    PartId partGId  = pG->GetPartId();
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pDE));
+    parts.push_back(std::move(pF));
+    parts.push_back(std::move(pG));
 
-    GraphOfParts parts;
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
 
-    const EstimationOptions estOpt;
-    const CompilationOptions compOpt;
-    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
-    PartId partId                     = 0;
+    PartInputSlot partBInputSlot0   = { partBId, 0 };
+    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
 
-    // Part consisting of node A
-    parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));
-    ++partId;
-    parts.m_Parts.back()->m_SubGraph.push_back(nodeA);
+    PartInputSlot partCInputSlot0   = { partCId, 0 };
+    PartOutputSlot partCOutputSlot0 = { partCId, 0 };
+
+    PartInputSlot partDEInputSlot0   = { partDEId, 0 };
+    PartInputSlot partDEInputSlot1   = { partDEId, 1 };
+    PartOutputSlot partDEOutputSlot0 = { partDEId, 0 };
+    PartOutputSlot partDEOutputSlot1 = { partDEId, 1 };
+
+    PartInputSlot partFInputSlot0 = { partFId, 0 };
+
+    PartInputSlot partGInputSlot0 = { partGId, 0 };
+    PartInputSlot partGInputSlot1 = { partGId, 1 };
+
+    connections[partBInputSlot0]  = partAOutputSlot0;
+    connections[partCInputSlot0]  = partBOutputSlot0;
+    connections[partDEInputSlot0] = partCOutputSlot0;
+    connections[partDEInputSlot1] = partCOutputSlot0;
+    connections[partFInputSlot0]  = partDEOutputSlot0;
+    connections[partGInputSlot0]  = partDEOutputSlot0;
+    connections[partGInputSlot1]  = partDEOutputSlot1;
+
     std::shared_ptr<Plan> planA = std::make_shared<Plan>();
     planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 0, QuantizationInfo()));
     planA->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDram";
-    planA->m_OutputMappings                          = { { planA->m_OpGraph.GetBuffers()[0], nodeA } };
+    planA->m_OutputMappings                          = { { planA->m_OpGraph.GetBuffers()[0], partAOutputSlot0 } };
 
-    // Glue between A and BC
+    // Glue between A and B
     Glue glueA_BC;
     glueA_BC.m_Graph.AddOp(std::make_unique<DmaOp>());
     glueA_BC.m_Graph.GetOps()[0]->m_DebugTag = "InputDma";
     glueA_BC.m_InputSlot                     = { glueA_BC.m_Graph.GetOps()[0], 0 };
     glueA_BC.m_Output.push_back(glueA_BC.m_Graph.GetOps()[0]);
 
-    // Part consisting of nodes B and C
-    parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));
-    ++partId;
-    parts.m_Parts.back()->m_SubGraph.push_back(nodeB);
-    parts.m_Parts.back()->m_SubGraph.push_back(nodeC);
-    std::shared_ptr<Plan> planBC = std::make_shared<Plan>();
-    planBC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planBC->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram";
-    planBC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                         TraversalOrder::Xyz, 0, QuantizationInfo()));
-    planBC->m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateSramOutput";
-    planBC->m_InputMappings                           = { { planBC->m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
-    planBC->m_OutputMappings                          = { { planBC->m_OpGraph.GetBuffers()[1], nodeC } };
-    planBC->m_OpGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION,
-                                                    CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
-                                                    TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                    TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0));
-    planBC->m_OpGraph.GetOps()[0]->m_DebugTag = "Mce1";
-    planBC->m_OpGraph.AddConsumer(planBC->m_OpGraph.GetBuffers()[0], planBC->m_OpGraph.GetOps()[0], 0);
-    planBC->m_OpGraph.SetProducer(planBC->m_OpGraph.GetBuffers()[1], planBC->m_OpGraph.GetOps()[0]);
+    // Part consisting of node B
+    std::shared_ptr<Plan> planB = std::make_shared<Plan>();
+    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram1";
+    planB->m_InputMappings                           = { { planB->m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
+    planB->m_OutputMappings                          = { { planB->m_OpGraph.GetBuffers()[0], partBOutputSlot0 } };
+
+    // Part consisting of node C
+    std::shared_ptr<Plan> planC = std::make_shared<Plan>();
+    planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram2";
+    planC->m_InputMappings                           = { { planC->m_OpGraph.GetBuffers()[0], partCInputSlot0 } };
+    planC->m_OutputMappings                          = { { planC->m_OpGraph.GetBuffers()[0], partCOutputSlot0 } };
 
     // Part consisting of nodes D and E
-    parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));
-    ++partId;
-    parts.m_Parts.back()->m_SubGraph.push_back(nodeD);
-    parts.m_Parts.back()->m_SubGraph.push_back(nodeE);
     std::shared_ptr<Plan> planDE = std::make_shared<Plan>();
     planDE->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                          TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
@@ -789,10 +788,10 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
                                                          TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                          TraversalOrder::Xyz, 0, QuantizationInfo()));
     planDE->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram2";
-    planDE->m_InputMappings                           = { { planDE->m_OpGraph.GetBuffers()[0], nodeD->GetInput(0) },
-                                { planDE->m_OpGraph.GetBuffers()[2], nodeE->GetInput(0) } };
-    planDE->m_OutputMappings                          = { { planDE->m_OpGraph.GetBuffers()[1], nodeD },
-                                 { planDE->m_OpGraph.GetBuffers()[3], nodeE } };
+    planDE->m_InputMappings                           = { { planDE->m_OpGraph.GetBuffers()[0], partDEInputSlot0 },
+                                { planDE->m_OpGraph.GetBuffers()[2], partDEInputSlot1 } };
+    planDE->m_OutputMappings                          = { { planDE->m_OpGraph.GetBuffers()[1], partDEOutputSlot0 },
+                                 { planDE->m_OpGraph.GetBuffers()[3], partDEOutputSlot1 } };
     planDE->m_OpGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION,
                                                     CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
                                                     TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
@@ -825,19 +824,14 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     glueE_G.m_Output.push_back(glueE_G.m_Graph.GetOps()[0]);
 
     // Part consisting of node F
-    parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));
-    ++partId;
-    parts.m_Parts.back()->m_SubGraph.push_back(nodeF);
     std::shared_ptr<Plan> planF = std::make_shared<Plan>();
     planF->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 0, QuantizationInfo()));
     planF->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputDram1";
-    planF->m_InputMappings                           = { { planF->m_OpGraph.GetBuffers()[0], nodeF->GetInput(0) } };
+    planF->m_InputMappings                           = { { planF->m_OpGraph.GetBuffers()[0], partFInputSlot0 } };
 
     // Part consisting of node G
-    parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));
-    parts.m_Parts.back()->m_SubGraph.push_back(nodeG);
     std::shared_ptr<Plan> planG = std::make_shared<Plan>();
     planG->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
@@ -847,72 +841,79 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 0, QuantizationInfo()));
     planG->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputDram3";
-    planG->m_InputMappings                           = { { planG->m_OpGraph.GetBuffers()[0], nodeG->GetInput(0) },
-                               { planG->m_OpGraph.GetBuffers()[1], nodeG->GetInput(1) } };
+    planG->m_InputMappings                           = { { planG->m_OpGraph.GetBuffers()[0], partGInputSlot0 },
+                               { planG->m_OpGraph.GetBuffers()[1], partGInputSlot1 } };
 
     // Create Combination with all the plans and glues
     Combination comb;
-    Elem elemA  = { planA, { { nodeB->GetInput(0), { &glueA_BC, true } } } };
-    Elem elemBC = { planBC, {} };
+
+    Elem elemA  = { planA, { { partBInputSlot0, { &glueA_BC, true } } } };
+    Elem elemB  = { planB, {} };
+    Elem elemC  = { planC, {} };
     Elem elemDE = { planDE,
-                    { { nodeF->GetInput(0), { &glueD_F, true } },
-                      { nodeG->GetInput(0), { &glueD_G, true } },
-                      { nodeG->GetInput(1), { &glueE_G, true } } } };
+                    { { partFInputSlot0, { &glueD_F, true } },
+                      { partGInputSlot0, { &glueD_G, true } },
+                      { partGInputSlot1, { &glueE_G, true } } } };
     Elem elemF  = { planF, {} };
     Elem elemG  = { planG, {} };
     comb.m_Elems.insert(std::make_pair(0, elemA));
     comb.m_PartIdsInOrder.push_back(0);
-    comb.m_Elems.insert(std::make_pair(1, elemBC));
+    comb.m_Elems.insert(std::make_pair(1, elemB));
     comb.m_PartIdsInOrder.push_back(1);
-    comb.m_Elems.insert(std::make_pair(2, elemDE));
+    comb.m_Elems.insert(std::make_pair(2, elemC));
     comb.m_PartIdsInOrder.push_back(2);
-    comb.m_Elems.insert(std::make_pair(3, elemF));
+    comb.m_Elems.insert(std::make_pair(3, elemDE));
     comb.m_PartIdsInOrder.push_back(3);
-    comb.m_Elems.insert(std::make_pair(4, elemG));
+    comb.m_Elems.insert(std::make_pair(4, elemF));
     comb.m_PartIdsInOrder.push_back(4);
+    comb.m_Elems.insert(std::make_pair(5, elemG));
+    comb.m_PartIdsInOrder.push_back(5);
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = false;
     if (dumpToFile)
     {
         std::ofstream stream("SaveCombinationToDot Graph Topology.dot");
-        SaveCombinationToDot(comb, parts, stream, DetailLevel::Low);
+        SaveCombinationToDot(comb, graph, stream, DetailLevel::Low);
     }
 
     // Save to a string and check against expected result
     std::stringstream stream;
-    SaveCombinationToDot(comb, parts, stream, DetailLevel::Low);
+    SaveCombinationToDot(comb, graph, stream, DetailLevel::Low);
 
     std::string expected =
         R"(digraph SupportLibraryGraph
 {
-subgraph clusterPlan_1
+subgraph clusterPlan_6
 {
-label="Plan 1"
+label="Plan 6"
 labeljust=l
 InputDram[label = "InputDram", shape = box, color = brown]
 }
-subgraph clusterPlan_1_Glue_0
+subgraph clusterPlan_6_Glue_0
 {
-label="Plan 1 Glue 0"
+label="Plan 6 Glue 0"
 labeljust=l
 InputDma[label = "InputDma", shape = oval, color = darkgoldenrod]
 }
 InputDram -> InputDma
-subgraph clusterPlan_5
+subgraph clusterPlan_9
 {
-label="Plan 5"
+label="Plan 9"
 labeljust=l
-Mce1[label = "Mce1", shape = oval]
-InputSram[label = "InputSram", shape = box, color = blue]
-IntermediateSramOutput[label = "IntermediateSramOutput", shape = box, color = blue]
-InputSram -> Mce1
-Mce1 -> IntermediateSramOutput
+InputSram1[label = "InputSram1", shape = box, color = blue]
 }
-InputDma -> InputSram
-subgraph clusterPlan_10
+InputDma -> InputSram1
+subgraph clusterPlan_11
 {
-label="Plan 10"
+label="Plan 11"
+labeljust=l
+InputSram2[label = "InputSram2", shape = box, color = blue]
+}
+InputSram1 -> InputSram2
+subgraph clusterPlan_13
+{
+label="Plan 13"
 labeljust=l
 Mce2[label = "Mce2", shape = oval]
 IntermediateSramInput1[label = "IntermediateSramInput1", shape = box, color = blue]
@@ -925,39 +926,39 @@ IntermediateSramInput2 -> Mce2[ label="Input 1"]
 Mce2 -> OutputSram2
 { rank = "same"; Mce2; IntermediateSramInput2; }
 }
-IntermediateSramOutput -> IntermediateSramInput1
-IntermediateSramOutput -> IntermediateSramInput2
-subgraph clusterPlan_10_Glue_0
+InputSram2 -> IntermediateSramInput1
+InputSram2 -> IntermediateSramInput2
+subgraph clusterPlan_13_Glue_0
 {
-label="Plan 10 Glue 0"
+label="Plan 13 Glue 0"
 labeljust=l
 OutputDma1[label = "OutputDma1", shape = oval, color = darkgoldenrod]
 }
 OutputSram1 -> OutputDma1
-subgraph clusterPlan_10_Glue_1
+subgraph clusterPlan_13_Glue_1
 {
-label="Plan 10 Glue 1"
+label="Plan 13 Glue 1"
 labeljust=l
 OutputDma2[label = "OutputDma2", shape = oval, color = darkgoldenrod]
 }
 OutputSram1 -> OutputDma2
-subgraph clusterPlan_10_Glue_2
+subgraph clusterPlan_13_Glue_2
 {
-label="Plan 10 Glue 2"
+label="Plan 13 Glue 2"
 labeljust=l
 OutputDma3[label = "OutputDma3", shape = oval, color = darkgoldenrod]
 }
 OutputSram2 -> OutputDma3
-subgraph clusterPlan_20
+subgraph clusterPlan_22
 {
-label="Plan 20"
+label="Plan 22"
 labeljust=l
 OutputDram1[label = "OutputDram1", shape = box, color = brown]
 }
 OutputDma1 -> OutputDram1
-subgraph clusterPlan_23
+subgraph clusterPlan_24
 {
-label="Plan 23"
+label="Plan 24"
 labeljust=l
 OutputDram2[label = "OutputDram2", shape = box, color = brown]
 OutputDram3[label = "OutputDram3", shape = box, color = brown]
@@ -968,19 +969,6 @@ OutputDma3 -> OutputDram3
 )";
 
     REQUIRE(stream.str() == expected);
-}
-
-void AddNodesToPart(GraphOfParts& gOfParts,
-                    std::vector<Node*> nodes,
-                    const EstimationOptions& estOpt,
-                    const CompilationOptions& compOpt,
-                    const HardwareCapabilities& hwCaps)
-{
-    gOfParts.m_Parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
-    for (Node* node : nodes)
-    {
-        (*(gOfParts.m_Parts.back())).m_SubGraph.push_back(node);
-    }
 }
 
 // Create graph:
@@ -999,59 +987,68 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
 {
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
 
-    Graph graph;
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
 
-    graph.Connect(nodeA, nodeB, 0);
-    graph.Connect(nodeA, nodeC, 0);
-    graph.Connect(nodeA, nodeD, 0);
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+    BasePart& partD = *pD;
+
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pD));
+
+    PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
+
+    PartInputSlot partBInputSlot = { partB.GetPartId(), 0 };
+    PartInputSlot partCInputSlot = { partC.GetPartId(), 0 };
+    PartInputSlot partDInputSlot = { partD.GetPartId(), 0 };
+
+    connections[partBInputSlot] = { partAOutputSlot };
+    connections[partCInputSlot] = { partAOutputSlot };
+    connections[partDInputSlot] = { partAOutputSlot };
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planA = std::make_shared<Plan>();
     planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], nodeA } };
+    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planB = std::make_shared<Plan>();
     planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_InputMappings = { { planB->m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
+    planB->m_InputMappings = { { planB->m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planC = std::make_shared<Plan>();
     planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planC->m_InputMappings = { { planC->m_OpGraph.GetBuffers()[0], nodeC->GetInput(0) } };
+    planC->m_InputMappings = { { planC->m_OpGraph.GetBuffers()[0], partCInputSlot } };
 
-    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planD = std::make_shared<Plan>();
     planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planD->m_InputMappings = { { planD->m_OpGraph.GetBuffers()[0], nodeD->GetInput(0) } };
+    planD->m_InputMappings = { { planD->m_OpGraph.GetBuffers()[0], partDInputSlot } };
 
-    const Part& partA = *gOfParts.m_Parts.at(0).get();
-    const Part& partB = *gOfParts.m_Parts.at(1).get();
-    const Part& partC = *gOfParts.m_Parts.at(2).get();
-    const Part& partD = *gOfParts.m_Parts.at(3).get();
-
-    Combination combA(partA, planA, 0);
-    Combination combB(partB, planB, 1);
-    Combination combC(partC, planC, 2);
-    Combination combD(partD, planD, 3);
+    Combination combA(partA, planA, 0, graph);
+    Combination combB(partB, planB, 1, graph);
+    Combination combC(partC, planC, 2, graph);
+    Combination combD(partD, planD, 3, graph);
 
     // Merge the combinations
     Combination comb = combB + combD + combC + combA;
@@ -1067,19 +1064,19 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
     REQUIRE(comb.m_PartIdsInOrder[0] == 0);
     REQUIRE(comb.m_HeadOrderRank == 0);
 
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
-    std::vector<std::pair<const Part*, const Edge*>> destPartEdge;
+    std::vector<PartConnection> destPartEdge;
 
     // Part B and the edge that connects to its source Part A
-    const Edge* edgeA2B = combiner.GetEdgeConnectTwoParts(partB, partA).at(0);
-    destPartEdge.push_back(std::make_pair((const Part*)&partB, edgeA2B));
+    PartConnection edgeA2B = graph.GetConnectionsBetween(partA.GetPartId(), partB.GetPartId()).at(0);
+    destPartEdge.push_back(edgeA2B);
     // Part C and the edge that connects to its source Part A
-    const Edge* edgeA2C = combiner.GetEdgeConnectTwoParts(partC, partA).at(0);
-    destPartEdge.push_back(std::make_pair((const Part*)&partC, edgeA2C));
+    PartConnection edgeA2C = graph.GetConnectionsBetween(partA.GetPartId(), partC.GetPartId()).at(0);
+    destPartEdge.push_back(edgeA2C);
     // Part D and the edge that connects to its source Part A
-    const Edge* edgeA2D = combiner.GetEdgeConnectTwoParts(partD, partA).at(0);
-    destPartEdge.push_back(std::make_pair((const Part*)&partD, edgeA2D));
+    PartConnection edgeA2D = graph.GetConnectionsBetween(partA.GetPartId(), partD.GetPartId()).at(0);
+    destPartEdge.push_back(edgeA2D);
 
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, destPartEdge);
 
@@ -1092,25 +1089,25 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
     if (dumpToFile)
     {
         std::ofstream stream("SaveCombinationToDot Graph Topology.dot");
-        SaveCombinationToDot(combGlued, gOfParts, stream, DetailLevel::Low);
+        SaveCombinationToDot(combGlued, graph, stream, DetailLevel::Low);
     }
 
     // Save to a string and check against expected result
     std::stringstream stream;
-    SaveCombinationToDot(combGlued, gOfParts, stream, DetailLevel::Low);
+    SaveCombinationToDot(combGlued, graph, stream, DetailLevel::Low);
 
     std::string expected =
         R"(digraph SupportLibraryGraph
 {
-subgraph clusterPlan_1
+subgraph clusterPlan_4
 {
-label="Plan 1"
+label="Plan 4"
 labeljust=l
-Buffer_2[label = "Buffer 2", shape = box, color = blue]
+Buffer_5[label = "Buffer 5", shape = box, color = blue]
 }
-subgraph clusterPlan_1_Glue_0
+subgraph clusterPlan_4_Glue_0
 {
-label="Plan 1 Glue 0"
+label="Plan 4 Glue 0"
 labeljust=l
 DmaOp_13[label = "DmaOp 13", shape = oval, color = darkgoldenrod]
 DmaOp_14[label = "DmaOp 14", shape = oval, color = darkgoldenrod]
@@ -1120,14 +1117,14 @@ DmaOp_13 -> Buffer_12
 Buffer_12 -> DmaOp_14
 Buffer_12 -> DmaOp_15
 }
-Buffer_2 -> DmaOp_13
-subgraph clusterPlan_4
+Buffer_5 -> DmaOp_13
+subgraph clusterPlan_6
 {
-label="Plan 4"
+label="Plan 6"
 labeljust=l
-Buffer_5[label = "Buffer 5", shape = box, color = blue]
+Buffer_7[label = "Buffer 7", shape = box, color = blue]
 }
-DmaOp_14 -> Buffer_5
+DmaOp_14 -> Buffer_7
 subgraph clusterPlan_10
 {
 label="Plan 10"
@@ -1135,13 +1132,13 @@ labeljust=l
 Buffer_11[label = "Buffer 11", shape = box, color = brown]
 }
 Buffer_12 -> Buffer_11
-subgraph clusterPlan_7
+subgraph clusterPlan_8
 {
-label="Plan 7"
+label="Plan 8"
 labeljust=l
-Buffer_8[label = "Buffer 8", shape = box, color = blue]
+Buffer_9[label = "Buffer 9", shape = box, color = blue]
 }
-DmaOp_15 -> Buffer_8
+DmaOp_15 -> Buffer_9
 }
 )";
 

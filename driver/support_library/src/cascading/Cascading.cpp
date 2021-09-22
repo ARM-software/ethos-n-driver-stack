@@ -12,6 +12,7 @@
 #include "Estimation.hpp"
 #include "EstimationUtils.hpp"
 #include "Part.hpp"
+#include "PartV1.hpp"
 
 #include "../include/ethosn_support_library/Optional.hpp"
 #include <ethosn_utils/Filesystem.hpp>
@@ -78,24 +79,25 @@ GraphOfParts CreateGraphOfParts(const Graph& graph,
     GraphOfParts graphOfParts;
     Parts& parts = graphOfParts.m_Parts;
 
-    auto AddNodeToPart    = [](Node* node, Part& part) -> void { part.m_SubGraph.push_back(node); };
+    auto AddNodeToPart    = [](Node* node, PartV1& part) -> void { part.m_SubGraph.push_back(node); };
     auto AddNodeToNewPart = [&](Node* node) -> void {
         // Insert node into new part.
-        parts.push_back(std::make_unique<Part>(graphOfParts.GeneratePartId(), estOpt, compOpt, capabilities));
-        AddNodeToPart(node, *(parts.back()));
+        auto part = std::make_unique<PartV1>(graphOfParts.GeneratePartId(), estOpt, compOpt, capabilities);
+        AddNodeToPart(node, *part);
+        parts.push_back(std::unique_ptr<BasePart>(std::move(part)));
     };
     auto FindPartFromSourceAndAddNode = [&](Node* ppOpNode) -> void {
         // Iterate in reverse, it will be quicker.
         for (auto part = parts.rbegin(); part != parts.rend(); ++part)
         {
             // Connect PP Op nodes only if the parent node has a single output.
-            const auto partOutputNode = (*part)->m_SubGraph.back();
+            const auto partOutputNode = static_cast<PartV1*>(part->get())->m_SubGraph.back();
             for (const auto input : ppOpNode->GetInputs())
             {
                 if (input->GetSource() == partOutputNode)
                 {
                     // Case 1)
-                    AddNodeToPart(ppOpNode, **part);
+                    AddNodeToPart(ppOpNode, static_cast<PartV1&>(**part));
                     return;
                 }
             }
@@ -132,13 +134,55 @@ GraphOfParts CreateGraphOfParts(const Graph& graph,
         }
     }
 
+    auto GetPartIdFromNode = [&](const Node* node) {
+        for (auto&& part : parts)
+        {
+            const auto partV1 = static_cast<PartV1*>(part.get());
+            for (Node* n : partV1->m_SubGraph)
+            {
+                if (node == n)
+                {
+                    return partV1->GetPartId();
+                }
+            }
+        }
+        assert(false);
+        return static_cast<PartId>(-1);
+    };
+
+    for (auto&& part : parts)
+    {
+        const auto partV1         = static_cast<PartV1*>(part.get());
+        auto edges                = partV1->GetOutputs();
+        PartOutputSlot outputSlot = { partV1->GetPartId(), 0 };
+        for (auto&& edge : edges)
+        {
+            const Node* dest    = edge->GetDestination();
+            auto destInputs     = dest->GetInputs();
+            uint32_t inputIndex = 0;
+            for (uint32_t i = 0; i < destInputs.size(); ++i)
+            {
+                if (edge == destInputs[i])
+                {
+                    inputIndex = i;
+                    break;
+                }
+            }
+
+            assert(GetPartIdFromNode(edge->GetSource()) == partV1->GetPartId());
+            auto destPart           = GetPartIdFromNode(dest);
+            PartInputSlot inputSlot = { destPart, inputIndex };
+            graphOfParts.AddConnection(inputSlot, outputSlot);
+        }
+    }
+
     // Validate that every node has been assigned to a Part.
     std::set<Node*> nodes;
     std::transform(graph.GetNodes().begin(), graph.GetNodes().end(), std::inserter(nodes, nodes.end()),
                    [](auto&& n) { return n.get(); });
     for (auto&& p : graphOfParts.m_Parts)
     {
-        for (auto&& n : p->m_SubGraph)
+        for (auto&& n : static_cast<PartV1*>(p.get())->m_SubGraph)
         {
             nodes.erase(n);
         }
@@ -168,9 +212,9 @@ NetworkPerformanceData Cascading::Estimate(Graph& graph)
 {
     m_GraphOfParts = CreateGraphOfParts(graph, m_EstimationOptions, m_CompilationOptions, m_Capabilities);
 
-    m_DebuggingContext.SaveGraphToDot(CompilationOptions::DebugLevel::Medium, graph, &m_GraphOfParts,
+    m_DebuggingContext.SaveGraphToDot(CompilationOptions::DebugLevel::Medium, m_GraphOfParts,
                                       "Cascaded_GraphOfParts.dot", DetailLevel::Low);
-    m_DebuggingContext.SaveGraphToDot(CompilationOptions::DebugLevel::Medium, graph, &m_GraphOfParts,
+    m_DebuggingContext.SaveGraphToDot(CompilationOptions::DebugLevel::Medium, m_GraphOfParts,
                                       "Cascaded_GraphOfPartsDetailed.dot", DetailLevel::High);
 
     if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)

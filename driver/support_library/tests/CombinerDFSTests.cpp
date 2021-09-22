@@ -7,6 +7,7 @@
 #include "../src/GraphNodes.hpp"
 #include "../src/cascading/Cascading.hpp"
 #include "../src/cascading/CombinerDFS.hpp"
+#include "../src/cascading/PartV1.hpp"
 #include "TestUtils.hpp"
 
 #include <catch.hpp>
@@ -16,71 +17,8 @@
 using namespace ethosn::support_library;
 using namespace ethosn::command_stream;
 
-namespace
-{
-
-void AddNodesToPart(GraphOfParts& gOfParts,
-                    std::vector<Node*> nodes,
-                    const EstimationOptions& estOpt,
-                    const CompilationOptions& compOpt,
-                    const HardwareCapabilities& hwCaps)
-{
-    gOfParts.m_Parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
-    for (Node* node : nodes)
-    {
-        (*(gOfParts.m_Parts.back())).m_SubGraph.push_back(node);
-    }
-}
-
-void CheckPartId(const GraphOfParts& gOfParts)
-{
-    size_t count = 0;
-    for (auto&& p : gOfParts.m_Parts)
-    {
-        REQUIRE(p->m_PartId == count);
-        ++count;
-    }
-}
-
-Part& GetPart(const GraphOfParts& gOfParts, const PartId partId)
-{
-    return *gOfParts.m_Parts.at(partId).get();
-}
-
-}    // namespace
-
-/// Simple Node type for tests.
-/// Includes a friendly name and ignores shape, quantisation info etc. so that tests
-/// can focus on graph topology.
-class NameOnlyNode : public Node
-{
-public:
-    NameOnlyNode(NodeId id, std::string name)
-        : Node(id,
-               TensorShape(),
-               ethosn::support_library::DataType::UINT8_QUANTIZED,
-               QuantizationInfo(),
-               CompilerDataFormat::NONE,
-               std::set<uint32_t>{ 0 })
-        , m_Name(name)
-    {}
-
-    DotAttributes GetDotAttributes() override
-    {
-        return DotAttributes(std::to_string(m_Id), m_Name, "");
-    }
-
-    bool IsPrepared() override
-    {
-        return false;
-    }
-
-    std::string m_Name;
-};
-
 TEST_CASE("IsPartSiso", "[CombinerDFS]")
 {
-    Graph graph;
     // Create graph:
     //
     //          D
@@ -89,43 +27,67 @@ TEST_CASE("IsPartSiso", "[CombinerDFS]")
     //          |
     //          E
     //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
-    NameOnlyNode* nodeE = graph.CreateAndAddNode<NameOnlyNode>("e");
 
-    graph.Connect(nodeA, nodeB, 0);
-    graph.Connect(nodeB, nodeC, 0);
-    graph.Connect(nodeC, nodeD, 0);
-    graph.Connect(nodeC, nodeE, 0);
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
+
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pE = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+    BasePart& partD = *pD;
+    BasePart& partE = *pE;
+
+    PartId partAId = pA->GetPartId();
+    PartId partBId = pB->GetPartId();
+    PartId partCId = pC->GetPartId();
+    PartId partDId = pD->GetPartId();
+    PartId partEId = pE->GetPartId();
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pD));
+    parts.push_back(std::move(pE));
+
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+
+    PartInputSlot partBInputSlot0   = { partBId, 0 };
+    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
+
+    PartInputSlot partCInputSlot0   = { partCId, 0 };
+    PartOutputSlot partCOutputSlot0 = { partCId, 0 };
+
+    PartInputSlot partDInputSlot0 = { partDId, 0 };
+
+    PartInputSlot partEInputSlot0 = { partEId, 0 };
+
+    connections[partBInputSlot0] = partAOutputSlot0;
+    connections[partCInputSlot0] = partBOutputSlot0;
+    connections[partDInputSlot0] = partCOutputSlot0;
+    connections[partEInputSlot0] = partCOutputSlot0;
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
-    CheckPartId(gOfParts);
-
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
-
-    REQUIRE(combiner.IsPartSiso(GetPart(gOfParts, 0)) == false);
-    REQUIRE(combiner.IsPartSiso(GetPart(gOfParts, 1)) == true);
-    REQUIRE(combiner.IsPartSiso(GetPart(gOfParts, 2)) == false);
-    REQUIRE(combiner.IsPartSiso(GetPart(gOfParts, 3)) == false);
-    REQUIRE(combiner.IsPartSiso(GetPart(gOfParts, 4)) == false);
+    REQUIRE(combiner.IsPartSiso(partA) == false);
+    REQUIRE(combiner.IsPartSiso(partB) == true);
+    REQUIRE(combiner.IsPartSiso(partC) == false);
+    REQUIRE(combiner.IsPartSiso(partD) == false);
+    REQUIRE(combiner.IsPartSiso(partE) == false);
 }
 
 TEST_CASE("IsPartSimo", "[CombinerDFS]")
 {
-    Graph graph;
     // Create graph:
     //
     //          D
@@ -134,43 +96,67 @@ TEST_CASE("IsPartSimo", "[CombinerDFS]")
     //          |
     //          E
     //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
-    NameOnlyNode* nodeE = graph.CreateAndAddNode<NameOnlyNode>("e");
 
-    graph.Connect(nodeA, nodeB, 0);
-    graph.Connect(nodeB, nodeC, 0);
-    graph.Connect(nodeC, nodeD, 0);
-    graph.Connect(nodeC, nodeE, 0);
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
+
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pE = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+    BasePart& partD = *pD;
+    BasePart& partE = *pE;
+
+    PartId partAId = pA->GetPartId();
+    PartId partBId = pB->GetPartId();
+    PartId partCId = pC->GetPartId();
+    PartId partDId = pD->GetPartId();
+    PartId partEId = pE->GetPartId();
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pD));
+    parts.push_back(std::move(pE));
+
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+
+    PartInputSlot partBInputSlot0   = { partBId, 0 };
+    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
+
+    PartInputSlot partCInputSlot0   = { partCId, 0 };
+    PartOutputSlot partCOutputSlot0 = { partCId, 0 };
+
+    PartInputSlot partDInputSlot0 = { partDId, 0 };
+
+    PartInputSlot partEInputSlot0 = { partEId, 0 };
+
+    connections[partBInputSlot0] = partAOutputSlot0;
+    connections[partCInputSlot0] = partBOutputSlot0;
+    connections[partDInputSlot0] = partCOutputSlot0;
+    connections[partEInputSlot0] = partCOutputSlot0;
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
-    CheckPartId(gOfParts);
-
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
-
-    REQUIRE(combiner.IsPartSimo(GetPart(gOfParts, 0)) == false);
-    REQUIRE(combiner.IsPartSimo(GetPart(gOfParts, 1)) == false);
-    REQUIRE(combiner.IsPartSimo(GetPart(gOfParts, 2)) == true);
-    REQUIRE(combiner.IsPartSimo(GetPart(gOfParts, 3)) == false);
-    REQUIRE(combiner.IsPartSimo(GetPart(gOfParts, 4)) == false);
+    REQUIRE(combiner.IsPartSimo(partA) == false);
+    REQUIRE(combiner.IsPartSimo(partB) == false);
+    REQUIRE(combiner.IsPartSimo(partC) == true);
+    REQUIRE(combiner.IsPartSimo(partD) == false);
+    REQUIRE(combiner.IsPartSimo(partE) == false);
 }
 
 TEST_CASE("IsPartMiso", "[CombinerDFS]")
 {
-    Graph graph;
     // Create graph:
     //
     //  A
@@ -179,39 +165,58 @@ TEST_CASE("IsPartMiso", "[CombinerDFS]")
     //  |
     //  B
     //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
 
-    graph.Connect(nodeA, nodeC, 0);
-    graph.Connect(nodeB, nodeC, 0);
-    graph.Connect(nodeC, nodeD, 0);
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+    BasePart& partD = *pD;
+
+    PartId partAId = pA->GetPartId();
+    PartId partBId = pB->GetPartId();
+    PartId partCId = pC->GetPartId();
+    PartId partDId = pD->GetPartId();
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pD));
+
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+
+    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
+
+    PartInputSlot partCInputSlot0   = { partCId, 0 };
+    PartInputSlot partCInputSlot1   = { partCId, 1 };
+    PartOutputSlot partCOutputSlot0 = { partCId, 0 };
+
+    PartInputSlot partDInputSlot0 = { partDId, 0 };
+
+    connections[partCInputSlot0] = partAOutputSlot0;
+    connections[partCInputSlot1] = partBOutputSlot0;
+    connections[partDInputSlot0] = partCOutputSlot0;
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
-    CheckPartId(gOfParts);
-
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
-
-    REQUIRE(combiner.IsPartMiso(GetPart(gOfParts, 0)) == false);
-    REQUIRE(combiner.IsPartMiso(GetPart(gOfParts, 1)) == false);
-    REQUIRE(combiner.IsPartMiso(GetPart(gOfParts, 2)) == true);
-    REQUIRE(combiner.IsPartMiso(GetPart(gOfParts, 3)) == false);
+    REQUIRE(combiner.IsPartMiso(partA) == false);
+    REQUIRE(combiner.IsPartMiso(partB) == false);
+    REQUIRE(combiner.IsPartMiso(partC) == true);
+    REQUIRE(combiner.IsPartMiso(partD) == false);
 }
 
 TEST_CASE("IsPartMimo", "[CombinerDFS]")
 {
-    Graph graph;
     // Create graph:
     //
     //  A    E
@@ -220,43 +225,67 @@ TEST_CASE("IsPartMimo", "[CombinerDFS]")
     //       |
     //       B
     //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
-    NameOnlyNode* nodeE = graph.CreateAndAddNode<NameOnlyNode>("e");
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
 
-    graph.Connect(nodeA, nodeC, 0);
-    graph.Connect(nodeB, nodeC, 0);
-    graph.Connect(nodeC, nodeD, 0);
-    graph.Connect(nodeC, nodeE, 0);
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pE = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+    BasePart& partD = *pD;
+    BasePart& partE = *pE;
+
+    PartId partAId = pA->GetPartId();
+    PartId partBId = pB->GetPartId();
+    PartId partCId = pC->GetPartId();
+    PartId partDId = pD->GetPartId();
+    PartId partEId = pE->GetPartId();
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pD));
+    parts.push_back(std::move(pE));
+
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+
+    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
+
+    PartInputSlot partCInputSlot0   = { partCId, 0 };
+    PartInputSlot partCInputSlot1   = { partCId, 1 };
+    PartOutputSlot partCOutputSlot0 = { partCId, 0 };
+    PartOutputSlot partCOutputSlot1 = { partCId, 1 };
+
+    PartInputSlot partDInputSlot0 = { partDId, 0 };
+
+    PartInputSlot partEInputSlot0 = { partEId, 0 };
+
+    connections[partCInputSlot0] = partAOutputSlot0;
+    connections[partCInputSlot1] = partBOutputSlot0;
+    connections[partDInputSlot0] = partCOutputSlot0;
+    connections[partEInputSlot0] = partCOutputSlot1;
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
-    CheckPartId(gOfParts);
-
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
-
-    REQUIRE(combiner.IsPartMimo(GetPart(gOfParts, 0)) == false);
-    REQUIRE(combiner.IsPartMimo(GetPart(gOfParts, 1)) == false);
-    REQUIRE(combiner.IsPartMimo(GetPart(gOfParts, 2)) == true);
-    REQUIRE(combiner.IsPartMimo(GetPart(gOfParts, 3)) == false);
-    REQUIRE(combiner.IsPartMimo(GetPart(gOfParts, 4)) == false);
+    REQUIRE(combiner.IsPartMimo(partA) == false);
+    REQUIRE(combiner.IsPartMimo(partB) == false);
+    REQUIRE(combiner.IsPartMimo(partC) == true);
+    REQUIRE(combiner.IsPartMimo(partD) == false);
+    REQUIRE(combiner.IsPartMimo(partE) == false);
 }
 
 TEST_CASE("IsPartInput and IsPartOutput", "[CombinerDFS]")
 {
-    Graph graph;
     // Create graph:
     //
     //  A    E
@@ -265,52 +294,76 @@ TEST_CASE("IsPartInput and IsPartOutput", "[CombinerDFS]")
     //       |
     //       B
     //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
-    NameOnlyNode* nodeE = graph.CreateAndAddNode<NameOnlyNode>("e");
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
 
-    graph.Connect(nodeA, nodeC, 0);
-    graph.Connect(nodeB, nodeC, 0);
-    graph.Connect(nodeC, nodeD, 0);
-    graph.Connect(nodeC, nodeE, 0);
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pE = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+    BasePart& partD = *pD;
+    BasePart& partE = *pE;
+
+    PartId partAId = pA->GetPartId();
+    PartId partBId = pB->GetPartId();
+    PartId partCId = pC->GetPartId();
+    PartId partDId = pD->GetPartId();
+    PartId partEId = pE->GetPartId();
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pD));
+    parts.push_back(std::move(pE));
+
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+
+    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
+
+    PartInputSlot partCInputSlot0   = { partCId, 0 };
+    PartInputSlot partCInputSlot1   = { partCId, 1 };
+    PartOutputSlot partCOutputSlot0 = { partCId, 0 };
+    PartOutputSlot partCOutputSlot1 = { partCId, 1 };
+
+    PartInputSlot partDInputSlot0 = { partDId, 0 };
+
+    PartInputSlot partEInputSlot0 = { partEId, 0 };
+
+    connections[partCInputSlot0] = partAOutputSlot0;
+    connections[partCInputSlot1] = partBOutputSlot0;
+    connections[partDInputSlot0] = partCOutputSlot0;
+    connections[partEInputSlot0] = partCOutputSlot1;
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
-    CheckPartId(gOfParts);
+    REQUIRE(combiner.IsPartInput(partA) == true);
+    REQUIRE(combiner.IsPartOutput(partA) == false);
 
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+    REQUIRE(combiner.IsPartInput(partB) == true);
+    REQUIRE(combiner.IsPartOutput(partB) == false);
 
-    REQUIRE(combiner.IsPartInput(GetPart(gOfParts, 0)) == true);
-    REQUIRE(combiner.IsPartOutput(GetPart(gOfParts, 0)) == false);
+    REQUIRE(combiner.IsPartInput(partC) == false);
+    REQUIRE(combiner.IsPartOutput(partC) == false);
 
-    REQUIRE(combiner.IsPartInput(GetPart(gOfParts, 1)) == true);
-    REQUIRE(combiner.IsPartOutput(GetPart(gOfParts, 1)) == false);
+    REQUIRE(combiner.IsPartInput(partD) == false);
+    REQUIRE(combiner.IsPartOutput(partD) == true);
 
-    REQUIRE(combiner.IsPartInput(GetPart(gOfParts, 2)) == false);
-    REQUIRE(combiner.IsPartOutput(GetPart(gOfParts, 2)) == false);
-
-    REQUIRE(combiner.IsPartInput(GetPart(gOfParts, 3)) == false);
-    REQUIRE(combiner.IsPartOutput(GetPart(gOfParts, 3)) == true);
-
-    REQUIRE(combiner.IsPartInput(GetPart(gOfParts, 4)) == false);
-    REQUIRE(combiner.IsPartOutput(GetPart(gOfParts, 4)) == true);
+    REQUIRE(combiner.IsPartInput(partE) == false);
+    REQUIRE(combiner.IsPartOutput(partE) == true);
 }
 
 TEST_CASE("IsPartSo and IsPartMo", "[CombinerDFS]")
 {
-    Graph graph;
     // Create graph:
     //
     //  A    E
@@ -319,53 +372,82 @@ TEST_CASE("IsPartSo and IsPartMo", "[CombinerDFS]")
     //       |
     //       B - F
     //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
-    NameOnlyNode* nodeE = graph.CreateAndAddNode<NameOnlyNode>("e");
-    NameOnlyNode* nodeF = graph.CreateAndAddNode<NameOnlyNode>("f");
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
 
-    graph.Connect(nodeA, nodeC, 0);
-    graph.Connect(nodeB, nodeC, 0);
-    graph.Connect(nodeB, nodeF, 0);
-    graph.Connect(nodeC, nodeD, 0);
-    graph.Connect(nodeC, nodeE, 0);
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pE = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pF = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+    BasePart& partD = *pD;
+    BasePart& partE = *pE;
+    BasePart& partF = *pF;
+
+    PartId partAId = pA->GetPartId();
+    PartId partBId = pB->GetPartId();
+    PartId partCId = pC->GetPartId();
+    PartId partDId = pD->GetPartId();
+    PartId partEId = pE->GetPartId();
+    PartId partFId = pF->GetPartId();
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pD));
+    parts.push_back(std::move(pE));
+    parts.push_back(std::move(pF));
+
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+
+    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
+
+    PartInputSlot partCInputSlot0   = { partCId, 0 };
+    PartInputSlot partCInputSlot1   = { partCId, 1 };
+    PartOutputSlot partCOutputSlot0 = { partCId, 0 };
+    PartOutputSlot partCOutputSlot1 = { partCId, 1 };
+
+    PartInputSlot partDInputSlot0 = { partDId, 0 };
+
+    PartInputSlot partEInputSlot0 = { partEId, 0 };
+
+    PartInputSlot partFInputSlot0 = { partFId, 0 };
+
+    connections[partCInputSlot0] = partAOutputSlot0;
+    connections[partCInputSlot1] = partBOutputSlot0;
+    connections[partDInputSlot0] = partCOutputSlot0;
+    connections[partEInputSlot0] = partCOutputSlot1;
+    connections[partFInputSlot0] = partBOutputSlot0;
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeF }, estOpt, compOpt, hwCaps);
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
-    CheckPartId(gOfParts);
+    REQUIRE(combiner.IsPartSo(partA) == true);
+    REQUIRE(combiner.IsPartMo(partA) == false);
 
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+    REQUIRE(combiner.IsPartSo(partB) == false);
+    REQUIRE(combiner.IsPartMo(partB) == true);
 
-    REQUIRE(combiner.IsPartSo(GetPart(gOfParts, 0)) == true);
-    REQUIRE(combiner.IsPartMo(GetPart(gOfParts, 0)) == false);
+    REQUIRE(combiner.IsPartSo(partC) == false);
+    REQUIRE(combiner.IsPartMo(partC) == true);
 
-    REQUIRE(combiner.IsPartSo(GetPart(gOfParts, 1)) == false);
-    REQUIRE(combiner.IsPartMo(GetPart(gOfParts, 1)) == true);
+    REQUIRE(combiner.IsPartSo(partD) == false);
+    REQUIRE(combiner.IsPartMo(partD) == false);
 
-    REQUIRE(combiner.IsPartSo(GetPart(gOfParts, 2)) == false);
-    REQUIRE(combiner.IsPartMo(GetPart(gOfParts, 2)) == true);
+    REQUIRE(combiner.IsPartSo(partE) == false);
+    REQUIRE(combiner.IsPartMo(partE) == false);
 
-    REQUIRE(combiner.IsPartSo(GetPart(gOfParts, 3)) == false);
-    REQUIRE(combiner.IsPartMo(GetPart(gOfParts, 3)) == false);
-
-    REQUIRE(combiner.IsPartSo(GetPart(gOfParts, 4)) == false);
-    REQUIRE(combiner.IsPartMo(GetPart(gOfParts, 4)) == false);
-
-    REQUIRE(combiner.IsPartSo(GetPart(gOfParts, 5)) == false);
-    REQUIRE(combiner.IsPartMo(GetPart(gOfParts, 5)) == false);
+    REQUIRE(combiner.IsPartSo(partF) == false);
+    REQUIRE(combiner.IsPartMo(partF) == false);
 }
 
 /// Manually creates a Combination and then converts it to an OpGraph using GetOpGraphForCombination, and checking
@@ -386,37 +468,61 @@ TEST_CASE("IsPartSo and IsPartMo", "[CombinerDFS]")
 ///                                \-( E ) -->  g -> (   )
 TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
 {
-    Graph graph;
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
-    NameOnlyNode* nodeE = graph.CreateAndAddNode<NameOnlyNode>("e");
-    NameOnlyNode* nodeF = graph.CreateAndAddNode<NameOnlyNode>("f");
-    NameOnlyNode* nodeG = graph.CreateAndAddNode<NameOnlyNode>("g");
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
 
-    graph.Connect(nodeA, nodeB, 0);
-    graph.Connect(nodeB, nodeC, 0);
-    graph.Connect(nodeC, nodeD, 0);
-    graph.Connect(nodeC, nodeE, 0);
-    graph.Connect(nodeD, nodeF, 0);
-    graph.Connect(nodeD, nodeG, 0);
-    graph.Connect(nodeE, nodeG, 1);
+    auto pA         = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB         = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC         = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pDE        = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pF         = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pG         = std::make_unique<MockPart>(graph.GeneratePartId());
+    PartId partAId  = pA->GetPartId();
+    PartId partBId  = pB->GetPartId();
+    PartId partCId  = pC->GetPartId();
+    PartId partDEId = pDE->GetPartId();
+    PartId partFId  = pF->GetPartId();
+    PartId partGId  = pG->GetPartId();
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pDE));
+    parts.push_back(std::move(pF));
+    parts.push_back(std::move(pG));
 
-    GraphOfParts gOfParts;
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
 
-    const EstimationOptions estOpt;
-    const CompilationOptions compOpt;
-    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
+    PartInputSlot partBInputSlot0   = { partBId, 0 };
+    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
 
-    // Part consisting of node A
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
+    PartInputSlot partCInputSlot0   = { partCId, 0 };
+    PartOutputSlot partCOutputSlot0 = { partCId, 0 };
+
+    PartInputSlot partDEInputSlot0   = { partDEId, 0 };
+    PartInputSlot partDEInputSlot1   = { partDEId, 1 };
+    PartOutputSlot partDEOutputSlot0 = { partDEId, 0 };
+    PartOutputSlot partDEOutputSlot1 = { partDEId, 1 };
+
+    PartInputSlot partFInputSlot0 = { partFId, 0 };
+
+    PartInputSlot partGInputSlot0 = { partGId, 0 };
+    PartInputSlot partGInputSlot1 = { partGId, 1 };
+
+    connections[partBInputSlot0]  = partAOutputSlot0;
+    connections[partCInputSlot0]  = partBOutputSlot0;
+    connections[partDEInputSlot0] = partCOutputSlot0;
+    connections[partDEInputSlot1] = partCOutputSlot0;
+    connections[partFInputSlot0]  = partDEOutputSlot0;
+    connections[partGInputSlot0]  = partDEOutputSlot0;
+    connections[partGInputSlot1]  = partDEOutputSlot1;
+
     std::shared_ptr<Plan> planA = std::make_shared<Plan>();
     planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 0, QuantizationInfo()));
     planA->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDram";
-    planA->m_OutputMappings                          = { { planA->m_OpGraph.GetBuffers()[0], nodeA } };
+    planA->m_OutputMappings                          = { { planA->m_OpGraph.GetBuffers()[0], partAOutputSlot0 } };
 
     // Glue between A and B
     Glue glueA_BC;
@@ -426,27 +532,24 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     glueA_BC.m_Output.push_back(glueA_BC.m_Graph.GetOps()[0]);
 
     // Part consisting of node B
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planB = std::make_shared<Plan>();
     planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram1";
-    planB->m_InputMappings                           = { { planB->m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
-    planB->m_OutputMappings                          = { { planB->m_OpGraph.GetBuffers()[0], nodeB } };
+    planB->m_InputMappings                           = { { planB->m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
+    planB->m_OutputMappings                          = { { planB->m_OpGraph.GetBuffers()[0], partBOutputSlot0 } };
 
     // Part consisting of node C
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planC = std::make_shared<Plan>();
     planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
     planC->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram2";
-    planC->m_InputMappings                           = { { planC->m_OpGraph.GetBuffers()[0], nodeC->GetInput(0) } };
-    planC->m_OutputMappings                          = { { planC->m_OpGraph.GetBuffers()[0], nodeC } };
+    planC->m_InputMappings                           = { { planC->m_OpGraph.GetBuffers()[0], partCInputSlot0 } };
+    planC->m_OutputMappings                          = { { planC->m_OpGraph.GetBuffers()[0], partCOutputSlot0 } };
 
     // Part consisting of nodes D and E
-    AddNodesToPart(gOfParts, { nodeD, nodeE }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planDE = std::make_shared<Plan>();
     planDE->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                          TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
@@ -464,10 +567,10 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
                                                          TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                          TraversalOrder::Xyz, 0, QuantizationInfo()));
     planDE->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram2";
-    planDE->m_InputMappings                           = { { planDE->m_OpGraph.GetBuffers()[0], nodeD->GetInput(0) },
-                                { planDE->m_OpGraph.GetBuffers()[2], nodeE->GetInput(0) } };
-    planDE->m_OutputMappings                          = { { planDE->m_OpGraph.GetBuffers()[1], nodeD },
-                                 { planDE->m_OpGraph.GetBuffers()[3], nodeE } };
+    planDE->m_InputMappings                           = { { planDE->m_OpGraph.GetBuffers()[0], partDEInputSlot0 },
+                                { planDE->m_OpGraph.GetBuffers()[2], partDEInputSlot1 } };
+    planDE->m_OutputMappings                          = { { planDE->m_OpGraph.GetBuffers()[1], partDEOutputSlot0 },
+                                 { planDE->m_OpGraph.GetBuffers()[3], partDEOutputSlot1 } };
     planDE->m_OpGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION,
                                                     CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
                                                     TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
@@ -500,16 +603,14 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     glueE_G.m_Output.push_back(glueE_G.m_Graph.GetOps()[0]);
 
     // Part consisting of node F
-    AddNodesToPart(gOfParts, { nodeF }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planF = std::make_shared<Plan>();
     planF->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 0, QuantizationInfo()));
     planF->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputDram1";
-    planF->m_InputMappings                           = { { planF->m_OpGraph.GetBuffers()[0], nodeF->GetInput(0) } };
+    planF->m_InputMappings                           = { { planF->m_OpGraph.GetBuffers()[0], partFInputSlot0 } };
 
     // Part consisting of node G
-    AddNodesToPart(gOfParts, { nodeG }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planG = std::make_shared<Plan>();
     planG->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
@@ -519,23 +620,19 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 0, QuantizationInfo()));
     planG->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputDram3";
-    planG->m_InputMappings                           = { { planG->m_OpGraph.GetBuffers()[0], nodeG->GetInput(0) },
-                               { planG->m_OpGraph.GetBuffers()[1], nodeG->GetInput(1) } };
+    planG->m_InputMappings                           = { { planG->m_OpGraph.GetBuffers()[0], partGInputSlot0 },
+                               { planG->m_OpGraph.GetBuffers()[1], partGInputSlot1 } };
 
     // Create Combination with all the plans and glues
     Combination comb;
 
-    //using Glues = std::map<const Edge*, const Glue*>;
-    //PlanId m_PlanId;
-    //Glues m_Glues
-
-    Elem elemA  = { planA, { { nodeB->GetInput(0), { &glueA_BC, true } } } };
+    Elem elemA  = { planA, { { partBInputSlot0, { &glueA_BC, true } } } };
     Elem elemB  = { planB, {} };
     Elem elemC  = { planC, {} };
     Elem elemDE = { planDE,
-                    { { nodeF->GetInput(0), { &glueD_F, true } },
-                      { nodeG->GetInput(0), { &glueD_G, true } },
-                      { nodeG->GetInput(1), { &glueE_G, true } } } };
+                    { { partFInputSlot0, { &glueD_F, true } },
+                      { partGInputSlot0, { &glueD_G, true } },
+                      { partGInputSlot1, { &glueE_G, true } } } };
     Elem elemF  = { planF, {} };
     Elem elemG  = { planG, {} };
     comb.m_Elems.insert(std::make_pair(0, elemA));
@@ -552,7 +649,7 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     comb.m_PartIdsInOrder.push_back(5);
 
     // Call function under test
-    OpGraph combOpGraph = GetOpGraphForCombination(comb, gOfParts);
+    OpGraph combOpGraph = GetOpGraphForCombination(comb, graph);
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump the output to a file
     bool dumpToFile = false;
@@ -614,84 +711,33 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[6]).size() == 0);
 }
 
-TEST_CASE("GetDestinationParts", "[CombinerDFS]")
-{
-    Graph graph;
-    // Create graph:
-    //
-    //       C
-    //       |
-    //   A - B - D
-    //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
-
-    graph.Connect(nodeA, nodeB, 0);
-    graph.Connect(nodeB, nodeC, 0);
-    graph.Connect(nodeB, nodeD, 0);
-
-    const CompilationOptions compOpt;
-    const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
-    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
-
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
-
-    CheckPartId(gOfParts);
-
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
-
-    REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 0)).size() == 1);
-    REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 0)).at(0).first == &GetPart(gOfParts, 1));
-    REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 1)).size() == 2);
-    REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 1)).at(0).first == &GetPart(gOfParts, 2));
-    REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 1)).at(1).first == &GetPart(gOfParts, 3));
-    REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 2)).size() == 0);
-    REQUIRE(combiner.GetDestinationParts(GetPart(gOfParts, 3)).size() == 0);
-}
-
 TEST_CASE("Combination operator+", "[CombinerDFS]")
 {
-    Graph graph;
     // Create graph:
     //
     //  A - B - C
     //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
+    GraphOfParts graph;
 
-    graph.Connect(nodeA, nodeB, 0);
-    graph.Connect(nodeB, nodeC, 0);
+    auto& parts = graph.m_Parts;
 
-    const CompilationOptions compOpt;
-    const EstimationOptions estOpt;
-    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
-
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
-
-    CheckPartId(gOfParts);
-
-    Part& partA = GetPart(gOfParts, 0);
-    Part& partB = GetPart(gOfParts, 1);
-    Part& partC = GetPart(gOfParts, 2);
+    auto pA               = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB               = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC               = std::make_unique<MockPart>(graph.GeneratePartId());
+    const BasePart& partA = *pA;
+    const BasePart& partB = *pB;
+    const BasePart& partC = *pC;
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
 
     std::shared_ptr<Plan> planA = std::make_shared<Plan>();
     std::shared_ptr<Plan> planB = std::make_shared<Plan>();
     std::shared_ptr<Plan> planC = std::make_shared<Plan>();
 
-    Combination combA(partA, planA, 0);
-    Combination combB(partB, planB, 1);
-    Combination combC(partC, planC, 2);
+    Combination combA(partA, planA, 0, graph);
+    Combination combB(partB, planB, 1, graph);
+    Combination combC(partC, planC, 2, graph);
 
     REQUIRE(combA.m_Elems.size() == 1);
     REQUIRE(combB.m_Elems.size() == 1);
@@ -703,10 +749,10 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
     comb = combA + combB + combC;
     REQUIRE(comb.m_Elems.size() == 3);
     // All parts are in the final combination
-    for (size_t i = 0; i < gOfParts.m_Parts.size(); ++i)
+    for (size_t i = 0; i < graph.m_Parts.size(); ++i)
     {
-        Part& part = GetPart(gOfParts, i);
-        REQUIRE(comb.m_Elems.find(part.m_PartId) != comb.m_Elems.end());
+        BasePart& part = *graph.m_Parts[i];
+        REQUIRE(comb.m_Elems.find(part.GetPartId()) != comb.m_Elems.end());
     }
 
     // Nothing changes if combA is added again
@@ -714,10 +760,10 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
     REQUIRE(comb.m_Elems.size() == 3);
 
     // There is no glue
-    for (size_t i = 0; i < gOfParts.m_Parts.size(); ++i)
+    for (size_t i = 0; i < graph.m_Parts.size(); ++i)
     {
-        Part& part = GetPart(gOfParts, i);
-        for (auto& glueIt : comb.m_Elems.at(part.m_PartId).m_Glues)
+        BasePart& part = *graph.m_Parts[i];
+        for (auto& glueIt : comb.m_Elems.at(part.GetPartId()).m_Glues)
         {
             REQUIRE(glueIt.second.m_Glue == nullptr);
         }
@@ -730,55 +776,52 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
     glueB_C.m_InputSlot                     = { glueB_C.m_Graph.GetOps()[0], 0 };
     glueB_C.m_Output.push_back(glueB_C.m_Graph.GetOps()[0]);
 
-    Combination combBGlue(partB, nodeC->GetInput(0), &glueB_C);
+    PartInputSlot partCInputSlot = { partC.GetPartId(), 0 };
+
+    Combination combBGlue(partB, &partCInputSlot, &glueB_C, graph);
 
     comb = comb + combBGlue;
     // Number of elemnts didn't change
     REQUIRE(comb.m_Elems.size() == 3);
     // Glue has been added
-    REQUIRE(comb.m_Elems.at(partB.m_PartId).m_Glues.size() == 1);
-    const Glue* glueTest = comb.m_Elems.at(partB.m_PartId).m_Glues.at(nodeC->GetInput(0)).m_Glue;
+    REQUIRE(comb.m_Elems.at(partB.GetPartId()).m_Glues.size() == 1);
+    const Glue* glueTest = comb.m_Elems.at(partB.GetPartId()).m_Glues.at(partCInputSlot).m_Glue;
     // It has the correct tag
     REQUIRE(glueTest->m_Graph.GetOps()[0]->m_DebugTag == "DmaBC");
-    REQUIRE(comb.m_Elems.at(partB.m_PartId).m_Plan == planB);
+    REQUIRE(comb.m_Elems.at(partB.GetPartId()).m_Plan == planB);
 }
 
 TEST_CASE("FindBestCombinationForPart cache", "[CombinerDFS]")
 {
-    Graph graph;
     // Create graph:
     //
     //  A - B - C
     //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
+    GraphOfParts graph;
 
-    graph.Connect(nodeA, nodeB, 0);
-    graph.Connect(nodeB, nodeC, 0);
+    auto& parts = graph.m_Parts;
+
+    auto pA               = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB               = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC               = std::make_unique<MockPart>(graph.GeneratePartId());
+    const BasePart& partA = *pA;
+    const BasePart& partB = *pB;
+    const BasePart& partC = *pC;
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
-
-    CheckPartId(gOfParts);
-
-    Part& partA = GetPart(gOfParts, 0);
-    Part& partB = GetPart(gOfParts, 1);
-    Part& partC = GetPart(gOfParts, 2);
-
     class MockCombiner : public Combiner
     {
         using Combiner::Combiner;
 
     public:
-        Combination FindBestCombinationForPartImpl(const Part&) override
+        Combination FindBestCombinationForPartImpl(const BasePart&) override
         {
             m_NumFindBestCombinationForPartImplCalled++;
             return Combination{};
@@ -787,7 +830,7 @@ TEST_CASE("FindBestCombinationForPart cache", "[CombinerDFS]")
         uint64_t m_NumFindBestCombinationForPartImplCalled = 0;
     };
 
-    MockCombiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+    MockCombiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
     // Map is empty
     Combination comb = combiner.FindBestCombinationForPart(partA);
@@ -810,57 +853,24 @@ TEST_CASE("FindBestCombinationForPart cache", "[CombinerDFS]")
     REQUIRE(combiner.m_NumFindBestCombinationForPartImplCalled == 3);
 }
 
-TEST_CASE("GetSourceParts", "[CombinerDFS]")
-{
-    Graph graph;
-    // Create graph:
-    //      A
-    //      |
-    //  B - C - D
-    //
-    //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
-
-    graph.Connect(nodeA, nodeC, 0);
-    graph.Connect(nodeB, nodeC, 0);
-    graph.Connect(nodeC, nodeD, 0);
-
-    const CompilationOptions compOpt;
-    const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
-    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
-
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
-    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
-
-    CheckPartId(gOfParts);
-
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
-
-    REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(0).get()).size() == 0);
-    REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(1).get()).size() == 0);
-    REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(2).get()).size() == 2);
-    REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(2).get()).at(0).first == gOfParts.m_Parts.at(1).get());
-    REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(2).get()).at(1).first == gOfParts.m_Parts.at(0).get());
-    REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(3).get()).size() == 1);
-    REQUIRE(combiner.GetSourceParts(*gOfParts.m_Parts.at(3).get()).at(0).first == gOfParts.m_Parts.at(2).get());
-}
-
 TEST_CASE("ArePlansCompatible", "[CombinerDFS]")
 {
-    Graph graph;
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-
-    graph.Connect(nodeA, nodeB, 0);
-
     GraphOfParts gOfParts;
+    auto& parts       = gOfParts.m_Parts;
+    auto& connections = gOfParts.m_Connections;
+
+    auto pA               = std::make_unique<MockPart>(gOfParts.GeneratePartId());
+    auto pB               = std::make_unique<MockPart>(gOfParts.GeneratePartId());
+    const BasePart& partA = *pA;
+    const BasePart& partB = *pB;
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+
+    PartOutputSlot planAOutputSlot = { partA.GetPartId(), 0 };
+    PartInputSlot planBInputSlot   = { partB.GetPartId(), 0 };
+    PartOutputSlot planBOutputSlot = { partB.GetPartId(), 0 };
+
+    connections[planBInputSlot] = planAOutputSlot;
 
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
@@ -868,77 +878,89 @@ TEST_CASE("ArePlansCompatible", "[CombinerDFS]")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
 
     // Part consisting of node A
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planA = std::make_shared<Plan>();
     planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
     planA->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDram";
-    planA->m_OutputMappings                          = { { planA->m_OpGraph.GetBuffers()[0], nodeA } };
+    planA->m_OutputMappings                          = { { planA->m_OpGraph.GetBuffers()[0], planAOutputSlot } };
 
     // Part consisting of node B
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planB = std::make_shared<Plan>();
     planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram1";
-    planB->m_InputMappings                           = { { planB->m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
-    planB->m_OutputMappings                          = { { planB->m_OpGraph.GetBuffers()[0], nodeB } };
+    planB->m_InputMappings                           = { { planB->m_OpGraph.GetBuffers()[0], planBInputSlot } };
+    planB->m_OutputMappings                          = { { planB->m_OpGraph.GetBuffers()[0], planBOutputSlot } };
 
     Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
-    const Edge* edge = nodeA->GetOutput(0);
-    REQUIRE(combiner.ArePlansCompatible(*planA, *planB, *edge) == true);
+    REQUIRE(combiner.ArePlansCompatible(*planA, *planB, PartConnection{ planBInputSlot, planAOutputSlot }) == true);
 }
 
 TEST_CASE("GluePartToCombination", "[CombinerDFS]")
 {
-    Graph graph;
     // Create graph:
     //
     //        B
     //  A     |
     //  |     v
-    //   - -> D <- - C
+    //  |     1
+    //   -->0 D 2<- - C
     //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
+    GraphOfParts graph;
 
-    graph.Connect(nodeA, nodeD, 0);
-    graph.Connect(nodeB, nodeD, 1);
-    graph.Connect(nodeC, nodeD, 2);
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
+
+    auto pA               = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB               = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC               = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pD               = std::make_unique<MockPart>(graph.GeneratePartId());
+    const BasePart& partA = *pA;
+    const BasePart& partB = *pB;
+    const BasePart& partC = *pC;
+    const BasePart& partD = *pD;
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pD));
+
+    PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
+    PartOutputSlot partBOutputSlot = { partB.GetPartId(), 0 };
+    PartOutputSlot partCOutputSlot = { partC.GetPartId(), 0 };
+    PartInputSlot partDInputSlot0  = { partD.GetPartId(), 0 };
+    PartInputSlot partDInputSlot1  = { partD.GetPartId(), 1 };
+    PartInputSlot partDInputSlot2  = { partD.GetPartId(), 2 };
+
+    connections[partDInputSlot0] = partAOutputSlot;
+    connections[partDInputSlot1] = partBOutputSlot;
+    connections[partDInputSlot2] = partCOutputSlot;
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planA = std::make_shared<Plan>();
     planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], nodeA } };
+    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planB = std::make_shared<Plan>();
     planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_OutputMappings = { { planB->m_OpGraph.GetBuffers()[0], nodeB } };
+    planB->m_OutputMappings = { { planB->m_OpGraph.GetBuffers()[0], partBOutputSlot } };
 
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planC = std::make_shared<Plan>();
     planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planC->m_OutputMappings = { { planC->m_OpGraph.GetBuffers()[0], nodeC } };
+    planC->m_OutputMappings = { { planC->m_OpGraph.GetBuffers()[0], partCOutputSlot } };
 
-    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planD = std::make_shared<Plan>();
     planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
@@ -950,38 +972,31 @@ TEST_CASE("GluePartToCombination", "[CombinerDFS]")
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
 
-    planD->m_InputMappings = { { planD->m_OpGraph.GetBuffers()[0], nodeD->GetInput(0) },
-                               { planD->m_OpGraph.GetBuffers()[1], nodeD->GetInput(1) },
-                               { planD->m_OpGraph.GetBuffers()[2], nodeD->GetInput(2) } };
+    planD->m_InputMappings = { { planD->m_OpGraph.GetBuffers()[0], partDInputSlot0 },
+                               { planD->m_OpGraph.GetBuffers()[1], partDInputSlot1 },
+                               { planD->m_OpGraph.GetBuffers()[2], partDInputSlot2 } };
 
-    CheckPartId(gOfParts);
-
-    const Part& partA = GetPart(gOfParts, 0);
-    const Part& partB = GetPart(gOfParts, 1);
-    const Part& partC = GetPart(gOfParts, 2);
-    const Part& partD = GetPart(gOfParts, 3);
-
-    Combination combA(partA, planA, 0);
-    Combination combB(partB, planB, 1);
-    Combination combC(partC, planC, 2);
-    Combination combD(partD, planD, 3);
+    Combination combA(partA, planA, 0, graph);
+    Combination combB(partB, planB, 1, graph);
+    Combination combC(partC, planC, 2, graph);
+    Combination combD(partD, planD, 3, graph);
 
     // Merge the combinations
     Combination comb = combA + combB + combC + combD;
 
     // There is no glue
-    for (size_t i = 0; i < gOfParts.m_Parts.size(); ++i)
+    for (PartId i = 0; i < graph.m_Parts.size(); ++i)
     {
-        Part& part = GetPart(gOfParts, i);
-        for (auto& glueIt : comb.m_Elems.at(part.m_PartId).m_Glues)
+        const BasePart& part = graph.GetPart(i);
+        for (auto& glueIt : comb.m_Elems.at(part.GetPartId()).m_Glues)
         {
             REQUIRE(glueIt.second.m_Glue == nullptr);
         }
     }
 
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
-    const auto& sources = combiner.GetSourceParts(partD);
+    const auto& sources = graph.GetSourceConnections(partD.GetPartId());
 
     Combination combGlued = combiner.GluePartToCombinationDestToSrcs(partD, comb, sources);
 
@@ -989,7 +1004,7 @@ TEST_CASE("GluePartToCombination", "[CombinerDFS]")
     // There is a glue for each input part
     for (auto elem : combGlued.m_Elems)
     {
-        if (elem.first == partD.m_PartId)
+        if (elem.first == partD.GetPartId())
         {
             continue;
         }
@@ -997,12 +1012,12 @@ TEST_CASE("GluePartToCombination", "[CombinerDFS]")
     }
 
     // A and B have glue and the buffer in Dram is in the expected format
-    auto elemIt = combGlued.m_Elems.find(partA.m_PartId);
+    auto elemIt = combGlued.m_Elems.find(partA.GetPartId());
     REQUIRE(elemIt != combGlued.m_Elems.end());
     REQUIRE(elemIt->second.m_Glues.begin()->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
     REQUIRE(elemIt->second.m_Glues.begin()->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Format ==
             CascadingBufferFormat::FCAF_DEEP);
-    elemIt = combGlued.m_Elems.find(partB.m_PartId);
+    elemIt = combGlued.m_Elems.find(partB.GetPartId());
     REQUIRE(elemIt != combGlued.m_Elems.end());
     REQUIRE(elemIt->second.m_Glues.begin()->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
     REQUIRE(elemIt->second.m_Glues.begin()->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Format ==
@@ -1022,81 +1037,107 @@ TEST_CASE("CombinerSortTest1", "[CombinerDFS]")
     //             ^
     //             |
     //             J
-    Graph graph;
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeG = graph.CreateAndAddNode<NameOnlyNode>("g");
-    NameOnlyNode* nodeE = graph.CreateAndAddNode<NameOnlyNode>("e");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
-    NameOnlyNode* nodeF = graph.CreateAndAddNode<NameOnlyNode>("f");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeH = graph.CreateAndAddNode<NameOnlyNode>("h");
-    NameOnlyNode* nodeI = graph.CreateAndAddNode<NameOnlyNode>("i");
-    NameOnlyNode* nodeJ = graph.CreateAndAddNode<NameOnlyNode>("j");
-    NameOnlyNode* nodeK = graph.CreateAndAddNode<NameOnlyNode>("k");
 
-    graph.Connect(nodeA, nodeB, 0);
-    graph.Connect(nodeB, nodeC, 0);
-    graph.Connect(nodeC, nodeD, 0);
-    graph.Connect(nodeB, nodeF, 0);
-    graph.Connect(nodeA, nodeE, 0);
-    graph.Connect(nodeE, nodeF, 0);
-    graph.Connect(nodeF, nodeG, 0);
-    graph.Connect(nodeJ, nodeF, 0);
-    graph.Connect(nodeD, nodeH, 0);
-    graph.Connect(nodeG, nodeH, 0);
-    graph.Connect(nodeH, nodeI, 0);
-    graph.Connect(nodeH, nodeK, 0);
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
+
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pE = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pF = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pG = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pH = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pI = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pJ = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pK = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+    BasePart& partD = *pD;
+    BasePart& partE = *pE;
+    BasePart& partF = *pF;
+    BasePart& partG = *pG;
+    BasePart& partH = *pH;
+    BasePart& partI = *pI;
+    BasePart& partJ = *pJ;
+    BasePart& partK = *pK;
+
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pD));
+    parts.push_back(std::move(pE));
+    parts.push_back(std::move(pF));
+    parts.push_back(std::move(pG));
+    parts.push_back(std::move(pH));
+    parts.push_back(std::move(pI));
+    parts.push_back(std::move(pJ));
+    parts.push_back(std::move(pK));
+
+    PartOutputSlot partAOutputSlot0 = { partA.GetPartId(), 0 };
+    PartOutputSlot partAOutputSlot1 = { partA.GetPartId(), 1 };
+    PartOutputSlot partBOutputSlot0 = { partB.GetPartId(), 0 };
+    PartOutputSlot partCOutputSlot  = { partC.GetPartId(), 0 };
+    PartOutputSlot partDOutputSlot  = { partD.GetPartId(), 0 };
+    PartOutputSlot partEOutputSlot  = { partE.GetPartId(), 0 };
+    PartOutputSlot partFOutputSlot  = { partF.GetPartId(), 0 };
+    PartOutputSlot partGOutputSlot  = { partG.GetPartId(), 0 };
+    PartOutputSlot partHOutputSlot0 = { partH.GetPartId(), 0 };
+    PartOutputSlot partHOutputSlot1 = { partH.GetPartId(), 1 };
+    PartOutputSlot partJOutputSlot  = { partJ.GetPartId(), 0 };
+
+    PartInputSlot partBInputSlot  = { partB.GetPartId(), 0 };
+    PartInputSlot partCInputSlot  = { partC.GetPartId(), 0 };
+    PartInputSlot partDInputSlot  = { partD.GetPartId(), 0 };
+    PartInputSlot partEInputSlot  = { partE.GetPartId(), 0 };
+    PartInputSlot partFInputSlot0 = { partF.GetPartId(), 0 };
+    PartInputSlot partFInputSlot1 = { partF.GetPartId(), 1 };
+    PartInputSlot partFInputSlot2 = { partF.GetPartId(), 2 };
+    PartInputSlot partGInputSlot  = { partG.GetPartId(), 0 };
+    PartInputSlot partHInputSlot0 = { partH.GetPartId(), 0 };
+    PartInputSlot partHInputSlot1 = { partH.GetPartId(), 1 };
+    PartInputSlot partIInputSlot  = { partI.GetPartId(), 0 };
+    PartInputSlot partKInputSlot  = { partK.GetPartId(), 0 };
+
+    connections[partBInputSlot]  = { partAOutputSlot0 };
+    connections[partCInputSlot]  = { partBOutputSlot0 };
+    connections[partDInputSlot]  = { partCOutputSlot };
+    connections[partFInputSlot0] = { partBOutputSlot0 };
+    connections[partEInputSlot]  = { partAOutputSlot1 };
+    connections[partFInputSlot1] = { partEOutputSlot };
+    connections[partGInputSlot]  = { partFOutputSlot };
+    connections[partFInputSlot2] = { partJOutputSlot };
+    connections[partHInputSlot0] = { partDOutputSlot };
+    connections[partHInputSlot1] = { partGOutputSlot };
+    connections[partIInputSlot]  = { partHOutputSlot0 };
+    connections[partKInputSlot]  = { partHOutputSlot1 };
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeH }, estOpt, compOpt, hwCaps);    //0
-    AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);    //1
-    AddNodesToPart(gOfParts, { nodeK }, estOpt, compOpt, hwCaps);    //2
-    AddNodesToPart(gOfParts, { nodeG }, estOpt, compOpt, hwCaps);    //3
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);    //4
-    AddNodesToPart(gOfParts, { nodeI }, estOpt, compOpt, hwCaps);    //5
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);    //6
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);    //7
-    AddNodesToPart(gOfParts, { nodeJ }, estOpt, compOpt, hwCaps);    //8
-    AddNodesToPart(gOfParts, { nodeF }, estOpt, compOpt, hwCaps);    //9
-    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);    //10
-
-    Part& partH = GetPart(gOfParts, 0);
-    Part& partE = GetPart(gOfParts, 1);
-    Part& partK = GetPart(gOfParts, 2);
-    Part& partG = GetPart(gOfParts, 3);
-    Part& partB = GetPart(gOfParts, 4);
-    Part& partI = GetPart(gOfParts, 5);
-    Part& partA = GetPart(gOfParts, 6);
-    Part& partC = GetPart(gOfParts, 7);
-    Part& partJ = GetPart(gOfParts, 8);
-    Part& partF = GetPart(gOfParts, 9);
-    Part& partD = GetPart(gOfParts, 10);
-
-    CheckPartId(gOfParts);
-
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
     bool isSorted = combiner.TopologicalSortParts();
 
-    // After sorting , the expected is J, A, E, B, F, G, C, D, H, K, I
+    // After sorting , the expected is A, B, C, D, E, J, F, G, H, I, K
     REQUIRE(isSorted == true);
-    REQUIRE(combiner.GetNextPart(&partJ) == &partA);
-    REQUIRE(combiner.GetNextPart(&partA) == &partE);
-    REQUIRE(combiner.GetNextPart(&partE) == &partB);
-    REQUIRE(combiner.GetNextPart(&partB) == &partF);
-    REQUIRE(combiner.GetNextPart(&partF) == &partG);
-    REQUIRE(combiner.GetNextPart(&partG) == &partC);
+    REQUIRE(combiner.GetNextPart(&partA) == &partB);
+    REQUIRE(combiner.GetNextPart(&partB) == &partC);
     REQUIRE(combiner.GetNextPart(&partC) == &partD);
-    REQUIRE(combiner.GetNextPart(&partD) == &partH);
-    REQUIRE(combiner.GetNextPart(&partH) == &partK);
-    REQUIRE(combiner.GetNextPart(&partK) == &partI);
-    REQUIRE(combiner.GetNextPart(&partI) == nullptr);
+    REQUIRE(combiner.GetNextPart(&partD) == &partE);
+    REQUIRE(combiner.GetNextPart(&partE) == &partJ);
+    REQUIRE(combiner.GetNextPart(&partJ) == &partF);
+    REQUIRE(combiner.GetNextPart(&partF) == &partG);
+    REQUIRE(combiner.GetNextPart(&partG) == &partH);
+    REQUIRE(combiner.GetNextPart(&partH) == &partI);
+    REQUIRE(combiner.GetNextPart(&partI) == &partK);
+    REQUIRE(combiner.GetNextPart(&partK) == nullptr);
 }
 
 TEST_CASE("CombinerSortTest2", "[CombinerDFS]")
@@ -1109,79 +1150,118 @@ TEST_CASE("CombinerSortTest2", "[CombinerDFS]")
     //                     G
     //                     |
     //   D- -> E - -> F ---
-    Graph graph;
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeE = graph.CreateAndAddNode<NameOnlyNode>("e");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeF = graph.CreateAndAddNode<NameOnlyNode>("f");
-    NameOnlyNode* nodeG = graph.CreateAndAddNode<NameOnlyNode>("g");
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
 
-    graph.Connect(nodeA, nodeB, 0);
-    graph.Connect(nodeB, nodeC, 0);
-    graph.Connect(nodeD, nodeE, 0);
-    graph.Connect(nodeE, nodeF, 0);
-    graph.Connect(nodeC, nodeG, 0);
-    graph.Connect(nodeF, nodeG, 0);
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pE = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pF = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pG = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+    BasePart& partD = *pD;
+    BasePart& partE = *pE;
+    BasePart& partF = *pF;
+    BasePart& partG = *pG;
+
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pD));
+    parts.push_back(std::move(pE));
+    parts.push_back(std::move(pF));
+    parts.push_back(std::move(pG));
+
+    PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
+    PartOutputSlot partBOutputSlot = { partB.GetPartId(), 0 };
+    PartOutputSlot partCOutputSlot = { partC.GetPartId(), 0 };
+    PartOutputSlot partDOutputSlot = { partD.GetPartId(), 0 };
+    PartOutputSlot partEOutputSlot = { partE.GetPartId(), 0 };
+    PartOutputSlot partFOutputSlot = { partF.GetPartId(), 0 };
+
+    PartInputSlot partBInputSlot  = { partB.GetPartId(), 0 };
+    PartInputSlot partCInputSlot  = { partC.GetPartId(), 0 };
+    PartInputSlot partEInputSlot  = { partE.GetPartId(), 0 };
+    PartInputSlot partFInputSlot  = { partF.GetPartId(), 0 };
+    PartInputSlot partGInputSlot0 = { partG.GetPartId(), 0 };
+    PartInputSlot partGInputSlot1 = { partG.GetPartId(), 1 };
+
+    connections[partBInputSlot]  = { partAOutputSlot };
+    connections[partCInputSlot]  = { partBOutputSlot };
+    connections[partEInputSlot]  = { partDOutputSlot };
+    connections[partFInputSlot]  = { partEOutputSlot };
+    connections[partGInputSlot0] = { partCOutputSlot };
+    connections[partGInputSlot1] = { partFOutputSlot };
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);    //0
-    AddNodesToPart(gOfParts, { nodeG }, estOpt, compOpt, hwCaps);    //1
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);    //2
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);    //3
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);    //4
-    AddNodesToPart(gOfParts, { nodeF }, estOpt, compOpt, hwCaps);    //5
-    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);    //6
-
-    Part& partE = GetPart(gOfParts, 0);
-    Part& partG = GetPart(gOfParts, 1);
-    Part& partB = GetPart(gOfParts, 2);
-    Part& partA = GetPart(gOfParts, 3);
-    Part& partC = GetPart(gOfParts, 4);
-    Part& partF = GetPart(gOfParts, 5);
-    Part& partD = GetPart(gOfParts, 6);
-
-    CheckPartId(gOfParts);
-
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
     bool isSorted = combiner.TopologicalSortParts();
 
-    // After sorting , the expected is D, E, F, A, B, C, G
+    // After sorting , the expected is A, B, C, D, E, F, G
     REQUIRE(isSorted == true);
-    REQUIRE(combiner.GetNextPart(&partD) == &partE);
-    REQUIRE(combiner.GetNextPart(&partE) == &partF);
-    REQUIRE(combiner.GetNextPart(&partF) == &partA);
     REQUIRE(combiner.GetNextPart(&partA) == &partB);
     REQUIRE(combiner.GetNextPart(&partB) == &partC);
-    REQUIRE(combiner.GetNextPart(&partC) == &partG);
+    REQUIRE(combiner.GetNextPart(&partC) == &partD);
+    REQUIRE(combiner.GetNextPart(&partD) == &partE);
+    REQUIRE(combiner.GetNextPart(&partE) == &partF);
+    REQUIRE(combiner.GetNextPart(&partF) == &partG);
     REQUIRE(combiner.GetNextPart(&partG) == nullptr);
 }
 
 TEST_CASE("GetCombPartsInOrder", "[CombinerDFS]")
 {
-    Graph graph;
     // Create graph:
     //
     //   A -> B -> C -> D -> E
     //
     //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
-    NameOnlyNode* nodeE = graph.CreateAndAddNode<NameOnlyNode>("e");
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
 
-    graph.Connect(nodeA, nodeB, 0);
-    graph.Connect(nodeB, nodeC, 0);
-    graph.Connect(nodeC, nodeD, 0);
-    graph.Connect(nodeD, nodeE, 0);
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pE = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+    BasePart& partD = *pD;
+    BasePart& partE = *pE;
+
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pD));
+    parts.push_back(std::move(pE));
+
+    PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
+    PartOutputSlot partBOutputSlot = { partB.GetPartId(), 0 };
+    PartOutputSlot partCOutputSlot = { partC.GetPartId(), 0 };
+    PartOutputSlot partDOutputSlot = { partD.GetPartId(), 0 };
+
+    PartInputSlot partBInputSlot = { partB.GetPartId(), 0 };
+    PartInputSlot partCInputSlot = { partC.GetPartId(), 0 };
+    PartInputSlot partDInputSlot = { partD.GetPartId(), 0 };
+    PartInputSlot partEInputSlot = { partE.GetPartId(), 0 };
+
+    connections[partBInputSlot] = { partAOutputSlot };
+    connections[partCInputSlot] = { partBOutputSlot };
+    connections[partDInputSlot] = { partCOutputSlot };
+    connections[partEInputSlot] = { partDOutputSlot };
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -1194,92 +1274,85 @@ TEST_CASE("GetCombPartsInOrder", "[CombinerDFS]")
     planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], nodeA } };
+    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
     std::shared_ptr<Plan> planB = std::make_shared<Plan>();
     planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_InputMappings  = { { planB->m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
-    planB->m_OutputMappings = { { planB->m_OpGraph.GetBuffers()[0], nodeB } };
+    planB->m_InputMappings  = { { planB->m_OpGraph.GetBuffers()[0], partBInputSlot } };
+    planB->m_OutputMappings = { { planB->m_OpGraph.GetBuffers()[0], partBOutputSlot } };
 
     std::shared_ptr<Plan> planC = std::make_shared<Plan>();
     planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planC->m_InputMappings  = { { planC->m_OpGraph.GetBuffers()[0], nodeC->GetInput(0) } };
-    planC->m_OutputMappings = { { planC->m_OpGraph.GetBuffers()[0], nodeC } };
+    planC->m_InputMappings  = { { planC->m_OpGraph.GetBuffers()[0], partCInputSlot } };
+    planC->m_OutputMappings = { { planC->m_OpGraph.GetBuffers()[0], partCOutputSlot } };
 
     std::shared_ptr<Plan> planD = std::make_shared<Plan>();
     planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planD->m_InputMappings  = { { planD->m_OpGraph.GetBuffers()[0], nodeD->GetInput(0) } };
-    planD->m_OutputMappings = { { planD->m_OpGraph.GetBuffers()[0], nodeD } };
+    planD->m_InputMappings  = { { planD->m_OpGraph.GetBuffers()[0], partDInputSlot } };
+    planD->m_OutputMappings = { { planD->m_OpGraph.GetBuffers()[0], partDOutputSlot } };
 
     std::shared_ptr<Plan> planE = std::make_shared<Plan>();
     planE->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planE->m_InputMappings = { { planD->m_OpGraph.GetBuffers()[0], nodeE->GetInput(0) } };
-
-    AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);    // E: Part ID 0
-    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);    // D: part ID 1
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);    // A: part ID 2
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);    // C: part ID 3
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);    // B: part ID 4
-
-    CheckPartId(gOfParts);
-
-    const Part& partA = GetPart(gOfParts, 2);
-    const Part& partB = GetPart(gOfParts, 4);
-    const Part& partC = GetPart(gOfParts, 3);
-    const Part& partD = GetPart(gOfParts, 1);
-    const Part& partE = GetPart(gOfParts, 0);
+    planE->m_InputMappings = { { planD->m_OpGraph.GetBuffers()[0], partEInputSlot } };
 
     Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
     bool isSorted = combiner.TopologicalSortParts();
     REQUIRE(isSorted == true);
 
-    Combination combA(partA, planA, 0);
-    Combination combB(partB, planB, 1);
-    Combination combC(partC, planC, 2);
-    Combination combD(partD, planD, 3);
-    Combination combE(partE, planE, 4);
+    Combination combA(partA, planA, 0, graph);
+    Combination combB(partB, planB, 1, graph);
+    Combination combC(partC, planC, 2, graph);
+    Combination combD(partD, planD, 3, graph);
+    Combination combE(partE, planE, 4, graph);
 
     Combination comb = combD + combE;
     {
         REQUIRE(comb.m_HeadOrderRank == 3);
-        std::vector<PartId> expectedList = { 1, 0 };
+        std::vector<PartId> expectedList = { 3, 4 };
+        REQUIRE(comb.m_PartIdsInOrder == expectedList);
+    }
+
+    {
+        // Adding combinations is commutative.
+        comb = combE + combD;
+        REQUIRE(comb.m_HeadOrderRank == 3);
+        std::vector<PartId> expectedList = { 3, 4 };
         REQUIRE(comb.m_PartIdsInOrder == expectedList);
     }
 
     {
         comb = combC + comb;
         REQUIRE(comb.m_HeadOrderRank == 2);
-        std::vector<PartId> expectedList = { 3, 1, 0 };
+        std::vector<PartId> expectedList = { 2, 3, 4 };
         REQUIRE(comb.m_PartIdsInOrder == expectedList);
     }
 
     {
         comb = combB + comb;
         REQUIRE(comb.m_HeadOrderRank == 1);
-        std::vector<PartId> expectedList = { 4, 3, 1, 0 };
+        std::vector<PartId> expectedList = { 1, 2, 3, 4 };
         REQUIRE(comb.m_PartIdsInOrder == expectedList);
     }
 
     {
         comb = combA + comb;
         REQUIRE(comb.m_HeadOrderRank == 0);
-        std::vector<PartId> expectedList = { 2, 4, 3, 1, 0 };
+        std::vector<PartId> expectedList = { 0, 1, 2, 3, 4 };
         REQUIRE(comb.m_PartIdsInOrder == expectedList);
     }
 }
 
 TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
 {
-    Graph graph;
     // Create graph:
     //
     //
@@ -1287,49 +1360,61 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
     //  |
     //  A - -> B
     //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
 
-    graph.Connect(nodeA, nodeB, 0);
-    graph.Connect(nodeA, nodeC, 0);
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
+
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+
+    PartId partAId = pA->GetPartId();
+    PartId partBId = pB->GetPartId();
+    PartId partCId = pC->GetPartId();
+
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+
+    PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
+
+    PartInputSlot partBInputSlot = { partB.GetPartId(), 0 };
+    PartInputSlot partCInputSlot = { partC.GetPartId(), 0 };
+
+    connections[partBInputSlot] = { partAOutputSlot };
+    connections[partCInputSlot] = { partAOutputSlot };
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planA = std::make_shared<Plan>();
     planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], nodeA } };
+    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planB = std::make_shared<Plan>();
     planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_InputMappings = { { planB->m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
+    planB->m_InputMappings = { { planB->m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planC = std::make_shared<Plan>();
     planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planC->m_InputMappings = { { planC->m_OpGraph.GetBuffers()[0], nodeC->GetInput(0) } };
+    planC->m_InputMappings = { { planC->m_OpGraph.GetBuffers()[0], partCInputSlot } };
 
-    CheckPartId(gOfParts);
-
-    const Part& partA = GetPart(gOfParts, 0);
-    const Part& partB = GetPart(gOfParts, 1);
-    const Part& partC = GetPart(gOfParts, 2);
-
-    Combination combA(partA, planA, 0);
-    Combination combB(partB, planB, 1);
-    Combination combC(partC, planC, 2);
+    Combination combA(partA, planA, 0, graph);
+    Combination combB(partB, planB, 1, graph);
+    Combination combC(partC, planC, 2, graph);
 
     // Merge the combinations
     Combination comb = combA + combB + combC;
@@ -1344,25 +1429,25 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
     REQUIRE(comb.m_HeadOrderRank == 0);
 
     // There is no glue
-    for (size_t i = 0; i < gOfParts.m_Parts.size(); ++i)
+    for (PartId i = 0; i < graph.m_Parts.size(); ++i)
     {
-        Part& part = GetPart(gOfParts, i);
-        for (auto& glueIt : comb.m_Elems.at(part.m_PartId).m_Glues)
+        const BasePart& part = graph.GetPart(i);
+        for (auto& glueIt : comb.m_Elems.at(part.GetPartId()).m_Glues)
         {
             REQUIRE(glueIt.second.m_Glue == nullptr);
         }
     }
 
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
-    std::vector<std::pair<const Part*, const Edge*>> destPartEdge;
+    std::vector<PartConnection> destPartEdge;
 
     // Part B and the edge that connects to its source Part A
-    const Edge* edgeA2B = combiner.GetEdgeConnectTwoParts(partB, partA).at(0);
-    destPartEdge.push_back(std::make_pair((const Part*)&partB, edgeA2B));
+    PartConnection edgeA2B = graph.GetConnectionsBetween(partAId, partBId).at(0);
+    destPartEdge.push_back(edgeA2B);
     // Part C and the edge that connects to its source Part A
-    const Edge* edgeA2C = combiner.GetEdgeConnectTwoParts(partC, partA).at(0);
-    destPartEdge.push_back(std::make_pair((const Part*)&partC, edgeA2C));
+    PartConnection edgeA2C = graph.GetConnectionsBetween(partAId, partCId).at(0);
+    destPartEdge.push_back(edgeA2C);
 
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, destPartEdge);
 
@@ -1376,13 +1461,13 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
 
     // Elem Part A's glue should have two elements
     // (*edgeAB, *glue) (*edgeAC, *glue)
-    auto elemIt = combGlued.m_Elems.find(partA.m_PartId);
+    auto elemIt = combGlued.m_Elems.find(partAId);
     REQUIRE(elemIt != combGlued.m_Elems.end());
     REQUIRE(elemIt->second.m_Glues.size() == 2);
 
-    auto elemAB = elemIt->second.m_Glues.find(edgeA2B);
+    auto elemAB = elemIt->second.m_Glues.find(edgeA2B.m_Destination);
     REQUIRE(elemAB != elemIt->second.m_Glues.end());
-    auto elemAC = elemIt->second.m_Glues.find(edgeA2C);
+    auto elemAC = elemIt->second.m_Glues.find(edgeA2C.m_Destination);
     REQUIRE(elemAC != elemIt->second.m_Glues.end());
     REQUIRE(elemAB->second.m_Glue == elemAC->second.m_Glue);
     REQUIRE(elemAB->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
@@ -1392,7 +1477,6 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
 
 TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
 {
-    Graph graph;
     // Create graph:
     //
     //
@@ -1401,60 +1485,73 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     //  A - -> B
     //  |
     //   -- >  D
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
 
-    graph.Connect(nodeA, nodeB, 0);
-    graph.Connect(nodeA, nodeC, 0);
-    graph.Connect(nodeA, nodeD, 0);
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+    BasePart& partD = *pD;
+
+    PartId partAId = pA->GetPartId();
+    PartId partBId = pB->GetPartId();
+    PartId partCId = pC->GetPartId();
+    PartId partDId = pD->GetPartId();
+
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pD));
+
+    PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
+
+    PartInputSlot partBInputSlot = { partB.GetPartId(), 0 };
+    PartInputSlot partCInputSlot = { partC.GetPartId(), 0 };
+    PartInputSlot partDInputSlot = { partD.GetPartId(), 0 };
+
+    connections[partBInputSlot] = { partAOutputSlot };
+    connections[partCInputSlot] = { partAOutputSlot };
+    connections[partDInputSlot] = { partAOutputSlot };
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planA = std::make_shared<Plan>();
     planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], nodeA } };
+    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planB = std::make_shared<Plan>();
     planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_InputMappings = { { planB->m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
+    planB->m_InputMappings = { { planB->m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
-    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planC = std::make_shared<Plan>();
     planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planC->m_InputMappings = { { planC->m_OpGraph.GetBuffers()[0], nodeC->GetInput(0) } };
+    planC->m_InputMappings = { { planC->m_OpGraph.GetBuffers()[0], partCInputSlot } };
 
-    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
     std::shared_ptr<Plan> planD = std::make_shared<Plan>();
     planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planD->m_InputMappings = { { planD->m_OpGraph.GetBuffers()[0], nodeD->GetInput(0) } };
+    planD->m_InputMappings = { { planD->m_OpGraph.GetBuffers()[0], partDInputSlot } };
 
-    CheckPartId(gOfParts);
-
-    const Part& partA = GetPart(gOfParts, 0);
-    const Part& partB = GetPart(gOfParts, 1);
-    const Part& partC = GetPart(gOfParts, 2);
-    const Part& partD = GetPart(gOfParts, 3);
-
-    Combination combA(partA, planA, 0);
-    Combination combB(partB, planB, 1);
-    Combination combC(partC, planC, 2);
-    Combination combD(partD, planD, 3);
+    Combination combA(partA, planA, 0, graph);
+    Combination combB(partB, planB, 1, graph);
+    Combination combC(partC, planC, 2, graph);
+    Combination combD(partD, planD, 3, graph);
 
     // Merge the combinations
     Combination comb = combB + combD + combC + combA;
@@ -1471,28 +1568,28 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     REQUIRE(comb.m_HeadOrderRank == 0);
 
     // There is no glue
-    for (size_t i = 0; i < gOfParts.m_Parts.size(); ++i)
+    for (PartId i = 0; i < graph.m_Parts.size(); ++i)
     {
-        Part& part = GetPart(gOfParts, i);
-        for (auto& glueIt : comb.m_Elems.at(part.m_PartId).m_Glues)
+        const BasePart& part = graph.GetPart(i);
+        for (auto& glueIt : comb.m_Elems.at(part.GetPartId()).m_Glues)
         {
             REQUIRE(glueIt.second.m_Glue == nullptr);
         }
     }
 
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
-    std::vector<std::pair<const Part*, const Edge*>> destPartEdge;
+    std::vector<PartConnection> destPartEdge;
 
     // Part B and the edge that connects to its source Part A
-    const Edge* edgeA2B = combiner.GetEdgeConnectTwoParts(partB, partA).at(0);
-    destPartEdge.push_back(std::make_pair((const Part*)&partB, edgeA2B));
+    PartConnection edgeA2B = graph.GetConnectionsBetween(partAId, partBId).at(0);
+    destPartEdge.push_back(edgeA2B);
     // Part C and the edge that connects to its source Part A
-    const Edge* edgeA2C = combiner.GetEdgeConnectTwoParts(partC, partA).at(0);
-    destPartEdge.push_back(std::make_pair((const Part*)&partC, edgeA2C));
+    PartConnection edgeA2C = graph.GetConnectionsBetween(partAId, partCId).at(0);
+    destPartEdge.push_back(edgeA2C);
     // Part D and the edge that connects to its source Part A
-    const Edge* edgeA2D = combiner.GetEdgeConnectTwoParts(partD, partA).at(0);
-    destPartEdge.push_back(std::make_pair((const Part*)&partD, edgeA2D));
+    PartConnection edgeA2D = graph.GetConnectionsBetween(partAId, partDId).at(0);
+    destPartEdge.push_back(edgeA2D);
 
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, destPartEdge);
 
@@ -1502,15 +1599,15 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
 
     // Elem Part A's glue should have three elements
     // (*edgeAB, *glue0) (*edgeAC, *glue0) (*edgeAD, *glue1)
-    auto elemIt = combGlued.m_Elems.find(partA.m_PartId);
+    auto elemIt = combGlued.m_Elems.find(partAId);
     REQUIRE(elemIt != combGlued.m_Elems.end());
     REQUIRE(elemIt->second.m_Glues.size() == 3);
 
-    auto elemAB = elemIt->second.m_Glues.find(edgeA2B);
+    auto elemAB = elemIt->second.m_Glues.find(edgeA2B.m_Destination);
     REQUIRE(elemAB != elemIt->second.m_Glues.end());
-    auto elemAC = elemIt->second.m_Glues.find(edgeA2C);
+    auto elemAC = elemIt->second.m_Glues.find(edgeA2C.m_Destination);
     REQUIRE(elemAC != elemIt->second.m_Glues.end());
-    auto elemAD = elemIt->second.m_Glues.find(edgeA2D);
+    auto elemAD = elemIt->second.m_Glues.find(edgeA2D.m_Destination);
     REQUIRE(elemAD != elemIt->second.m_Glues.end());
 
     REQUIRE(elemAB->second.m_Glue == elemAC->second.m_Glue);
@@ -1542,9 +1639,9 @@ TEST_CASE("IsPlanInputGlueable", "[CombinerDFS]")
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
 
-    planA->m_InputMappings = { { planA->m_OpGraph.GetBuffers()[0], nullptr },
-                               { planA->m_OpGraph.GetBuffers()[1], nullptr },
-                               { planA->m_OpGraph.GetBuffers()[2], nullptr } };
+    planA->m_InputMappings = { { planA->m_OpGraph.GetBuffers()[0], {} },
+                               { planA->m_OpGraph.GetBuffers()[1], {} },
+                               { planA->m_OpGraph.GetBuffers()[2], {} } };
 
     Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
@@ -1561,34 +1658,47 @@ TEST_CASE("IsPlanInputGlueable", "[CombinerDFS]")
                                                         TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
 
-    planB->m_InputMappings = { { planB->m_OpGraph.GetBuffers()[0], nullptr },
-                               { planB->m_OpGraph.GetBuffers()[1], nullptr },
-                               { planB->m_OpGraph.GetBuffers()[2], nullptr } };
+    planB->m_InputMappings = { { planB->m_OpGraph.GetBuffers()[0], {} },
+                               { planB->m_OpGraph.GetBuffers()[1], {} },
+                               { planB->m_OpGraph.GetBuffers()[2], {} } };
 
     REQUIRE(combiner.IsPlanInputGlueable(*planB.get()) == true);
 }
 
 TEST_CASE("ArePlansAllowedToMerge", "[CombinerDFS]")
 {
-    Graph graph;
     // Create graph:
     //
-    //  --> A - - > B
+    //  C --> A - - > B
     //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* node  = graph.CreateAndAddNode<NameOnlyNode>("");
+    GraphOfParts graph;
 
-    graph.Connect(node, nodeA, 0);
-    graph.Connect(nodeA, nodeB, 0);
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
+
+    auto pA               = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB               = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC               = std::make_unique<MockPart>(graph.GeneratePartId());
+    const BasePart& partA = *pA;
+    const BasePart& partB = *pB;
+    const BasePart& partC = *pC;
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+
+    PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
+    PartOutputSlot partCOutputSlot = { partC.GetPartId(), 0 };
+    PartInputSlot partAInputSlot   = { partA.GetPartId(), 0 };
+    PartInputSlot partBInputSlot   = { partB.GetPartId(), 0 };
+
+    connections[partAInputSlot] = partCOutputSlot;
+    connections[partBInputSlot] = partAOutputSlot;
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
     Plan planA;
     planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
@@ -1603,10 +1713,9 @@ TEST_CASE("ArePlansAllowedToMerge", "[CombinerDFS]")
                                                   TensorShape{ 1, 1, 1, 64 }, TraversalOrder::Xyz, Stride(), 0, 0));
 
     planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[1], planA.m_OpGraph.GetOps()[0]);
-    planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[0], nodeA->GetInput(0) } };
-    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[1], nodeA } };
+    planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[0], partAInputSlot } };
+    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[1], partAOutputSlot } };
 
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
     Plan planB;
     planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
@@ -1623,11 +1732,11 @@ TEST_CASE("ArePlansAllowedToMerge", "[CombinerDFS]")
 
     planB.m_OpGraph.AddConsumer(planB.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetOps()[0], 0);
     planB.m_OpGraph.AddConsumer(planB.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetOps()[1], 0);
-    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
+    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
-    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planB, *nodeB->GetInput(0)) == true);
+    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planB, PartConnection{ partBInputSlot, partAOutputSlot }) == true);
 
     // Create a new plan with a different Block Config i.e. 8x32
     Plan planBdiffBlockConfig;
@@ -1648,10 +1757,11 @@ TEST_CASE("ArePlansAllowedToMerge", "[CombinerDFS]")
                                                planBdiffBlockConfig.m_OpGraph.GetOps()[0], 0);
     planBdiffBlockConfig.m_OpGraph.AddConsumer(planBdiffBlockConfig.m_OpGraph.GetBuffers()[0],
                                                planBdiffBlockConfig.m_OpGraph.GetOps()[1], 0);
-    planBdiffBlockConfig.m_InputMappings = { { planBdiffBlockConfig.m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
+    planBdiffBlockConfig.m_InputMappings = { { planBdiffBlockConfig.m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
     // They cannot be merged
-    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planBdiffBlockConfig, *nodeB->GetInput(0)) == false);
+    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planBdiffBlockConfig,
+                                            PartConnection{ partBInputSlot, partAOutputSlot }) == false);
 
     // Create a new plan with a different streaming strategy
     Plan planBdiffStrategy;
@@ -1659,34 +1769,47 @@ TEST_CASE("ArePlansAllowedToMerge", "[CombinerDFS]")
         Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 64, 64, 64 },
         TensorShape{ 1, 8, 16, 64 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
 
-    planBdiffStrategy.m_InputMappings = { { planBdiffStrategy.m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
+    planBdiffStrategy.m_InputMappings = { { planBdiffStrategy.m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
     // Consumer plan is streaming full depth while producer plan is not
-    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planBdiffStrategy, *nodeB->GetInput(0)) == false);
+    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planBdiffStrategy,
+                                            PartConnection{ partBInputSlot, partAOutputSlot }) == false);
 }
 
 TEST_CASE("PlanCache", "[CombinerDFS]")
 {
-
-    Graph graph;
     // Create graph:
     //
-    //  --> A - - > B
+    //  C --> A - - > B
     //
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* node  = graph.CreateAndAddNode<NameOnlyNode>("");
+    GraphOfParts graph;
 
-    graph.Connect(node, nodeA, 0);
-    graph.Connect(nodeA, nodeB, 0);
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
+
+    auto pA               = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB               = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC               = std::make_unique<MockPart>(graph.GeneratePartId());
+    const BasePart& partA = *pA;
+    const BasePart& partB = *pB;
+    const BasePart& partC = *pC;
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+
+    PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
+    PartOutputSlot partCOutputSlot = { partC.GetPartId(), 0 };
+    PartInputSlot partAInputSlot   = { partA.GetPartId(), 0 };
+    PartInputSlot partBInputSlot   = { partB.GetPartId(), 0 };
+
+    connections[partAInputSlot] = partCOutputSlot;
+    connections[partBInputSlot] = partAOutputSlot;
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    GraphOfParts gOfParts;
-    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
     Plan planA;
     planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
@@ -1701,10 +1824,9 @@ TEST_CASE("PlanCache", "[CombinerDFS]")
                                                   TensorShape{ 1, 1, 1, 64 }, TraversalOrder::Xyz, Stride(), 0, 0));
 
     planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[1], planA.m_OpGraph.GetOps()[0]);
-    planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[0], nodeA->GetInput(0) } };
-    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[1], nodeA } };
+    planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[0], partAInputSlot } };
+    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[1], partAOutputSlot } };
 
-    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
     Plan planB;
     planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
@@ -1721,13 +1843,13 @@ TEST_CASE("PlanCache", "[CombinerDFS]")
 
     planB.m_OpGraph.AddConsumer(planB.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetOps()[0], 0);
     planB.m_OpGraph.AddConsumer(planB.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetOps()[1], 0);
-    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
+    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
-    class MockPart : public Part
+    class MockPartForPlanCache : public MockPart
     {
-        using Part::Part;
+        using MockPart::MockPart;
 
     public:
         Plans GetPlans(CascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const override
@@ -1741,9 +1863,9 @@ TEST_CASE("PlanCache", "[CombinerDFS]")
 
     uint64_t numGetPlansCalled = 0;
 
-    MockPart mockPart1(PartId(0), estOpt, compOpt, hwCaps);
+    MockPartForPlanCache mockPart1(PartId(0));
     mockPart1.m_GetPlansCalled = &numGetPlansCalled;
-    MockPart mockPart2(PartId(1), estOpt, compOpt, hwCaps);
+    MockPartForPlanCache mockPart2(PartId(1));
     mockPart2.m_GetPlansCalled = &numGetPlansCalled;
 
     // There are 0 entries in the cache starting off

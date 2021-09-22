@@ -6,12 +6,18 @@
 #pragma once
 
 #include "../Graph.hpp"
-#include "Plan.hpp"
+#include "DebuggableObject.hpp"
+
+#include <functional>
+#include <utility>
+#include <vector>
 
 namespace ethosn
 {
 namespace support_library
 {
+
+class Buffer;
 
 enum class CascadeType
 {
@@ -39,267 +45,222 @@ bool IsObjectOfType(const B* obj)
     return (GetObjectAs<D>(obj) != nullptr);
 }
 
-using PartId         = size_t;
+using PartId = uint32_t;
+
+class BasePart : public DebuggableObject
+{
+public:
+    virtual ~BasePart()
+    {}
+
+    BasePart(PartId id)
+        : DebuggableObject("BasePart")
+        , m_PartId(id)
+    {}
+
+    virtual Plans GetPlans(CascadeType cascadeType,
+                           ethosn::command_stream::BlockConfig blockConfig,
+                           Buffer* sramBuffer,
+                           uint32_t numWeightStripes) const = 0;
+
+    virtual utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const = 0;
+
+    PartId GetPartId() const;
+
+protected:
+    PartId m_PartId;
+};
+
 using StripeSizeType = TensorShape::value_type;
 
 using Plans = std::vector<std::shared_ptr<Plan>>;
 
 class WeightEncoderCache;
 
-class Part : public DebuggableObject
-{
-public:
-    using Nodes = std::vector<Node*>;
-
-    using NumStripesType = uint32_t;
-    struct NumStripes
-    {
-        NumStripesType m_Min;
-        NumStripesType m_Max;
-        bool operator<(const NumStripes& rhs) const;
-    };
-
-    struct MceStripesInfo
-    {
-        TensorShape m_Input;
-        TensorShape m_Output;
-        TensorShape m_Weight;
-        command_stream::BlockConfig m_BlockConfig = { 8U, 8U };
-
-        bool operator<(const MceStripesInfo& rhs) const;
-    };
-
-    struct PleStripesInfo
-    {
-        TensorShape m_Input;
-        TensorShape m_Output;
-        command_stream::BlockConfig m_BlockConfig = { 8U, 8U };
-        bool operator<(const PleStripesInfo& rhs) const;
-    };
-
-    struct MemoryStripeInfo
-    {
-        NumStripes m_Range;
-        TensorShape m_Shape;
-        bool operator<(const MemoryStripeInfo& rhs) const;
-    };
-
-    struct MemoryStripesInfo
-    {
-        MemoryStripeInfo m_Input;
-        MemoryStripeInfo m_Output;
-        MemoryStripeInfo m_Weight;
-        MemoryStripeInfo m_PleInput;
-        bool operator<(const MemoryStripesInfo& rhs) const;
-    };
-
-    struct NumMemoryStripes
-    {
-        NumStripesType m_Input;
-        NumStripesType m_Output;
-        NumStripesType m_Weight;
-        NumStripesType m_PleInput;
-        bool operator<(const NumMemoryStripes& rhs) const;
-    };
-
-    // The following structs are intermediate representations of plans
-    // describing the size of compute stripes and the size and number of memory stripes
-
-    // A representation of plans with both mce and ple operations
-    // this is to enable plans which need identity mce or identity ple operations
-    struct MceAndPleInfo
-    {
-        MceStripesInfo m_MceCompute;
-        PleStripesInfo m_PleCompute;
-        MemoryStripesInfo m_Memory;
-        Lifetime m_Lifetime = Lifetime::Cascade;
-
-        bool operator<(const MceAndPleInfo& rhs) const;
-    };
-
-    // A representation of plans without an identity PLE operation
-    // this is to enable fusing with subsequent ple operations
-    struct MceOnlyInfo
-    {
-        MceStripesInfo m_MceCompute;
-        MemoryStripesInfo m_Memory;
-        Lifetime m_Lifetime = Lifetime::Cascade;
-
-        bool operator<(const MceOnlyInfo& rhs) const;
-    };
-
-    // A representation of plans without an identity MCE operation
-    // this is to enable fusing with preceding mce operations
-    struct PleOnlyInfo
-    {
-        PleStripesInfo m_PleCompute;
-        MemoryStripesInfo m_Memory;
-        Lifetime m_Lifetime = Lifetime::Cascade;
-
-        bool operator<(const PleOnlyInfo& rhs) const;
-    };
-
-    // A representation of plans that only use DMA and thus only
-    // have information about memory
-    struct DmaOnlyInfo
-    {
-        MemoryStripeInfo m_Input;
-        MemoryStripeInfo m_Output;
-        Lifetime m_Lifetime = Lifetime::Cascade;
-
-        bool operator<(const DmaOnlyInfo& rhs) const;
-    };
-
-    struct StripeInfos
-    {
-        std::set<MceAndPleInfo> m_MceAndPleInfos;
-        std::set<MceOnlyInfo> m_MceOnlyInfos;
-        std::set<PleOnlyInfo> m_PleOnlyInfos;
-        std::set<DmaOnlyInfo> m_DmaOnlyInfos;
-    };
-
-    Part(PartId id,
-         const EstimationOptions& estOpt,
-         const CompilationOptions& compOpt,
-         const HardwareCapabilities& capabilities)
-        : DebuggableObject("Part")
-        , m_PartId(id)
-        , m_EstimationOptions(estOpt)
-        , m_CompilationOptions(compOpt)
-        , m_Capabilities(capabilities)
-    {
-        ETHOSN_UNUSED(m_EstimationOptions);
-    }
-
-    virtual ~Part()
-    {}
-
-    virtual Plans GetPlans(CascadeType cascadeType,
-                           ethosn::command_stream::BlockConfig blockConfig,
-                           Buffer* sramBuffer,
-                           uint32_t numWeightStripes) const;
-
-    std::vector<const Edge*> GetInputs() const;
-    std::vector<const Edge*> GetOutputs() const;
-
-    // SubGraph of Nodes for this Part
-    Nodes m_SubGraph;
-
-    // All valid plans for this Part
-    PartId m_PartId;
-
-private:
-    void AddNewPlan(Plan::InputMapping&& inputMappings,
-                    Plan::OutputMapping&& outputMappings,
-                    OwnedOpGraph&& opGraph,
-                    Plans& plans) const;
-    void CreateOpGraphAndPlan(Node* node,
-                              DmaOnlyInfo& dmaInfo,
-                              NumMemoryStripes& numMemoryStripes,
-                              TraversalOrder order,
-                              Location input,
-                              Location output,
-                              Plans& plans) const;
-    void CreatePlanForInputNode(Node* node, Lifetime lifetime, TraversalOrder order, Plans& plans) const;
-    void CreatePlanForOutputNode(Node* node, Lifetime lifetime, TraversalOrder order, Plans& plans) const;
-    void GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEncoderCache, Plans& plans) const;
-    void GenerateWithStripeSizes(Node* node,
-                                 const std::vector<command_stream::BlockConfig>& blockConfigs,
-                                 TraversalOrder order,
-                                 WeightEncoderCache& weightEncoderCache,
-                                 Plans& plans) const;
-    void GenerateWithNumStripes(Node* node,
-                                TraversalOrder order,
-                                StripeInfos& stripeInfos,
-                                WeightEncoderCache& weightEncoderCache,
-                                Plans& plans) const;
-    void GenerateMcePlans(Node* node,
-                          TraversalOrder order,
-                          StripeInfos& stripeInfos,
-                          WeightEncoderCache& weightEncoderCache,
-                          Plans& plans) const;
-    void GenerateFuseOnlyPlePlans(Node* node,
-                                  TraversalOrder order,
-                                  StripeInfos& stripeInfos,
-                                  WeightEncoderCache& weightEncoderCache,
-                                  Plans& plans) const;
-    void GenerateFormatConversionPlans(Node* node,
-                                       TraversalOrder order,
-                                       StripeInfos& stripeInfos,
-                                       Location inputBufferLocaton,
-                                       Location outputBufferLocation,
-                                       Plans& plans) const;
-    void CreateReinterpretDramPlan(Node* node, Plans& plans) const;
-    void CreateMceAndIdentityPlePlans(Node* node,
-                                      const MceAndPleInfo& info,
-                                      TraversalOrder order,
-                                      WeightEncoderCache& weightEncoderCache,
-                                      Plans& plans) const;
-    void CreateMceOnlyPlans(Node* node,
-                            const MceOnlyInfo& info,
-                            TraversalOrder order,
-                            WeightEncoderCache& weightEncoderCache,
-                            Plans& plans) const;
-    void CreateIdentityMceAndFusedPlePlans(Node* node,
-                                           const MceAndPleInfo& info,
-                                           TraversalOrder order,
-                                           WeightEncoderCache& weightEncoderCache,
-                                           Plans& plans) const;
-    void CreateFuseOnlyPlans(Node* node, const PleOnlyInfo& info, TraversalOrder order, Plans& plans) const;
-
-    void CreateFormatConversionPlans(Node* node,
-                                     DmaOnlyInfo& dmaInfo,
-                                     NumMemoryStripes& numMemoryStripes,
-                                     TraversalOrder order,
-                                     Location inputBufferLocaton,
-                                     Location outputBufferLocation,
-                                     Plans& plans) const;
-
-    void CreateVirtualSramPlans(
-        Node* node, DmaOnlyInfo& dmaInfo, NumMemoryStripes& numMemoryStripes, TraversalOrder order, Plans& plans) const;
-
-    std::pair<Buffer*, Buffer*> AddIdentityMceOpForSubGraph(OwnedOpGraph& opGraph,
-                                                            Lifetime lifetime,
-                                                            const Part::MceStripesInfo& mceComputeInfo,
-                                                            const Part::NumMemoryStripes& numMemoryStripes,
-                                                            const Part::MemoryStripesInfo& memoryStripes,
-                                                            const TensorShape& inpShape,
-                                                            const QuantizationInfo& inpQuantInfo,
-                                                            TraversalOrder order,
-                                                            WeightEncoderCache& weightEncoderCache) const;
-
-    void AddOpToOpGraphWithInputOutputBuffers(OwnedOpGraph& opGraph,
-                                              Node* node,
-                                              TraversalOrder order,
-                                              DmaOnlyInfo& stripeInfos,
-                                              NumMemoryStripes& numMemoryStripes,
-                                              Location inputBufferLocation,
-                                              Location outputBufferLocation,
-                                              Plan::InputMapping& inputMappings,
-                                              Plan::OutputMapping& outputMappings) const;
-
-    const EstimationOptions& m_EstimationOptions;
-    const CompilationOptions& m_CompilationOptions;
-    const HardwareCapabilities& m_Capabilities;
-};
-
-using Parts = std::vector<std::unique_ptr<Part>>;
+using Parts = std::vector<std::unique_ptr<BasePart>>;
 
 using InPart  = std::pair<bool, PartId>;
 using OutPart = std::pair<bool, PartId>;
 
+// Object which represents the input to a part
+// This consists of the PartId of the part connected
+// and the index of that input into the part
+struct PartInputSlot
+{
+    PartId m_PartId;
+    uint32_t m_InputIndex;
+    bool operator==(const PartInputSlot& r) const
+    {
+        return m_PartId == r.m_PartId && m_InputIndex == r.m_InputIndex;
+    }
+    bool operator<(const PartInputSlot& r) const
+    {
+        if (m_PartId < r.m_PartId)
+            return true;
+        if (r.m_PartId < m_PartId)
+            return false;
+        if (m_InputIndex < r.m_InputIndex)
+            return true;
+        if (r.m_InputIndex < m_InputIndex)
+            return false;
+        return false;
+    }
+};
+
+// Object which represents the output to a part
+// This consists of the PartId of the part connected
+// and the index of that output out of the part
+struct PartOutputSlot
+{
+    PartId m_PartId;
+    uint32_t m_OutputIndex;
+    bool operator==(const PartOutputSlot& r) const
+    {
+        return m_PartId == r.m_PartId && m_OutputIndex == r.m_OutputIndex;
+    }
+    bool operator<(const PartOutputSlot& r) const
+    {
+        if (m_PartId < r.m_PartId)
+            return true;
+        if (r.m_PartId < m_PartId)
+            return false;
+        if (m_OutputIndex < r.m_OutputIndex)
+            return true;
+        if (r.m_OutputIndex < m_OutputIndex)
+            return false;
+        return false;
+    }
+};
+
+/// PartConnection describes a connection between parts.
+/// The source of a connection is an output slot of a part
+/// The destination of a connection is the input slot to a part.
+/// e.g. Part0 output slot 0 is connected to Part1 input slot 0
+/// P0 0------>0 P1
+/// The source of the connection is P0 output slot 0 {0,0} and the destination is P1 input slot 0 {0,1}.
+struct PartConnection
+{
+    PartInputSlot m_Destination;
+    PartOutputSlot m_Source;
+
+    bool operator==(const PartConnection& r) const
+    {
+        return m_Destination == r.m_Destination && m_Source == r.m_Source;
+    }
+
+    bool operator<(const PartConnection& r) const
+    {
+        if (m_Destination < r.m_Destination)
+            return true;
+        if (r.m_Destination < m_Destination)
+            return false;
+        if (m_Source < r.m_Source)
+            return true;
+        if (r.m_Source < m_Source)
+            return false;
+        return false;
+    }
+};
+
+}    // namespace support_library
+
+}    // namespace ethosn
+
+namespace ethosn_impl
+{
+inline size_t HashCombine(ethosn::support_library::PartId partId, uint32_t index)
+{
+    std::hash<uint64_t> hasher;
+    uint64_t combinedKey = (static_cast<uint64_t>(partId) << 32) | (index);
+    size_t ret           = hasher(combinedKey);
+
+    return ret;
+}
+}    // namespace ethosn_impl
+
+namespace std
+{
+template <>
+struct hash<ethosn::support_library::PartInputSlot>
+{
+    size_t operator()(const ethosn::support_library::PartInputSlot& p) const noexcept
+    {
+        return ethosn_impl::HashCombine(p.m_PartId, p.m_InputIndex);
+    }
+};
+
+template <>
+struct hash<ethosn::support_library::PartOutputSlot>
+{
+    size_t operator()(const ethosn::support_library::PartOutputSlot& p) const noexcept
+    {
+        return ethosn_impl::HashCombine(p.m_PartId, p.m_OutputIndex);
+    }
+};
+template <>
+struct hash<ethosn::support_library::PartConnection>
+{
+    size_t operator()(const ethosn::support_library::PartConnection& s) const noexcept
+    {
+        uint64_t destHash = ethosn_impl::HashCombine(s.m_Destination.m_PartId, s.m_Destination.m_InputIndex);
+        uint64_t srcHash  = ethosn_impl::HashCombine(s.m_Source.m_PartId, s.m_Source.m_OutputIndex);
+
+        uint64_t hash = 17;
+        hash          = hash * 31 + destHash;
+        hash          = hash * 31 + srcHash;
+        return hash;
+    }
+};
+}    // namespace std
+
+namespace ethosn
+{
+namespace support_library
+{
+
+/// The GraphOfParts contains the parts and the connections between them.
+/// The connection between parts is stored as a map from PartInputSlot and PartOutputSlot as an input slot can only have 1 output slot.
+///
+/// e.g. A graph of parts with two part output slots {0,0} and {0,1} (corresponding to P0)
+///      and 2 part input slots {1,0} (corresponding to P1) and {2,0} (corresponding to P2)
+///
+/// P0 0------>0 P1
+///  |
+///    1------>0 P2
+///
 class GraphOfParts
 {
 public:
     GraphOfParts() = default;
 
     size_t GetNumParts() const;
-    const Part& GetPart(const PartId id) const;
+    const BasePart& GetPart(const PartId id) const;
     const Parts& GetParts() const;
-    const Part* GetNextPart(const PartId id) const;
 
-    InPart GetInputPart(const Edge& e) const;
-    OutPart GetOutputPart(const Edge& e) const;
+    /// Methods to retrieve the input / output slots for a part
+    std::vector<PartInputSlot> GetPartInputs(PartId p) const;
+    std::vector<PartOutputSlot> GetPartOutputs(PartId p) const;
+
+    /// Methods to retrieve the corresponding output / input slots for adjacent parts
+    /// Retrieves the OutputSlots for the parts which are sources to Part p
+    std::vector<PartOutputSlot> GetSourceParts(PartId p) const;
+    /// Retrieves the InputSlots for the parts which are destinations to Part p
+    std::vector<PartInputSlot> GetDestinationParts(PartId p) const;
+
+    /// Methods to retrieve the connections for the source and destination parts of p
+    std::vector<PartConnection> GetSourceConnections(PartId p) const;
+    std::vector<PartConnection> GetDestinationConnections(PartId p) const;
+
+    /// Methods to get the corresponding connected input/output slots of an input/output slot
+    std::vector<PartInputSlot> GetConnectedInputSlots(const PartOutputSlot& outputSlot) const;
+    utils::Optional<PartOutputSlot> GetConnectedOutputSlot(const PartInputSlot& inputSlot) const;
+
+    /// Retrieves the connections between source and dest PartIds
+    std::vector<PartConnection> GetConnectionsBetween(PartId source, PartId dest) const;
+
+    /// Adds a connection between input slot and output slot to the graph of parts
+    /// asserts if the input slot is already connected to an output slot.
+    void AddConnection(PartInputSlot inputSlot, PartOutputSlot outputSlot);
 
     PartId GeneratePartId()
     {
@@ -309,15 +270,9 @@ public:
     }
 
     Parts m_Parts;
+    std::unordered_map<PartInputSlot, PartOutputSlot> m_Connections;
     PartId m_NextPartId = 0;
 };
-
-uint32_t CalculateTileSize(Node* node,
-                           const HardwareCapabilities& caps,
-                           const TensorShape& inputTensorShape,
-                           const TensorShape& inputStripeShape,
-                           const TensorShape& outputStripeShape,
-                           uint32_t numStripes);
 
 }    // namespace support_library
 }    // namespace ethosn

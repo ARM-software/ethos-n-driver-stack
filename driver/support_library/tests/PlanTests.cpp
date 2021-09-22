@@ -298,7 +298,7 @@ TEST_CASE("Get size in bytes helpers")
     tempBuffer = Buffer(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB, TensorShape(),
                         TensorShape{ 1, 8, 8, 16 }, TraversalOrder::Xyz, 4 * 8 * 8 * 16, QuantizationInfo());
     buffer     = planASram.m_OpGraph.AddBuffer(std::make_unique<Buffer>(std::move(tempBuffer)));
-    planASram.m_OutputMappings[buffer] = nullptr;
+    planASram.m_OutputMappings[buffer] = PartOutputSlot{ 0, 0 };
 
     REQUIRE(GetTotSizeInBytes(planASram).m_Tot == 4 * 8 * 8 * 16);
     REQUIRE(GetTotSizeInBytes(planASram).m_TotAtomic == 4 * 8 * 8 * 16);
@@ -309,7 +309,7 @@ TEST_CASE("Get size in bytes helpers")
     tempBuffer = Buffer(Lifetime::Cascade, Location::Sram, CascadingBufferFormat::NHWCB, TensorShape(),
                         TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, 4 * 8 * 8 * 8, QuantizationInfo());
     buffer     = planBSram.m_OpGraph.AddBuffer(std::make_unique<Buffer>(std::move(tempBuffer)));
-    planBSram.m_InputMappings[buffer] = nullptr;
+    planBSram.m_InputMappings[buffer] = PartInputSlot{ 0, 0 };
 
     REQUIRE(GetTotSizeInBytes(planBSram).m_Tot == 4 * 8 * 8 * 8);
     REQUIRE(GetTotSizeInBytes(planBSram).m_TotAtomic == 0);

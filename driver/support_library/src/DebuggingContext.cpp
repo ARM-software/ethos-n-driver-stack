@@ -48,15 +48,14 @@ void DebuggingContext::DumpGraph(CompilationOptions::DebugLevel level,
 }
 
 void DebuggingContext::SaveGraphToDot(CompilationOptions::DebugLevel level,
-                                      const Graph& graph,
-                                      const GraphOfParts* graphOfParts,
+                                      const GraphOfParts& graphOfParts,
                                       const std::string& fileName,
                                       DetailLevel detailLevel) const
 {
     if (m_DebugInfo->m_DumpDebugFiles >= level)
     {
         std::ofstream stream(GetAbsolutePathOutputFileName(fileName));
-        ethosn::support_library::SaveGraphToDot(graph, graphOfParts, stream, detailLevel);
+        ethosn::support_library::SaveGraphToDot(graphOfParts, stream, detailLevel);
     }
 }
 

@@ -10,6 +10,7 @@
 #include "Graph.hpp"
 #include "GraphNodes.hpp"
 #include "Part.hpp"
+#include "PartV1.hpp"
 #include "PerformanceData.hpp"
 #include "Plan.hpp"
 #include "Utils.hpp"
@@ -447,22 +448,6 @@ DotAttributes GetDotAttributes(Buffer* buffer, DetailLevel detailLevel)
     return result;
 }
 
-DotAttributes GetDotAttributes(Part* part, DetailLevel)
-{
-    DotAttributes result;
-    result.m_Id    = SanitizeId(part->m_DebugTag);
-    result.m_Label = part->m_DebugTag;
-    return result;
-}
-
-DotAttributes GetDotAttributes(const Plan* plan, DetailLevel)
-{
-    DotAttributes result;
-    result.m_Id    = SanitizeId(plan->m_DebugTag);
-    result.m_Label = plan->m_DebugTag;
-    return result;
-}
-
 std::string GetLabel(InputNode*, DetailLevel)
 {
     return "InputNode";
@@ -648,6 +633,28 @@ DotAttributes GetDotAttributes(Node* node, DetailLevel detailLevel)
     }
     result.m_Label = label.str();
 
+    return result;
+}
+
+DotAttributes GetDotAttributes(const BasePart& part, DetailLevel detail)
+{
+    DotAttributes result;
+    result.m_Id          = SanitizeId(part.m_DebugTag);
+    result.m_Label       = part.m_DebugTag;
+    const PartV1* partV1 = dynamic_cast<const PartV1*>(&part);
+    if (partV1)
+    {
+        assert(partV1->m_SubGraph.size() == 1);
+        result.m_Label += "\n" + GetDotAttributes(partV1->m_SubGraph[0], detail).m_Label;
+    }
+    return result;
+}
+
+DotAttributes GetDotAttributes(const Plan* plan, DetailLevel)
+{
+    DotAttributes result;
+    result.m_Id    = SanitizeId(plan->m_DebugTag);
+    result.m_Label = plan->m_DebugTag;
     return result;
 }
 
@@ -873,7 +880,7 @@ NodeIds SavePlanAsBody(const Plan& plan, std::ostream& stream, DetailLevel detai
     {
         std::string bufferId = nodeIds.at(input.first);
         std::string id       = "InputLabel" + bufferId;
-        std::string label    = "Input from " + GetDotAttributes(input.second->GetSource(), DetailLevel::Low).m_Label;
+        std::string label    = "Input Slot " + std::to_string(input.second.m_InputIndex);
         stream << id << "[label = \"" << label << "\", shape = box]\n";
         stream << id << " -> " << bufferId << "[arrowhead = box]\n";
     }
@@ -881,7 +888,7 @@ NodeIds SavePlanAsBody(const Plan& plan, std::ostream& stream, DetailLevel detai
     {
         std::string bufferId = nodeIds.at(output.first);
         std::string id       = "OutputLabel" + bufferId;
-        std::string label    = "Output from " + GetDotAttributes(output.second, DetailLevel::Low).m_Label;
+        std::string label    = "Output Slot " + std::to_string(output.second.m_OutputIndex);
         stream << id << "[label = \"" << label << "\", shape = box]\n";
         stream << bufferId << " -> " << id << "[dir = back, arrowtail = box]\n";
     }
@@ -1090,53 +1097,69 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
            << "\n";
 }
 
-void SaveGraphToDot(const Graph& graph, const GraphOfParts* graphOfParts, std::ostream& stream, DetailLevel detailLevel)
+void SaveGraphToDot(const GraphOfParts& graphOfParts, std::ostream& stream, DetailLevel detailLevel)
 {
     stream << "digraph SupportLibraryGraph"
            << "\n";
     stream << "{"
            << "\n";
 
-    std::unordered_map<Node*, std::string> nodeIds;
+    std::unordered_map<PartId, std::string> partIds;
 
     // Process all parts that we were given (if any)
-    const Parts& parts = graphOfParts != nullptr ? graphOfParts->m_Parts : static_cast<const Parts&>(Parts());
-    for (const std::unique_ptr<Part>& part : parts)
+    const Parts& parts = graphOfParts.m_Parts;
+    for (const std::unique_ptr<BasePart>& part : parts)
     {
-        DotAttributes attr = GetDotAttributes(part.get(), detailLevel);
-        DumpSubgraphHeaderToDotFormat(attr, stream);
-
-        for (Node*& n : part->m_SubGraph)
-        {
-            std::string nodeId = DumpToDotFormat(n, stream, detailLevel);
-            nodeIds[n]         = nodeId;
-        }
-
-        stream << "}"
-               << "\n";
+        DotAttributes attr = GetDotAttributes(*part, detailLevel);
+        DumpNodeToDotFormat(attr, stream);
+        partIds[part->GetPartId()] = attr.m_Id;
     }
-
-    // Process all nodes that aren't included in any Part
-    for (auto&& n : graph.GetNodes())
+    // Precompute the number of input and output parts for each part
+    std::vector<bool> partsMultipleOutputs;
+    std::vector<bool> partsMultipleInputs;
+    for (const std::unique_ptr<BasePart>& part : parts)
     {
-        if (nodeIds.find(n.get()) == nodeIds.end())
-        {
-            std::string nodeId = DumpToDotFormat(n.get(), stream, detailLevel);
-            nodeIds[n.get()]   = nodeId;
-        }
+        bool multipleOutputs = graphOfParts.GetPartOutputs(part->GetPartId()).size() > 1 ? true : false;
+        bool multipleInputs  = graphOfParts.GetPartInputs(part->GetPartId()).size() > 1 ? true : false;
+        partsMultipleOutputs.push_back(multipleOutputs);
+        partsMultipleInputs.push_back(multipleInputs);
     }
-
-    for (auto&& e : graph.GetEdges())
+    // Copy edges into a vector and sort so there are deterministic results.
+    using InOutSlots = std::pair<PartInputSlot, PartOutputSlot>;
+    std::vector<InOutSlots> edges;
+    for (auto&& edge : graphOfParts.m_Connections)
     {
-        std::pair<bool, size_t> edgeInput = utils::FindIndex(e->GetDestination()->GetInputs(), e.get());
-        stream << nodeIds.at(e->GetSource()) << " -> " << nodeIds.at(e->GetDestination());
-        // If the consumer has multiple inputs, label each one as the order is important.
-        if (e->GetDestination()->GetInputs().size() > 1)
+        edges.emplace_back(edge.first, edge.second);
+    }
+    std::sort(edges.begin(), edges.end(), [](const InOutSlots& left, const InOutSlots& right) {
+        if (left.first.m_PartId < right.first.m_PartId)
+            return true;
+        if (right.first.m_PartId < left.first.m_PartId)
+            return false;
+        if (left.first.m_InputIndex < right.first.m_InputIndex)
+            return true;
+        if (right.first.m_InputIndex < left.first.m_InputIndex)
+            return false;
+        return false;
+    });
+    for (auto&& edge : edges)
+    {
+        stream << partIds[edge.second.m_PartId] << " -> " << partIds[edge.first.m_PartId];
+        // Only print the slot number if there are more than 1 outputs for a part.
+        if (partsMultipleOutputs.at(edge.second.m_PartId))
         {
-            stream << "[ label=\"Input " << edgeInput.second << "\"]";
+            stream << "[ taillabel=\""
+                   << "Slot " << edge.second.m_OutputIndex << "\"]";
+        }
+        // Only print the slot number if there are more than 1 inputs for a part.
+        if (partsMultipleInputs.at(edge.first.m_PartId))
+        {
+            stream << "[ headlabel=\""
+                   << "Slot " << edge.first.m_InputIndex << "\"]";
         }
         stream << "\n";
     }
+
     stream << "}"
            << "\n";
 }
@@ -1196,14 +1219,14 @@ void SaveCombinationToDot(const Combination& combination,
            << "\n";
 
     NodeIds nodeIds;
-    std::unordered_map<const Edge*, std::string> edgeInputs;
+    std::unordered_map<PartInputSlot, std::string> edgeInputs;
 
     assert(combination.m_PartIdsInOrder.size() == combination.m_Elems.size());
 
     for (auto& partId : combination.m_PartIdsInOrder)
     {
-        const Part& part = graphOfParts.GetPart(partId);
-        auto elemIt      = combination.m_Elems.find(partId);
+        const BasePart& part = graphOfParts.GetPart(partId);
+        auto elemIt          = combination.m_Elems.find(partId);
         assert(elemIt != combination.m_Elems.end());
         const Plan& plan = *elemIt->second.m_Plan;
 
@@ -1216,25 +1239,26 @@ void SaveCombinationToDot(const Combination& combination,
                << "\n";
 
         // Connect plan to its inputs
-        auto inputEdges = part.GetInputs();
-        for (const Edge* inputEdge : inputEdges)
+        auto inputSlots = graphOfParts.GetPartInputs(part.GetPartId());
+        for (PartInputSlot inputSlot : inputSlots)
         {
-            if (edgeInputs.find(inputEdge) != edgeInputs.end())
+            if (edgeInputs.find(inputSlot) != edgeInputs.end())
             {
-                std::string source = edgeInputs.at(inputEdge);
-                std::string dest   = nodeIds.at(plan.GetInputBuffer(inputEdge));
+                std::string source = edgeInputs.at(inputSlot);
+                std::string dest   = nodeIds.at(plan.GetInputBuffer(inputSlot));
                 stream << source << " -> " << dest << "\n";
             }
         }
 
-        // Deal with each output edge, which may have a glue attached
+        // Deal with each input edge, which may have a glue attached
         uint32_t glueCounter = 0;
-        auto outputEdges     = part.GetOutputs();
+        auto outputEdges     = graphOfParts.GetDestinationConnections(partId);
         std::map<const Glue*, uint32_t> glueCounters;
         std::map<const Glue*, uint32_t> glueOutDmaCounters;
-        for (const Edge* outputEdge : outputEdges)
+        for (const PartConnection& inOutSlots : outputEdges)
         {
-            auto glueIt = elemIt->second.m_Glues.find(outputEdge);
+            const PartInputSlot inputSlot = inOutSlots.m_Destination;
+            auto glueIt                   = elemIt->second.m_Glues.find(inputSlot);
 
             const Glue* glue = nullptr;
             GlueInfo glueInfo;
@@ -1274,7 +1298,7 @@ void SaveCombinationToDot(const Combination& combination,
                            << "\n";
 
                     // Connect the glue to its input plan
-                    stream << nodeIds.at(plan.GetOutputBuffer(outputEdge->GetSource())) << " -> "
+                    stream << nodeIds.at(plan.GetOutputBuffer(inOutSlots.m_Source)) << " -> "
                            << nodeIds.at(glue->m_InputSlot.first);
                     // If the consumer has multiple inputs, label each one as the order is important.
                     if (glue->m_Graph.GetInputs(glue->m_InputSlot.first).size() > 1)
@@ -1288,17 +1312,17 @@ void SaveCombinationToDot(const Combination& combination,
 
                 if (glueInfo.m_OutDma)
                 {
-                    edgeInputs[outputEdge] = nodeIds.at(glue->m_Output.at(glueOutDmaCounters[glue]));
+                    edgeInputs[inputSlot] = nodeIds.at(glue->m_Output.at(glueOutDmaCounters[glue]));
                     glueOutDmaCounters[glue] += 1;
                 }
                 else
                 {
-                    edgeInputs[outputEdge] = nodeIds.at(glue->m_Graph.GetBuffers().at(0));
+                    edgeInputs[inputSlot] = nodeIds.at(glue->m_Graph.GetBuffers().at(0));
                 }
             }
             else
             {
-                edgeInputs[outputEdge] = nodeIds.at(plan.GetOutputBuffer(outputEdge->GetSource()));
+                edgeInputs[inOutSlots.m_Destination] = nodeIds.at(plan.GetOutputBuffer(inOutSlots.m_Source));
             }
             ++glueCounter;
         }

@@ -121,125 +121,73 @@ void Combiner::UpdateStats(const StatsType type)
     ++m_Stats[static_cast<size_t>(type)];
 }
 
-bool Combiner::IsPartInput(const Part& part) const
+bool Combiner::IsPartInput(const BasePart& part) const
 {
-    return (0 == part.GetInputs().size());
+    return (0 == m_GraphOfParts.GetPartInputs(part.GetPartId()).size());
 }
 
-bool Combiner::IsPartOutput(const Part& part) const
+bool Combiner::IsPartOutput(const BasePart& part) const
 {
-    return (0 == part.GetOutputs().size());
+    return (0 == m_GraphOfParts.GetPartOutputs(part.GetPartId()).size());
 }
 
-bool Combiner::IsPartSo(const Part& part) const
+bool Combiner::IsPartSo(const BasePart& part) const
 {
-    return (part.GetOutputs().size() == 1);
+    return (m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() == 1);
 }
 
-bool Combiner::IsPartMo(const Part& part) const
+bool Combiner::IsPartMo(const BasePart& part) const
 {
-    return (part.GetOutputs().size() > 1);
+    return (m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() > 1);
 }
 
-bool Combiner::IsPartSiso(const Part& part) const
+bool Combiner::IsPartSiso(const BasePart& part) const
 {
-    return (part.GetInputs().size() == 1 && part.GetOutputs().size() == 1);
+    return (m_GraphOfParts.GetPartInputs(part.GetPartId()).size() == 1 &&
+            m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() == 1);
 }
 
-bool Combiner::IsPartSimo(const Part& part) const
+bool Combiner::IsPartSimo(const BasePart& part) const
 {
-    return (part.GetInputs().size() == 1 && part.GetOutputs().size() > 1);
+    return (m_GraphOfParts.GetPartInputs(part.GetPartId()).size() == 1 &&
+            m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() > 1);
 }
 
-bool Combiner::IsPartMiso(const Part& part) const
+bool Combiner::IsPartMiso(const BasePart& part) const
 {
-    return (part.GetInputs().size() > 1 && part.GetOutputs().size() == 1);
+    return (m_GraphOfParts.GetPartInputs(part.GetPartId()).size() > 1 &&
+            m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() == 1);
 }
 
-bool Combiner::IsPartMimo(const Part& part) const
+bool Combiner::IsPartMimo(const BasePart& part) const
 {
-    return (part.GetInputs().size() > 1 && part.GetOutputs().size() > 1);
+    return (m_GraphOfParts.GetPartInputs(part.GetPartId()).size() > 1 &&
+            m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() > 1);
 }
 
-const Plan& Combiner::GetPlanForPartFromCombination(const Part& part, const Combination& comb) const
+const Plan& Combiner::GetPlanForPartFromCombination(const BasePart& part, const Combination& comb) const
 {
     // Combination comb must contain part already
-    auto elemIt = comb.m_Elems.find(part.m_PartId);
+    auto elemIt = comb.m_Elems.find(part.GetPartId());
     assert(elemIt != comb.m_Elems.end());
 
     // Get the plan for the part
     return *elemIt->second.m_Plan;
 }
 
-std::vector<std::pair<const Part*, const Edge*>> Combiner::GetSourceParts(const Part& part) const
-{
-    std::vector<std::pair<const Part*, const Edge*>> result;
-
-    for (const auto& edge : part.GetInputs())
-    {
-        InPart sourcePart = m_GraphOfParts.GetOutputPart(*edge);
-
-        if (sourcePart.first)
-        {
-            PartId id = sourcePart.second;
-            result.push_back(std::make_pair(&m_GraphOfParts.GetPart(id), edge));
-        }
-    }
-
-    return result;
-}
-
-std::vector<const Edge*> Combiner::GetEdgeConnectTwoParts(const Part& dPart, const Part& sPart) const
-{
-    std::vector<const Edge*> result;
-
-    for (const auto& edge : dPart.GetInputs())
-    {
-        InPart sourcePart = m_GraphOfParts.GetOutputPart(*edge);
-
-        if (sourcePart.first)
-        {
-            PartId id = sourcePart.second;
-            if (id == sPart.m_PartId)
-            {
-                result.push_back(edge);
-            }
-        }
-    }
-
-    return result;
-}
-
-std::vector<std::pair<const Part*, const Edge*>> Combiner::GetDestinationParts(const Part& part) const
-{
-    std::vector<std::pair<const Part*, const Edge*>> result;
-
-    for (auto& edge : part.GetOutputs())
-    {
-        InPart nextPart = m_GraphOfParts.GetInputPart(*edge);
-
-        if (nextPart.first)
-        {
-            PartId id = nextPart.second;
-            result.push_back(std::make_pair(&m_GraphOfParts.GetPart(id), edge));
-        }
-    }
-
-    return result;
-}
-
 bool Combiner::AreMceOperationsCompatible(const Buffer* plan1OutputBuffer,
                                           const Buffer* plan2InputBuffer,
-                                          const Node* destination) const
+                                          const PartOutputSlot& outputSlot) const
 {
-    const MceOperationNode* mceOperationNode = dynamic_cast<const MceOperationNode*>(destination);
-    if ((mceOperationNode) && (plan1OutputBuffer->m_Location != Location::Dram))
+    const auto& part = m_GraphOfParts.GetPart(outputSlot.m_PartId);
+    auto mceOp       = part.GetMceOperation();
+    if ((mceOp.has_value()) && (plan1OutputBuffer->m_Location != Location::Dram))
     {
         const TensorShape& inputBufferShape = plan2InputBuffer->m_TensorShape;
         const TensorShape& inputStripeShape = plan2InputBuffer->m_StripeShape;
 
-        if ((mceOperationNode->GetOperation() == ethosn::command_stream::MceOperation::CONVOLUTION) ||
-            (mceOperationNode->GetOperation() == ethosn::command_stream::MceOperation::FULLY_CONNECTED))
+        if ((mceOp == ethosn::command_stream::MceOperation::CONVOLUTION) ||
+            (mceOp == ethosn::command_stream::MceOperation::FULLY_CONNECTED))
         {
             if (GetChannels(inputStripeShape) < GetChannels(inputBufferShape))
             {
@@ -250,10 +198,13 @@ bool Combiner::AreMceOperationsCompatible(const Buffer* plan1OutputBuffer,
     return true;
 }
 
-bool Combiner::AreBlockConfigsCompatible(const Plan& plan1, const Plan& plan2, const Edge& edge) const
+bool Combiner::AreBlockConfigsCompatible(const Plan& plan1, const Plan& plan2, const PartOutputSlot& outputSlot) const
 {
-    Buffer* bufferProduced = plan1.GetOutputBuffer(edge.GetSource());
-    Buffer* bufferConsumed = plan2.GetInputBuffer(&edge);
+    Buffer* bufferProduced = plan1.GetOutputBuffer(outputSlot);
+    auto inputSlots        = m_GraphOfParts.GetConnectedInputSlots(outputSlot);
+    assert(inputSlots.size() == 1);
+    const PartInputSlot& inputSlot = inputSlots[0];
+    Buffer* bufferConsumed         = plan2.GetInputBuffer(inputSlot);
 
     const bool areBuffersInPleInputSram =
         bufferProduced->m_Location == Location::PleInputSram && bufferConsumed->m_Location == Location::PleInputSram;
@@ -265,10 +216,12 @@ bool Combiner::AreBlockConfigsCompatible(const Plan& plan1, const Plan& plan2, c
     return true;
 }
 
-bool Combiner::ArePlansCompatibleImpl(const Plan& sPlan, const Plan& dPlan, const Edge& edge) const
+bool Combiner::ArePlansCompatibleImpl(const Plan& sPlan, const Plan& dPlan, const PartConnection& slots) const
 {
-    const Buffer* planInputBuffer   = dPlan.GetInputBuffer(&edge);
-    const Buffer* sPlanOutputBuffer = sPlan.GetOutputBuffer(edge.GetSource());
+    const PartInputSlot& inputSlot   = slots.m_Destination;
+    const PartOutputSlot& outputSlot = slots.m_Source;
+    const Buffer* planInputBuffer    = dPlan.GetInputBuffer(inputSlot);
+    const Buffer* sPlanOutputBuffer  = sPlan.GetOutputBuffer(outputSlot);
 
     // two plans should be connected along the edge we were told about.
     if (sPlanOutputBuffer == nullptr || planInputBuffer == nullptr)
@@ -308,9 +261,8 @@ bool Combiner::ArePlansCompatibleImpl(const Plan& sPlan, const Plan& dPlan, cons
         sPlanOutputBuffer->m_SizeInBytes == planInputBuffer->m_SizeInBytes &&
         sPlanOutputBuffer->m_NumStripes == planInputBuffer->m_NumStripes;
 
-    if ((!areBuffersEquivalent) ||
-        !AreMceOperationsCompatible(sPlanOutputBuffer, planInputBuffer, edge.GetDestination()) ||
-        !AreBlockConfigsCompatible(sPlan, dPlan, edge))
+    if ((!areBuffersEquivalent) || !AreMceOperationsCompatible(sPlanOutputBuffer, planInputBuffer, outputSlot) ||
+        !AreBlockConfigsCompatible(sPlan, dPlan, outputSlot))
     {
         return false;
     }
@@ -318,9 +270,9 @@ bool Combiner::ArePlansCompatibleImpl(const Plan& sPlan, const Plan& dPlan, cons
     return true;
 }
 
-bool Combiner::ArePlansCompatible(const Plan& sPlan, const Plan& dPlan, const Edge& edge)
+bool Combiner::ArePlansCompatible(const Plan& sPlan, const Plan& dPlan, const PartConnection& slots)
 {
-    return ArePlansCompatibleImpl(sPlan, dPlan, edge);
+    return ArePlansCompatibleImpl(sPlan, dPlan, slots);
 }
 
 // Check if there is sufficient SRAM for plan to fit
@@ -373,10 +325,13 @@ bool Combiner::IsPlanInputGlueable(const Plan& plan) const
     return true;
 }
 
-bool Combiner::ArePlansAllowedToMerge(const Plan& reference, const Plan& current, const Edge& edge) const
+bool Combiner::ArePlansAllowedToMerge(const Plan& reference, const Plan& current, const PartConnection& slots) const
 {
-    Buffer* referenceOutBuffer = reference.GetOutputBuffer(edge.GetSource());
-    Buffer* currentInBuffer    = current.GetInputBuffer(&edge);
+
+    const PartOutputSlot& outputSlot = slots.m_Source;
+    Buffer* referenceOutBuffer       = reference.GetOutputBuffer(outputSlot);
+    const PartInputSlot& inputSlot   = slots.m_Destination;
+    Buffer* currentInBuffer          = current.GetInputBuffer(inputSlot);
 
     // Plans in a section must use the same block configuration
     if (!MatchingBlocks(reference, current, referenceOutBuffer, currentInBuffer))
@@ -385,7 +340,7 @@ bool Combiner::ArePlansAllowedToMerge(const Plan& reference, const Plan& current
     }
 
     // Plans in a section must use the same streaming strategy
-    for (auto inputMapping : reference.m_InputMappings)
+    for (auto& inputMapping : reference.m_InputMappings)
     {
         const Buffer* referenceInBuffer = inputMapping.first;
         const bool refSplitH =
@@ -684,32 +639,31 @@ std::pair<bool, const Glue*> Combiner::GetSharedGlue(const Buffer* outputBuffer,
 }
 
 // A destination part is glued to its sources
-Combination Combiner::GluePartToCombinationDestToSrcs(const Part& part,
+Combination Combiner::GluePartToCombinationDestToSrcs(const BasePart& part,
                                                       const Combination& comb,
-                                                      const std::vector<std::pair<const Part*, const Edge*>>& sources)
+                                                      const std::vector<PartConnection>& sources)
 {
     Combination result = comb;
 
     // Get the plan for the part to be glued with all source parts
     const Plan& destPlan = GetPlanForPartFromCombination(part, comb);
 
-    // Iterate on all the source parts i.e. edges
+    // Iterate on all the source parts slots
     for (const auto& source : sources)
     {
         // Find the source part in the combination,
         // it might happen that some branches haven't
         // been populated yet, that's fine, it will
         // just skip them
-        auto elemIt = comb.m_Elems.find(source.first->m_PartId);
+        auto elemIt = comb.m_Elems.find(source.m_Source.m_PartId);
         if (elemIt != comb.m_Elems.end())
         {
             const Plan& sourcePlan = *elemIt->second.m_Plan;
 
             // Sanity tests - make sure the two Plans are for adjacent Parts.
-            // Note we lookup both buffers by the same Node, as the Graph does not explicitly store intermediate tensors -
-            // they are implicitly attached to each Node (which are defined to have a single output).
-            const Buffer* outputBuffer = sourcePlan.GetOutputBuffer(source.second->GetSource());
-            const Buffer* inputBuffer  = destPlan.GetInputBuffer(source.second);
+            const Buffer* outputBuffer     = sourcePlan.GetOutputBuffer(source.m_Source);
+            const PartInputSlot& inputSlot = source.m_Destination;
+            const Buffer* inputBuffer      = destPlan.GetInputBuffer(inputSlot);
             assert(outputBuffer != nullptr && inputBuffer != nullptr);
 
             auto glueResult = GetGlue(outputBuffer, inputBuffer);
@@ -724,55 +678,58 @@ Combination Combiner::GluePartToCombinationDestToSrcs(const Part& part,
                 continue;
             }
 
-            result = result + Combination(*source.first, source.second, glueResult.second);
+            const BasePart& part = m_GraphOfParts.GetPart(source.m_Source.m_PartId);
+            result               = result + Combination(part, &source.m_Destination, glueResult.second, m_GraphOfParts);
         }
     }
     return result;
 }
 
 // A source part is glued to its destinations
-Combination Combiner::GluePartToCombinationSrcToDests(
-    const Part& sPart, const Combination& comb, const std::vector<std::pair<const Part*, const Edge*>>& destPartEdge)
+Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
+                                                      const Combination& comb,
+                                                      const std::vector<PartConnection>& destPartEdge)
 {
     assert(destPartEdge.size() != 0);
     Combination result = comb;
 
     // Find an element belonging to source part in the combination
-    auto elemIt = comb.m_Elems.find(sPart.m_PartId);
+    auto elemIt = comb.m_Elems.find(sPart.GetPartId());
     assert(elemIt != comb.m_Elems.end());
     const Plan& sourcePlan = *elemIt->second.m_Plan;
 
     // Find the output buffer of the source node.
     // Note all destination nodes are branched off from
     // the same source node
-    const Buffer* outputBuffer = sourcePlan.GetOutputBuffer(destPartEdge.at(0).second->GetSource());
+    const Buffer* outputBuffer = sourcePlan.GetOutputBuffer(destPartEdge.at(0).m_Source);
     assert(outputBuffer != nullptr);
 
     bool isSrcLocationSram = outputBuffer->m_Location == Location::Sram;
 
     std::vector<const Buffer*> buffersSharingGlue;
-    std::vector<std::pair<const Edge*, bool>> edgesSharingGlue;
+    std::vector<std::pair<PartConnection, bool>> edgesSharingGlue;
     std::vector<bool> inputBufferSram;
-    std::vector<std::pair<const Edge*, const Buffer*>> buffersEdgesUseOwnGlue;
+    std::vector<std::pair<PartConnection, const Buffer*>> buffersEdgesUseOwnGlue;
 
     // (1) source location SRAM and number of edges > 1 --- a shared glue
     //     will be used
     // (2) otherwise each edge uses its own glue
     for (const auto& partEdge : destPartEdge)
     {
-        const Plan& plan = GetPlanForPartFromCombination(*partEdge.first, comb);
+        const BasePart& part = m_GraphOfParts.GetPart(partEdge.m_Destination.m_PartId);
+        const Plan& plan     = GetPlanForPartFromCombination(part, comb);
 
-        const Buffer* inputBuffer = plan.GetInputBuffer(partEdge.second);
+        const Buffer* inputBuffer = plan.GetInputBuffer(partEdge.m_Destination);
         assert(inputBuffer != nullptr);
 
         if (isSrcLocationSram && destPartEdge.size() > 1)
         {
             buffersSharingGlue.push_back(inputBuffer);
-            edgesSharingGlue.push_back(std::make_pair(partEdge.second, inputBuffer->m_Location == Location::Sram));
+            edgesSharingGlue.push_back(std::make_pair(partEdge, inputBuffer->m_Location == Location::Sram));
         }
         else
         {
-            buffersEdgesUseOwnGlue.push_back(std::make_pair(partEdge.second, inputBuffer));
+            buffersEdgesUseOwnGlue.push_back(std::make_pair(partEdge, inputBuffer));
         }
     }
 
@@ -794,7 +751,7 @@ Combination Combiner::GluePartToCombinationSrcToDests(
             continue;
         }
 
-        result = result + Combination(sPart, branch.first, glueResult.second);
+        result = result + Combination(sPart, &branch.first.m_Destination, glueResult.second, m_GraphOfParts);
     }
 
     if (buffersSharingGlue.size() != 0)
@@ -805,7 +762,8 @@ Combination Combiner::GluePartToCombinationSrcToDests(
 
         for (const auto edge : edgesSharingGlue)
         {
-            result = result + Combination(sPart, edge.first, glueResult.second, edge.second);
+            result =
+                result + Combination(sPart, &edge.first.m_Destination, glueResult.second, edge.second, m_GraphOfParts);
         }
     }
 
@@ -818,21 +776,21 @@ Combination Combiner::GluePartToCombinationSrcToDests(
 //  - Plan is not allowed
 //  - Plan buffers do not fit in SRAM i.e. merged plans
 //    in the seciton take up all the memory
-Combination
-    Combiner::ContinueSection(const Part& part, const Part& sPart, const Combination& comb, const SramAllocator& alloc)
+Combination Combiner::ContinueSection(const BasePart& part,
+                                      const BasePart& sPart,
+                                      const Combination& comb,
+                                      const SramAllocator& alloc)
 {
     UpdateStats(StatsType::ContinueSection);
+    const PartId partId = part.GetPartId();
 
     const Plan& sPlan = GetPlanForPartFromCombination(sPart, comb);
 
-    std::vector<const Edge*> edges = GetEdgeConnectTwoParts(part, sPart);
+    std::vector<PartConnection> edges = m_GraphOfParts.GetConnectionsBetween(sPart.GetPartId(), part.GetPartId());
 
     // Sanity check: section is continued. It must be the single output of
     // its source part.
     assert(edges.size() == 1);
-
-    std::vector<std::pair<const Part*, const Edge*>> sourcePartEdge;
-    sourcePartEdge.push_back(std::make_pair((const Part*)&sPart, edges.at(0)));
 
     // End the current section and start a new one.
     // There is a single edge between the combination comb and
@@ -844,7 +802,7 @@ Combination
     // This is because we can only guarantee that the part is the only destination
     // of its source part from the same section.
     // Others could have multiple destinations (branching)
-    Combination result = GluePartToCombinationDestToSrcs(part, comb + FindBestCombinationForPart(part), sourcePartEdge);
+    Combination result = GluePartToCombinationDestToSrcs(part, comb + FindBestCombinationForPart(part), edges);
 
     if (IsPartSiso(part))
     {
@@ -861,19 +819,24 @@ Combination
         //    all the buffers required by the plan
 
         // sanity check SISO is the only use case.
-        assert(part.GetInputs().size() == 1 && part.GetOutputs().size() == 1);
+
+        assert(m_GraphOfParts.GetPartInputs(part.GetPartId()).size() == 1 &&
+               m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() == 1);
 
         // Next Part in graph that is sorted in topological order
-        const Part* nextPartGraph = GetNextPart(&part);
+        const BasePart* nextPartGraph = GetNextPart(&part);
 
         // destination part
-        const Part& destPart = *(GetDestinationParts(part).at(0).first);
-        assert(GetDestinationParts(part).size() == 1);
+        assert(m_GraphOfParts.GetDestinationParts(partId).size() == 1);
+        const BasePart& destPart = m_GraphOfParts.GetPart(m_GraphOfParts.GetDestinationParts(partId).at(0).m_PartId);
 
         // flag to indicate if the next part can be in the same section of the current part
-        const bool nextPartSameSection = nextPartGraph == GetDestinationParts(part).at(0).first;
+        const bool nextPartSameSection =
+            nextPartGraph->GetPartId() == m_GraphOfParts.GetDestinationParts(partId).at(0).m_PartId;
 
         Plans plans = GetPlansCached(part, CascadeType::Middle, ethosn::command_stream::BlockConfig{}, nullptr, 0);
+
+        const PartConnection& edge = edges.at(0);
 
         for (const auto& plan : plans)
         {
@@ -881,7 +844,7 @@ Combination
             // each potential section won't allocate from the same allocator.
             SramAllocator tempAlloc = alloc;
 
-            if (!ArePlansCompatible(sPlan, *plan.get(), *edges.at(0)))
+            if (!ArePlansCompatible(sPlan, *plan.get(), edge))
             {
                 continue;
             }
@@ -891,7 +854,7 @@ Combination
                 continue;
             }
 
-            if (!ArePlansAllowedToMerge(sPlan, *plan.get(), *edges.at(0)))
+            if (!ArePlansAllowedToMerge(sPlan, *plan.get(), edge))
             {
                 continue;
             }
@@ -899,7 +862,8 @@ Combination
             // Add current part and plan to the combination,
             // no glue is required. Current part is SISO and
             // has a single input/output
-            Combination section = comb + Combination(part, plan, m_PartOrderTable[part.m_PartId].first);
+            Combination section =
+                comb + Combination(part, plan, m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
             // Options to be estimated
             Combinations options;
             if (nextPartSameSection)
@@ -937,8 +901,9 @@ Combination
 //      partN      ||    CombinationW
 //  -----------------------------------
 //
-Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
+Combination Combiner::FindBestCombinationForPartImpl(const BasePart& part)
 {
+    PartId partId = part.GetPartId();
     // This is going to be a new combination, so this
     // is empty initialized
     Combination result = {};
@@ -946,14 +911,14 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
     Plans plans = GetPlansCached(part, CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 0);
 
     //  Next part
-    const Part* nextPartGraph = GetNextPart(&part);
+    const BasePart* nextPartGraph = GetNextPart(&part);
 
     // A section is continued only if the next part in the graph
     // is the same as its only destination part.
     bool nextPartSameSection = false;
-    if (!GetDestinationParts(part).empty())
+    if (!m_GraphOfParts.GetDestinationParts(partId).empty())
     {
-        nextPartSameSection = nextPartGraph == GetDestinationParts(part).at(0).first;
+        nextPartSameSection = nextPartGraph->GetPartId() == m_GraphOfParts.GetDestinationParts(partId).at(0).m_PartId;
     }
 
     // There are some scenarios:
@@ -968,8 +933,8 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
         // SISO and MISO are equivalent since what counts
         // is the number of output parts which in both cases
         // is one
-        const Part& nextPart = *(GetDestinationParts(part).at(0).first);
-        assert(GetDestinationParts(part).size() == 1);
+        assert(m_GraphOfParts.GetDestinationParts(partId).size() == 1);
+        const BasePart& nextPart = m_GraphOfParts.GetPart(m_GraphOfParts.GetDestinationParts(partId).at(0).m_PartId);
 
         for (const auto& plan : plans)
         {
@@ -981,7 +946,7 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
             // This is the start of a new section, reset the allocated Sram
             SramAllocator alloc(m_Caps.GetTotalSramSize() / m_Caps.GetNumberOfSrams());
 
-            Combination head(part, plan, m_PartOrderTable[part.m_PartId].first);
+            Combination head(part, plan, m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
             Combinations options = { result, ContinueSection(nextPart, part, head, alloc) };
             result               = GetBestCombination(options);
         }
@@ -1001,7 +966,7 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
             }
 
             // Glue will be added later on
-            Combination head(part, plan, m_PartOrderTable[part.m_PartId].first);
+            Combination head(part, plan, m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
             Combinations options = { result, head };
             result               = GetBestCombination(options);
         }
@@ -1026,19 +991,9 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
             // the input edge into a MISO part might come from a differnt
             // input of the whole graph. This should not be a concern
 
-            std::vector<std::pair<const Part*, const Edge*>> destPartEdge;
-
             // Each of it destination part will start its own new section.
             // Therefore they all need to be glued with their source.
-            for (const auto& destPart : GetDestinationParts(part))
-            {
-                std::vector<const Edge*> edges = GetEdgeConnectTwoParts(*destPart.first, part);
-                assert(edges.size() != 0);
-                for (const auto& edge : edges)
-                {
-                    destPartEdge.push_back(std::make_pair(destPart.first, edge));
-                }
-            }
+            std::vector<PartConnection> destPartEdge = m_GraphOfParts.GetDestinationConnections(partId);
 
             if (destPartEdge.empty() == false)
             {
@@ -1063,7 +1018,7 @@ Combination Combiner::FindBestCombinationForPartImpl(const Part& part)
 //      partN      ||    CombinationW
 //  -----------------------------------
 //
-Combination Combiner::FindBestCombinationForPart(const Part& part)
+Combination Combiner::FindBestCombinationForPart(const BasePart& part)
 {
     Combination result;
     UpdateStats(StatsType::FindBestCombinationForPart);
@@ -1079,7 +1034,7 @@ Combination Combiner::FindBestCombinationForPart(const Part& part)
         m_CombinationPerPartMap.insert(std::make_pair(&part, result));
 
         DumpDebugInfo(m_GraphOfParts, { result }, m_Stats, m_DebuggingContext,
-                      "FindBestCombinationForPart/Part" + std::to_string(part.m_PartId));
+                      "FindBestCombinationForPart/Part" + std::to_string(part.GetPartId()));
     }
     return result;
 }
@@ -1094,9 +1049,9 @@ Combiner::Combiner(const GraphOfParts& graphOfParts,
     , m_DebuggingContext(debuggingContext)
 {}
 
-bool Combiner::Visit(const Part* current,
-                     std::vector<const Part*>& outSorted,
-                     std::map<const Part*, PartState>& partStates)
+bool Combiner::Visit(const BasePart* current,
+                     std::vector<const BasePart*>& outSorted,
+                     std::map<const BasePart*, PartState>& partStates)
 {
     auto currentStateIt = partStates.find(current);
     if (currentStateIt != partStates.end())
@@ -1117,11 +1072,11 @@ bool Combiner::Visit(const Part* current,
 
     partStates[current] = PartState::Visiting;
 
-    std::vector<std::pair<const Part*, const Edge*>> srcParts = GetSourceParts(*current);
+    std::vector<PartOutputSlot> srcParts = m_GraphOfParts.GetSourceParts(current->GetPartId());
 
     for (auto& srcPart : srcParts)
     {
-        Visit(srcPart.first, outSorted, partStates);
+        Visit(&m_GraphOfParts.GetPart(srcPart.m_PartId), outSorted, partStates);
     }
 
     partStates[current] = PartState::Visited;
@@ -1139,19 +1094,19 @@ bool Combiner::TopologicalSortParts()
         return true;
     }
 
-    std::vector<const Part*> targets;
+    std::vector<const BasePart*> targets;
 
     // Sort starts from the output parts
     for (auto&& part : m_GraphOfParts.m_Parts)
     {
-        if (GetDestinationParts(*part.get()).size() == 0)
+        if (m_GraphOfParts.GetDestinationParts(part->GetPartId()).size() == 0)
         {
             targets.push_back(part.get());
         }
     }
 
-    std::map<const Part*, PartState> partState;
-    std::vector<const Part*> sortedParts;
+    std::map<const BasePart*, PartState> partState;
+    std::vector<const BasePart*> sortedParts;
 
     for (auto& target : targets)
     {
@@ -1176,9 +1131,9 @@ bool Combiner::TopologicalSortParts()
     size_t loop;
     for (loop = 0; loop < (sortedParts.size() - 1); ++loop)
     {
-        m_PartOrderTable[sortedParts[loop]->m_PartId] = std::make_pair(loop, sortedParts[loop + 1]);
+        m_PartOrderTable[sortedParts[loop]->GetPartId()] = std::make_pair(loop, sortedParts[loop + 1]);
     }
-    m_PartOrderTable[sortedParts[loop]->m_PartId] = std::make_pair(loop, nullptr);
+    m_PartOrderTable[sortedParts[loop]->GetPartId()] = std::make_pair(loop, nullptr);
 
     return true;
 }
@@ -1221,7 +1176,7 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
     // When adjacent plans are connected without any glue, the output buffer of one plan becomes the input buffer of the
     // next plan. In the merged graph representation that we are creating, we therefore need only one buffer object.
     // This map is used to get the buffer that we are using to represent two buffers that have been merged.
-    std::map<Buffer*, Buffer*> mergedBuffers;
+    std::unordered_map<Buffer*, Buffer*> mergedBuffers;
     auto getEffectiveBuffer = [&mergedBuffers](Buffer* b) {
         auto it = mergedBuffers.find(b);
         return it != mergedBuffers.end() ? it->second : b;
@@ -1231,10 +1186,10 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
     // A glue may also need to be inserted which connects to this buffer.
     // If there is no glue between two parts, then the source
     // part's output buffer should be re-used directly (as that buffer is then shared between the two plans).
-    std::map<const Edge*, Buffer*> edgeConnectionBuffers;
+    std::unordered_map<PartInputSlot, Buffer*> edgeConnectionBuffers;
 
     // For each outgoing edge from a plan, the glue that needs to be inserted there (if any)
-    std::map<const Edge*, const Glue*> glues;
+    std::unordered_map<PartInputSlot, const Glue*> glues;
 
     // A glue may be shared between multiple edges
     // each of which should be assigned to a unique
@@ -1257,7 +1212,7 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
 
     std::map<const Glue*, uint32_t> incomingGlueCnt;
     std::map<const Glue*, uint32_t> inbufSramCnt;
-    std::map<const Edge*, Buffer*> dramSharedBuf;
+    std::map<PartInputSlot, Buffer*> dramSharedBuf;
 
     assert(combination.m_PartIdsInOrder.size() == combination.m_Elems.size());
 
@@ -1265,23 +1220,22 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
     // parts used as input to each part have already been processed.
     for (auto& partId : combination.m_PartIdsInOrder)
     {
-        const Part& part = parts.GetPart(partId);
-        auto elemIt      = combination.m_Elems.find(partId);
+        auto elemIt = combination.m_Elems.find(partId);
         assert(elemIt != combination.m_Elems.end());
         const Plan& plan = *elemIt->second.m_Plan;
 
         // Add any glues for each incoming edge of this Part, and remember which Op we will need to connect the plan's
         // input buffers to
-        std::map<const Edge*, Op*> incomingGlueOps;
-        std::vector<const Edge*> inputEdges = part.GetInputs();
+        std::unordered_map<PartInputSlot, Op*> incomingGlueOps;
+        std::vector<PartInputSlot> inputSlots = parts.GetPartInputs(partId);
 
-        for (auto inputEdge : inputEdges)
+        for (auto inputSlot : inputSlots)
         {
-            auto glueIt      = glues.find(inputEdge);
+            auto glueIt      = glues.find(inputSlot);
             const Glue* glue = glueIt != glues.end() ? glueIt->second : nullptr;
 
             // input buffer in SRAM flag
-            Buffer* inputBuffer = plan.GetInputBuffer(inputEdge);
+            Buffer* inputBuffer = plan.GetInputBuffer(inputSlot);
             bool isLocSram      = inputBuffer->m_Location == Location::Sram;
 
             // shared dram flag is raised if the input buffer location is in DRAM and the glue is shared
@@ -1317,7 +1271,7 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
                     }
 
                     // Connect to the input plan
-                    result.AddConsumer(edgeConnectionBuffers.at(inputEdge), glue->m_InputSlot.first,
+                    result.AddConsumer(edgeConnectionBuffers.at(inputSlot), glue->m_InputSlot.first,
                                        glue->m_InputSlot.second);
                 }
 
@@ -1341,7 +1295,7 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
                 if (!isDramShared)
                 {
                     // No output DMA is used if destination is DRAM and shared glue
-                    incomingGlueOps[inputEdge] = glue->m_Output.at(inbufSramCnt[glue]);
+                    incomingGlueOps[inputSlot] = glue->m_Output.at(inbufSramCnt[glue]);
                 }
                 else
                 {
@@ -1349,7 +1303,7 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
                     // The glue's share DRAM buffer will be
                     // merged with its connecting plan's buffer
                     assert(glue->m_Graph.GetBuffers().size() == 1);
-                    dramSharedBuf[inputEdge] = glue->m_Graph.GetBuffers().at(0);
+                    dramSharedBuf[inputSlot] = glue->m_Graph.GetBuffers().at(0);
                 }
 
                 incomingGlueCnt[glue] += 1;
@@ -1363,13 +1317,13 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
             // (i.e. no glue between them).
             // Instead, remap it to the one we already have
             Buffer* sharedBuffer = nullptr;
-            auto inputEdgeIt     = plan.m_InputMappings.find(b);
-            if (inputEdgeIt != plan.m_InputMappings.end())
+            auto inputSlotIt     = plan.m_InputMappings.find(b);
+            if (inputSlotIt != plan.m_InputMappings.end())
             {
-                Edge* inputEdge = inputEdgeIt->second;
-                if (incomingGlueOps.find(inputEdge) == incomingGlueOps.end())
+                PartInputSlot inputSlot = inputSlotIt->second;
+                if (incomingGlueOps.find(inputSlot) == incomingGlueOps.end())
                 {
-                    auto edgeBuffer = edgeConnectionBuffers.find(inputEdge);
+                    auto edgeBuffer = edgeConnectionBuffers.find(inputSlot);
                     // This code assumed that the combination spans the entire network
                     // The following check is needed as there can be input and outputs nodes
                     // which means there wouldn't be a shared buffer.
@@ -1382,10 +1336,10 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
                         sharedBuffer = getEffectiveBuffer(edgeBuffer->second);
                     }
                 }
-                else if (dramSharedBuf.find(inputEdge) != dramSharedBuf.end())
+                else if (dramSharedBuf.find(inputSlot) != dramSharedBuf.end())
                 {
                     // Plan's buffer is shared with saved glue's DRAM buffer
-                    sharedBuffer = dramSharedBuf[inputEdge];
+                    sharedBuffer = dramSharedBuf[inputSlot];
                 }
             }
 
@@ -1428,9 +1382,9 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
         // so we are already connected
         for (auto input : plan.m_InputMappings)
         {
-            Buffer* ourBuffer = input.first;
-            Edge* inputEdge   = input.second;
-            auto glueOpIt     = incomingGlueOps.find(inputEdge);
+            Buffer* ourBuffer       = input.first;
+            PartInputSlot inputSlot = input.second;
+            auto glueOpIt           = incomingGlueOps.find(inputSlot);
             if (glueOpIt != incomingGlueOps.end())
             {
                 result.SetProducer(ourBuffer, glueOpIt->second);
@@ -1440,16 +1394,18 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
         // Store our output connections for future plans, and any glues on our outputs
         for (auto output : plan.m_OutputMappings)
         {
-            for (Edge* outputEdge : output.second->GetOutputs())
+            PartOutputSlot outputSlot = output.second;
+            auto inputSlots           = parts.GetConnectedInputSlots(outputSlot);
+            for (auto&& inputSlot : inputSlots)
             {
-                edgeConnectionBuffers[outputEdge] = output.first;
-                auto glueIt                       = elemIt->second.m_Glues.find(outputEdge);
+                edgeConnectionBuffers[inputSlot] = output.first;
+                auto glueIt                      = elemIt->second.m_Glues.find(inputSlot);
                 if (glueIt != elemIt->second.m_Glues.end() && glueIt->second.m_Glue &&
                     !glueIt->second.m_Glue->m_Graph.GetOps().empty())
                 {
                     const Glue* outGlue = glueIt->second.m_Glue;
 
-                    glues[outputEdge] = outGlue;
+                    glues[inputSlot] = outGlue;
 
                     // If the glue is visisted for the first time, then
                     // initialise the counter.
@@ -1474,7 +1430,7 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
     return result;
 }
 
-void Combiner::SavePartsPlans(const Part& part, const Plans& plans) const
+void Combiner::SavePartsPlans(const BasePart& part, const Plans& plans) const
 {
     if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
     {
