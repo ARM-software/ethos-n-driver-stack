@@ -28,6 +28,9 @@
 #include <string>
 #include <sys/stat.h>
 #include <sys/types.h>
+#if defined(__unix__)
+#include <unistd.h>
+#endif
 
 using namespace ethosn;
 using namespace ethosn::driver_library;
@@ -321,7 +324,15 @@ Inference* NetworkImpl::ScheduleInference(Buffer* const inputBuffers[],
     }
     fseek(tempFile, 0, SEEK_SET);
 
-    return new Inference(fileno(tempFile));
+    // Duplicate the file descriptor so the file pointer can be freed.
+    int tmpFd = dup(fileno(tempFile));
+    std::fclose(tempFile);
+    if (tmpFd < 0)
+    {
+        return nullptr;
+    }
+
+    return new Inference(tmpFd);
 }
 
 void NetworkImpl::SetDebugName(const char* name)
