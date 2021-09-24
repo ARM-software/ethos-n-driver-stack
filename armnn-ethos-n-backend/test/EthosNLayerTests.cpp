@@ -959,8 +959,8 @@ LayerTestResult<uint8_t, 2> PreCompiledFullyConnectedTest(armnn::IWorkloadFactor
 
     TensorInfo inputInfo(inputShape, DataType::QAsymmU8, 1.0f, 0);
     TensorInfo outputInfo(outputShape, DataType::QAsymmU8, 1.0f, 0);
-    TensorInfo weightsInfo(weightShape, DataType::QAsymmU8, 0.5f, 0);
-    TensorInfo biasesInfo(biasesShape, DataType::Signed32, 0.5f, 0);
+    TensorInfo weightsInfo(weightShape, DataType::QAsymmU8, 0.5f, 0, true);
+    TensorInfo biasesInfo(biasesShape, DataType::Signed32, 0.5f, 0, true);
 
     // Populate weight data such that output channel n is 1 * input channel n (i.e. an identity transformation).
     const uint8_t quantizedWeight =
@@ -993,16 +993,22 @@ LayerTestResult<uint8_t, 2> PreCompiledFullyConnectedTest(armnn::IWorkloadFactor
 
     IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
 
-    ARMNN_NO_DEPRECATE_WARN_BEGIN
-    IConnectableLayer* const fullyConnectedLayer =
-        net->AddFullyConnectedLayer(descriptor, weights, Optional<ConstTensor>(biases), "fullyConnected");
-    ARMNN_NO_DEPRECATE_WARN_BEGIN
+    IConnectableLayer* const weightsLayer = net->AddConstantLayer(weights, "weights");
+    IConnectableLayer* const biasLayer    = net->AddConstantLayer(biases, "bias");
+
+    IConnectableLayer* const fullyConnectedLayer = net->AddFullyConnectedLayer(descriptor, "fullyConnected");
 
     IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output");
 
     // Connect the layers
     inputLayer->GetOutputSlot(0).Connect(fullyConnectedLayer->GetInputSlot(0));
     inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+
+    weightsLayer->GetOutputSlot(0).Connect(fullyConnectedLayer->GetInputSlot(1));
+    weightsLayer->GetOutputSlot(0).SetTensorInfo(weightsInfo);
+
+    biasLayer->GetOutputSlot(0).Connect(fullyConnectedLayer->GetInputSlot(2));
+    biasLayer->GetOutputSlot(0).SetTensorInfo(biasesInfo);
 
     fullyConnectedLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
     fullyConnectedLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
