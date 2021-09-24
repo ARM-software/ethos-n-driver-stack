@@ -741,7 +741,7 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     glueA_BC.m_Graph.AddOp(std::make_unique<DmaOp>());
     glueA_BC.m_Graph.GetOps()[0]->m_DebugTag = "InputDma";
     glueA_BC.m_InputSlot                     = { glueA_BC.m_Graph.GetOps()[0], 0 };
-    glueA_BC.m_Output                        = glueA_BC.m_Graph.GetOps()[0];
+    glueA_BC.m_Output.push_back(glueA_BC.m_Graph.GetOps()[0]);
 
     // Part consisting of nodes B and C
     parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));
@@ -808,21 +808,21 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     glueD_F.m_Graph.AddOp(std::make_unique<DmaOp>());
     glueD_F.m_Graph.GetOps()[0]->m_DebugTag = "OutputDma1";
     glueD_F.m_InputSlot                     = { glueD_F.m_Graph.GetOps()[0], 0 };
-    glueD_F.m_Output                        = glueD_F.m_Graph.GetOps()[0];
+    glueD_F.m_Output.push_back(glueD_F.m_Graph.GetOps()[0]);
 
     // Glue between D and G
     Glue glueD_G;
     glueD_G.m_Graph.AddOp(std::make_unique<DmaOp>());
     glueD_G.m_Graph.GetOps()[0]->m_DebugTag = "OutputDma2";
     glueD_G.m_InputSlot                     = { glueD_G.m_Graph.GetOps()[0], 0 };
-    glueD_G.m_Output                        = glueD_G.m_Graph.GetOps()[0];
+    glueD_G.m_Output.push_back(glueD_G.m_Graph.GetOps()[0]);
 
     // Glue between E and G
     Glue glueE_G;
     glueE_G.m_Graph.AddOp(std::make_unique<DmaOp>());
     glueE_G.m_Graph.GetOps()[0]->m_DebugTag = "OutputDma3";
     glueE_G.m_InputSlot                     = { glueE_G.m_Graph.GetOps()[0], 0 };
-    glueE_G.m_Output                        = glueE_G.m_Graph.GetOps()[0];
+    glueE_G.m_Output.push_back(glueE_G.m_Graph.GetOps()[0]);
 
     // Part consisting of node F
     parts.m_Parts.push_back(std::make_unique<Part>(partId, estOpt, compOpt, hwCaps));

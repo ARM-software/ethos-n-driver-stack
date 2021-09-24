@@ -30,7 +30,7 @@ struct Glue
     std::pair<Op*, uint32_t> m_InputSlot = { nullptr, 0 };
     /// The Op of m_Graph that needs to connected to the input buffer of 'plan2'.
     /// Unused if no glue is required.
-    Op* m_Output = nullptr;
+    std::vector<Op*> m_Output;
 };
 
 /// A single element in a combination
@@ -179,20 +179,30 @@ public:
 
     const Plan& GetPlanForPartFromCombination(const Part& part, const Combination& comb) const;
     std::vector<std::pair<const Part*, const Edge*>> GetSourceParts(const Part& part) const;
+    std::vector<const Edge*> GetEdgeConnectTwoParts(const Part& dPart, const Part& sPart) const;
     std::vector<std::pair<const Part*, const Edge*>> GetDestinationParts(const Part& part) const;
     std::pair<bool, const Glue*> GetGlue(const Buffer* outputBuffer, const Buffer* inputBuffer);
+    std::pair<bool, const Glue*> GetSharedGlue(const Buffer* outputBuffer, std::vector<const Buffer*>& inputBuffer);
 
     Combination FindBestCombinationForPart(const Part& part);
     virtual Combination FindBestCombinationForPartImpl(const Part& part);
 
-    Combination ContinueSection(const Part& part, const Combination& comb, const SramAllocator& alloc);
+    Combination
+        ContinueSection(const Part& part, const Part& sPart, const Combination& comb, const SramAllocator& alloc);
 
     std::unique_ptr<Glue> GenerateGlueBetweenSramAndDram() const;
     std::unique_ptr<Glue> GenerateGlueBetweenSramAndSram(const Buffer* buffer,
                                                          const CascadingBufferFormat cascadingBufferFormat) const;
-    Combination GluePartToCombination(const Part& part,
-                                      const Combination& comb,
-                                      const std::vector<std::pair<const Part*, const Edge*>>& sources);
+    std::unique_ptr<Glue> GenerateGlueBetweenSramAndSrams(const Buffer* buffer,
+                                                          const CascadingBufferFormat cascadingBufferFormat,
+                                                          uint32_t numOfOuputs) const;
+    Combination GluePartToCombinationDestToSrcs(const Part& part,
+                                                const Combination& comb,
+                                                const std::vector<std::pair<const Part*, const Edge*>>& sources);
+
+    Combination GluePartToCombinationSrcToDests(const Part& sPart,
+                                                const Combination& comb,
+                                                const std::vector<std::pair<const Part*, const Edge*>>& destPartEdge);
 
     void SavePartsPlans(const Part& part, const Plans& plans) const;
 

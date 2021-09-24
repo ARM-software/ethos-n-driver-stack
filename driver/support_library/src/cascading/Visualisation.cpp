@@ -1226,6 +1226,7 @@ void SaveCombinationToDot(const Combination& combination,
         // Deal with each output edge, which may have a glue attached
         uint32_t glueCounter = 0;
         auto outputEdges     = part.GetOutputs();
+        std::map<const Glue*, uint32_t> glueCounters;
         for (const Edge* outputEdge : outputEdges)
         {
             auto glueIt = elemIt.second.m_Glues.find(outputEdge);
@@ -1235,26 +1236,45 @@ void SaveCombinationToDot(const Combination& combination,
                     : nullptr;
             if (glue != nullptr)
             {
-                // Save Glue as isolated subgraph
-                std::string glueLabel = plan.m_DebugTag + " Glue " + std::to_string(glueCounter);
-                DotAttributes attr(SanitizeId(glueLabel), glueLabel, "");
-                DumpSubgraphHeaderToDotFormat(attr, stream);
-                NodeIds newNodeIds = SaveOpGraphAsBody(glue->m_Graph, stream, detailLevel);
-                nodeIds.insert(newNodeIds.begin(), newNodeIds.end());
-                stream << "}"
-                       << "\n";
-
-                // Connect the glue to its input plan
-                stream << nodeIds.at(plan.GetOutputBuffer(outputEdge->GetSource())) << " -> "
-                       << nodeIds.at(glue->m_InputSlot.first);
-                // If the consumer has multiple inputs, label each one as the order is important.
-                if (glue->m_Graph.GetInputs(glue->m_InputSlot.first).size() > 1)
+                // A glue may be shared between multiple output edges each of
+                // which is attached to a separate output DMA.
+                // The counter for each glue is used to ensure there is a
+                // one to one mapping between output dma and edge.
+                if (glueCounters.find(glueIt->second) == glueCounters.end())
                 {
-                    stream << "[ label=\"Input " << glue->m_InputSlot.second << "\"]";
+                    glueCounters[glue] = static_cast<uint32_t>(glue->m_Output.size());
+                    assert(glueCounters[glue] >= 1);
+                    assert(glueCounters[glue] <= glue->m_Output.size());
                 }
-                stream << "\n";
+                assert(glueCounters[glue] != 0);
 
-                edgeInputs[outputEdge] = nodeIds.at(glue->m_Output);
+                uint32_t outDmaCnt = static_cast<uint32_t>(glue->m_Output.size()) - glueCounters[glue];
+                glueCounters[glue] -= 1;
+
+                // A glue is only added for visualization once
+                if (outDmaCnt == 0)
+                {
+                    // Save Glue as isolated subgraph
+                    std::string glueLabel = plan.m_DebugTag + " Glue " + std::to_string(glueCounter);
+                    DotAttributes attr(SanitizeId(glueLabel), glueLabel, "");
+                    DumpSubgraphHeaderToDotFormat(attr, stream);
+                    NodeIds newNodeIds = SaveOpGraphAsBody(glue->m_Graph, stream, detailLevel);
+                    nodeIds.insert(newNodeIds.begin(), newNodeIds.end());
+                    stream << "}"
+                           << "\n";
+
+                    // Connect the glue to its input plan
+                    stream << nodeIds.at(plan.GetOutputBuffer(outputEdge->GetSource())) << " -> "
+                           << nodeIds.at(glue->m_InputSlot.first);
+                    // If the consumer has multiple inputs, label each one as the order is important.
+                    if (glue->m_Graph.GetInputs(glue->m_InputSlot.first).size() > 1)
+                    {
+                        stream << "[ label=\"Input " << glue->m_InputSlot.second << "\"]";
+                    }
+                    stream << "\n";
+                }
+
+                edgeInputs[outputEdge] = nodeIds.at(glue->m_Output.at(outDmaCnt));
             }
             else
             {
