@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -257,6 +257,11 @@ ethosn_lib::TensorInfo BuildEthosNConvolutionWeightsInfo(const armnn::TensorInfo
                                                          DataLayout layerLayout,
                                                          bool isDepthwiseConvolution)
 {
+    if (!weightsInfo.IsConstant())
+    {
+        throw InvalidArgumentException("Non-constant weights not supported.");
+    }
+
     TensorInfo swizzledWeightsInfo =
         GetEthosNConvolutionWeightsPermutationTensorInfo(weightsInfo, inputInfo, layerLayout, isDepthwiseConvolution);
 
@@ -272,6 +277,11 @@ ethosn_lib::TensorInfo BuildEthosNConvolutionWeightsInfo(const armnn::TensorInfo
 
 ethosn_lib::TensorInfo BuildEthosNFullyConnectedWeightsInfo(const TensorInfo& weightsInfo, bool transposeWeightMatrix)
 {
+    if (!weightsInfo.IsConstant())
+    {
+        throw InvalidArgumentException("Non-constant weights not supported.");
+    }
+
     // Weight tensor is guaranteed to be 2D by the Arm NN validation (FullyConnectedQueueDescriptor::Validate).
     ARMNN_ASSERT(weightsInfo.GetNumDimensions() == 2);
 
@@ -305,6 +315,11 @@ ethosn_lib::TensorInfo BuildEthosNFullyConnectedWeightsInfo(const TensorInfo& we
 ethosn_lib::TensorInfo
     BuildEthosNBiasesInfo(const TensorInfo& biasesInfo, const TensorInfo& inputInfo, const TensorInfo& weightsInfo)
 {
+    if (!biasesInfo.IsConstant())
+    {
+        throw InvalidArgumentException("Non-constant bias not supported.");
+    }
+
     // The Arm NN bias tensor should be 1D, as validated by Arm NN's layer validation.
     // For unknown reasons however, there is a test that checks that a 4D bias works (1x1x1xN), so we must
     // make that work too :(
@@ -328,6 +343,7 @@ armnn::ethosn_lib::TensorInfo
     BuildEthosNBiasesInfo(unsigned int numBiasElements, const TensorInfo& inputInfo, const TensorInfo& weightsInfo)
 {
     TensorInfo biasInfo({ numBiasElements }, DataType::Signed32);
+    biasInfo.SetConstant(true);
 
     return BuildEthosNBiasesInfo(biasInfo, inputInfo, weightsInfo);
 }

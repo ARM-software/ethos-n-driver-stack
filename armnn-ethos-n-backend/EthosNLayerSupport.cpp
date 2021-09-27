@@ -471,8 +471,17 @@ bool EthosNLayerSupport::IsConvolution2dSupported(const TensorInfo& input,
     auto ethosnInput  = BuildEthosNTensorInfo(input, DataLayout::NHWC);
     auto ethosnOutput = BuildEthosNTensorInfo(output, DataLayout::NHWC);
 
-    auto ethosnBias = biases.has_value() ? BuildEthosNBiasesInfo(biases.value(), input, weights)
-                                         : BuildEthosNBiasesInfo(ethosnOutput.m_Dimensions[3], input, weights);
+    ethosn_lib::TensorInfo ethosnBias;
+    try
+    {
+        ethosnBias = biases.has_value() ? BuildEthosNBiasesInfo(biases.value(), input, weights)
+                                        : BuildEthosNBiasesInfo(ethosnOutput.m_Dimensions[3], input, weights);
+    }
+    catch (const InvalidArgumentException& e)
+    {
+        SetReason(reasonIfUnsupported, e.what());
+        return false;
+    }
 
     ethosn_lib::TensorInfo ethosnWeights;
     try
@@ -531,8 +540,17 @@ bool EthosNLayerSupport::IsDepthwiseConvolutionSupported(const TensorInfo& input
     auto ethosnInput  = BuildEthosNTensorInfo(input, DataLayout::NHWC);
     auto ethosnOutput = BuildEthosNTensorInfo(output, DataLayout::NHWC);
 
-    auto ethosnBias = biases.has_value() ? BuildEthosNBiasesInfo(biases.value(), input, weights)
-                                         : BuildEthosNBiasesInfo(ethosnOutput.m_Dimensions[3], input, weights);
+    ethosn_lib::TensorInfo ethosnBias;
+    try
+    {
+        ethosnBias = biases.has_value() ? BuildEthosNBiasesInfo(biases.value(), input, weights)
+                                        : BuildEthosNBiasesInfo(ethosnOutput.m_Dimensions[3], input, weights);
+    }
+    catch (const InvalidArgumentException& e)
+    {
+        SetReason(reasonIfUnsupported, e.what());
+        return false;
+    }
 
     ethosn_lib::TensorInfo ethosnWeights;
     try
@@ -590,8 +608,17 @@ bool EthosNLayerSupport::IsTransposeConvolution2dSupported(const TensorInfo& inp
     auto ethosnInput  = BuildEthosNTensorInfo(input, DataLayout::NHWC);
     auto ethosnOutput = BuildEthosNTensorInfo(output, DataLayout::NHWC);
 
-    auto ethosnBias = biases.has_value() ? BuildEthosNBiasesInfo(biases.value(), input, weights)
-                                         : BuildEthosNBiasesInfo(ethosnOutput.m_Dimensions[3], input, weights);
+    ethosn_lib::TensorInfo ethosnBias;
+    try
+    {
+        ethosnBias = biases.has_value() ? BuildEthosNBiasesInfo(biases.value(), input, weights)
+                                        : BuildEthosNBiasesInfo(ethosnOutput.m_Dimensions[3], input, weights);
+    }
+    catch (const InvalidArgumentException& e)
+    {
+        SetReason(reasonIfUnsupported, e.what());
+        return false;
+    }
 
     ethosn_lib::TensorInfo ethosnWeights;
     try
@@ -650,9 +677,27 @@ bool EthosNLayerSupport::IsFullyConnectedSupported(const TensorInfo& input,
     ethosnInput.m_Dimensions  = { input.GetShape()[0], 1, 1, input.GetNumElements() / input.GetShape()[0] };
     ethosnOutput.m_Dimensions = { output.GetShape()[0], 1, 1, output.GetNumElements() / output.GetShape()[0] };
 
-    auto ethosnBias = BuildEthosNBiasesInfo(biases, input, weights);
+    ethosn_lib::TensorInfo ethosnBias;
+    try
+    {
+        ethosnBias = BuildEthosNBiasesInfo(biases, input, weights);
+    }
+    catch (const InvalidArgumentException& e)
+    {
+        SetReason(reasonIfUnsupported, e.what());
+        return false;
+    }
 
-    auto ethosnWeights = BuildEthosNFullyConnectedWeightsInfo(weights, descriptor.m_TransposeWeightMatrix);
+    ethosn_lib::TensorInfo ethosnWeights;
+    try
+    {
+        ethosnWeights = BuildEthosNFullyConnectedWeightsInfo(weights, descriptor.m_TransposeWeightMatrix);
+    }
+    catch (const InvalidArgumentException& e)
+    {
+        SetReason(reasonIfUnsupported, e.what());
+        return false;
+    }
 
     ethosn_lib::FullyConnectedInfo fullyConnectedInfo =
         BuildEthosNFullyConnectedLayerInfo(descriptor, output.GetQuantizationOffset(), output.GetQuantizationScale());

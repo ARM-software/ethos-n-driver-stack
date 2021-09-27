@@ -21,8 +21,8 @@ SubgraphView::SubgraphViewPtr BuildUnsupportedSubgraph(Graph& graph)
 {
     const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
     const TensorInfo outputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
-    const TensorInfo weightInfo({ 16, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
-    const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0);
+    const TensorInfo weightInfo({ 16, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
+    const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0, true);
 
     Convolution2dDescriptor convolutionDescriptor;
     convolutionDescriptor.m_StrideX     = 1;
@@ -91,8 +91,8 @@ SubgraphView::SubgraphViewPtr BuildFullyOptimizableSubgraph1(Graph& graph)
 {
     const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
     const TensorInfo outputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
-    const TensorInfo weightInfo({ 16, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
-    const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0);
+    const TensorInfo weightInfo({ 16, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
+    const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0, true);
 
     Convolution2dDescriptor convolutionDescriptor;
     convolutionDescriptor.m_StrideX     = 1;
@@ -126,8 +126,8 @@ SubgraphView::SubgraphViewPtr BuildFullyOptimizableSubgraph2(Graph& graph)
 {
     const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
     const TensorInfo outputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
-    const TensorInfo weightInfo({ 16, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
-    const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0);
+    const TensorInfo weightInfo({ 16, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
+    const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0, true);
 
     Convolution2dDescriptor convolutionDescriptor;
     convolutionDescriptor.m_StrideX     = 1;
@@ -188,8 +188,8 @@ SubgraphView::SubgraphViewPtr BuildNonOptimizableSubgraph(Graph& graph)
     // Using very large tensors to force the subgraph compilation to fail on the Ethos-N backend
     const TensorInfo inputInfo({ 1, 16, 16, 10000 }, DataType::QAsymmU8, 1.0f, 0);
     const TensorInfo outputInfo({ 1, 16, 16, 10000 }, DataType::QAsymmU8, 1.0f, 0);
-    const TensorInfo weightInfo({ 16, 1, 1, 10000 }, DataType::QAsymmU8, 0.9f, 0);
-    const TensorInfo biasInfo({ 1, 1, 1, 10000 }, DataType::Signed32, 0.9f, 0);
+    const TensorInfo weightInfo({ 16, 1, 1, 10000 }, DataType::QAsymmU8, 0.9f, 0, true);
+    const TensorInfo biasInfo({ 1, 1, 1, 10000 }, DataType::Signed32, 0.9f, 0, true);
 
     Convolution2dDescriptor convolutionDescriptor;
     convolutionDescriptor.m_StrideX     = 1;

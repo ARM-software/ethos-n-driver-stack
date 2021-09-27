@@ -265,8 +265,8 @@ TEST_SUITE("EthosNSupport")
 
         const TensorInfo inputInfo({ 1, numInputs }, DataType::QAsymmU8, 1.0f, 0);
         const TensorInfo outputInfo({ 1, numOutputs }, DataType::QAsymmU8, 1.0f, 0);
-        const TensorInfo weightInfo({ numInputs, numOutputs }, DataType::QAsymmU8, 0.9f, 0);
-        const TensorInfo biasesInfo({ 1, numOutputs }, DataType::Signed32, 0.9f, 0);
+        const TensorInfo weightInfo({ numInputs, numOutputs }, DataType::QAsymmU8, 0.9f, 0, true);
+        const TensorInfo biasesInfo({ 1, numOutputs }, DataType::Signed32, 0.9f, 0, true);
 
         // Add InputLayer
         Layer* const inputLayer = graph.AddLayer<InputLayer>(0, "input");
@@ -392,8 +392,8 @@ TEST_SUITE("EthosNSupport")
 
         const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
         const TensorInfo outputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
-        const TensorInfo weightInfo({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
-        const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0);
+        const TensorInfo weightInfo({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
+        const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0, true);
 
         Layer* const inputLayer = graph.AddLayer<InputLayer>(0, "input");
         inputLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
@@ -434,8 +434,8 @@ TEST_SUITE("EthosNSupport")
 
         const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
         const TensorInfo outputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
-        const TensorInfo weightInfo({ 16, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
-        const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0);
+        const TensorInfo weightInfo({ 16, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
+        const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0, true);
 
         // Construct Graph
         Layer* const inputLayer = graph.AddLayer<InputLayer>(0, "input");
@@ -478,8 +478,8 @@ TEST_SUITE("EthosNSupport")
 
         const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
         const TensorInfo outputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
-        const TensorInfo weightInfo({ 16, 3, 3, 16 }, DataType::QAsymmU8, 0.9f, 0);
-        const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0);
+        const TensorInfo weightInfo({ 16, 3, 3, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
+        const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0, true);
 
         // Construct Graph
         Layer* const inputLayer = graph.AddLayer<InputLayer>(0, "input");
@@ -821,8 +821,8 @@ TEST_SUITE("EthosNSupport")
         // Ethos-N should be able to compile sub-graph with large input tensors
         const TensorInfo inputInfo({ 1, 16, 10000, 16 }, DataType::QAsymmU8, 1.0f, 0);
         const TensorInfo outputInfo({ 1, 16, 10000, 16 }, DataType::QAsymmU8, 1.0f, 0);
-        const TensorInfo weightInfo({ 16, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
-        const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0);
+        const TensorInfo weightInfo({ 16, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
+        const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0, true);
 
         // Construct Graph
         Layer* const inputLayer = graph.AddLayer<InputLayer>(0, "input");
@@ -1032,7 +1032,7 @@ TEST_SUITE("EthosNSupport")
 
         // input1 is assumed to be a constant and will be used for the weights of the convolution
         TensorInfo input0 = TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
-        TensorInfo input1 = TensorInfo({ 1, 1, 1, 4 }, DataType::Signed32, 1.0f, 0);
+        TensorInfo input1 = TensorInfo({ 1, 1, 1, 4 }, DataType::Signed32, 1.0f, 0, true);
         TensorInfo output = TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 0.9f, 0);
 
         std::string reasonIfUnsupported;
@@ -1059,30 +1059,31 @@ TEST_SUITE("EthosNSupport")
 
         // Failure case - 5D tensor
         ExpectFail(TensorInfo({ 1, 2, 2, 4, 9 }, DataType::QAsymmU8, 1.0f, 0),
-                   TensorInfo({ 1, 1, 1, 4 }, DataType::Signed32, 0.9f, 0),
+                   TensorInfo({ 1, 1, 1, 4 }, DataType::Signed32, 0.9f, 0, true),
                    TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
                    "The ethosn can only support up to 4D tensors");
 
         // Success case - multiplication supported by replacing it with Depthwise
         // Additionally, verifying that the correct MultiplicationSupportedMode value is returned
         CHECK(layerSupport.GetMultiplicationSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
-                                                          TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.9f, 0),
+                                                          TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.9f, 0, true),
                                                           TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
               EthosNLayerSupport::MultiplicationSupportedMode::ReplaceWithDepthwise);
 
         // Success case - multiplication supported by replacing it with ReinterpretQuantize
         // Additionally, verifying that the correct MultiplicationSupportedMode value is returned
-        CHECK(layerSupport.GetMultiplicationSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
-                                                          TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.009f, 0),
-                                                          TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
-              EthosNLayerSupport::MultiplicationSupportedMode::ReplaceWithReinterpretQuantize);
+        CHECK(
+            layerSupport.GetMultiplicationSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                        TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.009f, 0, true),
+                                                        TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+            EthosNLayerSupport::MultiplicationSupportedMode::ReplaceWithReinterpretQuantize);
 
         // Failure case - multiplication could be supported by replacing it with ReinterpretQuantize
         // but due to zero points of input and output info being not equal we get multiplication
         // as unsupported operation.
         // Additionally, verifying that the correct MultiplicationSupportedMode value is returned
         ExpectFail(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
-                   TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.009f, 0),
+                   TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.009f, 0, true),
                    TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 1),
                    "Input and output quantization offsets are not equal");
 
@@ -1091,7 +1092,7 @@ TEST_SUITE("EthosNSupport")
         // as unsupported operation.
         // Additionally, verifying that the correct MultiplicationSupportedMode value is returned
         ExpectFail(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
-                   TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 1),
+                   TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 1, true),
                    TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmS8, 1.0f, 0), "Provided outputInfo is incorrect");
 
         // Failure case - multiplication not supported
@@ -1103,13 +1104,13 @@ TEST_SUITE("EthosNSupport")
 
         // Failure case - broadcasting in an a way that can't be covered by the replacement
         ExpectFail(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
-                   TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, 0.9f, 0),
+                   TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, 0.9f, 0, true),
                    TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0), "");
 
         // Failure case - could be replaced by depthwise but we can't find a valid weight scale
         ExpectFail(
             TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 100000.0f, 0),
-            TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.9f, 0),
+            TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.9f, 0, true),
             TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
             "Multiplication operation is not supported on Arm Ethos-N NPU backend and an attempt was made to "
             "substitute "
@@ -1119,14 +1120,14 @@ TEST_SUITE("EthosNSupport")
         // Failure case - could be replaced by reinterpret quantize but support library rejects the reinterpret quantize
         // config (in this case, input tensor too deep)
         ExpectFail(TensorInfo({ 1, 2, 2, 100000 }, DataType::QAsymmU8, 1.0f, 0),
-                   TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.009f, 0),
+                   TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.009f, 0, true),
                    TensorInfo({ 1, 2, 2, 100000 }, DataType::QAsymmU8, 1.0f, 0),
                    "Input to reinterpret quantization: Tensor max depth cannot fit in SRAM");
 
         // Failure case - could be replaced by depthwise but support library rejects the depthwise config
         // (in this case, input tensor too deep)
         ExpectFail(TensorInfo({ 1, 2, 2, 100000 }, DataType::QAsymmU8, 1.0f, 0),
-                   TensorInfo({ 1, 1, 1, 100000 }, DataType::QAsymmU8, 0.9f, 0),
+                   TensorInfo({ 1, 1, 1, 100000 }, DataType::QAsymmU8, 0.9f, 0, true),
                    TensorInfo({ 1, 2, 2, 100000 }, DataType::QAsymmU8, 1.0f, 0),
                    "Multiplication operation is not supported on Arm Ethos-N NPU backend and an attempt was made to "
                    "substitute for DepthwiseConvolution2d, however the following error occurred when checking for "
@@ -1142,23 +1143,25 @@ TEST_SUITE("EthosNSupport")
         // Success case - multiplication supported by replacing it with Depthwise
         // Additionally, Verifying that the correct MultiplicationSupportedMode value is returned
         CHECK(layerSupport.GetMultiplicationSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
-                                                          TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.9f, 0),
+                                                          TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.9f, 0, true),
                                                           TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
               EthosNLayerSupport::MultiplicationSupportedMode::ReplaceWithDepthwise);
 
         // Success case - multiplication supported by replacing it with ReinterpretQuantize
         // Additionally, Verifying that the correct MultiplicationSupportedMode value is returned
-        CHECK(layerSupport.GetMultiplicationSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
-                                                          TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.009f, 0),
-                                                          TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
-              EthosNLayerSupport::MultiplicationSupportedMode::ReplaceWithReinterpretQuantize);
+        CHECK(
+            layerSupport.GetMultiplicationSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                        TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.009f, 0, true),
+                                                        TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+            EthosNLayerSupport::MultiplicationSupportedMode::ReplaceWithReinterpretQuantize);
 
         // Success case - multiplication supported in EstimateOnly mode
         // Additionally, Verifying that the correct MultiplicationSupportedMode value is returned
-        CHECK(layerSupport.GetMultiplicationSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
-                                                          TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, 0.009f, 0),
-                                                          TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
-              EthosNLayerSupport::MultiplicationSupportedMode::EstimateOnly);
+        CHECK(
+            layerSupport.GetMultiplicationSupportedMode(TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0),
+                                                        TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, 0.009f, 0, true),
+                                                        TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0)) ==
+            EthosNLayerSupport::MultiplicationSupportedMode::EstimateOnly);
     }
 
     TEST_CASE("IsAdditionSupported")
@@ -1300,8 +1303,8 @@ TEST_SUITE("EthosNSupport")
 
         const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
         const TensorInfo outputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
-        const TensorInfo weightInfo({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
-        const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0);
+        const TensorInfo weightInfo({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
+        const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0, true);
 
         DepthwiseConvolution2dDescriptor depthwiseConvolutionDescriptor;
         depthwiseConvolutionDescriptor.m_BiasEnabled = true;
@@ -1321,8 +1324,8 @@ TEST_SUITE("EthosNSupport")
         {
             const TensorInfo inputInfo16({ 1, 16, 16, 16 }, DataType::QSymmS16, 1.0f, 0);
             const TensorInfo outputInfo16({ 1, 16, 16, 16 }, DataType::QSymmS16, 1.0f, 0);
-            const TensorInfo weightInfo16({ 1, 1, 1, 16 }, DataType::QSymmS16, 0.9f, 0);
-            const TensorInfo biasInfo16({ 1, 1, 1, 16 }, DataType::QSymmS16, 0.9f, 0);
+            const TensorInfo weightInfo16({ 1, 1, 1, 16 }, DataType::QSymmS16, 0.9f, 0, true);
+            const TensorInfo biasInfo16({ 1, 1, 1, 16 }, DataType::QSymmS16, 0.9f, 0, true);
             ExpectFail(inputInfo16, outputInfo, depthwiseConvolutionDescriptor, weightInfo, biasInfo,
                        "Unsupported data type: QSymm16");
             ExpectFail(inputInfo, outputInfo16, depthwiseConvolutionDescriptor, weightInfo, biasInfo,
@@ -1346,7 +1349,7 @@ TEST_SUITE("EthosNSupport")
 
         SUBCASE("IsDepthwiseConvolutionSupported() should not handle PerAxisQuantization on dim other than O (I*M)")
         {
-            TensorInfo weightInfoPerAxisQuantization({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
+            TensorInfo weightInfoPerAxisQuantization({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
             weightInfoPerAxisQuantization.SetQuantizationDim(Optional<unsigned int>(2));
             ExpectFail(inputInfo, outputInfo, depthwiseConvolutionDescriptor, weightInfoPerAxisQuantization, biasInfo,
                        "Can't convert tensor from [1,H,W,Cout] to [H,W,Cin,M] when per channel "
@@ -1355,13 +1358,149 @@ TEST_SUITE("EthosNSupport")
 
         SUBCASE("IsDepthwiseConvolutionSupported() should not handle PerAxisQuantization when M != 1")
         {
-            TensorInfo weightInfoPerAxisQuantization({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
+            TensorInfo weightInfoPerAxisQuantization({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
             const TensorInfo inputInfo8Channels({ 1, 16, 16, 8 }, DataType::QAsymmU8, 1.0f, 0);
             weightInfoPerAxisQuantization.SetQuantizationDim(Optional<unsigned int>(3));
             ExpectFail(inputInfo8Channels, outputInfo, depthwiseConvolutionDescriptor, weightInfoPerAxisQuantization,
                        biasInfo,
                        "Can't convert tensor from [1,H,W,Cout] to [H,W,Cin,M] when per channel "
                        "quantization is applied on a dimension other than the last, or M != 1.");
+        }
+
+        SUBCASE("Non-constant weights")
+        {
+            TensorInfo weightInfoNonConst = weightInfo;
+            weightInfoNonConst.SetConstant(false);
+            ExpectFail(inputInfo, outputInfo, depthwiseConvolutionDescriptor, weightInfoNonConst, biasInfo,
+                       "Non-constant weights not supported.");
+        }
+
+        SUBCASE("Non-constant bias")
+        {
+            TensorInfo biasInfoNonConst = biasInfo;
+            biasInfoNonConst.SetConstant(false);
+            ExpectFail(inputInfo, outputInfo, depthwiseConvolutionDescriptor, weightInfo, biasInfoNonConst,
+                       "Non-constant bias not supported.");
+        }
+    }
+
+    TEST_CASE("IsConvolution2dSupported")
+    {
+        EthosNLayerSupport layerSupport(EthosNConfig(), EthosNConfig().QueryCapabilities());
+        auto ExpectFail = [&layerSupport](const TensorInfo& input, const TensorInfo& output,
+                                          const Convolution2dDescriptor& descriptor, const TensorInfo& weights,
+                                          const Optional<TensorInfo>& biases, const char* expectedFailureReason) {
+            std::string failureReason;
+            CHECK(!layerSupport.IsConvolution2dSupported(input, output, descriptor, weights, biases, failureReason));
+            CHECK(failureReason.find(expectedFailureReason) != std::string::npos);
+        };
+
+        // Declare a set of parameters that are supported, so we can re-use these for the different subcases
+        const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
+        const TensorInfo outputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
+        const TensorInfo weightInfo({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
+        const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0, true);
+
+        Convolution2dDescriptor descriptor;
+        descriptor.m_BiasEnabled = true;
+        descriptor.m_DataLayout  = DataLayout::NHWC;
+        descriptor.m_StrideX     = 1;
+        descriptor.m_StrideY     = 1;
+
+        SUBCASE("Non-constant weights")
+        {
+            TensorInfo weightInfoNonConst = weightInfo;
+            weightInfoNonConst.SetConstant(false);
+            ExpectFail(inputInfo, outputInfo, descriptor, weightInfoNonConst, biasInfo,
+                       "Non-constant weights not supported.");
+        }
+
+        SUBCASE("Non-constant bias")
+        {
+            TensorInfo biasInfoNonConst = biasInfo;
+            biasInfoNonConst.SetConstant(false);
+            ExpectFail(inputInfo, outputInfo, descriptor, weightInfo, biasInfoNonConst,
+                       "Non-constant bias not supported.");
+        }
+    }
+
+    TEST_CASE("IsTransposeConvolution2dSupported")
+    {
+        EthosNLayerSupport layerSupport(EthosNConfig(), EthosNConfig().QueryCapabilities());
+        auto ExpectFail = [&layerSupport](const TensorInfo& input, const TensorInfo& output,
+                                          const TransposeConvolution2dDescriptor& descriptor, const TensorInfo& weights,
+                                          const Optional<TensorInfo>& biases, const char* expectedFailureReason) {
+            std::string failureReason;
+            CHECK(!layerSupport.IsTransposeConvolution2dSupported(input, output, descriptor, weights, biases,
+                                                                  failureReason));
+            CHECK(failureReason.find(expectedFailureReason) != std::string::npos);
+        };
+
+        // Declare a set of parameters that are supported, so we can re-use these for the different subcases
+        const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
+        const TensorInfo outputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
+        const TensorInfo weightInfo({ 16, 3, 3, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
+        const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0, true);
+
+        TransposeConvolution2dDescriptor descriptor;
+        descriptor.m_BiasEnabled = true;
+        descriptor.m_DataLayout  = DataLayout::NHWC;
+        descriptor.m_StrideX     = 1;
+        descriptor.m_StrideY     = 1;
+        descriptor.m_PadTop      = 1;
+        descriptor.m_PadLeft     = 1;
+
+        SUBCASE("Non-constant weights")
+        {
+            TensorInfo weightInfoNonConst = weightInfo;
+            weightInfoNonConst.SetConstant(false);
+            ExpectFail(inputInfo, outputInfo, descriptor, weightInfoNonConst, biasInfo,
+                       "Non-constant weights not supported.");
+        }
+
+        SUBCASE("Non-constant bias")
+        {
+            TensorInfo biasInfoNonConst = biasInfo;
+            biasInfoNonConst.SetConstant(false);
+            ExpectFail(inputInfo, outputInfo, descriptor, weightInfo, biasInfoNonConst,
+                       "Non-constant bias not supported.");
+        }
+    }
+
+    TEST_CASE("IsFullyConnectedSupported")
+    {
+        EthosNLayerSupport layerSupport(EthosNConfig(), EthosNConfig().QueryCapabilities());
+        auto ExpectFail = [&layerSupport](const TensorInfo& input, const TensorInfo& output,
+                                          const FullyConnectedDescriptor& descriptor, const TensorInfo& weights,
+                                          const TensorInfo& biases, const char* expectedFailureReason) {
+            std::string failureReason;
+            CHECK(!layerSupport.IsFullyConnectedSupported(input, output, weights, biases, descriptor, failureReason));
+            CHECK(failureReason.find(expectedFailureReason) != std::string::npos);
+        };
+
+        // Declare a set of parameters that are supported, so we can re-use these for the different subcases
+        const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
+        const TensorInfo outputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
+        const TensorInfo weightInfo({ 16, 3, 3, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
+        const TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0, true);
+
+        FullyConnectedDescriptor descriptor;
+        descriptor.m_BiasEnabled = true;
+
+        SUBCASE("Non-constant weights")
+        {
+            TensorInfo weightInfoNonConst = weightInfo;
+            weightInfoNonConst.SetConstant(false);
+            ExpectFail(inputInfo, outputInfo, descriptor, weightInfoNonConst, biasInfo,
+                       "Non-constant weights not supported.");
+        }
+
+        SUBCASE("Non-constant bias")
+        {
+            TensorInfo biasInfoNonConst = biasInfo;
+            biasInfoNonConst.SetConstant(false);
+            ExpectFail(inputInfo, outputInfo, descriptor, weightInfo, biasInfoNonConst,
+                       "Non-constant bias not supported.");
         }
     }
 }
