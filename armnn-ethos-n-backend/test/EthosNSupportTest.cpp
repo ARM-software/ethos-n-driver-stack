@@ -1020,7 +1020,7 @@ TEST_SUITE("EthosNSupport")
         TensorInfo input  = TensorInfo({ 1, 1, 1, 1, 4 }, DataType::QAsymmU8, 1.f, 0);
         TensorInfo output = TensorInfo({ 1, 1, 1, 1, 4 }, DataType::QAsymmU8, 1.f, 0);
         std::string reasonIfUnsupported;
-        CHECK(!layerSupport.IsRsqrtSupported(input, output, reasonIfUnsupported));
+        CHECK(!layerSupport.IsFloorSupported(input, output, reasonIfUnsupported));
         CHECK(reasonIfUnsupported == "The ethosn can only support up to 4D tensors");
     }
 

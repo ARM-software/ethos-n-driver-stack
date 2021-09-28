@@ -148,7 +148,7 @@ mkdir driver_stack
 cd driver_stack
 git clone https://github.com/Arm-software/armnn --branch master
 cd armnn/
-git reset --hard c316c980bff21b489b31ad8bbe074fcdf4ccddbd
+git reset --hard fdb27e2c8875fa2bb354557d5291894fcb7940b0
 cd ..
 git clone https://github.com/Arm-software/ethos-n-driver-stack --branch develop
 ```

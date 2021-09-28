@@ -138,11 +138,6 @@ public:
                                  const DepthToSpaceDescriptor& descriptor,
                                  Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
 
-    // We return true for all these and we substitute estimate only operations later.
-    bool IsAbsSupported(const TensorInfo& input,
-                        const TensorInfo& output,
-                        Optional<std::string&> reasonIfUnsupported) const override;
-
     bool IsArgMinMaxSupported(const armnn::TensorInfo& input,
                               const armnn::TensorInfo& output,
                               const armnn::ArgMinMaxDescriptor& descriptor,
@@ -223,11 +218,6 @@ public:
                                      const ElementwiseUnaryDescriptor& descriptor,
                                      Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
 
-    bool IsEqualSupported(const armnn::TensorInfo& input0,
-                          const armnn::TensorInfo& input1,
-                          const armnn::TensorInfo& output,
-                          armnn::Optional<std::string&> reasonIfUnsupported) const override;
-
     bool IsFakeQuantizationSupported(const TensorInfo& input,
                                      const FakeQuantizationDescriptor& descriptor,
                                      Optional<std::string&> reasonIfUnsupported) const override;
@@ -241,21 +231,11 @@ public:
                           const TensorInfo& output,
                           Optional<std::string&> reasonIfUnsupported) const override;
 
-    bool IsGatherSupported(const armnn::TensorInfo& input0,
-                           const armnn::TensorInfo& input1,
-                           const armnn::TensorInfo& output,
-                           armnn::Optional<std::string&> reasonIfUnsupported) const override;
-
     bool IsGatherSupported(const TensorInfo& input0,
                            const TensorInfo& input1,
                            const TensorInfo& output,
                            const GatherDescriptor& descriptor,
                            Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
-
-    bool IsGreaterSupported(const TensorInfo& input0,
-                            const TensorInfo& input1,
-                            const TensorInfo& output,
-                            Optional<std::string&> reasonIfUnsupported) const override;
 
     bool IsInstanceNormalizationSupported(const TensorInfo& input,
                                           const TensorInfo& output,
@@ -312,11 +292,6 @@ public:
                           const TensorInfo& input1,
                           const TensorInfo& output,
                           Optional<std::string&> reasonIfUnsupported) const override;
-
-    bool IsMergerSupported(const std::vector<const TensorInfo*> inputs,
-                           const TensorInfo& output,
-                           const OriginsDescriptor& descriptor,
-                           Optional<std::string&> reasonIfUnsupported) const override;
 
     bool IsMinimumSupported(const TensorInfo& input0,
                             const TensorInfo& input1,
@@ -378,18 +353,10 @@ public:
                                   const QuantizedLstmInputParamsInfo& paramsInfo,
                                   Optional<std::string&> reasonIfUnsupported) const override;
 
-    bool IsResizeBilinearSupported(const TensorInfo& input,
-                                   const TensorInfo& output,
-                                   Optional<std::string&> reasonIfUnsupported) const override;
-
     bool IsResizeSupported(const TensorInfo& input,
                            const TensorInfo& output,
                            const ResizeDescriptor& descriptor,
                            Optional<std::string&> reasonIfUnsupported) const override;
-
-    bool IsRsqrtSupported(const TensorInfo& input,
-                          const TensorInfo& output,
-                          Optional<std::string&> reasonIfUnsupported) const override;
 
     bool IsShapeSupported(const TensorInfo& input,
                           const TensorInfo& output,
@@ -409,10 +376,6 @@ public:
                                  const TensorInfo& output,
                                  const SpaceToDepthDescriptor& descriptor,
                                  Optional<std::string&> reasonIfUnsupported) const override;
-
-    bool IsSplitterSupported(const TensorInfo& input,
-                             const ViewsDescriptor& descriptor,
-                             Optional<std::string&> reasonIfUnsupported) const override;
 
     bool IsStackSupported(const std::vector<const TensorInfo*>& inputs,
                           const TensorInfo& output,
@@ -455,6 +418,18 @@ public:
         const LstmDescriptor& descriptor,
         const LstmInputParamsInfo& paramsInfo,
         Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
+
+    bool IsChannelShuffleSupported(const TensorInfo& input,
+                                   const TensorInfo& output,
+                                   const ChannelShuffleDescriptor& descriptor,
+                                   Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
+
+    bool IsConvolution3dSupported(const TensorInfo& input,
+                                  const TensorInfo& output,
+                                  const Convolution3dDescriptor& descriptor,
+                                  const TensorInfo& weights,
+                                  const Optional<TensorInfo>& biases,
+                                  Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
 
 private:
     bool CheckEstimateOnlySupported(const TensorInfo& input,

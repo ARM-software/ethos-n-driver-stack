@@ -950,13 +950,6 @@ bool EthosNLayerSupport::CheckEstimateOnlySupported(const std::vector<TensorInfo
     return supported;
 }
 
-bool EthosNLayerSupport::IsAbsSupported(const TensorInfo& input,
-                                        const TensorInfo& output,
-                                        Optional<std::string&> reasonIfUnsupported) const
-{
-    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
-}
-
 bool EthosNLayerSupport::IsArgMinMaxSupported(const armnn::TensorInfo& input,
                                               const armnn::TensorInfo& output,
                                               const armnn::ArgMinMaxDescriptor&,
@@ -1084,14 +1077,6 @@ bool EthosNLayerSupport::IsElementwiseUnarySupported(const TensorInfo& input,
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsEqualSupported(const armnn::TensorInfo& input0,
-                                          const armnn::TensorInfo& input1,
-                                          const armnn::TensorInfo& output,
-                                          armnn::Optional<std::string&> reasonIfUnsupported) const
-{
-    return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
-}
-
 bool EthosNLayerSupport::IsFakeQuantizationSupported(const TensorInfo& input,
                                                      const FakeQuantizationDescriptor&,
                                                      Optional<std::string&> reasonIfUnsupported) const
@@ -1120,26 +1105,10 @@ bool EthosNLayerSupport::IsFloorSupported(const TensorInfo& input,
 bool EthosNLayerSupport::IsGatherSupported(const armnn::TensorInfo& input0,
                                            const armnn::TensorInfo& input1,
                                            const armnn::TensorInfo& output,
-                                           armnn::Optional<std::string&> reasonIfUnsupported) const
-{
-    return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
-}
-
-bool EthosNLayerSupport::IsGatherSupported(const armnn::TensorInfo& input0,
-                                           const armnn::TensorInfo& input1,
-                                           const armnn::TensorInfo& output,
                                            const GatherDescriptor& descriptor,
                                            armnn::Optional<std::string&> reasonIfUnsupported) const
 {
     IgnoreUnused(descriptor);
-    return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
-}
-
-bool EthosNLayerSupport::IsGreaterSupported(const TensorInfo& input0,
-                                            const TensorInfo& input1,
-                                            const TensorInfo& output,
-                                            Optional<std::string&> reasonIfUnsupported) const
-{
     return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
 }
 
@@ -1264,15 +1233,6 @@ bool EthosNLayerSupport::IsMergeSupported(const TensorInfo& input0,
                                           Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
-}
-
-bool EthosNLayerSupport::IsMergerSupported(const std::vector<const TensorInfo*> inputs,
-                                           const TensorInfo& output,
-                                           const OriginsDescriptor& descriptor,
-                                           Optional<std::string&> reasonIfUnsupported) const
-{
-    // This is a depreceted version of IsConcatSupported, so forward to that.
-    return IsConcatSupported(inputs, output, descriptor, reasonIfUnsupported);
 }
 
 bool EthosNLayerSupport::IsMinimumSupported(const TensorInfo& input0,
@@ -1520,13 +1480,6 @@ bool EthosNLayerSupport::IsQuantizedLstmSupported(const TensorInfo& input,
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsResizeBilinearSupported(const TensorInfo& input,
-                                                   const TensorInfo& output,
-                                                   Optional<std::string&> reasonIfUnsupported) const
-{
-    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
-}
-
 bool EthosNLayerSupport::IsResizeSupported(const TensorInfo& input,
                                            const TensorInfo& output,
                                            const ResizeDescriptor& descriptor,
@@ -1557,13 +1510,6 @@ bool EthosNLayerSupport::IsResizeSupported(const TensorInfo& input,
     bool supported = CheckSupportedLevel(supportedLevel, m_Config.m_PerfOnly);
     SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
     return supported;
-}
-
-bool EthosNLayerSupport::IsRsqrtSupported(const TensorInfo& input,
-                                          const TensorInfo& output,
-                                          Optional<std::string&> reasonIfUnsupported) const
-{
-    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
 bool EthosNLayerSupport::IsShapeSupported(const TensorInfo& input,
@@ -1619,13 +1565,6 @@ bool EthosNLayerSupport::IsSpaceToDepthSupported(const TensorInfo& input,
     bool supported = CheckSupportedLevel(supportedLevel, m_Config.m_PerfOnly);
     SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
     return supported;
-}
-
-bool EthosNLayerSupport::IsSplitterSupported(const TensorInfo& input,
-                                             const ViewsDescriptor&,
-                                             Optional<std::string&> reasonIfUnsupported) const
-{
-    return CheckEstimateOnlySupported({ input }, {}, reasonIfUnsupported);
 }
 
 bool EthosNLayerSupport::IsStackSupported(const std::vector<const TensorInfo*>& inputs,
@@ -1729,6 +1668,24 @@ bool EthosNLayerSupport::IsUnidirectionalSequenceLstmSupported(const TensorInfo&
                                                                const LstmDescriptor&,
                                                                const LstmInputParamsInfo&,
                                                                Optional<std::string&>) const
+{
+    return false;
+}
+
+bool EthosNLayerSupport::IsChannelShuffleSupported(const TensorInfo&,
+                                                   const TensorInfo&,
+                                                   const ChannelShuffleDescriptor&,
+                                                   Optional<std::string&>) const
+{
+    return false;
+}
+
+bool EthosNLayerSupport::IsConvolution3dSupported(const TensorInfo&,
+                                                  const TensorInfo&,
+                                                  const Convolution3dDescriptor&,
+                                                  const TensorInfo&,
+                                                  const Optional<TensorInfo>&,
+                                                  Optional<std::string&>) const
 {
     return false;
 }
