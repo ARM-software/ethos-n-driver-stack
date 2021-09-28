@@ -77,7 +77,7 @@ TEST_CASE("MceStats Convolution", "[Estimation][Mce]")
 {
     const uint32_t strideXY              = 1;
     const EthosNVariant variant          = GENERATE_VARIANT();
-    const uint32_t originalInputChannels = GENERATE(3, 16, 19, 32);
+    const uint32_t originalInputChannels = GENERATE(3, 16, 19, 32, 256);
 
     const HardwareCapabilities caps = GetEthosN78HwCapabilities(variant);
     const uint32_t numberOfEngines  = caps.GetNumberOfEngines();
@@ -89,7 +89,7 @@ TEST_CASE("MceStats Convolution", "[Estimation][Mce]")
 
     const Stride stride(strideXY, strideXY);
     const TensorShape inputShape{ 1, 224, 224, inputChannels };
-    const TensorShape outputShape{ 1, 224, 224, 32 };
+    const TensorShape outputShape{ 1, 448, 448, 64 };
     const TensorShape weightShape{ 3, 3, 3, 32 };
 
     MceStats stats = GetMceStats(caps, stride, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, inputShape,

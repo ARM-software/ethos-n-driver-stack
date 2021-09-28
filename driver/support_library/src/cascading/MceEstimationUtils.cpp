@@ -94,7 +94,7 @@ uint64_t GetMceCycleCountDirect(const HardwareCapabilities& caps,
     uint32_t w        = utils::RoundUpToNearestMultiple(outputShape[2], halfPatchWidth);
     uint32_t i        = utils::RoundUpToNearestMultiple(ifmChannelsPerOfm, ifmChannelsPerMacUnit);
     uint32_t o        = utils::RoundUpToNearestMultiple(outputShape[3], numActiveOgs);
-    uint32_t macCount = numKernelElements * h * w * i * o;
+    uint64_t macCount = static_cast<uint64_t>(numKernelElements) * h * w * i * o;
 
     uint32_t macsPerCycle = ifmChannelsPerMacUnit * numMacUnitsPerOg * numActiveOgs;
 
