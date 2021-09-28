@@ -30,6 +30,8 @@
 #include <sys/types.h>
 #if defined(__unix__)
 #include <unistd.h>
+#elif defined(_MSC_VER)
+#include <io.h>
 #endif
 
 using namespace ethosn;
