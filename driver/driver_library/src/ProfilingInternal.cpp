@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 #include <vector>
 
 namespace ethosn
@@ -547,7 +548,7 @@ ProfilingEntry ConvertProfilingEntry(const ethosn_profiling_entry& kernelEntry)
             result.m_MetadataValue    = kernelEntry.data;
             break;
         default:
-            assert(false);
+            throw std::runtime_error(std::string("Invalid profiling entry type from kernel"));
             break;
     }
     return result;
