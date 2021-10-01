@@ -7,7 +7,6 @@
 
 #include "EthosNBackend.hpp"
 #include "EthosNConfig.hpp"
-#include "EthosNMapping.hpp"
 #include "EthosNReplaceUnsupported.hpp"
 #include "EthosNTensorUtils.hpp"
 
@@ -132,35 +131,6 @@ bool IsTensorSupportedOnEthosN(const Optional<TensorInfo>& tensorInfo, Optional<
     }
 }
 
-bool IsLayerExcluded(const EthosNMappings& mappings, LayerType layerType, std::string func = std::string())
-{
-    const char* type = armnn::GetLayerTypeAsCString(layerType);
-
-    auto IsExcluded = [&](EthosNMappings::const_reference mapping) -> bool {
-        using MappedLayers = std::vector<SimpleLayer>;
-
-        auto HasExclusion = [&](MappedLayers::const_reference layer) -> bool {
-            return (layer.m_LayerTypeName == "Excluded");
-        };
-
-        auto IsExcludedLayer = [&](MappedLayers::const_reference layer) -> bool {
-            bool functionIsExcluded = const_cast<SimpleLayer&>(layer).m_LayerParams["function"] == func;
-            return (layer.m_LayerTypeName == type && functionIsExcluded);
-        };
-
-        const auto& replacements = mapping.m_ReplacementLayers;
-        if (replacements.cend() != std::find_if(replacements.cbegin(), replacements.cend(), HasExclusion))
-        {
-            const auto& patterns = mapping.m_PatternLayers;
-            return (patterns.cend() != std::find_if(patterns.cbegin(), patterns.cend(), IsExcludedLayer));
-        }
-
-        return false;
-    };
-
-    return (mappings.cend() != std::find_if(mappings.cbegin(), mappings.cend(), IsExcluded));
-}
-
 bool CheckSupportedLevel(ethosn_lib::SupportedLevel level, bool perfOnly)
 {
     if (level == ethosn_lib::SupportedLevel::Supported)
@@ -176,11 +146,8 @@ bool CheckSupportedLevel(ethosn_lib::SupportedLevel level, bool perfOnly)
 
 }    // anonymous namespace
 
-EthosNLayerSupport::EthosNLayerSupport(const EthosNConfig& config,
-                                       const EthosNMappings& mappings,
-                                       const std::vector<char>& capabilities)
+EthosNLayerSupport::EthosNLayerSupport(const EthosNConfig& config, const std::vector<char>& capabilities)
     : m_Config(config)
-    , m_Mappings(mappings)
     , m_Queries(capabilities)
 {}
 
@@ -191,13 +158,6 @@ bool EthosNLayerSupport::IsActivationSupported(const TensorInfo& input,
                                                const ActivationDescriptor& descriptor,
                                                Optional<std::string&> reasonIfUnsupported) const
 {
-    if (IsLayerExcluded(m_Mappings, LayerType::Activation,
-                        armnn::GetActivationFunctionAsCString(descriptor.m_Function)))
-    {
-        SetReason(reasonIfUnsupported, std::string("Layer declared excluded in mapping file"));
-        return false;
-    }
-
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
           IsTensorSupportedOnEthosN(output, reasonIfUnsupported)))
@@ -1687,12 +1647,6 @@ bool EthosNLayerSupport::IsStandInSupported(const std::vector<const TensorInfo*>
                                             const StandInDescriptor&,
                                             Optional<std::string&> reasonIfUnsupported) const
 {
-    if (IsLayerExcluded(m_Mappings, LayerType::StandIn))
-    {
-        SetReason(reasonIfUnsupported, std::string("Layer declared excluded in mapping file"));
-        return false;
-    }
-
     std::vector<TensorInfo> inputTensorInfos;
     inputTensorInfos.reserve(inputs.size());
     for (auto it : inputs)

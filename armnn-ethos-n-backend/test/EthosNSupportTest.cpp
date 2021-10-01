@@ -1016,7 +1016,7 @@ TEST_SUITE("EthosNSupport")
 
         const EthosNConfig config = { true, ethosn_lib::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO, 0 };
 
-        EthosNLayerSupport layerSupport(config, EthosNMappings(), config.QueryCapabilities());
+        EthosNLayerSupport layerSupport(config, config.QueryCapabilities());
         TensorInfo input  = TensorInfo({ 1, 1, 1, 1, 4 }, DataType::QAsymmU8, 1.f, 0);
         TensorInfo output = TensorInfo({ 1, 1, 1, 1, 4 }, DataType::QAsymmU8, 1.f, 0);
         std::string reasonIfUnsupported;
@@ -1028,7 +1028,7 @@ TEST_SUITE("EthosNSupport")
     /// by attempting to substitute the operation with DepthwiseConvolution2d.
     TEST_CASE("MulSubstitutionFail")
     {
-        EthosNLayerSupport layerSupport(EthosNConfig(), EthosNMappings(), EthosNConfig().QueryCapabilities());
+        EthosNLayerSupport layerSupport(EthosNConfig(), EthosNConfig().QueryCapabilities());
 
         // input1 is assumed to be a constant and will be used for the weights of the convolution
         TensorInfo input0 = TensorInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
@@ -1048,7 +1048,7 @@ TEST_SUITE("EthosNSupport")
 
     TEST_CASE("IsMultiplicationSupported")
     {
-        EthosNLayerSupport layerSupport(EthosNConfig(), EthosNMappings(), EthosNConfig().QueryCapabilities());
+        EthosNLayerSupport layerSupport(EthosNConfig(), EthosNConfig().QueryCapabilities());
 
         auto ExpectFail = [&layerSupport](const TensorInfo& input0, const TensorInfo& input1, const TensorInfo& output,
                                           const char* expectedFailureReason) {
@@ -1137,7 +1137,7 @@ TEST_SUITE("EthosNSupport")
     {
         EthosNConfig config;
         config.m_PerfOnly = true;
-        EthosNLayerSupport layerSupport(config, EthosNMappings(), config.QueryCapabilities());
+        EthosNLayerSupport layerSupport(config, config.QueryCapabilities());
 
         // Success case - multiplication supported by replacing it with Depthwise
         // Additionally, Verifying that the correct MultiplicationSupportedMode value is returned
@@ -1163,7 +1163,7 @@ TEST_SUITE("EthosNSupport")
 
     TEST_CASE("IsAdditionSupported")
     {
-        EthosNLayerSupport layerSupport(EthosNConfig(), EthosNMappings(), EthosNConfig().QueryCapabilities());
+        EthosNLayerSupport layerSupport(EthosNConfig(), EthosNConfig().QueryCapabilities());
 
         auto ExpectFail = [&layerSupport](const TensorInfo& input0, const TensorInfo& input1, const TensorInfo& output,
                                           const char* expectedFailureReason) {
@@ -1248,7 +1248,7 @@ TEST_SUITE("EthosNSupport")
     {
         EthosNConfig config;
         config.m_PerfOnly = true;
-        EthosNLayerSupport layerSupport(config, EthosNMappings(), config.QueryCapabilities());
+        EthosNLayerSupport layerSupport(config, config.QueryCapabilities());
 
         // Broadcast add (over width & height) is reported as EstimateOnly by the support library,
         // but by replacing it with a depthwise we can support it fully, which is preferable.
@@ -1288,7 +1288,7 @@ TEST_SUITE("EthosNSupport")
 
     TEST_CASE("IsDepthwiseConvolutionSupported")
     {
-        EthosNLayerSupport layerSupport(EthosNConfig(), EthosNMappings(), EthosNConfig().QueryCapabilities());
+        EthosNLayerSupport layerSupport(EthosNConfig(), EthosNConfig().QueryCapabilities());
         auto ExpectFail = [&layerSupport](const TensorInfo& input, const TensorInfo& output,
                                           const DepthwiseConvolution2dDescriptor& descriptor, const TensorInfo& weights,
                                           const Optional<TensorInfo>& biases, const char* expectedFailureReason) {

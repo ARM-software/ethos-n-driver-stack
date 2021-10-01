@@ -104,7 +104,7 @@ TEST_SUITE("CreateEstimationWorkloadEthosN")
         config.m_PerfOutDir  = tmpDir.Str();
         config.m_PerfCurrent = true;
 
-        BackendGlobalConfigSetter configSetter(config, EthosNMappings(), config.QueryCapabilities());
+        BackendGlobalConfigSetter configSetter(config, config.QueryCapabilities());
 
         armnn::EthosNWorkloadFactory factory(config);
         // To create a PreCompiled layer, create a network and Optimize it.
@@ -271,7 +271,7 @@ TEST_SUITE("CreateEstimationWorkloadEthosN")
         config.m_PerfOutDir  = tmpDir.Str();
         config.m_PerfCurrent = true;
 
-        BackendGlobalConfigSetter configSetter(config, EthosNMappings(), config.QueryCapabilities());
+        BackendGlobalConfigSetter configSetter(config, config.QueryCapabilities());
 
         armnn::EthosNWorkloadFactory factory(config);
         // To create a PreCompiled layer, create a network and Optimize it.
@@ -429,337 +429,6 @@ TEST_SUITE("CreateEstimationWorkloadEthosN")
         CHECK(result == golden);
     }
 
-    // A test which estimates the performance of an unsupported (sqrt) operation
-    // it should return a proper estimate for the sqrt using the mapping
-    TEST_CASE("EstimationOnlyUnsupportedWithMapping")
-    {
-        // Reset backend-internal subgraph converter instance id
-        armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
-
-        using namespace testing_utils;
-
-        const TempDir tmpDir;
-
-        armnn::EthosNConfig config{};
-        config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
-        config.m_PerfOnly    = true;
-        config.m_PerfOutDir  = tmpDir.Str();
-        config.m_PerfCurrent = true;
-
-        std::stringstream os;
-        os << "pattern:\n";
-        os << "input firstInput, 1x_x_x_\n";
-        os << "output firstOutput, 1x_x_x_\n";
-        os << "Activation, (firstInput), (firstOutput), ((function=Sqrt))\n";
-        os << "graph-replacement:\n";
-        os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
-        os.seekg(0);
-        EthosNMappings mappings = ParseMappings(os);
-
-        BackendGlobalConfigSetter configSetter(config, mappings, config.QueryCapabilities());
-
-        armnn::EthosNWorkloadFactory factory(config);
-        // To create a PreCompiled layer, create a network and Optimize it.
-        armnn::INetworkPtr net = armnn::INetwork::Create();
-
-        armnn::IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input layer");
-        CHECK(inputLayer);
-
-        ActivationDescriptor tanDesc;
-        tanDesc.m_A                               = 1;
-        tanDesc.m_B                               = 1;
-        tanDesc.m_Function                        = ActivationFunction::Sqrt;
-        armnn::IConnectableLayer* const tanhLayer = net->AddActivationLayer(tanDesc, "Sqrt layer");
-        CHECK(tanhLayer);
-
-        armnn::IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output layer");
-        CHECK(outputLayer);
-
-        TensorInfo inputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
-        inputTensorInfo.SetQuantizationOffset(0);
-        inputTensorInfo.SetQuantizationScale(0.9f);
-
-        TensorInfo outputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
-        outputTensorInfo.SetQuantizationOffset(0);
-        outputTensorInfo.SetQuantizationScale(0.9f);
-
-        inputLayer->GetOutputSlot(0).Connect(tanhLayer->GetInputSlot(0));
-        inputLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
-
-        tanhLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
-        tanhLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
-
-        std::vector<armnn::BackendId> backends = { factory.GetBackendId() };
-        armnn::IRuntime::CreationOptions options;
-        armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
-        armnn::OptimizerOptions optimizerOptions;
-        armnn::IOptimizedNetworkPtr optimizedNet =
-            armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
-        CHECK(optimizedNet != nullptr);
-
-        armnn::Graph& optimisedGraph = GetGraphForTesting(optimizedNet.get());
-        Layer* preCompiledLayer      = nullptr;
-        for (auto& layer : optimisedGraph)
-        {
-            if (layer->GetType() == LayerType::PreCompiled)
-            {
-                preCompiledLayer = layer;
-            }
-        }
-        CHECK(preCompiledLayer != nullptr);
-
-        CreateTensorHandles(optimisedGraph, factory);
-
-        auto workload = MakeAndCheckWorkload<armnn::EthosNPreCompiledWorkload>(*preCompiledLayer, factory);
-
-        PreCompiledQueueDescriptor queueDescriptor = workload->GetData();
-        CHECK(queueDescriptor.m_Inputs.size() == 1);
-        CHECK(queueDescriptor.m_Outputs.size() == 1);
-
-        // Execute outputs the performance estimation to a file.
-        // read it back so it can be compared.
-        workload->Execute();
-
-        const std::string reportFile = config.m_PerfOutDir + "/subgraph_0/report.json";
-        const std::string result     = ReadFile(reportFile);
-
-        const std::string golden = R"({
-	"Config":
-	{
-		"Variant": "Ethos-N78_4TOPS_4PLE_RATIO",
-		"SramSizeBytesOverride": 0,
-		"ActivationCompressionSavings": 0,
-		"WeightCompressionSavings": "Not Specified",
-		"Current": 1
-	},
-	"OperationNames":
-	{
-		"0": "Input from input layer",
-		"1": "SigmoidFunc",
-		"2": "Output from SigmoidFunc"
-	},
-	"Results":
-	{
-		"Stream":
-		[
-			{
-				"OperationIds": [ 0, 1 ],
-				"ParentIds": [ [] ],
-				"Input":
-				{
-					"DramParallelBytes": 0,
-					"DramNonParallelBytes": 4096,
-					"SramBytes": 0,
-					"NumCentralStripes": 1,
-					"NumBoundaryStripes": 0,
-					"NumReloads": 0
-				},
-				"Output":
-				{
-					"DramParallelBytes": 0,
-					"DramNonParallelBytes": 4096,
-					"SramBytes": 0,
-					"NumCentralStripes": 1,
-					"NumBoundaryStripes": 0,
-					"NumReloads": 0
-				},
-				"Weights":
-				{
-					"DramParallelBytes": 0,
-					"DramNonParallelBytes": 256,
-					"SramBytes": 0,
-					"NumCentralStripes": 1,
-					"NumBoundaryStripes": 0,
-					"NumReloads": 0,
-					"CompressionSavings": 0
-				},
-				"Mce":
-				{
-					"Operations": 8192,
-					"CycleCount": 32
-				},
-				"Ple":
-				{
-					"NumOfPatches": 16,
-					"Operation": 11
-				}
-			}
-		],
-		"Issues":
-		{
-		}
-	}
-}
-)";
-
-        CHECK(result == golden);
-    }
-
-    // A test which estimates the performance of a standin layer
-    // which has been replaced with sigmoid via the mapping file
-    TEST_CASE("EstimationOnlyStandInMapping")
-    {
-        // Reset backend-internal subgraph converter instance id
-        armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
-
-        using namespace testing_utils;
-
-        const TempDir tmpDir;
-
-        armnn::EthosNConfig config{};
-        config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
-        config.m_PerfOnly    = true;
-        config.m_PerfOutDir  = tmpDir.Str();
-        config.m_PerfCurrent = true;
-
-        std::stringstream os;
-        os << "pattern:\n";
-        os << "input firstInput, 1x_x_x_\n";
-        os << "output firstOutput, 1x_x_x_\n";
-        os << "StandIn, (firstInput), (firstOutput), ((name=StandInTest))\n";
-        os << "graph-replacement:\n";
-        os << "Activation, (firstInput), (firstOutput), ((function=Sigmoid), (name=SigmoidFunc))";
-        os.seekg(0);
-        EthosNMappings mappings = ParseMappings(os);
-
-        BackendGlobalConfigSetter configSetter(config, mappings, config.QueryCapabilities());
-
-        armnn::EthosNWorkloadFactory factory(config);
-        // To create a PreCompiled layer, create a network and Optimize it.
-        armnn::INetworkPtr net = armnn::INetwork::Create();
-
-        armnn::IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input layer");
-        CHECK(inputLayer);
-
-        StandInDescriptor standInDesc;
-        standInDesc.m_NumInputs                      = 1;
-        standInDesc.m_NumOutputs                     = 1;
-        armnn::IConnectableLayer* const standInLayer = net->AddStandInLayer(standInDesc, "StandInTest");
-        CHECK(standInLayer);
-
-        armnn::IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output layer");
-        CHECK(standInLayer);
-
-        TensorInfo inputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
-        inputTensorInfo.SetQuantizationOffset(0);
-        inputTensorInfo.SetQuantizationScale(0.9f);
-
-        TensorInfo outputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
-        outputTensorInfo.SetQuantizationOffset(0);
-        outputTensorInfo.SetQuantizationScale(0.9f);
-
-        inputLayer->GetOutputSlot(0).Connect(standInLayer->GetInputSlot(0));
-        inputLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
-
-        standInLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
-        standInLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
-
-        std::vector<armnn::BackendId> backends = { factory.GetBackendId() };
-        armnn::IRuntime::CreationOptions options;
-        armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
-        armnn::OptimizerOptions optimizerOptions;
-        armnn::IOptimizedNetworkPtr optimizedNet =
-            armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
-        CHECK(optimizedNet != nullptr);
-
-        armnn::Graph& optimisedGraph = GetGraphForTesting(optimizedNet.get());
-        Layer* preCompiledLayer      = nullptr;
-        for (auto& layer : optimisedGraph)
-        {
-            if (layer->GetType() == LayerType::PreCompiled)
-            {
-                preCompiledLayer = layer;
-            }
-        }
-        CHECK(preCompiledLayer != nullptr);
-
-        CreateTensorHandles(optimisedGraph, factory);
-
-        auto workload = MakeAndCheckWorkload<armnn::EthosNPreCompiledWorkload>(*preCompiledLayer, factory);
-
-        PreCompiledQueueDescriptor queueDescriptor = workload->GetData();
-        CHECK(queueDescriptor.m_Inputs.size() == 1);
-        CHECK(queueDescriptor.m_Outputs.size() == 1);
-
-        // Execute outputs the performance estimation to a file.
-        // read it back so it can be compared.
-        workload->Execute();
-
-        const std::string reportFile = config.m_PerfOutDir + "/subgraph_0/report.json";
-        const std::string result     = ReadFile(reportFile);
-
-        const std::string golden = R"({
-	"Config":
-	{
-		"Variant": "Ethos-N78_4TOPS_4PLE_RATIO",
-		"SramSizeBytesOverride": 0,
-		"ActivationCompressionSavings": 0,
-		"WeightCompressionSavings": "Not Specified",
-		"Current": 1
-	},
-	"OperationNames":
-	{
-		"0": "Input from input layer",
-		"1": "SigmoidFunc",
-		"2": "Output from SigmoidFunc"
-	},
-	"Results":
-	{
-		"Stream":
-		[
-			{
-				"OperationIds": [ 0, 1 ],
-				"ParentIds": [ [] ],
-				"Input":
-				{
-					"DramParallelBytes": 0,
-					"DramNonParallelBytes": 4096,
-					"SramBytes": 0,
-					"NumCentralStripes": 1,
-					"NumBoundaryStripes": 0,
-					"NumReloads": 0
-				},
-				"Output":
-				{
-					"DramParallelBytes": 0,
-					"DramNonParallelBytes": 4096,
-					"SramBytes": 0,
-					"NumCentralStripes": 1,
-					"NumBoundaryStripes": 0,
-					"NumReloads": 0
-				},
-				"Weights":
-				{
-					"DramParallelBytes": 0,
-					"DramNonParallelBytes": 256,
-					"SramBytes": 0,
-					"NumCentralStripes": 1,
-					"NumBoundaryStripes": 0,
-					"NumReloads": 0,
-					"CompressionSavings": 0
-				},
-				"Mce":
-				{
-					"Operations": 8192,
-					"CycleCount": 32
-				},
-				"Ple":
-				{
-					"NumOfPatches": 16,
-					"Operation": 11
-				}
-			}
-		],
-		"Issues":
-		{
-		}
-	}
-}
-)";
-
-        CHECK(result == golden);
-    }
-
     TEST_CASE("CreateEstimationWorkload")
     {
         // Reset backend-internal subgraph converter instance id
@@ -775,7 +444,7 @@ TEST_SUITE("CreateEstimationWorkloadEthosN")
         config.m_PerfOutDir  = tmpDir.Str();
         config.m_PerfCurrent = true;
 
-        BackendGlobalConfigSetter configSetter(config, EthosNMappings(), config.QueryCapabilities());
+        BackendGlobalConfigSetter configSetter(config, config.QueryCapabilities());
 
         armnn::Graph graph;
         armnn::EthosNWorkloadFactory factory(config);
@@ -877,7 +546,7 @@ TEST_SUITE("CreateEstimationWorkloadEthosN")
         config.m_PerfWeightCompressionSaving      = 0.8f;
         config.m_PerfCurrent                      = false;
 
-        BackendGlobalConfigSetter configSetter(config, EthosNMappings(), config.QueryCapabilities());
+        BackendGlobalConfigSetter configSetter(config, config.QueryCapabilities());
 
         armnn::Graph graph;
         armnn::EthosNWorkloadFactory factory(config);
@@ -996,7 +665,7 @@ TEST_SUITE("CreateEstimationWorkloadEthosN")
         config.m_PerfOutDir  = tmpDir.Str();
         config.m_PerfCurrent = true;
 
-        BackendGlobalConfigSetter configSetter(config, EthosNMappings(), config.QueryCapabilities());
+        BackendGlobalConfigSetter configSetter(config, config.QueryCapabilities());
 
         ExecuteEstimationNetworkSplit();
 

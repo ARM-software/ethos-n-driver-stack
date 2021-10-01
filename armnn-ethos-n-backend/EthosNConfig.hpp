@@ -25,7 +25,6 @@ struct EthosNConfig
     static constexpr char PERF_VARIANT_VAR[]                    = "PERFORMANCE_VARIANT";                          // enum
     static constexpr char PERF_SRAM_SIZE_BYTES_OVERRIDE_VAR[]   = "PERFORMANCE_SRAM_SIZE_BYTES_OVERRIDE";         // string
     static constexpr char PERF_OUT_DIR_VAR[]                    = "PERFORMANCE_OUTPUT_DIR";                       // string
-    static constexpr char PERF_MAPPING_FILE_VAR[]               = "PERFORMANCE_MAPPING_FILE";                     // string
     static constexpr char DUMP_DEBUG_FILES_VAR[]                = "DUMP_DEBUG_FILES";                             // boolean
     static constexpr char DUMP_RAM_VAR[]                        = "DUMP_RAM";                                     // boolean
     static constexpr char PERF_WEIGHT_COMPRESSION_SAVING[]      = "PERFORMANCE_WEIGHT_COMPRESSION_SAVING";        // float
@@ -40,7 +39,6 @@ struct EthosNConfig
         ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
     uint32_t m_PerfSramSizeBytesOverride = 0;
     std::string m_PerfOutDir             = "ethosn_perf";
-    std::string m_PerfMappingFile        = "";
     ethosn::support_library::CompilationOptions::DebugLevel m_DumpDebugFiles =
         ethosn::support_library::CompilationOptions::DebugLevel::None;
     bool m_DumpRam                          = false;

@@ -62,8 +62,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
         // Substitute the subgraph and check for expected pattern and connections
         Graph pattern = net->GetGraph();
-        ethosnbackend::ReplaceUnsupportedLayers(pattern, EthosNConfig(), EthosNMappings(),
-                                                EthosNConfig().QueryCapabilities());
+        ethosnbackend::ReplaceUnsupportedLayers(pattern, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
         CHECK(pattern.GetNumLayers() == 3);
 
@@ -137,8 +136,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
         // Substitute the subgraph and check for expected pattern and connections
         Graph pattern = net->GetGraph();
-        ethosnbackend::ReplaceUnsupportedLayers(pattern, EthosNConfig(), EthosNMappings(),
-                                                EthosNConfig().QueryCapabilities());
+        ethosnbackend::ReplaceUnsupportedLayers(pattern, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
         CHECK(pattern.GetNumLayers() == 3);
 
@@ -485,8 +483,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
                                                 TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0), true,
                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
             CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(
-                      g, *g.begin(), EthosNConfig(), EthosNMappings(), EthosNConfig().QueryCapabilities(),
-                      failureReason) == false);
+                      g, *g.begin(), EthosNConfig(), EthosNConfig().QueryCapabilities(), failureReason) == false);
         }
 
         // Failure case - multiplication that doesn't need replacing with ReinterpretQuantization as it needs
@@ -497,9 +494,8 @@ TEST_SUITE("EthosNReplaceUnsupported")
                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
             MultiplicationLayer* mulLayer =
                 PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
-            CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(g, mulLayer, EthosNConfig(), EthosNMappings(),
-                                                                         EthosNConfig().QueryCapabilities(),
-                                                                         failureReason) == false);
+            CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(
+                      g, mulLayer, EthosNConfig(), EthosNConfig().QueryCapabilities(), failureReason) == false);
         }
 
         // Error case - neither input is a constant
@@ -509,9 +505,8 @@ TEST_SUITE("EthosNReplaceUnsupported")
                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
             MultiplicationLayer* mulLayer =
                 PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
-            CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(g, mulLayer, EthosNConfig(), EthosNMappings(),
-                                                                         EthosNConfig().QueryCapabilities(),
-                                                                         failureReason) == false);
+            CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(
+                      g, mulLayer, EthosNConfig(), EthosNConfig().QueryCapabilities(), failureReason) == false);
         }
 
         // Error case - Incorrect data-type for constant
@@ -521,9 +516,8 @@ TEST_SUITE("EthosNReplaceUnsupported")
                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), 0);
             MultiplicationLayer* mulLayer =
                 PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
-            CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(g, mulLayer, EthosNConfig(), EthosNMappings(),
-                                                                         EthosNConfig().QueryCapabilities(),
-                                                                         failureReason) == false);
+            CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(
+                      g, mulLayer, EthosNConfig(), EthosNConfig().QueryCapabilities(), failureReason) == false);
             CHECK(failureReason == "Data type is not supported");
         }
 
@@ -534,9 +528,8 @@ TEST_SUITE("EthosNReplaceUnsupported")
                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
             MultiplicationLayer* mulLayer =
                 PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
-            CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(g, mulLayer, EthosNConfig(), EthosNMappings(),
-                                                                         EthosNConfig().QueryCapabilities(),
-                                                                         failureReason) == false);
+            CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(
+                      g, mulLayer, EthosNConfig(), EthosNConfig().QueryCapabilities(), failureReason) == false);
             CHECK(failureReason == "Quantization info for input, scalar and output are not coherent");
         }
 
@@ -547,9 +540,8 @@ TEST_SUITE("EthosNReplaceUnsupported")
                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), 127);
             MultiplicationLayer* mulLayer =
                 PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
-            CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(g, mulLayer, EthosNConfig(), EthosNMappings(),
-                                                                         EthosNConfig().QueryCapabilities(),
-                                                                         failureReason) == false);
+            CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(
+                      g, mulLayer, EthosNConfig(), EthosNConfig().QueryCapabilities(), failureReason) == false);
             CHECK(failureReason == "Quantization info for input, scalar and output are not coherent");
         }
 
@@ -564,9 +556,8 @@ TEST_SUITE("EthosNReplaceUnsupported")
                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), providedConstantValue);
             MultiplicationLayer* mulLayer =
                 PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
-            CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(g, mulLayer, EthosNConfig(), EthosNMappings(),
-                                                                         EthosNConfig().QueryCapabilities(),
-                                                                         failureReason) == false);
+            CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(
+                      g, mulLayer, EthosNConfig(), EthosNConfig().QueryCapabilities(), failureReason) == false);
             CHECK(failureReason == "Quantization info for input, scalar and output are not coherent");
         }
 
@@ -575,7 +566,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
             // Floating point range of the constant is [0,2.0]
             float providedConstantQuantisation = (static_cast<float>(2)) / (static_cast<float>(255));
 
-            EthosNLayerSupport layerSupport(EthosNConfig(), EthosNMappings(), EthosNConfig().QueryCapabilities());
+            EthosNLayerSupport layerSupport(EthosNConfig(), EthosNConfig().QueryCapabilities());
 
             const TensorInfo input0 = TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmS8, 0.5f, 0);
             const TensorInfo input1 = TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, providedConstantQuantisation, 0);
@@ -587,8 +578,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
             CHECK(layerSupport.GetMultiplicationSupportedMode(input0, input1, output) ==
                   EthosNLayerSupport::MultiplicationSupportedMode::None);
-            CHECK(ReplaceMultiplication(g, mulLayer, EthosNConfig(), EthosNMappings(),
-                                        EthosNConfig().QueryCapabilities()) == false);
+            CHECK(ReplaceMultiplication(g, mulLayer, EthosNConfig(), EthosNConfig().QueryCapabilities()) == false);
         }
 
         // Error case - Constant shape is supported as an EstimateOnly operation in PerfOnly mode
@@ -599,7 +589,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
             EthosNConfig config;
             config.m_PerfOnly = true;
 
-            EthosNLayerSupport layerSupport(config, EthosNMappings(), config.QueryCapabilities());
+            EthosNLayerSupport layerSupport(config, config.QueryCapabilities());
 
             const TensorInfo input0 = TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmS8, 0.5f, 0);
             const TensorInfo input1 = TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, providedConstantQuantisation, 0);
@@ -611,7 +601,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
             CHECK(layerSupport.GetMultiplicationSupportedMode(input0, input1, output) ==
                   EthosNLayerSupport::MultiplicationSupportedMode::EstimateOnly);
-            CHECK(ReplaceMultiplication(g, mulLayer, config, EthosNMappings(), config.QueryCapabilities()) == false);
+            CHECK(ReplaceMultiplication(g, mulLayer, config, config.QueryCapabilities()) == false);
         }
     }
 

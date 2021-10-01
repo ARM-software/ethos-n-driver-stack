@@ -6,7 +6,6 @@
 
 #include "EthosNBackendProfilingContext.hpp"
 #include "EthosNConfig.hpp"
-#include "EthosNMapping.hpp"
 
 #include <armnn/backends/IBackendInternal.hpp>
 #include <armnn/backends/OptimizationViews.hpp>
@@ -17,7 +16,6 @@ namespace armnn
 void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
                                    const SubgraphView& subgraph,
                                    const EthosNConfig& config,
-                                   const EthosNMappings& mappings,
                                    const std::vector<char>& capabilities,
                                    const ModelOptions& modelOptions);
 
@@ -62,7 +60,6 @@ private:
     /// 'Global' settings for this backend, loaded from config file or queried from the HW.
     /// @{
     EthosNConfig m_Config;
-    EthosNMappings m_Mappings;
     std::vector<char> m_Capabilities;
     /// @}
 
@@ -71,7 +68,6 @@ protected:
     /// Protected visibility for use in tests (see SetBackendGlobalConfig)
     /// @{
     ARMNN_DLLEXPORT static EthosNConfig ms_Config;
-    ARMNN_DLLEXPORT static EthosNMappings ms_Mappings;
     ARMNN_DLLEXPORT static std::vector<char> ms_Capabilities;
     /// @}
 };
@@ -127,34 +123,6 @@ constexpr unsigned int DILATION_X    = 0;
 constexpr unsigned int DILATION_Y    = 1;
 constexpr unsigned int KERNEL_HEIGHT = 0;
 constexpr unsigned int KERNEL_WIDTH  = 1;
-
-std::map<std::string, LayerType> GetMapStringToLayerType();
-
-std::map<std::string, ActivationFunction> GetMapStringToActivationFunction();
-
-std::map<std::string, PoolingAlgorithm> GetMapStringToPoolingAlgorithm();
-
-char const* GetLayerTypeAsCStringWrapper(LayerType type);
-
-Layer* CreateConvolutionLayer(LayerType type,
-                              Graph& graph,
-                              unsigned int inputChannels,
-                              AdditionalLayerParams additionalLayerParams,
-                              DataType weightDataType,
-                              DataType biasDataType);
-
-LayerType GetLayerType(std::string layerTypeName);
-
-Layer* CreateActivationLayer(Graph& graph, std::string activationFunction, std::string layerName);
-
-SubgraphView CreateFullyConnectedLayer(Graph& graph,
-                                       const TensorInfo& inputTensor,
-                                       const TensorInfo& outputTensor,
-                                       AdditionalLayerParams& params);
-
-Layer* CreatePooling2dLayer(Graph& graph, AdditionalLayerParams& params);
-
-void ApplyMappings(std::vector<Mapping> mappings, Graph& newGraph);
 
 }    // namespace ethosnbackend
 

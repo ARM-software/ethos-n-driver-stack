@@ -1,7 +1,0 @@
-//This is test data and might not reflect a realistic use case
-pattern:
-input firstInput, 1x16
-output firstOutput, 1x1
-LogSoftmax, (firstInput), (firstOutput)
-graph-replacement:
-FullyConnected, (firstInput), (firstOutput)

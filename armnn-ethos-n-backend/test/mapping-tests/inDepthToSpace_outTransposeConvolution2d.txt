@@ -1,7 +1,0 @@
-//This is test data and might not reflect a realistic use case
-pattern:
-input firstInput, 1x16x16x16
-output firstOutput, 1x16x16x16
-DepthToSpace, (firstInput), (firstOutput)
-graph-replacement:
-TransposeConvolution2d, (firstInput), (firstOutput), ((kernel=1x1),(padding=0x0x0x0),(stride=2x2))

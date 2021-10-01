@@ -8,7 +8,6 @@ list(APPEND armnnEthosNBackendUnitTests_sources
      EthosNCreateEstimationWorkloadTests.cpp
      EthosNCreateWorkloadTests.cpp
      EthosNLayerTests.cpp
-     EthosNMappingTests.cpp
      EthosNMemCopyTests.cpp
      EthosNOptimizeSubgraphViewTests.cpp
      EthosNProfilingTests.cpp
@@ -18,7 +17,6 @@ list(APPEND armnnEthosNBackendUnitTests_sources
      EthosNWorkloadFactoryHelper.hpp
      EthosNReplaceUnsupportedTests.cpp
      EthosNBackendTests.cpp
-     replacement-tests/SISOCatOneGraphFactory.cpp
 )
 
 add_library(armnnEthosNBackendUnitTests OBJECT ${armnnEthosNBackendUnitTests_sources})

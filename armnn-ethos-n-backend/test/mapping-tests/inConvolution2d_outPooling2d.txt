@@ -1,7 +1,0 @@
-//This is test data and might not reflect a realistic use case
-pattern:
-input firstInput, 1x16x16x16
-output firstOutput, 1x16x16x16
-Convolution2d, (firstInput), (firstOutput)
-graph-replacement:
-Pooling2d, (firstInput), (firstOutput), ((padding=1x1x1x1),(kernel=3x3),(stride=1x1),(function=Average))

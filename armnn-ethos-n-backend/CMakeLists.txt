@@ -13,8 +13,6 @@ list(APPEND armnnEthosNBackend_sources
     EthosNLayerSupport.hpp
     EthosNBackendProfilingContext.cpp
     EthosNBackendProfilingContext.hpp
-    EthosNMapping.hpp
-    EthosNMapping.cpp
     EthosNSubgraphViewConverter.cpp
     EthosNSubgraphViewConverter.hpp
     EthosNTensorHandle.hpp

@@ -5,7 +5,6 @@
 #pragma once
 
 #include "EthosNConfig.hpp"
-#include "EthosNMapping.hpp"
 
 #include <armnn/backends/ILayerSupport.hpp>
 #include <ethosn_support_library/SupportQueries.hpp>
@@ -36,9 +35,7 @@ public:
         EstimateOnly,                      //<Estimate only support
     };
 
-    EthosNLayerSupport(const EthosNConfig& config,
-                       const EthosNMappings& mappings,
-                       const std::vector<char>& capabilities);
+    EthosNLayerSupport(const EthosNConfig& config, const std::vector<char>& capabilities);
 
     bool IsActivationSupported(const TensorInfo& input,
                                const TensorInfo& output,
@@ -493,7 +490,6 @@ private:
                                                                       Optional<std::string&> reasonIfUnsupported) const;
 
     EthosNConfig m_Config;
-    EthosNMappings m_Mappings;
     ethosn::support_library::SupportQueries m_Queries;
 };
 

@@ -1,8 +1,0 @@
-//This file details the mapping between unsupported patterns and their replacements
-
-pattern:
-input, firstInput, 1x_x_x_
-output, firstOutput, 1x_x_x_
-Activation, (firstInput), (firstOutput), ((function=TanH))
-graph-replacement:
-Activation (firstInput), (firstOutput), ((function=Sigmoid))

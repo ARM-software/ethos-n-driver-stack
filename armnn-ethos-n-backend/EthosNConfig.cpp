@@ -68,7 +68,6 @@ constexpr char EthosNConfig::CONFIG_FILE_ENV[];
 constexpr char EthosNConfig::PERF_ONLY_VAR[];
 constexpr char EthosNConfig::PERF_VARIANT_VAR[];
 constexpr char EthosNConfig::PERF_SRAM_SIZE_BYTES_OVERRIDE_VAR[];
-constexpr char EthosNConfig::PERF_MAPPING_FILE_VAR[];
 constexpr char EthosNConfig::PERF_OUT_DIR_VAR[];
 constexpr char EthosNConfig::DUMP_DEBUG_FILES_VAR[];
 constexpr char EthosNConfig::DUMP_RAM_VAR[];
@@ -145,10 +144,6 @@ std::istream& operator>>(std::istream& configFile, armnn::EthosNConfig& config)
                 else if (m[1] == armnn::EthosNConfig::PERF_OUT_DIR_VAR)
                 {
                     config.m_PerfOutDir = m[2];
-                }
-                else if (m[1] == armnn::EthosNConfig::PERF_MAPPING_FILE_VAR)
-                {
-                    config.m_PerfMappingFile = m[2];
                 }
                 else if (m[1] == armnn::EthosNConfig::DUMP_DEBUG_FILES_VAR)
                 {

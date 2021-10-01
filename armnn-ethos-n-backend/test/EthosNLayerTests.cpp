@@ -1720,19 +1720,4 @@ TEST_SUITE("Compute_EthosN")
     ARMNN_AUTO_TEST_CASE(PreCompiledScalarAddToReinterpret, PreCompiledScalarAddToReinterpretTest)
 
     ARMNN_AUTO_TEST_CASE(PreCompiledConstMulToReinterpretQuantize, PreCompiledConstMulToReinterpretQuantizeTest)
-
-    TEST_CASE("TestInvalidLayerName")
-    {
-        CHECK_THROWS_AS(armnn::ethosnbackend::GetLayerType("Excluded"), armnn::InvalidArgumentException);
-
-        try
-        {
-            armnn::ethosnbackend::GetLayerType("Excluded");
-        }
-        catch (const armnn::InvalidArgumentException& e)
-        {
-            std::string err = "layername \"Excluded\" is not valid";
-            CHECK_EQ(err, e.what());
-        }
-    }
 }

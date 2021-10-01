@@ -4,7 +4,6 @@
 //
 #pragma once
 
-#include "EthosNMapping.hpp"
 #include <Graph.hpp>
 
 namespace armnn
@@ -18,7 +17,6 @@ namespace ethosnbackend
 bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph,
                                                 Layer* layer,
                                                 const EthosNConfig& config,
-                                                const EthosNMappings& mappings,
                                                 const std::vector<char>& capabilities);
 
 bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer);
@@ -26,27 +24,18 @@ bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer);
 bool ReplaceScalarMultiplicationWithReinterpretQuantization(Graph& graph,
                                                             Layer* layer,
                                                             const EthosNConfig& config,
-                                                            const EthosNMappings& mappings,
                                                             const std::vector<char>& capabilities,
                                                             std::string& outFailureReason);
 
 bool ReplaceMultiplication(Graph& graph,
                            Layer* layer,
                            const EthosNConfig& config,
-                           const EthosNMappings& mappings,
                            const std::vector<char>& capabilities);
 bool ReplaceConstantAdditionWithReinterpretQuantization(Graph& graph, Layer* layer, std::string& outFailureReason);
 
-bool ReplaceAddition(Graph& graph,
-                     Layer* layer,
-                     const EthosNConfig& config,
-                     const EthosNMappings& mappings,
-                     const std::vector<char>& capabilities);
+bool ReplaceAddition(Graph& graph, Layer* layer, const EthosNConfig& config, const std::vector<char>& capabilities);
 
-void ReplaceUnsupportedLayers(Graph& graph,
-                              const EthosNConfig& config,
-                              const EthosNMappings& mappings,
-                              const std::vector<char>& capabilities);
+void ReplaceUnsupportedLayers(Graph& graph, const EthosNConfig& config, const std::vector<char>& capabilities);
 
 /// When replacing an addition-with-broadcasted-constant with a depthwise layer, there are various properties
 /// of the depthwise layer that need to be set correctly for the replacement to be valid.

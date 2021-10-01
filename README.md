@@ -288,12 +288,6 @@ There are multiple ways to exercise the Ethos-N NPU driver.
 
     *Note:* You may need to copy additional .so files depending on your toolchain and its runtime dependencies.
 
-    Some tests require data files as input. These can be found in the folders `<path_to>/driver_stack/ethos-n-driver-stack/armnn-ethos-n-backend/test/replacement-tests`
-    and `<path_to>/driver_stack/ethos-n-driver-stack/armnn-ethos-n-backend/test/mapping-tests`. These two folders (and their contents) must be available to the `UnitTests`
-    executable, under the paths `armnn-ethos-n-backend/test/replacement-tests` and `armnn-ethos-n-backend/test/mapping-tests`, respectively,
-    relative to the current directory that you run `UnitTests` from.
-    If you have cross compiled you will therefore need to copy these folders onto the target platform.
-
     Set `LD_LIBRARY_PATH` so the supplied libraries can be found and run the **UnitTests for the Ethos-N NPU**.
 
     ```sh

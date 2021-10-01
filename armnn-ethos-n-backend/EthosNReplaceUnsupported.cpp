@@ -25,8 +25,10 @@ namespace ethosnbackend
 // Expected modified pattern:
 // Input -> DepthwiseConvolution2d -> Output
 //
-bool ReplaceConstantMultiplicationWithDepthwise(
-    Graph& graph, Layer* layer, const EthosNConfig&, const EthosNMappings&, const std::vector<char>&)
+bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph,
+                                                Layer* layer,
+                                                const EthosNConfig&,
+                                                const std::vector<char>&)
 {
     if (layer->GetType() == LayerType::Multiplication)
     {
@@ -92,12 +94,8 @@ bool ReplaceConstantMultiplicationWithDepthwise(
 // Expected modified pattern:
 // Input -> ReinterpretQuantize -> Output
 //
-bool ReplaceScalarMultiplicationWithReinterpretQuantization(Graph& graph,
-                                                            Layer* layer,
-                                                            const EthosNConfig&,
-                                                            const EthosNMappings&,
-                                                            const std::vector<char>&,
-                                                            std::string& outFailureReason)
+bool ReplaceScalarMultiplicationWithReinterpretQuantization(
+    Graph& graph, Layer* layer, const EthosNConfig&, const std::vector<char>&, std::string& outFailureReason)
 {
     if (layer->GetType() == LayerType::Multiplication)
     {
@@ -203,12 +201,11 @@ bool ReplaceScalarMultiplicationWithReinterpretQuantization(Graph& graph,
 bool ReplaceMultiplication(Graph& graph,
                            Layer* layer,
                            const EthosNConfig& config,
-                           const EthosNMappings& mappings,
                            const std::vector<char>& capabilities)
 {
     if (layer->GetType() == LayerType::Multiplication)
     {
-        EthosNLayerSupport supportChecks(config, mappings, capabilities);
+        EthosNLayerSupport supportChecks(config, capabilities);
 
         EthosNLayerSupport::MultiplicationSupportedMode supportedMode = supportChecks.GetMultiplicationSupportedMode(
             layer->GetInputSlot(0).GetConnectedOutputSlot()->GetTensorInfo(),
@@ -225,11 +222,11 @@ bool ReplaceMultiplication(Graph& graph,
                 return false;
                 break;
             case EthosNLayerSupport::MultiplicationSupportedMode::ReplaceWithDepthwise:
-                return ReplaceConstantMultiplicationWithDepthwise(graph, layer, config, mappings, capabilities);
+                return ReplaceConstantMultiplicationWithDepthwise(graph, layer, config, capabilities);
                 break;
             case EthosNLayerSupport::MultiplicationSupportedMode::ReplaceWithReinterpretQuantize:
-                return ReplaceScalarMultiplicationWithReinterpretQuantization(graph, layer, config, mappings,
-                                                                              capabilities, failureReason);
+                return ReplaceScalarMultiplicationWithReinterpretQuantization(graph, layer, config, capabilities,
+                                                                              failureReason);
                 break;
             default:
                 throw Exception("Found unknown MultiplicationSupportedMode value");
@@ -427,15 +424,11 @@ bool ReplaceConstantAdditionWithReinterpretQuantization(Graph& graph, Layer* lay
     return false;
 }
 
-bool ReplaceAddition(Graph& graph,
-                     Layer* layer,
-                     const EthosNConfig& config,
-                     const EthosNMappings& mappings,
-                     const std::vector<char>& capabilities)
+bool ReplaceAddition(Graph& graph, Layer* layer, const EthosNConfig& config, const std::vector<char>& capabilities)
 {
     if (layer->GetType() == LayerType::Addition)
     {
-        EthosNLayerSupport supportChecks(config, mappings, capabilities);
+        EthosNLayerSupport supportChecks(config, capabilities);
         auto supportedMode = supportChecks.GetAdditionSupportedMode(
             layer->GetInputSlot(0).GetConnectedOutputSlot()->GetTensorInfo(),
             layer->GetInputSlot(1).GetConnectedOutputSlot()->GetTensorInfo(), layer->GetOutputSlot(0).GetTensorInfo());
@@ -464,13 +457,9 @@ bool ReplaceAddition(Graph& graph,
     return false;
 }
 
-void ReplaceUnsupportedLayers(Graph& graph,
-                              const EthosNConfig& config,
-                              const EthosNMappings& mappings,
-                              const std::vector<char>& capabilities)
+void ReplaceUnsupportedLayers(Graph& graph, const EthosNConfig& config, const std::vector<char>& capabilities)
 {
-    using ReplacementFunc =
-        bool (*)(Graph&, Layer*, const EthosNConfig&, const EthosNMappings&, const std::vector<char>&);
+    using ReplacementFunc                    = bool (*)(Graph&, Layer*, const EthosNConfig&, const std::vector<char>&);
     const ReplacementFunc replacementFuncs[] = {
         &ReplaceMultiplication,
         &ReplaceAddition,
@@ -484,7 +473,7 @@ void ReplaceUnsupportedLayers(Graph& graph,
         {
             for (const ReplacementFunc f : replacementFuncs)
             {
-                madeChange = f(graph, layer, config, mappings, capabilities);
+                madeChange = f(graph, layer, config, capabilities);
                 if (madeChange)
                 {
                     goto nextIteration;

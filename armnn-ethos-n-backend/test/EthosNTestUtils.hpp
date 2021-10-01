@@ -7,7 +7,6 @@
 
 #include "EthosNBackend.hpp"
 #include "EthosNConfig.hpp"
-#include "EthosNMapping.hpp"
 
 #include <SubgraphView.hpp>
 #include <armnnUtils/Filesystem.hpp>
@@ -91,24 +90,19 @@ inline bool operator==(const armnn::SubgraphView& lhs, const armnn::SubgraphView
 /// Without this, the first test which instantiates an EthosNBackend object would load and set the config for all future
 /// tests using EthosNBackend and there would be no way to change this. Tests can use this function to override
 /// the cached values.
-inline void SetBackendGlobalConfig(const armnn::EthosNConfig& config,
-                                   const armnn::EthosNMappings& mappings,
-                                   const std::vector<char>& capabilities)
+inline void SetBackendGlobalConfig(const armnn::EthosNConfig& config, const std::vector<char>& capabilities)
 {
     class EthosNBackendEx : public armnn::EthosNBackend
     {
     public:
-        void SetBackendGlobalConfigForTesting(const armnn::EthosNConfig& config,
-                                              const armnn::EthosNMappings& mappings,
-                                              const std::vector<char>& capabilities)
+        void SetBackendGlobalConfigForTesting(const armnn::EthosNConfig& config, const std::vector<char>& capabilities)
         {
             ms_Config       = config;
-            ms_Mappings     = mappings;
             ms_Capabilities = capabilities;
         }
     };
 
-    EthosNBackendEx().SetBackendGlobalConfigForTesting(config, mappings, capabilities);
+    EthosNBackendEx().SetBackendGlobalConfigForTesting(config, capabilities);
 }
 
 /// Scope-controlled version of SetBackendGlobalConfig, which automatically restores
@@ -117,16 +111,14 @@ inline void SetBackendGlobalConfig(const armnn::EthosNConfig& config,
 class BackendGlobalConfigSetter
 {
 public:
-    BackendGlobalConfigSetter(const armnn::EthosNConfig& config,
-                              const armnn::EthosNMappings& mappings,
-                              const std::vector<char>& capabilities)
+    BackendGlobalConfigSetter(const armnn::EthosNConfig& config, const std::vector<char>& capabilities)
     {
-        SetBackendGlobalConfig(config, mappings, capabilities);
+        SetBackendGlobalConfig(config, capabilities);
     }
     ~BackendGlobalConfigSetter()
     {
         // Setting an empty capabilities vector will trigger a reload on next EthosNBackend instantiation
-        SetBackendGlobalConfig(armnn::EthosNConfig(), armnn::EthosNMappings(), {});
+        SetBackendGlobalConfig(armnn::EthosNConfig(), {});
     }
 };
 
