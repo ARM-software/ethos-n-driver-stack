@@ -861,10 +861,15 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     Elem elemF  = { planF, {} };
     Elem elemG  = { planG, {} };
     comb.m_Elems.insert(std::make_pair(0, elemA));
+    comb.m_PartIdsInOrder.push_back(0);
     comb.m_Elems.insert(std::make_pair(1, elemBC));
+    comb.m_PartIdsInOrder.push_back(1);
     comb.m_Elems.insert(std::make_pair(2, elemDE));
+    comb.m_PartIdsInOrder.push_back(2);
     comb.m_Elems.insert(std::make_pair(3, elemF));
+    comb.m_PartIdsInOrder.push_back(3);
     comb.m_Elems.insert(std::make_pair(4, elemG));
+    comb.m_PartIdsInOrder.push_back(4);
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = false;

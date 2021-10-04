@@ -96,12 +96,14 @@ public:
     /// @{
     const OpList& GetOps() const;
     const BufferList& GetBuffers() const;
+    Op* GetOp(uint32_t index) const;
 
     bool Contains(Op* op) const;
     bool Contains(Buffer* buffer) const;
 
     Op* GetProducer(Buffer* buffer) const;
     ConsumersList GetConsumers(Buffer* buffer) const;
+    std::pair<Op*, uint32_t> GetConsumer(Buffer* buffer, uint32_t index) const;
     BufferList GetInputs(Op* op) const;
     Buffer* GetOutput(Op* op) const;
     /// @}

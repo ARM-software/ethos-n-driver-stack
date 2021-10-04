@@ -594,6 +594,20 @@ const Part& GraphOfParts::GetPart(const PartId id) const
     return *m_Parts.at(id).get();
 }
 
+const Part* GraphOfParts::GetNextPart(const PartId id) const
+{
+    PartId nextPartId = id + 1;
+
+    if (nextPartId < m_Parts.size())
+    {
+        return m_Parts.at(nextPartId).get();
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+
 const Parts& GraphOfParts::GetParts() const
 {
     return m_Parts;

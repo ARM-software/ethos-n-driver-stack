@@ -31,6 +31,8 @@ struct Glue
     /// The Op of m_Graph that needs to connected to the input buffer of 'plan2'.
     /// Unused if no glue is required.
     std::vector<Op*> m_Output;
+
+    uint32_t m_OutDmaOffset = 0;
 };
 
 /// A single element in a combination
@@ -42,29 +44,34 @@ struct Elem
     Glues m_Glues;
 };
 
+constexpr size_t g_InvalidCombRank = std::numeric_limits<size_t>::max();
+
 struct Combination
 {
     Combination()
     {}
 
     // Create a combination with a single element without any edge/glue information
-    Combination(const Part& part, std::shared_ptr<Plan> plan)
-        : Combination(part, plan, nullptr, nullptr)
+    Combination(const Part& part, std::shared_ptr<Plan> plan, const size_t orderRank)
+        : Combination(part, plan, nullptr, nullptr, orderRank)
     {}
 
     // Create a combination with a single element without plan information,
     // this is used when updating edge/glue information for a part with
     // multiple outputs where the plan has been already selected and
     // won't be changed when merging combinations
+    // Note glue should not change the header ID and rank of the
+    // combination
     Combination(const Part& part, const Edge* edge, const Glue* glue)
-        : Combination(part, nullptr, edge, glue)
+        : Combination(part, nullptr, edge, glue, g_InvalidCombRank)
     {}
 
     // Create a combination with a single element with edge/glue information,
     // if no edge/glue information is provided (e.g. nullptr) the combination
     // will consider the case where no glue is required on any output edge of
     // the part
-    Combination(const Part& part, std::shared_ptr<Plan> plan, const Edge* edge, const Glue* glue)
+    Combination(
+        const Part& part, std::shared_ptr<Plan> plan, const Edge* edge, const Glue* glue, const size_t orderRank)
     {
         // Create a new element
         Elem elem = { plan, {} };
@@ -83,11 +90,36 @@ struct Combination
             }
         }
         m_Elems.insert(std::make_pair(part.m_PartId, elem));
+
+        // Update the Header's rank in topological order
+        m_HeadOrderRank = orderRank;
+
+        // The partId is not pushed to the part ID list
+        // if this is a glue.
+        if (orderRank != g_InvalidCombRank)
+        {
+            m_PartIdsInOrder.push_back(part.m_PartId);
+        }
     }
 
     Combination operator+(const Combination& rhs) const
     {
         Combination result = *this;
+
+        // The header order rank decides the order
+        // how part ID vectors are merged.
+        if (result.m_HeadOrderRank > rhs.m_HeadOrderRank)
+        {
+            result.m_HeadOrderRank = rhs.m_HeadOrderRank;
+            result.m_PartIdsInOrder.insert(result.m_PartIdsInOrder.begin(), rhs.m_PartIdsInOrder.begin(),
+                                           rhs.m_PartIdsInOrder.end());
+        }
+        else if (!rhs.m_PartIdsInOrder.empty())
+        {
+            result.m_PartIdsInOrder.insert(result.m_PartIdsInOrder.end(), rhs.m_PartIdsInOrder.begin(),
+                                           rhs.m_PartIdsInOrder.end());
+        }
+
         for (auto& rhsElemIt : rhs.m_Elems)
         {
             auto resultElemIt = result.m_Elems.find(rhsElemIt.first);
@@ -118,7 +150,7 @@ struct Combination
         return result;
     }
 
-    using Elems          = std::map<PartId, Elem>;
+    using Elems          = std::unordered_map<PartId, Elem>;
     Combination& operator=(const Combination& c) = default;
 
     /// Helpers
@@ -130,6 +162,8 @@ struct Combination
     /// @}
 
     Elems m_Elems;
+    size_t m_HeadOrderRank = g_InvalidCombRank;
+    std::vector<PartId> m_PartIdsInOrder;
 };
 
 enum class StatsType
@@ -204,11 +238,26 @@ public:
                                                 const Combination& comb,
                                                 const std::vector<std::pair<const Part*, const Edge*>>& destPartEdge);
 
+    const Part* GetNextPart(const Part* part)
+    {
+        return m_PartOrderTable[part->m_PartId].second;
+    }
+
     void SavePartsPlans(const Part& part, const Plans& plans) const;
 
     void UpdateStats(const StatsType type);
 
     void Run();
+
+    enum class PartState
+    {
+        Visiting,
+        Visited,
+    };
+
+    bool Visit(const Part* current, std::vector<const Part*>& outSorted, std::map<const Part*, PartState>& partStates);
+
+    bool TopologicalSortParts();
 
     template <typename... Args>
     Plans GetPlansCached(const Part& part, Args&&... args)
@@ -236,10 +285,13 @@ private:
     const EstimationOptions& m_EstOpt;
     const DebuggingContext& m_DebuggingContext;
 
+    const Part* m_FirstPartAfterSort = nullptr;
+    std::vector<std::pair<size_t, const Part*>> m_PartOrderTable;
+
     Combination m_BestCombination;
 
     std::vector<std::unique_ptr<Glue>> m_GluesVector;
-    std::map<const Part*, const Combination> m_CombinationPerPartMap;
+    std::unordered_map<const Part*, const Combination> m_CombinationPerPartMap;
     PlanCache m_PlanCache;
 
     std::vector<size_t> m_Stats{ std::vector<size_t>(static_cast<size_t>(StatsType::NumStats), 0) };

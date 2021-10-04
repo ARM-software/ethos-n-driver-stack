@@ -539,11 +539,17 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     Elem elemF  = { planF, {} };
     Elem elemG  = { planG, {} };
     comb.m_Elems.insert(std::make_pair(0, elemA));
+    comb.m_PartIdsInOrder.push_back(0);
     comb.m_Elems.insert(std::make_pair(1, elemB));
+    comb.m_PartIdsInOrder.push_back(1);
     comb.m_Elems.insert(std::make_pair(2, elemC));
+    comb.m_PartIdsInOrder.push_back(2);
     comb.m_Elems.insert(std::make_pair(3, elemDE));
+    comb.m_PartIdsInOrder.push_back(3);
     comb.m_Elems.insert(std::make_pair(4, elemF));
+    comb.m_PartIdsInOrder.push_back(4);
     comb.m_Elems.insert(std::make_pair(5, elemG));
+    comb.m_PartIdsInOrder.push_back(5);
 
     // Call function under test
     OpGraph combOpGraph = GetOpGraphForCombination(comb, gOfParts);
@@ -683,9 +689,9 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
     std::shared_ptr<Plan> planB = std::make_shared<Plan>();
     std::shared_ptr<Plan> planC = std::make_shared<Plan>();
 
-    Combination combA(partA, planA);
-    Combination combB(partB, planB);
-    Combination combC(partC, planC);
+    Combination combA(partA, planA, 0);
+    Combination combB(partB, planB, 1);
+    Combination combC(partC, planC, 2);
 
     REQUIRE(combA.m_Elems.size() == 1);
     REQUIRE(combB.m_Elems.size() == 1);
@@ -955,10 +961,10 @@ TEST_CASE("GluePartToCombination", "[CombinerDFS]")
     const Part& partC = GetPart(gOfParts, 2);
     const Part& partD = GetPart(gOfParts, 3);
 
-    Combination combA(partA, planA);
-    Combination combB(partB, planB);
-    Combination combC(partC, planC);
-    Combination combD(partD, planD);
+    Combination combA(partA, planA, 0);
+    Combination combB(partB, planB, 1);
+    Combination combC(partC, planC, 2);
+    Combination combD(partD, planD, 3);
 
     // Merge the combinations
     Combination comb = combA + combB + combC + combD;
@@ -1001,6 +1007,274 @@ TEST_CASE("GluePartToCombination", "[CombinerDFS]")
     REQUIRE(elemIt->second.m_Glues.begin()->second->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
     REQUIRE(elemIt->second.m_Glues.begin()->second->m_Graph.GetBuffers().at(0)->m_Format ==
             CascadingBufferFormat::FCAF_WIDE);
+}
+
+TEST_CASE("CombinerSortTest1", "[CombinerDFS]")
+{
+    // Create graph:
+    //
+    //
+    //   A- -> B -> C -- > D
+    //     \    \           \         |
+    //      \    \           H---->I
+    //       \    \        / |____ K
+    //        E -> F ---> G
+    //             ^
+    //             |
+    //             J
+    Graph graph;
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeG = graph.CreateAndAddNode<NameOnlyNode>("g");
+    NameOnlyNode* nodeE = graph.CreateAndAddNode<NameOnlyNode>("e");
+    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
+    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
+    NameOnlyNode* nodeF = graph.CreateAndAddNode<NameOnlyNode>("f");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+    NameOnlyNode* nodeH = graph.CreateAndAddNode<NameOnlyNode>("h");
+    NameOnlyNode* nodeI = graph.CreateAndAddNode<NameOnlyNode>("i");
+    NameOnlyNode* nodeJ = graph.CreateAndAddNode<NameOnlyNode>("j");
+    NameOnlyNode* nodeK = graph.CreateAndAddNode<NameOnlyNode>("k");
+
+    graph.Connect(nodeA, nodeB, 0);
+    graph.Connect(nodeB, nodeC, 0);
+    graph.Connect(nodeC, nodeD, 0);
+    graph.Connect(nodeB, nodeF, 0);
+    graph.Connect(nodeA, nodeE, 0);
+    graph.Connect(nodeE, nodeF, 0);
+    graph.Connect(nodeF, nodeG, 0);
+    graph.Connect(nodeJ, nodeF, 0);
+    graph.Connect(nodeD, nodeH, 0);
+    graph.Connect(nodeG, nodeH, 0);
+    graph.Connect(nodeH, nodeI, 0);
+    graph.Connect(nodeH, nodeK, 0);
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    GraphOfParts gOfParts;
+    AddNodesToPart(gOfParts, { nodeH }, estOpt, compOpt, hwCaps);    //0
+    AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);    //1
+    AddNodesToPart(gOfParts, { nodeK }, estOpt, compOpt, hwCaps);    //2
+    AddNodesToPart(gOfParts, { nodeG }, estOpt, compOpt, hwCaps);    //3
+    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);    //4
+    AddNodesToPart(gOfParts, { nodeI }, estOpt, compOpt, hwCaps);    //5
+    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);    //6
+    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);    //7
+    AddNodesToPart(gOfParts, { nodeJ }, estOpt, compOpt, hwCaps);    //8
+    AddNodesToPart(gOfParts, { nodeF }, estOpt, compOpt, hwCaps);    //9
+    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);    //10
+
+    Part& partH = GetPart(gOfParts, 0);
+    Part& partE = GetPart(gOfParts, 1);
+    Part& partK = GetPart(gOfParts, 2);
+    Part& partG = GetPart(gOfParts, 3);
+    Part& partB = GetPart(gOfParts, 4);
+    Part& partI = GetPart(gOfParts, 5);
+    Part& partA = GetPart(gOfParts, 6);
+    Part& partC = GetPart(gOfParts, 7);
+    Part& partJ = GetPart(gOfParts, 8);
+    Part& partF = GetPart(gOfParts, 9);
+    Part& partD = GetPart(gOfParts, 10);
+
+    CheckPartId(gOfParts);
+
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+
+    bool isSorted = combiner.TopologicalSortParts();
+
+    // After sorting , the expected is J, A, E, B, F, G, C, D, H, K, I
+    REQUIRE(isSorted == true);
+    REQUIRE(combiner.GetNextPart(&partJ) == &partA);
+    REQUIRE(combiner.GetNextPart(&partA) == &partE);
+    REQUIRE(combiner.GetNextPart(&partE) == &partB);
+    REQUIRE(combiner.GetNextPart(&partB) == &partF);
+    REQUIRE(combiner.GetNextPart(&partF) == &partG);
+    REQUIRE(combiner.GetNextPart(&partG) == &partC);
+    REQUIRE(combiner.GetNextPart(&partC) == &partD);
+    REQUIRE(combiner.GetNextPart(&partD) == &partH);
+    REQUIRE(combiner.GetNextPart(&partH) == &partK);
+    REQUIRE(combiner.GetNextPart(&partK) == &partI);
+    REQUIRE(combiner.GetNextPart(&partI) == nullptr);
+}
+
+TEST_CASE("CombinerSortTest2", "[CombinerDFS]")
+{
+    // Create graph:
+    //
+    //
+    //   A- -> B - -> C ---
+    //                     |
+    //                     G
+    //                     |
+    //   D- -> E - -> F ---
+    Graph graph;
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+    NameOnlyNode* nodeE = graph.CreateAndAddNode<NameOnlyNode>("e");
+    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
+    NameOnlyNode* nodeF = graph.CreateAndAddNode<NameOnlyNode>("f");
+    NameOnlyNode* nodeG = graph.CreateAndAddNode<NameOnlyNode>("g");
+
+    graph.Connect(nodeA, nodeB, 0);
+    graph.Connect(nodeB, nodeC, 0);
+    graph.Connect(nodeD, nodeE, 0);
+    graph.Connect(nodeE, nodeF, 0);
+    graph.Connect(nodeC, nodeG, 0);
+    graph.Connect(nodeF, nodeG, 0);
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    GraphOfParts gOfParts;
+    AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);    //0
+    AddNodesToPart(gOfParts, { nodeG }, estOpt, compOpt, hwCaps);    //1
+    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);    //2
+    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);    //3
+    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);    //4
+    AddNodesToPart(gOfParts, { nodeF }, estOpt, compOpt, hwCaps);    //5
+    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);    //6
+
+    Part& partE = GetPart(gOfParts, 0);
+    Part& partG = GetPart(gOfParts, 1);
+    Part& partB = GetPart(gOfParts, 2);
+    Part& partA = GetPart(gOfParts, 3);
+    Part& partC = GetPart(gOfParts, 4);
+    Part& partF = GetPart(gOfParts, 5);
+    Part& partD = GetPart(gOfParts, 6);
+
+    CheckPartId(gOfParts);
+
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+
+    bool isSorted = combiner.TopologicalSortParts();
+
+    // After sorting , the expected is D, E, F, A, B, C, G
+    REQUIRE(isSorted == true);
+    REQUIRE(combiner.GetNextPart(&partD) == &partE);
+    REQUIRE(combiner.GetNextPart(&partE) == &partF);
+    REQUIRE(combiner.GetNextPart(&partF) == &partA);
+    REQUIRE(combiner.GetNextPart(&partA) == &partB);
+    REQUIRE(combiner.GetNextPart(&partB) == &partC);
+    REQUIRE(combiner.GetNextPart(&partC) == &partG);
+    REQUIRE(combiner.GetNextPart(&partG) == nullptr);
+}
+
+TEST_CASE("GetCombPartsInOrder", "[CombinerDFS]")
+{
+    Graph graph;
+    // Create graph:
+    //
+    //   A -> B -> C -> D -> E
+    //
+    //
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
+    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
+    NameOnlyNode* nodeE = graph.CreateAndAddNode<NameOnlyNode>("e");
+
+    graph.Connect(nodeA, nodeB, 0);
+    graph.Connect(nodeB, nodeC, 0);
+    graph.Connect(nodeC, nodeD, 0);
+    graph.Connect(nodeD, nodeE, 0);
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    GraphOfParts gOfParts;
+
+    std::shared_ptr<Plan> planA = std::make_shared<Plan>();
+    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], nodeA } };
+
+    std::shared_ptr<Plan> planB = std::make_shared<Plan>();
+    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB->m_InputMappings  = { { planB->m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
+    planB->m_OutputMappings = { { planB->m_OpGraph.GetBuffers()[0], nodeB } };
+
+    std::shared_ptr<Plan> planC = std::make_shared<Plan>();
+    planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC->m_InputMappings  = { { planC->m_OpGraph.GetBuffers()[0], nodeC->GetInput(0) } };
+    planC->m_OutputMappings = { { planC->m_OpGraph.GetBuffers()[0], nodeC } };
+
+    std::shared_ptr<Plan> planD = std::make_shared<Plan>();
+    planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planD->m_InputMappings  = { { planD->m_OpGraph.GetBuffers()[0], nodeD->GetInput(0) } };
+    planD->m_OutputMappings = { { planD->m_OpGraph.GetBuffers()[0], nodeD } };
+
+    std::shared_ptr<Plan> planE = std::make_shared<Plan>();
+    planE->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planE->m_InputMappings = { { planD->m_OpGraph.GetBuffers()[0], nodeE->GetInput(0) } };
+
+    AddNodesToPart(gOfParts, { nodeE }, estOpt, compOpt, hwCaps);    // E: Part ID 0
+    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);    // D: part ID 1
+    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);    // A: part ID 2
+    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);    // C: part ID 3
+    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);    // B: part ID 4
+
+    CheckPartId(gOfParts);
+
+    const Part& partA = GetPart(gOfParts, 2);
+    const Part& partB = GetPart(gOfParts, 4);
+    const Part& partC = GetPart(gOfParts, 3);
+    const Part& partD = GetPart(gOfParts, 1);
+    const Part& partE = GetPart(gOfParts, 0);
+
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+
+    bool isSorted = combiner.TopologicalSortParts();
+    REQUIRE(isSorted == true);
+
+    Combination combA(partA, planA, 0);
+    Combination combB(partB, planB, 1);
+    Combination combC(partC, planC, 2);
+    Combination combD(partD, planD, 3);
+    Combination combE(partE, planE, 4);
+
+    Combination comb = combD + combE;
+    {
+        REQUIRE(comb.m_HeadOrderRank == 3);
+        std::vector<PartId> expectedList = { 1, 0 };
+        REQUIRE(comb.m_PartIdsInOrder == expectedList);
+    }
+
+    {
+        comb = combC + comb;
+        REQUIRE(comb.m_HeadOrderRank == 2);
+        std::vector<PartId> expectedList = { 3, 1, 0 };
+        REQUIRE(comb.m_PartIdsInOrder == expectedList);
+    }
+
+    {
+        comb = combB + comb;
+        REQUIRE(comb.m_HeadOrderRank == 1);
+        std::vector<PartId> expectedList = { 4, 3, 1, 0 };
+        REQUIRE(comb.m_PartIdsInOrder == expectedList);
+    }
+
+    {
+        comb = combA + comb;
+        REQUIRE(comb.m_HeadOrderRank == 0);
+        std::vector<PartId> expectedList = { 2, 4, 3, 1, 0 };
+        REQUIRE(comb.m_PartIdsInOrder == expectedList);
+    }
 }
 
 TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
@@ -1053,12 +1327,21 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
     const Part& partB = GetPart(gOfParts, 1);
     const Part& partC = GetPart(gOfParts, 2);
 
-    Combination combA(partA, planA);
-    Combination combB(partB, planB);
-    Combination combC(partC, planC);
+    Combination combA(partA, planA, 0);
+    Combination combB(partB, planB, 1);
+    Combination combC(partC, planC, 2);
 
     // Merge the combinations
     Combination comb = combA + combB + combC;
+
+    REQUIRE(combA.m_PartIdsInOrder[0] == 0);
+    REQUIRE(combA.m_HeadOrderRank == 0);
+    REQUIRE(combB.m_PartIdsInOrder[0] == 1);
+    REQUIRE(combB.m_HeadOrderRank == 1);
+    REQUIRE(combC.m_PartIdsInOrder[0] == 2);
+    REQUIRE(combC.m_HeadOrderRank == 2);
+    REQUIRE(comb.m_PartIdsInOrder[0] == 0);
+    REQUIRE(comb.m_HeadOrderRank == 0);
 
     // There is no glue
     for (size_t i = 0; i < gOfParts.m_Parts.size(); ++i)
@@ -1082,6 +1365,9 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
     destPartEdge.push_back(std::make_pair((const Part*)&partC, edgeA2C));
 
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, destPartEdge);
+
+    REQUIRE(combGlued.m_PartIdsInOrder[0] == 0);
+    REQUIRE(combGlued.m_HeadOrderRank == 0);
 
     // One glue shared by A-B, A-C
     // The glue has (1) 1 x input DMA (2) DRAM buffer (3) 2 x ouput DMA
@@ -1165,13 +1451,24 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     const Part& partC = GetPart(gOfParts, 2);
     const Part& partD = GetPart(gOfParts, 3);
 
-    Combination combA(partA, planA);
-    Combination combB(partB, planB);
-    Combination combC(partC, planC);
-    Combination combD(partD, planD);
+    Combination combA(partA, planA, 0);
+    Combination combB(partB, planB, 1);
+    Combination combC(partC, planC, 2);
+    Combination combD(partD, planD, 3);
 
     // Merge the combinations
-    Combination comb = combA + combB + combC + combD;
+    Combination comb = combB + combD + combC + combA;
+
+    REQUIRE(combA.m_PartIdsInOrder[0] == 0);
+    REQUIRE(combA.m_HeadOrderRank == 0);
+    REQUIRE(combB.m_PartIdsInOrder[0] == 1);
+    REQUIRE(combB.m_HeadOrderRank == 1);
+    REQUIRE(combC.m_PartIdsInOrder[0] == 2);
+    REQUIRE(combC.m_HeadOrderRank == 2);
+    REQUIRE(combD.m_PartIdsInOrder[0] == 3);
+    REQUIRE(combD.m_HeadOrderRank == 3);
+    REQUIRE(comb.m_PartIdsInOrder[0] == 0);
+    REQUIRE(comb.m_HeadOrderRank == 0);
 
     // There is no glue
     for (size_t i = 0; i < gOfParts.m_Parts.size(); ++i)

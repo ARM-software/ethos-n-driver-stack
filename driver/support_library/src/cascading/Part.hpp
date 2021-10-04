@@ -296,6 +296,7 @@ public:
     size_t GetNumParts() const;
     const Part& GetPart(const PartId id) const;
     const Parts& GetParts() const;
+    const Part* GetNextPart(const PartId id) const;
 
     InPart GetInputPart(const Edge& e) const;
     OutPart GetOutputPart(const Edge& e) const;

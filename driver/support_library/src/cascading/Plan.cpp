@@ -23,6 +23,12 @@ const OpGraph::OpList& OpGraph::GetOps() const
     return m_Ops;
 }
 
+Op* OpGraph::GetOp(uint32_t index) const
+{
+    assert(index < m_Ops.size());
+    return m_Ops.at(index);
+}
+
 const OpGraph::BufferList& OpGraph::GetBuffers() const
 {
     return m_Buffers;
@@ -48,6 +54,21 @@ OpGraph::ConsumersList OpGraph::GetConsumers(Buffer* buffer) const
 {
     auto it = m_BufferConsumers.find(buffer);
     return it != m_BufferConsumers.end() ? it->second : OpGraph::ConsumersList{};
+}
+
+std::pair<Op*, uint32_t> OpGraph::GetConsumer(Buffer* buffer, uint32_t index) const
+{
+    auto it = m_BufferConsumers.find(buffer);
+
+    if (it != m_BufferConsumers.end())
+    {
+        assert(index < it->second.size());
+        return it->second.at(index);
+    }
+    else
+    {
+        return std::make_pair(nullptr, 0);
+    }
 }
 
 OpGraph::BufferList OpGraph::GetInputs(Op* op) const

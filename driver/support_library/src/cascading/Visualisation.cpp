@@ -1198,10 +1198,14 @@ void SaveCombinationToDot(const Combination& combination,
     NodeIds nodeIds;
     std::unordered_map<const Edge*, std::string> edgeInputs;
 
-    for (auto& elemIt : combination.m_Elems)
+    assert(combination.m_PartIdsInOrder.size() == combination.m_Elems.size());
+
+    for (auto& partId : combination.m_PartIdsInOrder)
     {
-        const Part& part = graphOfParts.GetPart(elemIt.first);
-        const Plan& plan = *elemIt.second.m_Plan;
+        const Part& part = graphOfParts.GetPart(partId);
+        auto elemIt      = combination.m_Elems.find(partId);
+        assert(elemIt != combination.m_Elems.end());
+        const Plan& plan = *elemIt->second.m_Plan;
 
         // Save Plans as isolated subgraph
         DotAttributes attr = GetDotAttributes(&plan, detailLevel);
@@ -1229,9 +1233,9 @@ void SaveCombinationToDot(const Combination& combination,
         std::map<const Glue*, uint32_t> glueCounters;
         for (const Edge* outputEdge : outputEdges)
         {
-            auto glueIt = elemIt.second.m_Glues.find(outputEdge);
+            auto glueIt = elemIt->second.m_Glues.find(outputEdge);
             const Glue* glue =
-                glueIt != elemIt.second.m_Glues.end() && glueIt->second && !glueIt->second->m_Graph.GetOps().empty()
+                glueIt != elemIt->second.m_Glues.end() && glueIt->second && !glueIt->second->m_Graph.GetOps().empty()
                     ? glueIt->second
                     : nullptr;
             if (glue != nullptr)
