@@ -579,10 +579,6 @@ DotAttributes GetDotAttributes(Node* node, DetailLevel detailLevel)
     {
         label << GetLabel(inputNode, detailLevel);
     }
-    else if (inputNode)
-    {
-        label << GetLabel(inputNode, detailLevel);
-    }
     else if (outputNode)
     {
         label << GetLabel(outputNode, detailLevel);
