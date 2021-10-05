@@ -126,8 +126,11 @@ Enter the following commands to download the above mentioned components:
 ```sh
 mkdir driver_stack
 cd driver_stack
-git clone https://github.com/Arm-software/armnn --branch v21.08
-git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 21.08
+git clone https://github.com/Arm-software/armnn --branch master
+cd armnn/
+git reset --hard c316c980bff21b489b31ad8bbe074fcdf4ccddbd
+cd ..
+git clone https://github.com/Arm-software/ethos-n-driver-stack --branch develop
 ```
 
 ## Configure SMMU support
