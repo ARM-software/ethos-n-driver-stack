@@ -189,9 +189,12 @@ static int update_bindings(struct ethosn_network *network,
 
 	if (check_in_container &&
 	    ((min_buf_start > 0) || (max_buf_end < container_size)))
-		dev_warn(net_to_dev(network),
-			 "Unused buffer data! { %llu, %llu } <> { 0, %llu }\n",
-			 min_buf_start, max_buf_end, container_size);
+		/* Buffers have alignment requirements and this below
+		 * is only an indication
+		 */
+		dev_dbg(net_to_dev(network),
+			"Unused buffer data { %llu, %llu } <> { 0, %llu }\n",
+			min_buf_start, max_buf_end, container_size);
 
 	return 0;
 }
@@ -322,13 +325,14 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 	struct ethosn_core *core = inference->core;
 	struct ethosn_device *ethosn = core->parent;
 	uint32_t core_id = core->core_id;
-	struct device *dev = core->dev;
+	struct device *core_dev = core->dev;
+	struct ethosn_dma_allocator *allocator = ethosn->allocator;
 	u32 i;
 	int ret;
 
 	if (inference->status == ETHOSN_INFERENCE_RUNNING) {
-		dev_err(core->dev, "Core %d got an inference while busy",
-			core->core_id);
+		dev_err(core_dev, "Core %d got an inference while busy",
+			core_id);
 		ethosn->status_mask |=
 			(1 << INFERENCE_SCHEDULED_ON_BUSY_CORE);
 	}
@@ -341,8 +345,6 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 	for (i = 0; i < network->num_inputs; ++i) {
 		struct ethosn_dma_info *dma_info =
 			inference->inputs[i]->dma_info;
-		struct ethosn_dma_allocator *allocator =
-			core->parent->allocator;
 
 		ethosn_dma_sync_for_device(allocator, dma_info);
 
@@ -361,8 +363,6 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 	for (i = 0; i < network->num_outputs; ++i) {
 		struct ethosn_dma_info *dma_info =
 			inference->outputs[i]->dma_info;
-		struct ethosn_dma_allocator *allocator =
-			core->parent->allocator;
 
 		ethosn_dma_sync_for_device(allocator, dma_info);
 
@@ -378,8 +378,6 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 			goto out_inference_error;
 	}
 
-	ethosn_dma_sync_for_device(core->allocator,
-				   network->intermediate_data[core_id]);
 	ret = update_bindings(network,
 			      core_id,
 			      network->num_intermediates,
@@ -403,7 +401,7 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 	}
 
 	/* kick off execution */
-	dev_dbg(dev, "Starting execution of inference");
+	dev_dbg(core_dev, "Starting execution of inference");
 	ethosn_dma_sync_for_device(core->allocator,
 				   network->inference_data[core_id]);
 	core->current_inference = inference;
@@ -420,14 +418,16 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 
 	get_inference(inference);
 	ethosn->current_busy_cores |= (1 << core_id);
-	dev_dbg(dev, "Scheduled inference 0x%pK on core_id = %d\n", inference,
-		core->core_id);
+	dev_dbg(core_dev, "Scheduled inference 0x%pK on core_id = %d\n",
+		inference,
+		core_id);
 
 	return 0;
 
 out_inference_error:
-	dev_err(dev, "Error scheduling inference 0x%pK: %d on core_id = %d\n",
-		inference, ret, core->core_id);
+	dev_err(core_dev,
+		"Error scheduling inference 0x%pK: %d on core_id = %d\n",
+		inference, ret, core_id);
 	inference->status = ETHOSN_INFERENCE_ERROR;
 
 	return ret;
@@ -771,6 +771,9 @@ static long network_ioctl(struct file *filep,
 					 network),
 				 "Intermediate buffer for multi-core system: core 0 will be returned.");
 
+		ethosn_dma_sync_for_cpu(network->ethosn->core[0]->allocator,
+					network->intermediate_data[0]);
+
 		ret = ethosn_get_dma_view_fd(network->ethosn,
 					     network->intermediate_data[0]);
 		break;
@@ -951,16 +954,6 @@ static int alloc_init_inference_data(struct ethosn_network *network,
 	int i = 0;
 	int num_cores = network->ethosn->num_cores;
 
-	/* Note:- We register network on ethosn.
-	 * For carveout :- We allocate constant data. inference data
-	 *                 and intermediate data on core0.
-	 *                 Both the cores can access the same buffer as
-	 *                 the complete carveout memory is shared.
-	 * For smmu :- The constant data, inference data and
-	 *             intermediate data is allocated on core[0]. And
-	 *             it should be remapped to both the cores.
-	 *             The remapping part is yet to be done.
-	 */
 	struct ethosn_core *core = network->ethosn->core[0];
 
 	num_bindings = req->cu_buffers.num;
@@ -1030,16 +1023,6 @@ static void free_network(struct ethosn_network *network)
 {
 	int i = 0;
 
-	/* Note:- We had registered our network on ethosn.
-	 * For carveout :- We had allocated constant data. inference data
-	 *                 and intermediate data on core0.
-	 *                 Both the cores can access the same buffer as
-	 *                 the complete carveout memory is shared.
-	 * For smmu :- The constant data, inference data and
-	 *             intermediate data was allocated on core[0]. And
-	 *             it was remapped to both the cores.
-	 *             The remapping part is yet to be done.
-	 */
 	struct ethosn_device *ethosn = network->ethosn;
 
 	dev_dbg(net_to_dev(network),
@@ -1098,12 +1081,12 @@ static struct ethosn_network *create_network(struct ethosn_device *ethosn,
 	/* Note:- We register network on ethosn.
 	 * For carveout :- We allocate constant data. inference data
 	 *                 and intermediate data on top level device.
-	 *                 Both the cores can access the same buffer as
+	 *                 All the cores can access the same buffer as
 	 *                 the complete carveout memory is shared.
-	 * For smmu :- The constant data, inference data and
-	 *             intermediate data is allocated on core[0]. And
-	 *             it should be remapped to both the cores.
-	 *             The remapping part is yet to be done.
+	 * For smmu :- The constant data is allocated on parent and
+	 *             mapped on all cores. Inference data and
+	 *             intermediate data are allocated and mapped
+	 *             on all cores.
 	 */
 	struct ethosn_network *network;
 	int ret = -ENOMEM;
