@@ -529,13 +529,13 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     //PlanId m_PlanId;
     //Glues m_Glues
 
-    Elem elemA  = { planA, { { nodeB->GetInput(0), { &glueA_BC } } } };
+    Elem elemA  = { planA, { { nodeB->GetInput(0), { &glueA_BC, true } } } };
     Elem elemB  = { planB, {} };
     Elem elemC  = { planC, {} };
     Elem elemDE = { planDE,
-                    { { nodeF->GetInput(0), { &glueD_F } },
-                      { nodeG->GetInput(0), { &glueD_G } },
-                      { nodeG->GetInput(1), { &glueE_G } } } };
+                    { { nodeF->GetInput(0), { &glueD_F, true } },
+                      { nodeG->GetInput(0), { &glueD_G, true } },
+                      { nodeG->GetInput(1), { &glueE_G, true } } } };
     Elem elemF  = { planF, {} };
     Elem elemG  = { planG, {} };
     comb.m_Elems.insert(std::make_pair(0, elemA));
@@ -719,7 +719,7 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
         Part& part = GetPart(gOfParts, i);
         for (auto& glueIt : comb.m_Elems.at(part.m_PartId).m_Glues)
         {
-            REQUIRE(glueIt.second == nullptr);
+            REQUIRE(glueIt.second.m_Glue == nullptr);
         }
     }
 
@@ -737,7 +737,7 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
     REQUIRE(comb.m_Elems.size() == 3);
     // Glue has been added
     REQUIRE(comb.m_Elems.at(partB.m_PartId).m_Glues.size() == 1);
-    const Glue* glueTest = comb.m_Elems.at(partB.m_PartId).m_Glues.at(nodeC->GetInput(0));
+    const Glue* glueTest = comb.m_Elems.at(partB.m_PartId).m_Glues.at(nodeC->GetInput(0)).m_Glue;
     // It has the correct tag
     REQUIRE(glueTest->m_Graph.GetOps()[0]->m_DebugTag == "DmaBC");
     REQUIRE(comb.m_Elems.at(partB.m_PartId).m_Plan == planB);
@@ -975,7 +975,7 @@ TEST_CASE("GluePartToCombination", "[CombinerDFS]")
         Part& part = GetPart(gOfParts, i);
         for (auto& glueIt : comb.m_Elems.at(part.m_PartId).m_Glues)
         {
-            REQUIRE(glueIt.second == nullptr);
+            REQUIRE(glueIt.second.m_Glue == nullptr);
         }
     }
 
@@ -999,13 +999,13 @@ TEST_CASE("GluePartToCombination", "[CombinerDFS]")
     // A and B have glue and the buffer in Dram is in the expected format
     auto elemIt = combGlued.m_Elems.find(partA.m_PartId);
     REQUIRE(elemIt != combGlued.m_Elems.end());
-    REQUIRE(elemIt->second.m_Glues.begin()->second->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
-    REQUIRE(elemIt->second.m_Glues.begin()->second->m_Graph.GetBuffers().at(0)->m_Format ==
+    REQUIRE(elemIt->second.m_Glues.begin()->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
+    REQUIRE(elemIt->second.m_Glues.begin()->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Format ==
             CascadingBufferFormat::FCAF_DEEP);
     elemIt = combGlued.m_Elems.find(partB.m_PartId);
     REQUIRE(elemIt != combGlued.m_Elems.end());
-    REQUIRE(elemIt->second.m_Glues.begin()->second->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
-    REQUIRE(elemIt->second.m_Glues.begin()->second->m_Graph.GetBuffers().at(0)->m_Format ==
+    REQUIRE(elemIt->second.m_Glues.begin()->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
+    REQUIRE(elemIt->second.m_Glues.begin()->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Format ==
             CascadingBufferFormat::FCAF_WIDE);
 }
 
@@ -1349,7 +1349,7 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
         Part& part = GetPart(gOfParts, i);
         for (auto& glueIt : comb.m_Elems.at(part.m_PartId).m_Glues)
         {
-            REQUIRE(glueIt.second == nullptr);
+            REQUIRE(glueIt.second.m_Glue == nullptr);
         }
     }
 
@@ -1384,10 +1384,10 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
     REQUIRE(elemAB != elemIt->second.m_Glues.end());
     auto elemAC = elemIt->second.m_Glues.find(edgeA2C);
     REQUIRE(elemAC != elemIt->second.m_Glues.end());
-    REQUIRE(elemAB->second == elemAC->second);
-    REQUIRE(elemAB->second->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
-    REQUIRE(elemAB->second->m_Graph.GetBuffers().at(0)->m_Format == CascadingBufferFormat::FCAF_DEEP);
-    REQUIRE(elemAB->second->m_Graph.GetOps().size() == 3);
+    REQUIRE(elemAB->second.m_Glue == elemAC->second.m_Glue);
+    REQUIRE(elemAB->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
+    REQUIRE(elemAB->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Format == CascadingBufferFormat::FCAF_DEEP);
+    REQUIRE(elemAB->second.m_Glue->m_Graph.GetOps().size() == 3);
 }
 
 TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
@@ -1476,7 +1476,7 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
         Part& part = GetPart(gOfParts, i);
         for (auto& glueIt : comb.m_Elems.at(part.m_PartId).m_Glues)
         {
-            REQUIRE(glueIt.second == nullptr);
+            REQUIRE(glueIt.second.m_Glue == nullptr);
         }
     }
 
@@ -1496,10 +1496,8 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
 
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, destPartEdge);
 
-    // One glue shared by A-B, A-C (SRAM - SRAM)
+    // One glue shared by A-B, A-C (SRAM - SRAM) and A-D (SRAM - DRAM)
     // The glue has (1) 1 x input DMA (2) DRAM buffer (3) 2 x ouput DMA
-    // One glue for A-D (SRAM - DRAM) (1) 1 x DMA
-
     REQUIRE(combGlued.m_Elems.size() == 4);
 
     // Elem Part A's glue should have three elements
@@ -1515,13 +1513,14 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     auto elemAD = elemIt->second.m_Glues.find(edgeA2D);
     REQUIRE(elemAD != elemIt->second.m_Glues.end());
 
-    REQUIRE(elemAB->second == elemAC->second);
-    REQUIRE(elemAB->second->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
-    REQUIRE(elemAB->second->m_Graph.GetBuffers().at(0)->m_Format == CascadingBufferFormat::FCAF_DEEP);
-    REQUIRE(elemAD->second->m_Graph.GetBuffers().empty());
-    REQUIRE(elemAD->second->m_Graph.GetOps().size() == 1);
-    REQUIRE(elemAB->second->m_Graph.GetOps().size() == 3);
-    REQUIRE(elemAD->second->m_Graph.GetBuffers().empty());
+    REQUIRE(elemAB->second.m_Glue == elemAC->second.m_Glue);
+    REQUIRE(elemAB->second.m_Glue == elemAD->second.m_Glue);
+    REQUIRE(elemAB->second.m_OutDma == true);
+    REQUIRE(elemAC->second.m_OutDma == true);
+    REQUIRE(elemAD->second.m_OutDma == false);
+    REQUIRE(elemAB->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
+    REQUIRE(elemAB->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Format == CascadingBufferFormat::NHWCB);
+    REQUIRE(elemAB->second.m_Glue->m_Graph.GetOps().size() == 3);
 }
 
 TEST_CASE("IsPlanInputGlueable", "[CombinerDFS]")

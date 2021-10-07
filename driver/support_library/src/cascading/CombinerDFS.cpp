@@ -641,34 +641,45 @@ std::pair<bool, const Glue*> Combiner::GetGlue(const Buffer* outputBuffer, const
 std::pair<bool, const Glue*> Combiner::GetSharedGlue(const Buffer* outputBuffer,
                                                      std::vector<const Buffer*>& inputBuffers)
 {
-    assert(inputBuffers.size() > 0);
+    // number of input buffers must be larger than 1
+    assert(inputBuffers.size() > 1);
 
     const Buffer* inputBuffer = inputBuffers.at(0);
-    // Sanity check: only SRAM-SRAM can share the buffer
-    assert(outputBuffer->m_Location == Location::Sram && inputBuffer->m_Location == Location::Sram);
+    // Sanity check: only source in SRAM can share the buffer
+    assert(outputBuffer->m_Location == Location::Sram);
 
+    // Use NHWCB if the input buffer is in DRAM, otherwise tries to find a compressed format
     CascadingBufferFormat cascadingBufferFormat =
-        GetBestCascadingBufferDramFormat({ outputBuffer->m_StripeShape, inputBuffer->m_StripeShape });
+        inputBuffer->m_Location == Location::Dram
+            ? CascadingBufferFormat::NHWCB
+            : GetBestCascadingBufferDramFormat({ outputBuffer->m_StripeShape, inputBuffer->m_StripeShape });
+
+    uint32_t numBufferSrams = inputBuffer->m_Location == Location::Sram;
 
     for (uint32_t i = 1; i < inputBuffers.size(); ++i)
     {
         inputBuffer = inputBuffers.at(i);
-        assert(inputBuffer->m_Location == Location::Sram);
 
-        CascadingBufferFormat cascadingBufferFormatLocal =
-            GetBestCascadingBufferDramFormat({ outputBuffer->m_StripeShape, inputBuffer->m_StripeShape });
-
-        // A FCAF format must be applicable to all branches
-        // otherwise the default NHWCB is used
-        if (cascadingBufferFormatLocal != cascadingBufferFormat)
+        // Continues looking for compressed format only if the format
+        // chosen so far is not NHWCB
+        if (cascadingBufferFormat != CascadingBufferFormat::NHWCB)
         {
-            cascadingBufferFormat = CascadingBufferFormat::NHWCB;
-            break;
+            CascadingBufferFormat cascadingBufferFormatLocal =
+                inputBuffer->m_Location == Location::Dram
+                    ? CascadingBufferFormat::NHWCB
+                    : GetBestCascadingBufferDramFormat({ outputBuffer->m_StripeShape, inputBuffer->m_StripeShape });
+
+            // All input buffers must share the same format
+            if (cascadingBufferFormatLocal != cascadingBufferFormat)
+            {
+                cascadingBufferFormat = CascadingBufferFormat::NHWCB;
+            }
         }
+
+        numBufferSrams += inputBuffer->m_Location == Location::Sram;
     }
 
-    m_GluesVector.push_back(GenerateGlueBetweenSramAndSrams(inputBuffer, cascadingBufferFormat,
-                                                            static_cast<uint32_t>(inputBuffers.size())));
+    m_GluesVector.push_back(GenerateGlueBetweenSramAndSrams(inputBuffer, cascadingBufferFormat, numBufferSrams));
     return std::make_pair(true, m_GluesVector.back().get());
 }
 
@@ -723,6 +734,7 @@ Combination Combiner::GluePartToCombinationDestToSrcs(const Part& part,
 Combination Combiner::GluePartToCombinationSrcToDests(
     const Part& sPart, const Combination& comb, const std::vector<std::pair<const Part*, const Edge*>>& destPartEdge)
 {
+    assert(destPartEdge.size() != 0);
     Combination result = comb;
 
     // Find an element belonging to source part in the combination
@@ -738,13 +750,14 @@ Combination Combiner::GluePartToCombinationSrcToDests(
 
     bool isSrcLocationSram = outputBuffer->m_Location == Location::Sram;
 
-    // In the case of branching
-    // The branches that have input and output buffers in SRAM
-    // share a single glue, whilst others use a dedicated glue.
-    // Group the branches that use SRAM on both ends together.
     std::vector<const Buffer*> buffersSharingGlue;
-    std::vector<const Edge*> edgesSharingGlue;
+    std::vector<std::pair<const Edge*, bool>> edgesSharingGlue;
+    std::vector<bool> inputBufferSram;
     std::vector<std::pair<const Edge*, const Buffer*>> buffersEdgesUseOwnGlue;
+
+    // (1) source location SRAM and number of edges > 1 --- a shared glue
+    //     will be used
+    // (2) otherwise each edge uses its own glue
     for (const auto& partEdge : destPartEdge)
     {
         const Plan& plan = GetPlanForPartFromCombination(*partEdge.first, comb);
@@ -752,16 +765,19 @@ Combination Combiner::GluePartToCombinationSrcToDests(
         const Buffer* inputBuffer = plan.GetInputBuffer(partEdge.second);
         assert(inputBuffer != nullptr);
 
-        if (isSrcLocationSram && inputBuffer->m_Location == Location::Sram)
+        if (isSrcLocationSram && destPartEdge.size() > 1)
         {
             buffersSharingGlue.push_back(inputBuffer);
-            edgesSharingGlue.push_back(partEdge.second);
+            edgesSharingGlue.push_back(std::make_pair(partEdge.second, inputBuffer->m_Location == Location::Sram));
         }
         else
         {
             buffersEdgesUseOwnGlue.push_back(std::make_pair(partEdge.second, inputBuffer));
         }
     }
+
+    assert(buffersSharingGlue.size() == edgesSharingGlue.size());
+    assert(buffersSharingGlue.size() == 0 || buffersEdgesUseOwnGlue.size() == 0);
 
     for (const auto branch : buffersEdgesUseOwnGlue)
     {
@@ -783,15 +799,13 @@ Combination Combiner::GluePartToCombinationSrcToDests(
 
     if (buffersSharingGlue.size() != 0)
     {
-        assert(buffersSharingGlue.size() == edgesSharingGlue.size());
-
         auto glueResult = GetSharedGlue(outputBuffer, buffersSharingGlue);
 
         assert(glueResult.first == true);
 
         for (const auto edge : edgesSharingGlue)
         {
-            result = result + Combination(sPart, edge, glueResult.second);
+            result = result + Combination(sPart, edge.first, glueResult.second, edge.second);
         }
     }
 
@@ -1225,10 +1239,25 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
     // A glue may be shared between multiple edges
     // each of which should be assigned to a unique
     // output dma of the glue.
-    // This is controlled by the glue counter
-    // that counts the number of "unused"
-    // output DMAs.
-    std::map<const Glue*, uint32_t> glueCounters;
+    // This is controlled by
+    // (1) numEdgesGlue: total number of edges that
+    // shares the glue. Shared glue if it is larger than 1
+    // (2) incomingGlueCnt: counter of input edge using this glue
+    // (3) inbufSramCnt: counter of input edge with buffer location
+    //     in SRAM.
+    //
+    // DRAM ---> SRAM: dedicated glue
+    // SRAM --> SRAM or SRAM --> DRAM: shared glue if multiple edges
+    //  (1) shared input DMA and DRAM buffer
+    //  (2) * output DMA for each SRAM destination
+    //      * no DMA for DRAM destination and
+    //        and its connecting plan's buffer
+    //        is merged with the shared DRAM buffer.
+    std::map<const Glue*, uint32_t> numEdgesGlue;
+
+    std::map<const Glue*, uint32_t> incomingGlueCnt;
+    std::map<const Glue*, uint32_t> inbufSramCnt;
+    std::map<const Edge*, Buffer*> dramSharedBuf;
 
     assert(combination.m_PartIdsInOrder.size() == combination.m_Elems.size());
 
@@ -1251,22 +1280,20 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
             auto glueIt      = glues.find(inputEdge);
             const Glue* glue = glueIt != glues.end() ? glueIt->second : nullptr;
 
+            // input buffer in SRAM flag
+            Buffer* inputBuffer = plan.GetInputBuffer(inputEdge);
+            bool isLocSram      = inputBuffer->m_Location == Location::Sram;
+
+            // shared dram flag is raised if the input buffer location is in DRAM and the glue is shared
+            // by multiple edges.
+            bool isDramShared = (inputBuffer->m_Location == Location::Dram) && (numEdgesGlue[glue] > 1);
+
             if (glue != nullptr)
             {
-                uint32_t glueOutputId = static_cast<uint32_t>(glue->m_Output.size()) - glueCounters[glue];
-                assert(glue->m_Output.size() >= glueCounters[glue]);
-                assert(glueCounters[glue] != 0);
-
-                // decrement the glue counter by one once an output
-                // dma is assigned.
-                glueCounters[glue] -= 1;
-
                 // A glue can be shared between multiple edges.
                 // The shared buffer and input DMA are added to
                 // the graph when the first edge is visited.
-                // The output DMA is only added when its associated
-                // edge is visited.
-                if (glueOutputId == 0)
+                if (incomingGlueCnt[glue] == 0)
                 {
                     // Add Ops and Buffers from the glue, no connections yet.
                     for (Buffer* b : glue->m_Graph.GetBuffers())
@@ -1296,21 +1323,38 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
 
                 // Add the output DMA and the corresponding consumer of the buffer
                 // associated with this edge
-                if (glue->m_OutDmaOffset > 0)
+                if (glue->m_OutDmaOffset > 0 && isLocSram)
                 {
-                    result.AddOp(glue->m_Graph.GetOp(glue->m_OutDmaOffset + glueOutputId));
+                    assert(inbufSramCnt[glue] < glue->m_Output.size());
+                    result.AddOp(glue->m_Graph.GetOp(glue->m_OutDmaOffset + inbufSramCnt[glue]));
 
                     // Add internal connections within the glue
                     for (Buffer* b : glue->m_Graph.GetBuffers())
                     {
-                        std::pair<Op*, uint32_t> consumer = glue->m_Graph.GetConsumer(b, glueOutputId);
+                        std::pair<Op*, uint32_t> consumer = glue->m_Graph.GetConsumer(b, inbufSramCnt[glue]);
                         assert(consumer.first != nullptr);
                         result.AddConsumer(b, consumer.first, consumer.second);
                     }
                 }
 
                 // Remember the output Op from this glue, to connect to our plan
-                incomingGlueOps[inputEdge] = glue->m_Output.at(glueOutputId);
+                if (!isDramShared)
+                {
+                    // No output DMA is used if destination is DRAM and shared glue
+                    incomingGlueOps[inputEdge] = glue->m_Output.at(inbufSramCnt[glue]);
+                }
+                else
+                {
+                    // Destination DRAM and shared glue:
+                    // The glue's share DRAM buffer will be
+                    // merged with its connecting plan's buffer
+                    assert(glue->m_Graph.GetBuffers().size() == 1);
+                    dramSharedBuf[inputEdge] = glue->m_Graph.GetBuffers().at(0);
+                }
+
+                incomingGlueCnt[glue] += 1;
+                inbufSramCnt[glue] += isLocSram;
+                assert(inbufSramCnt[glue] <= incomingGlueCnt[glue]);
             }
         }
         for (Buffer* b : plan.m_OpGraph.GetBuffers())
@@ -1338,7 +1382,13 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
                         sharedBuffer = getEffectiveBuffer(edgeBuffer->second);
                     }
                 }
+                else if (dramSharedBuf.find(inputEdge) != dramSharedBuf.end())
+                {
+                    // Plan's buffer is shared with saved glue's DRAM buffer
+                    sharedBuffer = dramSharedBuf[inputEdge];
+                }
             }
+
             if (sharedBuffer && result.Contains(sharedBuffer))
             {
                 // Record the fact that this buffer has been shared, so that when making connections (below), we
@@ -1394,16 +1444,27 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
             {
                 edgeConnectionBuffers[outputEdge] = output.first;
                 auto glueIt                       = elemIt->second.m_Glues.find(outputEdge);
-                if (glueIt != elemIt->second.m_Glues.end() && glueIt->second &&
-                    !glueIt->second->m_Graph.GetOps().empty())
+                if (glueIt != elemIt->second.m_Glues.end() && glueIt->second.m_Glue &&
+                    !glueIt->second.m_Glue->m_Graph.GetOps().empty())
                 {
-                    glues[outputEdge] = glueIt->second;
+                    const Glue* outGlue = glueIt->second.m_Glue;
+
+                    glues[outputEdge] = outGlue;
 
                     // If the glue is visisted for the first time, then
                     // initialise the counter.
-                    if (glueCounters.find(glueIt->second) == glueCounters.end())
+                    if (numEdgesGlue.find(outGlue) == numEdgesGlue.end())
                     {
-                        glueCounters[glueIt->second] = static_cast<uint32_t>(glueIt->second->m_Output.size());
+                        numEdgesGlue[outGlue] = 1;
+
+                        assert(incomingGlueCnt.find(outGlue) == incomingGlueCnt.end());
+                        assert(inbufSramCnt.find(outGlue) == inbufSramCnt.end());
+                        incomingGlueCnt[outGlue] = 0;
+                        inbufSramCnt[outGlue]    = 0;
+                    }
+                    else
+                    {
+                        numEdgesGlue[outGlue] += 1;
                     }
                 }
             }

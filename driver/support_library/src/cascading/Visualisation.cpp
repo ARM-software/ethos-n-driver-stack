@@ -1231,32 +1231,38 @@ void SaveCombinationToDot(const Combination& combination,
         uint32_t glueCounter = 0;
         auto outputEdges     = part.GetOutputs();
         std::map<const Glue*, uint32_t> glueCounters;
+        std::map<const Glue*, uint32_t> glueOutDmaCounters;
         for (const Edge* outputEdge : outputEdges)
         {
             auto glueIt = elemIt->second.m_Glues.find(outputEdge);
-            const Glue* glue =
-                glueIt != elemIt->second.m_Glues.end() && glueIt->second && !glueIt->second->m_Graph.GetOps().empty()
-                    ? glueIt->second
-                    : nullptr;
+
+            const Glue* glue = nullptr;
+            GlueInfo glueInfo;
+            if (glueIt != elemIt->second.m_Glues.end())
+            {
+                glueInfo = glueIt->second;
+
+                if (glueInfo.m_Glue && !glueInfo.m_Glue->m_Graph.GetOps().empty())
+                {
+                    glue = glueInfo.m_Glue;
+                }
+            }
+
             if (glue != nullptr)
             {
                 // A glue may be shared between multiple output edges each of
                 // which is attached to a separate output DMA.
                 // The counter for each glue is used to ensure there is a
                 // one to one mapping between output dma and edge.
-                if (glueCounters.find(glueIt->second) == glueCounters.end())
+                if (glueCounters.find(glue) == glueCounters.end())
                 {
-                    glueCounters[glue] = static_cast<uint32_t>(glue->m_Output.size());
-                    assert(glueCounters[glue] >= 1);
-                    assert(glueCounters[glue] <= glue->m_Output.size());
+                    glueCounters[glue] = 0;
+                    assert(glueOutDmaCounters.find(glue) == glueOutDmaCounters.end());
+                    glueOutDmaCounters[glue] = 0;
                 }
-                assert(glueCounters[glue] != 0);
-
-                uint32_t outDmaCnt = static_cast<uint32_t>(glue->m_Output.size()) - glueCounters[glue];
-                glueCounters[glue] -= 1;
 
                 // A glue is only added for visualization once
-                if (outDmaCnt == 0)
+                if (glueCounters[glue] == 0)
                 {
                     // Save Glue as isolated subgraph
                     std::string glueLabel = plan.m_DebugTag + " Glue " + std::to_string(glueCounter);
@@ -1278,7 +1284,17 @@ void SaveCombinationToDot(const Combination& combination,
                     stream << "\n";
                 }
 
-                edgeInputs[outputEdge] = nodeIds.at(glue->m_Output.at(outDmaCnt));
+                glueCounters[glue] += 1;
+
+                if (glueInfo.m_OutDma)
+                {
+                    edgeInputs[outputEdge] = nodeIds.at(glue->m_Output.at(glueOutDmaCounters[glue]));
+                    glueOutDmaCounters[glue] += 1;
+                }
+                else
+                {
+                    edgeInputs[outputEdge] = nodeIds.at(glue->m_Graph.GetBuffers().at(0));
+                }
             }
             else
             {

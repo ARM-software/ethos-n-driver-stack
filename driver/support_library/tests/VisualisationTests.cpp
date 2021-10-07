@@ -852,12 +852,12 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
 
     // Create Combination with all the plans and glues
     Combination comb;
-    Elem elemA  = { planA, { { nodeB->GetInput(0), { &glueA_BC } } } };
+    Elem elemA  = { planA, { { nodeB->GetInput(0), { &glueA_BC, true } } } };
     Elem elemBC = { planBC, {} };
     Elem elemDE = { planDE,
-                    { { nodeF->GetInput(0), { &glueD_F } },
-                      { nodeG->GetInput(0), { &glueD_G } },
-                      { nodeG->GetInput(1), { &glueE_G } } } };
+                    { { nodeF->GetInput(0), { &glueD_F, true } },
+                      { nodeG->GetInput(0), { &glueD_G, true } },
+                      { nodeG->GetInput(1), { &glueE_G, true } } } };
     Elem elemF  = { planF, {} };
     Elem elemG  = { planG, {} };
     comb.m_Elems.insert(std::make_pair(0, elemA));
@@ -964,6 +964,184 @@ OutputDram3[label = "OutputDram3", shape = box, color = brown]
 }
 OutputDma2 -> OutputDram2
 OutputDma3 -> OutputDram3
+}
+)";
+
+    REQUIRE(stream.str() == expected);
+}
+
+void AddNodesToPart(GraphOfParts& gOfParts,
+                    std::vector<Node*> nodes,
+                    const EstimationOptions& estOpt,
+                    const CompilationOptions& compOpt,
+                    const HardwareCapabilities& hwCaps)
+{
+    gOfParts.m_Parts.push_back(std::make_unique<Part>(gOfParts.GeneratePartId(), estOpt, compOpt, hwCaps));
+    for (Node* node : nodes)
+    {
+        (*(gOfParts.m_Parts.back())).m_SubGraph.push_back(node);
+    }
+}
+
+// Create graph:
+//
+//
+//   - - > C
+//  |
+//  A - -> B
+//  |
+//   -- >  D
+//
+//  AB -- SRAM to SRAM
+//  AC -- SRAM to SRAM
+//  AD -- SRAM to DRAM
+TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
+{
+    DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
+
+    Graph graph;
+    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
+    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
+    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
+    NameOnlyNode* nodeD = graph.CreateAndAddNode<NameOnlyNode>("d");
+
+    graph.Connect(nodeA, nodeB, 0);
+    graph.Connect(nodeA, nodeC, 0);
+    graph.Connect(nodeA, nodeD, 0);
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    GraphOfParts gOfParts;
+    AddNodesToPart(gOfParts, { nodeA }, estOpt, compOpt, hwCaps);
+    std::shared_ptr<Plan> planA = std::make_shared<Plan>();
+    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], nodeA } };
+
+    AddNodesToPart(gOfParts, { nodeB }, estOpt, compOpt, hwCaps);
+    std::shared_ptr<Plan> planB = std::make_shared<Plan>();
+    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB->m_InputMappings = { { planB->m_OpGraph.GetBuffers()[0], nodeB->GetInput(0) } };
+
+    AddNodesToPart(gOfParts, { nodeC }, estOpt, compOpt, hwCaps);
+    std::shared_ptr<Plan> planC = std::make_shared<Plan>();
+    planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC->m_InputMappings = { { planC->m_OpGraph.GetBuffers()[0], nodeC->GetInput(0) } };
+
+    AddNodesToPart(gOfParts, { nodeD }, estOpt, compOpt, hwCaps);
+    std::shared_ptr<Plan> planD = std::make_shared<Plan>();
+    planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planD->m_InputMappings = { { planD->m_OpGraph.GetBuffers()[0], nodeD->GetInput(0) } };
+
+    const Part& partA = *gOfParts.m_Parts.at(0).get();
+    const Part& partB = *gOfParts.m_Parts.at(1).get();
+    const Part& partC = *gOfParts.m_Parts.at(2).get();
+    const Part& partD = *gOfParts.m_Parts.at(3).get();
+
+    Combination combA(partA, planA, 0);
+    Combination combB(partB, planB, 1);
+    Combination combC(partC, planC, 2);
+    Combination combD(partD, planD, 3);
+
+    // Merge the combinations
+    Combination comb = combB + combD + combC + combA;
+
+    REQUIRE(combA.m_PartIdsInOrder[0] == 0);
+    REQUIRE(combA.m_HeadOrderRank == 0);
+    REQUIRE(combB.m_PartIdsInOrder[0] == 1);
+    REQUIRE(combB.m_HeadOrderRank == 1);
+    REQUIRE(combC.m_PartIdsInOrder[0] == 2);
+    REQUIRE(combC.m_HeadOrderRank == 2);
+    REQUIRE(combD.m_PartIdsInOrder[0] == 3);
+    REQUIRE(combD.m_HeadOrderRank == 3);
+    REQUIRE(comb.m_PartIdsInOrder[0] == 0);
+    REQUIRE(comb.m_HeadOrderRank == 0);
+
+    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+
+    std::vector<std::pair<const Part*, const Edge*>> destPartEdge;
+
+    // Part B and the edge that connects to its source Part A
+    const Edge* edgeA2B = combiner.GetEdgeConnectTwoParts(partB, partA).at(0);
+    destPartEdge.push_back(std::make_pair((const Part*)&partB, edgeA2B));
+    // Part C and the edge that connects to its source Part A
+    const Edge* edgeA2C = combiner.GetEdgeConnectTwoParts(partC, partA).at(0);
+    destPartEdge.push_back(std::make_pair((const Part*)&partC, edgeA2C));
+    // Part D and the edge that connects to its source Part A
+    const Edge* edgeA2D = combiner.GetEdgeConnectTwoParts(partD, partA).at(0);
+    destPartEdge.push_back(std::make_pair((const Part*)&partD, edgeA2D));
+
+    Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, destPartEdge);
+
+    // One glue shared by A-B, A-C (SRAM - SRAM) and A-D (SRAM - DRAM)
+    // The glue has (1) 1 x input DMA (2) DRAM buffer (3) 2 x ouput DMA
+    REQUIRE(combGlued.m_Elems.size() == 4);
+
+    // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("SaveCombinationToDot Graph Topology.dot");
+        SaveCombinationToDot(combGlued, gOfParts, stream, DetailLevel::Low);
+    }
+
+    // Save to a string and check against expected result
+    std::stringstream stream;
+    SaveCombinationToDot(combGlued, gOfParts, stream, DetailLevel::Low);
+
+    std::string expected =
+        R"(digraph SupportLibraryGraph
+{
+subgraph clusterPlan_1
+{
+label="Plan 1"
+labeljust=l
+Buffer_2[label = "Buffer 2", shape = box, color = blue]
+}
+subgraph clusterPlan_1_Glue_0
+{
+label="Plan 1 Glue 0"
+labeljust=l
+DmaOp_13[label = "DmaOp 13", shape = oval, color = darkgoldenrod]
+DmaOp_14[label = "DmaOp 14", shape = oval, color = darkgoldenrod]
+DmaOp_15[label = "DmaOp 15", shape = oval, color = darkgoldenrod]
+Buffer_12[label = "Buffer 12", shape = box, color = brown]
+DmaOp_13 -> Buffer_12
+Buffer_12 -> DmaOp_14
+Buffer_12 -> DmaOp_15
+}
+Buffer_2 -> DmaOp_13
+subgraph clusterPlan_4
+{
+label="Plan 4"
+labeljust=l
+Buffer_5[label = "Buffer 5", shape = box, color = blue]
+}
+DmaOp_14 -> Buffer_5
+subgraph clusterPlan_10
+{
+label="Plan 10"
+labeljust=l
+Buffer_11[label = "Buffer 11", shape = box, color = brown]
+}
+Buffer_12 -> Buffer_11
+subgraph clusterPlan_7
+{
+label="Plan 7"
+labeljust=l
+Buffer_8[label = "Buffer 8", shape = box, color = blue]
+}
+DmaOp_15 -> Buffer_8
 }
 )";
 

@@ -35,10 +35,16 @@ struct Glue
     uint32_t m_OutDmaOffset = 0;
 };
 
+struct GlueInfo
+{
+    const Glue* m_Glue;
+    bool m_OutDma;
+};
+
 /// A single element in a combination
 struct Elem
 {
-    using Glues = std::map<const Edge*, const Glue*>;
+    using Glues = std::map<const Edge*, GlueInfo>;
 
     std::shared_ptr<Plan> m_Plan;
     Glues m_Glues;
@@ -52,8 +58,8 @@ struct Combination
     {}
 
     // Create a combination with a single element without any edge/glue information
-    Combination(const Part& part, std::shared_ptr<Plan> plan, const size_t orderRank)
-        : Combination(part, plan, nullptr, nullptr, orderRank)
+    Combination(const Part& part, std::shared_ptr<Plan> plan, size_t orderRank)
+        : Combination(part, plan, nullptr, nullptr, orderRank, false)
     {}
 
     // Create a combination with a single element without plan information,
@@ -63,7 +69,11 @@ struct Combination
     // Note glue should not change the header ID and rank of the
     // combination
     Combination(const Part& part, const Edge* edge, const Glue* glue)
-        : Combination(part, nullptr, edge, glue, g_InvalidCombRank)
+        : Combination(part, nullptr, edge, glue, SIZE_MAX, true)
+    {}
+
+    Combination(const Part& part, const Edge* edge, const Glue* glue, bool outDma)
+        : Combination(part, nullptr, edge, glue, SIZE_MAX, outDma)
     {}
 
     // Create a combination with a single element with edge/glue information,
@@ -71,7 +81,7 @@ struct Combination
     // will consider the case where no glue is required on any output edge of
     // the part
     Combination(
-        const Part& part, std::shared_ptr<Plan> plan, const Edge* edge, const Glue* glue, const size_t orderRank)
+        const Part& part, std::shared_ptr<Plan> plan, const Edge* edge, const Glue* glue, size_t orderRank, bool outDma)
     {
         // Create a new element
         Elem elem = { plan, {} };
@@ -79,14 +89,16 @@ struct Combination
         // if a valid edge is provided
         if (edge)
         {
-            elem.m_Glues.insert(std::make_pair(edge, glue));
+            GlueInfo glueInfo = { glue, outDma };
+            elem.m_Glues.insert(std::make_pair(edge, glueInfo));
         }
         else
         {
             // Consider no glue on all the output edges (i.e. mergeable)
             for (auto& edge : part.GetOutputs())
             {
-                elem.m_Glues.insert(std::make_pair(edge, nullptr));
+                GlueInfo glueInfo = { nullptr, false };
+                elem.m_Glues.insert(std::make_pair(edge, glueInfo));
             }
         }
         m_Elems.insert(std::make_pair(part.m_PartId, elem));
