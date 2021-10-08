@@ -206,7 +206,7 @@ def setup_toolchain(env, toolchain):
                     LINK=os.path.join(bin_path, 'clang++') + ' -target aarch64-linux-android21',
                     AS=os.path.join(bin_path, 'llvm-as') + ' -target aarch64-linux-android21',
                     AR=os.path.join(bin_path, 'llvm-ar'),
-                    RANLIB=os.path.join(bin_path, 'llvm-ranlib'))
+                    RANLIB=os.path.join(bin_path, 'aarch64-linux-android-ranlib'))
         # List of flags Android's clang++ doesnt understand so should be removed from the inherited common set of flags
         if 'CPPFLAGS' in env:
             flags = ['-Wlogical-op', '-Wnoexcept', '-Wstrict-null-sentinel']

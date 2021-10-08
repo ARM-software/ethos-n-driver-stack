@@ -294,7 +294,7 @@ void NetworkToGraphConverter::Visit(Pooling& pooling)
     }
     else
     {
-        assert(!"Unsupported");
+        ETHOSN_FAIL_MSG("Unsupported");
     }
 
     ConnectNode(pooling, n);
@@ -342,7 +342,7 @@ void NetworkToGraphConverter::Visit(Softmax& softmax)
         ConnectNode(softmax, n);
         return;
     }
-    assert(!"Not implemented");
+    ETHOSN_FAIL_MSG("Not implemented");
 }
 
 void NetworkToGraphConverter::Visit(Relu& relu)

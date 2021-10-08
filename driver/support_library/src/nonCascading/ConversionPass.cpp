@@ -170,7 +170,7 @@ std::unique_ptr<ethosn::support_library::ConversionPass> ConversionPass::CreateG
         }
         else
         {
-            assert(!"Unexpected location");
+            ETHOSN_FAIL_MSG("Unexpected location");
         }
 
         uint32_t outputSize = TotalSizeBytesNHWCB(stripeShape);
@@ -280,7 +280,7 @@ void ConversionPass::Generate(command_stream::CommandStreamBuffer& cmdStream,
     }
     else
     {
-        assert(!"not supported");
+        ETHOSN_FAIL_MSG("not supported");
     }
     m_Nodes.back()->SetBufferId(outputBufferId);
 

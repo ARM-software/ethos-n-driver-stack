@@ -5,6 +5,8 @@
 
 #include "ProfilingInternal.hpp"
 
+#include <ethosn_utils/Macros.hpp>
+
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -231,7 +233,7 @@ uint64_t GetCounterValue(PollCounterName counter, const std::string& device)
         case PollCounterName::KernelDriverNumPowerResume:
             return GetKernelDriverCounterValue(counter, device);
         default:
-            assert(!"Invalid counter");
+            ETHOSN_FAIL_MSG("Invalid counter");
             return 0;
     }
 }
@@ -361,7 +363,7 @@ ethosn_profiling_hw_counter_types ConvertHwCountersToKernel(HardwareCounters cou
         }
         default:
         {
-            assert(!"ethosn_profiling_hw_counter_types not in sync with HardwareCounters");
+            ETHOSN_FAIL_MSG("ethosn_profiling_hw_counter_types not in sync with HardwareCounters");
             return ethosn_profiling_hw_counter_types::NCU_MCU_BUS_WRITE_BEATS;
         }
     }

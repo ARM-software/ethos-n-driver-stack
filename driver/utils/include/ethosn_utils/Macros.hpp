@@ -20,3 +20,8 @@
 #else
 #define ETHOSN_FUNCTION_SIGNATURE "Please add the compiler in Macros.hpp"
 #endif
+
+// Helper macro to halt the program by issuing a failed assert, which contains the given message as a reason.
+// Note that this is implemented in a way to avoid implicit conversion of string (const char*) to bool, which raises
+// a warning/error on some compilers.
+#define ETHOSN_FAIL_MSG(str) assert((str) == nullptr)

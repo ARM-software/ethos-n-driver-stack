@@ -131,7 +131,7 @@ uint64_t GetKernelDriverCounterValue(PollCounterName counter, const std::string&
             kernelCounterName = ETHOSN_POLL_COUNTER_NAME_PM_RESUME;
             break;
         default:
-            assert(!"Invalid counter");
+            ETHOSN_FAIL_MSG("Invalid counter");
     }
 
     int result = ioctl(ethosnFd, ETHOSN_IOCTL_GET_COUNTER_VALUE, &kernelCounterName);

@@ -100,7 +100,7 @@ GraphOfParts CreateGraphOfParts(const Graph& graph,
                 }
             }
         }
-        assert(!"MCE Post-Process node has not been added to any Part");
+        ETHOSN_FAIL_MSG("MCE Post-Process node has not been added to any Part");
     };
 
     for (Node* node : graph.GetNodesSorted())

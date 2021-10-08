@@ -137,7 +137,7 @@ command_stream::DataFormat Node::GetBufferFormat() const
             case CompilerDataFormat::NCHW:
                 return command_stream::DataFormat::NCHW;
             default:
-                assert(!"Unknown buffer format");
+                ETHOSN_FAIL_MSG("Unknown buffer format");
                 return command_stream::DataFormat::
                     WEIGHT_STREAM;    // Return something unusual to help indicate an error
         }
@@ -151,7 +151,7 @@ command_stream::DataFormat Node::GetBufferFormat() const
             case CompilerDataCompressedFormat::FCAF_WIDE:
                 return command_stream::DataFormat::FCAF_WIDE;
             default:
-                assert(!"Unknown buffer compression format");
+                ETHOSN_FAIL_MSG("Unknown buffer compression format");
                 return command_stream::DataFormat::
                     WEIGHT_STREAM;    // Return something unusual to help indicate an error
         }
@@ -491,7 +491,7 @@ DotAttributes Node::GetDotAttributes()
             result << "REQUIRE DRAM\n";
             break;
         default:
-            assert(!"Unknown location hint");
+            ETHOSN_FAIL_MSG("Unknown location hint");
     }
     switch (m_Location)
     {
@@ -505,7 +505,7 @@ DotAttributes Node::GetDotAttributes()
             result << "SRAM, BUFFER 0x" << std::hex << m_BufferId << std::dec << " (" << m_BufferId << ")\n";
             break;
         default:
-            assert(!"Unknown location");
+            ETHOSN_FAIL_MSG("Unknown location");
     }
     switch (m_CompressionHint)
     {
@@ -516,7 +516,7 @@ DotAttributes Node::GetDotAttributes()
             result << "REQUIRE UNCOMPRESSED\n";
             break;
         default:
-            assert(!"Unknown compression hint");
+            ETHOSN_FAIL_MSG("Unknown compression hint");
     }
     result << "Optimization Hint:";
     switch (m_OptimizationHint)
@@ -528,7 +528,7 @@ DotAttributes Node::GetDotAttributes()
             result << "DO NOT MERGE\n";
             break;
         default:
-            assert(!"Unknown optimization hint");
+            ETHOSN_FAIL_MSG("Unknown optimization hint");
     }
     std::string color = IsPrepared() ? "green" : "red";
     return DotAttributes(std::to_string(GetId()), result.str(), color);

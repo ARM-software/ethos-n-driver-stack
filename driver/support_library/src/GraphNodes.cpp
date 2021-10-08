@@ -960,7 +960,7 @@ void RequantizeNode::Apply(ethosn::command_stream::MceData& mceData,
                                                                         m_QuantizationInfo.GetZeroPoint());
             break;
         default:
-            assert(!"Not implemented");
+            ETHOSN_FAIL_MSG("Not implemented");
     }
 }
 

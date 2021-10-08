@@ -38,7 +38,7 @@ std::string ToString(Location l)
         case Location::VirtualSram:
             return "VirtualSram";
         default:
-            assert(!"Unknown location");
+            ETHOSN_FAIL_MSG("Unknown location");
             return "";
     }
 }
@@ -52,7 +52,7 @@ std::string ToString(Lifetime l)
         case Lifetime::Cascade:
             return "Cascade";
         default:
-            assert(!"Unknown lifetime");
+            ETHOSN_FAIL_MSG("Unknown lifetime");
             return "";
     }
 }
@@ -74,7 +74,7 @@ std::string ToString(CascadingBufferFormat f)
         case CascadingBufferFormat::FCAF_WIDE:
             return "FCAF_WIDE";
         default:
-            assert(!"Unknown data format");
+            ETHOSN_FAIL_MSG("Unknown data format");
             return "";
     }
 }
@@ -94,7 +94,7 @@ std::string ToString(DataFormat f)
         case DataFormat::NHWCB:
             return "NHWCB";
         default:
-            assert(!"Unknown data format");
+            ETHOSN_FAIL_MSG("Unknown data format");
             return "";
     }
 }
@@ -114,7 +114,7 @@ std::string ToString(CompilerDataFormat f)
         case CompilerDataFormat::WEIGHT:
             return "WEIGHT";
         default:
-            assert(!"Unknown data format");
+            ETHOSN_FAIL_MSG("Unknown data format");
             return "";
     }
 }
@@ -130,7 +130,7 @@ std::string ToString(CompilerDataCompressedFormat f)
         case CompilerDataCompressedFormat::FCAF_WIDE:
             return "FCAF_WIDE";
         default:
-            assert(!"Unknown data compressed format");
+            ETHOSN_FAIL_MSG("Unknown data compressed format");
             return "";
     }
 }
@@ -151,7 +151,7 @@ std::string ToString(TraversalOrder o)
         case TraversalOrder::Zxy:
             return "Zxy";
         default:
-            assert(!"Unknown traversal order");
+            ETHOSN_FAIL_MSG("Unknown traversal order");
             return "";
     }
 }
@@ -167,7 +167,7 @@ std::string ToString(command_stream::MceOperation o)
         case ethosn::command_stream::MceOperation::FULLY_CONNECTED:
             return "FULLY_CONNECTED";
         default:
-            assert(!"Unknown MCE operation");
+            ETHOSN_FAIL_MSG("Unknown MCE operation");
             return "";
     }
 }
@@ -183,7 +183,7 @@ std::string ToString(CompilerMceAlgorithm a)
         case CompilerMceAlgorithm::Winograd:
             return "WINOGRAD";
         default:
-            assert(!"Unknown MCE algorithm");
+            ETHOSN_FAIL_MSG("Unknown MCE algorithm");
             return "";
     }
 }
@@ -221,7 +221,7 @@ std::string ToString(command_stream::PleOperation o)
         case ethosn::command_stream::PleOperation::TRANSPOSE_XY:
             return "TRANSPOSE_XY";
         default:
-            assert(!"Unknown PLE operation");
+            ETHOSN_FAIL_MSG("Unknown PLE operation");
             return "";
     }
 }
@@ -281,7 +281,7 @@ std::string ToString(command_stream::DataFormat f)
         case command_stream::DataFormat::WEIGHT_STREAM:
             return "WEIGHT_STREAM";
         default:
-            assert(!"Unknown format");
+            ETHOSN_FAIL_MSG("Unknown format");
             return "";
     }
 }
@@ -302,7 +302,7 @@ std::string ToString(DataType t)
         case DataType::INT32_QUANTIZED:
             return "INT32_QUANTIZED";
         default:
-            assert(!"Unknown format");
+            ETHOSN_FAIL_MSG("Unknown format");
             return "";
     }
 }

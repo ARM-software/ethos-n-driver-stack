@@ -270,7 +270,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
                 }
                 default:
                 {
-                    ARMNN_ASSERT(!"Not implemented");
+                    ARMNN_ASSERT_MSG(false, "Not implemented");
                     return nullptr;
                 }
             }
@@ -391,7 +391,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
                     expectedBiasData = { -60, -40, -20, 0 };
                     break;
                 default:
-                    ARMNN_ASSERT(!"Not implemented");
+                    ARMNN_ASSERT_MSG(false, "Not implemented");
             }
             CHECK(
                 (std::vector<int32_t>(dwBiasData, dwBiasData + depthwiseLayer->m_Weight->GetShape().GetNumElements()) ==
@@ -447,7 +447,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
                 }
                 default:
                 {
-                    ARMNN_ASSERT(!"Not implemented");
+                    ARMNN_ASSERT_MSG(false, "Not implemented");
                     return nullptr;
                 }
             }

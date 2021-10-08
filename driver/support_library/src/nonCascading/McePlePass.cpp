@@ -578,7 +578,7 @@ McePlePass::McePlePass(const HardwareCapabilities& capabilities,
         }
         else
         {
-            assert(!"Unexpected node type");
+            ETHOSN_FAIL_MSG("Unexpected node type");
         }
     }
 

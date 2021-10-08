@@ -8,7 +8,6 @@
 #include "EthosNWorkloads.hpp"
 
 #include <doctest/doctest.h>
-#include <test/CreateWorkload.hpp>
 
 using namespace armnn;
 
