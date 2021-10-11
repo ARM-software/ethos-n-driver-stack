@@ -428,14 +428,6 @@ static const struct dev_pm_ops ethosn_pm_ops = {
 #define ETHOSN_PM_OPS (NULL)
 #endif  /* CONFIG_PM */
 
-int ethosn_get_autosuspend_delay(void)
-{
-	return ETHOSN_AUTOSUSPEND_DELAY_MS;
-}
-
-/* Exported for use by test module */
-EXPORT_SYMBOL(ethosn_get_autosuspend_delay);
-
 static struct ethosn_device *ethosn_driver(struct platform_device *pdev)
 {
 	struct ethosn_device *ethosn = dev_get_drvdata(pdev->dev.parent);
