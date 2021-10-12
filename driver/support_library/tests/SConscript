@@ -7,60 +7,69 @@
 
 import os
 
-Import('env', 'ethosn_support_shared')
+Import("env", "ethosn_support_shared")
 
 # Some unit tests require implementation details of the support library, so allow includes of its src/ folder
 # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on the install
 # target where the install target is also provided via CPATH.
-env.PrependUnique(CPPPATH=[os.path.join('..', 'src'),
-                           os.path.join('..', 'include')])
+env.PrependUnique(CPPPATH=[os.path.join("..", "src"), os.path.join("..", "include")])
 
 # Add RPATH entries so that the executable can be ran from any directory.
 env.AppendUnique(RPATH=[ethosn_support_shared[0].dir.abspath])
 
-srcs = ['main.cpp',
-        'GlobalParameters.cpp',
-        'ReshapeTests.cpp',
-        'StridedTests.cpp',
-        'ConcatTests.cpp',
-        'SplitTests.cpp',
-        'BranchingTests.cpp',
-        'FullyConnectedTests.cpp',
-        'DumpTests.cpp',
-        'AdditionTests.cpp',
-        'PoolTests.cpp',
-        'ReluTests.cpp',
-        'LeakyReluTests.cpp',
-        'RequantizeTests.cpp',
-        'DepthToSpaceTests.cpp',
-        'SigmoidTests.cpp',
-        'TanhTests.cpp',
-        'ConvTests.cpp',
-        'TransposeConvTests.cpp',
-        'TensorFormatTests.cpp',
-        'ConstantTests.cpp',
-        'NetworkTests.cpp',
-        'SramAllocatorTests.cpp',
-        'SupportTests.cpp',
-        'SupportQueriesTests.cpp',
-        'SubmapFilterTests.cpp',
-        'CapabilitiesTests.cpp',
-        'GraphTests.cpp',
-        'CombinerDFSTests.cpp',
-        'PlanTests.cpp',
-        'PartTests.cpp',
-        'TestUtils.cpp',
-        'VisualisationTests.cpp',
-        'PlanGeneratorTests.cpp',
-        'ResizeTests.cpp',
-        'OptionalTests.cpp',
-        'QuantizationInfoTests.cpp',
-        'MceEstimationUtilsTests.cpp',
-        'ReinterpretQuantizationTests.cpp',
-        'MeanTests.cpp',
-        'EstimationUtilsTests.cpp']
+srcs = [
+    "main.cpp",
+    "GlobalParameters.cpp",
+    "ReshapeTests.cpp",
+    "StridedTests.cpp",
+    "ConcatTests.cpp",
+    "SplitTests.cpp",
+    "BranchingTests.cpp",
+    "FullyConnectedTests.cpp",
+    "DumpTests.cpp",
+    "AdditionTests.cpp",
+    "PoolTests.cpp",
+    "ReluTests.cpp",
+    "LeakyReluTests.cpp",
+    "RequantizeTests.cpp",
+    "DepthToSpaceTests.cpp",
+    "SigmoidTests.cpp",
+    "TanhTests.cpp",
+    "ConvTests.cpp",
+    "TransposeConvTests.cpp",
+    "TensorFormatTests.cpp",
+    "ConstantTests.cpp",
+    "NetworkTests.cpp",
+    "SramAllocatorTests.cpp",
+    "SupportTests.cpp",
+    "SupportQueriesTests.cpp",
+    "SubmapFilterTests.cpp",
+    "CapabilitiesTests.cpp",
+    "GraphTests.cpp",
+    "CombinerDFSTests.cpp",
+    "PlanTests.cpp",
+    "PartTests.cpp",
+    "TestUtils.cpp",
+    "VisualisationTests.cpp",
+    "PlanGeneratorTests.cpp",
+    "ResizeTests.cpp",
+    "OptionalTests.cpp",
+    "QuantizationInfoTests.cpp",
+    "MceEstimationUtilsTests.cpp",
+    "ReinterpretQuantizationTests.cpp",
+    "MeanTests.cpp",
+    "EstimationUtilsTests.cpp",
+]
 
-internal_dir = os.path.join(env['support_library_dir'], '..', '..', 'internal', 'driver', 'support_library', 'tests')
+internal_dir = os.path.join(
+    env["support_library_dir"],
+    "..",
+    "..",
+    "internal",
+    "driver",
+    "support_library",
+    "tests",
+)
 internal_srcs = []
 # Add internal tests only if the directory exists.
 if os.path.isdir(internal_dir):
@@ -71,18 +80,18 @@ if os.path.isdir(internal_dir):
     # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on
     # the install target where the install target is also provided via CPATH.
     # (see Finding #include files in repositories in scons documentation).
-    env.PrependUnique(CPPPATH=['.'])
-    env.Repository(os.path.join(env['support_library_dir'], '..', '..', 'internal', 'driver'))
-    internal_srcs = [f for f in os.listdir(internal_dir) if f.endswith('cpp')]
+    env.PrependUnique(CPPPATH=["."])
+    env.Repository(os.path.join(env["support_library_dir"], "..", "..", "internal", "driver"))
+    internal_srcs = [f for f in os.listdir(internal_dir) if f.endswith("cpp")]
 # Add internal unit tests
 srcs.extend(internal_srcs)
 
 libs = [ethosn_support_shared]
 # Catch2 uses android log APIs (could probably disable this in a catch config somewhere instead)
-if env['platform'] == 'android-ndk':
-    libs.append('log')
+if env["platform"] == "android-ndk":
+    libs.append("log")
 
-unitTests = env.Program('UnitTests', srcs, LIBS=libs)
-testAlias = env.Alias('support-library-unit-tests', [unitTests], unitTests[0].abspath)
-env.Alias('unit-tests', testAlias)
+unitTests = env.Program("UnitTests", srcs, LIBS=libs)
+testAlias = env.Alias("support-library-unit-tests", [unitTests], unitTests[0].abspath)
+env.Alias("unit-tests", testAlias)
 AlwaysBuild(testAlias)

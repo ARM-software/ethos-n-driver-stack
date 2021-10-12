@@ -8,21 +8,23 @@
 import os
 import common
 
-Import('env')
+Import("env")
 common.setup_common_env(env)
-common.setup_toolchain(env, env['platform'])
+common.setup_toolchain(env, env["platform"])
 
 # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on the install target
 # where the install target is also provided via CPATH.
-env.PrependUnique(CPPPATH=[os.path.join(env['command_stream_dir'], 'include'),
-                           os.path.join(env['utils_dir'], 'include'),
-                           env['kernel_module_dir']])
+env.PrependUnique(
+    CPPPATH=[
+        os.path.join(env["command_stream_dir"], "include"),
+        os.path.join(env["utils_dir"], "include"),
+        env["kernel_module_dir"],
+    ]
+)
 
-srcs = ['XmlParser.cpp',
-        'CMMParser.cpp',
-        'BinaryParser.cpp']
-xml_to_binary_lib = env.StaticLibrary('libXmlToBinary', srcs)
+srcs = ["XmlParser.cpp", "CMMParser.cpp", "BinaryParser.cpp"]
+xml_to_binary_lib = env.StaticLibrary("libXmlToBinary", srcs)
 
 # Build unit tests, if requested.
-if env['tests']:
-    SConscript(dirs='tests', duplicate=False, exports=['env', 'xml_to_binary_lib'])
+if env["tests"]:
+    SConscript(dirs="tests", duplicate=False, exports=["env", "xml_to_binary_lib"])

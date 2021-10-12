@@ -5,17 +5,16 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-Import('env')
+Import("env")
 
-srcs = ['Main.cpp',
-        'CommandStreamTests.cpp']
+srcs = ["Main.cpp", "CommandStreamTests.cpp"]
 
 libs = []
 # Catch2 uses android log APIs (could probably disable this in a catch config somewhere instead)
-if env['platform'] == 'android-ndk':
-    libs.append('log')
+if env["platform"] == "android-ndk":
+    libs.append("log")
 
-unitTests = env.Program('UnitTests', srcs, LIBS=libs)
-testAlias = env.Alias('command-stream-unit-tests', [unitTests], unitTests[0].abspath)
-env.Alias('unit-tests', testAlias)
+unitTests = env.Program("UnitTests", srcs, LIBS=libs)
+testAlias = env.Alias("command-stream-unit-tests", [unitTests], unitTests[0].abspath)
+env.Alias("unit-tests", testAlias)
 AlwaysBuild(testAlias)

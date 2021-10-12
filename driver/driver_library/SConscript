@@ -8,62 +8,78 @@
 import os
 import common
 
-Import('env')
+Import("env")
 
 common.setup_common_env(env)
-common.setup_toolchain(env, env['platform'])
+common.setup_toolchain(env, env["platform"])
 
 # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on the install target
 # where the install target is also provided via CPATH.
-env.PrependUnique(CPPPATH=[os.path.join(env['command_stream_dir'], 'include'),
-                           os.path.join(env['utils_dir'], 'include'),
-                           env['kernel_module_dir']])
+env.PrependUnique(
+    CPPPATH=[
+        os.path.join(env["command_stream_dir"], "include"),
+        os.path.join(env["utils_dir"], "include"),
+        env["kernel_module_dir"],
+    ]
+)
 # Set the appropriate CPP define for the target.
-env.Append(CPPDEFINES=['TARGET_' + env['target'].upper()])
+env.Append(CPPDEFINES=["TARGET_" + env["target"].upper()])
 # Device node information
-env.AppendUnique(CPPDEFINES=[r'DEVICE_NODE=\"{}{}\"'.format(env['device_node_prefix'], env['device_node_base_id'])])
-env.AppendUnique(CPPDEFINES=[r'DEVICE_NODE_PREFIX=\"{}\"'.format(env['device_node_prefix'])])
-env.AppendUnique(CPPDEFINES=[r'DEVICE_NODE_BASE_ID={}'.format(env['device_node_base_id'])])
+env.AppendUnique(
+    CPPDEFINES=[
+        r"DEVICE_NODE=\"{}{}\"".format(env["device_node_prefix"], env["device_node_base_id"])
+    ]
+)
+env.AppendUnique(CPPDEFINES=[r"DEVICE_NODE_PREFIX=\"{}\"".format(env["device_node_prefix"])])
+env.AppendUnique(CPPDEFINES=[r"DEVICE_NODE_BASE_ID={}".format(env["device_node_base_id"])])
 
-srcs = [os.path.join('src', 'Inference.cpp'),
-        os.path.join('src', 'Buffer.cpp'),
-        os.path.join('src', 'Device.cpp'),
-        os.path.join('src', 'Network.cpp'),
-        os.path.join('src', 'ProfilingInternal.cpp'),
-        os.path.join('src', 'DumpProfiling.cpp'),
-        os.path.join('src', 'NetworkImpl.cpp')]
+srcs = [
+    os.path.join("src", "Inference.cpp"),
+    os.path.join("src", "Buffer.cpp"),
+    os.path.join("src", "Device.cpp"),
+    os.path.join("src", "Network.cpp"),
+    os.path.join("src", "ProfilingInternal.cpp"),
+    os.path.join("src", "DumpProfiling.cpp"),
+    os.path.join("src", "NetworkImpl.cpp"),
+]
 
-if env['target'] == 'kmod':
-    srcs += [os.path.join('src', 'KmodNetwork.cpp'),
-             os.path.join('src', 'KmodProfiling.cpp')]
-    env.AppendUnique(CPPDEFINES=[r'FIRMWARE_PROFILING_NODE=\"{}\"'.format(env['firmware_profiling_node'])])
+if env["target"] == "kmod":
+    srcs += [
+        os.path.join("src", "KmodNetwork.cpp"),
+        os.path.join("src", "KmodProfiling.cpp"),
+    ]
+    env.AppendUnique(
+        CPPDEFINES=[r"FIRMWARE_PROFILING_NODE=\"{}\"".format(env["firmware_profiling_node"])]
+    )
 else:
-    srcs += [os.path.join('src', 'NullKmodProfiling.cpp')]
+    srcs += [os.path.join("src", "NullKmodProfiling.cpp")]
 
-if env['target'] == 'model':
+if env["target"] == "model":
     # Compile internal-only model files, which are stored outside of this component's folder.
     # Use a scons 'repository' so that the build artifacts (.o files) are still placed in the expected build directory.
     # Extend CPPPATH to allow the model cpp files to include headers from the regular src folder, and to allow
     # regular src files to include headers from the model-only folder.
     # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on
     # the install target where the install target is also provided via CPATH.
-    env.PrependUnique(CPPPATH=['.', 'src'])
-    env.Repository(os.path.join(env['driver_library_dir'], '..', '..', 'internal', 'driver'))
-    srcs += [os.path.join('src', 'ModelNetwork.cpp')]
+    env.PrependUnique(CPPPATH=[".", "src"])
+    env.Repository(os.path.join(env["driver_library_dir"], "..", "..", "internal", "driver"))
+    srcs += [os.path.join("src", "ModelNetwork.cpp")]
 
 libs = []
 
 # Add dependency on libXmlToBinary and libmxml if we need to be able to dump command streams.
 # This is controlled by a build option as these extra dependencies will not be wanted in a production environment.
-if env['allow_command_stream_dump']:
-    env.AppendUnique(CPPDEFINES=['ETHOSN_ALLOW_COMMAND_STREAM_DUMP=1'])
-    env.PrependUnique(CPPPATH=[env['lib_xml_to_binary_dir']])
-    lib_xml_to_binary = File(os.path.join(common.get_lib_xml_to_binary_build_dir(env), 'libXmlToBinary.a'))
-    libs.extend([lib_xml_to_binary, 'mxml'])
+if env["allow_command_stream_dump"]:
+    env.AppendUnique(CPPDEFINES=["ETHOSN_ALLOW_COMMAND_STREAM_DUMP=1"])
+    env.PrependUnique(CPPPATH=[env["lib_xml_to_binary_dir"]])
+    lib_xml_to_binary = File(
+        os.path.join(common.get_lib_xml_to_binary_build_dir(env), "libXmlToBinary.a")
+    )
+    libs.extend([lib_xml_to_binary, "mxml"])
 
 # Build driver_library static and shared lib
-ethosn_driver_lib = env.StaticLibrary('libEthosNDriver', srcs)
-env.Alias('install', env.Install(env['install_lib_dir'], ethosn_driver_lib))
+ethosn_driver_lib = env.StaticLibrary("libEthosNDriver", srcs)
+env.Alias("install", env.Install(env["install_lib_dir"], ethosn_driver_lib))
 
 # Note we must explicitly set the SONAME to override the default which uses a path relative to the current directory.
 # This means that when the runtime linker looks for the .so, it uses the filename only and not the relative path.
@@ -71,20 +87,27 @@ env.Alias('install', env.Install(env['install_lib_dir'], ethosn_driver_lib))
 # Note: can't just pass this special LINKFLAGS to SharedLibrary as that would override the existing one we have,
 #       which may have --coverage and other flags.
 soEnv = env.Clone()
-soEnv.Append(LINKFLAGS='-Wl,-soname=libEthosNDriver.so')
+soEnv.Append(LINKFLAGS="-Wl,-soname=libEthosNDriver.so")
 # On non-Unix platforms, the static and shared lib filenames may collide, so use a different name
-shared_lib_name = 'libEthosNDriver' if env['PLATFORM'] == 'posix' else 'libEthosNDriverShared'
+shared_lib_name = "libEthosNDriver" if env["PLATFORM"] == "posix" else "libEthosNDriverShared"
 # On non-Unix platforms, the static and shared libs may need to have different compile options, so the obj names
 # need to be unique
-obj_prefix = None if env['PLATFORM'] == 'posix' else 'Shared_'
+obj_prefix = None if env["PLATFORM"] == "posix" else "Shared_"
 
-libs.extend(env.get('driver_library_extra_libs', []))  # Allow extra libs to be specified by scons_extra files
+libs.extend(
+    env.get("driver_library_extra_libs", [])
+)  # Allow extra libs to be specified by scons_extra files
 ethosn_driver_shared = soEnv.SharedLibrary(shared_lib_name, srcs, LIBS=libs, SHOBJPREFIX=obj_prefix)
 
-env.Alias('install', env.Install(env['install_lib_dir'], ethosn_driver_shared))
-env.Alias('install', env.Install(os.path.join(env['install_include_dir'], 'ethosn_driver_library'),
-                                 Glob(os.path.join('include', 'ethosn_driver_library', '*'))))
+env.Alias("install", env.Install(env["install_lib_dir"], ethosn_driver_shared))
+env.Alias(
+    "install",
+    env.Install(
+        os.path.join(env["install_include_dir"], "ethosn_driver_library"),
+        Glob(os.path.join("include", "ethosn_driver_library", "*")),
+    ),
+)
 
 # Build unit tests if requested.
-if env['tests']:
-    SConscript(dirs='tests', duplicate=False, exports=['env', 'ethosn_driver_shared'])
+if env["tests"]:
+    SConscript(dirs="tests", duplicate=False, exports=["env", "ethosn_driver_shared"])
