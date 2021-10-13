@@ -292,9 +292,9 @@ public:
     std::shared_ptr<EncodedWeights> m_EncodedWeights;
 };
 
-bool IsOutputBufferInDram(const Plan& plan, const Edge& edge);
-bool IsInputBufferInSram(const Plan& plan, const Edge& edge);
-bool IsOutputBufferInSram(const Plan& plan, const Edge& edge);
+bool IsOutputBufferInDram(const Plan& plan, const PartOutputSlot& outputSlot);
+bool IsInputBufferInSram(const Plan& plan, const PartInputSlot& inputSlot);
+bool IsOutputBufferInSram(const Plan& plan, const PartOutputSlot& outputSlot);
 
 SizeInBytes GetTotSizeInBytes(const Plan& plan);
 SizeInBytes GetInputsSizeInBytes(const Plan& plan);
