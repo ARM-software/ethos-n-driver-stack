@@ -24,6 +24,7 @@
 
 #include "ethosn_backport.h"
 #include "ethosn_buffer.h"
+#include "ethosn_debug.h"
 #include "ethosn_device.h"
 #include "ethosn_dma.h"
 #include "ethosn_firmware.h"

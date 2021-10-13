@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited.
+ * (C) COPYRIGHT 2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -20,27 +20,13 @@
  *
  */
 
-#ifndef _ETHOSN_BUFFER_H_
-#define _ETHOSN_BUFFER_H_
+#ifndef _ETHOSN_DEBUG_H_
+#define _ETHOSN_DEBUG_H_
 
 #include "ethosn_device.h"
 #include "ethosn_dma.h"
-#include "uapi/ethosn.h"
 
-#include <linux/fs.h>
-#include <linux/types.h>
+int ethosn_get_dma_view_fd(struct ethosn_device *ethosn,
+			   struct ethosn_dma_info *dma_info);
 
-struct ethosn_buffer {
-	struct ethosn_device   *ethosn;
-	struct ethosn_dma_info *dma_info;
-	/* file pointer used for user-space mmap and for ref-counting */
-	struct file            *file;
-};
-
-int ethosn_buffer_register(struct ethosn_device *ethosn,
-			   struct ethosn_buffer_req *buf_req);
-struct ethosn_buffer *ethosn_buffer_get(int fd);
-void put_ethosn_buffer(struct ethosn_buffer *buf);
-
-const struct file_operations *ethosn_get_dma_view_fops(void);
-#endif /* _ETHOSN_BUFFER_H_ */
+#endif /* _ETHOSN_DEBUG_H_ */

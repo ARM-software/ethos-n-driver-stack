@@ -28,7 +28,6 @@
 #include <linux/anon_inodes.h>
 #include <linux/device.h>
 #include <linux/file.h>
-#include <linux/fs.h>
 #include <linux/slab.h>
 #include <linux/types.h>
 
@@ -72,6 +71,24 @@ static const struct file_operations ethosn_dma_view_fops = {
 static bool is_ethosn_dma_view_file(const struct file *const file)
 {
 	return file->f_op == &ethosn_dma_view_fops;
+}
+
+static int ethosn_dma_view_release(struct inode *const inode,
+				   struct file *const file)
+{
+	struct ethosn_buffer *buf = file->private_data;
+	struct ethosn_device *ethosn = buf->ethosn;
+
+	if (WARN_ON(!is_ethosn_dma_view_file(file)))
+		return -EBADF;
+
+	dev_dbg(ethosn->dev, "Release DMA view. handle=0x%pK\n", buf);
+
+	put_device(ethosn->dev);
+
+	kfree(buf);
+
+	return 0;
 }
 
 static void buffer_unmap_and_free_dma(struct ethosn_buffer *buf,
@@ -299,65 +316,12 @@ void put_ethosn_buffer(struct ethosn_buffer *buf)
 	fput(buf->file);
 }
 
-static int ethosn_dma_view_release(struct inode *const inode,
-				   struct file *const file)
-{
-	struct ethosn_buffer *buf = file->private_data;
-	struct ethosn_device *ethosn = buf->ethosn;
-
-	if (WARN_ON(!is_ethosn_dma_view_file(file)))
-		return -EBADF;
-
-	dev_dbg(ethosn->dev, "Release DMA view. handle=0x%pK\n", buf);
-
-	put_device(ethosn->dev);
-
-	kfree(buf);
-
-	return 0;
-}
-
 /**
- * ethosn_get_dma_view_fd() - Creates a file handle that provides access to an
- * existing DMA buffer.
+ * ethosn_get_dma_view_fops() - Get dma view file operations.
  *
- * Return: File descriptor on success (positive), else error code (negative).
+ * Return: File operations reference.
  */
-int ethosn_get_dma_view_fd(struct ethosn_device *ethosn,
-			   struct ethosn_dma_info *dma_info)
+const struct file_operations *ethosn_get_dma_view_fops(void)
 {
-	struct ethosn_buffer *buf;
-	int fd;
-
-	/* Re-use the ethosn_buffer struct as there is a lot of overlap in
-	 * functionality
-	 */
-	buf = kzalloc(sizeof(*buf), GFP_KERNEL);
-	if (!buf)
-		return -ENOMEM;
-
-	dev_dbg(ethosn->dev,
-		"Create DMA view handle. handle=0x%pK\n", buf);
-
-	buf->ethosn = ethosn;
-	buf->dma_info = dma_info;
-
-	fd = anon_inode_getfd("ethosn-dma-view", &ethosn_dma_view_fops, buf,
-			      O_RDONLY | O_CLOEXEC);
-	if (fd < 0)
-		goto err_kfree;
-
-	buf->file = fget(fd);
-	buf->file->f_mode |= FMODE_LSEEK;
-
-	fput(buf->file);
-
-	get_device(ethosn->dev);
-
-	return fd;
-
-err_kfree:
-	kfree(buf);
-
-	return fd;
+	return &ethosn_dma_view_fops;
 }
