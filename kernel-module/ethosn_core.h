@@ -35,6 +35,4 @@ int ethosn_core_platform_driver_register(void);
 
 void ethosn_core_platform_driver_unregister(void);
 
-int ethosn_get_autosuspend_delay(void);
-
 #endif /* _ETHOSN_CORE_H_ */
