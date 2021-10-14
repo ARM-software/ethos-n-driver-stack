@@ -33,7 +33,7 @@ class Buffer::BufferImpl
 {
 public:
     BufferImpl(uint32_t size, DataFormat format, const std::string& device)
-        : m_Data(nullptr)
+        : m_MappedData(nullptr)
         , m_Size(size)
         , m_Format(format)
     {
@@ -61,25 +61,19 @@ public:
         {
             throw std::runtime_error(std::string("Failed to create buffer: ") + strerror(err));
         }
-
-        m_Data = reinterpret_cast<uint8_t*>(mmap(nullptr, size, PROT_WRITE, MAP_SHARED, m_BufferFd, 0));
-        if (m_Data == MAP_FAILED)
-        {
-            err = errno;
-            close(m_BufferFd);
-            throw std::runtime_error(std::string("Failed to map memory: ") + strerror(err));
-        }
     }
 
     BufferImpl(uint8_t* src, uint32_t size, DataFormat format, const std::string& device)
         : BufferImpl(size, format, device)
     {
-        std::copy_n(src, size, m_Data);
+        uint8_t* data = Map();
+        std::copy_n(src, size, data);
+        Unmap();
     }
 
     ~BufferImpl()
     {
-        munmap(m_Data, m_Size);
+        Unmap();
         close(m_BufferFd);
     }
 
@@ -98,14 +92,48 @@ public:
         return m_BufferFd;
     }
 
-    uint8_t* GetMappedBuffer()
+    uint8_t* Map()
     {
-        return m_Data;
+        int ret = ioctl(m_BufferFd, ETHOSN_IOCTL_SYNC_FOR_CPU);
+        if (ret < 0)
+        {
+            throw std::runtime_error(std::string("Failed to sync for cpu: ") + strerror(errno));
+        }
+
+        if (m_MappedData)
+        {
+            return m_MappedData;
+        }
+
+        m_MappedData = reinterpret_cast<uint8_t*>(mmap(nullptr, m_Size, PROT_WRITE, MAP_SHARED, m_BufferFd, 0));
+        if (m_MappedData == MAP_FAILED)
+        {
+            m_MappedData = nullptr;
+            throw std::runtime_error(std::string("Failed to map memory: ") + strerror(errno));
+        }
+
+        return m_MappedData;
+    }
+
+    void Unmap()
+    {
+        if (!m_MappedData)
+        {
+            return;
+        }
+
+        munmap(m_MappedData, m_Size);
+        m_MappedData = nullptr;
+        int ret      = ioctl(m_BufferFd, ETHOSN_IOCTL_SYNC_FOR_DEVICE);
+        if (ret < 0)
+        {
+            throw std::runtime_error(std::string("Failed to sync for device: ") + strerror(errno));
+        }
     }
 
 private:
     int m_BufferFd;
-    uint8_t* m_Data;
+    uint8_t* m_MappedData;
     uint32_t m_Size;
     DataFormat m_Format;
 };

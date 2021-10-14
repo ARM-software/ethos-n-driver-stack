@@ -35,7 +35,7 @@ TEST_CASE("BufferSource")
     // Verify Buffer properties
     REQUIRE(test_buffer.GetSize() == sizeof(test_src));
     REQUIRE(test_buffer.GetDataFormat() == DataFormat::NHWC);
-    REQUIRE(std::memcmp(test_buffer.GetMappedBuffer(), test_src, sizeof(test_src)) == 0);
+    REQUIRE(std::memcmp(test_buffer.Map(), test_src, sizeof(test_src)) == 0);
 }
 
 TEST_CASE("BufferDescriptor")
@@ -49,5 +49,21 @@ TEST_CASE("BufferDescriptor")
     // Verify Buffer properties
     REQUIRE(test_buffer.GetSize() == buf_size);
     REQUIRE(test_buffer.GetDataFormat() == DataFormat::NHWC);
-    REQUIRE(std::memcmp(test_buffer.GetMappedBuffer(), test_src, buf_size) == 0);
+    REQUIRE(std::memcmp(test_buffer.Map(), test_src, buf_size) == 0);
+}
+
+TEST_CASE("BufferMap/Unmap")
+{
+    uint8_t test_src[] = "This is a test source data";
+
+    // Create a buffer with test source data
+    Buffer test_buffer(test_src, sizeof(test_src), DataFormat::NHWC);
+
+    // Verify Buffer properties
+    REQUIRE(test_buffer.GetSize() == sizeof(test_src));
+    REQUIRE(test_buffer.GetDataFormat() == DataFormat::NHWC);
+    REQUIRE(std::memcmp(test_buffer.Map(), test_src, sizeof(test_src)) == 0);
+    REQUIRE_NOTHROW(test_buffer.Unmap());
+    // Check that it is not going to munmap twice
+    REQUIRE_NOTHROW(test_buffer.Unmap());
 }

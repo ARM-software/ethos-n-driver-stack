@@ -74,11 +74,13 @@ public:
 
     virtual const void* Map(bool /* blocking = true */) const override
     {
-        return static_cast<const void*>(m_Buffer.GetMappedBuffer());
+        return static_cast<const void*>(m_Buffer.Map());
     }
 
     virtual void Unmap() const override
-    {}
+    {
+        m_Buffer.Unmap();
+    }
 
     TensorShape GetStrides() const override
     {
@@ -111,21 +113,18 @@ public:
         return m_Buffer;
     }
 
-    template <typename T>
-    T* GetTensor() const
-    {
-        ARMNN_ASSERT(CompatibleTypes<T>(GetTensorInfo().GetDataType()));
-        return reinterpret_cast<T*>(m_Buffer.GetMappedBuffer());
-    }
-
     void CopyOutTo(void* memory) const override
     {
-        memcpy(memory, GetTensor<uint8_t>(), GetTensorInfo().GetNumBytes());
+        const uint8_t* data = m_Buffer.Map();
+        memcpy(memory, data, GetTensorInfo().GetNumBytes());
+        m_Buffer.Unmap();
     }
 
     void CopyInFrom(const void* memory) override
     {
-        memcpy(GetTensor<uint8_t>(), memory, GetTensorInfo().GetNumBytes());
+        uint8_t* data = m_Buffer.Map();
+        memcpy(data, memory, GetTensorInfo().GetNumBytes());
+        m_Buffer.Unmap();
     }
 
 private:

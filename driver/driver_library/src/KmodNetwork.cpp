@@ -75,7 +75,7 @@ std::vector<char> GetFirmwareAndHardwareCapabilities(const std::string& device)
     int capsSize = ioctl(fd, ETHOSN_IOCTL_FW_HW_CAPABILITIES, NULL);
     if (capsSize <= 0)
     {
-        throw std::runtime_error(std::string("Failed to retrieve the size of firmware capabilities, errno = ") +
+        throw std::runtime_error(std::string("Failed to retrieve the size of firmware capabilities: ") +
                                  strerror(errno));
     }
 
@@ -86,7 +86,7 @@ std::vector<char> GetFirmwareAndHardwareCapabilities(const std::string& device)
     int ret = ioctl(fd, ETHOSN_IOCTL_FW_HW_CAPABILITIES, caps.data());
     if (ret != 0)
     {
-        throw std::runtime_error(std::string("Failed to retrieve firmware and hardware information data, errno = ") +
+        throw std::runtime_error(std::string("Failed to retrieve firmware and hardware information data: ") +
                                  strerror(errno));
     }
 

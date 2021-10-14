@@ -87,7 +87,17 @@ const int& Buffer::GetBufferHandle() const
 
 uint8_t* Buffer::GetMappedBuffer()
 {
-    return bufferImpl->GetMappedBuffer();
+    return bufferImpl->Map();
+}
+
+uint8_t* Buffer::Map()
+{
+    return bufferImpl->Map();
+}
+
+void Buffer::Unmap()
+{
+    bufferImpl->Unmap();
 }
 
 }    // namespace driver_library

@@ -29,18 +29,24 @@ public:
 
     // FIXME: Need an API where an external buffer is provided, without any copy. (Jira NNXSW-605)
 
-    // Ethos-N allocates the buffer.
+    // Device allocates the buffer.
     Buffer(uint32_t size, DataFormat format);
     Buffer(uint32_t size, DataFormat format, const std::string& device);
 
-    // Data is copied from src into the buffer.
-    // This won't work for output buffers if using kmod backend unless any access after creation is via GetMappedBuffer().
-    // The input data will only be copied-in at creation time, and the output data won't be copied-out to
-    // the original memory location.
-    // The important thing is that we make sure the latest input data is copied into our copy before inference and
-    // that output data is copied to the user-space location after inference.
-    // For input data, it would be fine to document that the user is supposed to fill data with our API and not via the
-    // original pointer. Otherwise, there's no guarantee the inference will run with the correct data.
+    // Data is copied from src into the buffer. Any access after creation is via Map()/Unmap():
+    //
+    // Buffer input(mem, size, format);
+    //
+    // ... inference is executed ...
+    //
+    // uint8_t data = input.Map();
+    //
+    // ... fill in more data ...
+    //
+    // input.Unmap();
+    //
+    // ... another inference is executed ...
+    //
     // FIXME: Fix as part of Jira NNXSW-610 - Refactor Driver Library
     Buffer(uint8_t* src, uint32_t size, DataFormat format);
     Buffer(uint8_t* src, uint32_t size, DataFormat format, const std::string& device);
@@ -57,7 +63,16 @@ public:
     const int& GetBufferHandle() const;
 
     // Returns a pointer to the mapped kernel buffer.
+    // This is deprecated, use Map()/Unmap() instead.
     uint8_t* GetMappedBuffer();
+
+    // Syncs for cpu and returns a pointer to the mapped buffer.
+    // To be used together with Unmap().
+    uint8_t* Map();
+
+    // Unmaps the buffer and syncs for device.
+    // To be used together with Map().
+    void Unmap();
 
 private:
     class BufferImpl;

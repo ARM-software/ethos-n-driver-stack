@@ -140,7 +140,7 @@ uint64_t GetKernelDriverCounterValue(PollCounterName counter, const std::string&
 
     if (result < 0)
     {
-        throw std::runtime_error(std::string("Unable to retrieve counter value. errno: ") + strerror(errno));
+        throw std::runtime_error(std::string("Unable to retrieve counter value: ") + strerror(errno));
     }
 
     return result;

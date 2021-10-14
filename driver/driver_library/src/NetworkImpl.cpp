@@ -434,10 +434,11 @@ void NetworkImpl::DumpCmm(Buffer* const inputBuffers[],
     {
         for (uint32_t i = 0; i < numInputBuffers; ++i)
         {
-            auto& info = m_CompiledNetwork->m_InputBufferInfos[i];
-            auto ifm   = inputBuffers[i];
-            AddToMemoryMap(cmm, static_cast<uint32_t>(inputBuffersBaseAddress) + info.m_Offset, ifm->GetMappedBuffer(),
-                           info.m_Size);
+            auto& info       = m_CompiledNetwork->m_InputBufferInfos[i];
+            auto ifm         = inputBuffers[i];
+            uint8_t* ifmData = ifm->Map();
+            AddToMemoryMap(cmm, static_cast<uint32_t>(inputBuffersBaseAddress) + info.m_Offset, ifmData, info.m_Size);
+            ifm->Unmap();
         }
     }
 

@@ -44,13 +44,20 @@ static int ethosn_buffer_mmap(struct file *file,
 static loff_t ethosn_buffer_llseek(struct file *file,
 				   loff_t offset,
 				   int whence);
+static long ethosn_buffer_ioctl(struct file *file,
+				unsigned int cmd,
+				unsigned long arg);
 static int ethosn_dma_view_release(struct inode *const inode,
 				   struct file *const file);
 
 static const struct file_operations ethosn_buffer_fops = {
-	.release = &ethosn_buffer_release,
-	.mmap    = &ethosn_buffer_mmap,
-	.llseek  = &ethosn_buffer_llseek,
+	.release        = &ethosn_buffer_release,
+	.mmap           = &ethosn_buffer_mmap,
+	.llseek         = &ethosn_buffer_llseek,
+	.unlocked_ioctl = &ethosn_buffer_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl   = &ethosn_buffer_ioctl,
+#endif
 };
 
 static bool is_ethosn_buffer_file(const struct file *const file)
@@ -178,6 +185,36 @@ static loff_t ethosn_buffer_llseek(struct file *const file,
 		return -EINVAL;
 }
 
+static long ethosn_buffer_ioctl(struct file *file,
+				unsigned int cmd,
+				unsigned long arg)
+{
+	struct ethosn_buffer *buf = file->private_data;
+	struct ethosn_device *ethosn = buf->ethosn;
+	int ret = 0;
+
+	switch (cmd) {
+	case ETHOSN_IOCTL_SYNC_FOR_CPU: {
+		dev_dbg(ethosn->dev, "ETHOSN_IOCTL_SYNC_FOR_CPU\n");
+
+		ethosn_dma_sync_for_cpu(ethosn->allocator, buf->dma_info);
+
+		break;
+	}
+	case ETHOSN_IOCTL_SYNC_FOR_DEVICE: {
+		dev_dbg(ethosn->dev, "ETHOSN_IOCTL_SYNC_FOR_DEVICE\n");
+
+		ethosn_dma_sync_for_device(ethosn->allocator, buf->dma_info);
+		break;
+	}
+	default: {
+		ret = -EINVAL;
+	}
+	}
+
+	return ret;
+}
+
 /**
  * ethosn_buffer_register() - Register a new Ethos-N buffer
  * @ethosn: [in]     pointer to Ethos-N device
@@ -247,6 +284,7 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 
 	if (buf_req->flags & MB_ZERO) {
 		memset(buf->dma_info->cpu_addr, 0, buf->dma_info->size);
+		ethosn_dma_sync_for_device(ethosn->allocator, buf->dma_info);
 		dev_dbg(ethosn->dev, "Zeroed device buffer 0x%pK\n", buf);
 	}
 

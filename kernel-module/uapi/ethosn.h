@@ -345,6 +345,10 @@ struct ethosn_log_firmware_header {
 	ETHOSN_IO(0x09)
 #define ETHOSN_IOCTL_GET_VERSION \
 	ETHOSN_IO(0x0a)
+#define ETHOSN_IOCTL_SYNC_FOR_CPU \
+	ETHOSN_IO(0x0b)
+#define ETHOSN_IOCTL_SYNC_FOR_DEVICE \
+	ETHOSN_IO(0x0c)
 
 /*
  * Results from reading an inference file descriptor.
