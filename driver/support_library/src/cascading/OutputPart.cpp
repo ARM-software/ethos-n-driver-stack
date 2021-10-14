@@ -22,8 +22,9 @@ OutputPart::OutputPart(PartId id,
                        const EstimationOptions& estOpt,
                        const CompilationOptions& compOpt,
                        const HardwareCapabilities& capabilities)
-    : BasePart(id, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, capabilities)
+    : BasePart(id, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape{ inputTensorShape }
+    , m_InputQuantizationInfo(quantizationInfo)
 {}
 
 Plans OutputPart::GetPlans(CascadeType cascadeType,
@@ -54,11 +55,11 @@ void OutputPart::CreatePlanForOutputPart(Lifetime lifetime, TraversalOrder order
     PartOutputMapping outputMappings;
     OwnedOpGraph opGraph;
 
-    CascadingBufferFormat format   = PartUtils::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
+    CascadingBufferFormat format   = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
     std::unique_ptr<Buffer> buffer = std::make_unique<Buffer>(lifetime, Location::Dram, format, order);
     buffer->m_TensorShape          = m_InputTensorShape;
-    buffer->m_SizeInBytes          = PartUtils::CalculateBufferSize(m_InputTensorShape, format);
-    buffer->m_QuantizationInfo     = m_QuantizationInfo;
+    buffer->m_SizeInBytes          = impl::CalculateBufferSize(m_InputTensorShape, format);
+    buffer->m_QuantizationInfo     = m_InputQuantizationInfo;
     inputMappings[buffer.get()]    = PartInputSlot{ m_PartId, 0 };
     opGraph.AddBuffer(std::move(buffer));
 

@@ -283,7 +283,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
     mce.m_DebugTag = "Mce";
     graph.AddOp(&mce);
 
-    DmaOp dma(Lifetime::Cascade, Location::Sram);
+    DmaOp dma(Lifetime::Cascade);
     dma.m_DebugTag = "Dma";
     graph.AddOp(&dma);
 
@@ -308,7 +308,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
         R"(digraph SupportLibraryGraph
 {
 Mce[label = "Mce\nLifetime = Atomic\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlock Config = 3x4\nInput Stripe Shape = [1, 2, 3, 4]\nOutput Stripe Shape = [5, 6, 7, 8]\nWeights Stripe Shape = [9, 10, 11, 12]\nOrder = Zxy\nStride = 10, 20\nPad L/T = 30, 40\nOperation Ids = []\n", shape = oval]
-Dma[label = "Dma\nLifetime = Cascade\nDmaOp\nLocation = Sram\nOperation Ids = []\n", shape = oval, color = darkgoldenrod]
+Dma[label = "Dma\nLifetime = Cascade\nDmaOp\nOperation Ids = []\n", shape = oval, color = darkgoldenrod]
 Ple[label = "Ple\nLifetime = Atomic\nPleOp\nOp = ADDITION\nBlock Config = 3x4\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nOperation Ids = []\n", shape = oval]
 Buffer1[label = "Buffer1\nLifetime = Cascade\nLocation = PleInputSram\nFormat = WEIGHT\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\nOrder = Zxy\nSize in bytes = 1234\n", shape = box]
 }
@@ -358,7 +358,7 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     outputBuffer.m_DebugTag = "OutputBuffer";
     graph.AddBuffer(&outputBuffer);
 
-    DmaOp dma(Lifetime::Atomic, Location::Dram);
+    DmaOp dma(Lifetime::Atomic);
     dma.m_DebugTag = "Dma";
     graph.AddOp(&dma);
 
@@ -544,7 +544,6 @@ BasePart_7 -> BasePart_6[ headlabel="Slot 1"]
 TEST_CASE("SaveGraphToDot Node Details", "[Visualisation]")
 {
     const CompilerDataFormat compilerDataFormat = CompilerDataFormat::NONE;
-    const QuantizationInfo quantizationInfo;
     const std::set<uint32_t> correspondingOperationIds;
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
@@ -561,8 +560,7 @@ TEST_CASE("SaveGraphToDot Node Details", "[Visualisation]")
         CompilerDataFormat::NHWCB, std::set<uint32_t>{ 2 });
 
     // Arbitrarily Put all nodes into one part
-    auto part1 = std::make_unique<PartV1>(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt,
-                                          compOpt, caps);
+    auto part1 = std::make_unique<PartV1>(0, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, caps);
     part1->m_SubGraph = { m };
     GraphOfParts parts;
     parts.m_Parts.push_back(std::move(part1));

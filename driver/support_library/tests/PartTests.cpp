@@ -34,8 +34,8 @@ TEST_CASE("Validate Tile Size")
             std::vector<int32_t>{ 0 }, Stride(), 0, 0, ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
             CompilerDataFormat::NHWCB, std::set<uint32_t>{ 1 });
 
-        uint32_t tileSize = PartUtils::CalculateTileSize(node, hwCaps, inputTensorShape, inputStripeShape,
-                                                         outputStripeShape, nonBoundaryStripes);
+        uint32_t tileSize = impl::CalculateTileSize(node, hwCaps, inputTensorShape, inputStripeShape, outputStripeShape,
+                                                    nonBoundaryStripes);
 
         // The upper boundary size = 8 (ie brickGroupHeight) * (16 * 32) (ie inputStripeXZ) which is 4096
         // The lower boundary size is also the same as the upper boundary size ie 4096
@@ -59,8 +59,8 @@ TEST_CASE("Validate Tile Size")
             std::vector<int32_t>{ 0 }, Stride(), 0, 0, ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
             CompilerDataFormat::NHWCB, std::set<uint32_t>{ 1 });
 
-        uint32_t tileSize = PartUtils::CalculateTileSize(node, hwCaps, inputTensorShape, inputStripeShape,
-                                                         outputStripeShape, nonBoundaryStripes);
+        uint32_t tileSize = impl::CalculateTileSize(node, hwCaps, inputTensorShape, inputStripeShape, outputStripeShape,
+                                                    nonBoundaryStripes);
 
         // We do not need to stream in width and height so the boundary tiles are not needed.
         // The stripe size is 116 * 16 * 32 ie 57344
@@ -83,8 +83,8 @@ TEST_CASE("Validate Tile Size")
             std::vector<int32_t>{ 0 }, Stride(), 0, 0, ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
             CompilerDataFormat::NHWCB, std::set<uint32_t>{ 1 });
 
-        uint32_t tileSize = PartUtils::CalculateTileSize(node, hwCaps, inputTensorShape, inputStripeShape,
-                                                         outputStripeShape, nonBoundaryStripes);
+        uint32_t tileSize = impl::CalculateTileSize(node, hwCaps, inputTensorShape, inputStripeShape, outputStripeShape,
+                                                    nonBoundaryStripes);
 
         // We do not need to stream in width and height so the boundary tiles are not needed.
         // The stripe size is 116 * 16 * 32 ie 57344

@@ -46,7 +46,7 @@ public:
     {
         MceStripesInfo m_MceCompute;
         PleStripesInfo m_PleCompute;
-        MemoryStripesInfo m_Memory;
+        impl::MemoryStripesInfo m_Memory;
         Lifetime m_Lifetime = Lifetime::Cascade;
 
         bool operator<(const MceAndPleInfo& rhs) const;
@@ -57,7 +57,7 @@ public:
     struct MceOnlyInfo
     {
         MceStripesInfo m_MceCompute;
-        MemoryStripesInfo m_Memory;
+        impl::MemoryStripesInfo m_Memory;
         Lifetime m_Lifetime = Lifetime::Cascade;
 
         bool operator<(const MceOnlyInfo& rhs) const;
@@ -68,7 +68,7 @@ public:
     struct PleOnlyInfo
     {
         PleStripesInfo m_PleCompute;
-        MemoryStripesInfo m_Memory;
+        impl::MemoryStripesInfo m_Memory;
         Lifetime m_Lifetime = Lifetime::Cascade;
 
         bool operator<(const PleOnlyInfo& rhs) const;
@@ -79,17 +79,16 @@ public:
         std::set<MceAndPleInfo> m_MceAndPleInfos;
         std::set<MceOnlyInfo> m_MceOnlyInfos;
         std::set<PleOnlyInfo> m_PleOnlyInfos;
-        std::set<DmaOnlyInfo> m_DmaOnlyInfos;
+        std::set<impl::DmaOnlyInfo> m_DmaOnlyInfos;
     };
 
     PartV1(PartId id,
            const CompilerDataFormat& compilerDataFormat,
-           const QuantizationInfo& quantizationInfo,
            const std::set<uint32_t>& correspondingOperationIds,
            const EstimationOptions& estOpt,
            const CompilationOptions& compOpt,
            const HardwareCapabilities& capabilities)
-        : BasePart(id, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, capabilities)
+        : BasePart(id, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, capabilities)
     {}
 
     virtual Plans GetPlans(CascadeType cascadeType,
@@ -156,21 +155,24 @@ private:
     void CreateFuseOnlyPlans(Node* node, const PleOnlyInfo& info, TraversalOrder order, Plans& plans) const;
 
     void CreateFormatConversionPlans(Node* node,
-                                     DmaOnlyInfo& dmaInfo,
-                                     NumMemoryStripes& numMemoryStripes,
+                                     impl::DmaOnlyInfo& dmaInfo,
+                                     impl::NumMemoryStripes& numMemoryStripes,
                                      TraversalOrder order,
                                      Location inputBufferLocaton,
                                      Location outputBufferLocation,
                                      Plans& plans) const;
 
-    void CreateVirtualSramPlans(
-        Node* node, DmaOnlyInfo& dmaInfo, NumMemoryStripes& numMemoryStripes, TraversalOrder order, Plans& plans) const;
+    void CreateVirtualSramPlans(Node* node,
+                                impl::DmaOnlyInfo& dmaInfo,
+                                impl::NumMemoryStripes& numMemoryStripes,
+                                TraversalOrder order,
+                                Plans& plans) const;
 
     std::pair<Buffer*, Buffer*> AddIdentityMceOpForSubGraph(OwnedOpGraph& opGraph,
                                                             Lifetime lifetime,
                                                             const PartV1::MceStripesInfo& mceComputeInfo,
-                                                            const NumMemoryStripes& numMemoryStripes,
-                                                            const MemoryStripesInfo& memoryStripes,
+                                                            const impl::NumMemoryStripes& numMemoryStripes,
+                                                            const impl::MemoryStripesInfo& memoryStripes,
                                                             const TensorShape& inpShape,
                                                             const QuantizationInfo& inpQuantInfo,
                                                             TraversalOrder order,

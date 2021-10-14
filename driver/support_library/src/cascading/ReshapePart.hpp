@@ -6,7 +6,6 @@
 #pragma once
 
 #include "Part.hpp"
-#include "PartUtils.hpp"
 
 namespace ethosn
 {
@@ -34,12 +33,8 @@ public:
 private:
     const TensorShape m_InputTensorShape;
     const TensorShape m_OutputTensorShape;
-    void CreateOpGraphAndPlan(DmaOnlyInfo& dmaInfo,
-                              NumMemoryStripes& numMemoryStripes,
-                              TraversalOrder order,
-                              Location input,
-                              Location output,
-                              Plans& plans) const;
+    QuantizationInfo m_OutputQuantizationInfo;
+
     void CreateReinterpretDramPlan(Plans& plans) const;
 };
 

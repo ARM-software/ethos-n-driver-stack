@@ -221,6 +221,8 @@ std::string ToString(command_stream::PleOperation o)
             return "SIGMOID";
         case ethosn::command_stream::PleOperation::TRANSPOSE_XY:
             return "TRANSPOSE_XY";
+        case ethosn::command_stream::PleOperation::LEAKY_RELU:
+            return "LEAKY_RELU";
         default:
             ETHOSN_FAIL_MSG("Unknown PLE operation");
             return "";
@@ -357,7 +359,6 @@ std::string GetOpString(Op* op)
     if (dmaOp != nullptr)
     {
         stream << "DmaOp\n";
-        stream << "Location = " << ToString(dmaOp->m_Location) << "\n";
     }
     else if (mceOp != nullptr)
     {

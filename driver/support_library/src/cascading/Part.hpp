@@ -162,7 +162,6 @@ public:
     {}
     BasePart(PartId id,
              const CompilerDataFormat compilerDataFormat,
-             const QuantizationInfo quantizationInfo,
              const std::set<uint32_t> correspondingOperationIds,
              const EstimationOptions& estOpt,
              const CompilationOptions& compOpt,
@@ -170,7 +169,6 @@ public:
         : DebuggableObject("BasePart")
         , m_PartId{ id }
         , m_CompilerDataFormat{ compilerDataFormat }
-        , m_QuantizationInfo{ quantizationInfo }
         , m_CorrespondingOperationIds{ correspondingOperationIds }
         , m_EstimationOptions{ estOpt }
         , m_CompilationOptions{ compOpt }
@@ -188,7 +186,6 @@ public:
 protected:
     PartId m_PartId;
     const CompilerDataFormat m_CompilerDataFormat;
-    const QuantizationInfo m_QuantizationInfo;
     const std::set<uint32_t> m_CorrespondingOperationIds;
     const EstimationOptions& m_EstimationOptions;
     const CompilationOptions& m_CompilationOptions;

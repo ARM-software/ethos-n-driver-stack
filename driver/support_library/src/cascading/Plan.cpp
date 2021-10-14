@@ -234,12 +234,10 @@ Op::Op(const char* defaultTagPrefix, Lifetime lifetime)
 
 DmaOp::DmaOp()
     : Op("DmaOp")
-    , m_Location(Location::Dram)
 {}
 
-DmaOp::DmaOp(Lifetime lifetime, Location location)
+DmaOp::DmaOp(Lifetime lifetime)
     : Op("DmaOp", lifetime)
-    , m_Location(location)
 {}
 
 MceOp::MceOp()

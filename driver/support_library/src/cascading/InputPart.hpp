@@ -31,6 +31,8 @@ public:
 
 private:
     const TensorShape m_OutputTensorShape;
+    QuantizationInfo m_OutputQuantizationInfo;
+
     void CreatePlanForInputPart(Lifetime lifetime, TraversalOrder order, Plans& plans) const;
 };
 

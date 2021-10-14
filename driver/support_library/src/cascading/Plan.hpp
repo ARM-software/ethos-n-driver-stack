@@ -181,9 +181,7 @@ class DmaOp : public Op
 {
 public:
     DmaOp();
-    DmaOp(Lifetime lifetime, Location location);
-
-    Location m_Location;
+    DmaOp(Lifetime lifetime);
 };
 
 class MceOp : public Op

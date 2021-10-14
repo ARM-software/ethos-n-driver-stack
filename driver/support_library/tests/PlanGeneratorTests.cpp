@@ -30,7 +30,6 @@ using TI = ethosn::support_library::TensorInfo;
 using QI = ethosn::support_library::QuantizationInfo;
 
 const CompilerDataFormat compilerDataFormat = CompilerDataFormat::NONE;
-const QuantizationInfo quantizationInfo;
 const std::set<uint32_t> correspondingOperationIds;
 
 Node* CreateAndAddInputNode(Graph& g, TS tsIn = TS({ 1, 32, 32, 3 }))
@@ -217,7 +216,7 @@ PartV1 BuildSinglePartWithOneNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, caps);
 
     part.m_SubGraph.push_back(node);
     return part;
@@ -238,7 +237,7 @@ PartV1 BuildPartWithFuseOnlyPle(Graph& g,
     g.Connect(in, node1, 0);
     g.Connect(node1, out, 0);
 
-    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node1);
     return part;
 }
@@ -258,7 +257,7 @@ PartV1 BuildPartWithLeadingFormatConversionNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     return part;
 }
@@ -278,7 +277,7 @@ PartV1 BuildPartWithTrailingFormatConversionNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     return part;
 }
@@ -298,7 +297,7 @@ PartV1 BuildPartWithReinterpretNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     return part;
 }
@@ -822,7 +821,7 @@ PartV1 BuildPartWithMceNodeStride(Graph& g,
     g.Connect(in, mceNode, 0);
     g.Connect(mceNode, out, 0);
 
-    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(mceNode);
 
     return part;
@@ -858,7 +857,7 @@ TEST_CASE("PlanGenerator: FuseOnly")
     g.Connect(in, pleNode, 0);
     g.Connect(pleNode, out, 0);
 
-    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(pleNode);
 
     Plans plans = GetPlansForwarding(part);
@@ -1033,7 +1032,7 @@ TEST_CASE("PlanGenerator:Winograd")
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     Plans plans = GetPlansForwarding(part);
     SavePlansToDot(plans, "plans_part_winograd");
@@ -1078,7 +1077,7 @@ TEST_CASE("PlanGenerator:Split input in depth")
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     Plans plans = GetPlansForwarding(part);
     SavePlansToDot(plans, "plans_part_split_input_depth");

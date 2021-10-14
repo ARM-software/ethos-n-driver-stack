@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "PartUtils.hpp"
 #include "Plan.hpp"
 #include "ReshapePart.hpp"
 
@@ -20,9 +21,10 @@ ReshapePart::ReshapePart(PartId id,
                          const EstimationOptions& estOpt,
                          const CompilationOptions& compOpt,
                          const HardwareCapabilities& capabilities)
-    : BasePart(id, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, capabilities)
+    : BasePart(id, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape{ inputTensorShape }
     , m_OutputTensorShape{ outputTensorShape }
+    , m_OutputQuantizationInfo(quantizationInfo)
 {}
 
 Plans ReshapePart::GetPlans(CascadeType cascadeType,
@@ -51,15 +53,15 @@ ReshapePart::~ReshapePart()
 /// properties. No Ops are created - just a single Dram buffer which is tagged as both the input and output of the Plan.
 void ReshapePart::CreateReinterpretDramPlan(Plans& plans) const
 {
-    CascadingBufferFormat format = PartUtils::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
+    CascadingBufferFormat format = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
     PartInputMapping inputMappings;
     PartOutputMapping outputMappings;
     OwnedOpGraph opGraph;
     opGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, format, TraversalOrder::Xyz));
     Buffer* buffer             = opGraph.GetBuffers()[0];
     buffer->m_TensorShape      = m_OutputTensorShape;
-    buffer->m_SizeInBytes      = PartUtils::CalculateBufferSize(m_InputTensorShape, format);
-    buffer->m_QuantizationInfo = m_QuantizationInfo;
+    buffer->m_SizeInBytes      = impl::CalculateBufferSize(m_InputTensorShape, format);
+    buffer->m_QuantizationInfo = m_OutputQuantizationInfo;
 
     inputMappings[buffer]  = PartInputSlot{ m_PartId, 0 };
     outputMappings[buffer] = PartOutputSlot{ m_PartId, 0 };
