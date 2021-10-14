@@ -5,9 +5,20 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
+import os
+
 Import("env")
 
+# Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on the install target
+# where the install target is also provided via CPATH.
+env.PrependUnique(
+    CPPPATH=[
+        os.path.join(env["utils_dir"], "include"),
+    ]
+)
+
 srcs = ["Main.cpp", "CommandStreamTests.cpp"]
+srcs += Glob("cascading/*.cpp")
 
 libs = []
 # Catch2 uses android log APIs (could probably disable this in a catch config somewhere instead)

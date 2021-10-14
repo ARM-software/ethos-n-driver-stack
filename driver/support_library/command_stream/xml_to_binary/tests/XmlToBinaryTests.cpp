@@ -381,7 +381,7 @@ const std::string g_XmlStr =
     </OPERATION_SPACE_TO_DEPTH>
     <!--Command13-->
     <CASCADE>
-        <SIZE>0</SIZE>
+        <NUM_AGENTS>0</NUM_AGENTS>
     </CASCADE>
 </STREAM>
 )";

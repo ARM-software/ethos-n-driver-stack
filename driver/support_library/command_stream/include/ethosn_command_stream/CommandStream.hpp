@@ -7,6 +7,7 @@
 
 #include "Command.hpp"
 #include "CommandData.hpp"
+#include "cascading/CommandStream.hpp"
 
 #include <cstddef>
 
@@ -73,9 +74,9 @@ private:
 template <>
 inline const CommandHeader* CommandStreamConstIterator::NextHeaderImpl<Opcode::CASCADE>() const
 {
-    const auto cascadeHeader   = m_Head->GetCommand<Opcode::CASCADE>();
-    const uint32_t cascadeSize = cascadeHeader->m_Data().m_Size();
-    const auto nextHeader      = reinterpret_cast<const uint8_t*>(cascadeHeader + 1U) + cascadeSize;
+    const auto cascadeHeader = m_Head->GetCommand<Opcode::CASCADE>();
+    const size_t cascadeSize = cascadeHeader->m_Data().m_NumAgents() * sizeof(cascading::Agent);
+    const auto nextHeader    = reinterpret_cast<const uint8_t*>(cascadeHeader + 1U) + cascadeSize;
     return reinterpret_cast<const CommandHeader*>(nextHeader);
 }
 

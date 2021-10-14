@@ -197,7 +197,7 @@ NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::DELAY>, CommandData,
                                   uint32_t, Value);
 
 NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::CASCADE>, CommandData,
-                                  uint32_t, Size);
+                                  uint32_t, NumAgents);
 
 // clang-format on
 

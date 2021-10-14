@@ -257,7 +257,7 @@ void XmlParser::Pop(Delay& value)
 
 void XmlParser::Pop(Cascade& value)
 {
-    Pop("CASCADE/SIZE", value.m_Size());
+    Pop("CASCADE/NUM_AGENTS", value.m_NumAgents());
 }
 
 void XmlParser::Pop(const std::string& key, TensorShape& value)

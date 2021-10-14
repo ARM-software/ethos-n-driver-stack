@@ -576,7 +576,7 @@ void Parse(mxml_node_t& parent, const Cascade& value)
 {
     mxml_node_t* operation = mxmlNewElement(&parent, "CASCADE");
 
-    Parse(*mxmlNewElement(operation, "SIZE"), value.m_Size());
+    Parse(*mxmlNewElement(operation, "NUM_AGENTS"), value.m_NumAgents());
 }
 }    // namespace
 
