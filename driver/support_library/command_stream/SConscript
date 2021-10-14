@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import os
 import common
 
 Import("env")
@@ -13,13 +12,11 @@ Import("env")
 common.setup_common_env(env)
 common.setup_toolchain(env, env["platform"])
 
-env.Alias(
-    "install",
-    env.Install(
-        os.path.join(env["install_include_dir"], "ethosn_command_stream"),
-        Glob(os.path.join("include", "ethosn_command_stream", "*")),
-    ),
-)
+install_dir = env["install_include_dir"] + "/ethosn_command_stream"
+
+env.Install(install_dir, Glob("include/ethosn_command_stream/*.hpp"))
+env.Install(install_dir + "/cascading", Glob("include/ethosn_command_stream/cascading/*.hpp"))
+env.Alias("install", install_dir)
 
 if env["tests"]:
     SConscript(dirs="tests", duplicate=False, exports="env")
