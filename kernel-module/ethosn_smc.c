@@ -52,14 +52,16 @@ int ethosn_smc_version_check(const struct device *dev)
 	struct arm_smccc_res res = { 0 };
 
 	if (ethosn_smc_call(ETHOSN_SMC_VERSION, &res) < 0) {
-		dev_warn(dev, "SiP service not available.\n");
+		dev_warn(dev, "Failed to get SiP service version: %ld\n",
+			 res.a0);
 
 		return -ENXIO;
 	}
 
 	if (res.a0 != ETHOSN_SIP_MAJOR_VERSION ||
 	    res.a1 < ETHOSN_SIP_MINOR_VERSION) {
-		dev_warn(dev, "Incompatible SiP service version.\n");
+		dev_warn(dev, "Incompatible SiP service version: %lu.%lu\n",
+			 res.a0, res.a1);
 
 		return -EPROTO;
 	}
@@ -73,13 +75,13 @@ int ethosn_smc_is_secure(const struct device *dev,
 	struct arm_smccc_res res = { 0 };
 
 	if (ethosn_smc_core_call(ETHOSN_SMC_IS_SECURE, core_addr, &res) < 0) {
-		dev_err(dev, "SiP service not available.\n");
+		dev_err(dev, "Failed to get secure status: %ld\n", res.a0);
 
 		return -ENXIO;
 	}
 
 	if (res.a0 > 1U) {
-		dev_err(dev, "Invalid device secure status.\n");
+		dev_err(dev, "Invalid secure status: %lu\n", res.a0);
 
 		return -EPROTO;
 	}
