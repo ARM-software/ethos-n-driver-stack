@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2021 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -26,6 +26,7 @@
 #include "ethosn_device.h"
 
 #include <linux/arm-smccc.h>
+#include <linux/types.h>
 
 /**
  * ethosn_smc_version_check() - Check SiP service version compatibility
@@ -36,24 +37,28 @@
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_smc_version_check(struct device *dev);
+int ethosn_smc_version_check(const struct device *dev);
 
 /**
  * ethosn_smc_is_secure() - Call SiP service to get the NPU's secure status
- * @core:	Pointer to Ethos-N core.
+ * @device:	Pointer to the struct device on which to log the error if any.
+ * @core_addr:	Address to Ethos-N core.
  *
  * Return: 0 if unsecure, 1 if secure or negative error code on failure.
  */
-int ethosn_smc_is_secure(struct ethosn_core *core);
+int ethosn_smc_is_secure(const struct device *dev,
+			 phys_addr_t core_addr);
 
 /**
  * ethosn_smc_core_reset() - Call SiP service to reset a NPU core
- * @core:	Pointer to Ethos-N core.
+ * @device:	Pointer to the struct device on which to log the error if any.
+ * @core_addr:	Address to Ethos-N core.
  * @hard_reset:	Indicates if a hard or soft reset should be performed.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_smc_core_reset(struct ethosn_core *core,
+int ethosn_smc_core_reset(const struct device *dev,
+			  phys_addr_t core_addr,
 			  int hard_reset);
 
 #endif /* _ETHOSN_SMC_H_ */

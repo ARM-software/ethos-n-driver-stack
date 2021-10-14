@@ -435,7 +435,7 @@ static int ethosn_hard_reset(struct ethosn_core *core)
 	 * with a SMC call. The call will block until the reset is done or
 	 * timeout.
 	 */
-	return ethosn_smc_core_reset(core, 1);
+	return ethosn_smc_core_reset(core->dev, core->phys_addr, 1);
 #endif
 }
 
@@ -478,7 +478,7 @@ static int ethosn_soft_reset(struct ethosn_core *core)
 	 * with a SMC call. The call will block until the reset is done or
 	 * timeout.
 	 */
-	if (ethosn_smc_core_reset(core, 0))
+	if (ethosn_smc_core_reset(core->dev, core->phys_addr, 0))
 		return -ETIME;
 
 #endif

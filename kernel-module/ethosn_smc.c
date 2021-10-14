@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2021 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -33,10 +33,10 @@
 #define ETHOSN_SMC_CORE_SOFT_RESET      0xc2000053
 
 static inline long __must_check ethosn_smc_core_call(u32 cmd,
-						     uintptr_t phys_addr,
+						     phys_addr_t core_addr,
 						     struct arm_smccc_res *res)
 {
-	arm_smccc_smc(cmd, phys_addr, 0, 0, 0, 0, 0, 0, res);
+	arm_smccc_smc(cmd, core_addr, 0, 0, 0, 0, 0, 0, res);
 
 	return (long)res->a0;
 }
@@ -44,24 +44,22 @@ static inline long __must_check ethosn_smc_core_call(u32 cmd,
 static inline long __must_check ethosn_smc_call(u32 cmd,
 						struct arm_smccc_res *res)
 {
-	return ethosn_smc_core_call(cmd, 0, res);
+	return ethosn_smc_core_call(cmd, 0U, res);
 }
 
-int ethosn_smc_version_check(struct device *dev)
+int ethosn_smc_version_check(const struct device *dev)
 {
 	struct arm_smccc_res res = { 0 };
 
 	if (ethosn_smc_call(ETHOSN_SMC_VERSION, &res) < 0) {
-		dev_warn(dev,
-			 "SiP service not available.\n");
+		dev_warn(dev, "SiP service not available.\n");
 
 		return -ENXIO;
 	}
 
 	if (res.a0 != ETHOSN_SIP_MAJOR_VERSION ||
 	    res.a1 < ETHOSN_SIP_MINOR_VERSION) {
-		dev_warn(dev,
-			 "Incompatible SiP service version.\n");
+		dev_warn(dev, "Incompatible SiP service version.\n");
 
 		return -EPROTO;
 	}
@@ -69,20 +67,19 @@ int ethosn_smc_version_check(struct device *dev)
 	return 0;
 }
 
-int ethosn_smc_is_secure(struct ethosn_core *core)
+int ethosn_smc_is_secure(const struct device *dev,
+			 phys_addr_t core_addr)
 {
 	struct arm_smccc_res res = { 0 };
 
-	if (ethosn_smc_core_call(ETHOSN_SMC_IS_SECURE, core->phys_addr,
-				 &res) < 0) {
-		dev_err(core->dev,
-			"SiP service not available.\n");
+	if (ethosn_smc_core_call(ETHOSN_SMC_IS_SECURE, core_addr, &res) < 0) {
+		dev_err(dev, "SiP service not available.\n");
 
 		return -ENXIO;
 	}
 
 	if (res.a0 > 1U) {
-		dev_err(core->dev, "Invalid device secure status.\n");
+		dev_err(dev, "Invalid device secure status.\n");
 
 		return -EPROTO;
 	}
@@ -90,15 +87,16 @@ int ethosn_smc_is_secure(struct ethosn_core *core)
 	return res.a0;
 }
 
-int ethosn_smc_core_reset(struct ethosn_core *core,
+int ethosn_smc_core_reset(const struct device *dev,
+			  phys_addr_t core_addr,
 			  int hard_reset)
 {
 	struct arm_smccc_res res = { 0 };
 	const u32 smc_reset_call = hard_reset ? ETHOSN_SMC_CORE_HARD_RESET :
 				   ETHOSN_SMC_CORE_SOFT_RESET;
 
-	if (ethosn_smc_core_call(smc_reset_call, core->phys_addr, &res)) {
-		dev_warn(core->dev, "Failed to %s reset the hardware: %ld\n",
+	if (ethosn_smc_core_call(smc_reset_call, core_addr, &res)) {
+		dev_warn(dev, "Failed to %s reset the hardware: %ld\n",
 			 hard_reset ? "hard" : "soft", res.a0);
 
 		return -EFAULT;
