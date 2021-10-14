@@ -19,3 +19,7 @@ env.Alias(
         Glob(os.path.join("include", "ethosn_utils", "*")),
     ),
 )
+
+# Build unit tests, if requested.
+if env["tests"]:
+    SConscript(dirs="tests", duplicate=False, exports=["env"])

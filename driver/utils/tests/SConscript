@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright (C) 2021 Arm Limited.
+# SPDX-License-Identifier: Apache-2.0
+#
+
+import os
+
+Import("env")
+
+srcs = Glob("*.cpp") + env.Object(Glob("cpp17/*.cpp"), CXXSTD="c++17")
+
+libs = []
+# Catch2 uses android log APIs (could probably disable this in a catch config somewhere instead)
+if env["platform"] == "android-ndk":
+    libs.append("log")
+
+unitTests = env.Program("UnitTests", srcs, LIBS=libs)
+testAlias = env.Alias("utils-unit-tests", [unitTests], unitTests[0].abspath)
+env.Alias("unit-tests", testAlias)
+AlwaysBuild(testAlias)

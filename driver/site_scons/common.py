@@ -151,11 +151,12 @@ def setup_common_env(env):
         ]
     )
     # List of flags that should be set but currently fail
-    # env.AppendUnique(CPPFLAGS=['-Weffc++'])
-    # env.AppendUnique(CPPFLAGS=['-pedantic', '-fstack-protector-strong'])
+    # env.AppendUnique(CPPFLAGS=["-Weffc++"])
+    # env.AppendUnique(CPPFLAGS=["-pedantic", "-fstack-protector-strong"])
 
     env.AppendUnique(CPPFLAGS=["-fPIC"])
-    env.AppendUnique(CXXFLAGS=["-std=c++14"])
+    env.Replace(CXXSTD="c++14")
+    env.AppendUnique(CXXFLAGS=["-std=$CXXSTD"])
     if env["debug"]:
         env.AppendUnique(CXXFLAGS=["-O0", "-g"])
     else:
