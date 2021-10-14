@@ -32,17 +32,21 @@
 #define ETHOSN_SMC_CORE_HARD_RESET      0xc2000052
 #define ETHOSN_SMC_CORE_SOFT_RESET      0xc2000053
 
-static inline long __must_check ethosn_smc_core_call(u32 cmd,
-						     phys_addr_t core_addr,
-						     struct arm_smccc_res *res)
+static inline int __must_check ethosn_smc_core_call(u32 cmd,
+						    phys_addr_t core_addr,
+						    struct arm_smccc_res *res)
 {
 	arm_smccc_smc(cmd, core_addr, 0, 0, 0, 0, 0, 0, res);
 
-	return (long)res->a0;
+	/*
+	 * Only use the first 32-bits of the response to handle an error from a
+	 * 32-bit TF-A correctly.
+	 */
+	return ((int)(res->a0 & 0xFFFFFFFF));
 }
 
-static inline long __must_check ethosn_smc_call(u32 cmd,
-						struct arm_smccc_res *res)
+static inline int __must_check ethosn_smc_call(u32 cmd,
+					       struct arm_smccc_res *res)
 {
 	return ethosn_smc_core_call(cmd, 0U, res);
 }
@@ -50,10 +54,10 @@ static inline long __must_check ethosn_smc_call(u32 cmd,
 int ethosn_smc_version_check(const struct device *dev)
 {
 	struct arm_smccc_res res = { 0 };
+	int ret = ethosn_smc_call(ETHOSN_SMC_VERSION, &res);
 
-	if (ethosn_smc_call(ETHOSN_SMC_VERSION, &res) < 0) {
-		dev_warn(dev, "Failed to get SiP service version: %ld\n",
-			 res.a0);
+	if (ret < 0) {
+		dev_warn(dev, "Failed to get SiP service version: %d\n", ret);
 
 		return -ENXIO;
 	}
@@ -73,9 +77,10 @@ int ethosn_smc_is_secure(const struct device *dev,
 			 phys_addr_t core_addr)
 {
 	struct arm_smccc_res res = { 0 };
+	int ret = ethosn_smc_core_call(ETHOSN_SMC_IS_SECURE, core_addr, &res);
 
-	if (ethosn_smc_core_call(ETHOSN_SMC_IS_SECURE, core_addr, &res) < 0) {
-		dev_err(dev, "Failed to get secure status: %ld\n", res.a0);
+	if (ret < 0) {
+		dev_err(dev, "Failed to get secure status: %d\n", ret);
 
 		return -ENXIO;
 	}
@@ -96,10 +101,11 @@ int ethosn_smc_core_reset(const struct device *dev,
 	struct arm_smccc_res res = { 0 };
 	const u32 smc_reset_call = hard_reset ? ETHOSN_SMC_CORE_HARD_RESET :
 				   ETHOSN_SMC_CORE_SOFT_RESET;
+	int ret = ethosn_smc_core_call(smc_reset_call, core_addr, &res);
 
-	if (ethosn_smc_core_call(smc_reset_call, core_addr, &res)) {
-		dev_warn(dev, "Failed to %s reset the hardware: %ld\n",
-			 hard_reset ? "hard" : "soft", res.a0);
+	if (ret) {
+		dev_warn(dev, "Failed to %s reset the hardware: %d\n",
+			 hard_reset ? "hard" : "soft", ret);
 
 		return -EFAULT;
 	}
