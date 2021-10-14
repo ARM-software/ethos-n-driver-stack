@@ -27,6 +27,16 @@ enum class CascadeType
     Lonely
 };
 
+enum class CascadingBufferFormat
+{
+    NHWC,
+    NCHW,
+    NHWCB,
+    WEIGHT,
+    FCAF_DEEP,
+    FCAF_WIDE
+};
+
 template <typename D, typename B>
 D* GetObjectAs(B* obj)
 {
@@ -45,42 +55,12 @@ bool IsObjectOfType(const B* obj)
     return (GetObjectAs<D>(obj) != nullptr);
 }
 
-using PartId = uint32_t;
-
-class BasePart : public DebuggableObject
-{
-public:
-    virtual ~BasePart()
-    {}
-
-    BasePart(PartId id)
-        : DebuggableObject("BasePart")
-        , m_PartId(id)
-    {}
-
-    virtual Plans GetPlans(CascadeType cascadeType,
-                           ethosn::command_stream::BlockConfig blockConfig,
-                           Buffer* sramBuffer,
-                           uint32_t numWeightStripes) const = 0;
-
-    virtual utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const = 0;
-
-    PartId GetPartId() const;
-
-protected:
-    PartId m_PartId;
-};
-
+using PartId         = uint32_t;
 using StripeSizeType = TensorShape::value_type;
-
-using Plans = std::vector<std::shared_ptr<Plan>>;
-
-class WeightEncoderCache;
-
-using Parts = std::vector<std::unique_ptr<BasePart>>;
-
-using InPart  = std::pair<bool, PartId>;
-using OutPart = std::pair<bool, PartId>;
+using Plans          = std::vector<std::shared_ptr<Plan>>;
+using InPart         = std::pair<bool, PartId>;
+using OutPart        = std::pair<bool, PartId>;
+using Nodes          = std::vector<Node*>;
 
 // Object which represents the input to a part
 // This consists of the PartId of the part connected
@@ -161,6 +141,67 @@ struct PartConnection
         return false;
     }
 };
+
+using PartInputMapping  = std::map<Buffer*, PartInputSlot>;
+using PartOutputMapping = std::map<Buffer*, PartOutputSlot>;
+class OwnedOpGraph;
+
+class BasePart : public DebuggableObject
+{
+public:
+    BasePart(PartId id,
+             const EstimationOptions& estOpt,
+             const CompilationOptions& compOpt,
+             const HardwareCapabilities& capabilities)
+        : DebuggableObject("BasePart")
+        , m_PartId{ id }
+        , m_CompilerDataFormat{ CompilerDataFormat::NONE }
+        , m_EstimationOptions{ estOpt }
+        , m_CompilationOptions{ compOpt }
+        , m_Capabilities{ capabilities }
+    {}
+    BasePart(PartId id,
+             const CompilerDataFormat compilerDataFormat,
+             const QuantizationInfo quantizationInfo,
+             const std::set<uint32_t> correspondingOperationIds,
+             const EstimationOptions& estOpt,
+             const CompilationOptions& compOpt,
+             const HardwareCapabilities& capabilities)
+        : DebuggableObject("BasePart")
+        , m_PartId{ id }
+        , m_CompilerDataFormat{ compilerDataFormat }
+        , m_QuantizationInfo{ quantizationInfo }
+        , m_CorrespondingOperationIds{ correspondingOperationIds }
+        , m_EstimationOptions{ estOpt }
+        , m_CompilationOptions{ compOpt }
+        , m_Capabilities{ capabilities }
+    {}
+    PartId GetPartId() const;
+    virtual Plans GetPlans(CascadeType cascadeType,
+                           ethosn::command_stream::BlockConfig blockConfig,
+                           Buffer* sramBuffer,
+                           uint32_t numWeightStripes) const = 0;
+    virtual utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const;
+    virtual ~BasePart()
+    {}
+
+protected:
+    PartId m_PartId;
+    const CompilerDataFormat m_CompilerDataFormat;
+    const QuantizationInfo m_QuantizationInfo;
+    const std::set<uint32_t> m_CorrespondingOperationIds;
+    const EstimationOptions& m_EstimationOptions;
+    const CompilationOptions& m_CompilationOptions;
+    const HardwareCapabilities& m_Capabilities;
+    void AddNewPlan(PartInputMapping&& inputMappings,
+                    PartOutputMapping&& outputMappings,
+                    OwnedOpGraph&& opGraph,
+                    Plans& plans) const;
+};
+
+using Parts = std::vector<std::unique_ptr<BasePart>>;
+
+class WeightEncoderCache;
 
 }    // namespace support_library
 

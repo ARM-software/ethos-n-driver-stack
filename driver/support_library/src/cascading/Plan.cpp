@@ -172,7 +172,7 @@ Plan::Plan()
     : Plan({}, {})
 {}
 
-Plan::Plan(InputMapping&& inputMappings, OutputMapping&& outputMappings)
+Plan::Plan(PartInputMapping&& inputMappings, PartOutputMapping&& outputMappings)
     : DebuggableObject("Plan")
     , m_InputMappings(std::move(inputMappings))
     , m_OutputMappings(std::move(outputMappings))
@@ -386,8 +386,8 @@ SizeInBytes GetTotSizeInBytes(const Plan& plan)
 SizeInBytes GetInputsSizeInBytes(const Plan& plan)
 {
     SizeInBytes result;
-    const Plan::InputMapping in           = plan.m_InputMappings;
-    Plan::InputMapping::const_iterator it = in.begin();
+    const PartInputMapping in           = plan.m_InputMappings;
+    PartInputMapping::const_iterator it = in.begin();
     while (it != in.end())
     {
         const Buffer* buf   = it->first;

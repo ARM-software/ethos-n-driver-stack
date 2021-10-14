@@ -543,6 +543,9 @@ BasePart_7 -> BasePart_6[ headlabel="Slot 1"]
 /// rather than the overall graph topology (connections between nodes).
 TEST_CASE("SaveGraphToDot Node Details", "[Visualisation]")
 {
+    const CompilerDataFormat compilerDataFormat = CompilerDataFormat::NONE;
+    const QuantizationInfo quantizationInfo;
+    const std::set<uint32_t> correspondingOperationIds;
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
     const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
@@ -558,7 +561,8 @@ TEST_CASE("SaveGraphToDot Node Details", "[Visualisation]")
         CompilerDataFormat::NHWCB, std::set<uint32_t>{ 2 });
 
     // Arbitrarily Put all nodes into one part
-    auto part1        = std::make_unique<PartV1>(0, estOpt, compOpt, caps);
+    auto part1 = std::make_unique<PartV1>(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt,
+                                          compOpt, caps);
     part1->m_SubGraph = { m };
     GraphOfParts parts;
     parts.m_Parts.push_back(std::move(part1));
@@ -602,8 +606,8 @@ TEST_CASE("SavePlansToDot Graph Topology", "[Visualisation]")
     PartOutputSlot planAOutputSlot = PartOutputSlot{ 0, 0 };
     OwnedOpGraph planAOpGraph;
     planAOpGraph.AddBuffer(std::make_unique<Buffer>());
-    auto planA       = std::make_shared<Plan>(Plan::InputMapping{},
-                                        Plan::OutputMapping{ { planAOpGraph.GetBuffers()[0], planAOutputSlot } });
+    auto planA       = std::make_shared<Plan>(PartInputMapping{},
+                                        PartOutputMapping{ { planAOpGraph.GetBuffers()[0], planAOutputSlot } });
     planA->m_OpGraph = std::move(planAOpGraph);
 
     OwnedOpGraph planBOpGraph;
@@ -614,8 +618,8 @@ TEST_CASE("SavePlansToDot Graph Topology", "[Visualisation]")
     planBOpGraph.AddBuffer(std::make_unique<Buffer>());
     planBOpGraph.AddConsumer(planBOpGraph.GetBuffers()[0], planBOpGraph.GetOps()[0], 0);
     planBOpGraph.SetProducer(planBOpGraph.GetBuffers()[1], planBOpGraph.GetOps()[0]);
-    auto planB       = std::make_shared<Plan>(Plan::InputMapping{ { planBOpGraph.GetBuffers()[0], planBInputSlot } },
-                                        Plan::OutputMapping{ { planBOpGraph.GetBuffers()[1], planBOutputSlot } });
+    auto planB       = std::make_shared<Plan>(PartInputMapping{ { planBOpGraph.GetBuffers()[0], planBInputSlot } },
+                                        PartOutputMapping{ { planBOpGraph.GetBuffers()[1], planBOutputSlot } });
     planB->m_OpGraph = std::move(planBOpGraph);
 
     const CompilationOptions compOpt;

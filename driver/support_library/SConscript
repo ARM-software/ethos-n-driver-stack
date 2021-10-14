@@ -62,6 +62,10 @@ srcs = [
     os.path.join("src", "cascading", "Estimation.cpp"),
     os.path.join("src", "cascading", "EstimationUtils.cpp"),
     os.path.join("src", "cascading", "MceEstimationUtils.cpp"),
+    os.path.join("src", "cascading", "PartUtils.cpp"),
+    os.path.join("src", "cascading", "InputPart.cpp"),
+    os.path.join("src", "cascading", "OutputPart.cpp"),
+    os.path.join("src", "cascading", "ReshapePart.cpp"),
 ]
 
 ethosn_support_lib = env.StaticLibrary("libEthosNSupport", srcs)

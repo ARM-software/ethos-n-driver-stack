@@ -29,6 +29,10 @@ using TS = ethosn::support_library::TensorShape;
 using TI = ethosn::support_library::TensorInfo;
 using QI = ethosn::support_library::QuantizationInfo;
 
+const CompilerDataFormat compilerDataFormat = CompilerDataFormat::NONE;
+const QuantizationInfo quantizationInfo;
+const std::set<uint32_t> correspondingOperationIds;
+
 Node* CreateAndAddInputNode(Graph& g, TS tsIn = TS({ 1, 32, 32, 3 }))
 {
     return g.CreateAndAddNode<InputNode>(tsIn, std::set<uint32_t>());
@@ -213,7 +217,8 @@ PartV1 BuildSinglePartWithOneNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    PartV1 part(0, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
+
     part.m_SubGraph.push_back(node);
     return part;
 }
@@ -233,7 +238,7 @@ PartV1 BuildPartWithFuseOnlyPle(Graph& g,
     g.Connect(in, node1, 0);
     g.Connect(node1, out, 0);
 
-    PartV1 part(0, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node1);
     return part;
 }
@@ -253,7 +258,7 @@ PartV1 BuildPartWithLeadingFormatConversionNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    PartV1 part(0, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     return part;
 }
@@ -273,7 +278,7 @@ PartV1 BuildPartWithTrailingFormatConversionNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    PartV1 part(0, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     return part;
 }
@@ -293,7 +298,7 @@ PartV1 BuildPartWithReinterpretNode(Graph& g,
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    PartV1 part(0, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     return part;
 }
@@ -415,7 +420,7 @@ void RequireOutputBuffer(const Plans& plans,
     REQUIRE(false);*/
 }
 
-bool ContainsInputStripe(const Plan::InputMapping& inputMappings,
+bool ContainsInputStripe(const PartInputMapping& inputMappings,
                          const TensorShape& stripe,
                          const uint32_t numInputStripes)
 {
@@ -429,7 +434,7 @@ bool ContainsInputStripe(const Plan::InputMapping& inputMappings,
     return false;
 }
 
-bool ContainsOutputStripe(const Plan::OutputMapping& outputMappings,
+bool ContainsOutputStripe(const PartOutputMapping& outputMappings,
                           const TensorShape& stripe,
                           const uint32_t numOutputStripes)
 {
@@ -772,7 +777,7 @@ TEST_CASE("PlanGenerator: Generate plans from a part with reinterpret node")
     SavePlansToDot(plans, "plans_in_part_with_reinterpret_node");
 
     // Then
-    REQUIRE(plans.size() == 2);
+    REQUIRE(plans.size() == 1);
 
     {
         const Plan& dramPlan = *plans[0];
@@ -784,28 +789,6 @@ TEST_CASE("PlanGenerator: Generate plans from a part with reinterpret node")
         CHECK(foundInput);
         CHECK(foundOutput);
         CHECK(b->m_Location == Location::Dram);
-    }
-
-    {
-        const Plan& virtualSramPlan = *plans[1];
-
-        REQUIRE(virtualSramPlan.m_OpGraph.GetOps().size() == 1);
-        CHECK(IsObjectOfType<DummyOp>(virtualSramPlan.m_OpGraph.GetOps()[0]));
-        CHECK(virtualSramPlan.m_OpGraph.GetBuffers().size() == 2);
-        CHECK(virtualSramPlan.m_InputMappings.size() == 1);
-        CHECK(virtualSramPlan.m_OutputMappings.size() == 1);
-
-        const Buffer* inputBuffer = virtualSramPlan.m_OpGraph.GetBuffers()[0];
-        CHECK((inputBuffer->m_Format == CascadingBufferFormat::NHWC &&
-               inputBuffer->m_Location == Location::VirtualSram && inputBuffer->m_NumStripes == 1 &&
-               inputBuffer->m_TensorShape == TensorShape{ 1, 32, 32, 4 } &&
-               inputBuffer->m_StripeShape == TensorShape{ 1, 32, 32, 16 }));
-
-        const Buffer* outputBuffer = virtualSramPlan.m_OpGraph.GetBuffers()[1];
-        CHECK((outputBuffer->m_Format == CascadingBufferFormat::NHWC &&
-               outputBuffer->m_Location == Location::VirtualSram && outputBuffer->m_NumStripes == 1 &&
-               outputBuffer->m_TensorShape == TensorShape{ 1, 64, 64, 1 } &&
-               outputBuffer->m_StripeShape == TensorShape{ 1, 64, 64, 16 }));
     }
 }
 
@@ -839,7 +822,7 @@ PartV1 BuildPartWithMceNodeStride(Graph& g,
     g.Connect(in, mceNode, 0);
     g.Connect(mceNode, out, 0);
 
-    PartV1 part(0, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(mceNode);
 
     return part;
@@ -875,7 +858,7 @@ TEST_CASE("PlanGenerator: FuseOnly")
     g.Connect(in, pleNode, 0);
     g.Connect(pleNode, out, 0);
 
-    PartV1 part(0, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(pleNode);
 
     Plans plans = GetPlansForwarding(part);
@@ -1050,7 +1033,7 @@ TEST_CASE("PlanGenerator:Winograd")
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    PartV1 part(0, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     Plans plans = GetPlansForwarding(part);
     SavePlansToDot(plans, "plans_part_winograd");
@@ -1095,7 +1078,7 @@ TEST_CASE("PlanGenerator:Split input in depth")
     g.Connect(in, node, 0);
     g.Connect(node, out, 0);
 
-    PartV1 part(0, estOpt, compOpt, caps);
+    PartV1 part(0, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, caps);
     part.m_SubGraph.push_back(node);
     Plans plans = GetPlansForwarding(part);
     SavePlansToDot(plans, "plans_part_split_input_depth");

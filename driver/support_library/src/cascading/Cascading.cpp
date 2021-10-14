@@ -82,7 +82,9 @@ GraphOfParts CreateGraphOfParts(const Graph& graph,
     auto AddNodeToPart    = [](Node* node, PartV1& part) -> void { part.m_SubGraph.push_back(node); };
     auto AddNodeToNewPart = [&](Node* node) -> void {
         // Insert node into new part.
-        auto part = std::make_unique<PartV1>(graphOfParts.GeneratePartId(), estOpt, compOpt, capabilities);
+        auto part =
+            std::make_unique<PartV1>(graphOfParts.GeneratePartId(), node->GetFormat(), node->GetQuantizationInfo(),
+                                     node->GetCorrespondingOperationIds(), estOpt, compOpt, capabilities);
         AddNodeToPart(node, *part);
         parts.push_back(std::unique_ptr<BasePart>(std::move(part)));
     };

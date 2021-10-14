@@ -31,9 +31,13 @@ ethosn::command_stream::CommandStream GetCommandStream(const CompiledNetwork* co
 
 class MockPart : public BasePart
 {
+private:
+    const EstimationOptions estOpt;
+    const CompilationOptions compOpt;
+
 public:
     MockPart(PartId id)
-        : BasePart(id)
+        : BasePart(id, estOpt, compOpt, GetEthosN78HwCapabilities())
     {}
     virtual Plans GetPlans(CascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const override
     {

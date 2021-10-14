@@ -47,16 +47,6 @@ enum class Location
     VirtualSram
 };
 
-enum class CascadingBufferFormat
-{
-    NHWC,
-    NCHW,
-    NHWCB,
-    WEIGHT,
-    FCAF_DEEP,
-    FCAF_WIDE
-};
-
 struct SizeInBytes
 {
     uint32_t m_Tot       = 0;
@@ -150,11 +140,8 @@ private:
 class Plan : public DebuggableObject
 {
 public:
-    using InputMapping  = std::map<Buffer*, PartInputSlot>;
-    using OutputMapping = std::map<Buffer*, PartOutputSlot>;
-
     Plan();
-    Plan(InputMapping&& inputMappings, OutputMapping&& outputMappings);
+    Plan(PartInputMapping&& inputMappings, PartOutputMapping&& outputMappings);
 
     /// Gets the Buffer corresponding to the given part's input slot, which should be an input to the Part that this Plan is for.
     /// Returns nullptr if the slot is unrecognised.
@@ -168,10 +155,10 @@ public:
 
     /// Specifies which of the Buffers in the above OpGraph are inputs to this plan, and which Part inputs
     /// these correspond to
-    InputMapping m_InputMappings;
+    PartInputMapping m_InputMappings;
     /// Specifies which of the Buffers in the above OpGraph are outputs from this plan, and which Part outputs
     /// these correspond to.
-    OutputMapping m_OutputMappings;
+    PartOutputMapping m_OutputMappings;
 };
 
 class Op : public DebuggableObject

@@ -28,6 +28,39 @@ PartId BasePart::GetPartId() const
     return m_PartId;
 }
 
+utils::Optional<ethosn::command_stream::MceOperation> BasePart::GetMceOperation() const
+{
+    utils::Optional<ethosn::command_stream::MceOperation> mceOperationWithNoValue;
+    return mceOperationWithNoValue;
+}
+
+bool IsPlanValid(const HardwareCapabilities& caps, const Plan& plan)
+{
+    const uint32_t sizeInBytes = GetTotSizeInBytes(plan).m_Tot;
+
+    if (sizeInBytes > caps.GetTotalSramSize())
+    {
+        // There is no space
+        return false;
+    }
+
+    return true;
+}
+
+void BasePart::AddNewPlan(PartInputMapping&& inputMappings,
+                          PartOutputMapping&& outputMappings,
+                          OwnedOpGraph&& opGraph,
+                          Plans& plans) const
+{
+    auto plan       = std::make_unique<Plan>(std::move(inputMappings), std::move(outputMappings));
+    plan->m_OpGraph = std::move(opGraph);
+
+    if (IsPlanValid(m_Capabilities, *plan))
+    {
+        plans.push_back(std::move(plan));
+    }
+}
+
 std::vector<PartInputSlot> GraphOfParts::GetPartInputs(PartId p) const
 {
     std::vector<PartInputSlot> res;

@@ -1,0 +1,70 @@
+//
+// Copyright © 2021 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+#include "Plan.hpp"
+#include "ReshapePart.hpp"
+
+namespace ethosn
+{
+namespace support_library
+{
+
+ReshapePart::ReshapePart(PartId id,
+                         const TensorShape& inputTensorShape,
+                         const TensorShape& outputTensorShape,
+                         const CompilerDataFormat& compilerDataFormat,
+                         const QuantizationInfo& quantizationInfo,
+                         const std::set<uint32_t>& correspondingOperationIds,
+                         const EstimationOptions& estOpt,
+                         const CompilationOptions& compOpt,
+                         const HardwareCapabilities& capabilities)
+    : BasePart(id, compilerDataFormat, quantizationInfo, correspondingOperationIds, estOpt, compOpt, capabilities)
+    , m_InputTensorShape{ inputTensorShape }
+    , m_OutputTensorShape{ outputTensorShape }
+{}
+
+Plans ReshapePart::GetPlans(CascadeType cascadeType,
+                            ethosn::command_stream::BlockConfig blockConfig,
+                            Buffer* sramBuffer,
+                            uint32_t numWeightStripes) const
+{
+    ETHOSN_UNUSED(cascadeType);
+    ETHOSN_UNUSED(blockConfig);
+    ETHOSN_UNUSED(sramBuffer);
+    ETHOSN_UNUSED(numWeightStripes);
+
+    assert(cascadeType == CascadeType::Middle);
+
+    Plans plans;
+
+    CreateReinterpretDramPlan(plans);
+
+    return plans;
+}
+
+ReshapePart::~ReshapePart()
+{}
+
+/// Creates a plan which simply reinterprets the input tensor properties of the given node with its output tensor
+/// properties. No Ops are created - just a single Dram buffer which is tagged as both the input and output of the Plan.
+void ReshapePart::CreateReinterpretDramPlan(Plans& plans) const
+{
+    CascadingBufferFormat format = PartUtils::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
+    PartInputMapping inputMappings;
+    PartOutputMapping outputMappings;
+    OwnedOpGraph opGraph;
+    opGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, format, TraversalOrder::Xyz));
+    Buffer* buffer             = opGraph.GetBuffers()[0];
+    buffer->m_TensorShape      = m_OutputTensorShape;
+    buffer->m_SizeInBytes      = PartUtils::CalculateBufferSize(m_InputTensorShape, format);
+    buffer->m_QuantizationInfo = m_QuantizationInfo;
+
+    inputMappings[buffer]  = PartInputSlot{ m_PartId, 0 };
+    outputMappings[buffer] = PartOutputSlot{ m_PartId, 0 };
+    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
+}
+
+}    // namespace support_library
+}    // namespace ethosn

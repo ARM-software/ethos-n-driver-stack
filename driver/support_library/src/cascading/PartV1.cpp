@@ -7,8 +7,12 @@
 
 #include "../Graph.hpp"
 #include "../Utils.hpp"
+#include "CapabilitiesInternal.hpp"
 #include "GraphNodes.hpp"
+#include "InputPart.hpp"
+#include "OutputPart.hpp"
 #include "Plan.hpp"
+#include "ReshapePart.hpp"
 #include "WeightEncoder.hpp"
 #include "WeightEncoderCache.hpp"
 
@@ -75,41 +79,7 @@ CascadingBufferFormat GetFormat(Location location)
     }
 }
 
-CascadingBufferFormat GetCascadingBufferFormatFromCompilerDataFormat(const CompilerDataFormat& format)
-{
-    switch (format)
-    {
-        case (CompilerDataFormat::NHWC):
-            return CascadingBufferFormat::NHWC;
-        case (CompilerDataFormat::NCHW):
-            return CascadingBufferFormat::NCHW;
-        case (CompilerDataFormat::NHWCB):
-            return CascadingBufferFormat::NHWCB;
-        case (CompilerDataFormat::WEIGHT):
-            return CascadingBufferFormat::WEIGHT;
-        default:
-        {
-            std::string error = "In " + std::string(ETHOSN_FUNCTION_SIGNATURE) + ": value " +
-                                std::to_string(static_cast<uint32_t>(format)) + " is not valid";
-            throw NotSupportedException(error.c_str());
-        }
-    }
-}
-
 }    // namespace
-
-bool PartV1::NumStripes::operator<(const NumStripes& rhs) const
-{
-    if (m_Min < rhs.m_Min)
-        return true;
-    if (rhs.m_Min < m_Min)
-        return false;
-    if (m_Max < rhs.m_Max)
-        return true;
-    if (rhs.m_Max < m_Max)
-        return false;
-    return false;
-}
 
 bool PartV1::MceStripesInfo::operator<(const MceStripesInfo& rhs) const
 {
@@ -157,61 +127,6 @@ bool PartV1::PleStripesInfo::operator<(const PleStripesInfo& rhs) const
     return false;
 }
 
-bool PartV1::MemoryStripeInfo::operator<(const MemoryStripeInfo& rhs) const
-{
-    if (m_Range < rhs.m_Range)
-        return true;
-    if (rhs.m_Range < m_Range)
-        return false;
-    if (m_Shape < rhs.m_Shape)
-        return true;
-    if (rhs.m_Shape < m_Shape)
-        return false;
-    return false;
-}
-
-bool PartV1::MemoryStripesInfo::operator<(const MemoryStripesInfo& rhs) const
-{
-    if (m_Input < rhs.m_Input)
-        return true;
-    if (rhs.m_Input < m_Input)
-        return false;
-    if (m_Output < rhs.m_Output)
-        return true;
-    if (rhs.m_Output < m_Output)
-        return false;
-    if (m_Weight < rhs.m_Weight)
-        return true;
-    if (rhs.m_Weight < m_Weight)
-        return false;
-    if (m_PleInput < rhs.m_PleInput)
-        return true;
-    if (rhs.m_PleInput < m_PleInput)
-        return false;
-    return false;
-}
-
-bool PartV1::NumMemoryStripes::operator<(const NumMemoryStripes& rhs) const
-{
-    if (m_Input < rhs.m_Input)
-        return true;
-    if (rhs.m_Input < m_Input)
-        return false;
-    if (m_Output < rhs.m_Output)
-        return true;
-    if (rhs.m_Output < m_Output)
-        return false;
-    if (m_Weight < rhs.m_Weight)
-        return true;
-    if (rhs.m_Weight < m_Weight)
-        return false;
-    if (m_PleInput < rhs.m_PleInput)
-        return true;
-    if (rhs.m_PleInput < m_PleInput)
-        return false;
-    return false;
-}
-
 bool PartV1::MceAndPleInfo::operator<(const MceAndPleInfo& rhs) const
 {
     if (m_MceCompute < rhs.m_MceCompute)
@@ -251,19 +166,6 @@ bool PartV1::PleOnlyInfo::operator<(const PleOnlyInfo& rhs) const
     if (m_Memory < rhs.m_Memory)
         return true;
     if (rhs.m_Memory < m_Memory)
-        return false;
-    return false;
-}
-
-bool PartV1::DmaOnlyInfo::operator<(const DmaOnlyInfo& rhs) const
-{
-    if (m_Input < rhs.m_Input)
-        return true;
-    if (rhs.m_Input < m_Input)
-        return false;
-    if (m_Output < rhs.m_Output)
-        return true;
-    if (rhs.m_Output < m_Output)
         return false;
     return false;
 }
@@ -369,94 +271,6 @@ TensorShape GetWeightsShape(const Node* node)
     return GetWeightsInfo(node).m_Dimensions;
 }
 
-uint32_t CalculateBufferSize(const TensorShape& shape, CascadingBufferFormat f)
-{
-    switch (f)
-    {
-        case CascadingBufferFormat::NHWCB:
-            return utils::TotalSizeBytesNHWCB(shape);
-        case CascadingBufferFormat::NHWC:
-            return utils::TotalSizeBytes(shape);
-        default:
-            assert(false);
-            return 0;
-    }
-}
-
-uint32_t CalculateSizeInBytes(const TensorShape& shape)
-{
-    return utils::TotalSizeBytesNHWCB(shape);
-}
-
-uint32_t CalculateTileSize(const HardwareCapabilities& caps,
-                           const TensorShape& tensorShape,
-                           const TensorShape& stripeShape,
-                           uint32_t numStripes)
-{
-    // Restrict the tile max size to be the full tensor so we don't waste space when we have partial stripes
-    const uint32_t inputFullStripeSize = numStripes * CalculateSizeInBytes(stripeShape);
-    const uint32_t inputTileSize       = utils::MaxTileSize(tensorShape, caps);
-
-    return std::min(inputTileSize, inputFullStripeSize);
-}
-
-uint32_t CalculateTileSize(Node* node,
-                           const HardwareCapabilities& caps,
-                           const TensorShape& inputTensorShape,
-                           const TensorShape& inputStripeShape,
-                           const TensorShape& outputStripeShape,
-                           uint32_t numStripes)
-{
-    uint32_t inputFullStripeSize;
-
-    if (IsObjectOfType<MceOperationNode>(node))
-    {
-        auto mceNode                    = GetObjectAs<MceOperationNode>(node);
-        auto kernelHeight               = mceNode->GetWeightsInfo().m_Dimensions[0];
-        auto padTop                     = mceNode->GetPadTop();
-        const uint32_t brickGroupHeight = GetHeight(caps.GetBrickGroupShape());
-
-        // Work out the tile sizes by deciding how many stripes we want in each tile
-        const NeedBoundary needBoundaryY = ethosn::support_library::utils::GetBoundaryRequirements(
-            padTop, GetHeight(inputTensorShape), GetHeight(inputStripeShape), GetHeight(outputStripeShape),
-            kernelHeight);
-
-        const bool isStreamingWidth = GetWidth(inputStripeShape) < GetWidth(inputTensorShape);
-
-        const bool needsBoundarySlots = (needBoundaryY.m_Before || needBoundaryY.m_After) && (isStreamingWidth);
-        const uint32_t inputStripeXZ  = GetWidth(inputStripeShape) * GetChannels(inputStripeShape);
-
-        const uint32_t boundarySlotSize = needsBoundarySlots ? (brickGroupHeight * inputStripeXZ) : 0U;
-        const uint32_t defaultSlotSize  = TotalSizeBytes(inputStripeShape);
-
-        // We need the boundary slots both on the top and bottom of the stripe
-        const uint32_t totalSlotSize = (2U * boundarySlotSize) + defaultSlotSize;
-
-        inputFullStripeSize = totalSlotSize * numStripes;
-    }
-    else
-    {
-        // Restrict the tile max size to be the full tensor so we don't waste space when we have partial stripes
-        inputFullStripeSize = numStripes * CalculateSizeInBytes(inputStripeShape);
-    }
-    const uint32_t inputTileSize = utils::MaxTileSize(inputTensorShape, caps);
-
-    return std::min(inputTileSize, inputFullStripeSize);
-}
-
-bool IsPlanValid(const HardwareCapabilities& caps, const Plan& plan)
-{
-    const uint32_t sizeInBytes = GetTotSizeInBytes(plan).m_Tot;
-
-    if (sizeInBytes > caps.GetTotalSramSize())
-    {
-        // There is no space
-        return false;
-    }
-
-    return true;
-}
-
 std::vector<const Edge*> PartV1::GetInputs() const
 {
     assert(m_SubGraph.size());
@@ -548,90 +362,45 @@ Plans PartV1::GetPlans(CascadeType cascadeType,
                        Buffer* sramBuffer,
                        uint32_t numWeightStripes) const
 {
-    ETHOSN_UNUSED(cascadeType);
-    ETHOSN_UNUSED(blockConfig);
-    ETHOSN_UNUSED(sramBuffer);
-    ETHOSN_UNUSED(numWeightStripes);
+    const EstimationOptions estOpt;
+    const CompilationOptions compOpt;
+    HardwareCapabilities hwCapabilities(GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
     Node* node = m_SubGraph.front();
-    Plans ret;
+    Plans plans;
+
     if (IsObjectOfType<InputNode>(node))
     {
-        CreatePlanForInputNode(node, Lifetime::Atomic, TraversalOrder::Xyz, ret);
+        InputPart inputPart(m_PartId, node->GetShape(), node->GetFormat(), node->GetQuantizationInfo(),
+                            node->GetCorrespondingOperationIds(), estOpt, compOpt, hwCapabilities);
+        plans = inputPart.GetPlans(cascadeType, blockConfig, sramBuffer, numWeightStripes);
     }
     else if (IsObjectOfType<OutputNode>(node))
     {
-        CreatePlanForOutputNode(node, Lifetime::Atomic, TraversalOrder::Xyz, ret);
+        TensorShape shape                     = node->GetInputs()[0]->GetSourceShape();
+        CompilerDataFormat compilerDataFormat = node->GetInputs()[0]->GetSource()->GetFormat();
+        QuantizationInfo quantizationInfo     = node->GetInputs()[0]->GetSource()->GetQuantizationInfo();
+        OutputPart outputPart(m_PartId, shape, compilerDataFormat, quantizationInfo,
+                              node->GetCorrespondingOperationIds(), estOpt, compOpt, hwCapabilities);
+        plans = outputPart.GetPlans(cascadeType, blockConfig, sramBuffer, numWeightStripes);
     }
     else
     {
         WeightEncoderCache weightEncoderCache{ m_Capabilities };
-        GenerateWithTraversalOrders(node, weightEncoderCache, ret);
+        GenerateWithTraversalOrders(cascadeType, sramBuffer, numWeightStripes, node, weightEncoderCache, plans);
     }
 
     // Add operation ids
     std::set<uint32_t> opIds = node->GetCorrespondingOperationIds();
-    for (auto&& plan : ret)
+    for (auto&& plan : plans)
     {
         for (auto&& op : plan->m_OpGraph.GetOps())
         {
             op->m_OperationIds.insert(opIds.begin(), opIds.end());
         }
     }
-    return ret;
-}
 
-void PartV1::AddNewPlan(Plan::InputMapping&& inputMappings,
-                        Plan::OutputMapping&& outputMappings,
-                        OwnedOpGraph&& opGraph,
-                        Plans& plans) const
-{
-    // Can't assign an Id until the plan is deemed valid
-    auto plan       = std::make_unique<Plan>(std::move(inputMappings), std::move(outputMappings));
-    plan->m_OpGraph = std::move(opGraph);
-
-    if (IsPlanValid(m_Capabilities, *plan))
-    {
-        plans.push_back(std::move(plan));
-    }
-}
-
-void PartV1::CreatePlanForInputNode(Node* node, Lifetime lifetime, TraversalOrder order, Plans& plans) const
-{
-    Plan::InputMapping inputMappings;
-    Plan::OutputMapping outputMappings;
-    OwnedOpGraph opGraph;
-
-    CascadingBufferFormat format = GetCascadingBufferFormatFromCompilerDataFormat(node->GetFormat());
-    auto buffer                  = std::make_unique<Buffer>(lifetime, Location::Dram, format, order);
-    buffer->m_TensorShape        = node->GetShape();
-    buffer->m_SizeInBytes        = CalculateBufferSize(node->GetShape(), format);
-    buffer->m_QuantizationInfo   = node->GetQuantizationInfo();
-    outputMappings[buffer.get()] = PartOutputSlot{ m_PartId, 0 };
-    opGraph.AddBuffer(std::move(buffer));
-
-    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
-}
-
-void PartV1::CreatePlanForOutputNode(Node* node, Lifetime lifetime, TraversalOrder order, Plans& plans) const
-{
-    Plan::InputMapping inputMappings;
-    Plan::OutputMapping outputMappings;
-    OwnedOpGraph opGraph;
-
-    assert(node->GetInputs().size() > 0);
-    uint32_t inputIndex = 0;
-    for (Edge* edge : node->GetInputs())
-    {
-        CascadingBufferFormat format   = GetCascadingBufferFormatFromCompilerDataFormat(edge->GetSource()->GetFormat());
-        std::unique_ptr<Buffer> buffer = std::make_unique<Buffer>(lifetime, Location::Dram, format, order);
-        buffer->m_TensorShape          = edge->GetSourceShape();
-        buffer->m_SizeInBytes          = CalculateBufferSize(edge->GetSourceShape(), format);
-        buffer->m_QuantizationInfo     = edge->GetSource()->GetQuantizationInfo();
-        inputMappings[buffer.get()]    = PartInputSlot{ m_PartId, inputIndex };
-        opGraph.AddBuffer(std::move(buffer));
-        inputIndex++;
-    }
-    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
+    return plans;
 }
 
 struct ConvData
@@ -645,7 +414,7 @@ struct ConvData
 void AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
                                      Lifetime lifetime,
                                      const PartV1::MceStripesInfo& mceComputeInfo,
-                                     const PartV1::NumStripesType& numMemoryWeightStripes,
+                                     const NumStripesType& numMemoryWeightStripes,
                                      const TensorShape& memoryWeightStripe,
                                      TraversalOrder order,
                                      const ConvData& convData,
@@ -661,14 +430,15 @@ void AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
         throw InternalErrorException("MceOp is NULL.");
     }
 
-    CascadingBufferFormat formatInDram = GetCascadingBufferFormatFromCompilerDataFormat(
+    CascadingBufferFormat formatInDram = PartUtils::GetCascadingBufferFormatFromCompilerDataFormat(
         ConvertExternalToCompilerDataFormat(convData.weightInfo.m_DataFormat));
     opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Dram, formatInDram, order));
     Buffer* weightsBufferInDram        = buffers.back();
     weightsBufferInDram->m_TensorShape = convData.weightInfo.m_Dimensions;
     weightsBufferInDram->m_StripeShape = memoryWeightStripe;
 
-    CascadingBufferFormat formatInSram = GetCascadingBufferFormatFromCompilerDataFormat(CompilerDataFormat::WEIGHT);
+    CascadingBufferFormat formatInSram =
+        PartUtils::GetCascadingBufferFormatFromCompilerDataFormat(CompilerDataFormat::WEIGHT);
     opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Sram, formatInSram, order));
     Buffer* weightsBufferInSram             = buffers.back();
     weightsBufferInSram->m_TensorShape      = weightsBufferInDram->m_TensorShape;
@@ -724,8 +494,8 @@ void AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
 std::pair<Buffer*, Buffer*> PartV1::AddIdentityMceOpForSubGraph(OwnedOpGraph& opGraph,
                                                                 Lifetime lifetime,
                                                                 const PartV1::MceStripesInfo& mceComputeInfo,
-                                                                const PartV1::NumMemoryStripes& numMemoryStripes,
-                                                                const PartV1::MemoryStripesInfo& memoryStripes,
+                                                                const NumMemoryStripes& numMemoryStripes,
+                                                                const MemoryStripesInfo& memoryStripes,
                                                                 const TensorShape& inpShape,
                                                                 const QuantizationInfo& inpQuantInfo,
                                                                 TraversalOrder order,
@@ -778,7 +548,7 @@ std::pair<Buffer*, Buffer*> PartV1::AddIdentityMceOpForSubGraph(OwnedOpGraph& op
     idMceOpInBuff->m_StripeShape  = memoryStripes.m_Input.m_Shape;
     idMceOpOutBuff->m_SizeInBytes = 0;    // The output buffer is in ple sram so has no size in the tile
     idMceOpInBuff->m_SizeInBytes =
-        CalculateTileSize(m_Capabilities, inpShape, idMceOpInBuff->m_StripeShape, numMemoryStripes.m_Input);
+        PartUtils::CalculateTileSize(m_Capabilities, inpShape, idMceOpInBuff->m_StripeShape, numMemoryStripes.m_Input);
     idMceOpOutBuff->m_QuantizationInfo = inpQuantInfo;
     idMceOpInBuff->m_QuantizationInfo  = inpQuantInfo;
     idMceOpOutBuff->m_NumStripes       = numMemoryStripes.m_PleInput;
@@ -787,86 +557,8 @@ std::pair<Buffer*, Buffer*> PartV1::AddIdentityMceOpForSubGraph(OwnedOpGraph& op
     return { idMceOpInBuff, idMceOpOutBuff };
 }
 
-void PartV1::AddOpToOpGraphWithInputOutputBuffers(OwnedOpGraph& opGraph,
-                                                  Node* node,
-                                                  TraversalOrder order,
-                                                  DmaOnlyInfo& info,
-                                                  NumMemoryStripes& numMemoryStripes,
-                                                  Location inputBufferLocation,
-                                                  Location outputBufferLocation,
-                                                  Plan::InputMapping& inputMappings,
-                                                  Plan::OutputMapping& outputMappings) const
-{
-    (void)outputMappings;    //Currently unused but expected to be used whenever multi output will be supported
-    auto lifetime = info.m_Lifetime;
-
-    assert(IsObjectOfType<ReinterpretNode>(node) || IsObjectOfType<FormatConversionNode>(node));
-
-    if (IsObjectOfType<ReinterpretNode>(node))
-    {
-        opGraph.AddOp(std::make_unique<DummyOp>());
-    }
-    else if (IsObjectOfType<FormatConversionNode>(node))
-    {
-        opGraph.AddOp(std::make_unique<DmaOp>());
-    }
-
-    const OpGraph::BufferList& buffers = opGraph.GetBuffers();
-    const OpGraph::OpList& ops         = opGraph.GetOps();
-    Op* op                             = ops.back();
-    op->m_Lifetime                     = lifetime;
-    uint32_t inputIndex                = 0;
-    for (Edge* edge : node->GetInputs())
-    {
-        opGraph.AddBuffer(
-            std::make_unique<Buffer>(lifetime, inputBufferLocation, GetFormat(inputBufferLocation), order));
-        Buffer* inBuffer        = buffers.back();
-        const Node* inputNode   = edge->GetSource();
-        inBuffer->m_TensorShape = inputNode->GetShape();
-        inBuffer->m_StripeShape = info.m_Input.m_Shape;
-        inBuffer->m_NumStripes  = numMemoryStripes.m_Input;
-        inBuffer->m_SizeInBytes =
-            inputBufferLocation == Location::Sram
-                ? CalculateTileSize(node, m_Capabilities, inBuffer->m_TensorShape, info.m_Input.m_Shape,
-                                    info.m_Output.m_Shape, numMemoryStripes.m_Input)
-                : CalculateBufferSize(inBuffer->m_TensorShape, inBuffer->m_Format);
-
-        inBuffer->m_QuantizationInfo = inputNode->GetQuantizationInfo();
-        inputMappings[inBuffer]      = PartInputSlot{ m_PartId, inputIndex };
-        opGraph.AddConsumer(inBuffer, op, 0);
-
-        PleOp* pleOp = dynamic_cast<PleOp*>(op);
-        if (pleOp)
-        {
-            pleOp->m_InputStripeShapes.push_back(inBuffer->m_StripeShape);
-        }
-        inputIndex++;
-    }
-
-    if (IsObjectOfType<FormatConversionNode>(node) &&
-        (inputBufferLocation == Location::VirtualSram || outputBufferLocation == Location::VirtualSram))
-    {
-        GetObjectAs<DmaOp>(op)->m_Location = Location::VirtualSram;
-    }
-
-    opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, outputBufferLocation, GetFormat(outputBufferLocation), order));
-    auto outBuffer = buffers.back();
-    opGraph.SetProducer(outBuffer, op);
-
-    auto outputNode          = m_SubGraph.back();
-    outBuffer->m_TensorShape = outputNode->GetShape();
-    outBuffer->m_StripeShape = info.m_Output.m_Shape;
-    outBuffer->m_NumStripes  = numMemoryStripes.m_Output;
-    outBuffer->m_SizeInBytes = outputBufferLocation == Location::Sram
-                                   ? CalculateTileSize(m_Capabilities, outBuffer->m_TensorShape,
-                                                       outBuffer->m_StripeShape, numMemoryStripes.m_Output)
-                                   : CalculateBufferSize(outBuffer->m_TensorShape, outBuffer->m_Format);
-
-    outBuffer->m_QuantizationInfo = outputNode->GetQuantizationInfo();
-}
-
 Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
-                       PartV1::NumStripesType& numPleInputMemoryStripes,
+                       NumStripesType& numPleInputMemoryStripes,
                        const TensorShape& tensorShape,
                        const TensorShape& pleInputMemoryShape,
                        const QuantizationInfo& quantInfo,
@@ -881,7 +573,7 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
     buffer->m_TensorShape = tensorShape;
     buffer->m_StripeShape = pleInputMemoryShape;
     buffer->m_NumStripes  = numPleInputMemoryStripes;
-    buffer->m_SizeInBytes = CalculateBufferSize(buffer->m_TensorShape, buffer->m_Format);
+    buffer->m_SizeInBytes = PartUtils::CalculateBufferSize(buffer->m_TensorShape, buffer->m_Format);
 
     buffer->m_QuantizationInfo = quantInfo;
     return buffer;
@@ -892,8 +584,8 @@ std::pair<Buffer*, Op*> AddMceToOpGraph(OwnedOpGraph& opGraph,
                                         Lifetime lifetime,
                                         TraversalOrder order,
                                         const PartV1::MceStripesInfo& mceStripeInfo,
-                                        const PartV1::MemoryStripesInfo& memoryStripesInfo,
-                                        PartV1::NumMemoryStripes& numMemoryStripes,
+                                        const MemoryStripesInfo& memoryStripesInfo,
+                                        NumMemoryStripes& numMemoryStripes,
                                         std::unique_ptr<Op> mceOp,
                                         Buffer* mceOutBuffer,
                                         const TensorShape& inputShape,
@@ -910,8 +602,8 @@ std::pair<Buffer*, Op*> AddMceToOpGraph(OwnedOpGraph& opGraph,
     inBuffer->m_TensorShape = inputShape;
     inBuffer->m_StripeShape = memoryStripesInfo.m_Input.m_Shape;
     inBuffer->m_NumStripes  = numMemoryStripes.m_Input;
-    inBuffer->m_SizeInBytes = CalculateTileSize(node, caps, inBuffer->m_TensorShape, inBuffer->m_StripeShape,
-                                                mceOutBuffer->m_StripeShape, inBuffer->m_NumStripes);
+    inBuffer->m_SizeInBytes = PartUtils::CalculateTileSize(node, caps, inBuffer->m_TensorShape, inBuffer->m_StripeShape,
+                                                           mceOutBuffer->m_StripeShape, inBuffer->m_NumStripes);
 
     inBuffer->m_QuantizationInfo = inputQuantInfo;
     opGraph.AddConsumer(inBuffer, op, 0);
@@ -927,7 +619,7 @@ std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
                                         Lifetime lifetime,
                                         TraversalOrder order,
                                         const TensorShape& memoryOutputShape,
-                                        PartV1::NumMemoryStripes& numMemoryStripes,
+                                        NumMemoryStripes& numMemoryStripes,
                                         std::unique_ptr<Op> pleOp,
                                         const TensorShape& outputShape,
                                         const QuantizationInfo& outputQuantInfo)
@@ -943,7 +635,7 @@ std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
     pleOutBuffer->m_TensorShape = outputShape;
     pleOutBuffer->m_StripeShape = memoryOutputShape;
     pleOutBuffer->m_NumStripes  = numMemoryStripes.m_Output;
-    pleOutBuffer->m_SizeInBytes = numMemoryStripes.m_Output * CalculateSizeInBytes(memoryOutputShape);
+    pleOutBuffer->m_SizeInBytes = numMemoryStripes.m_Output * PartUtils::CalculateSizeInBytes(memoryOutputShape);
 
     pleOutBuffer->m_QuantizationInfo = outputQuantInfo;
 
@@ -973,8 +665,8 @@ void PartV1::CreateMceOnlyPlans(Node* node,
                 numMemoryStripes.m_Weight   = numWeightStripes;
                 numMemoryStripes.m_PleInput = numPleInputStripes;
                 OwnedOpGraph opGraph;
-                Plan::InputMapping inputMappings;
-                Plan::OutputMapping outputMappings;
+                PartInputMapping inputMappings;
+                PartOutputMapping outputMappings;
                 auto mceOp =
                     CreateOpFromNode(node, info.m_MceCompute.m_BlockConfig, m_CompilationOptions, m_Capabilities);
                 // We need to add the output buffer first before adding mce to opgraph as it uses it.
@@ -1024,8 +716,8 @@ void PartV1::CreateMceAndIdentityPlePlans(Node* node,
                     numMemoryStripes.m_Weight   = numWeightStripes;
                     numMemoryStripes.m_PleInput = numPleInputStripes;
                     OwnedOpGraph opGraph;
-                    Plan::InputMapping inputMappings;
-                    Plan::OutputMapping outputMappings;
+                    PartInputMapping inputMappings;
+                    PartOutputMapping outputMappings;
                     auto mceOp =
                         CreateOpFromNode(node, info.m_MceCompute.m_BlockConfig, m_CompilationOptions, m_Capabilities);
                     auto pleInBuffer =
@@ -1083,8 +775,8 @@ void PartV1::CreateIdentityMceAndFusedPlePlans(Node* node,
                     numMemoryStripes.m_Weight   = numWeightStripes;
                     numMemoryStripes.m_PleInput = numPleInputStripes;
                     OwnedOpGraph opGraph;
-                    Plan::InputMapping inputMappings;
-                    Plan::OutputMapping outputMappings;
+                    PartInputMapping inputMappings;
+                    PartOutputMapping outputMappings;
                     auto mceInAndOutBuffer = AddIdentityMceOpForSubGraph(
                         opGraph, lifetime, info.m_MceCompute, numMemoryStripes, info.m_Memory, node->GetInputShape(0),
                         node->GetInputQuantizationInfo(0), order, weightEncoderCache);
@@ -1122,8 +814,8 @@ void PartV1::CreateFuseOnlyPlans(Node* node, const PleOnlyInfo& info, TraversalO
             numMemoryStripes.m_Weight   = 0;
             numMemoryStripes.m_PleInput = numPleInputStripes;
             OwnedOpGraph opGraph;
-            Plan::InputMapping inputMappings;
-            Plan::OutputMapping outputMappings;
+            PartInputMapping inputMappings;
+            PartOutputMapping outputMappings;
             auto pleInBuffer =
                 AddPleInBuffer(opGraph, numPleInputStripes, node->GetInputShape(0), info.m_Memory.m_PleInput.m_Shape,
                                node->GetQuantizationInfo(), lifetime, order);
@@ -1152,11 +844,12 @@ void PartV1::CreateFormatConversionPlans(Node* node,
                                          Plans& plans) const
 {
     OwnedOpGraph opGraph;
-    Plan::InputMapping inputMappings;
-    Plan::OutputMapping outputMappings;
+    PartInputMapping inputMappings;
+    PartOutputMapping outputMappings;
     auto& buffers = opGraph.GetBuffers();
-    AddOpToOpGraphWithInputOutputBuffers(opGraph, node, order, dmaInfo, numMemoryStripes, inputBufferLocaton,
-                                         outputBufferLocation, inputMappings, outputMappings);
+    PartUtils::AddOpToOpGraphWithInputOutputBuffers(m_PartId, m_Capabilities, opGraph, node, m_SubGraph.back(), order,
+                                                    dmaInfo, numMemoryStripes, inputBufferLocaton, outputBufferLocation,
+                                                    inputMappings, outputMappings);
     outputMappings[buffers.back()] = PartOutputSlot{ m_PartId, 0 };
     AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
 }
@@ -1165,43 +858,27 @@ void PartV1::CreateVirtualSramPlans(
     Node* node, DmaOnlyInfo& dmaInfo, NumMemoryStripes& numMemoryStripes, TraversalOrder order, Plans& plans) const
 {
     OwnedOpGraph opGraph;
-    Plan::InputMapping inputMappings;
-    Plan::OutputMapping outputMappings;
+    PartInputMapping inputMappings;
+    PartOutputMapping outputMappings;
     auto& buffers = opGraph.GetBuffers();
     auto format   = node->GetFormat();
     switch (format)
     {
         case CompilerDataFormat::NHWCB:
-            AddOpToOpGraphWithInputOutputBuffers(opGraph, node, order, dmaInfo, numMemoryStripes, Location::VirtualSram,
-                                                 Location::Sram, inputMappings, outputMappings);
+            PartUtils::AddOpToOpGraphWithInputOutputBuffers(m_PartId, m_Capabilities, opGraph, node, m_SubGraph.back(),
+                                                            order, dmaInfo, numMemoryStripes, Location::VirtualSram,
+                                                            Location::Sram, inputMappings, outputMappings);
             outputMappings[buffers.back()] = PartOutputSlot{ m_PartId, 0 };
             break;
         case CompilerDataFormat::NHWC:
-            AddOpToOpGraphWithInputOutputBuffers(opGraph, node, order, dmaInfo, numMemoryStripes, Location::Sram,
-                                                 Location::VirtualSram, inputMappings, outputMappings);
+            PartUtils::AddOpToOpGraphWithInputOutputBuffers(m_PartId, m_Capabilities, opGraph, node, m_SubGraph.back(),
+                                                            order, dmaInfo, numMemoryStripes, Location::Sram,
+                                                            Location::VirtualSram, inputMappings, outputMappings);
             outputMappings[buffers.back()] = PartOutputSlot{ m_PartId, 0 };
             break;
         default:
             throw NotSupportedException("Unsupported compiler data format. Only NHWC and NHWCB is currently handled.");
     }
-    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
-}
-
-void PartV1::CreateOpGraphAndPlan(Node* node,
-                                  DmaOnlyInfo& dmaInfo,
-                                  NumMemoryStripes& numMemoryStripes,
-                                  TraversalOrder order,
-                                  Location input,
-                                  Location output,
-                                  Plans& plans) const
-{
-    OwnedOpGraph opGraph;
-    Plan::InputMapping inputMappings;
-    Plan::OutputMapping outputMappings;
-    auto& buffers = opGraph.GetBuffers();
-    AddOpToOpGraphWithInputOutputBuffers(opGraph, node, order, dmaInfo, numMemoryStripes, input, output, inputMappings,
-                                         outputMappings);
-    outputMappings[buffers.back()] = PartOutputSlot{ m_PartId, 0 };
     AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
 }
 
@@ -1224,28 +901,12 @@ std::vector<BlockConfig> GenerateBlockConfigs(Node* node)
     return result;
 }
 
-/// Creates a plan which simply reinterprets the input tensor properties of the given node with its output tensor
-/// properties. No Ops are created - just a single Dram buffer which is tagged as both the input and output of the Plan.
-void PartV1::CreateReinterpretDramPlan(Node* node, Plans& plans) const
-{
-    assert(node->GetInputs().size() == 1);
-
-    CascadingBufferFormat format = GetCascadingBufferFormatFromCompilerDataFormat(node->GetInputFormat(0));
-    Plan::InputMapping inputMappings;
-    Plan::OutputMapping outputMappings;
-    OwnedOpGraph opGraph;
-    opGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, format, TraversalOrder::Xyz));
-    Buffer* buffer             = opGraph.GetBuffers()[0];
-    buffer->m_TensorShape      = node->GetShape();
-    buffer->m_SizeInBytes      = CalculateBufferSize(node->GetInputShape(0), format);
-    buffer->m_QuantizationInfo = node->GetQuantizationInfo();
-
-    inputMappings[buffer]  = PartInputSlot{ m_PartId, 0 };
-    outputMappings[buffer] = PartOutputSlot{ m_PartId, 0 };
-    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
-}
-
-void PartV1::GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightEncoderCache, Plans& plans) const
+void PartV1::GenerateWithTraversalOrders(CascadeType cascadeType,
+                                         Buffer* sramBuffer,
+                                         uint32_t numWeightStripes,
+                                         Node* node,
+                                         WeightEncoderCache& weightEncoderCache,
+                                         Plans& plans) const
 {
     if (node->GetInputs().size() == 0)
     {
@@ -1271,26 +932,14 @@ void PartV1::GenerateWithTraversalOrders(Node* node, WeightEncoderCache& weightE
     }
     else if (IsObjectOfType<ReinterpretNode>(node))
     {
-        // For now we are only considering ReinterpretNode generated as part of Reshape (it can also be generated
-        // for other reasons, which we haven't considered yet but these can hopefully be handled similarly).
-        // We can handle this in two ways - one is a simple reinterpret in Dram and the other is via an SRAM reshape.
-        // Sram reshape is not fully implemented in cascading yet, but the idea is that we use a "virtual" buffer
-        // location (VirtualSram) so that we can match up plans between the adjacent FormatConversionNodes and
-        // the ReinterpretNode. This would likely be a lot simpler if we had access to the Reshape directly inside
-        // cascading, and it hadn't gone through the Conversion step.
-        CreateReinterpretDramPlan(node, plans);
+        const EstimationOptions estOpt;
+        const CompilationOptions compOpt;
+        HardwareCapabilities hwCapabilities(GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
-        {
-            DmaOnlyInfo dmaInfo;
-            dmaInfo.m_Lifetime = Lifetime::Cascade;
-            dmaInfo.m_Input    = MemoryStripeInfo{ { 1, 1 }, inputStripe };
-            dmaInfo.m_Output   = MemoryStripeInfo{ { 1, 1 }, outputStripe };
-            NumMemoryStripes numMemoryStripes;
-            numMemoryStripes.m_Input  = 1;
-            numMemoryStripes.m_Output = 1;
-            CreateOpGraphAndPlan(node, dmaInfo, numMemoryStripes, TraversalOrder::Xyz, Location::VirtualSram,
-                                 Location::VirtualSram, plans);
-        }
+        ReshapePart reshapePart(m_PartId, node->GetInputShape(0), node->GetShape(), node->GetFormat(),
+                                node->GetQuantizationInfo(), node->GetCorrespondingOperationIds(), estOpt, compOpt,
+                                hwCapabilities);
+        plans = reshapePart.GetPlans(cascadeType, ethosn::command_stream::BlockConfig{}, sramBuffer, numWeightStripes);
     }
 }
 
@@ -1304,10 +953,10 @@ void GenerateStripes(Node* node,
 
     // Note we use set rather than unordered_set to give consistent behaviour across STL implementations to make
     // debugging and testing easier.
-    PartV1::NumStripes numStripesInput;
-    PartV1::NumStripes numStripesOutput;
-    PartV1::NumStripes numStripesWeights;
-    PartV1::NumStripes numStripesPleInput;
+    NumStripes numStripesInput;
+    NumStripes numStripesOutput;
+    NumStripes numStripesWeights;
+    NumStripes numStripesPleInput;
 
     uint32_t strideMultiplier       = 1U;
     const MceOperationNode* mceNode = GetObjectAs<MceOperationNode>(node);
@@ -1377,8 +1026,6 @@ void GenerateStripes(Node* node,
         }
         return TensorShape{ shape[0], shape[1] * shapeMult.m_H, shape[2] * shapeMult.m_W, shape[3] * shapeMult.m_C };
     };
-
-    using NumStripes = PartV1::NumStripes;
 
     auto AddStripeInfos = [&](const TensorShape& mceInputStripe, const TensorShape& mceOutputStripe,
                               const TensorShape& pleInputStripe, const TensorShape& pleOutputStripe,
@@ -1471,7 +1118,7 @@ void GenerateStripes(Node* node,
             outStripeInfos->m_PleOnlyInfos.insert(pleOnlyInfo);
         }
         {
-            PartV1::DmaOnlyInfo dmaOnlyInfo;
+            DmaOnlyInfo dmaOnlyInfo;
             dmaOnlyInfo.m_Input  = { inputCopy, memoryInputStripe };
             dmaOnlyInfo.m_Output = { outputCopy, memoryOutputStripe };
             outStripeInfos->m_DmaOnlyInfos.insert(dmaOnlyInfo);
@@ -1488,12 +1135,12 @@ void GenerateStripes(Node* node,
         TensorShape mceOutputEncoding = mceInputEncoding;
         TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, caps);
 
-        TensorShape pleOutputEncoding            = ApplyShapeMult(mceInputEncoding);
-        TensorShape pleOutputStripe              = CreateStripe(node->GetShape(), pleOutputEncoding, caps);
-        const TensorShape& outputShape           = node->GetShape();
-        PartV1::NumStripes numStripesWeightsCopy = numStripesWeights;
-        numStripesWeightsCopy.m_Min              = std::min(numStripesWeights.m_Min, 1u);
-        numStripesWeightsCopy.m_Max              = std::min(numStripesWeights.m_Max, 1u);
+        TensorShape pleOutputEncoding    = ApplyShapeMult(mceInputEncoding);
+        TensorShape pleOutputStripe      = CreateStripe(node->GetShape(), pleOutputEncoding, caps);
+        const TensorShape& outputShape   = node->GetShape();
+        NumStripes numStripesWeightsCopy = numStripesWeights;
+        numStripesWeightsCopy.m_Min      = std::min(numStripesWeights.m_Min, 1u);
+        numStripesWeightsCopy.m_Max      = std::min(numStripesWeights.m_Max, 1u);
 
         AddStripeInfos(mceInputStripe, mceOutputStripe, mceInputStripe, pleOutputStripe, numStripesInput,
                        numStripesOutput, numStripesWeightsCopy, numStripesPleInput, mceInputStripe, pleOutputStripe,
@@ -1512,15 +1159,15 @@ void GenerateStripes(Node* node,
         TensorShape pleOutputEncoding = ApplyShapeMult(mceInputEncoding);
         TensorShape pleOutputStripe   = CreateStripe(node->GetShape(), pleOutputEncoding, caps);
 
-        const TensorShape& outputShape           = node->GetShape();
-        TensorShape memoryOutputEncoding         = { 0, 0, 0, 0 };
-        TensorShape memoryOutputStripe           = CreateStripe(outputShape, memoryOutputEncoding, caps);
-        PartV1::NumStripes numStripesWeightsCopy = numStripesWeights;
-        numStripesWeightsCopy.m_Min              = std::min(numStripesWeights.m_Min, 1u);
-        numStripesWeightsCopy.m_Max              = std::min(numStripesWeights.m_Max, 1u);
-        PartV1::NumStripes numStripesOutputCopy  = numStripesOutput;
-        numStripesOutputCopy.m_Min               = std::min(numStripesOutput.m_Min, 1u);
-        numStripesOutputCopy.m_Max               = std::min(numStripesOutput.m_Max, 1u);
+        const TensorShape& outputShape   = node->GetShape();
+        TensorShape memoryOutputEncoding = { 0, 0, 0, 0 };
+        TensorShape memoryOutputStripe   = CreateStripe(outputShape, memoryOutputEncoding, caps);
+        NumStripes numStripesWeightsCopy = numStripesWeights;
+        numStripesWeightsCopy.m_Min      = std::min(numStripesWeights.m_Min, 1u);
+        numStripesWeightsCopy.m_Max      = std::min(numStripesWeights.m_Max, 1u);
+        NumStripes numStripesOutputCopy  = numStripesOutput;
+        numStripesOutputCopy.m_Min       = std::min(numStripesOutput.m_Min, 1u);
+        numStripesOutputCopy.m_Max       = std::min(numStripesOutput.m_Max, 1u);
 
         AddStripeInfos(mceInputStripe, mceOutputStripe, mceInputStripe, pleOutputStripe, numStripesInput,
                        numStripesOutputCopy, numStripesWeightsCopy, numStripesPleInput, mceInputStripe,
@@ -1536,10 +1183,10 @@ void GenerateStripes(Node* node,
         TensorShape mceOutputEncoding = mceInputEncoding;
         TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, caps);
 
-        TensorShape pleOutputEncoding          = ApplyShapeMult(mceInputEncoding);
-        TensorShape pleOutputStripe            = CreateStripe(node->GetShape(), pleOutputEncoding, caps);
-        const TensorShape& outputShape         = node->GetShape();
-        PartV1::NumStripes numStripesInputCopy = numStripesInput;
+        TensorShape pleOutputEncoding  = ApplyShapeMult(mceInputEncoding);
+        TensorShape pleOutputStripe    = CreateStripe(node->GetShape(), pleOutputEncoding, caps);
+        const TensorShape& outputShape = node->GetShape();
+        NumStripes numStripesInputCopy = numStripesInput;
 
         if (kernelWidth == 1)
         {
@@ -1547,9 +1194,9 @@ void GenerateStripes(Node* node,
             numStripesInputCopy.m_Max = 2;
         }
 
-        PartV1::NumStripes numStripesWeightCopy = numStripesWeights;
-        numStripesWeightCopy.m_Min              = std::min(numStripesWeights.m_Min, 1u);
-        numStripesWeightCopy.m_Max              = std::min(numStripesWeights.m_Max, 1u);
+        NumStripes numStripesWeightCopy = numStripesWeights;
+        numStripesWeightCopy.m_Min      = std::min(numStripesWeights.m_Min, 1u);
+        numStripesWeightCopy.m_Max      = std::min(numStripesWeights.m_Max, 1u);
 
         AddStripeInfos(mceInputStripe, mceOutputStripe, mceInputStripe, pleOutputStripe, numStripesInputCopy,
                        numStripesOutput, numStripesWeightCopy, numStripesPleInput, mceInputStripe, pleOutputStripe,
@@ -1565,10 +1212,10 @@ void GenerateStripes(Node* node,
         TensorShape mceOutputEncoding = mceInputEncoding;
         TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, caps);
 
-        TensorShape pleOutputEncoding          = ApplyShapeMult(mceInputEncoding);
-        TensorShape pleOutputStripe            = CreateStripe(node->GetShape(), pleOutputEncoding, caps);
-        const TensorShape& outputShape         = node->GetShape();
-        PartV1::NumStripes numStripesInputCopy = numStripesInput;
+        TensorShape pleOutputEncoding  = ApplyShapeMult(mceInputEncoding);
+        TensorShape pleOutputStripe    = CreateStripe(node->GetShape(), pleOutputEncoding, caps);
+        const TensorShape& outputShape = node->GetShape();
+        NumStripes numStripesInputCopy = numStripesInput;
 
         if (kernelWidth == 1)
         {
@@ -1576,9 +1223,9 @@ void GenerateStripes(Node* node,
             numStripesInputCopy.m_Max = 2;
         }
 
-        PartV1::NumStripes numStripesWeightCopy = numStripesWeights;
-        numStripesWeightCopy.m_Min              = std::min(numStripesWeights.m_Min, 1u);
-        numStripesWeightCopy.m_Max              = std::min(numStripesWeights.m_Max, 1u);
+        NumStripes numStripesWeightCopy = numStripesWeights;
+        numStripesWeightCopy.m_Min      = std::min(numStripesWeights.m_Min, 1u);
+        numStripesWeightCopy.m_Max      = std::min(numStripesWeights.m_Max, 1u);
 
         AddStripeInfos(mceInputStripe, mceOutputStripe, mceInputStripe, pleOutputStripe, numStripesInputCopy,
                        numStripesOutput, numStripesWeightCopy, numStripesPleInput, mceInputStripe, pleOutputStripe,
@@ -1658,11 +1305,11 @@ void GenerateStripes(Node* node,
             TensorShape mceOutputEncoding = { 0, 0, 0, caps.GetNumberOfOgs() };
             TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, caps);
 
-            TensorShape pleOutputStripe            = mceOutputStripe;
-            PartV1::NumStripes numStripesInputCopy = numStripesInput;
-            numStripesInputCopy.m_Min              = std::min(numStripesInputCopy.m_Min, 1u);
-            numStripesInputCopy.m_Max              = std::min(numStripesInputCopy.m_Max, 1u);
-            const TensorShape& outputShape         = node->GetShape();
+            TensorShape pleOutputStripe    = mceOutputStripe;
+            NumStripes numStripesInputCopy = numStripesInput;
+            numStripesInputCopy.m_Min      = std::min(numStripesInputCopy.m_Min, 1u);
+            numStripesInputCopy.m_Max      = std::min(numStripesInputCopy.m_Max, 1u);
+            const TensorShape& outputShape = node->GetShape();
 
             AddStripeInfos(mceInputStripe, mceOutputStripe, mceInputStripe, pleOutputStripe, numStripesInputCopy,
                            numStripesOutput, numStripesWeights, numStripesPleInput, mceInputStripe, pleOutputStripe,
@@ -1678,12 +1325,12 @@ void GenerateStripes(Node* node,
             TensorShape mceOutputEncoding = { 0, 0, 0, caps.GetNumberOfOgs() };
             TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, caps);
 
-            TensorShape pleOutputEncoding          = ApplyShapeMult(mceOutputEncoding);
-            const TensorShape& outputShape         = node->GetShape();
-            TensorShape pleOutputStripe            = CreateStripe(outputShape, pleOutputEncoding, caps);
-            PartV1::NumStripes numStripesInputCopy = numStripesInput;
-            numStripesInputCopy.m_Min              = std::min(numStripesInputCopy.m_Min, 1u);
-            numStripesInputCopy.m_Max              = std::min(numStripesInputCopy.m_Max, 1u);
+            TensorShape pleOutputEncoding  = ApplyShapeMult(mceOutputEncoding);
+            const TensorShape& outputShape = node->GetShape();
+            TensorShape pleOutputStripe    = CreateStripe(outputShape, pleOutputEncoding, caps);
+            NumStripes numStripesInputCopy = numStripesInput;
+            numStripesInputCopy.m_Min      = std::min(numStripesInputCopy.m_Min, 1u);
+            numStripesInputCopy.m_Max      = std::min(numStripesInputCopy.m_Max, 1u);
 
             TensorShape memoryOutputEncoding = { 0, 0, 0, 0 };
             TensorShape memoryOutputStripe   = CreateStripe(outputShape, memoryOutputEncoding, caps);
@@ -1705,16 +1352,16 @@ void GenerateStripes(Node* node,
         TensorShape mceOutputEncoding = mceInputEncoding;
         TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, caps);
 
-        TensorShape pleOutputStripe              = CreateStripe(node->GetShape(), mceInputEncoding, caps);
-        PartV1::NumStripes numStripesInputCopy   = numStripesInput;
-        numStripesInputCopy.m_Min                = std::min(numStripesInput.m_Min, 1u);
-        numStripesInputCopy.m_Max                = std::min(numStripesInput.m_Max, 1u);
-        PartV1::NumStripes numStripesWeightsCopy = numStripesWeights;
-        numStripesWeightsCopy.m_Min              = std::min(numStripesWeights.m_Min, 1u);
-        numStripesWeightsCopy.m_Max              = std::min(numStripesWeights.m_Max, 1u);
-        PartV1::NumStripes numStripesOutputCopy  = numStripesOutput;
-        numStripesOutputCopy.m_Min               = std::min(numStripesOutput.m_Min, 1u);
-        numStripesOutputCopy.m_Max               = std::min(numStripesOutput.m_Max, 1u);
+        TensorShape pleOutputStripe      = CreateStripe(node->GetShape(), mceInputEncoding, caps);
+        NumStripes numStripesInputCopy   = numStripesInput;
+        numStripesInputCopy.m_Min        = std::min(numStripesInput.m_Min, 1u);
+        numStripesInputCopy.m_Max        = std::min(numStripesInput.m_Max, 1u);
+        NumStripes numStripesWeightsCopy = numStripesWeights;
+        numStripesWeightsCopy.m_Min      = std::min(numStripesWeights.m_Min, 1u);
+        numStripesWeightsCopy.m_Max      = std::min(numStripesWeights.m_Max, 1u);
+        NumStripes numStripesOutputCopy  = numStripesOutput;
+        numStripesOutputCopy.m_Min       = std::min(numStripesOutput.m_Min, 1u);
+        numStripesOutputCopy.m_Max       = std::min(numStripesOutput.m_Max, 1u);
 
         AddStripeInfos(mceInputStripe, mceOutputStripe, mceOutputStripe, pleOutputStripe, numStripesInputCopy,
                        numStripesOutputCopy, numStripesWeightsCopy, numStripesPleInput, mceInputStripe, pleOutputStripe,
