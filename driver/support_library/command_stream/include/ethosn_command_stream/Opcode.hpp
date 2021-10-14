@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -21,7 +21,8 @@ enum class Opcode : uint8_t
     DUMP_SRAM,
     FENCE,
     SECTION,
-    DELAY
+    DELAY,
+    CASCADE
 };
 
 }    // namespace command_stream

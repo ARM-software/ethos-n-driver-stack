@@ -255,6 +255,11 @@ void XmlParser::Pop(Delay& value)
     Pop("DELAY/VALUE", value.m_Value());
 }
 
+void XmlParser::Pop(Cascade& value)
+{
+    Pop("CASCADE/SIZE", value.m_Size());
+}
+
 void XmlParser::Pop(const std::string& key, TensorShape& value)
 {
     ParseIntegers(Pop(key), std::get<0>(value), std::get<1>(value), std::get<2>(value), std::get<3>(value));
@@ -641,6 +646,10 @@ void XmlParser::SaxCallback(mxml_node_t* node, mxml_sax_event_t event, void* par
                 else if (name == "DELAY")
                 {
                     parser->Parse<Opcode::DELAY>();
+                }
+                else if (name == "CASCADE")
+                {
+                    parser->Parse<Opcode::CASCADE>();
                 }
                 else
                 {

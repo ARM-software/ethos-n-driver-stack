@@ -14,32 +14,21 @@ namespace ethosn
 namespace command_stream
 {
 
-template <typename T, typename Word, typename... Us>
-void EmplaceBack(std::vector<Word>& data, Us&&... us)
+template <typename T, typename Word>
+void EmplaceBack(std::vector<Word>& data, const T& cmd)
 {
     static_assert(alignof(T) <= alignof(Word), "Must not have a stronger alignment requirement");
     static_assert((sizeof(T) % sizeof(Word)) == 0, "Size must be a multiple of the word size");
 
     const size_t prevSize = data.size();
     data.resize(data.size() + (sizeof(T) / sizeof(Word)));
-    new (&data[prevSize]) T(std::forward<Us>(us)...);
+    new (&data[prevSize]) T(cmd);
 }
 
-template <typename T, typename Word>
-void EmplaceBack(std::vector<Word>& data, const T& t)
+template <typename Word, Opcode O>
+void EmplaceBack(std::vector<Word>& data, const CommandData<O>& c)
 {
-    EmplaceBack<T, Word, const T&>(data, t);
-}
-
-template <typename Word>
-void EmplaceBackCommands(std::vector<Word>&)
-{}
-
-template <typename Word, Opcode O, Opcode... Os>
-void EmplaceBackCommands(std::vector<Word>& data, const CommandData<O>& c, const CommandData<Os>&... cs)
-{
-    EmplaceBack<Command<O>>(data, c);
-    EmplaceBackCommands(data, cs...);
+    EmplaceBack<Command<O>>(data, Command<O>{ c });
 }
 
 class CommandStreamBuffer
@@ -67,10 +56,10 @@ public:
         }
     }
 
-    template <Opcode O>
-    void EmplaceBack(const CommandData<O>& comData)
+    template <typename T>
+    void EmplaceBack(const T& cmd)
     {
-        EmplaceBackCommands(m_Data, comData);
+        command_stream::EmplaceBack(m_Data, cmd);
         ++m_Count;
     }
 

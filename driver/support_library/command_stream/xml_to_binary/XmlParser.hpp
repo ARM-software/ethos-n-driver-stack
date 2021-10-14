@@ -66,6 +66,8 @@ private:
 
     void Pop(ethosn::command_stream::Delay& value);
 
+    void Pop(ethosn::command_stream::Cascade& value);
+
     void Pop(ethosn::command_stream::DumpDram& value);
     void Pop(ethosn::command_stream::DumpSram& value);
 

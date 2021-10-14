@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -196,6 +196,9 @@ NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::SECTION>, CommandData,
 NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::DELAY>, CommandData,
                                   uint32_t, Value);
 
+NAMED_BINARY_TUPLE_SPECIALIZATION(CommandData<Opcode::CASCADE>, CommandData,
+                                  uint32_t, Size);
+
 // clang-format on
 
 using McePle       = CommandData<Opcode::OPERATION_MCE_PLE>;
@@ -208,6 +211,7 @@ using DumpSram     = CommandData<Opcode::DUMP_SRAM>;
 using Fence        = CommandData<Opcode::FENCE>;
 using Section      = CommandData<Opcode::SECTION>;
 using Delay        = CommandData<Opcode::DELAY>;
+using Cascade      = CommandData<Opcode::CASCADE>;
 
 }    // namespace command_stream
 }    // namespace ethosn

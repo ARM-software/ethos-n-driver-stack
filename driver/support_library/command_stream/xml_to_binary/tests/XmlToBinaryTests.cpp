@@ -379,6 +379,10 @@ const std::string g_XmlStr =
         <INTERMEDIATE_1_SIZE>1024</INTERMEDIATE_1_SIZE>
         <INTERMEDIATE_2_SIZE>2048</INTERMEDIATE_2_SIZE>
     </OPERATION_SPACE_TO_DEPTH>
+    <!--Command13-->
+    <CASCADE>
+        <SIZE>0</SIZE>
+    </CASCADE>
 </STREAM>
 )";
 

@@ -553,29 +553,32 @@ void Parse(mxml_node_t& parent, const DumpSram& value)
     Parse(*mxmlNewElement(&operation, "PREFIX"), value.m_Filename().data());
 }
 
-mxml_node_t* Parse(mxml_node_t& parent, const Section& value)
+void Parse(mxml_node_t& parent, const Section& value)
 {
     mxml_node_t* operation = mxmlNewElement(&parent, "SECTION");
 
     Parse(*mxmlNewElement(operation, "TYPE"), value.m_Type());
-
-    return operation;
 }
 
 void Parse(mxml_node_t& parent, const Fence&)
 {
     mxmlNewElement(&parent, "FENCE");
 }
-}    // namespace
 
-mxml_node_t* Parse(mxml_node_t& parent, const Delay& value)
+void Parse(mxml_node_t& parent, const Delay& value)
 {
     mxml_node_t* operation = mxmlNewElement(&parent, "DELAY");
 
     Parse(*mxmlNewElement(operation, "VALUE"), value.m_Value());
-
-    return operation;
 }
+
+void Parse(mxml_node_t& parent, const Cascade& value)
+{
+    mxml_node_t* operation = mxmlNewElement(&parent, "CASCADE");
+
+    Parse(*mxmlNewElement(operation, "SIZE"), value.m_Size());
+}
+}    // namespace
 
 BinaryParser::BinaryParser(std::istream& input)
     : m_XmlDoc(mxmlNewXML("1.0"))
@@ -644,6 +647,11 @@ BinaryParser::BinaryParser(std::istream& input)
             case Opcode::DELAY:
             {
                 Parse(*xmlRoot, header.GetCommand<Opcode::DELAY>()->m_Data());
+                break;
+            }
+            case Opcode::CASCADE:
+            {
+                Parse(*xmlRoot, header.GetCommand<Opcode::CASCADE>()->m_Data());
                 break;
             }
             default:

@@ -10,7 +10,7 @@
 
 #include <cstddef>
 
-#define ETHOSN_COMMAND_STREAM_VERSION_MAJOR 2
+#define ETHOSN_COMMAND_STREAM_VERSION_MAJOR 3
 #define ETHOSN_COMMAND_STREAM_VERSION_MINOR 0
 #define ETHOSN_COMMAND_STREAM_VERSION_PATCH 0
 
@@ -65,37 +65,50 @@ private:
         return &(m_Head->GetCommand<O>() + 1U)->m_Header();
     }
 
-    const CommandHeader* NextHeader() const
-    {
-        switch (m_Head->m_Opcode())
-        {
-            case Opcode::FENCE:
-                return NextHeaderImpl<Opcode::FENCE>();
-            case Opcode::OPERATION_MCE_PLE:
-                return NextHeaderImpl<Opcode::OPERATION_MCE_PLE>();
-            case Opcode::OPERATION_PLE_ONLY:
-                return NextHeaderImpl<Opcode::OPERATION_PLE_ONLY>();
-            case Opcode::OPERATION_SOFTMAX:
-                return NextHeaderImpl<Opcode::OPERATION_SOFTMAX>();
-            case Opcode::OPERATION_CONVERT:
-                return NextHeaderImpl<Opcode::OPERATION_CONVERT>();
-            case Opcode::OPERATION_SPACE_TO_DEPTH:
-                return NextHeaderImpl<Opcode::OPERATION_SPACE_TO_DEPTH>();
-            case Opcode::DUMP_DRAM:
-                return NextHeaderImpl<Opcode::DUMP_DRAM>();
-            case Opcode::DUMP_SRAM:
-                return NextHeaderImpl<Opcode::DUMP_SRAM>();
-            case Opcode::SECTION:
-                return NextHeaderImpl<Opcode::SECTION>();
-            case Opcode::DELAY:
-                return NextHeaderImpl<Opcode::DELAY>();
-            default:
-                return nullptr;
-        }
-    }
+    const CommandHeader* NextHeader() const;
 
     const CommandHeader* m_Head;
 };
+
+template <>
+inline const CommandHeader* CommandStreamConstIterator::NextHeaderImpl<Opcode::CASCADE>() const
+{
+    const auto cascadeHeader   = m_Head->GetCommand<Opcode::CASCADE>();
+    const uint32_t cascadeSize = cascadeHeader->m_Data().m_Size();
+    const auto nextHeader      = reinterpret_cast<const uint8_t*>(cascadeHeader + 1U) + cascadeSize;
+    return reinterpret_cast<const CommandHeader*>(nextHeader);
+}
+
+inline const CommandHeader* CommandStreamConstIterator::NextHeader() const
+{
+    switch (m_Head->m_Opcode())
+    {
+        case Opcode::FENCE:
+            return NextHeaderImpl<Opcode::FENCE>();
+        case Opcode::OPERATION_MCE_PLE:
+            return NextHeaderImpl<Opcode::OPERATION_MCE_PLE>();
+        case Opcode::OPERATION_PLE_ONLY:
+            return NextHeaderImpl<Opcode::OPERATION_PLE_ONLY>();
+        case Opcode::OPERATION_SOFTMAX:
+            return NextHeaderImpl<Opcode::OPERATION_SOFTMAX>();
+        case Opcode::OPERATION_CONVERT:
+            return NextHeaderImpl<Opcode::OPERATION_CONVERT>();
+        case Opcode::OPERATION_SPACE_TO_DEPTH:
+            return NextHeaderImpl<Opcode::OPERATION_SPACE_TO_DEPTH>();
+        case Opcode::DUMP_DRAM:
+            return NextHeaderImpl<Opcode::DUMP_DRAM>();
+        case Opcode::DUMP_SRAM:
+            return NextHeaderImpl<Opcode::DUMP_SRAM>();
+        case Opcode::SECTION:
+            return NextHeaderImpl<Opcode::SECTION>();
+        case Opcode::DELAY:
+            return NextHeaderImpl<Opcode::DELAY>();
+        case Opcode::CASCADE:
+            return NextHeaderImpl<Opcode::CASCADE>();
+        default:
+            return nullptr;
+    }
+}
 
 class CommandStream
 {
@@ -221,6 +234,8 @@ constexpr bool AreCommandsEqual(const CommandHeader& lhs, const CommandHeader& r
             return AreCommandsEqual<Opcode::OPERATION_SPACE_TO_DEPTH>(lhs, rhs);
         case Opcode::SECTION:
             return AreCommandsEqual<Opcode::SECTION>(lhs, rhs);
+        case Opcode::CASCADE:
+            return AreCommandsEqual<Opcode::CASCADE>(lhs, rhs);
         default:
             return false;
     }
