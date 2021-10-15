@@ -1026,7 +1026,7 @@ static int ethosn_driver_probe(struct ethosn_core *core,
 device_deinit:
 	ethosn_device_deinit(core);
 destroy_allocator:
-	ethosn_dma_allocator_destroy(core->allocator);
+	ethosn_dma_allocator_destroy(&core->allocator);
 
 	return ret;
 }
@@ -1190,7 +1190,7 @@ static int ethosn_pdev_remove(struct platform_device *pdev)
 		pm_runtime_disable(core->dev);
 
 		ethosn_device_deinit(core);
-		ethosn_dma_allocator_destroy(core->allocator);
+		ethosn_dma_allocator_destroy(&core->allocator);
 		i++;
 	}
 
@@ -1365,7 +1365,7 @@ err_depopulate_device:
 err_free_core_list:
 	devm_kfree(&pdev->dev, ethosn->core);
 err_destroy_allocator:
-	ethosn_dma_allocator_destroy(ethosn->allocator);
+	ethosn_dma_allocator_destroy(&ethosn->allocator);
 err_free_ethosn:
 	devm_kfree(&pdev->dev, ethosn);
 err_early_exit:

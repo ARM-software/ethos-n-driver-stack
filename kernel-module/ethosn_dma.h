@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2020 Arm Limited.
+ * (C) COPYRIGHT 2018-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -113,10 +113,9 @@ struct ethosn_dma_allocator *ethosn_dma_allocator_create(struct device *dev);
 /**
  * ethosn_dma_allocator_destroy() - Destroy the allocator and free all internal
  * resources.
- * @allocator: Allocator object
- * @allocator: The allocator to destroy
+ * @allocator: pointer to location of the allocator object to destory
  */
-void ethosn_dma_allocator_destroy(struct ethosn_dma_allocator *allocator);
+void ethosn_dma_allocator_destroy(struct ethosn_dma_allocator **allocator);
 
 /**
  * ethosn_dma_alloc_and_map() - Allocate and map DMA memory

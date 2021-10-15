@@ -49,14 +49,16 @@ struct ethosn_dma_allocator *ethosn_dma_allocator_create(struct device *dev)
 	return allocator;
 }
 
-void ethosn_dma_allocator_destroy(struct ethosn_dma_allocator *allocator)
+void ethosn_dma_allocator_destroy(struct ethosn_dma_allocator **allocator)
 {
-	const struct ethosn_dma_allocator_ops *ops = get_ops(allocator);
+	const struct ethosn_dma_allocator_ops *ops = allocator ?
+						     get_ops(*allocator) : NULL;
 
 	if (!ops)
 		return;
 
-	ops->destroy(allocator);
+	ops->destroy(*allocator);
+	*allocator = NULL;
 }
 
 struct ethosn_dma_info *ethosn_dma_alloc(struct ethosn_dma_allocator *allocator,
