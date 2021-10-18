@@ -1,138 +1,152 @@
 # Arm® Ethos™-N Driver Stack Operator Support
 
 
-## General Tensor Support Information
-- 8 bit signed quantized and 8 bit unsigned quantized datatypes are supported
-- Tensors with up to 4 dimensions are supported
-- A "Batch" dimension > 1 is not supported
-- NHWC tensors are supported
+## General tensor support information
+- 8-bit signed quantized and 8-bit unsigned quantized datatypes are supported.
+- Tensors with up to 4 dimensions are supported.
+- A "Batch" dimension >1 is not supported.
+- NHWC tensors are supported.
 - Per-channel quantization is supported only for the weights and bias tensors of a limited set of operations.
-- Most operations are not supported when the input or output tensor depths are too large. For more details see IsTensorDepthSupported in SupportQueries.cpp in the Support Library
+- Most operations are not supported when the input or output tensor depths are too large. For more information, see `IsTensorDepthSupported` in `SupportQueries.cpp` in the Support Library.
 
 
 ## Addition
-- Element by element addition is supported
-- Addition of a variable with a scalar constant is supported in cases where the quantized values in the output are the same as the input, this is replaced with a Reinterpret Quantization operation. **This is available only when using Arm NN**
+- Element by element addition is supported.
+- If Arm NN is used, the addition of a variable with a scalar constant is supported when the quantized values in the output are the same as the input. The Arm NN backend replaces this addition with a reinterpret quantization operation.
 
 
-## Average Pooling
-- Pooling size 3x3, with stride 1,1 and Same padding is supported
-- A "Mean" Average pooling is supported where the pooling size is 7 or 8 and the input width and height is equal to the pool size
+## Average pooling
+- Pooling size 3 x 3, with stride 1, 1 and SAME padding is supported.
+- "Mean" average pooling is supported where the pooling size is 7 or 8 and the input width and height is equal to the pool size.
 
 
-## Concatentation
-- Output quantization scale smaller than input quantization scale / 128 is not supported
-- If concatentating the 3rd dimension, the input tensor's 3rd dimension must be a multiple of 16
+## Concatenation
+- Output quantization scale smaller than the input quantization scale divided by 128 is not supported.
+- If concatenating along the channel dimension, the channel dimension of every input tensor must be a multiple of 16.
 
 
 ## Constant
-- No specific restrictions
+- No specific restrictions.
 
 
 ## Convolution 2D
-- HWIO format weights are supported
-- Kernel heights and widths supported (the kernel does not have to be square): { 1, 2, 3, 5, 7, 9 }
-- Stride supported (the height and width stride have to match): { 1, 2 }
-- For kernels with height or width > 7 only a stride of 1 is supported
-- Same and Valid Padding are supported
-- I*W/O must be between 2.33e-10 and 1, where I is the input quantization scale, W is the weight quantization scale and O is the output quantization scale
+- HWIO format weights are supported.
+- The supported kernel heights and widths (the kernel does not have to be square) are: { 1, 2, 3, 5, 7, 9 }.
+- The supported strides (the height and width stride have to match) are: { 1, 2 }.
+- For kernels with height or width >7, only a stride of 1 is supported.
+- SAME and VALID padding are supported.
+- I*W/O must be between 2.33e-10 and 1, where:
+     - I is the input quantization scale.
+     - W is the weight quantization scale.
+     - O is the output quantization scale.
 
 
-## Depth To Space
-- Block size of 2 is supported
-- Depth must be a multiple of the square of the block size
+## Depth to space
+- A block size of 2 is supported.
+- Depth must be a multiple of the square of the block size.
 
 
-## Depthwise Convolution 2D
-- HWIM format weights are supported
-- Kernel heights and widths supported (the kernel does not have to be square): { 1, 2, 3, 5, 7, 9 }
-- Stride supported (the height and width stride have to match): { 1, 2 }
-- For kernels with height or width > 7 only a stride of 1 is supported
-- Same and Valid Padding are supported
-- Channel multiplier of 1 is supported, > 1 is not supported
-- I*W/O must be between 2.33e-10 and 1, where I is the input quantization scale, W is the weight quantization scale and O is the output quantization scale
+## Depthwise convolution 2D
+- HWIM format weights are supported.
+- The supported kernel heights and widths (the kernel does not have to be square) are: { 1, 2, 3, 5, 7, 9 }.
+- The supported strides (the height and width stride have to match) are: { 1, 2 }.
+- For kernels with height or width >7, only a stride of 1 is supported.
+- SAME and VALID padding are supported.
+- A channel multiplier of 1 is supported. A channel multiplier >1 is not supported.
+- I*W/O must be between 2.33e-10 and 1, where:
+    - I is the input quantization scale.
+    - W is the weight quantization scale.
+    - O is the output quantization scale.
 
 
-## Fully Connected
-- HWIO format weights are supported, H and W must be 1
-- I*W/O must be between 2.33e-10 and 1, where I is the input quantization scale, W is the weight quantization scale and O is the output quantization scale
+## Fully connected
+- HWIO format weights are supported, H and W must be 1.
+- I*W/O must be between 2.33e-10 and 1, where:
+    - I is the input quantization scale.
+    - W is the weight quantization scale.
+    - O is the output quantization scale.
 
 
-## Leaky Relu
-- Alpha must be less than 1 and greater than 0
+## Leaky ReLU
+- Alpha must be less than 1 and greater than 0.
 
 
-## Max Pooling
+## Max pooling
 - Supported configurations:
-    - 1x1 pooling size, 2,2 stride (equivalent to downsample 2x2)
-    - 2x2 pooling size, 2,2 stride, valid padding, input sizes must be even
-    - 2x2 pooling size, 2,2 stride, same padding, input sizes must be odd
-    - 3x3 pooling size, 2,2 stride, valid padding, input sizes must even, maximum tensor width is 417
-    - 3x3 pooling size, 2,2 stride, same padding, input sizes must be odd, maximum tensor width is 417
-- Input size must not be smaller than the pooling size
+    - 1 x 1 pooling size, 2, 2 stride (equivalent to downsample 2 x 2).
+    - 2 x 2 pooling size, 2, 2 stride, VALID padding, input sizes must be even.
+    - 2 x 2 pooling size, 2, 2 stride, SAME padding, input sizes must be odd.
+    - 3 x 3 pooling size, 2, 2 stride, VALID padding, input sizes must even, maximum tensor width is 417.
+    - 3 x 3 pooling size, 2, 2 stride, SAME padding, input sizes must be odd, maximum tensor width is 417.
+- Input size must not be smaller than the pooling size.
 
 
 ## MeanXy
-- Supports mean reduction of HxW dimensions to 1x1.
-- Only supports Nx7x7xC or Nx8x8xC input with Nx1x1xC output in both cases.
+- Supports mean reduction of H x W dimensions to 1 x 1.
+- Only supports:
+    - N x 7 x 7 x C input with N x 1 x 1 x C output.
+    - N x 8 x 8 x C input with N x 1 x 1 x C output.
 
 
 ## Multiplication
-- A multiplication with constant tensor with shape 1x1x1xC will be replaced with an equivalent depthwise convolution. **This is available only when using Arm NN**
-- Multiplication of a variable with a scalar constant is supported in cases where the quantized values in the output are the same as the input, this is replaced with a Reinterpret Quantization operation. **This is available only when using Arm NN**
+- If Arm NN is used, the multiplication of a tensor with a constant tensor is supported when the constant shape is 1 x 1 x 1 x C. The Arm NN backend replaces this multiplication with a depthwise convolution.
+- If Arm NN is used, the multiplication of a variable with a scalar constant is supported when the quantized values in the output are the same as the input. The Arm NN backend replaces this multiplication with a reinterpret quantization operation.
 
 
-## Reinterpret Quantization
+## Reinterpret quantization
 - No specific restrictions
 
 
-## Relu
-- Lower bound must be less than the upper bound
+## ReLU
+- Lower bound must be less than the upper bound.
 
 
 ## Requantize
-- Output scale must be bigger than input scale / 128
-- Requantize with different input/output type is supported
+- Output quantization scale smaller than the input quantization scale divided by 128 is not supported.
+- Requantize with different input/output type is supported.
 
 
 ## Reshape
-- No specific restrictions
+- No specific restrictions.
 
 
 ## Resize
-- The resized height or width must 2n or 2n-1 where n in the original height or width
+- The resized height or width must be 2n or 2n-1 where n is the original height or width.
 - The resized height and width must both be odd or both be even.
 
 
 ## Sigmoid
-- The output for Sigmoid always has a quantization zero point equal to the minimum value of the quantized data type and a quantization scale of 1 / 256.
+- The output for sigmoid always has a quantization zero point equal to the minimum value of the quantized data type and a quantization scale of 1 / 256.
 
 
-## Space To Depth
-- Block size of greater than 1 is supported
-- Input width and height must be a multiple of the block size
+## Space to depth
+- A block size of greater than 1 is supported.
+- Input width and height must be a multiple of the block size.
 
 
 ## Split
-- If spltting the 3rd dimension, the input tensor's 3rd dimension must be a multiple of 16
+- If splitting along the channel dimension, the channel dimension of every output tensor must be a multiple of 16
 
 
 ## Tanh
-- The output for Tanh always has a quantization zero point equal to the middle value of the quantized data type and a quantization scale of 1 / 128.
+- The output for tanh always has a quantization zero point equal to the middle value of the quantized data type and a quantization scale of 1 / 128.
 
 
 ## Transpose
-- Transpose is allowed for height, width and channel dimensions only
+- Transpose is allowed for height, width, and channel dimensions only.
 
 
-## Transpose Convolution 2D
-- HWIO format weights are supported
-- Kernel heights and widths supported (the kernel does not have to be square): { 1, 2, 3, 5, 7, 9 }
-- Stride supported (the kernel does have to be square): { 1, 2 }
-- Same and Valid Padding are supported
-- I*W/O must be between 2.33e-10 and 1, where I is the input quantization scale, W is the weight quantization scale and O is the output quantization scale
+## Transpose convolution 2D
+- HWIO format weights are supported.
+- The supported kernel heights and widths (the kernel does not have to be square) are: { 1, 2, 3, 5, 7, 9 }.
+- The supported strides (the kernel does have to be square) are: { 1, 2 }.
+- SAME and VALID padding are supported.
+- I*W/O must be between 2.33e-10 and 1, where:
+     - I is the input quantization scale.
+     - W is the weight quantization scale.
+     - O is the output quantization scale.
 
 
-For additional details please see driver/support_library/src/SupportQueries.cpp.
+For more information, see `driver/support_library/src/SupportQueries.cpp`.
 
-**Please contact your Arm FAE for any further questions**
+**Please contact your Arm FAE for any further questions.**
