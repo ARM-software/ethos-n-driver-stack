@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2018-2021 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -287,7 +287,13 @@ struct ethosn_buffer *ethosn_buffer_get(int fd)
  */
 void put_ethosn_buffer(struct ethosn_buffer *buf)
 {
-	if (WARN_ON(!buf || !buf->file || !is_ethosn_buffer_file(buf->file)))
+	if (WARN_ON(!buf))
+		return;
+
+	if (WARN_ON(!buf->file))
+		return;
+
+	if (WARN_ON(!is_ethosn_buffer_file(buf->file)))
 		return;
 
 	fput(buf->file);
