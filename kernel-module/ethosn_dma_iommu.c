@@ -25,9 +25,12 @@
 #include "ethosn_backport.h"
 #include "ethosn_device.h"
 
+#include <linux/dma-buf.h>
 #include <linux/iommu.h>
 #include <linux/iova.h>
 #include <linux/kernel.h>
+#include <linux/scatterlist.h>
+#include <linux/slab.h>
 #include <linux/version.h>
 #include <linux/vmalloc.h>
 
@@ -66,12 +69,66 @@ struct ethosn_allocator_internal {
 	struct ethosn_iommu_domain  ethosn_iommu_domain;
 };
 
-struct ethosn_dma_info_internal {
-	struct ethosn_dma_info info;
-	/* Allocator private members */
-	dma_addr_t             *dma_addr;
-	struct page            **pages;
+struct dma_buf_internal {
+	struct dma_buf            *dmabuf;
+	int                       fd;
+	/* Scatter-gather table of the imported buffer. */
+	struct sg_table           *sgt;
+	/* dma-buf attachment of the imported buffer. */
+	struct dma_buf_attachment *attachment;
 };
+
+struct ethosn_dma_info_internal {
+	struct ethosn_dma_info  info;
+	/* Allocator private members */
+	dma_addr_t              *dma_addr;
+	struct page             **pages;
+	struct dma_buf_internal *dma_buf_internal;
+	struct scatterlist      **scatterlist;
+};
+
+static phys_addr_t ethosn_page_to_phys(int index,
+				       struct ethosn_dma_info_internal
+				       *dma_info)
+{
+	phys_addr_t ret = 0;
+
+	if (dma_info->dma_buf_internal)
+		ret = sg_phys(dma_info->scatterlist[index]);
+	else
+		ret = page_to_phys(dma_info->pages[index]);
+
+	return ret;
+}
+
+static size_t ethosn_page_size(unsigned int start,
+			       unsigned int end,
+			       struct ethosn_dma_info_internal *dma_info)
+{
+	size_t size = 0;
+	unsigned int i;
+
+	if (dma_info->dma_buf_internal)
+		for (i = start; i < end; i++)
+			size += sg_dma_len(dma_info->scatterlist[i]);
+
+	else
+		size = (end - start) * PAGE_SIZE;
+
+	return size;
+}
+
+static int ethosn_nr_pages(struct ethosn_dma_info_internal *dma_info)
+{
+	int nr_pages = 0;
+
+	if (dma_info->dma_buf_internal)
+		nr_pages = sg_nents(dma_info->dma_buf_internal->sgt->sgl);
+	else
+		nr_pages = DIV_ROUND_UP(dma_info->info.size, PAGE_SIZE);
+
+	return nr_pages;
+}
 
 static struct ethosn_iommu_stream *iommu_get_stream(
 	struct ethosn_iommu_domain *domain,
@@ -146,7 +203,7 @@ static dma_addr_t iommu_alloc_iova(struct device *dev,
 	unsigned long start = 0;
 	unsigned long flags;
 	int ret;
-	int nr_pages = DIV_ROUND_UP(dma->info.size, PAGE_SIZE);
+	int nr_pages = ethosn_nr_pages(dma);
 	dma_addr_t iova = 0;
 
 	spin_lock_irqsave(&stream->lock, flags);
@@ -159,7 +216,7 @@ static dma_addr_t iommu_alloc_iova(struct device *dev,
 
 	bitmap_set(stream->bitmap, start, nr_pages);
 
-	iova = stream->addr_base + start * PAGE_SIZE;
+	iova = stream->addr_base + ethosn_page_size(0, start, dma);
 ret:
 	spin_unlock_irqrestore(&stream->lock, flags);
 
@@ -289,11 +346,13 @@ static void iommu_unmap_iova_pages(struct ethosn_dma_info_internal *dma_info,
 
 	for (i = 0; i < nr_pages; ++i) {
 		unsigned long iova_addr =
-			dma_info->info.iova_addr + i * PAGE_SIZE;
+			dma_info->info.iova_addr + ethosn_page_size(0, i,
+								    dma_info);
 
 		if (dma_info->pages[i]) {
 			/* TODO: Should handle error here */
-			iommu_unmap(domain, iova_addr, PAGE_SIZE);
+			iommu_unmap(domain, iova_addr,
+				    ethosn_page_size(i, i + 1, dma_info));
 
 			if (stream->page)
 				iommu_map(
@@ -319,7 +378,7 @@ static int iommu_iova_map(struct ethosn_dma_allocator *allocator,
 		iommu_get_stream(domain, stream_id);
 	struct ethosn_dma_info_internal *dma_info =
 		container_of(_dma_info, typeof(*dma_info), info);
-	int nr_pages = DIV_ROUND_UP(_dma_info->size, PAGE_SIZE);
+	int nr_pages = ethosn_nr_pages(dma_info);
 	dma_addr_t start_addr = 0;
 	int i, err, iommu_prot = 0;
 
@@ -361,21 +420,23 @@ static int iommu_iova_map(struct ethosn_dma_allocator *allocator,
 		if (stream->page)
 			iommu_unmap(
 				domain->iommu_domain,
-				start_addr + i * PAGE_SIZE,
+				start_addr + ethosn_page_size(0, i, dma_info),
 				PAGE_SIZE);
 
 		err = iommu_map(
 			domain->iommu_domain,
-			start_addr + i * PAGE_SIZE,
-			page_to_phys(dma_info->pages[i]),
-			PAGE_SIZE,
+			start_addr + ethosn_page_size(0, i, dma_info),
+			ethosn_page_to_phys(i, dma_info),
+			ethosn_page_size(i, i + 1, dma_info),
 			iommu_prot);
 
 		if (err) {
-			dev_err(allocator->dev,
+			dev_err(
+				allocator->dev,
 				"failed to iommu map iova 0x%llX pa 0x%llX size %lu\n",
-				start_addr + i * PAGE_SIZE,
-				page_to_phys(dma_info->pages[i]), PAGE_SIZE);
+				start_addr + ethosn_page_size(0, i, dma_info),
+				ethosn_page_to_phys(i, dma_info),
+				ethosn_page_size(i, i + 1, dma_info));
 			goto unmap_pages;
 		}
 	}
@@ -389,7 +450,7 @@ unmap_pages:
 	if (stream->page)
 		iommu_map(
 			domain->iommu_domain,
-			start_addr + i * PAGE_SIZE,
+			start_addr + ethosn_page_size(0, i, dma_info),
 			page_to_phys(stream->page),
 			PAGE_SIZE,
 			IOMMU_READ);
@@ -412,6 +473,161 @@ early_exit:
 	return -ENOMEM;
 }
 
+static struct ethosn_dma_info *iommu_import(
+	struct ethosn_dma_allocator *allocator,
+	int fd,
+	size_t size)
+{
+	struct page **pages = NULL;
+	struct ethosn_dma_info_internal *dma_info;
+	dma_addr_t *dma_addr = NULL;
+	int i = 0;
+	size_t scatterlist_size = 0;
+	struct dma_buf_internal *dma_buf_internal = NULL;
+	struct scatterlist **sctrlst = NULL;
+	struct scatterlist *scatterlist = NULL;
+	struct scatterlist *tmp_scatterlist = NULL;
+
+	dma_info =
+		devm_kzalloc(allocator->dev,
+			     sizeof(struct ethosn_dma_info_internal),
+			     GFP_KERNEL);
+	if (!dma_info)
+		goto early_exit;
+
+	dma_buf_internal =
+		devm_kzalloc(allocator->dev,
+			     sizeof(struct dma_buf_internal),
+			     GFP_KERNEL);
+	if (!dma_buf_internal)
+		goto free_dma_info;
+
+	dma_buf_internal->fd = fd;
+
+	dma_buf_internal->dmabuf = dma_buf_get(fd);
+	if (IS_ERR(dma_buf_internal->dmabuf))
+		goto free_buf_internal;
+
+	dma_buf_internal->attachment = dma_buf_attach(dma_buf_internal->dmabuf,
+						      allocator->dev);
+	if (IS_ERR(dma_buf_internal->attachment))
+		goto fail_put;
+
+	dma_buf_internal->sgt = ethosn_dma_buf_map_attachment(
+		dma_buf_internal->attachment);
+	if (IS_ERR(dma_buf_internal->sgt))
+		goto fail_detach;
+
+	sctrlst = (struct scatterlist **)
+		  devm_kzalloc(allocator->dev,
+			       sizeof(struct scatterlist *) *
+			       dma_buf_internal->sgt->orig_nents,
+			       GFP_KERNEL);
+	if (!sctrlst)
+		goto fail_unmap_attachment;
+
+	pages = (struct page **)
+		devm_kzalloc(allocator->dev,
+			     sizeof(struct page *) *
+			     dma_buf_internal->sgt->orig_nents,
+			     GFP_KERNEL);
+	if (!pages)
+		goto free_scatterlist;
+
+	dma_addr = (dma_addr_t *)
+		   devm_kzalloc(
+		allocator->dev,
+		sizeof(dma_addr_t) * dma_buf_internal->sgt->orig_nents,
+		GFP_KERNEL);
+
+	if (!dma_addr)
+		goto free_pages_list;
+
+	/* Note:
+	 * we copy the content of sg_table and scatterlist structs into the
+	 * ethosn_dma_info_internal and ethosn_dma_info ones so that we can
+	 * reuse most of the API functions we already made for
+	 * ETHOSN_CREATE_BUFFER ioctl.
+	 */
+	scatterlist = dma_buf_internal->sgt->sgl;
+	for_each_sg(scatterlist, tmp_scatterlist, dma_buf_internal->sgt->nents,
+		    i) {
+		pages[i] = sg_page(tmp_scatterlist);
+		dma_addr[i] = sg_dma_address(tmp_scatterlist);
+		scatterlist_size += sg_dma_len(tmp_scatterlist);
+		sctrlst[i] = tmp_scatterlist;
+	}
+
+	if (scatterlist_size < size)
+		goto free_dma_address;
+
+	dev_dbg(allocator->dev, "Imported shared DMA buffer. handle=%p",
+		dma_info);
+
+	*dma_info = (struct ethosn_dma_info_internal) {
+		.info = (struct ethosn_dma_info) {
+			.size = scatterlist_size,
+			.cpu_addr = NULL,
+			.iova_addr = 0
+		},
+		.dma_addr = dma_addr,
+		.pages = pages,
+		.dma_buf_internal = dma_buf_internal,
+		.scatterlist = sctrlst
+	};
+
+	return &dma_info->info;
+
+free_dma_address:
+	devm_kfree(allocator->dev, dma_addr);
+free_pages_list:
+	devm_kfree(allocator->dev, pages);
+free_scatterlist:
+	devm_kfree(allocator->dev, sctrlst);
+fail_unmap_attachment:
+	dma_buf_unmap_attachment(dma_buf_internal->attachment,
+				 dma_buf_internal->sgt, DMA_BIDIRECTIONAL);
+fail_detach:
+	dma_buf_detach(dma_buf_internal->dmabuf,
+		       dma_buf_internal->attachment);
+fail_put:
+	dma_buf_put(dma_buf_internal->dmabuf);
+free_buf_internal:
+	memset(dma_buf_internal, 0, sizeof(*dma_buf_internal));
+	devm_kfree(allocator->dev, dma_buf_internal);
+free_dma_info:
+	memset(dma_info, 0, sizeof(*dma_info));
+	devm_kfree(allocator->dev, dma_info);
+early_exit:
+
+	return ERR_PTR(-ENOMEM);
+}
+
+static void iommu_release(struct ethosn_dma_allocator *allocator,
+			  struct ethosn_dma_info *const _dma_info)
+{
+	struct ethosn_dma_info_internal *dma_info =
+		container_of(_dma_info, typeof(*dma_info), info);
+	struct dma_buf_internal *dma_buf_internal = dma_info->dma_buf_internal;
+
+	if (dma_info->info.size) {
+		devm_kfree(allocator->dev, dma_info->dma_addr);
+		devm_kfree(allocator->dev, dma_info->pages);
+		devm_kfree(allocator->dev, dma_info->scatterlist);
+	}
+
+	dma_buf_unmap_attachment(dma_buf_internal->attachment,
+				 dma_buf_internal->sgt, DMA_BIDIRECTIONAL);
+	dma_buf_detach(dma_buf_internal->dmabuf,
+		       dma_buf_internal->attachment);
+	dma_buf_put(dma_buf_internal->dmabuf);
+
+	memset(dma_buf_internal, 0, sizeof(*dma_buf_internal));
+	devm_kfree(allocator->dev, dma_buf_internal);
+	memset(dma_info, 0, sizeof(*dma_info));
+	devm_kfree(allocator->dev, dma_info);
+}
+
 static void iommu_iova_unmap(struct ethosn_dma_allocator *allocator,
 			     struct ethosn_dma_info *const _dma_info,
 			     enum ethosn_stream_id stream_id)
@@ -429,7 +645,7 @@ static void iommu_iova_unmap(struct ethosn_dma_allocator *allocator,
 		return;
 
 	if (dma_info->info.size) {
-		int nr_pages = DIV_ROUND_UP(dma_info->info.size, PAGE_SIZE);
+		int nr_pages = ethosn_nr_pages(dma_info);
 
 		iommu_unmap_iova_pages(dma_info, domain->iommu_domain, stream,
 				       nr_pages);
@@ -464,13 +680,19 @@ static void iommu_sync_for_device(struct ethosn_dma_allocator *allocator,
 {
 	struct ethosn_dma_info_internal *dma_info =
 		container_of(_dma_info, typeof(*dma_info), info);
-	int nr_pages = DIV_ROUND_UP(_dma_info->size, PAGE_SIZE);
+	int nr_pages = ethosn_nr_pages(dma_info);
 	int i;
 
-	for (i = 0; i < nr_pages; ++i)
-		dma_sync_single_for_device(allocator->dev,
-					   dma_info->dma_addr[i], PAGE_SIZE,
-					   DMA_TO_DEVICE);
+	if (dma_info->dma_buf_internal)
+		dma_buf_begin_cpu_access(dma_info->dma_buf_internal->dmabuf,
+					 DMA_TO_DEVICE);
+	else
+		for (i = 0; i < nr_pages; ++i)
+			dma_sync_single_for_device(allocator->dev,
+						   dma_info->dma_addr[i],
+						   ethosn_page_size(i, i + 1,
+								    dma_info),
+						   DMA_TO_DEVICE);
 }
 
 static void iommu_sync_for_cpu(struct ethosn_dma_allocator *allocator,
@@ -478,14 +700,19 @@ static void iommu_sync_for_cpu(struct ethosn_dma_allocator *allocator,
 {
 	struct ethosn_dma_info_internal *dma_info =
 		container_of(_dma_info, typeof(*dma_info), info);
-	int nr_pages = DIV_ROUND_UP(_dma_info->size, PAGE_SIZE);
-
+	int nr_pages = ethosn_nr_pages(dma_info);
 	int i;
 
-	for (i = 0; i < nr_pages; ++i)
-		dma_sync_single_for_cpu(allocator->dev,
-					dma_info->dma_addr[i],
-					PAGE_SIZE, DMA_FROM_DEVICE);
+	if (dma_info->dma_buf_internal)
+		dma_buf_end_cpu_access(dma_info->dma_buf_internal->dmabuf,
+				       DMA_FROM_DEVICE);
+	else
+		for (i = 0; i < nr_pages; ++i)
+			dma_sync_single_for_cpu(allocator->dev,
+						dma_info->dma_addr[i],
+						ethosn_page_size(i, i + 1,
+								 dma_info),
+						DMA_FROM_DEVICE);
 }
 
 static int iommu_mmap(struct ethosn_dma_allocator *allocator,
@@ -494,13 +721,14 @@ static int iommu_mmap(struct ethosn_dma_allocator *allocator,
 {
 	struct ethosn_dma_info_internal *dma_info =
 		container_of(_dma_info, typeof(*dma_info), info);
-	int nr_pages = DIV_ROUND_UP(_dma_info->size, PAGE_SIZE);
+	int nr_pages = ethosn_nr_pages(dma_info);
 	int i;
 
 	for (i = 0; i < nr_pages; ++i) {
-		unsigned long addr = vma->vm_start + i * PAGE_SIZE;
+		unsigned long addr = vma->vm_start + ethosn_page_size(0, i,
+								      dma_info);
 		unsigned long pfn = page_to_pfn(dma_info->pages[i]);
-		unsigned long size = PAGE_SIZE;
+		unsigned long size = ethosn_page_size(i, i + 1, dma_info);
 
 		if (remap_pfn_range(vma, addr, pfn, size, vma->vm_page_prot))
 			return -EAGAIN;
@@ -644,6 +872,8 @@ struct ethosn_dma_allocator *ethosn_dma_iommu_allocator_create(
 		.free            = iommu_free,
 		.mmap            = iommu_mmap,
 		.map             = iommu_iova_map,
+		.import          = iommu_import,
+		.release         = iommu_release,
 		.unmap           = iommu_iova_unmap,
 		.sync_for_device = iommu_sync_for_device,
 		.sync_for_cpu    = iommu_sync_for_cpu,
@@ -655,6 +885,8 @@ struct ethosn_dma_allocator *ethosn_dma_iommu_allocator_create(
 		.alloc           = iommu_alloc,
 		.free            = iommu_free,
 		.mmap            = iommu_mmap,
+		.import          = iommu_import,
+		.release         = iommu_release,
 		.sync_for_device = iommu_sync_for_device,
 		.sync_for_cpu    = iommu_sync_for_cpu,
 	};

@@ -23,6 +23,7 @@
 #ifndef _ETHOSN_BACKPORT_H_
 #define _ETHOSN_BACKPORT_H_
 
+#include <linux/dma-buf.h>
 #include <linux/dma-mapping.h>
 #include <linux/fs.h>
 #include <linux/iommu.h>
@@ -71,5 +72,8 @@ int ethosn_bitmap_find_next_zero_area(struct device *dev,
 				      size_t bits,
 				      int nr_pages,
 				      unsigned long *start);
+
+struct sg_table *ethosn_dma_buf_map_attachment(
+	struct dma_buf_attachment *attach);
 
 #endif /* _ETHOSN_BACKPORT_H_ */

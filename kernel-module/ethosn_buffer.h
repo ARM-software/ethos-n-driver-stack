@@ -43,4 +43,7 @@ struct ethosn_buffer *ethosn_buffer_get(int fd);
 void put_ethosn_buffer(struct ethosn_buffer *buf);
 
 const struct file_operations *ethosn_get_dma_view_fops(void);
+
+int ethosn_buffer_import(struct ethosn_device *ethosn,
+			 struct ethosn_dma_buf_req *buf_req);
 #endif /* _ETHOSN_BUFFER_H_ */

@@ -160,6 +160,12 @@ struct ethosn_buffer_req {
 	__u32 flags;
 };
 
+struct ethosn_dma_buf_req {
+	__u32  fd;
+	__u32  flags;
+	size_t size;
+};
+
 /*****************************************************************************
  * Capabilities
  *****************************************************************************/
@@ -238,6 +244,8 @@ enum ethosn_poll_counter_name {
 	ETHOSN_IO(0x0b)
 #define ETHOSN_IOCTL_SYNC_FOR_DEVICE \
 	ETHOSN_IO(0x0c)
+#define ETHOSN_IOCTL_IMPORT_BUFFER \
+	ETHOSN_IO(0x0d)
 
 /*
  * Results from reading an inference file descriptor.

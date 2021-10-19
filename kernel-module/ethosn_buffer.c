@@ -48,6 +48,8 @@ static long ethosn_buffer_ioctl(struct file *file,
 				unsigned long arg);
 static int ethosn_dma_view_release(struct inode *const inode,
 				   struct file *const file);
+static int ethosn_dma_buffer_release(struct inode *const inode,
+				     struct file *const file);
 
 static const struct file_operations ethosn_buffer_fops = {
 	.release        = &ethosn_buffer_release,
@@ -97,8 +99,8 @@ static int ethosn_dma_view_release(struct inode *const inode,
 	return 0;
 }
 
-static void buffer_unmap_and_free_dma(struct ethosn_buffer *buf,
-				      int num_cores)
+static void buffer_unmap_dma(struct ethosn_buffer *buf,
+			     int num_cores)
 {
 	struct ethosn_device *ethosn = buf->ethosn;
 	int i;
@@ -109,8 +111,6 @@ static void buffer_unmap_and_free_dma(struct ethosn_buffer *buf,
 			ethosn->core[i]->allocator,
 			buf->dma_info,
 			ETHOSN_STREAM_DMA);
-
-	ethosn_dma_free(ethosn->allocator, buf->dma_info);
 }
 
 static int ethosn_buffer_release(struct inode *const inode,
@@ -129,7 +129,8 @@ static int ethosn_buffer_release(struct inode *const inode,
 
 	dev_dbg(buf->ethosn->dev, "Release buffer. handle=0x%pK\n", buf);
 
-	buffer_unmap_and_free_dma(buf, ethosn->num_cores);
+	buffer_unmap_dma(buf, ethosn->num_cores);
+	ethosn_dma_free(ethosn->allocator, buf->dma_info);
 
 	put_device(buf->ethosn->dev);
 
@@ -140,6 +141,21 @@ static int ethosn_buffer_release(struct inode *const inode,
 	return 0;
 }
 
+static const struct file_operations ethosn_dma_buf_fops = {
+	.release        = &ethosn_dma_buffer_release,
+	.mmap           = &ethosn_buffer_mmap,
+	.llseek         = &ethosn_buffer_llseek,
+	.unlocked_ioctl = &ethosn_buffer_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl   = &ethosn_buffer_ioctl,
+#endif
+};
+
+static bool is_ethosn_dma_buf_file(const struct file *const file)
+{
+	return file->f_op == &ethosn_dma_buf_fops;
+}
+
 static int ethosn_buffer_mmap(struct file *const file,
 			      struct vm_area_struct *const vma)
 {
@@ -147,6 +163,7 @@ static int ethosn_buffer_mmap(struct file *const file,
 	struct ethosn_dma_allocator *allocator;
 
 	if (WARN_ON(!is_ethosn_buffer_file(file) &&
+		    !is_ethosn_dma_buf_file(file) &&
 		    !is_ethosn_dma_view_file(file)))
 		return -EBADF;
 
@@ -163,6 +180,7 @@ static loff_t ethosn_buffer_llseek(struct file *const file,
 	struct ethosn_buffer *buf;
 
 	if (WARN_ON(!is_ethosn_buffer_file(file) &&
+		    !is_ethosn_dma_buf_file(file) &&
 		    !is_ethosn_dma_view_file(file)))
 		return -EBADF;
 
@@ -214,6 +232,52 @@ static long ethosn_buffer_ioctl(struct file *file,
 	return ret;
 }
 
+static int ethosn_buffer_map_and_get_fd(struct ethosn_buffer *buf,
+					struct ethosn_device *ethosn,
+					const struct file_operations
+					*ethosn_fops,
+					u32 flags)
+{
+	int fd;
+	int ret = -ENOMEM;
+	int i;
+
+	/* Map iova per core through core allocator */
+	for (i = 0; i < ethosn->num_cores; ++i) {
+		int ret = ethosn_dma_map(
+			ethosn->core[i]->allocator,
+			buf->dma_info,
+			ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
+			ETHOSN_STREAM_DMA);
+
+		if (ret < 0)
+			goto err_unmap_dma;
+	}
+
+	ret = anon_inode_getfd("ethosn-buffer",
+			       ethosn_fops,
+			       buf,
+			       (flags & O_ACCMODE) | O_CLOEXEC);
+	if (ret < 0)
+		goto err_unmap_dma;
+
+	fd = ret;
+
+	buf->file = fget(fd);
+	buf->file->f_mode |= FMODE_LSEEK;
+
+	fput(buf->file);
+
+	get_device(ethosn->dev);
+
+	return fd;
+
+err_unmap_dma:
+	buffer_unmap_dma(buf, i);
+
+	return ret;
+}
+
 /**
  * ethosn_buffer_register() - Register a new Ethos-N buffer
  * @ethosn: [in]     pointer to Ethos-N device
@@ -229,7 +293,6 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 	struct ethosn_buffer *buf;
 	int fd;
 	int ret = -ENOMEM;
-	int i;
 
 	buf = kzalloc(sizeof(*buf), GFP_KERNEL);
 	if (!buf)
@@ -252,33 +315,10 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 	if (IS_ERR_OR_NULL(buf->dma_info))
 		goto err_kfree;
 
-	/* Map iova per core through core allocator */
-	for (i = 0; i < ethosn->num_cores; ++i) {
-		int ret = ethosn_dma_map(
-			ethosn->core[i]->allocator,
-			buf->dma_info,
-			ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
-			ETHOSN_STREAM_DMA);
-
-		if (ret < 0)
-			goto err_dma_free;
-	}
-
-	ret = anon_inode_getfd("ethosn-buffer",
-			       &ethosn_buffer_fops,
-			       buf,
-			       (buf_req->flags & O_ACCMODE) | O_CLOEXEC);
-	if (ret < 0)
+	fd = ethosn_buffer_map_and_get_fd(buf, ethosn, &ethosn_buffer_fops,
+					  buf_req->flags);
+	if (fd < 0)
 		goto err_dma_free;
-
-	fd = ret;
-
-	buf->file = fget(fd);
-	buf->file->f_mode |= FMODE_LSEEK;
-
-	fput(buf->file);
-
-	get_device(ethosn->dev);
 
 	if (buf_req->flags & MB_ZERO) {
 		memset(buf->dma_info->cpu_addr, 0, buf->dma_info->size);
@@ -289,7 +329,88 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 	return fd;
 
 err_dma_free:
-	buffer_unmap_and_free_dma(buf, i);
+	ethosn_dma_free(buf->ethosn->allocator, buf->dma_info);
+err_kfree:
+	kfree(buf);
+
+	return ret;
+}
+
+static int ethosn_dma_buffer_release(struct inode *const inode,
+				     struct file *const file)
+{
+	struct ethosn_buffer *buf = file->private_data;
+	struct ethosn_device *ethosn = buf->ethosn;
+	int ret;
+
+	if (WARN_ON(!is_ethosn_dma_buf_file(file)))
+		return -EBADF;
+
+	ret = mutex_lock_interruptible(&ethosn->mutex);
+	if (ret)
+		return ret;
+
+	dev_dbg(buf->ethosn->dev, "Release buffer. handle=0x%pK\n", buf);
+
+	buffer_unmap_dma(buf, ethosn->num_cores);
+	ethosn_dma_release(ethosn->allocator, buf->dma_info);
+
+	put_device(buf->ethosn->dev);
+
+	kfree(buf);
+
+	mutex_unlock(&ethosn->mutex);
+
+	return 0;
+}
+
+/**
+ * ethosn_buffer_import() - import a new buffer
+ * @ethosn: [in]     pointer to Ethos-N device
+ * @dma_buf_req: [in]  buffer file descriptor, size and flags
+ *
+ * Return:
+ * * File descriptor for the imported buffer on success
+ * * Negative error code on failure
+ */
+int ethosn_buffer_import(struct ethosn_device *ethosn,
+			 struct ethosn_dma_buf_req *dma_buf_req)
+{
+	struct ethosn_buffer *buf;
+	int fd;
+	int ret = -ENOMEM;
+
+	buf = kzalloc(sizeof(*buf), GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	dev_dbg(ethosn->dev, "Import buffer. handle=0x%pK, fd=%d\n",
+		buf, dma_buf_req->fd);
+
+	/* Note:- We create buffers on ethosn.
+	 * For carveout :- Both the cores can access the same buffer as
+	 *                 the complete carveout memory is shared.
+	 * For smmu :- The buffer is allocated on core[0]. And it should
+	 *             be remapped to both the cores. The remapping part
+	 *             is yet to be done.
+	 */
+	buf->ethosn = ethosn;
+
+	buf->dma_info =
+		ethosn_dma_import(ethosn->allocator, dma_buf_req->fd,
+				  dma_buf_req->size);
+	if (IS_ERR_OR_NULL(buf->dma_info))
+		goto err_kfree;
+
+	fd = ethosn_buffer_map_and_get_fd(buf, ethosn, &ethosn_dma_buf_fops,
+					  dma_buf_req->flags);
+	if (fd < 0)
+		goto err_dma_release;
+
+	return fd;
+
+err_dma_release:
+	ethosn_dma_release(ethosn->allocator, buf->dma_info);
 err_kfree:
 	kfree(buf);
 

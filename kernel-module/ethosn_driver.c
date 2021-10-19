@@ -587,6 +587,31 @@ static long ethosn_ioctl(struct file *const filep,
 
 		break;
 	}
+	case ETHOSN_IOCTL_IMPORT_BUFFER: {
+		struct ethosn_dma_buf_req dma_buf_req;
+
+		if (copy_from_user(&dma_buf_req, udata, sizeof(dma_buf_req))) {
+			ret = -EFAULT;
+			break;
+		}
+
+		ret = mutex_lock_interruptible(&ethosn->mutex);
+		if (ret)
+			break;
+
+		dev_dbg(ethosn->dev,
+			"IOCTL: Import buffer. size=%zu, flags=0x%x\n",
+			dma_buf_req.size, dma_buf_req.flags);
+
+		ret = ethosn_buffer_import(ethosn, &dma_buf_req);
+
+		dev_dbg(ethosn->dev,
+			"IOCTL: Imported buffer. fd=%d\n", ret);
+
+		mutex_unlock(&ethosn->mutex);
+
+		break;
+	}
 	case ETHOSN_IOCTL_REGISTER_NETWORK: {
 		struct ethosn_network_req net_req;
 

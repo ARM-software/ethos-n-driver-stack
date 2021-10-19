@@ -154,3 +154,15 @@ retry:
 
 	return 0;
 }
+
+struct sg_table *ethosn_dma_buf_map_attachment(struct dma_buf_attachment
+					       *attach)
+{
+#if (KERNEL_VERSION(5, 3, 0) > LINUX_VERSION_CODE)
+
+	return dma_buf_map_attachment(attach, DMA_BIDIRECTIONAL);
+#else
+
+	return dma_buf_map_attachment(attach, attach->dir);
+#endif
+}
