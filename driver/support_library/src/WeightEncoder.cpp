@@ -784,12 +784,12 @@ const WeightEncoder::WeightCompressionParams
             assert(params.m_Zdiv == ZDivisor::RLE_DISABLED);
             break;
         case WeightCompMode::PALETTE_RLE:
-            //FALLTHRU
+            [[clang::fallthrough]];    // intentional fallthrough
         case WeightCompMode::PALETTE_DIRECT_RLE:
             params.m_WeightOffset = 1;
-            //FALLTHRU
+            [[clang::fallthrough]];    // intentional fallthrough
         case WeightCompMode::PALETTE:
-            //FALLTHRU
+            [[clang::fallthrough]];    // intentional fallthrough
         case WeightCompMode::PALETTE_DIRECT:
             params.m_Wdiv = m_TestParams.m_Wdiv;
             // sanity check WDIV != 7 for palette direct modes
@@ -803,12 +803,12 @@ const WeightEncoder::WeightCompressionParams
             break;
         case WeightCompMode::PALETTE_DIRECT_TRUNC_RLE:
             params.m_WeightOffset = 1;
-            //FALLTHRU
+            [[clang::fallthrough]];    // intentional fallthrough
         case WeightCompMode::PALETTE_TRUNC_RLE:
             params.m_TruncationEnabled = true;
-            //FALLTHRU
+            [[clang::fallthrough]];    // intentional fallthrough
         case WeightCompMode::PALETTE_TRUNC:
-            //FALLTHRU
+            [[clang::fallthrough]];    // intentional fallthrough
         case WeightCompMode::PALETTE_DIRECT_TRUNC:
             params.m_Wdiv              = m_TestParams.m_Wdiv;
             params.m_Zdiv              = m_TestParams.m_Zdiv;
