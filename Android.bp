@@ -1,0 +1,128 @@
+//
+// Copyright (C) 2021 Arm Limited.
+// SPDX-License-Identifier: Apache-2.0
+//
+
+package {
+    default_visibility: ["//visibility:public"]
+}
+
+subdirs = [
+    "driver",
+]
+
+cc_defaults {
+    name: "libEthosN-defaults",
+    proprietary: true,
+    local_include_dirs: ["driver/utils/include",],
+    required: ["ethosn.bin"],
+    shared_libs: [
+        "liblog",
+        "libcutils",
+        "libutils",
+        "libexpat",
+    ],
+    cflags: [
+        "-Werror",
+        "-Wall",
+    ],
+}
+
+cc_library {
+    name: "libEthosNDriver",
+    defaults: ["libEthosN-defaults"],
+    local_include_dirs: ["driver/driver_library/include", "driver/support_library/command_stream/include", "kernel-module", ],
+
+    cflags: [
+        "-fexceptions",
+        "-DTARGET_KMOD",
+        "-DDEVICE_NODE=\"/dev/ethosn/0\"",
+        "-DDEVICE_NODE_PREFIX=\"/dev/ethosn/\"",
+        "-DDEVICE_NODE_BASE_ID=0",
+        "-DFIRMWARE_PROFILING_NODE=\"/sys/kernel/debug/ethosn0/firmware_profiling\"",
+    ],
+    srcs: [
+        "driver/driver_library/src/Inference.cpp",
+        "driver/driver_library/src/Buffer.cpp",
+        "driver/driver_library/src/Device.cpp",
+        "driver/driver_library/src/Network.cpp",
+        "driver/driver_library/src/ProfilingInternal.cpp",
+        "driver/driver_library/src/DumpProfiling.cpp",
+        "driver/driver_library/src/NetworkImpl.cpp",
+        "driver/driver_library/src/KmodNetwork.cpp",
+        "driver/driver_library/src/KmodProfiling.cpp",
+    ],
+}
+
+cc_library {
+    name: "libEthosNSupport",
+    defaults: ["libEthosN-defaults"],
+    local_include_dirs: ["driver/support_library/include", "driver/support_library/command_stream/include", "driver/support_library/src/", ],
+    cflags: [
+        "-fexceptions",
+        "-Wno-non-virtual-dtor",
+    ],
+    rtti: true,
+    srcs: [
+        "driver/support_library/src/Support.cpp",
+        "driver/support_library/src/CapabilitiesInternal.cpp",
+        "driver/support_library/src/SupportQueries.cpp",
+        "driver/support_library/src/Network.cpp",
+        "driver/support_library/src/Operation.cpp",
+        "driver/support_library/src/ConcreteOperations.cpp",
+        "driver/support_library/src/Compiler.cpp",
+        "driver/support_library/src/nonCascading/BufferManager.cpp",
+        "driver/support_library/src/WeightEncoder.cpp",
+        "driver/support_library/src/nonCascading/Strategies.cpp",
+        "driver/support_library/src/nonCascading/StrategyX.cpp",
+        "driver/support_library/src/Graph.cpp",
+        "driver/support_library/src/GraphNodes.cpp",
+        "driver/support_library/src/NetworkToGraphConverter.cpp",
+        "driver/support_library/src/cascading/NetworkToGraphOfPartsConverter.cpp",
+        "driver/support_library/src/nonCascading/Pass.cpp",
+        "driver/support_library/src/nonCascading/McePlePass.cpp",
+        "driver/support_library/src/nonCascading/PlePass.cpp",
+        "driver/support_library/src/nonCascading/ConversionPass.cpp",
+        "driver/support_library/src/nonCascading/SpaceToDepthPass.cpp",
+        "driver/support_library/src/nonCascading/Section.cpp",
+        "driver/support_library/src/SubmapFilter.cpp",
+        "driver/support_library/src/SramAllocator.cpp",
+        "driver/support_library/src/Utils.cpp",
+        "driver/support_library/src/DebuggingContext.cpp",
+        "driver/support_library/src/Optimization.cpp",
+        "driver/support_library/src/PerformanceData.cpp",
+        "driver/support_library/src/cascading/Cascading.cpp",
+        "driver/support_library/src/cascading/DebuggableObject.cpp",
+        "driver/support_library/src/cascading/Part.cpp",
+        "driver/support_library/src/cascading/Plan.cpp",
+        "driver/support_library/src/cascading/CombinerDFS.cpp",
+        "driver/support_library/src/cascading/Visualisation.cpp",
+        "driver/support_library/src/nonCascading/NonCascading.cpp",
+        "driver/support_library/src/cascading/Estimation.cpp",
+        "driver/support_library/src/cascading/EstimationUtils.cpp",
+        "driver/support_library/src/cascading/McePart.cpp",
+        "driver/support_library/src/cascading/FusedPlePart.cpp",
+        "driver/support_library/src/cascading/StripeHelper.cpp",
+        "driver/support_library/src/cascading/MceEstimationUtils.cpp",
+        "driver/support_library/src/cascading/PartUtils.cpp",
+        "driver/support_library/src/cascading/InputPart.cpp",
+        "driver/support_library/src/cascading/OutputPart.cpp",
+        "driver/support_library/src/cascading/ReshapePart.cpp",
+        "driver/support_library/src/cascading/ConcatPart.cpp",
+        "driver/support_library/src/cascading/ConstantPart.cpp",
+        ],
+}
+
+prebuilt_firmware {
+    name: "ethosn.bin",
+    src: "firmware/ethosn.bin",
+    target: { android: { } },
+    soc_specific: true,
+}
+
+prebuilt_kernel_modules {
+    name: "ethosn.ko",
+    required: ["ethosn.bin"],
+    srcs: ["kernel-module/ethosn.ko"],
+    kernel_version: "5.10",
+}

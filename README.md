@@ -376,6 +376,15 @@ The `ethosn.bin` has been compiled with the following security-related flags:
 ```sh
 -Werror -Wall -Wextra -Wformat=2 -Wno-format-nonliteral -Wctor-dtor-privacy -Woverloaded-virtual -Wsign-promo -Wstrict-overflow=2 -Wswitch-default -Wconversion -Wold-style-cast -Wsign-conversion -Wno-missing-braces
 ```
+## Build the Ethos-N driver stack in Android
+
+To build the Ethos-N driver stack in Android, you must first install Android NN driver with Arm NN in Android. To install Android NN driver in Android, follow the install instructions here: https://github.com/ARM-software/android-nn-driver/blob/master/docs/IntegratorGuide.md You must then put the downloaded Ethos-N project folder in the Android build folder.
+
+ _Note: The Android build folder is the same folder that you put the Android NN driver.
+
+To set up the build process, you can edit the paths in setup_android.sh and execute setup_android.sh for the final step before building Android. setup_android.sh will copy the kernel module to the build and create a link from armnn/src/backends so that Android NN driver with Arm NN installs and uses this backend when built
+
+To use Android NN driver and Arm NN in Android, see the instructions for Android NN driver here: https://github.com/ARM-software/android-nn-driver/blob/master/docs/IntegratorGuide.md.
 
 ## Limitations
 
