@@ -339,7 +339,6 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 	struct ethosn_device *ethosn = core->parent;
 	uint32_t core_id = core->core_id;
 	struct device *core_dev = core->dev;
-	struct ethosn_dma_allocator *allocator = ethosn->allocator;
 	u32 i;
 	int ret;
 
@@ -359,8 +358,6 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 		struct ethosn_dma_info *dma_info =
 			inference->inputs[i]->dma_info;
 
-		ethosn_dma_sync_for_device(allocator, dma_info);
-
 		ret = update_bindings(network,
 				      core_id,
 				      1,
@@ -376,8 +373,6 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 	for (i = 0; i < network->num_outputs; ++i) {
 		struct ethosn_dma_info *dma_info =
 			inference->outputs[i]->dma_info;
-
-		ethosn_dma_sync_for_device(allocator, dma_info);
 
 		ret = update_bindings(network,
 				      core_id,
@@ -1240,16 +1235,7 @@ void ethosn_network_poll(struct ethosn_core *core,
 			 int status)
 {
 	if (inference) {
-		struct ethosn_dma_allocator *allocator =
-			core->parent->allocator;
-		int i;
-
 		inference->status = status;
-
-		for (i = 0; i < inference->network->num_outputs; ++i)
-			ethosn_dma_sync_for_cpu(
-				allocator,
-				inference->outputs[i]->dma_info);
 
 		wake_up_poll(&inference->poll_wqh, EPOLLIN);
 
