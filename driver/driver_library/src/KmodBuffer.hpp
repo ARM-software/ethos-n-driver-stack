@@ -64,7 +64,7 @@ public:
         }
     }
 
-    BufferImpl(uint8_t* src, uint32_t size, DataFormat format, const std::string& device)
+    BufferImpl(const uint8_t* src, uint32_t size, DataFormat format, const std::string& device)
         : BufferImpl(size, format, device)
     {
         uint8_t* data = Map();

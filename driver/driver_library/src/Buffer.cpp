@@ -45,7 +45,7 @@ Buffer::Buffer(uint32_t size, DataFormat format)
     : Buffer(size, format, DEVICE_NODE)
 {}
 
-Buffer::Buffer(uint8_t* src, uint32_t size, DataFormat format, const std::string& device)
+Buffer::Buffer(const uint8_t* src, uint32_t size, DataFormat format, const std::string& device)
     : bufferImpl{ std::make_unique<BufferImpl>(src, size, format, device) }
 {
     if (profiling::g_CurrentConfiguration.m_EnableProfiling)
@@ -56,7 +56,7 @@ Buffer::Buffer(uint8_t* src, uint32_t size, DataFormat format, const std::string
     }
 }
 
-Buffer::Buffer(uint8_t* src, uint32_t size, DataFormat format)
+Buffer::Buffer(const uint8_t* src, uint32_t size, DataFormat format)
     : Buffer(src, size, format, DEVICE_NODE)
 {}
 
@@ -83,11 +83,6 @@ Buffer::~Buffer()
 const int& Buffer::GetBufferHandle() const
 {
     return bufferImpl->GetBufferHandle();
-}
-
-uint8_t* Buffer::GetMappedBuffer()
-{
-    return bufferImpl->Map();
 }
 
 uint8_t* Buffer::Map()

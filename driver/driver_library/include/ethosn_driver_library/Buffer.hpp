@@ -27,8 +27,6 @@ class Buffer
 public:
     Buffer(Buffer&& buffer);
 
-    // FIXME: Need an API where an external buffer is provided, without any copy. (Jira NNXSW-605)
-
     // Device allocates the buffer.
     Buffer(uint32_t size, DataFormat format);
     Buffer(uint32_t size, DataFormat format, const std::string& device);
@@ -47,9 +45,8 @@ public:
     //
     // ... another inference is executed ...
     //
-    // FIXME: Fix as part of Jira NNXSW-610 - Refactor Driver Library
-    Buffer(uint8_t* src, uint32_t size, DataFormat format);
-    Buffer(uint8_t* src, uint32_t size, DataFormat format, const std::string& device);
+    Buffer(const uint8_t* src, uint32_t size, DataFormat format);
+    Buffer(const uint8_t* src, uint32_t size, DataFormat format, const std::string& device);
 
     ~Buffer();
 
@@ -61,10 +58,6 @@ public:
 
     // Returns the raw file descriptor.
     const int& GetBufferHandle() const;
-
-    // Returns a pointer to the mapped kernel buffer.
-    // This is deprecated, use Map()/Unmap() instead.
-    uint8_t* GetMappedBuffer();
 
     // Syncs for cpu and returns a pointer to the mapped buffer.
     // To be used together with Unmap().
