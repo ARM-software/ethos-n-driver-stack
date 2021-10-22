@@ -666,6 +666,8 @@ unsigned CalculateSpaceToDepthSramUsage(uint32_t blockSize, uint32_t s1, uint32_
 
 std::pair<uint32_t, uint32_t>
     CalculateSpaceToDepthBlockSizes(const TensorShape tensor, uint32_t usedSrams, uint32_t blockSize);
+
+std::tuple<bool, bool, bool> IsSplitting(const TensorShape& tensorShape, const TensorShape& stripeShape);
 }    // namespace utils
 
 }    // namespace support_library

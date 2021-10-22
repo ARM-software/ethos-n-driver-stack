@@ -546,6 +546,15 @@ std::pair<uint32_t, uint32_t>
     return std::pair<uint32_t, uint32_t>(s1, s2);
 }
 
+std::tuple<bool, bool, bool> IsSplitting(const TensorShape& tensorShape, const TensorShape& stripeShape)
+{
+    using namespace utils;
+    const bool splitH = GetHeight(stripeShape) < GetHeight(tensorShape);
+    const bool splitW = GetWidth(stripeShape) < GetWidth(tensorShape);
+    const bool splitC = GetChannels(stripeShape) < GetChannels(tensorShape);
+    return std::make_tuple(splitH, splitW, splitC);
+}
+
 }    // namespace utils
 
 }    // namespace support_library

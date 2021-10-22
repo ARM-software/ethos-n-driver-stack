@@ -962,6 +962,8 @@ void PartV1::GenerateWithTraversalOrders(CascadeType cascadeType,
                                          WeightEncoderCache& weightEncoderCache,
                                          Plans& plans) const
 {
+    ETHOSN_UNUSED(cascadeType);
+
     if (node->GetInputs().size() == 0)
     {
         return;
@@ -993,7 +995,8 @@ void PartV1::GenerateWithTraversalOrders(CascadeType cascadeType,
         ReshapePart reshapePart(m_PartId, node->GetInputShape(0), node->GetShape(), node->GetFormat(),
                                 node->GetQuantizationInfo(), node->GetCorrespondingOperationIds(), estOpt, compOpt,
                                 hwCapabilities);
-        plans = reshapePart.GetPlans(cascadeType, ethosn::command_stream::BlockConfig{}, sramBuffer, numWeightStripes);
+        plans = reshapePart.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, sramBuffer,
+                                     numWeightStripes);
     }
 }
 

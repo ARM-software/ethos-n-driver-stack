@@ -202,6 +202,47 @@ Buffer* Plan::GetOutputBuffer(const PartOutputSlot& partOutputSlot) const
     return nullptr;
 }
 
+ethosn::command_stream::BlockConfig Plan::GetBlockConfigures(const PartOutputSlot& partOutputSlot) const
+{
+    Buffer* outputBuffer = GetOutputBuffer(partOutputSlot);
+
+    Op* opProducer = m_OpGraph.GetProducer(outputBuffer);
+
+    if (opProducer != nullptr && opProducer->GetBlockConfig().has_value())
+    {
+        return opProducer->GetBlockConfig().value();
+    }
+    else
+    {
+        return ethosn::command_stream::BlockConfig{};
+    }
+}
+
+uint32_t Plan::GetNumberOfWeightStripes() const
+{
+    uint32_t numWeightStripes = 0;
+    bool found                = false;
+
+    for (auto& buffer : m_OpGraph.GetBuffers())
+    {
+        if (buffer->m_Location == Location::Sram && buffer->m_Format == CascadingBufferFormat::WEIGHT)
+        {
+            if (!found)
+            {
+                numWeightStripes = buffer->m_NumStripes;
+                found            = true;
+            }
+            else
+            {
+                // There can only be one weight buffer
+                assert(false);
+            }
+        }
+    }
+
+    return numWeightStripes;
+}
+
 Op* OwnedOpGraph::AddOp(std::unique_ptr<Op> op)
 {
     // Call base implementation first in case it errors, in which case we don't want to track this Op.

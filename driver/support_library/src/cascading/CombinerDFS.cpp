@@ -136,6 +136,11 @@ bool Combiner::IsPartSo(const BasePart& part) const
     return (m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() == 1);
 }
 
+bool Combiner::IsPartSi(const BasePart& part) const
+{
+    return (m_GraphOfParts.GetPartInputs(part.GetPartId()).size() == 1);
+}
+
 bool Combiner::IsPartMo(const BasePart& part) const
 {
     return (m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() > 1);
@@ -325,6 +330,23 @@ bool Combiner::IsPlanInputGlueable(const Plan& plan) const
     return true;
 }
 
+bool Combiner::IsPlanOutputGlueable(const Plan& plan) const
+{
+    for (auto outputMapping : plan.m_OutputMappings)
+    {
+        const Buffer* buf = outputMapping.first;
+        switch (buf->m_Location)
+        {
+            case Location::Dram:
+            case Location::Sram:
+                continue;
+            default:
+                return false;
+        }
+    }
+    return true;
+}
+
 bool Combiner::ArePlansAllowedToMerge(const Plan& reference, const Plan& current, const PartConnection& slots) const
 {
 
@@ -339,26 +361,39 @@ bool Combiner::ArePlansAllowedToMerge(const Plan& reference, const Plan& current
         return false;
     }
 
+    return true;
+}
+
+bool Combiner::ArePlansStreamingStrategiesCompatible(const Plan& reference,
+                                                     const Plan& current,
+                                                     const PartConnection& slots) const
+{
+    const PartInputSlot& inputSlot = slots.m_Destination;
+    Buffer* currentInBuffer        = current.GetInputBuffer(inputSlot);
+
     // Plans in a section must use the same streaming strategy
-    for (auto& inputMapping : reference.m_InputMappings)
+    for (auto inputMapping : reference.m_InputMappings)
     {
         const Buffer* referenceInBuffer = inputMapping.first;
-        const bool refSplitH =
-            GetHeight(referenceInBuffer->m_StripeShape) < GetHeight(referenceInBuffer->m_TensorShape);
-        const bool refSplitW = GetWidth(referenceInBuffer->m_StripeShape) < GetWidth(referenceInBuffer->m_TensorShape);
-        const bool refSplitC =
-            GetChannels(referenceInBuffer->m_StripeShape) < GetChannels(referenceInBuffer->m_TensorShape);
+        if (currentInBuffer->m_Location != Location::Sram)
+        {
+            continue;
+        }
+        const auto refSplit   = IsSplitting(referenceInBuffer->m_TensorShape, referenceInBuffer->m_StripeShape);
+        const bool refSplitH  = std::get<0>(refSplit);
+        const bool refSplitW  = std::get<1>(refSplit);
+        const bool refSplitC  = std::get<2>(refSplit);
+        const auto currSplit  = IsSplitting(currentInBuffer->m_TensorShape, currentInBuffer->m_StripeShape);
+        const bool currSplitH = std::get<0>(currSplit);
+        const bool currSplitW = std::get<1>(currSplit);
+        const bool currSplitC = std::get<2>(currSplit);
 
-        const bool currSplitH = GetHeight(currentInBuffer->m_StripeShape) < GetHeight(currentInBuffer->m_TensorShape);
-        const bool currSplitW = GetWidth(currentInBuffer->m_StripeShape) < GetWidth(currentInBuffer->m_TensorShape);
-        const bool currSplitC =
-            GetChannels(currentInBuffer->m_StripeShape) < GetChannels(currentInBuffer->m_TensorShape);
-        if (refSplitH != currSplitH || refSplitW != currSplitW || refSplitC != currSplitC)
+        if ((refSplitH != currSplitH || refSplitW != currSplitW || refSplitC != currSplitC) &&
+            referenceInBuffer->m_Location != Location::Dram)
         {
             return false;
         }
     }
-
     return true;
 }
 
@@ -770,73 +805,37 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
     return result;
 }
 
-// Try to merge plans from the given Part onto the given Combination.
-// This may not happen because:
-//  - Plan cannot be merged e.g. different strategies
-//  - Plan is not allowed
-//  - Plan buffers do not fit in SRAM i.e. merged plans
-//    in the seciton take up all the memory
-Combination Combiner::ContinueSection(const BasePart& part,
-                                      const BasePart& sPart,
-                                      const Combination& comb,
-                                      const SramAllocator& alloc)
+// Try to end a section of the combination.
+// This is called only when a section needs to be ended since the plan
+// requirements are different to ContinueSection
+//
+// See diagram in StartSection.
+Combination Combiner::EndSection(const BasePart& part,
+                                 const BasePart& sPart,
+                                 const Combination& comb,
+                                 const SramAllocator& alloc)
 {
-    UpdateStats(StatsType::ContinueSection);
-    const PartId partId = part.GetPartId();
+    UpdateStats(StatsType::EndSection);
 
-    const Plan& sPlan = GetPlanForPartFromCombination(sPart, comb);
+    Combination result = {};
 
-    std::vector<PartConnection> edges = m_GraphOfParts.GetConnectionsBetween(sPart.GetPartId(), part.GetPartId());
-
-    // Sanity check: section is continued. It must be the single output of
-    // its source part.
-    assert(edges.size() == 1);
-
-    // End the current section and start a new one.
-    // There is a single edge between the combination comb and
-    // and the current part
-    // Note only gluing to the source part that belongs to the same section.
-    // Other glue to other source parts will be taken care of by (1) either
-    // themselves when branching (2) or by this part later when other sections
-    // also end here.
-    // This is because we can only guarantee that the part is the only destination
-    // of its source part from the same section.
-    // Others could have multiple destinations (branching)
-    Combination result = GluePartToCombinationDestToSrcs(part, comb + FindBestCombinationForPart(part), edges);
-
-    if (IsPartSiso(part))
+    if (IsPartSi(part))
     {
-        // SISO part:
-        //
-        // Try to continue this section with next part.
-        // Make sure that the chosen next plan is in the order:
-        //  - Compatible with the last plan in the section
-        //  - Allowed i.e. some restriction could be applied
-        //    to reduce the search space, for example it
-        //    could consider only plans that have identical
-        //    block configurations etc.
-        //  - Allocated i.e. there is space in SRAM to accomodate
-        //    all the buffers required by the plan
+        std::vector<PartConnection> connections =
+            m_GraphOfParts.GetConnectionsBetween(sPart.GetPartId(), part.GetPartId());
 
-        // sanity check SISO is the only use case.
+        // Sanity check: section is continued. It must be the single output of
+        // its source part.
+        assert(connections.size() == 1);
 
-        assert(m_GraphOfParts.GetPartInputs(part.GetPartId()).size() == 1 &&
-               m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() == 1);
+        const Plan& sPlan = GetPlanForPartFromCombination(sPart, comb);
 
-        // Next Part in graph that is sorted in topological order
-        const BasePart* nextPartGraph = GetNextPart(&part);
+        const PartConnection& connection = connections.at(0);
 
-        // destination part
-        assert(m_GraphOfParts.GetDestinationParts(partId).size() == 1);
-        const BasePart& destPart = m_GraphOfParts.GetPart(m_GraphOfParts.GetDestinationParts(partId).at(0).m_PartId);
+        ethosn::command_stream::BlockConfig blkConfig = sPlan.GetBlockConfigures(connection.m_Source);
+        Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
 
-        // flag to indicate if the next part can be in the same section of the current part
-        const bool nextPartSameSection =
-            nextPartGraph->GetPartId() == m_GraphOfParts.GetDestinationParts(partId).at(0).m_PartId;
-
-        Plans plans = GetPlansCached(part, CascadeType::Middle, ethosn::command_stream::BlockConfig{}, nullptr, 0);
-
-        const PartConnection& edge = edges.at(0);
+        const Plans plans = GetPlansCached(part, CascadeType::End, blkConfig, sramBuffer, 0);
 
         for (const auto& plan : plans)
         {
@@ -844,7 +843,17 @@ Combination Combiner::ContinueSection(const BasePart& part,
             // each potential section won't allocate from the same allocator.
             SramAllocator tempAlloc = alloc;
 
-            if (!ArePlansCompatible(sPlan, *plan.get(), edge))
+            if (!IsPlanOutputGlueable(*plan.get()))
+            {
+                continue;
+            }
+
+            if (!ArePlansCompatible(sPlan, *plan.get(), connection))
+            {
+                continue;
+            }
+
+            if (!ArePlansAllowedToMerge(sPlan, *plan.get(), connection))
             {
                 continue;
             }
@@ -854,7 +863,266 @@ Combination Combiner::ContinueSection(const BasePart& part,
                 continue;
             }
 
-            if (!ArePlansAllowedToMerge(sPlan, *plan.get(), edge))
+            // Add current part and plan to the combination,
+            Combination section =
+                comb + Combination(part, plan, m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
+
+            //  Next part in the graph
+            const BasePart* nextPartGraph = GetNextPart(&part);
+
+            // Note:due to the limitation of GetOpGraphForCombination(), the section has to
+            // end with all eligible plans glued with the next.
+            // This will however be addressed by NNXSW-3595 so that
+            // the section will end with one winning plan.
+            if (!section.m_Elems.empty() && nextPartGraph != nullptr)
+            {
+                section = section + FindBestCombinationForPart(*nextPartGraph);
+
+                // Each of it destination part will start its own new section.
+                // Therefore they all need to be glued with their source.
+                std::vector<PartConnection> destConnections =
+                    m_GraphOfParts.GetDestinationConnections(part.GetPartId());
+
+                if (destConnections.empty() == false)
+                {
+                    section = GluePartToCombinationSrcToDests(part, section, destConnections);
+                }
+            }
+
+            Combinations options = { result, section };
+            result               = GetBestCombination(options);
+        }
+    }
+
+    return result;
+}
+
+// Try to start a section
+//
+//            Section A                             Section B
+// - - - ------------------------            --------------------- - - -
+//                               |          |
+//             -------           |          |           -------            -------
+//            |       |  ------  |  ------  |  ------  |       |  ------  |       |
+//  - - - ----|   X   |-| SRAM |-|-| DRAM |-|-| SRAM |-|   Y   |-| SRAM |-|   Z   |
+//            |       |  ------  |  ------  |  ------  |       |  ------  |       |
+//             -------           |          |           -------            -------
+//                ^              |          |              ^                  ^
+// - - - ---------|--------------            --------------|------ - - -      |
+//                |                                        |                  |
+//          End of Section                         Start of a section         |
+//                                                                            |
+//                                                 Continue Section ----------
+//
+Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPart, const SramAllocator& alloc)
+{
+    UpdateStats(StatsType::StartSection);
+
+    // Sanity check
+    // This is a section allowing at least two parts (not a lonely one)
+    // Therefore the next part must be the destination part.
+    assert(nextPart.GetPartId() == m_GraphOfParts.GetDestinationParts(part.GetPartId()).at(0).m_PartId);
+
+    Combination result = {};
+
+    if (IsPartSiso(part))
+    {
+        // sanity check SISO is the only use case.
+        assert(m_GraphOfParts.GetPartInputs(part.GetPartId()).size() == 1 &&
+               m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() == 1);
+
+        // The weight buffering will be improved by NNXSW-3628
+        Plans plans = GetPlansCached(part, CascadeType::Beginning, ethosn::command_stream::BlockConfig{}, nullptr, 0);
+
+        // SISO part:
+        //
+        // Try to start a section
+        // Make sure that the chosen next plan is in the order:
+        //  - Compatible with the last plan in the section
+        //  - Allowed i.e. some restriction could be applied
+        //    to reduce the search space, for example it
+        //    could consider only plans that have identical
+        //    block configurations etc.
+        //  - Allocated i.e. there is space in SRAM to accomodate
+        //    all the buffers required by the plan
+        for (const auto& plan : plans)
+        {
+            // Make a copy of the allocator since every plan needs to have its own,
+            // each potential section won't allocate from the same allocator.
+            SramAllocator tempAlloc = alloc;
+            if (!IsPlanInputGlueable(*plan.get()))
+            {
+                continue;
+            }
+            // Allocation requirement are different for start of section
+            if (!IsPlanAllocated(tempAlloc, *plan.get()))
+            {
+                continue;
+            }
+            Combination head(part, plan, m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
+
+            // Options to be estimated: consider continuing and ending the current section
+            // in the next part
+            Combination ended     = EndSection(nextPart, part, head, tempAlloc);
+            Combination continued = ContinueSection(nextPart, part, head, tempAlloc);
+            Combinations options  = { result, continued, ended };
+            result                = GetBestCombination(options);
+        }
+    }
+
+    return result;
+}
+
+// This is a single part not merged with any other part.
+// It does not need to check if the plan is compatible
+// with the available SRAM since only valid plans are generated.
+//
+// - - - ---            -------------            --- - - -
+//          |          |             |          |
+//          |          |   -------   |          |
+//          |  ------  |  |       |  |  ------  |
+//          |-| DRAM |-|--|   Y   |--|-| DRAM |-|
+//          |  ------  |  |       |  |  ------  |
+//          |          |   -------   |          |
+//          |          |             |          |
+// - - - ---            -------------            --- - - -
+//                            ^
+//                            |
+//                   Single part section
+//
+Combination Combiner::SinglePartSection(const BasePart& part)
+{
+    UpdateStats(StatsType::SinglePartSection);
+
+    Plans plans = GetPlansCached(part, CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 0);
+
+    Combination result = {};
+
+    for (const auto& plan : plans)
+    {
+        if (!IsPlanInputGlueable(*plan.get()))
+        {
+            continue;
+        }
+        if (!IsPlanOutputGlueable(*plan.get()))
+        {
+            continue;
+        }
+        // Glue will be added later on.
+        // In this case local optimum = global optimum so
+        // it can get the best plan for the part.
+        Combination head(part, plan, m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
+        Combinations options = { result, head };
+        result               = GetBestCombination(options);
+    }
+
+    //  Next part in the graph
+    const BasePart* nextPartGraph = GetNextPart(&part);
+
+    if (!result.m_Elems.empty() && nextPartGraph != nullptr)
+    {
+        result = result + FindBestCombinationForPart(*nextPartGraph);
+
+        // Each of it destination part will start its own new section.
+        // Therefore they all need to be glued with their source.
+        std::vector<PartConnection> destPartEdge = m_GraphOfParts.GetDestinationConnections(part.GetPartId());
+
+        if (destPartEdge.empty() == false)
+        {
+            result = GluePartToCombinationSrcToDests(part, result, destPartEdge);
+        }
+    }
+
+    return result;
+}
+
+Combination Combiner::ContinueSection(const BasePart& part,
+                                      const BasePart& sPart,
+                                      const Combination& comb,
+                                      const SramAllocator& alloc)
+{
+    UpdateStats(StatsType::ContinueSection);
+
+    // Next Part in graph that is sorted in topological order
+    const BasePart* nextPartGraph = GetNextPart(&part);
+
+    const PartId partId = part.GetPartId();
+    // flag to indicate if the next part can be in the same section of the current part
+    bool nextPartSameSection = false;
+
+    if (nextPartGraph != nullptr && m_GraphOfParts.GetDestinationParts(partId).size() != 0)
+    {
+        nextPartSameSection = nextPartGraph->GetPartId() == m_GraphOfParts.GetDestinationParts(partId).at(0).m_PartId;
+    }
+
+    Combination result = {};
+
+    // A part can only be in the middle of a section
+    // if the next part in the sorted graph is also
+    // its destination.
+    // Otherwise the next part will have to start
+    // a new section which is already covered
+    // by EndPart(part) --- where the section
+    // ends in this part.
+    if (IsPartSiso(part) && nextPartSameSection)
+    {
+        const Plan& sPlan = GetPlanForPartFromCombination(sPart, comb);
+
+        std::vector<PartConnection> connections =
+            m_GraphOfParts.GetConnectionsBetween(sPart.GetPartId(), part.GetPartId());
+
+        // Sanity check: section is continued. It must be the single output of
+        // its source part.
+        assert(connections.size() == 1);
+
+        // SISO part:
+        //
+        // Try to continue this section with next part.
+        // Make sure that the chosen next plan is in the order:
+        //  - Compatible with the last plan in the section
+        //  - Allowed i.e. some restriction could be applied
+        //    to reduce the search space, for example it
+        //    could consider only plans that have identical
+        //    block configurations etc.
+        //  - Allocated i.e. there is space in SRAM to accommodate
+        //    all the buffers required by the plan
+
+        // sanity check SISO is the only use case.
+        // destination part
+        assert(m_GraphOfParts.GetDestinationParts(partId).size() == 1);
+        assert(m_GraphOfParts.GetPartInputs(part.GetPartId()).size() == 1 &&
+               m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() == 1);
+
+        const PartConnection& connection = connections.at(0);
+
+        ethosn::command_stream::BlockConfig blkConfig = sPlan.GetBlockConfigures(connection.m_Source);
+        Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
+        const uint32_t numberOfWeightStripes          = sPlan.GetNumberOfWeightStripes();
+
+        Plans plans = GetPlansCached(part, CascadeType::Middle, blkConfig, sramBuffer, numberOfWeightStripes);
+
+        for (const auto& plan : plans)
+        {
+            // Make a copy of the allocator since every plan needs to have its own,
+            // each potential section won't allocate from the same allocator.
+            SramAllocator tempAlloc = alloc;
+
+            if (!ArePlansCompatible(sPlan, *plan.get(), connection))
+            {
+                continue;
+            }
+
+            if (!ArePlansAllowedToMerge(sPlan, *plan.get(), connection))
+            {
+                continue;
+            }
+
+            if (!ArePlansStreamingStrategiesCompatible(sPlan, *plan.get(), connection))
+            {
+                continue;
+            }
+
+            if (!IsPlanAllocated(tempAlloc, *plan.get()))
             {
                 continue;
             }
@@ -864,31 +1132,29 @@ Combination Combiner::ContinueSection(const BasePart& part,
             // has a single input/output
             Combination section =
                 comb + Combination(part, plan, m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
+
             // Options to be estimated
             Combinations options;
-            if (nextPartSameSection)
-            {
-                // A section can only continue if the next part in graph
-                // is the same as its destination.
-                options = { result, ContinueSection(destPart, part, section, tempAlloc) };
-            }
-            else
-            {
-                // Will have to start a new section with the next part.
-                // It is likely in a different branch of the graph.
-                section = section + FindBestCombinationForPart(*nextPartGraph);
-                options = { result, section };
-            }
+
+            // Next one is the last part of the section
+            Combination ended = EndSection(*nextPartGraph, part, section, tempAlloc);
+
+            // Next one is the middle part of the section
+            Combination continued = ContinueSection(*nextPartGraph, part, section, tempAlloc);
+
+            options = { result, continued, ended };
+
             result = GetBestCombination(options);
         }
     }
+
     return result;
 }
 
 // This function finds the best combination from the current part
-// to the end of the graph. The resul is unique given the part.
+// to the end of the graph. The result is unique given the part.
 //
-// The retuned value of this function should be cached
+// The returned value of this function should be cached
 //
 //      PART       ||    COMBINATION
 //  ===================================
@@ -908,18 +1174,19 @@ Combination Combiner::FindBestCombinationForPartImpl(const BasePart& part)
     // is empty initialized
     Combination result = {};
 
-    Plans plans = GetPlansCached(part, CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 0);
-
-    //  Next part
+    //  Next part in the graph
     const BasePart* nextPartGraph = GetNextPart(&part);
 
-    // A section is continued only if the next part in the graph
-    // is the same as its only destination part.
+    // A section with more than one part can only be
+    // possible if two parts are in the same branch
     bool nextPartSameSection = false;
     if (!m_GraphOfParts.GetDestinationParts(partId).empty())
     {
+        assert(nextPartGraph != nullptr);
         nextPartSameSection = nextPartGraph->GetPartId() == m_GraphOfParts.GetDestinationParts(partId).at(0).m_PartId;
     }
+
+    Combination start = {};
 
     // There are some scenarios:
     //  - Part is Single Input Single Output i.e. SISO
@@ -934,73 +1201,21 @@ Combination Combiner::FindBestCombinationForPartImpl(const BasePart& part)
         // is the number of output parts which in both cases
         // is one
         assert(m_GraphOfParts.GetDestinationParts(partId).size() == 1);
-        const BasePart& nextPart = m_GraphOfParts.GetPart(m_GraphOfParts.GetDestinationParts(partId).at(0).m_PartId);
 
-        for (const auto& plan : plans)
-        {
-            if (!IsPlanInputGlueable(*plan.get()))
-            {
-                continue;
-            }
+        // This is the start of a new section, reset the allocated Sram
+        SramAllocator alloc(m_Caps.GetTotalSramSize() / m_Caps.GetNumberOfSrams());
 
-            // This is the start of a new section, reset the allocated Sram
-            SramAllocator alloc(m_Caps.GetTotalSramSize() / m_Caps.GetNumberOfSrams());
-
-            Combination head(part, plan, m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
-            Combinations options = { result, ContinueSection(nextPart, part, head, alloc) };
-            result               = GetBestCombination(options);
-        }
+        // Start of a new section
+        start = StartSection(part, *nextPartGraph, alloc);
     }
-    else
-    {
-        // ContinueSection operates only on SISO parts
-        // so Output parts and Multiple Output parts
-        // cannot be merged for now
 
-        // Select best plan for the part
-        for (const auto& plan : plans)
-        {
-            if (!IsPlanInputGlueable(*plan.get()))
-            {
-                continue;
-            }
+    // Lonely part
+    Combination lonely = SinglePartSection(part);
 
-            // Glue will be added later on
-            Combination head(part, plan, m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
-            Combinations options = { result, head };
-            result               = GetBestCombination(options);
-        }
+    Combinations options = { start, lonely };
 
-        if (nextPartGraph != nullptr)
-        {
-            result = result + FindBestCombinationForPart(*nextPartGraph);
+    result = GetBestCombination(options);
 
-            // SIMO part:
-            //
-            // It cannot create a section, it needs to start as
-            // many new sections as the number of output parts
-            //
-            // MIMO part:
-            //
-            // This part is a lonely one, it needs to start
-            // as many new sections as the number of output parts
-            // Some of the ongoing sections might not be ended, the
-            // recursion goes depth first and does not walk the parts
-            // necessarily in a topological order that allows to end
-            // all the input sections to a MIMO/MISO part. For exmaple
-            // the input edge into a MISO part might come from a differnt
-            // input of the whole graph. This should not be a concern
-
-            // Each of it destination part will start its own new section.
-            // Therefore they all need to be glued with their source.
-            std::vector<PartConnection> destPartEdge = m_GraphOfParts.GetDestinationConnections(partId);
-
-            if (destPartEdge.empty() == false)
-            {
-                result = GluePartToCombinationSrcToDests(part, result, destPartEdge);
-            }
-        }
-    }
     return result;
 }
 

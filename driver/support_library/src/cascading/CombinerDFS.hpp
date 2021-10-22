@@ -190,7 +190,10 @@ struct Combination
 
 enum class StatsType
 {
+    SinglePartSection,
+    StartSection,
     ContinueSection,
+    EndSection,
     FindBestCombinationForPart,
     NumStats,
 };
@@ -208,6 +211,7 @@ public:
     bool IsPartInput(const BasePart& part) const;
     bool IsPartOutput(const BasePart& part) const;
 
+    bool IsPartSi(const BasePart& part) const;
     bool IsPartSo(const BasePart& part) const;
     bool IsPartMo(const BasePart& part) const;
     bool IsPartSiso(const BasePart& part) const;
@@ -226,7 +230,11 @@ public:
 
     bool IsPlanAllocated(SramAllocator& alloc, const Plan& plan) const;
     bool IsPlanInputGlueable(const Plan& plan) const;
+    bool IsPlanOutputGlueable(const Plan& plan) const;
     bool ArePlansAllowedToMerge(const Plan& reference, const Plan& current, const PartConnection& outputSlot) const;
+    bool ArePlansStreamingStrategiesCompatible(const Plan& reference,
+                                               const Plan& current,
+                                               const PartConnection& slots) const;
 
     Combination GetBestCombination() const;
     Combination GetBestCombination(Combinations& combs) const;
@@ -244,6 +252,13 @@ public:
                                 const BasePart& sPart,
                                 const Combination& comb,
                                 const SramAllocator& alloc);
+
+    Combination SinglePartSection(const BasePart& part);
+
+    Combination
+        EndSection(const BasePart& part, const BasePart& sPart, const Combination& comb, const SramAllocator& alloc);
+
+    Combination StartSection(const BasePart& part, const BasePart& nextPart, const SramAllocator& alloc);
 
     std::unique_ptr<Glue> GenerateGlueBetweenSramAndDram() const;
     std::unique_ptr<Glue> GenerateGlueBetweenSramAndSram(const Buffer* buffer,

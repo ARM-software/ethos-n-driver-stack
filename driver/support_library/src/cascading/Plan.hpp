@@ -150,6 +150,10 @@ public:
     /// Returns nullptr if the slot is unrecognised.
     Buffer* GetOutputBuffer(const PartOutputSlot& partOutputSlot) const;
 
+    ethosn::command_stream::BlockConfig GetBlockConfigures(const PartOutputSlot& partOutputSlot) const;
+
+    uint32_t GetNumberOfWeightStripes() const;
+
     /// The graph of Ops and Buffers which define how this plan would be executed.
     OwnedOpGraph m_OpGraph;
 

@@ -2136,7 +2136,9 @@ TEST_CASE("ArePlansAllowedToMerge", "[CombinerDFS]")
 
     // Consumer plan is streaming full depth while producer plan is not
     REQUIRE(combiner.ArePlansAllowedToMerge(planA, planBdiffStrategy,
-                                            PartConnection{ partBInputSlot, partAOutputSlot }) == false);
+                                            PartConnection{ partBInputSlot, partAOutputSlot }) == true);
+    REQUIRE(combiner.ArePlansStreamingStrategiesCompatible(planA, planBdiffStrategy,
+                                                           PartConnection{ partBInputSlot, partAOutputSlot }) == false);
 }
 
 TEST_CASE("PlanCache", "[CombinerDFS]")
