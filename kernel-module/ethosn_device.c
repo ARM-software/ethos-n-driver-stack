@@ -32,6 +32,7 @@
 #include <linux/log2.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/uaccess.h>
 #include <linux/time.h>
 
@@ -1754,6 +1755,23 @@ void ethosn_device_deinit(struct ethosn_core *core)
 			ETHOSN_STREAM_WORKING_DATA);
 		core->profiling.firmware_buffer_pending = NULL;
 	}
+}
+
+static void ethosn_release_reserved_mem(void *const dev)
+{
+	of_reserved_mem_device_release((struct device *)dev);
+}
+
+int ethosn_init_reserved_mem(struct device *const dev)
+{
+	int ret;
+
+	ret = of_reserved_mem_device_init(dev);
+	if (ret)
+		return ret;
+
+	return devm_add_action_or_reset(dev, ethosn_release_reserved_mem,
+					dev);
 }
 
 bool ethosn_profiling_enabled(void)

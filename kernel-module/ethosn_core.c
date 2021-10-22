@@ -514,6 +514,12 @@ static int ethosn_child_pdev_probe(struct platform_device *pdev)
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 
+	dev_dbg(&pdev->dev, "Init reserved mem\n");
+
+	if (ethosn_init_reserved_mem(&pdev->dev))
+		dev_dbg(&pdev->dev,
+			"Reserved mem not present or init failed\n");
+
 	dev_dbg(&pdev->dev, "Core probed\n");
 
 	++ethosn->num_cores;

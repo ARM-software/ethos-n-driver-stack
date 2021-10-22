@@ -39,7 +39,6 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
-#include <linux/of_reserved_mem.h>
 #include <linux/of_platform.h>
 #include <linux/pci.h>
 #include <linux/platform_device.h>
@@ -298,26 +297,6 @@ static int handle_message(struct ethosn_core *core)
 	}
 
 	return 1;
-}
-
-static void ethosn_release_reserved_mem(void *const dev)
-{
-	of_reserved_mem_device_release((struct device *)dev);
-}
-
-static int ethosn_init_reserved_mem(struct device *const dev)
-{
-	int ret;
-
-	ret = of_reserved_mem_device_init(dev);
-
-	if (ret)
-		dev_err(dev, "failed to initialise reserved memory\n");
-	else
-		ret = devm_add_action_or_reset(dev, ethosn_release_reserved_mem,
-					       dev);
-
-	return ret;
 }
 
 /**
@@ -1297,13 +1276,16 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 	/* Currently we assume that the reserved memory is
 	 * common to all the NPUs
 	 */
-	if (!ethosn_smmu_available(&pdev->dev)) {
-		dev_dbg(&pdev->dev, "Init reserved mem\n");
+	dev_dbg(&pdev->dev, "Init reserved mem\n");
 
-		ret = ethosn_init_reserved_mem(&pdev->dev);
+	ret = ethosn_init_reserved_mem(&pdev->dev);
+	if (ret)
+		dev_dbg(&pdev->dev,
+			"Reserved mem not present or init failed\n");
+
+	if (!ethosn_smmu_available(&pdev->dev))
 		if (ret)
 			goto err_depopulate_device;
-	}
 
 	/* Enumerate irqs */
 	num_irqs = ethosn_pdev_enum_interrupts(

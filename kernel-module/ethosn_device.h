@@ -188,6 +188,12 @@ int ethosn_device_init(struct ethosn_core *core);
 void ethosn_device_deinit(struct ethosn_core *core);
 
 /**
+ * ethosn_init_reserved_mem() - Initialize reserved memory.
+ * @dev:	Pointer to device.
+ */
+int ethosn_init_reserved_mem(struct device *const dev);
+
+/**
  * to_ethosn_addr() - Convert Linux address to Ethos-N address.
  * @linux_addr:		Linux address.
  * @addr_map:		Ethos-N region extensions info

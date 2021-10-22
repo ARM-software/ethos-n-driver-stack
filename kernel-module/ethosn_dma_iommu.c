@@ -244,7 +244,7 @@ static struct ethosn_dma_info *iommu_alloc(
 		if (dma_mapping_error(allocator->dev, dma_addr[i])) {
 			dev_err(allocator->dev,
 				"failed to dma map pa 0x%llX\n",
-				page_to_phys(dma_info->pages[i]));
+				page_to_phys(pages[i]));
 			__free_page(pages[i]);
 			goto free_pages;
 		}
