@@ -534,6 +534,7 @@ struct ethosn_message_region_response {
 #define GP_MAILBOX                      DL1_GP2
 #define GP_STREAM1_ADDRESS_EXTEND       DL1_GP3
 #define GP_STREAM2_ADDRESS_EXTEND       DL1_GP4
+#define GP_TASK_STACK                   DL1_GP5
 
 #pragma pack(pop)
 

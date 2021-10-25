@@ -310,6 +310,21 @@ u32 ethosn_read_top_reg(struct ethosn_core *core,
 /* Exported for use by test module */
 EXPORT_SYMBOL(ethosn_read_top_reg);
 
+static int ethosn_task_stack_init(struct ethosn_core *core)
+{
+	u32 stack_addr = to_ethosn_addr(core->firmware_stack_task->iova_addr,
+					&core->work_data_map);
+
+	if (IS_ERR_VALUE((unsigned long)stack_addr))
+		return -EFAULT;
+
+	stack_addr += core->firmware_stack_task->size;
+
+	ethosn_write_top_reg(core, DL1_RP, GP_TASK_STACK, stack_addr);
+
+	return 0;
+}
+
 /**
  * ethosn_boot_firmware() - Boot firmware.
  * @core:	Pointer to Ethos-N core.
@@ -325,12 +340,12 @@ static int ethosn_boot_firmware(struct ethosn_core *core)
 	memset(vtable, 0, core->firmware_vtable->size);
 
 	/* Set vtable stack pointer */
-	vtable[0] = to_ethosn_addr(core->firmware_stack->iova_addr,
+	vtable[0] = to_ethosn_addr(core->firmware_stack_main->iova_addr,
 				   &core->work_data_map);
 	if (vtable[0] >= (uint32_t)-MAX_ERRNO)
 		return (int)vtable[0];
 
-	vtable[0] += core->firmware_stack->size;
+	vtable[0] += core->firmware_stack_main->size;
 
 	/* Set vtable reset program counter */
 	vtable[1] = to_ethosn_addr(core->firmware->iova_addr,
@@ -1193,16 +1208,18 @@ static int firmware_load(struct ethosn_core *core,
 						 ETHOSN_STREAM_FIRMWARE,
 						 GFP_KERNEL);
 
-	if (IS_ERR(core->firmware))
+	if (IS_ERR_OR_NULL(core->firmware)) {
+		ret = -ENOMEM;
 		goto release_fw;
+	}
 
 	memcpy(core->firmware->cpu_addr, fw->data + big_fw_desc->offset,
 	       big_fw_desc->size);
 	ethosn_dma_sync_for_device(core->allocator, core->firmware);
 
-	/* Allocate stack */
-	if (!core->firmware_stack)
-		core->firmware_stack =
+	/* Allocate task stack */
+	if (!core->firmware_stack_task)
+		core->firmware_stack_task =
 			ethosn_dma_alloc_and_map(core->allocator,
 						 ETHOSN_STACK_SIZE,
 						 ETHOSN_PROT_READ |
@@ -1210,10 +1227,25 @@ static int firmware_load(struct ethosn_core *core,
 						 ETHOSN_STREAM_WORKING_DATA,
 						 GFP_KERNEL);
 
-	if (IS_ERR(core->firmware_stack))
+	if (IS_ERR_OR_NULL(core->firmware_stack_task)) {
+		ret = -ENOMEM;
 		goto free_firmware;
+	}
 
-	ethosn_dma_sync_for_device(core->allocator, core->firmware_stack);
+	/* Allocate main stack */
+	if (!core->firmware_stack_main)
+		core->firmware_stack_main =
+			ethosn_dma_alloc_and_map(core->allocator,
+						 ETHOSN_STACK_SIZE,
+						 ETHOSN_PROT_READ |
+						 ETHOSN_PROT_WRITE,
+						 ETHOSN_STREAM_WORKING_DATA,
+						 GFP_KERNEL);
+
+	if (IS_ERR_OR_NULL(core->firmware_stack_main)) {
+		ret = -ENOMEM;
+		goto free_stack_task;
+	}
 
 	/* Allocate vtable */
 	if (!core->firmware_vtable)
@@ -1226,15 +1258,20 @@ static int firmware_load(struct ethosn_core *core,
 						 ETHOSN_STREAM_FIRMWARE,
 						 GFP_KERNEL);
 
-	if (IS_ERR(core->firmware_vtable))
-		goto free_stack;
+	if (IS_ERR_OR_NULL(core->firmware_vtable)) {
+		ret = -ENOMEM;
+		goto free_stack_main;
+	}
 
 	release_firmware(fw);
 
 	return 0;
 
-free_stack:
-	ethosn_dma_unmap_and_free(core->allocator, core->firmware_stack,
+free_stack_main:
+	ethosn_dma_unmap_and_free(core->allocator, core->firmware_stack_main,
+				  ETHOSN_STREAM_WORKING_DATA);
+free_stack_task:
+	ethosn_dma_unmap_and_free(core->allocator, core->firmware_stack_task,
 				  ETHOSN_STREAM_WORKING_DATA);
 free_firmware:
 	ethosn_dma_unmap_and_free(core->allocator, core->firmware,
@@ -1365,6 +1402,11 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 	if (ret)
 		return ret;
 
+	/* Initialize the firmware task stack */
+	ret = ethosn_task_stack_init(core);
+	if (ret)
+		return ret;
+
 	/* Boot the firmware */
 	ret = ethosn_boot_firmware(core);
 	if (ret)
@@ -1434,9 +1476,13 @@ static void ethosn_firmware_deinit(struct ethosn_core *core)
 				  ETHOSN_STREAM_FIRMWARE);
 	core->firmware = NULL;
 
-	ethosn_dma_unmap_and_free(core->allocator, core->firmware_stack,
+	ethosn_dma_unmap_and_free(core->allocator, core->firmware_stack_main,
 				  ETHOSN_STREAM_WORKING_DATA);
-	core->firmware_stack = NULL;
+	core->firmware_stack_main = NULL;
+
+	ethosn_dma_unmap_and_free(core->allocator, core->firmware_stack_task,
+				  ETHOSN_STREAM_WORKING_DATA);
+	core->firmware_stack_task = NULL;
 
 	ethosn_dma_unmap_and_free(core->allocator, core->firmware_vtable,
 				  ETHOSN_STREAM_FIRMWARE);

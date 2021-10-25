@@ -95,7 +95,8 @@ struct ethosn_core {
 	struct ethosn_addr_map      firmware_map;
 	struct ethosn_addr_map      work_data_map;
 	struct ethosn_dma_info      *firmware;
-	struct ethosn_dma_info      *firmware_stack;
+	struct ethosn_dma_info      *firmware_stack_main;
+	struct ethosn_dma_info      *firmware_stack_task;
 	struct ethosn_dma_info      *firmware_vtable;
 	struct ethosn_dma_info      *mailbox;
 	struct ethosn_dma_info      *mailbox_request;
