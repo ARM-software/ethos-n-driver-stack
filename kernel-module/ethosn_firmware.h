@@ -279,11 +279,11 @@ enum ethosn_message_type {
 	/* void */
 	ETHOSN_MESSAGE_CONFIGURE_PROFILING_ACK,
 
-	/* ethosn_message_stream_request */
-	ETHOSN_MESSAGE_STREAM_REQUEST,
+	/* ethosn_message_region_request */
+	ETHOSN_MESSAGE_REGION_REQUEST,
 
-	/* ethosn_message_stream_response */
-	ETHOSN_MESSAGE_STREAM_RESPONSE,
+	/* ethosn_message_region_response */
+	ETHOSN_MESSAGE_REGION_RESPONSE,
 
 	/* ethosn_message_time_sync_request */
 	ETHOSN_MESSAGE_TIME_SYNC,
@@ -482,45 +482,46 @@ struct ethosn_message_time_sync_request {
  ******************************************************************************/
 
 /**
- * Streams identifier
+ * Region identifier
  */
-enum  ethosn_stream_id {
-	ETHOSN_STREAM_FIRMWARE       = 0,
-	ETHOSN_STREAM_WORKING_DATA   = 1,
-	ETHOSN_STREAM_COMMAND_STREAM = 2,
-	ETHOSN_STREAM_DMA            = 3,
+enum  ethosn_region_id {
+	ETHOSN_REGION_FIRMWARE       = 0,
+	ETHOSN_REGION_WORKING_DATA   = 1,
+	ETHOSN_REGION_COMMAND_STREAM = 2,
 };
 
 /**
- * struct ethosn_message_stream_request - Memory stream message
- * @var stream_id:	Stream id
- * @var size:		Size of the stream memory region
+ * struct ethosn_message_region_request - Memory region message
+ * @var id:	Region id
+ * @var addr:	Region starting address
+ * @var size:	Region size
  *
  * Following a ethosn_message_type.
  */
-struct ethosn_message_stream_request {
-	uint32_t stream_id;
+struct ethosn_message_region_request {
+	uint32_t id;
+	uint32_t addr;
 	uint32_t size;
 };
 
 /**
  * Region setup status.
  */
-enum ethosn_stream_status {
-	ETHOSN_STREAM_STATUS_OK,
-	ETHOSN_STREAM_STATUS_ERROR,
-	ETHOSN_STREAM_STATUS_MAX
+enum ethosn_region_status {
+	ETHOSN_REGION_STATUS_OK,
+	ETHOSN_REGION_STATUS_ERROR,
+	ETHOSN_REGION_STATUS_MAX
 };
 
 /**
- * struct ethosn_message_stream_response - Memory stream response message
- * @var stream_id:	Stream id
- * @var status:         Stream memory region size setup status.
+ * struct ethosn_message_region_response - Memory region response message
+ * @var id:	Region id
+ * @var status:	Memory region setup status
  *
  * Following a ethosn_message_header.
  */
-struct ethosn_message_stream_response {
-	uint32_t stream_id;
+struct ethosn_message_region_response {
+	uint32_t id;
 	uint32_t status;
 };
 

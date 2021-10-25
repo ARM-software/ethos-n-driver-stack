@@ -23,8 +23,6 @@
 #ifndef _ETHOSN_DMA_H_
 #define _ETHOSN_DMA_H_
 
-#include "ethosn_firmware.h"
-
 #include <linux/dma-mapping.h>
 #include <linux/types.h>
 
@@ -35,6 +33,16 @@
 
 struct device;
 struct vm_area_struct;
+
+/**
+ * Streams identifier
+ */
+enum  ethosn_stream_id {
+	ETHOSN_STREAM_FIRMWARE       = 0,
+	ETHOSN_STREAM_WORKING_DATA   = 1,
+	ETHOSN_STREAM_COMMAND_STREAM = 2,
+	ETHOSN_STREAM_DMA            = 3,
+};
 
 /*
  * Used to save the result of dma_alloc calls for matching dma_free calls.

@@ -437,24 +437,6 @@ int ethosn_send_inference(struct ethosn_core *core,
 			  dma_addr_t buffer_array,
 			  uint64_t user_arg);
 
-/**
- * ethosn_send_stream_request() - Send region request to Ethos-N .
- * @core:	Pointer to Ethos-N core.
- * @stream_id:	Stream identifier.
- *
- * Return: 0 on success, else error code.
- */
-int ethosn_send_stream_request(struct ethosn_core *core,
-			       enum ethosn_stream_id stream_id);
-
-/**
- * ethosn_send_mpu_enable_request() - Send Mpu enable request to Ethos-N .
- * @core:		Pointer to Ethos-N core.
- *
- * Return: 0 on success, else error code.
- */
-int ethosn_send_mpu_enable_request(struct ethosn_core *core);
-
 /* ethosn_profiling_enabled() - Get status of the profiling enabled switch.
  *
  * Return: 'true' if profiling is enabled, otherwise 'false'.

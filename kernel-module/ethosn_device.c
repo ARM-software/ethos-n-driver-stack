@@ -289,35 +289,6 @@ static void ethosn_mailbox_free(struct ethosn_core *core)
 	}
 }
 
-/**
- * ethosn_streams_init() - Initialize the stream memory regions.
- * @core:	Pointer to Ethos-N core.
- *
- * Return: 0 on success, else error code.
- */
-static int ethosn_streams_init(struct ethosn_core *core)
-{
-	int ret;
-
-	ret = ethosn_send_stream_request(core, ETHOSN_STREAM_FIRMWARE);
-	if (ret)
-		return ret;
-
-	ret = ethosn_send_stream_request(core, ETHOSN_STREAM_WORKING_DATA);
-	if (ret)
-		return ret;
-
-	ret = ethosn_send_stream_request(core, ETHOSN_STREAM_COMMAND_STREAM);
-	if (ret)
-		return ret;
-
-	ret = ethosn_send_mpu_enable_request(core);
-	if (ret)
-		return ret;
-
-	return 0;
-}
-
 void ethosn_write_top_reg(struct ethosn_core *core,
 			  const u32 page,
 			  const u32 offset,
@@ -1009,26 +980,74 @@ int ethosn_send_inference(struct ethosn_core *core,
 				    sizeof(request));
 }
 
-int ethosn_send_stream_request(struct ethosn_core *core,
-			       enum ethosn_stream_id stream_id)
+/**
+ * ethosn_send_region_request() - Send memory region request to device.
+ * @core:	Pointer to core device.
+ * @region_id:	Memory region identifier.
+ *
+ * Return: 0 on success, else error code.
+ */
+static int ethosn_send_region_request(struct ethosn_core *core,
+				      enum ethosn_region_id region_id)
 {
-	struct ethosn_message_stream_request request;
+	struct ethosn_message_region_request request = { 0 };
+	resource_size_t iova_addr;
+	enum ethosn_stream_id stream_id;
 
-	request.stream_id = stream_id;
-	request.size = ethosn_dma_get_addr_size(core->allocator, stream_id);
+	switch (region_id) {
+	case ETHOSN_REGION_FIRMWARE:
+		stream_id = ETHOSN_STREAM_FIRMWARE;
+		iova_addr = ethosn_dma_get_addr_base(core->allocator,
+						     stream_id);
+		request.addr =
+			to_ethosn_addr(iova_addr, &core->firmware_map);
+		request.size = ethosn_dma_get_addr_size(core->allocator,
+							stream_id);
+		break;
+	case ETHOSN_REGION_WORKING_DATA:
+		stream_id = ETHOSN_STREAM_WORKING_DATA;
+		iova_addr = ethosn_dma_get_addr_base(core->allocator,
+						     stream_id);
+		request.addr = to_ethosn_addr(iova_addr,
+					      &core->work_data_map);
+		request.size = ethosn_dma_get_addr_size(core->allocator,
+							stream_id);
+		break;
+	case ETHOSN_REGION_COMMAND_STREAM:
+		stream_id = ETHOSN_STREAM_COMMAND_STREAM;
+		iova_addr = ethosn_dma_get_addr_base(core->allocator,
+						     stream_id);
+		request.addr =
+			to_ethosn_addr(iova_addr, &core->dma_map);
+		request.size = ethosn_dma_get_addr_size(core->allocator,
+							stream_id);
+		break;
+	default:
+		dev_err(core->dev, "Unknown memory region ID: %u", region_id);
+
+		return -EFAULT;
+	}
+
 	if (request.size == 0)
 		return -EFAULT;
 
-	dev_dbg(core->dev,
-		"-> Stream=%u. size=0x%x", request.stream_id,
-		request.size);
+	request.id = region_id;
 
-	return ethosn_write_message(core, ETHOSN_MESSAGE_STREAM_REQUEST,
+	dev_dbg(core->dev, "-> Region=%u, addr=0x%x, size=0x%x\n",
+		request.id, request.addr, request.size);
+
+	return ethosn_write_message(core, ETHOSN_MESSAGE_REGION_REQUEST,
 				    &request,
 				    sizeof(request));
 }
 
-int ethosn_send_mpu_enable_request(struct ethosn_core *core)
+/**
+ * ethosn_send_mpu_enable_request() - Send Mpu enable request to device.
+ * @core:		Pointer to core device.
+ *
+ * Return: 0 on success, else error code.
+ */
+static int ethosn_send_mpu_enable_request(struct ethosn_core *core)
 {
 	dev_dbg(core->dev,
 		"-> Mpu enable.");
@@ -1257,6 +1276,35 @@ static int firmware_init(struct ethosn_core *core)
 	return 0;
 }
 
+/**
+ * ethosn_regions_init() - Initialize the memory regions.
+ * @core:	Pointer to Ethos-N core.
+ *
+ * Return: 0 on success, else error code.
+ */
+static int ethosn_regions_init(struct ethosn_core *core)
+{
+	int ret;
+
+	ret = ethosn_send_region_request(core, ETHOSN_REGION_FIRMWARE);
+	if (ret)
+		return ret;
+
+	ret = ethosn_send_region_request(core, ETHOSN_REGION_WORKING_DATA);
+	if (ret)
+		return ret;
+
+	ret = ethosn_send_region_request(core, ETHOSN_REGION_COMMAND_STREAM);
+	if (ret)
+		return ret;
+
+	ret = ethosn_send_mpu_enable_request(core);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
 int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 {
 	int timeout;
@@ -1344,8 +1392,8 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 	/* Firmware is now up and running */
 	core->firmware_running = true;
 
-	/* Init streams regions */
-	ret = ethosn_streams_init(core);
+	/* Init memory regions */
+	ret = ethosn_regions_init(core);
 	if (ret != 0)
 		return ret;
 

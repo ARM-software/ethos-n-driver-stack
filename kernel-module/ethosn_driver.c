@@ -213,12 +213,12 @@ static int handle_message(struct ethosn_core *core)
 		header.type, header.length);
 
 	switch (header.type) {
-	case ETHOSN_MESSAGE_STREAM_RESPONSE: {
-		struct ethosn_message_stream_response *rsp =
+	case ETHOSN_MESSAGE_REGION_RESPONSE: {
+		struct ethosn_message_region_response *rsp =
 			core->mailbox_message;
 
-		dev_dbg(core->dev, "<- Stream=%u. status=%u\n",
-			rsp->stream_id, rsp->status);
+		dev_dbg(core->dev, "<- Region=%u. status=%u\n", rsp->id,
+			rsp->status);
 
 		break;
 	}
