@@ -1013,36 +1013,43 @@ static int ethosn_send_region_request(struct ethosn_core *core,
 				      enum ethosn_region_id region_id)
 {
 	struct ethosn_message_region_request request = { 0 };
-	resource_size_t iova_addr;
-	enum ethosn_stream_id stream_id;
 
 	switch (region_id) {
 	case ETHOSN_REGION_FIRMWARE:
-		stream_id = ETHOSN_STREAM_FIRMWARE;
-		iova_addr = ethosn_dma_get_addr_base(core->allocator,
-						     stream_id);
-		request.addr =
-			to_ethosn_addr(iova_addr, &core->firmware_map);
+		request.addr = to_ethosn_addr(
+			ethosn_dma_get_addr_base(core->allocator,
+						 ETHOSN_STREAM_FIRMWARE),
+			&core->firmware_map);
+
 		request.size = ethosn_dma_get_addr_size(core->allocator,
-							stream_id);
+							ETHOSN_STREAM_FIRMWARE);
 		break;
-	case ETHOSN_REGION_WORKING_DATA:
-		stream_id = ETHOSN_STREAM_WORKING_DATA;
-		iova_addr = ethosn_dma_get_addr_base(core->allocator,
-						     stream_id);
-		request.addr = to_ethosn_addr(iova_addr,
-					      &core->work_data_map);
-		request.size = ethosn_dma_get_addr_size(core->allocator,
-							stream_id);
+	case ETHOSN_REGION_WORKING_DATA_MAIN:
+		request.addr = to_ethosn_addr(
+			ethosn_dma_get_addr_base(core->allocator,
+						 ETHOSN_STREAM_WORKING_DATA),
+			&core->work_data_map);
+
+		request.size = ethosn_dma_get_addr_size(
+			core->allocator,
+			ETHOSN_STREAM_WORKING_DATA);
+		break;
+	case ETHOSN_REGION_WORKING_DATA_TASK:
+		request.addr = to_ethosn_addr(
+			core->firmware_stack_task->iova_addr,
+			&core->work_data_map);
+
+		request.size = core->firmware_stack_task->size;
 		break;
 	case ETHOSN_REGION_COMMAND_STREAM:
-		stream_id = ETHOSN_STREAM_COMMAND_STREAM;
-		iova_addr = ethosn_dma_get_addr_base(core->allocator,
-						     stream_id);
-		request.addr =
-			to_ethosn_addr(iova_addr, &core->dma_map);
-		request.size = ethosn_dma_get_addr_size(core->allocator,
-							stream_id);
+		request.addr = to_ethosn_addr(
+			ethosn_dma_get_addr_base(core->allocator,
+						 ETHOSN_STREAM_COMMAND_STREAM),
+			&core->dma_map);
+
+		request.size = ethosn_dma_get_addr_size(
+			core->allocator,
+			ETHOSN_STREAM_COMMAND_STREAM);
 		break;
 	default:
 		dev_err(core->dev, "Unknown memory region ID: %u", region_id);
@@ -1334,7 +1341,11 @@ static int ethosn_regions_init(struct ethosn_core *core)
 	if (ret)
 		return ret;
 
-	ret = ethosn_send_region_request(core, ETHOSN_REGION_WORKING_DATA);
+	ret = ethosn_send_region_request(core, ETHOSN_REGION_WORKING_DATA_MAIN);
+	if (ret)
+		return ret;
+
+	ret = ethosn_send_region_request(core, ETHOSN_REGION_WORKING_DATA_TASK);
 	if (ret)
 		return ret;
 

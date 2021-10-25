@@ -491,9 +491,10 @@ struct ethosn_message_time_sync_request {
  * Region identifier
  */
 enum  ethosn_region_id {
-	ETHOSN_REGION_FIRMWARE       = 0,
-	ETHOSN_REGION_WORKING_DATA   = 1,
-	ETHOSN_REGION_COMMAND_STREAM = 2,
+	ETHOSN_REGION_FIRMWARE          = 0,
+	ETHOSN_REGION_WORKING_DATA_MAIN = 1,
+	ETHOSN_REGION_WORKING_DATA_TASK = 2,
+	ETHOSN_REGION_COMMAND_STREAM    = 3,
 };
 
 /**
