@@ -439,6 +439,14 @@ static int ethosn_child_pdev_remove(struct platform_device *pdev)
 {
 	struct ethosn_core *core = dev_get_drvdata(&pdev->dev);
 
+	/* We need to disable the runtime pm and
+	 * hence wake up the core before tear down
+	 */
+	pm_runtime_disable(core->dev);
+
+	ethosn_device_deinit(core);
+	ethosn_dma_allocator_destroy(&core->allocator);
+
 	sysfs_remove_files(&core->dev->kobj, attrs);
 	dev_dbg(&pdev->dev, "Removed core %u from parent %u\n",
 		core->core_id, core->parent->parent_id);

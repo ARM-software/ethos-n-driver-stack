@@ -1179,23 +1179,11 @@ static int ethosn_pdev_remove(struct platform_device *pdev)
 {
 	struct ethosn_device *ethosn =
 		dev_get_drvdata(&pdev->dev);
-	int i = 0;
-
-	while (i < ethosn->num_cores) {
-		struct ethosn_core *core = ethosn->core[i];
-
-		/* We need to disable the runtime pm and
-		 * hence wake up the core before tear down
-		 */
-		pm_runtime_disable(core->dev);
-
-		ethosn_device_deinit(core);
-		ethosn_dma_allocator_destroy(&core->allocator);
-		i++;
-	}
 
 	/* Force depopulating children */
 	of_platform_depopulate(&pdev->dev);
+
+	ethosn_dma_allocator_destroy(&ethosn->allocator);
 
 	return 0;
 }
