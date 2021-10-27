@@ -627,6 +627,192 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[5]).size() == 0);
 }
 
+// Manually creates a partial combination starting and ending in Sram and converts it to an OpGraph using the GetOpGraphForCombination.
+// The topology is chosen to test cases including:
+//      * Partial combinations starting and ending in Sram
+//      * Glue containing multiple output DmaOps and direct connections to Dram buffers
+// ( A ) -> g --> ( B )
+//            \   (   )
+//            |   (   )
+//            \-> ( C )
+//            \-> ( D )
+TEST_CASE("GetOpGraphForDfsCombinationPartialDram", "[CombinerDFS]")
+{
+    DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
+
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
+
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+    BasePart& partD = *pD;
+
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pD));
+
+    PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
+
+    PartInputSlot partBInputSlot = { partB.GetPartId(), 0 };
+    PartInputSlot partCInputSlot = { partC.GetPartId(), 0 };
+    PartInputSlot partDInputSlot = { partD.GetPartId(), 0 };
+
+    connections[partBInputSlot] = { partAOutputSlot };
+    connections[partCInputSlot] = { partAOutputSlot };
+    connections[partDInputSlot] = { partAOutputSlot };
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    // Plan A
+    std::shared_ptr<Plan> planA = std::make_shared<Plan>();
+    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramA";
+    planA->m_OutputMappings                          = { { planA->m_OpGraph.GetBuffers()[0], partAOutputSlot } };
+
+    // Plan B
+    std::shared_ptr<Plan> planB = std::make_shared<Plan>();
+    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramB";
+    planB->m_InputMappings                           = { { planB->m_OpGraph.GetBuffers()[0], partBInputSlot } };
+
+    // Plan C
+    std::shared_ptr<Plan> planC = std::make_shared<Plan>();
+    planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramC";
+    planC->m_InputMappings                           = { { planC->m_OpGraph.GetBuffers()[0], partCInputSlot } };
+
+    // Plan D
+    std::shared_ptr<Plan> planD = std::make_shared<Plan>();
+    planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planD->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDramD";
+    planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planD->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramD";
+    planD->m_InputMappings                           = { { planD->m_OpGraph.GetBuffers()[0], partDInputSlot } };
+    planD->m_OpGraph.AddOp(std::make_unique<DmaOp>());
+    planD->m_OpGraph.GetOps()[0]->m_DebugTag = "DmaToSramD";
+    planD->m_OpGraph.AddConsumer(planD->m_OpGraph.GetBuffers()[0], planD->m_OpGraph.GetOps()[0], 0);
+    planD->m_OpGraph.SetProducer(planD->m_OpGraph.GetBuffers()[1], planD->m_OpGraph.GetOps()[0]);
+
+    // Create Combination with all the plans and glues
+    Combination combA(partA, planA, 0, graph);
+    Combination combB(partB, planB, 1, graph);
+    Combination combC(partC, planC, 2, graph);
+    Combination combD(partD, planD, 3, graph);
+
+    // Merge the combinations
+    Combination comb = combB + combD + combC + combA;
+
+    REQUIRE(combA.m_PartIdsInOrder[0] == 0);
+    REQUIRE(combA.m_HeadOrderRank == 0);
+    REQUIRE(combB.m_PartIdsInOrder[0] == 1);
+    REQUIRE(combB.m_HeadOrderRank == 1);
+    REQUIRE(combC.m_PartIdsInOrder[0] == 2);
+    REQUIRE(combC.m_HeadOrderRank == 2);
+    REQUIRE(combD.m_PartIdsInOrder[0] == 3);
+    REQUIRE(combD.m_HeadOrderRank == 3);
+    REQUIRE(comb.m_PartIdsInOrder[0] == 0);
+    REQUIRE(comb.m_HeadOrderRank == 0);
+
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+
+    std::vector<PartConnection> destPartEdge;
+
+    // Part B and the edge that connects to its source Part A
+    PartConnection edgeA2B = graph.GetConnectionsBetween(partA.GetPartId(), partB.GetPartId()).at(0);
+    destPartEdge.push_back(edgeA2B);
+    // Part C and the edge that connects to its source Part A
+    PartConnection edgeA2C = graph.GetConnectionsBetween(partA.GetPartId(), partC.GetPartId()).at(0);
+    destPartEdge.push_back(edgeA2C);
+    // Part D and the edge that connects to its source Part A
+    PartConnection edgeA2D = graph.GetConnectionsBetween(partA.GetPartId(), partD.GetPartId()).at(0);
+    destPartEdge.push_back(edgeA2D);
+
+    Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, destPartEdge);
+
+    // Access Glue Buffer and Ops and set an appropriate name for debugging purposes
+    auto elemIt                                                = combGlued.m_Elems.find(partA.GetPartId());
+    auto elemAB                                                = elemIt->second.m_Glues.find(edgeA2B.m_Destination);
+    elemAB->second.m_Glue->m_Graph.GetBuffers()[0]->m_DebugTag = "DramBuffer";
+    elemAB->second.m_Glue->m_Graph.GetOps()[0]->m_DebugTag     = "InputDmaGlue";
+    elemAB->second.m_Glue->m_Graph.GetOps()[1]->m_DebugTag     = "OutputDmaB";
+    elemAB->second.m_Glue->m_Graph.GetOps()[2]->m_DebugTag     = "OutputDmaC";
+
+    bool dumpInputGraphToFile = false;
+    if (dumpInputGraphToFile)
+    {
+        std::ofstream stream("GetOpGraphForDfsCombinationPartialDram Input.dot");
+        SaveCombinationToDot(combGlued, graph, stream, DetailLevel::High);
+    }
+
+    // Call function under test
+    OpGraph combOpGraph = GetOpGraphForCombination(combGlued, graph);
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("GetOpGraphForDfsCombinationPartialDram Output.dot");
+        SaveOpGraphToDot(combOpGraph, stream, DetailLevel::High);
+    }
+
+    REQUIRE(combOpGraph.GetBuffers().size() == 5);
+    REQUIRE(combOpGraph.GetBuffers()[0]->m_DebugTag == "OutputSramA");
+    REQUIRE(combOpGraph.GetBuffers()[1]->m_DebugTag == "DramBuffer");
+    REQUIRE(combOpGraph.GetBuffers()[2]->m_DebugTag == "InputSramB");
+    REQUIRE(combOpGraph.GetBuffers()[3]->m_DebugTag == "OutputSramD");
+    REQUIRE(combOpGraph.GetBuffers()[4]->m_DebugTag == "InputSramC");
+
+    REQUIRE(combOpGraph.GetOps().size() == 4);
+    REQUIRE(combOpGraph.GetOps()[0]->m_DebugTag == "InputDmaGlue");
+    REQUIRE(combOpGraph.GetOps()[1]->m_DebugTag == "OutputDmaB");
+    REQUIRE(combOpGraph.GetOps()[2]->m_DebugTag == "DmaToSramD");
+    REQUIRE(combOpGraph.GetOps()[3]->m_DebugTag == "OutputDmaC");
+
+    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[0]) == nullptr);
+    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[1])->m_DebugTag == "InputDmaGlue");
+    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[2])->m_DebugTag == "OutputDmaB");
+    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[3])->m_DebugTag == "DmaToSramD");
+    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[4])->m_DebugTag == "OutputDmaC");
+
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[0]).size() == 1);
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[0])[0].first->m_DebugTag == "InputDmaGlue");
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[0])[0].second == 0);
+
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[1]).size() == 3);
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[1])[0].first->m_DebugTag == "OutputDmaB");
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[1])[0].second == 0);
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[1])[1].first->m_DebugTag == "DmaToSramD");
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[1])[1].second == 0);
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[1])[2].first->m_DebugTag == "OutputDmaC");
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[1])[2].second == 0);
+
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[2]).size() == 0);
+
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[3]).size() == 0);
+
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[4]).size() == 0);
+}
+
 /// Manually creates a Combination and then converts it to an OpGraph using GetOpGraphForCombination, and checking
 /// the resulting graph structure is correct.
 /// The topology of the Combination is chosen to test cases including:

@@ -1321,7 +1321,8 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
             if (inputSlotIt != plan.m_InputMappings.end())
             {
                 PartInputSlot inputSlot = inputSlotIt->second;
-                if (incomingGlueOps.find(inputSlot) == incomingGlueOps.end())
+                if (incomingGlueOps.find(inputSlot) == incomingGlueOps.end() &&
+                    dramSharedBuf.find(inputSlot) == dramSharedBuf.end())
                 {
                     auto edgeBuffer = edgeConnectionBuffers.find(inputSlot);
                     // This code assumed that the combination spans the entire network
