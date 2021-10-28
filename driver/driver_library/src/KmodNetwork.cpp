@@ -68,6 +68,7 @@ std::vector<char> GetFirmwareAndHardwareCapabilities(const std::string& device)
     // Check compatibility between driver library and the kernel
     if (!VerifyKernel(device))
     {
+        close(fd);
         throw std::runtime_error(std::string("Wrong kernel module version\n"));
     }
 
@@ -75,6 +76,7 @@ std::vector<char> GetFirmwareAndHardwareCapabilities(const std::string& device)
     int capsSize = ioctl(fd, ETHOSN_IOCTL_FW_HW_CAPABILITIES, NULL);
     if (capsSize <= 0)
     {
+        close(fd);
         throw std::runtime_error(std::string("Failed to retrieve the size of firmware capabilities: ") +
                                  strerror(errno));
     }
@@ -86,6 +88,7 @@ std::vector<char> GetFirmwareAndHardwareCapabilities(const std::string& device)
     int ret = ioctl(fd, ETHOSN_IOCTL_FW_HW_CAPABILITIES, caps.data());
     if (ret != 0)
     {
+        close(fd);
         throw std::runtime_error(std::string("Failed to retrieve firmware and hardware information data: ") +
                                  strerror(errno));
     }
@@ -203,6 +206,7 @@ KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compile
     // Check compatibility between driver library and the kernel
     if (!VerifyKernel(device))
     {
+        close(ethosnFd);
         throw std::runtime_error(std::string("Wrong kernel module version\n"));
     }
 
@@ -220,11 +224,19 @@ KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compile
 
 KmodNetworkImpl::~KmodNetworkImpl()
 {
-    // Dump intermediate buffer files, if requested
-    const char* const debugEnv = std::getenv("ETHOSN_DRIVER_LIBRARY_DEBUG");
-    if (debugEnv && strstr(debugEnv, "dump-intermediate") != nullptr)
+    try
     {
-        DumpIntermediateBuffers();
+        // It can throw and it needs to close the file descriptor.
+        // Dump intermediate buffer files, if requested
+        const char* const debugEnv = std::getenv("ETHOSN_DRIVER_LIBRARY_DEBUG");
+        if (debugEnv && strstr(debugEnv, "dump-intermediate") != nullptr)
+        {
+            DumpIntermediateBuffers();
+        }
+    }
+    catch (...)
+    {
+        assert(false);
     }
 
     close(m_NetworkFd);

@@ -51,6 +51,7 @@ public:
         // Check compatibility between driver library and the kernel
         if (!VerifyKernel(device))
         {
+            close(ethosnFd);
             throw std::runtime_error(std::string("Wrong kernel module version\n"));
         }
 
@@ -73,7 +74,15 @@ public:
 
     ~BufferImpl()
     {
-        Unmap();
+        try
+        {
+            // It can throw and it needs to close the file descriptor
+            Unmap();
+        }
+        catch (...)
+        {
+            assert(false);
+        }
         close(m_BufferFd);
     }
 
