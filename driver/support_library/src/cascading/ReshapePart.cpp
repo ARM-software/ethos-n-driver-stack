@@ -30,16 +30,16 @@ Plans ReshapePart::GetPlans(CascadeType cascadeType,
                             Buffer* sramBuffer,
                             uint32_t numWeightStripes) const
 {
-    ETHOSN_UNUSED(cascadeType);
     ETHOSN_UNUSED(blockConfig);
     ETHOSN_UNUSED(sramBuffer);
     ETHOSN_UNUSED(numWeightStripes);
 
-    assert(cascadeType == CascadeType::Middle);
-
     Plans plans;
 
-    CreateReinterpretDramPlan(plans);
+    if (cascadeType == CascadeType::Lonely)
+    {
+        CreateReinterpretDramPlan(plans);
+    }
 
     return plans;
 }

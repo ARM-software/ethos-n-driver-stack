@@ -59,6 +59,9 @@ srcs = [
     "ReinterpretQuantizationTests.cpp",
     "MeanTests.cpp",
     "EstimationUtilsTests.cpp",
+    "InputPartTests.cpp",
+    "OutputPartTests.cpp",
+    "ReshapePartTests.cpp",
 ]
 
 internal_dir = os.path.join(

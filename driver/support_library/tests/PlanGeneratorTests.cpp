@@ -503,7 +503,7 @@ void SavePlansToDot(const Plans& plans, const std::string test)
 
 Plans GetPlansForwarding(const BasePart& part)
 {
-    return part.GetPlans(CascadeType::Middle, ethosn::command_stream::BlockConfig{}, nullptr, 0);
+    return part.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 0);
 }
 }    // namespace
 

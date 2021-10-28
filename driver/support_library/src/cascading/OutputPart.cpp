@@ -31,16 +31,16 @@ Plans OutputPart::GetPlans(CascadeType cascadeType,
                            Buffer* sramBuffer,
                            uint32_t numWeightStripes) const
 {
-    ETHOSN_UNUSED(cascadeType);
     ETHOSN_UNUSED(blockConfig);
     ETHOSN_UNUSED(sramBuffer);
     ETHOSN_UNUSED(numWeightStripes);
 
-    assert(cascadeType == CascadeType::Beginning || cascadeType == CascadeType::Lonely);
-
     Plans plans;
 
-    CreatePlanForOutputPart(Lifetime::Atomic, TraversalOrder::Xyz, plans);
+    if (cascadeType == CascadeType::End || cascadeType == CascadeType::Lonely)
+    {
+        CreatePlanForOutputPart(Lifetime::Atomic, TraversalOrder::Xyz, plans);
+    }
 
     return plans;
 }
