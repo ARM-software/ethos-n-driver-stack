@@ -355,8 +355,8 @@ LayerTestResult<uint8_t, 4> PreCompiledConvolution2dTestImpl(armnn::IWorkloadFac
     // NOTE: inputScale * weightsScale / outputScale must be >= 0.0 and < 1.0
     TensorInfo inputInfo(inputShape, DataType::QAsymmU8, 1.0f, 0);
     TensorInfo outputInfo(outputShape, DataType::QAsymmU8, 2.0f, 0);
-    TensorInfo weightsInfo(kernelShape, DataType::QAsymmU8, 1.0f, 0);
-    TensorInfo biasesInfo(biasesShape, DataType::Signed32, 1.0f, 0);
+    TensorInfo weightsInfo(kernelShape, DataType::QAsymmU8, 1.0f, 0, true);
+    TensorInfo biasesInfo(biasesShape, DataType::Signed32, 1.0f, 0, true);
 
     // Populate weight and bias data
     // If depthwise is true we should permute to 1HW(I*M) but as M=1 we end up with the same weightsData as we have
@@ -432,8 +432,8 @@ LayerTestResult<uint8_t, 4>
     // to check that the backend reset it to zero.
     const bool isWeightDataTypeSymmetric = weightDataType == armnn::DataType::QSymmS8;
     const int32_t weightZeroPoint        = isWeightDataTypeSymmetric ? 42 : 0;
-    TensorInfo weightsInfo(kernelShape, weightDataType, weightScale, weightZeroPoint);
-    TensorInfo biasesInfo(biasesShape, DataType::Signed32, 1.0f, 0);
+    TensorInfo weightsInfo(kernelShape, weightDataType, weightScale, weightZeroPoint, true);
+    TensorInfo biasesInfo(biasesShape, DataType::Signed32, 1.0f, 0, true);
 
     // input weight is -42
     // the weight data are quantized
@@ -591,12 +591,14 @@ LayerTestResult<uint8_t, 4>
     TensorInfo weightsInfo({ 2, 1, 1, 2 }, DataType::QAsymmU8);    // OHWI
     weightsInfo.SetQuantizationDim(0);
     weightsInfo.SetQuantizationScales({ 2.0f, 3.0f });
+    weightsInfo.SetConstant(true);
     std::vector<uint8_t> weightsData{ 1, 2, 3, 4 };    // Representing 2.0, 4.0, 9.0, 12.0
     ConstTensor weights(weightsInfo, weightsData);
 
     TensorInfo biasInfo({ 1, 1, 1, 2 }, DataType::Signed32);
     biasInfo.SetQuantizationDim(3);
     biasInfo.SetQuantizationScales({ 2.0f, 3.0f });
+    biasInfo.SetConstant(true);
     std::vector<int32_t> biasData{ 0, 10 };    // Representing 0.0, 30.0
     ConstTensor bias(biasInfo, biasData);
 
@@ -637,12 +639,14 @@ LayerTestResult<uint8_t, 4>
     TensorInfo weightsInfo({ 1, 1, 1, 2 }, DataType::QAsymmU8);    // 1HW(I*M)
     weightsInfo.SetQuantizationDim(3);
     weightsInfo.SetQuantizationScales({ 2.0f, 3.0f });
+    weightsInfo.SetConstant(true);
     std::vector<uint8_t> weightsData{ 1, 2 };    // Representing 2.0, 6.0
     ConstTensor weights(weightsInfo, weightsData);
 
     TensorInfo biasInfo({ 1, 1, 1, 2 }, DataType::Signed32);
     biasInfo.SetQuantizationDim(3);
     biasInfo.SetQuantizationScales({ 2.0f, 3.0f });
+    biasInfo.SetConstant(true);
     std::vector<int32_t> biasData{ 9, 10 };    // Representing 18.0, 30.0
     ConstTensor bias(biasInfo, biasData);
 
@@ -680,6 +684,7 @@ LayerTestResult<uint8_t, 4>
     TensorInfo weightsInfo({ 2, 2, 2, 1 }, DataType::QAsymmU8);
     weightsInfo.SetQuantizationDim(0);
     weightsInfo.SetQuantizationScales({ 2.0f, 3.0f });
+    weightsInfo.SetConstant(true);
     std::vector<uint8_t> weightsData{ 1, 2, 3, 4, 1, 2, 3, 4 };
     // Representing 1st output channel weights:
     //  2.0, 4.0,
@@ -692,6 +697,7 @@ LayerTestResult<uint8_t, 4>
     TensorInfo biasInfo({ 1, 1, 1, 2 }, DataType::Signed32);
     biasInfo.SetQuantizationDim(3);
     biasInfo.SetQuantizationScales({ 4.0f, 6.0f });
+    biasInfo.SetConstant(true);
     std::vector<int32_t> biasData{ 1, 2 };    // Representing 4.0, 12.0
     ConstTensor bias(biasInfo, biasData);
 
@@ -783,7 +789,7 @@ LayerTestResult<uint8_t, 4> PreCompiledMaxPooling2dTest(armnn::IWorkloadFactory&
     convDescriptor.m_DataLayout  = DataLayout::NHWC;
 
     // Set up the Convolution weights
-    TensorInfo weightsInfo(TensorShape({ 16, 1, 1, 16 }), DataType::QAsymmU8, 2.0f, 0);
+    TensorInfo weightsInfo(TensorShape({ 16, 1, 1, 16 }), DataType::QAsymmU8, 2.0f, 0, true);
     const unsigned int weightsDataSize = weightsInfo.GetNumElements();
     std::vector<uint8_t> weightsData(weightsDataSize);
     for (unsigned int i = 0; i < 16; ++i)
@@ -796,7 +802,7 @@ LayerTestResult<uint8_t, 4> PreCompiledMaxPooling2dTest(armnn::IWorkloadFactory&
     ConstTensor weights(weightsInfo, weightsData);
 
     // Set up the Convolution biases
-    TensorInfo biasInfo(TensorShape({ 1, 1, 1, 16 }), DataType::Signed32, 1.0f * 2.0f, 0);
+    TensorInfo biasInfo(TensorShape({ 1, 1, 1, 16 }), DataType::Signed32, 1.0f * 2.0f, 0, true);
     const unsigned int biasDataSize = biasInfo.GetNumElements();
     std::vector<int32_t> biasData(biasDataSize, 0);
     ConstTensor biases(biasInfo, biasData);
@@ -893,8 +899,8 @@ LayerTestResult<uint8_t, 4> PreCompiledFusedActivationTest(armnn::IWorkloadFacto
     // NOTE: inputScale * weightsScale / outputScale must be >= 0.0 and < 1.0
     TensorInfo inputInfo(inputShape, DataType::QAsymmU8, 1.0f, 0);
     TensorInfo convOutputInfo(outputShape, DataType::QAsymmU8, 2.0f, 0);
-    TensorInfo weightsInfo(kernelShape, DataType::QAsymmU8, 1.0f, 0);
-    TensorInfo biasesInfo(biasesShape, DataType::Signed32, 1.0f, 0);
+    TensorInfo weightsInfo(kernelShape, DataType::QAsymmU8, 1.0f, 0, true);
+    TensorInfo biasesInfo(biasesShape, DataType::Signed32, 1.0f, 0, true);
 
     // Populate weight and bias data
     std::vector<uint8_t> weightsData = CreateIdentityConvolutionKernel(kernelSize, channels);
@@ -1476,7 +1482,7 @@ LayerTestResult<uint8_t, 4> PreCompiledConstMulToDepthwiseTest(armnn::IWorkloadF
 {
     // Set up tensor infos
     TensorInfo inputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
-    TensorInfo constInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.5f, 0);
+    TensorInfo constInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.5f, 0, true);
     TensorInfo outputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
 
     std::vector<uint8_t> inputData{
@@ -1523,7 +1529,7 @@ LayerTestResult<uint8_t, 4> PreCompiledConstAddToDepthwiseTest(armnn::IWorkloadF
 {
     // Set up tensor infos
     TensorInfo inputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
-    TensorInfo constInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 2.0f, 5);
+    TensorInfo constInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 2.0f, 5, true);
     TensorInfo outputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
 
     std::vector<uint8_t> inputData{
@@ -1573,7 +1579,7 @@ LayerTestResult<uint8_t, 4>
     //Floating point input range is [0,2]
     TensorInfo inputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 0.007814894430339336f, 0);
     //Floating point constant range is [0,127.5]
-    TensorInfo constInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.5f, 0);
+    TensorInfo constInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.5f, 0, true);
     //Floating point output range is [0,255]
     TensorInfo outputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1, 0);
 
@@ -1623,7 +1629,7 @@ LayerTestResult<uint8_t, 4>
 {
     // Set up tensor infos
     TensorInfo inputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 1);
-    TensorInfo constInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 4);
+    TensorInfo constInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 4, true);
     TensorInfo outputInfo({ 1, 2, 2, 4 }, DataType::QAsymmU8, 1.0f, 0);
 
     std::vector<uint8_t> inputData{

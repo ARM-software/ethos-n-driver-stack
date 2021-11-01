@@ -38,7 +38,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
         auto net = std::make_unique<NetworkImpl>();
 
         TensorInfo inputInfo({ 1, 8, 8, 16 }, DataType::QAsymmU8, 1.0f, 0);
-        TensorInfo constInfo({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0);
+        TensorInfo constInfo({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
         TensorInfo outputInfo({ 1, 8, 8, 16 }, DataType::QAsymmU8, 1.0f, 0);
 
         std::vector<uint8_t> constData(constInfo.GetNumElements(), 0);
@@ -112,7 +112,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
         // Floating point constant data is 2.0
         float providedConstantValue = 255;
         TensorInfo inputInfo({ 1, 8, 8, 16 }, DataType::QAsymmU8, 0.5f, 0);
-        TensorInfo constInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, providedConstantQuantisation, 0);
+        TensorInfo constInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, providedConstantQuantisation, 0, true);
         TensorInfo outputInfo({ 1, 8, 8, 16 }, DataType::QAsymmU8, 1.0f, 0);
 
         std::vector<uint8_t> constData(constInfo.GetNumElements(), 0);
@@ -231,9 +231,9 @@ TEST_SUITE("EthosNReplaceUnsupported")
             ConstantAddToDepthwiseReplacementConfig config = result.value();
             CHECK(config.m_Desc.m_BiasEnabled == true);
             CHECK(config.m_Desc.m_DataLayout == DataLayout::NHWC);
-            CHECK(config.m_WeightsInfo == TensorInfo(TensorShape{ 1, 1, 1, 3 }, DataType::QAsymmU8, 0.5f, 0));
+            CHECK(config.m_WeightsInfo == TensorInfo(TensorShape{ 1, 1, 1, 3 }, DataType::QAsymmU8, 0.5f, 0, true));
             CHECK(config.m_WeightsQuantizedValue == 2);
-            CHECK(config.m_BiasInfo == TensorInfo(TensorShape{ 1, 1, 1, 3 }, DataType::Signed32, 0.5f, 0));
+            CHECK(config.m_BiasInfo == TensorInfo(TensorShape{ 1, 1, 1, 3 }, DataType::Signed32, 0.5f, 0, true));
         }
     }
 
@@ -301,7 +301,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
         // Failure case - not an Addition layer
         {
             Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                          TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0), true,
+                                          TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0, true), true,
                                           TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
             CHECK(ReplaceConstantAdditionWithDepthwise(g, *g.begin()) == false);
         }
@@ -309,7 +309,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
         // Failure case - addition that doesn't need replacing (as it is supported natively - not a broadcast)
         {
             Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), true,
+                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0, true), true,
                                           TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
             AdditionLayer* addLayer = PolymorphicPointerDowncast<AdditionLayer>(GetFirstLayerWithName(g, "add"));
             CHECK(ReplaceConstantAdditionWithDepthwise(g, addLayer) == false);
@@ -327,7 +327,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
         // Valid cases
         auto ValidTest = [](bool isInput0Constant, bool isInput1Constant, DataType constantDataType) {
             // Note we use non-trivial quant params for the constant to better test the requantization that takes place
-            TensorInfo constantInfo({ 1, 1, 1, 4 }, constantDataType, 10.0f, 2);
+            TensorInfo constantInfo({ 1, 1, 1, 4 }, constantDataType, 10.0f, 2, true);
             TensorInfo inputInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0);
 
             Graph g                 = CreateAdditionGraph(isInput0Constant ? constantInfo : inputInfo, isInput0Constant,
@@ -480,7 +480,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
         // Failure case - not a Multiplication layer
         {
             Graph g = CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                                TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0), true,
+                                                TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0, true), true,
                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
             CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(
                       g, *g.begin(), EthosNConfig(), EthosNConfig().QueryCapabilities(), failureReason) == false);
@@ -490,7 +490,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
         // to be replaced with Depthwise instead
         {
             Graph g = CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                                TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0), true,
+                                                TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0, true), true,
                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
             MultiplicationLayer* mulLayer =
                 PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
@@ -512,7 +512,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
         // Error case - Incorrect data-type for constant
         {
             Graph g = CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                                TensorInfo({ 1, 1, 1, 1 }, DataType::Signed64, 1.0f, 0), true,
+                                                TensorInfo({ 1, 1, 1, 1 }, DataType::Signed64, 1.0f, 0, true), true,
                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), 0);
             MultiplicationLayer* mulLayer =
                 PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
@@ -524,7 +524,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
         // Error case - constant is negative
         {
             Graph g = CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                                TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.007f, 127), true,
+                                                TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.007f, 127, true), true,
                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
             MultiplicationLayer* mulLayer =
                 PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
@@ -536,7 +536,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
         // Error case - constant is zero
         {
             Graph g = CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                                TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.007f, 127), true,
+                                                TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.007f, 127, true), true,
                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), 127);
             MultiplicationLayer* mulLayer =
                 PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
@@ -552,7 +552,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
             Graph g = CreateMultiplicationGraph(
                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 0.5f, 0), false,
-                TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, providedConstantQuantisation, 0), true,
+                TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, providedConstantQuantisation, 0, true), true,
                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), providedConstantValue);
             MultiplicationLayer* mulLayer =
                 PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
@@ -569,7 +569,8 @@ TEST_SUITE("EthosNReplaceUnsupported")
             EthosNLayerSupport layerSupport(EthosNConfig(), EthosNConfig().QueryCapabilities());
 
             const TensorInfo input0 = TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmS8, 0.5f, 0);
-            const TensorInfo input1 = TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, providedConstantQuantisation, 0);
+            const TensorInfo input1 =
+                TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, providedConstantQuantisation, 0, true);
             const TensorInfo output = TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0);
 
             Graph g = CreateMultiplicationGraph(input0, false, input1, true, output, 255);
@@ -592,7 +593,8 @@ TEST_SUITE("EthosNReplaceUnsupported")
             EthosNLayerSupport layerSupport(config, config.QueryCapabilities());
 
             const TensorInfo input0 = TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmS8, 0.5f, 0);
-            const TensorInfo input1 = TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, providedConstantQuantisation, 0);
+            const TensorInfo input1 =
+                TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, providedConstantQuantisation, 0, true);
             const TensorInfo output = TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0);
 
             Graph g = CreateMultiplicationGraph(input0, false, input1, true, output, 255);
@@ -612,7 +614,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
         // Failure case - not an Addition layer
         {
             Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                          TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0), true,
+                                          TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0, true), true,
                                           TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
             CHECK(ReplaceConstantAdditionWithReinterpretQuantization(g, *g.begin(), reason) == false);
         }
@@ -621,7 +623,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
         // Fails as it does not need to be replaced by Reinterpret Quantization
         {
             Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), true,
+                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0, true), true,
                                           TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
             AdditionLayer* addLayer = PolymorphicPointerDowncast<AdditionLayer>(GetFirstLayerWithName(g, "add"));
             CHECK(ReplaceConstantAdditionWithReinterpretQuantization(g, addLayer, reason) == false);
@@ -640,7 +642,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
         // Positive constant means the output offset should be lower than input offset
         {
             Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 5), false,
-                                          TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0), true,
+                                          TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0, true), true,
                                           TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 10));
             AdditionLayer* addLayer = PolymorphicPointerDowncast<AdditionLayer>(GetFirstLayerWithName(g, "add"));
             CHECK(ReplaceConstantAdditionWithReinterpretQuantization(g, addLayer, reason) == false);

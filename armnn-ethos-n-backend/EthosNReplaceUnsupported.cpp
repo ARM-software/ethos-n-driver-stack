@@ -539,9 +539,9 @@ Optional<ConstantAddToDepthwiseReplacementConfig>
     ARMNN_ASSERT_MSG(M == 1, "Constant add only support 1x1x1xC, so M should always be 1 here");
 
     result.m_WeightsInfo = TensorInfo(TensorShape{ 1, 1, 1, inputInfo.GetShape()[3] * M }, DataType::QAsymmU8,
-                                      weightScale, 0);    //1HW(I*M)
+                                      weightScale, 0, true);    //1HW(I*M)
 
-    result.m_BiasInfo = TensorInfo(constantInfo.GetShape(), DataType::Signed32, newConstantLayerScale, 0);
+    result.m_BiasInfo = TensorInfo(constantInfo.GetShape(), DataType::Signed32, newConstantLayerScale, 0, true);
 
     return result;
 }

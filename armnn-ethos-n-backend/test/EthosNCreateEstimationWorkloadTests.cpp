@@ -579,9 +579,10 @@ TEST_SUITE("CreateEstimationWorkloadEthosN")
         const INetworkPtr myNetwork = INetwork::Create();
 
         // Arm NN weights tensor shape is OHWI (out channels, height, width, in channels) for NHWC
-        const TensorInfo supportedWeightsInfo(TensorShape({ 16, 1, 1, 16 }), armnn::DataType::QAsymmU8, 0.9f, 0);
+        const TensorInfo supportedWeightsInfo(TensorShape({ 16, 1, 1, 16 }), armnn::DataType::QAsymmU8, 0.9f, 0, true);
         // Arm NN weights tensor shape is OIHW (out channels, in channels, height, width) for NCHW
-        const TensorInfo unsupportedWeightsInfo(TensorShape({ 16, 16, 1, 1 }), armnn::DataType::QAsymmU8, 0.9f, 0);
+        const TensorInfo unsupportedWeightsInfo(TensorShape({ 16, 16, 1, 1 }), armnn::DataType::QAsymmU8, 0.9f, 0,
+                                                true);
 
         CHECK(supportedWeightsInfo.GetNumElements() == unsupportedWeightsInfo.GetNumElements());
 
@@ -642,7 +643,9 @@ TEST_SUITE("CreateEstimationWorkloadEthosN")
         const std::vector<uint8_t> inputData(tensorInfo.GetNumElements());
         std::vector<uint8_t> outputData(tensorInfo.GetNumElements());
 
-        armnn::InputTensors inputTensors{ { 0, armnn::ConstTensor(tensorInfo, inputData.data()) } };
+        TensorInfo inputTensorInfo = tensorInfo;
+        inputTensorInfo.SetConstant();
+        armnn::InputTensors inputTensors{ { 0, armnn::ConstTensor(inputTensorInfo, inputData.data()) } };
         armnn::OutputTensors outputTensors{ { 0, armnn::Tensor(tensorInfo, outputData.data()) } };
 
         // Execute network
