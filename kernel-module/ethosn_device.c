@@ -1104,7 +1104,7 @@ static struct ethosn_big_fw_desc *find_big_fw_desc(struct ethosn_core *core,
 			big_fw->desc[i].arch_max);
 	}
 
-	dev_dbg(core->dev, "Cannot find compatible FW in BIG FW.\n");
+	dev_err(core->dev, "Cannot find compatible FW in BIG FW.\n");
 
 	return ERR_PTR(-EINVAL);
 }
@@ -1113,7 +1113,7 @@ static int verify_firmware(struct ethosn_core *core,
 			   struct ethosn_big_fw *big_fw)
 {
 	if (big_fw->fw_ver_major != ETHOSN_FIRMWARE_VERSION_MAJOR) {
-		dev_dbg(core->dev,
+		dev_err(core->dev,
 			"Wrong firmware version. Version %u.x.x is required.\n",
 			ETHOSN_FIRMWARE_VERSION_MAJOR);
 
