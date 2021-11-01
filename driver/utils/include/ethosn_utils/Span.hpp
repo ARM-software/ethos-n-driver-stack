@@ -10,42 +10,7 @@
 
 #else
 
-#if (__cplusplus >= 201703L) || (_MSVC_LANG >= 201703L)
-
-// For std::data and std::size
 #include <array>
-
-#else
-
-namespace std
-{
-template <typename C>
-constexpr auto data(C& c) -> decltype(c.data())
-{
-    return c.data();
-}
-
-template <typename T, size_t N>
-constexpr T* data(T (&array)[N]) noexcept
-{
-    return array;
-}
-
-template <typename C>
-constexpr auto size(C& c) -> decltype(c.size())
-{
-    return c.size();
-}
-
-template <typename T, size_t N>
-constexpr size_t size(T (&)[N]) noexcept
-{
-    return N;
-}
-}    // namespace std
-
-#endif
-
 #include <type_traits>
 
 namespace std
@@ -54,17 +19,33 @@ template <typename T>
 class span
 {
 public:
-    constexpr span(T* data, size_t size) noexcept
+    template <typename U>
+    constexpr span(U* const data, const size_t size) noexcept
         : m_Data(data)
         , m_Size(size)
+    {
+        static_assert(std::is_same<std::remove_cv_t<U>, std::remove_cv_t<T>>::value, "");
+    }
+
+    template <typename U, size_t N>
+    constexpr span(const std::array<U, N>& array) noexcept
+        : span(array.data(), N)
     {}
 
-    template <typename A>
-    constexpr span(A& array) noexcept
-        : span(std::data(array), std::size(array))
-    {
-        static_assert(sizeof(T) == sizeof(*std::data(array)), "");
-    }
+    template <typename U, size_t N>
+    constexpr span(std::array<U, N>& array) noexcept
+        : span(array.data(), N)
+    {}
+
+    template <typename U, size_t N>
+    constexpr span(const U (&array)[N]) noexcept
+        : span(array, N)
+    {}
+
+    template <typename U, size_t N>
+    constexpr span(U (&array)[N]) noexcept
+        : span(array, N)
+    {}
 
     constexpr auto data() const noexcept
     {
