@@ -69,6 +69,62 @@ void DumpDebugInfo(const GraphOfParts& parts,
     }
 }
 
+std::pair<DmaOp*, Buffer*> CreateDramBufferAndDmaOp(Buffer* b, OwnedOpGraph& opGraph)
+{
+    // Create a DRAM buffer where the data is coming from or going to
+    auto dramBuffer = std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                               b->m_TensorShape, TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
+                                               utils::TotalSizeBytesNHWCB(b->m_TensorShape), b->m_QuantizationInfo);
+    // Create a DMA operatoin that is moving data from DRAM to SRAM or viceversa
+    auto dma              = std::make_unique<DmaOp>();
+    DmaOp* dmaRaw         = dma.get();
+    Buffer* dramBufferRaw = dramBuffer.get();
+    // Add to the OwnedOpGraph
+    opGraph.AddOp(std::move(dma));
+    opGraph.AddBuffer(std::move(dramBuffer));
+    return std::make_pair(dmaRaw, dramBufferRaw);
+}
+
+void CompleteOpGraph(OpGraph& combiOpGraph, OwnedOpGraph& tempOpGraph)
+{
+    // Make sure that the graph is complete in the sense that
+    // all the input and output data is moved from and to DRAM
+    for (Buffer* b : combiOpGraph.GetBuffers())
+    {
+        Op* producer = combiOpGraph.GetProducer(b);
+        if (!producer)
+        {
+            // This buffer does not have a producer and it is in SRAM
+            if (b->m_Location == Location::Sram)
+            {
+                // Create a DRAM buffer where the data is coming from
+                auto result           = CreateDramBufferAndDmaOp(b, tempOpGraph);
+                DmaOp* dmaRaw         = result.first;
+                Buffer* dramBufferRaw = result.second;
+                combiOpGraph.AddOp(dmaRaw);
+                combiOpGraph.AddBuffer(dramBufferRaw);
+                combiOpGraph.SetProducer(b, dmaRaw);
+                combiOpGraph.AddConsumer(dramBufferRaw, dmaRaw, 0);
+            }
+        }
+        if (combiOpGraph.GetConsumers(b).empty())
+        {
+            // This buffer does not have a consumer and it is in SRAM
+            if (b->m_Location == Location::Sram)
+            {
+                // Create a DRAM buffer where the data is going to
+                auto result           = CreateDramBufferAndDmaOp(b, tempOpGraph);
+                DmaOp* dmaRaw         = result.first;
+                Buffer* dramBufferRaw = result.second;
+                combiOpGraph.AddOp(dmaRaw);
+                combiOpGraph.AddBuffer(dramBufferRaw);
+                combiOpGraph.SetProducer(dramBufferRaw, dmaRaw);
+                combiOpGraph.AddConsumer(b, dmaRaw, 0);
+            }
+        }
+    }
+}
+
 bool MatchingBlocks(const Plan& planProducer, const Plan& planConsumer, Buffer* produced, Buffer* consumed)
 {
     size_t matching = 0;
@@ -409,6 +465,10 @@ Combination Combiner::GetBestCombination(Combinations& combs) const
             if (!combination.m_Elems.empty())
             {
                 OpGraph combiOpGraph = GetOpGraphForCombination(combination, m_GraphOfParts);
+
+                OwnedOpGraph tempOpGraph;
+
+                CompleteOpGraph(combiOpGraph, tempOpGraph);
 
                 EstimatedOpGraph estimatedOpGraph =
                     ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Caps, m_EstOpt);
@@ -867,30 +927,25 @@ Combination Combiner::EndSection(const BasePart& part,
             Combination section =
                 comb + Combination(part, plan, m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
 
-            //  Next part in the graph
-            const BasePart* nextPartGraph = GetNextPart(&part);
-
-            // Note:due to the limitation of GetOpGraphForCombination(), the section has to
-            // end with all eligible plans glued with the next.
-            // This will however be addressed by NNXSW-3595 so that
-            // the section will end with one winning plan.
-            if (!section.m_Elems.empty() && nextPartGraph != nullptr)
-            {
-                section = section + FindBestCombinationForPart(*nextPartGraph);
-
-                // Each of it destination part will start its own new section.
-                // Therefore they all need to be glued with their source.
-                std::vector<PartConnection> destConnections =
-                    m_GraphOfParts.GetDestinationConnections(part.GetPartId());
-
-                if (destConnections.empty() == false)
-                {
-                    section = GluePartToCombinationSrcToDests(part, section, destConnections);
-                }
-            }
-
             Combinations options = { result, section };
             result               = GetBestCombination(options);
+        }
+
+        //  Next part in the graph
+        const BasePart* nextPartGraph = GetNextPart(&part);
+
+        if (!result.m_Elems.empty() && nextPartGraph != nullptr)
+        {
+            result = result + FindBestCombinationForPart(*nextPartGraph);
+
+            // Each of it destination part will start its own new section.
+            // Therefore they all need to be glued with their source.
+            std::vector<PartConnection> destConnections = m_GraphOfParts.GetDestinationConnections(part.GetPartId());
+
+            if (destConnections.empty() == false)
+            {
+                result = GluePartToCombinationSrcToDests(part, result, destConnections);
+            }
         }
     }
 
