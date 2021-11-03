@@ -278,6 +278,19 @@ static struct ethosn_buffer **read_buffer_fds(struct ethosn_network *network,
 		buf = ethosn_buffer_get(fd);
 		if (IS_ERR(buf)) {
 			error = PTR_ERR(buf);
+			dev_err(net_to_dev(
+					network),
+				"ethosn_buffer_get returned an error: %d\n",
+				error);
+			goto err_free_bufs;
+		}
+
+		if (!buf) {
+			error = -EFAULT;
+			dev_err(net_to_dev(
+					network),
+				"ethosn_buffer_get returned an empty buffer\n"
+				);
 			goto err_free_bufs;
 		}
 
