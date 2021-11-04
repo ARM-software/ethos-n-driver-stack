@@ -97,6 +97,12 @@ struct MceS
     WorkSize stripeIdStrides;
 };
 
+/// Ple Loader data
+struct PleL
+{
+    // Add fields as needed
+};
+
 /// Ple Scheduler work size
 ETHOSN_DECL_SV_VECTOR_STRUCT(PleSWorkSize, ofmHeight, ofmWidth, ofmChannels)
 
@@ -135,6 +141,7 @@ enum class AgentType : uint32_t
     IFM_STREAMER,
     WGT_STREAMER,
     MCE_SCHEDULER,
+    PLE_LOADER,
     PLE_SCHEDULER,
     OFM_STREAMER,
 };
@@ -151,6 +158,7 @@ struct AgentData
         const IfmS ifm;
         const WgtS wgt;
         const MceS mce;
+        const PleL pleL;
         const PleS ple;
         const OfmS ofm;
     };
@@ -168,6 +176,11 @@ struct AgentData
     constexpr AgentData(const MceS& data)
         : type{ AgentType::MCE_SCHEDULER }
         , mce{ data }
+    {}
+
+    constexpr AgentData(const PleL& data)
+        : type{ AgentType::PLE_LOADER }
+        , pleL{ data }
     {}
 
     constexpr AgentData(const PleS& data)
@@ -219,7 +232,7 @@ struct Dependency
     ///            +            *
     ///            |            |  <- boundary = 1
     ///            +            +
-    uint8_t boundary;
+    int8_t boundary;
 };
 
 /// Contains dependency info for an agent
