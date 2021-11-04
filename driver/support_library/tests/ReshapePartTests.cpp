@@ -63,12 +63,8 @@ void CheckMappings(const CheckPlansParams& params, const Plan& plan, Buffer* res
         CHECK(plan.m_OutputMappings.begin()->first == reshapedBuffer);
     }
 
-    if (params.m_PartId)
-    {
-        CHECK(plan.m_InputMappings.begin()->second.m_PartId == params.m_PartId);
-        CHECK(plan.m_OutputMappings.begin()->second.m_PartId == params.m_PartId);
-    }
-
+    CHECK(plan.m_InputMappings.begin()->second.m_PartId == params.m_PartId);
+    CHECK(plan.m_OutputMappings.begin()->second.m_PartId == params.m_PartId);
     CHECK(plan.m_InputMappings.begin()->second.m_InputIndex == 0);
     CHECK(plan.m_OutputMappings.begin()->second.m_OutputIndex == 0);
 }
@@ -122,7 +118,7 @@ TEST_CASE("ReshapePart Plan Generation", "[ReshapePartTests]")
 {
     GIVEN("A simple ReshapePart")
     {
-        const PartId partId                   = 0;
+        const PartId partId                   = 1;
         TensorShape inputTensorShape          = { 1, 32, 32, 3 };
         TensorShape outputTensorShape         = { 1, 16, 16, 12 };
         CompilerDataFormat compilerDataFormat = CompilerDataFormat::NHWC;

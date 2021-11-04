@@ -60,11 +60,7 @@ void CheckMappings(const CheckPlansParams& params, const Plan& plan, Buffer* out
         CHECK(plan.m_InputMappings.begin()->first == outputBuffer);
     }
 
-    if (params.m_PartId)
-    {
-        CHECK(plan.m_InputMappings.begin()->second.m_PartId == params.m_PartId);
-    }
-
+    CHECK(plan.m_InputMappings.begin()->second.m_PartId == params.m_PartId);
     CHECK(plan.m_InputMappings.begin()->second.m_InputIndex == 0);
 }
 
@@ -117,7 +113,7 @@ TEST_CASE("OutputPart Plan Generation", "[OutputPartTests]")
 {
     GIVEN("A simple OutputPart")
     {
-        const PartId partId                   = 0;
+        const PartId partId                   = 1;
         TensorShape inputTensorShape          = { 1, 32, 32, 3 };
         CompilerDataFormat compilerDataFormat = CompilerDataFormat::NHWCB;
         QuantizationInfo quantizationInfo(0, 1.0f);
