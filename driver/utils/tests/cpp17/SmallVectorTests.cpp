@@ -7,6 +7,8 @@
 
 #include <catch.hpp>
 
+using namespace ethosn::utils;
+
 struct Nhwc
 {
     int n, h, w, c;
@@ -23,8 +25,6 @@ struct Xyz
 
 TEST_CASE("SmallVector")
 {
-    using namespace ethosn::utils;
-
     sv::Vector v1{ 1, 2, 3, 4 };
     sv::Vector<int, 4> v2{ 2, 4, 6, 8 };
 
@@ -118,5 +118,48 @@ TEST_CASE("SmallVector")
         CHECK(All((v << 0) == 16));
         CHECK(All((v >> 0) == 16));
         CHECK(All((v ^ 0U) == 16));
+    }
+}
+
+TEST_CASE("SmallVector/NonNarrowingSigned")
+{
+    const sv::Vector v1{ int16_t{ 1 }, int16_t{ 2 }, int16_t{ 3 } };
+    {    // same type
+        sv::Vector<int16_t, 3> v2 = v1;
+        CHECK(All(v1 == v2));
+    }
+    {    // larger type
+        sv::Vector<int32_t, 3> v2 = v1;
+        CHECK(All(v1 == v2));
+    }
+}
+
+TEST_CASE("SmallVector/NonNarrowingUnsigned")
+{
+    const sv::Vector v1{ uint16_t{ 1 }, uint16_t{ 2 }, uint16_t{ 3 } };
+    {    // same type
+        sv::Vector<uint16_t, 3> v2 = v1;
+        CHECK(All(v1 == v2));
+    }
+    {    // larger type
+        sv::Vector<uint32_t, 3> v2 = v1;
+        CHECK(All(v1 == v2));
+    }
+    {    // larger type, signed
+        sv::Vector<int32_t, 3> v2 = v1;
+        CHECK(All(v1 == v2));
+    }
+}
+
+TEST_CASE("SmallVector/NonNarrowingFloat")
+{
+    const sv::Vector v1{ 1.f, 2.f, 3.f };
+    {    // same type
+        sv::Vector<float, 3> v2 = v1;
+        CHECK(All(v1 == v2));
+    }
+    {    // larger type
+        sv::Vector<double, 3> v2 = v1;
+        CHECK(All(v1 == v2));
     }
 }

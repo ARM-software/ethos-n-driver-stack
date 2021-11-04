@@ -66,8 +66,18 @@
 //
 #pragma once
 
+#define ETHOSN_DECL_SV_VECTOR_STRUCT(Name, ...)                                                                        \
+    template <typename T = int>                                                                                        \
+    struct Name                                                                                                        \
+    {                                                                                                                  \
+        T __VA_ARGS__;                                                                                                 \
+        ETHOSN_USE_AS_SV_VECTOR(Name, T, N_ARGS(__VA_ARGS__))                                                          \
+    };                                                                                                                 \
+    ETHOSN_DECL_SV_VECTOR_STRUCT_CTAD(Name)
+
 // This is only supported for >=c++17 builds
 #if !((__cplusplus >= 201703L) || (_MSVC_LANG >= 201703L))
+#define ETHOSN_DECL_SV_VECTOR_STRUCT_CTAD(...)
 #define ETHOSN_USE_AS_SV_VECTOR(...)
 #else
 
@@ -78,6 +88,10 @@
 #include <functional>
 #include <type_traits>
 #include <utility>
+
+#define ETHOSN_DECL_SV_VECTOR_STRUCT_CTAD(Name)                                                                        \
+    template <typename T, typename... Us>                                                                              \
+    Name(T, Us...)->Name<T>;
 
 #define ETHOSN_USE_AS_SV_VECTOR(Typename, T, N)                                                                        \
     using Vector = ethosn::utils::sv::Vector<T, N>;                                                                    \
@@ -156,6 +170,20 @@
 
 namespace ethosn::utils::sv
 {
+namespace detail
+{
+template <typename From, typename To>
+inline constexpr bool is_non_narrowing_conversion_v =
+    // clang-format off
+        (
+            (std::is_integral_v<From> && std::is_integral_v<To>) ||
+            (std::is_floating_point_v<From> && std::is_floating_point_v<To>)
+        ) &&
+        !(std::is_signed_v<From> && std::is_unsigned_v<To>) &&
+        (sizeof(From) < sizeof(To));
+// clang-format on
+}    // namespace detail
+
 template <typename T, size_t N>
 struct Vector : std::array<T, N>
 {
@@ -182,6 +210,12 @@ struct Vector : std::array<T, N>
     explicit constexpr Vector(const T& t, Us&&... us)
         : std::array<T, N>{ { t, std::forward<Us>(us)... } }
     {}
+
+    template <typename U, std::enable_if_t<detail::is_non_narrowing_conversion_v<U, T>, int> = 0>
+    constexpr Vector(const Vector<U, N>& other)
+    {
+        std::copy_n(std::begin(other), N, std::begin(*this));
+    }
 
     template <typename U, size_t M>
     explicit constexpr Vector(const Vector<U, M>& other, const T fillValue = T{})
@@ -464,15 +498,21 @@ constexpr U Reduce(const Vector<T, N>& vec, Fn&& fn = Fn{}, U init = U{})
 }
 
 template <typename T, size_t N, typename U = decltype(T{} + T{})>
-constexpr auto Sum(const Vector<T, N>& vec, U init = U{})
+constexpr auto Sum(const Vector<T, N>& vec, const U& init = U{})
 {
     return Reduce(vec, std::plus<>{}, init);
+}
+
+template <typename T, size_t N, typename U = decltype(T{} * T{})>
+constexpr auto Prod(const Vector<T, N>& vec, const U& init)
+{
+    return Reduce(vec, std::multiplies<>{}, init);
 }
 
 template <typename T, size_t N>
 constexpr auto Prod(const Vector<T, N>& vec)
 {
-    return Reduce(vec.template Slice<1>(), std::multiplies<>{}, 1 * vec[0]);
+    return Prod(vec.template Slice<1>(), 1 * vec[0]);
 }
 
 template <typename T, size_t N>

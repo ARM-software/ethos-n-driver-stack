@@ -10,24 +10,7 @@
 #include <ethosn_utils/SmallVector.hpp>
 #include <ethosn_utils/Span.hpp>
 
-#define ETHOSN_DECL_SV_VECTOR_STRUCT(Name, ...)                                                                        \
-    template <typename T = int>                                                                                        \
-    struct Name                                                                                                        \
-    {                                                                                                                  \
-        static_assert(std::is_same<decltype(+std::declval<T>()), int>::value,                                          \
-                      "T must promote to the default type (int) in arithmetic operations");                            \
-        T __VA_ARGS__;                                                                                                 \
-        ETHOSN_USE_AS_SV_VECTOR(Name, T, N_ARGS(__VA_ARGS__))                                                          \
-    };                                                                                                                 \
-    ETHOSN_DECL_SV_VECTOR_STRUCT_CTAD(Name)
-
-#if (__cplusplus >= 201703L) || (_MSVC_LANG >= 201703L)
-#define ETHOSN_DECL_SV_VECTOR_STRUCT_CTAD(Name)                                                                        \
-    template <typename T, typename... Us>                                                                              \
-    Name(T, Us...)->Name<T>;
-#else
-#define ETHOSN_DECL_SV_VECTOR_STRUCT_CTAD(...)
-#endif
+#include <cstdint>
 
 namespace ethosn
 {
