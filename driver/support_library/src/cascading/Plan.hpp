@@ -244,6 +244,12 @@ public:
     TensorShape m_OutputStripeShape;
 };
 
+class ConcatOp : public Op
+{
+public:
+    ConcatOp();
+};
+
 class DummyOp : public Op
 {
 public:

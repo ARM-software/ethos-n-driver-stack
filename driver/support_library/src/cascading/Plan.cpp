@@ -342,6 +342,10 @@ PleOp::PleOp(Lifetime lifetime,
     , m_OutputStripeShape(outputStripeShape)
 {}
 
+ConcatOp::ConcatOp()
+    : Op("ConcatOp")
+{}
+
 DummyOp::DummyOp()
     : Op("DummyOp")
 {}
