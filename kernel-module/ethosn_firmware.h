@@ -410,6 +410,11 @@ struct ethosn_message_text {
  ******************************************************************************/
 
 /**
+ * Max number of hardware profiling counters
+ */
+#define ETHOSN_PROFILING_MAX_HW_COUNTERS 6U
+
+/**
  * struct ethosn_firmware_profiling_configuration - Message payload sent to the
  *	firmware for a ETHOSN_MESSAGE_CONFIGURE_PROFILING message. Describes the
  *	profiling configuration that the firmware should set itself to.
@@ -419,11 +424,12 @@ struct ethosn_message_text {
  *                  write its profiling data.
  */
 struct ethosn_firmware_profiling_configuration {
-	bool                                   enable_profiling;
-	ethosn_address_t                       buffer_address;
-	uint32_t                               buffer_size;
-	uint32_t                               num_hw_counters;
-	enum ethosn_profiling_hw_counter_types hw_counters[6];
+	bool             enable_profiling;
+	ethosn_address_t buffer_address;
+	uint32_t         buffer_size;
+	uint32_t         num_hw_counters;
+	enum ethosn_profiling_hw_counter_types
+			 hw_counters[ETHOSN_PROFILING_MAX_HW_COUNTERS];
 };
 
 /**

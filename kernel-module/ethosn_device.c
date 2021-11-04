@@ -824,6 +824,13 @@ static int ethosn_send_configure_profiling(struct ethosn_core *core,
 	struct ethosn_firmware_profiling_configuration fw_new_config;
 	int i;
 
+	if (num_hw_counters > ETHOSN_PROFILING_MAX_HW_COUNTERS) {
+		dev_err(core->dev,
+			"Invalid number of hardware profiling counters\n");
+
+		return -EINVAL;
+	}
+
 	fw_new_config.enable_profiling = enable;
 
 	if (!IS_ERR_OR_NULL(buffer)) {
