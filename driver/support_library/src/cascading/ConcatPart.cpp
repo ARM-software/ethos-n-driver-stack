@@ -56,6 +56,10 @@ void ConcatPart::CreateConcatDramPlan(Plans& plans) const
     PartOutputMapping outputMappings;
     OwnedOpGraph opGraph;
 
+    auto concatOp      = std::make_unique<ConcatOp>();
+    Op* op             = opGraph.AddOp(std::move(concatOp));
+    op->m_OperationIds = m_CorrespondingOperationIds;
+
     CascadingBufferFormat format = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
 
     for (uint32_t inputIndex = 0; inputIndex < m_InputTensorsInfo.size(); inputIndex++)
@@ -65,13 +69,9 @@ void ConcatPart::CreateConcatDramPlan(Plans& plans) const
         inputBuffer->m_TensorShape      = m_InputTensorsInfo[inputIndex].m_Dimensions;
         inputBuffer->m_SizeInBytes      = impl::CalculateBufferSize(inputBuffer->m_TensorShape, format);
         inputBuffer->m_QuantizationInfo = m_InputTensorsInfo[inputIndex].m_QuantizationInfo;
-
+        opGraph.AddConsumer(inputBuffer, op, inputIndex);
         inputMappings[inputBuffer] = PartInputSlot{ m_PartId, inputIndex };
     }
-
-    auto concatOp      = std::make_unique<ConcatOp>();
-    Op* op             = opGraph.AddOp(std::move(concatOp));
-    op->m_OperationIds = m_CorrespondingOperationIds;
 
     TensorInfo expectedOutputInfo = Concatenation::CalculateOutputTensorInfo(m_InputTensorsInfo, m_ConcatInfo);
     opGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, format, TraversalOrder::Xyz));
@@ -79,7 +79,7 @@ void ConcatPart::CreateConcatDramPlan(Plans& plans) const
     outputBuffer->m_TensorShape      = expectedOutputInfo.m_Dimensions;
     outputBuffer->m_SizeInBytes      = impl::CalculateBufferSize(outputBuffer->m_TensorShape, format);
     outputBuffer->m_QuantizationInfo = expectedOutputInfo.m_QuantizationInfo;
-
+    opGraph.SetProducer(outputBuffer, op);
     outputMappings[outputBuffer] = PartOutputSlot{ m_PartId, 0 };
 
     AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);

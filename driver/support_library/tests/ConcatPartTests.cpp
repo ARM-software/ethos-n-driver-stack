@@ -34,6 +34,24 @@ struct CheckPlansParams
     CascadingBufferFormat m_DataFormat;
 };
 
+void CheckConcatOperation(const Plan& plan)
+{
+    // Check operation, consumers, and producers
+    CHECK(plan.m_OpGraph.GetOps().size() == 1);
+    Op* op = plan.m_OpGraph.GetOp(0);
+
+    const OpGraph::BufferList& buffers = plan.m_OpGraph.GetBuffers();
+
+    for (uint32_t inputIndex = 0; inputIndex < buffers.size() - 1; inputIndex++)
+    {
+        CHECK(plan.m_OpGraph.GetConsumers(buffers[inputIndex]).size() == 1);
+        CHECK(plan.m_OpGraph.GetConsumers(buffers[inputIndex])[0].first == op);
+    }
+
+    CHECK(plan.m_OpGraph.GetProducer(buffers.back()) != nullptr);
+    CHECK(plan.m_OpGraph.GetProducer(buffers.back()) == op);
+}
+
 void CheckConcatDram(Buffer* concatBuffer, const CheckPlansParams& params)
 {
     // Check properties of concat DRAM buffer
@@ -83,6 +101,7 @@ void CheckPlans(const Plans& plans, const CheckPlansParams& params)
         const OpGraph::BufferList& buffers = plan->m_OpGraph.GetBuffers();
         Buffer* concatBuffer               = buffers.back();
 
+        CheckConcatOperation(*plan);
         CheckConcatDram(concatBuffer, params);
         CheckMappings(params, *plan, concatBuffer);
     }
