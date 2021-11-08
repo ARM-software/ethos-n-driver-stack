@@ -146,11 +146,8 @@ To download the components, enter the following commands:
 ```sh
 mkdir driver_stack
 cd driver_stack
-git clone https://github.com/Arm-software/armnn --branch master
-cd armnn/
-git reset --hard 4b2f34709be018d6cf9931b66deaf84a4469340d
-cd ..
-git clone https://github.com/Arm-software/ethos-n-driver-stack --branch develop
+git clone https://github.com/Arm-software/armnn --branch v21.11
+git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 21.11
 ```
 
 ## Build the Ethos-N NPU driver
