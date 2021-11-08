@@ -343,6 +343,96 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
     return result;
 }
 
+// Estimates a pass that contains the given ConcatOp.
+/// Removes Ops from the given unestimatedOps set that it has included in its estimation.
+EstimatedPass EstimateConcatOp(const OpGraph& opGraph,
+                               Op* op,
+                               const EstimationOptions& estimationOpts,
+                               std::unordered_set<Op*>& unestimatedOps)
+{
+    EstimatedPass result;
+
+    auto includeOp = [&](Op* op) {
+        unestimatedOps.erase(op);
+        result.m_Ops.insert(op);
+    };
+
+    assert(unestimatedOps.count(op) > 0);
+
+    ConcatOp* concatOp = GetObjectAs<ConcatOp>(op);
+    assert(concatOp != nullptr);
+
+    Buffer* dramOutputBuffer = opGraph.GetOutput(concatOp);
+
+    // check ConcatOp has at least one input
+    OpGraph::BufferList concatInputs = opGraph.GetInputs(concatOp);
+
+    if (concatInputs.size() < 1)
+    {
+        throw NotSupportedException("ConcatOp must have at least one input");
+    }
+    // check ConcatOp inputs are located in Dram
+    for (uint32_t inputIndex = 0; inputIndex < concatInputs.size(); inputIndex++)
+    {
+        if (concatInputs[inputIndex] == nullptr || concatInputs[inputIndex]->m_Location != Location::Dram)
+        {
+            throw NotSupportedException("ConcatOp input buffers must be in Dram");
+        }
+    }
+    // check ConcatOp output is located in Dram
+    if (dramOutputBuffer == nullptr || dramOutputBuffer->m_Location != Location::Dram)
+    {
+        throw NotSupportedException("ConcatOp must have an output buffer in Dram");
+    }
+
+    includeOp(concatOp);
+
+    // Calculate Inputs Statistics of the ConcatOp
+    for (uint32_t inputIdx = 0; inputIdx < opGraph.GetInputs(concatOp).size(); ++inputIdx)
+    {
+        Buffer* dramInputBuffer = opGraph.GetInputs(concatOp)[inputIdx];
+
+        Location inputLocation = Location::Dram;
+
+        CascadingBufferFormat format = dramInputBuffer->m_Format;
+
+        bool isInputBufferCompressed = IsCompressed(dramInputBuffer->m_Format);
+
+        // We assume that the full tensor is copied into multiple stripes when it doesn't fit in Sram and that
+        // overhead is not considered. i.e Program stripe --> DMA stripe --> Program stripe --> DMA stripe --> etc
+        InputStats inputStats =
+            GetInputStats(dramInputBuffer->m_TensorShape, dramInputBuffer->m_TensorShape, format, inputLocation);
+
+        if (isInputBufferCompressed)
+        {
+            inputStats = AccountForActivationCompression(inputStats, estimationOpts.m_ActivationCompressionSaving);
+        }
+
+        result.m_Stats.m_Input += inputStats;
+    }
+
+    // Calculate Outputs Statistics
+    Location outputLocation      = Location::Dram;
+    CascadingBufferFormat format = dramOutputBuffer->m_Format;
+
+    const TensorShape& roundedUpOutputShape = format != CascadingBufferFormat::NHWC
+                                                  ? RoundUpHeightAndWidthToBrickGroup(dramOutputBuffer->m_TensorShape)
+                                                  : dramOutputBuffer->m_TensorShape;
+
+    bool isOutputBufferCompressed = IsCompressed(dramOutputBuffer->m_Format);
+
+    OutputStats outputStats = GetOutputStats(roundedUpOutputShape, roundedUpOutputShape, outputLocation);
+
+    if (isOutputBufferCompressed)
+    {
+        outputStats = AccountForActivationCompression(outputStats, estimationOpts.m_ActivationCompressionSaving);
+    }
+
+    result.m_Stats.m_Output = outputStats;
+
+    return result;
+}
+
 namespace
 {
 std::string GetParentIds(const EstimatedOpGraph& estimatedOpGraph,
@@ -435,6 +525,7 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
         if (IsObjectOfType<MceOp>(op) || IsObjectOfType<PleOp>(op))
         {
             EstimatedPass estimatedPass;
+
             try
             {
                 estimatedPass = EstimatePassGrownFrom(opGraph, op, capabilities, estimationOpts, unestimatedOps);
@@ -457,9 +548,11 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
             {
                 continue;    // This Op already estimated as part of another pass, so nothing else to do for it
             }
+
+            EstimatedPass estimatedPass;
+
             if (IsObjectOfType<DmaOp>(op))
             {
-                EstimatedPass estimatedPass;
                 try
                 {
                     estimatedPass = EstimateConversionPassGrownFrom(opGraph, op, estimationOpts, unestimatedOps);
@@ -470,6 +563,19 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
                     continue;
                 }
 
+                AddPassDataToResult(estimatedPass);
+            }
+            else if (IsObjectOfType<ConcatOp>(op))
+            {
+                try
+                {
+                    estimatedPass = EstimateConcatOp(opGraph, op, estimationOpts, unestimatedOps);
+                }
+                catch (const NotSupportedException&)
+                {
+                    // Some Ops will go unestimated, but this is fine. They will be reported in the result from this function
+                    continue;
+                }
                 AddPassDataToResult(estimatedPass);
             }
         }

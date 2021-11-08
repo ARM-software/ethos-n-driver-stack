@@ -46,6 +46,11 @@ InputStats GetInputStats(const HardwareCapabilities& caps,
                              },
                          const uint32_t numOutStripesC = 1);
 
+InputStats GetInputStats(const TensorShape& shape,
+                         const TensorShape& stripeShape,
+                         CascadingBufferFormat format,
+                         const Location location);
+
 OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeShape, const Location location);
 
 InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRatio);

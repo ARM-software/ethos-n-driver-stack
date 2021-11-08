@@ -195,6 +195,35 @@ InputStats GetInputStats(const HardwareCapabilities& caps,
     return data;
 }
 
+InputStats GetInputStats(const TensorShape& inputShape,
+                         const TensorShape& stripeShape,
+                         CascadingBufferFormat format,
+                         const Location location)
+{
+    InputStats data;
+
+    const TensorShape& roundedUpInputShape = utils::RoundUpHeightAndWidthToBrickGroup(inputShape);
+
+    const bool isInputNHWC = (format == CascadingBufferFormat::NHWC) ? true : false;
+
+    const uint32_t inputSize = inputShape[0] * inputShape[1] * inputShape[2] * inputShape[3];
+
+    const uint32_t roundedUpInputSize =
+        roundedUpInputShape[0] * roundedUpInputShape[1] * roundedUpInputShape[2] * roundedUpInputShape[3];
+
+    if (location != Location::Sram)
+    {
+        data.m_MemoryStats.m_DramNonParallel    = isInputNHWC ? inputSize : roundedUpInputSize;
+        data.m_StripesStats.m_NumCentralStripes = utils::GetNumStripesTotal(inputShape, stripeShape);
+    }
+    else
+    {
+        // This is for Sram To Sram conversions. We only handle Dram To Dram or Sram to Sram.
+        data.m_MemoryStats.m_Sram = roundedUpInputSize;
+    }
+    return data;
+}
+
 OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeShape, const Location location)
 {
     OutputStats data;
