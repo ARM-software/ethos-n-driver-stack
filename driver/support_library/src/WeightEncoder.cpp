@@ -10,6 +10,8 @@
 #include "SubmapFilter.hpp"
 #include "Utils.hpp"
 
+#include <ethosn_utils/Macros.hpp>
+
 #include <algorithm>
 #include <exception>
 #include <future>
@@ -784,12 +786,12 @@ const WeightEncoder::WeightCompressionParams
             assert(params.m_Zdiv == ZDivisor::RLE_DISABLED);
             break;
         case WeightCompMode::PALETTE_RLE:
-            [[clang::fallthrough]];    // intentional fallthrough
+            ETHOSN_FALLTHROUGH;    // intentional fallthrough
         case WeightCompMode::PALETTE_DIRECT_RLE:
             params.m_WeightOffset = 1;
-            [[clang::fallthrough]];    // intentional fallthrough
+            ETHOSN_FALLTHROUGH;    // intentional fallthrough
         case WeightCompMode::PALETTE:
-            [[clang::fallthrough]];    // intentional fallthrough
+            ETHOSN_FALLTHROUGH;    // intentional fallthrough
         case WeightCompMode::PALETTE_DIRECT:
             params.m_Wdiv = m_TestParams.m_Wdiv;
             // sanity check WDIV != 7 for palette direct modes
@@ -803,12 +805,12 @@ const WeightEncoder::WeightCompressionParams
             break;
         case WeightCompMode::PALETTE_DIRECT_TRUNC_RLE:
             params.m_WeightOffset = 1;
-            [[clang::fallthrough]];    // intentional fallthrough
+            ETHOSN_FALLTHROUGH;    // intentional fallthrough
         case WeightCompMode::PALETTE_TRUNC_RLE:
             params.m_TruncationEnabled = true;
-            [[clang::fallthrough]];    // intentional fallthrough
+            ETHOSN_FALLTHROUGH;    // intentional fallthrough
         case WeightCompMode::PALETTE_TRUNC:
-            [[clang::fallthrough]];    // intentional fallthrough
+            ETHOSN_FALLTHROUGH;    // intentional fallthrough
         case WeightCompMode::PALETTE_DIRECT_TRUNC:
             params.m_Wdiv              = m_TestParams.m_Wdiv;
             params.m_Zdiv              = m_TestParams.m_Zdiv;

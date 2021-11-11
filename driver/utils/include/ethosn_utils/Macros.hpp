@@ -21,6 +21,15 @@
 #define ETHOSN_FUNCTION_SIGNATURE "Please add the compiler in Macros.hpp"
 #endif
 
+// Create a macro for switch-case statements which intentionally fallthrough
+#if defined(__clang__) && ((__clang_major__ >= 3) || (__clang_major__ == 3 && __clang_minor__ >= 5))
+#define ETHOSN_FALLTHROUGH [[clang::fallthrough]]
+#elif defined(__GNUC__) && (__GNUC__ >= 7)
+#define ETHOSN_FALLTHROUGH __attribute__((fallthrough))
+#else
+#define ETHOSN_FALLTHROUGH ((void)0)
+#endif
+
 // Helper macro to halt the program by issuing a failed assert, which contains the given message as a reason.
 // Note that this is implemented in a way to avoid implicit conversion of string (const char*) to bool, which raises
 // a warning/error on some compilers.
