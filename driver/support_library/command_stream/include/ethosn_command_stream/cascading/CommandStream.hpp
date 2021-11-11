@@ -209,7 +209,7 @@ struct Dependency
     /// We can use unsigned type because it always references another agent, down the sequence
     /// for schedule and write-after-read dependencies, and up the sequence for read-after-write
     /// dependencies. The sign is implicit in that way. Using unsigned for extra range.
-    uint8_t agentId;
+    uint8_t relativeAgentId;
     /// In the presence of reloads, the number of stripes in self/other in each reload.
     Ratio outerRatio;
     /// Ratio between stripe counters. E.g. two Ifm Streamer stripes might be needed for each
