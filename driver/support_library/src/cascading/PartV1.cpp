@@ -1553,5 +1553,200 @@ utils::Optional<ethosn::command_stream::MceOperation> PartV1::GetMceOperation() 
     return res;
 }
 
+namespace
+{
+
+std::string GetLabel(InputNode*, DetailLevel)
+{
+    return "InputNode";
+}
+
+std::string GetLabel(OutputNode*, DetailLevel)
+{
+    return "OutputNode";
+}
+
+std::string GetLabel(ConstantNode*, DetailLevel)
+{
+    return "ConstantNode";
+}
+
+std::string GetLabel(MceOperationNode* node, DetailLevel detailLevel)
+{
+    std::string label = "MceOperationNode";
+    if (detailLevel == DetailLevel::High)
+    {
+        label += "\n";
+        label += ToString(node->GetOperation());
+    }
+    return label;
+}
+
+std::string GetLabel(FuseOnlyPleOperationNode* node, DetailLevel detailLevel)
+{
+    std::string label = "FuseOnlyPleOperationNode";
+    if (detailLevel == DetailLevel::High)
+    {
+        label += "\n";
+        label += ToString(node->GetKernelOperation());
+    }
+    return label;
+}
+
+std::string GetLabel(StandalonePleOperationNode* node, DetailLevel detailLevel)
+{
+    std::string label = "StandalonePleOperationNode";
+    if (detailLevel == DetailLevel::High)
+    {
+        label += "\n";
+        label += ToString(node->GetKernelOperation());
+    }
+    return label;
+}
+
+std::string GetLabel(McePostProcessOperationNode*, DetailLevel)
+{
+    return "McePostProcessOperationNode";
+}
+
+std::string GetLabel(SoftmaxNode*, DetailLevel)
+{
+    return "SoftmaxNode";
+}
+
+std::string GetLabel(RequantizeNode*, DetailLevel)
+{
+    return "RequantizeNode";
+}
+
+std::string GetLabel(FormatConversionNode*, DetailLevel)
+{
+    return "FormatConversionNode";
+}
+
+std::string GetLabel(ReinterpretNode*, DetailLevel)
+{
+    return "ReinterpretNode";
+}
+
+std::string GetLabel(ConcatNode*, DetailLevel)
+{
+    return "ConcatNode";
+}
+
+std::string GetLabel(ExtractSubtensorNode*, DetailLevel)
+{
+    return "ExtractSubtensorNode";
+}
+
+std::string GetLabel(EstimateOnlyNode*, DetailLevel)
+{
+    return "EstimateOnlyNode";
+}
+
+}    // namespace
+
+ethosn::support_library::DotAttributes PartV1::GetDotAttributes(DetailLevel detailLevel) const
+{
+    DotAttributes result = BasePart::GetDotAttributes(detailLevel);
+    result.m_Label       = "PartV1: " + result.m_Label;
+    result.m_Shape       = "oval";
+
+    std::stringstream label;
+    assert(m_SubGraph.size() == 1);
+    Node* node = m_SubGraph[0];
+    label << "Node " + std::to_string(node->GetId()) + "\n";
+
+    InputNode* inputNode                          = dynamic_cast<InputNode*>(node);
+    OutputNode* outputNode                        = dynamic_cast<OutputNode*>(node);
+    ConstantNode* constantNode                    = dynamic_cast<ConstantNode*>(node);
+    MceOperationNode* mceNode                     = dynamic_cast<MceOperationNode*>(node);
+    FuseOnlyPleOperationNode* fusePleNode         = dynamic_cast<FuseOnlyPleOperationNode*>(node);
+    StandalonePleOperationNode* standalonePleNode = dynamic_cast<StandalonePleOperationNode*>(node);
+    McePostProcessOperationNode* mcePpNode        = dynamic_cast<McePostProcessOperationNode*>(node);
+    SoftmaxNode* softmaxNode                      = dynamic_cast<SoftmaxNode*>(node);
+    RequantizeNode* requantNode                   = dynamic_cast<RequantizeNode*>(node);
+    FormatConversionNode* formatNode              = dynamic_cast<FormatConversionNode*>(node);
+    ReinterpretNode* reinterpretNode              = dynamic_cast<ReinterpretNode*>(node);
+    ConcatNode* concatNode                        = dynamic_cast<ConcatNode*>(node);
+    ExtractSubtensorNode* extractSubtensorNode    = dynamic_cast<ExtractSubtensorNode*>(node);
+    EstimateOnlyNode* estimateNode                = dynamic_cast<EstimateOnlyNode*>(node);
+
+    if (inputNode)
+    {
+        label << GetLabel(inputNode, detailLevel);
+    }
+    else if (outputNode)
+    {
+        label << GetLabel(outputNode, detailLevel);
+    }
+    else if (constantNode)
+    {
+        label << GetLabel(constantNode, detailLevel);
+    }
+    else if (mceNode)
+    {
+        label << GetLabel(mceNode, detailLevel);
+    }
+    else if (fusePleNode)
+    {
+        label << GetLabel(fusePleNode, detailLevel);
+    }
+    else if (standalonePleNode)
+    {
+        label << GetLabel(standalonePleNode, detailLevel);
+    }
+    else if (mcePpNode)
+    {
+        label << GetLabel(mcePpNode, detailLevel);
+    }
+    else if (softmaxNode)
+    {
+        label << GetLabel(softmaxNode, detailLevel);
+    }
+    else if (requantNode)
+    {
+        label << GetLabel(requantNode, detailLevel);
+    }
+    else if (formatNode)
+    {
+        label << GetLabel(formatNode, detailLevel);
+    }
+    else if (reinterpretNode)
+    {
+        label << GetLabel(reinterpretNode, detailLevel);
+    }
+    else if (concatNode)
+    {
+        label << GetLabel(concatNode, detailLevel);
+    }
+    else if (extractSubtensorNode)
+    {
+        label << GetLabel(extractSubtensorNode, detailLevel);
+    }
+    else if (estimateNode)
+    {
+        label << GetLabel(estimateNode, detailLevel);
+    }
+
+    if (detailLevel == DetailLevel::High)
+    {
+        label << "\n";
+        label << "CorrespondingOperationIds:";
+        for (auto id : node->GetCorrespondingOperationIds())
+        {
+            label << " " << id;
+        }
+        label << "\n";
+
+        label << "Shape = " << ToString(node->GetShape()) << "\n";
+        label << "Format = " << ToString(node->GetFormat()) << "\n";
+        label << "CompressedFormat = " << ToString(node->GetCompressedFormat()) << "\n";
+    }
+    result.m_Label += "\n" + label.str();
+
+    return result;
+}
+
 }    // namespace support_library
 }    // namespace ethosn

@@ -7,6 +7,8 @@
 
 #include "../../include/ethosn_support_library/Support.hpp"
 
+#include "../Utils.hpp"
+
 #include <ethosn_command_stream/CommandData.hpp>
 
 #include <string>
@@ -36,6 +38,7 @@ std::string ToString(Lifetime l);
 std::string ToString(DataFormat f);
 std::string ToString(CompilerDataFormat f);
 std::string ToString(CompilerDataCompressedFormat f);
+std::string ToString(const TensorInfo& i);
 std::string ToString(const TensorShape& s);
 std::string ToString(TraversalOrder o);
 std::string ToString(command_stream::MceOperation o);
@@ -47,6 +50,12 @@ std::string ToString(const Stride& s);
 std::string ToString(command_stream::DataFormat f);
 std::string ToString(const uint32_t v);
 std::string ToString(DataType t);
+std::string ToString(const utils::ShapeMultiplier& m);
+std::string ToString(const utils::Fraction& f);
+std::string ToString(command_stream::UpsampleType t);
+
+/// Replaces any illegal characters to form a valid .dot file "ID".
+std::string SanitizeId(std::string s);
 
 template <typename C>
 std::string ArrayToString(const C& container)
@@ -105,7 +114,7 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
 
 /// Saves a Graph of Parts to a dot file format to visualise the graph.
 /// detailLevel controls how much detail is shown on the visualisation.
-void SaveGraphToDot(const GraphOfParts& graphOfParts, std::ostream& stream, DetailLevel detailLevel);
+void SaveGraphOfPartsToDot(const GraphOfParts& graphOfParts, std::ostream& stream, DetailLevel detailLevel);
 
 /// Saves all the plans generated for the given part to a dot file format to visualise them.
 /// detailLevel controls how much detail is shown on the visualisation.

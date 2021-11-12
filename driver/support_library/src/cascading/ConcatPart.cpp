@@ -85,5 +85,18 @@ void ConcatPart::CreateConcatDramPlan(Plans& plans) const
     AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
 }
 
+ethosn::support_library::DotAttributes ConcatPart::GetDotAttributes(DetailLevel detail) const
+{
+    DotAttributes result = BasePart::GetDotAttributes(detail);
+    result.m_Label       = "ConcatPart: " + result.m_Label;
+    if (detail >= DetailLevel::High)
+    {
+        result.m_Label += "InputTensorsInfo = " + ArrayToString(m_InputTensorsInfo) + "\n";
+        result.m_Label += "ConcatInfo.Axis = " + ToString(m_ConcatInfo.m_Axis) + "\n";
+        result.m_Label += "ConcatInfo.OutputQuantInfo = " + ToString(m_ConcatInfo.m_OutputQuantizationInfo) + "\n";
+    }
+    return result;
+}
+
 }    // namespace support_library
 }    // namespace ethosn

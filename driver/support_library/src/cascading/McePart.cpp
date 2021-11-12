@@ -692,5 +692,40 @@ utils::Optional<ethosn::command_stream::MceOperation> McePart::GetMceOperation()
     return m_Operation;
 }
 
+ethosn::support_library::DotAttributes McePart::GetDotAttributes(DetailLevel detail) const
+{
+    DotAttributes result = BasePart::GetDotAttributes(detail);
+    result.m_Label       = "McePart: " + result.m_Label;
+    if (detail >= DetailLevel::High)
+    {
+        result.m_Label += "InputTensorShape = " + ToString(m_InputTensorShape) + "\n";
+        result.m_Label += "OutputTensorShape = " + ToString(m_OutputTensorShape) + "\n";
+        result.m_Label += "InputQuantizationInfo = " + ToString(m_InputQuantizationInfo) + "\n";
+        result.m_Label += "OutputQuantizationInfo = " + ToString(m_OutputQuantizationInfo) + "\n";
+        result.m_Label += "WeightsInfo = " + ToString(m_WeightsInfo) + "\n";
+        result.m_Label += "BiasInfo = " + ToString(m_BiasInfo) + "\n";
+        result.m_Label += "Stride = " + ToString(m_Stride) + "\n";
+        result.m_Label += "UpscaleFactor = " + ToString(m_UpscaleFactor) + "\n";
+        result.m_Label += "UpsampleType = " + ToString(m_UpsampleType) + "\n";
+        result.m_Label += "PadTop = " + ToString(m_PadTop) + "\n";
+        result.m_Label += "PadLeft = " + ToString(m_PadLeft) + "\n";
+        result.m_Label += "Operation = " + ToString(m_Operation) + "\n";
+
+        result.m_Label +=
+            "StripeGenerator.MceInputTensorShape = " + ToString(m_StripeGenerator.m_MceInputTensorShape) + "\n";
+        result.m_Label +=
+            "StripeGenerator.MceOutputTensorShape = " + ToString(m_StripeGenerator.m_MceOutputTensorShape) + "\n";
+        result.m_Label +=
+            "StripeGenerator.PleOutputTensorShape = " + ToString(m_StripeGenerator.m_PleOutputTensorShape) + "\n";
+        result.m_Label += "StripeGenerator.KernelHeight = " + ToString(m_StripeGenerator.m_KernelHeight) + "\n";
+        result.m_Label += "StripeGenerator.KernelWidth = " + ToString(m_StripeGenerator.m_KernelWidth) + "\n";
+        result.m_Label += "StripeGenerator.Stride = " + ToString(m_StripeGenerator.m_Stride) + "\n";
+        result.m_Label += "StripeGenerator.UpscaleFactor = " + ToString(m_StripeGenerator.m_UpscaleFactor) + "\n";
+        result.m_Label += "StripeGenerator.Operation = " + ToString(m_StripeGenerator.m_Operation) + "\n";
+        result.m_Label += "StripeGenerator.ShapeMultiplier = " + ToString(m_StripeGenerator.m_ShapeMultiplier) + "\n";
+    }
+    return result;
+}
+
 }    // namespace support_library
 }    // namespace ethosn

@@ -142,6 +142,8 @@ class Plan : public DebuggableObject
 public:
     Plan();
     Plan(PartInputMapping&& inputMappings, PartOutputMapping&& outputMappings);
+    virtual ~Plan()
+    {}
 
     /// Gets the Buffer corresponding to the given part's input slot, which should be an input to the Part that this Plan is for.
     /// Returns nullptr if the slot is unrecognised.
@@ -269,6 +271,8 @@ public:
            TraversalOrder order,
            uint32_t sizeInBytes,
            QuantizationInfo quantInfo);
+    virtual ~Buffer()
+    {}
 
     Lifetime m_Lifetime;
     Location m_Location;

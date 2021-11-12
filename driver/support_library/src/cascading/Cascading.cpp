@@ -213,10 +213,10 @@ NetworkPerformanceData Cascading::Estimate(Graph& graph)
 {
     m_GraphOfParts = CreateGraphOfParts(graph, m_EstimationOptions, m_CompilationOptions, m_Capabilities);
 
-    m_DebuggingContext.SaveGraphToDot(CompilationOptions::DebugLevel::Medium, m_GraphOfParts,
-                                      "Cascaded_GraphOfParts.dot", DetailLevel::Low);
-    m_DebuggingContext.SaveGraphToDot(CompilationOptions::DebugLevel::Medium, m_GraphOfParts,
-                                      "Cascaded_GraphOfPartsDetailed.dot", DetailLevel::High);
+    m_DebuggingContext.SaveGraphOfPartsToDot(CompilationOptions::DebugLevel::Medium, m_GraphOfParts,
+                                             "Cascaded_GraphOfParts.dot", DetailLevel::Low);
+    m_DebuggingContext.SaveGraphOfPartsToDot(CompilationOptions::DebugLevel::Medium, m_GraphOfParts,
+                                             "Cascaded_GraphOfPartsDetailed.dot", DetailLevel::High);
 
     if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
     {

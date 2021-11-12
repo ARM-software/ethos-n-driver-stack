@@ -94,12 +94,14 @@ public:
     virtual Plans GetPlans(CascadeType cascadeType,
                            ethosn::command_stream::BlockConfig blockConfig,
                            Buffer* sramBuffer,
-                           uint32_t numWeightStripes) const;
+                           uint32_t numWeightStripes) const override;
 
-    virtual utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const;
+    virtual utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const override;
 
     std::vector<const Edge*> GetInputs() const;
     std::vector<const Edge*> GetOutputs() const;
+
+    DotAttributes GetDotAttributes(DetailLevel detail) const override;
 
     // SubGraph of Nodes for this Part
     Nodes m_SubGraph;

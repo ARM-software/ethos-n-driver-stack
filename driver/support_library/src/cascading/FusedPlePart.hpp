@@ -35,6 +35,8 @@ public:
 
     utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const override;
 
+    DotAttributes GetDotAttributes(DetailLevel detail) const override;
+
 private:
     Plans GenerateContinueSectionPlans(ethosn::command_stream::BlockConfig blockConfig,
                                        Buffer* prevBuffer,

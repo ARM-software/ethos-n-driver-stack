@@ -35,10 +35,10 @@ public:
                           const std::string& fileName,
                           DetailLevel detailLevel) const;
     void DumpGraph(CompilationOptions::DebugLevel level, const Graph& graph, const std::string& fileName) const;
-    void SaveGraphToDot(CompilationOptions::DebugLevel level,
-                        const GraphOfParts& graphOfParts,
-                        const std::string& fileName,
-                        DetailLevel detailLevel) const;
+    void SaveGraphOfPartsToDot(CompilationOptions::DebugLevel level,
+                               const GraphOfParts& graphOfParts,
+                               const std::string& fileName,
+                               DetailLevel detailLevel) const;
     void SavePlansToDot(CompilationOptions::DebugLevel level,
                         const Plans& plans,
                         const std::string& fileName,

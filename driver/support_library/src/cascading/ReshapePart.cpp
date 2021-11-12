@@ -68,5 +68,18 @@ void ReshapePart::CreateReinterpretDramPlan(Plans& plans) const
     AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
 }
 
+ethosn::support_library::DotAttributes ReshapePart::GetDotAttributes(DetailLevel detail) const
+{
+    DotAttributes result = BasePart::GetDotAttributes(detail);
+    result.m_Label       = "ReshapePart: " + result.m_Label;
+    if (detail >= DetailLevel::High)
+    {
+        result.m_Label += "InputTensorShape = " + ToString(m_InputTensorShape) + "\n";
+        result.m_Label += "OutputTensorShape = " + ToString(m_OutputTensorShape) + "\n";
+        result.m_Label += "OutputQuantizationInfo = " + ToString(m_OutputQuantizationInfo) + "\n";
+    }
+    return result;
+}
+
 }    // namespace support_library
 }    // namespace ethosn

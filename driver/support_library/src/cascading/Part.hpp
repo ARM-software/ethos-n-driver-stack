@@ -180,6 +180,9 @@ public:
                            Buffer* sramBuffer,
                            uint32_t numWeightStripes) const = 0;
     virtual utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const;
+
+    DotAttributes GetDotAttributes(DetailLevel) const override;
+
     virtual ~BasePart()
     {}
 

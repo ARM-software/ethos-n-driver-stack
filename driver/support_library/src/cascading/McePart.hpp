@@ -41,6 +41,8 @@ public:
 
     utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const override;
 
+    DotAttributes GetDotAttributes(DetailLevel detail) const override;
+
 private:
     Plans GetLonelyPlans() const;
     Plans GetBeginningPlans() const;
@@ -105,9 +107,6 @@ private:
     uint32_t m_PadLeft;
     command_stream::MceOperation m_Operation;
     impl::StripeGenerator m_StripeGenerator;
-
-    /// Constants passed in from the user / hardware.
-    std::set<uint32_t> m_SourceOperationIds;
 };
 }    // namespace support_library
 }    // namespace ethosn

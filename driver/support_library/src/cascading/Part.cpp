@@ -61,6 +61,19 @@ void BasePart::AddNewPlan(PartInputMapping&& inputMappings,
     }
 }
 
+ethosn::support_library::DotAttributes BasePart::GetDotAttributes(DetailLevel detail) const
+{
+    DotAttributes result = DebuggableObject::GetDotAttributes(detail);
+    if (detail >= DetailLevel::High)
+    {
+        result.m_Label += "\n";
+        result.m_Label += "PartId = " + ToString(m_PartId) + "\n";
+        result.m_Label += "CompilerDataFormat = " + ToString(m_CompilerDataFormat) + "\n";
+        result.m_Label += "CorrespondingOperationIds = " + ArrayToString(m_CorrespondingOperationIds) + "\n";
+    }
+    return result;
+}
+
 std::vector<PartInputSlot> GraphOfParts::GetPartInputs(PartId p) const
 {
     std::vector<PartInputSlot> res;

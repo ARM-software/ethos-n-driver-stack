@@ -6,9 +6,15 @@
 #include "GraphNodes.hpp"
 #include "TestUtils.hpp"
 #include "cascading/CombinerDFS.hpp"
+#include "cascading/ConcatPart.hpp"
 #include "cascading/Estimation.hpp"
+#include "cascading/FusedPlePart.hpp"
+#include "cascading/InputPart.hpp"
+#include "cascading/McePart.hpp"
+#include "cascading/OutputPart.hpp"
 #include "cascading/PartV1.hpp"
 #include "cascading/Plan.hpp"
+#include "cascading/ReshapePart.hpp"
 #include "cascading/Visualisation.hpp"
 
 #include <catch.hpp>
@@ -429,9 +435,9 @@ OutputBuffer -> Dma
     REQUIRE(stream.str() == expected);
 }
 
-/// Checks SaveGraphToDot produces the expected output, focusing on the overall graph topology (connections
-/// between nodes and parts) rather than on the details given for each individual node.
-TEST_CASE("SaveGraphToDot Graph Topology", "[Visualisation]")
+/// Checks SaveGraphOfPartsToDot produces the expected output, focusing on the overall graph topology (connections
+/// between nodes and parts) rather than on the details given for each individual Part.
+TEST_CASE("SaveGraphOfPartsToDot Graph Topology", "[Visualisation]")
 {
     // Build an arbitrary graph, making sure to demonstrate multiple inputs and multiple consumers.
     //
@@ -506,13 +512,13 @@ TEST_CASE("SaveGraphToDot Graph Topology", "[Visualisation]")
     bool dumpToFile = false;
     if (dumpToFile)
     {
-        std::ofstream stream("SaveGraphToDot Graph Topology.dot");
-        SaveGraphToDot(graph, stream, DetailLevel::Low);
+        std::ofstream stream("GraphOfParts Graph Topology.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
     }
 
     // Save to a string and check against expected result
     std::stringstream stream;
-    SaveGraphToDot(graph, stream, DetailLevel::Low);
+    SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
 
     std::string expected =
         R"(digraph SupportLibraryGraph
@@ -539,9 +545,9 @@ BasePart_7 -> BasePart_6[ headlabel="Slot 1"]
     REQUIRE(stream.str() == expected);
 }
 
-/// Checks SaveGraphToDot produces the expected output, focusing on the details given for each individual node
-/// rather than the overall graph topology (connections between nodes).
-TEST_CASE("SaveGraphToDot Node Details", "[Visualisation]")
+/// Checks SaveGraphOfPartsToDot produces the expected output, focusing on the details given for each individual Part
+/// rather than the overall graph topology (connections between parts).
+TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
 {
     const CompilerDataFormat compilerDataFormat = CompilerDataFormat::NONE;
     const std::set<uint32_t> correspondingOperationIds;
@@ -549,38 +555,88 @@ TEST_CASE("SaveGraphToDot Node Details", "[Visualisation]")
     const CompilationOptions compOpt;
     const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
 
-    // Build a simple graph of disconnected nodes, to check the details are printed correctly for each one.
+    // Build a simple graph of disconnected parts, to check the details are printed correctly for each one.
+    GraphOfParts parts;
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
 
+    // PartV1
     Graph g;
     MceOperationNode* m = g.CreateAndAddNode<MceOperationNode>(
         TensorShape(), TensorShape{ 5, 6, 7, 8 }, sl::DataType::UINT8_QUANTIZED, QuantizationInfo(),
         ethosn::support_library::TensorInfo(), std::vector<uint8_t>(), ethosn::support_library::TensorInfo(),
-        std::vector<int32_t>(), Stride(), 0, 0, ethosn::command_stream::MceOperation::FULLY_CONNECTED,
-        CompilerDataFormat::NHWCB, std::set<uint32_t>{ 2 });
+        std::vector<int32_t>(), Stride(), 0, 0, MceOperation::FULLY_CONNECTED, CompilerDataFormat::NHWCB,
+        std::set<uint32_t>{ 2 });
+    auto partV1 = std::make_unique<PartV1>(0, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, caps);
+    partV1->m_SubGraph = { m };
+    parts.m_Parts.push_back(std::move(partV1));
 
-    // Arbitrarily Put all nodes into one part
-    auto part1 = std::make_unique<PartV1>(0, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, caps);
-    part1->m_SubGraph = { m };
-    GraphOfParts parts;
-    parts.m_Parts.push_back(std::move(part1));
+    // FusedPlePart
+    auto fusedPlePart = std::make_unique<FusedPlePart>(1, TensorShape{ 1, 2, 3, 4 }, TensorShape{ 5, 6, 7, 8 },
+                                                       QuantizationInfo(9, 10.0f), QuantizationInfo(11, 12.0f),
+                                                       PleOperation::DOWNSAMPLE_2X2, utils::ShapeMultiplier{ 1, 1, 1 },
+                                                       estOpt, compOpt, caps, std::set<uint32_t>{ 13, 14, 15 });
+    parts.m_Parts.push_back(std::move(fusedPlePart));
+
+    // McePart
+    auto mcePart =
+        std::make_unique<McePart>(5, TensorShape{ 1, 2, 3, 4 }, TensorShape{ 5, 6, 7, 8 }, QuantizationInfo(9, 10.0f),
+                                  QuantizationInfo(11, 12.0f),
+                                  sl::TensorInfo(TensorShape{ 9, 10, 11, 12 }, sl::DataType::UINT8_QUANTIZED,
+                                                 sl::DataFormat::NHWC, QuantizationInfo(11, 12.0f)),
+                                  std::vector<uint8_t>(),
+                                  sl::TensorInfo(TensorShape{ 19, 110, 111, 112 }, sl::DataType::UINT8_QUANTIZED,
+                                                 sl::DataFormat::NHWC, QuantizationInfo(111, 112.0f)),
+                                  std::vector<int32_t>{}, Stride{ 2, 2 }, 1, 3, MceOperation::DEPTHWISE_CONVOLUTION,
+                                  estOpt, compOpt, caps, std::set<uint32_t>{ 13, 14, 15 });
+    parts.m_Parts.push_back(std::move(mcePart));
+
+    // ConcatPart
+    auto concatPart = std::make_unique<ConcatPart>(
+        2, std::vector<sl::TensorInfo>{ TensorShape{ 1, 2, 3, 4 } }, ConcatenationInfo(3, QuantizationInfo(9, 10.0f)),
+        CompilerDataFormat::NHWCB, std::set<uint32_t>{ 13, 14, 15 }, estOpt, compOpt, caps);
+    parts.m_Parts.push_back(std::move(concatPart));
+
+    // InputPart
+    auto inputPart =
+        std::make_unique<InputPart>(3, TensorShape{ 1, 2, 3, 4 }, CompilerDataFormat::NHWCB, QuantizationInfo(9, 10.0f),
+                                    std::set<uint32_t>{ 13, 14, 15 }, estOpt, compOpt, caps);
+
+    parts.m_Parts.push_back(std::move(inputPart));
+
+    // OutputPart
+    auto outputPart = std::make_unique<OutputPart>(5, TensorShape{ 1, 2, 3, 4 }, CompilerDataFormat::NHWCB,
+                                                   QuantizationInfo(9, 10.0f), std::set<uint32_t>{ 13, 14, 15 }, estOpt,
+                                                   compOpt, caps);
+    parts.m_Parts.push_back(std::move(outputPart));
+
+    // ReshapePart
+    auto reshapePart = std::make_unique<ReshapePart>(8, TensorShape{ 1, 2, 3, 4 }, TensorShape{ 5, 6, 7, 8 },
+                                                     CompilerDataFormat::NHWCB, QuantizationInfo(9, 10.0f),
+                                                     std::set<uint32_t>{ 13, 14, 15 }, estOpt, compOpt, caps);
+    parts.m_Parts.push_back(std::move(reshapePart));
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
-    bool dumpToFile = false;
+    bool dumpToFile = true;
     if (dumpToFile)
     {
-        std::ofstream stream("SaveGraphToDot Node Details.dot");
-        SaveGraphToDot(parts, stream, DetailLevel::High);
+        std::ofstream stream("GraphOfParts Part Details.dot");
+        SaveGraphOfPartsToDot(parts, stream, DetailLevel::High);
     }
 
     // Save to a string and check against expected result
     std::stringstream stream;
-    SaveGraphToDot(parts, stream, DetailLevel::High);
+    SaveGraphOfPartsToDot(parts, stream, DetailLevel::High);
 
     std::string expected =
         R"(digraph SupportLibraryGraph
 {
-BasePart_0[label = "BasePart 0\nNode 0\nMceOperationNode\nFULLY_CONNECTED\nCorrespondingOperationIds: 2\nShape = [5, 6, 7, 8]\nFormat = NHWCB\nCompressedFormat = NONE\n"]
+BasePart_0[label = "PartV1: BasePart 0\nPartId = 0\nCompilerDataFormat = NONE\nCorrespondingOperationIds = []\n\nNode 0\nMceOperationNode\nFULLY_CONNECTED\nCorrespondingOperationIds: 2\nShape = [5, 6, 7, 8]\nFormat = NHWCB\nCompressedFormat = NONE\n", shape = oval]
+BasePart_1[label = "FusedPlePart: BasePart 1\nPartId = 1\nCompilerDataFormat = NONE\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nKernelOperation = DOWNSAMPLE_2X2\nShapeMultiplier = [1/1, 1/1, 1/1]\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [1, 2, 3, 4]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 1\nStripeGenerator.KernelWidth = 1\nStripeGenerator.Stride = 1, 1\nStripeGenerator.UpscaleFactor = 1\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.ShapeMultiplier = [1/1, 1/1, 1/1]\n"]
+BasePart_2[label = "McePart: BasePart 2\nPartId = 5\nCompilerDataFormat = NONE\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nWeightsInfo = ([9, 10, 11, 12], UINT8_QUANTIZED, NHWC, ZeroPoint = 11, Scale = 12.000000)\nBiasInfo = ([19, 110, 111, 112], UINT8_QUANTIZED, NHWC, ZeroPoint = 111, Scale = 112.000000)\nStride = 2, 2\nUpscaleFactor = 1\nUpsampleType = OFF\nPadTop = 1\nPadLeft = 3\nOperation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 9\nStripeGenerator.KernelWidth = 10\nStripeGenerator.Stride = 2, 2\nStripeGenerator.UpscaleFactor = 1\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.ShapeMultiplier = [1/1, 1/1, 1/1]\n"]
+BasePart_3[label = "ConcatPart: BasePart 3\nPartId = 2\nCompilerDataFormat = NHWCB\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorsInfo = [([1, 2, 3, 4], UINT8_QUANTIZED, NHWC, ZeroPoint = 0, Scale = 1.000000)]\nConcatInfo.Axis = 3\nConcatInfo.OutputQuantInfo = ZeroPoint = 9, Scale = 10.000000\n"]
+BasePart_4[label = "InputPart: BasePart 4\nPartId = 3\nCompilerDataFormat = NHWCB\nCorrespondingOperationIds = [13, 14, 15]\nOutputTensorShape = [1, 2, 3, 4]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\n"]
+BasePart_5[label = "OutputPart: BasePart 5\nPartId = 5\nCompilerDataFormat = NHWCB\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\n"]
+BasePart_6[label = "ReshapePart: BasePart 6\nPartId = 8\nCompilerDataFormat = NHWCB\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\n"]
 }
 )";
 

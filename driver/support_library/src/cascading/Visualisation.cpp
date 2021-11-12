@@ -7,10 +7,7 @@
 
 #include "CombinerDFS.hpp"
 #include "Estimation.hpp"
-#include "Graph.hpp"
-#include "GraphNodes.hpp"
 #include "Part.hpp"
-#include "PartV1.hpp"
 #include "PerformanceData.hpp"
 #include "Plan.hpp"
 #include "Utils.hpp"
@@ -134,6 +131,12 @@ std::string ToString(CompilerDataCompressedFormat f)
             ETHOSN_FAIL_MSG("Unknown data compressed format");
             return "";
     }
+}
+
+std::string ToString(const TensorInfo& i)
+{
+    return "(" + ToString(i.m_Dimensions) + ", " + ToString(i.m_DataType) + ", " + ToString(i.m_DataFormat) + ", " +
+           ToString(i.m_QuantizationInfo) + ")";
 }
 
 std::string ToString(const TensorShape& s)
@@ -310,6 +313,40 @@ std::string ToString(DataType t)
     }
 }
 
+std::string ToString(const utils::ShapeMultiplier& m)
+{
+    return "[" + ToString(m.m_H) + ", " + ToString(m.m_W) + ", " + ToString(m.m_C) + "]";
+}
+
+std::string ToString(const utils::Fraction& f)
+{
+    return ToString(f.m_Numerator) + "/" + ToString(f.m_Denominator);
+}
+
+std::string ToString(command_stream::UpsampleType t)
+{
+    switch (t)
+    {
+        case command_stream::UpsampleType::OFF:
+            return "OFF";
+        case command_stream::UpsampleType::BILINEAR:
+            return "BILINEAR";
+        case command_stream::UpsampleType::NEAREST_NEIGHBOUR:
+            return "NEAREST_NEIGHBOUR";
+        case command_stream::UpsampleType::TRANSPOSE:
+            return "TRANSPOSE";
+        default:
+            ETHOSN_FAIL_MSG("Unknown UpsampleType");
+            return "";
+    }
+}
+
+/// Replaces any illegal characters to form a valid .dot file "ID".
+std::string SanitizeId(std::string s)
+{
+    return ethosn::utils::ReplaceAll(s, " ", "_");
+}
+
 DotAttributes::DotAttributes()
     : m_LabelAlignmentChar('n')
 {}
@@ -342,12 +379,6 @@ std::string Escape(std::string s, char alignmentChar = 'n')
     s = ethosn::utils::ReplaceAll(s, "\"", "\\\"");
     s = ethosn::utils::ReplaceAll(s, "\t", "    ");    // Tabs don't seem to work at all (e.g. when used in JSON)
     return s;
-}
-
-/// Replaces any illegal characters to form a valid .dot file "ID".
-std::string SanitizeId(std::string s)
-{
-    return ethosn::utils::ReplaceAll(s, " ", "_");
 }
 
 std::string GetOpString(Op* op)
@@ -449,206 +480,9 @@ DotAttributes GetDotAttributes(Buffer* buffer, DetailLevel detailLevel)
     return result;
 }
 
-std::string GetLabel(InputNode*, DetailLevel)
-{
-    return "InputNode";
-}
-
-std::string GetLabel(OutputNode*, DetailLevel)
-{
-    return "OutputNode";
-}
-
-std::string GetLabel(ConstantNode*, DetailLevel)
-{
-    return "ConstantNode";
-}
-
-std::string GetLabel(MceOperationNode* node, DetailLevel detailLevel)
-{
-    std::string label = "MceOperationNode";
-    if (detailLevel == DetailLevel::High)
-    {
-        label += "\n";
-        label += ToString(node->GetOperation());
-    }
-    return label;
-}
-
-std::string GetLabel(FuseOnlyPleOperationNode* node, DetailLevel detailLevel)
-{
-    std::string label = "FuseOnlyPleOperationNode";
-    if (detailLevel == DetailLevel::High)
-    {
-        label += "\n";
-        label += ToString(node->GetKernelOperation());
-    }
-    return label;
-}
-
-std::string GetLabel(StandalonePleOperationNode* node, DetailLevel detailLevel)
-{
-    std::string label = "StandalonePleOperationNode";
-    if (detailLevel == DetailLevel::High)
-    {
-        label += "\n";
-        label += ToString(node->GetKernelOperation());
-    }
-    return label;
-}
-
-std::string GetLabel(McePostProcessOperationNode*, DetailLevel)
-{
-    return "McePostProcessOperationNode";
-}
-
-std::string GetLabel(SoftmaxNode*, DetailLevel)
-{
-    return "SoftmaxNode";
-}
-
-std::string GetLabel(RequantizeNode*, DetailLevel)
-{
-    return "RequantizeNode";
-}
-
-std::string GetLabel(FormatConversionNode*, DetailLevel)
-{
-    return "FormatConversionNode";
-}
-
-std::string GetLabel(ReinterpretNode*, DetailLevel)
-{
-    return "ReinterpretNode";
-}
-
-std::string GetLabel(ConcatNode*, DetailLevel)
-{
-    return "ConcatNode";
-}
-
-std::string GetLabel(ExtractSubtensorNode*, DetailLevel)
-{
-    return "ExtractSubtensorNode";
-}
-
-std::string GetLabel(EstimateOnlyNode*, DetailLevel)
-{
-    return "EstimateOnlyNode";
-}
-
-DotAttributes GetDotAttributes(Node* node, DetailLevel detailLevel)
-{
-    DotAttributes result;
-    result.m_Id    = SanitizeId(std::to_string(node->GetId()));
-    result.m_Shape = "oval";
-
-    std::stringstream label;
-    label << "Node " + std::to_string(node->GetId()) + "\n";
-
-    InputNode* inputNode                          = dynamic_cast<InputNode*>(node);
-    OutputNode* outputNode                        = dynamic_cast<OutputNode*>(node);
-    ConstantNode* constantNode                    = dynamic_cast<ConstantNode*>(node);
-    MceOperationNode* mceNode                     = dynamic_cast<MceOperationNode*>(node);
-    FuseOnlyPleOperationNode* fusePleNode         = dynamic_cast<FuseOnlyPleOperationNode*>(node);
-    StandalonePleOperationNode* standalonePleNode = dynamic_cast<StandalonePleOperationNode*>(node);
-    McePostProcessOperationNode* mcePpNode        = dynamic_cast<McePostProcessOperationNode*>(node);
-    SoftmaxNode* softmaxNode                      = dynamic_cast<SoftmaxNode*>(node);
-    RequantizeNode* requantNode                   = dynamic_cast<RequantizeNode*>(node);
-    FormatConversionNode* formatNode              = dynamic_cast<FormatConversionNode*>(node);
-    ReinterpretNode* reinterpretNode              = dynamic_cast<ReinterpretNode*>(node);
-    ConcatNode* concatNode                        = dynamic_cast<ConcatNode*>(node);
-    ExtractSubtensorNode* extractSubtensorNode    = dynamic_cast<ExtractSubtensorNode*>(node);
-    EstimateOnlyNode* estimateNode                = dynamic_cast<EstimateOnlyNode*>(node);
-
-    if (inputNode)
-    {
-        label << GetLabel(inputNode, detailLevel);
-    }
-    else if (outputNode)
-    {
-        label << GetLabel(outputNode, detailLevel);
-    }
-    else if (constantNode)
-    {
-        label << GetLabel(constantNode, detailLevel);
-    }
-    else if (mceNode)
-    {
-        label << GetLabel(mceNode, detailLevel);
-    }
-    else if (fusePleNode)
-    {
-        label << GetLabel(fusePleNode, detailLevel);
-    }
-    else if (standalonePleNode)
-    {
-        label << GetLabel(standalonePleNode, detailLevel);
-    }
-    else if (mcePpNode)
-    {
-        label << GetLabel(mcePpNode, detailLevel);
-    }
-    else if (softmaxNode)
-    {
-        label << GetLabel(softmaxNode, detailLevel);
-    }
-    else if (requantNode)
-    {
-        label << GetLabel(requantNode, detailLevel);
-    }
-    else if (formatNode)
-    {
-        label << GetLabel(formatNode, detailLevel);
-    }
-    else if (reinterpretNode)
-    {
-        label << GetLabel(reinterpretNode, detailLevel);
-    }
-    else if (concatNode)
-    {
-        label << GetLabel(concatNode, detailLevel);
-    }
-    else if (extractSubtensorNode)
-    {
-        label << GetLabel(extractSubtensorNode, detailLevel);
-    }
-    else if (estimateNode)
-    {
-        label << GetLabel(estimateNode, detailLevel);
-    }
-
-    if (detailLevel == DetailLevel::High)
-    {
-        label << "\n";
-        label << "CorrespondingOperationIds:";
-        for (auto id : node->GetCorrespondingOperationIds())
-        {
-            label << " " << id;
-        }
-        label << "\n";
-
-        label << "Shape = " << ToString(node->GetShape()) << "\n";
-        label << "Format = " << ToString(node->GetFormat()) << "\n";
-        label << "CompressedFormat = " << ToString(node->GetCompressedFormat()) << "\n";
-    }
-    result.m_Label = label.str();
-
-    return result;
-}
-
 DotAttributes GetDotAttributes(const BasePart& part, DetailLevel detail)
 {
-    DotAttributes result;
-    result.m_Id          = SanitizeId(part.m_DebugTag);
-    result.m_Label       = part.m_DebugTag;
-    const PartV1* partV1 = dynamic_cast<const PartV1*>(&part);
-    if (partV1)
-    {
-        assert(partV1->m_SubGraph.size() == 1);
-        result.m_Label += "\n" + GetDotAttributes(partV1->m_SubGraph[0], detail).m_Label;
-    }
-    return result;
+    return part.GetDotAttributes(detail);
 }
 
 DotAttributes GetDotAttributes(const Plan* plan, DetailLevel)
@@ -1098,7 +932,7 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
            << "\n";
 }
 
-void SaveGraphToDot(const GraphOfParts& graphOfParts, std::ostream& stream, DetailLevel detailLevel)
+void SaveGraphOfPartsToDot(const GraphOfParts& graphOfParts, std::ostream& stream, DetailLevel detailLevel)
 {
     stream << "digraph SupportLibraryGraph"
            << "\n";

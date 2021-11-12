@@ -27,6 +27,7 @@ public:
                    ethosn::command_stream::BlockConfig blockConfig,
                    Buffer* sramBuffer,
                    uint32_t numWeightStripes) const override;
+    DotAttributes GetDotAttributes(DetailLevel detail) const override;
     virtual ~OutputPart();
 
 private:

@@ -477,5 +477,34 @@ Plans FusedPlePart::GetPlans(CascadeType cascadeType,
     }
 }
 
+ethosn::support_library::DotAttributes FusedPlePart::GetDotAttributes(DetailLevel detail) const
+{
+    DotAttributes result = BasePart::GetDotAttributes(detail);
+    result.m_Label       = "FusedPlePart: " + result.m_Label;
+    if (detail >= DetailLevel::High)
+    {
+        result.m_Label += "InputTensorShape = " + ToString(m_InputTensorShape) + "\n";
+        result.m_Label += "OutputTensorShape = " + ToString(m_OutputTensorShape) + "\n";
+        result.m_Label += "InputQuantizationInfo = " + ToString(m_InputQuantizationInfo) + "\n";
+        result.m_Label += "OutputQuantizationInfo = " + ToString(m_OutputQuantizationInfo) + "\n";
+        result.m_Label += "KernelOperation = " + ToString(m_KernelOperation) + "\n";
+        result.m_Label += "ShapeMultiplier = " + ToString(m_ShapeMultiplier) + "\n";
+
+        result.m_Label +=
+            "StripeGenerator.MceInputTensorShape = " + ToString(m_StripeGenerator.m_MceInputTensorShape) + "\n";
+        result.m_Label +=
+            "StripeGenerator.MceOutputTensorShape = " + ToString(m_StripeGenerator.m_MceOutputTensorShape) + "\n";
+        result.m_Label +=
+            "StripeGenerator.PleOutputTensorShape = " + ToString(m_StripeGenerator.m_PleOutputTensorShape) + "\n";
+        result.m_Label += "StripeGenerator.KernelHeight = " + ToString(m_StripeGenerator.m_KernelHeight) + "\n";
+        result.m_Label += "StripeGenerator.KernelWidth = " + ToString(m_StripeGenerator.m_KernelWidth) + "\n";
+        result.m_Label += "StripeGenerator.Stride = " + ToString(m_StripeGenerator.m_Stride) + "\n";
+        result.m_Label += "StripeGenerator.UpscaleFactor = " + ToString(m_StripeGenerator.m_UpscaleFactor) + "\n";
+        result.m_Label += "StripeGenerator.Operation = " + ToString(m_StripeGenerator.m_Operation) + "\n";
+        result.m_Label += "StripeGenerator.ShapeMultiplier = " + ToString(m_StripeGenerator.m_ShapeMultiplier) + "\n";
+    }
+    return result;
+}
+
 }    // namespace support_library
 }    // namespace ethosn

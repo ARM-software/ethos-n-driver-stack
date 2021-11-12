@@ -66,5 +66,17 @@ void InputPart::CreatePlanForInputPart(Lifetime lifetime, TraversalOrder order, 
     AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
 }
 
+ethosn::support_library::DotAttributes InputPart::GetDotAttributes(DetailLevel detail) const
+{
+    DotAttributes result = BasePart::GetDotAttributes(detail);
+    result.m_Label       = "InputPart: " + result.m_Label;
+    if (detail >= DetailLevel::High)
+    {
+        result.m_Label += "OutputTensorShape = " + ToString(m_OutputTensorShape) + "\n";
+        result.m_Label += "OutputQuantizationInfo = " + ToString(m_OutputQuantizationInfo) + "\n";
+    }
+    return result;
+}
+
 }    // namespace support_library
 }    // namespace ethosn
