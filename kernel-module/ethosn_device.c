@@ -1367,6 +1367,13 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 	/* Firmware is not running */
 	core->firmware_running = false;
 
+	/* Clear any outstanding configuration */
+	if (core->profiling.is_waiting_for_firmware_ack) {
+		ret = ethosn_configure_firmware_profiling_ack(core);
+		if (ret)
+			return ret;
+	}
+
 	/* Load the firmware */
 	ret = firmware_init(core);
 	if (ret)

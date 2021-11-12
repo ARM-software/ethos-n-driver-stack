@@ -426,7 +426,7 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 
 	get_inference(inference);
 	ethosn->current_busy_cores |= (1 << core_id);
-	dev_dbg(core_dev, "Scheduled inference 0x%pK on core_id = %d\n",
+	dev_dbg(core_dev, "Scheduled inference 0x%pK on core_id = %u\n",
 		inference,
 		core_id);
 
@@ -434,7 +434,7 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 
 out_inference_error:
 	dev_err(core_dev,
-		"Error scheduling inference 0x%pK: %d on core_id = %d\n",
+		"Error scheduling inference 0x%pK: %d on core_id = %u\n",
 		inference, ret, core_id);
 	inference->status = ETHOSN_INFERENCE_ERROR;
 
@@ -557,6 +557,11 @@ static int inference_release(struct inode *inode,
 	 * This would prevent the kernel module from being unloaded
 	 * when requested.
 	 */
+
+	/*
+	 * Check inference status before locking the mutex since it might not
+	 * be necessary.
+	 */
 	if (inference->status == ETHOSN_INFERENCE_SCHEDULED) {
 		/*
 		 * Use the same mutex that is used for adding
@@ -566,22 +571,35 @@ static int inference_release(struct inode *inode,
 
 		mutex_lock(
 			&ethosn->queue.inference_queue_mutex);
-		list_del(&inference->queue_node);
+
+		/* Inference might be running or completed by now */
+		if (inference->status == ETHOSN_INFERENCE_SCHEDULED)
+			list_del(&inference->queue_node);
+
 		mutex_unlock(
 			&ethosn->queue.inference_queue_mutex);
 	}
 
+	/*
+	 * Check inference status before locking the mutex since it might not
+	 * be necessary or even possible i.e. core is assigned only for running
+	 * inferences.
+	 */
 	if (inference->status == ETHOSN_INFERENCE_RUNNING) {
 		struct ethosn_core *core = inference->core;
 
-		dev_warn(core->dev,
-			 "Reset Ethos-N due to error inference abort. handle=0x%pK\n",
-			 inference);
 		mutex_lock(&core->mutex);
 
-		(void)ethosn_reset_and_start_ethosn(core);
-		ethosn_network_poll(core, inference,
-				    ETHOSN_INFERENCE_STATUS_ERROR);
+		/* Inference might be completed by now */
+		if (inference->status == ETHOSN_INFERENCE_RUNNING) {
+			dev_warn(core->dev,
+				 "Reset Ethos-N due to error inference abort. handle=0x%pK\n",
+				 inference);
+
+			(void)ethosn_reset_and_start_ethosn(core);
+			ethosn_network_poll(core, inference,
+					    ETHOSN_INFERENCE_STATUS_ERROR);
+		}
 
 		mutex_unlock(&core->mutex);
 	}
@@ -1240,7 +1258,7 @@ void ethosn_network_poll(struct ethosn_core *core,
 		wake_up_poll(&inference->poll_wqh, EPOLLIN);
 
 		dev_dbg(core->dev,
-			"END_INFERENCE: inference 0x%pK time %llu on core_id = %d",
+			"END_INFERENCE: inference 0x%pK time %llu on core_id = %u",
 			inference, ktime_get_ns(), core->core_id);
 
 		ethosn_put_inference(inference);
