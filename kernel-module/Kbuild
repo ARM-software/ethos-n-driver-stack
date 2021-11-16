@@ -31,6 +31,5 @@ ethosn-objs := ethosn_core.o \
              ethosn_dma_carveout.o \
              ethosn_dma_iommu.o \
              ethosn_driver.o \
-             ethosn_log.o \
              ethosn_network.o \
              ethosn_smc.o

@@ -24,7 +24,6 @@
 
 #include "ethosn_backport.h"
 #include "ethosn_firmware.h"
-#include "ethosn_log.h"
 #include "ethosn_smc.h"
 
 #include <linux/firmware.h>
@@ -711,7 +710,6 @@ int ethosn_read_message(struct ethosn_core *core,
 
 	ethosn_dma_sync_for_device(core->allocator, core->mailbox_response);
 
-	ethosn_log_firmware(core, ETHOSN_LOG_FIRMWARE_INPUT, header, data);
 	if (core->profiling.config.enable_profiling)
 		++core->profiling.mailbox_messages_received;
 
@@ -784,7 +782,6 @@ int ethosn_write_message(struct ethosn_core *core,
 	ethosn_dma_sync_for_device(core->allocator, core->mailbox_request);
 	ethosn_notify_firmware(core);
 
-	ethosn_log_firmware(core, ETHOSN_LOG_FIRMWARE_OUTPUT, &header, data);
 	if (core->profiling.config.enable_profiling)
 		++core->profiling.mailbox_messages_sent;
 
@@ -1788,15 +1785,10 @@ int ethosn_device_init(struct ethosn_core *core)
 	/* Initialize debugfs */
 	dfs_init(core);
 
-	/* Initialize log */
-	ret = ethosn_log_init(core);
-	if (ret)
-		goto remove_debufs;
-
 	/* Load the firmware */
 	ret = firmware_init(core);
 	if (ret)
-		goto deinit_log;
+		goto remove_debufs;
 
 	/* Allocate the mailbox structure */
 	ret = mailbox_alloc(core);
@@ -1814,9 +1806,6 @@ int ethosn_device_init(struct ethosn_core *core)
 
 deinit_firmware:
 	ethosn_firmware_deinit(core);
-
-deinit_log:
-	ethosn_log_deinit(core);
 
 remove_debufs:
 	dfs_deinit(core);
@@ -1844,7 +1833,6 @@ void ethosn_device_deinit(struct ethosn_core *core)
 	ethosn_hard_reset(core);
 	ethosn_firmware_deinit(core);
 	ethosn_mailbox_free(core);
-	ethosn_log_deinit(core);
 	dfs_deinit(core);
 	mutex_unlock(&core->mutex);
 	if (core->fw_and_hw_caps.data) {

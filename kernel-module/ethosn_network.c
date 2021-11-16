@@ -28,7 +28,6 @@
 #include "ethosn_device.h"
 #include "ethosn_dma.h"
 #include "ethosn_firmware.h"
-#include "ethosn_log.h"
 #include "uapi/ethosn.h"
 
 #include <linux/anon_inodes.h>
@@ -654,7 +653,6 @@ static int ethosn_inference_register(struct ethosn_network *network,
 	struct ethosn_device *ethosn = network->ethosn;
 	struct ethosn_core *core = ethosn->core[0];
 	struct ethosn_inference *inference;
-	struct ethosn_log_uapi_inference_req log;
 	int ret_fd, ret;
 
 	inference = inference_create(network, req);
@@ -674,13 +672,6 @@ static int ethosn_inference_register(struct ethosn_network *network,
 
 	dev_dbg(ifr_to_dev(inference),
 		"Registered inference. handle=0x%pK\n", inference);
-
-	log.request = *req;
-	log.handle = (ptrdiff_t)inference;
-	log.network_handle = (ptrdiff_t)network;
-	log.fd = ret_fd;
-	ethosn_log_uapi(core, ETHOSN_IOCTL_SCHEDULE_INFERENCE, &log,
-			sizeof(log));
 
 	ret = mutex_lock_interruptible(
 		&ethosn->queue.inference_queue_mutex);
@@ -1219,7 +1210,6 @@ int ethosn_network_register(struct ethosn_device *ethosn,
 	};
 
 	struct ethosn_network *network;
-	struct ethosn_log_uapi_network_req log;
 	int fd;
 
 	network = create_network(ethosn, net_req);
@@ -1241,16 +1231,6 @@ int ethosn_network_register(struct ethosn_device *ethosn,
 
 	dev_dbg(ethosn->dev,
 		"Registered network. handle=0x%pK\n", network);
-
-	log.request = *net_req;
-	log.handle = (ptrdiff_t)network;
-	log.fd = fd;
-
-	/* FIXME :- ethosn_log_uapi() needs to be invoked on ethosn.
-	 * This will be fixed in a subsequent patch.
-	 */
-	ethosn_log_uapi(ethosn->core[0], ETHOSN_IOCTL_REGISTER_NETWORK, &log,
-			sizeof(log));
 
 	return fd;
 }

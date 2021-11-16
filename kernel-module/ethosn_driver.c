@@ -25,7 +25,6 @@
 #include "ethosn_buffer.h"
 #include "ethosn_device.h"
 #include "ethosn_firmware.h"
-#include "ethosn_log.h"
 #include "ethosn_network.h"
 #include "ethosn_core.h"
 #include "ethosn_smc.h"

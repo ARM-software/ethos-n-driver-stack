@@ -23,7 +23,6 @@
 #include "ethosn_buffer.h"
 
 #include "ethosn_device.h"
-#include "ethosn_log.h"
 
 #include <linux/anon_inodes.h>
 #include <linux/device.h>
@@ -228,7 +227,6 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 			   struct ethosn_buffer_req *buf_req)
 {
 	struct ethosn_buffer *buf;
-	struct ethosn_log_uapi_buffer_req log;
 	int fd;
 	int ret = -ENOMEM;
 	int i;
@@ -287,15 +285,6 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 		ethosn_dma_sync_for_device(ethosn->allocator, buf->dma_info);
 		dev_dbg(ethosn->dev, "Zeroed device buffer 0x%pK\n", buf);
 	}
-
-	log.request = *buf_req;
-	log.handle = (ptrdiff_t)buf;
-	log.fd = fd;
-
-	/* FIXME :- This needs to be invoked with ethosn
-	 */
-	ethosn_log_uapi(ethosn->core[0], ETHOSN_IOCTL_CREATE_BUFFER, &log,
-			sizeof(log));
 
 	return fd;
 
