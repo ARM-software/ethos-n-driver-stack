@@ -142,6 +142,7 @@ class Plan : public DebuggableObject
 public:
     Plan();
     Plan(PartInputMapping&& inputMappings, PartOutputMapping&& outputMappings);
+    Plan(Plan&&) = default;
     virtual ~Plan()
     {}
 

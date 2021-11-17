@@ -52,10 +52,10 @@ void BasePart::AddNewPlan(PartInputMapping&& inputMappings,
                           OwnedOpGraph&& opGraph,
                           Plans& plans) const
 {
-    auto plan       = std::make_unique<Plan>(std::move(inputMappings), std::move(outputMappings));
-    plan->m_OpGraph = std::move(opGraph);
+    Plan plan(std::move(inputMappings), std::move(outputMappings));
+    plan.m_OpGraph = std::move(opGraph);
 
-    if (IsPlanValid(m_Capabilities, *plan))
+    if (IsPlanValid(m_Capabilities, plan))
     {
         plans.push_back(std::move(plan));
     }

@@ -7,6 +7,7 @@
 
 #include "../src/CapabilitiesInternal.hpp"
 #include "../src/Compiler.hpp"
+#include "../src/cascading/Plan.hpp"
 
 #include <cstring>
 
@@ -14,6 +15,12 @@ namespace ethosn
 {
 namespace support_library
 {
+
+ethosn::support_library::Plans
+    MockPart::GetPlans(CascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const
+{
+    return Plans();
+}
 
 HardwareCapabilities GetEthosN78HwCapabilities()
 {

@@ -96,14 +96,14 @@ void CheckPlans(const Plans& plans, const CheckPlansParams& params)
 
     for (auto&& plan : plans)
     {
-        INFO("plan " << plan->m_DebugTag);
+        INFO("plan " << plan.m_DebugTag);
 
-        const OpGraph::BufferList& buffers = plan->m_OpGraph.GetBuffers();
+        const OpGraph::BufferList& buffers = plan.m_OpGraph.GetBuffers();
         Buffer* concatBuffer               = buffers.back();
 
-        CheckConcatOperation(*plan);
+        CheckConcatOperation(plan);
         CheckConcatDram(concatBuffer, params);
-        CheckMappings(params, *plan, concatBuffer);
+        CheckMappings(params, plan, concatBuffer);
     }
 }
 
@@ -118,9 +118,9 @@ void SavePlansToDot(const Plans& plans, const std::string test)
     std::stringstream stripes;
     for (const auto& plan : plans)
     {
-        SaveOpGraphToDot(plan->m_OpGraph, str, DetailLevel::High);
+        SaveOpGraphToDot(plan.m_OpGraph, str, DetailLevel::High);
 
-        SaveOpGraphToTxtFile(plan->m_OpGraph, stripes);
+        SaveOpGraphToTxtFile(plan.m_OpGraph, stripes);
     }
 
     std::regex re("digraph");

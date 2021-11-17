@@ -481,23 +481,23 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
     connections[partCInputSlot0] = partBOutputSlot0;
 
     // Plan A
-    std::shared_ptr<Plan> planA = std::make_shared<Plan>();
-    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
-    planA->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramA";
-    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
-    planA->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramA";
-    planA->m_OutputMappings                          = { { planA->m_OpGraph.GetBuffers()[1], partAOutputSlot0 } };
-    planA->m_OpGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION,
-                                                   CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
-                                                   TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                   TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0));
-    planA->m_OpGraph.GetOps()[0]->m_DebugTag = "MceA";
-    planA->m_OpGraph.AddConsumer(planA->m_OpGraph.GetBuffers()[0], planA->m_OpGraph.GetOps()[0], 0);
-    planA->m_OpGraph.SetProducer(planA->m_OpGraph.GetBuffers()[1], planA->m_OpGraph.GetOps()[0]);
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 0, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramA";
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 0, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramA";
+    planA.m_OutputMappings                          = { { planA.m_OpGraph.GetBuffers()[1], partAOutputSlot0 } };
+    planA.m_OpGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION,
+                                                  CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+                                                  TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                  TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0));
+    planA.m_OpGraph.GetOps()[0]->m_DebugTag = "MceA";
+    planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[0], planA.m_OpGraph.GetOps()[0], 0);
+    planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[1], planA.m_OpGraph.GetOps()[0]);
 
     // Glue between A and B
     Glue glueA_B;
@@ -516,24 +516,24 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
     glueA_B.m_Graph.SetProducer(glueA_B.m_Graph.GetBuffers()[0], glueA_B.m_Graph.GetOps()[0]);
 
     // Plan B
-    std::shared_ptr<Plan> planB = std::make_shared<Plan>();
-    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramB";
-    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramB";
-    planB->m_InputMappings                           = { { planB->m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
-    planB->m_OutputMappings                          = { { planB->m_OpGraph.GetBuffers()[1], partBOutputSlot0 } };
-    planB->m_OpGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION,
-                                                   CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
-                                                   TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                   TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0));
-    planB->m_OpGraph.GetOps()[0]->m_DebugTag = "MceB";
-    planB->m_OpGraph.AddConsumer(planB->m_OpGraph.GetBuffers()[0], planB->m_OpGraph.GetOps()[0], 0);
-    planB->m_OpGraph.SetProducer(planB->m_OpGraph.GetBuffers()[1], planB->m_OpGraph.GetOps()[0]);
+    Plan planB;
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramB";
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramB";
+    planB.m_InputMappings                           = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
+    planB.m_OutputMappings                          = { { planB.m_OpGraph.GetBuffers()[1], partBOutputSlot0 } };
+    planB.m_OpGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION,
+                                                  CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+                                                  TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                  TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0));
+    planB.m_OpGraph.GetOps()[0]->m_DebugTag = "MceB";
+    planB.m_OpGraph.AddConsumer(planB.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetOps()[0], 0);
+    planB.m_OpGraph.SetProducer(planB.m_OpGraph.GetBuffers()[1], planB.m_OpGraph.GetOps()[0]);
 
     // Glue between B and C
     Glue glueB_C;
@@ -543,19 +543,19 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
     glueB_C.m_Output.push_back(glueB_C.m_Graph.GetOps()[0]);
 
     // Plan C
-    std::shared_ptr<Plan> planC = std::make_shared<Plan>();
-    planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planC->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramC";
-    planC->m_InputMappings                           = { { planC->m_OpGraph.GetBuffers()[0], partCInputSlot0 } };
+    Plan planC;
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramC";
+    planC.m_InputMappings                           = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot0 } };
 
     // Create Combination with all the plans and glues
     Combination comb;
 
-    Elem elemA = { planA, { { partBInputSlot0, { &glueA_B, true } } } };
-    Elem elemB = { planB, { { partCInputSlot0, { &glueB_C, true } } } };
-    Elem elemC = { planC, {} };
+    Elem elemA = { std::make_shared<Plan>(std::move(planA)), { { partBInputSlot0, { &glueA_B, true } } } };
+    Elem elemB = { std::make_shared<Plan>(std::move(planB)), { { partCInputSlot0, { &glueB_C, true } } } };
+    Elem elemC = { std::make_shared<Plan>(std::move(planC)), {} };
 
     comb.m_Elems.insert(std::make_pair(0, elemA));
     comb.m_PartIdsInOrder.push_back(0);
@@ -674,50 +674,50 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialDram", "[CombinerDFS]")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     // Plan A
-    std::shared_ptr<Plan> planA = std::make_shared<Plan>();
-    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramA";
-    planA->m_OutputMappings                          = { { planA->m_OpGraph.GetBuffers()[0], partAOutputSlot } };
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramA";
+    planA.m_OutputMappings                          = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
     // Plan B
-    std::shared_ptr<Plan> planB = std::make_shared<Plan>();
-    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramB";
-    planB->m_InputMappings                           = { { planB->m_OpGraph.GetBuffers()[0], partBInputSlot } };
+    Plan planB;
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramB";
+    planB.m_InputMappings                           = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
     // Plan C
-    std::shared_ptr<Plan> planC = std::make_shared<Plan>();
-    planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planC->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramC";
-    planC->m_InputMappings                           = { { planC->m_OpGraph.GetBuffers()[0], partCInputSlot } };
+    Plan planC;
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramC";
+    planC.m_InputMappings                           = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
 
     // Plan D
-    std::shared_ptr<Plan> planD = std::make_shared<Plan>();
-    planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planD->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDramD";
-    planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planD->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramD";
-    planD->m_InputMappings                           = { { planD->m_OpGraph.GetBuffers()[0], partDInputSlot } };
-    planD->m_OpGraph.AddOp(std::make_unique<DmaOp>());
-    planD->m_OpGraph.GetOps()[0]->m_DebugTag = "DmaToSramD";
-    planD->m_OpGraph.AddConsumer(planD->m_OpGraph.GetBuffers()[0], planD->m_OpGraph.GetOps()[0], 0);
-    planD->m_OpGraph.SetProducer(planD->m_OpGraph.GetBuffers()[1], planD->m_OpGraph.GetOps()[0]);
+    Plan planD;
+    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planD.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDramD";
+    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planD.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramD";
+    planD.m_InputMappings                           = { { planD.m_OpGraph.GetBuffers()[0], partDInputSlot } };
+    planD.m_OpGraph.AddOp(std::make_unique<DmaOp>());
+    planD.m_OpGraph.GetOps()[0]->m_DebugTag = "DmaToSramD";
+    planD.m_OpGraph.AddConsumer(planD.m_OpGraph.GetBuffers()[0], planD.m_OpGraph.GetOps()[0], 0);
+    planD.m_OpGraph.SetProducer(planD.m_OpGraph.GetBuffers()[1], planD.m_OpGraph.GetOps()[0]);
 
     // Create Combination with all the plans and glues
-    Combination combA(partA, planA, 0, graph);
-    Combination combB(partB, planB, 1, graph);
-    Combination combC(partC, planC, 2, graph);
-    Combination combD(partD, planD, 3, graph);
+    Combination combA(partA, std::move(planA), 0, graph);
+    Combination combB(partB, std::move(planB), 1, graph);
+    Combination combC(partC, std::move(planC), 2, graph);
+    Combination combD(partD, std::move(planD), 3, graph);
 
     // Merge the combinations
     Combination comb = combB + combD + combC + combA;
@@ -879,12 +879,12 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     connections[partGInputSlot0]  = partDEOutputSlot0;
     connections[partGInputSlot1]  = partDEOutputSlot1;
 
-    std::shared_ptr<Plan> planA = std::make_shared<Plan>();
-    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
-    planA->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDram";
-    planA->m_OutputMappings                          = { { planA->m_OpGraph.GetBuffers()[0], partAOutputSlot0 } };
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 0, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDram";
+    planA.m_OutputMappings                          = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot0 } };
 
     // Glue between A and B
     Glue glueA_BC;
@@ -894,54 +894,54 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     glueA_BC.m_Output.push_back(glueA_BC.m_Graph.GetOps()[0]);
 
     // Part consisting of node B
-    std::shared_ptr<Plan> planB = std::make_shared<Plan>();
-    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram1";
-    planB->m_InputMappings                           = { { planB->m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
-    planB->m_OutputMappings                          = { { planB->m_OpGraph.GetBuffers()[0], partBOutputSlot0 } };
+    Plan planB;
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram1";
+    planB.m_InputMappings                           = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
+    planB.m_OutputMappings                          = { { planB.m_OpGraph.GetBuffers()[0], partBOutputSlot0 } };
 
     // Part consisting of node C
-    std::shared_ptr<Plan> planC = std::make_shared<Plan>();
-    planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planC->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram2";
-    planC->m_InputMappings                           = { { planC->m_OpGraph.GetBuffers()[0], partCInputSlot0 } };
-    planC->m_OutputMappings                          = { { planC->m_OpGraph.GetBuffers()[0], partCOutputSlot0 } };
+    Plan planC;
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram2";
+    planC.m_InputMappings                           = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot0 } };
+    planC.m_OutputMappings                          = { { planC.m_OpGraph.GetBuffers()[0], partCOutputSlot0 } };
 
     // Part consisting of nodes D and E
-    std::shared_ptr<Plan> planDE = std::make_shared<Plan>();
-    planDE->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planDE->m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateSramInput1";
-    planDE->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                         TraversalOrder::Xyz, 0, QuantizationInfo()));
-    planDE->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram1";
-    planDE->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planDE->m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateSramInput2";
-    planDE->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                         TraversalOrder::Xyz, 0, QuantizationInfo()));
-    planDE->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram2";
-    planDE->m_InputMappings                           = { { planDE->m_OpGraph.GetBuffers()[0], partDEInputSlot0 },
-                                { planDE->m_OpGraph.GetBuffers()[2], partDEInputSlot1 } };
-    planDE->m_OutputMappings                          = { { planDE->m_OpGraph.GetBuffers()[1], partDEOutputSlot0 },
-                                 { planDE->m_OpGraph.GetBuffers()[3], partDEOutputSlot1 } };
-    planDE->m_OpGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION,
-                                                    CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
-                                                    TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                    TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0));
-    planDE->m_OpGraph.GetOps()[0]->m_DebugTag = "Mce2";
-    planDE->m_OpGraph.AddConsumer(planDE->m_OpGraph.GetBuffers()[0], planDE->m_OpGraph.GetOps()[0], 0);
-    planDE->m_OpGraph.AddConsumer(planDE->m_OpGraph.GetBuffers()[2], planDE->m_OpGraph.GetOps()[0], 1);
-    planDE->m_OpGraph.SetProducer(planDE->m_OpGraph.GetBuffers()[1], planDE->m_OpGraph.GetOps()[0]);
-    planDE->m_OpGraph.SetProducer(planDE->m_OpGraph.GetBuffers()[3], planDE->m_OpGraph.GetOps()[0]);
+    Plan planDE;
+    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planDE.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateSramInput1";
+    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
+    planDE.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram1";
+    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planDE.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateSramInput2";
+    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
+    planDE.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram2";
+    planDE.m_InputMappings                           = { { planDE.m_OpGraph.GetBuffers()[0], partDEInputSlot0 },
+                               { planDE.m_OpGraph.GetBuffers()[2], partDEInputSlot1 } };
+    planDE.m_OutputMappings                          = { { planDE.m_OpGraph.GetBuffers()[1], partDEOutputSlot0 },
+                                { planDE.m_OpGraph.GetBuffers()[3], partDEOutputSlot1 } };
+    planDE.m_OpGraph.AddOp(std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION,
+                                                   CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+                                                   TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                   TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0));
+    planDE.m_OpGraph.GetOps()[0]->m_DebugTag = "Mce2";
+    planDE.m_OpGraph.AddConsumer(planDE.m_OpGraph.GetBuffers()[0], planDE.m_OpGraph.GetOps()[0], 0);
+    planDE.m_OpGraph.AddConsumer(planDE.m_OpGraph.GetBuffers()[2], planDE.m_OpGraph.GetOps()[0], 1);
+    planDE.m_OpGraph.SetProducer(planDE.m_OpGraph.GetBuffers()[1], planDE.m_OpGraph.GetOps()[0]);
+    planDE.m_OpGraph.SetProducer(planDE.m_OpGraph.GetBuffers()[3], planDE.m_OpGraph.GetOps()[0]);
 
     // Glue between D and F
     Glue glueD_F;
@@ -965,38 +965,38 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     glueE_G.m_Output.push_back(glueE_G.m_Graph.GetOps()[0]);
 
     // Part consisting of node F
-    std::shared_ptr<Plan> planF = std::make_shared<Plan>();
-    planF->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
-    planF->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputDram1";
-    planF->m_InputMappings                           = { { planF->m_OpGraph.GetBuffers()[0], partFInputSlot0 } };
+    Plan planF;
+    planF.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 0, QuantizationInfo()));
+    planF.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputDram1";
+    planF.m_InputMappings                           = { { planF.m_OpGraph.GetBuffers()[0], partFInputSlot0 } };
 
     // Part consisting of node G
-    std::shared_ptr<Plan> planG = std::make_shared<Plan>();
-    planG->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
-    planG->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputDram2";
-    planG->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
-    planG->m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputDram3";
-    planG->m_InputMappings                           = { { planG->m_OpGraph.GetBuffers()[0], partGInputSlot0 },
-                               { planG->m_OpGraph.GetBuffers()[1], partGInputSlot1 } };
+    Plan planG;
+    planG.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 0, QuantizationInfo()));
+    planG.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputDram2";
+    planG.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 0, QuantizationInfo()));
+    planG.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputDram3";
+    planG.m_InputMappings                           = { { planG.m_OpGraph.GetBuffers()[0], partGInputSlot0 },
+                              { planG.m_OpGraph.GetBuffers()[1], partGInputSlot1 } };
 
     // Create Combination with all the plans and glues
     Combination comb;
 
-    Elem elemA  = { planA, { { partBInputSlot0, { &glueA_BC, true } } } };
-    Elem elemB  = { planB, {} };
-    Elem elemC  = { planC, {} };
-    Elem elemDE = { planDE,
+    Elem elemA  = { std::make_shared<Plan>(std::move(planA)), { { partBInputSlot0, { &glueA_BC, true } } } };
+    Elem elemB  = { std::make_shared<Plan>(std::move(planB)), {} };
+    Elem elemC  = { std::make_shared<Plan>(std::move(planC)), {} };
+    Elem elemDE = { std::make_shared<Plan>(std::move(planDE)),
                     { { partFInputSlot0, { &glueD_F, true } },
                       { partGInputSlot0, { &glueD_G, true } },
                       { partGInputSlot1, { &glueE_G, true } } } };
-    Elem elemF  = { planF, {} };
-    Elem elemG  = { planG, {} };
+    Elem elemF  = { std::make_shared<Plan>(std::move(planF)), {} };
+    Elem elemG  = { std::make_shared<Plan>(std::move(planG)), {} };
     comb.m_Elems.insert(std::make_pair(0, elemA));
     comb.m_PartIdsInOrder.push_back(0);
     comb.m_Elems.insert(std::make_pair(1, elemB));
@@ -1093,13 +1093,14 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
     parts.push_back(std::move(pB));
     parts.push_back(std::move(pC));
 
-    std::shared_ptr<Plan> planA = std::make_shared<Plan>();
-    std::shared_ptr<Plan> planB = std::make_shared<Plan>();
-    std::shared_ptr<Plan> planC = std::make_shared<Plan>();
+    Plan planA;
+    Plan planB;
+    int planBId = planB.m_DebugId;
+    Plan planC;
 
-    Combination combA(partA, planA, 0, graph);
-    Combination combB(partB, planB, 1, graph);
-    Combination combC(partC, planC, 2, graph);
+    Combination combA(partA, std::move(planA), 0, graph);
+    Combination combB(partB, std::move(planB), 1, graph);
+    Combination combC(partC, std::move(planC), 2, graph);
 
     REQUIRE(combA.m_Elems.size() == 1);
     REQUIRE(combB.m_Elems.size() == 1);
@@ -1150,7 +1151,7 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
     const Glue* glueTest = comb.m_Elems.at(partB.GetPartId()).m_Glues.at(partCInputSlot).m_Glue;
     // It has the correct tag
     REQUIRE(glueTest->m_Graph.GetOps()[0]->m_DebugTag == "DmaBC");
-    REQUIRE(comb.m_Elems.at(partB.GetPartId()).m_Plan == planB);
+    REQUIRE(comb.m_Elems.at(partB.GetPartId()).m_Plan->m_DebugId == planBId);
 }
 
 TEST_CASE("FindBestCombinationForPart cache", "[CombinerDFS]")
@@ -1240,25 +1241,25 @@ TEST_CASE("ArePlansCompatible", "[CombinerDFS]")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
 
     // Part consisting of node A
-    std::shared_ptr<Plan> planA = std::make_shared<Plan>();
-    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDram";
-    planA->m_OutputMappings                          = { { planA->m_OpGraph.GetBuffers()[0], planAOutputSlot } };
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDram";
+    planA.m_OutputMappings                          = { { planA.m_OpGraph.GetBuffers()[0], planAOutputSlot } };
 
     // Part consisting of node B
-    std::shared_ptr<Plan> planB = std::make_shared<Plan>();
-    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram1";
-    planB->m_InputMappings                           = { { planB->m_OpGraph.GetBuffers()[0], planBInputSlot } };
-    planB->m_OutputMappings                          = { { planB->m_OpGraph.GetBuffers()[0], planBOutputSlot } };
+    Plan planB;
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram1";
+    planB.m_InputMappings                           = { { planB.m_OpGraph.GetBuffers()[0], planBInputSlot } };
+    planB.m_OutputMappings                          = { { planB.m_OpGraph.GetBuffers()[0], planBOutputSlot } };
 
     Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
-    REQUIRE(combiner.ArePlansCompatible(*planA, *planB, PartConnection{ planBInputSlot, planAOutputSlot }) == true);
+    REQUIRE(combiner.ArePlansCompatible(planA, planB, PartConnection{ planBInputSlot, planAOutputSlot }) == true);
 }
 
 TEST_CASE("GluePartToCombination", "[CombinerDFS]")
@@ -1305,43 +1306,43 @@ TEST_CASE("GluePartToCombination", "[CombinerDFS]")
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    std::shared_ptr<Plan> planA = std::make_shared<Plan>();
-    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], partAOutputSlot } };
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
-    std::shared_ptr<Plan> planB = std::make_shared<Plan>();
-    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_OutputMappings = { { planB->m_OpGraph.GetBuffers()[0], partBOutputSlot } };
+    Plan planB;
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_OutputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBOutputSlot } };
 
-    std::shared_ptr<Plan> planC = std::make_shared<Plan>();
-    planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planC->m_OutputMappings = { { planC->m_OpGraph.GetBuffers()[0], partCOutputSlot } };
+    Plan planC;
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC.m_OutputMappings = { { planC.m_OpGraph.GetBuffers()[0], partCOutputSlot } };
 
-    std::shared_ptr<Plan> planD = std::make_shared<Plan>();
-    planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 48 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    Plan planD;
+    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 48 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
 
-    planD->m_InputMappings = { { planD->m_OpGraph.GetBuffers()[0], partDInputSlot0 },
-                               { planD->m_OpGraph.GetBuffers()[1], partDInputSlot1 },
-                               { planD->m_OpGraph.GetBuffers()[2], partDInputSlot2 } };
+    planD.m_InputMappings = { { planD.m_OpGraph.GetBuffers()[0], partDInputSlot0 },
+                              { planD.m_OpGraph.GetBuffers()[1], partDInputSlot1 },
+                              { planD.m_OpGraph.GetBuffers()[2], partDInputSlot2 } };
 
-    Combination combA(partA, planA, 0, graph);
-    Combination combB(partB, planB, 1, graph);
-    Combination combC(partC, planC, 2, graph);
-    Combination combD(partD, planD, 3, graph);
+    Combination combA(partA, std::move(planA), 0, graph);
+    Combination combB(partB, std::move(planB), 1, graph);
+    Combination combC(partC, std::move(planC), 2, graph);
+    Combination combD(partD, std::move(planD), 3, graph);
 
     // Merge the combinations
     Combination comb = combA + combB + combC + combD;
@@ -1632,49 +1633,49 @@ TEST_CASE("GetCombPartsInOrder", "[CombinerDFS]")
 
     GraphOfParts gOfParts;
 
-    std::shared_ptr<Plan> planA = std::make_shared<Plan>();
-    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], partAOutputSlot } };
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
-    std::shared_ptr<Plan> planB = std::make_shared<Plan>();
-    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_InputMappings  = { { planB->m_OpGraph.GetBuffers()[0], partBInputSlot } };
-    planB->m_OutputMappings = { { planB->m_OpGraph.GetBuffers()[0], partBOutputSlot } };
+    Plan planB;
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_InputMappings  = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
+    planB.m_OutputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBOutputSlot } };
 
-    std::shared_ptr<Plan> planC = std::make_shared<Plan>();
-    planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planC->m_InputMappings  = { { planC->m_OpGraph.GetBuffers()[0], partCInputSlot } };
-    planC->m_OutputMappings = { { planC->m_OpGraph.GetBuffers()[0], partCOutputSlot } };
+    Plan planC;
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC.m_InputMappings  = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
+    planC.m_OutputMappings = { { planC.m_OpGraph.GetBuffers()[0], partCOutputSlot } };
 
-    std::shared_ptr<Plan> planD = std::make_shared<Plan>();
-    planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planD->m_InputMappings  = { { planD->m_OpGraph.GetBuffers()[0], partDInputSlot } };
-    planD->m_OutputMappings = { { planD->m_OpGraph.GetBuffers()[0], partDOutputSlot } };
+    Plan planD;
+    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planD.m_InputMappings  = { { planD.m_OpGraph.GetBuffers()[0], partDInputSlot } };
+    planD.m_OutputMappings = { { planD.m_OpGraph.GetBuffers()[0], partDOutputSlot } };
 
-    std::shared_ptr<Plan> planE = std::make_shared<Plan>();
-    planE->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planE->m_InputMappings = { { planD->m_OpGraph.GetBuffers()[0], partEInputSlot } };
+    Plan planE;
+    planE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planE.m_InputMappings = { { planD.m_OpGraph.GetBuffers()[0], partEInputSlot } };
 
     Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
     bool isSorted = combiner.TopologicalSortParts();
     REQUIRE(isSorted == true);
 
-    Combination combA(partA, planA, 0, graph);
-    Combination combB(partB, planB, 1, graph);
-    Combination combC(partC, planC, 2, graph);
-    Combination combD(partD, planD, 3, graph);
-    Combination combE(partE, planE, 4, graph);
+    Combination combA(partA, std::move(planA), 0, graph);
+    Combination combB(partB, std::move(planB), 1, graph);
+    Combination combC(partC, std::move(planC), 2, graph);
+    Combination combD(partD, std::move(planD), 3, graph);
+    Combination combE(partE, std::move(planE), 4, graph);
 
     Combination comb = combD + combE;
     {
@@ -1756,27 +1757,27 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    std::shared_ptr<Plan> planA = std::make_shared<Plan>();
-    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], partAOutputSlot } };
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
-    std::shared_ptr<Plan> planB = std::make_shared<Plan>();
-    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_InputMappings = { { planB->m_OpGraph.GetBuffers()[0], partBInputSlot } };
+    Plan planB;
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
-    std::shared_ptr<Plan> planC = std::make_shared<Plan>();
-    planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planC->m_InputMappings = { { planC->m_OpGraph.GetBuffers()[0], partCInputSlot } };
+    Plan planC;
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC.m_InputMappings = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
 
-    Combination combA(partA, planA, 0, graph);
-    Combination combB(partB, planB, 1, graph);
-    Combination combC(partC, planC, 2, graph);
+    Combination combA(partA, std::move(planA), 0, graph);
+    Combination combB(partB, std::move(planB), 1, graph);
+    Combination combC(partC, std::move(planC), 2, graph);
 
     // Merge the combinations
     Combination comb = combA + combB + combC;
@@ -1886,34 +1887,34 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    std::shared_ptr<Plan> planA = std::make_shared<Plan>();
-    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA->m_OutputMappings = { { planA->m_OpGraph.GetBuffers()[0], partAOutputSlot } };
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
-    std::shared_ptr<Plan> planB = std::make_shared<Plan>();
-    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_InputMappings = { { planB->m_OpGraph.GetBuffers()[0], partBInputSlot } };
+    Plan planB;
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
-    std::shared_ptr<Plan> planC = std::make_shared<Plan>();
-    planC->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planC->m_InputMappings = { { planC->m_OpGraph.GetBuffers()[0], partCInputSlot } };
+    Plan planC;
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC.m_InputMappings = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
 
-    std::shared_ptr<Plan> planD = std::make_shared<Plan>();
-    planD->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planD->m_InputMappings = { { planD->m_OpGraph.GetBuffers()[0], partDInputSlot } };
+    Plan planD;
+    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planD.m_InputMappings = { { planD.m_OpGraph.GetBuffers()[0], partDInputSlot } };
 
-    Combination combA(partA, planA, 0, graph);
-    Combination combB(partB, planB, 1, graph);
-    Combination combC(partC, planC, 2, graph);
-    Combination combD(partD, planD, 3, graph);
+    Combination combA(partA, std::move(planA), 0, graph);
+    Combination combB(partB, std::move(planB), 1, graph);
+    Combination combC(partC, std::move(planC), 2, graph);
+    Combination combD(partD, std::move(planD), 3, graph);
 
     // Merge the combinations
     Combination comb = combB + combD + combC + combA;
@@ -1990,41 +1991,41 @@ TEST_CASE("IsPlanInputGlueable", "[CombinerDFS]")
     const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    std::unique_ptr<Plan> planA = std::make_unique<Plan>();
-    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(
         Lifetime::Atomic, Location::VirtualSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 64, 64, 64 },
         TensorShape{ 1, 8, 16, 48 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
 
-    planA->m_InputMappings = { { planA->m_OpGraph.GetBuffers()[0], {} },
-                               { planA->m_OpGraph.GetBuffers()[1], {} },
-                               { planA->m_OpGraph.GetBuffers()[2], {} } };
+    planA.m_InputMappings = { { planA.m_OpGraph.GetBuffers()[0], {} },
+                              { planA.m_OpGraph.GetBuffers()[1], {} },
+                              { planA.m_OpGraph.GetBuffers()[2], {} } };
 
     Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
 
-    REQUIRE(combiner.IsPlanInputGlueable(*planA.get()) == false);
+    REQUIRE(combiner.IsPlanInputGlueable(planA) == false);
 
-    std::unique_ptr<Plan> planB = std::make_unique<Plan>();
-    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 48 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB->m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
+    Plan planB;
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 48 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
 
-    planB->m_InputMappings = { { planB->m_OpGraph.GetBuffers()[0], {} },
-                               { planB->m_OpGraph.GetBuffers()[1], {} },
-                               { planB->m_OpGraph.GetBuffers()[2], {} } };
+    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], {} },
+                              { planB.m_OpGraph.GetBuffers()[1], {} },
+                              { planB.m_OpGraph.GetBuffers()[2], {} } };
 
-    REQUIRE(combiner.IsPlanInputGlueable(*planB.get()) == true);
+    REQUIRE(combiner.IsPlanInputGlueable(planB) == true);
 }
 
 TEST_CASE("ArePlansAllowedToMerge", "[CombinerDFS]")

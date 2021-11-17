@@ -57,7 +57,7 @@ bool IsObjectOfType(const B* obj)
 
 using PartId         = uint32_t;
 using StripeSizeType = TensorShape::value_type;
-using Plans          = std::vector<std::shared_ptr<Plan>>;
+using Plans          = std::vector<Plan>;
 using InPart         = std::pair<bool, PartId>;
 using OutPart        = std::pair<bool, PartId>;
 using Nodes          = std::vector<Node*>;

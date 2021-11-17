@@ -555,10 +555,10 @@ void CheckPlans(const Plans& plans, const CheckPlansParams& params)
     std::vector<bool> anyPredicatesMatched(params.m_Any.size(), false);
     for (auto&& plan : plans)
     {
-        INFO("plan " << plan->m_DebugTag);
+        INFO("plan " << plan.m_DebugTag);
         PlanDesc desc;
 
-        ExtractBuffers(*plan, desc, params);
+        ExtractBuffers(plan, desc, params);
         CheckInputDram(params, desc);
         CheckInputSram(desc, params);
         CheckWeightsDram(desc, params);
@@ -567,14 +567,14 @@ void CheckPlans(const Plans& plans, const CheckPlansParams& params)
         CheckOutputSram(desc, params);
         CheckOutputDram(desc, params);
 
-        ExtractOps(*plan, params, desc);
+        ExtractOps(plan, params, desc);
         CheckInputDma(params, desc);
         CheckWeightsDma(params, desc);
         CheckMce(params, desc);
         CheckPle(desc, params);
         CheckOutputDma(desc, params);
-        CheckConnections(params, *plan, desc);
-        CheckMappings(params, *plan, desc);
+        CheckConnections(params, plan, desc);
+        CheckMappings(params, plan, desc);
 
         // Check custom predicates/functions for this plan
         for (size_t i = 0; i < params.m_Any.size(); ++i)
@@ -608,9 +608,9 @@ void SavePlansToDot(const Plans& plans, const std::string test)
     std::stringstream stripes;
     for (const auto& plan : plans)
     {
-        SaveOpGraphToDot(plan->m_OpGraph, str, DetailLevel::High);
+        SaveOpGraphToDot(plan.m_OpGraph, str, DetailLevel::High);
 
-        SaveOpGraphToTxtFile(plan->m_OpGraph, stripes);
+        SaveOpGraphToTxtFile(plan.m_OpGraph, stripes);
     }
 
     std::regex re("digraph");
@@ -1025,7 +1025,7 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
                 //   3 output stripes
                 // 1 for mce only
                 REQUIRE(plans1.size() == 4);
-                part1OutputBuffer = *plans[0]->m_OpGraph.GetBuffers().back();
+                part1OutputBuffer = *plans[0].m_OpGraph.GetBuffers().back();
 
                 Plans plans2 =
                     part2.GetPlans(CascadeType::End, requestedBlockConfig, &part1OutputBuffer, numWeightStripes);

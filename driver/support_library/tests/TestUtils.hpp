@@ -39,10 +39,7 @@ public:
     MockPart(PartId id)
         : BasePart(id, estOpt, compOpt, GetEthosN78HwCapabilities())
     {}
-    virtual Plans GetPlans(CascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const override
-    {
-        return Plans();
-    }
+    virtual Plans GetPlans(CascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const override;
 
     virtual utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const override
     {

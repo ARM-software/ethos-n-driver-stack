@@ -899,37 +899,37 @@ Combination Combiner::EndSection(const BasePart& part,
         Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
         const uint32_t numberOfWeightStripes          = sPlan.GetNumberOfWeightStripes();
 
-        const Plans plans = part.GetPlans(CascadeType::End, blkConfig, sramBuffer, numberOfWeightStripes);
+        Plans plans = part.GetPlans(CascadeType::End, blkConfig, sramBuffer, numberOfWeightStripes);
 
-        for (const auto& plan : plans)
+        for (Plan& plan : plans)
         {
             // Make a copy of the allocator since every plan needs to have its own,
             // each potential section won't allocate from the same allocator.
             SramAllocator tempAlloc = alloc;
 
-            if (!IsPlanOutputGlueable(*plan.get()))
+            if (!IsPlanOutputGlueable(plan))
             {
                 continue;
             }
 
-            if (!ArePlansCompatible(sPlan, *plan.get(), connection))
+            if (!ArePlansCompatible(sPlan, plan, connection))
             {
                 continue;
             }
 
-            if (!ArePlansAllowedToMerge(sPlan, *plan.get(), connection))
+            if (!ArePlansAllowedToMerge(sPlan, plan, connection))
             {
                 continue;
             }
 
-            if (!IsPlanAllocated(tempAlloc, *plan.get()))
+            if (!IsPlanAllocated(tempAlloc, plan))
             {
                 continue;
             }
 
             // Add current part and plan to the combination,
             Combination section =
-                comb + Combination(part, plan, m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
+                comb + Combination(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
 
             Combinations options = { result, section };
             result               = GetBestCombination(options);
@@ -1004,21 +1004,21 @@ Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPar
         //    block configurations etc.
         //  - Allocated i.e. there is space in SRAM to accomodate
         //    all the buffers required by the plan
-        for (const auto& plan : plans)
+        for (Plan& plan : plans)
         {
             // Make a copy of the allocator since every plan needs to have its own,
             // each potential section won't allocate from the same allocator.
             SramAllocator tempAlloc = alloc;
-            if (!IsPlanInputGlueable(*plan.get()))
+            if (!IsPlanInputGlueable(plan))
             {
                 continue;
             }
             // Allocation requirement are different for start of section
-            if (!IsPlanAllocated(tempAlloc, *plan.get()))
+            if (!IsPlanAllocated(tempAlloc, plan))
             {
                 continue;
             }
-            Combination head(part, plan, m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
+            Combination head(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
 
             // Options to be estimated: consider continuing and ending the current section
             // in the next part
@@ -1057,20 +1057,20 @@ Combination Combiner::SinglePartSection(const BasePart& part)
 
     Combination result = {};
 
-    for (const auto& plan : plans)
+    for (Plan& plan : plans)
     {
-        if (!IsPlanInputGlueable(*plan.get()))
+        if (!IsPlanInputGlueable(plan))
         {
             continue;
         }
-        if (!IsPlanOutputGlueable(*plan.get()))
+        if (!IsPlanOutputGlueable(plan))
         {
             continue;
         }
         // Glue will be added later on.
         // In this case local optimum = global optimum so
         // it can get the best plan for the part.
-        Combination head(part, plan, m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
+        Combination head(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
         Combinations options = { result, head };
         result               = GetBestCombination(options);
     }
@@ -1160,28 +1160,28 @@ Combination Combiner::ContinueSection(const BasePart& part,
 
         Plans plans = part.GetPlans(CascadeType::Middle, blkConfig, sramBuffer, numberOfWeightStripes);
 
-        for (const auto& plan : plans)
+        for (Plan& plan : plans)
         {
             // Make a copy of the allocator since every plan needs to have its own,
             // each potential section won't allocate from the same allocator.
             SramAllocator tempAlloc = alloc;
 
-            if (!ArePlansCompatible(sPlan, *plan.get(), connection))
+            if (!ArePlansCompatible(sPlan, plan, connection))
             {
                 continue;
             }
 
-            if (!ArePlansAllowedToMerge(sPlan, *plan.get(), connection))
+            if (!ArePlansAllowedToMerge(sPlan, plan, connection))
             {
                 continue;
             }
 
-            if (!ArePlansStreamingStrategiesCompatible(sPlan, *plan.get(), connection))
+            if (!ArePlansStreamingStrategiesCompatible(sPlan, plan, connection))
             {
                 continue;
             }
 
-            if (!IsPlanAllocated(tempAlloc, *plan.get()))
+            if (!IsPlanAllocated(tempAlloc, plan))
             {
                 continue;
             }
@@ -1190,7 +1190,7 @@ Combination Combiner::ContinueSection(const BasePart& part,
             // no glue is required. Current part is SISO and
             // has a single input/output
             Combination section =
-                comb + Combination(part, plan, m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
+                comb + Combination(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
 
             // Options to be estimated
             Combinations options;

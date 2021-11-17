@@ -1008,9 +1008,9 @@ void SavePlansToDot(const Plans& plans, std::ostream& stream, DetailLevel detail
 
     for (auto&& plan : plans)
     {
-        DotAttributes attr = GetDotAttributes(plan.get(), detailLevel);
+        DotAttributes attr = GetDotAttributes(&plan, detailLevel);
         DumpSubgraphHeaderToDotFormat(attr, stream);
-        SavePlanAsBody(*plan, stream, detailLevel);
+        SavePlanAsBody(plan, stream, detailLevel);
         stream << "}"
                << "\n";
     }

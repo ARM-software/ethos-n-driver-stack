@@ -31,7 +31,7 @@ enum class CompilerDataCompressedFormat;
 enum class TraversalOrder;
 enum class CompilerMceAlgorithm;
 
-using Plans = std::vector<std::shared_ptr<Plan>>;
+using Plans = std::vector<Plan>;
 
 std::string ToString(Location l);
 std::string ToString(Lifetime l);

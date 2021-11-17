@@ -58,8 +58,8 @@ struct Combination
     {}
 
     // Create a combination with a single element without any edge/glue information
-    Combination(const BasePart& part, std::shared_ptr<Plan> plan, size_t orderRank, const GraphOfParts& graphOfParts)
-        : Combination(part, plan, nullptr, nullptr, orderRank, false, graphOfParts)
+    Combination(const BasePart& part, Plan&& plan, size_t orderRank, const GraphOfParts& graphOfParts)
+        : Combination(part, std::make_shared<Plan>(std::move(plan)), nullptr, nullptr, orderRank, false, graphOfParts)
     {}
 
     // Create a combination with a single element without plan information,
