@@ -52,7 +52,6 @@ srcs = [
     "PartTests.cpp",
     "TestUtils.cpp",
     "VisualisationTests.cpp",
-    "PlanGeneratorTests.cpp",
     "ResizeTests.cpp",
     "OptionalTests.cpp",
     "QuantizationInfoTests.cpp",

@@ -7,7 +7,6 @@
 #include "../src/GraphNodes.hpp"
 #include "../src/cascading/Cascading.hpp"
 #include "../src/cascading/CombinerDFS.hpp"
-#include "../src/cascading/PartV1.hpp"
 #include "TestUtils.hpp"
 
 #include <catch.hpp>

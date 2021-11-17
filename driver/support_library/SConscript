@@ -55,7 +55,6 @@ srcs = [
     os.path.join("src", "cascading", "Cascading.cpp"),
     os.path.join("src", "cascading", "DebuggableObject.cpp"),
     os.path.join("src", "cascading", "Part.cpp"),
-    os.path.join("src", "cascading", "PartV1.cpp"),
     os.path.join("src", "cascading", "Plan.cpp"),
     os.path.join("src", "cascading", "CombinerDFS.cpp"),
     os.path.join("src", "cascading", "Visualisation.cpp"),
