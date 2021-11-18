@@ -392,6 +392,7 @@ The following features and feature combinations have known limitations in this E
     * ResNet v2-50
     * SRGAN
     * U-Net
+    * EfficientNet Lite
 
     _Note: Running other networks may result in parts of the network being run by the Arm NN CPU reference backend._
 
