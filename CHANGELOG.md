@@ -1,5 +1,50 @@
 # Changelog for Arm® Ethos™-N Driver Stack
 
+## 21.11
+
+### New features
+
+- Support for Arm NN 21.11
+- Support for EfficientNet Lite
+- Support of user controlled workload scheduling on multiple separated devices
+- Support for Hibernation in SMMU configurations
+
+### Public API changes
+
+- Version number updates:
+  - Command stream version updated to 3.0.0
+  - Driver library version updated to 1.3.0
+  - Firmware version updated to 3.0.0
+  - Kernel module version updated to 2.0.0
+  - Support library version updated to 3.0.0
+- Driver library:
+  - GetMappedBuffer is deprecated and support will be removed in next release
+
+### Other changes
+
+- Performance improvement of 2.5x for Leaky ReLU
+- Kernel module:
+  - Use of DMA API for buffer allocation
+  - An additional task stack is now allocated for use by the firmware
+  - Memory regions and streams have been decoupled to allow multiple regions to be associated with the same stream with
+    more fine grained memory restrictions
+  - Support use of reserved regions in SMMU configurations
+  - Linux version 4.14 and 4.19 are deprecated in SMMU configurations and support will be removed in next release
+  - Improved SMC error handling to support errors from both 32 & 64-bit Trusted Firmware-A
+  - Additional SMC logging
+  - Build in release mode by default
+  - Fixed some resources not being cleaned up correctly in error handling
+  - Removed 512 MB limit for DMA buffers when SMMU is present
+- Support library:
+  - Improve zero point checks in support queries
+  - Fixed some resources not being cleaned up correctly in error handling
+  - Fixed overflow in direct convolution when estimating SRGAN performance
+  - Improve error handling by replacing some asserts with throwing exceptions
+
+### Known issues
+
+- None
+
 ## 21.08
 
 ### New features
