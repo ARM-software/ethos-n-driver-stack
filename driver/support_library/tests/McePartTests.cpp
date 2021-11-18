@@ -58,7 +58,8 @@ McePart BuildPart(TensorShape inputShape,
     const std::set<uint32_t> operationsIds = { 1 };
     EstimationOptions estOps;
     McePart part(partId, inputShape, outputShape, inputQuantInfo, outputQuantInfo, weightInfo, weightData, biasInfo,
-                 biasData, stride, padTop, padLeft, op, estOps, compOpt, caps, operationsIds);
+                 biasData, stride, padTop, padLeft, op, estOps, compOpt, caps, operationsIds,
+                 ethosn::command_stream::DataType::U8);
 
     return part;
 }
@@ -651,7 +652,8 @@ TEST_CASE("McePart GetPlans structure")
         const uint32_t padTop                   = 0;
         const uint32_t padLeft                  = 0;
         McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, weights, biasTensorInfo,
-                     bias, stride, padTop, padLeft, csOp, estOps, compOpt, caps, operationIds);
+                     bias, stride, padTop, padLeft, csOp, estOps, compOpt, caps, operationIds,
+                     ethosn::command_stream::DataType::U8);
 
         CheckPlansParams params;
         params.m_PartId            = partId;
@@ -710,7 +712,7 @@ TEST_CASE("McePart GetPlans structure")
             prevBuffer.m_SizeInBytes      = 8 * 16 * 16 * 1;
             prevBuffer.m_NumStripes       = 1;
 
-            Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
+            Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, &prevBuffer, 1);
             SavePlansToDot(plans, "McePart GetPlans structure Middle");
 
             THEN("The plans are valid and start in Sram and end in either Sram or PleInputSram")
@@ -738,7 +740,7 @@ TEST_CASE("McePart GetPlans structure")
             prevBuffer.m_Order            = TraversalOrder::Xyz;
             prevBuffer.m_SizeInBytes      = 8 * 16 * 16 * 1;
             prevBuffer.m_NumStripes       = 1;
-            Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, &prevBuffer, 1);
+            Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, &prevBuffer, 1);
             SavePlansToDot(plans, "McePart GetPlans structure End");
 
             THEN("The plans are valid and start in Sram and end in Sram")

@@ -209,7 +209,8 @@ McePart::McePart(PartId id,
                  const EstimationOptions& estOpt,
                  const CompilationOptions& compOpt,
                  const HardwareCapabilities& capabilities,
-                 std::set<uint32_t> operationIds)
+                 std::set<uint32_t> operationIds,
+                 command_stream::DataType dataType)
     : BasePart(id, CompilerDataFormat::NONE, operationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape(inputTensorShape)
     , m_OutputTensorShape(outputTensorShape)
@@ -236,6 +237,7 @@ McePart::McePart(PartId id,
                         ShapeMultiplier{ 1, 1, 1 },
                         capabilities)
     , m_WeightEncoderCache{ capabilities }
+    , m_DataType(dataType)
 {}
 
 Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
@@ -431,7 +433,7 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                 // Create an identity ple Op
                 std::unique_ptr<PleOp> pleOp = std::make_unique<PleOp>(
                     Lifetime::Cascade, PleOperation::PASSTHROUGH, info.m_MceCompute.m_BlockConfig, 1,
-                    std::vector<TensorShape>{ info.m_PleCompute.m_Input }, info.m_PleCompute.m_Output);
+                    std::vector<TensorShape>{ info.m_PleCompute.m_Input }, info.m_PleCompute.m_Output, m_DataType);
                 auto outBufferAndPleOp = AddPleToOpGraph(opGraph, lifetime, order, info.m_Memory.m_Output.m_Shape,
                                                          numMemoryStripes, std::move(pleOp), m_OutputTensorShape,
                                                          m_OutputQuantizationInfo, m_CorrespondingOperationIds);

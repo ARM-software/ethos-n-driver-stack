@@ -33,7 +33,8 @@ public:
             const EstimationOptions& estOpt,
             const CompilationOptions& compOpt,
             const HardwareCapabilities& capabilities,
-            std::set<uint32_t> operationIds);
+            std::set<uint32_t> operationIds,
+            command_stream::DataType dataType);
 
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,
@@ -112,6 +113,8 @@ private:
     impl::StripeGenerator m_StripeGenerator;
 
     mutable WeightEncoderCache m_WeightEncoderCache;
+
+    command_stream::DataType m_DataType;
 };
 }    // namespace support_library
 }    // namespace ethosn

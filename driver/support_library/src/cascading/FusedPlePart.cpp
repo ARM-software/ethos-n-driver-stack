@@ -31,7 +31,8 @@ FusedPlePart::FusedPlePart(PartId id,
                            const EstimationOptions& estOpt,
                            const CompilationOptions& compOpt,
                            const HardwareCapabilities& capabilities,
-                           std::set<uint32_t> correspondingOperationIds)
+                           std::set<uint32_t> correspondingOperationIds,
+                           command_stream::DataType dataType)
     : BasePart(id, CompilerDataFormat::NONE, correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape(inputTensorShape)
     , m_OutputTensorShape(outputTensorShape)
@@ -50,6 +51,7 @@ FusedPlePart::FusedPlePart(PartId id,
                         shapeMultiplier,
                         capabilities)
     , m_WeightEncoderCache{ capabilities }
+    , m_DataType(dataType)
 {}
 
 utils::Optional<ethosn::command_stream::MceOperation> FusedPlePart::GetMceOperation() const
@@ -216,7 +218,7 @@ void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
                 // A fuse only ple operation only has 1 input
                 auto op = std::make_unique<PleOp>(Lifetime::Cascade, m_KernelOperation, info.m_PleCompute.m_BlockConfig,
                                                   1, std::vector<TensorShape>{ info.m_PleCompute.m_Input },
-                                                  info.m_PleCompute.m_Output);
+                                                  info.m_PleCompute.m_Output, m_DataType);
 
                 auto outBufferAndPleOp = AddPleToOpGraph(opGraph, lifetime, order, info.m_Memory.m_Output.m_Shape,
                                                          numMemoryStripes, std::move(op), m_OutputTensorShape,
@@ -254,7 +256,7 @@ void FusedPlePart::CreateFuseOnlyPlans(const PleOnlyInfo& info, TraversalOrder o
             // A fuse only ple operation only has 1 input
             auto op = std::make_unique<PleOp>(Lifetime::Cascade, m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
                                               std::vector<TensorShape>{ info.m_PleCompute.m_Input },
-                                              info.m_PleCompute.m_Output);
+                                              info.m_PleCompute.m_Output, m_DataType);
 
             auto outBufferAndPleOp = AddPleToOpGraph(opGraph, lifetime, order, info.m_Memory.m_Output.m_Shape,
                                                      numMemoryStripes, std::move(op), m_OutputTensorShape,
@@ -281,8 +283,15 @@ Plans FusedPlePart::GetLonelyPlans(uint32_t numWeightStripes) const
                                                         8u,
                                                     },
                                                     { 8u, 32u } };
+    std::vector<BlockConfig> validBlockConfigs  = FilterPleBlockConfigs(m_KernelOperation, blockConfigs);
+
+    if (validBlockConfigs.size() == 0)
+    {
+        throw InternalErrorException("Fused PLE part: no valid block size found");
+    }
+
     StripeInfos stripeInfos;
-    for (auto&& blockConfig : blockConfigs)
+    for (auto&& blockConfig : validBlockConfigs)
     {
         // Todo generate all stripes again
         m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Lonely, &stripeInfos);
@@ -310,8 +319,16 @@ Plans FusedPlePart::GetBeginningPlans(uint32_t numWeightStripes) const
                                                         8u,
                                                     },
                                                     { 8u, 32u } };
+
+    std::vector<BlockConfig> validBlockConfigs = FilterPleBlockConfigs(m_KernelOperation, blockConfigs);
+
+    if (validBlockConfigs.size() == 0)
+    {
+        throw InternalErrorException("Fused PLE part: no valid block size found");
+    }
+
     StripeInfos stripeInfos;
-    for (auto&& blockConfig : blockConfigs)
+    for (auto&& blockConfig : validBlockConfigs)
     {
         // Todo generate all stripes again
         m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Beginning, &stripeInfos);
@@ -333,6 +350,11 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     assert(cascadeType == CascadeType::Middle || cascadeType == CascadeType::End);
     assert(prevBuffer);
     Plans ret;
+
+    if (!PleBlockConfigAllowed(m_KernelOperation, blockConfig))
+    {
+        return ret;
+    }
 
     // Multiple output stripes are needed because the follow layers may require multiple buffers due to boundary data.
     // These will be filtered out by the following layer

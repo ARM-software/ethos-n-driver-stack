@@ -292,8 +292,8 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
     dma.m_DebugTag = "Dma";
     graph.AddOp(&dma);
 
-    PleOp ple(Lifetime::Atomic, PleOperation::ADDITION, { 3u, 4u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } },
-              { 9, 10, 11, 12 });
+    PleOp ple(Lifetime::Atomic, PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } },
+              { 9, 10, 11, 12 }, ethosn::command_stream::DataType::U8);
     ple.m_DebugTag = "Ple";
     graph.AddOp(&ple);
 
@@ -314,11 +314,10 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
 {
 Mce[label = "Mce\nLifetime = Atomic\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlock Config = 3x4\nInput Stripe Shape = [1, 2, 3, 4]\nOutput Stripe Shape = [5, 6, 7, 8]\nWeights Stripe Shape = [9, 10, 11, 12]\nOrder = Zxy\nStride = 10, 20\nPad L/T = 30, 40\nOperation Ids = []\n", shape = oval]
 Dma[label = "Dma\nLifetime = Cascade\nDmaOp\nOperation Ids = []\n", shape = oval, color = darkgoldenrod]
-Ple[label = "Ple\nLifetime = Atomic\nPleOp\nOp = ADDITION\nBlock Config = 3x4\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nOperation Ids = []\n", shape = oval]
+Ple[label = "Ple\nLifetime = Atomic\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nOutput Data type = U8\nPle kernel Id = ADDITION_16X16_1\nOperation Ids = []\n", shape = oval]
 Buffer1[label = "Buffer1\nLifetime = Cascade\nLocation = PleInputSram\nFormat = WEIGHT\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\nOrder = Zxy\nSize in bytes = 1234\n", shape = box]
 }
 )";
-
     REQUIRE(stream.str() == expected);
 }
 
@@ -338,8 +337,8 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     inputBuffer.m_DebugTag = "InputBuffer";
     graph.AddBuffer(&inputBuffer);
 
-    PleOp ple1(Lifetime::Atomic, PleOperation::ADDITION, { 3u, 4u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } },
-               { 9, 10, 11, 12 });
+    PleOp ple1(Lifetime::Atomic, PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } },
+               { 9, 10, 11, 12 }, ethosn::command_stream::DataType::U8);
     ple1.m_DebugTag = "Ple1";
     graph.AddOp(&ple1);
 
@@ -348,13 +347,13 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     intermediateBuffer.m_DebugTag = "IntermediateBuffer";
     graph.AddBuffer(&intermediateBuffer);
 
-    PleOp ple2(Lifetime::Atomic, PleOperation::ADDITION, { 3u, 4u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } },
-               { 9, 10, 11, 12 });
+    PleOp ple2(Lifetime::Atomic, PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } },
+               { 9, 10, 11, 12 }, ethosn::command_stream::DataType::U8);
     ple2.m_DebugTag = "Ple2";
     graph.AddOp(&ple2);
 
-    PleOp ple(Lifetime::Atomic, PleOperation::ADDITION, { 3u, 4u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } },
-              { 9, 10, 11, 12 });
+    PleOp ple(Lifetime::Atomic, PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } },
+              { 9, 10, 11, 12 }, ethosn::command_stream::DataType::U8);
     ple.m_DebugTag = "Ple";
     graph.AddOp(&ple);
 
@@ -558,23 +557,23 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
 
     // FusedPlePart
-    auto fusedPlePart = std::make_unique<FusedPlePart>(1, TensorShape{ 1, 2, 3, 4 }, TensorShape{ 5, 6, 7, 8 },
-                                                       QuantizationInfo(9, 10.0f), QuantizationInfo(11, 12.0f),
-                                                       PleOperation::DOWNSAMPLE_2X2, utils::ShapeMultiplier{ 1, 1, 1 },
-                                                       estOpt, compOpt, caps, std::set<uint32_t>{ 13, 14, 15 });
+    auto fusedPlePart = std::make_unique<FusedPlePart>(
+        1, TensorShape{ 1, 2, 3, 4 }, TensorShape{ 5, 6, 7, 8 }, QuantizationInfo(9, 10.0f),
+        QuantizationInfo(11, 12.0f), PleOperation::DOWNSAMPLE_2X2, utils::ShapeMultiplier{ 1, 1, 1 }, estOpt, compOpt,
+        caps, std::set<uint32_t>{ 13, 14, 15 }, ethosn::command_stream::DataType::U8);
     parts.m_Parts.push_back(std::move(fusedPlePart));
 
     // McePart
-    auto mcePart =
-        std::make_unique<McePart>(5, TensorShape{ 1, 2, 3, 4 }, TensorShape{ 5, 6, 7, 8 }, QuantizationInfo(9, 10.0f),
-                                  QuantizationInfo(11, 12.0f),
-                                  sl::TensorInfo(TensorShape{ 9, 10, 11, 12 }, sl::DataType::UINT8_QUANTIZED,
-                                                 sl::DataFormat::NHWC, QuantizationInfo(11, 12.0f)),
-                                  std::vector<uint8_t>(),
-                                  sl::TensorInfo(TensorShape{ 19, 110, 111, 112 }, sl::DataType::UINT8_QUANTIZED,
-                                                 sl::DataFormat::NHWC, QuantizationInfo(111, 112.0f)),
-                                  std::vector<int32_t>{}, Stride{ 2, 2 }, 1, 3, MceOperation::DEPTHWISE_CONVOLUTION,
-                                  estOpt, compOpt, caps, std::set<uint32_t>{ 13, 14, 15 });
+    auto mcePart = std::make_unique<McePart>(
+        5, TensorShape{ 1, 2, 3, 4 }, TensorShape{ 5, 6, 7, 8 }, QuantizationInfo(9, 10.0f),
+        QuantizationInfo(11, 12.0f),
+        sl::TensorInfo(TensorShape{ 9, 10, 11, 12 }, sl::DataType::UINT8_QUANTIZED, sl::DataFormat::NHWC,
+                       QuantizationInfo(11, 12.0f)),
+        std::vector<uint8_t>(),
+        sl::TensorInfo(TensorShape{ 19, 110, 111, 112 }, sl::DataType::UINT8_QUANTIZED, sl::DataFormat::NHWC,
+                       QuantizationInfo(111, 112.0f)),
+        std::vector<int32_t>{}, Stride{ 2, 2 }, 1, 3, MceOperation::DEPTHWISE_CONVOLUTION, estOpt, compOpt, caps,
+        std::set<uint32_t>{ 13, 14, 15 }, ethosn::command_stream::DataType::U8);
     parts.m_Parts.push_back(std::move(mcePart));
 
     // ConcatPart

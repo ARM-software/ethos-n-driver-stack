@@ -75,7 +75,8 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
                                     { 1, convInfo.m_Stride.m_X },
                                     { convInfo.m_Stride.m_X * convInfo.m_Stride.m_Y } },
             m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-            std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(), convolution.GetWeights().GetId() });
+            std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(), convolution.GetWeights().GetId() },
+            GetCommandDataType(convolution.GetOutput(0).GetTensorInfo().m_DataType));
         parts.push_back(std::move(fusedPlePart.get()));
         m_GraphOfParts.m_Parts.push_back(std::move(fusedPlePart));
     }
@@ -90,7 +91,8 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
         convolution.GetConvolutionInfo().m_Stride, convolution.GetConvolutionInfo().m_Padding.m_Top,
         convolution.GetConvolutionInfo().m_Padding.m_Left, command_stream::MceOperation::CONVOLUTION,
         m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-        std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(), convolution.GetWeights().GetId() });
+        std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(), convolution.GetWeights().GetId() },
+        GetCommandDataType(convolution.GetOutput(0).GetTensorInfo().m_DataType));
     parts.push_back(std::move(mcePart.get()));
     m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
     ConnectParts(convolution, parts);
@@ -108,7 +110,8 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
             pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::MAXPOOL_2X2_2_2,
             utils::ShapeMultiplier{
                 { 1, pooling.GetPoolingInfo().m_PoolingStrideY }, { 1, pooling.GetPoolingInfo().m_PoolingStrideX }, 1 },
-            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ pooling.GetId() });
+            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ pooling.GetId() },
+            GetCommandDataType(pooling.GetOutput(0).GetTensorInfo().m_DataType));
         parts.push_back(std::move(poolingFusedPlePart.get()));
         m_GraphOfParts.m_Parts.push_back(std::move(poolingFusedPlePart));
         ConnectParts(pooling, parts);
@@ -161,7 +164,8 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
                 inputOperand.GetTensorInfo().m_Dimensions, inputOperand.GetTensorInfo().m_QuantizationInfo,
                 concat.GetOutput(0).GetTensorInfo().m_QuantizationInfo, weightInfo, weightsData, biasInfo, biasData,
                 Stride{ 1, 1 }, 0, 0, command_stream::MceOperation::DEPTHWISE_CONVOLUTION, m_EstimationOptions.value(),
-                m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ concat.GetId() });
+                m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ concat.GetId() },
+                GetCommandDataType(concat.GetOutput(0).GetTensorInfo().m_DataType));
 
             // Add the connection to the GraphOfParts, then store the new PartId in a temporary map and then add the McePart to the GraphOfParts.
             m_GraphOfParts.AddConnection({ mcePart->GetPartId(), 0 }, { m_OperandToPart.at(&inputOperand)->GetPartId(),

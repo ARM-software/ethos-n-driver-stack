@@ -29,6 +29,7 @@ enum class PleOperation : uint8_t
     TRANSPOSE_XY,
     LEAKY_RELU,
     DOWNSAMPLE_2X2,
+    NUM_OPS,
 };
 
 }    // namespace command_stream

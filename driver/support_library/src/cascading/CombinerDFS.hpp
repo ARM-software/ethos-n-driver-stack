@@ -52,6 +52,8 @@ struct Elem
 
 constexpr size_t g_InvalidCombRank = std::numeric_limits<size_t>::max();
 
+using PleOperations = std::vector<PleKernelId>;
+
 struct Combination
 {
     Combination()
@@ -228,7 +230,7 @@ public:
     bool ArePlansCompatible(const Plan& sPlan, const Plan& dPlan, const PartConnection& outputSlot);
     bool ArePlansCompatibleImpl(const Plan& sPlan, const Plan& dPlan, const PartConnection& outputSlot) const;
 
-    bool IsPlanAllocated(SramAllocator& alloc, const Plan& plan) const;
+    bool IsPlanAllocated(SramAllocator& alloc, const Plan& plan, PleOperations& pleOps) const;
     bool IsPlanInputGlueable(const Plan& plan) const;
     bool IsPlanOutputGlueable(const Plan& plan) const;
     bool ArePlansAllowedToMerge(const Plan& reference, const Plan& current, const PartConnection& outputSlot) const;
@@ -252,7 +254,8 @@ public:
                                 const BasePart& sPart,
                                 const Combination& comb,
                                 const SramAllocator& alloc,
-                                uint32_t numWeightStripes);
+                                uint32_t numWeightStripes,
+                                const PleOperations& pleOps);
 
     Combination SinglePartSection(const BasePart& part);
 
@@ -260,7 +263,8 @@ public:
                            const BasePart& sPart,
                            const Combination& comb,
                            const SramAllocator& alloc,
-                           uint32_t numWeightStripes);
+                           uint32_t numWeightStripes,
+                           const PleOperations& pleOps);
 
     Combination StartSection(const BasePart& part, const BasePart& nextPart, const SramAllocator& alloc);
 

@@ -4,6 +4,7 @@
 //
 
 #include "Plan.hpp"
+#include "PleKernelDatabase.hpp"
 
 using namespace std;
 using namespace ethosn::command_stream;
@@ -218,6 +219,25 @@ ethosn::command_stream::BlockConfig Plan::GetBlockConfigures(const PartOutputSlo
     }
 }
 
+PleKernelIdSize Plan::GetPleKernelIdSize(const HardwareCapabilities& cap) const
+{
+    PleKernelIdSize pleKernelIdSize;
+    pleKernelIdSize.m_Size = 0;
+
+    for (auto& op : m_OpGraph.GetOps())
+    {
+        if (IsObjectOfType<PleOp>(op))
+        {
+            PleOp* pleOp               = static_cast<PleOp*>(op);
+            pleKernelIdSize.m_Size     = cap.GetMaxPleSize();
+            pleKernelIdSize.m_KernelId = pleOp->m_PleKernelId;
+            break;
+        }
+    }
+
+    return pleKernelIdSize;
+}
+
 Op* OwnedOpGraph::AddOp(std::unique_ptr<Op> op)
 {
     // Call base implementation first in case it errors, in which case we don't want to track this Op.
@@ -308,14 +328,18 @@ PleOp::PleOp(Lifetime lifetime,
              BlockConfig blockConfig,
              uint32_t numInputs,
              std::vector<TensorShape> inputStripeShapes,
-             TensorShape outputStripeShape)
+             TensorShape outputStripeShape,
+             command_stream::DataType dataType)
     : Op("PleOp", lifetime)
     , m_Op(op)
     , m_BlockConfig(blockConfig)
     , m_NumInputs(numInputs)
     , m_InputStripeShapes(inputStripeShapes)
     , m_OutputStripeShape(outputStripeShape)
-{}
+    , m_OutputDataType(dataType)
+{
+    m_PleKernelId = plelib::FindPleKernelIdFromDatabase(blockConfig, (inputStripeShapes.at(0))[2], dataType, op);
+}
 
 ConcatOp::ConcatOp()
     : Op("ConcatOp")

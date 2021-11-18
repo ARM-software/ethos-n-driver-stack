@@ -345,11 +345,28 @@ bool Combiner::ArePlansCompatible(const Plan& sPlan, const Plan& dPlan, const Pa
 // Check if there is sufficient SRAM for plan to fit
 // into the SRAM allocation for the combination that
 // is compatible with the plan
-bool Combiner::IsPlanAllocated(SramAllocator& alloc, const Plan& plan) const
+bool Combiner::IsPlanAllocated(SramAllocator& alloc, const Plan& plan, PleOperations& pleOps) const
 {
     // Get input and total SRAM sizes required for the plan
     const SizeInBytes sTotSize = GetTotSizeInBytes(plan);
     const SizeInBytes sInSize  = GetInputsSizeInBytes(plan);
+
+    PleKernelIdSize pleIdSize = plan.GetPleKernelIdSize(m_Caps);
+    uint32_t pleKernelSize    = 0;
+    bool newPleKernel         = false;
+
+    if (pleIdSize.m_KernelId.has_value())
+    {
+        // If PLE kernel of the current plan is already used by previous part of the same
+        // section, then its size is not counted.
+        if (std::find(pleOps.begin(), pleOps.end(), pleIdSize.m_KernelId.value()) == pleOps.end())
+        {
+            pleKernelSize = pleIdSize.m_Size;
+            newPleKernel  = true;
+            assert(pleKernelSize != 0);
+            assert(pleKernelSize <= m_Caps.GetMaxPleSize());
+        }
+    }
 
     using Allocated = std::pair<bool, uint32_t>;
     Allocated allocated;
@@ -361,12 +378,19 @@ bool Combiner::IsPlanAllocated(SramAllocator& alloc, const Plan& plan) const
     // Note this function assumes the plan can be merged with the combination
     // that is associated with the sram allocation. Therefore, the additional
     // sram usage of this plan is the total size - input size.
-    allocated = localAlloc.Allocate(userId, (sTotSize.m_Tot - sInSize.m_Tot) / m_Caps.GetNumberOfSrams(),
-                                    AllocationPreference::Start);
+    allocated =
+        localAlloc.Allocate(userId, (sTotSize.m_Tot - sInSize.m_Tot + pleKernelSize) / m_Caps.GetNumberOfSrams(),
+                            AllocationPreference::Start);
 
     if (allocated.first)
     {
         alloc = localAlloc;
+
+        if (newPleKernel)
+        {
+            pleOps.push_back(pleIdSize.m_KernelId.value());
+        }
+
         return true;
     }
     else
@@ -880,7 +904,8 @@ Combination Combiner::EndSection(const BasePart& part,
                                  const BasePart& sPart,
                                  const Combination& comb,
                                  const SramAllocator& alloc,
-                                 uint32_t numWeightStripes)
+                                 uint32_t numWeightStripes,
+                                 const PleOperations& pleOps)
 {
     UpdateStats(StatsType::EndSection);
 
@@ -910,6 +935,8 @@ Combination Combiner::EndSection(const BasePart& part,
             // each potential section won't allocate from the same allocator.
             SramAllocator tempAlloc = alloc;
 
+            PleOperations tempPleOps = pleOps;
+
             if (!IsPlanOutputGlueable(plan))
             {
                 continue;
@@ -925,7 +952,7 @@ Combination Combiner::EndSection(const BasePart& part,
                 continue;
             }
 
-            if (!IsPlanAllocated(tempAlloc, plan))
+            if (!IsPlanAllocated(tempAlloc, plan, tempPleOps))
             {
                 continue;
             }
@@ -1020,8 +1047,15 @@ Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPar
                 {
                     continue;
                 }
+
+                // A list of PLE kernels that have been loaded into the SRAM
+                // for this section. Once loaded, a PLE kernel will remain
+                // in the SRAM as kernel reload is deemed to be costly.
+                // The list is updated whenever a new kernel is encountered.
+                PleOperations pleOps = {};
+
                 // Allocation requirement are different for start of section
-                if (!IsPlanAllocated(tempAlloc, plan))
+                if (!IsPlanAllocated(tempAlloc, plan, pleOps))
                 {
                     continue;
                 }
@@ -1029,8 +1063,8 @@ Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPar
 
                 // Options to be estimated: consider continuing and ending the current section
                 // in the next part
-                Combination ended     = EndSection(nextPart, part, head, tempAlloc, numWeightStripes);
-                Combination continued = ContinueSection(nextPart, part, head, tempAlloc, numWeightStripes);
+                Combination ended     = EndSection(nextPart, part, head, tempAlloc, numWeightStripes, pleOps);
+                Combination continued = ContinueSection(nextPart, part, head, tempAlloc, numWeightStripes, pleOps);
                 Combinations options  = { result, continued, ended };
                 result                = GetBestCombination(options);
             }
@@ -1112,7 +1146,8 @@ Combination Combiner::ContinueSection(const BasePart& part,
                                       const BasePart& sPart,
                                       const Combination& comb,
                                       const SramAllocator& alloc,
-                                      uint32_t numWeightStripes)
+                                      uint32_t numWeightStripes,
+                                      const PleOperations& pleOps)
 {
     UpdateStats(StatsType::ContinueSection);
 
@@ -1179,6 +1214,8 @@ Combination Combiner::ContinueSection(const BasePart& part,
             // each potential section won't allocate from the same allocator.
             SramAllocator tempAlloc = alloc;
 
+            PleOperations tempPleOps = pleOps;
+
             if (!ArePlansCompatible(sPlan, plan, connection))
             {
                 continue;
@@ -1194,7 +1231,7 @@ Combination Combiner::ContinueSection(const BasePart& part,
                 continue;
             }
 
-            if (!IsPlanAllocated(tempAlloc, plan))
+            if (!IsPlanAllocated(tempAlloc, plan, tempPleOps))
             {
                 continue;
             }
@@ -1209,10 +1246,11 @@ Combination Combiner::ContinueSection(const BasePart& part,
             Combinations options;
 
             // Next one is the last part of the section
-            Combination ended = EndSection(*nextPartGraph, part, section, tempAlloc, numWeightStripes);
+            Combination ended = EndSection(*nextPartGraph, part, section, tempAlloc, numWeightStripes, tempPleOps);
 
             // Next one is the middle part of the section
-            Combination continued = ContinueSection(*nextPartGraph, part, section, tempAlloc, numWeightStripes);
+            Combination continued =
+                ContinueSection(*nextPartGraph, part, section, tempAlloc, numWeightStripes, tempPleOps);
 
             options = { result, continued, ended };
 

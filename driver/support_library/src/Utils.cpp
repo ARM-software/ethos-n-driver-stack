@@ -437,6 +437,56 @@ std::vector<command_stream::BlockConfig>
 }
 
 std::vector<command_stream::BlockConfig>
+    FilterPleBlockConfigs(const command_stream::PleOperation pleOp,
+                          const std::vector<command_stream::BlockConfig>& allowedBlockConfigs)
+{
+    std::vector<command_stream::BlockConfig> res = allowedBlockConfigs;
+
+    if (pleOp == command_stream::PleOperation::DOWNSAMPLE_2X2)
+    {
+        auto filter = [](const auto& blockConfig) {
+            return FilterToSizes(blockConfig, { { 16U, 8U }, { 32U, 8U }, { 16U, 16U }, { 8U, 8U } });
+        };
+        res = Filter(res, filter);
+    }
+    else if (pleOp == command_stream::PleOperation::INTERLEAVE_2X2_2_2)
+    {
+        auto filter = [](const auto& blockConfig) { return FilterToSize(blockConfig, 16, 16); };
+        res         = Filter(res, filter);
+    }
+    else if (pleOp == command_stream::PleOperation::MAXPOOL_2X2_2_2)
+    {
+        // MaxPool 2x2 2,2 supports only 16x16, 32x8, 8x8, 16x8
+        auto filter = [](const auto& blockConfig) {
+            return FilterToSizes(blockConfig, { { 16U, 16U }, { 32U, 8U }, { 8U, 8U }, { 16U, 8U } });
+        };
+        res = Filter(res, filter);
+    }
+    else if ((pleOp == command_stream::PleOperation::MEAN_XY_7X7) ||
+             (pleOp == command_stream::PleOperation::MEAN_XY_8X8))
+    {
+        auto filter = [](const auto& blockConfig) { return FilterToSize(blockConfig, 8, 8); };
+        res         = Filter(res, filter);
+    }
+    else if (pleOp == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+             pleOp == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD)
+    {
+        // The maxpool 3x3_2_2 and avgpool 3x3_1_1 ple kernels only support 8x8, 32x8 blocks
+        auto filter = [](const auto& blockConfig) { return FilterToSizes(blockConfig, { { 32U, 8U }, { 8U, 8U } }); };
+        res         = Filter(res, filter);
+    }
+    else if (pleOp == command_stream::PleOperation::TRANSPOSE_XY)
+    {
+        // The transpose_xy ple kernel only support 8x8 blocks
+        auto filter = [&](const auto& blockConfig) { return FilterToSizes(blockConfig, { { 8U, 8U } }); };
+
+        res = Filter(res, filter);
+    }
+
+    return res;
+}
+
+std::vector<command_stream::BlockConfig>
     FilterPleBlockConfigs(const FuseOnlyPleOperationNode* pleOperation,
                           const std::vector<command_stream::BlockConfig>& allowedBlockConfigs)
 {
@@ -445,51 +495,19 @@ std::vector<command_stream::BlockConfig>
     if (pleOperation != nullptr)
     {
         const command_stream::PleOperation pleOp = pleOperation->GetKernelOperation();
-
-        if (pleOp == command_stream::PleOperation::DOWNSAMPLE_2X2)
-        {
-            auto filter = [](const auto& blockConfig) {
-                return FilterToSizes(blockConfig, { { 16U, 8U }, { 32U, 8U }, { 16U, 16U }, { 8U, 8U } });
-            };
-            res = Filter(res, filter);
-        }
-        else if (pleOp == command_stream::PleOperation::INTERLEAVE_2X2_2_2)
-        {
-            auto filter = [](const auto& blockConfig) { return FilterToSize(blockConfig, 16, 16); };
-            res         = Filter(res, filter);
-        }
-        else if (pleOp == command_stream::PleOperation::MAXPOOL_2X2_2_2)
-        {
-            // MaxPool 2x2 2,2 supports only 16x16, 32x8, 8x8
-            auto filter = [](const auto& blockConfig) {
-                return FilterToSizes(blockConfig, { { 16U, 16U }, { 32U, 8U }, { 8U, 8U } });
-            };
-            res = Filter(res, filter);
-        }
-        else if ((pleOp == command_stream::PleOperation::MEAN_XY_7X7) ||
-                 (pleOp == command_stream::PleOperation::MEAN_XY_8X8))
-        {
-            auto filter = [](const auto& blockConfig) { return FilterToSize(blockConfig, 8, 8); };
-            res         = Filter(res, filter);
-        }
-        else if (pleOp == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
-                 pleOp == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD)
-        {
-            // The maxpool 3x3_2_2 and avgpool 3x3_1_1 ple kernels only support 8x8, 32x8 blocks
-            auto filter = [](const auto& blockConfig) {
-                return FilterToSizes(blockConfig, { { 32U, 8U }, { 8U, 8U } });
-            };
-            res = Filter(res, filter);
-        }
-        else if (pleOp == command_stream::PleOperation::TRANSPOSE_XY)
-        {
-            // The transpose_xy ple kernel only support 8x8 blocks
-            auto filter = [&](const auto& blockConfig) { return FilterToSizes(blockConfig, { { 8U, 8U } }); };
-
-            res = Filter(res, filter);
-        }
+        res                                      = FilterPleBlockConfigs(pleOp, allowedBlockConfigs);
     }
     return res;
+}
+
+bool PleBlockConfigAllowed(const command_stream::PleOperation pleOp,
+                           const command_stream::BlockConfig allowedBlockConfig)
+{
+    std::vector<command_stream::BlockConfig> res;
+
+    res = FilterPleBlockConfigs(pleOp, { allowedBlockConfig });
+
+    return (!res.empty());
 }
 
 std::vector<command_stream::BlockConfig>

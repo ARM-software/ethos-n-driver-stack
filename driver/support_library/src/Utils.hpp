@@ -639,6 +639,9 @@ std::vector<command_stream::BlockConfig>
     FilterMceBlockConfigs(const MceOperationNode* mceOperation,
                           const std::vector<command_stream::BlockConfig>& allowedBlockConfigs);
 std::vector<command_stream::BlockConfig>
+    FilterPleBlockConfigs(const command_stream::PleOperation pleOp,
+                          const std::vector<command_stream::BlockConfig>& allowedBlockConfigs);
+std::vector<command_stream::BlockConfig>
     FilterPleBlockConfigs(const FuseOnlyPleOperationNode* pleOperation,
                           const std::vector<command_stream::BlockConfig>& allowedBlockConfigs);
 std::vector<command_stream::BlockConfig>
@@ -646,6 +649,8 @@ std::vector<command_stream::BlockConfig>
                            const bool is2d,
                            const std::vector<command_stream::BlockConfig>& allowedBlockConfigs,
                            const HardwareCapabilities& capabilities);
+bool PleBlockConfigAllowed(const command_stream::PleOperation pleOp,
+                           const command_stream::BlockConfig allowedBlockConfig);
 
 constexpr int32_t g_IdentityWeightValue = 128;
 constexpr float g_IdentityWeightScale   = 1.f / static_cast<float>(g_IdentityWeightValue);
