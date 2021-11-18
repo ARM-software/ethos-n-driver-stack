@@ -249,8 +249,6 @@ struct AgentDependencyInfo
     /// overwriting a slot in the tile until the existing data is no longer needed by any reader agent.
     /// Size 1 for now, could change if we identify a use case for it.
     std::array<Dependency, 1> writeDependencies;
-    /// Number of stripes that can be processed without overwriting data in sram.
-    uint8_t tileSize;
 };
 
 /// Contains tagged agent data and dependency info for an agent
