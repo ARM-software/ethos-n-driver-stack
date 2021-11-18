@@ -39,6 +39,7 @@ srcs = [
     os.path.join("src", "Graph.cpp"),
     os.path.join("src", "GraphNodes.cpp"),
     os.path.join("src", "NetworkToGraphConverter.cpp"),
+    os.path.join("src", "cascading", "NetworkToGraphOfPartsConverter.cpp"),
     os.path.join("src", "nonCascading", "Pass.cpp"),
     os.path.join("src", "nonCascading", "McePlePass.cpp"),
     os.path.join("src", "nonCascading", "PlePass.cpp"),
