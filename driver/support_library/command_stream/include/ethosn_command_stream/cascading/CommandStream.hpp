@@ -94,6 +94,21 @@ struct BlockSize
     uint8_t height;
 };
 
+struct ReluActivation
+{
+    int16_t min;
+    int16_t max;
+};
+
+ETHOSN_DECL_SV_VECTOR_STRUCT(StrideXy, x, y);
+
+enum class MceOperation : uint8_t
+{
+    CONVOLUTION,
+    DEPTHWISE_CONVOLUTION,
+    FULLY_CONNECTED,
+};
+
 /// Mce Scheduler work size
 ETHOSN_DECL_SV_VECTOR_STRUCT(MceSWorkSize, ofmHeight, ofmWidth, ofmChannels, ifmChannels)
 
@@ -108,12 +123,22 @@ struct MceS
     Tile wgtTile;
     /// Mce block size
     BlockSize blockSize;
+    /// Default stripe size in elements granularity
     WorkSize dfltStripeSize;
+    /// Last stripe size in each dimension in elements granularity
     WorkSize edgeStripeSize;
     /// Number of stripes for each "work" dimension
     WorkSize numStripes;
     /// Stride info for stripe ID (scalar) to stripe coord (ND) conversion
     WorkSize stripeIdStrides;
+    /// Conv stride
+    StrideXy<uint8_t> convStrideXy;
+    /// Ifm zero point
+    int16_t ifmZeroPoint;
+    /// Mce Op mode can be: conv, depthwise, fully connected
+    MceOperation mceOpMode;
+    /// Relu activation values
+    ReluActivation reluActiv;
 };
 
 /// Ple Loader data
