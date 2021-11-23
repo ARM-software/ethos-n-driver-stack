@@ -632,7 +632,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
 
         WHEN("Asked to produce Lonely plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans structure Lonely");
 
             THEN("The plans are valid, start and end in Sram")
@@ -645,7 +645,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
 
         WHEN("Asked to produce Beginning plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans structure Beginning");
 
             THEN("The plans are valid and start in Sram and end in Sram")
@@ -771,7 +771,7 @@ TEST_CASE("FusedPlePart GetPlans strategy 0 shape multiplier")
 
         WHEN("Asked to generate plans at the beginning of a cascade")
         {
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
 
             SavePlansToDot(plans, "FusedPlePart GetPlans strategy 0 shape multiplier");
 
@@ -907,7 +907,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             FusedPlePart part = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
                                           utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, caps);
 
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
             CheckPlansParams params;
 
             params.m_Any.push_back([&](const PlanDesc& plan) {
@@ -1011,7 +1011,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             FusedPlePart part = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
                                           utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, caps);
 
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 224, 16 } &&

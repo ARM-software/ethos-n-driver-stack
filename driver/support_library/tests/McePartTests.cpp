@@ -770,7 +770,7 @@ TEST_CASE("McePart GetPlans Strategy3", "[slow]")
 
         WHEN("Asked to generate plans")
         {
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
             SavePlansToDot(plans, "McePart GetPlans Strategy3");
 
             THEN("The plans are valid and contain at least one plan with Strategy3 stripe shapes and properties")
@@ -958,7 +958,10 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
         WHEN("Asked to generate plans for the beginning, middle and end of a cascade")
         {
 
-            Plans plans = part0.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 0);
+            const uint32_t numWeightStripes = 1;
+
+            Plans plans =
+                part0.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, numWeightStripes);
 
             SavePlansToDot(plans, "McePart GetPlans Filters Block Config");
 
@@ -1012,8 +1015,6 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
                 CheckPlans(plans, params);
 
                 command_stream::BlockConfig requestedBlockConfig = { 16u, 8u };
-
-                const uint32_t numWeightStripes = 1;
 
                 Plans plans1 =
                     part1.GetPlans(CascadeType::Middle, requestedBlockConfig, &part0OutputBuffer, numWeightStripes);
@@ -1595,7 +1596,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                 BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
                           Stride{ 2, 2 }, 1, 1, compOpt, caps);
 
-            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_InputSram->m_StripeShape ==
@@ -1633,7 +1634,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             McePart part = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
                                      Stride{ 1, 1 }, 0, 0, compOpt, caps);
 
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 56, 64 } &&
@@ -1701,7 +1702,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             McePart part = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
                                      Stride{ 1, 1 }, 0, 0, compOpt, caps);
 
-            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 0);
+            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 bool b = true;

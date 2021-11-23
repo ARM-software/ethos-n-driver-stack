@@ -44,9 +44,9 @@ private:
                                        uint32_t numWeightStripes,
                                        CascadeType cascadeType) const;
 
-    Plans GetLonelyPlans() const;
+    Plans GetLonelyPlans(uint32_t numWeightStripes) const;
 
-    Plans GetBeginningPlans() const;
+    Plans GetBeginningPlans(uint32_t numWeightStripes) const;
 
     Buffer* AddIdentityWeights(OwnedOpGraph& opGraph,
                                Lifetime lifetime,
@@ -62,7 +62,8 @@ private:
     void CreateIdentityMceAndFusedPlePlans(const impl::MceAndPleInfo& info,
                                            TraversalOrder order,
                                            WeightEncoderCache& weightEncoderCache,
-                                           Plans& plans) const;
+                                           Plans& plans,
+                                           uint32_t numWeightStripes) const;
 
     std::pair<Buffer*, Buffer*> AddIdentityMceOpForSubGraph(OwnedOpGraph& opGraph,
                                                             Lifetime lifetime,

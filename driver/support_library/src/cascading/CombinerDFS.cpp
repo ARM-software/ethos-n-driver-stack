@@ -27,6 +27,9 @@ using namespace utils;
 namespace
 {
 
+constexpr uint32_t g_NumWeightStripesMin = 1;
+constexpr uint32_t g_NumWeightStripesMax = 2;
+
 void DumpDebugInfo(const GraphOfParts& parts,
                    const Combinations& combs,
                    std::vector<size_t> stats,
@@ -876,7 +879,8 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
 Combination Combiner::EndSection(const BasePart& part,
                                  const BasePart& sPart,
                                  const Combination& comb,
-                                 const SramAllocator& alloc)
+                                 const SramAllocator& alloc,
+                                 uint32_t numWeightStripes)
 {
     UpdateStats(StatsType::EndSection);
 
@@ -897,9 +901,8 @@ Combination Combiner::EndSection(const BasePart& part,
 
         ethosn::command_stream::BlockConfig blkConfig = sPlan.GetBlockConfigures(connection.m_Source);
         Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
-        const uint32_t numberOfWeightStripes          = sPlan.GetNumberOfWeightStripes();
 
-        Plans plans = part.GetPlans(CascadeType::End, blkConfig, sramBuffer, numberOfWeightStripes);
+        Plans plans = part.GetPlans(CascadeType::End, blkConfig, sramBuffer, numWeightStripes);
 
         for (Plan& plan : plans)
         {
@@ -991,41 +994,46 @@ Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPar
                m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() == 1);
 
         // The weight buffering will be improved by NNXSW-3628
-        Plans plans = part.GetPlans(CascadeType::Beginning, ethosn::command_stream::BlockConfig{}, nullptr, 0);
-
-        // SISO part:
-        //
-        // Try to start a section
-        // Make sure that the chosen next plan is in the order:
-        //  - Compatible with the last plan in the section
-        //  - Allowed i.e. some restriction could be applied
-        //    to reduce the search space, for example it
-        //    could consider only plans that have identical
-        //    block configurations etc.
-        //  - Allocated i.e. there is space in SRAM to accomodate
-        //    all the buffers required by the plan
-        for (Plan& plan : plans)
+        for (uint32_t numWeightStripes = g_NumWeightStripesMin; numWeightStripes <= g_NumWeightStripesMax;
+             numWeightStripes++)
         {
-            // Make a copy of the allocator since every plan needs to have its own,
-            // each potential section won't allocate from the same allocator.
-            SramAllocator tempAlloc = alloc;
-            if (!IsPlanInputGlueable(plan))
-            {
-                continue;
-            }
-            // Allocation requirement are different for start of section
-            if (!IsPlanAllocated(tempAlloc, plan))
-            {
-                continue;
-            }
-            Combination head(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
+            Plans plans =
+                part.GetPlans(CascadeType::Beginning, ethosn::command_stream::BlockConfig{}, nullptr, numWeightStripes);
 
-            // Options to be estimated: consider continuing and ending the current section
-            // in the next part
-            Combination ended     = EndSection(nextPart, part, head, tempAlloc);
-            Combination continued = ContinueSection(nextPart, part, head, tempAlloc);
-            Combinations options  = { result, continued, ended };
-            result                = GetBestCombination(options);
+            // SISO part:
+            //
+            // Try to start a section
+            // Make sure that the chosen next plan is in the order:
+            //  - Compatible with the last plan in the section
+            //  - Allowed i.e. some restriction could be applied
+            //    to reduce the search space, for example it
+            //    could consider only plans that have identical
+            //    block configurations etc.
+            //  - Allocated i.e. there is space in SRAM to accomodate
+            //    all the buffers required by the plan
+            for (Plan& plan : plans)
+            {
+                // Make a copy of the allocator since every plan needs to have its own,
+                // each potential section won't allocate from the same allocator.
+                SramAllocator tempAlloc = alloc;
+                if (!IsPlanInputGlueable(plan))
+                {
+                    continue;
+                }
+                // Allocation requirement are different for start of section
+                if (!IsPlanAllocated(tempAlloc, plan))
+                {
+                    continue;
+                }
+                Combination head(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
+
+                // Options to be estimated: consider continuing and ending the current section
+                // in the next part
+                Combination ended     = EndSection(nextPart, part, head, tempAlloc, numWeightStripes);
+                Combination continued = ContinueSection(nextPart, part, head, tempAlloc, numWeightStripes);
+                Combinations options  = { result, continued, ended };
+                result                = GetBestCombination(options);
+            }
         }
     }
 
@@ -1053,26 +1061,31 @@ Combination Combiner::SinglePartSection(const BasePart& part)
 {
     UpdateStats(StatsType::SinglePartSection);
 
-    Plans plans = part.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 0);
-
     Combination result = {};
 
-    for (Plan& plan : plans)
+    for (uint32_t numWeightStripes = g_NumWeightStripesMin; numWeightStripes <= g_NumWeightStripesMax;
+         numWeightStripes++)
     {
-        if (!IsPlanInputGlueable(plan))
+        Plans plans =
+            part.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, numWeightStripes);
+
+        for (Plan& plan : plans)
         {
-            continue;
+            if (!IsPlanInputGlueable(plan))
+            {
+                continue;
+            }
+            if (!IsPlanOutputGlueable(plan))
+            {
+                continue;
+            }
+            // Glue will be added later on.
+            // In this case local optimum = global optimum so
+            // it can get the best plan for the part.
+            Combination head(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
+            Combinations options = { result, head };
+            result               = GetBestCombination(options);
         }
-        if (!IsPlanOutputGlueable(plan))
-        {
-            continue;
-        }
-        // Glue will be added later on.
-        // In this case local optimum = global optimum so
-        // it can get the best plan for the part.
-        Combination head(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
-        Combinations options = { result, head };
-        result               = GetBestCombination(options);
     }
 
     //  Next part in the graph
@@ -1098,7 +1111,8 @@ Combination Combiner::SinglePartSection(const BasePart& part)
 Combination Combiner::ContinueSection(const BasePart& part,
                                       const BasePart& sPart,
                                       const Combination& comb,
-                                      const SramAllocator& alloc)
+                                      const SramAllocator& alloc,
+                                      uint32_t numWeightStripes)
 {
     UpdateStats(StatsType::ContinueSection);
 
@@ -1156,9 +1170,8 @@ Combination Combiner::ContinueSection(const BasePart& part,
 
         ethosn::command_stream::BlockConfig blkConfig = sPlan.GetBlockConfigures(connection.m_Source);
         Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
-        const uint32_t numberOfWeightStripes          = sPlan.GetNumberOfWeightStripes();
 
-        Plans plans = part.GetPlans(CascadeType::Middle, blkConfig, sramBuffer, numberOfWeightStripes);
+        Plans plans = part.GetPlans(CascadeType::Middle, blkConfig, sramBuffer, numWeightStripes);
 
         for (Plan& plan : plans)
         {
@@ -1196,10 +1209,10 @@ Combination Combiner::ContinueSection(const BasePart& part,
             Combinations options;
 
             // Next one is the last part of the section
-            Combination ended = EndSection(*nextPartGraph, part, section, tempAlloc);
+            Combination ended = EndSection(*nextPartGraph, part, section, tempAlloc, numWeightStripes);
 
             // Next one is the middle part of the section
-            Combination continued = ContinueSection(*nextPartGraph, part, section, tempAlloc);
+            Combination continued = ContinueSection(*nextPartGraph, part, section, tempAlloc, numWeightStripes);
 
             options = { result, continued, ended };
 

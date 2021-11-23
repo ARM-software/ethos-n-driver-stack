@@ -187,7 +187,8 @@ std::pair<Buffer*, Buffer*> FusedPlePart::AddIdentityMceOpForSubGraph(OwnedOpGra
 void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
                                                      TraversalOrder order,
                                                      WeightEncoderCache& weightEncoderCache,
-                                                     Plans& plans) const
+                                                     Plans& plans,
+                                                     uint32_t numWeightStripes) const
 {
     auto lifetime = info.m_Lifetime;
     // Create plan with identity mce op and ple op
@@ -197,37 +198,33 @@ void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
         for (auto numOutputStripes = info.m_Memory.m_Output.m_Range.m_Min;
              numOutputStripes <= info.m_Memory.m_Output.m_Range.m_Max; ++numOutputStripes)
         {
-            for (auto numWeightStripes = info.m_Memory.m_Weight.m_Range.m_Min;
-                 numWeightStripes <= info.m_Memory.m_Weight.m_Range.m_Max; ++numWeightStripes)
+            for (auto numPleInputStripes = info.m_Memory.m_PleInput.m_Range.m_Min;
+                 numPleInputStripes <= info.m_Memory.m_PleInput.m_Range.m_Max; ++numPleInputStripes)
             {
-                for (auto numPleInputStripes = info.m_Memory.m_PleInput.m_Range.m_Min;
-                     numPleInputStripes <= info.m_Memory.m_PleInput.m_Range.m_Max; ++numPleInputStripes)
-                {
-                    NumMemoryStripes numMemoryStripes;
-                    numMemoryStripes.m_Input    = numInputStripes;
-                    numMemoryStripes.m_Output   = numOutputStripes;
-                    numMemoryStripes.m_Weight   = numWeightStripes;
-                    numMemoryStripes.m_PleInput = numPleInputStripes;
-                    OwnedOpGraph opGraph;
-                    PartInputMapping inputMappings;
-                    PartOutputMapping outputMappings;
-                    auto mceInAndOutBuffer = AddIdentityMceOpForSubGraph(
-                        opGraph, lifetime, info.m_MceCompute, numMemoryStripes, info.m_Memory, m_InputTensorShape,
-                        m_InputQuantizationInfo, order, weightEncoderCache);
+                NumMemoryStripes numMemoryStripes;
+                numMemoryStripes.m_Input    = numInputStripes;
+                numMemoryStripes.m_Output   = numOutputStripes;
+                numMemoryStripes.m_Weight   = numWeightStripes;
+                numMemoryStripes.m_PleInput = numPleInputStripes;
+                OwnedOpGraph opGraph;
+                PartInputMapping inputMappings;
+                PartOutputMapping outputMappings;
+                auto mceInAndOutBuffer =
+                    AddIdentityMceOpForSubGraph(opGraph, lifetime, info.m_MceCompute, numMemoryStripes, info.m_Memory,
+                                                m_InputTensorShape, m_InputQuantizationInfo, order, weightEncoderCache);
 
-                    // A fuse only ple operation only has 1 input
-                    auto op = std::make_unique<PleOp>(
-                        Lifetime::Cascade, m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
-                        std::vector<TensorShape>{ info.m_PleCompute.m_Input }, info.m_PleCompute.m_Output);
+                // A fuse only ple operation only has 1 input
+                auto op = std::make_unique<PleOp>(Lifetime::Cascade, m_KernelOperation, info.m_PleCompute.m_BlockConfig,
+                                                  1, std::vector<TensorShape>{ info.m_PleCompute.m_Input },
+                                                  info.m_PleCompute.m_Output);
 
-                    auto outBufferAndPleOp = AddPleToOpGraph(opGraph, lifetime, order, info.m_Memory.m_Output.m_Shape,
-                                                             numMemoryStripes, std::move(op), m_OutputTensorShape,
-                                                             m_OutputQuantizationInfo, m_CorrespondingOperationIds);
-                    opGraph.AddConsumer(mceInAndOutBuffer.second, outBufferAndPleOp.second, 0);
-                    inputMappings[mceInAndOutBuffer.first]  = PartInputSlot{ m_PartId, 0 };
-                    outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
-                    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
-                }
+                auto outBufferAndPleOp = AddPleToOpGraph(opGraph, lifetime, order, info.m_Memory.m_Output.m_Shape,
+                                                         numMemoryStripes, std::move(op), m_OutputTensorShape,
+                                                         m_OutputQuantizationInfo, m_CorrespondingOperationIds);
+                opGraph.AddConsumer(mceInAndOutBuffer.second, outBufferAndPleOp.second, 0);
+                inputMappings[mceInAndOutBuffer.first]  = PartInputSlot{ m_PartId, 0 };
+                outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
+                AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
             }
         }
     }
@@ -270,7 +267,7 @@ void FusedPlePart::CreateFuseOnlyPlans(const PleOnlyInfo& info, TraversalOrder o
     }
 }
 
-Plans FusedPlePart::GetLonelyPlans() const
+Plans FusedPlePart::GetLonelyPlans(uint32_t numWeightStripes) const
 {
     Plans ret;
 
@@ -293,13 +290,13 @@ Plans FusedPlePart::GetLonelyPlans() const
 
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
-        CreateIdentityMceAndFusedPlePlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret);
+        CreateIdentityMceAndFusedPlePlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret, numWeightStripes);
     }
 
     return ret;
 }
 
-Plans FusedPlePart::GetBeginningPlans() const
+Plans FusedPlePart::GetBeginningPlans(uint32_t numWeightStripes) const
 {
     Plans ret;
 
@@ -322,7 +319,7 @@ Plans FusedPlePart::GetBeginningPlans() const
 
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
-        CreateIdentityMceAndFusedPlePlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret);
+        CreateIdentityMceAndFusedPlePlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret, numWeightStripes);
     }
 
     return ret;
@@ -422,7 +419,8 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
         mceAndPleInfo.m_Memory.m_Weight   = { numStripesWeights, memoryWeightStripe };
         mceAndPleInfo.m_Memory.m_PleInput = { numStripesPleInput, mceOutputStripe };
 
-        CreateIdentityMceAndFusedPlePlans(mceAndPleInfo, TraversalOrder::Xyz, m_WeightEncoderCache, ret);
+        CreateIdentityMceAndFusedPlePlans(mceAndPleInfo, TraversalOrder::Xyz, m_WeightEncoderCache, ret,
+                                          numWeightStripes);
     }
     else if (prevBuffer->m_Location == Location::PleInputSram)
     {
@@ -450,11 +448,11 @@ Plans FusedPlePart::GetPlans(CascadeType cascadeType,
     {
         case CascadeType::Lonely:
         {
-            return GetLonelyPlans();
+            return GetLonelyPlans(numWeightStripes);
         }
         case CascadeType::Beginning:
         {
-            return GetBeginningPlans();
+            return GetBeginningPlans(numWeightStripes);
         }
         case CascadeType::Middle:
         {

@@ -218,31 +218,6 @@ ethosn::command_stream::BlockConfig Plan::GetBlockConfigures(const PartOutputSlo
     }
 }
 
-uint32_t Plan::GetNumberOfWeightStripes() const
-{
-    uint32_t numWeightStripes = 0;
-    bool found                = false;
-
-    for (auto& buffer : m_OpGraph.GetBuffers())
-    {
-        if (buffer->m_Location == Location::Sram && buffer->m_Format == CascadingBufferFormat::WEIGHT)
-        {
-            if (!found)
-            {
-                numWeightStripes = buffer->m_NumStripes;
-                found            = true;
-            }
-            else
-            {
-                // There can only be one weight buffer
-                assert(false);
-            }
-        }
-    }
-
-    return numWeightStripes;
-}
-
 Op* OwnedOpGraph::AddOp(std::unique_ptr<Op> op)
 {
     // Call base implementation first in case it errors, in which case we don't want to track this Op.

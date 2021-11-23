@@ -45,8 +45,8 @@ public:
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
 
 private:
-    Plans GetLonelyPlans() const;
-    Plans GetBeginningPlans() const;
+    Plans GetLonelyPlans(uint32_t numWeightStripes) const;
+    Plans GetBeginningPlans(uint32_t numWeightStripes) const;
 
     Plans GetMiddlePlans(ethosn::command_stream::BlockConfig blockConfig,
                          Buffer* sramBuffer,
@@ -76,12 +76,14 @@ private:
     void CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                                       TraversalOrder order,
                                       WeightEncoderCache& weightEncoderCache,
-                                      Plans& plans) const;
+                                      Plans& plans,
+                                      uint32_t numWeightStripes) const;
 
     void CreateMceOnlyPlans(const impl::MceOnlyInfo& info,
                             TraversalOrder order,
                             WeightEncoderCache& weightEncoderCache,
-                            Plans& plans) const;
+                            Plans& plans,
+                            uint32_t numWeightStripes) const;
 
     Buffer* AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
                                             Lifetime lifetime,
