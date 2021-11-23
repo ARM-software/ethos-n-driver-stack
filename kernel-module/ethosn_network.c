@@ -233,10 +233,10 @@ static void inference_kref_release(struct kref *kref)
 	dev_dbg(ifr_to_dev(inference),
 		"Released inference. handle=0x%pK\n", inference);
 
-	put_network(network);
-
 	free_buffers(network->num_inputs, inference->inputs);
 	free_buffers(network->num_outputs, inference->outputs);
+
+	put_network(network);
 
 	kfree(inference);
 }
