@@ -113,6 +113,8 @@ struct PleS
 
     // Add fields as needed
 
+    /// PLE SRAM OFM tile info
+    Tile ofmTile;
     /// Number of unique stripes in each ofm tensor dimension
     WorkSize numStripes;
     /// Stride info for stripe ID (scalar) to stripe coord (ND) conversion
