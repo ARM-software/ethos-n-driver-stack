@@ -29,31 +29,43 @@ struct Tile
 
 ETHOSN_DECL_SV_VECTOR_STRUCT(TensorSize, height, width, channels)
 
-/// Ifm Streamer work size
-ETHOSN_DECL_SV_VECTOR_STRUCT(IfmSWorkSize, height, width, channels)
+/// Ifm/Ofm Streamer work size
+ETHOSN_DECL_SV_VECTOR_STRUCT(FmSWorkSize, height, width, channels)
 
-/// Ifm Streamer data
-struct IfmS
+/// Ifm/Ofm Streamer common data
+struct FmSData
 {
-    using WorkSize = IfmSWorkSize<uint16_t>;
-
     /// Starting offset of the tensor inside the supertensor
     uint32_t dramOffset;
     /// Buffer ID of the supertensor
     uint16_t bufferId;
-    /// IFM SRAM tile info
+    /// IFM/OFM SRAM tile info
     Tile tile;
     /// Default stripe size. Actual stripe size could be smaller at the tensor edges
     TensorSize<uint16_t> dfltStripeSize;
     /// Size of the stripes at the edge of each dimension
     TensorSize<uint16_t> edgeStripeSize;
     /// Strides in dram for stripe coordinates
-    WorkSize stripeDramStrides;
+    FmSWorkSize<uint16_t> stripeDramStrides;
     /// Number of unique stripes in each tensor dimension (numStripesTotal will be
     /// a larger multiple of the product of all dimensions if reloading is needed)
-    WorkSize numStripes;
+    FmSWorkSize<uint16_t> numStripes;
     /// Stride info for stripe ID (scalar) to stripe coord (ND) conversion
-    WorkSize stripeIdStrides;
+    FmSWorkSize<uint16_t> stripeIdStrides;
+};
+
+/// Ifm Streamer data
+struct IfmS
+{
+    FmSData fmData;
+    // add read-specific fields as needed
+};
+
+/// Output Streamer data
+struct OfmS
+{
+    FmSData fmData;
+    // add write-specific fields as needed
 };
 
 /// Weight Streamer data
@@ -116,22 +128,6 @@ struct PleS
     /// PLE SRAM OFM tile info
     Tile ofmTile;
     /// Number of unique stripes in each ofm tensor dimension
-    WorkSize numStripes;
-    /// Stride info for stripe ID (scalar) to stripe coord (ND) conversion
-    WorkSize stripeIdStrides;
-};
-
-/// Ofm Streamer work size
-ETHOSN_DECL_SV_VECTOR_STRUCT(OfmSWorkSize, height, width, channels)
-
-/// Output Streamer data
-struct OfmS
-{
-    using WorkSize = OfmSWorkSize<uint16_t>;
-
-    // Add fields as needed
-
-    /// Number of unique stripes in each tensor dimension
     WorkSize numStripes;
     /// Stride info for stripe ID (scalar) to stripe coord (ND) conversion
     WorkSize stripeIdStrides;
