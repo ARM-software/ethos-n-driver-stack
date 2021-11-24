@@ -89,7 +89,10 @@ void CompleteOpGraph(OpGraph& combiOpGraph, OwnedOpGraph& tempOpGraph)
 {
     // Make sure that the graph is complete in the sense that
     // all the input and output data is moved from and to DRAM
-    for (Buffer* b : combiOpGraph.GetBuffers())
+
+    // Note that we *copy* the vector of Buffers, as we may modify the collection as we enumerate
+    std::vector<Buffer*> buffers = combiOpGraph.GetBuffers();
+    for (Buffer* b : buffers)
     {
         Op* producer = combiOpGraph.GetProducer(b);
         if (!producer)
