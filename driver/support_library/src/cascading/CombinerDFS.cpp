@@ -897,8 +897,9 @@ Combination Combiner::EndSection(const BasePart& part,
 
         ethosn::command_stream::BlockConfig blkConfig = sPlan.GetBlockConfigures(connection.m_Source);
         Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
+        const uint32_t numberOfWeightStripes          = sPlan.GetNumberOfWeightStripes();
 
-        const Plans plans = GetPlansCached(part, CascadeType::End, blkConfig, sramBuffer, 0);
+        const Plans plans = GetPlansCached(part, CascadeType::End, blkConfig, sramBuffer, numberOfWeightStripes);
 
         for (const auto& plan : plans)
         {
