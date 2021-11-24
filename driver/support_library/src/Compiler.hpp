@@ -54,9 +54,9 @@ private:
 
     /// Preparation
     /// @{
-    void Prepare();
+    void Prepare(bool isPerfEstimate);
     void Optimize();
-    void CreatePasses();
+    void CreatePasses(bool isPerfEstimate);
     bool IsPrepared();
     void CreateSections();
     ///@}
@@ -80,14 +80,11 @@ private:
     std::vector<command_stream::BlockConfig> m_AllowedBlockConfigs;
     HardwareCapabilities m_Capabilities;
     const CompilationOptions& m_CompilationOptions;
-    bool m_EnableCascading;
     /// @}
 
     /// Performance estimation
     /// @{
     const EstimationOptions& m_EstimationOptions;
-    bool m_PerfEstimate;
-    NetworkPerformanceData PrivateEstimatePerformance();
     /// @}
 
     /// Intermediate data/results
@@ -99,11 +96,6 @@ private:
     /// The list of Sections we have built up so far.
     std::vector<std::unique_ptr<Section>> m_Sections;
     BufferManager m_BufferManager;
-    /// @}
-
-    /// Performance information
-    /// @{
-    NetworkPerformanceData m_PerformanceStream;
     /// @}
 
     /// Outputs

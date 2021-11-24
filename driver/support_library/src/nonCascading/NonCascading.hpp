@@ -5,22 +5,19 @@
 
 #pragma once
 
-#include "IEstimationStrategy.hpp"
+#include "../../include/ethosn_support_library/Support.hpp"
 
 namespace ethosn
 {
 namespace support_library
 {
 
-class NonCascading : public IEstimationStrategy
-{
-public:
-    NonCascading(const EstimationOptions& estOpt, const CompilationOptions& compOpt, const HardwareCapabilities& hwCap);
-    NetworkPerformanceData Estimate(Graph& graph) override;
+class Graph;
+struct EstimationOptions;
+class HardwareCapabilities;
 
-private:
-    NetworkPerformanceData m_PerformanceStream;
-};
+NetworkPerformanceData
+    NonCascadingEstimate(Graph& graph, const EstimationOptions& estOpt, const HardwareCapabilities& hwCap);
 
 }    // namespace support_library
 

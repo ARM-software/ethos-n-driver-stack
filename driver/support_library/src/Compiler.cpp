@@ -6,7 +6,6 @@
 #include "Compiler.hpp"
 
 #include "GraphNodes.hpp"
-#include "IEstimationStrategy.hpp"
 #include "Optimization.hpp"
 #include "SramAllocator.hpp"
 #include "cascading/Cascading.hpp"
@@ -123,9 +122,7 @@ Compiler::Compiler(const Network& network,
     , m_AllowedBlockConfigs(GenerateAllowedBlockConfigs(compilationOptions))
     , m_Capabilities(fwAndHwCapabilities)
     , m_CompilationOptions(compilationOptions)
-    , m_EnableCascading(false)
     , m_EstimationOptions(estimationOptions)
-    , m_PerfEstimate(false)
 {
     SetDebuggingContext(DebuggingContext(&compilationOptions.m_DebugInfo));
 }
@@ -135,12 +132,10 @@ Compiler::~Compiler()
 
 std::unique_ptr<CompiledNetwork> Compiler::Compile()
 {
-    m_PerfEstimate = false;
-
     try
     {
         Convert();
-        Prepare();
+        Prepare(false);
         Generate();
     }
     catch (const NotSupportedException& e)
@@ -175,9 +170,18 @@ NetworkPerformanceData Compiler::EstimatePerformance()
     {
         try
         {
-            m_EnableCascading           = false;
-            nonCascadedPerformance      = PrivateEstimatePerformance();
+            try
+            {
+                Convert();
+                Prepare(true);
+            }
+            catch (const NotSupportedException&)
+            {
+                // Conversion and preparation can throw by not creating a valid graph but we should still be able to estimate it.
+            }
+            nonCascadedPerformance      = NonCascadingEstimate(m_Graph, m_EstimationOptions, m_Capabilities);
             nonCascadedPerformanceValid = true;
+            DumpGraph("GraphFinal");
         }
         catch (const std::exception& e)
         {
@@ -193,8 +197,8 @@ NetworkPerformanceData Compiler::EstimatePerformance()
         {
             try
             {
-                m_EnableCascading        = true;
-                cascadedPerformance      = PrivateEstimatePerformance();
+                Cascading cascadingEstimate(m_EstimationOptions, m_CompilationOptions, m_Capabilities);
+                cascadedPerformance      = cascadingEstimate.EstimateNetwork(m_Network);
                 cascadedPerformanceValid = true;
             }
             catch (const std::exception& e)
@@ -227,41 +231,6 @@ NetworkPerformanceData Compiler::EstimatePerformance()
     }
 }
 
-NetworkPerformanceData Compiler::PrivateEstimatePerformance()
-{
-    // Sets the performance estimate flag
-    m_PerfEstimate = true;
-
-    try
-    {
-        Convert();
-        if (!m_EnableCascading)
-        {
-            Prepare();
-        }
-    }
-    catch (const NotSupportedException&)
-    {
-        // Conversion and preparation can throw by not creating a valid graph but we should still be able to estimate it.
-    }
-    if (m_EnableCascading)
-    {
-        Optimize();
-    }
-    if (!m_EnableCascading)
-    {
-        NonCascading nonCascadingEstimate(m_EstimationOptions, m_CompilationOptions, m_Capabilities);
-        m_PerformanceStream = nonCascadingEstimate.Estimate(m_Graph);
-    }
-    else
-    {
-        Cascading cascadingEstimate(m_EstimationOptions, m_CompilationOptions, m_Capabilities);
-        m_PerformanceStream = cascadingEstimate.Estimate(m_Graph);
-    }
-
-    return m_PerformanceStream;
-}
-
 void Compiler::Convert()
 {
     GetConstDebuggingContext().SaveNetworkToDot(CompilationOptions::DebugLevel::Medium, m_Network, "Network.dot",
@@ -279,7 +248,7 @@ void Compiler::Optimize()
     OptimizeGraph(m_Graph);
 }
 
-void Compiler::Prepare()
+void Compiler::Prepare(bool isPerfEstimate)
 {
     // This is an iterative process, where we modify the graph as necessary to prepare it for Generation.
     uint32_t numIterations = 0;
@@ -294,7 +263,7 @@ void Compiler::Prepare()
         DumpGraph(std::string("GraphPrepareIteration") + std::to_string(numIterations) + "_Pre");
 
         Optimize();
-        CreatePasses();
+        CreatePasses(isPerfEstimate);
 
         DumpGraph(std::string("GraphPrepareIteration") + std::to_string(numIterations) + "_Post");
 
@@ -385,7 +354,7 @@ bool Compiler::IsPrepared()
     return true;
 }
 
-void Compiler::CreatePasses()
+void Compiler::CreatePasses(bool isPerfEstimate)
 {
     std::vector<IStrategy*> strategies = utils::GetRawPointers(m_AllowedStrategies);
     std::vector<Node*> sortedNodes     = m_Graph.GetNodesSorted();
@@ -394,7 +363,7 @@ void Compiler::CreatePasses()
     // forward estimate flag is passed on to the function CreateGreedily to allow FCAF for
     // strategies 6, 7 and arbitrary tensor shape. This happens if the forward-looking
     // SPA is configured.
-    bool forwardEst = m_PerfEstimate && !m_EstimationOptions.m_Current;
+    bool forwardEst = isPerfEstimate && !m_EstimationOptions.m_Current;
 
     for (Node* n : sortedNodes)
     {
@@ -482,14 +451,7 @@ void Compiler::DumpGraph(const std::string& filename)
 {
     const DebuggingContext& debuggingContext = GetConstDebuggingContext();
     std::string finalFileName("");
-    if (m_EnableCascading)
-    {
-        finalFileName += "Cascaded_";
-    }
-    else
-    {
-        finalFileName += "NonCascaded_";
-    }
+    finalFileName += "NonCascaded_";
     finalFileName += filename;
     finalFileName += ".dot";
     debuggingContext.DumpGraph(CompilationOptions::DebugLevel::Medium, m_Graph, finalFileName);

@@ -899,7 +899,7 @@ Combination Combiner::EndSection(const BasePart& part,
         Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
         const uint32_t numberOfWeightStripes          = sPlan.GetNumberOfWeightStripes();
 
-        const Plans plans = GetPlansCached(part, CascadeType::End, blkConfig, sramBuffer, numberOfWeightStripes);
+        const Plans plans = part.GetPlans(CascadeType::End, blkConfig, sramBuffer, numberOfWeightStripes);
 
         for (const auto& plan : plans)
         {
@@ -991,7 +991,7 @@ Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPar
                m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() == 1);
 
         // The weight buffering will be improved by NNXSW-3628
-        Plans plans = GetPlansCached(part, CascadeType::Beginning, ethosn::command_stream::BlockConfig{}, nullptr, 0);
+        Plans plans = part.GetPlans(CascadeType::Beginning, ethosn::command_stream::BlockConfig{}, nullptr, 0);
 
         // SISO part:
         //
@@ -1053,7 +1053,7 @@ Combination Combiner::SinglePartSection(const BasePart& part)
 {
     UpdateStats(StatsType::SinglePartSection);
 
-    Plans plans = GetPlansCached(part, CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 0);
+    Plans plans = part.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 0);
 
     Combination result = {};
 
@@ -1158,7 +1158,7 @@ Combination Combiner::ContinueSection(const BasePart& part,
         Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
         const uint32_t numberOfWeightStripes          = sPlan.GetNumberOfWeightStripes();
 
-        Plans plans = GetPlansCached(part, CascadeType::Middle, blkConfig, sramBuffer, numberOfWeightStripes);
+        Plans plans = part.GetPlans(CascadeType::Middle, blkConfig, sramBuffer, numberOfWeightStripes);
 
         for (const auto& plan : plans)
         {

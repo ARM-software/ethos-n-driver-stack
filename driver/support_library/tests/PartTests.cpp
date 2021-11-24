@@ -235,31 +235,3 @@ TEST_CASE("GraphOfParts GetPartInputs/Outputs")
         REQUIRE(outputSlots.size() == 0);
     }
 }
-
-/// Test case to create a graph of parts with PartV1 parts
-/// make sure the parts are connected correctly
-TEST_CASE("CreateGraphOfParts")
-{
-    DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
-
-    // Create simple graph
-    Graph graph;
-    NameOnlyNode* nodeA = graph.CreateAndAddNode<NameOnlyNode>("a");
-    NameOnlyNode* nodeB = graph.CreateAndAddNode<NameOnlyNode>("b");
-    NameOnlyNode* nodeC = graph.CreateAndAddNode<NameOnlyNode>("c");
-    graph.Connect(nodeA, nodeB);
-    graph.Connect(nodeC, nodeB);
-
-    const EstimationOptions estOpt;
-    const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
-
-    GraphOfParts graphOfParts = CreateGraphOfParts(graph, estOpt, compOpt, caps);
-    const auto& parts         = graphOfParts.m_Parts;
-
-    auto node = static_cast<NameOnlyNode*>(static_cast<PartV1*>(parts.at(2).get())->m_SubGraph.back());
-    REQUIRE(node->m_Name == "b");
-
-    REQUIRE(graphOfParts.m_Connections.size() == 2);
-    REQUIRE(graphOfParts.GetSourceParts(parts.at(2)->GetPartId()).size() == 2);
-}

@@ -62,11 +62,6 @@ Node* CreateAndAddMceOperationNode(
     return CreateAndAddMceOperationNode(g, TS({ 1, 1, 1, 1 }), tsOut, kH, kW, stride);
 }
 
-Node* CreateAndAddMceOperationNode(Graph& g)
-{
-    return CreateAndAddMceOperationNode(g, TS(), 1, 1, Stride());
-}
-
 Node* CreateAndAddMceOperationNode(Graph& g, const TS& tsOut)
 {
     return CreateAndAddMceOperationNode(g, tsOut, 1, 1, Stride());
@@ -80,17 +75,6 @@ Node* CreateAndAddMceOperationNode(Graph& g, const TS& tsOut, const Stride& stri
 Node* CreateAndAddMceOperationNode(Graph& g, const TS& tsIn, const TS& tsOut, const uint32_t kH, const uint32_t kW)
 {
     return CreateAndAddMceOperationNode(g, tsIn, tsOut, kH, kW, Stride());
-}
-
-Node* CreateAndAddMcePostProcessOperationNode(Graph& g)
-{
-    return g.CreateAndAddNode<McePostProcessOperationNode>(TS(), sl::DataType::UINT8_QUANTIZED, QI(), 0, 255,
-                                                           CompilerDataFormat::NHWCB, std::set<uint32_t>());
-}
-
-Node* CreateAndAddConstantNode(Graph& g)
-{
-    return g.CreateAndAddNode<ConstantNode>(TensorShape(), std::vector<uint8_t>(), std::set<uint32_t>());
 }
 
 Node* CreateAndAddFuseOnlyPleOperationNode(Graph& g, TS tensorShape, utils::ShapeMultiplier shapeMultiplier)
@@ -112,95 +96,6 @@ Node* CreateAndAddReinterpretNode(Graph& g, TS tensorShape = TS())
                                                CompilerDataFormat::NHWC, std::set<uint32_t>());
 }
 
-void BuildGraphWithoutBranchingBeforeMcePostProcessNode(Graph& g)
-{
-    /*
-         Graph looks like this:
-
-                    / O1
-                   /
-        I1--N1--MPP--N2--O2
-                   \
-                    \ O3
-        */
-
-    auto i1  = CreateAndAddInputNode(g);
-    auto n1  = CreateAndAddMceOperationNode(g);
-    auto mpp = CreateAndAddMcePostProcessOperationNode(g);
-    auto n2  = CreateAndAddMceOperationNode(g);
-    auto o1  = CreateAndAddOutputNode(g);
-    auto o2  = CreateAndAddOutputNode(g);
-    auto o3  = CreateAndAddOutputNode(g);
-
-    g.Connect(i1, n1, 0);
-    g.Connect(n1, mpp, 0);
-    g.Connect(mpp, o1, 0);
-    g.Connect(mpp, o3, 0);
-    g.Connect(mpp, n2, 0);
-    g.Connect(n2, o2, 0);
-}
-
-void BuildGraphWithBranchingBeforeMcePostProcessNode(Graph& g)
-{
-    /*
-         Graph looks like this:
-
-                    / O1
-                   /
-        I1--N1---N2--N3--O2
-              \     /
-               \   /
-                MPP
-                   \
-                    \ O3
-        */
-
-    auto i1  = CreateAndAddInputNode(g);
-    auto n1  = CreateAndAddMceOperationNode(g);
-    auto mpp = CreateAndAddMcePostProcessOperationNode(g);
-    auto n2  = CreateAndAddMceOperationNode(g);
-    auto n3  = CreateAndAddConstantNode(g);
-    auto o1  = CreateAndAddOutputNode(g);
-    auto o2  = CreateAndAddOutputNode(g);
-    auto o3  = CreateAndAddOutputNode(g);
-
-    g.Connect(i1, n1, 0);
-    g.Connect(n1, mpp, 0);
-    g.Connect(n1, n2, 0);
-    g.Connect(n2, o1, 0);
-    g.Connect(n2, n3, 0);
-    g.Connect(n3, o2, 0);
-    g.Connect(mpp, n3, 0);
-    g.Connect(mpp, o3, 0);
-}
-
-void BuildGraphWithNonMceOpNodeBeforeMcePostProcessNode(Graph& g)
-{
-    /*
-         Graph looks like this:
-
-                    / O1
-                   /
-        I1--N1--MPP--N2--O2
-                   \
-                    \ O3
-        */
-
-    auto i1  = CreateAndAddInputNode(g);
-    auto n1  = CreateAndAddConstantNode(g);
-    auto mpp = CreateAndAddMcePostProcessOperationNode(g);
-    auto n2  = CreateAndAddMceOperationNode(g);
-    auto o1  = CreateAndAddOutputNode(g);
-    auto o2  = CreateAndAddOutputNode(g);
-    auto o3  = CreateAndAddOutputNode(g);
-
-    g.Connect(i1, n1, 0);
-    g.Connect(n1, mpp, 0);
-    g.Connect(mpp, o1, 0);
-    g.Connect(mpp, o3, 0);
-    g.Connect(mpp, n2, 0);
-    g.Connect(n2, o2, 0);
-}
 PartV1 BuildSinglePartWithOneNode(Graph& g,
                                   const EstimationOptions& estOpt,
                                   const CompilationOptions& compOpt,
@@ -505,80 +400,6 @@ Plans GetPlansForwarding(const BasePart& part)
     return part.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 0);
 }
 }    // namespace
-
-TEST_CASE("PlanGenerator: Generate parts from graph without branching before MCE PP node")
-{
-    // Given
-    const EstimationOptions estOpt;
-    const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
-    Graph g;
-    BuildGraphWithoutBranchingBeforeMcePostProcessNode(g);
-    REQUIRE(g.GetNodes().size() == 7);
-
-    // When
-    GraphOfParts gop   = CreateGraphOfParts(g, estOpt, compOpt, caps);
-    const Parts& parts = gop.GetParts();
-
-    // Then, no part has two nodes becuase of non-MCE Op before PP Op.
-    REQUIRE(parts.size() == 6);
-    REQUIRE(static_cast<PartV1&>(*parts[0]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[1]).m_SubGraph.size() == 2);
-    REQUIRE(static_cast<PartV1&>(*parts[2]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[3]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[4]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[5]).m_SubGraph.size() == 1);
-}
-
-TEST_CASE("PlanGenerator: Generate parts from graph with branching before MCE PP node")
-{
-    // Given
-    const EstimationOptions estOpt;
-    const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
-    Graph g;
-    BuildGraphWithBranchingBeforeMcePostProcessNode(g);
-    REQUIRE(g.GetNodes().size() == 8);
-
-    // When
-    GraphOfParts gop   = CreateGraphOfParts(g, estOpt, compOpt, caps);
-    const Parts& parts = gop.GetParts();
-
-    // Then, no parts have two nodes because of branching.
-    REQUIRE(parts.size() == 8);
-    REQUIRE(static_cast<PartV1&>(*parts[0]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[1]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[2]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[3]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[4]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[5]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[6]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[7]).m_SubGraph.size() == 1);
-}
-TEST_CASE("PlanGenerator: Generate parts from graph with non MCE Operation node before MCE PP node")
-{
-    // Given
-    const EstimationOptions estOpt;
-    const CompilationOptions compOpt;
-    const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
-    Graph g;
-    BuildGraphWithNonMceOpNodeBeforeMcePostProcessNode(g);
-    REQUIRE(g.GetNodes().size() == 7);
-
-    // When
-    GraphOfParts gop   = CreateGraphOfParts(g, estOpt, compOpt, caps);
-    const Parts& parts = gop.GetParts();
-
-    // Then, no part has two nodes becuase of non-MCE Op before PP Op.
-    REQUIRE(parts.size() == 7);
-    REQUIRE(static_cast<PartV1&>(*parts[0]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[1]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[2]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[3]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[4]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[5]).m_SubGraph.size() == 1);
-    REQUIRE(static_cast<PartV1&>(*parts[6]).m_SubGraph.size() == 1);
-}
 
 TEST_CASE("PlanGenerator:FuseOnlyPleNode")
 {

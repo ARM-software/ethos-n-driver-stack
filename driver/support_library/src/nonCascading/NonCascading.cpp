@@ -176,14 +176,10 @@ void UpdateWithCascadingHeuristic(NetworkPerformanceData& performanceStream, con
 
 }    // namespace
 
-NonCascading::NonCascading(const EstimationOptions& estOpt,
-                           const CompilationOptions& compOpt,
-                           const HardwareCapabilities& hwCap)
-    : IEstimationStrategy(estOpt, compOpt, hwCap)
-{}
-
-NetworkPerformanceData NonCascading::Estimate(Graph& graph)
+NetworkPerformanceData
+    NonCascadingEstimate(Graph& graph, const EstimationOptions& estOpt, const HardwareCapabilities& hwCap)
 {
+    NetworkPerformanceData performanceStream;
     std::vector<Node*> sorted = graph.GetNodesSorted();
 
     for (Node* n : sorted)
@@ -197,18 +193,16 @@ NetworkPerformanceData NonCascading::Estimate(Graph& graph)
             }
             g_Logger.Error("Failed to prepare operation:%s", result.str().c_str());
         }
-        n->Estimate(m_PerformanceStream, m_EstimationOptions);
+        n->Estimate(performanceStream, estOpt);
     }
 
-    bool current = m_EstimationOptions.m_Current;
+    bool current = estOpt.m_Current;
     if (!current)
     {
-        UpdateWithCascadingHeuristic(m_PerformanceStream, m_Capabilities);
+        UpdateWithCascadingHeuristic(performanceStream, hwCap);
     }
 
-    m_DebuggingContext.DumpGraph(CompilationOptions::DebugLevel::Medium, graph, "NonCascaded_GraphFinal.dot");
-
-    return m_PerformanceStream;
+    return performanceStream;
 }
 
 }    //namespace support_library

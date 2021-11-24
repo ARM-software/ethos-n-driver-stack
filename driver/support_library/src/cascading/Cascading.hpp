@@ -6,7 +6,6 @@
 #pragma once
 
 #include "CombinerDFS.hpp"
-#include "IEstimationStrategy.hpp"
 #include "Part.hpp"
 
 namespace ethosn
@@ -19,21 +18,25 @@ class HardwareCapabilities;
 struct EstimationOptions;
 struct DebuggingContext;
 
-class Cascading : public IEstimationStrategy
+class Cascading
 {
 public:
     Cascading(const EstimationOptions& estOpt, const CompilationOptions& compOpt, const HardwareCapabilities& caps);
-    virtual ~Cascading();
 
     const GraphOfParts& GetGraphOfParts() const;
 
     Combinations Combine(const GraphOfParts&);
-    NetworkPerformanceData Estimate(Graph& graph) override;
+    NetworkPerformanceData EstimateNetwork(const Network& network);
 
     const Combination* GetBestCombination();
 
 private:
     void EstimatePerformance();
+
+    const EstimationOptions& m_EstimationOptions;
+    const CompilationOptions& m_CompilationOptions;
+    const HardwareCapabilities& m_Capabilities;
+    const DebuggingContext& m_DebuggingContext;
 
     NetworkPerformanceData m_PerformanceStream;
     const Combination* m_BestCombination;
@@ -42,10 +45,10 @@ private:
     GraphOfParts m_GraphOfParts;
 };
 
-GraphOfParts CreateGraphOfParts(const Graph& graph,
+GraphOfParts CreateGraphOfParts(const Network& network,
+                                const HardwareCapabilities& capabilities,
                                 const EstimationOptions& estOpt,
-                                const CompilationOptions& compOpt,
-                                const HardwareCapabilities& capabilities);
+                                const CompilationOptions& compOpt);
 
 }    // namespace support_library
 }    // namespace ethosn

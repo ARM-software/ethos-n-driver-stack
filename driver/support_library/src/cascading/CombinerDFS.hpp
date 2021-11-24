@@ -297,26 +297,6 @@ public:
 
     bool TopologicalSortParts();
 
-    template <typename... Args>
-    Plans GetPlansCached(const BasePart& part, Args&&... args)
-    {
-        // Note the cache only uses the part id (instead of all the plan parameters)
-        // because when specific plan generation is used the plans should be unique and
-        // the cache can be removed.
-        auto planInCache = m_PlanCache.find(part.GetPartId());
-        if (planInCache != m_PlanCache.end())
-        {
-            return planInCache->second;
-        }
-        else
-        {
-            auto plans = part.GetPlans(std::forward<Args>(args)...);
-            SavePartsPlans(part, plans);
-            m_PlanCache.emplace(part.GetPartId(), plans);
-            return plans;
-        }
-    }
-
 private:
     const GraphOfParts& m_GraphOfParts;
     const HardwareCapabilities& m_Caps;
@@ -330,7 +310,6 @@ private:
 
     std::vector<std::unique_ptr<Glue>> m_GluesVector;
     std::unordered_map<const BasePart*, const Combination> m_CombinationPerPartMap;
-    PlanCache m_PlanCache;
 
     std::vector<size_t> m_Stats{ std::vector<size_t>(static_cast<size_t>(StatsType::NumStats), 0) };
 };

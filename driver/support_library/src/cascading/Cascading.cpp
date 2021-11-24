@@ -11,8 +11,8 @@
 #include "DebuggingContext.hpp"
 #include "Estimation.hpp"
 #include "EstimationUtils.hpp"
+#include "NetworkToGraphOfPartsConverter.hpp"
 #include "Part.hpp"
-#include "PartV1.hpp"
 
 #include "../include/ethosn_support_library/Optional.hpp"
 #include <ethosn_utils/Filesystem.hpp>
@@ -71,147 +71,31 @@ void SaveDebugFilesForEstimatedCombination(std::string folder,
 
 }    // namespace
 
-GraphOfParts CreateGraphOfParts(const Graph& graph,
+GraphOfParts CreateGraphOfParts(const Network& network,
+                                const HardwareCapabilities& capabilities,
                                 const EstimationOptions& estOpt,
-                                const CompilationOptions& compOpt,
-                                const HardwareCapabilities& capabilities)
+                                const CompilationOptions& compOpt)
 {
-    GraphOfParts graphOfParts;
-    Parts& parts = graphOfParts.m_Parts;
-
-    auto AddNodeToPart    = [](Node* node, PartV1& part) -> void { part.m_SubGraph.push_back(node); };
-    auto AddNodeToNewPart = [&](Node* node) -> void {
-        // Insert node into new part.
-        auto part = std::make_unique<PartV1>(graphOfParts.GeneratePartId(), node->GetFormat(),
-                                             node->GetCorrespondingOperationIds(), estOpt, compOpt, capabilities);
-        AddNodeToPart(node, *part);
-        parts.push_back(std::unique_ptr<BasePart>(std::move(part)));
-    };
-    auto FindPartFromSourceAndAddNode = [&](Node* ppOpNode) -> void {
-        // Iterate in reverse, it will be quicker.
-        for (auto part = parts.rbegin(); part != parts.rend(); ++part)
-        {
-            // Connect PP Op nodes only if the parent node has a single output.
-            const auto partOutputNode = static_cast<PartV1*>(part->get())->m_SubGraph.back();
-            for (const auto input : ppOpNode->GetInputs())
-            {
-                if (input->GetSource() == partOutputNode)
-                {
-                    // Case 1)
-                    AddNodeToPart(ppOpNode, static_cast<PartV1&>(**part));
-                    return;
-                }
-            }
-        }
-        ETHOSN_FAIL_MSG("MCE Post-Process node has not been added to any Part");
-    };
-
-    for (Node* node : graph.GetNodesSorted())
-    {
-        assert(node);
-        if (IsNodeOfType<McePostProcessOperationNode>(node))
-        {
-            // There are two possible cases with PP Op nodes:
-            // 1) The node is connected to an MCE operation node with a single output.
-            // 2) The node is connected to a non PP Op node with multiple outputs.
-            // If 1), then find the part with the source node and add this node.
-            // If 2), then create a new part with that single PP Op node.
-
-            auto source = node->GetInputs()[0]->GetSource();
-            if (IsNodeOfType<MceOperationNode>(source) && source->GetOutputs().size() == 1)
-            {
-                // Case 1)
-                FindPartFromSourceAndAddNode(node);
-            }
-            else
-            {
-                // Case 2)
-                AddNodeToNewPart(node);
-            }
-        }
-        else
-        {
-            AddNodeToNewPart(node);
-        }
-    }
-
-    auto GetPartIdFromNode = [&](const Node* node) {
-        for (auto&& part : parts)
-        {
-            const auto partV1 = static_cast<PartV1*>(part.get());
-            for (Node* n : partV1->m_SubGraph)
-            {
-                if (node == n)
-                {
-                    return partV1->GetPartId();
-                }
-            }
-        }
-        assert(false);
-        return static_cast<PartId>(-1);
-    };
-
-    for (auto&& part : parts)
-    {
-        const auto partV1         = static_cast<PartV1*>(part.get());
-        auto edges                = partV1->GetOutputs();
-        PartOutputSlot outputSlot = { partV1->GetPartId(), 0 };
-        for (auto&& edge : edges)
-        {
-            const Node* dest    = edge->GetDestination();
-            auto destInputs     = dest->GetInputs();
-            uint32_t inputIndex = 0;
-            for (uint32_t i = 0; i < destInputs.size(); ++i)
-            {
-                if (edge == destInputs[i])
-                {
-                    inputIndex = i;
-                    break;
-                }
-            }
-
-            assert(GetPartIdFromNode(edge->GetSource()) == partV1->GetPartId());
-            auto destPart           = GetPartIdFromNode(dest);
-            PartInputSlot inputSlot = { destPart, inputIndex };
-            graphOfParts.AddConnection(inputSlot, outputSlot);
-        }
-    }
-
-    // Validate that every node has been assigned to a Part.
-    std::set<Node*> nodes;
-    std::transform(graph.GetNodes().begin(), graph.GetNodes().end(), std::inserter(nodes, nodes.end()),
-                   [](auto&& n) { return n.get(); });
-    for (auto&& p : graphOfParts.m_Parts)
-    {
-        for (auto&& n : static_cast<PartV1*>(p.get())->m_SubGraph)
-        {
-            nodes.erase(n);
-        }
-    }
-    if (!nodes.empty())
-    {
-        throw NotSupportedException("Some nodes could not be assigned to a Part");
-    }
-
-    return graphOfParts;
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(network, capabilities, estOpt, compOpt);
+    return m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
 }
 
 Cascading::Cascading(const EstimationOptions& estOpt,
                      const CompilationOptions& compOpt,
                      const HardwareCapabilities& hwCap)
-    : IEstimationStrategy(estOpt, compOpt, hwCap)
+    : m_EstimationOptions(estOpt)
+    , m_CompilationOptions(compOpt)
+    , m_Capabilities(hwCap)
+    , m_DebuggingContext(GetDebuggingContext())
     , m_BestCombination(nullptr)
     , m_Combiner(m_GraphOfParts, hwCap, estOpt, m_DebuggingContext)
 {
     // Constructor
 }
 
-Cascading::~Cascading()
-{}
-
-NetworkPerformanceData Cascading::Estimate(Graph& graph)
+NetworkPerformanceData Cascading::EstimateNetwork(const Network& network)
 {
-    m_GraphOfParts = CreateGraphOfParts(graph, m_EstimationOptions, m_CompilationOptions, m_Capabilities);
+    m_GraphOfParts = CreateGraphOfParts(network, m_Capabilities, m_EstimationOptions, m_CompilationOptions);
 
     m_DebuggingContext.SaveGraphOfPartsToDot(CompilationOptions::DebugLevel::Medium, m_GraphOfParts,
                                              "Cascaded_GraphOfParts.dot", DetailLevel::Low);
@@ -270,7 +154,7 @@ void Cascading::EstimatePerformance()
     {
         OpGraph combiOpGraph = GetOpGraphForCombination(combination, m_GraphOfParts);
         EstimatedOpGraph estimatedOpGraph =
-            ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Capabilities, GetEstimationOptions());
+            ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Capabilities, m_EstimationOptions);
         if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
         {
             debugPerformanceDumpFile << combinationIdx << ": "
@@ -314,7 +198,7 @@ void Cascading::EstimatePerformance()
             std::string folder   = "Combinations/Best(" + std::to_string(bestCombinationIdx.value()) + ")";
             OpGraph combiOpGraph = GetOpGraphForCombination(*m_BestCombination, m_GraphOfParts);
             EstimatedOpGraph estimatedOpGraph =
-                ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Capabilities, GetEstimationOptions());
+                ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Capabilities, m_EstimationOptions);
             SaveDebugFilesForUnestimatedCombination(folder, m_DebuggingContext, *m_BestCombination, combiOpGraph,
                                                     m_GraphOfParts);
             SaveDebugFilesForEstimatedCombination(folder, m_DebuggingContext, combiOpGraph, estimatedOpGraph);
