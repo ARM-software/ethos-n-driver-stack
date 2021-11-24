@@ -7,6 +7,7 @@
 
 #include "Part.hpp"
 #include "StripeHelper.hpp"
+#include "WeightEncoderCache.hpp"
 
 namespace ethosn
 {
@@ -107,6 +108,8 @@ private:
     uint32_t m_PadLeft;
     command_stream::MceOperation m_Operation;
     impl::StripeGenerator m_StripeGenerator;
+
+    mutable WeightEncoderCache m_WeightEncoderCache;
 };
 }    // namespace support_library
 }    // namespace ethosn

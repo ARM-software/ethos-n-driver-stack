@@ -7,6 +7,7 @@
 
 #include "Part.hpp"
 #include "StripeHelper.hpp"
+#include "WeightEncoderCache.hpp"
 
 namespace ethosn
 {
@@ -81,6 +82,8 @@ private:
     utils::ShapeMultiplier m_ShapeMultiplier;
 
     impl::StripeGenerator m_StripeGenerator;
+
+    mutable WeightEncoderCache m_WeightEncoderCache;
 };
 }    // namespace support_library
 }    // namespace ethosn

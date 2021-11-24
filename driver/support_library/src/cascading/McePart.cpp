@@ -7,7 +7,6 @@
 #include "PartUtils.hpp"
 #include "Plan.hpp"
 #include "StripeHelper.hpp"
-#include "WeightEncoderCache.hpp"
 
 #include <algorithm>
 #include <ethosn_utils/Macros.hpp>
@@ -236,6 +235,7 @@ McePart::McePart(PartId id,
                         op,
                         ShapeMultiplier{ 1, 1, 1 },
                         capabilities)
+    , m_WeightEncoderCache{ capabilities }
 {}
 
 Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
@@ -521,11 +521,9 @@ Plans McePart::GetLonelyPlans() const
         m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Lonely, &stripeInfos);
     }
 
-    WeightEncoderCache weightEncoderCache{ m_Capabilities };
-
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
-        CreateMceAndIdentityPlePlans(i, TraversalOrder::Xyz, weightEncoderCache, ret);
+        CreateMceAndIdentityPlePlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret);
     }
 
     return ret;
@@ -561,15 +559,13 @@ Plans McePart::GetBeginningPlans() const
         m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Beginning, &stripeInfos);
     }
 
-    WeightEncoderCache weightEncoderCache{ m_Capabilities };
-
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
-        CreateMceAndIdentityPlePlans(i, TraversalOrder::Xyz, weightEncoderCache, ret);
+        CreateMceAndIdentityPlePlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret);
     }
     for (const MceOnlyInfo& i : stripeInfos.m_MceOnlyInfos)
     {
-        CreateMceOnlyPlans(i, TraversalOrder::Xyz, weightEncoderCache, ret);
+        CreateMceOnlyPlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret);
     }
 
     return ret;
@@ -610,9 +606,8 @@ Plans McePart::GetMiddlePlans(ethosn::command_stream::BlockConfig blockConfig,
         return ret;
     }
 
-    WeightEncoderCache weightEncoderCache{ m_Capabilities };
-    CreateMceAndIdentityPlePlans(stripeInfos.value().first, TraversalOrder::Xyz, weightEncoderCache, ret);
-    CreateMceOnlyPlans(stripeInfos.value().second, TraversalOrder::Xyz, weightEncoderCache, ret);
+    CreateMceAndIdentityPlePlans(stripeInfos.value().first, TraversalOrder::Xyz, m_WeightEncoderCache, ret);
+    CreateMceOnlyPlans(stripeInfos.value().second, TraversalOrder::Xyz, m_WeightEncoderCache, ret);
     return ret;
 }
 
@@ -650,8 +645,7 @@ Plans McePart::GetEndPlans(ethosn::command_stream::BlockConfig blockConfig,
         return ret;
     }
 
-    WeightEncoderCache weightEncoderCache{ m_Capabilities };
-    CreateMceAndIdentityPlePlans(stripeInfos.value().first, TraversalOrder::Xyz, weightEncoderCache, ret);
+    CreateMceAndIdentityPlePlans(stripeInfos.value().first, TraversalOrder::Xyz, m_WeightEncoderCache, ret);
 
     return ret;
 }

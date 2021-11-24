@@ -7,7 +7,6 @@
 #include "PartUtils.hpp"
 #include "Plan.hpp"
 #include "StripeHelper.hpp"
-#include "WeightEncoderCache.hpp"
 
 #include <ethosn_utils/Macros.hpp>
 
@@ -50,6 +49,7 @@ FusedPlePart::FusedPlePart(PartId id,
                         MceOperation::DEPTHWISE_CONVOLUTION,
                         shapeMultiplier,
                         capabilities)
+    , m_WeightEncoderCache{ capabilities }
 {}
 
 utils::Optional<ethosn::command_stream::MceOperation> FusedPlePart::GetMceOperation() const
@@ -291,11 +291,9 @@ Plans FusedPlePart::GetLonelyPlans() const
         m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Lonely, &stripeInfos);
     }
 
-    WeightEncoderCache weightEncoderCache{ m_Capabilities };
-
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
-        CreateIdentityMceAndFusedPlePlans(i, TraversalOrder::Xyz, weightEncoderCache, ret);
+        CreateIdentityMceAndFusedPlePlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret);
     }
 
     return ret;
@@ -322,11 +320,9 @@ Plans FusedPlePart::GetBeginningPlans() const
         m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Beginning, &stripeInfos);
     }
 
-    WeightEncoderCache weightEncoderCache{ m_Capabilities };
-
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
-        CreateIdentityMceAndFusedPlePlans(i, TraversalOrder::Xyz, weightEncoderCache, ret);
+        CreateIdentityMceAndFusedPlePlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret);
     }
 
     return ret;
@@ -426,8 +422,7 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
         mceAndPleInfo.m_Memory.m_Weight   = { numStripesWeights, memoryWeightStripe };
         mceAndPleInfo.m_Memory.m_PleInput = { numStripesPleInput, mceOutputStripe };
 
-        WeightEncoderCache weightEncoderCache{ m_Capabilities };
-        CreateIdentityMceAndFusedPlePlans(mceAndPleInfo, TraversalOrder::Xyz, weightEncoderCache, ret);
+        CreateIdentityMceAndFusedPlePlans(mceAndPleInfo, TraversalOrder::Xyz, m_WeightEncoderCache, ret);
     }
     else if (prevBuffer->m_Location == Location::PleInputSram)
     {
