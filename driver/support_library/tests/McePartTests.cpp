@@ -820,6 +820,75 @@ TEST_CASE("McePart GetPlans Strategy3", "[slow]")
     }
 }
 
+/// Checks that McePart::GetPlans returns a sensible plan for strategy 3.
+/// This covers the Buffer/Op properties which aren't covered by above 'structure' test as they are specific
+/// to the strategy.
+TEST_CASE("McePart GetPlans Strategy0", "[slow]")
+{
+    GIVEN("An McePart for a simple convolution layer")
+    {
+        const CompilationOptions compOpt;
+        const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
+
+        TensorShape inputShape{ 1, 32, 16, 16 };
+        TensorShape outputShape{ 1, 32, 16, 16 };
+        TensorShape weightShape{ 1, 1, 16, 16 };
+
+        McePart part =
+            BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION, compOpt, caps);
+
+        WHEN("Asked to generate plans")
+        {
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
+            SavePlansToDot(plans, "McePart GetPlans Strategy0");
+
+            THEN("The plans are valid and contain at least one plan with Strategy0 stripe shapes and properties")
+            {
+                CheckPlansParams params;
+                params.m_InputShape  = inputShape;
+                params.m_OutputShape = outputShape;
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    if (plan.m_Output->m_Location != Location::Sram)
+                    {
+                        // Wait until we get a plan that includes a PleOp (some will end before the Ple), so we can test more things.
+                        return false;
+                    }
+
+                    bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
+                                          plan.m_InputSram->m_Order == TraversalOrder::Xyz &&
+                                          plan.m_InputSram->m_SizeInBytes == 8 * 16 * 16 &&
+                                          plan.m_InputSram->m_NumStripes == 1;
+                    bool weightsSramValid = plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 16, 16 } &&
+                                            plan.m_WeightsSram->m_Order == TraversalOrder::Xyz &&
+                                            plan.m_WeightsSram->m_NumStripes == 1;
+                    bool pleInputSramValid = plan.m_PleInputSram->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
+                                             plan.m_PleInputSram->m_Order == TraversalOrder::Xyz &&
+                                             plan.m_PleInputSram->m_SizeInBytes == 8 * 16 * 16 &&
+                                             plan.m_PleInputSram->m_NumStripes == 0;
+                    bool outputSramValid = plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
+                                           plan.m_OutputSram->m_Order == TraversalOrder::Xyz &&
+                                           plan.m_OutputSram->m_SizeInBytes == 8 * 16 * 16 &&
+                                           plan.m_OutputSram->m_NumStripes == 1;
+                    bool mceValid = plan.m_Mce->m_Algo == CompilerMceAlgorithm::Direct &&
+                                    plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 8u } &&
+                                    plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 8, 16, 16 } &&
+                                    plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 8, 16, 16 } &&
+                                    plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 16, 16 } &&
+                                    plan.m_Mce->m_Order == TraversalOrder::Xyz;
+                    bool pleValid =
+                        plan.m_Ple->m_BlockConfig == command_stream::BlockConfig{ 16u, 8u } &&
+                        plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ TensorShape{ 1, 8, 16, 16 } } &&
+                        plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 8, 16, 16 };
+
+                    return inputSramValid && weightsSramValid && pleInputSramValid && outputSramValid && mceValid &&
+                           pleValid;
+                });
+                CheckPlans(plans, params);
+            }
+        }
+    }
+}
+
 /// Checks that McePart::GetPlans returns a correctly filtered set of plans when requesting a specific block config,
 /// previous SRAM buffer or number of weight stripes.
 TEST_CASE("McePart GetPlans Filters", "[slow]")
@@ -980,7 +1049,7 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
                                             plan.m_WeightsSram->m_NumStripes == 1;
                     bool pleInputSramValid = plan.m_PleInputSram->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
                                              plan.m_PleInputSram->m_Order == TraversalOrder::Xyz &&
-                                             plan.m_PleInputSram->m_SizeInBytes == 8 * 16 * 16 * 2 &&
+                                             plan.m_PleInputSram->m_SizeInBytes == 8 * 16 * 16 &&
                                              plan.m_PleInputSram->m_NumStripes == 0;
                     bool outputSramValid = true;
                     if (plan.m_OutputSram)

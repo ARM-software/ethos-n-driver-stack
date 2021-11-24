@@ -778,7 +778,7 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
     buffer->m_TensorShape = tensorShape;
     buffer->m_StripeShape = pleInputMemoryShape;
     buffer->m_NumStripes  = numPleInputMemoryStripes;
-    buffer->m_SizeInBytes = impl::CalculateBufferSize(buffer->m_TensorShape, buffer->m_Format);
+    buffer->m_SizeInBytes = impl::CalculateBufferSize(buffer->m_StripeShape, buffer->m_Format);
 
     buffer->m_QuantizationInfo = quantInfo;
     return buffer;
