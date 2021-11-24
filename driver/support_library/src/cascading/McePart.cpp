@@ -35,7 +35,7 @@ bool IsSramBufferValid(uint32_t kernelHeight, uint32_t kernelWidth, Buffer* sram
     if (kernelHeight >= 3 || kernelWidth >= 3)
     {
         // For 3 height splits the number of stripes needs to be the number of splits
-        if (heightSplits <= 3 || widthSplits <= 3)
+        if (heightSplits <= 3 && widthSplits <= 3)
         {
             return sramBuffer->m_NumStripes == std::min(heightSplits, 3u);
         }
@@ -47,7 +47,7 @@ bool IsSramBufferValid(uint32_t kernelHeight, uint32_t kernelWidth, Buffer* sram
     else if (kernelHeight >= 2 || kernelWidth >= 2)
     {
         // For 2 height splits the number of stripes needs to be the number of splits
-        if (heightSplits <= 2 || widthSplits <= 2)
+        if (heightSplits <= 2 && widthSplits <= 2)
         {
             return sramBuffer->m_NumStripes == std::min(heightSplits, 2u);
         }
