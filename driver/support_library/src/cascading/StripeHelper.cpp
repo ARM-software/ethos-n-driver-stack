@@ -351,7 +351,7 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
             numStripesWeightCopy.m_Min      = std::min(numStripesWeights.m_Min, 1u);
             numStripesWeightCopy.m_Max      = std::min(numStripesWeights.m_Max, 1u);
 
-            AddStripeInfos(mceInputStripe, mceOutputStripe, mceInputStripe, pleOutputStripe, numStripesInputCopy,
+            AddStripeInfos(mceInputStripe, mceOutputStripe, mceOutputStripe, pleOutputStripe, numStripesInputCopy,
                            numStripesOutput, numStripesWeightCopy, numStripesPleInput, mceInputStripe,
                            memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
         }
@@ -378,7 +378,7 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
 
             AddStripeInfos(mceInputStripe, mceOutputStripe, mceOutputStripe, pleOutputStripe, numStripesInput,
                            numStripesOutput, numStripesWeights, numStripesPleInput, mceInputStripe, memoryOutputStripe,
-                           mceInputStripe, inputShape, outputShape);
+                           mceOutputStripe, inputShape, outputShape);
         }
 
         // Try split input depth
@@ -403,7 +403,7 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
 
             AddStripeInfos(mceInputStripe, mceOutputStripe, mceOutputStripe, pleOutputStripe, numStripesInput,
                            numStripesOutput, numStripesWeights, numStripesPleInput, mceInputStripe, memoryOutputStripe,
-                           mceInputStripe, inputShape, outputShape);
+                           mceOutputStripe, inputShape, outputShape);
         }
     }
 
@@ -459,7 +459,7 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
 
                 AddStripeInfos(mceInputStripe, mceOutputStripe, mceOutputStripe, pleOutputStripe, numStripesInput,
                                numStripesOutput, numStripesWeights, numStripesPleInput, mceInputStripe,
-                               memoryOutputStripe, mceInputStripe, inputShape, outputShape);
+                               memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
             }
         }
 
