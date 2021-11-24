@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -19,7 +19,6 @@ public:
     NetworkPerformanceData Estimate(Graph& graph) override;
 
 private:
-    void EstimateCascading();
     NetworkPerformanceData m_PerformanceStream;
 };
 
