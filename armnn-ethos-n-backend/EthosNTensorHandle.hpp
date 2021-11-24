@@ -11,8 +11,8 @@
 #include "armnn/TypesUtils.hpp"
 #include "armnn/backends/ITensorHandle.hpp"
 
-#include <CompatibleTypes.hpp>
 #include <armnn/utility/Assert.hpp>
+#include <armnnUtils/CompatibleTypes.hpp>
 #include <ethosn_driver_library/Buffer.hpp>
 
 namespace armnn

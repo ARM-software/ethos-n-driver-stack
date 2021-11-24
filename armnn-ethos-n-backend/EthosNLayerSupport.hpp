@@ -431,6 +431,11 @@ public:
                                   const Optional<TensorInfo>& biases,
                                   Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
 
+    bool IsPooling3dSupported(const TensorInfo& input,
+                              const TensorInfo& output,
+                              const Pooling3dDescriptor& descriptor,
+                              Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
+
 private:
     bool CheckEstimateOnlySupported(const TensorInfo& input,
                                     const TensorInfo& output,

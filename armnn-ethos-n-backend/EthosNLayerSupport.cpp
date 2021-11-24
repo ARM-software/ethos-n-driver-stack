@@ -1690,4 +1690,12 @@ bool EthosNLayerSupport::IsConvolution3dSupported(const TensorInfo&,
     return false;
 }
 
+bool EthosNLayerSupport::IsPooling3dSupported(const TensorInfo&,
+                                              const TensorInfo&,
+                                              const Pooling3dDescriptor&,
+                                              Optional<std::string&>) const
+{
+    return false;
+}
+
 }    // namespace armnn
