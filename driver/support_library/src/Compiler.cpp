@@ -30,6 +30,19 @@ namespace support_library
 
 using namespace utils;
 
+namespace
+{
+
+void DumpNetwork(const Network& network)
+{
+    GetConstDebuggingContext().SaveNetworkToDot(CompilationOptions::DebugLevel::Medium, network, "Network.dot",
+                                                DetailLevel::Low);
+    GetConstDebuggingContext().SaveNetworkToDot(CompilationOptions::DebugLevel::Medium, network, "NetworkDetailed.dot",
+                                                DetailLevel::High);
+}
+
+}    // namespace
+
 uint32_t CalculateBufferSize(const TensorShape& shape, command_stream::DataFormat dataFormat)
 {
     assert(dataFormat == command_stream::DataFormat::NHWC || dataFormat == command_stream::DataFormat::NCHW ||
@@ -132,6 +145,7 @@ Compiler::~Compiler()
 
 std::unique_ptr<CompiledNetwork> Compiler::Compile()
 {
+    DumpNetwork(m_Network);
     try
     {
         Convert();
@@ -160,6 +174,7 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
 
 NetworkPerformanceData Compiler::EstimatePerformance()
 {
+    DumpNetwork(m_Network);
     bool nonCascadedPerformanceValid = false;
     bool cascadedPerformanceValid    = false;
     NetworkPerformanceData nonCascadedPerformance, cascadedPerformance;
@@ -233,11 +248,6 @@ NetworkPerformanceData Compiler::EstimatePerformance()
 
 void Compiler::Convert()
 {
-    GetConstDebuggingContext().SaveNetworkToDot(CompilationOptions::DebugLevel::Medium, m_Network, "Network.dot",
-                                                DetailLevel::Low);
-    GetConstDebuggingContext().SaveNetworkToDot(CompilationOptions::DebugLevel::Medium, m_Network,
-                                                "NetworkDetailed.dot", DetailLevel::High);
-
     m_Graph = Graph(m_Network, m_Capabilities, m_EstimationOptions, m_CompilationOptions.m_StrictPrecision);
 
     DumpGraph("GraphInitial");
