@@ -8,6 +8,7 @@
 #include "Buffer.hpp"
 #include "Inference.hpp"
 
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -52,20 +53,9 @@ std::vector<char> GetFirmwareAndHardwareCapabilities();
 std::vector<char> GetFirmwareAndHardwareCapabilities(const std::string& device);
 
 /// Exception type thrown when there is a problem with a compiled network passed to the API.
-class CompiledNetworkException : public std::exception
+class CompiledNetworkException : public std::runtime_error
 {
-public:
-    CompiledNetworkException(const char* reason)
-        : m_Reason(reason)
-    {}
-
-    virtual const char* what() const noexcept override
-    {
-        return m_Reason.c_str();
-    }
-
-private:
-    std::string m_Reason;
+    using std::runtime_error::runtime_error;
 };
 
 // A single network, loaded and ready to execute inferences.

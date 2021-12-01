@@ -25,7 +25,7 @@
 // Version information
 #define ETHOSN_SUPPORT_LIBRARY_VERSION_MAJOR 3
 #define ETHOSN_SUPPORT_LIBRARY_VERSION_MINOR 0
-#define ETHOSN_SUPPORT_LIBRARY_VERSION_PATCH 0
+#define ETHOSN_SUPPORT_LIBRARY_VERSION_PATCH 1
 
 namespace ethosn
 {
@@ -973,58 +973,21 @@ public:
 };
 
 /// Exception type thrown for unexpected internal errors.
-class InternalErrorException : public std::exception
+class InternalErrorException : public std::runtime_error
 {
-public:
-    InternalErrorException(const char* reason)
-        : m_Reason(reason)
-    {}
-
-    virtual const char* what() const noexcept override
-    {
-        return m_Reason.c_str();
-    }
-
-private:
-    std::string m_Reason;
+    using std::runtime_error::runtime_error;
 };
 
 /// Exception type thrown when an operation is added to a Network which is not supported.
-class NotSupportedException : public std::exception
+class NotSupportedException : public std::runtime_error
 {
-public:
-    NotSupportedException(const char* reason)
-        : m_Reason(reason)
-    {}
-
-    virtual const char* what() const noexcept override
-    {
-        return m_Reason.c_str();
-    }
-
-private:
-    std::string m_Reason;
+    using std::runtime_error::runtime_error;
 };
 
 /// Exception type thrown when data passed to the Support Library is of the wrong version.
-class VersionMismatchException : public std::exception
+class VersionMismatchException : public std::runtime_error
 {
-public:
-    VersionMismatchException(const char* reason)
-        : m_Reason(reason)
-    {}
-
-    VersionMismatchException(std::string reason)
-        : m_Reason(reason)
-    {}
-
-    virtual const char* what() const noexcept override
-    {
-        return m_Reason.c_str();
-    }
-
-private:
-    std::string m_Reason;
+    using std::runtime_error::runtime_error;
 };
 
 /// The return value of adding a new operation to the Network, for operations which have a single output.

@@ -7,36 +7,24 @@
 
 #include <mxml.h>
 
-#include <exception>
 #include <memory>
+#include <stdexcept>
 #include <string>
 
 const auto g_XmlRootName = "STREAM";
 
-class Exception : public std::exception
+class Exception : public std::runtime_error
 {
-public:
-    explicit Exception(const std::string msg)
-        : m_Msg(msg)
-    {}
-    const char* what() const noexcept override
-    {
-        return m_Msg.c_str();
-    }
-
-private:
-    std::string m_Msg;
+    using std::runtime_error::runtime_error;
 };
 
 class ParseException : public Exception
 {
-public:
     using Exception::Exception;
 };
 
 class IOException : public Exception
 {
-public:
     using Exception::Exception;
 };
 
