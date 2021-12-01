@@ -44,14 +44,14 @@ Node::Node(NodeId id,
     , m_FixGraphConvertOutputTo(CompilerDataFormat::NONE)
     , m_FixGraphLocationHint(LocationHint::PreferSram)
     , m_FixGraphCompressionHint(CompressionHint::PreferCompressed)
+    , m_PreparationAttempted(false)
     , m_Pass(nullptr)
     , m_Location(BufferLocation::None)
+    , m_SramOffset(0)
     , m_CompressionFormat(CompilerDataCompressedFormat::NONE)
     , m_BufferId(0xFFFFFFFF)
     , m_CorrespondingOperationIds(correspondingOperationIds)
-{
-    Reset();
-}
+{}
 
 Node::~Node()
 {}
@@ -376,7 +376,7 @@ std::string Node::DumpToDotFormat(std::ostream& stream)
     return attr.m_Id;
 }
 
-void Node::Reset()
+void Node::ResetPreparation()
 {
     m_PreparationAttempted = false;
     m_Pass                 = nullptr;

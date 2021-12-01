@@ -186,7 +186,7 @@ public:
 
     /// Preparation methods
     /// @{
-    virtual void Reset();
+    virtual void ResetPreparation();
     virtual void PrepareAfterPassAssignment(SramAllocator& sramAllocator);
     virtual bool IsPrepared() = 0;    // Subclasses must implement this and perform their own checks.
 

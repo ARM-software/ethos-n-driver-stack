@@ -260,6 +260,14 @@ void Compiler::Prepare(bool isPerfEstimate)
     const uint32_t maxIterations = static_cast<uint32_t>(m_Graph.GetNodes().size()) * 10;
     while (true)
     {
+        // Clear any preparation data from the previous attempt
+        for (auto& n : m_Graph.GetNodes())
+        {
+            n->ResetPreparation();
+        }
+        // Clear passes for next attempt
+        m_Passes.clear();
+
         DumpGraph(std::string("GraphPrepareIteration") + std::to_string(numIterations) + "_Pre");
 
         Optimize();
@@ -330,13 +338,6 @@ void Compiler::Prepare(bool isPerfEstimate)
             }
 
             throw NotSupportedException(errorMsg.c_str());
-        }
-
-        // Clear passes for next attempt
-        m_Passes.clear();
-        for (auto& n : m_Graph.GetNodes())
-        {
-            n->Reset();
         }
     }
 }

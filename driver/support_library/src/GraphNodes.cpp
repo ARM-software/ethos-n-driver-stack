@@ -72,9 +72,7 @@ InputNode::InputNode(NodeId id, const TensorInfo& outputTensorInfo, std::set<uin
            outputTensorInfo.m_QuantizationInfo,
            ConvertExternalToCompilerDataFormat(outputTensorInfo.m_DataFormat),
            correspondingOperationIds)
-{
-    Reset();
-}
+{}
 
 bool InputNode::IsPrepared()
 {
@@ -101,8 +99,9 @@ DotAttributes InputNode::GetDotAttributes()
     return result;
 }
 
-void InputNode::Reset()
+void InputNode::ResetPreparation()
 {
+    Node::ResetPreparation();
     m_Location = BufferLocation::Dram;
 }
 
@@ -167,11 +166,10 @@ MceOperationNode::MceOperationNode(NodeId id,
     , m_PadTop(padTop)
     , m_PadLeft(padLeft)
     , m_Operation(op)
+    , m_Algorithm(CompilerMceAlgorithm::None)
     , m_AlgorithmHint(AlgorithmHint::AllowWinograd)
     , m_FixGraphAlgorithmHint(AlgorithmHint::None)
-{
-    Reset();
-}
+{}
 
 const ethosn::support_library::TensorShape& MceOperationNode::GetUninterleavedInputShape() const
 {
@@ -333,9 +331,9 @@ bool MceOperationNode::FixGraph(Graph& graph, FixGraphSeverity severity)
     return changed;
 }
 
-void MceOperationNode::Reset()
+void MceOperationNode::ResetPreparation()
 {
-    Node::Reset();
+    Node::ResetPreparation();
     m_Algorithm = CompilerMceAlgorithm::None;
 }
 

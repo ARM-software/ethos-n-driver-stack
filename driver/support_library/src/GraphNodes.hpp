@@ -31,7 +31,7 @@ public:
     bool IsPrepared() override;
     void Generate(command_stream::CommandStreamBuffer& cmdStream, BufferManager& bufferManager, bool dumpRam) override;
     DotAttributes GetDotAttributes() override;
-    void Reset() override;
+    void ResetPreparation() override;
 };
 
 class OutputNode : public Node
@@ -142,7 +142,7 @@ public:
 
     bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
 
-    void Reset() override;
+    void ResetPreparation() override;
 
     utils::ShapeMultiplier GetShapeMultiplier() const;
 
