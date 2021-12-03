@@ -8,6 +8,7 @@
 #include "../../include/ethosn_support_library/Optional.hpp"
 #include "../Graph.hpp"
 #include "../Network.hpp"
+#include "ConcatPart.hpp"
 #include "FusedPlePart.hpp"
 #include "InputPart.hpp"
 #include "McePart.hpp"
@@ -39,6 +40,7 @@ public:
     void Visit(Convolution& convolution) final;
     void Visit(Pooling& pooling) final;
     void Visit(Reshape& reshape) final;
+    void Visit(Concatenation& concatenation) final;
     void ConnectParts(Operation& operation, std::vector<BasePart*>& m_Part);
 
     std::vector<uint8_t> OverrideWeights(const std::vector<uint8_t>& userWeights, const TensorInfo& weightsInfo) const;
@@ -52,7 +54,7 @@ private:
     utils::Optional<const EstimationOptions&> m_EstimationOptions;
     const CompilationOptions& m_CompilationOptions;
     std::map<const Operand*, BasePart*> m_OperandToPart;
-    GraphOfParts graphOfParts;
+    GraphOfParts m_GraphOfParts;
 };
 
 }    // namespace support_library
