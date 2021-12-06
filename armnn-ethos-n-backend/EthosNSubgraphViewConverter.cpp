@@ -920,6 +920,18 @@ ethosn_lib::CompilationOptions
                             "Invalid option type for DisableWinograd - must be bool.");
                     }
                 }
+                else if (option.GetName() == "StrictPrecision")
+                {
+                    if (option.GetValue().IsBool())
+                    {
+                        result.m_StrictPrecision = option.GetValue().AsBool();
+                    }
+                    else
+                    {
+                        throw armnn::InvalidArgumentException(
+                            "Invalid option type for StrictPrecision - must be bool.");
+                    }
+                }
                 else if (option.GetName() == "Device")
                 {
                     // Device option is allowed

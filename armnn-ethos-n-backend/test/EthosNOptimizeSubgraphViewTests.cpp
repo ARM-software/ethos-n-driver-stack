@@ -486,24 +486,30 @@ TEST_SUITE("EthosNOptimizeSubGraph")
     {
         EthosNConfig config;
 
-        // Default (winograd enabled)
+        // Default (winograd enabled and strictPrecision disabled)
         CHECK(GetCompilationOptions(config, {}, 0).m_DisableWinograd == false);
+        CHECK(GetCompilationOptions(config, {}, 0).m_StrictPrecision == false);
 
-        // Disable winograd explicitly
-        BackendOptions optDisableWinograd(EthosNBackend::GetIdStatic(), { { "DisableWinograd", true } });
-        CHECK(GetCompilationOptions(config, { optDisableWinograd }, 0).m_DisableWinograd == true);
+        // Disable winograd and enabled strictPrecision explicitly
+        BackendOptions backendOptions(EthosNBackend::GetIdStatic(),
+                                      { { "DisableWinograd", true }, { "StrictPrecision", true } });
+        CHECK(GetCompilationOptions(config, { backendOptions }, 0).m_DisableWinograd == true);
+        CHECK(GetCompilationOptions(config, { backendOptions }, 0).m_StrictPrecision == true);
 
         // Other backend options are ignored
-        BackendOptions optOtherBackend("OtherBackend", { { "DisableWinograd", true } });
+        BackendOptions optOtherBackend("OtherBackend", { { "DisableWinograd", true }, { "StrictPrecision", true } });
         CHECK(GetCompilationOptions(config, { optOtherBackend }, 0).m_DisableWinograd == false);
+        CHECK(GetCompilationOptions(config, { optOtherBackend }, 0).m_StrictPrecision == false);
 
         // Invalid option (unknown name)
         BackendOptions optInvalidName(EthosNBackend::GetIdStatic(), { { "TestInvalidOption", true } });
         CHECK_THROWS_AS(GetCompilationOptions(config, { optInvalidName }, 0), InvalidArgumentException);
 
         // Invalid option (wrong option type)
-        BackendOptions optInvalidType(EthosNBackend::GetIdStatic(), { { "DisableWinograd", "hello" } });
-        CHECK_THROWS_AS(GetCompilationOptions(config, { optInvalidType }, 0), InvalidArgumentException);
+        BackendOptions optInvalidTypeWinograd(EthosNBackend::GetIdStatic(), { { "DisableWinograd", "hello" } });
+        BackendOptions optInvalidTypeStrictPrecision(EthosNBackend::GetIdStatic(), { { "StrictPrecision", "test" } });
+        CHECK_THROWS_AS(GetCompilationOptions(config, { optInvalidTypeWinograd }, 0), InvalidArgumentException);
+        CHECK_THROWS_AS(GetCompilationOptions(config, { optInvalidTypeStrictPrecision }, 0), InvalidArgumentException);
     }
 
     /// Checks that the m_DisableWinograd option is correctly passed through to the support library.
@@ -556,5 +562,75 @@ TEST_SUITE("EthosNOptimizeSubGraph")
 
         // Check that support library was called correctly
         CHECK(mockSupportLibrary.m_RecordedDisableWinograd.back() == true);
+    }
+
+    /// Checks that the m_StrictPrecision option is correctly passed through to the support library.
+    TEST_CASE("TestStrictPrecision")
+    {
+        // Set up mock support library, which records the m_DisableWinograd option
+        class MockSupportLibrary : public EthosNSupportLibraryInterface
+        {
+        public:
+            std::vector<std::unique_ptr<ethosn_lib::CompiledNetwork>>
+                Compile(const ethosn_lib::Network&, const ethosn_lib::CompilationOptions& options) final
+            {
+                m_RecordedStrictPrecision.push_back(options.m_StrictPrecision);
+                return {};
+            }
+
+            std::vector<bool> m_RecordedStrictPrecision;
+        };
+        g_EthosNSupportLibraryInterface        = std::make_unique<MockSupportLibrary>();
+        MockSupportLibrary& mockSupportLibrary = static_cast<MockSupportLibrary&>(*g_EthosNSupportLibraryInterface);
+
+        // Set up tensor infos
+        TensorInfo inputInfo({ 1, 8, 8, 16 }, DataType::QAsymmU8, 1.0f, 0);
+        TensorInfo intermediateInfo({ 1, 8, 8, 16 }, DataType::QAsymmU8, 1.0f, 0);
+        TensorInfo outputInfo({ 1, 8, 8, 32 }, DataType::QAsymmU8, 1.0f, 0);
+
+        ActivationDescriptor reluDesc;
+        reluDesc.m_Function = ActivationFunction::BoundedReLu;
+        reluDesc.m_A        = 255.0f;
+        reluDesc.m_B        = 0.0f;
+
+        // Construct network
+        armnn::INetworkPtr net               = armnn::INetwork::Create();
+        IConnectableLayer* const input0Layer = net->AddInputLayer(0, "input0");
+        input0Layer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+        IConnectableLayer* const relu0Layer = net->AddActivationLayer(reluDesc, "relu0");
+        relu0Layer->GetOutputSlot(0).SetTensorInfo(intermediateInfo);
+        input0Layer->GetOutputSlot(0).Connect(relu0Layer->GetInputSlot(0));
+
+        IConnectableLayer* const input1Layer = net->AddInputLayer(1, "input1");
+        input1Layer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+        IConnectableLayer* const relu1Layer = net->AddActivationLayer(reluDesc, "relu1");
+        relu1Layer->GetOutputSlot(0).SetTensorInfo(intermediateInfo);
+        input1Layer->GetOutputSlot(0).Connect(relu1Layer->GetInputSlot(0));
+
+        std::array<TensorShape, 2> concatInputShapes = { intermediateInfo.GetShape(), intermediateInfo.GetShape() };
+        IConnectableLayer* const concatLayer         = net->AddConcatLayer(
+            CreateDescriptorForConcatenation(concatInputShapes.begin(), concatInputShapes.end(), 3), "concat");
+        concatLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
+        relu0Layer->GetOutputSlot(0).Connect(concatLayer->GetInputSlot(0));
+        relu1Layer->GetOutputSlot(0).Connect(concatLayer->GetInputSlot(1));
+
+        IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output");
+        concatLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+
+        // Optimize for EthosNAcc with default options. This is expected to throw due to mock support library.
+        std::vector<BackendId> backends = { EthosNBackendId() };
+        IRuntimePtr runtime(IRuntime::Create(IRuntime::CreationOptions()));
+        OptimizerOptions optOpts;
+        CHECK_THROWS_AS(Optimize(*net, backends, runtime->GetDeviceSpec(), optOpts), armnn::InvalidArgumentException);
+
+        // Check that support library was called correctly
+        CHECK(mockSupportLibrary.m_RecordedStrictPrecision.back() == false);
+
+        // Optimize for EthosNAcc (enable StrictPrecision)
+        optOpts.m_ModelOptions = { BackendOptions(EthosNBackend::GetIdStatic(), { { "StrictPrecision", true } }) };
+        CHECK_THROWS_AS(Optimize(*net, backends, runtime->GetDeviceSpec(), optOpts), armnn::InvalidArgumentException);
+
+        // Check that support library was called correctly
+        CHECK(mockSupportLibrary.m_RecordedStrictPrecision.back() == true);
     }
 }
