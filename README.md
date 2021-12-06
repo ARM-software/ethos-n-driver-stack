@@ -51,7 +51,7 @@ For information about how to port TF-A to another platform, see the [TF-A Portin
 
 ## Build tools
 
-To build the Ethos-N NPU software, you must install some tools on the platform that you perform the compilation, which is either your target platform or the host platform when cross compiling. We have only tested building the driver stack on the `Ubuntu 18.04 LTS x86 64-bit` Linux distribution. The required tools are:
+To build the Ethos-N NPU software, you must install some tools on the platform on which you perform the compilation, which is either your target platform or the host platform when cross compiling. We have only tested building the driver stack on the `Ubuntu 18.04 LTS x86 64-bit` Linux distribution. The required tools are:
 
 * A Linux distribution.  An open-source operating system.
 * [Git](https://git-scm.com/) A version control system that software developers use for source code management. We recommend version `2.17.1`.
@@ -59,6 +59,10 @@ To build the Ethos-N NPU software, you must install some tools on the platform t
 * [Make](https://www.gnu.org/software/make/) A build automation tool. We recommend version `4.1`.
 * [Sparse](https://git.kernel.org/pub/scm/devel/sparse/sparse.git) A semantic parser for C. We recommend `v0.6.3`.
 * [GNU C and C++ and compilers](https://gcc.gnu.org/) Open-source tools for Arm processors. We recommend version `7.5.0`.
+
+The build platform must have at least:
+* 8GB of RAM
+* 4GB of free storage space
 
 ### Install the build tools
 
@@ -71,6 +75,7 @@ sudo apt install git \
     gcc-aarch64-linux-gnu \
     g++-aarch64-linux-gnu \
     gcc \
+    g++ \
     bison \
     flex \
     libssl-dev \
