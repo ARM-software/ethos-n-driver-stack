@@ -1289,7 +1289,7 @@ void NetworkToGraphConverter::Visit(Resize& resize)
 
 void NetworkToGraphConverter::Visit(EstimateOnly& estimateOnly)
 {
-    std::string reasonStr = estimateOnly.GetReason();
+    std::string reasonStr = estimateOnly.GetEstimateOnlyInfo().m_ReasonForEstimateOnly;
     const char* reason    = (reasonStr.length() == 0) ? "EstimateOnly operation added explicitly." : reasonStr.data();
 
     // Add an EstimateOnly node for each output of the EstimateOnly operation

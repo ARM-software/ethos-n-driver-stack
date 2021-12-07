@@ -369,6 +369,23 @@ void NetworkToGraphOfPartsConverter::Visit(MeanXy& meanxy)
     ConnectParts(meanxy, parts);
 }
 
+void NetworkToGraphOfPartsConverter::Visit(EstimateOnly& estimateOnly)
+{
+    std::vector<BasePart*> parts;
+    // Convert from DataFormat to CompilerFormat needed for the EstimateOnly.
+    CompilerDataFormat compilerDataFormat =
+        ConvertExternalToCompilerDataFormat(estimateOnly.GetEstimateOnlyInfo().m_OutputInfos[0].m_DataFormat);
+    auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
+        m_GraphOfParts.GeneratePartId(), estimateOnly.GetEstimateOnlyInfo().m_ReasonForEstimateOnly,
+        estimateOnly.GetEstimateOnlyInfo().m_OutputInfos, estimateOnly.GetEstimateOnlyInfo().m_OutputInfos,
+        compilerDataFormat, std::set<uint32_t>{ estimateOnly.GetId() }, m_EstimationOptions.value(),
+        m_CompilationOptions, m_Capabilities);
+
+    parts.push_back(std::move(estimateOnlyPart.get()));
+    m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+    ConnectParts(estimateOnly, parts);
+}
+
 std::vector<uint8_t> NetworkToGraphOfPartsConverter::OverrideWeights(const std::vector<uint8_t>& userWeights,
                                                                      const TensorInfo& weightsInfo) const
 {

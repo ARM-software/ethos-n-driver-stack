@@ -345,6 +345,11 @@ ConcatOp::ConcatOp()
     : Op("ConcatOp")
 {}
 
+EstimateOnlyOp::EstimateOnlyOp(const std::string& reasonForEstimateOnly)
+    : Op("EstimateOnlyOp")
+    , m_ReasonForEstimateOnly(reasonForEstimateOnly)
+{}
+
 DummyOp::DummyOp()
     : Op("DummyOp")
 {}

@@ -492,7 +492,7 @@ EstimateOnly::EstimateOnly(const detail::PosInNetwork pos,
                            const std::vector<Operand*>& inputs,
                            const EstimateOnlyInfo& info)
     : VisitableOperation<EstimateOnly>(pos, id, inputs, info.m_OutputInfos)
-    , m_ReasonForEstimateOnly(info.m_ReasonForEstimateOnly)
+    , m_EstimateOnlyInfo(info)
 {}
 
 }    // namespace support_library

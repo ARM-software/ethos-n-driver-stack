@@ -360,6 +360,14 @@ public:
     ConcatOp();
 };
 
+class EstimateOnlyOp : public Op
+{
+public:
+    EstimateOnlyOp(const std::string& reasonForEstimateOnly);
+
+    std::string m_ReasonForEstimateOnly;
+};
+
 class DummyOp : public Op
 {
 public:

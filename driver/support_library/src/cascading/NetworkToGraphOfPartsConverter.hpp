@@ -9,6 +9,7 @@
 #include "../Graph.hpp"
 #include "../Network.hpp"
 #include "ConcatPart.hpp"
+#include "EstimateOnlyPart.hpp"
 #include "FullyConnectedPart.hpp"
 #include "FusedPlePart.hpp"
 #include "InputPart.hpp"
@@ -47,6 +48,7 @@ public:
     void Visit(Sigmoid& sigmoid) final;
     void Visit(Tanh& tanh) final;
     void Visit(MeanXy& meanxy) final;
+    void Visit(EstimateOnly& estimateOnly) final;
     void ConnectParts(Operation& operation, std::vector<BasePart*>& m_Part);
 
     std::vector<uint8_t> OverrideWeights(const std::vector<uint8_t>& userWeights, const TensorInfo& weightsInfo) const;

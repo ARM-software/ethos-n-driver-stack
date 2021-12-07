@@ -578,6 +578,18 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
                 }
                 AddPassDataToResult(estimatedPass);
             }
+            else if (IsObjectOfType<EstimateOnlyOp>(op))
+            {
+                unestimatedOps.erase(op);
+                EstimateOnlyOp* estimateOnlyOp = GetObjectAs<EstimateOnlyOp>(op);
+
+                for (auto it : op->m_OperationIds)
+                {
+                    result.m_PerfData.m_OperationIdFailureReasons[it] =
+                        "Could not be estimated and has zero performance impact. Reason:" +
+                        estimateOnlyOp->m_ReasonForEstimateOnly;
+                }
+            }
         }
     }
 
