@@ -68,12 +68,19 @@ struct OfmS
     // add write-specific fields as needed
 };
 
+/// Offset and size of weight data for a particular stripe inside the corresponding weight DRAM buffer.
+struct WeightsMetadata
+{
+    uint32_t offset;
+    uint32_t size;
+};
+
 /// Weight Streamer data
 struct WgtS
 {
     /// Buffer ID of the weights tensor
     uint16_t bufferId;
-    /// Buffer ID of the weights metadata array of (offset, size) pairs
+    /// Buffer ID of the weights metadata array of (offset, size) pairs (WeightsMetadata)
     uint16_t metadataBufferId;
     /// Weight SRAM tile info
     Tile tile;
