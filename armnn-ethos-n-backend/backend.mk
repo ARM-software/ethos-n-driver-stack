@@ -46,9 +46,29 @@ endif
 # The variable to enable/disable this backend (ARMNN_ETHOSN_ENABLED is declared in android-nn-driver/Android.mk)
 ifeq ($(ARMNN_ETHOSN_ENABLED),1)
 
+BACKEND_TEST_SOURCES := \
+        test/EthosNBackendTests.cpp \
+        test/EthosNCreateEstimationWorkloadTests.cpp \
+        test/EthosNCreateWorkloadTests.cpp \
+        test/EthosNLayerTests.cpp \
+        test/EthosNMemCopyTests.cpp \
+        test/EthosNOptimizeSubgraphViewTests.cpp \
+        test/EthosNProfilingTests.cpp \
+        test/EthosNSupportTest.cpp \
+        test/EthosNTensorUtilsTests.cpp \
+        test/EthosNReplaceUnsupportedTests.cpp
 
-BACKEND_TEST_SOURCES :=
+ETHOSN_DRIVER_STACK := vendor/arm/ethos-n-driver-stack
 
+BACKEND_TEST_INCLUDES := $(ETHOSN_DRIVER_STACK)/armnn-ethos-n-backend/test \
+                    $(ETHOSN_DRIVER_STACK)/armnn-ethos-n-backend/ \
+                    $(ETHOSN_DRIVER_STACK)/driver/driver_library/include/ \
+                    $(ETHOSN_DRIVER_STACK)/driver/support_library/include/ \
+                    $(ETHOSN_DRIVER_STACK)/driver/utils/include/
+
+BACKEND_TEST_STATIC_LIBRARIES := \
+        libEthosNDriver \
+        libEthosNSupport
 else
 
 # Backend disabled, no test file will be compiled.

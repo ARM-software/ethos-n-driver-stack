@@ -36,8 +36,8 @@ cc_library {
     cflags: [
         "-fexceptions",
         "-DTARGET_KMOD",
-        "-DDEVICE_NODE=\"/dev/ethosn/0\"",
-        "-DDEVICE_NODE_PREFIX=\"/dev/ethosn/\"",
+        "-DDEVICE_NODE=\"/dev/ethosn0\"",
+        "-DDEVICE_NODE_PREFIX=\"/dev/ethosn\"",
         "-DDEVICE_NODE_BASE_ID=0",
         "-DFIRMWARE_PROFILING_NODE=\"/sys/kernel/debug/ethosn0/firmware_profiling\"",
     ],
@@ -110,6 +110,7 @@ cc_library {
         "driver/support_library/src/cascading/ReshapePart.cpp",
         "driver/support_library/src/cascading/ConcatPart.cpp",
         "driver/support_library/src/cascading/ConstantPart.cpp",
+        "driver/support_library/src/cascading/PleKernelDatabase.cpp",
         ],
 }
 
@@ -117,7 +118,6 @@ prebuilt_firmware {
     name: "ethosn.bin",
     src: "firmware/ethosn.bin",
     target: { android: { } },
-    soc_specific: true,
 }
 
 prebuilt_kernel_modules {
