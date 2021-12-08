@@ -100,7 +100,7 @@ public:
     void PreGenerate(command_stream::CommandStreamBuffer& cmdStream);
 
     /// Generates dump command (if needed) to the given command stream
-    void PostGenerate(command_stream::CommandStreamBuffer& cmdStream, bool dumpRam);
+    void PostGenerate(command_stream::CommandStreamBuffer& cmdStream, bool dumpRam, BufferManager& bufferManager);
 
     virtual DotAttributes GetDotAttributes();
 

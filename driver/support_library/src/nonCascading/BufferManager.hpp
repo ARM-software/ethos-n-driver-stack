@@ -50,6 +50,8 @@ public:
         , m_Location(location)
         , m_SourceOperationId(ms_InvalidValue)
         , m_SourceOperationOutputIndex(ms_InvalidValue)
+        , m_LifetimeStart(ms_InvalidValue)
+        , m_LifetimeEnd(ms_InvalidValue)
     {}
 
     BufferType m_Type;
@@ -59,6 +61,13 @@ public:
     std::vector<uint8_t> m_ConstantData;      ///< May be empty if this buffer is not constant.
     uint32_t m_SourceOperationId;             ///< Only relevant for input and output buffer infos.
     uint32_t m_SourceOperationOutputIndex;    ///< Only relevant for input and output buffer infos.
+
+    /// The command index at which this buffer begins its lifetime.
+    /// This is most likely the index of the command which produces this buffer.
+    uint32_t m_LifetimeStart;
+    /// The command index at which this buffer ends its lifetime. This is a 'one past the end' value, i.e.
+    /// this is most likely the index immediately after the one for the command which last uses this buffer.
+    uint32_t m_LifetimeEnd;
 };
 
 /// Maintains and builds up the set of buffers required by the compiled network.
@@ -82,6 +91,12 @@ public:
     void ChangeToOutput(uint32_t bufferId, uint32_t sourceOperationId, uint32_t sourceOperationOutputIndex);
 
     void ChangeBufferAlignment(uint32_t bufferId, uint32_t alignment);
+
+    /// Records that the given buffer is used at the given time.
+    /// This is used to build up the lifetime of the buffer (the first time it is used and the last time it is used),
+    /// which then determines where that buffer can be allocated (to allow re-use of memory between buffers whose
+    /// lifetimes do not overlap).
+    void MarkBufferUsedAtTime(uint32_t bufferId, uint32_t currentTime);
 
     /// If the given buffer is an SRAM buffer then returns the offset in SRAM of the given buffer,
     /// otherwise returns zero.

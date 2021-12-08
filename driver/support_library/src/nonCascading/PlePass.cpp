@@ -590,7 +590,7 @@ void PlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, BufferMan
 
     cmdStream.EmplaceBack(pleCmd);
 
-    Pass::PostGenerate(cmdStream, dumpRam);
+    Pass::PostGenerate(cmdStream, dumpRam, bufferManager);
 }
 
 PassStats PlePass::GetStats(const EstimationOptions& estimationOptions)

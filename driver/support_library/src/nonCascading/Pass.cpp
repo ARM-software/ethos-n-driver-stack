@@ -86,7 +86,7 @@ void Pass::PreGenerate(command_stream::CommandStreamBuffer& cmdStream)
     m_CommandStreamFirstCommandIdx = cmdStream.GetCount();
 }
 
-void Pass::PostGenerate(command_stream::CommandStreamBuffer& cmdStream, bool dumpRam)
+void Pass::PostGenerate(command_stream::CommandStreamBuffer& cmdStream, bool dumpRam, BufferManager& bufferManager)
 {
     m_IsGenerated = true;
 
@@ -124,6 +124,29 @@ void Pass::PostGenerate(command_stream::CommandStreamBuffer& cmdStream, bool dum
     }
 
     m_CommandStreamLastCommandIdx = cmdStream.GetCount() - 1;
+
+    // Mark any input and output DRAM buffers of this Pass as needed by all the commands generated.
+    // This assumes that the Nodes in this Pass are in a linear chain
+    std::vector<uint32_t> buffersUsed;
+    for (Edge* inputEdge : m_Nodes.front()->GetInputs())
+    {
+        Node* inputNode = inputEdge->GetSource();
+        if (inputNode->GetLocation() == BufferLocation::Dram)
+        {
+            buffersUsed.push_back(inputNode->GetBufferId());
+        }
+    }
+    if (m_Nodes.back()->GetLocation() == BufferLocation::Dram)
+    {
+        buffersUsed.push_back(m_Nodes.back()->GetBufferId());
+    }
+    for (uint32_t bufferId : buffersUsed)
+    {
+        for (uint32_t cmdIdx = m_CommandStreamFirstCommandIdx; cmdIdx <= m_CommandStreamLastCommandIdx; ++cmdIdx)
+        {
+            bufferManager.MarkBufferUsedAtTime(bufferId, cmdIdx);
+        }
+    }
 }
 
 std::set<uint32_t> Pass::GetCorrespondingOperationIds() const

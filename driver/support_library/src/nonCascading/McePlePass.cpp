@@ -837,6 +837,8 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
             convCmd.m_OutputInfo().m_SupertensorOffset() = superTensorInfo.first;
             convCmd.m_OutputInfo().m_SupertensorShape()  = superTensorInfo.second;
 
+            // Allocate a new buffer for the concat result if this is the first input to it that we've prepared,
+            // otherwise re-use the existing buffer.
             uint32_t totalSize = CalculateBufferSize(concatNode->GetShape(), concatNode->GetBufferFormat());
             outputBufferId     = concatNode->GetBufferId();
             if (outputBufferId == 0xffffffff)
@@ -970,7 +972,7 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
 
     cmdStream.EmplaceBack(convCmd);
 
-    Pass::PostGenerate(cmdStream, dumpRam);
+    Pass::PostGenerate(cmdStream, dumpRam, bufferManager);
 }
 
 PassStats McePlePass::GetStats(const EstimationOptions& estimationOptions)

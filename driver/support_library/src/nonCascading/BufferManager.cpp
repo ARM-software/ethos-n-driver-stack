@@ -89,6 +89,27 @@ void BufferManager::ChangeBufferAlignment(uint32_t bufferId, uint32_t alignment)
     m_Buffers.at(bufferId).m_Size = utils::RoundUpToNearestMultiple(bufferSize, alignment);
 }
 
+void BufferManager::MarkBufferUsedAtTime(uint32_t bufferId, uint32_t currentTime)
+{
+    CompilerBufferInfo& buffer = m_Buffers.at(bufferId);
+    if (buffer.m_LifetimeStart == CompilerBufferInfo::ms_InvalidValue)
+    {
+        buffer.m_LifetimeStart = currentTime;
+    }
+    else
+    {
+        buffer.m_LifetimeStart = std::min(buffer.m_LifetimeStart, currentTime);
+    }
+    if (buffer.m_LifetimeEnd == CompilerBufferInfo::ms_InvalidValue)
+    {
+        buffer.m_LifetimeEnd = currentTime + 1;
+    }
+    else
+    {
+        buffer.m_LifetimeEnd = std::max(buffer.m_LifetimeEnd, currentTime + 1);
+    }
+}
+
 uint32_t BufferManager::GetSramOffset(uint32_t bufferId)
 {
     const CompilerBufferInfo& buffer = m_Buffers.at(bufferId);

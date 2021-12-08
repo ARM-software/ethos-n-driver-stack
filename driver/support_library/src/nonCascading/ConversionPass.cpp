@@ -265,6 +265,8 @@ void ConversionPass::Generate(command_stream::CommandStreamBuffer& cmdStream,
             outputSupertensorOffset = superTensorInfo.first;
             outputSupertensorShape  = superTensorInfo.second;
 
+            // Allocate a new buffer for the concat result if this is the first input to it that we've prepared,
+            // otherwise re-use the existing buffer.
             uint32_t totalSize = CalculateBufferSize(concatNode->GetShape(), concatNode->GetBufferFormat());
             outputBufferId     = concatNode->GetBufferId();
             if (outputBufferId == 0xffffffff)
@@ -312,7 +314,7 @@ void ConversionPass::Generate(command_stream::CommandStreamBuffer& cmdStream,
 
     cmdStream.EmplaceBack(convert);
 
-    Pass::PostGenerate(cmdStream, dumpRam);
+    Pass::PostGenerate(cmdStream, dumpRam, bufferManager);
 }
 
 PassStats ConversionPass::GetStats(const EstimationOptions& estimationOptions)

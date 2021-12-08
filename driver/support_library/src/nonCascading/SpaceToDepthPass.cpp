@@ -195,7 +195,7 @@ void SpaceToDepthPass::Generate(command_stream::CommandStreamBuffer& cmdStream,
 
     cmdStream.EmplaceBack(spaceToDepth);
 
-    Pass::PostGenerate(cmdStream, dumpRam);
+    Pass::PostGenerate(cmdStream, dumpRam, bufferManager);
 }
 
 PassStats SpaceToDepthPass::GetStats(const EstimationOptions& estimationOptions)
