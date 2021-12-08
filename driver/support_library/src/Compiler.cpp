@@ -455,7 +455,7 @@ void Compiler::Generate()
 
     m_BufferManager.AddCommandStream(m_CommandStream);
 
-    m_BufferManager.Allocate();
+    m_BufferManager.Allocate(debuggingContext);
 }
 
 void Compiler::DumpGraph(const std::string& filename)

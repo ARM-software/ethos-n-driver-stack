@@ -20,6 +20,8 @@ class CommandStreamBuffer;
 namespace support_library
 {
 
+struct DebuggingContext;
+
 constexpr uint32_t g_NhwcbBufferAlignment = 1024;
 
 enum class BufferType
@@ -106,7 +108,7 @@ public:
     /// Also fills in m_ConstantDmaData and m_ConstantControlUnitData with the concatenated data from all
     /// constant buffers of the corresponding type.
     /// Call this once all buffers have been added.
-    void Allocate();
+    void Allocate(const DebuggingContext& debuggingContext);
 
     const std::map<uint32_t, CompilerBufferInfo>& GetBuffers() const;
     const std::vector<uint8_t>& GetConstantDmaData() const;

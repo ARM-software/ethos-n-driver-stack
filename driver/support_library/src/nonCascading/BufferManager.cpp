@@ -5,11 +5,13 @@
 
 #include "BufferManager.hpp"
 
+#include "DebuggingContext.hpp"
 #include "Utils.hpp"
 
 #include <ethosn_command_stream/CommandStreamBuffer.hpp>
 
 #include <cassert>
+#include <fstream>
 #include <list>
 
 namespace ethosn
@@ -143,17 +145,19 @@ uint32_t AppendBufferAligned(std::vector<uint8_t>& dest, uint32_t alignment, con
 
 }    // namespace
 
-void BufferManager::Allocate()
+void BufferManager::Allocate(const DebuggingContext& debuggingContext)
 {
     // There is a restriction on the alignment of DRAM accesses for the NHWCB and FCAF formats.
     // NHWCB needs to be 16 byte aligned.
     // FCAF needs to be 64 byte aligned.
     constexpr uint32_t alignment = 64;
-    uint32_t intermediatesOffset = 0;
     uint32_t inputsOffset        = 0;
     uint32_t outputsOffset       = 0;
+    std::vector<uint32_t> intermediateBufferIds;
+    std::vector<first_fit_allocation::Buffer> intermediateFirstFitBuffers;
     for (auto& internalBufferIt : m_Buffers)
     {
+        uint32_t bufferId          = internalBufferIt.first;
         CompilerBufferInfo& buffer = internalBufferIt.second;
         if (buffer.m_Location != BufferLocation::Dram)
         {
@@ -164,7 +168,14 @@ void BufferManager::Allocate()
         switch (buffer.m_Type)
         {
             case BufferType::Intermediate:
-                buffer.m_Offset = AppendBufferAligned(intermediatesOffset, alignment, buffer.m_Size);
+                // Intermediate buffers are allocated using a more complicated algorithm and are handled afterwards.
+                // We just build up an array of them here
+                intermediateBufferIds.push_back(bufferId);
+                first_fit_allocation::Buffer firstFitBuffer;
+                firstFitBuffer.m_LifetimeStart = buffer.m_LifetimeStart;
+                firstFitBuffer.m_LifetimeEnd   = buffer.m_LifetimeEnd;
+                firstFitBuffer.m_Size          = buffer.m_Size;
+                intermediateFirstFitBuffers.push_back(firstFitBuffer);
                 break;
             case BufferType::ConstantControlUnit:
                 buffer.m_Offset = AppendBufferAligned(m_ConstantControlUnitData, alignment, buffer.m_ConstantData);
@@ -180,6 +191,31 @@ void BufferManager::Allocate()
                 break;
             default:
                 assert(false);
+        }
+    }
+
+    // Allocate intermediate buffers using first-fit algorithm and store the results
+    std::vector<uint32_t> intermediateAllocations =
+        first_fit_allocation::FirstFitAllocation(std::move(intermediateFirstFitBuffers), alignment);
+    for (uint32_t i = 0; i < intermediateBufferIds.size(); ++i)
+    {
+        uint32_t bufferId               = intermediateBufferIds[i];
+        m_Buffers.at(bufferId).m_Offset = intermediateAllocations[i];
+    }
+
+    // Dump intermediate buffer allocations for debugging/analysis
+    if (debuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
+    {
+        std::ofstream f(debuggingContext.GetAbsolutePathOutputFileName("IntermediateDramBuffers.txt"));
+        for (uint32_t bufferId : intermediateBufferIds)
+        {
+            const CompilerBufferInfo& buffer = m_Buffers.at(bufferId);
+            if (buffer.m_Location == BufferLocation::Dram && buffer.m_Type == BufferType::Intermediate)
+            {
+                f << "Buffer " << bufferId << ", " << buffer.m_Size << " bytes, lifetime " << buffer.m_LifetimeStart
+                  << "-" << buffer.m_LifetimeEnd << ", "
+                  << "allocated at " << buffer.m_Offset << std::endl;
+            }
         }
     }
 }

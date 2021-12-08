@@ -3,11 +3,49 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "../src/DebuggingContext.hpp"
 #include "../src/nonCascading/BufferManager.hpp"
 
 #include <catch.hpp>
 
 using namespace ethosn::support_library;
+
+TEST_CASE("BufferManager alignment")
+{
+    // Check that the BufferManager aligns buffers to 64-byte boundaries
+    // Create several buffers of each different type for maximum coverage (each type of buffer is allocated in a
+    // separate space). Each buffer is size 1.
+    BufferManager m;
+    m.AddDramConstant(BufferType::ConstantControlUnit, std::vector<uint8_t>{ 0 });
+    m.AddDramConstant(BufferType::ConstantControlUnit, std::vector<uint8_t>{ 0 });
+    m.AddDramConstant(BufferType::ConstantControlUnit, std::vector<uint8_t>{ 0 });
+    m.AddDramConstant(BufferType::ConstantDma, std::vector<uint8_t>{ 0 });
+    m.AddDramConstant(BufferType::ConstantDma, std::vector<uint8_t>{ 0 });
+    m.AddDramConstant(BufferType::ConstantDma, std::vector<uint8_t>{ 0 });
+    m.AddDram(BufferType::Input, 1);
+    m.AddDram(BufferType::Input, 1);
+    m.AddDram(BufferType::Input, 1);
+    uint32_t intermediateId1 = m.AddDram(BufferType::Intermediate, 1);
+    m.MarkBufferUsedAtTime(intermediateId1, 0);
+    uint32_t intermediateId2 = m.AddDram(BufferType::Intermediate, 1);
+    m.MarkBufferUsedAtTime(intermediateId2, 0);
+    uint32_t intermediateId3 = m.AddDram(BufferType::Intermediate, 1);
+    m.MarkBufferUsedAtTime(intermediateId3, 0);
+    m.AddDram(BufferType::Output, 1);
+    m.AddDram(BufferType::Output, 1);
+    m.AddDram(BufferType::Output, 1);
+
+    // Allocate the buffers
+    CompilationOptions::DebugInfo debugInfo;
+    m.Allocate(DebuggingContext(&debugInfo));
+
+    // Check their alignment
+    for (auto& bufferIt : m.GetBuffers())
+    {
+        CHECK(bufferIt.second.m_Offset % 64 == 0);
+    }
+}
+
 using namespace first_fit_allocation;
 
 TEST_CASE("FirstFitAllocation no overlap", "[implementation-unaware]")
