@@ -26,7 +26,7 @@ BufferManager::BufferManager()
 uint32_t BufferManager::AddDram(BufferType type, uint32_t size)
 {
     assert(type == BufferType::Input || type == BufferType::Intermediate || type == BufferType::Output);
-    CompilerBufferInfo buffer(type, 0, size, BufferLocation::Dram, std::vector<uint8_t>(), 0xFFFFFFFF, 0xFFFFFFFF);
+    CompilerBufferInfo buffer(type, 0, size, BufferLocation::Dram);
     m_Buffers.insert({ m_NextDramBufferId, buffer });
     ++m_NextDramBufferId;
     return m_NextDramBufferId - 1;
@@ -35,8 +35,8 @@ uint32_t BufferManager::AddDram(BufferType type, uint32_t size)
 uint32_t BufferManager::AddDramConstant(BufferType type, const std::vector<uint8_t>& constantData)
 {
     assert(type == BufferType::ConstantDma || type == BufferType::ConstantControlUnit);
-    CompilerBufferInfo buffer(type, 0, static_cast<uint32_t>(constantData.size()), BufferLocation::Dram, constantData,
-                              0xFFFFFFFF, 0xFFFFFFFF);
+    CompilerBufferInfo buffer(type, 0, static_cast<uint32_t>(constantData.size()), BufferLocation::Dram);
+    buffer.m_ConstantData = constantData;
     m_Buffers.insert({ m_NextDramBufferId, buffer });
     ++m_NextDramBufferId;
     return m_NextDramBufferId - 1;
@@ -44,10 +44,11 @@ uint32_t BufferManager::AddDramConstant(BufferType type, const std::vector<uint8
 
 uint32_t BufferManager::AddDramInput(uint32_t size, uint32_t sourceOperationId)
 {
+    CompilerBufferInfo buffer(BufferType::Input, 0, size, BufferLocation::Dram);
+    buffer.m_SourceOperationId = sourceOperationId;
     // Input index will always be index 0 because it is the output of the Input layer
     //      and this layer cannot have more than one output. (CompilerBufferInfo last argument)
-    CompilerBufferInfo buffer(BufferType::Input, 0, size, BufferLocation::Dram, std::vector<uint8_t>(),
-                              sourceOperationId, 0);
+    buffer.m_SourceOperationOutputIndex = 0;
     m_Buffers.insert({ m_NextDramBufferId, buffer });
     ++m_NextDramBufferId;
     return m_NextDramBufferId - 1;
@@ -55,8 +56,7 @@ uint32_t BufferManager::AddDramInput(uint32_t size, uint32_t sourceOperationId)
 
 uint32_t BufferManager::AddSram(uint32_t size, uint32_t offset)
 {
-    CompilerBufferInfo buffer(BufferType::Intermediate, offset, size, BufferLocation::Sram, std::vector<uint8_t>(),
-                              0xFFFFFFFF, 0xFFFFFFFF);
+    CompilerBufferInfo buffer(BufferType::Intermediate, offset, size, BufferLocation::Sram);
     m_Buffers.insert({ m_NextSramBufferId, buffer });
     ++m_NextSramBufferId;
     return m_NextSramBufferId - 1;
@@ -69,7 +69,8 @@ void BufferManager::AddCommandStream(const ethosn::command_stream::CommandStream
     cmdStreamData.assign(reinterpret_cast<const uint8_t*>(cmdStream.GetData().data()),
                          reinterpret_cast<const uint8_t*>(cmdStream.GetData().data() + cmdStream.GetData().size()));
     CompilerBufferInfo buffer(BufferType::ConstantControlUnit, 0, static_cast<uint32_t>(cmdStreamData.size()),
-                              BufferLocation::Dram, cmdStreamData, 0xFFFFFFFF, 0xFFFFFFFF);
+                              BufferLocation::Dram);
+    buffer.m_ConstantData = std::move(cmdStreamData);
     m_Buffers.insert({ 0, buffer });    // Command stream is always buffer 0.
 }
 

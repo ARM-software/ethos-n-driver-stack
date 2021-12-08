@@ -41,24 +41,19 @@ enum class BufferLocation
 struct CompilerBufferInfo
 {
 public:
-    CompilerBufferInfo(BufferType type,
-                       uint32_t offset,
-                       uint32_t size,
-                       BufferLocation location,
-                       const std::vector<uint8_t>& constantData,
-                       uint32_t sourceOperationId,
-                       uint32_t sourceOperationOutputIndex)
+    constexpr static const uint32_t ms_InvalidValue = 0xFFFFFFFF;
+
+    CompilerBufferInfo(BufferType type, uint32_t offset, uint32_t size, BufferLocation location)
         : m_Type(type)
         , m_Offset(offset)
         , m_Size(size)
         , m_Location(location)
-        , m_ConstantData(constantData)
-        , m_SourceOperationId(sourceOperationId)
-        , m_SourceOperationOutputIndex(sourceOperationOutputIndex)
+        , m_SourceOperationId(ms_InvalidValue)
+        , m_SourceOperationOutputIndex(ms_InvalidValue)
     {}
 
     BufferType m_Type;
-    uint32_t m_Offset;
+    uint32_t m_Offset;    ///< For DRAM buffers, this is not set to a proper value until Allocate().
     uint32_t m_Size;
     BufferLocation m_Location;
     std::vector<uint8_t> m_ConstantData;      ///< May be empty if this buffer is not constant.
