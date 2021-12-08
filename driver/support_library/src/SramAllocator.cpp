@@ -72,7 +72,7 @@ void SramAllocator::IncrementReferenceCount(UserId userId, uint32_t offset)
     memoryChunkIt->m_ListOfUsers.emplace(userId);
 }
 
-bool SramAllocator::Free(UserId userId, uint32_t offset)
+bool SramAllocator::TryFree(UserId userId, uint32_t offset)
 {
     auto MatchChunk = [offset](const auto& chunk) { return (offset == chunk.m_Begin); };
     // Remove the chunk from used memory and add it to the free memory.
@@ -96,6 +96,13 @@ bool SramAllocator::Free(UserId userId, uint32_t offset)
         CollapseRegions();
     }
     return true;
+}
+
+void SramAllocator::Free(UserId userId, uint32_t offset)
+{
+    bool success = TryFree(userId, offset);
+    assert(success);
+    ETHOSN_UNUSED(success);
 }
 
 std::string SramAllocator::DumpUsage() const

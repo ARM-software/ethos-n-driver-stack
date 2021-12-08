@@ -80,7 +80,7 @@ TEST_CASE("SramAllocator: Allocate prefer end free")
     REQUIRE(res2.first == true);
     REQUIRE(res2.second == 4);
 
-    bool resFree = sram.Free(nodeId, res0.second);
+    bool resFree = sram.TryFree(nodeId, res0.second);
     REQUIRE(resFree == true);
 }
 
@@ -114,7 +114,7 @@ TEST_CASE("SramAllocator: Free")
     REQUIRE(res.first == true);
     REQUIRE(res.second == 5);
 
-    auto test = sram.Free(nodeId, res.second);
+    auto test = sram.TryFree(nodeId, res.second);
     REQUIRE(test == true);
 }
 
@@ -122,7 +122,7 @@ TEST_CASE("SramAllocator: Fail Free")
 {
     SramAllocator sram(10);
     NodeId nodeId{ 0 };
-    auto res = sram.Free(nodeId, 0);
+    auto res = sram.TryFree(nodeId, 0);
     REQUIRE(res == false);
 }
 
@@ -139,10 +139,10 @@ TEST_CASE("SramAllocator: Fail Double Free")
     REQUIRE(res.first == true);
     REQUIRE(res.second == 5);
 
-    auto test = sram.Free(nodeId, res.second);
+    auto test = sram.TryFree(nodeId, res.second);
     REQUIRE(test == true);
 
-    test = sram.Free(nodeId, res.second);
+    test = sram.TryFree(nodeId, res.second);
     REQUIRE(test == false);
 }
 
@@ -159,7 +159,7 @@ TEST_CASE("SramAllocator: Allocate Free Allocate")
     REQUIRE(res.first == true);
     REQUIRE(res.second == 5);
 
-    auto test = sram.Free(nodeId, res.second);
+    auto test = sram.TryFree(nodeId, res.second);
     REQUIRE(test == true);
 
     res = sram.Allocate(nodeId, 5);
@@ -184,7 +184,7 @@ TEST_CASE("SramAllocator: Allocate between blocks")
     REQUIRE(res2.first == true);
     REQUIRE(res2.second == 6);
 
-    auto test = sram.Free(nodeId, res1.second);
+    auto test = sram.TryFree(nodeId, res1.second);
     REQUIRE(test == true);
 
     std::pair<bool, uint32_t> res = sram.Allocate(nodeId, 3);
@@ -202,7 +202,7 @@ TEST_CASE("SramAllocator: Reset")
     REQUIRE(res.second == 0);
 
     sram.Reset();
-    auto freeResult = sram.Free(nodeId, res.second);
+    auto freeResult = sram.TryFree(nodeId, res.second);
     REQUIRE(freeResult == false);
 
     res = sram.Allocate(nodeId, 10);
@@ -238,7 +238,7 @@ SCENARIO("SramAllocated: CheckReferenceCounter")
                     for (nodeIdx = 0; nodeIdx < numberOfNodes; ++nodeIdx)
                     {
                         CAPTURE(nodeIdx);
-                        REQUIRE(sram.Free(nodeIdx, allocateResult.second));
+                        REQUIRE(sram.TryFree(nodeIdx, allocateResult.second));
                     }
 
                     AND_THEN("All the nodes cannot double free the buffer")
@@ -246,7 +246,7 @@ SCENARIO("SramAllocated: CheckReferenceCounter")
                         for (nodeIdx = 0; nodeIdx < numberOfNodes; ++nodeIdx)
                         {
                             CAPTURE(nodeIdx);
-                            REQUIRE(sram.Free(nodeIdx, allocateResult.second) == false);
+                            REQUIRE(sram.TryFree(nodeIdx, allocateResult.second) == false);
                         }
                     }
                 }

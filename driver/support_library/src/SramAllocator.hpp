@@ -49,14 +49,28 @@ public:
 
     SramAllocator& operator=(const SramAllocator& s);
 
-    // Return whether allocating was successful and the offset of the requested size
-    std::pair<bool, uint32_t> Allocate(UserId nodeId,
+    /// Attempts to allocate the given size.
+    /// The given userId is stored as the single user of the new allocation.
+    /// Returns whether allocating was successful and the offset of the requested size
+    std::pair<bool, uint32_t> Allocate(UserId userId,
                                        uint32_t size,
                                        AllocationPreference pref = AllocationPreference::Start,
                                        std::string debugName     = "");
 
-    bool Free(UserId userId, uint32_t offset);
+    /// Removes the given userId from the list of users of the allocation at the given offset.
+    /// If that was the only remaining user, the allocations is then freed.
+    /// If the given userId was not a user of the allocation then the behaviour is undefined (assert).
+    /// If there is no allocation at the given offset then the behaviour is undefined (assert).
+    void Free(UserId userId, uint32_t offset);
 
+    /// Attempts to remove the given userId from the list of users of the allocation at the given offset.
+    /// If that was the only remaining user, the allocations is then freed.
+    /// If the given userId was not a user of the allocation then the behaviour is undefined (assert).
+    /// If there is no allocation at the given offset then returns false, otherwise returns true.
+    bool TryFree(UserId userId, uint32_t offset);
+
+    /// Adds the given userId to the list of users of the given allocation.
+    /// If there is no allocation at the given offset then the behaviour is undefined (assert).
     void IncrementReferenceCount(UserId userId, uint32_t offset);
 
     void Reset();

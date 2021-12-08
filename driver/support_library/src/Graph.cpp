@@ -269,9 +269,7 @@ void Node::PrepareAfterPassAssignment(SramAllocator& sramAllocator)
             }
             if (canDeallocateInput)
             {
-                bool freed = sramAllocator.Free(inputNode->GetId(), inputNode->m_SramOffset);
-                ETHOSN_UNUSED(freed);
-                assert(freed);
+                sramAllocator.Free(inputNode->GetId(), inputNode->m_SramOffset);
             }
         }
     }
