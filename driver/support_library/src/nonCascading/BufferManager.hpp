@@ -110,5 +110,28 @@ private:
     std::vector<uint8_t> m_ConstantControlUnitData;
 };
 
+namespace first_fit_allocation
+{
+
+/// Minimal description of a buffer, to be used as input for FirstFitAllocation.
+struct Buffer
+{
+    uint32_t m_LifetimeStart;
+    uint32_t m_LifetimeEnd;
+    uint32_t m_Size;
+};
+
+/// Decides where each of the given buffers should be placed, such that no buffers overlap in space and lifetime.
+/// This is implemented with a 'first-fit' scheme - each buffer is allocated at the smallest memory address
+/// that gives a valid allocation (not overlapping lifetime and memory with any other buffer).
+/// This is not an optimal solution but it is quite fast and gives acceptable results for the use case of intermediate
+/// DRAM buffer allocation.
+/// The result is an array of allocated addresses, with each element containing the allocated address for the
+/// corresponding input buffer.
+/// All allocated addresses are guaranteed to be aligned to the given alignment.
+std::vector<uint32_t> FirstFitAllocation(std::vector<Buffer> buffers, uint32_t alignment);
+
+}    // namespace first_fit_allocation
+
 }    // namespace support_library
 }    // namespace ethosn

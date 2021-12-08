@@ -10,6 +10,7 @@
 #include <ethosn_command_stream/CommandStreamBuffer.hpp>
 
 #include <cassert>
+#include <list>
 
 namespace ethosn
 {
@@ -176,6 +177,148 @@ const std::vector<uint8_t>& BufferManager::GetConstantControlUnitData() const
 {
     return m_ConstantControlUnitData;
 }
+
+namespace first_fit_allocation
+{
+
+std::vector<uint32_t> FirstFitAllocation(std::vector<Buffer> buffers, uint32_t alignment)
+{
+    // Round up all the buffer sizes as a simple way to ensure that all the allocations will be aligned
+    for (Buffer& b : buffers)
+    {
+        b.m_Size = utils::RoundUpToNearestMultiple(b.m_Size, alignment);
+    }
+
+    // Build up a list of when buffers need to be allocated or destroyed, sorted by time
+    struct Event
+    {
+        uint32_t timestamp;
+        uint32_t buffer;
+        enum class Type
+        {
+            Free     = 0,    // We sort by the numerical values, so these are important
+            Allocate = 1,
+        } type;
+    };
+    std::vector<Event> events;
+    events.reserve(buffers.size() * 2);
+    for (uint32_t i = 0; i < buffers.size(); ++i)
+    {
+        assert(buffers[i].m_LifetimeEnd > buffers[i].m_LifetimeStart);
+        events.push_back({ buffers[i].m_LifetimeStart, i, Event::Type::Allocate });
+        events.push_back({ buffers[i].m_LifetimeEnd, i, Event::Type::Free });
+    }
+    std::sort(events.begin(), events.end(), [](const Event& a, const Event& b) {
+        // Sort by timestamp first, then by event type (so that we free before allocate if there are multiple event types
+        // on the same timestamp)
+        // Finally sort by buffer ID so that we get deterministic results.
+        if (a.timestamp != b.timestamp)
+        {
+            return a.timestamp < b.timestamp;
+        }
+        else if (a.type != b.type)
+        {
+            return a.type < b.type;
+        }
+        else
+        {
+            return a.buffer < b.buffer;
+        }
+    });
+
+    // Go through the sorted events and allocate/free as required.
+    // Maintain a list of free regions which we shrink/expand/merge as we go.
+    // This is always kept sorted and never has overlapping or adjacent regions.
+    // It always has at least one entry.
+    constexpr uint32_t MAX = 0xFFFFFFFF;
+    std::vector<uint32_t> allocations(buffers.size(), MAX);
+    struct Region
+    {
+        uint32_t start;
+        uint32_t end;
+    };
+    // Note we use a std::list for constant-time insert() and erase() at any point in the list. We do not need random-access.
+    std::list<Region> freeRegions{ { 0, MAX } };    // Initially, all memory is free
+    for (const Event& e : events)
+    {
+        if (e.type == Event::Type::Allocate)
+        {
+            const uint32_t size = buffers[e.buffer].m_Size;
+            // Find the first free region that is big enough
+            for (auto regionIt = freeRegions.begin(); regionIt != freeRegions.end(); ++regionIt)
+            {
+                if (size <= regionIt->end - regionIt->start)
+                {
+                    // Allocate this buffer at the start of the free region, and shrink the free region accordingly.
+                    allocations[e.buffer] = regionIt->start;
+                    regionIt->start += size;
+                    // If the region is now empty, remove it
+                    if (regionIt->start == regionIt->end)
+                    {
+                        freeRegions.erase(regionIt);
+                    }
+                    break;
+                }
+            }
+        }
+        else if (e.type == Event::Type::Free)
+        {
+            const uint32_t freedStart = allocations[e.buffer];
+            const uint32_t freedSize  = buffers[e.buffer].m_Size;
+            const uint32_t freedEnd   = freedStart + freedSize;
+
+            // Check if there is a free region immediately beforehand
+            auto freeRegionIt                  = freeRegions.begin();
+            auto freeRegionImmediatelyBeforeIt = freeRegions.end();
+            for (; freeRegionIt->end <= freedStart; ++freeRegionIt)
+            {
+                if (freeRegionIt->end == freedStart)
+                {
+                    freeRegionImmediatelyBeforeIt = freeRegionIt;
+                    // Note that the loop will now finish after incrementing the iterator
+                    // (because the next free region will be > freedStart)
+                }
+            }
+
+            // Check if there is a free region immediately afterwards
+            // Note that after the above loop finishes, freeRegionIt will now be pointing to the free region
+            // after the freed buffer, but we still need to check if it follows on immediately
+            auto freeRegionImmediatelyAfterIt = freeRegionIt->start == freedEnd ? freeRegionIt : freeRegions.end();
+
+            // Now we either merge, extend or create a new free region, depending on whether there was already a free
+            // region before or after
+            if (freeRegionImmediatelyBeforeIt == freeRegions.end() && freeRegionImmediatelyAfterIt == freeRegions.end())
+            {
+                // No free region before or after -> create a new free region
+                // Note that freeRegionIt will be pointing to the next free region after the freed buffer, which is where
+                // we want to insert the new free region
+                freeRegions.insert(freeRegionIt, { freedStart, freedEnd });
+            }
+            else if (freeRegionImmediatelyBeforeIt == freeRegions.end() &&
+                     freeRegionImmediatelyAfterIt != freeRegions.end())
+            {
+                // Free region after but not before -> extend the region after
+                freeRegionImmediatelyAfterIt->start = freedStart;
+            }
+            else if (freeRegionImmediatelyBeforeIt != freeRegions.end() &&
+                     freeRegionImmediatelyAfterIt == freeRegions.end())
+            {
+                // Free region before but not after -> extend the region before
+                freeRegionImmediatelyBeforeIt->end = freedEnd;
+            }
+            else
+            {
+                // Freed region both before and after -> merge them
+                freeRegionImmediatelyBeforeIt->end = freeRegionImmediatelyAfterIt->end;
+                freeRegions.erase(freeRegionImmediatelyAfterIt);
+            }
+        }
+    }
+
+    return allocations;
+}
+
+}    // namespace first_fit_allocation
 
 }    // namespace support_library
 }    // namespace ethosn

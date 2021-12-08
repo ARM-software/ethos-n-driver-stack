@@ -68,6 +68,7 @@ srcs = [
     "ConcatPartTests.cpp",
     "ConstantPartTests.cpp",
     "EstimateOnlyPartTests.cpp",
+    "BufferManagerTests.cpp",
 ]
 
 internal_dir = os.path.join(
