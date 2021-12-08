@@ -244,7 +244,6 @@ protected:
     CompressionHint m_FixGraphCompressionHint;
 
     // Set during preparation, but cleared after each iteration
-    bool m_PreparationAttempted;
     Pass* m_Pass;
     BufferLocation m_Location;
     //If this node's output will remain in SRAM then this is the offset at which it will be kept.

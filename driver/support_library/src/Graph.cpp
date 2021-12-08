@@ -44,7 +44,6 @@ Node::Node(NodeId id,
     , m_FixGraphConvertOutputTo(CompilerDataFormat::NONE)
     , m_FixGraphLocationHint(LocationHint::PreferSram)
     , m_FixGraphCompressionHint(CompressionHint::PreferCompressed)
-    , m_PreparationAttempted(false)
     , m_Pass(nullptr)
     , m_Location(BufferLocation::None)
     , m_SramOffset(0)
@@ -240,37 +239,25 @@ void Node::SetPass(Pass* pass)
 
 void Node::PrepareAfterPassAssignment(SramAllocator& sramAllocator)
 {
-    // We can free the inputs to this node if outputs of the previous node are no longer needed.
-    m_PreparationAttempted = true;
-    // There are cases where more than one input to this node comes from the same node
-    // Skip looking at nodes we have already looked at otherwise we may double free its output.
-    std::set<Node*> nodesVisited;
+    // If this node produces an SRAM buffer, mark it as needed by all of the consumers of this node,
+    // and remove the reference from itself. This means that once all consumers have finished with it, the buffer
+    // will be freed.
+    if (m_Location == BufferLocation::Sram)
+    {
+        for (const Edge* consumer : m_Outputs)
+        {
+            sramAllocator.IncrementReferenceCount(consumer->GetDestination()->GetId(), m_SramOffset);
+        }
+        sramAllocator.Free(m_Id, m_SramOffset);
+    }
+
+    // Decrement the reference count for all our inputs, as we have finished using them.
+    // This will remove the SRAM allocation completely if we were the last user.
     for (uint32_t i = 0; i < m_Inputs.size(); ++i)
     {
-        Node* inputNode = GetInput(i)->GetSource();
-        if (std::find(nodesVisited.begin(), nodesVisited.end(), inputNode) != nodesVisited.end())
-        {
-            break;
-        }
-        nodesVisited.insert(inputNode);
         if (GetInputLocation(i) == BufferLocation::Sram)
         {
-            bool canDeallocateInput = true;
-            for (const auto& node : inputNode->GetOutputs())
-            {
-                //Keep the node sram offset until all of its outputs nodes have been assigned a pass
-                //we still need to deallocate its inputs otherwise nodes that fail to prepare will
-                //leave their inputs in SRAM for the whole preparation iteration.
-                if (!node->GetDestination()->m_PreparationAttempted)
-                {
-                    canDeallocateInput = false;
-                    break;
-                }
-            }
-            if (canDeallocateInput)
-            {
-                sramAllocator.Free(inputNode->GetId(), inputNode->m_SramOffset);
-            }
+            sramAllocator.Free(m_Id, GetInputSramOffset(i));
         }
     }
 }
@@ -376,12 +363,11 @@ std::string Node::DumpToDotFormat(std::ostream& stream)
 
 void Node::ResetPreparation()
 {
-    m_PreparationAttempted = false;
-    m_Pass                 = nullptr;
-    m_Location             = BufferLocation::None;
-    m_BufferId             = 0xFFFFFFFF;
-    m_SramOffset           = 0;
-    m_CompressionFormat    = CompilerDataCompressedFormat::NONE;
+    m_Pass              = nullptr;
+    m_Location          = BufferLocation::None;
+    m_BufferId          = 0xFFFFFFFF;
+    m_SramOffset        = 0;
+    m_CompressionFormat = CompilerDataCompressedFormat::NONE;
 }
 
 ethosn::support_library::OptimizationHint Node::GetOptimizationHint() const

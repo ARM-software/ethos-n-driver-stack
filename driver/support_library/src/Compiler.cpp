@@ -405,8 +405,8 @@ void Compiler::CreatePasses(bool isPerfEstimate)
             {
                 m_Passes.push_back(std::move(p));
             }
-            n->PrepareAfterPassAssignment(sramAllocator);
         }
+        n->PrepareAfterPassAssignment(sramAllocator);
     }
 }
 

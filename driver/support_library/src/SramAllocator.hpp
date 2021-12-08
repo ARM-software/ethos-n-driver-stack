@@ -6,7 +6,6 @@
 #pragma once
 
 #include <string>
-#include <unordered_set>
 #include <vector>
 
 #include "Graph.hpp"
@@ -86,7 +85,7 @@ private:
     {
         uint32_t m_Begin;
         uint32_t m_End;
-        std::unordered_set<UserId> m_ListOfUsers;
+        std::vector<UserId> m_ListOfUsers;
         std::string m_Debug;
     };
 

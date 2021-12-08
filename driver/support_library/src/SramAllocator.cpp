@@ -69,7 +69,7 @@ void SramAllocator::IncrementReferenceCount(UserId userId, uint32_t offset)
     auto MatchChunk    = [offset](const auto& chunk) { return (offset == chunk.m_Begin); };
     auto memoryChunkIt = std::find_if(m_UsedMemory.begin(), m_UsedMemory.end(), MatchChunk);
     assert(memoryChunkIt != m_UsedMemory.end());
-    memoryChunkIt->m_ListOfUsers.emplace(userId);
+    memoryChunkIt->m_ListOfUsers.push_back(userId);
 }
 
 bool SramAllocator::TryFree(UserId userId, uint32_t offset)
@@ -83,9 +83,10 @@ bool SramAllocator::TryFree(UserId userId, uint32_t offset)
         return false;
     }
 
-    std::unordered_set<SramAllocator::UserId>& listOfUser = memoryChunkIt->m_ListOfUsers;
-    assert(listOfUser.find(userId) != listOfUser.end());
-    listOfUser.erase(userId);
+    std::vector<SramAllocator::UserId>& listOfUser = memoryChunkIt->m_ListOfUsers;
+    auto userIt                                    = std::find(listOfUser.begin(), listOfUser.end(), userId);
+    assert(userIt != listOfUser.end());
+    listOfUser.erase(userIt);
     if (listOfUser.size() == 0)
     {
         MemoryChunk memoryChunk = *memoryChunkIt;
