@@ -1013,7 +1013,8 @@ static int alloc_init_inference_data(struct ethosn_network *network,
 			ethosn_dma_alloc_and_map(core->allocator,
 						 size, ETHOSN_PROT_READ,
 						 ETHOSN_STREAM_COMMAND_STREAM,
-						 GFP_KERNEL);
+						 GFP_KERNEL,
+						 "network-inference-data");
 		if (IS_ERR_OR_NULL(network->inference_data[i]))
 			return ret;
 
@@ -1023,7 +1024,8 @@ static int alloc_init_inference_data(struct ethosn_network *network,
 				req->intermediate_data_size,
 				ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
 				ETHOSN_STREAM_DMA,
-				GFP_KERNEL);
+				GFP_KERNEL,
+				"network-intermediate-data");
 
 		if (IS_ERR_OR_NULL(network->intermediate_data[i]))
 			return ret;
@@ -1125,7 +1127,8 @@ static struct ethosn_network *create_network(struct ethosn_device *ethosn,
 
 	network->constant_dma_data = ethosn_dma_alloc(ethosn->allocator,
 						      net_req->dma_data.size,
-						      GFP_KERNEL);
+						      GFP_KERNEL,
+						      "network-constant-dma-data");
 
 	if (IS_ERR_OR_NULL(network->constant_dma_data))
 		goto err_free_network;
@@ -1150,7 +1153,8 @@ static struct ethosn_network *create_network(struct ethosn_device *ethosn,
 	network->constant_cu_data =
 		ethosn_dma_alloc(ethosn->allocator,
 				 net_req->cu_data.size,
-				 GFP_KERNEL);
+				 GFP_KERNEL,
+				 "network-constant-cu-data");
 	if (IS_ERR_OR_NULL(network->constant_cu_data))
 		goto err_free_network;
 

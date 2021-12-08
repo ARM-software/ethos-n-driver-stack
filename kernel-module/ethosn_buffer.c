@@ -311,7 +311,8 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 	buf->ethosn = ethosn;
 
 	buf->dma_info =
-		ethosn_dma_alloc(ethosn->allocator, buf_req->size, GFP_KERNEL);
+		ethosn_dma_alloc(ethosn->allocator, buf_req->size, GFP_KERNEL,
+				 "buffer");
 	if (IS_ERR_OR_NULL(buf->dma_info))
 		goto err_kfree;
 

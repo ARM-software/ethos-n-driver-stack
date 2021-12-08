@@ -147,6 +147,8 @@ void ethosn_dma_allocator_destroy(struct ethosn_dma_allocator **allocator);
  * @prot: read/write protection
  * @stream_id: Stream identifier
  * @gfp: GFP flags
+ * @debug_tag: (optional) string to identify the allocation. This will be
+ *   printed to the console if debug prints are enabled.
  *
  * Return:
  *  Pointer to ethosn_dma_info struct representing the allocation
@@ -157,15 +159,16 @@ struct ethosn_dma_info *ethosn_dma_alloc_and_map(
 	size_t size,
 	int prot,
 	enum ethosn_stream_id stream_id,
-	gfp_t gfp);
+	gfp_t gfp,
+	const char *debug_tag);
 
 /**
  * ethosn_dma_alloc() - Allocate DMA memory without mapping
  * @allocator: Allocator object
  * @size: bytes of memory
- * @prot: read/write protection
- * @stream_id: Stream identifier
  * @gfp: GFP flags
+ * @debug_tag: (optional) string to identify the allocation. This will be
+ *   printed to the console if debug prints are enabled.
  *
  * Return:
  *  Pointer to ethosn_dma_info struct representing the allocation
@@ -173,7 +176,8 @@ struct ethosn_dma_info *ethosn_dma_alloc_and_map(
  */
 struct ethosn_dma_info *ethosn_dma_alloc(struct ethosn_dma_allocator *allocator,
 					 size_t size,
-					 gfp_t gfp);
+					 gfp_t gfp,
+					 const char *debug_tag);
 
 /**
  * ethosn_dma_map() - Map DMA memory

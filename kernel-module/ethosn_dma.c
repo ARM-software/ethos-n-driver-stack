@@ -63,7 +63,8 @@ void ethosn_dma_allocator_destroy(struct ethosn_dma_allocator **allocator)
 
 struct ethosn_dma_info *ethosn_dma_alloc(struct ethosn_dma_allocator *allocator,
 					 const size_t size,
-					 gfp_t gfp)
+					 gfp_t gfp,
+					 const char *debug_tag)
 {
 	const struct ethosn_dma_allocator_ops *ops = get_ops(allocator);
 	struct ethosn_dma_info *dma_info = NULL;
@@ -74,13 +75,15 @@ struct ethosn_dma_info *ethosn_dma_alloc(struct ethosn_dma_allocator *allocator,
 	dma_info = ops->alloc(allocator, size, gfp);
 
 	if (IS_ERR_OR_NULL(dma_info)) {
-		dev_err(allocator->dev, "failed to dma_alloc %zu bytes\n",
-			size);
+		dev_err(allocator->dev,
+			"failed to dma_alloc %zu bytes for %s\n",
+			size, debug_tag == NULL ? "(unknown)" : debug_tag);
 		goto exit;
 	}
 
 	dev_dbg(allocator->dev,
-		"DMA alloc. handle=0x%pK, cpu_addr=0x%pK, size=%zu\n",
+		"DMA alloc for %s. handle=0x%pK, cpu_addr=0x%pK, size=%zu\n",
+		debug_tag == NULL ? "(unknown)" : debug_tag,
 		dma_info, dma_info->cpu_addr, size);
 
 	/* Zero the memory. This ensures the previous contents of the
@@ -166,12 +169,13 @@ struct ethosn_dma_info *ethosn_dma_alloc_and_map(
 	const size_t size,
 	int prot,
 	enum ethosn_stream_id stream_id,
-	gfp_t gfp)
+	gfp_t gfp,
+	const char *debug_tag)
 {
 	struct ethosn_dma_info *dma_info = NULL;
 	int ret;
 
-	dma_info = ethosn_dma_alloc(allocator, size, gfp);
+	dma_info = ethosn_dma_alloc(allocator, size, gfp, debug_tag);
 	if (IS_ERR_OR_NULL(dma_info))
 		goto exit;
 

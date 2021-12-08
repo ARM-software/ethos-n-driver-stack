@@ -206,7 +206,8 @@ static int mailbox_alloc(struct ethosn_core *core)
 			sizeof(struct ethosn_mailbox),
 			ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
 			ETHOSN_STREAM_WORKING_DATA,
-			GFP_KERNEL);
+			GFP_KERNEL,
+			"mailbox-header");
 	if (IS_ERR_OR_NULL(core->mailbox)) {
 		dev_warn(core->dev,
 			 "Failed to allocate memory for mailbox");
@@ -220,7 +221,8 @@ static int mailbox_alloc(struct ethosn_core *core)
 			core->queue_size,
 			ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
 			ETHOSN_STREAM_WORKING_DATA,
-			GFP_KERNEL);
+			GFP_KERNEL,
+			"mailbox-request");
 	if (IS_ERR_OR_NULL(core->mailbox_request)) {
 		dev_warn(core->dev,
 			 "Failed to allocate memory for mailbox request queue");
@@ -233,7 +235,8 @@ static int mailbox_alloc(struct ethosn_core *core)
 					 core->queue_size,
 					 ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
 					 ETHOSN_STREAM_WORKING_DATA,
-					 GFP_KERNEL);
+					 GFP_KERNEL,
+					 "mailbox-response");
 	if (IS_ERR_OR_NULL(core->mailbox_response)) {
 		dev_warn(core->dev,
 			 "Failed to allocate memory for mailbox response queue");
@@ -891,7 +894,8 @@ int ethosn_configure_firmware_profiling(struct ethosn_core *core,
 				new_config->firmware_buffer_size,
 				ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
 				ETHOSN_STREAM_WORKING_DATA,
-				GFP_KERNEL);
+				GFP_KERNEL,
+				"profiling-firmware-buffer");
 		if (IS_ERR(core->profiling.firmware_buffer_pending)) {
 			dev_err(core->dev,
 				"Error allocating firmware profiling buffer.\n");
@@ -1217,7 +1221,8 @@ static int firmware_load(struct ethosn_core *core,
 						 ETHOSN_PROT_READ |
 						 ETHOSN_PROT_WRITE,
 						 ETHOSN_STREAM_FIRMWARE,
-						 GFP_KERNEL);
+						 GFP_KERNEL,
+						 "firmware-code");
 
 	if (IS_ERR_OR_NULL(core->firmware)) {
 		ret = -ENOMEM;
@@ -1236,7 +1241,8 @@ static int firmware_load(struct ethosn_core *core,
 						 ETHOSN_PROT_READ |
 						 ETHOSN_PROT_WRITE,
 						 ETHOSN_STREAM_WORKING_DATA,
-						 GFP_KERNEL);
+						 GFP_KERNEL,
+						 "firmware-stack-task");
 
 	if (IS_ERR_OR_NULL(core->firmware_stack_task)) {
 		ret = -ENOMEM;
@@ -1251,7 +1257,8 @@ static int firmware_load(struct ethosn_core *core,
 						 ETHOSN_PROT_READ |
 						 ETHOSN_PROT_WRITE,
 						 ETHOSN_STREAM_WORKING_DATA,
-						 GFP_KERNEL);
+						 GFP_KERNEL,
+						 "firmware-stack-main");
 
 	if (IS_ERR_OR_NULL(core->firmware_stack_main)) {
 		ret = -ENOMEM;
@@ -1267,7 +1274,8 @@ static int firmware_load(struct ethosn_core *core,
 						 ETHOSN_PROT_READ |
 						 ETHOSN_PROT_WRITE,
 						 ETHOSN_STREAM_FIRMWARE,
-						 GFP_KERNEL);
+						 GFP_KERNEL,
+						 "firmware-vtable");
 
 	if (IS_ERR_OR_NULL(core->firmware_vtable)) {
 		ret = -ENOMEM;
