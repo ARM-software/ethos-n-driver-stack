@@ -194,13 +194,30 @@ void BufferManager::Allocate(const DebuggingContext& debuggingContext)
         }
     }
 
-    // Allocate intermediate buffers using first-fit algorithm and store the results
-    std::vector<uint32_t> intermediateAllocations =
-        first_fit_allocation::FirstFitAllocation(std::move(intermediateFirstFitBuffers), alignment);
-    for (uint32_t i = 0; i < intermediateBufferIds.size(); ++i)
+    bool debugDisableBufferReuse = false;
+    // Enable this debugging flag in order to prevent intermediate buffers from re-using the same memory as other
+    // intermediate buffers. This can be useful when using the Driver Library's debug option to dump intermediate
+    // buffers after an inference completes, as otherwise some intermediate buffers may be corrupted (overwritten by
+    // other buffers re-using the same space).
+    if (!debugDisableBufferReuse)
     {
-        uint32_t bufferId               = intermediateBufferIds[i];
-        m_Buffers.at(bufferId).m_Offset = intermediateAllocations[i];
+        // Allocate intermediate buffers using first-fit algorithm and store the results
+        std::vector<uint32_t> intermediateAllocations =
+            first_fit_allocation::FirstFitAllocation(std::move(intermediateFirstFitBuffers), alignment);
+        for (uint32_t i = 0; i < intermediateBufferIds.size(); ++i)
+        {
+            uint32_t bufferId               = intermediateBufferIds[i];
+            m_Buffers.at(bufferId).m_Offset = intermediateAllocations[i];
+        }
+    }
+    else
+    {
+        uint32_t intermediatesOffset = 0;
+        for (uint32_t bufferId : intermediateBufferIds)
+        {
+            CompilerBufferInfo& buffer = m_Buffers.at(bufferId);
+            buffer.m_Offset            = AppendBufferAligned(intermediatesOffset, alignment, buffer.m_Size);
+        }
     }
 
     // Dump intermediate buffer allocations for debugging/analysis

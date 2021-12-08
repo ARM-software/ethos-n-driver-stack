@@ -287,6 +287,25 @@ void KmodNetworkImpl::DumpIntermediateBuffers()
     }
     std::cout << "Dumping intermediate buffers..." << std::endl;
 
+    // Check if any intermediate buffers overlap memory with each another, and warn in this case that the
+    // developer should probably modify support library to use non-overlapping intermediate buffers, otherwise
+    // the intermediate dump will likely be corrupted.
+    {
+        std::vector<BufferInfo> buffers = m_CompiledNetwork->m_IntermediateDataBufferInfos;
+        std::sort(buffers.begin(), buffers.end(),
+                  [](const BufferInfo& a, const BufferInfo& b) { return a.m_Offset < b.m_Offset; });
+        for (uint32_t i = 0; i < buffers.size() - 1; ++i)
+        {
+            if (buffers[i].m_Offset + buffers[i].m_Size > buffers[i + 1].m_Offset)
+            {
+                std::cerr
+                    << "Warning: intermediate buffers are overlapping and so the data about to be dumped may "
+                    << "be corrupted. Consider enabling the debugDisableBufferReuse option in the Support Library to "
+                    << "prevent this." << std::endl;
+            }
+        }
+    }
+
     // Get the file handle from the kernel module
     int intermediateBufferFd = ioctl(m_NetworkFd, ETHOSN_IOCTL_GET_INTERMEDIATE_BUFFER);
     if (intermediateBufferFd < 0)
