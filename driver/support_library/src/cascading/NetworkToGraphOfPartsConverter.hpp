@@ -41,6 +41,10 @@ public:
     void Visit(Pooling& pooling) final;
     void Visit(Reshape& reshape) final;
     void Visit(Concatenation& concatenation) final;
+    void Visit(LeakyRelu& leakyRelu) final;
+    void Visit(Sigmoid& sigmoid) final;
+    void Visit(Tanh& tanh) final;
+    void Visit(MeanXy& meanxy) final;
     void ConnectParts(Operation& operation, std::vector<BasePart*>& m_Part);
 
     std::vector<uint8_t> OverrideWeights(const std::vector<uint8_t>& userWeights, const TensorInfo& weightsInfo) const;

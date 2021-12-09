@@ -74,12 +74,13 @@ Buffer* FusedPlePart::AddIdentityWeights(OwnedOpGraph& opGraph,
         GetWeightStripeDepth(convData.weightInfo, mceComputeInfo.m_Weight, Stride{ 1, 1 });
 
     WeightEncoderCache::Params wp;
-    wp.weightsTensorInfo      = convData.weightInfo;
-    wp.weightsData            = convData.weightData;
-    wp.biasTensorInfo         = convData.biasInfo;
-    wp.biasData               = convData.biasData;
-    wp.inputQuantizationInfo  = m_InputQuantizationInfo;
-    wp.outputQuantizationInfo = m_OutputQuantizationInfo;
+    wp.weightsTensorInfo     = convData.weightInfo;
+    wp.weightsData           = convData.weightData;
+    wp.biasTensorInfo        = convData.biasInfo;
+    wp.biasData              = convData.biasData;
+    wp.inputQuantizationInfo = m_InputQuantizationInfo;
+    // An identity convolution is being added and hence, the Input/Output quantization information should be the same.
+    wp.outputQuantizationInfo = m_InputQuantizationInfo;
     wp.stripeDepth            = weightStripeDepth;
     wp.strideY                = 1;
     wp.strideX                = 1;

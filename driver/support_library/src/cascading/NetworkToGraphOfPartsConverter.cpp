@@ -213,6 +213,77 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
     m_GraphOfParts.m_Parts.push_back(std::move(concatPart));
 }
 
+void NetworkToGraphOfPartsConverter::Visit(LeakyRelu& leakyRelu)
+{
+    std::vector<BasePart*> parts;
+    auto leakyReluPart = std::make_unique<FusedPlePart>(
+        m_GraphOfParts.GeneratePartId(), leakyRelu.GetInput(0).GetTensorInfo().m_Dimensions,
+        leakyRelu.GetOutput(0).GetTensorInfo().m_Dimensions, leakyRelu.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+        leakyRelu.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::LEAKY_RELU,
+        g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+        std::set<uint32_t>{ leakyRelu.GetId() }, GetCommandDataType(leakyRelu.GetOutput(0).GetTensorInfo().m_DataType));
+    parts.push_back(std::move(leakyReluPart.get()));
+    m_GraphOfParts.m_Parts.push_back(std::move(leakyReluPart));
+    ConnectParts(leakyRelu, parts);
+}
+
+void NetworkToGraphOfPartsConverter::Visit(Sigmoid& sigmoid)
+{
+    std::vector<BasePart*> parts;
+    auto sigmoidPart = std::make_unique<FusedPlePart>(
+        m_GraphOfParts.GeneratePartId(), sigmoid.GetInput(0).GetTensorInfo().m_Dimensions,
+        sigmoid.GetOutput(0).GetTensorInfo().m_Dimensions, sigmoid.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+        sigmoid.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::SIGMOID,
+        g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+        std::set<uint32_t>{ sigmoid.GetId() }, GetCommandDataType(sigmoid.GetOutput(0).GetTensorInfo().m_DataType));
+    parts.push_back(std::move(sigmoidPart.get()));
+    m_GraphOfParts.m_Parts.push_back(std::move(sigmoidPart));
+    ConnectParts(sigmoid, parts);
+}
+
+void NetworkToGraphOfPartsConverter::Visit(Tanh& tanh)
+{
+    // Note that Tanh and Sigmoid share the same PLE operation
+    // The differences are:
+    // (1) Input scaling factor
+    // (2) Output quantization
+    // The differences are handled later on when generating the command stream, based on the quantization info bounds.
+    std::vector<BasePart*> parts;
+    auto tanhPart = std::make_unique<FusedPlePart>(
+        m_GraphOfParts.GeneratePartId(), tanh.GetInput(0).GetTensorInfo().m_Dimensions,
+        tanh.GetOutput(0).GetTensorInfo().m_Dimensions, tanh.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+        tanh.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::SIGMOID,
+        g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+        std::set<uint32_t>{ tanh.GetId() }, GetCommandDataType(tanh.GetOutput(0).GetTensorInfo().m_DataType));
+    parts.push_back(std::move(tanhPart.get()));
+    m_GraphOfParts.m_Parts.push_back(std::move(tanhPart));
+    ConnectParts(tanh, parts);
+}
+
+void NetworkToGraphOfPartsConverter::Visit(MeanXy& meanxy)
+{
+    std::vector<BasePart*> parts;
+    ShapeMultiplier shapeMultiplier = { 1, 1, 1 };
+    command_stream::PleOperation cmd_stream;
+    if (meanxy.GetInput(0).GetTensorInfo().m_Dimensions[1] == 7)
+    {
+        cmd_stream = command_stream::PleOperation::MEAN_XY_7X7;
+    }
+    else
+    {
+        cmd_stream = command_stream::PleOperation::MEAN_XY_8X8;
+    }
+    auto meanxyPart = std::make_unique<FusedPlePart>(
+        m_GraphOfParts.GeneratePartId(), meanxy.GetInput(0).GetTensorInfo().m_Dimensions,
+        meanxy.GetOutput(0).GetTensorInfo().m_Dimensions, meanxy.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+        meanxy.GetOutput(0).GetTensorInfo().m_QuantizationInfo, cmd_stream, shapeMultiplier,
+        m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ meanxy.GetId() },
+        GetCommandDataType(meanxy.GetOutput(0).GetTensorInfo().m_DataType));
+    parts.push_back(std::move(meanxyPart.get()));
+    m_GraphOfParts.m_Parts.push_back(std::move(meanxyPart));
+    ConnectParts(meanxy, parts);
+}
+
 std::vector<uint8_t> NetworkToGraphOfPartsConverter::OverrideWeights(const std::vector<uint8_t>& userWeights,
                                                                      const TensorInfo& weightsInfo) const
 {
