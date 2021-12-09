@@ -40,6 +40,7 @@ public:
     void Visit(Input& input) final;
     void Visit(Output& output) final;
     void Visit(Convolution& convolution) final;
+    void Visit(DepthwiseConvolution& convolution) final;
     void Visit(FullyConnected& fullyConnected) final;
     void Visit(Pooling& pooling) final;
     void Visit(Reshape& reshape) final;

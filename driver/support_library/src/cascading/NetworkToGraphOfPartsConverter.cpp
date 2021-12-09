@@ -57,6 +57,28 @@ void NetworkToGraphOfPartsConverter::Visit(Output& output)
     ConnectParts(output, parts);
 }
 
+void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
+{
+    std::vector<BasePart*> parts;
+    auto convInfo                                         = depthwise.GetConvolutionInfo();
+    command_stream::MceOperation operation                = command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
+    ethosn::support_library::TensorInfo weightsTensorInfo = depthwise.GetWeights().GetTensorInfo();
+    // We don't use winograd for depthwise convolution
+    auto mcePart = std::make_unique<McePart>(
+        m_GraphOfParts.GeneratePartId(), depthwise.GetInput(0).GetTensorInfo().m_Dimensions,
+        depthwise.GetOutput(0).GetTensorInfo().m_Dimensions, depthwise.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+        depthwise.GetOutput(0).GetTensorInfo().m_QuantizationInfo, depthwise.GetWeights().GetTensorInfo(),
+        OverrideWeights(depthwise.GetWeights().GetDataVector(), weightsTensorInfo), depthwise.GetBias().GetTensorInfo(),
+        GetDataVectorAs<int32_t, uint8_t>(depthwise.GetBias().GetDataVector()), depthwise.GetConvolutionInfo().m_Stride,
+        depthwise.GetConvolutionInfo().m_Padding.m_Top, depthwise.GetConvolutionInfo().m_Padding.m_Left, operation,
+        m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+        std::set<uint32_t>{ depthwise.GetId(), depthwise.GetBias().GetId(), depthwise.GetWeights().GetId() },
+        GetCommandDataType(depthwise.GetOutput(0).GetTensorInfo().m_DataType));
+
+    parts.push_back(std::move(mcePart.get()));
+    m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+    ConnectParts(depthwise, parts);
+}
 void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
 {
     std::vector<BasePart*> parts;
@@ -112,6 +134,7 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
         m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
         std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(), convolution.GetWeights().GetId() },
         GetCommandDataType(convolution.GetOutput(0).GetTensorInfo().m_DataType));
+
     parts.push_back(std::move(mcePart.get()));
     m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
     ConnectParts(convolution, parts);
