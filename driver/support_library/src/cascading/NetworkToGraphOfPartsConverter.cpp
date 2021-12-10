@@ -60,17 +60,50 @@ void NetworkToGraphOfPartsConverter::Visit(Output& output)
 void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
 {
     std::vector<BasePart*> parts;
-    auto convInfo                                         = depthwise.GetConvolutionInfo();
-    command_stream::MceOperation operation                = command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
-    ethosn::support_library::TensorInfo weightsTensorInfo = depthwise.GetWeights().GetTensorInfo();
+    auto convInfo = depthwise.GetConvolutionInfo();
+
+    TensorInfo mceOperationInput = depthwise.GetInput(0).GetTensorInfo();
+    // Check if it is a strided depthwise and add a FusedPlePart.
+    if (convInfo.m_Stride.m_X > 1 || convInfo.m_Stride.m_Y > 1)
+    {
+        // Create additional layer before strided convolution
+        // Only supports stride 2x2 for now
+        assert(convInfo.m_Stride.m_X == 2 && convInfo.m_Stride.m_Y == 2);
+
+        uint32_t h = DivRoundUp(depthwise.GetInput(0).GetTensorInfo().m_Dimensions[1], convInfo.m_Stride.m_Y);
+        uint32_t w = DivRoundUp(depthwise.GetInput(0).GetTensorInfo().m_Dimensions[2], convInfo.m_Stride.m_X);
+        uint32_t c = GetNumSubmapChannels(depthwise.GetInput(0).GetTensorInfo().m_Dimensions[3], convInfo.m_Stride.m_X,
+                                          convInfo.m_Stride.m_Y, m_Capabilities);
+
+        TensorInfo mceOperationInput = TensorInfo({ depthwise.GetInput(0).GetTensorInfo().m_Dimensions[0], h, w, c },
+                                                  depthwise.GetInput(0).GetTensorInfo().m_DataType,
+                                                  depthwise.GetInput(0).GetTensorInfo().m_DataFormat,
+                                                  depthwise.GetInput(0).GetTensorInfo().m_QuantizationInfo);
+
+        auto fusedPlePart = std::make_unique<FusedPlePart>(
+            m_GraphOfParts.GeneratePartId(), depthwise.GetInput(0).GetTensorInfo().m_Dimensions,
+            mceOperationInput.m_Dimensions, depthwise.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+            mceOperationInput.m_QuantizationInfo, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
+            utils::ShapeMultiplier{ { 1, convInfo.m_Stride.m_Y },
+                                    { 1, convInfo.m_Stride.m_X },
+                                    { convInfo.m_Stride.m_X * convInfo.m_Stride.m_Y } },
+            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+            std::set<uint32_t>{ depthwise.GetId(), depthwise.GetBias().GetId(), depthwise.GetWeights().GetId() },
+            GetCommandDataType(depthwise.GetOutput(0).GetTensorInfo().m_DataType));
+
+        parts.push_back(std::move(fusedPlePart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(fusedPlePart));
+    }
+
     // We don't use winograd for depthwise convolution
     auto mcePart = std::make_unique<McePart>(
-        m_GraphOfParts.GeneratePartId(), depthwise.GetInput(0).GetTensorInfo().m_Dimensions,
-        depthwise.GetOutput(0).GetTensorInfo().m_Dimensions, depthwise.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+        m_GraphOfParts.GeneratePartId(), mceOperationInput.m_Dimensions,
+        depthwise.GetOutput(0).GetTensorInfo().m_Dimensions, mceOperationInput.m_QuantizationInfo,
         depthwise.GetOutput(0).GetTensorInfo().m_QuantizationInfo, depthwise.GetWeights().GetTensorInfo(),
-        OverrideWeights(depthwise.GetWeights().GetDataVector(), weightsTensorInfo), depthwise.GetBias().GetTensorInfo(),
-        GetDataVectorAs<int32_t, uint8_t>(depthwise.GetBias().GetDataVector()), depthwise.GetConvolutionInfo().m_Stride,
-        depthwise.GetConvolutionInfo().m_Padding.m_Top, depthwise.GetConvolutionInfo().m_Padding.m_Left, operation,
+        OverrideWeights(depthwise.GetWeights().GetDataVector(), depthwise.GetWeights().GetTensorInfo()),
+        depthwise.GetBias().GetTensorInfo(), GetDataVectorAs<int32_t, uint8_t>(depthwise.GetBias().GetDataVector()),
+        depthwise.GetConvolutionInfo().m_Stride, depthwise.GetConvolutionInfo().m_Padding.m_Top,
+        depthwise.GetConvolutionInfo().m_Padding.m_Left, command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
         m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
         std::set<uint32_t>{ depthwise.GetId(), depthwise.GetBias().GetId(), depthwise.GetWeights().GetId() },
         GetCommandDataType(depthwise.GetOutput(0).GetTensorInfo().m_DataType));
@@ -79,6 +112,7 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
     m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
     ConnectParts(depthwise, parts);
 }
+
 void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
 {
     std::vector<BasePart*> parts;
