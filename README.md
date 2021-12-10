@@ -463,7 +463,7 @@ For systems that do not implement an Arm SMMU, the driver expects a reserved mem
 4. The size of the reserved memory area must be a power-of-two.
 5. If the reserved memory area is smaller than 512MB, the NPU may still perform speculative memory reads to addresses up to 512MB from the starting address, which must not fail. The values returned from these speculative reads will not affect the behavior of the NPU. This means that the NPU must have read access to a full 512MB region, however the portion of the 512MB region which is not in the reserved memory area does not need to be backed by physical memory.
 
-For systems that do implement an Arm SMMU, a memory footprint of 3MB is required to create the page translations for the NPU memory accesses.
+For systems that do implement a SMMU, a memory footprint of 3MB is required to create the page translations for the NPU memory accesses. This is to guarantee that speculative memory accesses to unmapped memory addresses cannot occur. During a short interval, when the SMMU page tables are reconfigured to map new buffers' address ranges, speculative accesses to unmapped addresses will result in a bus error, hence an error interrupt and any running inference will fail.
 
 For more information on memory requirements and limitations, see the documentation for your SoC.
 
