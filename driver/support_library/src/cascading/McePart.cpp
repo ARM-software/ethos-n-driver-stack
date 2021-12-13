@@ -214,6 +214,7 @@ McePart::McePart(PartId id,
     : BasePart(id, CompilerDataFormat::NONE, operationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape(inputTensorShape)
     , m_OutputTensorShape(outputTensorShape)
+    , m_WeightEncoderCache{ capabilities }
     , m_InputQuantizationInfo(inputQuantizationInfo)
     , m_OutputQuantizationInfo(outputQuantizationInfo)
     , m_WeightsInfo(weightsInfo)
@@ -236,7 +237,6 @@ McePart::McePart(PartId id,
                         op,
                         ShapeMultiplier{ 1, 1, 1 },
                         capabilities)
-    , m_WeightEncoderCache{ capabilities }
     , m_DataType(dataType)
 {}
 
@@ -491,25 +491,15 @@ Plans McePart::GetLonelyPlans(uint32_t numWeightStripes) const
 {
     Plans ret;
 
-    // Fully connected only supports 8x8 block configs
-    const std::vector<BlockConfig> blockConfigs = [&]() -> std::vector<BlockConfig> {
-        if (m_Operation == command_stream::MceOperation::FULLY_CONNECTED)
-        {
-            return { 8u, 8u };
-        }
-        else
-        {
-            return { { 16u, 16u },
-                     { 16u, 8u },
-                     { 8u, 16u },
-                     { 8u, 8u },
-                     {
-                         32u,
-                         8u,
-                     },
-                     { 8u, 32u } };
-        }
-    }();
+    const std::vector<BlockConfig> blockConfigs = { { 16u, 16u },
+                                                    { 16u, 8u },
+                                                    { 8u, 16u },
+                                                    { 8u, 8u },
+                                                    {
+                                                        32u,
+                                                        8u,
+                                                    },
+                                                    { 8u, 32u } };
     StripeInfos stripeInfos;
     for (auto&& blockConfig : blockConfigs)
     {
@@ -529,25 +519,15 @@ Plans McePart::GetBeginningPlans(uint32_t numWeightStripes) const
 {
     Plans ret;
 
-    // Fully connected only supports 8x8 block configs
-    const std::vector<BlockConfig> blockConfigs = [&]() -> std::vector<BlockConfig> {
-        if (m_Operation == command_stream::MceOperation::FULLY_CONNECTED)
-        {
-            return { 8u, 8u };
-        }
-        else
-        {
-            return { { 16u, 16u },
-                     { 16u, 8u },
-                     { 8u, 16u },
-                     { 8u, 8u },
-                     {
-                         32u,
-                         8u,
-                     },
-                     { 8u, 32u } };
-        }
-    }();
+    const std::vector<BlockConfig> blockConfigs = { { 16u, 16u },
+                                                    { 16u, 8u },
+                                                    { 8u, 16u },
+                                                    { 8u, 8u },
+                                                    {
+                                                        32u,
+                                                        8u,
+                                                    },
+                                                    { 8u, 32u } };
     StripeInfos stripeInfos;
     for (auto&& blockConfig : blockConfigs)
     {

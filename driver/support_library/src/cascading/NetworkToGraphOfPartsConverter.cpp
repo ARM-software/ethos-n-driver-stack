@@ -117,6 +117,72 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
     ConnectParts(convolution, parts);
 }
 
+void NetworkToGraphOfPartsConverter::Visit(FullyConnected& fullyConnected)
+{
+    std::vector<BasePart*> parts;
+    parts.reserve(1);
+    const TensorInfo& inputTensorInfo     = fullyConnected.GetInput(0).GetTensorInfo();
+    const std::set<uint32_t> operationIds = { fullyConnected.GetId(), fullyConnected.GetBias().GetId(),
+                                              fullyConnected.GetWeights().GetId() };
+
+    // However we interpret it as NHWCB so that it gets copied without conversion into SRAM.
+    // We choose the smallest shape that will encompass all the data when it is interpreted in brick format.
+    auto GetShapeContainingLinearElements = [](const TensorShape& brickGroupShape, uint32_t numElements) {
+        const uint32_t brickGroupHeight           = brickGroupShape[1];
+        const uint32_t brickGroupWidth            = brickGroupShape[2];
+        const uint32_t brickGroupChannels         = brickGroupShape[3];
+        const uint32_t patchHeight                = 4;
+        const uint32_t patchWidth                 = 4;
+        const uint32_t patchesPerBrickGroupHeight = brickGroupHeight / patchHeight;
+        const uint32_t patchesPerBrickGroupWidth  = brickGroupWidth / patchWidth;
+        const uint32_t patchesPerBrickGroup =
+            patchesPerBrickGroupHeight * patchesPerBrickGroupWidth * brickGroupChannels;
+
+        // If there are less than one bricks worth of elements then we can have a tensor with a single patch in XY
+        // and up to 16 channels.
+        // If there are between one and two bricks worth of elements then we can have a tensor with a column of two
+        // patches in XY and 16 channels. Note we always need 16 channels in this case as the first brick is full.
+        // If there are between two and four bricks worth of elements then we can have a tensor of a full brick group.
+        // Again note we always need 16 channels in this case as the first two brick are full.
+        // If we have more than four bricks of elements then we add brick groups behind the first one (i.e. stacking
+        // along depth). The number of channels in the final brick group may be less than 16 if there is less
+        // than a full bricks worth of elements in that final brick group.
+        const uint32_t numPatches = DivRoundUp(numElements, patchWidth * patchHeight);
+        const uint32_t reinterpretedWidth =
+            numPatches <= brickGroupChannels * patchesPerBrickGroupHeight ? patchWidth : brickGroupWidth;
+        const uint32_t reinterpretedHeight = numPatches <= brickGroupChannels ? patchHeight : brickGroupHeight;
+        const uint32_t numFullBrickGroups  = numPatches / patchesPerBrickGroup;
+        const uint32_t reinterpretedChannels =
+            brickGroupChannels * numFullBrickGroups + std::min(brickGroupChannels, numPatches % patchesPerBrickGroup);
+        return TensorShape{ 1, reinterpretedHeight, reinterpretedWidth, reinterpretedChannels };
+    };
+
+    const TensorShape reinterpretedInput =
+        GetShapeContainingLinearElements(m_Capabilities.GetBrickGroupShape(), inputTensorInfo.m_Dimensions[3]);
+
+    // The weight encoder for fully connected requires the input channel to be a multiple of 1024.
+    // It is easier to make this adjustment here rather than the WeightEncoder itself, even though
+    // it is less desirable.
+    TensorInfo weightsInfo      = fullyConnected.GetWeights().GetTensorInfo();
+    weightsInfo.m_Dimensions[2] = RoundUpToNearestMultiple(weightsInfo.m_Dimensions[2], g_WeightsChannelVecProd);
+    std::vector<uint8_t> paddedWeightsData = fullyConnected.GetWeights().GetDataVector();
+    paddedWeightsData.resize(TotalSizeBytes(weightsInfo),
+                             static_cast<uint8_t>(weightsInfo.m_QuantizationInfo.GetZeroPoint()));
+
+    auto fcPart = std::make_unique<FullyConnectedPart>(
+        m_GraphOfParts.GeneratePartId(), reinterpretedInput, fullyConnected.GetOutput(0).GetTensorInfo().m_Dimensions,
+        fullyConnected.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+        fullyConnected.GetOutput(0).GetTensorInfo().m_QuantizationInfo, weightsInfo, paddedWeightsData,
+        fullyConnected.GetBias().GetTensorInfo(),
+        GetDataVectorAs<int32_t, uint8_t>(fullyConnected.GetBias().GetDataVector()), m_EstimationOptions.value(),
+        m_CompilationOptions, m_Capabilities, operationIds,
+        GetCommandDataType(fullyConnected.GetOutput(0).GetTensorInfo().m_DataType));
+    parts.push_back(fcPart.get());
+    m_GraphOfParts.m_Parts.push_back(std::move(fcPart));
+
+    ConnectParts(fullyConnected, parts);
+}
+
 void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
 {
     std::vector<BasePart*> parts;

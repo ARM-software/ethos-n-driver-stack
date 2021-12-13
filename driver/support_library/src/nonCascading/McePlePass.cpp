@@ -986,9 +986,8 @@ PassStats McePlePass::GetStats(const EstimationOptions& estimationOptions)
     const BufferLocation inputLocation  = m_Nodes.front()->GetInput(0)->GetSource()->GetLocation();
     const uint32_t inputTileSize        = m_StrategyConfig.inputAllocation.tileSize;
 
-    const TensorInfo& weightsInfo         = m_MceOperation->GetWeightsInfo();
-    const TensorShape& weightsStripeShape = m_StrategyConfig.weightsAllocation.stripeShape;
-    const uint32_t weightsTileSize        = m_StrategyConfig.weightsAllocation.tileSize;
+    const TensorInfo& weightsInfo  = m_MceOperation->GetWeightsInfo();
+    const uint32_t weightsTileSize = m_StrategyConfig.weightsAllocation.tileSize;
 
     const TensorShape& mceOutputShape = m_MceOperation->GetShape();
 
@@ -1044,8 +1043,8 @@ PassStats McePlePass::GetStats(const EstimationOptions& estimationOptions)
     EncodedWeights encodedWeights =
         m_WeightEncoder.Encode(*m_MceOperation, weightStripeDepth, weightStripeSize, quantizationInfo);
 
-    perfData.m_Weights = GetWeightsStats(m_Capabilities, encodedWeights, weightsInfo, weightsStripeShape,
-                                         weightsTileSize, inputShape, inputStripeShape);
+    perfData.m_Weights =
+        GetWeightsStats(m_Capabilities, encodedWeights, weightsInfo, weightsTileSize, inputShape, inputStripeShape);
 
     perfData.m_Mce = GetMceStats(m_Capabilities, m_MceOperation->GetStride(), m_MceOperation->GetOperation(),
                                  m_MceOperation->GetAlgorithm(), inputShape, mceOutputShape, weightsInfo.m_Dimensions);

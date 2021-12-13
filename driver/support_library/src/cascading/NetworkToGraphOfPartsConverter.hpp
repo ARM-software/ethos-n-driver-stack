@@ -9,6 +9,7 @@
 #include "../Graph.hpp"
 #include "../Network.hpp"
 #include "ConcatPart.hpp"
+#include "FullyConnectedPart.hpp"
 #include "FusedPlePart.hpp"
 #include "InputPart.hpp"
 #include "McePart.hpp"
@@ -38,6 +39,7 @@ public:
     void Visit(Input& input) final;
     void Visit(Output& output) final;
     void Visit(Convolution& convolution) final;
+    void Visit(FullyConnected& fullyConnected) final;
     void Visit(Pooling& pooling) final;
     void Visit(Reshape& reshape) final;
     void Visit(Concatenation& concatenation) final;

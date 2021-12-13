@@ -498,3 +498,77 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
     REQUIRE(graph.GetConnectedOutputSlot({ 6, 0 }).value().m_PartId == 5);
     REQUIRE(graph.GetConnectedInputSlots({ 6, 0 }).size() == 0);
 }
+
+TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 1, 1, 4096 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo biasInfo{
+        { { 1, 1, 1, 1024 } },
+        DataType::INT32_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo weightsInfo{
+        { { 1, 1, 4096, 1024 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::HWIO,
+        { 0, 1.f },
+    };
+
+    FullyConnectedInfo fcInfo{
+        { 0, 1.1f },
+    };
+
+    const std::vector<uint8_t> biasData(utils::TotalSizeBytes(biasInfo));
+    const std::vector<uint8_t> weightsData(utils::TotalSizeBytes(weightsInfo));
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    // Input -> Convolution -> Output
+    std::shared_ptr<Operand> input    = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
+    std::shared_ptr<Constant> weights = AddConstant(network, weightsInfo, weightsData.data()).tensor;
+    std::shared_ptr<Operand> conv     = AddFullyConnected(network, *input, *bias, *weights, fcInfo).tensor;
+    std::shared_ptr<Output> output    = AddOutput(network, *conv).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTests.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTests_Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+    }
+
+    // InputPart, FusedPlePart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    // McePart has a depthwise convolution in it
+    const FullyConnectedPart* part = dynamic_cast<const FullyConnectedPart*>(&graph.GetPart(1));
+    REQUIRE(part != nullptr);
+
+    auto plans   = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    MceOp* mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
+    REQUIRE(mceOp->m_Op == ethosn::command_stream::MceOperation::FULLY_CONNECTED);
+}

@@ -61,6 +61,7 @@ srcs = [
     os.path.join("src", "nonCascading", "NonCascading.cpp"),
     os.path.join("src", "cascading", "Estimation.cpp"),
     os.path.join("src", "cascading", "EstimationUtils.cpp"),
+    os.path.join("src", "cascading", "FullyConnectedPart.cpp"),
     os.path.join("src", "cascading", "McePart.cpp"),
     os.path.join("src", "cascading", "FusedPlePart.cpp"),
     os.path.join("src", "cascading", "StripeHelper.cpp"),

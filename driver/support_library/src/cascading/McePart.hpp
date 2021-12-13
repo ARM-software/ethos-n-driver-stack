@@ -45,6 +45,17 @@ public:
 
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
 
+protected:
+    void CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
+                                      TraversalOrder order,
+                                      WeightEncoderCache& weightEncoderCache,
+                                      Plans& plans,
+                                      uint32_t numWeightStripes) const;
+
+    TensorShape m_InputTensorShape;
+    TensorShape m_OutputTensorShape;
+    mutable WeightEncoderCache m_WeightEncoderCache;
+
 private:
     Plans GetLonelyPlans(uint32_t numWeightStripes) const;
     Plans GetBeginningPlans(uint32_t numWeightStripes) const;
@@ -74,12 +85,6 @@ private:
                                             impl::ConvData& convData,
                                             WeightEncoderCache& weightEncoderCache) const;
 
-    void CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
-                                      TraversalOrder order,
-                                      WeightEncoderCache& weightEncoderCache,
-                                      Plans& plans,
-                                      uint32_t numWeightStripes) const;
-
     void CreateMceOnlyPlans(const impl::MceOnlyInfo& info,
                             TraversalOrder order,
                             WeightEncoderCache& weightEncoderCache,
@@ -96,8 +101,6 @@ private:
                                             WeightEncoderCache& weightEncoderCache,
                                             CompilerMceAlgorithm mceOpAlgo) const;
 
-    TensorShape m_InputTensorShape;
-    TensorShape m_OutputTensorShape;
     QuantizationInfo m_InputQuantizationInfo;
     QuantizationInfo m_OutputQuantizationInfo;
     TensorInfo m_WeightsInfo;
@@ -111,9 +114,6 @@ private:
     uint32_t m_PadLeft;
     command_stream::MceOperation m_Operation;
     impl::StripeGenerator m_StripeGenerator;
-
-    mutable WeightEncoderCache m_WeightEncoderCache;
-
     command_stream::DataType m_DataType;
 };
 }    // namespace support_library

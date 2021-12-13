@@ -210,15 +210,13 @@ uint32_t GetWeightsNumReloads(const HardwareCapabilities& caps,
 WeightsStats GetWeightsStats(const HardwareCapabilities& caps,
                              const EncodedWeights& encodedWeights,
                              const TensorInfo& info,
-                             const TensorShape& stripeShape,
                              const uint32_t tileSize,
                              const TensorShape& inShape,
                              const TensorShape& inStripeShape)
 {
     WeightsStats data;
 
-    const uint32_t stripeSize =
-        utils::EstimateWeightSizeBytes(stripeShape, caps, info.m_DataFormat == DataFormat::HWIM);
+    const uint32_t stripeSize = encodedWeights.m_MaxSize;
 
     // Account for the reloading of the weights data, this happens when streaming input data in depth and height.
     data.m_StripesStats.m_NumCentralStripes = static_cast<uint32_t>(encodedWeights.m_Metadata.size());

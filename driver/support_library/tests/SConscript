@@ -59,6 +59,7 @@ srcs = [
     "ReinterpretQuantizationTests.cpp",
     "MeanTests.cpp",
     "McePartTests.cpp",
+    "FullyConnectedPartTests.cpp",
     "FusedPlePartTests.cpp",
     "EstimationUtilsTests.cpp",
     "InputPartTests.cpp",

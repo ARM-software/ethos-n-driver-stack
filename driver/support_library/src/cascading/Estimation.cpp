@@ -227,8 +227,8 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         weightsTensorInfo = TensorInfo(weightsDram->m_TensorShape, DataType::UINT8_QUANTIZED, GetWeightsFormat(*mceOp),
                                        weightsDram->m_QuantizationInfo);
         result.m_Stats.m_Weights =
-            GetWeightsStats(capabilities, *weightsDram->m_EncodedWeights, weightsTensorInfo, weightsSram->m_StripeShape,
-                            weightsSram->m_SizeInBytes, inputBuffer->m_TensorShape, inputBuffer->m_StripeShape);
+            GetWeightsStats(capabilities, *weightsDram->m_EncodedWeights, weightsTensorInfo, weightsSram->m_SizeInBytes,
+                            inputBuffer->m_TensorShape, inputBuffer->m_StripeShape);
 
         includeOp(dmaOp);
         includeOp(mceOp);

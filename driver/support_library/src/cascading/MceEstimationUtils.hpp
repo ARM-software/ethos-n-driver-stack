@@ -26,7 +26,6 @@ MceStats GetMceStats(const HardwareCapabilities& caps,
 WeightsStats GetWeightsStats(const HardwareCapabilities& caps,
                              const EncodedWeights& encodedWeights,
                              const TensorInfo& info,
-                             const TensorShape& stripeShape,
                              const uint32_t tileSize,
                              const TensorShape& inShape,
                              const TensorShape& inStripeShape);
