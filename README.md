@@ -13,7 +13,7 @@ The Ethos-N driver stack targets the Ethos-N78 NPU and consists of open source a
 The open source components are:
 
 * **Arm NN:** A software library that enables machine learning workloads on power efficient devices. On Linux®, applications can link directly to Arm NN. On Android™, you can use Arm NN as a backend for the Android NNAPI or applications can link directly to Arm NN.
-* **Arm NN Android neural networks driver:** Supports the Android NNAPI on the NPU. The Arm NN Android neural networks driver is optional.
+* **Arm NN Android neural network driver:** Supports the Android NNAPI on the NPU. The Arm NN Android neural network driver is optional.
 * **Ethos-N NPU driver:** Contains the user-space component of the driver.
 * **Ethos-N NPU kernel module:** Contains the kernel-space component of the driver.
 * **Arm NN Ethos-N NPU backend:** Contains the Ethos-N NPU backend for Arm NN.
@@ -22,7 +22,7 @@ The software component that is available under an Arm proprietary license is:
 
 * **Ethos-N NPU firmware binaries file:** Contains the firmware that runs on the NPU.
 
-Arm NN and the Arm NN Android neural networks driver are external downloads and links are provided in this README file. All other components are part of this driver stack release.
+Arm NN and the Arm NN Android neural network driver are external downloads and links are provided in this README file. All other components are part of this driver stack release.
 
 ## Target platform requirements
 
@@ -50,9 +50,9 @@ For information about how to port TF-A to another platform, see the [TF-A Portin
 
 ## Build tools
 
-To build the Ethos-N NPU software, you must install some tools on the platform on which you perform the compilation, which is either your target platform or the host platform when cross compiling. We have only tested building the driver stack on the `Ubuntu 18.04 LTS x86 64-bit` Linux distribution. The required tools are:
+To build the Ethos-N NPU software, some tools must be installed on the platform used for the compilation. The platform can be either your target platform or the host platform when cross compiling. We have only tested building the driver stack on the `Ubuntu 18.04 LTS x86 64-bit` Linux distribution. The required tools are:
 
-* A Linux distribution.  An open-source operating system.
+* A Linux distribution. An open-source operating system.
 * [Git](https://git-scm.com/) A version control system that software developers use for source code management. We recommend version `2.17.1`.
 * [SCons](https://scons.org/) An open-source software construction tool. We recommend `v3.0.1`.
 * [Make](https://www.gnu.org/software/make/) A build automation tool. We recommend version `4.1`.
@@ -65,7 +65,7 @@ The build platform must have at least:
 
 ### Install the build tools
 
-You must use specific tools to build the Ethos-N NPU driver. You can use a package manager to install the build tools. For example, to install the build tools on `Ubuntu 18.04` in order to cross compile, enter the following commands:
+You must use specific tools to build the Ethos-N NPU driver. To install these build tools, you can use a package manager. For example, to install the build tools on `Ubuntu 18.04` to cross compile, enter the following commands:
 
 ```sh
 sudo apt install git \
@@ -260,7 +260,7 @@ You must follow specific steps to build the Ethos-N NPU driver. You must build t
 8. Build Arm NN for TensorFlow Lite. For instructions about building Arm NN, see <https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment>.
 
 
-    The following build options are required to the CMake call in the [**Build Arm NN**](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment/build-arm-nn) section of the guide:
+    The following build options are required by the CMake call in the [**Build Arm NN**](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment/build-arm-nn) section of the guide:
 
     ```cmake
     -DBUILD_TESTS=1
@@ -329,7 +329,7 @@ There are multiple ways to exercise the Ethos-N NPU driver:
     LD_LIBRARY_PATH=<path_to_ethosn_libraries> ./UnitTests
     ```
 
-3. Running the `ExecuteNetwork` program provided by Arm NN. This program supports running of TfLite models.
+3. Running the `ExecuteNetwork` program provided by Arm NN. This program supports the running of TensorFlow Lite models.
 
     If you have cross compiled you must copy the following files onto the target platform:
     * All `*.so*` files built from Arm NN.
@@ -382,7 +382,7 @@ The `ethosn.bin` has been compiled with the following security-related flags:
 ```
 ## Build the Ethos-N driver stack in Android
 
-To build the Ethos-N driver stack in Android, you must first install Android NN driver with Arm NN in Android. To install Android NN driver in Android, follow the install instructions here: https://github.com/ARM-software/android-nn-driver/blob/master/docs/IntegratorGuide.md You must then put the downloaded Ethos-N project folder in the Android build folder.
+To build the Ethos-N driver stack in Android, you must first install Android NN driver with Arm NN in Android. To install Android NN driver in Android, follow the installation instructions here: [https://github.com/ARM-software/android-nn-driver/blob/master/docs/IntegratorGuide.md](https://github.com/ARM-software/android-nn-driver/blob/master/docs/IntegratorGuide.md). You must then put the downloaded Ethos-N project folder in the Android build folder.
 
  _Note: The Android build folder is the same folder that you put the Android NN driver.
 
