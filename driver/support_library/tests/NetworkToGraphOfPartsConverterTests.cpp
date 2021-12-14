@@ -107,7 +107,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest")
     if (dumpGraphOfPartsToFile)
     {
         std::ofstream stream("NetworkToGraphOfPartsConverterTest Output.dot");
-        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
     }
 
     // Check for each Part:

@@ -61,16 +61,28 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
 {
     std::vector<BasePart*> parts;
     auto convInfo = convolution.GetConvolutionInfo();
+    TensorInfo mcePartInputTensor;
 
     // Check if it is a strided convolution and add a FusedPlePart.
     if (convInfo.m_Stride.m_X > 1 || convInfo.m_Stride.m_Y > 1)
     {
+        // Only stride 2x2 is supported for now.
+        // Winograd is not considered for strided convolution.
+        assert(convInfo.m_Stride.m_X == 2 && convInfo.m_Stride.m_Y == 2);
+
+        uint32_t h = DivRoundUp(convolution.GetInput(0).GetTensorInfo().m_Dimensions[1], convInfo.m_Stride.m_Y);
+        uint32_t w = DivRoundUp(convolution.GetInput(0).GetTensorInfo().m_Dimensions[2], convInfo.m_Stride.m_X);
+        uint32_t c = GetNumSubmapChannels(convolution.GetInput(0).GetTensorInfo().m_Dimensions[3],
+                                          convInfo.m_Stride.m_X, convInfo.m_Stride.m_Y, m_Capabilities);
+        TensorInfo interleaveOutput = TensorInfo({ convolution.GetInput(0).GetTensorInfo().m_Dimensions[0], h, w, c },
+                                                 convolution.GetInput(0).GetTensorInfo().m_DataType,
+                                                 convolution.GetInput(0).GetTensorInfo().m_DataFormat,
+                                                 convolution.GetInput(0).GetTensorInfo().m_QuantizationInfo);
+
         auto fusedPlePart = std::make_unique<FusedPlePart>(
             m_GraphOfParts.GeneratePartId(), convolution.GetInput(0).GetTensorInfo().m_Dimensions,
-            convolution.GetOutput(0).GetTensorInfo().m_Dimensions,
-            convolution.GetInput(0).GetTensorInfo().m_QuantizationInfo,
-            convolution.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
-            command_stream::PleOperation::INTERLEAVE_2X2_2_2,
+            interleaveOutput.m_Dimensions, convolution.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+            interleaveOutput.m_QuantizationInfo, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
             utils::ShapeMultiplier{ { 1, convInfo.m_Stride.m_Y },
                                     { 1, convInfo.m_Stride.m_X },
                                     { convInfo.m_Stride.m_X * convInfo.m_Stride.m_Y } },
@@ -79,12 +91,19 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
             GetCommandDataType(convolution.GetOutput(0).GetTensorInfo().m_DataType));
         parts.push_back(std::move(fusedPlePart.get()));
         m_GraphOfParts.m_Parts.push_back(std::move(fusedPlePart));
+
+        // Pass interleaved Output as Input Tensor to subsequent McePart
+        mcePartInputTensor = interleaveOutput;
+    }
+    else
+    {
+        // Pass default convolution Input Tensor
+        mcePartInputTensor = convolution.GetInput(0).GetTensorInfo();
     }
 
     auto mcePart = std::make_unique<McePart>(
-        m_GraphOfParts.GeneratePartId(), convolution.GetInput(0).GetTensorInfo().m_Dimensions,
-        convolution.GetOutput(0).GetTensorInfo().m_Dimensions,
-        convolution.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+        m_GraphOfParts.GeneratePartId(), mcePartInputTensor.m_Dimensions,
+        convolution.GetOutput(0).GetTensorInfo().m_Dimensions, mcePartInputTensor.m_QuantizationInfo,
         convolution.GetOutput(0).GetTensorInfo().m_QuantizationInfo, convolution.GetWeights().GetTensorInfo(),
         OverrideWeights(convolution.GetWeights().GetDataVector(), convolution.GetWeights().GetTensorInfo()),
         convolution.GetBias().GetTensorInfo(), GetDataVectorAs<int32_t, uint8_t>(convolution.GetBias().GetDataVector()),
