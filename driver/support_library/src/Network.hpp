@@ -186,14 +186,11 @@ public:
     }
 
 private:
-    // Return the position in the list after the latest parent
-    detail::PosInNetwork::Type PosAfter(const std::vector<const Operation*>& parents) const;
-
     // Add Operation of derived class Op to the Network
     template <typename Op, typename... Args>
-    Op& AddOperation(const std::vector<const Operation*>& parents, Args&&... args)
+    Op& AddOperation(Args&&... args)
     {
-        const detail::OperationList::iterator pos = m_Operations.emplace(PosAfter(parents));
+        const detail::OperationList::iterator pos = m_Operations.emplace(m_Operations.end());
         uint32_t newOpId                          = GetNextOperationId();
         m_OperationIds.insert(newOpId);
 
@@ -210,9 +207,9 @@ private:
     }
 
     template <typename Op, typename... Args>
-    Op& AddOperationWithId(const std::vector<const Operation*>& parents, Args&&... args)
+    Op& AddOperationWithId(Args&&... args)
     {
-        return AddOperation<Op>(parents, std::forward<Args>(args)...);
+        return AddOperation<Op>(std::forward<Args>(args)...);
     }
 
     /// Checks if the supported level is good enough for the "network type"

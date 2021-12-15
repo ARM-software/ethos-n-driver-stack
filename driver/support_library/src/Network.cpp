@@ -23,7 +23,7 @@ Constant& Network::AddConstant(const TensorInfo& info, const void* data)
     {
         throw NotSupportedException(reason);
     }
-    return AddOperation<Constant>({}, info, data);
+    return AddOperation<Constant>(info, data);
 }
 
 Convolution& Network::AddConvolution(Operand& input, Constant& bias, Constant& weights, const ConvolutionInfo& convInfo)
@@ -37,7 +37,7 @@ Convolution& Network::AddConvolution(Operand& input, Constant& bias, Constant& w
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<Convolution>({ &input.GetProducer(), &bias, &weights }, input, bias, weights, convInfo);
+    return AddOperationWithId<Convolution>(input, bias, weights, convInfo);
 }
 
 DepthwiseConvolution&
@@ -52,8 +52,7 @@ DepthwiseConvolution&
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<DepthwiseConvolution>({ &input.GetProducer(), &bias, &weights }, input, bias, weights,
-                                                    convInfo);
+    return AddOperationWithId<DepthwiseConvolution>(input, bias, weights, convInfo);
 }
 
 TransposeConvolution&
@@ -68,19 +67,13 @@ TransposeConvolution&
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<TransposeConvolution>({ &input.GetProducer(), &bias, &weights }, input, bias, weights,
-                                                    convInfo);
+    return AddOperationWithId<TransposeConvolution>(input, bias, weights, convInfo);
 }
 
 Concatenation& Network::AddConcatenation(const std::vector<Operand*>& inputs, const ConcatenationInfo& concatInfo)
 {
     char reason[1024];
 
-    std::vector<const Operation*> producers;
-    for (auto it = inputs.begin(); it != inputs.end(); ++it)
-    {
-        producers.push_back(&(*it)->GetProducer());
-    }
     SupportedLevel supportedLevel = m_Queries.IsConcatenationSupported(
         utils::Map<TensorInfo>(inputs, [](Operand* x) { return x->GetTensorInfo(); }), concatInfo, nullptr, reason,
         sizeof(reason));
@@ -89,7 +82,7 @@ Concatenation& Network::AddConcatenation(const std::vector<Operand*>& inputs, co
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<Concatenation>(producers, inputs, concatInfo);
+    return AddOperationWithId<Concatenation>(inputs, concatInfo);
 }
 
 Split& Network::AddSplit(Operand& input, const SplitInfo& splitInfo)
@@ -102,7 +95,7 @@ Split& Network::AddSplit(Operand& input, const SplitInfo& splitInfo)
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<Split>({ &input.GetProducer() }, input, splitInfo);
+    return AddOperationWithId<Split>(input, splitInfo);
 }
 
 Addition& Network::AddAddition(Operand& layer1, Operand& layer2, const QuantizationInfo& outputQuantizationInfo)
@@ -116,8 +109,7 @@ Addition& Network::AddAddition(Operand& layer1, Operand& layer2, const Quantizat
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<Addition>({ &layer1.GetProducer(), &layer2.GetProducer() }, layer1, layer2,
-                                        outputQuantizationInfo);
+    return AddOperationWithId<Addition>(layer1, layer2, outputQuantizationInfo);
 }
 
 FullyConnected& Network::AddFullyConnected(Operand& input,
@@ -134,8 +126,7 @@ FullyConnected& Network::AddFullyConnected(Operand& input,
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<FullyConnected>({ &input.GetProducer(), &bias, &weights }, input, bias, weights,
-                                              fullyConnectedInfo);
+    return AddOperationWithId<FullyConnected>(input, bias, weights, fullyConnectedInfo);
 }
 
 ReinterpretQuantization&
@@ -149,7 +140,7 @@ ReinterpretQuantization&
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<ReinterpretQuantization>({ &input.GetProducer() }, input, reinterpretQuantizationInfo);
+    return AddOperationWithId<ReinterpretQuantization>(input, reinterpretQuantizationInfo);
 }
 
 Relu& Network::AddRelu(Operand& input, const ReluInfo& reluInfo)
@@ -162,7 +153,7 @@ Relu& Network::AddRelu(Operand& input, const ReluInfo& reluInfo)
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<Relu>({ &input.GetProducer() }, input, reluInfo);
+    return AddOperationWithId<Relu>(input, reluInfo);
 }
 
 LeakyRelu& Network::AddLeakyRelu(Operand& input, const LeakyReluInfo& leakyReluInfo)
@@ -175,7 +166,7 @@ LeakyRelu& Network::AddLeakyRelu(Operand& input, const LeakyReluInfo& leakyReluI
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<LeakyRelu>({ &input.GetProducer() }, input, leakyReluInfo);
+    return AddOperationWithId<LeakyRelu>(input, leakyReluInfo);
 }
 
 Requantize& Network::AddRequantize(Operand& input, const RequantizeInfo& requantizeInfo)
@@ -188,7 +179,7 @@ Requantize& Network::AddRequantize(Operand& input, const RequantizeInfo& requant
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<Requantize>({ &input.GetProducer() }, input, requantizeInfo);
+    return AddOperationWithId<Requantize>(input, requantizeInfo);
 }
 
 Softmax& Network::AddSoftmax(Operand& input)
@@ -201,7 +192,7 @@ Softmax& Network::AddSoftmax(Operand& input)
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<Softmax>({ &input.GetProducer() }, input);
+    return AddOperationWithId<Softmax>(input);
 }
 
 Sigmoid& Network::AddSigmoid(Operand& input)
@@ -214,7 +205,7 @@ Sigmoid& Network::AddSigmoid(Operand& input)
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<Sigmoid>({ &input.GetProducer() }, input);
+    return AddOperationWithId<Sigmoid>(input);
 }
 
 Tanh& Network::AddTanh(Operand& input)
@@ -226,7 +217,7 @@ Tanh& Network::AddTanh(Operand& input)
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<Tanh>({ &input.GetProducer() }, input);
+    return AddOperationWithId<Tanh>(input);
 }
 
 MeanXy& Network::AddMeanXy(Operand& input)
@@ -238,7 +229,7 @@ MeanXy& Network::AddMeanXy(Operand& input)
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<MeanXy>({ &input.GetProducer() }, input);
+    return AddOperationWithId<MeanXy>(input);
 }
 
 Pooling& Network::AddPooling(Operand& input, const PoolingInfo& poolingInfo)
@@ -251,7 +242,7 @@ Pooling& Network::AddPooling(Operand& input, const PoolingInfo& poolingInfo)
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<Pooling>({ &input.GetProducer() }, input, poolingInfo);
+    return AddOperationWithId<Pooling>(input, poolingInfo);
 }
 
 Reshape& Network::AddReshape(Operand& input, const TensorShape& newDimensions)
@@ -264,7 +255,7 @@ Reshape& Network::AddReshape(Operand& input, const TensorShape& newDimensions)
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<Reshape>({ &input.GetProducer() }, input, newDimensions);
+    return AddOperationWithId<Reshape>(input, newDimensions);
 }
 
 DepthToSpace& Network::AddDepthToSpace(Operand& input, const DepthToSpaceInfo& depthToSpaceInfo)
@@ -277,7 +268,7 @@ DepthToSpace& Network::AddDepthToSpace(Operand& input, const DepthToSpaceInfo& d
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<DepthToSpace>({ &input.GetProducer() }, input, depthToSpaceInfo);
+    return AddOperationWithId<DepthToSpace>(input, depthToSpaceInfo);
 }
 
 SpaceToDepth& Network::AddSpaceToDepth(Operand& input, const SpaceToDepthInfo& spaceToDepthInfo)
@@ -290,7 +281,7 @@ SpaceToDepth& Network::AddSpaceToDepth(Operand& input, const SpaceToDepthInfo& s
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<SpaceToDepth>({ &input.GetProducer() }, input, spaceToDepthInfo);
+    return AddOperationWithId<SpaceToDepth>(input, spaceToDepthInfo);
 }
 
 Transpose& Network::AddTranspose(Operand& input, const TransposeInfo& transposeInfo)
@@ -303,7 +294,7 @@ Transpose& Network::AddTranspose(Operand& input, const TransposeInfo& transposeI
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<Transpose>({ &input.GetProducer() }, input, transposeInfo);
+    return AddOperationWithId<Transpose>(input, transposeInfo);
 }
 
 Resize& Network::AddResize(Operand& input, const ResizeInfo& resizeInfo)
@@ -316,7 +307,7 @@ Resize& Network::AddResize(Operand& input, const ResizeInfo& resizeInfo)
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<Resize>({ &input.GetProducer() }, input, resizeInfo);
+    return AddOperationWithId<Resize>(input, resizeInfo);
 }
 
 EstimateOnly& Network::AddEstimateOnly(const std::vector<Operand*>& inputs, const EstimateOnlyInfo& estimateOnly)
@@ -337,27 +328,7 @@ EstimateOnly& Network::AddEstimateOnly(const std::vector<Operand*>& inputs, cons
         throw NotSupportedException(reason);
     }
 
-    std::vector<const Operation*> producers;
-    for (auto it = inputs.begin(); it != inputs.end(); ++it)
-    {
-        producers.push_back(&(*it)->GetProducer());
-    }
-
-    return AddOperationWithId<EstimateOnly>(producers, inputs, estimateOnly);
-}
-
-ethosn::support_library::detail::PosInNetwork::Type
-    Network::PosAfter(const std::vector<const Operation*>& parents) const
-{
-    const auto compare = [this](const Operation* op1, const Operation* op2) {
-        const ptrdiff_t i1 = std::distance(m_Operations.begin(), op1->m_Pos.m_Value);
-        const ptrdiff_t i2 = std::distance(m_Operations.begin(), op2->m_Pos.m_Value);
-
-        return i1 < i2;
-    };
-
-    auto it = std::max_element(parents.begin(), parents.end(), compare);
-    return (parents.size() > 0) ? std::next((*it)->m_Pos.m_Value) : m_Operations.end();
+    return AddOperationWithId<EstimateOnly>(inputs, estimateOnly);
 }
 
 Input& Network::AddInput(const TensorInfo& info)
@@ -369,7 +340,7 @@ Input& Network::AddInput(const TensorInfo& info)
         throw NotSupportedException(reason);
     }
 
-    return AddOperationWithId<Input>({}, info);
+    return AddOperationWithId<Input>(info);
 }
 
 Output& Network::AddOutput(Operand& operand, const DataFormat format)
@@ -382,7 +353,7 @@ Output& Network::AddOutput(Operand& operand, const DataFormat format)
         throw NotSupportedException(reason);
     }
 
-    return AddOperation<Output>({ &operand.GetProducer() }, operand, format);
+    return AddOperation<Output>(operand, format);
 }
 
 }    // namespace support_library

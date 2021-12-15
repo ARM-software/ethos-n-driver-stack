@@ -55,6 +55,8 @@ TEST_CASE("SaveNetworkToDot Network Topology", "[Visualisation]")
 Operation0[label = "0: Input\n", shape = oval]
 Operand0_0[label = "Operand\n", shape = box]
 Operation0 -> Operand0_0
+Operation1[label = "1: Output\n", shape = oval]
+Operand0_0 -> Operation1
 Operation2[label = "2: Split\n", shape = oval]
 Operand0_0 -> Operation2
 Operand2_0[label = "Operand\n", shape = box]
@@ -68,8 +70,6 @@ Operand3_0[label = "Operand\n", shape = box]
 Operation3 -> Operand3_0
 Operation4[label = "4: Output\n", shape = oval]
 Operand3_0 -> Operation4
-Operation1[label = "1: Output\n", shape = oval]
-Operand0_0 -> Operation1
 }
 )";
 
@@ -127,10 +127,6 @@ Operation1 -> Operand1_0
 Operation2[label = "2: Constant\n", shape = oval]
 Operand2_0[label = "Operand\nShape = [3, 3, 32, 32]\nFormat = HWIO\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 0.500000\n", shape = box]
 Operation2 -> Operand2_0
-Operation6[label = "6: TransposeConvolution\nWeights: 2\nBias: 1\n", shape = oval]
-Operand0_0 -> Operation6
-Operand6_0[label = "Operand\nShape = [1, 33, 33, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
-Operation6 -> Operand6_0
 Operation3[label = "3: Convolution\nWeights: 2\nBias: 1\n", shape = oval]
 Operand0_0 -> Operation3
 Operand3_0[label = "Operand\nShape = [1, 14, 14, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
@@ -142,6 +138,10 @@ Operation5[label = "5: DepthwiseConvolution\nWeights: 4\nBias: 1\n", shape = ova
 Operand0_0 -> Operation5
 Operand5_0[label = "Operand\nShape = [1, 14, 14, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
 Operation5 -> Operand5_0
+Operation6[label = "6: TransposeConvolution\nWeights: 2\nBias: 1\n", shape = oval]
+Operand0_0 -> Operation6
+Operand6_0[label = "Operand\nShape = [1, 33, 33, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
+Operation6 -> Operand6_0
 Operation7[label = "7: Input\n", shape = oval]
 Operand7_0[label = "Operand\nShape = [1, 1, 1, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
 Operation7 -> Operand7_0

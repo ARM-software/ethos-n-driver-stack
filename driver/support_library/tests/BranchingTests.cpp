@@ -105,9 +105,9 @@ TEST_CASE("ReluAfterBranch")
 
     // Check that the conv commands are as expected. There should be 3, the main one and two with a relu afterwards.
     REQUIRE(convCmds.size() == 3);
-    REQUIRE(convCmds[1].m_MceData().m_ActivationMin() == 20);
+    REQUIRE(convCmds[1].m_MceData().m_ActivationMin() == 10);
     REQUIRE(convCmds[1].m_InputInfo().m_DramBufferId() == convCmds[0].m_OutputInfo().m_DramBufferId());
-    REQUIRE(convCmds[2].m_MceData().m_ActivationMin() == 10);
+    REQUIRE(convCmds[2].m_MceData().m_ActivationMin() == 20);
     REQUIRE(convCmds[2].m_InputInfo().m_DramBufferId() == convCmds[0].m_OutputInfo().m_DramBufferId());
 }
 

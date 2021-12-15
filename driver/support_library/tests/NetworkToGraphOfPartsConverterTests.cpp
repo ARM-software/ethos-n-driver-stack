@@ -307,10 +307,10 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
     */
 
     std::shared_ptr<Operand> input   = AddInput(network, inputInfo).tensor;
-    std::shared_ptr<Operand> input2  = AddInput(network, input2Info).tensor;
     std::shared_ptr<Operand> meanxy  = AddMeanXy(network, *input).tensor;
-    std::shared_ptr<Operand> meanxy2 = AddMeanXy(network, *input2).tensor;
     std::shared_ptr<Output> output   = AddOutput(network, *meanxy).tensor;
+    std::shared_ptr<Operand> input2  = AddInput(network, input2Info).tensor;
+    std::shared_ptr<Operand> meanxy2 = AddMeanXy(network, *input2).tensor;
     std::shared_ptr<Output> output2  = AddOutput(network, *meanxy2).tensor;
 
     bool dumpToFile = false;
@@ -408,18 +408,18 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
 
     // Network topology:
     /* 
-                 /-> LeakyRelu -> Output2
-       { Input } - > Sigmoid -> Output1
+                 /-> LeakyRelu -> Output3
+       { Input } - > Sigmoid -> Output2
                  \-> Tanh -> Output
     */
 
     std::shared_ptr<Operand> input     = AddInput(network, inputInfo).tensor;
-    std::shared_ptr<Operand> leakyrelu = AddLeakyRelu(network, *input, leakyreluInfo).tensor;
-    std::shared_ptr<Operand> sigmoid   = AddSigmoid(network, *input).tensor;
     std::shared_ptr<Operand> tanh      = AddTanh(network, *input).tensor;
-    std::shared_ptr<Output> output     = AddOutput(network, *leakyrelu).tensor;
+    std::shared_ptr<Output> output     = AddOutput(network, *tanh).tensor;
+    std::shared_ptr<Operand> sigmoid   = AddSigmoid(network, *input).tensor;
     std::shared_ptr<Output> output2    = AddOutput(network, *sigmoid).tensor;
-    std::shared_ptr<Output> output3    = AddOutput(network, *tanh).tensor;
+    std::shared_ptr<Operand> leakyrelu = AddLeakyRelu(network, *input, leakyreluInfo).tensor;
+    std::shared_ptr<Output> output3    = AddOutput(network, *leakyrelu).tensor;
 
     bool dumpToFile = false;
     if (dumpToFile)
