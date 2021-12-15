@@ -15,7 +15,6 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace armnn
@@ -34,21 +33,11 @@ public:
     /// and the execution stage (EthosNPreCompiledWorkload).
     struct Network
     {
-        Network(std::vector<char> serializedCompiledNetwork,
-                std::unordered_map<uint32_t, uint32_t> inputSlotsToEthosNInputs,
-                std::unordered_map<uint32_t, uint32_t> outputSlotsToEthosNOutputs)
+        Network(std::vector<char> serializedCompiledNetwork)
             : m_SerializedCompiledNetwork(std::move(serializedCompiledNetwork))
-            , m_InputSlotsToEthosNInputs(std::move(inputSlotsToEthosNInputs))
-            , m_OutputSlotsToEthosNOutputs(std::move(outputSlotsToEthosNOutputs))
         {}
 
         std::vector<char> m_SerializedCompiledNetwork;
-        /// Maps from the Arm NN input/output slot index to the Ethos-N  input/output buffer index.
-        /// In some cases these may be equivalent but it is not guaranteed.
-        /// @{
-        std::unordered_map<uint32_t, uint32_t> m_InputSlotsToEthosNInputs;
-        std::unordered_map<uint32_t, uint32_t> m_OutputSlotsToEthosNOutputs;
-        /// @}
     };
 
     struct PerfData

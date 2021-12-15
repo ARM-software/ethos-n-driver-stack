@@ -232,25 +232,22 @@ void EthosNPreCompiledWorkload::Init(const PreCompiledDescriptor& descriptor,
     unsigned int numInputBuffers = descriptor.m_NumInputSlots;
     m_InputBuffers.resize(numInputBuffers);
 
-    // Fill m_InputBuffers from the input tensor handles, taking care to remap the indices from
-    // the Arm NN input slots order to the Ethos-N  inputs order.
+    // Fill m_InputBuffers from the input tensor handles, assuming that the order
+    // is the same from the Arm NN inputs slots to the Ethos-N inputs slots.
     for (unsigned int inputSlotIdx = 0; inputSlotIdx < numInputBuffers; ++inputSlotIdx)
     {
-        uint32_t ethosnInputIdx = network.m_InputSlotsToEthosNInputs.at(inputSlotIdx);
-        m_InputBuffers[ethosnInputIdx] =
-            &(static_cast<EthosNTensorHandle*>(m_Data.m_Inputs[inputSlotIdx])->GetBuffer());
+        m_InputBuffers[inputSlotIdx] = &(static_cast<EthosNTensorHandle*>(m_Data.m_Inputs[inputSlotIdx])->GetBuffer());
     }
 
     // Set up the buffers in the PreCompiledLayer::CreateWorkload() method, pass them in PreCompiledQueueDescriptor
     unsigned int numOutputBuffers = descriptor.m_NumOutputSlots;
     m_OutputBuffers.resize(numOutputBuffers);
 
-    // Fill m_OutputBuffers from the output tensor handles, taking care to remap the indices from
-    // the Arm NN output slots order to the Ethos-N outputs order.
+    // Fill m_OutputBuffers from the output tensor handles, assuming that the order
+    // is the same from the Arm NN output slots to the Ethos-N output slots.
     for (unsigned int outputSlotIdx = 0; outputSlotIdx < numOutputBuffers; ++outputSlotIdx)
     {
-        uint32_t ethosnOutputIdx = network.m_OutputSlotsToEthosNOutputs.at(outputSlotIdx);
-        m_OutputBuffers[ethosnOutputIdx] =
+        m_OutputBuffers[outputSlotIdx] =
             &(static_cast<EthosNTensorHandle*>(m_Data.m_Outputs[outputSlotIdx])->GetBuffer());
     }
 

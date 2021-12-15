@@ -846,19 +846,22 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
     // Create a list of generic type-agnostic compiled "blobs"
     for (EthosNCompiledNetworkPtr& compiledNetwork : compiledNetworks)
     {
-        // Map Arm NN input slots to Ethos-N input indices, based on the data we gathered while adding the Ethos-N operations.
-        std::unordered_map<uint32_t, uint32_t> inputSlotsToEthosNInputs;
+        // Ensure the Arm NN input slots match the Ethos-N input indices, based on the data we gathered while adding the Ethos-N operations.
         for (uint32_t ethosnInputIdx = 0; ethosnInputIdx < compiledNetwork->GetInputBufferInfos().size();
              ++ethosnInputIdx)
         {
             const ethosn_lib::InputBufferInfo& inputBufferInfo = compiledNetwork->GetInputBufferInfos()[ethosnInputIdx];
             uint32_t inputSlotIdx                              = m_EthosNInputIdToInputSlot.at(
                 { inputBufferInfo.m_SourceOperationId, inputBufferInfo.m_SourceOperationOutputIndex });
-            inputSlotsToEthosNInputs[inputSlotIdx] = ethosnInputIdx;
+
+            if (inputSlotIdx != ethosnInputIdx)
+            {
+                throw armnn::InvalidArgumentException(
+                    "Arm NN input slot indice does not match Ethos-N input slot indice.", CHECK_LOCATION());
+            }
         }
 
-        // Map Arm NN output slots to Ethos-N output indices, based on the data we gathered while adding the Ethos-N operations.
-        std::unordered_map<uint32_t, uint32_t> outputSlotsToEthosNOutputs;
+        // Ensure the Arm NN output slots match the Ethos-N output indices, based on the data we gathered while adding the Ethos-N operations.
         for (uint32_t ethosnOutputIdx = 0; ethosnOutputIdx < compiledNetwork->GetOutputBufferInfos().size();
              ++ethosnOutputIdx)
         {
@@ -866,7 +869,12 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
                 compiledNetwork->GetOutputBufferInfos()[ethosnOutputIdx];
             uint32_t outputSlotIdx = m_EthosNOutputIdToOutputSlot.at(
                 { outputBufferInfo.m_SourceOperationId, outputBufferInfo.m_SourceOperationOutputIndex });
-            outputSlotsToEthosNOutputs[outputSlotIdx] = ethosnOutputIdx;
+
+            if (outputSlotIdx != ethosnOutputIdx)
+            {
+                throw armnn::InvalidArgumentException(
+                    "Arm NN output slot indice does not match Ethos-N output slot indice.", CHECK_LOCATION());
+            }
         }
 
         // Construct a EthosNPreCompiledObject containing the serialized ethosn_lib::CompiledNetwork along with
@@ -879,9 +887,7 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
         compiledNetwork.release();    // No longer need this, so save the memory
 
         auto preCompiledObject = std::make_unique<EthosNPreCompiledObject>(
-            EthosNPreCompiledObject::Network(std::move(compiledNetworkData), inputSlotsToEthosNInputs,
-                                             outputSlotsToEthosNOutputs),
-            m_EthosNOperationNameMapping);
+            EthosNPreCompiledObject::Network(std::move(compiledNetworkData)), m_EthosNOperationNameMapping);
 
         // Convert the EthosNPreCompiledObject into a "blob" (void) object and attach the custom blob deleter
         compiledBlobs.emplace_back(preCompiledObject.release(), DeleteAsType<EthosNPreCompiledObject>);
