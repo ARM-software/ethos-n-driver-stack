@@ -736,3 +736,80 @@ TEST_CASE("NetworkToGraphOfPartsConverter Strided Depthwise")
         REQUIRE(mceOp->m_Stride == Stride{ 2, 2 });
     }
 }
+
+TEST_CASE("NetworkToGraphOfPartsConverter Multichannel Depthwise")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 64, 64, 1 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo biasInfo{
+        { { 1, 1, 1, 4 } },
+        DataType::INT32_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo weightsInfo{
+        { { 3, 3, 1, 4 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::HWIM,
+        { 0, 1.f },
+    };
+
+    ConvolutionInfo convInfo{
+        { 0, 0, 0, 0 },
+        { 1, 1 },
+        { 0, 1.1f },
+    };
+
+    const std::vector<uint8_t> biasData(utils::TotalSizeBytes(biasInfo));
+    const std::vector<uint8_t> weightsData(utils::TotalSizeBytes(weightsInfo));
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    // Input -> Multichannel Depthwise Convolution -> Output
+    std::shared_ptr<Operand> input    = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
+    std::shared_ptr<Constant> weights = AddConstant(network, weightsInfo, weightsData.data()).tensor;
+    std::shared_ptr<Operand> conv     = AddDepthwiseConvolution(network, *input, *bias, *weights, convInfo).tensor;
+    std::shared_ptr<Output> output    = AddOutput(network, *conv).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTests.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTests_Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+    }
+
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    // McePart has a 2D convolution in it
+    const McePart* mcePart = dynamic_cast<const McePart*>(&graph.GetPart(1));
+    REQUIRE(mcePart != nullptr);
+    auto operation = mcePart->GetMceOperation();
+    REQUIRE(operation.has_value());
+    // Depthwise with channel multiplier > 1 is supported only for number of input channels = 1, which is equivalent to
+    // normal convolution and should be executed as such
+    REQUIRE(operation.value() == ethosn::command_stream::MceOperation::CONVOLUTION);
+}

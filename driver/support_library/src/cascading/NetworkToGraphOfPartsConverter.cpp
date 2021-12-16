@@ -95,15 +95,26 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
         m_GraphOfParts.m_Parts.push_back(std::move(fusedPlePart));
     }
 
+    command_stream::MceOperation operation                = command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
+    ethosn::support_library::TensorInfo weightsTensorInfo = depthwise.GetWeights().GetTensorInfo();
+    weightsTensorInfo.m_DataFormat                        = DataFormat::HWIM;
+    // We support channel multiplier > 1 if there is only 1 input channel because
+    // a depthwise convolution with 1 input channel is equivalent to a normal convolution
+    if (depthwise.GetWeights().GetTensorInfo().m_Dimensions[3] > 1)
+    {
+        assert(depthwise.GetWeights().GetTensorInfo().m_Dimensions[2] == 1);
+        weightsTensorInfo.m_DataFormat = DataFormat::HWIO;
+        operation                      = command_stream::MceOperation::CONVOLUTION;
+    }
+
     // We don't use winograd for depthwise convolution
     auto mcePart = std::make_unique<McePart>(
         m_GraphOfParts.GeneratePartId(), mceOperationInput.m_Dimensions,
         depthwise.GetOutput(0).GetTensorInfo().m_Dimensions, mceOperationInput.m_QuantizationInfo,
         depthwise.GetOutput(0).GetTensorInfo().m_QuantizationInfo, depthwise.GetWeights().GetTensorInfo(),
-        OverrideWeights(depthwise.GetWeights().GetDataVector(), depthwise.GetWeights().GetTensorInfo()),
-        depthwise.GetBias().GetTensorInfo(), GetDataVectorAs<int32_t, uint8_t>(depthwise.GetBias().GetDataVector()),
-        depthwise.GetConvolutionInfo().m_Stride, depthwise.GetConvolutionInfo().m_Padding.m_Top,
-        depthwise.GetConvolutionInfo().m_Padding.m_Left, command_stream::MceOperation::DEPTHWISE_CONVOLUTION,
+        OverrideWeights(depthwise.GetWeights().GetDataVector(), weightsTensorInfo), depthwise.GetBias().GetTensorInfo(),
+        GetDataVectorAs<int32_t, uint8_t>(depthwise.GetBias().GetDataVector()), depthwise.GetConvolutionInfo().m_Stride,
+        depthwise.GetConvolutionInfo().m_Padding.m_Top, depthwise.GetConvolutionInfo().m_Padding.m_Left, operation,
         m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
         std::set<uint32_t>{ depthwise.GetId(), depthwise.GetBias().GetId(), depthwise.GetWeights().GetId() },
         GetCommandDataType(depthwise.GetOutput(0).GetTensorInfo().m_DataType));
