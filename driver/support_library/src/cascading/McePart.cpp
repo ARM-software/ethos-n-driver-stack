@@ -485,7 +485,7 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                 opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
                 inputMappings[inBufferAndMceOp.first]   = PartInputSlot{ m_PartId, 0 };
                 outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
-                AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
+                AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans, false, true);
             }
         }
     }

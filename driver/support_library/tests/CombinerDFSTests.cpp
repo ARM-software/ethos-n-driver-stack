@@ -2242,3 +2242,68 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
 
     ETHOSN_UNUSED(outBufferAndPleOp);
 }
+
+TEST_CASE("ArePlansAllowedToMerge IdentityParts", "[CombinerDFS]")
+{
+    // Create graph:
+    //
+    //  --> A - - > B
+    //
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
+
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    PartId partAId = pA->GetPartId();
+    PartId partBId = pB->GetPartId();
+
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+
+    PartInputSlot partBInputSlot0 = { partBId, 0 };
+
+    connections[partBInputSlot0] = partAOutputSlot0;
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 0, QuantizationInfo()));
+    MceOp mceOp(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+                TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 1, 1, 64 },
+                TraversalOrder::Xyz, Stride(), 0, 0, 0, 255);
+    planA.m_OpGraph.AddOp(std::make_unique<MceOp>(std::move(mceOp)));
+    planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[0], planA.m_OpGraph.GetOps()[0]);
+    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot0 } };
+
+    Plan planB;
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    PleOp pleOp(Lifetime::Atomic, PleOperation::PASSTHROUGH, BlockConfig{ 16u, 16u }, 1U,
+                { TensorShape{ 1, 64, 64, 64 } }, TensorShape{ 1, 64, 64, 64 }, ethosn::command_stream::DataType::U8);
+    planB.m_OpGraph.AddOp(std::make_unique<PleOp>(std::move(pleOp)));
+    planB.m_OpGraph.AddConsumer(planB.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetOps()[0], 0);
+    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
+
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+
+    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planB, PartConnection{ partBInputSlot0, partAOutputSlot0 }) == true);
+
+    planA.m_HasIdentityPle = true;
+
+    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planB, PartConnection{ partBInputSlot0, partAOutputSlot0 }) == true);
+
+    planB.m_HasIdentityMce = true;
+
+    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planB, PartConnection{ partBInputSlot0, partAOutputSlot0 }) ==
+            false);
+}

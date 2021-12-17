@@ -173,6 +173,11 @@ public:
     /// Specifies which of the Buffers in the above OpGraph are outputs from this plan, and which Part outputs
     /// these correspond to.
     PartOutputMapping m_OutputMappings;
+
+    /// Specifies whether the plan has an identity MCE operation
+    bool m_HasIdentityMce = false;
+    /// Specifies whether the plan has an identity PLE operation
+    bool m_HasIdentityPle = false;
 };
 
 class Op : public DebuggableObject

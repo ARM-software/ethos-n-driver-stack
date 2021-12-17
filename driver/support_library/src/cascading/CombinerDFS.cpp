@@ -435,7 +435,6 @@ bool Combiner::IsPlanOutputGlueable(const Plan& plan) const
 
 bool Combiner::ArePlansAllowedToMerge(const Plan& reference, const Plan& current, const PartConnection& slots) const
 {
-
     const PartOutputSlot& outputSlot = slots.m_Source;
     Buffer* referenceOutBuffer       = reference.GetOutputBuffer(outputSlot);
     const PartInputSlot& inputSlot   = slots.m_Destination;
@@ -443,6 +442,11 @@ bool Combiner::ArePlansAllowedToMerge(const Plan& reference, const Plan& current
 
     // Plans in a section must use the same block configuration
     if (!MatchingBlocks(reference, current, referenceOutBuffer, currentInBuffer))
+    {
+        return false;
+    }
+
+    if (reference.m_HasIdentityPle && current.m_HasIdentityMce)
     {
         return false;
     }

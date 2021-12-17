@@ -50,10 +50,14 @@ bool IsPlanValid(const HardwareCapabilities& caps, const Plan& plan)
 void BasePart::AddNewPlan(PartInputMapping&& inputMappings,
                           PartOutputMapping&& outputMappings,
                           OwnedOpGraph&& opGraph,
-                          Plans& plans) const
+                          Plans& plans,
+                          bool hasIdentityMce,
+                          bool hasIdentityPle) const
 {
     Plan plan(std::move(inputMappings), std::move(outputMappings));
-    plan.m_OpGraph = std::move(opGraph);
+    plan.m_OpGraph        = std::move(opGraph);
+    plan.m_HasIdentityMce = hasIdentityMce;
+    plan.m_HasIdentityPle = hasIdentityPle;
 
     if (IsPlanValid(m_Capabilities, plan))
     {

@@ -201,7 +201,9 @@ protected:
     void AddNewPlan(PartInputMapping&& inputMappings,
                     PartOutputMapping&& outputMappings,
                     OwnedOpGraph&& opGraph,
-                    Plans& plans) const;
+                    Plans& plans,
+                    bool hasIdentityMce = false,
+                    bool hasIdentityPle = false) const;
 };
 
 using Parts = std::vector<std::unique_ptr<BasePart>>;
