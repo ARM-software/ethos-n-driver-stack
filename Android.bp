@@ -100,6 +100,7 @@ cc_library {
         "driver/support_library/src/nonCascading/NonCascading.cpp",
         "driver/support_library/src/cascading/Estimation.cpp",
         "driver/support_library/src/cascading/EstimationUtils.cpp",
+        "driver/support_library/src/cascading/FullyConnectedPart.cpp",
         "driver/support_library/src/cascading/McePart.cpp",
         "driver/support_library/src/cascading/FusedPlePart.cpp",
         "driver/support_library/src/cascading/StripeHelper.cpp",
@@ -111,6 +112,7 @@ cc_library {
         "driver/support_library/src/cascading/ConcatPart.cpp",
         "driver/support_library/src/cascading/ConstantPart.cpp",
         "driver/support_library/src/cascading/PleKernelDatabase.cpp",
+        "driver/support_library/src/cascading/EstimateOnlyPart.cpp",
         ],
 }
 
