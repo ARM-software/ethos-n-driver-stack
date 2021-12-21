@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -139,7 +139,8 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
                        const TensorShape& pleInputMemoryShape,
                        const QuantizationInfo& quantInfo,
                        Lifetime lifetime,
-                       TraversalOrder order);
+                       TraversalOrder order,
+                       Location location);
 
 std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
                                         Lifetime lifetime,

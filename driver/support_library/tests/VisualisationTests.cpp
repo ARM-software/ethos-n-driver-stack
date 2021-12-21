@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -14,6 +14,7 @@
 #include "cascading/OutputPart.hpp"
 #include "cascading/Plan.hpp"
 #include "cascading/ReshapePart.hpp"
+#include "cascading/StandalonePlePart.hpp"
 #include "cascading/Visualisation.hpp"
 
 #include <catch.hpp>
@@ -601,6 +602,14 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
                                                      std::set<uint32_t>{ 13, 14, 15 }, estOpt, compOpt, caps);
     parts.m_Parts.push_back(std::move(reshapePart));
 
+    // Standalone PLE part
+    auto standalonePlePart = std::make_unique<StandalonePlePart>(
+        9, std::vector<TensorShape>{ TensorShape{ 1, 2, 3, 4 }, TensorShape{ 1, 2, 3, 4 } }, TensorShape{ 1, 2, 3, 4 },
+        std::vector<QuantizationInfo>{ QuantizationInfo(9, 10.0f), QuantizationInfo(9, 10.0f) },
+        QuantizationInfo(9, 10.0f), ethosn::command_stream::PleOperation::ADDITION, estOpt, compOpt, caps,
+        std::set<uint32_t>{ 1 }, ethosn::command_stream::DataType::U8);
+    parts.m_Parts.push_back(std::move(standalonePlePart));
+
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = true;
     if (dumpToFile)
@@ -622,6 +631,7 @@ BasePart_2[label = "ConcatPart: BasePart 2\nPartId = 2\nCompilerDataFormat = NHW
 BasePart_3[label = "InputPart: BasePart 3\nPartId = 3\nCompilerDataFormat = NHWCB\nCorrespondingOperationIds = [13, 14, 15]\nOutputTensorShape = [1, 2, 3, 4]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\n"]
 BasePart_4[label = "OutputPart: BasePart 4\nPartId = 5\nCompilerDataFormat = NHWCB\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\n"]
 BasePart_5[label = "ReshapePart: BasePart 5\nPartId = 8\nCompilerDataFormat = NHWCB\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\n"]
+BasePart_6[label = "StandalonePlePart: BasePart 6\nPartId = 9\nCompilerDataFormat = NONE\nCorrespondingOperationIds = [1]\nInputTensorShape = [[1, 2, 3, 4], [1, 2, 3, 4]]\nOutputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = [ZeroPoint = 9, Scale = 10.000000, ZeroPoint = 9, Scale = 10.000000]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\n"]
 }
 )";
 

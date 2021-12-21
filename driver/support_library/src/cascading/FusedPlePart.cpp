@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -252,7 +252,7 @@ void FusedPlePart::CreateFuseOnlyPlans(const PleOnlyInfo& info, TraversalOrder o
             PartOutputMapping outputMappings;
             auto pleInBuffer =
                 AddPleInBuffer(opGraph, numPleInputStripes, m_InputTensorShape, info.m_Memory.m_PleInput.m_Shape,
-                               m_InputQuantizationInfo, lifetime, order);
+                               m_InputQuantizationInfo, lifetime, order, Location::PleInputSram);
 
             // A fuse only ple operation only has 1 input
             auto op = std::make_unique<PleOp>(Lifetime::Cascade, m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,

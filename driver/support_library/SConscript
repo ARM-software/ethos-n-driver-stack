@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2018-2021 Arm Limited.
+# Copyright © 2018-2022 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -74,6 +74,7 @@ srcs = [
     os.path.join("src", "cascading", "ConstantPart.cpp"),
     os.path.join("src", "cascading", "PleKernelDatabase.cpp"),
     os.path.join("src", "cascading", "EstimateOnlyPart.cpp"),
+    os.path.join("src", "cascading", "StandalonePlePart.cpp"),
 ]
 
 ethosn_support_lib = env.StaticLibrary("libEthosNSupport", srcs)

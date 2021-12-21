@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -410,14 +410,16 @@ PleStrategySelectionReturnValue
             {
                 return rv;
             }
-            inputSramAllocations[inputIndex].stripeShape = inputStripe;
-            inputSramAllocations[inputIndex].tileSize    = numStripesInTile * inStripeSizeInSram;
+            inputSramAllocations[inputIndex].stripeShape      = inputStripe;
+            inputSramAllocations[inputIndex].tileSize         = numStripesInTile * inStripeSizeInSram;
+            inputSramAllocations[inputIndex].numStripesInTile = numStripesInTile;
         }
 
         SramTensorAllocation& outputSramAllocation = rv.outputSramAllocation;
         outputSramAllocation.stripeShape           = outputStripe;
         outputSramAllocation.tileSize              = numStripesInTile * outStripeSizeInSram;
         outputSramAllocation.offset                = outputAllocateResult.second;
+        outputSramAllocation.numStripesInTile      = numStripesInTile;
         rv.sramAllocator                           = trySramAllocator;
         rv.success                                 = true;
         return rv;

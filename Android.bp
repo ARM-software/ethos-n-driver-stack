@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2021 Arm Limited.
+// Copyright (C) 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -113,6 +113,7 @@ cc_library {
         "driver/support_library/src/cascading/ConstantPart.cpp",
         "driver/support_library/src/cascading/PleKernelDatabase.cpp",
         "driver/support_library/src/cascading/EstimateOnlyPart.cpp",
+        "driver/support_library/src/cascading/StandalonePlePart.cpp",
         ],
 }
 

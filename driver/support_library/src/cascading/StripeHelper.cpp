@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -768,17 +768,21 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
                        const TensorShape& pleInputMemoryShape,
                        const QuantizationInfo& quantInfo,
                        Lifetime lifetime,
-                       TraversalOrder order)
+                       TraversalOrder order,
+                       Location location)
 {
-    opGraph.AddBuffer(
-        std::make_unique<Buffer>(lifetime, Location::PleInputSram, GetFormat(Location::PleInputSram), order));
+    assert(location == Location::Sram || location == Location::PleInputSram);
+
+    opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, location, GetFormat(location), order));
     auto buffer = opGraph.GetBuffers().back();
 
-    // The ple input sram doesn't care about the tensorshape
     buffer->m_TensorShape = tensorShape;
     buffer->m_StripeShape = pleInputMemoryShape;
     buffer->m_NumStripes  = numPleInputMemoryStripes;
-    buffer->m_SizeInBytes = impl::CalculateBufferSize(buffer->m_StripeShape, buffer->m_Format);
+
+    // number of stripes in tile is only relevant if the input buffer is in SRAM
+    uint32_t numStripesInTile = location == Location::Sram ? numPleInputMemoryStripes : 1;
+    buffer->m_SizeInBytes     = impl::CalculateBufferSize(buffer->m_StripeShape, buffer->m_Format) * numStripesInTile;
 
     buffer->m_QuantizationInfo = quantInfo;
     return buffer;

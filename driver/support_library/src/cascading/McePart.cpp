@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -425,9 +425,9 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                     AddMceToOpGraph(opGraph, lifetime, order, info.m_MceCompute, info.m_Memory, numMemoryStripes,
                                     m_InputTensorShape, m_InputQuantizationInfo, convData, weightEncoderCache);
 
-                auto pleInBuffer =
-                    impl::AddPleInBuffer(opGraph, numPleInputStripes, m_OutputTensorShape,
-                                         info.m_Memory.m_PleInput.m_Shape, m_OutputQuantizationInfo, lifetime, order);
+                auto pleInBuffer = impl::AddPleInBuffer(opGraph, numPleInputStripes, m_OutputTensorShape,
+                                                        info.m_Memory.m_PleInput.m_Shape, m_OutputQuantizationInfo,
+                                                        lifetime, order, Location::PleInputSram);
                 opGraph.SetProducer(pleInBuffer, inBufferAndMceOp.second);
 
                 // Create an identity ple Op
@@ -478,7 +478,7 @@ void McePart::CreateMceOnlyPlans(const impl::MceOnlyInfo& info,
             // We need to add the output buffer first before adding mce to opgraph as it uses it.
             auto outBuffer =
                 impl::AddPleInBuffer(opGraph, numPleInputStripes, m_OutputTensorShape, info.m_Memory.m_PleInput.m_Shape,
-                                     m_OutputQuantizationInfo, lifetime, order);
+                                     m_OutputQuantizationInfo, lifetime, order, Location::PleInputSram);
             opGraph.SetProducer(outBuffer, inBufferAndMceOp.second);
             inputMappings[inBufferAndMceOp.first] = PartInputSlot{ m_PartId, 0 };
             outputMappings[outBuffer]             = PartOutputSlot{ m_PartId, 0 };

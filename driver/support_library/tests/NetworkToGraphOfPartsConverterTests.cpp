@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -7,7 +7,17 @@
 #include "../src/DebuggingContext.hpp"
 #include "../src/Network.hpp"
 #include "../src/Utils.hpp"
+#include "../src/cascading/ConcatPart.hpp"
+#include "../src/cascading/EstimateOnlyPart.hpp"
+#include "../src/cascading/FullyConnectedPart.hpp"
+#include "../src/cascading/FusedPlePart.hpp"
+#include "../src/cascading/InputPart.hpp"
+#include "../src/cascading/McePart.hpp"
 #include "../src/cascading/NetworkToGraphOfPartsConverter.hpp"
+#include "../src/cascading/OutputPart.hpp"
+#include "../src/cascading/Part.hpp"
+#include "../src/cascading/ReshapePart.hpp"
+#include "../src/cascading/StandalonePlePart.hpp"
 #include "TestUtils.hpp"
 
 #include <catch.hpp>
@@ -812,4 +822,235 @@ TEST_CASE("NetworkToGraphOfPartsConverter Multichannel Depthwise")
     // Depthwise with channel multiplier > 1 is supported only for number of input channels = 1, which is equivalent to
     // normal convolution and should be executed as such
     REQUIRE(operation.value() == ethosn::command_stream::MceOperation::CONVOLUTION);
+}
+
+TEST_CASE("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 16, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    const PoolingInfo poolingInfo = PoolingInfo{ 3, 3, 1, 1, { 1, 1, 1, 1 }, PoolingType::AVG };
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    std::shared_ptr<Operand> input   = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Operand> avgPool = AddPooling(network, *input, poolingInfo).tensor;
+    std::shared_ptr<Output> output   = AddOutput(network, *avgPool).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    // Check for each Part:
+    //  * Whether the type of the generated Part is correct
+    //  * Whether the PleOperation command stream is correct for Operations using StandalonePlePart
+    //  * The number of Input/Output slots
+    //  * Whether PartInputSlots connect to PartOutputSlots of the correct Part
+    //  * For the last Part, check that there are no connections to any following PartInputSlots
+    REQUIRE(graph.GetNumParts() == 3);
+
+    REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(0)) != nullptr);
+    REQUIRE(graph.GetPartInputs(0).size() == 0);
+    REQUIRE(graph.GetPartOutputs(0).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 0, 0 }).has_value() == false);
+
+    const StandalonePlePart* avePoolPlePart = dynamic_cast<const StandalonePlePart*>(&graph.GetPart(1));
+    REQUIRE(avePoolPlePart != nullptr);
+    auto avePoolPlans =
+        avePoolPlePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(dynamic_cast<PleOp*>(avePoolPlans[0].m_OpGraph.GetOp(0))->m_Op ==
+            ethosn::command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA);
+    REQUIRE(graph.GetPartInputs(1).size() == 1);
+    REQUIRE(graph.GetPartOutputs(1).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
+
+    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(2)) != nullptr);
+    REQUIRE(graph.GetPartInputs(2).size() == 1);
+    REQUIRE(graph.GetPartOutputs(2).size() == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 1);
+    REQUIRE(graph.GetConnectedInputSlots({ 2, 0 }).size() == 0);
+}
+
+TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo1{
+        { { 1, 16, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo inputInfo2{
+        { { 1, 16, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    std::shared_ptr<Operand> input1   = AddInput(network, inputInfo1).tensor;
+    std::shared_ptr<Operand> input2   = AddInput(network, inputInfo2).tensor;
+    std::shared_ptr<Operand> addition = AddAddition(network, *input1, *input2, QuantizationInfo(0, 1.f)).tensor;
+    std::shared_ptr<Output> output    = AddOutput(network, *addition).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest ADDITION.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest ADDITION.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    // Check for each Part:
+    //  * Whether the type of the generated Part is correct
+    //  * Whether the PleOperation command stream is correct for Operations using StandalonePlePart
+    //  * The number of Input/Output slots
+    //  * Whether PartInputSlots connect to PartOutputSlots of the correct Part
+    //  * For the last Part, check that there are no connections to any following PartInputSlots
+    REQUIRE(graph.GetNumParts() == 4);
+
+    REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(0)) != nullptr);
+    REQUIRE(graph.GetPartInputs(0).size() == 0);
+    REQUIRE(graph.GetPartOutputs(0).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 0, 0 }).has_value() == false);
+
+    REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(1)) != nullptr);
+    REQUIRE(graph.GetPartInputs(1).size() == 0);
+    REQUIRE(graph.GetPartOutputs(1).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).has_value() == false);
+
+    const StandalonePlePart* additionPlePart = dynamic_cast<const StandalonePlePart*>(&graph.GetPart(2));
+    REQUIRE(additionPlePart != nullptr);
+    auto additionPlans =
+        additionPlePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(dynamic_cast<PleOp*>(additionPlans[0].m_OpGraph.GetOp(0))->m_Op ==
+            ethosn::command_stream::PleOperation::ADDITION);
+    REQUIRE(graph.GetPartInputs(2).size() == 2);
+    REQUIRE(graph.GetPartOutputs(2).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 2, 1 }).value().m_PartId == 1);
+
+    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(3)) != nullptr);
+    REQUIRE(graph.GetPartInputs(3).size() == 1);
+    REQUIRE(graph.GetPartOutputs(3).size() == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 3, 0 }).value().m_PartId == 2);
+    REQUIRE(graph.GetConnectedInputSlots({ 3, 0 }).size() == 0);
+}
+
+TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION_RESCALE")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo1{
+        { { 1, 16, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo inputInfo2{
+        { { 1, 16, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    std::shared_ptr<Operand> input1   = AddInput(network, inputInfo1).tensor;
+    std::shared_ptr<Operand> input2   = AddInput(network, inputInfo2).tensor;
+    std::shared_ptr<Operand> addition = AddAddition(network, *input1, *input2, QuantizationInfo(0, 1.1f)).tensor;
+    std::shared_ptr<Output> output    = AddOutput(network, *addition).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest ADDITION_RESCALE.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest ADDITION_RESCALE.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    // Check for each Part:
+    //  * Whether the type of the generated Part is correct
+    //  * Whether the PleOperation command stream is correct for Operations using StandalonePlePart
+    //  * The number of Input/Output slots
+    //  * Whether PartInputSlots connect to PartOutputSlots of the correct Part
+    //  * For the last Part, check that there are no connections to any following PartInputSlots
+    REQUIRE(graph.GetNumParts() == 4);
+
+    REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(0)) != nullptr);
+    REQUIRE(graph.GetPartInputs(0).size() == 0);
+    REQUIRE(graph.GetPartOutputs(0).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 0, 0 }).has_value() == false);
+
+    REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(1)) != nullptr);
+    REQUIRE(graph.GetPartInputs(1).size() == 0);
+    REQUIRE(graph.GetPartOutputs(1).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).has_value() == false);
+
+    const StandalonePlePart* additionPlePart = dynamic_cast<const StandalonePlePart*>(&graph.GetPart(2));
+    REQUIRE(additionPlePart != nullptr);
+    auto additionPlans =
+        additionPlePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(dynamic_cast<PleOp*>(additionPlans[0].m_OpGraph.GetOp(0))->m_Op ==
+            ethosn::command_stream::PleOperation::ADDITION_RESCALE);
+    REQUIRE(graph.GetPartInputs(2).size() == 2);
+    REQUIRE(graph.GetPartOutputs(2).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 2, 1 }).value().m_PartId == 1);
+
+    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(3)) != nullptr);
+    REQUIRE(graph.GetPartInputs(3).size() == 1);
+    REQUIRE(graph.GetPartOutputs(3).size() == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 3, 0 }).value().m_PartId == 2);
+    REQUIRE(graph.GetConnectedInputSlots({ 3, 0 }).size() == 0);
 }

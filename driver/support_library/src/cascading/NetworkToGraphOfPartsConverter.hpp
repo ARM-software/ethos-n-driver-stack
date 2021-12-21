@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -8,15 +8,6 @@
 #include "../../include/ethosn_support_library/Optional.hpp"
 #include "../Graph.hpp"
 #include "../Network.hpp"
-#include "ConcatPart.hpp"
-#include "EstimateOnlyPart.hpp"
-#include "FullyConnectedPart.hpp"
-#include "FusedPlePart.hpp"
-#include "InputPart.hpp"
-#include "McePart.hpp"
-#include "OutputPart.hpp"
-#include "Part.hpp"
-#include "ReshapePart.hpp"
 #include "cascading/MceEstimationUtils.hpp"
 
 #include <unordered_map>
@@ -50,6 +41,8 @@ public:
     void Visit(Tanh& tanh) final;
     void Visit(MeanXy& meanxy) final;
     void Visit(EstimateOnly& estimateOnly) final;
+    void Visit(Addition& addition) final;
+
     void ConnectParts(Operation& operation, std::vector<BasePart*>& m_Part);
 
     std::vector<uint8_t> OverrideWeights(const std::vector<uint8_t>& userWeights, const TensorInfo& weightsInfo) const;

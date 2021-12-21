@@ -1,11 +1,21 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #include "NetworkToGraphOfPartsConverter.hpp"
 
+#include "ConcatPart.hpp"
+#include "EstimateOnlyPart.hpp"
+#include "FullyConnectedPart.hpp"
+#include "FusedPlePart.hpp"
 #include "GraphNodes.hpp"
+#include "InputPart.hpp"
+#include "McePart.hpp"
+#include "OutputPart.hpp"
+#include "Part.hpp"
+#include "ReshapePart.hpp"
+#include "StandalonePlePart.hpp"
 #include "Utils.hpp"
 #include "cascading/MceEstimationUtils.hpp"
 #include <fstream>
@@ -269,9 +279,25 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
         m_GraphOfParts.m_Parts.push_back(std::move(poolingFusedPlePart));
         ConnectParts(pooling, parts);
     }
+    else if (poolingInfo == PoolingInfo{ 3, 3, 1, 1, poolingInfo.m_Padding, PoolingType::AVG })
+    {
+        const std::vector<QuantizationInfo> inputQuantizations = {
+            pooling.GetInput(0).GetTensorInfo().m_QuantizationInfo
+        };
+        const std::vector<TensorShape> inputShapes = { pooling.GetInput(0).GetTensorInfo().m_Dimensions };
+        auto poolingStandalonePlePart              = std::make_unique<StandalonePlePart>(
+            m_GraphOfParts.GeneratePartId(), inputShapes, pooling.GetOutput(0).GetTensorInfo().m_Dimensions,
+            inputQuantizations, pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
+            command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA, m_EstimationOptions.value(), m_CompilationOptions,
+            m_Capabilities, std::set<uint32_t>{ pooling.GetId() },
+            GetCommandDataType(pooling.GetOutput(0).GetTensorInfo().m_DataType));
+        parts.push_back(std::move(poolingStandalonePlePart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(poolingStandalonePlePart));
+        ConnectParts(pooling, parts);
+    }
     else
     {
-        throw std::invalid_argument("Only PoolingType::MAX is supported at the moment");
+        throw InternalErrorException("Only PoolingType::MAX and AVG are supported at the moment");
     }
 }
 
@@ -286,6 +312,37 @@ void NetworkToGraphOfPartsConverter::Visit(Reshape& reshape)
     parts.push_back(std::move(reshapePart.get()));
     m_GraphOfParts.m_Parts.push_back(std::move(reshapePart));
     ConnectParts(reshape, parts);
+}
+
+void NetworkToGraphOfPartsConverter::Visit(Addition& addition)
+{
+    std::vector<BasePart*> parts;
+
+    const auto& inputInfo0 = addition.GetInput(0).GetTensorInfo();
+    const auto& inputInfo1 = addition.GetInput(1).GetTensorInfo();
+    const auto& outputInfo = addition.GetOutput(0).GetTensorInfo();
+
+    const QuantizationInfo& quantInfoInput0 = inputInfo0.m_QuantizationInfo;
+    const QuantizationInfo& quantInfoInput1 = inputInfo1.m_QuantizationInfo;
+    const QuantizationInfo& quantInfoOutput = outputInfo.m_QuantizationInfo;
+
+    bool isQuantInfoIdentical = (quantInfoInput0 == quantInfoInput1) && (quantInfoInput0 == quantInfoOutput);
+
+    // use non-scaling PLE kernel if all quant info is identical for both inputs and output
+    command_stream::PleOperation pleOp =
+        isQuantInfoIdentical ? command_stream::PleOperation::ADDITION : command_stream::PleOperation::ADDITION_RESCALE;
+
+    const std::vector<QuantizationInfo> inputQuantizations = { quantInfoInput0, quantInfoInput1 };
+    const std::vector<TensorShape> inputShapes             = { addition.GetInput(0).GetTensorInfo().m_Dimensions,
+                                                   addition.GetInput(1).GetTensorInfo().m_Dimensions };
+    auto additionStandalonePlePart                         = std::make_unique<StandalonePlePart>(
+        m_GraphOfParts.GeneratePartId(), inputShapes, addition.GetOutput(0).GetTensorInfo().m_Dimensions,
+        inputQuantizations, addition.GetOutput(0).GetTensorInfo().m_QuantizationInfo, pleOp,
+        m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ addition.GetId() },
+        GetCommandDataType(addition.GetOutput(0).GetTensorInfo().m_DataType));
+    parts.push_back(std::move(additionStandalonePlePart.get()));
+    m_GraphOfParts.m_Parts.push_back(std::move(additionStandalonePlePart));
+    ConnectParts(addition, parts);
 }
 
 void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
