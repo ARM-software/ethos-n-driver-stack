@@ -1,14 +1,14 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include <Graph.hpp>
+#include <UnitTests.hpp>
 #include <armnn/Exceptions.hpp>
 #include <armnn/INetwork.hpp>
+#include <armnn/backends/WorkloadFactory.hpp>
 #include <armnn/utility/Assert.hpp>
 #include <armnnUtils/Permute.hpp>
-#include <backendsCommon/WorkloadFactory.hpp>
-#include <test/UnitTests.hpp>
 
 #include "EthosNWorkloadFactoryHelper.hpp"
 

@@ -1,12 +1,12 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
 #include "../EthosNConfig.hpp"
-#include "backendsCommon/Workload.hpp"
+#include "armnn/backends/Workload.hpp"
 
 #include <ethosn_driver_library/Buffer.hpp>
 #include <ethosn_driver_library/Inference.hpp>

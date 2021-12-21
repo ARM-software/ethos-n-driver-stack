@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -12,10 +12,10 @@
 
 #include <armnn/Logging.hpp>
 #include <armnn/Optional.hpp>
+#include <armnn/backends/TensorHandle.hpp>
 #include <armnn/utility/Assert.hpp>
 #include <armnnUtils/Filesystem.hpp>
 #include <armnnUtils/Permute.hpp>
-#include <backendsCommon/TensorHandle.hpp>
 #include <ethosn_utils/VectorStream.hpp>
 
 #include <algorithm>

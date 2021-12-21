@@ -22,6 +22,7 @@ list(APPEND armnnEthosNBackendUnitTests_sources
 add_library(armnnEthosNBackendUnitTests OBJECT ${armnnEthosNBackendUnitTests_sources})
 target_include_directories(armnnEthosNBackendUnitTests PRIVATE ${PROJECT_SOURCE_DIR}/src/armnn)
 target_include_directories(armnnEthosNBackendUnitTests PRIVATE ${PROJECT_SOURCE_DIR}/src/armnnUtils)
+target_include_directories(armnnEthosNBackendUnitTests PRIVATE ${PROJECT_SOURCE_DIR}/src/armnnTestUtils)
 target_include_directories(armnnEthosNBackendUnitTests PRIVATE ${PROJECT_SOURCE_DIR}/src/profiling)
 target_include_directories(armnnEthosNBackendUnitTests PRIVATE ${PROJECT_SOURCE_DIR}/profiling/common/include)
 target_include_directories(armnnEthosNBackendUnitTests PRIVATE ${PROJECT_SOURCE_DIR}/src/backends)

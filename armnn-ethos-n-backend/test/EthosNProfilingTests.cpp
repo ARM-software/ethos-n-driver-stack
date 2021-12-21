@@ -1,5 +1,5 @@
 //
-// Copyright © 2019-2021 Arm Limited. All rights reserved.
+// Copyright © 2019-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -8,7 +8,7 @@
 #include "EthosNBackendProfilingContext.hpp"
 #include "EthosNTestUtils.hpp"
 
-#include <backendsCommon/test/CommonTestUtils.hpp>
+#include <CommonTestUtils.hpp>
 #include <doctest/doctest.h>
 
 using namespace armnn;

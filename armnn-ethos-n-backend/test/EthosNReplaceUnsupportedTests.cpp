@@ -1,5 +1,5 @@
 //
-// Copyright © 2020-2021 Arm Limited.
+// Copyright © 2020-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "EthosNLayerSupport.hpp"
@@ -7,9 +7,9 @@
 
 #include "EthosNConfig.hpp"
 
+#include <CommonTestUtils.hpp>
+#include <GraphUtils.hpp>
 #include <armnn/INetwork.hpp>
-#include <backendsCommon/test/CommonTestUtils.hpp>
-#include <test/GraphUtils.hpp>
 
 #include <doctest/doctest.h>
 
@@ -110,7 +110,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
         // Quantization scale is calculated for floating range [0,2]
         float providedConstantQuantisation = (static_cast<float>(2)) / (static_cast<float>(255));
         // Floating point constant data is 2.0
-        float providedConstantValue = 255;
+        uint8_t providedConstantValue = 255;
         TensorInfo inputInfo({ 1, 8, 8, 16 }, DataType::QAsymmU8, 0.5f, 0);
         TensorInfo constInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, providedConstantQuantisation, 0, true);
         TensorInfo outputInfo({ 1, 8, 8, 16 }, DataType::QAsymmU8, 1.0f, 0);
