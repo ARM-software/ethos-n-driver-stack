@@ -6,6 +6,7 @@
 #pragma once
 
 #include "../MacroUtils.hpp"
+#include "PleKernelId.hpp"
 
 #include <ethosn_utils/SmallVector.hpp>
 #include <ethosn_utils/Span.hpp>
@@ -144,25 +145,61 @@ struct MceS
 /// Ple Loader data
 struct PleL
 {
-    // Add fields as needed
+    /// ID to get DMA address and size
+    PleKernelId pleKernelId;
+    /// Destination SRAM address
+    uint16_t sramAddr;
 };
 
 /// Ple Scheduler work size
 ETHOSN_DECL_SV_VECTOR_STRUCT(PleSWorkSize, ofmHeight, ofmWidth, ofmChannels)
 
+struct PleIfmInfo
+{
+    int16_t zeroPoint;
+    uint16_t multiplier;
+    uint16_t shift;
+};
+
+/// MCE operation by fused PLE, or only PLE
+enum class PleInputMode : uint8_t
+{
+    /// Input from MCE, all OGs are active (CONVOLUTION or fully connected)
+    MCE_ALL_OGS,
+    /// Input from MCE, only one OG is active (DEPTHWISE_CONVOLUTION)
+    MCE_ONE_OG,
+    /// MCE is inactive, read input data from SRAM
+    SRAM,
+};
+
 /// Ple Scheduler data
 struct PleS
 {
     using WorkSize = PleSWorkSize<uint16_t>;
-
-    // Add fields as needed
-
-    /// PLE SRAM OFM tile info
+    /// Output tile
     Tile ofmTile;
+    /// Output zero correction
+    int16_t ofmZeroPoint;
+    /// Default tripe size
+    WorkSize dfltStripeSize;
+    /// Edge tripe size
+    WorkSize edgeStripeSize;
     /// Number of unique stripes in each ofm tensor dimension
     WorkSize numStripes;
     /// Stride info for stripe ID (scalar) to stripe coord (ND) conversion
     WorkSize stripeIdStrides;
+    /// MCE operation mode
+    PleInputMode mceOp;
+
+    // Additional fields to be used only if mceOP is SRAM
+    /// First input tile
+    Tile ifmTile0;
+    /// First input zero correction, multiplier and shift
+    PleIfmInfo ifmInfo0;
+    /// Second input tile
+    Tile ifmTile1;
+    /// Second input zero correction, multiplier and shift
+    PleIfmInfo ifmInfo1;
 };
 
 /// Enum tag for agent data
@@ -189,7 +226,7 @@ struct AgentData
         const WgtS wgt;
         const MceS mce;
         const PleL pleL;
-        const PleS ple;
+        const PleS pleS;
         const OfmS ofm;
     };
 
@@ -215,7 +252,7 @@ struct AgentData
 
     constexpr AgentData(const PleS& data)
         : type{ AgentType::PLE_SCHEDULER }
-        , ple{ data }
+        , pleS{ data }
     {}
 
     constexpr AgentData(const OfmS& data)
