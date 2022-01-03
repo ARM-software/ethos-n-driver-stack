@@ -87,7 +87,7 @@ static void __iomem *ethosn_map_iomem(const struct ethosn_core *const core,
 				      const struct resource *const res,
 				      const resource_size_t size)
 {
-	const resource_size_t rsize = !res ? 0 : resource_size(res);
+	const resource_size_t rsize = resource_size(res);
 	void __iomem *ptr;
 	char *full_res_name;
 
