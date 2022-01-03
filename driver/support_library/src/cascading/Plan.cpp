@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -321,6 +321,8 @@ PleOp::PleOp()
     , m_NumInputs(0)
     , m_InputStripeShapes{}
     , m_OutputStripeShape{ 0, 0, 0, 0 }
+    , m_OutputDataType{ command_stream::DataType::U8 }
+    , m_PleKernelId{ PleKernelId::NOT_FOUND }
 {}
 
 PleOp::PleOp(Lifetime lifetime,
