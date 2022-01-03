@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited.
+ * (C) COPYRIGHT 2018-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -1336,6 +1336,14 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 		if (!ethosn->core[resource_idx]->dev) {
 			dev_err(&pdev->dev,
 				"NULL ethosn-core device reference");
+
+			ret = -EINVAL;
+			goto err_depopulate_device;
+		}
+
+		if (!top_regs) {
+			dev_err(ethosn->core[resource_idx]->dev,
+				"ethosn-core address not specified");
 
 			ret = -EINVAL;
 			goto err_depopulate_device;
