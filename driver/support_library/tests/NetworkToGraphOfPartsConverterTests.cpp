@@ -32,7 +32,7 @@ using namespace ethosn::support_library;
 // The topology is chosen to test Networks of supported Part types such as:
 //      * Input Part
 //      * Mce Part
-//      * Pooling Part (MAX))
+//      * Pooling Part (Max 2x2_2_2 variation))
 //      * Reshape Part
 //      * Output Part
 TEST_CASE("NetworkToGraphOfPartsConverterTest")
@@ -288,41 +288,52 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat")
 // Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the NetworkToGraphOfPartsConverter().
 // The topology is chosen to test Networks of supported Part types such as:
 //      * MeanXy Part (7x7, 8x8 variations)
+//      * Pooling Part (MeanXy_7x7, MeanXy_8x8 variations)
 TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
 {
     const HardwareCapabilities caps = GetEthosN78HwCapabilities();
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
 
-    TensorInfo inputInfo{
+    TensorInfo inputInfo_7x7{
         { { 1, 7, 7, 16 } },
         DataType::UINT8_QUANTIZED,
         DataFormat::NHWC,
         { 0, 1.f },
     };
 
-    TensorInfo input2Info{
+    TensorInfo inputInfo_8x8{
         { { 1, 8, 8, 16 } },
         DataType::UINT8_QUANTIZED,
         DataFormat::NHWC,
         { 0, 1.f },
     };
 
+    // Add MeanXy info in the form of PoolingInfo, for use with Pooling Visitor.
+    // Both options for strides 1,1 and 2,2 are tested
+    constexpr PoolingInfo poolingInfo_7x7{ 7, 7, 1, 1, { 0, 0, 0, 0 }, PoolingType::AVG };
+    constexpr PoolingInfo poolingInfo_8x8{ 8, 8, 2, 2, { 0, 0, 0, 0 }, PoolingType::AVG };
     const std::shared_ptr<Network> network =
         CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     // Network topology:
     /*
-       { Input2 } -> MeanXy_8x8 -> Output2
-       { Input } -> MeanXy_7x7 -> Output
+                     /> Pooling (MeanXy_8x8) -> OutputPool_8x8
+       { Input_8x8 } -> MeanXy_8x8 -> Output_8x8
+                     /> Pooling (MeanXy_7x7) -> OutputPool_7x7
+       { Input_7x7 } -> MeanXy_7x7 -> Output_7x7
     */
 
-    std::shared_ptr<Operand> input   = AddInput(network, inputInfo).tensor;
-    std::shared_ptr<Operand> meanxy  = AddMeanXy(network, *input).tensor;
-    std::shared_ptr<Output> output   = AddOutput(network, *meanxy).tensor;
-    std::shared_ptr<Operand> input2  = AddInput(network, input2Info).tensor;
-    std::shared_ptr<Operand> meanxy2 = AddMeanXy(network, *input2).tensor;
-    std::shared_ptr<Output> output2  = AddOutput(network, *meanxy2).tensor;
+    std::shared_ptr<Operand> input_7x7      = AddInput(network, inputInfo_7x7).tensor;
+    std::shared_ptr<Operand> meanxy_7x7     = AddMeanXy(network, *input_7x7).tensor;
+    std::shared_ptr<Output> output_7x7      = AddOutput(network, *meanxy_7x7).tensor;
+    std::shared_ptr<Operand> meanxyPool_7x7 = AddPooling(network, *input_7x7, poolingInfo_7x7).tensor;
+    std::shared_ptr<Output> outputPool_7x7  = AddOutput(network, *meanxyPool_7x7).tensor;
+    std::shared_ptr<Operand> input_8x8      = AddInput(network, inputInfo_8x8).tensor;
+    std::shared_ptr<Operand> meanxy_8x8     = AddMeanXy(network, *input_8x8).tensor;
+    std::shared_ptr<Output> output_8x8      = AddOutput(network, *meanxy_8x8).tensor;
+    std::shared_ptr<Operand> meanxyPool_8x8 = AddPooling(network, *input_8x8, poolingInfo_8x8).tensor;
+    std::shared_ptr<Output> outputPool_8x8  = AddOutput(network, *meanxyPool_8x8).tensor;
 
     bool dumpToFile = false;
     if (dumpToFile)
@@ -343,21 +354,24 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
 
     // Check for each Part:
     //  * Whether the type of the generated Part is correct
-    //  * Whether the PleOperation command stream is correct for Operations using FusedPleParts (e.g. MeanXy_7x7, MeanXy_8x8...)
+    //  * Whether the PleOperation command stream is correct for Operations using FusedPleParts (e.g. MeanXy_7x7, MeanXy_8x8 ...)
     //  * The number of Input/Output slots
     //  * Whether PartInputSlots connect to PartOutputSlots of the correct Part
     //  * For the last Part, check that there are no connections to any following PartInputSlots
-    REQUIRE(graph.GetNumParts() == 6);
+    REQUIRE(graph.GetNumParts() == 10);
 
+    // MeanXy_7x7
+    // Checks on Parts generated from MeanXy Visitor.
     REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(0)) != nullptr);
     REQUIRE(graph.GetPartInputs(0).size() == 0);
-    REQUIRE(graph.GetPartOutputs(0).size() == 1);
+    REQUIRE(graph.GetPartOutputs(0).size() == 2);
     REQUIRE(graph.GetConnectedOutputSlot({ 0, 0 }).has_value() == false);
 
-    const FusedPlePart* meanxyPlePart = dynamic_cast<const FusedPlePart*>(&graph.GetPart(1));
-    REQUIRE(meanxyPlePart != nullptr);
-    auto meanxyPlans = meanxyPlePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(dynamic_cast<PleOp*>(meanxyPlans[0].m_OpGraph.GetOp(2))->m_Op ==
+    const FusedPlePart* meanxyPlePart_7x7 = dynamic_cast<const FusedPlePart*>(&graph.GetPart(1));
+    REQUIRE(meanxyPlePart_7x7 != nullptr);
+    auto meanxyPlans_7x7 =
+        meanxyPlePart_7x7->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(dynamic_cast<PleOp*>(meanxyPlans_7x7[0].m_OpGraph.GetOp(2))->m_Op ==
             ethosn::command_stream::PleOperation::MEAN_XY_7X7);
     REQUIRE(graph.GetPartInputs(1).size() == 1);
     REQUIRE(graph.GetPartOutputs(1).size() == 1);
@@ -369,26 +383,62 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
     REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 1);
     REQUIRE(graph.GetConnectedInputSlots({ 2, 0 }).size() == 0);
 
-    REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(3)) != nullptr);
-    REQUIRE(graph.GetPartInputs(3).size() == 0);
+    // Checks on Parts generated from Pooling Visitor.
+    const FusedPlePart* meanxyPoolPlePart_7x7 = dynamic_cast<const FusedPlePart*>(&graph.GetPart(3));
+    REQUIRE(meanxyPoolPlePart_7x7 != nullptr);
+    auto meanxyPoolPlans_7x7 =
+        meanxyPoolPlePart_7x7->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(dynamic_cast<PleOp*>(meanxyPoolPlans_7x7[0].m_OpGraph.GetOp(2))->m_Op ==
+            ethosn::command_stream::PleOperation::MEAN_XY_7X7);
+    REQUIRE(graph.GetPartInputs(3).size() == 1);
     REQUIRE(graph.GetPartOutputs(3).size() == 1);
-    REQUIRE(graph.GetConnectedOutputSlot({ 3, 0 }).has_value() == false);
+    REQUIRE(graph.GetConnectedOutputSlot({ 3, 0 }).value().m_PartId == 0);
 
-    const FusedPlePart* meanxy2PlePart = dynamic_cast<const FusedPlePart*>(&graph.GetPart(4));
-    REQUIRE(meanxy2PlePart != nullptr);
-    auto meanxy2Plans =
-        meanxy2PlePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(dynamic_cast<PleOp*>(meanxy2Plans[0].m_OpGraph.GetOp(2))->m_Op ==
-            ethosn::command_stream::PleOperation::MEAN_XY_8X8);
+    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(4)) != nullptr);
     REQUIRE(graph.GetPartInputs(4).size() == 1);
-    REQUIRE(graph.GetPartOutputs(4).size() == 1);
+    REQUIRE(graph.GetPartOutputs(4).size() == 0);
     REQUIRE(graph.GetConnectedOutputSlot({ 4, 0 }).value().m_PartId == 3);
+    REQUIRE(graph.GetConnectedInputSlots({ 4, 0 }).size() == 0);
 
-    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(5)) != nullptr);
-    REQUIRE(graph.GetPartInputs(5).size() == 1);
-    REQUIRE(graph.GetPartOutputs(5).size() == 0);
-    REQUIRE(graph.GetConnectedOutputSlot({ 5, 0 }).value().m_PartId == 4);
-    REQUIRE(graph.GetConnectedInputSlots({ 5, 0 }).size() == 0);
+    // MeanXy_8x8
+    // Checks on Parts generated from MeanXy Visitor.
+    REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(5)) != nullptr);
+    REQUIRE(graph.GetPartInputs(5).size() == 0);
+    REQUIRE(graph.GetPartOutputs(5).size() == 2);
+    REQUIRE(graph.GetConnectedOutputSlot({ 5, 0 }).has_value() == false);
+
+    const FusedPlePart* meanxyPlePart_8x8 = dynamic_cast<const FusedPlePart*>(&graph.GetPart(6));
+    REQUIRE(meanxyPlePart_8x8 != nullptr);
+    auto meanxyPlans_8x8 =
+        meanxyPlePart_8x8->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(dynamic_cast<PleOp*>(meanxyPlans_8x8[0].m_OpGraph.GetOp(2))->m_Op ==
+            ethosn::command_stream::PleOperation::MEAN_XY_8X8);
+    REQUIRE(graph.GetPartInputs(6).size() == 1);
+    REQUIRE(graph.GetPartOutputs(6).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 6, 0 }).value().m_PartId == 5);
+
+    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(7)) != nullptr);
+    REQUIRE(graph.GetPartInputs(7).size() == 1);
+    REQUIRE(graph.GetPartOutputs(7).size() == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 7, 0 }).value().m_PartId == 6);
+    REQUIRE(graph.GetConnectedInputSlots({ 7, 0 }).size() == 0);
+
+    // Checks on Parts generated from Pooling Visitor.
+    const FusedPlePart* meanxyPoolPlePart_8x8 = dynamic_cast<const FusedPlePart*>(&graph.GetPart(8));
+    REQUIRE(meanxyPoolPlePart_8x8 != nullptr);
+    auto meanxyPoolPlans_8x8 =
+        meanxyPoolPlePart_8x8->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(dynamic_cast<PleOp*>(meanxyPoolPlans_8x8[0].m_OpGraph.GetOp(2))->m_Op ==
+            ethosn::command_stream::PleOperation::MEAN_XY_8X8);
+    REQUIRE(graph.GetPartInputs(8).size() == 1);
+    REQUIRE(graph.GetPartOutputs(8).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 8, 0 }).value().m_PartId == 5);
+
+    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(9)) != nullptr);
+    REQUIRE(graph.GetPartInputs(9).size() == 1);
+    REQUIRE(graph.GetPartOutputs(9).size() == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 9, 0 }).value().m_PartId == 8);
+    REQUIRE(graph.GetConnectedInputSlots({ 9, 0 }).size() == 0);
 }
 
 // Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the NetworkToGraphOfPartsConverter().
@@ -451,7 +501,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
 
     // Check for each Part:
     //  * Whether the type of the generated Part is correct
-    //  * Whether the PleOperation command stream is correct for Operations using FusedPleParts (e.g. LeakyRelu, Sigmoid, Tanh...)
+    //  * Whether the PleOperation command stream is correct for Operations using FusedPleParts (e.g. LeakyRelu, Sigmoid, Tanh ...)
     //  * The number of Input/Output slots
     //  * Whether PartInputSlots connect to PartOutputSlots of the correct Part
     //  * For the last Part, check that there are no connections to any following PartInputSlots
@@ -508,6 +558,116 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
     REQUIRE(graph.GetPartOutputs(6).size() == 0);
     REQUIRE(graph.GetConnectedOutputSlot({ 6, 0 }).value().m_PartId == 5);
     REQUIRE(graph.GetConnectedInputSlots({ 6, 0 }).size() == 0);
+}
+
+// Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the NetworkToGraphOfPartsConverter().
+// The topology is chosen to test Networks of supported Part types such as:
+//      * Pooling Part (MaxPool 3x3_2_2_even/odd variations)
+TEST_CASE("NetworkToGraphOfPartsConverterTest MaxPool_3X3_2_2")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 32, 32, 1 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo input2Info{
+        { { 1, 33, 33, 1 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    constexpr PoolingInfo poolingInfo{ 3, 3, 2, 2, { 0, 1, 0, 1 }, PoolingType::MAX };
+    constexpr PoolingInfo pooling2Info{ 3, 3, 2, 2, { 0, 0, 0, 0 }, PoolingType::MAX };
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    /*
+       { Input2 } -> MaxPool_3x3_2_2_odd -> Output2
+       { Input } -> MaxPool_3x3_2_2_even -> Output
+    */
+
+    std::shared_ptr<Operand> input       = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Operand> maxpoolEven = AddPooling(network, *input, poolingInfo).tensor;
+    std::shared_ptr<Output> output       = AddOutput(network, *maxpoolEven).tensor;
+    std::shared_ptr<Operand> input2      = AddInput(network, input2Info).tensor;
+    std::shared_ptr<Operand> maxpoolOdd  = AddPooling(network, *input2, pooling2Info).tensor;
+    std::shared_ptr<Output> output2      = AddOutput(network, *maxpoolOdd).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest MaxPool_3x3_2_2.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest MaxPool_3x3_2_2 Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    // Check for each Part:
+    //  * Whether the type of the generated Part is correct
+    //  * Whether the PleOperation command stream is correct for Operations using FusedPleParts (e.g. MaxPool_3x3_2_2_even/odd ...)
+    //  * The number of Input/Output slots
+    //  * Whether PartInputSlots connect to PartOutputSlots of the correct Part
+    //  * For the last Part, check that there are no connections to any following PartInputSlots
+    REQUIRE(graph.GetNumParts() == 6);
+
+    REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(0)) != nullptr);
+    REQUIRE(graph.GetPartInputs(0).size() == 0);
+    REQUIRE(graph.GetPartOutputs(0).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 0, 0 }).has_value() == false);
+
+    const FusedPlePart* maxpoolEvenPart = dynamic_cast<const FusedPlePart*>(&graph.GetPart(1));
+    REQUIRE(maxpoolEvenPart != nullptr);
+    auto maxpoolEvenPlans =
+        maxpoolEvenPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(dynamic_cast<PleOp*>(maxpoolEvenPlans[0].m_OpGraph.GetOp(2))->m_Op ==
+            ethosn::command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN);
+    REQUIRE(graph.GetPartInputs(1).size() == 1);
+    REQUIRE(graph.GetPartOutputs(1).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
+
+    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(2)) != nullptr);
+    REQUIRE(graph.GetPartInputs(2).size() == 1);
+    REQUIRE(graph.GetPartOutputs(2).size() == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 1);
+    REQUIRE(graph.GetConnectedInputSlots({ 2, 0 }).size() == 0);
+
+    REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(3)) != nullptr);
+    REQUIRE(graph.GetPartInputs(3).size() == 0);
+    REQUIRE(graph.GetPartOutputs(3).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 3, 0 }).has_value() == false);
+
+    const FusedPlePart* maxpoolOddPart = dynamic_cast<const FusedPlePart*>(&graph.GetPart(4));
+    REQUIRE(maxpoolOddPart != nullptr);
+    auto maxpoolOddPlans =
+        maxpoolOddPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(dynamic_cast<PleOp*>(maxpoolOddPlans[0].m_OpGraph.GetOp(2))->m_Op ==
+            ethosn::command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD);
+    REQUIRE(graph.GetPartInputs(4).size() == 1);
+    REQUIRE(graph.GetPartOutputs(4).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 4, 0 }).value().m_PartId == 3);
+
+    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(5)) != nullptr);
+    REQUIRE(graph.GetPartInputs(5).size() == 1);
+    REQUIRE(graph.GetPartOutputs(5).size() == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 5, 0 }).value().m_PartId == 4);
+    REQUIRE(graph.GetConnectedInputSlots({ 5, 0 }).size() == 0);
 }
 
 TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected")

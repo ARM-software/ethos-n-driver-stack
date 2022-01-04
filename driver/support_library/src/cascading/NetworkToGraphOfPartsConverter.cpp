@@ -299,21 +299,57 @@ void NetworkToGraphOfPartsConverter::Visit(FullyConnected& fullyConnected)
 void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
 {
     std::vector<BasePart*> parts;
-    const PoolingInfo& poolingInfo = pooling.GetPoolingInfo();
 
-    if (poolingInfo == PoolingInfo{ 2, 2, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
-    {
+    const uint32_t inputHeight = pooling.GetInput(0).GetTensorInfo().m_Dimensions[1];
+    const uint32_t inputWidth  = pooling.GetInput(0).GetTensorInfo().m_Dimensions[2];
+
+    const bool isInputEven = (((inputWidth % 2U) == 0) && ((inputHeight % 2U) == 0));
+    const bool isInputOdd  = (((inputWidth % 2U) != 0) && ((inputHeight % 2U) != 0));
+
+    const PoolingInfo& poolingInfo      = pooling.GetPoolingInfo();
+    const PoolingInfo poolingInfoMeanXy = {
+        inputWidth,
+        inputHeight,
+        poolingInfo.m_PoolingStrideX,
+        poolingInfo.m_PoolingStrideY,
+        Padding{ 0, 0, 0, 0 },
+        PoolingType::AVG,
+    };
+
+    auto createPoolingPart = [&](command_stream::PleOperation op) {
         auto poolingFusedPlePart = std::make_unique<FusedPlePart>(
             m_GraphOfParts.GeneratePartId(), pooling.GetInput(0).GetTensorInfo().m_Dimensions,
             pooling.GetOutput(0).GetTensorInfo().m_Dimensions, pooling.GetInput(0).GetTensorInfo().m_QuantizationInfo,
-            pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::MAXPOOL_2X2_2_2,
-            utils::ShapeMultiplier{
-                { 1, pooling.GetPoolingInfo().m_PoolingStrideY }, { 1, pooling.GetPoolingInfo().m_PoolingStrideX }, 1 },
+            pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo, op,
+            utils::ShapeMultiplier{ { 1, poolingInfo.m_PoolingStrideY }, { 1, poolingInfo.m_PoolingStrideX }, 1 },
             m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ pooling.GetId() },
             GetCommandDataType(pooling.GetOutput(0).GetTensorInfo().m_DataType));
         parts.push_back(std::move(poolingFusedPlePart.get()));
         m_GraphOfParts.m_Parts.push_back(std::move(poolingFusedPlePart));
-        ConnectParts(pooling, parts);
+    };
+
+    // Pooling Visitor decoder, creating appropriate FusedPle Parts for supported Operations.
+    // Handle MeanXy Operations with 7x7, 8x8 sizes.
+    if (inputHeight == 7U && inputWidth == 7U && poolingInfo == poolingInfoMeanXy)
+    {
+        createPoolingPart(command_stream::PleOperation::MEAN_XY_7X7);
+    }
+    else if (inputHeight == 8U && inputWidth == 8U && poolingInfo == poolingInfoMeanXy)
+    {
+        createPoolingPart(command_stream::PleOperation::MEAN_XY_8X8);
+    }
+    // Handle MaxPool Operations of supported kernel sizes, strides and padding.
+    else if (poolingInfo == PoolingInfo{ 2, 2, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
+    {
+        createPoolingPart(command_stream::PleOperation::MAXPOOL_2X2_2_2);
+    }
+    else if (isInputOdd && poolingInfo == PoolingInfo{ 3, 3, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
+    {
+        createPoolingPart(command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD);
+    }
+    else if (isInputEven && poolingInfo == PoolingInfo{ 3, 3, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
+    {
+        createPoolingPart(command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN);
     }
     else if (poolingInfo == PoolingInfo{ 3, 3, 1, 1, poolingInfo.m_Padding, PoolingType::AVG })
     {
@@ -329,41 +365,13 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
             GetCommandDataType(pooling.GetOutput(0).GetTensorInfo().m_DataType));
         parts.push_back(std::move(poolingStandalonePlePart.get()));
         m_GraphOfParts.m_Parts.push_back(std::move(poolingStandalonePlePart));
-        ConnectParts(pooling, parts);
-    }
-    else if (poolingInfo.m_PoolingType == PoolingType::AVG && poolingInfo.m_PoolingSizeX >= 7)
-    {
-        ShapeMultiplier shapeMultiplier = { 1, 1, 1 };
-
-        command_stream::PleOperation pleOperation;
-
-        if (poolingInfo == PoolingInfo{ 7, 7, 2, 2, poolingInfo.m_Padding, PoolingType::AVG })
-        {
-            pleOperation = command_stream::PleOperation::MEAN_XY_7X7;
-        }
-        else if (poolingInfo == PoolingInfo{ 8, 8, 2, 2, poolingInfo.m_Padding, PoolingType::AVG })
-        {
-            pleOperation = command_stream::PleOperation::MEAN_XY_8X8;
-        }
-        else
-        {
-            throw InternalErrorException("Only AVG pooling 7x7_2_2 and 8x8_2_2 are supported");
-        }
-
-        auto meanxyPart = std::make_unique<FusedPlePart>(
-            m_GraphOfParts.GeneratePartId(), pooling.GetInput(0).GetTensorInfo().m_Dimensions,
-            pooling.GetOutput(0).GetTensorInfo().m_Dimensions, pooling.GetInput(0).GetTensorInfo().m_QuantizationInfo,
-            pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo, pleOperation, shapeMultiplier,
-            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ pooling.GetId() },
-            GetCommandDataType(pooling.GetOutput(0).GetTensorInfo().m_DataType));
-        parts.push_back(std::move(meanxyPart.get()));
-        m_GraphOfParts.m_Parts.push_back(std::move(meanxyPart));
-        ConnectParts(pooling, parts);
     }
     else
     {
-        throw InternalErrorException("Only PoolingType::MAX and AVG are supported at the moment");
+        throw InternalErrorException("Only PoolingType::MAX 2x2_2_2, 3x3_2_2_even/odd and PoolingType::AVG 3x3_1_1, "
+                                     "7x7_2_2, 8x8_2_2 are supported at the moment");
     }
+    ConnectParts(pooling, parts);
 }
 
 void NetworkToGraphOfPartsConverter::Visit(Reshape& reshape)
