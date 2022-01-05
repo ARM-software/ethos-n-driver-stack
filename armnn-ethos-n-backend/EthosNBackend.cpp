@@ -235,26 +235,19 @@ void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
 
     // Only the case of a single compiled network is currently supported
     ARMNN_ASSERT(compiledNetworks.size() == 1);
+    CompiledBlobPtr compiledNetwork = std::move(compiledNetworks[0]);
 
-    // Wrap the precompiled layer into a graph
-    PreCompiledLayer& preCompiledLayer = *optimizationViews.GetGraph().AddLayer<PreCompiledLayer>(
-        PreCompiledDescriptor(subgraph.GetNumInputSlots(), subgraph.GetNumOutputSlots()), "pre-compiled");
+    IConnectableLayer* preCompiledLayer = optimizationViews.GetINetwork()->AddPrecompiledLayer(
+        PreCompiledDescriptor(subgraph.GetNumInputSlots(), subgraph.GetNumOutputSlots()), compiledNetwork,
+        armnn::Optional<BackendId>(EthosNBackendId()), "pre-compiled");
 
     // Copy the output tensor infos from sub-graph
     for (unsigned int i = 0; i < subgraph.GetNumOutputSlots(); i++)
     {
-        preCompiledLayer.GetOutputSlot(i).SetTensorInfo(subgraph.GetOutputSlot(i)->GetTensorInfo());
+        preCompiledLayer->GetOutputSlot(i).SetTensorInfo(subgraph.GetOutputSlot(i)->GetTensorInfo());
     }
 
-    // Assign the pre-compiled object to layer
-    // Pass only the first compiled network for the moment, as Arm NN does not handle
-    // multiple pre-compiled objects in a single pre-compiled layer just yet
-    preCompiledLayer.SetPreCompiledObject(std::move(compiledNetworks.at(0)));
-
-    // Set the backend-id for the pre-compiled layer
-    preCompiledLayer.SetBackendId(EthosNBackendId());
-
-    optimizationViews.AddSubstitution({ std::move(subgraph), SubgraphView(&preCompiledLayer) });
+    optimizationViews.AddSubstitution({ std::move(subgraph), SubgraphView(preCompiledLayer) });
 }
 
 ARMNN_DLLEXPORT armnn::EthosNConfig EthosNBackend::ms_Config;
