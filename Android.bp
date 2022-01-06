@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+// Note: ethosn.ko and ethosn.bin are handled in <YOUR_DEVICE_BOARD_FOLDER>/device.mk with BOARD_VENDOR_KERNEL_MODULES and PRODUCT_COPY_FILES
+
 package {
     default_visibility: ["//visibility:public"]
 }
@@ -15,7 +17,6 @@ cc_defaults {
     name: "libEthosN-defaults",
     proprietary: true,
     local_include_dirs: ["driver/utils/include",],
-    required: ["ethosn.bin"],
     shared_libs: [
         "liblog",
         "libcutils",
@@ -115,17 +116,4 @@ cc_library {
         "driver/support_library/src/cascading/EstimateOnlyPart.cpp",
         "driver/support_library/src/cascading/StandalonePlePart.cpp",
         ],
-}
-
-prebuilt_firmware {
-    name: "ethosn.bin",
-    src: "firmware/ethosn.bin",
-    target: { android: { } },
-}
-
-prebuilt_kernel_modules {
-    name: "ethosn.ko",
-    required: ["ethosn.bin"],
-    srcs: ["kernel-module/ethosn.ko"],
-    kernel_version: "5.10",
 }

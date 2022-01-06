@@ -6,7 +6,7 @@
 # The script is intended be executed from vendor/arm/ethos-n-driver-stack/ and requires that 
 # the Android NN driver has already been installed in vendor/arm/android-nn-driver/ according to it's documentation.
 
-# 1. Create symbolic link from Arm NN backends to build Ethos-N backend
+# 1. Link the Ethos-N NPU backend to the Arm NN source tree
 
 ln -s ../../../../ethos-n-driver-stack/armnn-ethos-n-backend ../android-nn-driver/armnn/src/backends/ethos-n
 
@@ -25,17 +25,24 @@ cd kernel-module
     make -C <YOUR_KERNEL_SOURCE_FOLDER> <YOUR_KERNEL_BUILD_FLAGS> M=$PWD modules
 cd ..
 
-# 3. Make sure Ethos-N kernel module end up in vendor kernel module folder
+# 3. Add kernel module and firmware to BOARD_VENDOR_KERNEL_MODULES and PRODUCT_COPY_FILES to make sure it is part of vendor file system image
 
-# The idea here is to make ethosn.ko to be placed in the vendor/lib/modules folder
-# when creating your vendor image. You might have some other ways to solve this in your setup.
-# Please edit the lines below depending on your setup.
+# e.g. you need to add BOARD_VENDOR_KERNEL_MODULES and PRODUCT_COPY_FILES to handle the kernel module and it's firmware to your device.mk
+# For juno.r2 boards you can use this line:
+#     echo 'BOARD_VENDOR_KERNEL_MODULES += vendor/arm/ethos-n-driver-stack/kernel-module/ethosn.ko' >> ../../../device/linaro/juno/device.mk
+#     echo 'PRODUCT_COPY_FILES += vendor/arm/ethos-n-driver-stack/firmware/ethosn.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/ethosn.bin' >> ../../../device/linaro/juno/device.mk
 
-cp kernel-module/ethosn.ko <YOUR_DEVICE_BOARD_FOLDER>/5.10/
-cp kernel-module/ethosn.ko <YOUR_KERNEL_SOURCE_FOLDER>/../out/android12-5.10/common/dist/
-cp kernel-module/ethosn.ko <YOUR_KERNEL_SOURCE_FOLDER>/../out/android12-5.10/dist/
+echo '# Add Ethos-N kernel module and firmware to the vendor file system images' >> <YOUR_DEVICE_BOARD_FOLDER>/device.mk
+echo 'BOARD_VENDOR_KERNEL_MODULES += vendor/arm/ethos-n-driver-stack/kernel-module/ethosn.ko' >> <YOUR_DEVICE_BOARD_FOLDER>/device.mk
+echo 'PRODUCT_COPY_FILES += vendor/arm/ethos-n-driver-stack/firmware/ethosn.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/ethosn.bin' >> <YOUR_DEVICE_BOARD_FOLDER>/device.mk
 
-# 4. Make sure Ethos-N dts files get merged with your dts file
+# 4. Make sure to start the kernel module when booting
+
+echo '' >> <YOUR_DEVICE_BOARD_FOLDER>/init.juno.rc
+echo 'on post-fs   # Load Ethos-N kernel module on startup' >> <YOUR_DEVICE_BOARD_FOLDER>/init.juno.rc
+echo '    insmod /vendor/lib/modules/ethosn.ko' >> <YOUR_DEVICE_BOARD_FOLDER>/init.juno.rc
+
+# 5. Make sure Ethos-N dts files get merged with your dts file
 
 # The idea here is to make the device tree contain Ethos-N.
 # You might have some other ways to solve this in your setup.
@@ -45,13 +52,3 @@ mkdir -p <YOUR_KERNEL_SOURCE_FOLDER>/arch/arm64/boot/dts/arm/  # If folder dont 
 cp kernel-module/*.dts <YOUR_KERNEL_SOURCE_FOLDER>/arch/arm64/boot/dts/arm/
 cp kernel-module/*.dtsi <YOUR_KERNEL_SOURCE_FOLDER>/arch/arm64/boot/dts/arm/
 echo 'dtb-$(CONFIG_ARCH_VEXPRESS) += juno-r2-ethosn.dts' >> <YOUR_KERNEL_SOURCE_FOLDER>/arch/arm64/boot/dts/arm/Makefile
-
-# 5. Add firmware and kernel module to PRODUCT_PACKAGES to make sure it is part of vendor file system image
-
-# e.g. you need to add this
-#     PRODUCT_PACKAGES += ethosn.ko ethosn.bin
-# to your device.mk
-# For juno.r2 boards you can use this line:
-#     echo 'PRODUCT_PACKAGES += ethosn.ko ethosn.bin' >> ../../../device/linaro/juno/device.mk
-
-echo 'PRODUCT_PACKAGES += ethosn.ko ethosn.bin' >> <YOUR_DEVICE_BOARD_FOLDER>/device.mk

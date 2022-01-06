@@ -386,9 +386,49 @@ To build the Ethos-N driver stack in Android, you must first install Android NN 
 
  _Note: The Android build folder is the same folder that you put the Android NN driver.
 
-To set up the build process, you can edit the paths in setup_android.sh and execute setup_android.sh for the final step before building Android. setup_android.sh will copy the kernel module to the build and create a link from armnn/src/backends so that Android NN driver with Arm NN installs and uses this backend when built
+After you install Android NN driver with Arm NN in Android, the following additional steps are required to install the Ethos-N driver stack.
+Please refer to script 'setup_android.sh' for your reference.
 
-To use Android NN driver and Arm NN in Android, see the instructions for Android NN driver here: https://github.com/ARM-software/android-nn-driver/blob/master/docs/IntegratorGuide.md.
+1. Link the Ethos-N NPU backend to the Arm NN source tree
+
+    The code in armnn-ethos-n-backend is a Arm NN backend and build by it. To make this possible a symbolic link need to be created from the Arm NN src backend folder to this folder.
+    ```sh
+    ln -s ../../../../ethos-n-driver-stack/armnn-ethos-n-backend ../android-nn-driver/armnn/src/backends/ethos-n
+    ```
+
+2. Build Ethos-N kernel module
+
+    The Ethos-N kernel module is treated as pre build by the Android build and it needs to be build before. There are instructions in setup_android.sh how to do this.
+
+3. Add kernel module and firmware to BOARD_VENDOR_KERNEL_MODULES and PRODUCT_COPY_FILES to make sure it is part of vendor file system image
+
+    In an Android build it is preferred to place the vendor specific drivers in the /vendor file system so that /system and /vendor filesystem can be updated independantly. This could be achevied by adding kernel module and firmware to your device.mk like this:
+     * BOARD_VENDOR_KERNEL_MODULES += vendor/arm/ethos-n-driver-stack/kernel-module/ethosn.ko
+     * PRODUCT_COPY_FILES += vendor/arm/ethos-n-driver-stack/firmware/ethosn.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/ethosn.bin
+
+4. Make sure to start the kernel module when booting
+
+    To load the kernel module at boot add this to your init board file e.g. init.juno.rc
+     * on post-fs
+     *     insmod /vendor/lib/modules/ethosn.ko
+
+
+5. Make sure Ethos-N dts files get merged with your dts file
+
+    The device tree should contain the correct nodes for your Ethos-N hardware.
+
+Please refer to script 'setup_android.sh' as a reference for this steps, you can edit the paths in it and execute it or just use as reference if you do it yourself.
+
+Now it's time to build and Android image and flash and run it according to your normal target instructions.
+
+Note: If you get "No firmware found." in the kernel log, make sure your kernel will search for firmware files in /vendor/lib/firmware this can for example be done by adding the kernel argument "firmware_class.path=/vendor/lib/firmware/" when booting. You can also edit the build to make sure the ethonsn.bin file is moved to the place where you want to keep your firmware files if you want to use another folder.
+
+To use the Android NN driver and Arm NN, please see the instructions under the "Testing" section in the integration guide: https://github.com/ARM-software/android-nn-driver/blob/master/docs/IntegratorGuide.md#testing
+
+You can use "-c EthosNAcc" to specify Ethos-N backend e.g.
+
+adb shell /vendor/bin/hw/android.hardware.neuralnetworks@1.3-service-armnn -v -c EthosNAcc
+
 
 ## Limitations
 
