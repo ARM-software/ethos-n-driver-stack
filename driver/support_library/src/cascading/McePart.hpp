@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -17,6 +17,38 @@ namespace support_library
 class McePart : public BasePart
 {
 public:
+    struct ConstructionParams
+    {
+        ConstructionParams(const EstimationOptions& estOpt,
+                           const CompilationOptions& compOpt,
+                           const HardwareCapabilities& capabilities)
+            : m_EstOpt{ estOpt }
+            , m_CompOpt{ compOpt }
+            , m_Capabilities{ capabilities }
+        {}
+
+        PartId m_Id                     = 0xFFFFFFFF;
+        TensorShape m_InputTensorShape  = {};
+        TensorShape m_OutputTensorShape = {};
+        QuantizationInfo m_InputQuantizationInfo;
+        QuantizationInfo m_OutputQuantizationInfo;
+        TensorInfo m_WeightsInfo;
+        std::vector<uint8_t> m_WeightsData;
+        TensorInfo m_BiasInfo;
+        std::vector<int32_t> m_BiasData;
+        Stride m_Stride;
+        uint32_t m_PadTop                 = 0;
+        uint32_t m_PadLeft                = 0;
+        command_stream::MceOperation m_Op = command_stream::MceOperation::CONVOLUTION;
+        const EstimationOptions& m_EstOpt;
+        const CompilationOptions& m_CompOpt;
+        const HardwareCapabilities& m_Capabilities;
+        std::set<uint32_t> m_OperationIds;
+        command_stream::DataType m_DataType         = command_stream::DataType::U8;
+        uint32_t m_UpscaleFactor                    = 1;
+        command_stream::UpsampleType m_UpsampleType = command_stream::UpsampleType::OFF;
+    };
+
     McePart(PartId id,
             const TensorShape& inputTensorShape,
             const TensorShape& outputTensorShape,
@@ -35,6 +67,7 @@ public:
             const HardwareCapabilities& capabilities,
             std::set<uint32_t> operationIds,
             command_stream::DataType dataType);
+    McePart(ConstructionParams&& params);
 
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,

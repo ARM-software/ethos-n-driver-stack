@@ -169,7 +169,8 @@ public:
                     const Stride& stride,
                     uint32_t upscaleFactor,
                     command_stream::MceOperation op,
-                    utils::ShapeMultiplier shapeMult,
+                    utils::ShapeMultiplier mceShapeMult,
+                    utils::ShapeMultiplier pleShapeMult,
                     const HardwareCapabilities& caps);
 
     void GenerateStripes(const ethosn::command_stream::BlockConfig blockConfig,
@@ -191,7 +192,8 @@ public:
     Stride m_Stride;
     uint32_t m_UpscaleFactor;
     command_stream::MceOperation m_Operation;
-    utils::ShapeMultiplier m_ShapeMultiplier;
+    utils::ShapeMultiplier m_MceShapeMultiplier;
+    utils::ShapeMultiplier m_PleShapeMultiplier;
 
     const HardwareCapabilities& m_Capabilities;
 };

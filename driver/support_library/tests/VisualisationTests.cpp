@@ -20,8 +20,10 @@
 #include <catch.hpp>
 #include <fstream>
 
+using namespace ethosn;
 using namespace ethosn::support_library;
-namespace sl = ethosn::support_library;
+namespace sl    = ethosn::support_library;
+namespace utils = ethosn::support_library::utils;
 using namespace ethosn::command_stream;
 
 /// Checks SaveNetworkToDot produces the expected output, focusing on the overall network topology (connections
@@ -560,21 +562,32 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     // FusedPlePart
     auto fusedPlePart = std::make_unique<FusedPlePart>(
         1, TensorShape{ 1, 2, 3, 4 }, TensorShape{ 5, 6, 7, 8 }, QuantizationInfo(9, 10.0f),
-        QuantizationInfo(11, 12.0f), PleOperation::DOWNSAMPLE_2X2, utils::ShapeMultiplier{ 1, 1, 1 }, estOpt, compOpt,
-        caps, std::set<uint32_t>{ 13, 14, 15 }, ethosn::command_stream::DataType::U8);
+        QuantizationInfo(11, 12.0f), PleOperation::DOWNSAMPLE_2X2, support_library::utils::ShapeMultiplier{ 1, 2, 3 },
+        estOpt, compOpt, caps, std::set<uint32_t>{ 13, 14, 15 }, ethosn::command_stream::DataType::U8);
     parts.m_Parts.push_back(std::move(fusedPlePart));
 
     // McePart
-    auto mcePart = std::make_unique<McePart>(
-        5, TensorShape{ 1, 2, 3, 4 }, TensorShape{ 5, 6, 7, 8 }, QuantizationInfo(9, 10.0f),
-        QuantizationInfo(11, 12.0f),
-        sl::TensorInfo(TensorShape{ 9, 10, 11, 12 }, sl::DataType::UINT8_QUANTIZED, sl::DataFormat::NHWC,
-                       QuantizationInfo(11, 12.0f)),
-        std::vector<uint8_t>(),
-        sl::TensorInfo(TensorShape{ 19, 110, 111, 112 }, sl::DataType::UINT8_QUANTIZED, sl::DataFormat::NHWC,
-                       QuantizationInfo(111, 112.0f)),
-        std::vector<int32_t>{}, Stride{ 2, 2 }, 1, 3, MceOperation::DEPTHWISE_CONVOLUTION, estOpt, compOpt, caps,
-        std::set<uint32_t>{ 13, 14, 15 }, ethosn::command_stream::DataType::U8);
+    McePart::ConstructionParams params(estOpt, compOpt, caps);
+    params.m_Id                     = 5;
+    params.m_InputTensorShape       = TensorShape{ 1, 2, 3, 4 };
+    params.m_OutputTensorShape      = TensorShape{ 5, 6, 7, 8 };
+    params.m_InputQuantizationInfo  = QuantizationInfo(9, 10.0f);
+    params.m_OutputQuantizationInfo = QuantizationInfo(11, 12.0f);
+    params.m_WeightsInfo            = sl::TensorInfo(TensorShape{ 9, 10, 11, 12 }, sl::DataType::UINT8_QUANTIZED,
+                                          sl::DataFormat::NHWC, QuantizationInfo(11, 12.0f));
+    params.m_WeightsData            = std::vector<uint8_t>();
+    params.m_BiasInfo               = sl::TensorInfo(TensorShape{ 19, 110, 111, 112 }, sl::DataType::UINT8_QUANTIZED,
+                                       sl::DataFormat::NHWC, QuantizationInfo(111, 112.0f));
+    params.m_BiasData               = std::vector<int32_t>{};
+    params.m_Stride                 = Stride{ 2, 2 };
+    params.m_PadTop                 = 1;
+    params.m_PadLeft                = 3;
+    params.m_Op                     = MceOperation::DEPTHWISE_CONVOLUTION;
+    params.m_OperationIds           = std::set<uint32_t>{ 13, 14, 15 };
+    params.m_DataType               = command_stream::DataType::U8;
+    params.m_UpscaleFactor          = 3;
+    params.m_UpsampleType           = command_stream::UpsampleType::NEAREST_NEIGHBOUR;
+    auto mcePart                    = std::make_unique<McePart>(std::move(params));
     parts.m_Parts.push_back(std::move(mcePart));
 
     // ConcatPart
@@ -611,7 +624,7 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     parts.m_Parts.push_back(std::move(standalonePlePart));
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
-    bool dumpToFile = true;
+    bool dumpToFile = false;
     if (dumpToFile)
     {
         std::ofstream stream("GraphOfParts Part Details.dot");
@@ -625,8 +638,8 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     std::string expected =
         R"(digraph SupportLibraryGraph
 {
-BasePart_0[label = "FusedPlePart: BasePart 0\nPartId = 1\nCompilerDataFormat = NONE\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nKernelOperation = DOWNSAMPLE_2X2\nShapeMultiplier = [1/1, 1/1, 1/1]\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [1, 2, 3, 4]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 1\nStripeGenerator.KernelWidth = 1\nStripeGenerator.Stride = 1, 1\nStripeGenerator.UpscaleFactor = 1\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.ShapeMultiplier = [1/1, 1/1, 1/1]\n"]
-BasePart_1[label = "McePart: BasePart 1\nPartId = 5\nCompilerDataFormat = NONE\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nWeightsInfo = ([9, 10, 11, 12], UINT8_QUANTIZED, NHWC, ZeroPoint = 11, Scale = 12.000000)\nBiasInfo = ([19, 110, 111, 112], UINT8_QUANTIZED, NHWC, ZeroPoint = 111, Scale = 112.000000)\nStride = 2, 2\nUpscaleFactor = 1\nUpsampleType = OFF\nPadTop = 1\nPadLeft = 3\nOperation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 9\nStripeGenerator.KernelWidth = 10\nStripeGenerator.Stride = 2, 2\nStripeGenerator.UpscaleFactor = 1\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.ShapeMultiplier = [1/1, 1/1, 1/1]\n"]
+BasePart_0[label = "FusedPlePart: BasePart 0\nPartId = 1\nCompilerDataFormat = NONE\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nKernelOperation = DOWNSAMPLE_2X2\nShapeMultiplier = [1/1, 2/1, 3/1]\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [1, 2, 3, 4]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 1\nStripeGenerator.KernelWidth = 1\nStripeGenerator.Stride = 1, 1\nStripeGenerator.UpscaleFactor = 1\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceShapeMultiplier = [1/1, 1/1, 1/1]\nStripeGenerator.PleShapeMultiplier = [1/1, 2/1, 3/1]\n"]
+BasePart_1[label = "McePart: BasePart 1\nPartId = 5\nCompilerDataFormat = NONE\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nWeightsInfo = ([9, 10, 11, 12], UINT8_QUANTIZED, NHWC, ZeroPoint = 11, Scale = 12.000000)\nBiasInfo = ([19, 110, 111, 112], UINT8_QUANTIZED, NHWC, ZeroPoint = 111, Scale = 112.000000)\nStride = 2, 2\nUpscaleFactor = 3\nUpsampleType = NEAREST_NEIGHBOUR\nPadTop = 1\nPadLeft = 3\nOperation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 9\nStripeGenerator.KernelWidth = 10\nStripeGenerator.Stride = 2, 2\nStripeGenerator.UpscaleFactor = 3\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceShapeMultiplier = [3/1, 3/1, 1/1]\nStripeGenerator.PleShapeMultiplier = [1/1, 1/1, 1/1]\n"]
 BasePart_2[label = "ConcatPart: BasePart 2\nPartId = 2\nCompilerDataFormat = NHWCB\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorsInfo = [([1, 2, 3, 4], UINT8_QUANTIZED, NHWC, ZeroPoint = 0, Scale = 1.000000)]\nConcatInfo.Axis = 3\nConcatInfo.OutputQuantInfo = ZeroPoint = 9, Scale = 10.000000\n"]
 BasePart_3[label = "InputPart: BasePart 3\nPartId = 3\nCompilerDataFormat = NHWCB\nCorrespondingOperationIds = [13, 14, 15]\nOutputTensorShape = [1, 2, 3, 4]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\n"]
 BasePart_4[label = "OutputPart: BasePart 4\nPartId = 5\nCompilerDataFormat = NHWCB\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\n"]

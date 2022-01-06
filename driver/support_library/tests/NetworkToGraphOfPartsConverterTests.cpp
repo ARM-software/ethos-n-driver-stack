@@ -199,7 +199,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat")
         CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     // Network topology:
-    /* 
+    /*
        { Input3 } \
        { Input2 }  -> Concatenation -> Output
        { Input  } /
@@ -312,7 +312,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
         CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     // Network topology:
-    /* 
+    /*
        { Input2 } -> MeanXy_8x8 -> Output2
        { Input } -> MeanXy_7x7 -> Output
     */
@@ -418,7 +418,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
         CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     // Network topology:
-    /* 
+    /*
                  /-> LeakyRelu -> Output3
        { Input } - > Sigmoid -> Output2
                  \-> Tanh -> Output
@@ -1053,4 +1053,57 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION_RESCALE")
     REQUIRE(graph.GetPartOutputs(3).size() == 0);
     REQUIRE(graph.GetConnectedOutputSlot({ 3, 0 }).value().m_PartId == 2);
     REQUIRE(graph.GetConnectedInputSlots({ 3, 0 }).size() == 0);
+}
+
+// Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the NetworkToGraphOfPartsConverter.
+// The topology is chosen to test that the Resize operation is correctly converted to an McePart.
+TEST_CASE("NetworkToGraphOfPartsConverter Resize")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 16, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+    std::shared_ptr<Operand> input = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Operand> resize =
+        AddResize(network, *input, ResizeInfo(ResizeAlgorithm::BILINEAR, 32, 32, QuantizationInfo(0, 1.0f))).tensor;
+    std::shared_ptr<Output> output = AddOutput(network, *resize).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest Resize.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest Resize Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    // We check only the McePart that we expect to be created - the Input and Output part and connections
+    // between the Parts are covered by NetworkToGraphOfPartsConverterTest
+    const McePart* mcePart = dynamic_cast<const McePart*>(&graph.GetPart(1));
+    REQUIRE(mcePart != nullptr);
+    auto plans = mcePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    auto mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
+    REQUIRE(mceOp != nullptr);
+    CHECK(mceOp->m_UpscaleFactor == 2);
+    CHECK(mceOp->m_UpsampleType == ethosn::command_stream::UpsampleType::BILINEAR);
 }

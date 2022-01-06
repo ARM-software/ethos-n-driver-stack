@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -229,6 +229,8 @@ public:
     Stride m_Stride;
     uint32_t m_PadLeft;
     uint32_t m_PadTop;
+    uint32_t m_UpscaleFactor;
+    command_stream::UpsampleType m_UpsampleType;
 };
 
 class PleOp : public Op

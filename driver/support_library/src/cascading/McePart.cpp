@@ -83,7 +83,8 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
                                        uint32_t kernelHeight,
                                        uint32_t kernelWidth,
                                        uint32_t strideMultiplier,
-                                       BlockConfig& blockConfig,
+                                       const ShapeMultiplier& shapeMultiplier,
+                                       const BlockConfig& blockConfig,
                                        CascadeType cascadeType)
 {
     assert(cascadeType == CascadeType::Middle || cascadeType == CascadeType::End);
@@ -104,8 +105,8 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     }
     else
     {
-        mceOutputEncoding = { 0, fullHeight ? 0 : GetHeight(mceInputStripe), fullWidth ? 0 : GetWidth(mceInputStripe),
-                              0 };
+        mceOutputEncoding = { 0, fullHeight ? 0 : (GetHeight(mceInputStripe) * shapeMultiplier.m_H),
+                              fullWidth ? 0 : (GetWidth(mceInputStripe) * shapeMultiplier.m_W), 0 };
     }
     TensorShape mceOutputStripe    = impl::CreateStripe(outputTensorShape, mceOutputEncoding, caps.GetNumberOfOgs());
     uint32_t mceWeightOutputStripe = mceOutputStripe[3];
@@ -235,9 +236,46 @@ McePart::McePart(PartId id,
                         m_Stride,
                         m_UpscaleFactor,
                         op,
-                        ShapeMultiplier{ 1, 1, 1 },
+                        ShapeMultiplier::Identity,
+                        ShapeMultiplier::Identity,
                         capabilities)
     , m_DataType(dataType)
+{}
+
+McePart::McePart(ConstructionParams&& params)
+    : BasePart(params.m_Id,
+               CompilerDataFormat::NONE,
+               params.m_OperationIds,
+               params.m_EstOpt,
+               params.m_CompOpt,
+               params.m_Capabilities)
+    , m_InputTensorShape(params.m_InputTensorShape)
+    , m_OutputTensorShape(params.m_OutputTensorShape)
+    , m_WeightEncoderCache{ params.m_Capabilities }
+    , m_InputQuantizationInfo(params.m_InputQuantizationInfo)
+    , m_OutputQuantizationInfo(params.m_OutputQuantizationInfo)
+    , m_WeightsInfo(params.m_WeightsInfo)
+    , m_WeightsData(std::make_shared<std::vector<uint8_t>>(std::move(params.m_WeightsData)))
+    , m_BiasInfo(params.m_BiasInfo)
+    , m_BiasData(std::move(params.m_BiasData))
+    , m_Stride(params.m_Stride)
+    , m_UpscaleFactor(params.m_UpscaleFactor)
+    , m_UpsampleType(params.m_UpsampleType)
+    , m_PadTop(params.m_PadTop)
+    , m_PadLeft(params.m_PadLeft)
+    , m_Operation(params.m_Op)
+    , m_StripeGenerator(m_InputTensorShape,
+                        m_OutputTensorShape,
+                        m_OutputTensorShape,
+                        m_WeightsInfo.m_Dimensions[0],
+                        m_WeightsInfo.m_Dimensions[1],
+                        m_Stride,
+                        m_UpscaleFactor,
+                        params.m_Op,
+                        ShapeMultiplier{ m_UpscaleFactor, m_UpscaleFactor, 1 },
+                        ShapeMultiplier::Identity,
+                        params.m_Capabilities)
+    , m_DataType(params.m_DataType)
 {}
 
 Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
@@ -384,8 +422,10 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
     auto mceOp = std::make_unique<MceOp>(
         lifetime, m_Operation, mceOpAlgo, mceStripeInfo.m_BlockConfig, mceStripeInfo.m_Input, mceStripeInfo.m_Output,
         memoryStripesInfo.m_Weight.m_Shape, TraversalOrder::Xyz, m_Stride, m_PadLeft, m_PadTop);
-    Op* op             = opGraph.AddOp(std::move(mceOp));
-    op->m_OperationIds = m_CorrespondingOperationIds;
+    mceOp->m_UpscaleFactor = m_UpscaleFactor;
+    mceOp->m_UpsampleType  = m_UpsampleType;
+    Op* op                 = opGraph.AddOp(std::move(mceOp));
+    op->m_OperationIds     = m_CorrespondingOperationIds;
     opGraph.AddConsumer(sramInBuffer, op, 0);
     opGraph.AddConsumer(sramWeightBuffer, op, 1);
 
@@ -575,7 +615,7 @@ Plans McePart::GetMiddlePlans(ethosn::command_stream::BlockConfig blockConfig,
     bool isDepthwise = m_Operation == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
     auto stripeInfos = GenerateContinueSectionStripeInfos(
         numStripes, sramBuffer, numWeightStripes, isDepthwise, m_Capabilities, m_OutputTensorShape, kernelHeight,
-        kernelWidth, strideMultiplier, blockConfig, CascadeType::Middle);
+        kernelWidth, strideMultiplier, m_StripeGenerator.m_MceShapeMultiplier, blockConfig, CascadeType::Middle);
 
     if (!stripeInfos.has_value())
     {
@@ -613,9 +653,9 @@ Plans McePart::GetEndPlans(ethosn::command_stream::BlockConfig blockConfig,
     numStripes.m_PleInput = { 0, 0 };
 
     bool isDepthwise = m_Operation == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
-    auto stripeInfos = GenerateContinueSectionStripeInfos(numStripes, sramBuffer, numWeightStripes, isDepthwise,
-                                                          m_Capabilities, m_OutputTensorShape, kernelHeight,
-                                                          kernelWidth, strideMultiplier, blockConfig, CascadeType::End);
+    auto stripeInfos = GenerateContinueSectionStripeInfos(
+        numStripes, sramBuffer, numWeightStripes, isDepthwise, m_Capabilities, m_OutputTensorShape, kernelHeight,
+        kernelWidth, strideMultiplier, m_StripeGenerator.m_MceShapeMultiplier, blockConfig, CascadeType::End);
 
     if (!stripeInfos.has_value())
     {
@@ -694,7 +734,10 @@ ethosn::support_library::DotAttributes McePart::GetDotAttributes(DetailLevel det
         result.m_Label += "StripeGenerator.Stride = " + ToString(m_StripeGenerator.m_Stride) + "\n";
         result.m_Label += "StripeGenerator.UpscaleFactor = " + ToString(m_StripeGenerator.m_UpscaleFactor) + "\n";
         result.m_Label += "StripeGenerator.Operation = " + ToString(m_StripeGenerator.m_Operation) + "\n";
-        result.m_Label += "StripeGenerator.ShapeMultiplier = " + ToString(m_StripeGenerator.m_ShapeMultiplier) + "\n";
+        result.m_Label +=
+            "StripeGenerator.MceShapeMultiplier = " + ToString(m_StripeGenerator.m_MceShapeMultiplier) + "\n";
+        result.m_Label +=
+            "StripeGenerator.PleShapeMultiplier = " + ToString(m_StripeGenerator.m_PleShapeMultiplier) + "\n";
     }
     return result;
 }

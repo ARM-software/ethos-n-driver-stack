@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -40,28 +40,50 @@ McePart BuildPart(TensorShape inputShape,
                   Stride stride,
                   uint32_t padTop,
                   uint32_t padLeft,
+                  uint32_t upscaleFactor,
+                  command_stream::UpsampleType upsampleType,
                   const CompilationOptions& compOpt,
                   const HardwareCapabilities& caps)
 {
-    TensorInfo weightInfo = weightShape;
-    weightInfo.m_DataFormat =
-        op == command_stream::MceOperation::DEPTHWISE_CONVOLUTION ? DataFormat::HWIM : DataFormat::HWIO;
-    weightInfo.m_QuantizationInfo = { 0, 0.9f };
-    std::vector<uint8_t> weightData(utils::GetNumElements(weightShape), 1);
-
-    TensorInfo biasInfo = TensorShape{ 1, 1, 1, outputShape[3] };
-    std::vector<int32_t> biasData(outputShape[3], 0);
-
-    const PartId partId = 0;
-    const QuantizationInfo inputQuantInfo(0, 1.0f);
-    const QuantizationInfo outputQuantInfo(0, 1.0f);
-    const std::set<uint32_t> operationsIds = { 1 };
     EstimationOptions estOps;
-    McePart part(partId, inputShape, outputShape, inputQuantInfo, outputQuantInfo, weightInfo, weightData, biasInfo,
-                 biasData, stride, padTop, padLeft, op, estOps, compOpt, caps, operationsIds,
-                 ethosn::command_stream::DataType::U8);
+    McePart::ConstructionParams params(estOps, compOpt, caps);
+    params.m_Id                     = 0;
+    params.m_InputTensorShape       = inputShape;
+    params.m_OutputTensorShape      = outputShape;
+    params.m_InputQuantizationInfo  = QuantizationInfo(0, 1.0f);
+    params.m_OutputQuantizationInfo = QuantizationInfo(0, 1.0f);
+    params.m_WeightsInfo            = weightShape;
+    params.m_WeightsInfo.m_DataFormat =
+        op == command_stream::MceOperation::DEPTHWISE_CONVOLUTION ? DataFormat::HWIM : DataFormat::HWIO;
+    params.m_WeightsInfo.m_QuantizationInfo = { 0, 0.9f };
+    params.m_WeightsData                    = std::vector<uint8_t>(utils::GetNumElements(weightShape), 1);
+    params.m_BiasInfo                       = TensorShape{ 1, 1, 1, outputShape[3] };
+    params.m_BiasData                       = std::vector<int32_t>(outputShape[3], 0);
+    params.m_Stride                         = stride;
+    params.m_PadTop                         = padTop;
+    params.m_PadLeft                        = padLeft;
+    params.m_Op                             = op;
+    params.m_OperationIds                   = { 1 };
+    params.m_DataType                       = ethosn::command_stream::DataType::U8;
+    params.m_UpscaleFactor                  = upscaleFactor;
+    params.m_UpsampleType                   = upsampleType;
+    McePart part(std::move(params));
 
     return part;
+}
+
+McePart BuildPart(TensorShape inputShape,
+                  TensorShape outputShape,
+                  TensorShape weightShape,
+                  command_stream::MceOperation op,
+                  Stride stride,
+                  uint32_t padTop,
+                  uint32_t padLeft,
+                  const CompilationOptions& compOpt,
+                  const HardwareCapabilities& caps)
+{
+    return BuildPart(inputShape, outputShape, weightShape, op, stride, padTop, padLeft, 1,
+                     command_stream::UpsampleType::OFF, compOpt, caps);
 }
 
 McePart BuildPart(TensorShape inputShape,
@@ -140,6 +162,8 @@ struct CheckPlansParams
     utils::Optional<Stride> m_Stride;
     utils::Optional<uint32_t> m_PadTop;
     utils::Optional<uint32_t> m_PadLeft;
+    utils::Optional<uint32_t> m_UpscaleFactor;
+    utils::Optional<command_stream::UpsampleType> m_UpsampleType;
     utils::Optional<std::set<uint32_t>> m_OperationIds;
     /// @}
 
@@ -438,6 +462,14 @@ void CheckMce(const CheckPlansParams& params, PlanDesc& desc)
     if (params.m_PadTop)
     {
         CHECK(desc.m_Mce->m_PadTop == params.m_PadTop.value());
+    }
+    if (params.m_UpscaleFactor)
+    {
+        CHECK(desc.m_Mce->m_UpscaleFactor == params.m_UpscaleFactor.value());
+    }
+    if (params.m_UpsampleType)
+    {
+        CHECK(desc.m_Mce->m_UpsampleType == params.m_UpsampleType.value());
     }
 }
 
@@ -1793,6 +1825,81 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                 return b;
             });
             CheckPlans(plans, params);
+        }
+    }
+}
+
+TEST_CASE("McePart GetPlans Upsampling")
+{
+    GIVEN("An McePart for a convolution with upsampling")
+    {
+        const CompilationOptions compOpt;
+        const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+
+        TensorShape tsIn  = { 1, 64, 64, 16 };
+        TensorShape tsOut = { 1, 128, 128, 16 };
+        McePart part = BuildPart(tsIn, tsOut, { 1, 1, 16, 16 }, command_stream::MceOperation::CONVOLUTION, Stride{}, 0,
+                                 0, 2, command_stream::UpsampleType::NEAREST_NEIGHBOUR, compOpt, caps);
+
+        WHEN("Asked to generate Lonely plans")
+        {
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
+            SavePlansToDot(plans, "McePart GetPlans Upsampling Lonely");
+
+            THEN("The plans are all valid and have stripe configs that are consistent with upsampling and there is a "
+                 "strategy 0 plan")
+            {
+                CheckPlansParams params;
+                params.m_InputShape    = tsIn;
+                params.m_OutputShape   = tsOut;
+                params.m_UpscaleFactor = 2;
+                params.m_UpsampleType  = command_stream::UpsampleType::NEAREST_NEIGHBOUR;
+                params.m_All           = [&](const PlanDesc& plan) {
+                    CHECK(plan.m_PleInputSram->m_StripeShape[1] == 2 * plan.m_InputSram->m_StripeShape[1]);
+                    CHECK(plan.m_PleInputSram->m_StripeShape[2] == 2 * plan.m_InputSram->m_StripeShape[2]);
+                };
+                params.m_Any.push_back([&](const PlanDesc& plan) {
+                    return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 16, 64, 16 } &&
+                           plan.m_PleInputSram->m_StripeShape == TensorShape{ 1, 32, 128, 16 };
+                });
+                CheckPlans(plans, params);
+            }
+        }
+
+        WHEN("Asked to generate Middle plans")
+        {
+            Buffer prevBuffer;
+            prevBuffer.m_Lifetime         = Lifetime::Cascade;
+            prevBuffer.m_Location         = Location::Sram;
+            prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
+            prevBuffer.m_QuantizationInfo = { 0, 1.0f };
+            prevBuffer.m_TensorShape      = tsIn;
+            prevBuffer.m_StripeShape      = TensorShape{ 1, 8, 64, 16 };
+            prevBuffer.m_Order            = TraversalOrder::Xyz;
+            prevBuffer.m_SizeInBytes      = 8 * 64 * 16 * 1;
+            prevBuffer.m_NumStripes       = 1;
+
+            Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 32u, 8u }, &prevBuffer, 1);
+            SavePlansToDot(plans, "McePart GetPlans Upsampling Middle");
+
+            THEN("The plans are all valid and have stripe configs that are consistent with upsampling and there is a "
+                 "strategy 0 plan")
+            {
+                CheckPlansParams params;
+                params.m_InputShape    = tsIn;
+                params.m_OutputShape   = tsOut;
+                params.m_UpscaleFactor = 2;
+                params.m_UpsampleType  = command_stream::UpsampleType::NEAREST_NEIGHBOUR;
+                params.m_All           = [&](const PlanDesc& plan) {
+                    CHECK(plan.m_PleInputSram->m_StripeShape[1] == 2 * plan.m_InputSram->m_StripeShape[1]);
+                    CHECK(plan.m_PleInputSram->m_StripeShape[2] == 2 * plan.m_InputSram->m_StripeShape[2]);
+                };
+                params.m_Any.push_back([&](const PlanDesc& plan) {
+                    return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 64, 16 } &&
+                           plan.m_PleInputSram->m_StripeShape == TensorShape{ 1, 16, 128, 16 };
+                });
+                CheckPlans(plans, params);
+            }
         }
     }
 }

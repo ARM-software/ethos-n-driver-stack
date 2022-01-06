@@ -42,6 +42,7 @@ public:
     void Visit(MeanXy& meanxy) final;
     void Visit(EstimateOnly& estimateOnly) final;
     void Visit(Addition& addition) final;
+    void Visit(Resize& resize) final;
 
     void ConnectParts(Operation& operation, std::vector<BasePart*>& m_Part);
 

@@ -288,6 +288,8 @@ MceOp::MceOp()
     , m_Stride()
     , m_PadLeft(0)
     , m_PadTop(0)
+    , m_UpscaleFactor(1)
+    , m_UpsampleType(command_stream::UpsampleType::OFF)
 {}
 
 MceOp::MceOp(Lifetime lifetime,
@@ -312,6 +314,8 @@ MceOp::MceOp(Lifetime lifetime,
     , m_Stride(stride)
     , m_PadLeft(padLeft)
     , m_PadTop(padTop)
+    , m_UpscaleFactor(1)
+    , m_UpsampleType(command_stream::UpsampleType::OFF)
 {}
 
 PleOp::PleOp()

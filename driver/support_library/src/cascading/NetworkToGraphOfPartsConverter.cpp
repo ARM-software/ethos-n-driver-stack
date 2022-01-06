@@ -511,6 +511,46 @@ void NetworkToGraphOfPartsConverter::Visit(EstimateOnly& estimateOnly)
     ConnectParts(estimateOnly, parts);
 }
 
+void NetworkToGraphOfPartsConverter::Visit(Resize& resize)
+{
+    const TensorInfo& inputInfo   = resize.GetInput(0).GetTensorInfo();
+    const TensorShape& inputShape = inputInfo.m_Dimensions;
+    const TensorInfo& outputInfo  = resize.GetOutput(0).GetTensorInfo();
+    const ResizeInfo& resizeInfo  = resize.GetResizeInfo();
+
+    // This is checked in IsSupported but let's make sure that here it using the only
+    // upscale factor supported which is 2U for height and width.
+    const uint32_t upscaleFactorHeight = DivRoundUp(GetHeight(outputInfo.m_Dimensions), GetHeight(inputShape));
+    const uint32_t upscaleFactorWidth  = DivRoundUp(GetWidth(outputInfo.m_Dimensions), GetWidth(inputShape));
+    ETHOSN_UNUSED(upscaleFactorWidth);
+    assert((upscaleFactorHeight == upscaleFactorWidth) && (upscaleFactorHeight == 2U));
+
+    McePart::ConstructionParams params(m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+    params.m_Id                     = m_GraphOfParts.GeneratePartId();
+    params.m_InputTensorShape       = inputShape;
+    params.m_OutputTensorShape      = outputInfo.m_Dimensions;
+    params.m_InputQuantizationInfo  = inputInfo.m_QuantizationInfo;
+    params.m_OutputQuantizationInfo = outputInfo.m_QuantizationInfo;
+    const uint32_t numIfm           = inputShape[3];
+    const float weightScale         = 0.5f;
+    params.m_WeightsInfo   = { { 1, 1, numIfm, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, { 0, weightScale } };
+    params.m_WeightsData   = std::vector<uint8_t>(1 * 1 * 1 * numIfm, 2);
+    const float biasScale  = weightScale * inputInfo.m_QuantizationInfo.GetScale();
+    params.m_BiasInfo      = { { 1, 1, 1, numIfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
+    params.m_BiasData      = std::vector<int32_t>(numIfm, 0);
+    params.m_Op            = command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
+    params.m_OperationIds  = std::set<uint32_t>{ resize.GetId() };
+    params.m_DataType      = GetCommandDataType(outputInfo.m_DataType);
+    params.m_UpscaleFactor = upscaleFactorHeight;
+    params.m_UpsampleType  = ConvertResizeAlgorithmToCommand(resizeInfo.m_Algo);
+    auto mcePart           = std::make_unique<McePart>(std::move(params));
+
+    std::vector<BasePart*> parts;
+    parts.push_back(mcePart.get());
+    m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+    ConnectParts(resize, parts);
+}
+
 std::vector<uint8_t> NetworkToGraphOfPartsConverter::OverrideWeights(const std::vector<uint8_t>& userWeights,
                                                                      const TensorInfo& weightsInfo) const
 {

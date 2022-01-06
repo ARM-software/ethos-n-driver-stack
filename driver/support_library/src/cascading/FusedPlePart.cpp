@@ -48,6 +48,7 @@ FusedPlePart::FusedPlePart(PartId id,
                         Stride{ 1, 1 },
                         1,
                         MceOperation::DEPTHWISE_CONVOLUTION,
+                        ShapeMultiplier::Identity,
                         shapeMultiplier,
                         capabilities)
     , m_WeightEncoderCache{ capabilities }
@@ -517,7 +518,10 @@ ethosn::support_library::DotAttributes FusedPlePart::GetDotAttributes(DetailLeve
         result.m_Label += "StripeGenerator.Stride = " + ToString(m_StripeGenerator.m_Stride) + "\n";
         result.m_Label += "StripeGenerator.UpscaleFactor = " + ToString(m_StripeGenerator.m_UpscaleFactor) + "\n";
         result.m_Label += "StripeGenerator.Operation = " + ToString(m_StripeGenerator.m_Operation) + "\n";
-        result.m_Label += "StripeGenerator.ShapeMultiplier = " + ToString(m_StripeGenerator.m_ShapeMultiplier) + "\n";
+        result.m_Label +=
+            "StripeGenerator.MceShapeMultiplier = " + ToString(m_StripeGenerator.m_MceShapeMultiplier) + "\n";
+        result.m_Label +=
+            "StripeGenerator.PleShapeMultiplier = " + ToString(m_StripeGenerator.m_PleShapeMultiplier) + "\n";
     }
     return result;
 }

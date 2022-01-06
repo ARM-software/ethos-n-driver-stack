@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -108,6 +108,8 @@ uint32_t HardwareCapabilities::GetNumberOfPleLanes() const
 
 namespace utils
 {
+
+const ShapeMultiplier ShapeMultiplier::Identity = g_IdentityShapeMultiplier;
 
 uint32_t EstimateWeightSizeBytes(const TensorShape& shape, const HardwareCapabilities& capabilities, bool isHwim)
 {
