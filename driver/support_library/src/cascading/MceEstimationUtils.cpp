@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -128,22 +128,36 @@ uint64_t GetNumOperations(const HardwareCapabilities& caps,
                           const uint32_t weightsHeight,
                           const uint32_t weightsWidth)
 {
-    const uint64_t numKernelElements = static_cast<uint64_t>(weightsWidth) * weightsHeight;
-    const uint64_t numOpsPerElement  = 2U * numKernelElements;
-    const uint64_t numActualIfms     = utils::GetNumOrigChannels(inputShape[3], stride.m_X, stride.m_Y, caps);
-    const uint64_t numInputElements  = static_cast<uint64_t>(inputShape[1]) * inputShape[2];
-    const uint64_t numOpsPerIfm      = numInputElements * numOpsPerElement;
+    const uint64_t numKernelElements    = static_cast<uint64_t>(weightsWidth) * weightsHeight;
+    const uint64_t numOpsPerElement     = 2U * numKernelElements;
+    const uint64_t numUninterleavedIfms = utils::GetNumOrigChannels(inputShape[3], stride.m_X, stride.m_Y, caps);
+    const uint64_t numOutputElements    = static_cast<uint64_t>(outputShape[1]) * outputShape[2];
+    const uint64_t numOpsPerIfmPerOfm   = numOutputElements * numOpsPerElement;
 
-    uint64_t numIfms = numActualIfms;
-    uint64_t numOfms = outputShape[3];
-
-    if (convtype == command_stream::MceOperation::DEPTHWISE_CONVOLUTION)
+    uint64_t numIfms = 0;
+    uint64_t numOfms = 0;
+    if (convtype == command_stream::MceOperation::CONVOLUTION)
+    {
+        numIfms = numUninterleavedIfms;
+        numOfms = outputShape[3];
+    }
+    else if (convtype == command_stream::MceOperation::DEPTHWISE_CONVOLUTION)
     {
         numIfms = 1;
-        numOfms = numActualIfms;
+        numOfms = numUninterleavedIfms;
+    }
+    else if (convtype == command_stream::MceOperation::FULLY_CONNECTED)
+    {
+        // Fully connected has its input as a 3D tensor, but it needs to be treated as 1D
+        numIfms = numUninterleavedIfms * inputShape[1] * inputShape[2];
+        numOfms = outputShape[3];
+    }
+    else
+    {
+        ETHOSN_FAIL_MSG("Unexpected convtype");
     }
 
-    return numIfms * numOpsPerIfm * numOfms;
+    return numIfms * numOpsPerIfmPerOfm * numOfms;
 }
 
 MceStats GetMceStats(const HardwareCapabilities& caps,
