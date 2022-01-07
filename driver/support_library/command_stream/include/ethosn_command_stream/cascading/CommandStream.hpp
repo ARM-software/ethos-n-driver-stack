@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -101,6 +101,15 @@ struct ReluActivation
     int16_t max;
 };
 
+struct PleKernelInfo
+{
+    /// ID of the PLE kernel
+    PleKernelId pleKernelId;
+    /// Destination SRAM address if used in PleL
+    /// Source SRAM address if used in PleS
+    uint16_t sramAddr;
+};
+
 ETHOSN_DECL_SV_VECTOR_STRUCT(StrideXy, x, y);
 
 enum class MceOperation : uint8_t
@@ -145,10 +154,8 @@ struct MceS
 /// Ple Loader data
 struct PleL
 {
-    /// ID to get DMA address and size
-    PleKernelId pleKernelId;
-    /// Destination SRAM address
-    uint16_t sramAddr;
+    /// Ple information
+    PleKernelInfo pleKernelInfo;
 };
 
 /// Ple Scheduler work size
@@ -200,6 +207,9 @@ struct PleS
     Tile ifmTile1;
     /// Second input zero correction, multiplier and shift
     PleIfmInfo ifmInfo1;
+
+    /// Ple information
+    PleKernelInfo pleKernelInfo;
 };
 
 /// Enum tag for agent data
