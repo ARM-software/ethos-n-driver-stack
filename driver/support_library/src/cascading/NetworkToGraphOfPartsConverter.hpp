@@ -46,6 +46,7 @@ public:
     void Visit(Addition& addition) final;
     void Visit(Resize& resize) final;
     void Visit(Relu& relu) final;
+    void Visit(TransposeConvolution& transposeConvolution) final;
 
     void ConnectParts(Operation& operation, std::vector<BasePart*>& m_Part);
 
@@ -63,10 +64,20 @@ private:
                                                    const EstimationOptions& estOpt,
                                                    const CompilationOptions& compOpt,
                                                    const HardwareCapabilities& capabilities);
+    std::vector<BasePart*> CreateTransposeConv(const Stride& stride,
+                                               const TensorInfo& weightsInfo,
+                                               const std::vector<uint8_t>& weightsData,
+                                               const TensorInfo& biasInfo,
+                                               std::vector<int32_t> biasData,
+                                               const Padding& padding,
+                                               const TensorInfo& inputInfo,
+                                               const TensorInfo& outputInfo,
+                                               const std::set<uint32_t>& operationIds);
 
     const HardwareCapabilities& m_Capabilities;
     utils::Optional<const EstimationOptions&> m_EstimationOptions;
     const CompilationOptions& m_CompilationOptions;
+    SupportQueries m_Queries;
     std::map<const Operand*, BasePart*> m_OperandToPart;
     GraphOfParts m_GraphOfParts;
 };

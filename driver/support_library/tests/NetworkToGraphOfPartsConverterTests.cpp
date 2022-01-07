@@ -1334,3 +1334,195 @@ TEST_CASE("NetworkToGraphOfPartsConverter Relu Conv")
         REQUIRE(mceOp->m_UpperBound == 255);
     }
 }
+
+// Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the NetworkToGraphOfPartsConverter.
+// The topology is chosen to test that the TransposeConvolution operation with a small kernel is correctly
+// converted to an McePart using upscale.
+TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{ { { 1, 16, 16, 16 } }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, { 0, 1.f } };
+    TensorInfo biasInfo{ { { 1, 1, 1, 4 } }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, 1.f } };
+    TensorInfo weightsInfo{ { { 3, 3, 16, 4 } }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, { 0, 1.f } };
+    ConvolutionInfo convInfo{ { 0, 0, 0, 0 }, { 2, 2 }, { 0, 1.1f } };
+
+    const std::vector<uint8_t> biasData(utils::TotalSizeBytes(biasInfo));
+    const std::vector<uint8_t> weightsData(utils::TotalSizeBytes(weightsInfo));
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+    std::shared_ptr<Operand> input    = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
+    std::shared_ptr<Constant> weights = AddConstant(network, weightsInfo, weightsData.data()).tensor;
+    std::shared_ptr<Operand> tconv    = AddTransposeConvolution(network, *input, *bias, *weights, convInfo).tensor;
+    std::shared_ptr<Output> output    = AddOutput(network, *tconv).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest TransposeConvolution.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest TransposeConvolution Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    // We check only the McePart that we expect to be created - the Input and Output part and connections
+    // between the Parts are covered by NetworkToGraphOfPartsConverterTest
+    const McePart* mcePart = dynamic_cast<const McePart*>(&graph.GetPart(1));
+    REQUIRE(mcePart != nullptr);
+    auto plans = mcePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    auto mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
+    REQUIRE(mceOp != nullptr);
+    CHECK(mceOp->m_UpscaleFactor == 2);
+    CHECK(mceOp->m_UpsampleType == ethosn::command_stream::UpsampleType::TRANSPOSE);
+    CHECK(mceOp->m_PadTop == 2);
+    CHECK(mceOp->m_PadLeft == 2);
+    CHECK(mceOp->m_Stride == Stride{ 1, 1 });
+    CHECK(mceOp->m_Op == ethosn::command_stream::MceOperation::CONVOLUTION);
+}
+
+// Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the NetworkToGraphOfPartsConverter.
+// The topology is chosen to test that the TransposeConvolution operation with a large kernel is correctly
+// converted to two MceParts, with the first using an upscale.
+TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution Large Weights")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{ { { 1, 16, 16, 16 } }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, { 0, 1.f } };
+    TensorInfo biasInfo{ { { 1, 1, 1, 4 } }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, 1.f } };
+    TensorInfo weightsInfo{ { { 9, 9, 16, 4 } }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, { 0, 1.f } };
+    ConvolutionInfo convInfo{ { 4, 4, 4, 4 }, { 2, 2 }, { 0, 1.1f } };
+
+    const std::vector<int32_t> biasData(utils::TotalSizeBytes(biasInfo));
+    const std::vector<uint8_t> weightsData(utils::TotalSizeBytes(weightsInfo));
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+    std::shared_ptr<Operand> input    = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
+    std::shared_ptr<Constant> weights = AddConstant(network, weightsInfo, weightsData.data()).tensor;
+    std::shared_ptr<Operand> tconv    = AddTransposeConvolution(network, *input, *bias, *weights, convInfo).tensor;
+    std::shared_ptr<Output> output    = AddOutput(network, *tconv).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest TransposeConvolution Large Weights.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest TransposeConvolution Large Weights Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    // InputPart, McePart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 4);
+
+    // We check only the MceParts that we expect to be created - the Input and Output part and connections
+    // between the Parts are covered by NetworkToGraphOfPartsConverterTest
+    const McePart* mcePart1 = dynamic_cast<const McePart*>(&graph.GetPart(1));
+    REQUIRE(mcePart1 != nullptr);
+    auto plans1 = mcePart1->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    auto mceOp1 = dynamic_cast<MceOp*>(plans1[0].m_OpGraph.GetOp(1));
+    REQUIRE(mceOp1 != nullptr);
+    CHECK(mceOp1->m_UpscaleFactor == 2);
+    CHECK(mceOp1->m_UpsampleType == ethosn::command_stream::UpsampleType::TRANSPOSE);
+    CHECK(mceOp1->m_PadTop == 0);
+    CHECK(mceOp1->m_PadLeft == 0);
+    CHECK(mceOp1->m_Stride == Stride{ 1, 1 });
+    CHECK(mceOp1->m_Op == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION);
+
+    const McePart* mcePart2 = dynamic_cast<const McePart*>(&graph.GetPart(2));
+    REQUIRE(mcePart2 != nullptr);
+    auto plans2 = mcePart2->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    auto mceOp2 = dynamic_cast<MceOp*>(plans2[0].m_OpGraph.GetOp(1));
+    REQUIRE(mceOp2 != nullptr);
+    CHECK(mceOp2->m_UpscaleFactor == 1);
+    CHECK(mceOp2->m_UpsampleType == ethosn::command_stream::UpsampleType::OFF);
+    CHECK(mceOp2->m_PadTop == 4);
+    CHECK(mceOp2->m_PadLeft == 4);
+    CHECK(mceOp2->m_Stride == Stride{ 1, 1 });
+    CHECK(mceOp2->m_Op == ethosn::command_stream::MceOperation::CONVOLUTION);
+}
+
+// Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the NetworkToGraphOfPartsConverter.
+// The topology is chosen to test that the TransposeConvolution operation with an estimate-only configuration
+// is converted to an EstimateOnlyPart
+TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution EstimateOnly")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{ { { 1, 16, 16, 16 } }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, { 0, 1.f } };
+    TensorInfo biasInfo{ { { 1, 1, 1, 4 } }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, 1.f } };
+    TensorInfo weightsInfo{ { { 9, 9, 16, 4 } }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, { 0, 1.f } };
+    // Stride 3,3 is estimate-only
+    ConvolutionInfo convInfo{ { 4, 4, 4, 4 }, { 3, 3 }, { 0, 1.1f } };
+
+    const std::vector<int32_t> biasData(utils::TotalSizeBytes(biasInfo));
+    const std::vector<uint8_t> weightsData(utils::TotalSizeBytes(weightsInfo));
+
+    const std::shared_ptr<Network> network =
+        CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+    std::shared_ptr<Operand> input    = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
+    std::shared_ptr<Constant> weights = AddConstant(network, weightsInfo, weightsData.data()).tensor;
+    std::shared_ptr<Operand> tconv    = AddTransposeConvolution(network, *input, *bias, *weights, convInfo).tensor;
+    std::shared_ptr<Output> output    = AddOutput(network, *tconv).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest TransposeConvolution EstimateOnly.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest TransposeConvolution EstimateOnly Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    // InputPart, EstimateOnlyPart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    // We check only the EstimateOnlyPart that we expect to be created - the Input and Output part and connections
+    // between the Parts are covered by NetworkToGraphOfPartsConverterTest
+    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
+    REQUIRE(estimateOnlyPart != nullptr);
+    auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 16, 16, 16 });
+    REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 46, 46, 4 });
+    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
+    REQUIRE(estimateOnlyOp != nullptr);
+    CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Unsupported stride") != std::string::npos);
+}

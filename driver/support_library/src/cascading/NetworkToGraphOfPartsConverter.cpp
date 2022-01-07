@@ -67,6 +67,7 @@ NetworkToGraphOfPartsConverter::NetworkToGraphOfPartsConverter(const Network& ne
     : m_Capabilities(capabilities)
     , m_EstimationOptions(estimationOptions)
     , m_CompilationOptions(compilationOptions)
+    , m_Queries(capabilities.GetData())
 {
     network.Accept(*this);
 }
@@ -521,11 +522,16 @@ void NetworkToGraphOfPartsConverter::Visit(EstimateOnly& estimateOnly)
     // Convert from DataFormat to CompilerFormat needed for the EstimateOnly.
     CompilerDataFormat compilerDataFormat =
         ConvertExternalToCompilerDataFormat(estimateOnly.GetEstimateOnlyInfo().m_OutputInfos[0].m_DataFormat);
+    std::vector<TensorInfo> inputInfos;
+    for (const Operand* input : estimateOnly.GetInputs())
+    {
+        inputInfos.push_back(input->GetTensorInfo());
+    }
+
     auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
-        m_GraphOfParts.GeneratePartId(), estimateOnly.GetEstimateOnlyInfo().m_ReasonForEstimateOnly,
-        estimateOnly.GetEstimateOnlyInfo().m_OutputInfos, estimateOnly.GetEstimateOnlyInfo().m_OutputInfos,
-        compilerDataFormat, std::set<uint32_t>{ estimateOnly.GetId() }, m_EstimationOptions.value(),
-        m_CompilationOptions, m_Capabilities);
+        m_GraphOfParts.GeneratePartId(), estimateOnly.GetEstimateOnlyInfo().m_ReasonForEstimateOnly, inputInfos,
+        estimateOnly.GetEstimateOnlyInfo().m_OutputInfos, compilerDataFormat,
+        std::set<uint32_t>{ estimateOnly.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
     parts.push_back(std::move(estimateOnlyPart.get()));
     m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
@@ -602,6 +608,199 @@ void NetworkToGraphOfPartsConverter::Visit(Relu& relu)
     // If the input to the relu has activations we need to modify them
     inputPart->ModifyActivationBounds(info.m_LowerBound, info.m_UpperBound);
     m_OperandToPart[&relu.GetOutput(0)] = inputPart;
+}
+
+std::vector<BasePart*> NetworkToGraphOfPartsConverter::CreateTransposeConv(const Stride& stride,
+                                                                           const TensorInfo& weightsInfo,
+                                                                           const std::vector<uint8_t>& weightsData,
+                                                                           const TensorInfo& biasInfo,
+                                                                           std::vector<int32_t> biasData,
+                                                                           const Padding& padding,
+                                                                           const TensorInfo& inputInfo,
+                                                                           const TensorInfo& outputInfo,
+                                                                           const std::set<uint32_t>& operationIds)
+{
+    std::vector<BasePart*> parts;
+
+    // TransposeConvolution is implemented as an upscale (padding) operation + a convolution.
+    // The stride parameter of a TransposeConvolution represents the upscaling factor.
+    // The stride of the convolution operation underneath is always 1.
+    // The stride comes in as a vector {x, y} where x = y (validated by IsSupported checks)
+    assert(stride.m_X == stride.m_Y);
+    uint32_t upscaleFactor                            = stride.m_X;
+    ethosn::command_stream::UpsampleType upsampleType = ethosn::command_stream::UpsampleType::TRANSPOSE;
+    const TensorShape& weightsShape                   = weightsInfo.m_Dimensions;
+
+    // The padding of a TransposeConvolution affects the convolution operation underneath, but requires modification.
+    // This means there is a restriction on the size of the padding such that our internal padding cannot be negative,
+    // which is checked in IsTransposeConvolutionSupported (by virtue of supporting only same/valid padding).
+
+    // The user-specified padding applies to the *output* of the transpose conv rather than the input like in a regular
+    // convolution (see below example of output tensor with 1 padding on top/left). The padding is essentially cropping
+    // the output tensor.
+    //
+    // When the padding is specified as zero the output tensor is not cropped at all, meaning that the top-left-most
+    // (s_x, s_y) elements (where s_x, s_y are the strides) are equal to top-left (s_x, s_y) portion of the kernel
+    // multiplied by the top-left input value.
+    //
+    // In order to get this same result from our internal convolution we need to add enough padding so that as we slide
+    // the kernel over the upscaled-and-padded input, the first (s_x, s_y) output elements depend only on the top-left
+    // input value. Here is an example showing that we need 2 padding for a 3x3 kernel with stride 2. The highlighted
+    // window shows the values used to calculate the (1,1) output value and it depends only on I0 as required.
+    // The same is true for the (0,0), (0,1) and (1,0) output values.
+    //
+    // +---+---+----+---+----+---+
+    // | P | P | P  | P | P  | P |
+    // +---╬═══╬════╬═══╬----+---+
+    // | P ║ P | P  | P ║ P  | P |
+    // +---╬---+----+---╬----+---+
+    // | P ║ P | I0 | 0 ║ I1 | 0 |
+    // +---╬---+----+---╬----+---+
+    // | P ║ P | 0  | 0 ║ 0  | 0 |
+    // +---╬═══╬════╬═══╬----+---+
+    // | P | P | I2 | 0 | I3 | 0 |
+    // +---+---+----+---+----+---+
+    // | P | P | 0  | 0 | 0  | 0 |
+    // +---+---+----+---+----+---+
+    //
+    // The amount of padding required for the zero-padding case is therefore kernel_size - 1.
+    // Increasing the padding on the transpose convolution crops pixels from the output, which means that the region of
+    // the output which depends only on the first input value gets smaller. This means that for our internal convolution
+    // we must *decrease* the padding by the same amount. At the extreme this means that we will have zero padding
+    // on our internal convolution so that *only* the first output value will depend on the first input value.
+    // This corresponds to a padding/cropping of kernel_size - 1 on the transpose convolution.
+    //
+    // From this, we can calculate the internal convolution padding as: kernel_size - 1 - original_padding.
+    const uint32_t topMcePadding  = weightsShape[0] - 1 - padding.m_Top;
+    const uint32_t leftMcePadding = weightsShape[1] - 1 - padding.m_Left;
+
+    TensorShape inputShape = inputInfo.m_Dimensions;
+
+    // We can't do upscaling with a large kernel size, so we have to do the upscaling in a separate pass beforehand
+    // with an identity (1x1) kernel. The convolution is then performed in another pass.
+    if (weightsShape[0] > 7 || weightsShape[1] > 7)
+    {
+        const TensorShape& intermediateOutputShape = { inputShape[0], inputShape[1] * upscaleFactor,
+                                                       inputShape[2] * upscaleFactor, inputShape[3] };
+
+        const uint32_t numIfm   = inputShape[3];
+        const float weightScale = 0.5f;
+        const float biasScale   = weightScale * inputInfo.m_QuantizationInfo.GetScale();
+
+        std::vector<uint8_t> weightsData(1 * 1 * 1 * numIfm, 2);
+        std::vector<int32_t> biasData(numIfm, 0);
+
+        TensorInfo weightInfo{ { 1, 1, numIfm, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, { 0, weightScale } };
+        TensorInfo biasInfo{ { 1, 1, 1, numIfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
+
+        McePart::ConstructionParams params(m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+        params.m_Id                     = m_GraphOfParts.GeneratePartId();
+        params.m_InputTensorShape       = inputShape;
+        params.m_OutputTensorShape      = intermediateOutputShape;
+        params.m_InputQuantizationInfo  = inputInfo.m_QuantizationInfo;
+        params.m_OutputQuantizationInfo = inputInfo.m_QuantizationInfo;
+        params.m_WeightsInfo            = weightInfo;
+        params.m_WeightsData            = std::move(weightsData);
+        params.m_BiasInfo               = biasInfo;
+        params.m_BiasData               = std::move(biasData);
+        params.m_Stride                 = Stride(1, 1);
+        params.m_PadTop                 = 0;
+        params.m_PadLeft                = 0;
+        params.m_Op                     = command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
+        params.m_OperationIds           = operationIds;
+        params.m_DataType               = GetCommandDataType(inputInfo.m_DataType);
+        params.m_UpscaleFactor          = upscaleFactor;
+        params.m_UpsampleType           = upsampleType;
+
+        auto identityDepthwisePart = std::make_unique<McePart>(std::move(params));
+        parts.push_back(identityDepthwisePart.get());
+        m_GraphOfParts.m_Parts.push_back(std::move(identityDepthwisePart));
+
+        upscaleFactor = 1;
+        upsampleType  = ethosn::command_stream::UpsampleType::OFF;
+        inputShape    = intermediateOutputShape;
+    }
+
+    // Rotate weights by 180 in the XY plane.
+    // This is needed for the internal convolution to produce the same result as the transpose convolution.
+    ConstTensorData originalWeights(weightsData.data(), weightsShape);
+    std::vector<uint8_t> flippedWeightsData(weightsData.size());
+    TensorData flippedWeights(flippedWeightsData.data(), weightsShape);
+    for (uint32_t y = 0; y < weightsShape[0]; ++y)
+    {
+        for (uint32_t x = 0; x < weightsShape[1]; ++x)
+        {
+            // The other two dimensions are irrelevant and we can copy them together as a contiguous block
+            const uint32_t n   = weightsShape[2] * weightsShape[3];
+            const uint8_t& src = originalWeights.GetElementRef(y, x, 0, 0);
+            uint8_t& dst       = flippedWeights.GetElementRef(weightsShape[0] - 1 - y, weightsShape[1] - 1 - x, 0, 0);
+            std::copy_n(&src, n, &dst);
+        }
+    }
+
+    McePart::ConstructionParams params(m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+    params.m_Id                     = m_GraphOfParts.GeneratePartId();
+    params.m_InputTensorShape       = inputShape;
+    params.m_OutputTensorShape      = outputInfo.m_Dimensions;
+    params.m_InputQuantizationInfo  = inputInfo.m_QuantizationInfo;
+    params.m_OutputQuantizationInfo = outputInfo.m_QuantizationInfo;
+    params.m_WeightsInfo            = weightsInfo;
+    params.m_WeightsData            = std::move(flippedWeightsData);
+    params.m_BiasInfo               = biasInfo;
+    params.m_BiasData               = std::move(biasData);
+    params.m_Stride                 = Stride(1, 1);
+    params.m_PadTop                 = topMcePadding;
+    params.m_PadLeft                = leftMcePadding;
+    params.m_Op                     = command_stream::MceOperation::CONVOLUTION;
+    params.m_OperationIds           = operationIds;
+    params.m_DataType               = GetCommandDataType(outputInfo.m_DataType);
+    params.m_UpscaleFactor          = upscaleFactor;
+    params.m_UpsampleType           = upsampleType;
+    auto mcePart                    = std::make_unique<McePart>(std::move(params));
+
+    parts.push_back(mcePart.get());
+    m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+
+    return parts;
+}
+
+void NetworkToGraphOfPartsConverter::Visit(TransposeConvolution& transposeConvolution)
+{
+    const Stride& stride                    = transposeConvolution.GetConvolutionInfo().m_Stride;
+    const TensorInfo& weightsInfo           = transposeConvolution.GetWeights().GetTensorInfo();
+    const std::vector<uint8_t>& weightsData = transposeConvolution.GetWeights().GetDataVector();
+    const TensorInfo& biasInfo              = transposeConvolution.GetBias().GetTensorInfo();
+    std::vector<int32_t> biasData = GetDataVectorAs<int32_t, uint8_t>(transposeConvolution.GetBias().GetDataVector());
+    const Padding& padding        = transposeConvolution.GetConvolutionInfo().m_Padding;
+    const TensorInfo& inputInfo   = transposeConvolution.GetInput(0).GetTensorInfo();
+    const TensorInfo& outputInfo  = transposeConvolution.GetOutput(0).GetTensorInfo();
+    const std::set<uint32_t> operationIds = { transposeConvolution.GetId(), transposeConvolution.GetBias().GetId(),
+                                              transposeConvolution.GetWeights().GetId() };
+
+    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
+    char reason[1024];
+    const SupportedLevel supportedLevel = m_Queries.IsTransposeConvolutionSupported(
+        transposeConvolution.GetBias().GetTensorInfo(), transposeConvolution.GetWeights().GetTensorInfo(),
+        transposeConvolution.GetConvolutionInfo(), transposeConvolution.GetInput(0).GetTensorInfo(), nullptr, reason,
+        sizeof(reason));
+    std::vector<BasePart*> parts;
+    if (supportedLevel == SupportedLevel::EstimateOnly)
+    {
+        auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
+            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputInfo },
+            std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
+            operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+        parts.push_back(std::move(estimateOnlyPart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+    }
+    else
+    {
+        parts = CreateTransposeConv(stride, weightsInfo, weightsData, biasInfo, std::move(biasData), padding, inputInfo,
+                                    outputInfo, operationIds);
+    }
+
+    ConnectParts(transposeConvolution, parts);
 }
 
 std::vector<uint8_t> NetworkToGraphOfPartsConverter::OverrideWeights(const std::vector<uint8_t>& userWeights,
