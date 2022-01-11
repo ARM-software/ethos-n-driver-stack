@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -39,15 +39,15 @@ FusedPlePart BuildPart(TensorShape inputShape,
                        TensorShape outputShape,
                        command_stream::PleOperation op,
                        utils::ShapeMultiplier shapeMultiplier,
-                       const HardwareCapabilities& caps)
+                       const CompilationOptions& compOpts,
+                       const HardwareCapabilities& caps,
+                       const EstimationOptions& estOpts)
 {
     const PartId partId = 0;
     const QuantizationInfo inputQuantInfo(0, 1.0f);
     const QuantizationInfo outputQuantInfo(0, 1.0f);
     const std::set<uint32_t> operationsIds = { 1 };
-    CompilationOptions compOpts;
-    EstimationOptions estOps;
-    FusedPlePart part(partId, inputShape, outputShape, inputQuantInfo, outputQuantInfo, op, shapeMultiplier, estOps,
+    FusedPlePart part(partId, inputShape, outputShape, inputQuantInfo, outputQuantInfo, op, shapeMultiplier, estOpts,
                       compOpts, caps, operationsIds, ethosn::command_stream::DataType::U8);
 
     return part;
@@ -56,9 +56,11 @@ FusedPlePart BuildPart(TensorShape inputShape,
 FusedPlePart BuildPart(TensorShape inputShape,
                        TensorShape outputShape,
                        command_stream::PleOperation op,
-                       const HardwareCapabilities& caps)
+                       const CompilationOptions& compOpts,
+                       const HardwareCapabilities& caps,
+                       const EstimationOptions& estOpts)
 {
-    return BuildPart(inputShape, outputShape, op, utils::ShapeMultiplier{ 1, 1, 1 }, caps);
+    return BuildPart(inputShape, outputShape, op, utils::ShapeMultiplier{ 1, 1, 1 }, compOpts, caps, estOpts);
 }
 
 struct PlanDesc
@@ -759,15 +761,16 @@ TEST_CASE("FusedPlePart GetPlans strategy 0 shape multiplier")
 {
     GIVEN("An FusedPlePart for a passthrough")
     {
-        const CompilationOptions compOpt;
+        const CompilationOptions compOpts;
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
+        const EstimationOptions estOpts;
 
         TensorShape inputShape{ 1, 32, 16, 16 };
         TensorShape outputShape{ 1, 16, 8, 64 };
         command_stream::PleOperation pleOp = command_stream::PleOperation::INTERLEAVE_2X2_2_2;
 
-        FusedPlePart part =
-            BuildPart(inputShape, outputShape, pleOp, utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, caps);
+        FusedPlePart part = BuildPart(inputShape, outputShape, pleOp, utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 },
+                                      compOpts, caps, estOpts);
 
         WHEN("Asked to generate plans at the beginning of a cascade")
         {
@@ -809,14 +812,15 @@ TEST_CASE("FusedPlePart GetPlans invalid previous buffer")
 {
     GIVEN("An FusedPlePart for a Leaky Relu")
     {
-        const CompilationOptions compOpt;
+        const CompilationOptions compOpts;
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
+        const EstimationOptions estOpts;
 
         TensorShape inputShape{ 1, 32, 16, 16 };
         TensorShape outputShape{ 1, 32, 16, 16 };
         command_stream::PleOperation pleOp = command_stream::PleOperation::LEAKY_RELU;
 
-        FusedPlePart part = BuildPart(inputShape, outputShape, pleOp, caps);
+        FusedPlePart part = BuildPart(inputShape, outputShape, pleOp, compOpts, caps, estOpts);
 
         WHEN("Asked to generate plans with the number of input stripes > 1")
         {
@@ -871,7 +875,8 @@ TEST_CASE("FusedPlePart GetPlans invalid previous buffer")
 /// We don't cover every Part in the whole Network as that would be a lot of test code and would also be a lot of duplication.
 TEST_CASE("FusedPlePart GetPlans MobileNet V1")
 {
-    const CompilationOptions compOpt;
+    const CompilationOptions compOpts;
+    const EstimationOptions estOpts;
     SECTION("8TOPS_2PLE_RATIO")
     {
         // Choose the largest variant in order to have the most cascading. In this case, all Parts can be cascaded into a single 'strategy 1' section.
@@ -905,7 +910,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             TensorShape inputShape{ 1, 224, 224, 3 };
             TensorShape outputShape{ 1, 112, 112, 51 };
             FusedPlePart part = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
-                                          utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, caps);
+                                          utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, compOpts, caps, estOpts);
 
             Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
             CheckPlansParams params;
@@ -931,7 +936,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             TensorShape inputShape{ 1, 112, 112, 64 };
             TensorShape outputShape{ 1, 56, 56, 256 };
             FusedPlePart part     = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
-                                          utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, caps);
+                                          utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, compOpts, caps, estOpts);
             prevBuffer.m_Location = Location::PleInputSram;    // The previous Part is an McePart, so we will be fused
             prevBuffer.m_TensorShape = inputShape;
             prevBuffer.m_StripeShape = TensorShape{ 1, 112, 112, 32 };    // Depth splitting
@@ -959,7 +964,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             TensorShape inputShape{ 1, 56, 56, 128 };
             TensorShape outputShape{ 1, 28, 28, 512 };
             FusedPlePart part     = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
-                                          utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, caps);
+                                          utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, compOpts, caps, estOpts);
             prevBuffer.m_Location = Location::PleInputSram;    // The previous Part is an McePart, so we will be fused
             prevBuffer.m_TensorShape = inputShape;
             prevBuffer.m_StripeShape = TensorShape{ 1, 56, 56, 32 };    // Depth splitting
@@ -1008,7 +1013,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             TensorShape inputShape{ 1, 224, 224, 3 };
             TensorShape outputShape{ 1, 112, 112, 27 };
             FusedPlePart part = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
-                                          utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, caps);
+                                          utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, compOpts, caps, estOpts);
 
             Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
             CheckPlansParams params;
@@ -1040,7 +1045,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             TensorShape inputShape{ 1, 112, 112, 64 };
             TensorShape outputShape{ 1, 56, 56, 256 };
             FusedPlePart part     = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
-                                          utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, caps);
+                                          utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, compOpts, caps, estOpts);
             prevBuffer.m_Location = Location::PleInputSram;    // The previous Part is an McePart, so we will be fused
             prevBuffer.m_TensorShape = inputShape;
             prevBuffer.m_StripeShape = TensorShape{ 1, 16, 112, 64 };    // Height splitting
@@ -1074,7 +1079,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             TensorShape inputShape{ 1, 56, 56, 128 };
             TensorShape outputShape{ 1, 28, 28, 512 };
             FusedPlePart part     = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
-                                          utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, caps);
+                                          utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, compOpts, caps, estOpts);
             prevBuffer.m_Location = Location::PleInputSram;    // The previous Part is an McePart, so we will be fused
             prevBuffer.m_TensorShape = inputShape;
             prevBuffer.m_StripeShape = TensorShape{ 1, 56, 56, 16 };    // Depth splitting
