@@ -47,6 +47,8 @@ public:
         command_stream::DataType m_DataType         = command_stream::DataType::U8;
         uint32_t m_UpscaleFactor                    = 1;
         command_stream::UpsampleType m_UpsampleType = command_stream::UpsampleType::OFF;
+        int16_t m_LowerBound                        = 0;
+        int16_t m_UpperBound                        = 255;
     };
 
     McePart(PartId id,
@@ -75,6 +77,9 @@ public:
                    uint32_t numWeightStripes) const override;
 
     utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const override;
+
+    bool HasActivationBounds() const override;
+    void ModifyActivationBounds(int16_t lowerBound, int16_t upperBound) override;
 
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
 
@@ -148,6 +153,8 @@ private:
     command_stream::MceOperation m_Operation;
     impl::StripeGenerator m_StripeGenerator;
     command_stream::DataType m_DataType;
+    int16_t m_LowerBound;
+    int16_t m_UpperBound;
 };
 }    // namespace support_library
 }    // namespace ethosn

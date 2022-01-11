@@ -17,6 +17,8 @@ namespace ethosn
 namespace support_library
 {
 
+class McePart;
+
 class NetworkToGraphOfPartsConverter : public NetworkVisitor
 {
 public:
@@ -43,6 +45,7 @@ public:
     void Visit(EstimateOnly& estimateOnly) final;
     void Visit(Addition& addition) final;
     void Visit(Resize& resize) final;
+    void Visit(Relu& relu) final;
 
     void ConnectParts(Operation& operation, std::vector<BasePart*>& m_Part);
 
@@ -53,6 +56,14 @@ public:
     GraphOfParts ReleaseGraphOfParts();
 
 private:
+    std::unique_ptr<McePart> CreateIdentityMcePart(const TensorShape& shape,
+                                                   const QuantizationInfo& inputQuantInfo,
+                                                   uint32_t operationId,
+                                                   command_stream::DataType dataType,
+                                                   const EstimationOptions& estOpt,
+                                                   const CompilationOptions& compOpt,
+                                                   const HardwareCapabilities& capabilities);
+
     const HardwareCapabilities& m_Capabilities;
     utils::Optional<const EstimationOptions&> m_EstimationOptions;
     const CompilationOptions& m_CompilationOptions;

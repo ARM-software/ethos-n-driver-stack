@@ -212,7 +212,9 @@ public:
           TraversalOrder order,
           Stride stride,
           uint32_t padLeft,
-          uint32_t padTop);
+          uint32_t padTop,
+          int16_t lowerBound,
+          int16_t upperBound);
 
     utils::Optional<command_stream::BlockConfig> GetBlockConfig() override
     {
@@ -231,6 +233,8 @@ public:
     uint32_t m_PadTop;
     uint32_t m_UpscaleFactor;
     command_stream::UpsampleType m_UpsampleType;
+    int16_t m_LowerBound;
+    int16_t m_UpperBound;
 };
 
 class PleOp : public Op

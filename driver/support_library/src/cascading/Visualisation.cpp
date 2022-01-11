@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -706,6 +706,7 @@ std::string GetOpString(Op* op)
         stream << "Order = " << ToString(mceOp->m_Order) << "\n";
         stream << "Stride = " << ToString(mceOp->m_Stride) << "\n";
         stream << "Pad L/T = " << mceOp->m_PadLeft << ", " << mceOp->m_PadTop << "\n";
+        stream << "Lower/Upper Bound = " << mceOp->m_LowerBound << ", " << mceOp->m_UpperBound << "\n";
     }
     else if (pleOp != nullptr)
     {

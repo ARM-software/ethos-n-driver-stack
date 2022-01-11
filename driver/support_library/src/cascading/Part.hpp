@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -180,6 +180,9 @@ public:
                            Buffer* sramBuffer,
                            uint32_t numWeightStripes) const = 0;
     virtual utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const;
+
+    virtual bool HasActivationBounds() const;
+    virtual void ModifyActivationBounds(int16_t lowerBound, int16_t upperBound);
 
     DotAttributes GetDotAttributes(DetailLevel) const override;
 

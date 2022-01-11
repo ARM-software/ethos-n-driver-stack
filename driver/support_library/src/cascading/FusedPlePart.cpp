@@ -156,11 +156,14 @@ std::pair<Buffer*, Buffer*> FusedPlePart::AddIdentityMceOpForSubGraph(OwnedOpGra
     Buffer* weightSramBuffer = AddIdentityWeights(opGraph, lifetime, mceComputeInfo, numMemoryStripes.m_Weight,
                                                   memoryStripes.m_Weight.m_Shape, order, convData, weightEncoderCache);
 
+    int16_t lowerBound = m_DataType == command_stream::DataType::U8 ? 0 : -128;
+    int16_t upperBound = m_DataType == command_stream::DataType::U8 ? 255 : 127;
+
     // Add MceOp.
     opGraph.AddOp(std::make_unique<MceOp>(Lifetime::Cascade, MceOperation::DEPTHWISE_CONVOLUTION,
                                           CompilerMceAlgorithm::Direct, mceComputeInfo.m_BlockConfig,
                                           mceComputeInfo.m_Input, mceComputeInfo.m_Output, mceComputeInfo.m_Weight,
-                                          order, Stride(1, 1), 0, 0));
+                                          order, Stride(1, 1), 0, 0, lowerBound, upperBound));
     Op* idMceOp             = ops.back();
     idMceOp->m_OperationIds = m_CorrespondingOperationIds;
 

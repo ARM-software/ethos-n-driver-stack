@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -73,6 +73,14 @@ ethosn::support_library::DotAttributes BasePart::GetDotAttributes(DetailLevel de
     }
     return result;
 }
+
+bool BasePart::HasActivationBounds() const
+{
+    return false;
+}
+
+void BasePart::ModifyActivationBounds(int16_t, int16_t)
+{}
 
 std::vector<PartInputSlot> GraphOfParts::GetPartInputs(PartId p) const
 {

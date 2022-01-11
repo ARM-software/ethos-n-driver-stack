@@ -290,6 +290,8 @@ MceOp::MceOp()
     , m_PadTop(0)
     , m_UpscaleFactor(1)
     , m_UpsampleType(command_stream::UpsampleType::OFF)
+    , m_LowerBound(0)
+    , m_UpperBound(255)
 {}
 
 MceOp::MceOp(Lifetime lifetime,
@@ -302,7 +304,9 @@ MceOp::MceOp(Lifetime lifetime,
              TraversalOrder order,
              Stride stride,
              uint32_t padLeft,
-             uint32_t padTop)
+             uint32_t padTop,
+             int16_t lowerBound,
+             int16_t upperBound)
     : Op("MceOp", lifetime)
     , m_Op(op)
     , m_Algo(algo)
@@ -316,6 +320,8 @@ MceOp::MceOp(Lifetime lifetime,
     , m_PadTop(padTop)
     , m_UpscaleFactor(1)
     , m_UpsampleType(command_stream::UpsampleType::OFF)
+    , m_LowerBound(lowerBound)
+    , m_UpperBound(upperBound)
 {}
 
 PleOp::PleOp()

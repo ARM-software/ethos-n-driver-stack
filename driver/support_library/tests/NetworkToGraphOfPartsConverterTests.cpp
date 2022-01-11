@@ -1107,3 +1107,230 @@ TEST_CASE("NetworkToGraphOfPartsConverter Resize")
     CHECK(mceOp->m_UpscaleFactor == 2);
     CHECK(mceOp->m_UpsampleType == ethosn::command_stream::UpsampleType::BILINEAR);
 }
+
+TEST_CASE("NetworkToGraphOfPartsConverter Relu")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 16, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    ReluInfo reluInfo(100, 200);
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    // Input -> Relu -> Output
+    std::shared_ptr<Operand> input = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Operand> relu  = AddRelu(network, *input, reluInfo).tensor;
+    std::shared_ptr<Output> output = AddOutput(network, *relu).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTestsRelu.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTests_ReluOutput.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+    }
+
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(1));
+    REQUIRE(part != nullptr);
+
+    auto plans   = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    MceOp* mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
+    // Ensure the lower and upper bound on the mce op is correct.
+    REQUIRE(mceOp->m_LowerBound == 100);
+    REQUIRE(mceOp->m_UpperBound == 200);
+}
+
+TEST_CASE("NetworkToGraphOfPartsConverter Conv Relu")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 16, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo biasInfo{
+        { { 1, 1, 1, 16 } },
+        DataType::INT32_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo weightsInfo{
+        { { 1, 1, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::HWIO,
+        { 0, 1.f },
+    };
+
+    ConvolutionInfo convInfo{
+        { 0, 0, 0, 0 },
+        { 1, 1 },
+        { 0, 1.1f },
+    };
+
+    const std::vector<uint8_t> biasData(utils::TotalSizeBytes(biasInfo));
+    const std::vector<uint8_t> weightsData(utils::TotalSizeBytes(weightsInfo));
+
+    ReluInfo reluInfo(100, 200);
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    // Input -> Conv -> Relu -> Output
+    std::shared_ptr<Operand> input    = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
+    std::shared_ptr<Constant> weights = AddConstant(network, weightsInfo, weightsData.data()).tensor;
+    std::shared_ptr<Operand> conv     = AddConvolution(network, *input, *bias, *weights, convInfo).tensor;
+    std::shared_ptr<Operand> relu     = AddRelu(network, *conv, reluInfo).tensor;
+    std::shared_ptr<Output> output    = AddOutput(network, *relu).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTestsConvRelu.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTests_ConvReluOutput.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+    }
+
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(1));
+    REQUIRE(part != nullptr);
+
+    auto plans   = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    MceOp* mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
+    // Ensure the lower and upper bound on the mce op is correct.
+    REQUIRE(mceOp->m_LowerBound == 100);
+    REQUIRE(mceOp->m_UpperBound == 200);
+}
+
+TEST_CASE("NetworkToGraphOfPartsConverter Relu Conv")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 16, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo biasInfo{
+        { { 1, 1, 1, 16 } },
+        DataType::INT32_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo weightsInfo{
+        { { 1, 1, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::HWIO,
+        { 0, 1.f },
+    };
+
+    ConvolutionInfo convInfo{
+        { 0, 0, 0, 0 },
+        { 1, 1 },
+        { 0, 1.1f },
+    };
+
+    const std::vector<uint8_t> biasData(utils::TotalSizeBytes(biasInfo));
+    const std::vector<uint8_t> weightsData(utils::TotalSizeBytes(weightsInfo));
+
+    ReluInfo reluInfo(100, 200);
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    // Input -> Relu -> Conv -> Output
+    std::shared_ptr<Operand> input    = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Operand> relu     = AddRelu(network, *input, reluInfo).tensor;
+    std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
+    std::shared_ptr<Constant> weights = AddConstant(network, weightsInfo, weightsData.data()).tensor;
+    std::shared_ptr<Operand> conv     = AddConvolution(network, *relu, *bias, *weights, convInfo).tensor;
+    std::shared_ptr<Output> output    = AddOutput(network, *conv).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTestsConvRelu.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTests_ConvReluOutput.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+    }
+
+    // InputPart, McePart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 4);
+
+    {
+        const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(1));
+        REQUIRE(part != nullptr);
+
+        auto plans   = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+        MceOp* mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
+        // Ensure the lower and upper bound on the identity mce op for the relu is correct.
+        REQUIRE(mceOp->m_LowerBound == 100);
+        REQUIRE(mceOp->m_UpperBound == 200);
+    }
+
+    {
+        const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(2));
+        REQUIRE(part != nullptr);
+
+        auto plans   = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+        MceOp* mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
+        // Ensure the lower and upper bound on convolution hasn't changed.
+        REQUIRE(mceOp->m_LowerBound == 0);
+        REQUIRE(mceOp->m_UpperBound == 255);
+    }
+}

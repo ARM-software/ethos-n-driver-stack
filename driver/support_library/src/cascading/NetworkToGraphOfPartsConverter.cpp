@@ -26,6 +26,40 @@ namespace ethosn
 {
 namespace support_library
 {
+
+std::unique_ptr<McePart> NetworkToGraphOfPartsConverter::CreateIdentityMcePart(const TensorShape& shape,
+                                                                               const QuantizationInfo& inputQuantInfo,
+                                                                               uint32_t operationId,
+                                                                               command_stream::DataType dataType,
+                                                                               const EstimationOptions& estOpt,
+                                                                               const CompilationOptions& compOpt,
+                                                                               const HardwareCapabilities& capabilities)
+{
+
+    McePart::ConstructionParams params(estOpt, compOpt, capabilities);
+    params.m_Id                     = m_GraphOfParts.GeneratePartId();
+    params.m_InputTensorShape       = shape;
+    params.m_OutputTensorShape      = shape;
+    params.m_InputQuantizationInfo  = inputQuantInfo;
+    params.m_OutputQuantizationInfo = inputQuantInfo;
+    const uint32_t numIfm           = shape[3];
+    const float weightScale         = 0.5f;
+    params.m_WeightsInfo   = { { 1, 1, numIfm, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, { 0, weightScale } };
+    params.m_WeightsData   = std::vector<uint8_t>(1 * 1 * 1 * numIfm, 2);
+    const float biasScale  = weightScale * inputQuantInfo.GetScale();
+    params.m_BiasInfo      = { { 1, 1, 1, numIfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
+    params.m_BiasData      = std::vector<int32_t>(numIfm, 0);
+    params.m_Op            = command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
+    params.m_OperationIds  = std::set<uint32_t>{ operationId };
+    params.m_DataType      = dataType;
+    params.m_UpscaleFactor = 1;
+    params.m_UpsampleType  = command_stream::UpsampleType::OFF;
+    params.m_LowerBound    = dataType == command_stream::DataType::U8 ? 0 : -128;
+    params.m_UpperBound    = dataType == command_stream::DataType::U8 ? 255 : 127;
+    auto mcePart           = std::make_unique<McePart>(std::move(params));
+    return mcePart;
+}
+
 NetworkToGraphOfPartsConverter::NetworkToGraphOfPartsConverter(const Network& network,
                                                                const HardwareCapabilities& capabilities,
                                                                const EstimationOptions& estimationOptions,
@@ -359,23 +393,10 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
         Operand& inputOperand = concat.GetInput(i);
         if (inputOperand.GetTensorInfo().m_QuantizationInfo != outputQuantInfo)
         {
-            const uint32_t numIfm   = inputOperand.GetTensorInfo().m_Dimensions[3];
-            const float weightScale = g_IdentityWeightScale;
-            const float biasScale   = weightScale * inputOperand.GetTensorInfo().m_QuantizationInfo.GetScale();
-            std::vector<uint8_t> weightsData(numIfm, g_IdentityWeightValue);
-            std::vector<int32_t> biasData(numIfm, 0);
-            TensorInfo weightInfo{
-                { 1, 1, numIfm, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, { 0, weightScale }
-            };
-            TensorInfo biasInfo{ { 1, 1, 1, numIfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
-
-            auto mcePart = std::make_unique<McePart>(
-                m_GraphOfParts.GeneratePartId(), inputOperand.GetTensorInfo().m_Dimensions,
-                inputOperand.GetTensorInfo().m_Dimensions, inputOperand.GetTensorInfo().m_QuantizationInfo,
-                concat.GetOutput(0).GetTensorInfo().m_QuantizationInfo, weightInfo, weightsData, biasInfo, biasData,
-                Stride{ 1, 1 }, 0, 0, command_stream::MceOperation::DEPTHWISE_CONVOLUTION, m_EstimationOptions.value(),
-                m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ concat.GetId() },
-                GetCommandDataType(concat.GetOutput(0).GetTensorInfo().m_DataType));
+            auto mcePart = CreateIdentityMcePart(inputOperand.GetTensorInfo().m_Dimensions,
+                                                 inputOperand.GetTensorInfo().m_QuantizationInfo, concat.GetId(),
+                                                 GetCommandDataType(concat.GetOutput(0).GetTensorInfo().m_DataType),
+                                                 m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
             // Add the connection to the GraphOfParts, then store the new PartId in a temporary map and then add the McePart to the GraphOfParts.
             m_GraphOfParts.AddConnection({ mcePart->GetPartId(), 0 }, { m_OperandToPart.at(&inputOperand)->GetPartId(),
@@ -549,6 +570,38 @@ void NetworkToGraphOfPartsConverter::Visit(Resize& resize)
     parts.push_back(mcePart.get());
     m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
     ConnectParts(resize, parts);
+}
+
+void NetworkToGraphOfPartsConverter::Visit(Relu& relu)
+{
+    ReluInfo info               = relu.GetReluInfo();
+    const Operand& inputOperand = relu.GetInput(0);
+
+    std::vector<BasePart*> parts;
+
+    auto iterator = m_OperandToPart.find(&inputOperand);
+    assert(iterator != m_OperandToPart.end());
+    BasePart* inputPart = iterator->second;
+    assert(inputPart);
+
+    // Multiple cases. Mce -> Relu. We need to update the relu bounds in the mce op
+    // not mce -> Relu. We need to insert an identity mce operation with new relu bounds
+    if (!inputPart->HasActivationBounds())
+    {
+        std::unique_ptr<McePart> mcePart = CreateIdentityMcePart(
+            inputOperand.GetTensorInfo().m_Dimensions, inputOperand.GetTensorInfo().m_QuantizationInfo, relu.GetId(),
+            GetCommandDataType(inputOperand.GetTensorInfo().m_DataType), m_EstimationOptions.value(),
+            m_CompilationOptions, m_Capabilities);
+
+        inputPart = mcePart.get();
+        parts.push_back(mcePart.get());
+        m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+        ConnectParts(relu, parts);
+    }
+
+    // If the input to the relu has activations we need to modify them
+    inputPart->ModifyActivationBounds(info.m_LowerBound, info.m_UpperBound);
+    m_OperandToPart[&relu.GetOutput(0)] = inputPart;
 }
 
 std::vector<uint8_t> NetworkToGraphOfPartsConverter::OverrideWeights(const std::vector<uint8_t>& userWeights,

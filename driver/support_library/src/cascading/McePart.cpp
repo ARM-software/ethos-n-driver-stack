@@ -240,6 +240,8 @@ McePart::McePart(PartId id,
                         ShapeMultiplier::Identity,
                         capabilities)
     , m_DataType(dataType)
+    , m_LowerBound(dataType == command_stream::DataType::U8 ? 0 : -128)
+    , m_UpperBound(dataType == command_stream::DataType::U8 ? 255 : 127)
 {}
 
 McePart::McePart(ConstructionParams&& params)
@@ -276,6 +278,8 @@ McePart::McePart(ConstructionParams&& params)
                         ShapeMultiplier::Identity,
                         params.m_Capabilities)
     , m_DataType(params.m_DataType)
+    , m_LowerBound(params.m_LowerBound)
+    , m_UpperBound(params.m_UpperBound)
 {}
 
 Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
@@ -419,9 +423,10 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
         opGraph, lifetime, mceStripeInfo, numMemoryStripes.m_Weight, memoryStripesInfo.m_Weight.m_Shape, order,
         convData, weightEncoderCache, mceOpAlgo);
 
-    auto mceOp = std::make_unique<MceOp>(
-        lifetime, m_Operation, mceOpAlgo, mceStripeInfo.m_BlockConfig, mceStripeInfo.m_Input, mceStripeInfo.m_Output,
-        memoryStripesInfo.m_Weight.m_Shape, TraversalOrder::Xyz, m_Stride, m_PadLeft, m_PadTop);
+    auto mceOp =
+        std::make_unique<MceOp>(lifetime, m_Operation, mceOpAlgo, mceStripeInfo.m_BlockConfig, mceStripeInfo.m_Input,
+                                mceStripeInfo.m_Output, memoryStripesInfo.m_Weight.m_Shape, TraversalOrder::Xyz,
+                                m_Stride, m_PadLeft, m_PadTop, m_LowerBound, m_UpperBound);
     mceOp->m_UpscaleFactor = m_UpscaleFactor;
     mceOp->m_UpsampleType  = m_UpsampleType;
     Op* op                 = opGraph.AddOp(std::move(mceOp));
@@ -702,6 +707,17 @@ Plans McePart::GetPlans(CascadeType cascadeType,
 utils::Optional<ethosn::command_stream::MceOperation> McePart::GetMceOperation() const
 {
     return m_Operation;
+}
+
+bool McePart::HasActivationBounds() const
+{
+    return true;
+}
+
+void McePart::ModifyActivationBounds(int16_t lowerBound, int16_t upperBound)
+{
+    m_LowerBound = lowerBound;
+    m_UpperBound = upperBound;
 }
 
 ethosn::support_library::DotAttributes McePart::GetDotAttributes(DetailLevel detail) const
