@@ -235,11 +235,9 @@ void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
 
     // Only the case of a single compiled network is currently supported
     ARMNN_ASSERT(compiledNetworks.size() == 1);
-    CompiledBlobPtr compiledNetwork = std::move(compiledNetworks[0]);
-
     IConnectableLayer* preCompiledLayer = optimizationViews.GetINetwork()->AddPrecompiledLayer(
-        PreCompiledDescriptor(subgraph.GetNumInputSlots(), subgraph.GetNumOutputSlots()), compiledNetwork,
-        armnn::Optional<BackendId>(EthosNBackendId()), "pre-compiled");
+        PreCompiledDescriptor(subgraph.GetNumInputSlots(), subgraph.GetNumOutputSlots()),
+        std::move(compiledNetworks[0]), armnn::Optional<BackendId>(EthosNBackendId()), "pre-compiled");
 
     // Copy the output tensor infos from sub-graph
     for (unsigned int i = 0; i < subgraph.GetNumOutputSlots(); i++)
