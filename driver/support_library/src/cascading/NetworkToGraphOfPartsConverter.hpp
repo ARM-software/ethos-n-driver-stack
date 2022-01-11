@@ -47,6 +47,7 @@ public:
     void Visit(Resize& resize) final;
     void Visit(Relu& relu) final;
     void Visit(TransposeConvolution& transposeConvolution) final;
+    void Visit(ReinterpretQuantization& reinterpretQuantization) final;
 
     void ConnectParts(Operation& operation, std::vector<BasePart*>& m_Part);
 

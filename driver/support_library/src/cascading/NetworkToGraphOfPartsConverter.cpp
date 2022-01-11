@@ -764,6 +764,17 @@ std::vector<BasePart*> NetworkToGraphOfPartsConverter::CreateTransposeConv(const
     return parts;
 }
 
+void NetworkToGraphOfPartsConverter::Visit(ReinterpretQuantization& reinterpretQuantization)
+{
+    // Reinterpret quantization doesn't "do" anything
+    // The operations which follow the reinterpret quantization will
+    // pick up the new input quantization from the reinterpret quantization
+    const Operand* inputOperand = &reinterpretQuantization.GetInput(0);
+    assert(inputOperand);
+    BasePart* inputPart                                    = m_OperandToPart[inputOperand];
+    m_OperandToPart[&reinterpretQuantization.GetOutput(0)] = inputPart;
+}
+
 void NetworkToGraphOfPartsConverter::Visit(TransposeConvolution& transposeConvolution)
 {
     const Stride& stride                    = transposeConvolution.GetConvolutionInfo().m_Stride;
