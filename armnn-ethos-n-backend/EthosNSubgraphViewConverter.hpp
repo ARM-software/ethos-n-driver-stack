@@ -4,6 +4,7 @@
 //
 #pragma once
 
+#include "EthosNCaching.hpp"
 #include "EthosNConfig.hpp"
 #include "SubgraphView.hpp"
 

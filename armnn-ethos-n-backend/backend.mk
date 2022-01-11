@@ -1,5 +1,5 @@
 #
-# Copyright © 2018-2021 Arm Limited.
+# Copyright © 2018-2022 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -48,6 +48,7 @@ ifeq ($(ARMNN_ETHOSN_ENABLED),1)
 
 BACKEND_TEST_SOURCES := \
         test/EthosNBackendTests.cpp \
+        test/EthosNCachingTests.cpp \
         test/EthosNCreateEstimationWorkloadTests.cpp \
         test/EthosNCreateWorkloadTests.cpp \
         test/EthosNLayerTests.cpp \

@@ -1,5 +1,5 @@
 #
-# Copyright © 2018-2021 Arm Limited.
+# Copyright © 2018-2022 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -7,6 +7,8 @@ list(APPEND armnnEthosNBackend_sources
     EthosNBackend.cpp
     EthosNBackend.hpp
     EthosNBackendId.hpp
+    EthosNCaching.cpp
+    EthosNCaching.hpp
     EthosNConfig.cpp
     EthosNConfig.hpp
     EthosNLayerSupport.cpp

@@ -1,10 +1,11 @@
 #
-# Copyright © 2018-2021 Arm Limited.
+# Copyright © 2018-2022 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
 # Add the Ethos-N backend unit test to the rest of the test suite
 list(APPEND armnnEthosNBackendUnitTests_sources
+     EthosNCachingTests.cpp
      EthosNCreateEstimationWorkloadTests.cpp
      EthosNCreateWorkloadTests.cpp
      EthosNLayerTests.cpp

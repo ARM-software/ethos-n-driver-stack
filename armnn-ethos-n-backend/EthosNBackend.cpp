@@ -293,6 +293,11 @@ IBackendInternal::IWorkloadFactoryPtr
     EthosNBackend::CreateWorkloadFactory(const IBackendInternal::IMemoryManagerSharedPtr&,
                                          const ModelOptions& modelOptions) const
 {
+    // Try to save cached subgraphs, if saving options aren't specified nothing will happen.
+    // This occurs after optimization so it will be ready to save if required.
+    auto caching = EthosNCachingService::GetInstance().GetEthosNCachingPtr();
+    caching->Save();
+
     for (const auto& optionsGroup : modelOptions)
     {
         if (optionsGroup.GetBackendId() == EthosNBackend::GetIdStatic())
@@ -398,9 +403,29 @@ OptimizationViews EthosNBackend::OptimizeSubgraphView(const SubgraphView& subgra
     {
         throw RuntimeException("Driver or support library version is not supported by the backend");
     }
-    OptimizationViews optimizationViews;
+
+    // Initialize EthosNCachingService shared pointer only once, this is used to access
+    // the caching functions and cached network data held temporarily in memory.
+    auto cachingService = EthosNCachingService::GetInstance().GetEthosNCachingPtr();
+    if (cachingService == nullptr)
+    {
+        EthosNCaching cachingObject            = EthosNCaching();
+        std::shared_ptr<EthosNCaching> context = std::make_shared<EthosNCaching>(cachingObject);
+        EthosNCachingService::GetInstance().SetEthosNCachingPtr(context);
+    }
+
+    // As OptimizeSubgraphView can be called multiple times we only want to set this once.
+    // Set the caching options and try to load cached networks into memory only if loading was specified by the user.
+    // SetEthosNCachingOptions will catch any errors in the user options.
+    auto caching = EthosNCachingService::GetInstance().GetEthosNCachingPtr();
+    if (caching->GetIsLoaded() == false)
+    {
+        caching->SetEthosNCachingOptions(modelOptions);
+        caching->Load();
+    }
 
     // Create a pre-compiled layer
+    OptimizationViews optimizationViews;
     armnn::CreatePreCompiledLayerInGraph(optimizationViews, subgraph, m_Config, m_Capabilities, modelOptions);
 
     return optimizationViews;
