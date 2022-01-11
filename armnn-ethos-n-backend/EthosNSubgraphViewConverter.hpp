@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -83,37 +83,37 @@ private:
     void AddInput(uint32_t inputSlotIdx);
     void AddOutput(uint32_t outputSlotIdx);
 
-    void AddActivationLayer(Layer* layer);
-    void AddAdditionLayer(Layer* layer);
-    void AddConstantLayer(Layer* layer);
-    void AddConvolution2dLayer(Layer* layer);
-    void AddDepthwiseConvolution2dLayer(Layer* layer);
-    void AddTransposeConvolution2dLayer(Layer* layer);
-    void AddFullyConnectedLayer(Layer* layer);
-    void AddConcatLayer(Layer* layer);
-    void AddPooling2dLayer(Layer* layer);
-    void AddReshapeLayer(Layer* layer);
-    void AddSoftmaxLayer(Layer* layer);
-    void AddSplitterLayer(Layer* layer);
-    void AddDepthToSpaceLayer(Layer* layer);
-    void AddSpaceToDepthLayer(Layer* layer);
-    void AddTransposeLayer(Layer* layer);
-    void AddQuantizeLayer(Layer* layer);
-    void AddResizeLayer(Layer* layer);
-    void AddMeanXyLayer(Layer* layer);
-    void AddStandInLayer(Layer* layer);
+    void AddActivationLayer(const IConnectableLayer* layer);
+    void AddAdditionLayer(const IConnectableLayer* layer);
+    void AddConstantLayer(const IConnectableLayer* layer);
+    void AddConvolution2dLayer(const IConnectableLayer* layer);
+    void AddDepthwiseConvolution2dLayer(const IConnectableLayer* layer);
+    void AddTransposeConvolution2dLayer(const IConnectableLayer* layer);
+    void AddFullyConnectedLayer(const IConnectableLayer* layer);
+    void AddConcatLayer(const IConnectableLayer* layer);
+    void AddPooling2dLayer(const IConnectableLayer* layer);
+    void AddReshapeLayer(const IConnectableLayer* layer);
+    void AddSoftmaxLayer(const IConnectableLayer* layer);
+    void AddSplitterLayer(const IConnectableLayer* layer);
+    void AddDepthToSpaceLayer(const IConnectableLayer* layer);
+    void AddSpaceToDepthLayer(const IConnectableLayer* layer);
+    void AddTransposeLayer(const IConnectableLayer* layer);
+    void AddQuantizeLayer(const IConnectableLayer* layer);
+    void AddResizeLayer(const IConnectableLayer* layer);
+    void AddMeanXyLayer(const IConnectableLayer* layer);
+    void AddStandInLayer(const IConnectableLayer* layer);
     /// @}
 
     /// When in PerfOnly mode, this function tries to add estimate only layer from Support Library if the layer in
     /// consideration is unknown.
-    void HandleUnknownLayer(Layer* layer, const std::string& reason);
+    void HandleUnknownLayer(const IConnectableLayer* layer, const std::string& reason);
 
-    void AddEstimateOnly(Layer* layer, const std::string& reason);
+    void AddEstimateOnly(const IConnectableLayer* layer, const std::string& reason);
     /// Converts the layer that owns the given OutputSlot and adds it to the Ethos-N network.
     /// Returns the corresponding Ethos-N operand representing the same output as the given OutputSlot.
     /// If the layer has already been converted then this returns the existing corresponding Ethos-N operand and does
     /// not modify the Ethos-N network.
-    EthosNOperand AddOrRetrieveEthosNOperand(const OutputSlot* outputSlot);
+    EthosNOperand AddOrRetrieveEthosNOperand(const IOutputSlot* outputSlot);
 
     /// Converts biases
     // TODO This method  will only need the layer parameter once all relevant layers will have the
@@ -128,9 +128,11 @@ private:
     EthosNConstantPtr AddWeights(const Layer& layer);
 
     /// Helper function to insert a converted Arm NN layer in m_ConvertedOutputSlots, for layers with a single output.
-    void InsertConvertedLayerSingleOutput(const Layer* layer, EthosNAddOperationResult ethosnAddOperationResult);
+    void InsertConvertedLayerSingleOutput(const IConnectableLayer* layer,
+                                          EthosNAddOperationResult ethosnAddOperationResult);
     /// Helper function to insert a converted Arm NN layer in m_ConvertedOutputSlots, for layers with multiple outputs.
-    void InsertConvertedLayerMultipleOutput(const Layer* layer, ethosn_lib::TensorsAndId ethosnAddOperationResult);
+    void InsertConvertedLayerMultipleOutput(const IConnectableLayer* layer,
+                                            ethosn_lib::TensorsAndId ethosnAddOperationResult);
 
 private:
     /// ID number for next constructed instance
@@ -147,7 +149,7 @@ private:
     /// Map used to store previously converted layers.
     /// Specifically, we map the OutputSlots of the Arm NN graph (rather than Layers) because a layer may have
     /// multiple outputs and each OutputSlots belonging to the same layer will map to a different Ethos-N operand.
-    std::unordered_map<const OutputSlot*, EthosNOperand> m_ConvertedOutputSlots;
+    std::unordered_map<const IOutputSlot*, EthosNOperand> m_ConvertedOutputSlots;
 
     /// Contains the mapping from the Ethos-N's identifier of an input to Arm NN input slot indices
     /// (i.e. within m_Subgraph.GetInputSlots()).

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -55,6 +55,7 @@ inline std::string ReadFile(const std::string& file)
 
 inline bool operator==(const armnn::SubgraphView& lhs, const armnn::SubgraphView& rhs)
 {
+    ARMNN_NO_DEPRECATE_WARN_BEGIN
     if (lhs.GetInputSlots() != rhs.GetInputSlots())
     {
         return false;
@@ -84,6 +85,7 @@ inline bool operator==(const armnn::SubgraphView& lhs, const armnn::SubgraphView
     }
 
     return (lhsLayerI == lhs.cend() && rhsLayerI == rhs.cend());
+    ARMNN_NO_DEPRECATE_WARN_END
 }
 
 /// Sets the globally cached backend config data, so that different tests can run with different configs.

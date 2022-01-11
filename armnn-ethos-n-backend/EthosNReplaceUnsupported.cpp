@@ -74,8 +74,10 @@ bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph,
 
                 depthwiseLayer->m_Weight = std::make_unique<ScopedTensorHandle>(weights);
 
+                ARMNN_NO_DEPRECATE_WARN_BEGIN
                 SubgraphView patternSubgraph({ patternSubgraphInput }, { &layer->GetOutputSlot() },
                                              { layer, constantLayer });
+                ARMNN_NO_DEPRECATE_WARN_END
 
                 graph.SubstituteSubgraph(patternSubgraph, SubgraphView{ depthwiseLayer });
 
@@ -176,8 +178,10 @@ bool ReplaceScalarMultiplicationWithReinterpretQuantization(
                 const auto standInLayer = replacementGraph.AddLayer<StandInLayer>(
                     desc, "EthosNBackend:ReplaceScalarMulWithReinterpretQuantization");
 
+                ARMNN_NO_DEPRECATE_WARN_BEGIN
                 SubgraphView patternSubgraph({ patternSubgraphInput }, { &layer->GetOutputSlot() },
                                              { layer, constantLayer });
+                ARMNN_NO_DEPRECATE_WARN_END
 
                 graph.SubstituteSubgraph(patternSubgraph, SubgraphView{ standInLayer });
 
@@ -315,7 +319,9 @@ bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer)
     const ConstTensor rescaledBias(replacementConfig.m_BiasInfo, rescaledBiasData.value());
     depthwiseLayer->m_Bias = std::make_unique<ScopedTensorHandle>(rescaledBias);
 
+    ARMNN_NO_DEPRECATE_WARN_BEGIN
     SubgraphView patternSubgraph({ subgraphInputSlot }, { &layer->GetOutputSlot() }, { layer, constantLayer });
+    ARMNN_NO_DEPRECATE_WARN_END
 
     graph.SubstituteSubgraph(patternSubgraph, SubgraphView{ depthwiseLayer });
 
@@ -415,7 +421,9 @@ bool ReplaceConstantAdditionWithReinterpretQuantization(Graph& graph, Layer* lay
         const auto standInLayer =
             replacementGraph.AddLayer<StandInLayer>(desc, "EthosNBackend:ReplaceScalarAddWithReinterpretQuantization");
 
+        ARMNN_NO_DEPRECATE_WARN_BEGIN
         SubgraphView patternSubgraph({ patternSubgraphInput }, { &layer->GetOutputSlot() }, { layer, constantLayer });
+        ARMNN_NO_DEPRECATE_WARN_END
         graph.SubstituteSubgraph(patternSubgraph, SubgraphView{ standInLayer });
 
         return true;

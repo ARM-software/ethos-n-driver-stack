@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -431,10 +431,10 @@ public:
                                   const Optional<TensorInfo>& biases,
                                   Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
 
-    bool IsPooling3dSupported(const TensorInfo& input,
-                              const TensorInfo& output,
-                              const Pooling3dDescriptor& descriptor,
-                              Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
+    bool IsPooling3dSupported(const armnn::TensorInfo& input,
+                              const armnn::TensorInfo& output,
+                              const armnn::Pooling3dDescriptor& descriptor,
+                              armnn::Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
 
 private:
     bool CheckEstimateOnlySupported(const TensorInfo& input,

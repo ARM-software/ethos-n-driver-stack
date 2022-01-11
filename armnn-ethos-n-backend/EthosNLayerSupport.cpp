@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1690,9 +1690,9 @@ bool EthosNLayerSupport::IsConvolution3dSupported(const TensorInfo&,
     return false;
 }
 
-bool EthosNLayerSupport::IsPooling3dSupported(const TensorInfo&,
-                                              const TensorInfo&,
-                                              const Pooling3dDescriptor&,
+bool EthosNLayerSupport::IsPooling3dSupported(const armnn::TensorInfo&,
+                                              const armnn::TensorInfo&,
+                                              const armnn::Pooling3dDescriptor&,
                                               Optional<std::string&>) const
 {
     return false;

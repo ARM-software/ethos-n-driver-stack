@@ -227,9 +227,9 @@ void UnsupportedSubgraphTestImpl()
     SubgraphView::SubgraphViewPtr subgraphPtr = BuildUnsupportedSubgraph(graph);
     CHECK((subgraphPtr != nullptr));
 
-    const SubgraphView::InputSlots& subgraphInputSlots   = subgraphPtr->GetInputSlots();
-    const SubgraphView::OutputSlots& subgraphOutputSlots = subgraphPtr->GetOutputSlots();
-    const SubgraphView::Layers& subgraphLayers           = subgraphPtr->GetLayers();
+    const SubgraphView::IInputSlots& subgraphInputSlots    = subgraphPtr->GetIInputSlots();
+    const SubgraphView::IOutputSlots& subgraphOutputSlots  = subgraphPtr->GetIOutputSlots();
+    const SubgraphView::IConnectableLayers& subgraphLayers = subgraphPtr->GetIConnectableLayers();
 
     CHECK(subgraphInputSlots.size() == 1);
     CHECK(subgraphOutputSlots.size() == 1);
@@ -256,10 +256,10 @@ void UnsupportedSubgraphTestImpl()
     const OptimizationViews::Subgraphs& failedSubgraphs = optimizationViews.GetFailedSubgraphs();
     CHECK(failedSubgraphs.size() == 1);
 
-    const SubgraphView& failedSubgraph                         = failedSubgraphs.at(0);
-    const SubgraphView::InputSlots& failedSubgraphInputSlots   = failedSubgraph.GetInputSlots();
-    const SubgraphView::OutputSlots& failedSubgraphOutputSlots = failedSubgraph.GetOutputSlots();
-    const SubgraphView::Layers& failedSubgraphLayers           = failedSubgraph.GetLayers();
+    const SubgraphView& failedSubgraph                           = failedSubgraphs.at(0);
+    const SubgraphView::IInputSlots& failedSubgraphInputSlots    = failedSubgraph.GetIInputSlots();
+    const SubgraphView::IOutputSlots& failedSubgraphOutputSlots  = failedSubgraph.GetIOutputSlots();
+    const SubgraphView::IConnectableLayers& failedSubgraphLayers = failedSubgraph.GetIConnectableLayers();
 
     CHECK(failedSubgraphInputSlots.size() == subgraphInputSlots.size());
     CHECK(failedSubgraphOutputSlots.size() == subgraphOutputSlots.size());
@@ -279,13 +279,13 @@ void FullyOptimizableSubgraphTestImpl1()
     SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildFullyOptimizableSubgraph1(graph);
     CHECK((subgraphPtr != nullptr));
 
-    const SubgraphView::InputSlots& subgraphInputSlots   = subgraphPtr->GetInputSlots();
-    const SubgraphView::OutputSlots& subgraphOutputSlots = subgraphPtr->GetOutputSlots();
-    const SubgraphView::Layers& subgraphLayers           = subgraphPtr->GetLayers();
+    const SubgraphView::IInputSlots& subgraphInputSlots    = subgraphPtr->GetIInputSlots();
+    const SubgraphView::IOutputSlots& subgraphOutputSlots  = subgraphPtr->GetIOutputSlots();
+    const SubgraphView::IConnectableLayers& subgraphLayers = subgraphPtr->GetIConnectableLayers();
 
-    CHECK(subgraphPtr->GetInputSlots().size() == 1);
-    CHECK(subgraphPtr->GetOutputSlots().size() == 1);
-    CHECK(subgraphPtr->GetLayers().size() == 1);
+    CHECK(subgraphPtr->GetIInputSlots().size() == 1);
+    CHECK(subgraphPtr->GetIOutputSlots().size() == 1);
+    CHECK(subgraphPtr->GetIConnectableLayers().size() == 1);
 
     // Create a backend object
     auto backendObjPtr = CreateBackendObject(EthosNBackendId());
@@ -310,15 +310,15 @@ void FullyOptimizableSubgraphTestImpl1()
 
     const OptimizationViews::SubstitutionPair& substitution = substitutions.at(0);
 
-    const SubgraphView& substitutableSubgraph                         = substitution.m_SubstitutableSubgraph;
-    const SubgraphView::InputSlots& substitutableSubgraphInputSlots   = substitutableSubgraph.GetInputSlots();
-    const SubgraphView::OutputSlots& substitutableSubgraphOutputSlots = substitutableSubgraph.GetOutputSlots();
-    const SubgraphView::Layers& substitutableSubgraphLayers           = substitutableSubgraph.GetLayers();
+    const SubgraphView& substitutableSubgraph                           = substitution.m_SubstitutableSubgraph;
+    const SubgraphView::IInputSlots& substitutableSubgraphInputSlots    = substitutableSubgraph.GetIInputSlots();
+    const SubgraphView::IOutputSlots& substitutableSubgraphOutputSlots  = substitutableSubgraph.GetIOutputSlots();
+    const SubgraphView::IConnectableLayers& substitutableSubgraphLayers = substitutableSubgraph.GetIConnectableLayers();
 
-    const SubgraphView& replacementSubgraph                         = substitution.m_ReplacementSubgraph;
-    const SubgraphView::InputSlots& replacementSubgraphInputSlots   = replacementSubgraph.GetInputSlots();
-    const SubgraphView::OutputSlots& replacementSubgraphOutputSlots = replacementSubgraph.GetOutputSlots();
-    const SubgraphView::Layers& replacementSubgraphLayers           = replacementSubgraph.GetLayers();
+    const SubgraphView& replacementSubgraph                           = substitution.m_ReplacementSubgraph;
+    const SubgraphView::IInputSlots& replacementSubgraphInputSlots    = replacementSubgraph.GetIInputSlots();
+    const SubgraphView::IOutputSlots& replacementSubgraphOutputSlots  = replacementSubgraph.GetIOutputSlots();
+    const SubgraphView::IConnectableLayers& replacementSubgraphLayers = replacementSubgraph.GetIConnectableLayers();
 
     CHECK(substitutableSubgraphInputSlots.size() == subgraphInputSlots.size());
     CHECK(substitutableSubgraphOutputSlots.size() == subgraphOutputSlots.size());
@@ -347,13 +347,13 @@ void FullyOptimizableSubgraphTestImpl2()
     SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildFullyOptimizableSubgraph2(graph);
     CHECK((subgraphPtr != nullptr));
 
-    const SubgraphView::InputSlots& subgraphInputSlots   = subgraphPtr->GetInputSlots();
-    const SubgraphView::OutputSlots& subgraphOutputSlots = subgraphPtr->GetOutputSlots();
-    const SubgraphView::Layers& subgraphLayers           = subgraphPtr->GetLayers();
+    const SubgraphView::IInputSlots& subgraphInputSlots    = subgraphPtr->GetIInputSlots();
+    const SubgraphView::IOutputSlots& subgraphOutputSlots  = subgraphPtr->GetIOutputSlots();
+    const SubgraphView::IConnectableLayers& subgraphLayers = subgraphPtr->GetIConnectableLayers();
 
-    CHECK(subgraphPtr->GetInputSlots().size() == 1);
-    CHECK(subgraphPtr->GetOutputSlots().size() == 1);
-    CHECK(subgraphPtr->GetLayers().size() == 5);
+    CHECK(subgraphPtr->GetIInputSlots().size() == 1);
+    CHECK(subgraphPtr->GetIOutputSlots().size() == 1);
+    CHECK(subgraphPtr->GetIConnectableLayers().size() == 5);
 
     // Create a backend object
     auto backendObjPtr = CreateBackendObject(EthosNBackendId());
@@ -378,15 +378,15 @@ void FullyOptimizableSubgraphTestImpl2()
 
     const OptimizationViews::SubstitutionPair& substitution = substitutions.at(0);
 
-    const SubgraphView& substitutableSubgraph                         = substitution.m_SubstitutableSubgraph;
-    const SubgraphView::InputSlots& substitutableSubgraphInputSlots   = substitutableSubgraph.GetInputSlots();
-    const SubgraphView::OutputSlots& substitutableSubgraphOutputSlots = substitutableSubgraph.GetOutputSlots();
-    const SubgraphView::Layers& substitutableSubgraphLayers           = substitutableSubgraph.GetLayers();
+    const SubgraphView& substitutableSubgraph                           = substitution.m_SubstitutableSubgraph;
+    const SubgraphView::IInputSlots& substitutableSubgraphInputSlots    = substitutableSubgraph.GetIInputSlots();
+    const SubgraphView::IOutputSlots& substitutableSubgraphOutputSlots  = substitutableSubgraph.GetIOutputSlots();
+    const SubgraphView::IConnectableLayers& substitutableSubgraphLayers = substitutableSubgraph.GetIConnectableLayers();
 
-    const SubgraphView& replacementSubgraph                         = substitution.m_ReplacementSubgraph;
-    const SubgraphView::InputSlots& replacementSubgraphInputSlots   = replacementSubgraph.GetInputSlots();
-    const SubgraphView::OutputSlots& replacementSubgraphOutputSlots = replacementSubgraph.GetOutputSlots();
-    const SubgraphView::Layers& replacementSubgraphLayers           = replacementSubgraph.GetLayers();
+    const SubgraphView& replacementSubgraph                           = substitution.m_ReplacementSubgraph;
+    const SubgraphView::IInputSlots& replacementSubgraphInputSlots    = replacementSubgraph.GetIInputSlots();
+    const SubgraphView::IOutputSlots& replacementSubgraphOutputSlots  = replacementSubgraph.GetIOutputSlots();
+    const SubgraphView::IConnectableLayers& replacementSubgraphLayers = replacementSubgraph.GetIConnectableLayers();
 
     CHECK(substitutableSubgraphInputSlots.size() == subgraphInputSlots.size());
     CHECK(substitutableSubgraphOutputSlots.size() == subgraphOutputSlots.size());
@@ -416,13 +416,13 @@ void NonOptimizableSubgraphTestImpl()
     SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildNonOptimizableSubgraph(graph);
     CHECK((subgraphPtr != nullptr));
 
-    const SubgraphView::InputSlots& subgraphInputSlots   = subgraphPtr->GetInputSlots();
-    const SubgraphView::OutputSlots& subgraphOutputSlots = subgraphPtr->GetOutputSlots();
-    const SubgraphView::Layers& subgraphLayers           = subgraphPtr->GetLayers();
+    const SubgraphView::IInputSlots& subgraphInputSlots    = subgraphPtr->GetIInputSlots();
+    const SubgraphView::IOutputSlots& subgraphOutputSlots  = subgraphPtr->GetIOutputSlots();
+    const SubgraphView::IConnectableLayers& subgraphLayers = subgraphPtr->GetIConnectableLayers();
 
-    CHECK(subgraphPtr->GetInputSlots().size() == 1);
-    CHECK(subgraphPtr->GetOutputSlots().size() == 1);
-    CHECK(subgraphPtr->GetLayers().size() == 1);
+    CHECK(subgraphPtr->GetIInputSlots().size() == 1);
+    CHECK(subgraphPtr->GetIOutputSlots().size() == 1);
+    CHECK(subgraphPtr->GetIConnectableLayers().size() == 1);
 
     // Create a backend object
     auto backendObjPtr = CreateBackendObject(EthosNBackendId());
@@ -445,10 +445,10 @@ void NonOptimizableSubgraphTestImpl()
     const OptimizationViews::Subgraphs& failedSubgraphs = optimizationViews.GetFailedSubgraphs();
     CHECK(failedSubgraphs.size() == 1);
 
-    const SubgraphView& failedSubgraph                         = failedSubgraphs.at(0);
-    const SubgraphView::InputSlots& failedSubgraphInputSlots   = failedSubgraph.GetInputSlots();
-    const SubgraphView::OutputSlots& failedSubgraphOutputSlots = failedSubgraph.GetOutputSlots();
-    const SubgraphView::Layers& failedSubgraphLayers           = failedSubgraph.GetLayers();
+    const SubgraphView& failedSubgraph                           = failedSubgraphs.at(0);
+    const SubgraphView::IInputSlots& failedSubgraphInputSlots    = failedSubgraph.GetIInputSlots();
+    const SubgraphView::IOutputSlots& failedSubgraphOutputSlots  = failedSubgraph.GetIOutputSlots();
+    const SubgraphView::IConnectableLayers& failedSubgraphLayers = failedSubgraph.GetIConnectableLayers();
 
     CHECK(failedSubgraphInputSlots.size() == subgraphInputSlots.size());
     CHECK(failedSubgraphOutputSlots.size() == subgraphOutputSlots.size());

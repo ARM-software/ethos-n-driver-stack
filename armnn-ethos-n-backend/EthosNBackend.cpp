@@ -62,7 +62,7 @@ BackendRegistry::StaticRegistryInitializer g_RegisterHelper{ BackendRegistryInst
 Graph CloneGraph(const SubgraphView& originalSubgraph)
 {
     Graph newGraph = Graph();
-
+    ARMNN_NO_DEPRECATE_WARN_BEGIN
     std::unordered_map<const Layer*, Layer*> originalToClonedLayerMap;
     std::list<armnn::Layer*> originalSubgraphLayers = originalSubgraph.GetLayers();
 
@@ -78,6 +78,7 @@ Graph CloneGraph(const SubgraphView& originalSubgraph)
     // CloneGraph() and ReinterpretGraphToSubgraph() are used to work around this.
 
     // creating new layers for the input slots, adding them to the new graph and connecting them
+
     for (auto originalSubgraphInputSlot : originalSubgraph.GetInputSlots())
     {
         Layer& originalSubgraphLayer = originalSubgraphInputSlot->GetOwningLayer();
@@ -149,6 +150,7 @@ Graph CloneGraph(const SubgraphView& originalSubgraph)
         outputSlotOfLayer->Connect(newOutputLayer->GetInputSlot(0));
         outputSlotOfLayer->SetTensorInfo(originalSubgraphLayer.GetOutputSlot(i).GetTensorInfo());
     }
+    ARMNN_NO_DEPRECATE_WARN_END
 
     return newGraph;
 }
@@ -191,7 +193,9 @@ SubgraphView ReinterpretGraphToSubgraph(Graph& newGraph)
         outSlotsPointers.push_back(os->GetInputSlot(0).GetConnectedOutputSlot());
     }
 
+    ARMNN_NO_DEPRECATE_WARN_BEGIN
     return SubgraphView(std::move(inSlotsPointers), std::move(outSlotsPointers), std::move(subgrLayers));
+    ARMNN_NO_DEPRECATE_WARN_END
 }
 
 }    // namespace ethosnbackend
@@ -242,7 +246,7 @@ void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
     // Copy the output tensor infos from sub-graph
     for (unsigned int i = 0; i < subgraph.GetNumOutputSlots(); i++)
     {
-        preCompiledLayer->GetOutputSlot(i).SetTensorInfo(subgraph.GetOutputSlot(i)->GetTensorInfo());
+        preCompiledLayer->GetOutputSlot(i).SetTensorInfo(subgraph.GetIOutputSlot(i)->GetTensorInfo());
     }
 
     optimizationViews.AddSubstitution({ std::move(subgraph), SubgraphView(preCompiledLayer) });
