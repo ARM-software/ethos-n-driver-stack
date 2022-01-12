@@ -1,11 +1,18 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
-#include <map>
+#include <cstdint>
+
+namespace ethosn
+{
+namespace command_stream
+{
+namespace cascading
+{
 
 enum class PleKernelId : uint16_t
 {
@@ -104,3 +111,7 @@ enum class PleKernelId : uint16_t
     DOWNSAMPLE_2X2_16X16_1,
     DOWNSAMPLE_2X2_8X32_1,
 };
+
+}    // namespace cascading
+}    // namespace command_stream
+}    // namespace ethosn

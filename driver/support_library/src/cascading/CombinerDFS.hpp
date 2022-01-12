@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -52,7 +52,7 @@ struct Elem
 
 constexpr size_t g_InvalidCombRank = std::numeric_limits<size_t>::max();
 
-using PleOperations = std::vector<PleKernelId>;
+using PleOperations = std::vector<command_stream::cascading::PleKernelId>;
 
 struct Combination
 {

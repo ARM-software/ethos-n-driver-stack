@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -73,15 +73,16 @@ using PlekernelBlkMulMap = std::map<uint32_t, PleKernelIdBlockMultiplier>;
 
 struct PleKernelIdDatabase
 {
-    PleKernelId data[PleOpIndex(PleOperation::NUM_OPS)][NUM_DATA_TYPES][NUM_BLOCK_SIZES][NUM_BLOCK_MS];
+    command_stream::cascading::PleKernelId data[PleOpIndex(PleOperation::NUM_OPS)][NUM_DATA_TYPES][NUM_BLOCK_SIZES]
+                                               [NUM_BLOCK_MS];
 };
 
 }    // namespace impl
 
-PleKernelId FindPleKernelIdFromDatabase(BlockConfig blockConfig,
-                                        uint32_t stripeWidth,
-                                        ethosn::command_stream::DataType outputDataType,
-                                        PleOperation op);
+command_stream::cascading::PleKernelId FindPleKernelIdFromDatabase(BlockConfig blockConfig,
+                                                                   uint32_t stripeWidth,
+                                                                   ethosn::command_stream::DataType outputDataType,
+                                                                   PleOperation op);
 
 }    // namespace plelib
 }    // namespace support_library

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -11,6 +11,7 @@
 #include <fstream>
 
 using namespace ethosn::support_library;
+using namespace ethosn::command_stream::cascading;
 
 TEST_CASE("OpGraph Contains")
 {

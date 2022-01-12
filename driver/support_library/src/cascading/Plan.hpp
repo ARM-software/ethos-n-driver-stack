@@ -55,7 +55,7 @@ struct SizeInBytes
 
 struct PleKernelIdSize
 {
-    utils::Optional<PleKernelId> m_KernelId;
+    utils::Optional<command_stream::cascading::PleKernelId> m_KernelId;
     uint32_t m_Size;
 };
 
@@ -260,7 +260,7 @@ public:
     std::vector<TensorShape> m_InputStripeShapes;
     TensorShape m_OutputStripeShape;
     command_stream::DataType m_OutputDataType;
-    PleKernelId m_PleKernelId;
+    command_stream::cascading::PleKernelId m_PleKernelId;
 };
 
 class ConcatOp : public Op

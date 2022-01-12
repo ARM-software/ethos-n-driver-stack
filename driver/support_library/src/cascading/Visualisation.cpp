@@ -17,6 +17,7 @@
 #include <iostream>
 
 using namespace std;
+using namespace ethosn::command_stream::cascading;
 
 namespace ethosn
 {

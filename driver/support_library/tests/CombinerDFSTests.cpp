@@ -17,6 +17,7 @@
 
 using namespace ethosn::support_library;
 using namespace ethosn::command_stream;
+using PleKernelId = ethosn::command_stream::cascading::PleKernelId;
 
 TEST_CASE("IsPartSiso", "[CombinerDFS]")
 {
