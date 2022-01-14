@@ -132,6 +132,36 @@ static void __iomem *ethosn_map_iomem(const struct ethosn_core *const core,
 	return ptr;
 }
 
+static const char *severity_to_kern_level(const struct device *dev,
+					  uint32_t severity)
+{
+	switch (severity) {
+	case ETHOSN_LOG_PANIC: {
+		return KERN_CRIT;
+	}
+	case ETHOSN_LOG_ERROR: {
+		return KERN_ERR;
+	}
+	case ETHOSN_LOG_WARNING: {
+		return KERN_WARNING;
+	}
+	case ETHOSN_LOG_INFO: {
+		return KERN_INFO;
+	}
+	case ETHOSN_LOG_DEBUG:
+	/* Fall-through */
+	case ETHOSN_LOG_VERBOSE: {
+		return KERN_DEBUG;
+	}
+	default: {
+		dev_err(dev, "Unknown text message severity level: %u\n",
+			severity);
+
+		return KERN_ERR;
+	}
+	}
+}
+
 static const char *err_msg_status_to_str(uint32_t status)
 {
 	switch (status) {
@@ -325,8 +355,9 @@ static int handle_message(struct ethosn_core *core)
 		/* Null terminate str. One byte has been reserved for this. */
 		*eos = '\0';
 
-		dev_info(core->dev, "<- Text. text=\"%s\"\n",
-			 rtrim(text->text, "\n"));
+		dev_printk(severity_to_kern_level(core->dev, text->severity),
+			   core->dev, "<- Text. text=\"%s\"\n",
+			   rtrim(text->text, "\n"));
 		break;
 	}
 	case ETHOSN_MESSAGE_CONFIGURE_PROFILING_ACK: {
