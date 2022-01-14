@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited.
+ * (C) COPYRIGHT 2018-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -48,7 +48,7 @@
  * firmware binaries (sub-components of the fat binary).
  */
 #define ETHOSN_FIRMWARE_VERSION_MAJOR 3
-#define ETHOSN_FIRMWARE_VERSION_MINOR 0
+#define ETHOSN_FIRMWARE_VERSION_MINOR 1
 #define ETHOSN_FIRMWARE_VERSION_PATCH 0
 
 /** Max length of a cache line. Used to separate host and Ethos-N data. */
@@ -303,6 +303,7 @@ enum ethosn_message_type {
 
 	ETHOSN_MESSAGE_STASH_REQUEST,
 
+	ETHOSN_MESSAGE_ERROR_RESPONSE,
 	ETHOSN_MESSAGE_MAX
 };
 
@@ -529,6 +530,32 @@ enum ethosn_region_status {
  */
 struct ethosn_message_region_response {
 	uint32_t id;
+	uint32_t status;
+};
+
+/******************************************************************************
+ * Error reporting
+ ******************************************************************************/
+
+/**
+ * Request error status
+ */
+enum ethosn_error_status {
+	ETHOSN_ERROR_STATUS_INVALID_STATE,
+	ETHOSN_ERROR_STATUS_INVALID_MESSAGE,
+	ETHOSN_ERROR_STATUS_FAILED,
+	ETHOSN_ERROR_STATUS_MAX
+};
+
+/**
+ * struct ethosn_message_error_response - Error response message
+ * @var type:	Message type the error occured for
+ * @var status: General error status
+ *
+ * Following a ethosn_message_header.
+ */
+struct ethosn_message_error_response {
+	uint32_t type;
 	uint32_t status;
 };
 

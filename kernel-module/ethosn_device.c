@@ -691,9 +691,9 @@ int ethosn_read_message(struct ethosn_core *core,
 		queue->write);
 
 	if (length < header->length) {
-		dev_warn(core->dev,
-			 "Message too large to read. header.length=%u, length=%zu.\n",
-			 header->length, length);
+		dev_err(core->dev,
+			"Message too large to read. header.length=%u, length=%zu.\n",
+			header->length, length);
 
 		ethosn_queue_skip(queue, header->length);
 
@@ -718,6 +718,9 @@ int ethosn_read_message(struct ethosn_core *core,
 
 	return 1;
 }
+
+/* Exported for use by test module * */
+EXPORT_SYMBOL(ethosn_read_message);
 
 /**
  * ethosn_write_message() - Write message to queue.
@@ -802,7 +805,7 @@ int ethosn_send_fw_hw_capabilities_request(struct ethosn_core *core)
 	if (core->fw_and_hw_caps.size > 0U)
 		return 0;
 
-	dev_dbg(core->dev, "-> FW & HW Capabilities\n");
+	dev_dbg(core->dev, "-> FW & HW capabilities\n");
 
 	return ethosn_write_message(core, ETHOSN_MESSAGE_FW_HW_CAPS_REQUEST,
 				    NULL, 0);
@@ -854,7 +857,7 @@ static int ethosn_send_configure_profiling(struct ethosn_core *core,
 	}
 
 	dev_dbg(core->dev,
-		"-> ETHOSN_MESSAGE_CONFIGURE_PROFILING, enable_profiling=%d, buffer_address=0x%08llx, buffer_size=%d\n",
+		"-> Configure profiling, enable_profiling=%d, buffer_address=0x%08llx, buffer_size=%d\n",
 		fw_new_config.enable_profiling, fw_new_config.buffer_address,
 		fw_new_config.buffer_size);
 
@@ -970,7 +973,7 @@ int ethosn_send_time_sync(struct ethosn_core *core)
 {
 	struct ethosn_message_time_sync_request request;
 
-	dev_dbg(core->dev, "-> Time Sync\n");
+	dev_dbg(core->dev, "-> Time sync\n");
 
 	request.timestamp = ktime_get_real_ns();
 

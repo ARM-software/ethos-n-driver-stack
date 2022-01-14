@@ -132,6 +132,48 @@ static void __iomem *ethosn_map_iomem(const struct ethosn_core *const core,
 	return ptr;
 }
 
+static const char *err_msg_status_to_str(uint32_t status)
+{
+	switch (status) {
+	case ETHOSN_ERROR_STATUS_INVALID_STATE:
+
+		return "Invalid state";
+	case ETHOSN_ERROR_STATUS_INVALID_MESSAGE:
+
+		return "Invalid message";
+	case ETHOSN_ERROR_STATUS_FAILED:
+
+		return "Request failed";
+	default: {
+		return "Unknown status";
+	}
+	}
+}
+
+static const char *err_msg_type_to_str(uint32_t message_type)
+{
+	switch (message_type) {
+	case ETHOSN_MESSAGE_INFERENCE_REQUEST: {
+		return "Inference request";
+	}
+	case ETHOSN_MESSAGE_CONFIGURE_PROFILING: {
+		return "Configure profiling request";
+	}
+	case ETHOSN_MESSAGE_TIME_SYNC: {
+		return "Time sync request";
+	}
+	case ETHOSN_MESSAGE_MPU_ENABLE_REQUEST: {
+		return "Mpu enable request";
+	}
+	case ETHOSN_MESSAGE_FW_HW_CAPS_REQUEST: {
+		return "FW & HW capabilities request";
+	}
+	default: {
+		return "Unknown request";
+	}
+	}
+}
+
 /**
  * rtrim() - Trim characters from end of string.
  *
@@ -216,9 +258,15 @@ static int handle_message(struct ethosn_core *core)
 		struct ethosn_message_region_response *rsp =
 			core->mailbox_message;
 
-		dev_dbg(core->dev, "<- Region=%u. status=%u\n", rsp->id,
-			rsp->status);
+		if (rsp->status != ETHOSN_REGION_STATUS_OK) {
+			dev_err(core->dev,
+				"<- Region=%u request error. status=%u\n",
+				rsp->id, rsp->status);
 
+			return -EFAULT;
+		}
+
+		dev_dbg(core->dev, "<- Region=%u setup\n", rsp->id);
 		break;
 	}
 	case ETHOSN_MESSAGE_MPU_ENABLE_RESPONSE: {
@@ -226,7 +274,7 @@ static int handle_message(struct ethosn_core *core)
 		break;
 	}
 	case ETHOSN_MESSAGE_FW_HW_CAPS_RESPONSE: {
-		dev_dbg(core->dev, "<- FW & HW Capabilities\n");
+		dev_dbg(core->dev, "<- FW & HW capabilities\n");
 
 		/* Free previous memory (if any) */
 		if (core->fw_and_hw_caps.data)
@@ -282,10 +330,19 @@ static int handle_message(struct ethosn_core *core)
 		break;
 	}
 	case ETHOSN_MESSAGE_CONFIGURE_PROFILING_ACK: {
-		dev_dbg(core->dev,
-			"<- ETHOSN_MESSAGE_CONFIGURE_PROFILING_ACK\n");
+		dev_dbg(core->dev, "<- Configured profiling\n");
 		ethosn_configure_firmware_profiling_ack(core);
 		break;
+	}
+	case ETHOSN_MESSAGE_ERROR_RESPONSE: {
+		struct ethosn_message_error_response *rsp =
+			core->mailbox_message;
+
+		dev_err(core->dev, "<- %s(%u) error. status=%s(%u)\n",
+			err_msg_type_to_str(rsp->type), rsp->type,
+			err_msg_status_to_str(rsp->status), rsp->status);
+
+		return -EFAULT;
 	}
 	default: {
 		dev_warn(core->dev,
@@ -309,6 +366,7 @@ static void ethosn_irq_bottom(struct work_struct *work)
 	struct ethosn_core *core = container_of(work, struct ethosn_core,
 						irq_work);
 	struct dl1_irq_status_r status;
+	bool error_status;
 	int ret;
 
 	ret = mutex_lock_interruptible(&core->mutex);
@@ -334,16 +392,24 @@ static void ethosn_irq_bottom(struct work_struct *work)
 		ret = handle_message(core);
 	} while (ret > 0);
 
-	/* Inference failed. Reset firmware. */
-	if (status.bits.setirq_err ||
-	    status.bits.tol_err || status.bits.func_err ||
-	    status.bits.rec_err || status.bits.unrec_err) {
-		/* Failure may happen before the firmware is deemed running. */
-		ethosn_dump_gps(core);
+	error_status = status.bits.setirq_err || status.bits.tol_err ||
+		       status.bits.func_err || status.bits.rec_err ||
+		       status.bits.unrec_err;
 
-		dev_warn(core->dev,
-			 "Reset core due to error interrupt. irq_status=0x%08x\n",
-			 status.word);
+	/* Mailbox or IRQ error reported. Reset firmware. */
+	if (ret < 0 || error_status) {
+		/* Failure may happen before the firmware is deemed running. */
+		if (error_status) {
+			ethosn_dump_gps(core);
+
+			dev_warn(core->dev,
+				 "Reset core due to error interrupt. irq_status=0x%08x\n",
+				 status.word);
+		} else {
+			dev_warn(core->dev,
+				 "Reset core due to mailbox error. status=%d\n",
+				 ret);
+		}
 
 		if (core->firmware_running) {
 			(void)ethosn_reset_and_start_ethosn(core);
