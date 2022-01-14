@@ -1113,12 +1113,6 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
     stream << "{"
            << "\n";
 
-    if (!estimationDetails.IsComplete())
-    {
-        stream << "labelloc = \"t\"\n";
-        stream << "label=\"" << estimationDetails.m_UnestimatedOps.size() << " Op(s) were unestimated!!\"\n";
-    }
-
     // Decide which Pass each Buffer belongs to (if any). This information is not directly available in EstimatedOpGraph
     // as that just contains the Pass for each *Op*, so we must derive this information.
     std::unordered_map<uint32_t, std::vector<Buffer*>> passToBuffers;
@@ -1140,10 +1134,11 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
         utils::Optional<uint32_t> commonPassIdx;
         for (Op* neighbour : neighbourOps)
         {
-            utils::Optional<uint32_t> passIdx =
-                estimationDetails.m_UnestimatedOps.count(neighbour) > 0
-                    ? utils::Optional<uint32_t>()
-                    : utils::Optional<uint32_t>(estimationDetails.m_OpToPass.find(neighbour)->second);
+            auto it = estimationDetails.m_OpToPass.find(neighbour);
+            // The Op may not be in a Pass, for example if it is an EstimateOnlyOp
+            utils::Optional<uint32_t> passIdx = it == estimationDetails.m_OpToPass.end()
+                                                    ? utils::Optional<uint32_t>()
+                                                    : utils::Optional<uint32_t>(it->second);
 
             if (!commonPassIdx.has_value())
             {
@@ -1214,12 +1209,18 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
                << "\n";
     }
 
-    // Ops that aren't in a Pass. Sort these by something deterministic for reproducible behaviour (NOT pointer values!)
-    std::vector<Op*> unestimatedOps(estimationDetails.m_UnestimatedOps.begin(),
-                                    estimationDetails.m_UnestimatedOps.end());
-    std::sort(unestimatedOps.begin(), unestimatedOps.end(),
-              [](auto a, auto b) { return a->m_DebugTag < b->m_DebugTag; });
-    for (Op* o : unestimatedOps)
+    // Ops that aren't in a Pass (e.g. EstimateOnlyOps).
+    std::vector<Op*> unassignedOps;
+    for (Op* op : graph.GetOps())
+    {
+        if (estimationDetails.m_OpToPass.find(op) == estimationDetails.m_OpToPass.end())
+        {
+            unassignedOps.push_back(op);
+        }
+    }
+    // Sort these by something deterministic for reproducible behaviour (NOT pointer values!)
+    std::sort(unassignedOps.begin(), unassignedOps.end(), [](auto a, auto b) { return a->m_DebugTag < b->m_DebugTag; });
+    for (Op* o : unassignedOps)
     {
         std::string nodeId = DumpToDotFormat(o, stream, detailLevel);
         nodeIds[o]         = nodeId;

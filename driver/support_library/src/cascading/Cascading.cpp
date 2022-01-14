@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -158,8 +158,7 @@ void Cascading::EstimatePerformance()
         if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
         {
             debugPerformanceDumpFile << combinationIdx << ": "
-                                     << GetPerformanceTotalDataMetric(estimatedOpGraph.m_PerfData)
-                                     << (estimatedOpGraph.IsComplete() ? "" : " (INCOMPLETE)") << std::endl;
+                                     << GetPerformanceTotalDataMetric(estimatedOpGraph.m_PerfData) << std::endl;
             if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
             {
                 std::string folder = "Combinations/" + std::to_string(combinationIdx);
@@ -167,17 +166,13 @@ void Cascading::EstimatePerformance()
             }
         }
 
-        // The estimation may not have been complete, in which case we can't consider this combination.
-        if (estimatedOpGraph.IsComplete())
+        if (!bestCombinationIdx.has_value() ||
+            ComparePerformanceData(estimatedOpGraph.m_PerfData, m_PerformanceStream) ==
+                PerformanceComparisonResult::LeftBetter)
         {
-            if (!bestCombinationIdx.has_value() ||
-                ComparePerformanceData(estimatedOpGraph.m_PerfData, m_PerformanceStream) ==
-                    PerformanceComparisonResult::LeftBetter)
-            {
-                m_PerformanceStream = estimatedOpGraph.m_PerfData;
-                m_BestCombination   = &combination;
-                bestCombinationIdx  = combinationIdx;
-            }
+            m_PerformanceStream = estimatedOpGraph.m_PerfData;
+            m_BestCombination   = &combination;
+            bestCombinationIdx  = combinationIdx;
         }
 
         ++combinationIdx;

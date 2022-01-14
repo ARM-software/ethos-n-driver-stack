@@ -331,8 +331,8 @@ Buffer1[label = "Buffer1\nLifetime = Cascade\nLocation = PleInputSram\nFormat = 
 TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
 {
     // Build a simple graph with two cascaded PleOps, which we then create a fake EstimatedOpGraph struct to describe.
-    // Include a DmaOp at the end which we will exclude from the EstimatedOpGraph, to test the case where some Ops
-    // haven't been estimated.
+    // Include a EstimateOnlyOp at the end which we will exclude from the EstimatedOpGraph, to test the case where some Ops
+    // aren't in a Pass.
     OpGraph graph;
 
     Buffer inputBuffer(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB, { 1, 2, 3, 4 }, { 5, 6, 7, 8 },
@@ -355,18 +355,13 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     ple2.m_DebugTag = "Ple2";
     graph.AddOp(&ple2);
 
-    PleOp ple(Lifetime::Atomic, PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } },
-              { 9, 10, 11, 12 }, ethosn::command_stream::DataType::U8);
-    ple.m_DebugTag = "Ple";
-    graph.AddOp(&ple);
-
     Buffer outputBuffer(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB, { 1, 2, 3, 4 }, { 5, 6, 7, 8 },
                         TraversalOrder::Xyz, 1, QuantizationInfo(0, 1.0f));
     outputBuffer.m_DebugTag = "OutputBuffer";
     graph.AddBuffer(&outputBuffer);
 
-    DmaOp dma(Lifetime::Atomic);
-    dma.m_DebugTag = "Dma";
+    EstimateOnlyOp dma("No reason");
+    dma.m_DebugTag = "EstimateOnly";
     graph.AddOp(&dma);
 
     graph.AddConsumer(&inputBuffer, &ple1, 0);
@@ -386,7 +381,6 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     estimatedOpGraph.m_PerfData.m_Stream.push_back(pass2);
     estimatedOpGraph.m_OpToPass[&ple1] = 0;
     estimatedOpGraph.m_OpToPass[&ple2] = 1;
-    estimatedOpGraph.m_UnestimatedOps  = { &dma };
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = false;
@@ -403,8 +397,6 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     std::string expected =
         R"(digraph SupportLibraryGraph
 {
-labelloc = "t"
-label="1 Op(s) were unestimated!!"
 subgraph clusterPass0
 {
 label="Pass0"
@@ -422,14 +414,14 @@ fontsize = 56
 Ple2[label = "Ple2", shape = oval]
 Pass1_Perf[label = "{\l    \"OperationIds\": [ ],\l    \"ParentIds\": [],\l    \"Input\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Output\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0\l    },\l    \"Weights\":\l    {\l        \"DramParallelBytes\": 0,\l        \"DramNonParallelBytes\": 0,\l        \"SramBytes\": 0,\l        \"NumCentralStripes\": 0,\l        \"NumBoundaryStripes\": 0,\l        \"NumReloads\": 0,\l        \"CompressionSavings\": 0\l    },\l    \"Mce\":\l    {\l        \"Operations\": 0,\l        \"CycleCount\": 0\l    },\l    \"Ple\":\l    {\l        \"NumOfPatches\": 20,\l        \"Operation\": 0\l    }\l}\l", shape = note]
 }
-Dma[label = "Dma", shape = oval, color = darkgoldenrod]
+EstimateOnly[label = "EstimateOnly", shape = oval]
 IntermediateBuffer[label = "IntermediateBuffer", shape = box, color = blue]
 OutputBuffer[label = "OutputBuffer", shape = box, color = blue]
 InputBuffer -> Ple1
 Ple1 -> IntermediateBuffer
 IntermediateBuffer -> Ple2
 Ple2 -> OutputBuffer
-OutputBuffer -> Dma
+OutputBuffer -> EstimateOnly
 }
 )";
 

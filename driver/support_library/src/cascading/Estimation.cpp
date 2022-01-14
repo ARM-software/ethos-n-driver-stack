@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -34,20 +34,20 @@ DataFormat GetWeightsFormat(const MceOp& mceOp)
 }    // namespace
 
 /// Estimates a conversion pass that contains the given DmaOp and possibly some of its neighbours.
-/// Removes Ops from the given unestimatedOps set that it has included in its estimation.
+/// Removes Ops from the given unprocessed set that it has included in its estimation.
 EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
                                               Op* op,
                                               const EstimationOptions& estimationOpts,
-                                              std::unordered_set<Op*>& unestimatedOps)
+                                              std::unordered_set<Op*>& unprocessed)
 {
     EstimatedPass result;
 
     auto includeOp = [&](Op* op) {
-        unestimatedOps.erase(op);
+        unprocessed.erase(op);
         result.m_Ops.insert(op);
     };
 
-    assert(unestimatedOps.count(op) > 0);
+    assert(unprocessed.count(op) > 0);
     DmaOp* dmaOp = GetObjectAs<DmaOp>(op);
     assert(dmaOp != nullptr);
 
@@ -125,21 +125,21 @@ EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
 }
 
 /// Estimates a pass that contains the given Op and possibly some of its neighbours.
-/// Removes Ops from the given unestimatedOps set that it has included in its estimation.
+/// Removes Ops from the given unprocessed set that it has included in its estimation.
 EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
                                     Op* op,
                                     const HardwareCapabilities& capabilities,
                                     const EstimationOptions& estimationOpts,
-                                    std::unordered_set<Op*>& unestimatedOps)
+                                    std::unordered_set<Op*>& unprocessed)
 {
     EstimatedPass result;
 
     auto includeOp = [&](Op* op) {
-        unestimatedOps.erase(op);
+        unprocessed.erase(op);
         result.m_Ops.insert(op);
     };
 
-    assert(unestimatedOps.count(op) > 0);
+    assert(unprocessed.count(op) > 0);
     MceOp* mceOp = GetObjectAs<MceOp>(op);
     PleOp* pleOp = GetObjectAs<PleOp>(op);
     assert(mceOp != nullptr || pleOp != nullptr);
@@ -157,7 +157,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
             throw NotSupportedException("MceOp output buffer must be consumed by exactly one Op");
         }
         pleOp = GetObjectAs<PleOp>(opGraph.GetConsumers(mceOutput)[0].first);
-        if (pleOp == nullptr || unestimatedOps.count(pleOp) == 0)
+        if (pleOp == nullptr || unprocessed.count(pleOp) == 0)
         {
             throw NotSupportedException(
                 "MceOp output buffer consumer must be a PleOp which hasn't already been estimated");
@@ -170,7 +170,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         {
             Buffer* pleInput = opGraph.GetInputs(pleOp)[0];
             mceOp            = GetObjectAs<MceOp>(opGraph.GetProducer(pleInput));
-            if (mceOp != nullptr && unestimatedOps.count(mceOp) == 0)
+            if (mceOp != nullptr && unprocessed.count(mceOp) == 0)
             {
                 throw NotSupportedException(
                     "If PleOp's input is from an MceOp, that MceOp can't already have been estimated");
@@ -206,7 +206,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
             throw NotSupportedException("Weights buffer must be in Sram");
         }
         DmaOp* dmaOp = GetObjectAs<DmaOp>(opGraph.GetProducer(weightsSram));
-        if (dmaOp == nullptr || unestimatedOps.count(dmaOp) == 0)
+        if (dmaOp == nullptr || unprocessed.count(dmaOp) == 0)
         {
             throw NotSupportedException("Weights buffer must be Dma'd");
         }
@@ -276,7 +276,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         Location inputLocation = Location::Sram;
         bool isCompressed      = false;
         DmaOp* dmaOp           = GetObjectAs<DmaOp>(opGraph.GetProducer(sramInputBuffer));
-        if (dmaOp != nullptr && unestimatedOps.count(dmaOp) > 0)
+        if (dmaOp != nullptr && unprocessed.count(dmaOp) > 0)
         {
             if (opGraph.GetInputs(dmaOp).size() != 1)
             {
@@ -314,7 +314,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         if (opGraph.GetConsumers(sramOutputBuffer).size() == 1)
         {
             DmaOp* dmaOp = GetObjectAs<DmaOp>(opGraph.GetConsumers(sramOutputBuffer)[0].first);
-            if (dmaOp != nullptr && unestimatedOps.count(dmaOp) > 0)
+            if (dmaOp != nullptr && unprocessed.count(dmaOp) > 0)
             {
                 Buffer* dmaOutput = opGraph.GetOutput(dmaOp);
                 if (dmaOutput == nullptr)
@@ -344,20 +344,20 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
 }
 
 // Estimates a pass that contains the given ConcatOp.
-/// Removes Ops from the given unestimatedOps set that it has included in its estimation.
+/// Removes Ops from the given unprocessed set that it has included in its estimation.
 EstimatedPass EstimateConcatOp(const OpGraph& opGraph,
                                Op* op,
                                const EstimationOptions& estimationOpts,
-                               std::unordered_set<Op*>& unestimatedOps)
+                               std::unordered_set<Op*>& unprocessed)
 {
     EstimatedPass result;
 
     auto includeOp = [&](Op* op) {
-        unestimatedOps.erase(op);
+        unprocessed.erase(op);
         result.m_Ops.insert(op);
     };
 
-    assert(unestimatedOps.count(op) > 0);
+    assert(unprocessed.count(op) > 0);
 
     ConcatOp* concatOp = GetObjectAs<ConcatOp>(op);
     assert(concatOp != nullptr);
@@ -514,10 +514,10 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
 
     // We traverse the graph looking for Mce/PleOps, and then look outwards for neighbouring DmaOps to include in that
     // pass.
-    std::unordered_set<Op*> unestimatedOps(opGraph.GetOps().begin(), opGraph.GetOps().end());
+    std::unordered_set<Op*> unprocessedOps(opGraph.GetOps().begin(), opGraph.GetOps().end());
     for (Op* op : opGraph.GetOps())
     {
-        if (unestimatedOps.count(op) == 0)
+        if (unprocessedOps.count(op) == 0)
         {
             continue;    // This Op already estimated as part of another pass, so nothing else to do for it
         }
@@ -528,7 +528,7 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
 
             try
             {
-                estimatedPass = EstimatePassGrownFrom(opGraph, op, capabilities, estimationOpts, unestimatedOps);
+                estimatedPass = EstimatePassGrownFrom(opGraph, op, capabilities, estimationOpts, unprocessedOps);
             }
             catch (const NotSupportedException&)
             {
@@ -540,11 +540,11 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
     }
 
     // Once we've found all the MCE/PLE passes we now estimate conversion passes from any remaining unestimated ops.
-    if (!unestimatedOps.empty())
+    if (!unprocessedOps.empty())
     {
         for (Op* op : opGraph.GetOps())
         {
-            if (unestimatedOps.count(op) == 0)
+            if (unprocessedOps.count(op) == 0)
             {
                 continue;    // This Op already estimated as part of another pass, so nothing else to do for it
             }
@@ -555,7 +555,7 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
             {
                 try
                 {
-                    estimatedPass = EstimateConversionPassGrownFrom(opGraph, op, estimationOpts, unestimatedOps);
+                    estimatedPass = EstimateConversionPassGrownFrom(opGraph, op, estimationOpts, unprocessedOps);
                 }
                 catch (const NotSupportedException&)
                 {
@@ -569,7 +569,7 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
             {
                 try
                 {
-                    estimatedPass = EstimateConcatOp(opGraph, op, estimationOpts, unestimatedOps);
+                    estimatedPass = EstimateConcatOp(opGraph, op, estimationOpts, unprocessedOps);
                 }
                 catch (const NotSupportedException&)
                 {
@@ -580,25 +580,23 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
             }
             else if (IsObjectOfType<EstimateOnlyOp>(op))
             {
-                unestimatedOps.erase(op);
+                unprocessedOps.erase(op);
                 EstimateOnlyOp* estimateOnlyOp = GetObjectAs<EstimateOnlyOp>(op);
 
                 for (auto it : op->m_OperationIds)
                 {
                     result.m_PerfData.m_OperationIdFailureReasons[it] =
-                        "Could not be estimated and has zero performance impact. Reason:" +
+                        "Could not be estimated and has zero performance impact. Reason: " +
                         estimateOnlyOp->m_ReasonForEstimateOnly;
                 }
             }
         }
     }
 
-    result.m_UnestimatedOps = unestimatedOps;
-
     // Sort the Opgraph since passes aren't generated in order
     std::vector<Op*> sorted = GetSortedOps(opGraph);
 
-    NetworkPerformanceData sortedPassData;
+    std::vector<PassPerformanceData> sortedPassData;
     // Track the passes already added
     std::unordered_set<uint32_t> passesAdded;
     for (Op* op : sorted)
@@ -611,12 +609,18 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
             if (!alreadyAdded)
             {
                 const PassPerformanceData& data = result.m_PerfData.m_Stream[passId->second];
-                sortedPassData.m_Stream.push_back(data);
+                sortedPassData.push_back(data);
                 passesAdded.insert(passId->second);
             }
         }
     }
-    result.m_PerfData = sortedPassData;
+    result.m_PerfData.m_Stream = sortedPassData;
+
+    // Check that all Ops have been estimated.
+    if (!unprocessedOps.empty())
+    {
+        throw NotSupportedException("Not all Ops could be estimated");
+    }
 
     return result;
 }

@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -502,11 +502,6 @@ Combination Combiner::GetBestCombination(Combinations& combs) const
 
                 EstimatedOpGraph estimatedOpGraph =
                     ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Caps, m_EstOpt);
-
-                if (!estimatedOpGraph.IsComplete())
-                {
-                    continue;
-                }
 
                 if (!result.has_value() || ComparePerformanceData(estimatedOpGraph.m_PerfData, refNetPerfData) ==
                                                PerformanceComparisonResult::LeftBetter)
