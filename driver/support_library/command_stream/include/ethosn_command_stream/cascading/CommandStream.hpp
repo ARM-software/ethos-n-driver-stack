@@ -140,6 +140,8 @@ struct MceS
     MceOperation mceOpMode;
     /// Relu activation values
     ReluActivation reluActiv;
+    /// ID of the PLE kernel
+    PleKernelId pleKernelId;
 };
 
 /// Ple Loader data
