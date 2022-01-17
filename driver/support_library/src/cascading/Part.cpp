@@ -82,6 +82,11 @@ bool BasePart::HasActivationBounds() const
 void BasePart::ModifyActivationBounds(int16_t, int16_t)
 {}
 
+void BasePart::AddOperationId(uint32_t operationId)
+{
+    m_CorrespondingOperationIds.insert(operationId);
+}
+
 std::vector<PartInputSlot> GraphOfParts::GetPartInputs(PartId p) const
 {
     std::vector<PartInputSlot> res;

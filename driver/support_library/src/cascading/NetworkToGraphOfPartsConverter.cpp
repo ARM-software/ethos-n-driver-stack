@@ -607,6 +607,7 @@ void NetworkToGraphOfPartsConverter::Visit(Relu& relu)
 
     // If the input to the relu has activations we need to modify them
     inputPart->ModifyActivationBounds(info.m_LowerBound, info.m_UpperBound);
+    inputPart->AddOperationId(relu.GetId());
     m_OperandToPart[&relu.GetOutput(0)] = inputPart;
 }
 

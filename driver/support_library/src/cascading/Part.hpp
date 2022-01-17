@@ -189,10 +189,12 @@ public:
     virtual ~BasePart()
     {}
 
+    void AddOperationId(uint32_t operationId);
+
 protected:
     PartId m_PartId;
-    const CompilerDataFormat m_CompilerDataFormat;
-    const std::set<uint32_t> m_CorrespondingOperationIds;
+    CompilerDataFormat m_CompilerDataFormat;
+    std::set<uint32_t> m_CorrespondingOperationIds;
     const EstimationOptions& m_EstimationOptions;
     const CompilationOptions& m_CompilationOptions;
     const HardwareCapabilities& m_Capabilities;

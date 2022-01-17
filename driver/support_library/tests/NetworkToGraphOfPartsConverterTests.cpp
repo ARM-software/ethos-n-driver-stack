@@ -1209,8 +1209,8 @@ TEST_CASE("NetworkToGraphOfPartsConverter Conv Relu")
     std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
     std::shared_ptr<Constant> weights = AddConstant(network, weightsInfo, weightsData.data()).tensor;
     std::shared_ptr<Operand> conv     = AddConvolution(network, *input, *bias, *weights, convInfo).tensor;
-    std::shared_ptr<Operand> relu     = AddRelu(network, *conv, reluInfo).tensor;
-    std::shared_ptr<Output> output    = AddOutput(network, *relu).tensor;
+    auto relu                         = AddRelu(network, *conv, reluInfo);
+    std::shared_ptr<Output> output    = AddOutput(network, *relu.tensor).tensor;
 
     bool dumpToFile = false;
     if (dumpToFile)
@@ -1240,6 +1240,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Conv Relu")
     // Ensure the lower and upper bound on the mce op is correct.
     REQUIRE(mceOp->m_LowerBound == 100);
     REQUIRE(mceOp->m_UpperBound == 200);
+    REQUIRE(mceOp->m_OperationIds.count(relu.operationId) == 1);
 }
 
 TEST_CASE("NetworkToGraphOfPartsConverter Relu Conv")
