@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -103,7 +103,7 @@ TEST_CASE("SplitSupported")
         };
         REQUIRE(queries.IsSplitSupported(
                     TensorInfo({ 1, 16, 16, 64 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(1, 2)),
-                    SplitInfo(3, { 32, 16, 16 }), &outputInfos) == SupportedLevel::Supported);
+                    SplitInfo(3, { 32, 16, 16 }), &outputInfos) == SupportedLevel::EstimateOnly);
     }
 
     // Successful case (output infos filled in)
@@ -111,7 +111,7 @@ TEST_CASE("SplitSupported")
         std::vector<TensorInfo> outputInfos(3);
         REQUIRE(queries.IsSplitSupported(
                     TensorInfo({ 1, 16, 16, 64 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(1, 2)),
-                    SplitInfo(3, { 32, 16, 16 }), &outputInfos) == SupportedLevel::Supported);
+                    SplitInfo(3, { 32, 16, 16 }), &outputInfos) == SupportedLevel::EstimateOnly);
         REQUIRE(outputInfos.size() == 3);
         REQUIRE(outputInfos[0] ==
                 TensorInfo({ 1, 16, 16, 32 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(1, 2)));
@@ -124,7 +124,7 @@ TEST_CASE("SplitSupported")
 
 // Tests that a split that can be performed using NHWCB does so,
 // rather than falling back to NHWC.
-TEST_CASE("Split NHWCB")
+TEST_CASE("Split NHWCB", "[.]")
 {
     const auto inputDataType         = GENERATE(DataType::INT8_QUANTIZED, DataType::UINT8_QUANTIZED);
     const auto expectedInputDataType = utils::GetCommandDataType(inputDataType);
@@ -187,7 +187,7 @@ TEST_CASE("Split NHWCB")
 
 // Tests that a split that must be performed using NHWC does so,
 // rather than trying to use to NHWCB which can't work.
-TEST_CASE("Split NHWC")
+TEST_CASE("Split NHWC", "[.]")
 {
     const auto inputDataType         = GENERATE(DataType::UINT8_QUANTIZED, DataType::INT8_QUANTIZED);
     const auto expectedOtputDataType = utils::GetCommandDataType(inputDataType);

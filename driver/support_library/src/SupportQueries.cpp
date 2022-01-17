@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1253,7 +1253,7 @@ SupportedLevel SupportQueries::IsSplitSupported(const TensorInfo& inputInfo,
             assert(false);
     }
 
-    return SupportedLevel::Supported;
+    return SupportedLevel::EstimateOnly;
 }
 
 SupportedLevel SupportQueries::IsAdditionSupported(const TensorInfo& inputInfo0,
@@ -2391,7 +2391,7 @@ SupportedLevel SupportQueries::IsSpaceToDepthSupported(const TensorInfo& inputIn
         return SupportedLevel::Unsupported;
     }
 
-    return SupportedLevel::Supported;
+    return SupportedLevel::EstimateOnly;
 }
 
 SupportedLevel SupportQueries::IsEstimateOnlySupported(const std::vector<TensorInfo>&,
@@ -2592,7 +2592,7 @@ SupportedLevel SupportQueries::IsTransposeSupported(const TransposeInfo& transpo
         return SupportedLevel::Unsupported;
     }
 
-    return SupportedLevel::Supported;
+    return SupportedLevel::EstimateOnly;
 }
 
 SupportedLevel SupportQueries::IsResizeSupported(const ResizeInfo& resizeInfo,

@@ -862,6 +862,95 @@ void NetworkToGraphOfPartsConverter::Visit(Softmax& softmax)
     ConnectParts(softmax, parts);
 }
 
+void NetworkToGraphOfPartsConverter::Visit(Split& split)
+{
+    const TensorInfo& inputInfo           = split.GetInput(0).GetTensorInfo();
+    const TensorInfo& outputInfo          = split.GetOutput(0).GetTensorInfo();
+    const std::set<uint32_t> operationIds = { split.GetId() };
+
+    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
+    char reason[1024];
+    const SupportedLevel supportedLevel =
+        m_Queries.IsSplitSupported(inputInfo, split.GetSplitInfo(), nullptr, reason, sizeof(reason));
+
+    std::vector<BasePart*> parts;
+    if (supportedLevel == SupportedLevel::EstimateOnly)
+    {
+        auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
+            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputInfo },
+            std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
+            operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+        parts.push_back(std::move(estimateOnlyPart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+    }
+
+    // Loop through all parts in the vector of BaseParts and connect them together.
+    for (uint32_t i = 0; i < static_cast<uint32_t>(parts.size()) - 1; i++)
+    {
+        m_GraphOfParts.AddConnection({ parts[i + 1]->GetPartId(), 0 }, { parts[i]->GetPartId(), 0 });
+    }
+
+    Operand& operand = split.GetInput(0);
+    m_GraphOfParts.AddConnection({ parts.front()->GetPartId(), 0 },
+                                 { m_OperandToPart.at(&operand)->GetPartId(), operand.GetProducerOutputIndex() });
+
+    // Check if current operation has outputs and if so mark them for connection with the subsequent operation.
+    for (auto&& outputOperand : split.GetOutputs())
+    {
+        m_OperandToPart[&outputOperand] = parts.back();
+    }
+}
+
+void NetworkToGraphOfPartsConverter::Visit(Transpose& transpose)
+{
+    const TensorInfo& inputInfo           = transpose.GetInput(0).GetTensorInfo();
+    const TensorInfo& outputInfo          = transpose.GetOutput(0).GetTensorInfo();
+    const std::set<uint32_t> operationIds = { transpose.GetId() };
+
+    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
+    char reason[1024];
+    const SupportedLevel supportedLevel =
+        m_Queries.IsTransposeSupported(transpose.GetTransposeInfo(), inputInfo, nullptr, reason, sizeof(reason));
+    std::vector<BasePart*> parts;
+    if (supportedLevel == SupportedLevel::EstimateOnly)
+    {
+        auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
+            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputInfo },
+            std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
+            operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+        parts.push_back(std::move(estimateOnlyPart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+    }
+    ConnectParts(transpose, parts);
+}
+
+void NetworkToGraphOfPartsConverter::Visit(SpaceToDepth& spaceToDepth)
+{
+    const TensorInfo& inputInfo           = spaceToDepth.GetInput(0).GetTensorInfo();
+    const TensorInfo& outputInfo          = spaceToDepth.GetOutput(0).GetTensorInfo();
+    const std::set<uint32_t> operationIds = { spaceToDepth.GetId() };
+
+    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
+    char reason[1024];
+    const SupportedLevel supportedLevel = m_Queries.IsSpaceToDepthSupported(
+        inputInfo, spaceToDepth.GetSpaceToDepthInfo(), nullptr, reason, sizeof(reason));
+    std::vector<BasePart*> parts;
+    if (supportedLevel == SupportedLevel::EstimateOnly)
+    {
+        auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
+            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputInfo },
+            std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
+            operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+        parts.push_back(std::move(estimateOnlyPart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+    }
+
+    ConnectParts(spaceToDepth, parts);
+}
+
 std::vector<uint8_t> NetworkToGraphOfPartsConverter::OverrideWeights(const std::vector<uint8_t>& userWeights,
                                                                      const TensorInfo& weightsInfo) const
 {

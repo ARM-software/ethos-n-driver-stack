@@ -731,7 +731,9 @@ TEST_SUITE("EthosNSupport")
             CreateInputsFrom({ transposeLayer }), CreateOutputsFrom({ transposeLayer }), { transposeLayer });
 
         // Set up Ethos-N  sub-graph converter
-        TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
+        EthosNConfig config;
+        config.m_PerfOnly = true;
+        TestEthosNSubgraphViewConverter converter(*subgraphPtr, config, config.QueryCapabilities());
 
         // Check that we are able to convert the sub-graph
         CHECK_NOTHROW(converter.TestCreateUncompiledNetwork());

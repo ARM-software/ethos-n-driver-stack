@@ -1605,3 +1605,168 @@ TEST_CASE("NetworkToGraphOfPartsConverter Reinterpret Quantization")
         REQUIRE(plans[0].m_OpGraph.GetBuffers()[0]->m_QuantizationInfo == QuantizationInfo(0, 1.f));
     }
 }
+
+TEST_CASE("NetworkToGraphOfPartsConverter Split")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 16, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 0.9f },
+    };
+
+    SplitInfo splitInfo{ 1, { 9, 7 } };
+
+    const std::shared_ptr<Network> network =
+        CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    // Input -> Split -> Output
+    //                -> Output
+    std::shared_ptr<Operand> input              = AddInput(network, inputInfo).tensor;
+    std::vector<std::shared_ptr<Operand>> split = AddSplit(network, *input, splitInfo).tensors;
+    std::shared_ptr<Output> output0             = AddOutput(network, *split[0]).tensor;
+    std::shared_ptr<Output> output1             = AddOutput(network, *split[1]).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTestsSplit.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTests_SplitOutput.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+    }
+
+    // InputPart, EstimateOnlyPart, OutputPart, OutputPart
+    REQUIRE(graph.GetNumParts() == 4);
+
+    REQUIRE(dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1)) != nullptr);
+    REQUIRE(graph.GetPartInputs(1).size() == 1);
+    REQUIRE(graph.GetPartOutputs(1).size() == 2);
+    REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
+    REQUIRE(graph.GetConnectedInputSlots({ 1, 0 }).size() == 1);
+    REQUIRE(graph.GetConnectedInputSlots({ 1, 1 }).size() == 1);
+
+    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(2)) != nullptr);
+    REQUIRE(graph.GetPartInputs(2).size() == 1);
+    REQUIRE(graph.GetPartOutputs(2).size() == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 1);
+    REQUIRE(graph.GetConnectedInputSlots({ 2, 0 }).size() == 0);
+
+    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(3)) != nullptr);
+    REQUIRE(graph.GetPartInputs(3).size() == 1);
+    REQUIRE(graph.GetPartOutputs(3).size() == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 3, 0 }).value().m_PartId == 1);
+    REQUIRE(graph.GetConnectedInputSlots({ 3, 0 }).size() == 0);
+}
+
+TEST_CASE("NetworkToGraphOfPartsConverter Transpose")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 32, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 0.9f },
+    };
+
+    TransposeInfo transposeInfo{ { 0, 2, 1, 3 } };
+
+    const std::shared_ptr<Network> network =
+        CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    // Input -> Transpose -> Output
+    std::shared_ptr<Operand> input     = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Operand> transpose = AddTranspose(network, *input, transposeInfo).tensor;
+    std::shared_ptr<Output> output     = AddOutput(network, *transpose).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTestsTranspose.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTests_TransposeOutput.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+    }
+
+    // InputPart, EstimateOnlyPart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    {
+        const EstimateOnlyPart* part = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
+        REQUIRE(part != nullptr);
+    }
+}
+
+TEST_CASE("NetworkToGraphOfPartsConverter SpaceToDepth")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 32, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 0.9f },
+    };
+
+    SpaceToDepthInfo spaceToDepthInfo(2);
+    const std::shared_ptr<Network> network =
+        CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    // Input -> SpaceToDepth -> Output
+    std::shared_ptr<Operand> input     = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Operand> transpose = AddSpaceToDepth(network, *input, spaceToDepthInfo).tensor;
+    std::shared_ptr<Output> output     = AddOutput(network, *transpose).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTestsSpaceToDepth.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTests_SpaceToDepthOutput.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+    }
+
+    // InputPart, EstimateOnlyPart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    {
+        const EstimateOnlyPart* part = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
+        REQUIRE(part != nullptr);
+    }
+}

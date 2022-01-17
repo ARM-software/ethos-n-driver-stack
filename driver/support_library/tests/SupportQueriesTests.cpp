@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -333,7 +333,7 @@ TEST_CASE("Unsupported Tensor Depth", "[IsSupported][TVM]")
         // clang-format off
         const auto shapes = GENERATE(
             //                          Input                                          TransposeInfo
-            std::vector<TensorShape>{ { 1, 16, 16, UNSUPPORTED_OUTPUT_DIM },         { 0, 2, 1, 3 } },
+            std::vector<TensorShape>{ { 1, 16, 16, UNSUPPORTED_OUTPUT_DIM }, { 0, 2, 1, 3 } },
             std::vector<TensorShape>{ { 1, 16, UNSUPPORTED_OUTPUT_DIM, OUTPUT_DIM }, { 0, 1, 3, 2 } }
         );
         // clang-format on

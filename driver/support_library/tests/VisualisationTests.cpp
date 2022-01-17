@@ -31,7 +31,7 @@ using namespace ethosn::command_stream;
 TEST_CASE("SaveNetworkToDot Network Topology", "[Visualisation]")
 {
     // Build an arbitrary network, making sure to demonstrate multiple inputs, multiple outputs and multiple consumers.
-    Network network(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO));
+    Network network(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO), true);
 
     Input& input = network.AddInput(sl::TensorInfo({ 1, 16, 16, 32 }));
     network.AddOutput(input.GetOutput(0), sl::DataFormat::NHWCB);

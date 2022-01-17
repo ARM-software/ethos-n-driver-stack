@@ -1704,8 +1704,6 @@ TEST_SUITE("Compute_EthosN")
 
     ARMNN_AUTO_TEST_CASE(PreCompiledMeanXy, PreCompiledMeanXyTest)
 
-    ARMNN_AUTO_TEST_CASE(PreCompiledSplitter, PreCompiledSplitterTest)
-
     ARMNN_AUTO_TEST_CASE(PreCompiledDepthToSpace, PreCompiledDepthToSpaceTest)
 
     ARMNN_AUTO_TEST_CASE(PreCompiledLeakyRelu, PreCompiledLeakyReluTest)

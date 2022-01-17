@@ -119,21 +119,8 @@
 - The output for sigmoid always has a quantization zero point equal to the minimum value of the quantized data type and a quantization scale of 1 / 256.
 
 
-## Space to depth
-- A block size of greater than 1 is supported.
-- Input width and height must be a multiple of the block size.
-
-
-## Split
-- If splitting along the channel dimension, the channel dimension of every output tensor must be a multiple of 16
-
-
 ## Tanh
 - The output for tanh always has a quantization zero point equal to the middle value of the quantized data type and a quantization scale of 1 / 128.
-
-
-## Transpose
-- Transpose is allowed for height, width, and channel dimensions only.
 
 
 ## Transpose convolution 2D
@@ -145,6 +132,13 @@
      - I is the input quantization scale.
      - W is the weight quantization scale.
      - O is the output quantization scale.
+
+
+## Temporarily Disabled Operations
+The following operations have been temporarily disabled and will be enabled in a future release. These operations are now only supported at the "EstimateOnly" level. They can be used in SPA and will contribute zero performance impact, but cannot be compiled for execution on the actual hardware.
+- Split
+- Transpose
+- SpaceToDepth
 
 
 For more information, see `driver/support_library/src/SupportQueries.cpp`.
