@@ -48,6 +48,7 @@ FusedPlePart::FusedPlePart(PartId id,
                         Stride{ 1, 1 },
                         1,
                         MceOperation::DEPTHWISE_CONVOLUTION,
+                        op,
                         ShapeMultiplier::Identity,
                         shapeMultiplier,
                         capabilities)
@@ -301,7 +302,7 @@ Plans FusedPlePart::GetLonelyPlans(uint32_t numWeightStripes) const
     for (auto&& blockConfig : validBlockConfigs)
     {
         // Todo generate all stripes again
-        m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Beginning, &stripeInfos);
+        m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Lonely, &stripeInfos);
     }
 
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
@@ -391,23 +392,40 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
 
     const TensorShape& inputStripeShape = prevBuffer->m_StripeShape;
 
+    // Output stripe size = min (Tensor dimension * Multiplier for that dimension, Tensor dimension rounded up to multiple of block size).
+    //For Width: shapeW rounded up to multiple of brickWidth
+    //For Height: shapeH rounded up to multiple of brickHeight
+    //For Depth: shapeC rounded up to multiple of Number of Output Generators
     utils::ShapeMultiplier shapeMult = m_ShapeMultiplier;
-    TensorShape pleOutputStripe =
-        TensorShape{ inputStripeShape[0], inputStripeShape[1] * shapeMult.m_H, inputStripeShape[2] * shapeMult.m_W,
-                     inputStripeShape[3] * shapeMult.m_C };
+    TensorShape pleOutputStripe      = TensorShape{
+        inputStripeShape[0],
+        std::min(inputStripeShape[1] * shapeMult.m_H, utils::RoundUpToNearestMultiple(m_OutputTensorShape[1], 8U)),
+        std::min(inputStripeShape[2] * shapeMult.m_W, utils::RoundUpToNearestMultiple(m_OutputTensorShape[2], 8U)),
+        std::min(inputStripeShape[3] * shapeMult.m_C,
+                 utils::RoundUpToNearestMultiple(m_OutputTensorShape[3], m_Capabilities.GetNumberOfOgs()))
+    };
 
-    uint32_t memoryOutputChannelsEncoding = 0;
+    uint32_t memoryOutputChannelsEncoding = GetChannels(pleOutputStripe);
     bool isEndOfCascade                   = cascadeType == CascadeType::End;
-    if (fullTensor && isEndOfCascade)
+    if (fullTensor && !isEndOfCascade)
     {
-        memoryOutputChannelsEncoding = m_Capabilities.GetNumberOfOgs();
+        memoryOutputChannelsEncoding = 0;
     }
     TensorShape memoryOutputStripeEncoding{ 0, fullHeight ? 0 : GetHeight(pleOutputStripe),
                                             fullWidth ? 0 : GetWidth(pleOutputStripe), memoryOutputChannelsEncoding };
+    // Sram buffer takes the Stripe shape of the preceding Ple Op.
     TensorShape memoryOutputStripe =
         CreateStripe(m_OutputTensorShape, memoryOutputStripeEncoding, m_Capabilities.GetBrickGroupShape()[3]);
+    bool fullDepth = memoryOutputStripe[3] >= m_OutputTensorShape[3];
 
-    bool fullDepth            = memoryOutputStripe[3] >= m_OutputTensorShape[3];
+    // Do not generate Plans, if there is no fullTensor and no fullDepth for MAXPOOL_3x3_2_2.
+    if (!fullTensor && !fullDepth &&
+        (m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+         m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD))
+    {
+        return ret;
+    }
+
     uint32_t maxOutputStripes = 0;
     // strategy 0
     if (!fullTensor)
@@ -433,6 +451,10 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     }
 
     NumStripes numStripesOutput = { 1, maxOutputStripes };
+    const TensorShape mceInputStripe =
+        TensorShape{ inputStripeShape[0], std::min(inputStripeShape[1], m_InputTensorShape[1]),
+                     std::min(inputStripeShape[2], m_InputTensorShape[2]),
+                     std::min(inputStripeShape[3], m_InputTensorShape[3]) };
 
     if (prevBuffer->m_Location == Location::Sram)
     {
@@ -448,13 +470,12 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
         NumStripes numStripesWeights  = { numWeightStripes, numWeightStripes };
         NumStripes numStripesPleInput = { 0, 0 };
 
-        const TensorShape& mceInputStripe = inputStripeShape;
-        TensorShape mceOutputStripe       = mceInputStripe;
-        TensorShape mceWeightStripe       = { kernelHeight, kernelWidth, mceInputStripe[3], 1 };
-        TensorShape memoryWeightStripe    = mceWeightStripe;
+        TensorShape mceOutputStripe    = mceInputStripe;
+        TensorShape mceWeightStripe    = { kernelHeight, kernelWidth, mceInputStripe[3], 1 };
+        TensorShape memoryWeightStripe = mceWeightStripe;
 
         MceAndPleInfo mceAndPleInfo;
-        mceAndPleInfo.m_MceCompute.m_Input       = prevBuffer->m_StripeShape;
+        mceAndPleInfo.m_MceCompute.m_Input       = mceInputStripe;
         mceAndPleInfo.m_MceCompute.m_Output      = mceOutputStripe;
         mceAndPleInfo.m_MceCompute.m_Weight      = mceWeightStripe;
         mceAndPleInfo.m_MceCompute.m_BlockConfig = blockConfig;
@@ -462,7 +483,7 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
         mceAndPleInfo.m_PleCompute.m_Output      = pleOutputStripe;
         mceAndPleInfo.m_PleCompute.m_BlockConfig = blockConfig;
 
-        mceAndPleInfo.m_Memory.m_Input    = { numStripesInput, mceInputStripe };
+        mceAndPleInfo.m_Memory.m_Input    = { numStripesInput, inputStripeShape };
         mceAndPleInfo.m_Memory.m_Output   = { numStripesOutput, memoryOutputStripe };
         mceAndPleInfo.m_Memory.m_Weight   = { numStripesWeights, memoryWeightStripe };
         mceAndPleInfo.m_Memory.m_PleInput = { numStripesPleInput, mceOutputStripe };
@@ -473,7 +494,7 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     else if (prevBuffer->m_Location == Location::PleInputSram)
     {
         PleOnlyInfo pleOnlyInfo;
-        pleOnlyInfo.m_PleCompute.m_Input       = inputStripeShape;
+        pleOnlyInfo.m_PleCompute.m_Input       = mceInputStripe;
         pleOnlyInfo.m_PleCompute.m_Output      = pleOutputStripe;
         pleOnlyInfo.m_PleCompute.m_BlockConfig = blockConfig;
 

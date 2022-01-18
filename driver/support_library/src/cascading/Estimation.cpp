@@ -292,8 +292,12 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         uint32_t numOutStripeC =
             utils::DivRoundUp(sramOutputBuffer->m_TensorShape[3], sramOutputBuffer->m_StripeShape[3]);
 
+        // Round-up tensor Height and Width to Brick size, before calling GetInputStats() in order to properly estimate DramNonParallelBytes.
+        // GetInputStats() selects the min(stripeShape, shape), which resulted in incorrect estimation when stripeShape > shape.
+        const TensorShape& roundedUpInputShape =
+            utils::RoundUpHeightAndWidthToBrickGroup(sramInputBuffer->m_TensorShape);
         const InputStats uncompressedStats =
-            GetInputStats(capabilities, sramInputBuffer->m_TensorShape, sramInputBuffer->m_StripeShape, inputLocation,
+            GetInputStats(capabilities, roundedUpInputShape, sramInputBuffer->m_StripeShape, inputLocation,
                           sramInputBuffer->m_SizeInBytes, weightsTensorInfo, numOutStripeC);
         const InputStats inputStats =
             isCompressed
@@ -394,14 +398,15 @@ EstimatedPass EstimateConcatOp(const OpGraph& opGraph,
 
         Location inputLocation = Location::Dram;
 
-        CascadingBufferFormat format = dramInputBuffer->m_Format;
-
         bool isInputBufferCompressed = IsCompressed(dramInputBuffer->m_Format);
+
+        // Round-up tensor Height and Width to Brick size, before calling GetInputStats() in order to properly estimate DramNonParallelBytes.
+        const TensorShape& roundedUpInputShape =
+            utils::RoundUpHeightAndWidthToBrickGroup(dramInputBuffer->m_TensorShape);
 
         // We assume that the full tensor is copied into multiple stripes when it doesn't fit in Sram and that
         // overhead is not considered. i.e Program stripe --> DMA stripe --> Program stripe --> DMA stripe --> etc
-        InputStats inputStats =
-            GetInputStats(dramInputBuffer->m_TensorShape, dramInputBuffer->m_TensorShape, format, inputLocation);
+        InputStats inputStats = GetInputStats(roundedUpInputShape, dramInputBuffer->m_TensorShape, inputLocation);
 
         if (isInputBufferCompressed)
         {

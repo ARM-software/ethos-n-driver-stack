@@ -1,5 +1,5 @@
 //
-// Copyright © 2020-2021 Arm Limited.
+// Copyright © 2020-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -46,10 +46,7 @@ InputStats GetInputStats(const HardwareCapabilities& caps,
                              },
                          const uint32_t numOutStripesC = 1);
 
-InputStats GetInputStats(const TensorShape& shape,
-                         const TensorShape& stripeShape,
-                         CascadingBufferFormat format,
-                         const Location location);
+InputStats GetInputStats(const TensorShape& shape, const TensorShape& stripeShape, const Location location);
 
 OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeShape, const Location location);
 

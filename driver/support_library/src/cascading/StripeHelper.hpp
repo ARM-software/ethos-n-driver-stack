@@ -16,6 +16,15 @@ namespace support_library
 namespace impl
 {
 
+// Store Stripe split information per dimension.
+struct StripeSplitInfo
+{
+    bool splitInputHeight;
+    bool splitInputWidth;
+    bool splitInputDepth;
+    bool splitOutputDepth;
+};
+
 using NumStripesType = uint32_t;
 struct NumStripes
 {
@@ -169,6 +178,7 @@ public:
                     const Stride& stride,
                     uint32_t upscaleFactor,
                     command_stream::MceOperation op,
+                    command_stream::PleOperation pleOp,
                     utils::ShapeMultiplier mceShapeMult,
                     utils::ShapeMultiplier pleShapeMult,
                     const HardwareCapabilities& caps);
@@ -184,6 +194,8 @@ public:
                           NumStripes& numStripesWeights,
                           NumStripes& numStripesPleInput) const;
 
+    StripeSplitInfo SetPleKernelSplitRestrictions(CascadeType cascadeType) const;
+
     TensorShape m_MceInputTensorShape;
     TensorShape m_MceOutputTensorShape;
     TensorShape m_PleOutputTensorShape;
@@ -192,6 +204,7 @@ public:
     Stride m_Stride;
     uint32_t m_UpscaleFactor;
     command_stream::MceOperation m_Operation;
+    command_stream::PleOperation m_KernelOperation;
     utils::ShapeMultiplier m_MceShapeMultiplier;
     utils::ShapeMultiplier m_PleShapeMultiplier;
 

@@ -756,6 +756,476 @@ TEST_CASE("FusedPlePart GetPlans structure")
     }
 }
 
+/// Checks that FusedPlePart::GetPlans returns sensible plans for MAXPOOL_3X3_2_2 with different cascade types.
+/// Specific checks were added in order to test whether Plans are generated with the correct Height, Width, Depth split strategy.
+TEST_CASE("FusedPlePart GetPlans MaxPool")
+{
+    GIVEN("A simple FusedPlePart")
+    {
+        const CompilationOptions compOpt;
+        EstimationOptions estOpts;
+        const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_8TOPS_2PLE_RATIO);
+
+        const PartId partId  = 0;
+        TensorShape tsInEven = { 1, 128, 128, 64 };
+        TensorShape tsOut    = { 1, 64, 64, 64 };
+        const QuantizationInfo inputQuantInfo(0, 1.0f);
+        const QuantizationInfo outputQuantInfo(0, 1.0f);
+        const std::set<uint32_t> operationIds       = { 1, 2, 3 };
+        const command_stream::PleOperation csOpEven = command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN;
+        const utils::ShapeMultiplier shapeMult      = { { 1, 2 }, { 1, 2 }, 1 };
+        FusedPlePart partEven(partId, tsInEven, tsOut, inputQuantInfo, outputQuantInfo, csOpEven, shapeMult, estOpts,
+                              compOpt, caps, operationIds, ethosn::command_stream::DataType::U8);
+
+        TensorShape tsInOdd                        = { 1, 129, 129, 64 };
+        const command_stream::PleOperation csOpOdd = command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD;
+        FusedPlePart partOdd(partId, tsInOdd, tsOut, inputQuantInfo, outputQuantInfo, csOpOdd, shapeMult, estOpts,
+                             compOpt, caps, operationIds, ethosn::command_stream::DataType::U8);
+
+        CheckPlansParams paramsEven;
+        paramsEven.m_PartId          = partId;
+        paramsEven.m_InputShape      = tsInEven;
+        paramsEven.m_InputQuantInfo  = inputQuantInfo;
+        paramsEven.m_OutputShape     = tsOut;
+        paramsEven.m_OutputQuantInfo = outputQuantInfo;
+        paramsEven.m_PleOp           = csOpEven;
+        paramsEven.m_OperationIds    = operationIds;
+
+        CheckPlansParams paramsOdd;
+        paramsOdd.m_PartId          = partId;
+        paramsOdd.m_InputShape      = tsInOdd;
+        paramsOdd.m_InputQuantInfo  = inputQuantInfo;
+        paramsOdd.m_OutputShape     = tsOut;
+        paramsOdd.m_OutputQuantInfo = outputQuantInfo;
+        paramsOdd.m_PleOp           = csOpOdd;
+        paramsOdd.m_OperationIds    = operationIds;
+
+        WHEN("Asked to produce Lonely plans")
+        {
+            Plans plansEven = partEven.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
+            SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Lonely");
+
+            Plans plansOdd = partOdd.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
+            SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd Lonely");
+
+            THEN("The plans are valid, start and end in Sram")
+            {
+                // Lonely: MaxPoolEven checks
+                paramsEven.m_InputLocation  = PlanInputLocation::Sram;
+                paramsEven.m_OutputLocation = PlanOutputLocation::Sram;
+                paramsEven.m_All            = [](const PlanDesc& desc) {
+                    // InputWidth: No splits are performed, Ple's InputStripe should be larger or equal to InputTensor dimension.
+                    TensorShape InputTensor      = { 1, 128, 128, 64 };
+                    uint32_t PleInputStripeWidth = desc.m_Ple->m_InputStripeShapes[0][2];
+                    CHECK(PleInputStripeWidth >= InputTensor[2]);
+
+                    // OutputWidth: No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
+                    TensorShape OutputTensor      = { 1, 64, 64, 64 };
+                    uint32_t PleOutputStripeWidth = desc.m_Ple->m_OutputStripeShape[2];
+                    CHECK(PleOutputStripeWidth == OutputTensor[2]);
+                };
+                CheckPlans(plansEven, paramsEven);
+
+                // Lonely: MaxPoolOdd checks
+                paramsOdd.m_InputLocation  = PlanInputLocation::Sram;
+                paramsOdd.m_OutputLocation = PlanOutputLocation::Sram;
+                paramsOdd.m_All            = [](const PlanDesc& desc) {
+                    // InputWidth: No splits are performed, Ple's InputStripe should be larger or equal to InputTensor dimension.
+                    TensorShape InputTensor      = { 1, 129, 129, 64 };
+                    uint32_t PleInputStripeWidth = desc.m_Ple->m_InputStripeShapes[0][2];
+                    CHECK(PleInputStripeWidth >= InputTensor[2]);
+
+                    // OutputWidth: No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
+                    TensorShape OutputTensor      = { 1, 64, 64, 64 };
+                    uint32_t PleOutputStripeWidth = desc.m_Ple->m_OutputStripeShape[2];
+                    CHECK(PleOutputStripeWidth == OutputTensor[2]);
+                };
+                CheckPlans(plansOdd, paramsOdd);
+            }
+        }
+
+        WHEN("Asked to produce Beginning plans")
+        {
+            Plans plansEven = partEven.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
+            SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Beginning");
+
+            Plans plansOdd = partOdd.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
+            SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd Beginning");
+
+            THEN("The plans are valid and start in Sram and end in Sram")
+            {
+                // Beginning: MaxPoolEven checks
+                paramsEven.m_InputLocation  = PlanInputLocation::Sram;
+                paramsEven.m_OutputLocation = PlanOutputLocation::Sram;
+                paramsEven.m_All            = [](const PlanDesc& desc) {
+                    // InputWidth: No splits are performed, Ple's InputStripe should be larger or equal to InputTensor dimension.
+                    TensorShape InputTensor      = { 1, 128, 128, 64 };
+                    uint32_t PleInputStripeWidth = desc.m_Ple->m_InputStripeShapes[0][2];
+                    CHECK(PleInputStripeWidth >= InputTensor[2]);
+
+                    // OutputWidth: No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
+                    TensorShape OutputTensor      = { 1, 64, 64, 64 };
+                    uint32_t PleOutputStripeWidth = desc.m_Ple->m_OutputStripeShape[2];
+                    CHECK(PleOutputStripeWidth == OutputTensor[2]);
+                };
+                CheckPlans(plansEven, paramsEven);
+
+                // Beginning: MaxPoolOdd checks
+                paramsOdd.m_InputLocation  = PlanInputLocation::Sram;
+                paramsOdd.m_OutputLocation = PlanOutputLocation::Sram;
+                paramsOdd.m_All            = [](const PlanDesc& desc) {
+                    // InputWidth: No splits are performed, Ple's InputStripe should be larger or equal to InputTensor dimension.
+                    TensorShape InputTensor      = { 1, 129, 129, 64 };
+                    uint32_t PleInputStripeWidth = desc.m_Ple->m_InputStripeShapes[0][2];
+                    CHECK(PleInputStripeWidth >= InputTensor[2]);
+
+                    // OutputWidth: No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
+                    TensorShape OutputTensor      = { 1, 64, 64, 64 };
+                    uint32_t PleOutputStripeWidth = desc.m_Ple->m_OutputStripeShape[2];
+                    CHECK(PleOutputStripeWidth == OutputTensor[2]);
+                };
+                CheckPlans(plansOdd, paramsOdd);
+            }
+        }
+
+        WHEN("Asked to produce Middle plans with an input buffer in Sram")
+        {
+            Buffer prevBufferEven;
+            prevBufferEven.m_Lifetime         = Lifetime::Cascade;
+            prevBufferEven.m_Location         = Location::Sram;
+            prevBufferEven.m_Format           = CascadingBufferFormat::NHWCB;
+            prevBufferEven.m_QuantizationInfo = { 0, 1.0f };
+            prevBufferEven.m_TensorShape      = tsInEven;
+            prevBufferEven.m_StripeShape      = TensorShape{ 1, 128, 128, 64 };
+            prevBufferEven.m_Order            = TraversalOrder::Xyz;
+            prevBufferEven.m_SizeInBytes      = 1 * 128 * 128 * 64;
+            prevBufferEven.m_NumStripes       = 1;
+
+            Plans plansEven =
+                partEven.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, &prevBufferEven, 1);
+            SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Middle Sram Input");
+
+            Buffer prevBufferOdd;
+            prevBufferOdd.m_Lifetime         = Lifetime::Cascade;
+            prevBufferOdd.m_Location         = Location::Sram;
+            prevBufferOdd.m_Format           = CascadingBufferFormat::NHWCB;
+            prevBufferOdd.m_QuantizationInfo = { 0, 1.0f };
+            prevBufferOdd.m_TensorShape      = tsInOdd;
+            prevBufferOdd.m_StripeShape      = TensorShape{ 1, 136, 136, 64 };
+            prevBufferOdd.m_Order            = TraversalOrder::Xyz;
+            prevBufferOdd.m_SizeInBytes      = 1 * 136 * 136 * 64;
+            prevBufferOdd.m_NumStripes       = 1;
+
+            Plans plansOdd =
+                partOdd.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, &prevBufferOdd, 1);
+            SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd Middle Sram Input");
+
+            THEN("The are no valid plans that start in Sram and end in Sram")
+            {
+                // Middle Sram: MaxPoolEven checks
+                paramsEven.m_InputLocation  = PlanInputLocation::Sram;
+                paramsEven.m_OutputLocation = PlanOutputLocation::Sram;
+                paramsEven.m_All            = [](const PlanDesc& desc) {
+                    // No splits are performed, Ple's InputStripe should be equal to InputTensor dimension.
+                    TensorShape InputTensor       = { 1, 128, 128, 64 };
+                    uint32_t PleInputStripeHeight = desc.m_Ple->m_InputStripeShapes[0][1];
+                    uint32_t PleInputStripeWidth  = desc.m_Ple->m_InputStripeShapes[0][2];
+                    uint32_t PleInputStripeDepth  = desc.m_Ple->m_InputStripeShapes[0][3];
+                    CHECK(PleInputStripeHeight == InputTensor[1]);
+                    CHECK(PleInputStripeWidth == InputTensor[2]);
+                    CHECK(PleInputStripeDepth == InputTensor[3]);
+
+                    // No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
+                    TensorShape OutputTensor       = { 1, 64, 64, 64 };
+                    uint32_t PleOutputStripeHeight = desc.m_Ple->m_OutputStripeShape[1];
+                    uint32_t PleOutputStripeWidth  = desc.m_Ple->m_OutputStripeShape[2];
+                    uint32_t PleOutputStripeDepth  = desc.m_Ple->m_OutputStripeShape[3];
+                    CHECK(PleOutputStripeHeight == OutputTensor[1]);
+                    CHECK(PleOutputStripeWidth == OutputTensor[2]);
+                    CHECK(PleOutputStripeDepth == OutputTensor[3]);
+                };
+                CheckPlans(plansEven, paramsEven);
+
+                // Middle Sram: MaxPoolOdd checks
+                paramsOdd.m_InputLocation  = PlanInputLocation::Sram;
+                paramsOdd.m_OutputLocation = PlanOutputLocation::Sram;
+                paramsOdd.m_All            = [](const PlanDesc& desc) {
+                    // No splits are performed, Ple's InputStripe should be equal to InputTensor dimension.
+                    TensorShape InputTensor       = { 1, 129, 129, 64 };
+                    uint32_t PleInputStripeHeight = desc.m_Ple->m_InputStripeShapes[0][1];
+                    uint32_t PleInputStripeWidth  = desc.m_Ple->m_InputStripeShapes[0][2];
+                    uint32_t PleInputStripeDepth  = desc.m_Ple->m_InputStripeShapes[0][3];
+                    CHECK(PleInputStripeHeight == InputTensor[1]);
+                    CHECK(PleInputStripeWidth == InputTensor[2]);
+                    CHECK(PleInputStripeDepth == InputTensor[3]);
+
+                    // No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
+                    TensorShape OutputTensor       = { 1, 64, 64, 64 };
+                    uint32_t PleOutputStripeHeight = desc.m_Ple->m_OutputStripeShape[1];
+                    uint32_t PleOutputStripeWidth  = desc.m_Ple->m_OutputStripeShape[2];
+                    uint32_t PleOutputStripeDepth  = desc.m_Ple->m_OutputStripeShape[3];
+                    CHECK(PleOutputStripeHeight == OutputTensor[1]);
+                    CHECK(PleOutputStripeWidth == OutputTensor[2]);
+                    CHECK(PleOutputStripeDepth == OutputTensor[3]);
+                };
+                CheckPlans(plansOdd, paramsOdd);
+            }
+        }
+
+        WHEN("Asked to produce Middle plans with an input buffer in Ple Input Sram")
+        {
+            Buffer prevBufferEven;
+            prevBufferEven.m_Lifetime         = Lifetime::Cascade;
+            prevBufferEven.m_Location         = Location::PleInputSram;
+            prevBufferEven.m_Format           = CascadingBufferFormat::NHWCB;
+            prevBufferEven.m_QuantizationInfo = { 0, 1.0f };
+            prevBufferEven.m_TensorShape      = tsInEven;
+            prevBufferEven.m_StripeShape      = TensorShape{ 1, 128, 128, 64 };
+            prevBufferEven.m_Order            = TraversalOrder::Xyz;
+            prevBufferEven.m_SizeInBytes      = 1 * 128 * 128 * 64;
+            prevBufferEven.m_NumStripes       = 1;
+
+            Plans plansEven =
+                partEven.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, &prevBufferEven, 1);
+            SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Middle Ple Sram Input");
+
+            Buffer prevBufferOdd;
+            prevBufferOdd.m_Lifetime         = Lifetime::Cascade;
+            prevBufferOdd.m_Location         = Location::PleInputSram;
+            prevBufferOdd.m_Format           = CascadingBufferFormat::NHWCB;
+            prevBufferOdd.m_QuantizationInfo = { 0, 1.0f };
+            prevBufferOdd.m_TensorShape      = tsInOdd;
+            prevBufferOdd.m_StripeShape      = TensorShape{ 1, 136, 136, 64 };
+            prevBufferOdd.m_Order            = TraversalOrder::Xyz;
+            prevBufferOdd.m_SizeInBytes      = 1 * 136 * 136 * 64;
+            prevBufferOdd.m_NumStripes       = 1;
+
+            Plans plansOdd =
+                partOdd.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, &prevBufferOdd, 1);
+            SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd Middle Ple Sram Input");
+
+            THEN("The plans are valid and start in PleInputSram and end in Sram")
+            {
+                // Middle PleSram: MaxPoolEven checks
+                paramsEven.m_InputLocation  = PlanInputLocation::PleInputSram;
+                paramsEven.m_OutputLocation = PlanOutputLocation::Sram;
+                paramsEven.m_All            = [](const PlanDesc& desc) {
+                    // No splits are performed, Ple's InputStripe should be equal to InputTensor dimension.
+                    TensorShape InputTensor       = { 1, 128, 128, 64 };
+                    uint32_t PleInputStripeHeight = desc.m_Ple->m_InputStripeShapes[0][1];
+                    uint32_t PleInputStripeWidth  = desc.m_Ple->m_InputStripeShapes[0][2];
+                    uint32_t PleInputStripeDepth  = desc.m_Ple->m_InputStripeShapes[0][3];
+                    CHECK(PleInputStripeHeight == InputTensor[1]);
+                    CHECK(PleInputStripeWidth == InputTensor[2]);
+                    CHECK(PleInputStripeDepth == InputTensor[3]);
+
+                    // No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
+                    TensorShape OutputTensor       = { 1, 64, 64, 64 };
+                    uint32_t PleOutputStripeHeight = desc.m_Ple->m_OutputStripeShape[1];
+                    uint32_t PleOutputStripeWidth  = desc.m_Ple->m_OutputStripeShape[2];
+                    uint32_t PleOutputStripeDepth  = desc.m_Ple->m_OutputStripeShape[3];
+                    CHECK(PleOutputStripeHeight == OutputTensor[1]);
+                    CHECK(PleOutputStripeWidth == OutputTensor[2]);
+                    CHECK(PleOutputStripeDepth == OutputTensor[3]);
+                };
+                CheckPlans(plansEven, paramsEven);
+
+                // Middle PleSram: MaxPoolOdd checks
+                paramsOdd.m_InputLocation  = PlanInputLocation::PleInputSram;
+                paramsOdd.m_OutputLocation = PlanOutputLocation::Sram;
+                paramsOdd.m_All            = [](const PlanDesc& desc) {
+                    // No splits are performed, Ple's InputStripe should be equal to InputTensor dimension.
+                    TensorShape InputTensor       = { 1, 129, 129, 64 };
+                    uint32_t PleInputStripeHeight = desc.m_Ple->m_InputStripeShapes[0][1];
+                    uint32_t PleInputStripeWidth  = desc.m_Ple->m_InputStripeShapes[0][2];
+                    uint32_t PleInputStripeDepth  = desc.m_Ple->m_InputStripeShapes[0][3];
+                    CHECK(PleInputStripeHeight == InputTensor[1]);
+                    CHECK(PleInputStripeWidth == InputTensor[2]);
+                    CHECK(PleInputStripeDepth == InputTensor[3]);
+
+                    // No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
+                    TensorShape OutputTensor       = { 1, 64, 64, 64 };
+                    uint32_t PleOutputStripeHeight = desc.m_Ple->m_OutputStripeShape[1];
+                    uint32_t PleOutputStripeWidth  = desc.m_Ple->m_OutputStripeShape[2];
+                    uint32_t PleOutputStripeDepth  = desc.m_Ple->m_OutputStripeShape[3];
+                    CHECK(PleOutputStripeHeight == OutputTensor[1]);
+                    CHECK(PleOutputStripeWidth == OutputTensor[2]);
+                    CHECK(PleOutputStripeDepth == OutputTensor[3]);
+                };
+                CheckPlans(plansOdd, paramsOdd);
+            }
+        }
+
+        WHEN("Asked to produce End plans with an input buffer in Sram")
+        {
+            Buffer prevBufferEven;
+            prevBufferEven.m_Lifetime         = Lifetime::Cascade;
+            prevBufferEven.m_Location         = Location::Sram;
+            prevBufferEven.m_Format           = CascadingBufferFormat::NHWCB;
+            prevBufferEven.m_QuantizationInfo = { 0, 1.0f };
+            prevBufferEven.m_TensorShape      = tsInEven;
+            prevBufferEven.m_StripeShape      = TensorShape{ 1, 128, 128, 64 };
+            prevBufferEven.m_Order            = TraversalOrder::Xyz;
+            prevBufferEven.m_SizeInBytes      = 1 * 128 * 128 * 64;
+            prevBufferEven.m_NumStripes       = 1;
+
+            Plans plansEven =
+                partEven.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, &prevBufferEven, 1);
+            SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven End Sram Input");
+
+            Buffer prevBufferOdd;
+            prevBufferOdd.m_Lifetime         = Lifetime::Cascade;
+            prevBufferOdd.m_Location         = Location::Sram;
+            prevBufferOdd.m_Format           = CascadingBufferFormat::NHWCB;
+            prevBufferOdd.m_QuantizationInfo = { 0, 1.0f };
+            prevBufferOdd.m_TensorShape      = tsInOdd;
+            prevBufferOdd.m_StripeShape      = TensorShape{ 1, 136, 136, 64 };
+            prevBufferOdd.m_Order            = TraversalOrder::Xyz;
+            prevBufferOdd.m_SizeInBytes      = 1 * 136 * 136 * 64;
+            prevBufferOdd.m_NumStripes       = 1;
+
+            Plans plansOdd =
+                partOdd.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, &prevBufferOdd, 1);
+            SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd End Sram Input");
+
+            THEN("The plans are valid and start in Sram and end in Sram")
+            {
+                // End Sram: MaxPoolEven checks
+                paramsEven.m_InputLocation  = PlanInputLocation::Sram;
+                paramsEven.m_OutputLocation = PlanOutputLocation::Sram;
+                paramsEven.m_All            = [](const PlanDesc& desc) {
+                    // No splits are performed, Ple's InputStripe should be equal to InputTensor dimension.
+                    TensorShape InputTensor       = { 1, 128, 128, 64 };
+                    uint32_t PleInputStripeHeight = desc.m_Ple->m_InputStripeShapes[0][1];
+                    uint32_t PleInputStripeWidth  = desc.m_Ple->m_InputStripeShapes[0][2];
+                    uint32_t PleInputStripeDepth  = desc.m_Ple->m_InputStripeShapes[0][3];
+                    CHECK(PleInputStripeHeight == InputTensor[1]);
+                    CHECK(PleInputStripeWidth == InputTensor[2]);
+                    CHECK(PleInputStripeDepth == InputTensor[3]);
+
+                    // No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
+                    TensorShape OutputTensor       = { 1, 64, 64, 64 };
+                    uint32_t PleOutputStripeHeight = desc.m_Ple->m_OutputStripeShape[1];
+                    uint32_t PleOutputStripeWidth  = desc.m_Ple->m_OutputStripeShape[2];
+                    uint32_t PleOutputStripeDepth  = desc.m_Ple->m_OutputStripeShape[3];
+                    CHECK(PleOutputStripeHeight == OutputTensor[1]);
+                    CHECK(PleOutputStripeWidth == OutputTensor[2]);
+                    CHECK(PleOutputStripeDepth == OutputTensor[3]);
+                };
+                CheckPlans(plansEven, paramsEven);
+
+                // End Sram: MaxPoolOdd checks
+                paramsOdd.m_InputLocation  = PlanInputLocation::Sram;
+                paramsOdd.m_OutputLocation = PlanOutputLocation::Sram;
+                paramsOdd.m_All            = [](const PlanDesc& desc) {
+                    // No splits are performed, Ple's InputStripe should be equal to InputTensor dimension.
+                    TensorShape InputTensor       = { 1, 129, 129, 64 };
+                    uint32_t PleInputStripeHeight = desc.m_Ple->m_InputStripeShapes[0][1];
+                    uint32_t PleInputStripeWidth  = desc.m_Ple->m_InputStripeShapes[0][2];
+                    uint32_t PleInputStripeDepth  = desc.m_Ple->m_InputStripeShapes[0][3];
+                    CHECK(PleInputStripeHeight == InputTensor[1]);
+                    CHECK(PleInputStripeWidth == InputTensor[2]);
+                    CHECK(PleInputStripeDepth == InputTensor[3]);
+
+                    // No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
+                    TensorShape OutputTensor       = { 1, 64, 64, 64 };
+                    uint32_t PleOutputStripeHeight = desc.m_Ple->m_OutputStripeShape[1];
+                    uint32_t PleOutputStripeWidth  = desc.m_Ple->m_OutputStripeShape[2];
+                    uint32_t PleOutputStripeDepth  = desc.m_Ple->m_OutputStripeShape[3];
+                    CHECK(PleOutputStripeHeight == OutputTensor[1]);
+                    CHECK(PleOutputStripeWidth == OutputTensor[2]);
+                    CHECK(PleOutputStripeDepth == OutputTensor[3]);
+                };
+                CheckPlans(plansOdd, paramsOdd);
+            }
+        }
+
+        WHEN("Asked to produce End plans with an input buffer in Ple Input Sram")
+        {
+            Buffer prevBufferEven;
+            prevBufferEven.m_Lifetime         = Lifetime::Cascade;
+            prevBufferEven.m_Location         = Location::PleInputSram;
+            prevBufferEven.m_Format           = CascadingBufferFormat::NHWCB;
+            prevBufferEven.m_QuantizationInfo = { 0, 1.0f };
+            prevBufferEven.m_TensorShape      = tsInEven;
+            prevBufferEven.m_StripeShape      = TensorShape{ 1, 128, 128, 64 };
+            prevBufferEven.m_Order            = TraversalOrder::Xyz;
+            prevBufferEven.m_SizeInBytes      = 1 * 128 * 128 * 64;
+            prevBufferEven.m_NumStripes       = 1;
+
+            Plans plansEven =
+                partEven.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, &prevBufferEven, 1);
+            SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven End Ple Sram Input");
+
+            Buffer prevBufferOdd;
+            prevBufferOdd.m_Lifetime         = Lifetime::Cascade;
+            prevBufferOdd.m_Location         = Location::PleInputSram;
+            prevBufferOdd.m_Format           = CascadingBufferFormat::NHWCB;
+            prevBufferOdd.m_QuantizationInfo = { 0, 1.0f };
+            prevBufferOdd.m_TensorShape      = tsInOdd;
+            prevBufferOdd.m_StripeShape      = TensorShape{ 1, 136, 136, 64 };
+            prevBufferOdd.m_Order            = TraversalOrder::Xyz;
+            prevBufferOdd.m_SizeInBytes      = 1 * 136 * 136 * 64;
+            prevBufferOdd.m_NumStripes       = 1;
+
+            Plans plansOdd =
+                partOdd.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, &prevBufferOdd, 1);
+            SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd End Ple Sram Input");
+
+            THEN("The plans are valid and start in PleInputSram and end in Sram")
+            {
+                // End PleSram: MaxPoolEven checks
+                paramsEven.m_InputLocation  = PlanInputLocation::PleInputSram;
+                paramsEven.m_OutputLocation = PlanOutputLocation::Sram;
+                paramsEven.m_All            = [](const PlanDesc& desc) {
+                    // No splits are performed, Ple's InputStripe should be equal to InputTensor dimension.
+                    TensorShape InputTensor       = { 1, 128, 128, 64 };
+                    uint32_t PleInputStripeHeight = desc.m_Ple->m_InputStripeShapes[0][1];
+                    uint32_t PleInputStripeWidth  = desc.m_Ple->m_InputStripeShapes[0][2];
+                    uint32_t PleInputStripeDepth  = desc.m_Ple->m_InputStripeShapes[0][3];
+                    CHECK(PleInputStripeHeight == InputTensor[1]);
+                    CHECK(PleInputStripeWidth == InputTensor[2]);
+                    CHECK(PleInputStripeDepth == InputTensor[3]);
+
+                    // No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
+                    TensorShape OutputTensor       = { 1, 64, 64, 64 };
+                    uint32_t PleOutputStripeHeight = desc.m_Ple->m_OutputStripeShape[1];
+                    uint32_t PleOutputStripeWidth  = desc.m_Ple->m_OutputStripeShape[2];
+                    uint32_t PleOutputStripeDepth  = desc.m_Ple->m_OutputStripeShape[3];
+                    CHECK(PleOutputStripeHeight == OutputTensor[1]);
+                    CHECK(PleOutputStripeWidth == OutputTensor[2]);
+                    CHECK(PleOutputStripeDepth == OutputTensor[3]);
+                };
+                CheckPlans(plansEven, paramsEven);
+
+                // End PleSram: MaxPoolOdd checks
+                paramsOdd.m_InputLocation  = PlanInputLocation::PleInputSram;
+                paramsOdd.m_OutputLocation = PlanOutputLocation::Sram;
+                paramsOdd.m_All            = [](const PlanDesc& desc) {
+                    // No splits are performed, Ple's InputStripe should be equal to InputTensor dimension.
+                    TensorShape InputTensor       = { 1, 129, 129, 64 };
+                    uint32_t PleInputStripeHeight = desc.m_Ple->m_InputStripeShapes[0][1];
+                    uint32_t PleInputStripeWidth  = desc.m_Ple->m_InputStripeShapes[0][2];
+                    uint32_t PleInputStripeDepth  = desc.m_Ple->m_InputStripeShapes[0][3];
+                    CHECK(PleInputStripeHeight == InputTensor[1]);
+                    CHECK(PleInputStripeWidth == InputTensor[2]);
+                    CHECK(PleInputStripeDepth == InputTensor[3]);
+
+                    // No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
+                    TensorShape OutputTensor       = { 1, 64, 64, 64 };
+                    uint32_t PleOutputStripeHeight = desc.m_Ple->m_OutputStripeShape[1];
+                    uint32_t PleOutputStripeWidth  = desc.m_Ple->m_OutputStripeShape[2];
+                    uint32_t PleOutputStripeDepth  = desc.m_Ple->m_OutputStripeShape[3];
+                    CHECK(PleOutputStripeHeight == OutputTensor[1]);
+                    CHECK(PleOutputStripeWidth == OutputTensor[2]);
+                    CHECK(PleOutputStripeDepth == OutputTensor[3]);
+                };
+                CheckPlans(plansOdd, paramsOdd);
+            }
+        }
+    }
+}
+
 /// Checks that FusedPleParts::GetPlans returns a valid plan for strategy 0 with a non identity shape multiplier
 TEST_CASE("FusedPlePart GetPlans strategy 0 shape multiplier")
 {
@@ -1098,7 +1568,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
                            TensorShape{ 1, 28, 28, 64 } &&    // Channels multiplied by 4 for interleave
                        plan.m_OutputSram->m_StripeShape ==
                            TensorShape{
-                               1, 32, 32, 16
+                               1, 32, 32, 64
                            } &&    // Strategy 1 output is not the full tensor because we are at the end of a cascade
                        plan.m_OutputSram->m_NumStripes == 2;
             });

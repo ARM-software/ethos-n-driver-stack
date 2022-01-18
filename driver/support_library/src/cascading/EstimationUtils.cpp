@@ -1,5 +1,5 @@
 //
-// Copyright © 2020-2021 Arm Limited.
+// Copyright © 2020-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -167,7 +167,6 @@ InputStats GetInputStats(const HardwareCapabilities& caps,
 
         data.m_MemoryStats.m_DramNonParallel =
             (stripeShapeValid[1] + borderHeight) * (stripeShapeValid[2] + borderWidth) * stripeShapeValid[3];
-
         // Determine how much data can be transferred in parallel.
         const uint32_t minNumSlotsForBuffering =
             GetInputMinNumSlotsForBuffering(isStreamingH, isStreamingW, isStreamingC, needNeighbourStripeH,
@@ -195,31 +194,21 @@ InputStats GetInputStats(const HardwareCapabilities& caps,
     return data;
 }
 
-InputStats GetInputStats(const TensorShape& inputShape,
-                         const TensorShape& stripeShape,
-                         CascadingBufferFormat format,
-                         const Location location)
+InputStats GetInputStats(const TensorShape& inputShape, const TensorShape& stripeShape, const Location location)
 {
     InputStats data;
 
-    const TensorShape& roundedUpInputShape = utils::RoundUpHeightAndWidthToBrickGroup(inputShape);
-
-    const bool isInputNHWC = (format == CascadingBufferFormat::NHWC) ? true : false;
-
     const uint32_t inputSize = inputShape[0] * inputShape[1] * inputShape[2] * inputShape[3];
-
-    const uint32_t roundedUpInputSize =
-        roundedUpInputShape[0] * roundedUpInputShape[1] * roundedUpInputShape[2] * roundedUpInputShape[3];
 
     if (location != Location::Sram)
     {
-        data.m_MemoryStats.m_DramNonParallel    = isInputNHWC ? inputSize : roundedUpInputSize;
+        data.m_MemoryStats.m_DramNonParallel    = inputSize;
         data.m_StripesStats.m_NumCentralStripes = utils::GetNumStripesTotal(inputShape, stripeShape);
     }
     else
     {
         // This is for Sram To Sram conversions. We only handle Dram To Dram or Sram to Sram.
-        data.m_MemoryStats.m_Sram = roundedUpInputSize;
+        data.m_MemoryStats.m_Sram = inputSize;
     }
     return data;
 }

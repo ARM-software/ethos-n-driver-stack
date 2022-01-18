@@ -236,6 +236,7 @@ McePart::McePart(PartId id,
                         m_Stride,
                         m_UpscaleFactor,
                         op,
+                        PleOperation::PASSTHROUGH,
                         ShapeMultiplier::Identity,
                         ShapeMultiplier::Identity,
                         capabilities)
@@ -274,6 +275,7 @@ McePart::McePart(ConstructionParams&& params)
                         m_Stride,
                         m_UpscaleFactor,
                         params.m_Op,
+                        PleOperation::PASSTHROUGH,
                         ShapeMultiplier{ m_UpscaleFactor, m_UpscaleFactor, 1 },
                         ShapeMultiplier::Identity,
                         params.m_Capabilities)

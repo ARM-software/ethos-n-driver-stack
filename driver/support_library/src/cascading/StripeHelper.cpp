@@ -37,6 +37,7 @@ StripeGenerator::StripeGenerator(const TensorShape& mceInput,
                                  const Stride& stride,
                                  uint32_t upscaleFactor,
                                  command_stream::MceOperation op,
+                                 command_stream::PleOperation pleOp,
                                  utils::ShapeMultiplier mceShapeMult,
                                  utils::ShapeMultiplier pleShapeMult,
                                  const HardwareCapabilities& m_Capabilities)
@@ -48,6 +49,7 @@ StripeGenerator::StripeGenerator(const TensorShape& mceInput,
     , m_Stride(stride)
     , m_UpscaleFactor(upscaleFactor)
     , m_Operation(op)
+    , m_KernelOperation(pleOp)
     , m_MceShapeMultiplier(mceShapeMult)
     , m_PleShapeMultiplier(pleShapeMult)
     , m_Capabilities(m_Capabilities)
@@ -106,12 +108,37 @@ void StripeGenerator::CreateNumStripes(CascadeType cascadeType,
     }
 }
 
+StripeSplitInfo StripeGenerator::SetPleKernelSplitRestrictions(CascadeType cascadeType) const
+{
+    // MaxPool_3x3_2_2 cannot be cascaded if it isn't the full tensor and can only be cascaded along height or depth.
+    // This way, IFM streaming cannot cause data corruption in Ple Sram.
+    if (m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+        m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD)
+    {
+        if (cascadeType == CascadeType::Beginning)
+        {
+            return { 0, 0, 0, 0 };
+        }
+        else
+        {
+            return { 1, 0, 1, 1 };
+        }
+    }
+    else
+    {
+        return { 1, 1, 1, 1 };
+    }
+}
+
 void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockConfig,
                                       CascadeType cascadeType,
                                       StripeInfos* outStripeInfos) const
 {
     using namespace utils;
     assert(outStripeInfos);
+
+    // Set Stripe split restrictions, depending on the Ple kernel type.
+    StripeSplitInfo stripeSplitInfo = SetPleKernelSplitRestrictions(cascadeType);
 
     uint32_t strideMultiplier  = 1U;
     bool isDepthwise           = false;
@@ -135,8 +162,18 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
                             shape[3] * m_MceShapeMultiplier.m_C };
     };
     auto ApplyPleShapeMult = [&](TensorShape shape) {
-        return TensorShape{ shape[0], shape[1] * m_PleShapeMultiplier.m_H, shape[2] * m_PleShapeMultiplier.m_W,
-                            shape[3] * m_PleShapeMultiplier.m_C };
+        // Output stripe size = min (Tensor dimension * Multiplier for that dimension, Tensor dimension rounded up to multiple of block size).
+        //For Width: shapeW rounded up to multiple of brickWidth
+        //For Height: shapeH rounded up to multiple of brickHeight
+        //For Depth: shapeC rounded up to multiple of Number of Output Generators
+        return TensorShape{ shape[0],
+                            std::min(shape[1] * m_PleShapeMultiplier.m_H,
+                                     utils::RoundUpToNearestMultiple(m_PleOutputTensorShape[1], 8U)),
+                            std::min(shape[2] * m_PleShapeMultiplier.m_W,
+                                     utils::RoundUpToNearestMultiple(m_PleOutputTensorShape[2], 8U)),
+                            std::min(shape[3] * m_PleShapeMultiplier.m_C,
+                                     utils::RoundUpToNearestMultiple(m_PleOutputTensorShape[3],
+                                                                     m_Capabilities.GetNumberOfOgs())) };
     };
 
     auto AddStripeInfos = [&](const TensorShape& mceInputStripe, const TensorShape& mceOutputStripe,
@@ -237,8 +274,9 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
         }
     };
 
-    // Use the minimum stripe size possible to minimize the time before processing
-    // Try splitting height first
+    // Use the minimum stripe size possible to minimize the time before processing.
+    // Try splitting height first.
+    if (stripeSplitInfo.splitInputHeight)
     {
         TensorShape mceInputEncoding  = { 0, blockConfig.m_BlockHeight(), 0, 0 };
         const TensorShape& inputShape = m_MceInputTensorShape;
@@ -263,7 +301,8 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
                        mceOutputStripe, inputShape, outputShape);
     }
 
-    // Split only input in height while the output is full tensor
+    // Split only input in height while the output is full tensor.
+    if (stripeSplitInfo.splitInputHeight)
     {
         TensorShape mceInputEncoding  = { 0, blockConfig.m_BlockHeight(), 0, 0 };
         const TensorShape& inputShape = m_MceInputTensorShape;
@@ -291,7 +330,8 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
                        memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
     }
 
-    // Try splitting width
+    // Try splitting width.
+    if (stripeSplitInfo.splitInputWidth)
     {
         TensorShape mceInputEncoding  = { 0, 0, blockConfig.m_BlockWidth(), 0 };
         const TensorShape& inputShape = m_MceInputTensorShape;
@@ -327,13 +367,15 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
 
     const uint32_t blockWidthMultiplier  = std::max(1U, GetWidth(m_MceInputTensorShape) / blockConfig.m_BlockWidth());
     const uint32_t blockHeightMultiplier = std::max(1U, GetHeight(m_MceInputTensorShape) / blockConfig.m_BlockHeight());
+
     if (cascadeType == CascadeType::Lonely)
     {
         for (uint32_t heightMultiplier = 1; heightMultiplier <= blockHeightMultiplier; ++heightMultiplier)
         {
             for (uint32_t widthMultiplier = 1; widthMultiplier <= blockWidthMultiplier; ++widthMultiplier)
             {
-                // Try splitting width and height
+                // Try splitting width and height.
+                if (stripeSplitInfo.splitInputWidth && stripeSplitInfo.splitInputHeight)
                 {
                     TensorShape mceInputEncoding  = { 0, heightMultiplier * blockConfig.m_BlockHeight(),
                                                      widthMultiplier * blockConfig.m_BlockWidth(), 0 };
@@ -369,7 +411,9 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
                                    mceInputStripe, memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
                 }
 
-                // Try split height width and output depth
+                // Try split height width and output depth.
+                if (stripeSplitInfo.splitInputHeight && stripeSplitInfo.splitInputWidth &&
+                    stripeSplitInfo.splitOutputDepth)
                 {
                     const uint32_t height = heightMultiplier * blockConfig.m_BlockHeight();
                     const uint32_t width  = widthMultiplier * blockConfig.m_BlockWidth();
@@ -396,8 +440,9 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
                                    memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
                 }
 
-                // Try split input depth
-                // note we have to limit the height and width to the block size
+                // Try split input depth.
+                // Note we have to limit the height and width to the block size.
+                if (stripeSplitInfo.splitInputDepth && stripeSplitInfo.splitInputWidth)
                 {
                     TensorShape mceInputEncoding  = { 0, blockConfig.m_BlockHeight(), blockConfig.m_BlockWidth(),
                                                      m_Capabilities.GetNumberOfOgs() * strideMultiplier };
@@ -429,9 +474,10 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
 
         if (cascadeType == CascadeType::Lonely)
         {
-            // Try split output depth
+            // Try split output depth.
+            if (stripeSplitInfo.splitOutputDepth)
             {
-                // With depthwise each only OFM needs 1 IFM
+                // With depthwise each only OFM needs 1 IFM.
                 TensorShape mceInputEncoding  = { 0, 0, 0, m_Capabilities.GetNumberOfOgs() };
                 const TensorShape& inputShape = m_MceInputTensorShape;
                 TensorShape mceInputStripe =
@@ -454,41 +500,45 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
                                memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
             }
 
-            for (uint32_t heightMultiplier = 1; heightMultiplier <= blockHeightMultiplier; ++heightMultiplier)
+            // Try split height width and output depth.
+            if (stripeSplitInfo.splitInputHeight && stripeSplitInfo.splitInputWidth && stripeSplitInfo.splitOutputDepth)
             {
-                // Try split height width and output depth
-                for (uint32_t widthMultiplier = 1; widthMultiplier <= blockWidthMultiplier; ++widthMultiplier)
+                for (uint32_t heightMultiplier = 1; heightMultiplier <= blockHeightMultiplier; ++heightMultiplier)
                 {
-                    const uint32_t height = heightMultiplier * blockConfig.m_BlockHeight();
-                    const uint32_t width  = widthMultiplier * blockConfig.m_BlockWidth();
+                    for (uint32_t widthMultiplier = 1; widthMultiplier <= blockWidthMultiplier; ++widthMultiplier)
+                    {
+                        const uint32_t height = heightMultiplier * blockConfig.m_BlockHeight();
+                        const uint32_t width  = widthMultiplier * blockConfig.m_BlockWidth();
 
-                    TensorShape mceInputEncoding  = { 0, height, width,
-                                                     m_Capabilities.GetNumberOfOgs() * strideMultiplier };
-                    const TensorShape& inputShape = m_MceInputTensorShape;
-                    TensorShape mceInputStripe =
-                        CreateStripe(m_MceInputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
+                        TensorShape mceInputEncoding  = { 0, height, width,
+                                                         m_Capabilities.GetNumberOfOgs() * strideMultiplier };
+                        const TensorShape& inputShape = m_MceInputTensorShape;
+                        TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding,
+                                                                  m_Capabilities.GetBrickGroupShape()[3]);
 
-                    TensorShape mceOutputEncoding =
-                        ApplyMceShapeMult({ 0, height, width, m_Capabilities.GetNumberOfOgs() });
-                    TensorShape mceOutputStripe =
-                        CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
+                        TensorShape mceOutputEncoding =
+                            ApplyMceShapeMult({ 0, height, width, m_Capabilities.GetNumberOfOgs() });
+                        TensorShape mceOutputStripe =
+                            CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-                    TensorShape pleOutputStripe = ApplyPleShapeMult(mceOutputStripe);
+                        TensorShape pleOutputStripe = ApplyPleShapeMult(mceOutputStripe);
 
-                    TensorShape pleOutputEncoding = ApplyPleShapeMult(mceOutputEncoding);
-                    TensorShape memoryOutputStripe =
-                        CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
-                    const TensorShape& outputShape = m_PleOutputTensorShape;
+                        TensorShape pleOutputEncoding  = ApplyPleShapeMult(mceOutputEncoding);
+                        TensorShape memoryOutputStripe = CreateStripe(m_PleOutputTensorShape, pleOutputEncoding,
+                                                                      m_Capabilities.GetBrickGroupShape()[3]);
+                        const TensorShape& outputShape = m_PleOutputTensorShape;
 
-                    AddStripeInfos(mceInputStripe, mceOutputStripe, mceOutputStripe, pleOutputStripe, numStripesInput,
-                                   numStripesOutput, numStripesWeights, numStripesPleInput, mceInputStripe,
-                                   memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
+                        AddStripeInfos(mceInputStripe, mceOutputStripe, mceOutputStripe, pleOutputStripe,
+                                       numStripesInput, numStripesOutput, numStripesWeights, numStripesPleInput,
+                                       mceInputStripe, memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
+                    }
                 }
             }
         }
 
         // Try split depth for compute but the memory buffer is the full tensor
-        // e.g. strategy 1 cascading
+        // e.g. strategy 1 cascading.
+        if (stripeSplitInfo.splitInputDepth)
         {
             TensorShape mceInputEncoding  = { 0, 0, 0, m_Capabilities.GetNumberOfOgs() };
             const TensorShape& inputShape = m_MceInputTensorShape;
@@ -514,7 +564,8 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
 
         if (cascadeType == CascadeType::Lonely)
         {
-            // Try split output depth
+            // Try split output depth.
+            if (stripeSplitInfo.splitOutputDepth)
             {
                 TensorShape mceInputEncoding  = { 0, 0, 0, 0 };
                 const TensorShape& inputShape = m_MceInputTensorShape;
@@ -542,7 +593,8 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
             }
         }
         // Try split depth for compute but the memory buffer is the full tensor
-        // e.g. strategy 1 cascading
+        // e.g. strategy 1 cascading.
+        if (stripeSplitInfo.splitOutputDepth)
         {
             TensorShape mceInputEncoding  = { 0, 0, 0, 0 };
             const TensorShape& inputShape = m_MceInputTensorShape;
@@ -568,9 +620,9 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
         }
     }
 
-    // Don't split at all
+    // Don't split at all.
     // This is needed if all of the stripes above are larger than the tensor
-    // and none of them are added
+    // and none of them are added.
     {
         TensorShape mceInputEncoding = { 0, 0, 0, 0 };
         TensorShape mceInputStripe =
