@@ -1505,4 +1505,45 @@ TEST_SUITE("EthosNSupport")
                        "Non-constant bias not supported.");
         }
     }
+
+    // Checks that the Ethos-N backend correctly rejects a Fully Connected layer
+    // that has non-constant weights.
+    TEST_CASE("FullyConnected non-constant weights")
+    {
+        using namespace armnn;
+
+        // build up the structure of the network
+        INetworkPtr net(INetwork::Create());
+
+        IConnectableLayer* input = net->AddInputLayer(0);
+
+        // Set up tensor infos
+        TensorInfo inputInfo({ 1, 1, 1, 10 }, DataType::QAsymmU8, 1.0f, 0);
+        TensorInfo outputInfo({ 1, 100 }, DataType::QAsymmU8, 1.0f, 0);
+        TensorInfo weightsInfo({ 10, 100 }, DataType::QAsymmU8, 0.5f, 0);
+
+        FullyConnectedDescriptor descriptor;
+        descriptor.m_BiasEnabled = false;
+
+        IConnectableLayer* fc              = net->AddFullyConnectedLayer(descriptor);
+        IConnectableLayer* nonConstWeights = net->AddInputLayer(1, "weights");
+
+        IConnectableLayer* output = net->AddOutputLayer(0);
+
+        input->GetOutputSlot(0).Connect(fc->GetInputSlot(0));
+        nonConstWeights->GetOutputSlot(0).Connect(fc->GetInputSlot(1));
+        fc->GetOutputSlot(0).Connect(output->GetInputSlot(0));
+
+        input->GetOutputSlot(0).SetTensorInfo(inputInfo);
+        nonConstWeights->GetOutputSlot(0).SetTensorInfo(weightsInfo);
+        fc->GetOutputSlot(0).SetTensorInfo(outputInfo);
+
+        // optimize the network
+        IRuntime::CreationOptions options;
+        IRuntimePtr runtime(IRuntime::Create(options));
+        std::vector<BackendId> backends = { EthosNBackendId() };
+        // Optimize should throw as the Ethos-N backend doesn't support this network and there is no fallback
+        CHECK_THROWS_WITH(Optimize(*net, backends, runtime->GetDeviceSpec()),
+                          "Failed to assign a backend to each layer");
+    }
 }

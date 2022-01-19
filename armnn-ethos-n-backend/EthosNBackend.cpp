@@ -344,6 +344,9 @@ BackendCapabilities EthosNBackend::GetCapabilities() const
         "DeviceBaseId", static_cast<uint32_t>(ethosn::driver_library::GetDeviceBaseId())));
     ethosnCap.AddOption(BackendOptions::BackendOption(
         "NumberOfDevices", static_cast<uint32_t>(ethosn::driver_library::GetNumberOfDevices())));
+    // We support Fully Connected layers having their weights and bias as separate inputs to the layer
+    // and do not use the deprecated m_Weight or m_Bias members.
+    ethosnCap.AddOption(BackendOptions::BackendOption("ConstantTensorsAsInputs", true));
 
     return ethosnCap;
 }

@@ -24,6 +24,7 @@ TEST_SUITE("EthosNBackend")
         expectedCap.AddOption(BackendOptions::BackendOption("DeviceNamePrefix", "/dev/ethosn"));
         expectedCap.AddOption(BackendOptions::BackendOption("DeviceBaseId", defaultDeviceId));
         expectedCap.AddOption(BackendOptions::BackendOption("NumberOfDevices", numberOfDevices));
+        expectedCap.AddOption(BackendOptions::BackendOption("ConstantTensorsAsInputs", true));
 
         CHECK(backendCap.GetBackendId().Get() == expectedCap.GetBackendId().Get());
         CHECK(backendCap.GetOptionCount() == expectedCap.GetOptionCount());
@@ -35,6 +36,8 @@ TEST_SUITE("EthosNBackend")
         CHECK(backendCap.GetOption(2).GetName() == expectedCap.GetOption(2).GetName());
         CHECK(backendCap.GetOption(2).GetValue().AsUnsignedInt() ==
               expectedCap.GetOption(2).GetValue().AsUnsignedInt());
+        CHECK(backendCap.GetOption(3).GetName() == expectedCap.GetOption(3).GetName());
+        CHECK(backendCap.GetOption(3).GetValue().AsBool() == expectedCap.GetOption(3).GetValue().AsBool());
     }
 
     TEST_CASE("CreateWorkloadFactoryModelOptions")
