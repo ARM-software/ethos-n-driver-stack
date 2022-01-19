@@ -7,7 +7,6 @@
 
 #include "EthosNBackendId.hpp"
 #include "EthosNBackendProfilingContext.hpp"
-#include "EthosNBackendUtils.hpp"
 #include "EthosNLayerSupport.hpp"
 #include "EthosNReplaceUnsupported.hpp"
 #include "EthosNSubgraphViewConverter.hpp"
