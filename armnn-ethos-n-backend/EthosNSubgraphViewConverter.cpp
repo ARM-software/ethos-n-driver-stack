@@ -51,23 +51,24 @@ EthosNSubgraphViewConverter::EthosNSubgraphViewConverter(const SubgraphView& sub
     }
 }
 
-template <typename Layer>
-EthosNConstantPtr EthosNSubgraphViewConverter::AddBiases(const Layer& layer, bool biasEnabled)
+EthosNConstantPtr EthosNSubgraphViewConverter::AddBiases(const Layer& layer,
+                                                         const ConstTensorHandle* bias,
+                                                         const TensorInfo& weightInfo,
+                                                         bool biasEnabled)
 {
     const void* biasData = nullptr;
     ethosn_lib::TensorInfo ethosnBiasInfo;
 
     auto inputInfo  = layer.GetInputSlot(0).GetConnectedOutputSlot()->GetTensorInfo();
     auto outputInfo = layer.GetOutputSlot(0).GetTensorInfo();
-    auto weightInfo = layer.m_Weight->GetTensorInfo();
 
     // use the actual bias, if provided by the layer
     std::vector<int32_t> dummyBiasData;
     if (biasEnabled)
     {
-        ARMNN_ASSERT(layer.m_Bias != nullptr);
-        ethosnBiasInfo = BuildEthosNBiasesInfo(layer.m_Bias->GetTensorInfo(), inputInfo, weightInfo);
-        biasData       = layer.m_Bias->template GetConstTensor<void>();
+        ARMNN_ASSERT(bias != nullptr);
+        ethosnBiasInfo = BuildEthosNBiasesInfo(bias->GetTensorInfo(), inputInfo, weightInfo);
+        biasData       = bias->GetConstTensor<void>();
     }
     else
     {
@@ -82,16 +83,13 @@ EthosNConstantPtr EthosNSubgraphViewConverter::AddBiases(const Layer& layer, boo
     return ethosn_lib::AddConstant(m_Network, ethosnBiasInfo, biasData).tensor;
 }
 
-template <typename Layer>
-EthosNConstantPtr EthosNSubgraphViewConverter::AddWeights(const Layer& layer)
+EthosNConstantPtr
+    EthosNSubgraphViewConverter::AddWeights(const Layer& layer, DataLayout dataLayout, const ConstTensorHandle& weights)
 {
-    ARMNN_ASSERT(layer.m_Weight != nullptr);
-
-    const TensorInfo& inputInfo  = layer.GetInputSlot(0).GetConnectedOutputSlot()->GetTensorInfo();
-    const TensorInfo& tensorInfo = layer.m_Weight->GetTensorInfo();
-    ethosn_lib::TensorInfo weightsInfo =
-        BuildEthosNConvolutionWeightsInfo(tensorInfo, inputInfo, layer.GetParameters().m_DataLayout,
-                                          layer.GetType() == LayerType::DepthwiseConvolution2d);
+    const TensorInfo& inputInfo        = layer.GetInputSlot(0).GetConnectedOutputSlot()->GetTensorInfo();
+    const TensorInfo& tensorInfo       = weights.GetTensorInfo();
+    ethosn_lib::TensorInfo weightsInfo = BuildEthosNConvolutionWeightsInfo(
+        tensorInfo, inputInfo, dataLayout, layer.GetType() == LayerType::DepthwiseConvolution2d);
 
     const TensorShape& tensorShape = tensorInfo.GetShape();
 
@@ -99,24 +97,22 @@ EthosNConstantPtr EthosNSubgraphViewConverter::AddWeights(const Layer& layer)
     unsigned int depthMultiplier = outputInfo.GetShape()[3] / inputInfo.GetShape()[3];
 
     std::vector<uint8_t> swizzledWeightsData(tensorShape.GetNumElements(), 0);
-    SwizzleConvolutionWeightsData<uint8_t>(layer.m_Weight->template GetConstTensor<void>(), swizzledWeightsData.data(),
-                                           tensorShape, layer.GetParameters().m_DataLayout,
-                                           layer.GetType() == LayerType::DepthwiseConvolution2d, depthMultiplier);
+    SwizzleConvolutionWeightsData<uint8_t>(weights.GetConstTensor<void>(), swizzledWeightsData.data(), tensorShape,
+                                           dataLayout, layer.GetType() == LayerType::DepthwiseConvolution2d,
+                                           depthMultiplier);
 
     return ethosn_lib::AddConstant(m_Network, weightsInfo, swizzledWeightsData.data()).tensor;
 }
 
-template <>
-EthosNConstantPtr EthosNSubgraphViewConverter::AddWeights(const FullyConnectedLayer& layer)
+EthosNConstantPtr EthosNSubgraphViewConverter::AddWeights(const FullyConnectedLayer& layer,
+                                                          const ConstTensorHandle& weights)
 {
-    ARMNN_ASSERT(layer.m_Weight != nullptr);
-
-    const TensorInfo& weightsInfo = layer.m_Weight->GetTensorInfo();
+    const TensorInfo& weightsInfo = weights.GetTensorInfo();
 
     const bool transposeWeights              = layer.GetParameters().m_TransposeWeightMatrix;
     ethosn_lib::TensorInfo ethosnWeightsInfo = BuildEthosNFullyConnectedWeightsInfo(weightsInfo, transposeWeights);
 
-    const void* weightsData = layer.m_Weight->template GetConstTensor<void>();
+    const void* weightsData = weights.GetConstTensor<void>();
 
     if (transposeWeights)
     {
@@ -290,8 +286,11 @@ void EthosNSubgraphViewConverter::AddConvolution2dLayer(const IConnectableLayer*
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
-    auto biases  = AddBiases(convolutionLayer, descriptor.m_BiasEnabled);
-    auto weights = AddWeights(convolutionLayer);
+    ARMNN_ASSERT(convolutionLayer.m_Weight);
+    auto biases = AddBiases(convolutionLayer, convolutionLayer.m_Bias.get(), convolutionLayer.m_Weight->GetTensorInfo(),
+                            descriptor.m_BiasEnabled);
+    auto weights =
+        AddWeights(convolutionLayer, convolutionLayer.GetParameters().m_DataLayout, *convolutionLayer.m_Weight);
 
     auto& outputInfo                                      = convolutionLayer.GetOutputSlot(0).GetTensorInfo();
     Optional<ethosn_lib::ConvolutionInfo> convolutionInfo = BuildEthosNConvolutionInfo(
@@ -331,8 +330,11 @@ void EthosNSubgraphViewConverter::AddDepthwiseConvolution2dLayer(const IConnecta
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
-    auto biases  = AddBiases(depthwiseConvolution2dLayer, descriptor.m_BiasEnabled);
-    auto weights = AddWeights(depthwiseConvolution2dLayer);
+    ARMNN_ASSERT(depthwiseConvolution2dLayer.m_Weight);
+    auto biases  = AddBiases(depthwiseConvolution2dLayer, depthwiseConvolution2dLayer.m_Bias.get(),
+                            depthwiseConvolution2dLayer.m_Weight->GetTensorInfo(), descriptor.m_BiasEnabled);
+    auto weights = AddWeights(depthwiseConvolution2dLayer, depthwiseConvolution2dLayer.GetParameters().m_DataLayout,
+                              *depthwiseConvolution2dLayer.m_Weight);
 
     auto outputInfo      = layer->GetOutputSlot(0).GetTensorInfo();
     auto convolutionInfo = BuildEthosNConvolutionInfo(descriptor, outputInfo.GetQuantizationOffset(),
@@ -358,8 +360,11 @@ void EthosNSubgraphViewConverter::AddTransposeConvolution2dLayer(const IConnecta
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
-    auto biases  = AddBiases(transposeConvolution2dLayer, descriptor.m_BiasEnabled);
-    auto weights = AddWeights(transposeConvolution2dLayer);
+    ARMNN_ASSERT(transposeConvolution2dLayer.m_Weight);
+    auto biases  = AddBiases(transposeConvolution2dLayer, transposeConvolution2dLayer.m_Bias.get(),
+                            transposeConvolution2dLayer.m_Weight->GetTensorInfo(), descriptor.m_BiasEnabled);
+    auto weights = AddWeights(transposeConvolution2dLayer, transposeConvolution2dLayer.GetParameters().m_DataLayout,
+                              *transposeConvolution2dLayer.m_Weight);
 
     auto outputInfo = layer->GetOutputSlot(0).GetTensorInfo();
     auto convolutionInfo =
@@ -389,8 +394,43 @@ void EthosNSubgraphViewConverter::AddFullyConnectedLayer(const IConnectableLayer
     const FullyConnectedLayer& fullyConnectedLayer = *PolymorphicPointerDowncast<const FullyConnectedLayer>(layer);
     FullyConnectedDescriptor descriptor            = fullyConnectedLayer.GetParameters();
 
-    auto biases  = AddBiases(fullyConnectedLayer, descriptor.m_BiasEnabled);
-    auto weights = AddWeights(fullyConnectedLayer);
+    // Get the weights tensor from the layer connected to input slot #1
+    if (fullyConnectedLayer.GetNumInputSlots() < 2)
+    {
+        throw armnn::Exception("Fully Connected doesn't have a second input slot");
+    }
+    const OutputSlot* weightsSlot = fullyConnectedLayer.GetInputSlot(1).GetConnectedOutputSlot();
+    if (weightsSlot == nullptr)
+    {
+        throw armnn::Exception("Fully Connected's weight slot not connected");
+    }
+    const Layer& weightsLayer = weightsSlot->GetOwningLayer();
+    if (weightsLayer.GetType() != LayerType::Constant)
+    {
+        throw armnn::Exception("Fully Connected's weight slot connected to non-constant layer");
+    }
+    const ConstTensorHandle& weightsHandle =
+        *armnn::PolymorphicDowncast<const ConstantLayer*>(&weightsLayer)->m_LayerOutput;
+
+    // Get the bias tensor (if any) from the layer connected to input slot #2
+    const ConstTensorHandle* biasHandle = nullptr;
+    if (fullyConnectedLayer.GetNumInputSlots() >= 3)    // Bias input is optional
+    {
+        const OutputSlot* biasSlot = fullyConnectedLayer.GetInputSlot(2).GetConnectedOutputSlot();
+        if (biasSlot == nullptr)
+        {
+            throw armnn::Exception("Fully Connected's bias slot not connected");
+        }
+        const Layer& biasLayer = biasSlot->GetOwningLayer();
+        if (biasLayer.GetType() != LayerType::Constant)
+        {
+            throw armnn::Exception("Fully Connected's bias slot connected to non-constant layer");
+        }
+        biasHandle = armnn::PolymorphicDowncast<const ConstantLayer*>(&biasLayer)->m_LayerOutput.get();
+    }
+
+    auto biases  = AddBiases(fullyConnectedLayer, biasHandle, weightsHandle.GetTensorInfo(), descriptor.m_BiasEnabled);
+    auto weights = AddWeights(fullyConnectedLayer, weightsHandle);
 
     const TensorInfo& outputInfo                      = layer->GetOutputSlot(0).GetTensorInfo();
     ethosn_lib::FullyConnectedInfo fullyConnectedInfo = BuildEthosNFullyConnectedLayerInfo(

@@ -121,12 +121,12 @@ private:
     // data layout in their respective descriptors. Currently Convolution2dLayer and
     // DepthwiseConvolution2dLayer have it, but we need to use this method with FullyConnectedLayer
     // as well.
-    template <typename Layer>
-    EthosNConstantPtr AddBiases(const Layer& layer, bool biasEnabled);
+    EthosNConstantPtr
+        AddBiases(const Layer& layer, const ConstTensorHandle* bias, const TensorInfo& weightInfo, bool biasEnabled);
 
     /// Converts weights
-    template <typename Layer>
-    EthosNConstantPtr AddWeights(const Layer& layer);
+    EthosNConstantPtr AddWeights(const Layer& layer, DataLayout dataLayout, const ConstTensorHandle& weights);
+    EthosNConstantPtr AddWeights(const FullyConnectedLayer& layer, const ConstTensorHandle& weights);
 
     /// Helper function to insert a converted Arm NN layer in m_ConvertedOutputSlots, for layers with a single output.
     void InsertConvertedLayerSingleOutput(const IConnectableLayer* layer,
