@@ -101,15 +101,6 @@ struct ReluActivation
     int16_t max;
 };
 
-struct PleKernelInfo
-{
-    /// ID of the PLE kernel
-    PleKernelId pleKernelId;
-    /// Destination SRAM address if used in PleL
-    /// Source SRAM address if used in PleS
-    uint16_t sramAddr;
-};
-
 ETHOSN_DECL_SV_VECTOR_STRUCT(StrideXy, x, y);
 
 enum class MceOperation : uint8_t
@@ -154,8 +145,10 @@ struct MceS
 /// Ple Loader data
 struct PleL
 {
-    /// Ple information
-    PleKernelInfo pleKernelInfo;
+    /// ID of the kernel used
+    PleKernelId pleKernelId;
+    /// Destination SRAM address
+    uint16_t sramAddr;
 };
 
 /// Ple Scheduler work size
@@ -198,6 +191,12 @@ struct PleS
     /// MCE operation mode
     PleInputMode mceOp;
 
+    // kernel data
+    /// ID of the kernel used
+    PleKernelId pleKernelId;
+    /// Ple kernel location in SRAM
+    uint16_t pleKernelSramAddr;
+
     // Additional fields to be used only if mceOP is SRAM
     /// First input tile
     Tile ifmTile0;
@@ -207,9 +206,6 @@ struct PleS
     Tile ifmTile1;
     /// Second input zero correction, multiplier and shift
     PleIfmInfo ifmInfo1;
-
-    /// Ple information
-    PleKernelInfo pleKernelInfo;
 };
 
 /// Enum tag for agent data
