@@ -12,13 +12,14 @@ ifeq ($(ARMNN_ETHOSN_ENABLED),1)
 
 BACKEND_SOURCES := \
         EthosNBackend.cpp \
-        EthosNBackendProfilingContext.cpp \
+        EthosNCaching.cpp \
         EthosNConfig.cpp \
         EthosNLayerSupport.cpp \
-        EthosNReplaceUnsupported.cpp \
+        EthosNBackendProfilingContext.cpp \
         EthosNSubgraphViewConverter.cpp \
         EthosNTensorUtils.cpp \
         EthosNWorkloadFactory.cpp \
+        EthosNReplaceUnsupported.cpp \
         workloads/EthosNPreCompiledWorkload.cpp
 
 ETHOSN_DRIVER_STACK := vendor/arm/ethos-n-driver-stack
