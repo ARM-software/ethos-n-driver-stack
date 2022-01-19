@@ -8,7 +8,7 @@
 #include "EthosNLayerSupport.hpp"
 #include "EthosNTensorUtils.hpp"
 
-#include <SubgraphView.hpp>
+#include <armnn/backends/SubgraphView.hpp>
 #include <armnn/backends/TensorHandle.hpp>
 
 namespace armnn

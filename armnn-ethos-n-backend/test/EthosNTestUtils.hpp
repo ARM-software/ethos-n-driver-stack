@@ -8,7 +8,7 @@
 #include "EthosNBackend.hpp"
 #include "EthosNConfig.hpp"
 
-#include <SubgraphView.hpp>
+#include <armnn/backends/SubgraphView.hpp>
 #include <armnnUtils/Filesystem.hpp>
 
 #include <cstdlib>
