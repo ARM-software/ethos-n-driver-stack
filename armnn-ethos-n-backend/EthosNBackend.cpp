@@ -264,6 +264,16 @@ EthosNBackend::EthosNBackend()
     // this, so we have to handle this in a less ideal manner - we only load these things *once*, on first instantiation
     // of this backend object. All future instantiations will use the same cached values.
 
+    // Initialize EthosNCachingService shared pointer only once, this is used to access
+    // the caching functions and cached network data held temporarily in memory.
+    auto cachingService = EthosNCachingService::GetInstance().GetEthosNCachingPtr();
+    if (cachingService == nullptr)
+    {
+        EthosNCaching cachingObject            = EthosNCaching();
+        std::shared_ptr<EthosNCaching> context = std::make_shared<EthosNCaching>(cachingObject);
+        EthosNCachingService::GetInstance().SetEthosNCachingPtr(context);
+    }
+
     if (ms_Capabilities.empty())
     {
         // First-time initialization
@@ -401,16 +411,6 @@ OptimizationViews EthosNBackend::OptimizeSubgraphView(const SubgraphView& subgra
     if (!ethosnbackend::VerifyLibraries())
     {
         throw RuntimeException("Driver or support library version is not supported by the backend");
-    }
-
-    // Initialize EthosNCachingService shared pointer only once, this is used to access
-    // the caching functions and cached network data held temporarily in memory.
-    auto cachingService = EthosNCachingService::GetInstance().GetEthosNCachingPtr();
-    if (cachingService == nullptr)
-    {
-        EthosNCaching cachingObject            = EthosNCaching();
-        std::shared_ptr<EthosNCaching> context = std::make_shared<EthosNCaching>(cachingObject);
-        EthosNCachingService::GetInstance().SetEthosNCachingPtr(context);
     }
 
     // As OptimizeSubgraphView can be called multiple times we only want to set this once.
