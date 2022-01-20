@@ -1595,7 +1595,7 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
                     }
 
                     // Connect to the input plan
-                    result.AddConsumer(edgeConnectionBuffers.at(inputSlot), glue->m_InputSlot.first,
+                    result.AddConsumer(getEffectiveBuffer(edgeConnectionBuffers.at(inputSlot)), glue->m_InputSlot.first,
                                        glue->m_InputSlot.second);
                 }
 

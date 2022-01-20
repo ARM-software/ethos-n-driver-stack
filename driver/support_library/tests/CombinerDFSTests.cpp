@@ -815,6 +815,103 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialDram", "[CombinerDFS]")
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[4]).size() == 0);
 }
 
+TEST_CASE("GetOpGraphForDfsCombinationMergedBuffer", "[CombinerDFS]")
+{
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
+
+    auto pA        = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB        = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC        = std::make_unique<MockPart>(graph.GeneratePartId());
+    PartId partAId = pA->GetPartId();
+    PartId partBId = pB->GetPartId();
+    PartId partCId = pC->GetPartId();
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+    PartInputSlot partBInputSlot0   = { partBId, 0 };
+    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
+
+    PartInputSlot partCInputSlot0 = { partCId, 0 };
+
+    connections[partBInputSlot0] = partAOutputSlot0;
+    connections[partCInputSlot0] = partBOutputSlot0;
+
+    // Plan A
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 0, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "PlanA_Buffer0";
+    planA.m_OutputMappings                          = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot0 } };
+
+    // Plan B
+    Plan planB;
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "PlanB_Buffer0";
+    planB.m_InputMappings                           = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
+    planB.m_OutputMappings                          = { { planB.m_OpGraph.GetBuffers()[0], partBOutputSlot0 } };
+
+    // Glue between B and C
+    Glue glueB_C;
+    glueB_C.m_Graph.AddOp(std::make_unique<DmaOp>());
+    glueB_C.m_Graph.GetOps()[0]->m_DebugTag = "GlueBC_Dma";
+    glueB_C.m_InputSlot                     = { glueB_C.m_Graph.GetOps()[0], 0 };
+    glueB_C.m_Output.push_back(glueB_C.m_Graph.GetOps()[0]);
+
+    // Plan C
+    Plan planC;
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "PlanC_Buffer0";
+    planC.m_InputMappings                           = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot0 } };
+
+    // Create Combination with all the plans and glues
+    Combination comb;
+
+    Elem elemA = { std::make_shared<Plan>(std::move(planA)), {} };
+    Elem elemB = { std::make_shared<Plan>(std::move(planB)), { { partCInputSlot0, { &glueB_C, true } } } };
+    Elem elemC = { std::make_shared<Plan>(std::move(planC)), {} };
+
+    comb.m_Elems.insert(std::make_pair(0, elemA));
+    comb.m_PartIdsInOrder.push_back(0);
+    comb.m_Elems.insert(std::make_pair(1, elemB));
+    comb.m_PartIdsInOrder.push_back(1);
+    comb.m_Elems.insert(std::make_pair(2, elemC));
+    comb.m_PartIdsInOrder.push_back(2);
+
+    bool dumpInputGraphToFile = false;
+    if (dumpInputGraphToFile)
+    {
+        std::ofstream stream("GetOpGraphForDfsCombinationPartialSram Input.dot");
+        SaveCombinationToDot(comb, graph, stream, DetailLevel::High);
+    }
+
+    // Call function under test
+    OpGraph combOpGraph = GetOpGraphForCombination(comb, graph);
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("GetOpGraphForDfsCombinationMergedBuffer Output.dot");
+        SaveOpGraphToDot(combOpGraph, stream, DetailLevel::High);
+    }
+
+    // PlanA and plan B both have one buffer and no operation.
+    // Their buffers are merged and only planA_Buffer0 is expected
+    // to be added to the combOpGraph
+
+    REQUIRE(combOpGraph.GetBuffers().size() == 2);
+    REQUIRE(combOpGraph.GetBuffers()[0]->m_DebugTag == "PlanA_Buffer0");
+    REQUIRE(combOpGraph.GetBuffers()[1]->m_DebugTag == "PlanC_Buffer0");
+}
+
 /// Manually creates a Combination and then converts it to an OpGraph using GetOpGraphForCombination, and checking
 /// the resulting graph structure is correct.
 /// The topology of the Combination is chosen to test cases including:
