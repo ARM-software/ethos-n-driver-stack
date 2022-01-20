@@ -15,7 +15,7 @@
 
 #include <doctest/doctest.h>
 
-TEST_SUITE("CreateEstimationWorkloadEthosN")
+TEST_SUITE("EthosNCreateEstimationWorkload")
 {
 
     // Tests that the NPU config file is parsed correctly

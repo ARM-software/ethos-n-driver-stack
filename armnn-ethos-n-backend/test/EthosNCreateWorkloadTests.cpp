@@ -11,7 +11,7 @@
 
 using namespace armnn;
 
-TEST_SUITE("CreateWorkloadEthosN")
+TEST_SUITE("EthosNCreateWorkload")
 {
 
     namespace

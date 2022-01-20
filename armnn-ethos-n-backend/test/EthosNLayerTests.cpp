@@ -1669,7 +1669,7 @@ LayerTestResult<uint8_t, 4>
     return OptimiseAndRunNetwork(workloadFactory, *net, 0, inputInfo, inputData, 1, outputInfo, expectedOutputData);
 }
 
-TEST_SUITE("Compute_EthosN")
+TEST_SUITE("EthosNLayer")
 {
     using FactoryType = armnn::EthosNWorkloadFactory;
 

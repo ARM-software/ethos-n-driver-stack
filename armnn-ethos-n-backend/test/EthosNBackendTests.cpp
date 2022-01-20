@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "EthosNBackend.hpp"
@@ -11,7 +11,7 @@
 
 using namespace armnn;
 
-TEST_SUITE("BackendTests")
+TEST_SUITE("EthosNBackend")
 {
     TEST_CASE("GetCapabilitiesTest")
     {
