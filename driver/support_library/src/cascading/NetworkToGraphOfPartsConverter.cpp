@@ -121,10 +121,10 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
         uint32_t c = GetNumSubmapChannels(depthwise.GetInput(0).GetTensorInfo().m_Dimensions[3], convInfo.m_Stride.m_X,
                                           convInfo.m_Stride.m_Y, m_Capabilities);
 
-        TensorInfo mceOperationInput = TensorInfo({ depthwise.GetInput(0).GetTensorInfo().m_Dimensions[0], h, w, c },
-                                                  depthwise.GetInput(0).GetTensorInfo().m_DataType,
-                                                  depthwise.GetInput(0).GetTensorInfo().m_DataFormat,
-                                                  depthwise.GetInput(0).GetTensorInfo().m_QuantizationInfo);
+        mceOperationInput = TensorInfo({ depthwise.GetInput(0).GetTensorInfo().m_Dimensions[0], h, w, c },
+                                       depthwise.GetInput(0).GetTensorInfo().m_DataType,
+                                       depthwise.GetInput(0).GetTensorInfo().m_DataFormat,
+                                       depthwise.GetInput(0).GetTensorInfo().m_QuantizationInfo);
 
         auto fusedPlePart = std::make_unique<FusedPlePart>(
             m_GraphOfParts.GeneratePartId(), depthwise.GetInput(0).GetTensorInfo().m_Dimensions,

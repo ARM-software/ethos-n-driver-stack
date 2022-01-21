@@ -295,7 +295,28 @@ Plans FusedPlePart::GetLonelyPlans(uint32_t numWeightStripes) const
         throw InternalErrorException("Fused PLE part: no valid block size found");
     }
 
-    StripeInfos stripeInfos;
+    // Try to generate plans as per Beginning of a section. This guarantees larger stripes
+    // and helps to reduce overhead.
+    StripeInfos stripeInfos = {};
+    for (auto&& blockConfig : validBlockConfigs)
+    {
+        // Todo generate all stripes again
+        m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Beginning, &stripeInfos);
+    }
+
+    for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
+    {
+        CreateIdentityMceAndFusedPlePlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret, numWeightStripes);
+    }
+
+    // Don't continue if at least a plan is valid
+    if (!ret.empty())
+    {
+        return ret;
+    }
+
+    // Generate all possible plans.
+    stripeInfos = {};
     for (auto&& blockConfig : validBlockConfigs)
     {
         // Todo generate all stripes again

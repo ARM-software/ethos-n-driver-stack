@@ -1202,9 +1202,13 @@ TEST_CASE("McePart GetPlans Split input in depth")
         const HardwareCapabilities caps = GetEthosN78HwCapabilities();
         const EstimationOptions estOpts;
 
-        TensorShape tsIn  = { 1, 64, 64, 256 };
+        const command_stream::BlockConfig blockConfig = { 8u, 8u };
+        const uint32_t channels =
+            utils::DivRoundUp(caps.GetTotalSramSize(), blockConfig.m_BlockWidth() * blockConfig.m_BlockHeight());
+
+        TensorShape tsIn  = { 1, 64, 64, channels };
         TensorShape tsOut = { 1, 64, 64, 64 };
-        McePart part      = BuildPart(tsIn, tsOut, { 1, 1, 256, 64 }, command_stream::MceOperation::CONVOLUTION,
+        McePart part      = BuildPart(tsIn, tsOut, { 1, 1, channels, 64 }, command_stream::MceOperation::CONVOLUTION,
                                  Stride{ 2U, 2U }, 0, 0, compOpt, caps, estOpts);
 
         WHEN("Asked to generate plans")
@@ -1214,6 +1218,7 @@ TEST_CASE("McePart GetPlans Split input in depth")
 
             THEN("The plans are valid, do not have unexpected stripe configs but do have expected stripe configs")
             {
+                CHECK(caps.GetNumberOfOgs() < channels);
                 CheckPlansParams params;
                 params.m_InputShape  = tsIn;
                 params.m_OutputShape = tsOut;
@@ -1241,9 +1246,13 @@ TEST_CASE("McePart GetPlans Split output in depth")
         const HardwareCapabilities caps = GetEthosN78HwCapabilities();
         const EstimationOptions estOpts;
 
+        const command_stream::BlockConfig blockConfig = { 8u, 8u };
+        const uint32_t channels =
+            utils::DivRoundUp(caps.GetTotalSramSize(), blockConfig.m_BlockWidth() * blockConfig.m_BlockHeight());
+
         TensorShape inputShape{ 1, 8, 8, 32 };
-        TensorShape outputShape{ 1, 8, 8, 32 };
-        TensorShape weightShape{ 3, 3, 32, 32 };
+        TensorShape outputShape{ 1, 8, 8, channels };
+        TensorShape weightShape{ 3, 3, 32, channels };
         McePart part = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
                                  Stride{ 1, 1 }, 1, 1, compOpt, caps, estOpts);
 
@@ -1254,6 +1263,7 @@ TEST_CASE("McePart GetPlans Split output in depth")
 
             THEN("The plans are valid and contain at least one plan with the stripe config we expect")
             {
+                CHECK(16u < channels);
                 CheckPlansParams params;
                 params.m_InputShape  = inputShape;
                 params.m_OutputShape = outputShape;
@@ -1279,8 +1289,7 @@ TEST_CASE("McePart GetPlans Split output in depth")
     }
 }
 
-/// Checks that McePart produces at least the plans that we need for cascading MobileNet V1 in the same way that
-/// the prototype compiler does.
+/// Checks that McePart produces at least the plans that we need for cascading MobileNet V1.
 ///
 /// MobileNet V1 Parts are as follows:
 ///  0. InputPart 224,224,3
@@ -1299,10 +1308,7 @@ TEST_CASE("McePart GetPlans Split output in depth")
 /// The FusedPleParts are skipped here, and covered by a corresponding test in FusedPlePartTests.cpp.
 ///
 /// For each McePart in the above list, we create an McePart object with the corresponding properties and ask it to generate
-/// plans, providing the context (prevBuffer etc.) that it would have assuming that everything beforehand was chosen in agreement
-/// with the prototype compiler. We then check that at least one of the plans returned is consistent with the prototype
-/// compiler result. This gives us confidence that McePart is capable of generating the right plans in order to give an overall
-/// performance consistent with the prototype compiler.
+/// plans, providing the context (prevBuffer etc.).
 ///
 /// We don't cover every Part in the whole Network as that would be a lot of test code and would also be a lot of duplication.
 TEST_CASE("McePart GetPlans MobileNet V1")
@@ -1337,9 +1343,6 @@ TEST_CASE("McePart GetPlans MobileNet V1")
         {
             // Even though this is strategy 1, the variant we are compiling for has 32 OGs and so there is no actual splitting
             // and this is equivalent to strategy 3.
-            // There are some differences between our results and the prototype compiler because this is a strided convolution and
-            // the prototype compiler assumes that the DMA is used to do the interleaving of the IFM, which leads to a different IFM
-            // depth (12 vs 51).
 
             TensorShape inputShape{ 1, 112, 112, 51 };
             TensorShape outputShape{ 1, 112, 112, 32 };
@@ -1588,9 +1591,6 @@ TEST_CASE("McePart GetPlans MobileNet V1")
         SECTION("Part 2")
         {
             // This is part of a strategy 0 cascade.
-            // There are some differences between our results and the prototype compiler because this is a strided convolution and
-            // the prototype compiler assumes that the DMA is used to do the interleaving of the IFM, which leads to a different IFM
-            // depth (12 vs 27).
 
             TensorShape inputShape{ 1, 112, 112, 27 };
             TensorShape outputShape{ 1, 112, 112, 32 };
@@ -1644,7 +1644,6 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 112, 32 } &&
                        plan.m_InputSram->m_NumStripes == 3 &&
-                       // The prototype compiler has M=8 here that appaears to be a bug on their end as this doesn't make sense.
                        plan.m_WeightsSram->m_StripeShape == TensorShape{ 3, 3, 32, 1 } &&
                        plan.m_WeightsSram->m_NumStripes == 1 &&
                        plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 32u, 8u } &&
@@ -1685,7 +1684,6 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 32u, 8u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 8, 112, 32 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 32, 64 } &&
-                       // The prototype compiler disagrees - because it includes the following interleave kernel
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 8, 112, 64 } &&
                        // The following Part is a FusedPlePart, so we'll use the plan which ends at PleInputSram (and doesn't include a Passthrough PLE)
                        plan.m_Output->m_Location == Location::PleInputSram &&
@@ -1698,9 +1696,6 @@ TEST_CASE("McePart GetPlans MobileNet V1")
         SECTION("Part 6")
         {
             // This is a lonely strategy 6 part.
-            // There are differences between our results and the prototype compiler because this is a strided convolution and
-            // the prototype compiler assumes that the DMA is used to do the interleaving of the IFM, which leads to a different IFM
-            // shape.
 
             TensorShape inputShape{ 1, 56, 56, 256 };
             TensorShape outputShape{ 1, 56, 56, 64 };
@@ -1712,26 +1707,21 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
-                return plan.m_InputSram->m_StripeShape ==
-                           TensorShape{
-                               1, 16, 16, 32
-                           } &&    //TODO: not sure about this shape coming from PC (had to halve due to interleave differnces
-                       plan.m_InputSram->m_NumStripes ==
-                           3 &&    //TODO: not sure about this coming from PC. How does this work for strategy 6 with boundary slots?
+                return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 56, 256 } &&
+                       plan.m_InputSram->m_NumStripes == 3 &&
                        plan.m_WeightsSram->m_StripeShape ==
                            TensorShape{
-                               3, 3, 32, 1
-                           } &&    // This is 8 but 4x because of strided. Prototype compiler splits weights here as well.
+                               3, 3, 256, 1
+                           } &&    // This is 64 but 4x because of strided. Prototype compiler splits weights here as well.
                        plan.m_WeightsSram->m_NumStripes == 2 &&
-                       // The prototype compiler has a block config of {8, 16}
                        // We only generate stripe shapes which match block configs so must choose 16x16
-                       plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
-                       plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 16, 16, 32 } &&
-                       plan.m_Mce->m_WeightsStripeShape == TensorShape{ 3, 3, 32, 1 } &&
-                       plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 16, 16, 8 } &&
+                       plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 8u, 8u } &&
+                       plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 8, 56, 256 } &&
+                       plan.m_Mce->m_WeightsStripeShape == TensorShape{ 3, 3, 256, 1 } &&
+                       plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 8, 56, 64 } &&
                        // This is a lonely Part, so we'll use the plan which includes a Passthrough PLE.
                        plan.m_Output->m_Location == Location::Sram &&
-                       plan.m_Output->m_StripeShape == TensorShape{ 1, 16, 16, 16 } && plan.m_Output->m_NumStripes == 2;
+                       plan.m_Output->m_StripeShape == TensorShape{ 1, 8, 56, 64 } && plan.m_Output->m_NumStripes == 1;
             });
             CheckPlans(plans, params);
         }
@@ -1806,8 +1796,6 @@ TEST_CASE("McePart GetPlans MobileNet V1")
         SECTION("Part 9")
         {
             // Beginning of short strategy 1 cascade
-            // This is a bit different to the prototype compiler's results, because they take the output back to SRAM
-            // and don't include an interleave, whereas we leave the output in PleInputSram for a following interleave.
 
             TensorShape inputShape{ 1, 56, 56, 128 };
             TensorShape outputShape{ 1, 56, 56, 128 };
@@ -1826,7 +1814,6 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                 b &= plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 32u, 8u };
                 b &= plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 56, 56, 128 };
                 b &= plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 128, 8 };
-                // The prototype compiler has 32 width and height as it includes in the following interleave kernel.
                 b &= plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 56, 56, 8 };
                 // The following Part is a FusedPlePart, so we'll use the plan which ends at PleInputSram (and doesn't include a Passthrough PLE)
                 b &= plan.m_Output->m_Location == Location::PleInputSram;
