@@ -85,7 +85,7 @@ void NetworkToGraphOfPartsConverter::Visit(Input& input)
                                                  compilerDataFormat, input.GetTensorInfo().m_QuantizationInfo,
                                                  std::set<uint32_t>{ input.GetId() }, m_EstimationOptions.value(),
                                                  m_CompilationOptions, m_Capabilities);
-    parts.push_back(std::move(inputPart.get()));
+    parts.push_back(inputPart.get());
     m_GraphOfParts.m_Parts.push_back(std::move(inputPart));
     ConnectParts(input, parts);
 }
@@ -98,7 +98,7 @@ void NetworkToGraphOfPartsConverter::Visit(Output& output)
                                                    compilerDataFormat, output.GetTensorInfo().m_QuantizationInfo,
                                                    std::set<uint32_t>{ output.GetId() }, m_EstimationOptions.value(),
                                                    m_CompilationOptions, m_Capabilities);
-    parts.push_back(std::move(outputPart.get()));
+    parts.push_back(outputPart.get());
     m_GraphOfParts.m_Parts.push_back(std::move(outputPart));
     ConnectParts(output, parts);
 }
@@ -125,7 +125,7 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
             std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
             operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-        parts.push_back(std::move(estimateOnlyPart.get()));
+        parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
     }
     else
@@ -160,7 +160,7 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
                 std::set<uint32_t>{ depthwise.GetId(), depthwise.GetBias().GetId(), depthwise.GetWeights().GetId() },
                 GetCommandDataType(depthwise.GetOutput(0).GetTensorInfo().m_DataType));
 
-            parts.push_back(std::move(fusedPlePart.get()));
+            parts.push_back(fusedPlePart.get());
             m_GraphOfParts.m_Parts.push_back(std::move(fusedPlePart));
         }
 
@@ -189,7 +189,7 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
             std::set<uint32_t>{ depthwise.GetId(), depthwise.GetBias().GetId(), depthwise.GetWeights().GetId() },
             GetCommandDataType(depthwise.GetOutput(0).GetTensorInfo().m_DataType));
 
-        parts.push_back(std::move(mcePart.get()));
+        parts.push_back(mcePart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
     }
 
@@ -219,7 +219,7 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
             std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
             operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-        parts.push_back(std::move(estimateOnlyPart.get()));
+        parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
     }
     else
@@ -252,7 +252,7 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
                 std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(),
                                     convolution.GetWeights().GetId() },
                 GetCommandDataType(convolution.GetOutput(0).GetTensorInfo().m_DataType));
-            parts.push_back(std::move(fusedPlePart.get()));
+            parts.push_back(fusedPlePart.get());
             m_GraphOfParts.m_Parts.push_back(std::move(fusedPlePart));
 
             // Pass interleaved Output as Input Tensor to subsequent McePart
@@ -277,7 +277,7 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
             std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(), convolution.GetWeights().GetId() },
             GetCommandDataType(convolution.GetOutput(0).GetTensorInfo().m_DataType));
 
-        parts.push_back(std::move(mcePart.get()));
+        parts.push_back(mcePart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
     }
 
@@ -308,7 +308,7 @@ void NetworkToGraphOfPartsConverter::Visit(FullyConnected& fullyConnected)
             ConvertExternalToCompilerDataFormat(outputTensorInfo.m_DataFormat), operationIds,
             m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-        parts.push_back(std::move(estimateOnlyPart.get()));
+        parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
     }
     else
@@ -408,7 +408,7 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
             std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
             std::set<uint32_t>{ pooling.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-        parts.push_back(std::move(estimateOnlyPart.get()));
+        parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
     }
     else
@@ -423,7 +423,7 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
                 m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
                 std::set<uint32_t>{ pooling.GetId() },
                 GetCommandDataType(pooling.GetOutput(0).GetTensorInfo().m_DataType));
-            parts.push_back(std::move(poolingFusedPlePart.get()));
+            parts.push_back(poolingFusedPlePart.get());
             m_GraphOfParts.m_Parts.push_back(std::move(poolingFusedPlePart));
         };
 
@@ -466,7 +466,7 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
                 command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA, m_EstimationOptions.value(), m_CompilationOptions,
                 m_Capabilities, std::set<uint32_t>{ pooling.GetId() },
                 GetCommandDataType(pooling.GetOutput(0).GetTensorInfo().m_DataType));
-            parts.push_back(std::move(poolingStandalonePlePart.get()));
+            parts.push_back(poolingStandalonePlePart.get());
             m_GraphOfParts.m_Parts.push_back(std::move(poolingStandalonePlePart));
         }
         else
@@ -488,7 +488,7 @@ void NetworkToGraphOfPartsConverter::Visit(Reshape& reshape)
         reshape.GetOutput(0).GetTensorInfo().m_Dimensions, CompilerDataFormat::NHWC,
         reshape.GetOutput(0).GetTensorInfo().m_QuantizationInfo, std::set<uint32_t>{ reshape.GetId() },
         m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
-    parts.push_back(std::move(reshapePart.get()));
+    parts.push_back(reshapePart.get());
     m_GraphOfParts.m_Parts.push_back(std::move(reshapePart));
     ConnectParts(reshape, parts);
 }
@@ -518,7 +518,7 @@ void NetworkToGraphOfPartsConverter::Visit(Addition& addition)
             std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
             std::set<uint32_t>{ addition.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-        parts.push_back(std::move(estimateOnlyPart.get()));
+        parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
     }
     else
@@ -537,7 +537,7 @@ void NetworkToGraphOfPartsConverter::Visit(Addition& addition)
             inputQuantizations, addition.GetOutput(0).GetTensorInfo().m_QuantizationInfo, pleOp,
             m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ addition.GetId() },
             GetCommandDataType(addition.GetOutput(0).GetTensorInfo().m_DataType));
-        parts.push_back(std::move(additionStandalonePlePart.get()));
+        parts.push_back(additionStandalonePlePart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(additionStandalonePlePart));
     }
 
@@ -573,7 +573,7 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
             ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat), std::set<uint32_t>{ concat.GetId() },
             m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-        parts.push_back(std::move(estimateOnlyPart.get()));
+        parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
         ConnectParts(concat, parts);
     }
@@ -635,26 +635,49 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
 void NetworkToGraphOfPartsConverter::Visit(Requantize& requantize)
 {
     std::vector<BasePart*> parts;
-    auto inputQuantInfo  = requantize.GetInput(0).GetTensorInfo().m_QuantizationInfo;
-    auto outputQuantInfo = requantize.GetOutput(0).GetTensorInfo().m_QuantizationInfo;
 
-    // If input and output quantizations are different, an McePart is added to the GraphOfParts to perform requantization,
-    // otherwise the requantize operation is optimized out (no requantization needed)
-    Operand& inputOperand = requantize.GetInput(0);
-    if (inputQuantInfo != outputQuantInfo)
+    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
+    char reason[1024];
+    const SupportedLevel supportedLevel = m_Queries.IsRequantizeSupported(
+        requantize.GetRequantizeInfo(), requantize.GetInput(0).GetTensorInfo(), nullptr, reason, sizeof(reason));
+
+    if (supportedLevel == SupportedLevel::EstimateOnly)
     {
-        auto mcePart = CreateIdentityMcePart(inputOperand.GetTensorInfo().m_Dimensions, inputQuantInfo, outputQuantInfo,
-                                             requantize.GetId(),
-                                             GetCommandDataType(requantize.GetOutput(0).GetTensorInfo().m_DataType),
-                                             m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+        const TensorInfo& outputInfo = requantize.GetOutput(0).GetTensorInfo();
 
-        parts.push_back(std::move(mcePart.get()));
-        m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+        auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
+            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ requantize.GetInput(0).GetTensorInfo() },
+            std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
+            std::set<uint32_t>{ requantize.GetId() }, m_EstimationOptions.value(), m_CompilationOptions,
+            m_Capabilities);
+
+        parts.push_back(estimateOnlyPart.get());
+        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
         ConnectParts(requantize, parts);
     }
     else
     {
-        ConnectNoOp(requantize);
+        auto inputQuantInfo  = requantize.GetInput(0).GetTensorInfo().m_QuantizationInfo;
+        auto outputQuantInfo = requantize.GetOutput(0).GetTensorInfo().m_QuantizationInfo;
+
+        // If input and output quantizations are different, an McePart is added to the GraphOfParts to perform requantization,
+        // otherwise the requantize operation is optimized out (no requantization needed)
+        Operand& inputOperand = requantize.GetInput(0);
+        if (inputQuantInfo != outputQuantInfo)
+        {
+            auto mcePart = CreateIdentityMcePart(inputOperand.GetTensorInfo().m_Dimensions, inputQuantInfo,
+                                                 outputQuantInfo, requantize.GetId(),
+                                                 GetCommandDataType(requantize.GetOutput(0).GetTensorInfo().m_DataType),
+                                                 m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+            parts.push_back(mcePart.get());
+            m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+            ConnectParts(requantize, parts);
+        }
+        else
+        {
+            ConnectNoOp(requantize);
+        }
     }
 }
 
@@ -676,7 +699,7 @@ void NetworkToGraphOfPartsConverter::Visit(LeakyRelu& leakyRelu)
             std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
             std::set<uint32_t>{ leakyRelu.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-        parts.push_back(std::move(estimateOnlyPart.get()));
+        parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
     }
     else
@@ -689,7 +712,7 @@ void NetworkToGraphOfPartsConverter::Visit(LeakyRelu& leakyRelu)
             g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
             std::set<uint32_t>{ leakyRelu.GetId() },
             GetCommandDataType(leakyRelu.GetOutput(0).GetTensorInfo().m_DataType));
-        parts.push_back(std::move(leakyReluPart.get()));
+        parts.push_back(leakyReluPart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(leakyReluPart));
     }
 
@@ -705,7 +728,7 @@ void NetworkToGraphOfPartsConverter::Visit(Sigmoid& sigmoid)
         sigmoid.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::SIGMOID,
         g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
         std::set<uint32_t>{ sigmoid.GetId() }, GetCommandDataType(sigmoid.GetOutput(0).GetTensorInfo().m_DataType));
-    parts.push_back(std::move(sigmoidPart.get()));
+    parts.push_back(sigmoidPart.get());
     m_GraphOfParts.m_Parts.push_back(std::move(sigmoidPart));
     ConnectParts(sigmoid, parts);
 }
@@ -724,7 +747,7 @@ void NetworkToGraphOfPartsConverter::Visit(Tanh& tanh)
         tanh.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::SIGMOID,
         g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
         std::set<uint32_t>{ tanh.GetId() }, GetCommandDataType(tanh.GetOutput(0).GetTensorInfo().m_DataType));
-    parts.push_back(std::move(tanhPart.get()));
+    parts.push_back(tanhPart.get());
     m_GraphOfParts.m_Parts.push_back(std::move(tanhPart));
     ConnectParts(tanh, parts);
 }
@@ -748,7 +771,7 @@ void NetworkToGraphOfPartsConverter::Visit(MeanXy& meanxy)
         meanxy.GetOutput(0).GetTensorInfo().m_QuantizationInfo, pleOperation, shapeMultiplier,
         m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ meanxy.GetId() },
         GetCommandDataType(meanxy.GetOutput(0).GetTensorInfo().m_DataType));
-    parts.push_back(std::move(meanxyPart.get()));
+    parts.push_back(meanxyPart.get());
     m_GraphOfParts.m_Parts.push_back(std::move(meanxyPart));
     ConnectParts(meanxy, parts);
 }
@@ -770,7 +793,7 @@ void NetworkToGraphOfPartsConverter::Visit(EstimateOnly& estimateOnly)
         estimateOnly.GetEstimateOnlyInfo().m_OutputInfos, compilerDataFormat,
         std::set<uint32_t>{ estimateOnly.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-    parts.push_back(std::move(estimateOnlyPart.get()));
+    parts.push_back(estimateOnlyPart.get());
     m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
     ConnectParts(estimateOnly, parts);
 }
@@ -1041,7 +1064,7 @@ void NetworkToGraphOfPartsConverter::Visit(TransposeConvolution& transposeConvol
             std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
             operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-        parts.push_back(std::move(estimateOnlyPart.get()));
+        parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
     }
     else
@@ -1065,7 +1088,7 @@ void NetworkToGraphOfPartsConverter::Visit(Softmax& softmax)
         std::vector<TensorInfo>{ softmax.GetOutput(0).GetTensorInfo() }, CompilerDataFormat::NHWCB,
         std::set<uint32_t>{ softmax.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-    parts.push_back(std::move(estimateOnlyPart.get()));
+    parts.push_back(estimateOnlyPart.get());
     m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
     ConnectParts(softmax, parts);
 }
@@ -1089,7 +1112,7 @@ void NetworkToGraphOfPartsConverter::Visit(Split& split)
             std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
             operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-        parts.push_back(std::move(estimateOnlyPart.get()));
+        parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
     }
 
@@ -1128,7 +1151,7 @@ void NetworkToGraphOfPartsConverter::Visit(Transpose& transpose)
             std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
             operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-        parts.push_back(std::move(estimateOnlyPart.get()));
+        parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
     }
     ConnectParts(transpose, parts);
@@ -1136,91 +1159,114 @@ void NetworkToGraphOfPartsConverter::Visit(Transpose& transpose)
 
 void NetworkToGraphOfPartsConverter::Visit(DepthToSpace& depthToSpace)
 {
+    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
+    char reason[1024];
 
-    // We implement depth-to-space (block-size 2) with a transpose convolution (stride 2) with a 2x2
-    // kernel,
-    // where the weights are used to 'select' which elements of the input are placed into each
-    // element of the output.
-    // By setting the stride and kernel size the same, the output is made by multiplying the kernel
-    // by each IFM (x, y)
-    // position and tiling the resulting tensors.
-    // The weight vector along input-channels at each (u, v) position in the kernel will be dotted
-    // with the IFM along
-    // channels at each (x, y) position.
-    // This means that we can choose different weight vectors to be dotted with the IFM vectors for
-    // each of the four
-    // output pixels that we want to derive from each input pixel, so that we can select the correct
-    // IFM channel for each.
-    // The weight vectors at each (u, v) are therefore simple "one-hot" vectors.
-    // Below is an example for a 1x1x4 input being turned into a 2x2x1 output.
-    //
-    //  Input:                     Output:                       Weights:
-    // (with padding)
-    //
-    //  Channel 0:                Channel 0:                  Input channel 0:
-    //     I0                       I0   I1                        1   0
-    //                              I2   I3                        0   0
-    //
-    //  Channel 1:                                            Input channel 1:
-    //     I1                                                      0   1
-    //                                                             0   0
-    //
-    //  Channel 2:                                            Input channel 2:
-    //     I2                                                      0   0
-    //                                                             1   0
-    //
-    //  Channel 3:                                            Input channel 3:
-    //     I3                                                      0   0
-    //                                                             0   1
-    //
-    uint32_t blockSize = depthToSpace.GetDepthToSpaceInfo().m_BlockSize;
-    assert(blockSize == 2);    // Checked by IsDepthToSpaceSupported
-    uint32_t ifmChannelsPerOfm = blockSize * blockSize;
+    const SupportedLevel supportedLevel = m_Queries.IsDepthToSpaceSupported(
+        depthToSpace.GetInput(0).GetTensorInfo(), depthToSpace.GetDepthToSpaceInfo(), nullptr, reason, sizeof(reason));
 
-    const TensorShape& inputShape  = depthToSpace.GetInput(0).GetTensorInfo().m_Dimensions;
-    const TensorShape& outputShape = depthToSpace.GetOutput(0).GetTensorInfo().m_Dimensions;
-
-    // Set weights according to the above explanation
-    const float weightsScale = 0.5f;    // We can't use a scale of 1.0 as that would cause an overall multiplier >= 1.
-    TensorInfo weightsInfo({ blockSize, blockSize, inputShape[3], outputShape[3] }, DataType::UINT8_QUANTIZED,
-                           DataFormat::HWIO, QuantizationInfo(0, weightsScale));
-    std::vector<uint8_t> weightsData(GetNumElements(weightsInfo.m_Dimensions), 0);
-    TensorData weights(weightsData.data(), weightsInfo.m_Dimensions);
-    for (uint32_t ofmIdx = 0; ofmIdx < outputShape[3]; ++ofmIdx)
+    if (supportedLevel == SupportedLevel::EstimateOnly)
     {
-        // Each OFM is derived from 4 IFMs which are distributed across the channels.
-        // All of the top-left elements come first, then all the top-right, bottom-left then finally
-        // bottom-right.
-        // This means that the IFMs for a particular OFM start at the same index as the OFM
-        // and are separated from each other by the number of blocks.
-        const uint32_t ifmBase   = ofmIdx;
-        const uint32_t ifmStride = inputShape[3] / ifmChannelsPerOfm;
-        // Set the weight vectors for each of the (u, v) positions, each of which will contain just
-        // one non-zero value
-        for (uint32_t v = 0; v < blockSize; ++v)
+        std::vector<BasePart*> parts;
+        const TensorInfo& outputTensorInfo = depthToSpace.GetOutput(0).GetTensorInfo();
+
+        auto estimateOnlyPart =
+            std::make_unique<EstimateOnlyPart>(m_GraphOfParts.GeneratePartId(), reason,
+                                               std::vector<TensorInfo>{ depthToSpace.GetInput(0).GetTensorInfo() },
+                                               std::vector<TensorInfo>{ outputTensorInfo },
+                                               ConvertExternalToCompilerDataFormat(outputTensorInfo.m_DataFormat),
+                                               std::set<uint32_t>{ depthToSpace.GetId() }, m_EstimationOptions.value(),
+                                               m_CompilationOptions, m_Capabilities);
+
+        parts.push_back(estimateOnlyPart.get());
+        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+        ConnectParts(depthToSpace, parts);
+    }
+    else
+    {
+        // We implement depth-to-space (block-size 2) with a transpose convolution (stride 2) with a 2x2
+        // kernel, where the weights are used to 'select' which elements of the input are placed into each
+        // element of the output.
+        // By setting the stride and kernel size the same, the output is made by multiplying the kernel
+        // by each IFM (x, y) position and tiling the resulting tensors.
+        // The weight vector along input-channels at each (u, v) position in the kernel will be dotted
+        // with the IFM along channels at each (x, y) position.
+        // This means that we can choose different weight vectors to be dotted with the IFM vectors for
+        // each of the four output pixels that we want to derive from each input pixel,
+        // so that we can select the correct IFM channel for each.
+        // The weight vectors at each (u, v) are therefore simple "one-hot" vectors.
+        // Below is an example for a 1x1x4 input being turned into a 2x2x1 output.
+        //
+        //  Input:                     Output:                       Weights:
+        // (with padding)
+        //
+        //  Channel 0:                Channel 0:                  Input channel 0:
+        //     I0                       I0   I1                        1   0
+        //                              I2   I3                        0   0
+        //
+        //  Channel 1:                                            Input channel 1:
+        //     I1                                                      0   1
+        //                                                             0   0
+        //
+        //  Channel 2:                                            Input channel 2:
+        //     I2                                                      0   0
+        //                                                             1   0
+        //
+        //  Channel 3:                                            Input channel 3:
+        //     I3                                                      0   0
+        //                                                             0   1
+        //
+        uint32_t blockSize = depthToSpace.GetDepthToSpaceInfo().m_BlockSize;
+        assert(blockSize == 2);    // Checked by IsDepthToSpaceSupported
+        uint32_t ifmChannelsPerOfm = blockSize * blockSize;
+
+        const TensorShape& inputShape  = depthToSpace.GetInput(0).GetTensorInfo().m_Dimensions;
+        const TensorShape& outputShape = depthToSpace.GetOutput(0).GetTensorInfo().m_Dimensions;
+
+        // Set weights according to the above explanation
+        const float weightsScale =
+            0.5f;    // We can't use a scale of 1.0 as that would cause an overall multiplier >= 1.
+        TensorInfo weightsInfo({ blockSize, blockSize, inputShape[3], outputShape[3] }, DataType::UINT8_QUANTIZED,
+                               DataFormat::HWIO, QuantizationInfo(0, weightsScale));
+        std::vector<uint8_t> weightsData(GetNumElements(weightsInfo.m_Dimensions), 0);
+        TensorData weights(weightsData.data(), weightsInfo.m_Dimensions);
+        for (uint32_t ofmIdx = 0; ofmIdx < outputShape[3]; ++ofmIdx)
         {
-            for (uint32_t u = 0; u < blockSize; ++u)
+            // Each OFM is derived from 4 IFMs which are distributed across the channels.
+            // All of the top-left elements come first, then all the top-right, bottom-left then finally
+            // bottom-right.
+            // This means that the IFMs for a particular OFM start at the same index as the OFM
+            // and are separated from each other by the number of blocks.
+            const uint32_t ifmBase   = ofmIdx;
+            const uint32_t ifmStride = inputShape[3] / ifmChannelsPerOfm;
+            // Set the weight vectors for each of the (u, v) positions, each of which will contain just
+            // one non-zero value
+            for (uint32_t v = 0; v < blockSize; ++v)
             {
-                // Calculate which IFM we want this weight vector to select
-                const uint32_t ifmWithinBlock = v * blockSize + u;
-                const uint32_t ifmIdx         = ifmBase + ifmWithinBlock * ifmStride;
-                weights.SetElement(v, u, ifmIdx, ofmIdx, static_cast<uint8_t>(1.0f / weightsScale));
+                for (uint32_t u = 0; u < blockSize; ++u)
+                {
+                    // Calculate which IFM we want this weight vector to select
+                    const uint32_t ifmWithinBlock = v * blockSize + u;
+                    const uint32_t ifmIdx         = ifmBase + ifmWithinBlock * ifmStride;
+                    weights.SetElement(v, u, ifmIdx, ofmIdx, static_cast<uint8_t>(1.0f / weightsScale));
+                }
             }
         }
+
+        // Set biases to all zero (we don't need a bias)
+        const float biasScale = weightsScale * depthToSpace.GetInput(0).GetTensorInfo().m_QuantizationInfo.GetScale();
+        TensorInfo biasInfo({ 1, 1, 1, outputShape[3] }, DataType::UINT8_QUANTIZED, DataFormat::NHWC,
+                            QuantizationInfo(0, biasScale));
+        std::vector<int32_t> biasData(GetNumElements(biasInfo.m_Dimensions), 0);
+
+        const std::set<uint32_t> operationId = { depthToSpace.GetId() };
+        std::vector<BasePart*> transposeConv =
+            CreateTransposeConv(Stride(blockSize, blockSize), weightsInfo, std::move(weightsData), biasInfo,
+                                std::move(biasData), Padding(0, 0), depthToSpace.GetInput(0).GetTensorInfo(),
+                                depthToSpace.GetOutput(0).GetTensorInfo(), operationId);
+
+        ConnectParts(depthToSpace, transposeConv);
     }
-
-    // Set biases to all zero (we don't need a bias)
-    const float biasScale = weightsScale * depthToSpace.GetInput(0).GetTensorInfo().m_QuantizationInfo.GetScale();
-    TensorInfo biasInfo({ 1, 1, 1, outputShape[3] }, DataType::UINT8_QUANTIZED, DataFormat::NHWC,
-                        QuantizationInfo(0, biasScale));
-    std::vector<int32_t> biasData(GetNumElements(biasInfo.m_Dimensions), 0);
-
-    const std::set<uint32_t> operationId = { depthToSpace.GetId() };
-    std::vector<BasePart*> transposeConv = CreateTransposeConv(
-        Stride(blockSize, blockSize), weightsInfo, std::move(weightsData), biasInfo, std::move(biasData), Padding(0, 0),
-        depthToSpace.GetInput(0).GetTensorInfo(), depthToSpace.GetOutput(0).GetTensorInfo(), operationId);
-
-    ConnectParts(depthToSpace, transposeConv);
 }
 
 void NetworkToGraphOfPartsConverter::Visit(SpaceToDepth& spaceToDepth)
@@ -1241,7 +1287,7 @@ void NetworkToGraphOfPartsConverter::Visit(SpaceToDepth& spaceToDepth)
             std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
             operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-        parts.push_back(std::move(estimateOnlyPart.get()));
+        parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
     }
 
