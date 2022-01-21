@@ -1194,6 +1194,46 @@ TEST_CASE("McePart GetPlans Winograd")
     }
 }
 
+TEST_CASE("McePart GetPlans Split input in height and width in the case of block multiplier > 1")
+{
+    GIVEN("An McePart for a convolution")
+    {
+        const CompilationOptions compOpt;
+        const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+        const EstimationOptions estOpts;
+
+        const uint32_t channels       = 256u;
+        const uint32_t widthAndHeight = utils::DivRoundUp(caps.GetTotalSramSize(), 8u * channels);
+
+        TensorShape tsIn  = { 1, widthAndHeight, widthAndHeight, channels };
+        TensorShape tsOut = { 1, widthAndHeight, widthAndHeight, 64 };
+        McePart part      = BuildPart(tsIn, tsOut, { 1, 1, channels, 64 }, command_stream::MceOperation::CONVOLUTION,
+                                 Stride{ 2U, 2U }, 0, 0, compOpt, caps, estOpts);
+
+        WHEN("Asked to generate plans")
+        {
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
+            SavePlansToDot(plans, "McePart GetPlans Split input in height and width");
+
+            THEN("The plans are valid, do have expected stripe configs")
+            {
+                // Check that the expected stripe (used below) is smaller then input tensor
+                CHECK(72u < widthAndHeight);
+                CHECK(8u < widthAndHeight);
+                CheckPlansParams params;
+                params.m_InputShape  = tsIn;
+                params.m_OutputShape = tsOut;
+                params.m_Any.push_back([&](const PlanDesc& plan) {
+                    return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 72, 8, 256 } &&
+                           plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 72, 8, 64 } &&
+                           (plan.m_InputSram->m_NumStripes == 1 || plan.m_InputSram->m_NumStripes == 2);
+                });
+                CheckPlans(plans, params);
+            }
+        }
+    }
+}
+
 TEST_CASE("McePart GetPlans Split input in depth")
 {
     GIVEN("An McePart for a convolution")
