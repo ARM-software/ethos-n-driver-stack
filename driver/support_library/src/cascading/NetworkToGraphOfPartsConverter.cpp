@@ -351,6 +351,10 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
     {
         createPoolingPart(command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN);
     }
+    else if (poolingInfo == PoolingInfo{ 1, 1, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
+    {
+        createPoolingPart(command_stream::PleOperation::DOWNSAMPLE_2X2);
+    }
     else if (poolingInfo == PoolingInfo{ 3, 3, 1, 1, poolingInfo.m_Padding, PoolingType::AVG })
     {
         const std::vector<QuantizationInfo> inputQuantizations = {

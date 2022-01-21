@@ -1930,3 +1930,77 @@ TEST_CASE("NetworkToGraphOfPartsConverter SpaceToDepth")
         REQUIRE(part != nullptr);
     }
 }
+
+TEST_CASE("NetworkToGraphOfPartsConverterTest Downsample_2x2")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 32, 32, 1 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    constexpr PoolingInfo poolingInfo{ 1, 1, 2, 2, { 0, 0, 0, 0 }, PoolingType::MAX };
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    /*
+       { Input } -> MaxPool_1x1_2_2 -> Output
+    */
+
+    std::shared_ptr<Operand> input      = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Operand> downsample = AddPooling(network, *input, poolingInfo).tensor;
+    std::shared_ptr<Output> output      = AddOutput(network, *downsample).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest DownSample_2x2.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest DownSample_2x2_Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    // Check for each Part:
+    //  * Whether the type of the generated Part is correct
+    //  * Whether the PleOperation command stream is correct for Operations using FusedPleParts (DOWNSAMPLE_2X2)
+    //  * The number of Input/Output slots
+    //  * Whether PartInputSlots connect to PartOutputSlots of the correct Part
+    //  * For the last Part, check that there are no connections to any following PartInputSlots
+    REQUIRE(graph.GetNumParts() == 3);
+
+    REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(0)) != nullptr);
+    REQUIRE(graph.GetPartInputs(0).size() == 0);
+    REQUIRE(graph.GetPartOutputs(0).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 0, 0 }).has_value() == false);
+
+    const FusedPlePart* downsamplePart = dynamic_cast<const FusedPlePart*>(&graph.GetPart(1));
+    REQUIRE(downsamplePart != nullptr);
+    auto downsamplePlans =
+        downsamplePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(dynamic_cast<PleOp*>(downsamplePlans[0].m_OpGraph.GetOp(2))->m_Op ==
+            ethosn::command_stream::PleOperation::DOWNSAMPLE_2X2);
+    REQUIRE(graph.GetPartInputs(1).size() == 1);
+    REQUIRE(graph.GetPartOutputs(1).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
+
+    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(2)) != nullptr);
+    REQUIRE(graph.GetPartInputs(2).size() == 1);
+    REQUIRE(graph.GetPartOutputs(2).size() == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 1);
+    REQUIRE(graph.GetConnectedInputSlots({ 2, 0 }).size() == 0);
+}
