@@ -285,6 +285,86 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat")
     REQUIRE(graph.GetConnectedInputSlots({ 6, 0 }).size() == 0);
 }
 
+TEST_CASE("NetworkToGraphOfPartsConverterTest Concat EstimateOnly")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    // Concatenation along the channels dimension (axis 3) requires input tensors
+    // with a multiple of 16 channels, so this will return EstimateOnly.
+    TensorInfo input1Info{
+        { 1, 16, 16, 24 },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo input2Info{
+        { 1, 16, 16, 24 },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    ConcatenationInfo concatenationInfo{ 3, { 0, 1.f } };
+
+    const std::shared_ptr<Network> network =
+        CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    /*
+       { Input2 }  -> Concatenation -> Output
+       { Input1 } /
+    */
+
+    // Add 2x Inputs from the Concatenation.
+    std::vector<Operand*> layers;
+    std::shared_ptr<Operand> input1 = AddInput(network, input1Info).tensor;
+    layers.push_back(input1.get());
+    std::shared_ptr<Operand> input2 = AddInput(network, input1Info).tensor;
+    layers.push_back(input2.get());
+
+    // Add the remaining Operations for this Unit Test
+    std::shared_ptr<Operand> concat = AddConcatenation(network, layers, concatenationInfo).tensor;
+    std::shared_ptr<Output> output  = AddOutput(network, *concat).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest Concat EstimateOnly.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest Concat EstimateOnly Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    // InputPart1, InputPart2, ConcatPart, OutputPart
+    REQUIRE(graph.GetNumParts() == 4);
+
+    // We check only the EstimateOnlyPart that we expect to be created - the Input and Output part and connections
+    // between the Parts are covered by NetworkToGraphOfPartsConverterTest
+    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(2));
+    REQUIRE(estimateOnlyPart != nullptr);
+    auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 16, 16, 24 });
+    REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 16, 16, 48 });
+    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
+    REQUIRE(estimateOnlyOp != nullptr);
+    CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Concatenation along the channels dimension (axis 3) requires "
+                                                       "input tensors with a multiple of 16 channels") !=
+          std::string::npos);
+}
+
 // Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the NetworkToGraphOfPartsConverter().
 // The topology is chosen to test Networks of supported Part types such as:
 //      * MeanXy Part (7x7, 8x8 variations)
@@ -560,6 +640,70 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
     REQUIRE(graph.GetConnectedInputSlots({ 6, 0 }).size() == 0);
 }
 
+TEST_CASE("NetworkToGraphOfPartsConverter LeakyRelu EstimateOnly")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 16, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    // Leaky relu alpha must be less than 1 and greater than 0,
+    // so this will return EstimateOnly when IsLeakyReluSupported is called.
+    LeakyReluInfo leakyreluInfo{
+        1.5f,
+        { 0, 1.f },
+    };
+
+    const std::shared_ptr<Network> network =
+        CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    // Input -> Relu -> Output
+    std::shared_ptr<Operand> input     = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Operand> leakyrelu = AddLeakyRelu(network, *input, leakyreluInfo).tensor;
+    std::shared_ptr<Output> output     = AddOutput(network, *leakyrelu).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTestsLeakyReluEstimateOnly.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTestsLeakyReluEstimateOnlyOutput.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+    }
+
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    // We check only the EstimateOnlyPart that we expect to be created - the Input and Output part and connections
+    // between the Parts are covered by NetworkToGraphOfPartsConverterTest
+    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
+    REQUIRE(estimateOnlyPart != nullptr);
+    auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 16, 16, 16 });
+    REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 16, 16, 16 });
+    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
+    REQUIRE(estimateOnlyOp != nullptr);
+    CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Leaky relu alpha must be less than 1 and greater than 0") !=
+          std::string::npos);
+}
+
 // Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the NetworkToGraphOfPartsConverter().
 // The topology is chosen to test Networks of supported Part types such as:
 //      * Pooling Part (MaxPool 3x3_2_2_even/odd variations)
@@ -708,7 +852,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected")
         CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     // Network topology:
-    // Input -> Convolution -> Output
+    // Input -> FullyConnected -> Output
     std::shared_ptr<Operand> input    = AddInput(network, inputInfo).tensor;
     std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
     std::shared_ptr<Constant> weights = AddConstant(network, weightsInfo, weightsData.data()).tensor;
@@ -732,16 +876,99 @@ TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
     }
 
-    // InputPart, FusedPlePart, McePart, OutputPart
+    // InputPart, McePart, OutputPart
     REQUIRE(graph.GetNumParts() == 3);
 
-    // McePart has a depthwise convolution in it
+    // McePart has a fully connected part in it
     const FullyConnectedPart* part = dynamic_cast<const FullyConnectedPart*>(&graph.GetPart(1));
     REQUIRE(part != nullptr);
 
     auto plans   = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
     MceOp* mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
     REQUIRE(mceOp->m_Op == ethosn::command_stream::MceOperation::FULLY_CONNECTED);
+}
+
+TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected EstimateOnly")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    // Input to fully connected is expected to be one dimensional
+    // using the channels dimension, so this will return EstimateOnly.
+    TensorInfo inputInfo{
+        { 1, 1, 2, 256 },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo biasInfo{
+        { 1, 1, 1, 64 },
+        DataType::INT32_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    TensorInfo weightsInfo{
+        { 1, 1, 512, 64 },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::HWIO,
+        { 0, 1.f },
+    };
+
+    FullyConnectedInfo fcInfo{
+        { 0, 1.1f },
+    };
+
+    const std::vector<uint8_t> biasData(utils::TotalSizeBytes(biasInfo));
+    const std::vector<uint8_t> weightsData(utils::TotalSizeBytes(weightsInfo));
+
+    const std::shared_ptr<Network> network =
+        CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    // Input -> FullyConnected -> Output
+    std::shared_ptr<Operand> input    = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
+    std::shared_ptr<Constant> weights = AddConstant(network, weightsInfo, weightsData.data()).tensor;
+    std::shared_ptr<Operand> conv     = AddFullyConnected(network, *input, *bias, *weights, fcInfo).tensor;
+    std::shared_ptr<Output> output    = AddOutput(network, *conv).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterFullyConnectedEstimateOnlyTests.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterFullyConnectedEstimateOnlyTests_Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+    }
+
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    // We check only the EstimateOnlyPart that we expect to be created - the Input and Output part and connections
+    // between the Parts are covered by NetworkToGraphOfPartsConverterTest
+    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
+    REQUIRE(estimateOnlyPart != nullptr);
+    auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 1, 2, 256 });
+    REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 1, 1, 64 });
+    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
+    REQUIRE(estimateOnlyOp != nullptr);
+    CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find(
+              "Input to fully connected is expected to be one dimensional using the channels dimension.") !=
+          std::string::npos);
 }
 
 TEST_CASE("NetworkToGraphOfPartsConverter Basic Depthwise")
@@ -984,6 +1211,75 @@ TEST_CASE("NetworkToGraphOfPartsConverter Multichannel Depthwise")
     REQUIRE(operation.value() == ethosn::command_stream::MceOperation::CONVOLUTION);
 }
 
+TEST_CASE("NetworkToGraphOfPartsConverter Depthwise EstimateOnly")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{ { 1, 1, 1, 3 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB, { 0, 1.f } };
+
+    TensorInfo weightsInfo{ { 1, 1, 3, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM };
+
+    // Bias for depthwise conv must have quantization parameters with zero point of 0 and
+    // scale of input scale x weight scale, so this will return EstimateOnly.
+    TensorInfo biasInfo{ { 1, 1, 1, 3 }, DataType::INT32_QUANTIZED, DataFormat::NHWC };
+    biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f, 0.3f });
+    biasInfo.m_QuantizationInfo.SetZeroPoint(0);
+    biasInfo.m_QuantizationInfo.SetQuantizationDim(3);
+
+    ConvolutionInfo convInfo{ { 0, 0, 0, 0 }, { 1, 1 } };
+
+    const std::vector<uint8_t> biasData(utils::TotalSizeBytes(biasInfo));
+    const std::vector<uint8_t> weightsData(utils::TotalSizeBytes(weightsInfo));
+
+    const std::shared_ptr<Network> network =
+        CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    // Input -> Convolution -> Output
+    std::shared_ptr<Operand> input    = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
+    std::shared_ptr<Constant> weights = AddConstant(network, weightsInfo, weightsData.data()).tensor;
+    std::shared_ptr<Operand> conv     = AddDepthwiseConvolution(network, *input, *bias, *weights, convInfo).tensor;
+    std::shared_ptr<Output> output    = AddOutput(network, *conv).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTests EstimateOnly.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTests_Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+    }
+
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    // We check only the EstimateOnlyPart that we expect to be created - the Input and Output part and connections
+    // between the Parts are covered by NetworkToGraphOfPartsConverterTest
+    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
+    REQUIRE(estimateOnlyPart != nullptr);
+    auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 1, 1, 3 });
+    REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 1, 1, 3 });
+    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
+    REQUIRE(estimateOnlyOp != nullptr);
+    CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Bias for depthwise conv must have quantization parameters with "
+                                                       "zero point of 0 and scale of input scale x weight scale") !=
+          std::string::npos);
+}
+
 TEST_CASE("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA")
 {
     const HardwareCapabilities caps = GetEthosN78HwCapabilities();
@@ -1051,6 +1347,64 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA")
     REQUIRE(graph.GetPartOutputs(2).size() == 0);
     REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 1);
     REQUIRE(graph.GetConnectedInputSlots({ 2, 0 }).size() == 0);
+}
+
+TEST_CASE("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA EstimateOnly")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { 1, 16, 16, 16 },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    // The poolingSizeY must be 3 here for AVG pooling, so this will return EstimateOnly.
+    const PoolingInfo poolingInfo = PoolingInfo{ 3, 2, 1, 1, { 1, 1, 1, 1 }, PoolingType::AVG };
+
+    const std::shared_ptr<Network> network =
+        CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    std::shared_ptr<Operand> input   = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Operand> avgPool = AddPooling(network, *input, poolingInfo).tensor;
+    std::shared_ptr<Output> output   = AddOutput(network, *avgPool).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    // We check only the EstimateOnlyPart that we expect to be created - the Input and Output part and connections
+    // between the Parts are covered by NetworkToGraphOfPartsConverterTest
+    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
+    REQUIRE(estimateOnlyPart != nullptr);
+    auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 16, 16, 16 });
+    REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 17, 16, 16 });
+    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
+    REQUIRE(estimateOnlyOp != nullptr);
+    CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Unsupported configuration in AVG pooling") !=
+          std::string::npos);
 }
 
 TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION")
@@ -1213,6 +1567,71 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION_RESCALE")
     REQUIRE(graph.GetPartOutputs(3).size() == 0);
     REQUIRE(graph.GetConnectedOutputSlot({ 3, 0 }).value().m_PartId == 2);
     REQUIRE(graph.GetConnectedInputSlots({ 3, 0 }).size() == 0);
+}
+
+TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION EstimateOnly")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo1{
+        { 1, 16, 16, 16 },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    // Stretching of dimensions isn't supported,
+    // so stretcing the channels will return EstimateOnly.
+    TensorInfo inputInfo2{
+        { 1, 16, 16, 1 },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    const std::shared_ptr<Network> network =
+        CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    std::shared_ptr<Operand> input1   = AddInput(network, inputInfo1).tensor;
+    std::shared_ptr<Operand> input2   = AddInput(network, inputInfo2).tensor;
+    std::shared_ptr<Operand> addition = AddAddition(network, *input1, *input2, QuantizationInfo(0, 1.f)).tensor;
+    std::shared_ptr<Output> output    = AddOutput(network, *addition).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest ADDITION EstimateOnly.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest ADDITION EstimateOnly.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    // InputPart1, InputPart2, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 4);
+
+    // We check only the EstimateOnlyPart that we expect to be created - the Input and Output part and connections
+    // between the Parts are covered by NetworkToGraphOfPartsConverterTest
+    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(2));
+    REQUIRE(estimateOnlyPart != nullptr);
+    auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 16, 16, 16 });
+    REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 16, 16, 16 });
+    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
+    REQUIRE(estimateOnlyOp != nullptr);
+    CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Cannot stretch along the requested dimensions.") !=
+          std::string::npos);
 }
 
 // Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the NetworkToGraphOfPartsConverter.
@@ -1494,6 +1913,70 @@ TEST_CASE("NetworkToGraphOfPartsConverter Relu Conv")
         REQUIRE(mceOp->m_LowerBound == 0);
         REQUIRE(mceOp->m_UpperBound == 255);
     }
+}
+
+TEST_CASE("NetworkToGraphOfPartsConverter Conv EstimateOnly")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{ { 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, { 0, 1.f } };
+
+    TensorInfo biasInfo{ { 1, 1, 1, 16 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, 1.f } };
+
+    TensorInfo weightsInfo{ { 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, { 0, 1.f } };
+
+    // Stride X and Y must be equal and in { 1, 2 }, so this will return EstimateOnly.
+    ConvolutionInfo convInfo{ { 0, 0, 0, 0 }, { 1, 2 }, { 0, 1.1f } };
+
+    const std::vector<uint8_t> biasData(utils::TotalSizeBytes(biasInfo));
+    const std::vector<uint8_t> weightsData(utils::TotalSizeBytes(weightsInfo));
+
+    const std::shared_ptr<Network> network =
+        CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    // Input -> Conv -> Output
+    std::shared_ptr<Operand> input    = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Constant> bias    = AddConstant(network, biasInfo, biasData.data()).tensor;
+    std::shared_ptr<Constant> weights = AddConstant(network, weightsInfo, weightsData.data()).tensor;
+    std::shared_ptr<Operand> conv     = AddConvolution(network, *input, *bias, *weights, convInfo).tensor;
+    std::shared_ptr<Output> output    = AddOutput(network, *conv).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTestsConvEstimateOnly.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTests_ConvEstimateOnlyOutput.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+    }
+
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    // We check only the EstimateOnlyPart that we expect to be created - the Input and Output part and connections
+    // between the Parts are covered by NetworkToGraphOfPartsConverterTest
+    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
+    REQUIRE(estimateOnlyPart != nullptr);
+    auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 16, 16, 16 });
+    REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 8, 16, 16 });
+    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
+    REQUIRE(estimateOnlyOp != nullptr);
+    CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find(
+              "Unsupported stride. Stride X and Y must be equal and in { 1, 2 }") != std::string::npos);
 }
 
 // Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the NetworkToGraphOfPartsConverter.
@@ -1929,6 +2412,61 @@ TEST_CASE("NetworkToGraphOfPartsConverter SpaceToDepth")
         const EstimateOnlyPart* part = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
         REQUIRE(part != nullptr);
     }
+}
+
+TEST_CASE("NetworkToGraphOfPartsConverter Softmax EstimateOnly")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 16, 16, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    const std::shared_ptr<Network> network =
+        CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    // Input -> Softmax -> Output
+    std::shared_ptr<Operand> input   = AddInput(network, inputInfo).tensor;
+    std::shared_ptr<Operand> softmax = AddSoftmax(network, *input).tensor;
+    std::shared_ptr<Output> output   = AddOutput(network, *softmax).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTestsSoftmaxEstimateOnly.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTestsSoftmaxEstimateOnlyOutput.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+    }
+
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
+
+    // Softmax is currently unsupported and will only return EstimateOnly when checking if it's supported.
+    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
+    REQUIRE(estimateOnlyPart != nullptr);
+    auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 16, 16, 16 });
+    REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
+            TensorShape{ 1, 16, 16, 16 });
+    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
+    REQUIRE(estimateOnlyOp != nullptr);
+    CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("softmax is not supported by ethosn NPU") != std::string::npos);
 }
 
 TEST_CASE("NetworkToGraphOfPartsConverterTest Downsample_2x2")

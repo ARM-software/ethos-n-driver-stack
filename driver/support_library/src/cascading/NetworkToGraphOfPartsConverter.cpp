@@ -108,65 +108,91 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
     std::vector<BasePart*> parts;
     auto convInfo = depthwise.GetConvolutionInfo();
 
-    TensorInfo mceOperationInput = depthwise.GetInput(0).GetTensorInfo();
-    // Check if it is a strided depthwise and add a FusedPlePart.
-    if (convInfo.m_Stride.m_X > 1 || convInfo.m_Stride.m_Y > 1)
+    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
+    char reason[1024];
+    const SupportedLevel supportedLevel = m_Queries.IsDepthwiseConvolutionSupported(
+        depthwise.GetBias().GetTensorInfo(), depthwise.GetWeights().GetTensorInfo(), convInfo,
+        depthwise.GetInput(0).GetTensorInfo(), nullptr, reason, sizeof(reason));
+
+    if (supportedLevel == SupportedLevel::EstimateOnly)
     {
-        // Create additional layer before strided convolution
-        // Only supports stride 2x2 for now
-        assert(convInfo.m_Stride.m_X == 2 && convInfo.m_Stride.m_Y == 2);
+        const TensorInfo& outputInfo          = depthwise.GetOutput(0).GetTensorInfo();
+        const std::set<uint32_t> operationIds = { depthwise.GetId(), depthwise.GetBias().GetId(),
+                                                  depthwise.GetWeights().GetId() };
 
-        uint32_t h = DivRoundUp(depthwise.GetInput(0).GetTensorInfo().m_Dimensions[1], convInfo.m_Stride.m_Y);
-        uint32_t w = DivRoundUp(depthwise.GetInput(0).GetTensorInfo().m_Dimensions[2], convInfo.m_Stride.m_X);
-        uint32_t c = GetNumSubmapChannels(depthwise.GetInput(0).GetTensorInfo().m_Dimensions[3], convInfo.m_Stride.m_X,
-                                          convInfo.m_Stride.m_Y, m_Capabilities);
+        auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
+            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ depthwise.GetInput(0).GetTensorInfo() },
+            std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
+            operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-        mceOperationInput = TensorInfo({ depthwise.GetInput(0).GetTensorInfo().m_Dimensions[0], h, w, c },
-                                       depthwise.GetInput(0).GetTensorInfo().m_DataType,
-                                       depthwise.GetInput(0).GetTensorInfo().m_DataFormat,
-                                       depthwise.GetInput(0).GetTensorInfo().m_QuantizationInfo);
+        parts.push_back(std::move(estimateOnlyPart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+    }
+    else
+    {
+        TensorInfo mceOperationInput = depthwise.GetInput(0).GetTensorInfo();
 
-        auto fusedPlePart = std::make_unique<FusedPlePart>(
-            m_GraphOfParts.GeneratePartId(), depthwise.GetInput(0).GetTensorInfo().m_Dimensions,
-            mceOperationInput.m_Dimensions, depthwise.GetInput(0).GetTensorInfo().m_QuantizationInfo,
-            mceOperationInput.m_QuantizationInfo, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
-            utils::ShapeMultiplier{ { 1, convInfo.m_Stride.m_Y },
-                                    { 1, convInfo.m_Stride.m_X },
-                                    { convInfo.m_Stride.m_X * convInfo.m_Stride.m_Y } },
-            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+        // Check if it is a strided depthwise and add a FusedPlePart.
+        if (convInfo.m_Stride.m_X > 1 || convInfo.m_Stride.m_Y > 1)
+        {
+            // Create additional layer before strided convolution
+            // Only supports stride 2x2 for now
+            assert(convInfo.m_Stride.m_X == 2 && convInfo.m_Stride.m_Y == 2);
+
+            uint32_t h = DivRoundUp(depthwise.GetInput(0).GetTensorInfo().m_Dimensions[1], convInfo.m_Stride.m_Y);
+            uint32_t w = DivRoundUp(depthwise.GetInput(0).GetTensorInfo().m_Dimensions[2], convInfo.m_Stride.m_X);
+            uint32_t c = GetNumSubmapChannels(depthwise.GetInput(0).GetTensorInfo().m_Dimensions[3],
+                                              convInfo.m_Stride.m_X, convInfo.m_Stride.m_Y, m_Capabilities);
+
+            mceOperationInput = TensorInfo({ depthwise.GetInput(0).GetTensorInfo().m_Dimensions[0], h, w, c },
+                                           depthwise.GetInput(0).GetTensorInfo().m_DataType,
+                                           depthwise.GetInput(0).GetTensorInfo().m_DataFormat,
+                                           depthwise.GetInput(0).GetTensorInfo().m_QuantizationInfo);
+
+            auto fusedPlePart = std::make_unique<FusedPlePart>(
+                m_GraphOfParts.GeneratePartId(), depthwise.GetInput(0).GetTensorInfo().m_Dimensions,
+                mceOperationInput.m_Dimensions, depthwise.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+                mceOperationInput.m_QuantizationInfo, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
+                utils::ShapeMultiplier{ { 1, convInfo.m_Stride.m_Y },
+                                        { 1, convInfo.m_Stride.m_X },
+                                        { convInfo.m_Stride.m_X * convInfo.m_Stride.m_Y } },
+                m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+                std::set<uint32_t>{ depthwise.GetId(), depthwise.GetBias().GetId(), depthwise.GetWeights().GetId() },
+                GetCommandDataType(depthwise.GetOutput(0).GetTensorInfo().m_DataType));
+
+            parts.push_back(std::move(fusedPlePart.get()));
+            m_GraphOfParts.m_Parts.push_back(std::move(fusedPlePart));
+        }
+
+        command_stream::MceOperation operation                = command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
+        ethosn::support_library::TensorInfo weightsTensorInfo = depthwise.GetWeights().GetTensorInfo();
+        weightsTensorInfo.m_DataFormat                        = DataFormat::HWIM;
+        // We support channel multiplier > 1 if there is only 1 input channel because
+        // a depthwise convolution with 1 input channel is equivalent to a normal convolution
+        if (depthwise.GetWeights().GetTensorInfo().m_Dimensions[3] > 1)
+        {
+            assert(depthwise.GetWeights().GetTensorInfo().m_Dimensions[2] == 1);
+            weightsTensorInfo.m_DataFormat = DataFormat::HWIO;
+            operation                      = command_stream::MceOperation::CONVOLUTION;
+        }
+
+        // We don't use winograd for depthwise convolution
+        auto mcePart = std::make_unique<McePart>(
+            m_GraphOfParts.GeneratePartId(), mceOperationInput.m_Dimensions,
+            depthwise.GetOutput(0).GetTensorInfo().m_Dimensions, mceOperationInput.m_QuantizationInfo,
+            depthwise.GetOutput(0).GetTensorInfo().m_QuantizationInfo, depthwise.GetWeights().GetTensorInfo(),
+            OverrideWeights(depthwise.GetWeights().GetDataVector(), weightsTensorInfo),
+            depthwise.GetBias().GetTensorInfo(), GetDataVectorAs<int32_t, uint8_t>(depthwise.GetBias().GetDataVector()),
+            depthwise.GetConvolutionInfo().m_Stride, depthwise.GetConvolutionInfo().m_Padding.m_Top,
+            depthwise.GetConvolutionInfo().m_Padding.m_Left, operation, m_EstimationOptions.value(),
+            m_CompilationOptions, m_Capabilities,
             std::set<uint32_t>{ depthwise.GetId(), depthwise.GetBias().GetId(), depthwise.GetWeights().GetId() },
             GetCommandDataType(depthwise.GetOutput(0).GetTensorInfo().m_DataType));
 
-        parts.push_back(std::move(fusedPlePart.get()));
-        m_GraphOfParts.m_Parts.push_back(std::move(fusedPlePart));
+        parts.push_back(std::move(mcePart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
     }
 
-    command_stream::MceOperation operation                = command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
-    ethosn::support_library::TensorInfo weightsTensorInfo = depthwise.GetWeights().GetTensorInfo();
-    weightsTensorInfo.m_DataFormat                        = DataFormat::HWIM;
-    // We support channel multiplier > 1 if there is only 1 input channel because
-    // a depthwise convolution with 1 input channel is equivalent to a normal convolution
-    if (depthwise.GetWeights().GetTensorInfo().m_Dimensions[3] > 1)
-    {
-        assert(depthwise.GetWeights().GetTensorInfo().m_Dimensions[2] == 1);
-        weightsTensorInfo.m_DataFormat = DataFormat::HWIO;
-        operation                      = command_stream::MceOperation::CONVOLUTION;
-    }
-
-    // We don't use winograd for depthwise convolution
-    auto mcePart = std::make_unique<McePart>(
-        m_GraphOfParts.GeneratePartId(), mceOperationInput.m_Dimensions,
-        depthwise.GetOutput(0).GetTensorInfo().m_Dimensions, mceOperationInput.m_QuantizationInfo,
-        depthwise.GetOutput(0).GetTensorInfo().m_QuantizationInfo, depthwise.GetWeights().GetTensorInfo(),
-        OverrideWeights(depthwise.GetWeights().GetDataVector(), weightsTensorInfo), depthwise.GetBias().GetTensorInfo(),
-        GetDataVectorAs<int32_t, uint8_t>(depthwise.GetBias().GetDataVector()), depthwise.GetConvolutionInfo().m_Stride,
-        depthwise.GetConvolutionInfo().m_Padding.m_Top, depthwise.GetConvolutionInfo().m_Padding.m_Left, operation,
-        m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-        std::set<uint32_t>{ depthwise.GetId(), depthwise.GetBias().GetId(), depthwise.GetWeights().GetId() },
-        GetCommandDataType(depthwise.GetOutput(0).GetTensorInfo().m_DataType));
-
-    parts.push_back(std::move(mcePart.get()));
-    m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
     ConnectParts(depthwise, parts);
 }
 
@@ -176,58 +202,85 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
     auto convInfo = convolution.GetConvolutionInfo();
     TensorInfo mcePartInputTensor;
 
-    // Check if it is a strided convolution and add a FusedPlePart.
-    if (convInfo.m_Stride.m_X > 1 || convInfo.m_Stride.m_Y > 1)
+    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
+    char reason[1024];
+    const SupportedLevel supportedLevel = m_Queries.IsConvolutionSupported(
+        convolution.GetBias().GetTensorInfo(), convolution.GetWeights().GetTensorInfo(), convInfo,
+        convolution.GetInput(0).GetTensorInfo(), nullptr, reason, sizeof(reason));
+
+    if (supportedLevel == SupportedLevel::EstimateOnly)
     {
-        // Only stride 2x2 is supported for now.
-        // Winograd is not considered for strided convolution.
-        assert(convInfo.m_Stride.m_X == 2 && convInfo.m_Stride.m_Y == 2);
+        const TensorInfo& outputInfo          = convolution.GetOutput(0).GetTensorInfo();
+        const std::set<uint32_t> operationIds = { convolution.GetId(), convolution.GetBias().GetId(),
+                                                  convolution.GetWeights().GetId() };
 
-        uint32_t h = DivRoundUp(convolution.GetInput(0).GetTensorInfo().m_Dimensions[1], convInfo.m_Stride.m_Y);
-        uint32_t w = DivRoundUp(convolution.GetInput(0).GetTensorInfo().m_Dimensions[2], convInfo.m_Stride.m_X);
-        uint32_t c = GetNumSubmapChannels(convolution.GetInput(0).GetTensorInfo().m_Dimensions[3],
-                                          convInfo.m_Stride.m_X, convInfo.m_Stride.m_Y, m_Capabilities);
-        TensorInfo interleaveOutput = TensorInfo({ convolution.GetInput(0).GetTensorInfo().m_Dimensions[0], h, w, c },
-                                                 convolution.GetInput(0).GetTensorInfo().m_DataType,
-                                                 convolution.GetInput(0).GetTensorInfo().m_DataFormat,
-                                                 convolution.GetInput(0).GetTensorInfo().m_QuantizationInfo);
+        auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
+            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ convolution.GetInput(0).GetTensorInfo() },
+            std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
+            operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-        auto fusedPlePart = std::make_unique<FusedPlePart>(
-            m_GraphOfParts.GeneratePartId(), convolution.GetInput(0).GetTensorInfo().m_Dimensions,
-            interleaveOutput.m_Dimensions, convolution.GetInput(0).GetTensorInfo().m_QuantizationInfo,
-            interleaveOutput.m_QuantizationInfo, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
-            utils::ShapeMultiplier{ { 1, convInfo.m_Stride.m_Y },
-                                    { 1, convInfo.m_Stride.m_X },
-                                    { convInfo.m_Stride.m_X * convInfo.m_Stride.m_Y } },
-            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-            std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(), convolution.GetWeights().GetId() },
-            GetCommandDataType(convolution.GetOutput(0).GetTensorInfo().m_DataType));
-        parts.push_back(std::move(fusedPlePart.get()));
-        m_GraphOfParts.m_Parts.push_back(std::move(fusedPlePart));
-
-        // Pass interleaved Output as Input Tensor to subsequent McePart
-        mcePartInputTensor = interleaveOutput;
+        parts.push_back(std::move(estimateOnlyPart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
     }
     else
     {
-        // Pass default convolution Input Tensor
-        mcePartInputTensor = convolution.GetInput(0).GetTensorInfo();
+        // Check if it is a strided convolution and add a FusedPlePart.
+        if (convInfo.m_Stride.m_X > 1 || convInfo.m_Stride.m_Y > 1)
+        {
+            // Only stride 2x2 is supported for now.
+            // Winograd is not considered for strided convolution.
+            assert(convInfo.m_Stride.m_X == 2 && convInfo.m_Stride.m_Y == 2);
+
+            uint32_t h = DivRoundUp(convolution.GetInput(0).GetTensorInfo().m_Dimensions[1], convInfo.m_Stride.m_Y);
+            uint32_t w = DivRoundUp(convolution.GetInput(0).GetTensorInfo().m_Dimensions[2], convInfo.m_Stride.m_X);
+            uint32_t c = GetNumSubmapChannels(convolution.GetInput(0).GetTensorInfo().m_Dimensions[3],
+                                              convInfo.m_Stride.m_X, convInfo.m_Stride.m_Y, m_Capabilities);
+            TensorInfo interleaveOutput =
+                TensorInfo({ convolution.GetInput(0).GetTensorInfo().m_Dimensions[0], h, w, c },
+                           convolution.GetInput(0).GetTensorInfo().m_DataType,
+                           convolution.GetInput(0).GetTensorInfo().m_DataFormat,
+                           convolution.GetInput(0).GetTensorInfo().m_QuantizationInfo);
+
+            auto fusedPlePart = std::make_unique<FusedPlePart>(
+                m_GraphOfParts.GeneratePartId(), convolution.GetInput(0).GetTensorInfo().m_Dimensions,
+                interleaveOutput.m_Dimensions, convolution.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+                interleaveOutput.m_QuantizationInfo, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
+                utils::ShapeMultiplier{ { 1, convInfo.m_Stride.m_Y },
+                                        { 1, convInfo.m_Stride.m_X },
+                                        { convInfo.m_Stride.m_X * convInfo.m_Stride.m_Y } },
+                m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+                std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(),
+                                    convolution.GetWeights().GetId() },
+                GetCommandDataType(convolution.GetOutput(0).GetTensorInfo().m_DataType));
+            parts.push_back(std::move(fusedPlePart.get()));
+            m_GraphOfParts.m_Parts.push_back(std::move(fusedPlePart));
+
+            // Pass interleaved Output as Input Tensor to subsequent McePart
+            mcePartInputTensor = interleaveOutput;
+        }
+        else
+        {
+            // Pass default convolution Input Tensor
+            mcePartInputTensor = convolution.GetInput(0).GetTensorInfo();
+        }
+
+        auto mcePart = std::make_unique<McePart>(
+            m_GraphOfParts.GeneratePartId(), mcePartInputTensor.m_Dimensions,
+            convolution.GetOutput(0).GetTensorInfo().m_Dimensions, mcePartInputTensor.m_QuantizationInfo,
+            convolution.GetOutput(0).GetTensorInfo().m_QuantizationInfo, convolution.GetWeights().GetTensorInfo(),
+            OverrideWeights(convolution.GetWeights().GetDataVector(), convolution.GetWeights().GetTensorInfo()),
+            convolution.GetBias().GetTensorInfo(),
+            GetDataVectorAs<int32_t, uint8_t>(convolution.GetBias().GetDataVector()),
+            convolution.GetConvolutionInfo().m_Stride, convolution.GetConvolutionInfo().m_Padding.m_Top,
+            convolution.GetConvolutionInfo().m_Padding.m_Left, command_stream::MceOperation::CONVOLUTION,
+            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+            std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(), convolution.GetWeights().GetId() },
+            GetCommandDataType(convolution.GetOutput(0).GetTensorInfo().m_DataType));
+
+        parts.push_back(std::move(mcePart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
     }
 
-    auto mcePart = std::make_unique<McePart>(
-        m_GraphOfParts.GeneratePartId(), mcePartInputTensor.m_Dimensions,
-        convolution.GetOutput(0).GetTensorInfo().m_Dimensions, mcePartInputTensor.m_QuantizationInfo,
-        convolution.GetOutput(0).GetTensorInfo().m_QuantizationInfo, convolution.GetWeights().GetTensorInfo(),
-        OverrideWeights(convolution.GetWeights().GetDataVector(), convolution.GetWeights().GetTensorInfo()),
-        convolution.GetBias().GetTensorInfo(), GetDataVectorAs<int32_t, uint8_t>(convolution.GetBias().GetDataVector()),
-        convolution.GetConvolutionInfo().m_Stride, convolution.GetConvolutionInfo().m_Padding.m_Top,
-        convolution.GetConvolutionInfo().m_Padding.m_Left, command_stream::MceOperation::CONVOLUTION,
-        m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-        std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(), convolution.GetWeights().GetId() },
-        GetCommandDataType(convolution.GetOutput(0).GetTensorInfo().m_DataType));
-
-    parts.push_back(std::move(mcePart.get()));
-    m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
     ConnectParts(convolution, parts);
 }
 
@@ -239,60 +292,84 @@ void NetworkToGraphOfPartsConverter::Visit(FullyConnected& fullyConnected)
     const std::set<uint32_t> operationIds = { fullyConnected.GetId(), fullyConnected.GetBias().GetId(),
                                               fullyConnected.GetWeights().GetId() };
 
-    // However we interpret it as NHWCB so that it gets copied without conversion into SRAM.
-    // We choose the smallest shape that will encompass all the data when it is interpreted in brick format.
-    auto GetShapeContainingLinearElements = [](const TensorShape& brickGroupShape, uint32_t numElements) {
-        const uint32_t brickGroupHeight           = brickGroupShape[1];
-        const uint32_t brickGroupWidth            = brickGroupShape[2];
-        const uint32_t brickGroupChannels         = brickGroupShape[3];
-        const uint32_t patchHeight                = 4;
-        const uint32_t patchWidth                 = 4;
-        const uint32_t patchesPerBrickGroupHeight = brickGroupHeight / patchHeight;
-        const uint32_t patchesPerBrickGroupWidth  = brickGroupWidth / patchWidth;
-        const uint32_t patchesPerBrickGroup =
-            patchesPerBrickGroupHeight * patchesPerBrickGroupWidth * brickGroupChannels;
+    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
+    char reason[1024];
+    const SupportedLevel supportedLevel = m_Queries.IsFullyConnectedSupported(
+        fullyConnected.GetBias().GetTensorInfo(), fullyConnected.GetWeights().GetTensorInfo(),
+        fullyConnected.GetFullyConnectedInfo(), inputTensorInfo, nullptr, reason, sizeof(reason));
 
-        // If there are less than one bricks worth of elements then we can have a tensor with a single patch in XY
-        // and up to 16 channels.
-        // If there are between one and two bricks worth of elements then we can have a tensor with a column of two
-        // patches in XY and 16 channels. Note we always need 16 channels in this case as the first brick is full.
-        // If there are between two and four bricks worth of elements then we can have a tensor of a full brick group.
-        // Again note we always need 16 channels in this case as the first two brick are full.
-        // If we have more than four bricks of elements then we add brick groups behind the first one (i.e. stacking
-        // along depth). The number of channels in the final brick group may be less than 16 if there is less
-        // than a full bricks worth of elements in that final brick group.
-        const uint32_t numPatches = DivRoundUp(numElements, patchWidth * patchHeight);
-        const uint32_t reinterpretedWidth =
-            numPatches <= brickGroupChannels * patchesPerBrickGroupHeight ? patchWidth : brickGroupWidth;
-        const uint32_t reinterpretedHeight = numPatches <= brickGroupChannels ? patchHeight : brickGroupHeight;
-        const uint32_t numFullBrickGroups  = numPatches / patchesPerBrickGroup;
-        const uint32_t reinterpretedChannels =
-            brickGroupChannels * numFullBrickGroups + std::min(brickGroupChannels, numPatches % patchesPerBrickGroup);
-        return TensorShape{ 1, reinterpretedHeight, reinterpretedWidth, reinterpretedChannels };
-    };
+    if (supportedLevel == SupportedLevel::EstimateOnly)
+    {
+        const TensorInfo& outputTensorInfo = fullyConnected.GetOutput(0).GetTensorInfo();
 
-    const TensorShape reinterpretedInput =
-        GetShapeContainingLinearElements(m_Capabilities.GetBrickGroupShape(), inputTensorInfo.m_Dimensions[3]);
+        auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
+            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputTensorInfo },
+            std::vector<TensorInfo>{ outputTensorInfo },
+            ConvertExternalToCompilerDataFormat(outputTensorInfo.m_DataFormat), operationIds,
+            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
-    // The weight encoder for fully connected requires the input channel to be a multiple of 1024.
-    // It is easier to make this adjustment here rather than the WeightEncoder itself, even though
-    // it is less desirable.
-    TensorInfo weightsInfo      = fullyConnected.GetWeights().GetTensorInfo();
-    weightsInfo.m_Dimensions[2] = RoundUpToNearestMultiple(weightsInfo.m_Dimensions[2], g_WeightsChannelVecProd);
-    std::vector<uint8_t> paddedWeightsData = fullyConnected.GetWeights().GetDataVector();
-    paddedWeightsData.resize(TotalSizeBytes(weightsInfo),
-                             static_cast<uint8_t>(weightsInfo.m_QuantizationInfo.GetZeroPoint()));
+        parts.push_back(std::move(estimateOnlyPart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+    }
+    else
+    {
 
-    auto fcPart = std::make_unique<FullyConnectedPart>(
-        m_GraphOfParts.GeneratePartId(), reinterpretedInput, fullyConnected.GetOutput(0).GetTensorInfo().m_Dimensions,
-        fullyConnected.GetInput(0).GetTensorInfo().m_QuantizationInfo,
-        fullyConnected.GetOutput(0).GetTensorInfo().m_QuantizationInfo, weightsInfo, paddedWeightsData,
-        fullyConnected.GetBias().GetTensorInfo(),
-        GetDataVectorAs<int32_t, uint8_t>(fullyConnected.GetBias().GetDataVector()), m_EstimationOptions.value(),
-        m_CompilationOptions, m_Capabilities, operationIds,
-        GetCommandDataType(fullyConnected.GetOutput(0).GetTensorInfo().m_DataType));
-    parts.push_back(fcPart.get());
-    m_GraphOfParts.m_Parts.push_back(std::move(fcPart));
+        // However we interpret it as NHWCB so that it gets copied without conversion into SRAM.
+        // We choose the smallest shape that will encompass all the data when it is interpreted in brick format.
+        auto GetShapeContainingLinearElements = [](const TensorShape& brickGroupShape, uint32_t numElements) {
+            const uint32_t brickGroupHeight           = brickGroupShape[1];
+            const uint32_t brickGroupWidth            = brickGroupShape[2];
+            const uint32_t brickGroupChannels         = brickGroupShape[3];
+            const uint32_t patchHeight                = 4;
+            const uint32_t patchWidth                 = 4;
+            const uint32_t patchesPerBrickGroupHeight = brickGroupHeight / patchHeight;
+            const uint32_t patchesPerBrickGroupWidth  = brickGroupWidth / patchWidth;
+            const uint32_t patchesPerBrickGroup =
+                patchesPerBrickGroupHeight * patchesPerBrickGroupWidth * brickGroupChannels;
+
+            // If there are less than one bricks worth of elements then we can have a tensor with a single patch in XY
+            // and up to 16 channels.
+            // If there are between one and two bricks worth of elements then we can have a tensor with a column of two
+            // patches in XY and 16 channels. Note we always need 16 channels in this case as the first brick is full.
+            // If there are between two and four bricks worth of elements then we can have a tensor of a full brick group.
+            // Again note we always need 16 channels in this case as the first two brick are full.
+            // If we have more than four bricks of elements then we add brick groups behind the first one (i.e. stacking
+            // along depth). The number of channels in the final brick group may be less than 16 if there is less
+            // than a full bricks worth of elements in that final brick group.
+            const uint32_t numPatches = DivRoundUp(numElements, patchWidth * patchHeight);
+            const uint32_t reinterpretedWidth =
+                numPatches <= brickGroupChannels * patchesPerBrickGroupHeight ? patchWidth : brickGroupWidth;
+            const uint32_t reinterpretedHeight   = numPatches <= brickGroupChannels ? patchHeight : brickGroupHeight;
+            const uint32_t numFullBrickGroups    = numPatches / patchesPerBrickGroup;
+            const uint32_t reinterpretedChannels = brickGroupChannels * numFullBrickGroups +
+                                                   std::min(brickGroupChannels, numPatches % patchesPerBrickGroup);
+            return TensorShape{ 1, reinterpretedHeight, reinterpretedWidth, reinterpretedChannels };
+        };
+
+        const TensorShape reinterpretedInput =
+            GetShapeContainingLinearElements(m_Capabilities.GetBrickGroupShape(), inputTensorInfo.m_Dimensions[3]);
+
+        // The weight encoder for fully connected requires the input channel to be a multiple of 1024.
+        // It is easier to make this adjustment here rather than the WeightEncoder itself, even though
+        // it is less desirable.
+        TensorInfo weightsInfo      = fullyConnected.GetWeights().GetTensorInfo();
+        weightsInfo.m_Dimensions[2] = RoundUpToNearestMultiple(weightsInfo.m_Dimensions[2], g_WeightsChannelVecProd);
+        std::vector<uint8_t> paddedWeightsData = fullyConnected.GetWeights().GetDataVector();
+        paddedWeightsData.resize(TotalSizeBytes(weightsInfo),
+                                 static_cast<uint8_t>(weightsInfo.m_QuantizationInfo.GetZeroPoint()));
+
+        auto fcPart = std::make_unique<FullyConnectedPart>(
+            m_GraphOfParts.GeneratePartId(), reinterpretedInput,
+            fullyConnected.GetOutput(0).GetTensorInfo().m_Dimensions,
+            fullyConnected.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+            fullyConnected.GetOutput(0).GetTensorInfo().m_QuantizationInfo, weightsInfo, paddedWeightsData,
+            fullyConnected.GetBias().GetTensorInfo(),
+            GetDataVectorAs<int32_t, uint8_t>(fullyConnected.GetBias().GetDataVector()), m_EstimationOptions.value(),
+            m_CompilationOptions, m_Capabilities, operationIds,
+            GetCommandDataType(fullyConnected.GetOutput(0).GetTensorInfo().m_DataType));
+        parts.push_back(fcPart.get());
+        m_GraphOfParts.m_Parts.push_back(std::move(fcPart));
+    }
 
     ConnectParts(fullyConnected, parts);
 }
@@ -317,65 +394,89 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
         PoolingType::AVG,
     };
 
-    auto createPoolingPart = [&](command_stream::PleOperation op) {
-        auto poolingFusedPlePart = std::make_unique<FusedPlePart>(
-            m_GraphOfParts.GeneratePartId(), pooling.GetInput(0).GetTensorInfo().m_Dimensions,
-            pooling.GetOutput(0).GetTensorInfo().m_Dimensions, pooling.GetInput(0).GetTensorInfo().m_QuantizationInfo,
-            pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo, op,
-            utils::ShapeMultiplier{ { 1, poolingInfo.m_PoolingStrideY }, { 1, poolingInfo.m_PoolingStrideX }, 1 },
-            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ pooling.GetId() },
-            GetCommandDataType(pooling.GetOutput(0).GetTensorInfo().m_DataType));
-        parts.push_back(std::move(poolingFusedPlePart.get()));
-        m_GraphOfParts.m_Parts.push_back(std::move(poolingFusedPlePart));
-    };
+    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
+    char reason[1024];
+    const SupportedLevel supportedLevel =
+        m_Queries.IsPoolingSupported(poolingInfo, pooling.GetInput(0).GetTensorInfo(), nullptr, reason, sizeof(reason));
 
-    // Pooling Visitor decoder, creating appropriate FusedPle Parts for supported Operations.
-    // Handle MeanXy Operations with 7x7, 8x8 sizes.
-    if (inputHeight == 7U && inputWidth == 7U && poolingInfo == poolingInfoMeanXy)
+    if (supportedLevel == SupportedLevel::EstimateOnly)
     {
-        createPoolingPart(command_stream::PleOperation::MEAN_XY_7X7);
-    }
-    else if (inputHeight == 8U && inputWidth == 8U && poolingInfo == poolingInfoMeanXy)
-    {
-        createPoolingPart(command_stream::PleOperation::MEAN_XY_8X8);
-    }
-    // Handle MaxPool Operations of supported kernel sizes, strides and padding.
-    else if (poolingInfo == PoolingInfo{ 2, 2, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
-    {
-        createPoolingPart(command_stream::PleOperation::MAXPOOL_2X2_2_2);
-    }
-    else if (isInputOdd && poolingInfo == PoolingInfo{ 3, 3, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
-    {
-        createPoolingPart(command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD);
-    }
-    else if (isInputEven && poolingInfo == PoolingInfo{ 3, 3, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
-    {
-        createPoolingPart(command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN);
-    }
-    else if (poolingInfo == PoolingInfo{ 1, 1, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
-    {
-        createPoolingPart(command_stream::PleOperation::DOWNSAMPLE_2X2);
-    }
-    else if (poolingInfo == PoolingInfo{ 3, 3, 1, 1, poolingInfo.m_Padding, PoolingType::AVG })
-    {
-        const std::vector<QuantizationInfo> inputQuantizations = {
-            pooling.GetInput(0).GetTensorInfo().m_QuantizationInfo
-        };
-        const std::vector<TensorShape> inputShapes = { pooling.GetInput(0).GetTensorInfo().m_Dimensions };
-        auto poolingStandalonePlePart              = std::make_unique<StandalonePlePart>(
-            m_GraphOfParts.GeneratePartId(), inputShapes, pooling.GetOutput(0).GetTensorInfo().m_Dimensions,
-            inputQuantizations, pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
-            command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA, m_EstimationOptions.value(), m_CompilationOptions,
-            m_Capabilities, std::set<uint32_t>{ pooling.GetId() },
-            GetCommandDataType(pooling.GetOutput(0).GetTensorInfo().m_DataType));
-        parts.push_back(std::move(poolingStandalonePlePart.get()));
-        m_GraphOfParts.m_Parts.push_back(std::move(poolingStandalonePlePart));
+        const TensorInfo& outputInfo = pooling.GetOutput(0).GetTensorInfo();
+
+        auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
+            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ pooling.GetInput(0).GetTensorInfo() },
+            std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
+            std::set<uint32_t>{ pooling.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+        parts.push_back(std::move(estimateOnlyPart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
     }
     else
     {
-        throw InternalErrorException("Only PoolingType::MAX 2x2_2_2, 3x3_2_2_even/odd and PoolingType::AVG 3x3_1_1, "
-                                     "7x7_2_2, 8x8_2_2 are supported at the moment");
+        auto createPoolingPart = [&](command_stream::PleOperation op) {
+            auto poolingFusedPlePart = std::make_unique<FusedPlePart>(
+                m_GraphOfParts.GeneratePartId(), pooling.GetInput(0).GetTensorInfo().m_Dimensions,
+                pooling.GetOutput(0).GetTensorInfo().m_Dimensions,
+                pooling.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+                pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo, op,
+                utils::ShapeMultiplier{ { 1, poolingInfo.m_PoolingStrideY }, { 1, poolingInfo.m_PoolingStrideX }, 1 },
+                m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+                std::set<uint32_t>{ pooling.GetId() },
+                GetCommandDataType(pooling.GetOutput(0).GetTensorInfo().m_DataType));
+            parts.push_back(std::move(poolingFusedPlePart.get()));
+            m_GraphOfParts.m_Parts.push_back(std::move(poolingFusedPlePart));
+        };
+
+        // Pooling Visitor decoder, creating appropriate FusedPle Parts for supported Operations.
+        // Handle MeanXy Operations with 7x7, 8x8 sizes.
+        if (inputHeight == 7U && inputWidth == 7U && poolingInfo == poolingInfoMeanXy)
+        {
+            createPoolingPart(command_stream::PleOperation::MEAN_XY_7X7);
+        }
+        else if (inputHeight == 8U && inputWidth == 8U && poolingInfo == poolingInfoMeanXy)
+        {
+            createPoolingPart(command_stream::PleOperation::MEAN_XY_8X8);
+        }
+        // Handle MaxPool Operations of supported kernel sizes, strides and padding.
+        else if (poolingInfo == PoolingInfo{ 2, 2, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
+        {
+            createPoolingPart(command_stream::PleOperation::MAXPOOL_2X2_2_2);
+        }
+        else if (isInputOdd && poolingInfo == PoolingInfo{ 3, 3, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
+        {
+            createPoolingPart(command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD);
+        }
+        else if (isInputEven && poolingInfo == PoolingInfo{ 3, 3, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
+        {
+            createPoolingPart(command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN);
+        }
+        else if (poolingInfo == PoolingInfo{ 1, 1, 2, 2, poolingInfo.m_Padding, PoolingType::MAX })
+        {
+            createPoolingPart(command_stream::PleOperation::DOWNSAMPLE_2X2);
+        }
+        else if (poolingInfo == PoolingInfo{ 3, 3, 1, 1, poolingInfo.m_Padding, PoolingType::AVG })
+        {
+            const std::vector<QuantizationInfo> inputQuantizations = {
+                pooling.GetInput(0).GetTensorInfo().m_QuantizationInfo
+            };
+            const std::vector<TensorShape> inputShapes = { pooling.GetInput(0).GetTensorInfo().m_Dimensions };
+            auto poolingStandalonePlePart              = std::make_unique<StandalonePlePart>(
+                m_GraphOfParts.GeneratePartId(), inputShapes, pooling.GetOutput(0).GetTensorInfo().m_Dimensions,
+                inputQuantizations, pooling.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
+                command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA, m_EstimationOptions.value(), m_CompilationOptions,
+                m_Capabilities, std::set<uint32_t>{ pooling.GetId() },
+                GetCommandDataType(pooling.GetOutput(0).GetTensorInfo().m_DataType));
+            parts.push_back(std::move(poolingStandalonePlePart.get()));
+            m_GraphOfParts.m_Parts.push_back(std::move(poolingStandalonePlePart));
+        }
+        else
+        {
+            throw InternalErrorException(
+                "Only PoolingType::MAX 2x2_2_2, 3x3_2_2_even/odd and PoolingType::AVG 3x3_1_1, "
+                "7x7_2_2, 8x8_2_2 are supported at the moment");
+        }
     }
+
     ConnectParts(pooling, parts);
 }
 
@@ -404,22 +505,42 @@ void NetworkToGraphOfPartsConverter::Visit(Addition& addition)
     const QuantizationInfo& quantInfoInput1 = inputInfo1.m_QuantizationInfo;
     const QuantizationInfo& quantInfoOutput = outputInfo.m_QuantizationInfo;
 
-    bool isQuantInfoIdentical = (quantInfoInput0 == quantInfoInput1) && (quantInfoInput0 == quantInfoOutput);
+    char reason[1024];
 
-    // use non-scaling PLE kernel if all quant info is identical for both inputs and output
-    command_stream::PleOperation pleOp =
-        isQuantInfoIdentical ? command_stream::PleOperation::ADDITION : command_stream::PleOperation::ADDITION_RESCALE;
+    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
+    const SupportedLevel supportedLevel =
+        m_Queries.IsAdditionSupported(inputInfo0, inputInfo1, quantInfoOutput, nullptr, reason, sizeof(reason));
 
-    const std::vector<QuantizationInfo> inputQuantizations = { quantInfoInput0, quantInfoInput1 };
-    const std::vector<TensorShape> inputShapes             = { addition.GetInput(0).GetTensorInfo().m_Dimensions,
-                                                   addition.GetInput(1).GetTensorInfo().m_Dimensions };
-    auto additionStandalonePlePart                         = std::make_unique<StandalonePlePart>(
-        m_GraphOfParts.GeneratePartId(), inputShapes, addition.GetOutput(0).GetTensorInfo().m_Dimensions,
-        inputQuantizations, addition.GetOutput(0).GetTensorInfo().m_QuantizationInfo, pleOp,
-        m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ addition.GetId() },
-        GetCommandDataType(addition.GetOutput(0).GetTensorInfo().m_DataType));
-    parts.push_back(std::move(additionStandalonePlePart.get()));
-    m_GraphOfParts.m_Parts.push_back(std::move(additionStandalonePlePart));
+    if (supportedLevel == SupportedLevel::EstimateOnly)
+    {
+        auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
+            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputInfo0, inputInfo1 },
+            std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
+            std::set<uint32_t>{ addition.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+        parts.push_back(std::move(estimateOnlyPart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+    }
+    else
+    {
+        bool isQuantInfoIdentical = (quantInfoInput0 == quantInfoInput1) && (quantInfoInput0 == quantInfoOutput);
+
+        // use non-scaling PLE kernel if all quant info is identical for both inputs and output
+        command_stream::PleOperation pleOp = isQuantInfoIdentical ? command_stream::PleOperation::ADDITION
+                                                                  : command_stream::PleOperation::ADDITION_RESCALE;
+
+        const std::vector<QuantizationInfo> inputQuantizations = { quantInfoInput0, quantInfoInput1 };
+        const std::vector<TensorShape> inputShapes             = { addition.GetInput(0).GetTensorInfo().m_Dimensions,
+                                                       addition.GetInput(1).GetTensorInfo().m_Dimensions };
+        auto additionStandalonePlePart                         = std::make_unique<StandalonePlePart>(
+            m_GraphOfParts.GeneratePartId(), inputShapes, addition.GetOutput(0).GetTensorInfo().m_Dimensions,
+            inputQuantizations, addition.GetOutput(0).GetTensorInfo().m_QuantizationInfo, pleOp,
+            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ addition.GetId() },
+            GetCommandDataType(addition.GetOutput(0).GetTensorInfo().m_DataType));
+        parts.push_back(std::move(additionStandalonePlePart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(additionStandalonePlePart));
+    }
+
     ConnectParts(addition, parts);
 }
 
@@ -429,27 +550,6 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
     auto outputQuantInfo = concat.GetOutput(0).GetTensorInfo().m_QuantizationInfo;
     std::map<uint32_t, PartId> mcePartIds;
 
-    // The ConcatPart assumes that all Inputs and the Output have the same quantization information.
-    // If that is not the case, a requantize McePart is generated for any Inputs that are different to the Output.
-    // Subsequently, all generated MceParts, as well as the ConcatPart are connected to the GraphOfParts.
-    for (uint32_t i = 0; i < numInputs; i++)
-    {
-        Operand& inputOperand = concat.GetInput(i);
-        if (inputOperand.GetTensorInfo().m_QuantizationInfo != outputQuantInfo)
-        {
-            auto mcePart = CreateIdentityMcePart(
-                inputOperand.GetTensorInfo().m_Dimensions, inputOperand.GetTensorInfo().m_QuantizationInfo,
-                outputQuantInfo, concat.GetId(), GetCommandDataType(concat.GetOutput(0).GetTensorInfo().m_DataType),
-                m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
-
-            // Add the connection to the GraphOfParts, then store the new PartId in a temporary map and then add the McePart to the GraphOfParts.
-            m_GraphOfParts.AddConnection({ mcePart->GetPartId(), 0 }, { m_OperandToPart.at(&inputOperand)->GetPartId(),
-                                                                        inputOperand.GetProducerOutputIndex() });
-            mcePartIds[i] = mcePart->GetPartId();
-            m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
-        }
-    }
-
     // Create a ConcatPart for the GraphOfParts
     std::vector<TensorInfo> inputTensorsInfo;
     inputTensorsInfo.reserve(numInputs);
@@ -458,47 +558,115 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
         inputTensorsInfo.push_back(concat.GetInput(i).GetTensorInfo());
     }
 
-    auto concatInfo = concat.GetConcatenationInfo();
-    auto concatPart = std::make_unique<ConcatPart>(
-        m_GraphOfParts.GeneratePartId(), inputTensorsInfo, concat.GetConcatenationInfo(), CompilerDataFormat::NHWCB,
-        std::set<uint32_t>{ concat.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
+    char reason[1024];
+    const SupportedLevel supportedLevel = m_Queries.IsConcatenationSupported(
+        inputTensorsInfo, concat.GetConcatenationInfo(), nullptr, reason, sizeof(reason));
 
-    // Mark the ConcatPart Output for connection with any subsequent Parts.
-    m_OperandToPart[&concat.GetOutput(0)] = concatPart.get();
-
-    // Connect ConcatPart to the GraphOfParts. Loop through all Inputs of the ConcatPart and determine whether:
-    // 1. There is a direct connection of ConcatPart with the preceding Part.
-    // 2. There is a connection of ConcatPart with the respective requantise McePart.
-    for (uint32_t i = 0; i < numInputs; i++)
+    if (supportedLevel == SupportedLevel::EstimateOnly)
     {
-        Operand& inputOperand = concat.GetInput(i);
-        if (mcePartIds.find(i) != mcePartIds.end())
-        {
-            m_GraphOfParts.AddConnection({ concatPart->GetPartId(), i }, { mcePartIds[i], 0 });
-        }
-        else
-        {
-            m_GraphOfParts.AddConnection(
-                { concatPart->GetPartId(), i },
-                { m_OperandToPart.at(&inputOperand)->GetPartId(), inputOperand.GetProducerOutputIndex() });
-        }
-    }
+        std::vector<BasePart*> parts;
+        const TensorInfo& outputInfo = concat.GetOutput(0).GetTensorInfo();
 
-    // Add the ConcatPart to the GraphOfParts
-    m_GraphOfParts.m_Parts.push_back(std::move(concatPart));
+        auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
+            m_GraphOfParts.GeneratePartId(), reason, inputTensorsInfo, std::vector<TensorInfo>{ outputInfo },
+            ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat), std::set<uint32_t>{ concat.GetId() },
+            m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+        parts.push_back(std::move(estimateOnlyPart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+        ConnectParts(concat, parts);
+    }
+    else
+    {
+        // The ConcatPart assumes that all Inputs and the Output have the same quantization information.
+        // If that is not the case, a requantize McePart is generated for any Inputs that are different to the Output.
+        // Subsequently, all generated MceParts, as well as the ConcatPart are connected to the GraphOfParts.
+        for (uint32_t i = 0; i < numInputs; i++)
+        {
+            Operand& inputOperand = concat.GetInput(i);
+            if (inputOperand.GetTensorInfo().m_QuantizationInfo != outputQuantInfo)
+            {
+                auto mcePart = CreateIdentityMcePart(
+                    inputOperand.GetTensorInfo().m_Dimensions, inputOperand.GetTensorInfo().m_QuantizationInfo,
+                    outputQuantInfo, concat.GetId(), GetCommandDataType(concat.GetOutput(0).GetTensorInfo().m_DataType),
+                    m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+                // Add the connection to the GraphOfParts, then store the new PartId in a temporary map and then add the McePart to the GraphOfParts.
+                m_GraphOfParts.AddConnection(
+                    { mcePart->GetPartId(), 0 },
+                    { m_OperandToPart.at(&inputOperand)->GetPartId(), inputOperand.GetProducerOutputIndex() });
+                mcePartIds[i] = mcePart->GetPartId();
+                m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+            }
+        }
+
+        auto concatInfo = concat.GetConcatenationInfo();
+        auto concatPart = std::make_unique<ConcatPart>(
+            m_GraphOfParts.GeneratePartId(), inputTensorsInfo, concat.GetConcatenationInfo(), CompilerDataFormat::NHWCB,
+            std::set<uint32_t>{ concat.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+        // Mark the ConcatPart Output for connection with any subsequent Parts.
+        m_OperandToPart[&concat.GetOutput(0)] = concatPart.get();
+
+        // Connect ConcatPart to the GraphOfParts. Loop through all Inputs of the ConcatPart and determine whether:
+        // 1. There is a direct connection of ConcatPart with the preceding Part.
+        // 2. There is a connection of ConcatPart with the respective requantise McePart.
+        for (uint32_t i = 0; i < numInputs; i++)
+        {
+            Operand& inputOperand = concat.GetInput(i);
+            if (mcePartIds.find(i) != mcePartIds.end())
+            {
+                m_GraphOfParts.AddConnection({ concatPart->GetPartId(), i }, { mcePartIds[i], 0 });
+            }
+            else
+            {
+                m_GraphOfParts.AddConnection(
+                    { concatPart->GetPartId(), i },
+                    { m_OperandToPart.at(&inputOperand)->GetPartId(), inputOperand.GetProducerOutputIndex() });
+            }
+        }
+
+        // Add the ConcatPart to the GraphOfParts
+        m_GraphOfParts.m_Parts.push_back(std::move(concatPart));
+    }
 }
 
 void NetworkToGraphOfPartsConverter::Visit(LeakyRelu& leakyRelu)
 {
     std::vector<BasePart*> parts;
-    auto leakyReluPart = std::make_unique<FusedPlePart>(
-        m_GraphOfParts.GeneratePartId(), leakyRelu.GetInput(0).GetTensorInfo().m_Dimensions,
-        leakyRelu.GetOutput(0).GetTensorInfo().m_Dimensions, leakyRelu.GetInput(0).GetTensorInfo().m_QuantizationInfo,
-        leakyRelu.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::LEAKY_RELU,
-        g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-        std::set<uint32_t>{ leakyRelu.GetId() }, GetCommandDataType(leakyRelu.GetOutput(0).GetTensorInfo().m_DataType));
-    parts.push_back(std::move(leakyReluPart.get()));
-    m_GraphOfParts.m_Parts.push_back(std::move(leakyReluPart));
+    char reason[1024];
+
+    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
+    const SupportedLevel supportedLevel = m_Queries.IsLeakyReluSupported(
+        leakyRelu.GetLeakyReluInfo(), leakyRelu.GetInput(0).GetTensorInfo(), nullptr, reason, sizeof(reason));
+
+    if (supportedLevel == SupportedLevel::EstimateOnly)
+    {
+        const TensorInfo& outputInfo = leakyRelu.GetOutput(0).GetTensorInfo();
+
+        auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
+            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ leakyRelu.GetInput(0).GetTensorInfo() },
+            std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
+            std::set<uint32_t>{ leakyRelu.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+        parts.push_back(std::move(estimateOnlyPart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+    }
+    else
+    {
+        auto leakyReluPart = std::make_unique<FusedPlePart>(
+            m_GraphOfParts.GeneratePartId(), leakyRelu.GetInput(0).GetTensorInfo().m_Dimensions,
+            leakyRelu.GetOutput(0).GetTensorInfo().m_Dimensions,
+            leakyRelu.GetInput(0).GetTensorInfo().m_QuantizationInfo,
+            leakyRelu.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::LEAKY_RELU,
+            g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
+            std::set<uint32_t>{ leakyRelu.GetId() },
+            GetCommandDataType(leakyRelu.GetOutput(0).GetTensorInfo().m_DataType));
+        parts.push_back(std::move(leakyReluPart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(leakyReluPart));
+    }
+
     ConnectParts(leakyRelu, parts);
 }
 
