@@ -49,6 +49,7 @@ public:
     void Visit(TransposeConvolution& transposeConvolution) final;
     void Visit(ReinterpretQuantization& reinterpretQuantization) final;
     void Visit(Softmax& softmax) final;
+    void Visit(DepthToSpace& depthToSpace) final;
     void Visit(Split& split) final;
     void Visit(Transpose& split) final;
     void Visit(SpaceToDepth& split) final;

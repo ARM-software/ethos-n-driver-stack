@@ -938,6 +938,95 @@ void NetworkToGraphOfPartsConverter::Visit(Transpose& transpose)
     ConnectParts(transpose, parts);
 }
 
+void NetworkToGraphOfPartsConverter::Visit(DepthToSpace& depthToSpace)
+{
+
+    // We implement depth-to-space (block-size 2) with a transpose convolution (stride 2) with a 2x2
+    // kernel,
+    // where the weights are used to 'select' which elements of the input are placed into each
+    // element of the output.
+    // By setting the stride and kernel size the same, the output is made by multiplying the kernel
+    // by each IFM (x, y)
+    // position and tiling the resulting tensors.
+    // The weight vector along input-channels at each (u, v) position in the kernel will be dotted
+    // with the IFM along
+    // channels at each (x, y) position.
+    // This means that we can choose different weight vectors to be dotted with the IFM vectors for
+    // each of the four
+    // output pixels that we want to derive from each input pixel, so that we can select the correct
+    // IFM channel for each.
+    // The weight vectors at each (u, v) are therefore simple "one-hot" vectors.
+    // Below is an example for a 1x1x4 input being turned into a 2x2x1 output.
+    //
+    //  Input:                     Output:                       Weights:
+    // (with padding)
+    //
+    //  Channel 0:                Channel 0:                  Input channel 0:
+    //     I0                       I0   I1                        1   0
+    //                              I2   I3                        0   0
+    //
+    //  Channel 1:                                            Input channel 1:
+    //     I1                                                      0   1
+    //                                                             0   0
+    //
+    //  Channel 2:                                            Input channel 2:
+    //     I2                                                      0   0
+    //                                                             1   0
+    //
+    //  Channel 3:                                            Input channel 3:
+    //     I3                                                      0   0
+    //                                                             0   1
+    //
+    uint32_t blockSize = depthToSpace.GetDepthToSpaceInfo().m_BlockSize;
+    assert(blockSize == 2);    // Checked by IsDepthToSpaceSupported
+    uint32_t ifmChannelsPerOfm = blockSize * blockSize;
+
+    const TensorShape& inputShape  = depthToSpace.GetInput(0).GetTensorInfo().m_Dimensions;
+    const TensorShape& outputShape = depthToSpace.GetOutput(0).GetTensorInfo().m_Dimensions;
+
+    // Set weights according to the above explanation
+    const float weightsScale = 0.5f;    // We can't use a scale of 1.0 as that would cause an overall multiplier >= 1.
+    TensorInfo weightsInfo({ blockSize, blockSize, inputShape[3], outputShape[3] }, DataType::UINT8_QUANTIZED,
+                           DataFormat::HWIO, QuantizationInfo(0, weightsScale));
+    std::vector<uint8_t> weightsData(GetNumElements(weightsInfo.m_Dimensions), 0);
+    TensorData weights(weightsData.data(), weightsInfo.m_Dimensions);
+    for (uint32_t ofmIdx = 0; ofmIdx < outputShape[3]; ++ofmIdx)
+    {
+        // Each OFM is derived from 4 IFMs which are distributed across the channels.
+        // All of the top-left elements come first, then all the top-right, bottom-left then finally
+        // bottom-right.
+        // This means that the IFMs for a particular OFM start at the same index as the OFM
+        // and are separated from each other by the number of blocks.
+        const uint32_t ifmBase   = ofmIdx;
+        const uint32_t ifmStride = inputShape[3] / ifmChannelsPerOfm;
+        // Set the weight vectors for each of the (u, v) positions, each of which will contain just
+        // one non-zero value
+        for (uint32_t v = 0; v < blockSize; ++v)
+        {
+            for (uint32_t u = 0; u < blockSize; ++u)
+            {
+                // Calculate which IFM we want this weight vector to select
+                const uint32_t ifmWithinBlock = v * blockSize + u;
+                const uint32_t ifmIdx         = ifmBase + ifmWithinBlock * ifmStride;
+                weights.SetElement(v, u, ifmIdx, ofmIdx, static_cast<uint8_t>(1.0f / weightsScale));
+            }
+        }
+    }
+
+    // Set biases to all zero (we don't need a bias)
+    const float biasScale = weightsScale * depthToSpace.GetInput(0).GetTensorInfo().m_QuantizationInfo.GetScale();
+    TensorInfo biasInfo({ 1, 1, 1, outputShape[3] }, DataType::UINT8_QUANTIZED, DataFormat::NHWC,
+                        QuantizationInfo(0, biasScale));
+    std::vector<int32_t> biasData(GetNumElements(biasInfo.m_Dimensions), 0);
+
+    const std::set<uint32_t> operationId = { depthToSpace.GetId() };
+    std::vector<BasePart*> transposeConv = CreateTransposeConv(
+        Stride(blockSize, blockSize), weightsInfo, std::move(weightsData), biasInfo, std::move(biasData), Padding(0, 0),
+        depthToSpace.GetInput(0).GetTensorInfo(), depthToSpace.GetOutput(0).GetTensorInfo(), operationId);
+
+    ConnectParts(depthToSpace, transposeConv);
+}
+
 void NetworkToGraphOfPartsConverter::Visit(SpaceToDepth& spaceToDepth)
 {
     const TensorInfo& inputInfo           = spaceToDepth.GetInput(0).GetTensorInfo();
