@@ -632,6 +632,32 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
     }
 }
 
+void NetworkToGraphOfPartsConverter::Visit(Requantize& requantize)
+{
+    std::vector<BasePart*> parts;
+    auto inputQuantInfo  = requantize.GetInput(0).GetTensorInfo().m_QuantizationInfo;
+    auto outputQuantInfo = requantize.GetOutput(0).GetTensorInfo().m_QuantizationInfo;
+
+    // If input and output quantizations are different, an McePart is added to the GraphOfParts to perform requantization,
+    // otherwise the requantize operation is optimized out (no requantization needed)
+    Operand& inputOperand = requantize.GetInput(0);
+    if (inputQuantInfo != outputQuantInfo)
+    {
+        auto mcePart = CreateIdentityMcePart(inputOperand.GetTensorInfo().m_Dimensions, inputQuantInfo, outputQuantInfo,
+                                             requantize.GetId(),
+                                             GetCommandDataType(requantize.GetOutput(0).GetTensorInfo().m_DataType),
+                                             m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+        parts.push_back(std::move(mcePart.get()));
+        m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+        ConnectParts(requantize, parts);
+    }
+    else
+    {
+        ConnectNoOp(requantize);
+    }
+}
+
 void NetworkToGraphOfPartsConverter::Visit(LeakyRelu& leakyRelu)
 {
     std::vector<BasePart*> parts;
@@ -1270,6 +1296,15 @@ void NetworkToGraphOfPartsConverter::ConnectParts(Operation& operation, std::vec
         m_OperandToPart[&operation.GetOutput(0)] = m_Part.back();
     }
 }
+void NetworkToGraphOfPartsConverter::ConnectNoOp(Operation& operation)
+{
+    // Sanity check for single input support
+    assert(operation.GetInputs().size() == 1);
 
+    for (size_t i = 0; i < operation.GetOutputs().size(); ++i)
+    {
+        m_OperandToPart[&operation.GetOutput(i)] = m_OperandToPart[&operation.GetInput(0)];
+    }
+}
 }    // namespace support_library
 }    // namespace ethosn

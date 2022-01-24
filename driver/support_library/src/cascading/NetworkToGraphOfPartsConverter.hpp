@@ -53,8 +53,10 @@ public:
     void Visit(Split& split) final;
     void Visit(Transpose& split) final;
     void Visit(SpaceToDepth& split) final;
+    void Visit(Requantize& split) final;
 
     void ConnectParts(Operation& operation, std::vector<BasePart*>& m_Part);
+    void ConnectNoOp(Operation& operation);
 
     std::vector<uint8_t> OverrideWeights(const std::vector<uint8_t>& userWeights, const TensorInfo& weightsInfo) const;
 

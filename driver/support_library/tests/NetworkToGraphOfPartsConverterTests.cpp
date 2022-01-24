@@ -166,6 +166,136 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest")
 
 // Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the
 // NetworkToGraphOfPartsConverter().
+TEST_CASE("NetworkToGraphOfPartsConverterTest Requantize Same Quantization")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 128, 128, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    std::shared_ptr<Operand> input = AddInput(network, inputInfo).tensor;
+
+    // Add the remaining Operations for this Unit Test
+    std::shared_ptr<Operand> requantize = AddRequantize(network, *input, RequantizeInfo({ 0, 1.f })).tensor;
+    std::shared_ptr<Output> output      = AddOutput(network, *requantize).tensor;
+
+    bool dumpToFile = true;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest Requantize.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = true;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest Requantize Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    // Check for each Part:
+    //  * Whether the type of the generated Part is correct
+    //  * The number of Input/Output slots
+    //  * Whether PartInputSlots connect to PartOutputSlots of the correct Part
+    //  * For the last Part, check that there are no connections to any following PartInputSlots
+    REQUIRE(graph.GetNumParts() == 2);
+
+    REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(0)) != nullptr);
+    REQUIRE(graph.GetPartInputs(0).size() == 0);
+    REQUIRE(graph.GetPartOutputs(0).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 0, 0 }).has_value() == false);
+
+    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(1)) != nullptr);
+    REQUIRE(graph.GetPartInputs(1).size() == 1);
+    REQUIRE(graph.GetPartOutputs(1).size() == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
+    REQUIRE(graph.GetConnectedInputSlots({ 1, 0 }).size() == 0);
+}
+
+// Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the
+// NetworkToGraphOfPartsConverter().
+TEST_CASE("NetworkToGraphOfPartsConverterTest Requantize")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 128, 128, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    std::shared_ptr<Operand> input = AddInput(network, inputInfo).tensor;
+
+    // Add the remaining Operations for this Unit Test
+    std::shared_ptr<Operand> requantize = AddRequantize(network, *input, RequantizeInfo({ 1, 1.2f })).tensor;
+    std::shared_ptr<Output> output      = AddOutput(network, *requantize).tensor;
+
+    bool dumpToFile = true;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest Requantize.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = true;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest Requantize Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    // Check for each Part:
+    //  * Whether the type of the generated Part is correct
+    //  * The number of Input/Output slots
+    //  * Whether PartInputSlots connect to PartOutputSlots of the correct Part
+    //  * For the last Part, check that there are no connections to any following PartInputSlots
+    REQUIRE(graph.GetNumParts() == 3);
+
+    REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(0)) != nullptr);
+    REQUIRE(graph.GetPartInputs(0).size() == 0);
+    REQUIRE(graph.GetPartOutputs(0).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 0, 0 }).has_value() == false);
+
+    const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(1));
+    REQUIRE(part != nullptr);
+    REQUIRE(graph.GetPartInputs(1).size() == 1);
+    REQUIRE(graph.GetPartOutputs(1).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
+    auto operation = part->GetMceOperation();
+    REQUIRE(operation.has_value());
+    // Identity McePart is executed as depthwise convolution
+    REQUIRE(operation.value() == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION);
+
+    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(2)) != nullptr);
+    REQUIRE(graph.GetPartInputs(2).size() == 1);
+    REQUIRE(graph.GetPartOutputs(2).size() == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 1);
+    REQUIRE(graph.GetConnectedInputSlots({ 2, 0 }).size() == 0);
+}
+
+// Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the
+// NetworkToGraphOfPartsConverter().
 // The topology is chosen to test Networks of supported Part types such as:
 //      * Concat Part
 TEST_CASE("NetworkToGraphOfPartsConverterTest Concat")
