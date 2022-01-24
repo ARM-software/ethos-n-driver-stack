@@ -29,6 +29,7 @@ namespace support_library
 
 std::unique_ptr<McePart> NetworkToGraphOfPartsConverter::CreateIdentityMcePart(const TensorShape& shape,
                                                                                const QuantizationInfo& inputQuantInfo,
+                                                                               const QuantizationInfo& outputQuantInfo,
                                                                                uint32_t operationId,
                                                                                command_stream::DataType dataType,
                                                                                const EstimationOptions& estOpt,
@@ -41,7 +42,7 @@ std::unique_ptr<McePart> NetworkToGraphOfPartsConverter::CreateIdentityMcePart(c
     params.m_InputTensorShape       = shape;
     params.m_OutputTensorShape      = shape;
     params.m_InputQuantizationInfo  = inputQuantInfo;
-    params.m_OutputQuantizationInfo = inputQuantInfo;
+    params.m_OutputQuantizationInfo = outputQuantInfo;
     const uint32_t numIfm           = shape[3];
     const float weightScale         = 0.5f;
     params.m_WeightsInfo   = { { 1, 1, numIfm, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM, { 0, weightScale } };
@@ -436,10 +437,10 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
         Operand& inputOperand = concat.GetInput(i);
         if (inputOperand.GetTensorInfo().m_QuantizationInfo != outputQuantInfo)
         {
-            auto mcePart = CreateIdentityMcePart(inputOperand.GetTensorInfo().m_Dimensions,
-                                                 inputOperand.GetTensorInfo().m_QuantizationInfo, concat.GetId(),
-                                                 GetCommandDataType(concat.GetOutput(0).GetTensorInfo().m_DataType),
-                                                 m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+            auto mcePart = CreateIdentityMcePart(
+                inputOperand.GetTensorInfo().m_Dimensions, inputOperand.GetTensorInfo().m_QuantizationInfo,
+                outputQuantInfo, concat.GetId(), GetCommandDataType(concat.GetOutput(0).GetTensorInfo().m_DataType),
+                m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
             // Add the connection to the GraphOfParts, then store the new PartId in a temporary map and then add the McePart to the GraphOfParts.
             m_GraphOfParts.AddConnection({ mcePart->GetPartId(), 0 }, { m_OperandToPart.at(&inputOperand)->GetPartId(),
@@ -637,7 +638,8 @@ void NetworkToGraphOfPartsConverter::Visit(Relu& relu)
     if (!inputPart->HasActivationBounds())
     {
         std::unique_ptr<McePart> mcePart = CreateIdentityMcePart(
-            inputOperand.GetTensorInfo().m_Dimensions, inputOperand.GetTensorInfo().m_QuantizationInfo, relu.GetId(),
+            inputOperand.GetTensorInfo().m_Dimensions, inputOperand.GetTensorInfo().m_QuantizationInfo,
+            inputOperand.GetTensorInfo().m_QuantizationInfo, relu.GetId(),
             GetCommandDataType(inputOperand.GetTensorInfo().m_DataType), m_EstimationOptions.value(),
             m_CompilationOptions, m_Capabilities);
 

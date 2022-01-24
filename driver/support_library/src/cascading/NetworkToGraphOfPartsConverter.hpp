@@ -65,6 +65,7 @@ public:
 private:
     std::unique_ptr<McePart> CreateIdentityMcePart(const TensorShape& shape,
                                                    const QuantizationInfo& inputQuantInfo,
+                                                   const QuantizationInfo& outputQuantInfo,
                                                    uint32_t operationId,
                                                    command_stream::DataType dataType,
                                                    const EstimationOptions& estOpt,
