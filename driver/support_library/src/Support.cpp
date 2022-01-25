@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -289,12 +289,6 @@ std::vector<std::unique_ptr<CompiledNetwork>> Compile(const Network& network, co
         throw NotSupportedException("Support library does not support compilation for the given target capabilities");
     }
 
-    // Cascading not supported while compilation
-    if (options.m_CompilerAlgorithm == CompilerAlgorithm::CascadingOnly)
-    {
-        throw NotSupportedException("Cascading only supported for performance estimation");
-    }
-
     EstimationOptions estimationOptions;
     Compiler compiler(network, caps, options, estimationOptions);
 
@@ -320,15 +314,6 @@ NetworkPerformanceData EstimatePerformance(const Network& network,
     if (!AreCapabilitiesSupported(caps))
     {
         throw NotSupportedException("Support library does not support compilation for the given target capabilities");
-    }
-
-    // Until full implementation of cascading in support library,
-    // available  only as future optimistic estimate. i.e m_Current = false.
-    if (compilationOptions.m_CompilerAlgorithm == CompilerAlgorithm::CascadingOnly &&
-        estimationOptions.m_Current == true)
-    {
-        throw NotSupportedException(
-            "Current performance and cascading modes are mutually exclusive. Please disable one or the other.");
     }
 
     Compiler compiler(network, caps, compilationOptions, estimationOptions);
@@ -413,35 +398,6 @@ EthosNVariant EthosNVariantFromString(const char* npuType)
     else
     {
         throw std::invalid_argument("Unknown NPU type");
-    }
-}
-
-const char* EthosNCompilerAlgorithmAsString(CompilerAlgorithm mode)
-{
-    switch (mode)
-    {
-#define X(value)                                                                                                       \
-    case CompilerAlgorithm::value:                                                                                     \
-        return #value;
-        COMPILER_ALGORITHM_MODE
-#undef X
-        default:
-            return "Unknown Cascading support mode";
-    }
-}
-
-CompilerAlgorithm EthosNCompilerAlgorithmFromString(const char* mode)
-{
-#define X(value)                                                                                                       \
-    if (std::string(mode) == #value)                                                                                   \
-    {                                                                                                                  \
-        return CompilerAlgorithm::value;                                                                               \
-    }
-    COMPILER_ALGORITHM_MODE
-#undef X
-    else
-    {
-        throw std::invalid_argument("Unknown Cascading support mode");
     }
 }
 

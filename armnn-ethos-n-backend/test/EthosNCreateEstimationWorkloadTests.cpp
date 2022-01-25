@@ -35,7 +35,6 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
         os << armnn::EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING << " = 0.5\n";
         os << armnn::EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING << " = 0.5\n";
         os << armnn::EthosNConfig::PERF_CURRENT << " = 0\n";
-        os << armnn::EthosNConfig::COMPILER_ALGORITHM << " = Auto\n";
         os << armnn::EthosNConfig::INTERMEDIATE_COMPRESSION << " = 1\n";
 
         os.seekg(0);
@@ -50,40 +49,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
         CHECK(config.m_PerfActivationCompressionSaving == 0.5f);
         CHECK(config.m_PerfWeightCompressionSaving == 0.5f);
         CHECK(config.m_PerfCurrent == false);
-        CHECK(config.m_CompilerAlgorithm == ethosn::support_library::CompilerAlgorithm::Auto);
         CHECK(config.m_IntermediateCompression == true);
-    }
-
-    TEST_CASE("ParseEthosNConfigCascadingOk")
-    {
-        std::stringstream os;
-        os << armnn::EthosNConfig::COMPILER_ALGORITHM << " = CascadingOnly\n";
-
-        os.seekg(0);
-        armnn::EthosNConfig config;
-        os >> config;
-
-        CHECK(config.m_CompilerAlgorithm == ethosn::support_library::CompilerAlgorithm::CascadingOnly);
-    }
-
-    TEST_CASE("ParseEthosNConfigCascadingNOk")
-    {
-        std::stringstream os;
-        os << armnn::EthosNConfig::COMPILER_ALGORITHM << " = foo\n";
-
-        os.seekg(0);
-        armnn::EthosNConfig config;
-
-        bool exceptionCaught = false;
-        try
-        {
-            os >> config;
-        }
-        catch (...)
-        {
-            exceptionCaught = true;
-        }
-        CHECK(exceptionCaught == true);
     }
 
     // A test which estimates the performance of a supported (relu) operation

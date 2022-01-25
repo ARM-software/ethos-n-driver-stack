@@ -277,7 +277,8 @@ EthosNBackend::EthosNBackend()
     if (ms_Capabilities.empty())
     {
         // First-time initialization
-        ms_Config       = ReadEthosNConfig();
+        ms_Config = ReadEthosNConfig();
+
         ms_Capabilities = ms_Config.QueryCapabilities();
     }
 

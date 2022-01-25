@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -175,13 +175,10 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
 NetworkPerformanceData Compiler::EstimatePerformance()
 {
     DumpNetwork(m_Network);
-    bool nonCascadedPerformanceValid = false;
-    bool cascadedPerformanceValid    = false;
-    NetworkPerformanceData nonCascadedPerformance, cascadedPerformance;
-    const CompilerAlgorithm& compilerAlgorithm = m_CompilationOptions.m_CompilerAlgorithm;
-    // An engineer can force to use non cascaded estimation only by setting
-    // 'COMPILER_ALGORITHM = NonCascadingOnly' into the configuration file
-    if (compilerAlgorithm == CompilerAlgorithm::Auto || compilerAlgorithm == CompilerAlgorithm::NonCascadingOnly)
+
+    NetworkPerformanceData performance;
+
+    if (m_EstimationOptions.m_Current == true)
     {
         try
         {
@@ -194,56 +191,30 @@ NetworkPerformanceData Compiler::EstimatePerformance()
             {
                 // Conversion and preparation can throw by not creating a valid graph but we should still be able to estimate it.
             }
-            nonCascadedPerformance      = NonCascadingEstimate(m_Graph, m_EstimationOptions, m_Capabilities);
-            nonCascadedPerformanceValid = true;
+            performance = NonCascadingEstimate(m_Graph, m_EstimationOptions);
             DumpGraph("GraphFinal");
         }
         catch (const std::exception& e)
         {
             g_Logger.Warning("Non-cascading estimation failed with: %s", e.what());
-            //Nothing to do. nonCascadedPerformanceValid == false already
+            throw NotSupportedException("Estimation didn't find any valid performance data to return");
         }
-    }
-    // An engineer can force to use cascaded estimation only by setting
-    // 'COMPILER_ALGORITHM = CascadingOnly' into the configuration file
-    if (compilerAlgorithm == CompilerAlgorithm::Auto || compilerAlgorithm == CompilerAlgorithm::CascadingOnly)
-    {
-        if (m_EstimationOptions.m_Current == false)
-        {
-            try
-            {
-                Cascading cascadingEstimate(m_EstimationOptions, m_CompilationOptions, m_Capabilities);
-                cascadedPerformance      = cascadingEstimate.EstimateNetwork(m_Network);
-                cascadedPerformanceValid = true;
-            }
-            catch (const std::exception& e)
-            {
-                g_Logger.Warning("Cascading estimation failed with: %s", e.what());
-                //Nothing to do. cascadedPerformanceValid == false already
-            }
-        }
-    }
-    if (!nonCascadedPerformanceValid && !cascadedPerformanceValid)
-    {
-        throw NotSupportedException("Estimation didn't find any valid performance data to return");
-    }
-    if (nonCascadedPerformanceValid && !cascadedPerformanceValid)
-    {
-        return nonCascadedPerformance;
-    }
-    if (!nonCascadedPerformanceValid && cascadedPerformanceValid)
-    {
-        return cascadedPerformance;
-    }
-    // Both of the performances are valid, try to see which one is the best
-    if (ComparePerformanceData(nonCascadedPerformance, cascadedPerformance) == PerformanceComparisonResult::LeftBetter)
-    {
-        return nonCascadedPerformance;
     }
     else
     {
-        return cascadedPerformance;
+        try
+        {
+            Cascading cascadingEstimate(m_EstimationOptions, m_CompilationOptions, m_Capabilities);
+            performance = cascadingEstimate.EstimateNetwork(m_Network);
+        }
+        catch (const std::exception& e)
+        {
+            g_Logger.Warning("Cascading estimation failed with: %s", e.what());
+            throw NotSupportedException("Estimation didn't find any valid performance data to return");
+        }
     }
+
+    return performance;
 }
 
 void Compiler::Convert()

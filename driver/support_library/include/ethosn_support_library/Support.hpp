@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -51,21 +51,6 @@ struct Version
     uint32_t Patch;
 };
 
-#define COMPILER_ALGORITHM_MODE                                                                                        \
-    X(Auto)                                                                                                            \
-    X(CascadingOnly)                                                                                                   \
-    X(NonCascadingOnly)
-
-#define X(value) value,
-enum class CompilerAlgorithm
-{
-    COMPILER_ALGORITHM_MODE
-};
-#undef X
-
-const char* EthosNCompilerAlgorithmAsString(CompilerAlgorithm mode);
-CompilerAlgorithm EthosNCompilerAlgorithmFromString(const char* mode);
-
 struct CompilationOptions
 {
     enum class DebugLevel
@@ -104,14 +89,6 @@ struct CompilationOptions
     /// If enabled, files containing details of the compilation process will be dumped to m_DebugDir.
     /// These can be helpful for debugging compilation issues.
     DebugInfo m_DebugInfo;
-    /// The m_CompilerAlgorithm can be used to force one approach over another as cascaded vs non cascaded.
-    /// "CascadingOnly" means that the cascaded approach will be used
-    /// "NonCascadingOnly" means that the non cascaded approach will be used
-    /// "Auto" means the compiler decides to do what is best which is
-    /// - for compilation: using non cascaded approach
-    /// - for estimation: executing cascaded and non cascaded approach and returning
-    ///                   the one which is the more performant
-    CompilerAlgorithm m_CompilerAlgorithm = CompilerAlgorithm::NonCascadingOnly;
 };
 
 /// Contains options for performance estimation

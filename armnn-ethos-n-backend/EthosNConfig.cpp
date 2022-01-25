@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "EthosNConfig.hpp"
@@ -74,7 +74,6 @@ constexpr char EthosNConfig::DUMP_RAM_VAR[];
 constexpr char EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING[];
 constexpr char EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING[];
 constexpr char EthosNConfig::PERF_CURRENT[];
-constexpr char EthosNConfig::COMPILER_ALGORITHM[];
 constexpr char EthosNConfig::INTERMEDIATE_COMPRESSION[];
 
 EthosNConfig ReadEthosNConfig()
@@ -182,24 +181,6 @@ std::istream& operator>>(std::istream& configFile, armnn::EthosNConfig& config)
                 else if (m[1] == armnn::EthosNConfig::PERF_CURRENT)
                 {
                     config.m_PerfCurrent = TryConvertToBool(m[2], line, lineNo);
-                }
-                else if (m[1] == armnn::EthosNConfig::COMPILER_ALGORITHM)
-                {
-                    try
-                    {
-                        config.m_CompilerAlgorithm =
-                            ethosn::support_library::EthosNCompilerAlgorithmFromString(m[2].str().c_str());
-                    }
-                    catch (std::invalid_argument&)
-                    {
-                        throw armnn::Exception("Invalid value '" + m[2].str() + "' for option " +
-                                               std::string(armnn::EthosNConfig::COMPILER_ALGORITHM) +
-                                               ". Must be one of: \n"
-#define X(value) +#value + "\n"
-                                               COMPILER_ALGORITHM_MODE
-#undef X
-                        );
-                    }
                 }
                 else if (m[1] == armnn::EthosNConfig::INTERMEDIATE_COMPRESSION)
                 {

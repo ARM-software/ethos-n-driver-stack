@@ -972,7 +972,6 @@ ethosn_lib::CompilationOptions
     result.m_DebugInfo.m_DumpDebugFiles    = config.m_DumpDebugFiles;
     result.m_DebugInfo.m_DumpRam           = config.m_DumpRam;
     result.m_DebugInfo.m_DebugDir          = config.m_PerfOutDir + "/subgraph_" + std::to_string(instanceId);
-    result.m_CompilerAlgorithm             = config.m_CompilerAlgorithm;
     result.m_EnableIntermediateCompression = config.m_IntermediateCompression;
 
     for (const auto& optionsGroup : modelOptions)

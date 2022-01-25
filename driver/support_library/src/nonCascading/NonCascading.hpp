@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -16,8 +16,7 @@ class Graph;
 struct EstimationOptions;
 class HardwareCapabilities;
 
-NetworkPerformanceData
-    NonCascadingEstimate(Graph& graph, const EstimationOptions& estOpt, const HardwareCapabilities& hwCap);
+NetworkPerformanceData NonCascadingEstimate(Graph& graph, const EstimationOptions& estOpt);
 
 }    // namespace support_library
 

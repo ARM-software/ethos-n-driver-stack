@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -30,7 +30,6 @@ struct EthosNConfig
     static constexpr char PERF_WEIGHT_COMPRESSION_SAVING[]      = "PERFORMANCE_WEIGHT_COMPRESSION_SAVING";        // float
     static constexpr char PERF_ACTIVATION_COMPRESSION_SAVING[]  = "PERFORMANCE_ACTIVATION_COMPRESSION_SAVING";    // float
     static constexpr char PERF_CURRENT[]                        = "PERFORMANCE_CURRENT";                          // boolean
-    static constexpr char COMPILER_ALGORITHM[]                  = "COMPILER_ALGORITHM";                           // enum
     static constexpr char INTERMEDIATE_COMPRESSION[]            = "INTERMEDIATE_COMPRESSION";                     // boolean
     // clang-format on
 
@@ -46,9 +45,7 @@ struct EthosNConfig
     bool m_PerfUseWeightCompressionOverride = false;
     float m_PerfWeightCompressionSaving     = 0.0f;
     bool m_PerfCurrent                      = false;
-    ethosn::support_library::CompilerAlgorithm m_CompilerAlgorithm =
-        ethosn::support_library::CompilerAlgorithm::NonCascadingOnly;
-    bool m_IntermediateCompression = true;
+    bool m_IntermediateCompression          = true;
 
     std::vector<char> QueryCapabilities() const
     {
