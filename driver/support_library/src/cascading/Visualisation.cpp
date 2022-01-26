@@ -246,13 +246,9 @@ std::string ToString(const QuantizationScales& scales)
     }
     else
     {
-        std::string out("Scales = [ ");
-        for (auto s : scales)
-        {
-            out += std::to_string(s) + " ";
-        }
-        out += "]";
-        return out;
+        // Keep the representation compact by showing the min and max, rather than every value
+        return "Scales = [" + std::to_string(scales.size()) + "](min = " + std::to_string(scales.min()) +
+               ", max = " + std::to_string(scales.max()) + ")";
     }
 }
 
