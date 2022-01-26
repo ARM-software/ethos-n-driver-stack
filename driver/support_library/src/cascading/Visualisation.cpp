@@ -736,7 +736,7 @@ std::string GetBufferString(Buffer* buffer)
     return stream.str();
 }
 
-DotAttributes GetDotAttributes(Op* op, DetailLevel detailLevel)
+DotAttributes GetDotAttributes(Op* op, DetailLevel detailLevel, uint32_t idxInOpGraph)
 {
     DotAttributes result;
     result.m_Id    = SanitizeId(op->m_DebugTag);
@@ -747,6 +747,7 @@ DotAttributes GetDotAttributes(Op* op, DetailLevel detailLevel)
     if (detailLevel == DetailLevel::High)
     {
         label << "\n";
+        label << "Idx in OpGraph: " << idxInOpGraph << "\n";
         label << "Lifetime = " << ToString(op->m_Lifetime) << "\n";
 
         label << GetOpString(op);
@@ -898,10 +899,10 @@ void DumpNodeToDotFormat(DotAttributes attr, std::ostream& stream)
     stream << "]\n";
 }
 
-template <typename T>
-std::string DumpToDotFormat(T* obj, std::ostream& stream, DetailLevel detailLevel)
+template <typename T, typename... TArgs>
+std::string DumpToDotFormat(T* obj, std::ostream& stream, DetailLevel detailLevel, TArgs&&... additionalArgs)
 {
-    DotAttributes attr = GetDotAttributes(obj, detailLevel);
+    DotAttributes attr = GetDotAttributes(obj, detailLevel, std::forward<TArgs...>(additionalArgs)...);
     DumpNodeToDotFormat(attr, stream);
     return attr.m_Id;
 }
@@ -988,10 +989,12 @@ NodeIds SaveOpGraphAsBody(const OpGraph& graph, std::ostream& stream, DetailLeve
     NodeIds nodeIds;
 
     // Define all the nodes and remember the node IDs, so we can link them with edges later.
+    uint32_t idx = 0;
     for (auto&& o : graph.GetOps())
     {
-        std::string nodeId = DumpToDotFormat(o, stream, detailLevel);
+        std::string nodeId = DumpToDotFormat(o, stream, detailLevel, idx);
         nodeIds[o]         = nodeId;
+        ++idx;
     }
     for (auto&& b : graph.GetBuffers())
     {
@@ -1109,6 +1112,14 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
     stream << "{"
            << "\n";
 
+    std::map<Op*, uint32_t> opToOpGraphIdx;
+    uint32_t idx = 0;
+    for (Op* o : graph.GetOps())
+    {
+        opToOpGraphIdx[o] = idx;
+        ++idx;
+    }
+
     // Decide which Pass each Buffer belongs to (if any). This information is not directly available in EstimatedOpGraph
     // as that just contains the Pass for each *Op*, so we must derive this information.
     std::unordered_map<uint32_t, std::vector<Buffer*>> passToBuffers;
@@ -1180,7 +1191,7 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
             }
 
             ops.push_back(kv.first);
-            std::string nodeId = DumpToDotFormat(kv.first, stream, detailLevel);
+            std::string nodeId = DumpToDotFormat(kv.first, stream, detailLevel, opToOpGraphIdx.at(kv.first));
             nodeIds[kv.first]  = nodeId;
         }
 
@@ -1218,7 +1229,7 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
     std::sort(unassignedOps.begin(), unassignedOps.end(), [](auto a, auto b) { return a->m_DebugTag < b->m_DebugTag; });
     for (Op* o : unassignedOps)
     {
-        std::string nodeId = DumpToDotFormat(o, stream, detailLevel);
+        std::string nodeId = DumpToDotFormat(o, stream, detailLevel, opToOpGraphIdx.at(o));
         nodeIds[o]         = nodeId;
     }
 
