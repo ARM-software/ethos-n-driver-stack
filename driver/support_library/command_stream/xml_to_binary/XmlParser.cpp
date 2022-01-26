@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -89,6 +89,70 @@ void XmlParser::Parse()
     CommandData<O> data;
     Pop(data);
     m_CSBuffer.EmplaceBack(data);
+}
+
+void XmlParser::Pop(cascading::AgentDependencyInfo& info)
+{
+    Pop("AGENT/NUM_STRIPES_TOTAL", info.numStripesTotal);
+
+    for (size_t i = 0; !m_XmlData["SCHEDULE_DEPENDENCY/RELATIVE_AGENT_ID"].empty(); ++i)
+    {
+        Pop("SCHEDULE_DEPENDENCY", info.scheduleDependencies.at(i));
+    }
+
+    for (size_t i = 0; !m_XmlData["READ_DEPENDENCY/RELATIVE_AGENT_ID"].empty(); ++i)
+    {
+        Pop("READ_DEPENDENCY", info.readDependencies.at(i));
+    }
+
+    for (size_t i = 0; !m_XmlData["WRITE_DEPENDENCY/RELATIVE_AGENT_ID"].empty(); ++i)
+    {
+        Pop("WRITE_DEPENDENCY", info.writeDependencies.at(i));
+    }
+}
+
+template <typename T>
+void XmlParser::ParseKnownAgent()
+{
+    T data;
+    Pop(data);
+    cascading::AgentDependencyInfo info{};
+    Pop(info);
+    m_CSBuffer.EmplaceBack(cascading::Agent{ data, info });
+}
+
+void XmlParser::ParseAgent()
+{
+    std::string agentType = Pop("AGENT/AGENT_TYPE");
+
+    if (agentType == "IFM_STREAMER")
+    {
+        ParseKnownAgent<cascading::IfmS>();
+    }
+    else if (agentType == "WGT_STREAMER")
+    {
+        ParseKnownAgent<cascading::WgtS>();
+    }
+    else if (agentType == "MCE_SCHEDULER")
+    {
+        ParseKnownAgent<cascading::MceS>();
+    }
+    else if (agentType == "PLE_LOADER")
+    {
+        ParseKnownAgent<cascading::PleL>();
+    }
+    else if (agentType == "PLE_SCHEDULER")
+    {
+        ParseKnownAgent<cascading::PleS>();
+    }
+    else if (agentType == "OFM_STREAMER")
+    {
+        ParseKnownAgent<cascading::OfmS>();
+    }
+    else
+    {
+        throw ParseException(agentType + " is not in cascading::AgentData union");
+    }
 }
 
 void XmlParser::Push(std::string key, std::string value)
@@ -260,6 +324,175 @@ void XmlParser::Pop(Cascade& value)
     Pop("CASCADE/NUM_AGENTS", value.m_NumAgents());
 }
 
+void XmlParser::Pop(const std::string& keyPrefix, cascading::FmSData& value)
+{
+    Pop(keyPrefix + "/DRAM_OFFSET", value.dramOffset);
+    Pop(keyPrefix + "/BUFFER_ID", value.bufferId);
+    Pop("TILE", value.tile);
+    Pop("DFLT_STRIPE_SIZE", value.dfltStripeSize);
+    Pop("EDGE_STRIPE_SIZE", value.edgeStripeSize);
+    Pop("STRIPE_DRAM_STRIDES", value.stripeDramStrides);
+    Pop("NUM_STRIPES", value.numStripes);
+    Pop("STRIPE_ID_STRIDES", value.stripeIdStrides);
+}
+
+void XmlParser::Pop(cascading::IfmS& value)
+{
+    Pop("IFM_STREAMER", value.fmData);
+}
+
+void XmlParser::Pop(cascading::OfmS& value)
+{
+    Pop("OFM_STREAMER", value.fmData);
+}
+
+void XmlParser::Pop(cascading::WgtS& value)
+{
+    Pop("WGT_STREAMER/BUFFER_ID", value.bufferId);
+    Pop("WGT_STREAMER/METADATA_BUFFER_ID", value.metadataBufferId);
+    Pop("TILE", value.tile);
+    Pop("WGT_STREAMER/NUM_STRIPES", value.numStripes);
+}
+
+void XmlParser::Pop(cascading::MceS& value)
+{
+    Pop("IFM_TILE", value.ifmTile);
+    Pop("WGT_TILE", value.wgtTile);
+    Pop("BLOCK_SIZE", value.blockSize);
+    Pop("DFLT_STRIPE_SIZE", value.dfltStripeSize);
+    Pop("EDGE_STRIPE_SIZE", value.edgeStripeSize);
+    Pop("NUM_STRIPES", value.numStripes);
+    Pop("STRIPE_ID_STRIDES", value.stripeIdStrides);
+    Pop("CONV_STRIDE_XY", value.convStrideXy);
+    Pop("MCE_SCHEDULER/IFM_ZERO_POINT", value.ifmZeroPoint);
+    Pop("MCE_SCHEDULER/MCE_OP_MODE", value.mceOpMode);
+    Pop("RELU_ACTIV", value.reluActiv);
+}
+
+void XmlParser::Pop(cascading::PleL& value)
+{
+    Pop("PLE_LOADER/PLE_KERNEL_ID", value.pleKernelId);
+    Pop("PLE_LOADER/SRAM_ADDR", value.sramAddr);
+}
+
+void XmlParser::Pop(cascading::PleS& value)
+{
+    Pop("OFM_TILE", value.ofmTile);
+    Pop("PLE_SCHEDULER/OFM_ZERO_POINT", value.ofmZeroPoint);
+    Pop("DFLT_STRIPE_SIZE", value.dfltStripeSize);
+    Pop("EDGE_STRIPE_SIZE", value.edgeStripeSize);
+    Pop("NUM_STRIPES", value.numStripes);
+    Pop("STRIPE_ID_STRIDES", value.stripeIdStrides);
+    Pop("PLE_SCHEDULER/MCE_OP", value.mceOp);
+    Pop("PLE_SCHEDULER/PLE_KERNEL_ID", value.pleKernelId);
+    Pop("PLE_SCHEDULER/PLE_KERNEL_SRAM_ADDR", value.pleKernelSramAddr);
+    Pop("IFM_TILE_0", value.ifmTile0);
+    Pop("IFM_INFO_0", value.ifmInfo0);
+    Pop("IFM_TILE_1", value.ifmTile1);
+    Pop("IFM_INFO_1", value.ifmInfo1);
+}
+
+void XmlParser::Pop(const std::string& keyPrefix, cascading::Dependency& value)
+{
+    Pop(keyPrefix + "/RELATIVE_AGENT_ID", value.relativeAgentId);
+    Pop("OUTER_RATIO/OTHER", value.outerRatio.other);
+    Pop("OUTER_RATIO/SELF", value.outerRatio.self);
+    Pop("INNER_RATIO/OTHER", value.innerRatio.other);
+    Pop("INNER_RATIO/SELF", value.innerRatio.self);
+    Pop(keyPrefix + "/BOUNDARY", value.boundary);
+}
+
+void XmlParser::Pop(const std::string& keyPrefix, cascading::BlockSize& value)
+{
+    Pop(keyPrefix + "/HEIGHT", value.height);
+    Pop(keyPrefix + "/WIDTH", value.width);
+}
+
+void XmlParser::Pop(const std::string& keyPrefix, cascading::MceSWorkSize<uint16_t>& value)
+{
+    Pop(keyPrefix + "/OFM_HEIGHT", value.ofmHeight);
+    Pop(keyPrefix + "/OFM_WIDTH", value.ofmWidth);
+    Pop(keyPrefix + "/OFM_CHANNELS", value.ofmChannels);
+    Pop(keyPrefix + "/IFM_CHANNELS", value.ifmChannels);
+}
+
+void XmlParser::Pop(const std::string& keyPrefix, cascading::StrideXy<uint8_t>& value)
+{
+    Pop(keyPrefix + "/X", value.x);
+    Pop(keyPrefix + "/Y", value.y);
+}
+
+void XmlParser::Pop(const std::string& keyPrefix, cascading::ReluActivation& value)
+{
+    Pop(keyPrefix + "/MIN", value.min);
+    Pop(keyPrefix + "/MAX", value.max);
+}
+
+void XmlParser::Pop(const std::string& keyPrefix, cascading::PleIfmInfo& value)
+{
+
+    Pop(keyPrefix + "/ZERO_POINT", value.zeroPoint);
+    Pop(keyPrefix + "/MULTIPLIER", value.multiplier);
+    Pop(keyPrefix + "/SHIFT", value.shift);
+}
+
+void XmlParser::Pop(const std::string& keyPrefix, cascading::PleSWorkSize<uint16_t>& value)
+{
+    Pop(keyPrefix + "/OFM_HEIGHT", value.ofmHeight);
+    Pop(keyPrefix + "/OFM_WIDTH", value.ofmWidth);
+    Pop(keyPrefix + "/OFM_CHANNELS", value.ofmChannels);
+}
+
+void XmlParser::Pop(const std::string& key, cascading::MceOperation& value)
+{
+    std::string str = Pop(key);
+
+    if (str == "CONVOLUTION")
+    {
+        value = cascading::MceOperation::CONVOLUTION;
+    }
+    else if (str == "DEPTHWISE_CONVOLUTION")
+    {
+        value = cascading::MceOperation::DEPTHWISE_CONVOLUTION;
+    }
+    else if (str == "FULLY_CONNECTED")
+    {
+        value = cascading::MceOperation::FULLY_CONNECTED;
+    }
+    else
+    {
+        throw ParseException(key + " is not a MceOperation: " + str);
+    }
+}
+
+void XmlParser::Pop(const std::string& key, cascading::PleInputMode& value)
+{
+    std::string str = Pop(key);
+
+    if (str == "MCE_ALL_OGS")
+    {
+        value = cascading::PleInputMode::MCE_ALL_OGS;
+    }
+    else if (str == "MCE_ONE_OG")
+    {
+        value = cascading::PleInputMode::MCE_ONE_OG;
+    }
+    else if (str == "SRAM")
+    {
+        value = cascading::PleInputMode::SRAM;
+    }
+    else
+    {
+        throw ParseException(key + " is not a PleInputMode: " + str);
+    }
+}
+
+void XmlParser::Pop(const std::string& key, cascading::PleKernelId& value)
+{
+    std::string str = Pop(key);
+    value           = cascading::String2PleKernelId(str.c_str());
+}
+
 void XmlParser::Pop(const std::string& key, TensorShape& value)
 {
     ParseIntegers(Pop(key), std::get<0>(value), std::get<1>(value), std::get<2>(value), std::get<3>(value));
@@ -284,6 +517,11 @@ void XmlParser::Pop(const std::string& key, bool& value)
 }
 
 void XmlParser::Pop(const std::string& key, uint8_t& value)
+{
+    ParseIntegers(Pop(key), value);
+}
+
+void XmlParser::Pop(const std::string& key, int8_t& value)
 {
     ParseIntegers(Pop(key), value);
 }
@@ -544,6 +782,21 @@ void XmlParser::Pop(const std::string& key, DataLocation& value)
     }
 }
 
+template <typename T, typename = decltype(T::height, T::width, T::channels)>
+void XmlParser::Pop(const std::string& keyPrefix, T& value)
+{
+    Pop(keyPrefix + "/HEIGHT", value.height);
+    Pop(keyPrefix + "/WIDTH", value.width);
+    Pop(keyPrefix + "/CHANNELS", value.channels);
+}
+
+void XmlParser::Pop(const std::string& keyPrefix, cascading::Tile& value)
+{
+    Pop(keyPrefix + "/BASE_ADDR", value.baseAddr);
+    Pop(keyPrefix + "/NUM_SLOTS", value.numSlots);
+    Pop(keyPrefix + "/SLOT_SIZE", value.slotSize);
+}
+
 void XmlParser::SaxCallback(mxml_node_t* node, mxml_sax_event_t event, void* parserAsVoid)
 {
     const auto parser = static_cast<XmlParser*>(parserAsVoid);
@@ -571,7 +824,16 @@ void XmlParser::SaxCallback(mxml_node_t* node, mxml_sax_event_t event, void* par
                     throw ParseException("Unsupported version");
                 }
             }
-            // Nothing to do
+            // First child of Agent
+            else if ((mxmlGetPrevSibling(node) == nullptr) &&
+                     (strcmp(mxmlGetElement(mxmlGetParent(node)), "AGENT") == 0))
+            {
+                parser->Push("AGENT_TYPE", mxmlGetElement(node));
+            }
+            else
+            {
+                // Nothing to do
+            }
             break;
         }
         case MXML_SAX_DATA:
@@ -650,6 +912,10 @@ void XmlParser::SaxCallback(mxml_node_t* node, mxml_sax_event_t event, void* par
                 else if (name == "CASCADE")
                 {
                     parser->Parse<Opcode::CASCADE>();
+                }
+                else if (name == "AGENT")
+                {
+                    parser->ParseAgent();
                 }
                 else
                 {

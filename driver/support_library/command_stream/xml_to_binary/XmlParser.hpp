@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -39,6 +39,11 @@ private:
     template <ethosn::command_stream::Opcode O>
     void Parse();
 
+    template <typename T>
+    void ParseKnownAgent();
+
+    void ParseAgent();
+
     void Push(std::string key, std::string value);
     std::string Pop(const std::string& key);
 
@@ -73,6 +78,7 @@ private:
 
     void Pop(const std::string& key, bool& value);
     void Pop(const std::string& key, uint8_t& value);
+    void Pop(const std::string& key, int8_t& value);
     void Pop(const std::string& key, uint16_t& value);
     void Pop(const std::string& key, int16_t& value);
     void Pop(const std::string& key, int32_t& value);
@@ -86,6 +92,31 @@ private:
     void Pop(const std::string& key, ethosn::command_stream::UpsampleType& value);
     void Pop(const std::string& key, ethosn::command_stream::SectionType& value);
     void Pop(const std::string& key, ethosn::command_stream::PleOperation& value);
+
+    template <typename T, typename = decltype(T::height, T::width, T::channels)>
+    void Pop(const std::string& keyPrefix, T& value);
+
+    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::Dependency& value);
+    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::Tile& value);
+    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::BlockSize& value);
+    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::MceSWorkSize<uint16_t>& value);
+    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::StrideXy<uint8_t>& value);
+    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::ReluActivation& value);
+    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::PleIfmInfo& value);
+    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::PleSWorkSize<uint16_t>& value);
+    void Pop(const std::string& key, ethosn::command_stream::cascading::MceOperation& value);
+    void Pop(const std::string& key, ethosn::command_stream::cascading::PleInputMode& value);
+    void Pop(const std::string& key, ethosn::command_stream::cascading::PleKernelId& value);
+
+    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::FmSData& value);
+
+    void Pop(ethosn::command_stream::cascading::AgentDependencyInfo& info);
+    void Pop(ethosn::command_stream::cascading::IfmS& value);
+    void Pop(ethosn::command_stream::cascading::OfmS& value);
+    void Pop(ethosn::command_stream::cascading::WgtS& value);
+    void Pop(ethosn::command_stream::cascading::MceS& value);
+    void Pop(ethosn::command_stream::cascading::PleL& value);
+    void Pop(ethosn::command_stream::cascading::PleS& value);
 
     XmlData m_XmlData;
 

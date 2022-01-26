@@ -1,10 +1,11 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "BinaryParser.hpp"
 
 #include <ethosn_command_stream/CommandStream.hpp>
+#include <ethosn_command_stream/cascading/CommandStream.hpp>
 
 #include <cassert>
 #include <iomanip>
@@ -572,11 +573,320 @@ void Parse(mxml_node_t& parent, const Delay& value)
     Parse(*mxmlNewElement(operation, "VALUE"), value.m_Value());
 }
 
+template <typename T, typename = decltype(T::height, T::width, T::channels)>
+void Parse(mxml_node_t& parent, const T& size)
+{
+    Parse(*mxmlNewElement(&parent, "HEIGHT"), size.height);
+    Parse(*mxmlNewElement(&parent, "WIDTH"), size.width);
+    Parse(*mxmlNewElement(&parent, "CHANNELS"), size.channels);
+}
+
+void Parse(mxml_node_t& parent, const cascading::Tile& tile)
+{
+    Parse(*mxmlNewElement(&parent, "BASE_ADDR"), tile.baseAddr);
+    Parse(*mxmlNewElement(&parent, "NUM_SLOTS"), tile.numSlots);
+    Parse(*mxmlNewElement(&parent, "SLOT_SIZE"), tile.slotSize);
+}
+
+void Parse(mxml_node_t& parent, const cascading::FmSData& fmData)
+{
+    Parse(*mxmlNewElement(&parent, "DRAM_OFFSET"), fmData.dramOffset);
+    Parse(*mxmlNewElement(&parent, "BUFFER_ID"), fmData.bufferId);
+    Parse(*mxmlNewElement(&parent, "TILE"), fmData.tile);
+    Parse(*mxmlNewElement(&parent, "DFLT_STRIPE_SIZE"), fmData.dfltStripeSize);
+    Parse(*mxmlNewElement(&parent, "EDGE_STRIPE_SIZE"), fmData.edgeStripeSize);
+    Parse(*mxmlNewElement(&parent, "STRIPE_DRAM_STRIDES"), fmData.stripeDramStrides);
+    Parse(*mxmlNewElement(&parent, "NUM_STRIPES"), fmData.numStripes);
+    Parse(*mxmlNewElement(&parent, "STRIPE_ID_STRIDES"), fmData.stripeIdStrides);
+}
+
+void Parse(mxml_node_t& parent, const cascading::AgentType& value)
+{
+    switch (value)
+    {
+        case cascading::AgentType::IFM_STREAMER:
+        {
+            Parse(parent, "IFM_STREAMER");
+            break;
+        }
+        case cascading::AgentType::MCE_SCHEDULER:
+        {
+            Parse(parent, "MCE_SCHEDULER");
+            break;
+        }
+        case cascading::AgentType::OFM_STREAMER:
+        {
+            Parse(parent, "OFM_STREAMER");
+            break;
+        }
+        case cascading::AgentType::PLE_LOADER:
+        {
+            Parse(parent, "PLE_LOADER");
+            break;
+        }
+        case cascading::AgentType::PLE_SCHEDULER:
+        {
+            Parse(parent, "PLE_SCHEDULER");
+            break;
+        }
+        case cascading::AgentType::WGT_STREAMER:
+        {
+            Parse(parent, "WGT_STREAMER");
+            break;
+        }
+        default:
+        {
+            // Bad binary
+            throw ParseException("Invalid AgentType in binary input: " + std::to_string(static_cast<uint32_t>(value)));
+        }
+    }
+}
+
+void Parse(mxml_node_t& parent, const cascading::IfmS& ifms)
+{
+    Parse(*mxmlNewElement(&parent, "IFM_STREAMER"), ifms.fmData);
+}
+
+void Parse(mxml_node_t& parent, const cascading::OfmS& ofms)
+{
+    Parse(*mxmlNewElement(&parent, "OFM_STREAMER"), ofms.fmData);
+}
+
+void Parse(mxml_node_t& parent, const cascading::WgtS& wgts)
+{
+    mxml_node_t* agent_op = mxmlNewElement(&parent, "WGT_STREAMER");
+
+    Parse(*mxmlNewElement(agent_op, "BUFFER_ID"), wgts.bufferId);
+    Parse(*mxmlNewElement(agent_op, "METADATA_BUFFER_ID"), wgts.metadataBufferId);
+    Parse(*mxmlNewElement(agent_op, "TILE"), wgts.tile);
+    Parse(*mxmlNewElement(agent_op, "NUM_STRIPES"), wgts.numStripes);
+}
+
+void Parse(mxml_node_t& parent, const cascading::BlockSize& size)
+{
+    Parse(*mxmlNewElement(&parent, "HEIGHT"), size.height);
+    Parse(*mxmlNewElement(&parent, "WIDTH"), size.width);
+}
+
+void Parse(mxml_node_t& parent, const cascading::MceSWorkSize<uint16_t>& size)
+{
+    Parse(*mxmlNewElement(&parent, "OFM_HEIGHT"), size.ofmHeight);
+    Parse(*mxmlNewElement(&parent, "OFM_WIDTH"), size.ofmWidth);
+    Parse(*mxmlNewElement(&parent, "OFM_CHANNELS"), size.ofmChannels);
+    Parse(*mxmlNewElement(&parent, "IFM_CHANNELS"), size.ifmChannels);
+}
+
+void Parse(mxml_node_t& parent, const cascading::StrideXy<uint8_t>& size)
+{
+    Parse(*mxmlNewElement(&parent, "X"), size.x);
+    Parse(*mxmlNewElement(&parent, "Y"), size.y);
+}
+
+void Parse(mxml_node_t& parent, const cascading::ReluActivation& relu)
+{
+    Parse(*mxmlNewElement(&parent, "MIN"), relu.min);
+    Parse(*mxmlNewElement(&parent, "MAX"), relu.max);
+}
+
+void Parse(mxml_node_t& parent, const cascading::MceOperation value)
+{
+    switch (value)
+    {
+        case cascading::MceOperation::CONVOLUTION:
+        {
+            Parse(parent, "CONVOLUTION");
+            break;
+        }
+        case cascading::MceOperation::DEPTHWISE_CONVOLUTION:
+        {
+            Parse(parent, "DEPTHWISE_CONVOLUTION");
+            break;
+        }
+        case cascading::MceOperation::FULLY_CONNECTED:
+        {
+            Parse(parent, "FULLY_CONNECTED");
+            break;
+        }
+        default:
+        {
+            // Bad binary
+            throw ParseException("Invalid MceOperation in binary input: " +
+                                 std::to_string(static_cast<uint32_t>(value)));
+        }
+    }
+}
+
+void Parse(mxml_node_t& parent, const cascading::MceS& mces)
+{
+    mxml_node_t* agent_op = mxmlNewElement(&parent, "MCE_SCHEDULER");
+
+    Parse(*mxmlNewElement(agent_op, "IFM_TILE"), mces.ifmTile);
+    Parse(*mxmlNewElement(agent_op, "WGT_TILE"), mces.wgtTile);
+    Parse(*mxmlNewElement(agent_op, "BLOCK_SIZE"), mces.blockSize);
+    Parse(*mxmlNewElement(agent_op, "DFLT_STRIPE_SIZE"), mces.dfltStripeSize);
+    Parse(*mxmlNewElement(agent_op, "EDGE_STRIPE_SIZE"), mces.edgeStripeSize);
+    Parse(*mxmlNewElement(agent_op, "NUM_STRIPES"), mces.numStripes);
+    Parse(*mxmlNewElement(agent_op, "STRIPE_ID_STRIDES"), mces.stripeIdStrides);
+    Parse(*mxmlNewElement(agent_op, "CONV_STRIDE_XY"), mces.convStrideXy);
+    Parse(*mxmlNewElement(agent_op, "IFM_ZERO_POINT"), mces.ifmZeroPoint);
+    Parse(*mxmlNewElement(agent_op, "MCE_OP_MODE"), mces.mceOpMode);
+    Parse(*mxmlNewElement(agent_op, "RELU_ACTIV"), mces.reluActiv);
+}
+
+void Parse(mxml_node_t& parent, const cascading::PleL& plel)
+{
+    mxml_node_t* agent_op = mxmlNewElement(&parent, "PLE_LOADER");
+
+    Parse(*mxmlNewElement(agent_op, "PLE_KERNEL_ID"), cascading::PleKernelId2String(plel.pleKernelId));
+    Parse(*mxmlNewElement(agent_op, "SRAM_ADDR"), plel.sramAddr);
+}
+
+void Parse(mxml_node_t& parent, const cascading::PleIfmInfo& info)
+{
+    Parse(*mxmlNewElement(&parent, "ZERO_POINT"), info.zeroPoint);
+    Parse(*mxmlNewElement(&parent, "MULTIPLIER"), info.multiplier);
+    Parse(*mxmlNewElement(&parent, "SHIFT"), info.shift);
+}
+
+void Parse(mxml_node_t& parent, const cascading::PleInputMode value)
+{
+    switch (value)
+    {
+        case cascading::PleInputMode::MCE_ALL_OGS:
+        {
+            Parse(parent, "MCE_ALL_OGS");
+            break;
+        }
+        case cascading::PleInputMode::MCE_ONE_OG:
+        {
+            Parse(parent, "MCE_ONE_OG");
+            break;
+        }
+        case cascading::PleInputMode::SRAM:
+        {
+            Parse(parent, "SRAM");
+            break;
+        }
+        default:
+        {
+            // Bad binary
+            throw ParseException("Invalid PleInputMode in binary input: " +
+                                 std::to_string(static_cast<uint32_t>(value)));
+        }
+    }
+}
+
+void Parse(mxml_node_t& parent, const cascading::PleSWorkSize<uint16_t>& size)
+{
+    Parse(*mxmlNewElement(&parent, "OFM_HEIGHT"), size.ofmHeight);
+    Parse(*mxmlNewElement(&parent, "OFM_WIDTH"), size.ofmWidth);
+    Parse(*mxmlNewElement(&parent, "OFM_CHANNELS"), size.ofmChannels);
+}
+
+void Parse(mxml_node_t& parent, const cascading::PleS& ples)
+{
+    mxml_node_t* agent_op = mxmlNewElement(&parent, "PLE_SCHEDULER");
+
+    Parse(*mxmlNewElement(agent_op, "OFM_TILE"), ples.ofmTile);
+    Parse(*mxmlNewElement(agent_op, "OFM_ZERO_POINT"), ples.ofmZeroPoint);
+    Parse(*mxmlNewElement(agent_op, "DFLT_STRIPE_SIZE"), ples.dfltStripeSize);
+    Parse(*mxmlNewElement(agent_op, "EDGE_STRIPE_SIZE"), ples.edgeStripeSize);
+    Parse(*mxmlNewElement(agent_op, "NUM_STRIPES"), ples.numStripes);
+    Parse(*mxmlNewElement(agent_op, "STRIPE_ID_STRIDES"), ples.stripeIdStrides);
+    Parse(*mxmlNewElement(agent_op, "MCE_OP"), ples.mceOp);
+    Parse(*mxmlNewElement(agent_op, "PLE_KERNEL_ID"), cascading::PleKernelId2String(ples.pleKernelId));
+    Parse(*mxmlNewElement(agent_op, "PLE_KERNEL_SRAM_ADDR"), ples.pleKernelSramAddr);
+    Parse(*mxmlNewElement(agent_op, "IFM_TILE_0"), ples.ifmTile0);
+    Parse(*mxmlNewElement(agent_op, "IFM_INFO_0"), ples.ifmInfo0);
+    Parse(*mxmlNewElement(agent_op, "IFM_TILE_1"), ples.ifmTile1);
+    Parse(*mxmlNewElement(agent_op, "IFM_INFO_1"), ples.ifmInfo1);
+}
+
+void Parse(mxml_node_t& parent, const cascading::AgentData& data)
+{
+    Parse(*mxmlNewElement(&parent, "AGENT_TYPE"), data.type);
+
+    switch (data.type)
+    {
+        case cascading::AgentType::IFM_STREAMER:
+            Parse(parent, data.ifm);
+            break;
+        case cascading::AgentType::WGT_STREAMER:
+            Parse(parent, data.wgt);
+            break;
+        case cascading::AgentType::MCE_SCHEDULER:
+            Parse(parent, data.mce);
+            break;
+        case cascading::AgentType::PLE_LOADER:
+            Parse(parent, data.pleL);
+            break;
+        case cascading::AgentType::PLE_SCHEDULER:
+            Parse(parent, data.pleS);
+            break;
+        case cascading::AgentType::OFM_STREAMER:
+            Parse(parent, data.ofm);
+            break;
+        default:
+        {
+            // Bad binary
+            throw ParseException("Invalid cascading agent type: " + std::to_string(static_cast<uint32_t>(data.type)));
+        }
+    };
+}
+
+void Parse(mxml_node_t& parent, const cascading::Ratio& ratio)
+{
+    Parse(*mxmlNewElement(&parent, "OTHER"), ratio.other);
+    Parse(*mxmlNewElement(&parent, "SELF"), ratio.self);
+}
+
+void Parse(mxml_node_t& parent, const char* depName, const cascading::Dependency& dep)
+{
+    if (dep.relativeAgentId == 0)
+    {
+        return;
+    }
+
+    mxml_node_t* child = mxmlNewElement(&parent, depName);
+
+    Parse(*mxmlNewElement(child, "RELATIVE_AGENT_ID"), dep.relativeAgentId);
+    Parse(*mxmlNewElement(child, "OUTER_RATIO"), dep.outerRatio);
+    Parse(*mxmlNewElement(child, "INNER_RATIO"), dep.innerRatio);
+    Parse(*mxmlNewElement(child, "BOUNDARY"), dep.boundary);
+}
+
+void Parse(mxml_node_t& parent, const cascading::AgentDependencyInfo& agentInfo)
+{
+    Parse(*mxmlNewElement(&parent, "NUM_STRIPES_TOTAL"), agentInfo.numStripesTotal);
+    for (auto& dep : agentInfo.scheduleDependencies)
+    {
+        Parse(parent, "SCHEDULE_DEPENDENCY", dep);
+    }
+    for (auto& dep : agentInfo.readDependencies)
+    {
+        Parse(parent, "READ_DEPENDENCY", dep);
+    }
+    for (auto& dep : agentInfo.writeDependencies)
+    {
+        Parse(parent, "WRITE_DEPENDENCY", dep);
+    }
+}
+
 void Parse(mxml_node_t& parent, const Cascade& value)
 {
     mxml_node_t* operation = mxmlNewElement(&parent, "CASCADE");
 
     Parse(*mxmlNewElement(operation, "NUM_AGENTS"), value.m_NumAgents());
+
+    const void* const cascadeBegin = &value + 1U;
+    const cascading::CommandStream cascade{ static_cast<const cascading::Agent*>(cascadeBegin), value.m_NumAgents() };
+
+    for (auto& agent : cascade)
+    {
+        mxml_node_t* agent_op = mxmlNewElement(&parent, "AGENT");
+        Parse(*agent_op, agent.data);
+        Parse(*agent_op, agent.info);
+    }
 }
 }    // namespace
 
