@@ -319,49 +319,6 @@ TEST_CASE("Get size in bytes helpers")
     REQUIRE(GetInputsSizeInBytes(planBSram).m_TotAtomic == 0);
 }
 
-TEST_CASE("GetSortedOps")
-{
-    // Create OpGraph that contains two Ops which are added in the "wrong" order
-
-    OwnedOpGraph opGraph;
-    Buffer* inputBuffer = opGraph.AddBuffer(std::make_unique<Buffer>(
-        Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWC, TensorShape{ 1, 16, 16, 16 },
-        TensorShape{ 1, 16, 16, 16 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
-
-    // dma2 is added first
-    Op* dma2             = opGraph.AddOp(std::make_unique<DmaOp>());
-    Buffer* outputbuffer = opGraph.AddBuffer(std::make_unique<Buffer>(
-        Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 16 },
-        TensorShape{ 1, 16, 16, 16 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
-
-    Buffer* intermediateSramBuffer = opGraph.AddBuffer(std::make_unique<Buffer>(
-        Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 16 },
-        TensorShape{ 1, 16, 16, 16 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
-
-    // dma1 is added second
-    Op* dma1 = opGraph.AddOp(std::make_unique<DmaOp>());
-
-    // dma1 is topologically first
-    opGraph.AddConsumer(inputBuffer, dma1, 0);
-    opGraph.SetProducer(intermediateSramBuffer, dma1);
-
-    // dma2 is topologically second
-    opGraph.AddConsumer(intermediateSramBuffer, dma2, 0);
-    opGraph.SetProducer(outputbuffer, dma2);
-
-    // Print graph for debugging purpose.
-    bool dumpToFile = false;
-    if (dumpToFile)
-    {
-        std::ofstream stream("EstimateOpGraph Sorting.dot");
-        SaveOpGraphToDot(opGraph, stream, DetailLevel::High);
-    }
-    std::vector<Op*> sorted = GetSortedOps(opGraph);
-
-    REQUIRE(sorted.at(0) == opGraph.GetOps().at(1));
-    REQUIRE(sorted.at(1) == opGraph.GetOps().at(0));
-}
-
 TEST_CASE("FindPleKernelIdFromDatabase")
 {
     // ADDITION's block multiplier = 1 independent of input stripe width

@@ -328,7 +328,5 @@ bool IsOutputBufferInSram(const Plan& plan, const PartOutputSlot& outputSlot);
 SizeInBytes GetTotSizeInBytes(const Plan& plan);
 SizeInBytes GetInputsSizeInBytes(const Plan& plan);
 
-std::vector<Op*> GetSortedOps(const OpGraph& opGraph);
-
 }    // namespace support_library
 }    // namespace ethosn

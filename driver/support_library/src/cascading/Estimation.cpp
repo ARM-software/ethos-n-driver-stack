@@ -488,25 +488,6 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
                                  const HardwareCapabilities& capabilities,
                                  const EstimationOptions& estimationOpts)
 {
-    EstimatedOpGraph result;
-
-    auto AddPassDataToResult = [&](const EstimatedPass& estimatedPass) {
-        result.m_PerfData.m_Stream.push_back({});
-        PassPerformanceData& passData = result.m_PerfData.m_Stream.back();
-        passData.m_Stats              = estimatedPass.m_Stats;
-        uint32_t passId               = static_cast<uint32_t>(result.m_PerfData.m_Stream.size()) - 1;
-
-        for (Op* op : estimatedPass.m_Ops)
-        {
-            // Merge operation ids
-            auto& ids = op->m_OperationIds;
-            passData.m_OperationIds.insert(ids.begin(), ids.end());
-
-            result.m_OpToPass[op] = passId;
-        }
-
-        passData.m_ParentIds = GetParentIds(result, opGraph, estimatedPass.m_Ops, passId);
-    };
     // In order to estimate performance using our existing estimation framework, we need to split up the graph into
     // a set of passes, and report stats for each pass independently.
     // An MCE/PLE pass consists of an MceOp and/or PleOp, and optional DmaOps before and/or after.
@@ -514,7 +495,9 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
 
     // We traverse the graph looking for Mce/PleOps, and then look outwards for neighbouring DmaOps to include in that
     // pass.
+    std::vector<EstimatedPass> unsortedPasses;
     std::unordered_set<Op*> unprocessedOps(opGraph.GetOps().begin(), opGraph.GetOps().end());
+    std::map<uint32_t, std::string> operationIdFailureReasons;
     for (Op* op : opGraph.GetOps())
     {
         if (unprocessedOps.count(op) == 0)
@@ -535,7 +518,7 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
                 // Some Ops will go unestimated, but this is fine. They will be reported in the result from this function
                 continue;
             }
-            AddPassDataToResult(estimatedPass);
+            unsortedPasses.push_back(estimatedPass);
         }
     }
 
@@ -563,7 +546,7 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
                     continue;
                 }
 
-                AddPassDataToResult(estimatedPass);
+                unsortedPasses.push_back(estimatedPass);
             }
             else if (IsObjectOfType<ConcatOp>(op))
             {
@@ -576,7 +559,7 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
                     // Some Ops will go unestimated, but this is fine. They will be reported in the result from this function
                     continue;
                 }
-                AddPassDataToResult(estimatedPass);
+                unsortedPasses.push_back(estimatedPass);
             }
             else if (IsObjectOfType<EstimateOnlyOp>(op))
             {
@@ -585,36 +568,63 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
 
                 for (auto it : op->m_OperationIds)
                 {
-                    result.m_PerfData.m_OperationIdFailureReasons[it] =
-                        "Could not be estimated and has zero performance impact. Reason: " +
-                        estimateOnlyOp->m_ReasonForEstimateOnly;
+                    operationIdFailureReasons[it] = "Could not be estimated and has zero performance impact. Reason: " +
+                                                    estimateOnlyOp->m_ReasonForEstimateOnly;
                 }
             }
         }
     }
 
-    // Sort the Opgraph since passes aren't generated in order
-    std::vector<Op*> sorted = GetSortedOps(opGraph);
-
-    std::vector<PassPerformanceData> sortedPassData;
-    // Track the passes already added
-    std::unordered_set<uint32_t> passesAdded;
-    for (Op* op : sorted)
+    // The estimated passes we created above are not necessarily in topological order,
+    // so now we sort them, whilst also turning them into PassPerformanceData structs
+    // for our final result
+    std::map<Op*, uint32_t> opToUnsortedPassIdx;
+    for (uint32_t unsortedPassIdx = 0; unsortedPassIdx < unsortedPasses.size(); ++unsortedPassIdx)
     {
-        auto passId = result.m_OpToPass.find(op);
-        if (passId != result.m_OpToPass.end())
+        for (Op* o : unsortedPasses[unsortedPassIdx].m_Ops)
         {
-            // Don't add the same pass for different Ops
-            bool alreadyAdded = passesAdded.count(passId->second) > 0;
-            if (!alreadyAdded)
-            {
-                const PassPerformanceData& data = result.m_PerfData.m_Stream[passId->second];
-                sortedPassData.push_back(data);
-                passesAdded.insert(passId->second);
-            }
+            opToUnsortedPassIdx[o] = unsortedPassIdx;
         }
     }
-    result.m_PerfData.m_Stream = sortedPassData;
+
+    EstimatedOpGraph result;
+    result.m_PerfData.m_OperationIdFailureReasons = operationIdFailureReasons;
+    // The Ops in the OpGraph should already be sorted into execution order, so go through this order
+    // to determine the order of the passes
+    std::unordered_set<uint32_t> unsortedPassIdxsAdded;    // Tracks the passes already added
+    for (Op* op : opGraph.GetOps())
+    {
+        auto unsortedPassIdxIt = opToUnsortedPassIdx.find(op);
+        // Not all Ops will have been placed in a Pass, for example EstimateOnlyOps, or ops which we failed to estimate
+        if (unsortedPassIdxIt == opToUnsortedPassIdx.end())
+        {
+            continue;
+        }
+        // Don't add the same pass again (multiple Ops will belong to the same pass)
+        bool alreadyAdded = unsortedPassIdxsAdded.count(unsortedPassIdxIt->second) > 0;
+        if (alreadyAdded)
+        {
+            continue;
+        }
+
+        // Create the PassPerformanceData for this pass and it to the result
+        PassPerformanceData passData;
+        const uint32_t sortedPassIdx       = static_cast<uint32_t>(result.m_PerfData.m_Stream.size());
+        const EstimatedPass& estimatedPass = unsortedPasses[unsortedPassIdxIt->second];
+        passData.m_ParentIds               = GetParentIds(result, opGraph, estimatedPass.m_Ops, sortedPassIdx);
+        passData.m_Stats                   = estimatedPass.m_Stats;
+
+        for (Op* op : estimatedPass.m_Ops)
+        {
+            passData.m_OperationIds.insert(op->m_OperationIds.begin(), op->m_OperationIds.end());
+            result.m_OpToPass[op] = sortedPassIdx;
+        }
+
+        result.m_PerfData.m_Stream.push_back(passData);
+
+        // Record that we processed this pass, to prevent doing so again.
+        unsortedPassIdxsAdded.insert(unsortedPassIdxIt->second);
+    }
 
     // Check that all Ops have been estimated.
     if (!unprocessedOps.empty())
