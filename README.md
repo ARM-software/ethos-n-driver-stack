@@ -8,14 +8,14 @@ For more information, see <https://www.arm.com/solutions/artificial-intelligence
 
 ## About the Ethos-N driver stack
 
-The Ethos-N driver stack targets the Ethos-N78 NPU and consists of open source and other software components.
+The Ethos-N driver stack targets the Ethos-N78 NPU and consists of open-source and other software components.
 
-The open source components are:
+The open-source components are:
 
 * **Arm NN:** A software library that enables machine learning workloads on power efficient devices. On Linux®, applications can link directly to Arm NN. On Android™, you can use Arm NN as a backend for the Android NNAPI or applications can link directly to Arm NN.
 * **Arm NN Android neural network driver:** Supports the Android NNAPI on the NPU. The Arm NN Android neural network driver is optional.
 * **Ethos-N NPU driver:** Contains the user-space component of the driver.
-* **Ethos-N NPU kernel module:** Contains the kernel-space component of the driver.
+* **Ethos-N NPU kernel module:** Contains the kernel space component of the driver.
 * **Arm NN Ethos-N NPU backend:** Contains the Ethos-N NPU backend for Arm NN.
 
 The software component that is available under an Arm proprietary license is:
@@ -39,10 +39,10 @@ Depending on how the hardware has been configured, the Arm Ethos-N NPU boots up 
 
 To use the NPU in Secure mode, the target platform must have a [Trusted Firmware-A (TF-A)](https://www.trustedfirmware.org/projects/tf-a/) that includes the Arm Ethos-N NPU SiP service.
 
-The Arm Ethos-N NPU SiP service is available in the TF-A source tree, along with a reference implementation for how to use it on the Arm Juno platform.
+The Arm Ethos-N NPU SiP service is available in the TF-A source tree, along with a reference implementation about how to use the Arm Ethos-N NPU SiP service on the Arm Juno platform.
 For instructions on how to get and build the TF-A source, see the [TF-A documentation](https://trustedfirmware-a.readthedocs.io/en/latest/index.html). TF-A version v2.6 or later must be used.
 
-The build flag needed to enable the Arm Ethos-N NPU SiP service for the Arm Juno platform is available at [TF-A Arm Platform Build Options](https://trustedfirmware-a.readthedocs.io/en/latest/plat/arm/arm-build-options.html).
+The build flag required to enable the Arm Ethos-N NPU SiP service for the Arm Juno platform is available at [TF-A Arm Platform Build Options](https://trustedfirmware-a.readthedocs.io/en/latest/plat/arm/arm-build-options.html).
 
 For information about boot up in Secure or Non-secure modes, see the Arm Ethos-N78 NPU Technical Reference Manual.
 
@@ -98,7 +98,7 @@ git clone --depth 1 https://github.com/catchorg/Catch2.git --branch v2.13.0 <pat
 ## Install the Linux source tree
 
 The Ethos-N driver stack source code depends on the Linux source tree to build the kernel module. You must configure the kernel to build the kernel module.
-Arm has tested version `4.9` of the Linux source tree in non-SMMU configurations and versions `4.14`, `4.19`, `5.4`, and `5.10` in SMMU configurations.
+Arm has tested versions `4.14`, `4.19`, `5.4`, and `5.10` of the Linux source tree in System Memory Management Unit (SMMU) configurations and version `4.9` in non-SMMU configurations.
 
 _Note: Version 4.14 and 4.19 are deprecated in SMMU configurations and will be unsupported from the next release._
 
@@ -116,7 +116,7 @@ To configure the kernel:
 
     * If you run the NPU without an SMMU, you must create a reserved memory area. The reserved memory area stores working data for the NPU, for example the firmware code and network data. The size of the reserved memory area depends on your specific use case and several factors. These factors include the number of NPU cores and the size of the networks being used. We recommend that you test to ensure the chosen size is suitable.
 
-    There are some restrictions on using the reserved memory area. These restrictions are highlighted in the later 'Limitations' section.
+    There are restrictions on using the reserved memory area. These restrictions are detailed in [Limitations](#limitations).
 
 
 3. How you compile the driver affects how you configure the Linux kernel source tree:
@@ -294,7 +294,7 @@ There are multiple ways to exercise the Ethos-N NPU driver:
     * `libEthosNSupport.so` built from the Ethos-N NPU driver inside the `<install_directory>/lib/` directory.
     * `libEthosNDriver.so` built from the Ethos-N NPU driver inside the `<install_directory>/lib/` directory.
 
-    _Note: You may need to copy additional `.so` files depending on your toolchain and its runtime dependencies._
+    _Note: You may need to copy extra `.so` files depending on your toolchain and its runtime dependencies._
 
     _Note: You may need to set the library path so that the supplied libraries can be found._
 
@@ -329,9 +329,9 @@ There are multiple ways to exercise the Ethos-N NPU driver:
     LD_LIBRARY_PATH=<path_to_ethosn_libraries> ./UnitTests
     ```
 
-3. Running the `ExecuteNetwork` program provided by Arm NN. This program supports the running of TensorFlow Lite models.
+3. Run the `ExecuteNetwork` program provided by Arm NN. This program supports the running of TensorFlow Lite models.
 
-    If you have cross compiled you must copy the following files onto the target platform:
+    If you have cross compiled the driver, you must copy the following files onto the target platform:
     * All `*.so*` files built from Arm NN.
     * `ExecuteNetwork` built from Arm NN in the `tests/` folder.
     * `libEthosNSupport.so` built from the Ethos-N NPU driver inside `<install_directory>/lib/`.
@@ -365,13 +365,14 @@ There are multiple ways to exercise the Ethos-N NPU driver:
 ## Power Management
 
 To allow efficient power usage, the Ethos-N NPU supports the following power management features:
+
 * Suspend: Puts the NPU in a low-power state. The state of the NPU is stored in RAM. This feature is sometimes referred to as 'suspend to RAM'.
 * Hibernate: Puts the NPU in a low-power state. The state of the NPU is saved to disk. This feature is sometimes referred to as 'suspend to disk'.
 * Sleep: This is a runtime power management feature that dynamically puts the NPU in a low-power state when the NPU is not being used. The rest of the system still functions normally.
 
 The Ethos-N NPU kernel module implements the Linux Power Management (PM) callbacks. This gives the flexibility to the system integrator to integrate the Ethos-N NPU in any power domain.
 
-There are some restrictions on using the power management features. These restrictions are highlighted in the later 'Limitations' section.
+There are some restrictions on using the power management features. These restrictions are detailed in [Limitations](#limitations).
 
 ## Firmware Binary
 
@@ -382,52 +383,48 @@ The `ethosn.bin` has been compiled with the following security-related flags:
 ```
 ## Build the Ethos-N driver stack in Android
 
-To build the Ethos-N driver stack in Android, you must first install Android NN driver with Arm NN in Android. To install Android NN driver in Android, follow the installation instructions here: [https://github.com/ARM-software/android-nn-driver/blob/master/docs/IntegratorGuide.md](https://github.com/ARM-software/android-nn-driver/blob/master/docs/IntegratorGuide.md). You must then put the downloaded Ethos-N project folder in the Android build folder.
+To build the Ethos-N driver stack in Android, you must first install the Android NN driver with Arm NN in Android. To install the Android NN driver in Android, follow the instructions: [https://github.com/ARM-software/android-nn-driver/blob/master/docs/IntegratorGuide.md](https://github.com/ARM-software/android-nn-driver/blob/master/docs/IntegratorGuide.md). You must then put the downloaded Ethos-N project folder in the Android build folder.
 
- _Note: The Android build folder is the same folder that you put the Android NN driver.
+ _Note: The Android build folder is the same folder that you put the Android NN driver._
 
-After you install Android NN driver with Arm NN in Android, the following additional steps are required to install the Ethos-N driver stack.
-Please refer to script 'setup_android.sh' for your reference.
+After you install the Android NN driver with Arm NN in Android, install the Ethos-N driver stack:
 
-1. Link the Ethos-N NPU backend to the Arm NN source tree
+1. The code in armnn-ethos-n-backend is an Arm NN backend which is built by Arm NN. For Arm NN to build the backend, you must create a symbolic link from the Arm NN src backend folder to the Ethos-N NPU backend folder:
 
-    The code in armnn-ethos-n-backend is a Arm NN backend and build by it. To make this possible a symbolic link need to be created from the Arm NN src backend folder to this folder.
     ```sh
     ln -s ../../../../ethos-n-driver-stack/armnn-ethos-n-backend ../android-nn-driver/armnn/src/backends/ethos-n
     ```
 
-2. Build Ethos-N kernel module
+2. The Ethos-N kernel module is treated as a pre-build by the Android build and the Ethos-N kernel module must be built before proceeding. To build the Ethos-N kernel module, see the instructions in setup_android.sh.
 
-    The Ethos-N kernel module is treated as pre build by the Android build and it needs to be build before. There are instructions in setup_android.sh how to do this.
+3. In an Android build, we recommend adding the vendor-specific drivers to the /vendor file system so that the /system and /vendor filesystems can be updated independently. This can be achieved by adding the kernel module and firmware to your device.mk, for example:
 
-3. Add kernel module and firmware to BOARD_VENDOR_KERNEL_MODULES and PRODUCT_COPY_FILES to make sure it is part of vendor file system image
-
-    In an Android build it is preferred to place the vendor specific drivers in the /vendor file system so that /system and /vendor filesystem can be updated independantly. This could be achevied by adding kernel module and firmware to your device.mk like this:
      * BOARD_VENDOR_KERNEL_MODULES += vendor/arm/ethos-n-driver-stack/kernel-module/ethosn.ko
      * PRODUCT_COPY_FILES += vendor/arm/ethos-n-driver-stack/firmware/ethosn.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/ethosn.bin
 
-4. Make sure to start the kernel module when booting
+4. When booting, the kernel module must be started. To load the kernel module at boot, add the following to your init board file (for example, init.juno.rc):
 
-    To load the kernel module at boot add this to your init board file e.g. init.juno.rc
-     * on post-fs
-     *     insmod /vendor/lib/modules/ethosn.ko
+    ```sh
+    on post-fs
+        insmod /vendor/lib/modules/ethosn.ko
+    ```
 
 
-5. Make sure Ethos-N dts files get merged with your dts file
+5. To ensure the device tree contains the correct nodes for your Ethos-N hardware, the Ethos-N dts files must be merged with your dts file.
 
-    The device tree should contain the correct nodes for your Ethos-N hardware.
+   _Note: Please refer to the 'setup_android.sh' script for this step. You can edit the paths in the script and execute it, or use the script as reference if you create your own script._
 
-Please refer to script 'setup_android.sh' as a reference for this steps, you can edit the paths in it and execute it or just use as reference if you do it yourself.
+6. Build the Android image. Flash and run the image according to your normal target instructions.
 
-Now it's time to build and Android image and flash and run it according to your normal target instructions.
+   _Note: If you get "No firmware found." in the kernel log, make sure your kernel searches for firmware files in /vendor/lib/firmware. For example, this can be done by adding the kernel argument "firmware_class.path=/vendor/lib/firmware/" when booting. If you want to use a different folder for your firmware files, you can also edit the build to make sure the ethonsn.bin file is moved to the different folder._
 
-Note: If you get "No firmware found." in the kernel log, make sure your kernel will search for firmware files in /vendor/lib/firmware this can for example be done by adding the kernel argument "firmware_class.path=/vendor/lib/firmware/" when booting. You can also edit the build to make sure the ethonsn.bin file is moved to the place where you want to keep your firmware files if you want to use another folder.
+To use the Android NN driver and Arm NN, please see the instructions in the "Testing" section of the integration guide: https://github.com/ARM-software/android-nn-driver/blob/master/docs/IntegratorGuide.md#testing.
 
-To use the Android NN driver and Arm NN, please see the instructions under the "Testing" section in the integration guide: https://github.com/ARM-software/android-nn-driver/blob/master/docs/IntegratorGuide.md#testing
+To specify the Ethos-N backend, use "-c EthosNAcc", for example:
 
-You can use "-c EthosNAcc" to specify Ethos-N backend e.g.
-
+```sh
 adb shell /vendor/bin/hw/android.hardware.neuralnetworks@1.3-service-armnn -v -c EthosNAcc
+```
 
 
 ## Limitations
@@ -454,7 +451,7 @@ The following features and feature combinations have known limitations in this E
 
 ### Memory limitations
 
-For systems that do not implement an Arm® System Memory Management Unit (SMMU), the driver expects a reserved memory area to be associated with the NPU device. There are several restrictions on the properties of the reserved memory area. If these restrictions are not met, then the kernel module will not load successfully or the NPU will behave unexpectedly. The restrictions are:
+For systems that do not implement an Arm SMMU, the driver expects a reserved memory area to be associated with the NPU device. There are several restrictions on the properties of the reserved memory area. If these restrictions are not met, then the kernel module will not load successfully or the NPU will behave unexpectedly. The restrictions are:
 
 1. The reserved memory area must begin on a 512MB aligned address.
 2. The reserved memory area must not be larger than 512MB.
@@ -531,4 +528,4 @@ Arm and Ethos are registered trademarks or trademarks of Arm Limited (or its sub
 
 Android is a trademark of Google LLC.
 
-Linux® is the registered trademark of Linus Torvalds in the U.S. and other countries.
+Linux is the registered trademark of Linus Torvalds in the U.S. and other countries.
