@@ -1,5 +1,5 @@
 //
-// Copyright © 2020 Arm Limited. All rights reserved.
+// Copyright © 2020,2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -25,6 +25,7 @@ std::string Join(const char* separator, const TContainer& entries, TFunc toStrin
         {
             result += separator;
         }
+        first = false;
         result += toStringFunc(x);
     }
     return result;

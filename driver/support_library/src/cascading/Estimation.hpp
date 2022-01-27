@@ -10,6 +10,7 @@
 
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 namespace ethosn
 {
@@ -20,7 +21,7 @@ struct EstimatedPass
 {
     PassStats m_Stats;
     /// The Ops included in this pass.
-    std::unordered_set<Op*> m_Ops;
+    std::vector<Op*> m_Ops;
 };
 
 EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,

@@ -13,7 +13,7 @@
 #include "MceEstimationUtils.hpp"
 #include "Part.hpp"
 
-#include <iostream>
+#include <ethosn_utils/Strings.hpp>
 
 using namespace std;
 using namespace ethosn::support_library::utils;
@@ -44,7 +44,7 @@ EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
 
     auto includeOp = [&](Op* op) {
         unprocessed.erase(op);
-        result.m_Ops.insert(op);
+        result.m_Ops.push_back(op);
     };
 
     assert(unprocessed.count(op) > 0);
@@ -136,7 +136,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
 
     auto includeOp = [&](Op* op) {
         unprocessed.erase(op);
-        result.m_Ops.insert(op);
+        result.m_Ops.push_back(op);
     };
 
     assert(unprocessed.count(op) > 0);
@@ -354,7 +354,7 @@ EstimatedPass EstimateConcatOp(const OpGraph& opGraph,
 
     auto includeOp = [&](Op* op) {
         unprocessed.erase(op);
-        result.m_Ops.insert(op);
+        result.m_Ops.push_back(op);
     };
 
     assert(unprocessed.count(op) > 0);
@@ -435,14 +435,25 @@ EstimatedPass EstimateConcatOp(const OpGraph& opGraph,
 
 namespace
 {
-std::string GetParentIds(const EstimatedOpGraph& estimatedOpGraph,
-                         const OpGraph& opGraph,
-                         const std::unordered_set<Op*>& ops,
-                         const uint32_t passId)
-{
-    std::stringstream ss;
-    std::map<uint32_t, std::string> uniqueIds;
 
+std::string GetParentIds(const std::vector<Op*>& ops, const EstimatedOpGraph& estimatedOpGraph, const OpGraph& opGraph);
+
+std::string GetIdOfPass(Op* op, const EstimatedOpGraph& estimatedOpGraph, const OpGraph& opGraph)
+{
+    auto passIt = estimatedOpGraph.m_OpToPass.find(op);
+    if (passIt != estimatedOpGraph.m_OpToPass.end())
+    {
+        return std::to_string(passIt->second);
+    }
+
+    return GetParentIds({ op }, estimatedOpGraph, opGraph);
+}
+
+std::string GetParentIds(const std::vector<Op*>& ops, const EstimatedOpGraph& estimatedOpGraph, const OpGraph& opGraph)
+{
+    std::unordered_set<Op*> opsSet(ops.begin(), ops.end());    // For fast lookups
+
+    std::vector<std::string> parts;
     for (Op* op : ops)
     {
         OpGraph::BufferList inputs = opGraph.GetInputs(op);
@@ -450,38 +461,27 @@ std::string GetParentIds(const EstimatedOpGraph& estimatedOpGraph,
         for (auto&& input : inputs)
         {
             Op* producer = opGraph.GetProducer(input);
-
-            auto idsIt = estimatedOpGraph.m_OpToPass.find(producer);
-            if (idsIt != estimatedOpGraph.m_OpToPass.end())
+            // Don't traverse any further if the Buffer is not connected (e.g. network input) or
+            // it's connected to something else in the same Part.
+            if (producer == nullptr || opsSet.count(producer) > 0)
             {
-                if (uniqueIds.find(idsIt->second) != uniqueIds.end())
-                {
-                    continue;
-                }
-
-                if (idsIt->second != passId)
-                {
-                    uniqueIds[idsIt->second] = std::to_string(idsIt->second);
-                }
+                continue;
             }
+
+            parts.push_back(GetIdOfPass(producer, estimatedOpGraph, opGraph));
         }
     }
 
-    ss << "[";
-    if (uniqueIds.size() == 0)
+    if (parts.size() == 0)
     {
-        // Input node
-        ss << " [] ";
+        return "[ [] ]";
     }
-    for (auto it = uniqueIds.begin(); it != uniqueIds.end(); ++it)
+    else
     {
-        const bool isLast = it == std::prev(uniqueIds.end());
-        ss << " " << it->second << (isLast ? " " : ",");
+        return "[ " + ethosn::utils::Join(", ", parts, [](const std::string& x) { return x; }) + " ]";
     }
-    ss << ']';
-
-    return ss.str();
 }
+
 }    // namespace
 
 EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
@@ -611,7 +611,7 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
         PassPerformanceData passData;
         const uint32_t sortedPassIdx       = static_cast<uint32_t>(result.m_PerfData.m_Stream.size());
         const EstimatedPass& estimatedPass = unsortedPasses[unsortedPassIdxIt->second];
-        passData.m_ParentIds               = GetParentIds(result, opGraph, estimatedPass.m_Ops, sortedPassIdx);
+        passData.m_ParentIds               = GetParentIds(estimatedPass.m_Ops, result, opGraph);
         passData.m_Stats                   = estimatedPass.m_Stats;
 
         for (Op* op : estimatedPass.m_Ops)
