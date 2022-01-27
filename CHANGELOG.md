@@ -4,42 +4,41 @@
 
 ### New features
 
-- Support for Arm NN 21.11
-- Support for EfficientNet Lite
-- Support of user controlled workload scheduling on multiple separated devices
-- Support for Hibernation in SMMU configurations
+- Support for Arm NN 21.11.
+- Support for EfficientNet Lite.
+- Support of user-controlled workload scheduling on multiple separated devices.
+- Support for hibernation in SMMU configurations.
 
 ### Public API changes
 
 - Version number updates:
-  - Command stream version updated to 3.0.0
-  - Driver library version updated to 1.3.0
-  - Firmware version updated to 3.0.0
-  - Kernel module version updated to 2.0.0
-  - Support library version updated to 3.0.0
+  - Command stream version updated to 3.0.0.
+  - Driver library version updated to 1.3.0.
+  - Firmware version updated to 3.0.0.
+  - Kernel module version updated to 2.0.0.
+  - Support library version updated to 3.0.0.
 - Driver library:
-  - GetMappedBuffer is deprecated and support will be removed in next release
+  - GetMappedBuffer is deprecated and support will be removed in next release.
 
 ### Other changes
 
-- Performance improvement of 2.5x for Leaky ReLU
+- Performance improvement of 2.5x for Leaky ReLU.
 - Kernel module:
-  - Use of DMA API for buffer allocation
-  - An additional task stack is now allocated for use by the firmware
-  - Memory regions and streams have been decoupled to allow multiple regions to be associated with the same stream with
-    more fine grained memory restrictions
-  - Support use of reserved regions in SMMU configurations
-  - Linux version 4.14 and 4.19 are deprecated in SMMU configurations and support will be removed in next release
-  - Improved SMC error handling to support errors from both 32 & 64-bit Trusted Firmware-A
-  - Additional SMC logging
-  - Build in release mode by default
-  - Fixed some resources not being cleaned up correctly in error handling
-  - Removed 512 MB limit for DMA buffers when SMMU is present
+  - Use of DMA API for buffer allocation.
+  - An additional task stack is now allocated for use by the firmware.
+  - Memory regions and streams have been decoupled to allow multiple regions to be associated with the same stream with more fine grained memory restrictions.
+  - Support use of reserved regions in SMMU configurations.
+  - Linux version 4.14 and 4.19 are deprecated in SMMU configurations and support will be removed in next release.
+  - Improved SMC error handling to support errors from both 32-bit and 64-bit Trusted Firmware-A.
+  - Additional SMC logging.
+  - Build in release mode by default.
+  - Fixed some resources not being cleaned up correctly in error handling.
+  - Removed 512MB limit for DMA buffers when SMMU is present.
 - Support library:
-  - Improve zero point checks in support queries
-  - Fixed some resources not being cleaned up correctly in error handling
-  - Fixed overflow in direct convolution when estimating SRGAN performance
-  - Improve error handling by replacing some asserts with throwing exceptions
+  - Improve zero point checks in support queries.
+  - Fixed some resources not being cleaned up correctly in error handling.
+  - Fixed overflow in direct convolution when estimating SRGAN performance.
+  - Improve error handling by replacing some asserts with throwing exceptions.
 
 ### Known issues
 
@@ -65,16 +64,18 @@
   - Sleep: This is a runtime power management feature that dynamically puts the NPU in a low-power state when it is not being used. The rest of the system still functions normally.
 
 ### Public API changes
+
 - The versions of the following libraries were updated:
-  - Support library version updated to 1.1.0
-  - Driver library version updated to 1.2.0
-  - Kernel module version updated to 1.1.0
+  - Support library version updated to 1.1.0.
+  - Driver library version updated to 1.2.0.
+  - Kernel module version updated to 1.1.0.
 - If the capabilities for Ethos-N37, Ethos-N57, or Ethos-N77 are requested, the GetFwAndHwCapabilities() function of the support library now throws an exception.
 - If compilation or performance estimation is attempted for Ethos-N37, Ethos-N57, or Ethos-N77, the support library now throws an exception.
 - Added power management profiling counters to the kernel module and driver library.
 - Added an IsReinterpretQuantizationSupported method to the support library to check if the given operation is supported.
 
 ### Other changes
+
 - This driver release supports only the Ethos-N78 NPU.
 - The previously deprecated Ethos-N77 support has been removed.
 - The support library no longer directly supports broadcasted addition between a constant and non-constant tensor. For users of Arm NN, most cases of this are now handled by the Arm NN Ethos-N backend instead by performing a graph replacement. Other users of the support library can handle this similarly.
@@ -90,6 +91,7 @@
 - Fixed an issue where consecutive inferences could overwrite each other's outputs.
 
 ### Known issues
+
 - The output of a network can contain nonzero data outside of the valid tensor region when the output format is NHWCB.
 - The network pattern Constant → Reshape → Addition, where the Addition is broadcasting this input along width and height, is no longer supported by the support library or the Arm NN backend.
 
@@ -120,13 +122,13 @@
 - The support library's DeserializeCompiledNetwork function has been removed. Serialized compiled networks can now be loaded by the driver library instead.
 - The serialized format of a support library compiled network has changed and is not backwards compatible.
 - Methods that provided access to buffer information intended for internal use have been removed from the support library CompiledNetwork object.
-- The support library's function for retrieving the buffer information will return in the order that the buffers were added by the user.
+- The support library's function for retrieving the buffer information returns in the order that the buffers were added by the user.
 - Added compatibility checks between various components.
 
 ### Other changes
 
 - This driver release only supports the Ethos-N77 and Ethos-N78 NPUs.
-- The Ethos-N77 support is deprecated and will be removed in 21.08.
+- The Ethos-N77 support is deprecated and was removed in 21.08.
 - Improved performance of the support library's weight encoder, leading to reduced network compilation time, up to 2x in some cases.
 - Users can new turn off warnings as errors (-Werror) by specifying werror=0 in scons.
 - An XML representation of the command stream can be dumped from the driver library by enabling a debug option
@@ -306,7 +308,7 @@ The output of the network does not exactly match the Arm NN reference backend, a
 ### Public API changes
 
 - Added EstimatePerformance() and supporting types to the support library.
-- Arm NN backend runs in performance estimation mode if enabled in a config file which location is specified via environment variable ARMNN_NPU_BACKEND_CONFIG_FILE.
+- Arm NN backend runs in performance estimation mode if enabled in a config file which location is specified in the environment variable ARMNN_NPU_BACKEND_CONFIG_FILE.
 
 ### Other changes
 
