@@ -1848,7 +1848,7 @@ void ethosn_device_deinit(struct ethosn_core *core)
 
 	ethosn_global_core_for_testing = NULL;
 
-	ethosn_hard_reset(core);
+	ethosn_reset(core);
 	ethosn_firmware_deinit(core);
 	ethosn_mailbox_free(core);
 	dfs_deinit(core);
