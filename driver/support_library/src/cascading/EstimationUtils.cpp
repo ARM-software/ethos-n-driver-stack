@@ -311,103 +311,53 @@ InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRa
     return ret;
 }
 
-uint64_t GetPerformanceTotalDataMetric(const NetworkPerformanceData& netPerfData)
+double CalculateMetric(const NetworkPerformanceData& networkPerfData)
 {
-    return GetPerformanceParallelDataMetric(netPerfData) + GetPerformanceNonParallelDataMetric(netPerfData);
-}
-
-uint64_t GetPerformanceNonParallelDataMetric(const NetworkPerformanceData& netPerfData)
-{
-    uint64_t nonParallelData = 0UL;
-    for (PassPerformanceData passPerfData : netPerfData.m_Stream)
+    uint64_t nonParallelBytes = 0;
+    for (PassPerformanceData passPerfData : networkPerfData.m_Stream)
     {
-        nonParallelData += passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel +
-                           passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel +
-                           passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel;
+        nonParallelBytes += passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel +
+                            passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel +
+                            passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel;
     }
-    return nonParallelData;
-}
+    double nonParallelBytesDouble = static_cast<double>(nonParallelBytes);
 
-uint64_t GetPerformanceParallelDataMetric(const NetworkPerformanceData& netPerfData)
-{
-    uint64_t parallelData = 0UL;
-    for (PassPerformanceData passPerfData : netPerfData.m_Stream)
+    uint64_t parallelBytes = 0;
+    for (PassPerformanceData passPerfData : networkPerfData.m_Stream)
     {
-        parallelData += passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramParallel +
-                        passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramParallel +
-                        passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramParallel;
+        parallelBytes += passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramParallel +
+                         passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramParallel +
+                         passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramParallel;
     }
-    return parallelData;
-}
+    double parallelBytesDouble = static_cast<double>(parallelBytes);
 
-uint64_t GetPerformanceMceCycleCountMetric(const NetworkPerformanceData& netPerfData)
-{
-    return std::accumulate(netPerfData.m_Stream.begin(), netPerfData.m_Stream.end(), 0ULL,
-                           [](uint64_t a, const PassPerformanceData& p) { return a + p.m_Stats.m_Mce.m_CycleCount; });
-}
+    uint64_t mceCycleCount =
+        std::accumulate(networkPerfData.m_Stream.begin(), networkPerfData.m_Stream.end(), 0ULL,
+                        [](uint64_t a, const PassPerformanceData& p) { return a + p.m_Stats.m_Mce.m_CycleCount; });
+    double mceCycleCountDouble = static_cast<double>(mceCycleCount);
 
-namespace
-{
-
-enum class MetricType
-{
-    Total,
-    Parallel,
-    NonParallel,
-    MceCycleCount
-};
-
-uint64_t GetPerformanceMetric(const NetworkPerformanceData& netPerfData, const MetricType metricType)
-{
-    switch (metricType)
-    {
-        case MetricType::Total:
-            return GetPerformanceTotalDataMetric(netPerfData);
-        case MetricType::Parallel:
-            return GetPerformanceParallelDataMetric(netPerfData);
-        case MetricType::NonParallel:
-            return GetPerformanceNonParallelDataMetric(netPerfData);
-        case MetricType::MceCycleCount:
-            return GetPerformanceMceCycleCountMetric(netPerfData);
-        default:
-        {
-            std::string errorMessage = "Error in " + std::string(__func__) + ": metric type " +
-                                       std::to_string(static_cast<uint32_t>(metricType)) + " is not implemented";
-            throw std::invalid_argument(errorMessage);
-        }
-    }
-}
-
-// Sequence of metric types to compare against
-std::vector<MetricType> g_MetricOrder = { MetricType::Total, MetricType::NonParallel, MetricType::MceCycleCount };
-
-}    // namespace
-
-std::vector<uint64_t> GetPerformanceMetrics(const NetworkPerformanceData& netPerfData)
-{
-    std::vector<uint64_t> result(g_MetricOrder.size());
-    std::transform(g_MetricOrder.begin(), g_MetricOrder.end(), result.begin(),
-                   [&](MetricType m) { return GetPerformanceMetric(netPerfData, m); });
-    return result;
+    constexpr double dramBandwidth  = 12000000000;    // bytes/second
+    constexpr double clockFrequency = 1250000000;     // cycles/second
+    constexpr double bytesPerCycle  = dramBandwidth / clockFrequency;
+    double metric =
+        (nonParallelBytesDouble / bytesPerCycle) + std::max(parallelBytesDouble / bytesPerCycle, mceCycleCountDouble);
+    return metric;
 }
 
 PerformanceComparisonResult ComparePerformanceData(const NetworkPerformanceData& left,
                                                    const NetworkPerformanceData& right)
 {
-    for (const auto& metricType : g_MetricOrder)
+    double metricLeft  = CalculateMetric(left);
+    double metricRight = CalculateMetric(right);
+
+    if (metricLeft < metricRight)
     {
-        const uint64_t metricLeft  = GetPerformanceMetric(left, metricType);
-        const uint64_t metricRight = GetPerformanceMetric(right, metricType);
+        return PerformanceComparisonResult::LeftBetter;
+    }
 
-        if (metricLeft < metricRight)
-        {
-            return PerformanceComparisonResult::LeftBetter;
-        }
-
-        if (metricLeft > metricRight)
-        {
-            return PerformanceComparisonResult::RightBetter;
-        }
+    if (metricLeft > metricRight)
+    {
+        return PerformanceComparisonResult::RightBetter;
     }
     return PerformanceComparisonResult::Equal;
 }

@@ -52,11 +52,7 @@ OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeSh
 
 InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRatio);
 
-uint64_t GetPerformanceTotalDataMetric(const NetworkPerformanceData& netPerfData);
-uint64_t GetPerformanceParallelDataMetric(const NetworkPerformanceData& netPerfData);
-uint64_t GetPerformanceNonParallelDataMetric(const NetworkPerformanceData& netPerfData);
-uint64_t GetPerformanceMceCycleCountMetric(const NetworkPerformanceData& netPerfData);
-std::vector<uint64_t> GetPerformanceMetrics(const NetworkPerformanceData& netPerfData);
+double CalculateMetric(const NetworkPerformanceData& networkPerfData);
 
 enum class PerformanceComparisonResult
 {
