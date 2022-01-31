@@ -1579,9 +1579,32 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
                         result.AddBuffer(b);
                     }
 
-                    // Input DMA is always added when the glue
-                    // is visited for the first time
-                    result.AddOp(glue->m_Graph.GetOp(0));
+                    // Only add the input DMA if the edge connect buffer
+                    // is not in the SRAM.
+                    //
+                    // Note the input DMA should be already added
+                    // when the glue is first encountered at the
+                    // end of the input part.
+                    //
+                    // If the edge connect buffer is in SRAM, the data
+                    // stored in this buffer must be transfered to a
+                    // DRAM buffer right after its producing operation.
+                    // This is because the part linked to
+                    // a glue is always the last of  a section and the data
+                    // cannot be retained in the SRAM.
+                    // If the edge connect buffer is already in the DRAM,
+                    // then the transfer of the data from DRAM to SRAM
+                    // should start just before its consuming operation.
+                    if (edgeConnectionBuffers.at(inputSlot)->m_Location != Location::Sram)
+                    {
+                        result.AddOp(glue->m_Graph.GetOp(0));
+                    }
+                    else
+                    {
+                        // sanity check. DMA should already be in the op-graph
+                        assert(std::find(result.GetOps().begin(), result.GetOps().end(), glue->m_Graph.GetOp(0)) !=
+                               result.GetOps().end());
+                    }
 
                     // Add internal connections within the glue
                     // There is only once produce for the buffer
@@ -1732,7 +1755,7 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
 
                     glues[inputSlot] = outGlue;
 
-                    // If the glue is visisted for the first time, then
+                    // If the glue is visited for the first time, then
                     // initialise the counter.
                     if (numEdgesGlue.find(outGlue) == numEdgesGlue.end())
                     {
@@ -1742,6 +1765,15 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
                         assert(inbufSramCnt.find(outGlue) == inbufSramCnt.end());
                         incomingGlueCnt[outGlue] = 0;
                         inbufSramCnt[outGlue]    = 0;
+
+                        // If the output buffer is SRAM, then the glue's DMA
+                        // that moves the data to the destination DRAM must be
+                        // added now. The part connected to a glue is the end
+                        // of a section.Output data cannot be kept in the SRAM.
+                        if (output.first->m_Location == Location::Sram)
+                        {
+                            result.AddOp(outGlue->m_Graph.GetOp(0));
+                        }
                     }
                     else
                     {

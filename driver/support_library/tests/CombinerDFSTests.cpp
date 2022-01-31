@@ -8,6 +8,7 @@
 #include "../src/SramAllocator.hpp"
 #include "../src/cascading/Cascading.hpp"
 #include "../src/cascading/CombinerDFS.hpp"
+#include "../src/cascading/McePart.hpp"
 #include "../src/cascading/StripeHelper.hpp"
 #include "TestUtils.hpp"
 
@@ -627,6 +628,301 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[4])[0].second == 0);
 
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[5]).size() == 0);
+}
+
+// Manually creating a MISO test case with three parts
+//         A   B
+//          \ /
+//           C
+// Both A and B's output buffers's location are in SRAM
+// C's input buffer is DRAM
+// This test is to validate the order of the operations
+// is as expected in the Op graph.
+TEST_CASE("GetOpGraphForDfsMISOSramsToDrams", "[CombinerDFS]")
+{
+    DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
+
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
+
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+
+    PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
+    PartOutputSlot partBOutputSlot = { partB.GetPartId(), 0 };
+
+    PartInputSlot partCInputSlot0 = { partC.GetPartId(), 0 };
+    PartInputSlot partCInputSlot1 = { partC.GetPartId(), 1 };
+
+    connections[partCInputSlot0] = { partAOutputSlot };
+    connections[partCInputSlot1] = { partBOutputSlot };
+
+    const CompilationOptions compOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+
+    // Plan A
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramA";
+    planA.m_OutputMappings                          = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
+    auto dummyOpA                                   = std::make_unique<DummyOp>();
+    dummyOpA->m_DebugTag                            = "DummyA";
+    planA.m_OpGraph.AddOp(std::move(dummyOpA));
+
+    // Plan B
+    Plan planB;
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramB";
+    planB.m_OutputMappings                          = { { planB.m_OpGraph.GetBuffers()[0], partBOutputSlot } };
+    auto dummyOpB                                   = std::make_unique<DummyOp>();
+    dummyOpB->m_DebugTag                            = "DummyB";
+    planB.m_OpGraph.AddOp(std::move(dummyOpB));
+
+    // Glue between A and C
+    Glue glueA_C;
+    glueA_C.m_Graph.AddOp(std::make_unique<DmaOp>());
+    glueA_C.m_Graph.GetOps()[0]->m_DebugTag = "GlueAC_Dma";
+    glueA_C.m_InputSlot                     = { glueA_C.m_Graph.GetOps()[0], 0 };
+    glueA_C.m_Output.push_back(glueA_C.m_Graph.GetOps()[0]);
+
+    // Glue between B and C
+    Glue glueB_C;
+    glueB_C.m_Graph.AddOp(std::make_unique<DmaOp>());
+    glueB_C.m_Graph.GetOps()[0]->m_DebugTag = "GlueBC_Dma";
+    glueB_C.m_InputSlot                     = { glueB_C.m_Graph.GetOps()[0], 0 };
+    glueB_C.m_Output.push_back(glueB_C.m_Graph.GetOps()[0]);
+
+    // Plan C
+    Plan planC;
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "Input0DramC";
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "Input1DramC";
+    planC.m_InputMappings                           = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot0 },
+                              { planC.m_OpGraph.GetBuffers()[1], partCInputSlot1 } };
+    auto dummyOpC                                   = std::make_unique<DummyOp>();
+    dummyOpC->m_DebugTag                            = "DummyC";
+    planC.m_OpGraph.AddOp(std::move(dummyOpC));
+
+    // Create Combination with all the plans and glues
+    Combination comb;
+
+    Elem elemA = { std::make_shared<Plan>(std::move(planA)), { { partCInputSlot0, { &glueA_C, true } } } };
+    Elem elemB = { std::make_shared<Plan>(std::move(planB)), { { partCInputSlot1, { &glueB_C, true } } } };
+    Elem elemC = { std::make_shared<Plan>(std::move(planC)), {} };
+
+    comb.m_Elems.insert(std::make_pair(0, elemA));
+    comb.m_PartIdsInOrder.push_back(0);
+    comb.m_Elems.insert(std::make_pair(1, elemB));
+    comb.m_PartIdsInOrder.push_back(1);
+    comb.m_Elems.insert(std::make_pair(2, elemC));
+    comb.m_PartIdsInOrder.push_back(2);
+
+    bool dumpInputGraphToFile = false;
+    if (dumpInputGraphToFile)
+    {
+        std::ofstream stream("GetOpGraphForDfsMISOSramsToDrams.dot");
+        SaveCombinationToDot(comb, graph, stream, DetailLevel::High);
+    }
+
+    // Call function under test
+    OpGraph combOpGraph = GetOpGraphForCombination(comb, graph);
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("GetOpGraphForDfsCombinationMergedBuffer Output.dot");
+        SaveOpGraphToDot(combOpGraph, stream, DetailLevel::High);
+    }
+
+    // Output buffers of the sources A, B are both in SRAM
+    // Therefore, the input DMA of the glue must be inserted
+    // right after the op of its source plan
+    // The correct order of should be:
+    // (1) opA (2) glueAC_DMA (3) op B (4) glueBC_DMA (5) op C
+    REQUIRE(combOpGraph.GetBuffers().size() == 4);
+    REQUIRE(combOpGraph.GetBuffers()[0]->m_DebugTag == "OutputSramA");
+    REQUIRE(combOpGraph.GetBuffers()[1]->m_DebugTag == "OutputSramB");
+    REQUIRE(combOpGraph.GetBuffers()[2]->m_DebugTag == "Input0DramC");
+    REQUIRE(combOpGraph.GetBuffers()[3]->m_DebugTag == "Input1DramC");
+    REQUIRE(combOpGraph.GetOps().size() == 5);
+    REQUIRE(combOpGraph.GetOps()[0]->m_DebugTag == "DummyA");
+    REQUIRE(combOpGraph.GetOps()[1]->m_DebugTag == "GlueAC_Dma");
+    REQUIRE(combOpGraph.GetOps()[2]->m_DebugTag == "DummyB");
+    REQUIRE(combOpGraph.GetOps()[3]->m_DebugTag == "GlueBC_Dma");
+    REQUIRE(combOpGraph.GetOps()[4]->m_DebugTag == "DummyC");
+
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[0]).size() == 1);
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[0])[0].first->m_DebugTag == "GlueAC_Dma");
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[1]).size() == 1);
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[1])[0].first->m_DebugTag == "GlueBC_Dma");
+    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[2])->m_DebugTag == "GlueAC_Dma");
+    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[3])->m_DebugTag == "GlueBC_Dma");
+}
+
+// Manually creating a MISO test case with three parts
+//         A   B
+//          \ /
+//           C
+// Both A and B's output buffers's location are in DRAM
+// C's input buffer is SRAM
+// This test is to validate the order of the operations
+// is as expected in the Op graph.
+TEST_CASE("GetOpGraphForDfsMISODramsToSrams", "[CombinerDFS]")
+{
+    DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
+
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
+
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+
+    PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
+    PartOutputSlot partBOutputSlot = { partB.GetPartId(), 0 };
+
+    PartInputSlot partCInputSlot0 = { partC.GetPartId(), 0 };
+    PartInputSlot partCInputSlot1 = { partC.GetPartId(), 1 };
+
+    connections[partCInputSlot0] = { partAOutputSlot };
+    connections[partCInputSlot1] = { partBOutputSlot };
+
+    const CompilationOptions compOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+
+    // Plan A
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramA";
+    planA.m_OutputMappings                          = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
+    auto dummyOpA                                   = std::make_unique<DummyOp>();
+    dummyOpA->m_DebugTag                            = "DummyA";
+    planA.m_OpGraph.AddOp(std::move(dummyOpA));
+
+    // Plan B
+    Plan planB;
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramB";
+    planB.m_OutputMappings                          = { { planB.m_OpGraph.GetBuffers()[0], partBOutputSlot } };
+    auto dummyOpB                                   = std::make_unique<DummyOp>();
+    dummyOpB->m_DebugTag                            = "DummyB";
+    planB.m_OpGraph.AddOp(std::move(dummyOpB));
+
+    // Glue between A and C
+    Glue glueA_C;
+    glueA_C.m_Graph.AddOp(std::make_unique<DmaOp>());
+    glueA_C.m_Graph.GetOps()[0]->m_DebugTag = "GlueAC_Dma";
+    glueA_C.m_InputSlot                     = { glueA_C.m_Graph.GetOps()[0], 0 };
+    glueA_C.m_Output.push_back(glueA_C.m_Graph.GetOps()[0]);
+
+    // Glue between B and C
+    Glue glueB_C;
+    glueB_C.m_Graph.AddOp(std::make_unique<DmaOp>());
+    glueB_C.m_Graph.GetOps()[0]->m_DebugTag = "GlueBC_Dma";
+    glueB_C.m_InputSlot                     = { glueB_C.m_Graph.GetOps()[0], 0 };
+    glueB_C.m_Output.push_back(glueB_C.m_Graph.GetOps()[0]);
+
+    // Plan C
+    Plan planC;
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "Input0DramC";
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "Input1DramC";
+    planC.m_InputMappings                           = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot0 },
+                              { planC.m_OpGraph.GetBuffers()[1], partCInputSlot1 } };
+    auto dummyOpC                                   = std::make_unique<DummyOp>();
+    dummyOpC->m_DebugTag                            = "DummyC";
+    planC.m_OpGraph.AddOp(std::move(dummyOpC));
+
+    // Create Combination with all the plans and glues
+    Combination comb;
+
+    Elem elemA = { std::make_shared<Plan>(std::move(planA)), { { partCInputSlot0, { &glueA_C, true } } } };
+    Elem elemB = { std::make_shared<Plan>(std::move(planB)), { { partCInputSlot1, { &glueB_C, true } } } };
+    Elem elemC = { std::make_shared<Plan>(std::move(planC)), {} };
+
+    comb.m_Elems.insert(std::make_pair(0, elemA));
+    comb.m_PartIdsInOrder.push_back(0);
+    comb.m_Elems.insert(std::make_pair(1, elemB));
+    comb.m_PartIdsInOrder.push_back(1);
+    comb.m_Elems.insert(std::make_pair(2, elemC));
+    comb.m_PartIdsInOrder.push_back(2);
+
+    bool dumpInputGraphToFile = false;
+    if (dumpInputGraphToFile)
+    {
+        std::ofstream stream("GetOpGraphForDfsMISOSramsToDrams.dot");
+        SaveCombinationToDot(comb, graph, stream, DetailLevel::High);
+    }
+
+    // Call function under test
+    OpGraph combOpGraph = GetOpGraphForCombination(comb, graph);
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("GetOpGraphForDfsCombinationMergedBuffer Output.dot");
+        SaveOpGraphToDot(combOpGraph, stream, DetailLevel::High);
+    }
+
+    // Output buffers of the sources A, B are both in SRAM
+    // Therefore, the input DMA of the glue must be inserted
+    // right before the op of its destination plan
+    // The correct order of should be:
+    // (1) opA (2) op B  (3) glueAC_DMA (4) glueBC_DMA (5) op C    REQUIRE(combOpGraph.GetBuffers().size() == 4);
+    REQUIRE(combOpGraph.GetBuffers()[0]->m_DebugTag == "OutputSramA");
+    REQUIRE(combOpGraph.GetBuffers()[1]->m_DebugTag == "OutputSramB");
+    REQUIRE(combOpGraph.GetBuffers()[2]->m_DebugTag == "Input0DramC");
+    REQUIRE(combOpGraph.GetBuffers()[3]->m_DebugTag == "Input1DramC");
+    REQUIRE(combOpGraph.GetOps().size() == 5);
+    REQUIRE(combOpGraph.GetOps()[0]->m_DebugTag == "DummyA");
+    REQUIRE(combOpGraph.GetOps()[1]->m_DebugTag == "DummyB");
+    REQUIRE(combOpGraph.GetOps()[2]->m_DebugTag == "GlueAC_Dma");
+    REQUIRE(combOpGraph.GetOps()[3]->m_DebugTag == "GlueBC_Dma");
+    REQUIRE(combOpGraph.GetOps()[4]->m_DebugTag == "DummyC");
+
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[0]).size() == 1);
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[0])[0].first->m_DebugTag == "GlueAC_Dma");
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[1]).size() == 1);
+    REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[1])[0].first->m_DebugTag == "GlueBC_Dma");
+    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[2])->m_DebugTag == "GlueAC_Dma");
+    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[3])->m_DebugTag == "GlueBC_Dma");
 }
 
 // Manually creates a partial combination starting and ending in Sram and converts it to an OpGraph using the GetOpGraphForCombination.
