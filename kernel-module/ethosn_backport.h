@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2021 Arm Limited.
+ * (C) COPYRIGHT 2021-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -69,7 +69,7 @@ struct iommu_domain *ethosn_iommu_get_domain_for_dev(struct device *dev);
 
 int ethosn_bitmap_find_next_zero_area(struct device *dev,
 				      void **bitmap,
-				      size_t bits,
+				      size_t *bits,
 				      int nr_pages,
 				      unsigned long *start);
 

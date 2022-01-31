@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2021 Arm Limited.
+ * (C) COPYRIGHT 2021-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -118,33 +118,33 @@ struct iommu_domain *ethosn_iommu_get_domain_for_dev(struct device *dev)
 
 int ethosn_bitmap_find_next_zero_area(struct device *dev,
 				      void **bitmap,
-				      size_t bits,
+				      size_t *bits,
 				      int nr_pages,
 				      unsigned long *start)
 {
 #if (KERNEL_VERSION(4, 20, 0) > LINUX_VERSION_CODE)
-	*start = bitmap_find_next_zero_area(*bitmap, bits, 0,
+	*start = bitmap_find_next_zero_area(*bitmap, *bits, 0,
 					    nr_pages, 0);
-	if (*start > bits)
+	if (*start > *bits)
 		return -ENOMEM;
 
 #else
 
 retry:
-	*start = bitmap_find_next_zero_area(*bitmap, bits, 0,
+	*start = bitmap_find_next_zero_area(*bitmap, *bits, 0,
 					    nr_pages, 0);
-	if (*start > bits) {
-		size_t bitmap_size = bits / BITS_PER_BYTE;
+
+	if (*start > *bits) {
+		size_t bitmap_size = 2 * (*bits / BITS_PER_BYTE);
 		void *tmp_bitmap_ptr =
-			devm_kzalloc(dev, bitmap_size * 2,
+			devm_kzalloc(dev, bitmap_size,
 				     GFP_KERNEL);
 
 		if (!tmp_bitmap_ptr)
 			return -ENOMEM;
 
-		bitmap_copy(tmp_bitmap_ptr, *bitmap, bitmap_size);
-		bitmap_size *= 2;
-		bits = bitmap_size * BITS_PER_BYTE;
+		bitmap_copy(tmp_bitmap_ptr, *bitmap, *bits);
+		*bits = bitmap_size * BITS_PER_BYTE;
 		devm_kfree(dev, *bitmap);
 		*bitmap = tmp_bitmap_ptr;
 		goto retry;

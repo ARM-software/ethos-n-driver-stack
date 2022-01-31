@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited.
+ * (C) COPYRIGHT 2018-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -209,7 +209,7 @@ static dma_addr_t iommu_alloc_iova(struct device *dev,
 	spin_lock_irqsave(&stream->lock, flags);
 
 	ret = ethosn_bitmap_find_next_zero_area(dev,
-						&stream->bitmap, stream->bits,
+						&stream->bitmap, &stream->bits,
 						nr_pages, &start);
 	if (ret)
 		goto ret;
