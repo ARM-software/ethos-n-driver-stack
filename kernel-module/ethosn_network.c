@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited.
+ * (C) COPYRIGHT 2018-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -414,12 +414,16 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 				   network->inference_data[core_id]);
 	core->current_inference = inference;
 
+	pm_runtime_get_sync(core->dev);
+
 	/* send the inference to the core assigned to it */
 	ret = ethosn_send_inference(core,
 				    network->inference_data[core_id]->iova_addr,
 				    (ptrdiff_t)inference);
 	if (ret) {
 		core->current_inference = NULL;
+		pm_runtime_mark_last_busy(core->dev);
+		pm_runtime_put(core->dev);
 
 		goto out_inference_error;
 	}
@@ -707,29 +711,15 @@ static int ethosn_inference_register(struct ethosn_network *network,
 		 */
 		core = ethosn->core[i];
 
-		pm_runtime_get_sync(core->dev);
-
 		ret = mutex_lock_interruptible(&core->mutex);
 
 		/* Return the file descriptor */
-		if (ret) {
-			pm_runtime_mark_last_busy(core->dev);
-			pm_runtime_put(core->dev);
-
+		if (ret)
 			goto end;
-		}
 
 		if (core->current_inference == NULL) {
 			found = true;
 			ethosn_schedule_queued_inference(core);
-		}
-
-		/* ethosn_schedule_queued_inference modifies current_inference,
-		 * put if nothing has been scheduled on this core
-		 */
-		if (!found || (found && !core->current_inference)) {
-			pm_runtime_mark_last_busy(core->dev);
-			pm_runtime_put(core->dev);
 		}
 
 		mutex_unlock(&core->mutex);
@@ -1266,6 +1256,8 @@ void ethosn_network_poll(struct ethosn_core *core,
 			inference, ktime_get_ns(), core->core_id);
 
 		ethosn_put_inference(inference);
+		pm_runtime_mark_last_busy(core->dev);
+		pm_runtime_put(core->dev);
 	}
 
 	/* Reset current running inference. */
@@ -1273,12 +1265,4 @@ void ethosn_network_poll(struct ethosn_core *core,
 
 	/* Schedule next queued inference. */
 	ethosn_schedule_queued_inference(core);
-
-	/* ethosn_schedule_queued_inference modifies current_inference,
-	 * put if nothing has been scheduled on this core
-	 */
-	if (!core->current_inference) {
-		pm_runtime_mark_last_busy(core->dev);
-		pm_runtime_put(core->dev);
-	}
 }

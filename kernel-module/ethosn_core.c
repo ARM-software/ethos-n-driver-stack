@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2020-2021 Arm Limited.
+ * (C) COPYRIGHT 2020-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -273,13 +273,8 @@ static int ethosn_pm_common_resume(struct device *dev)
 
 	ethosn_schedule_queued_inference(core);
 
-	/* ethosn_schedule_queued_inference modifies current_inference,
-	 * put if nothing has been scheduled on this core
-	 */
-	if (!core->current_inference) {
+	if (!core->current_inference)
 		pm_runtime_mark_last_busy(core->dev);
-		pm_runtime_put(core->dev);
-	}
 
 	mutex_unlock(&core->mutex);
 
@@ -336,6 +331,8 @@ static int ethosn_pm_common_suspend(struct device *dev)
 	if (core->current_inference) {
 		core->current_inference->status = ETHOSN_INFERENCE_SCHEDULED;
 		ethosn_put_inference(core->current_inference);
+		pm_runtime_mark_last_busy(core->dev);
+		pm_runtime_put(core->dev);
 		ethosn = core->parent;
 
 		ret = mutex_lock_interruptible(
@@ -353,9 +350,6 @@ static int ethosn_pm_common_suspend(struct device *dev)
 		mutex_unlock(&ethosn->queue.inference_queue_mutex);
 
 		core->current_inference = NULL;
-	} else {
-		/* Get if nothing was scheduled on this core */
-		pm_runtime_get_noresume(core->dev);
 	}
 
 	ret = ethosn_reset(core);
