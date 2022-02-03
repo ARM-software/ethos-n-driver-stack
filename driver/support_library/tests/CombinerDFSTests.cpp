@@ -1406,11 +1406,17 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     comb.m_Elems.insert(std::make_pair(5, elemG));
     comb.m_PartIdsInOrder.push_back(5);
 
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("GetOpGraphForCombination Input.dot");
+        SaveCombinationToDot(comb, graph, stream, DetailLevel::High);
+    }
+
     // Call function under test
     OpGraph combOpGraph = GetOpGraphForCombination(comb, graph);
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump the output to a file
-    bool dumpToFile = false;
     if (dumpToFile)
     {
         std::ofstream stream("GetOpGraphForCombination Output.dot");

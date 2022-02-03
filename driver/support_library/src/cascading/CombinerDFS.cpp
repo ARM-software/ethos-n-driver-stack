@@ -1740,13 +1740,21 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
         }
 
         // Store our output connections for future plans, and any glues on our outputs
-        for (auto output : plan.m_OutputMappings)
+        // Note that the order of iteration here needs to be deterministic because we may add some Ops
+        // to the OpGraph (and these need to be added in a consistent order).
+        // Therefore we don't use plan.m_OutputMappings directly, as it does not have a deterministic order.
+        std::vector<PartOutputSlot> outputSlots = parts.GetPartOutputs(partId);
+        // GetPartOutputs will return duplicate values if the output slot has multiple connections.
+        // The below logic requires not to have duplicates, so we remove these first.
+        auto newEnd = std::unique(outputSlots.begin(), outputSlots.end());
+        outputSlots.resize(std::distance(outputSlots.begin(), newEnd));
+        for (auto outputSlot : outputSlots)
         {
-            PartOutputSlot outputSlot = output.second;
-            auto inputSlots           = parts.GetConnectedInputSlots(outputSlot);
+            Buffer* outputBuffer = plan.GetOutputBuffer(outputSlot);
+            auto inputSlots      = parts.GetConnectedInputSlots(outputSlot);
             for (auto&& inputSlot : inputSlots)
             {
-                edgeConnectionBuffers[inputSlot] = output.first;
+                edgeConnectionBuffers[inputSlot] = outputBuffer;
                 auto glueIt                      = elemIt->second.m_Glues.find(inputSlot);
                 if (glueIt != elemIt->second.m_Glues.end() && glueIt->second.m_Glue &&
                     !glueIt->second.m_Glue->m_Graph.GetOps().empty())
@@ -1770,7 +1778,7 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
                         // that moves the data to the destination DRAM must be
                         // added now. The part connected to a glue is the end
                         // of a section.Output data cannot be kept in the SRAM.
-                        if (output.first->m_Location == Location::Sram)
+                        if (outputBuffer->m_Location == Location::Sram)
                         {
                             result.AddOp(outGlue->m_Graph.GetOp(0));
                         }
