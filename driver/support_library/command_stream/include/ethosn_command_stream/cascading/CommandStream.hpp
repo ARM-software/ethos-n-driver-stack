@@ -238,6 +238,13 @@ struct AgentData
         const OfmS ofm;
     };
 
+    constexpr AgentData(const AgentData& other) = default;
+
+    AgentData& operator=(const AgentData& other)
+    {
+        return *new (this) AgentData{ other };
+    }
+
     constexpr AgentData(const IfmS& data)
         : type{ AgentType::IFM_STREAMER }
         , ifm{ data }
