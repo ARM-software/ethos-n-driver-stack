@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited.
+ * (C) COPYRIGHT 2018-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -336,3 +336,6 @@ void ethosn_dma_sync_for_cpu(struct ethosn_dma_allocator *allocator,
 
 	ops->sync_for_cpu(allocator, dma_info);
 }
+
+/* Exported for use by test module */
+EXPORT_SYMBOL(ethosn_dma_sync_for_cpu);
