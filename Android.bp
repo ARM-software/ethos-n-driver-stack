@@ -115,5 +115,6 @@ cc_library {
         "driver/support_library/src/cascading/PleKernelDatabase.cpp",
         "driver/support_library/src/cascading/EstimateOnlyPart.cpp",
         "driver/support_library/src/cascading/StandalonePlePart.cpp",
+        "driver/support_library/src/cascading/CascadingCompiler.cpp",
         ],
 }

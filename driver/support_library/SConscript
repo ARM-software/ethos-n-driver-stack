@@ -75,6 +75,7 @@ srcs = [
     os.path.join("src", "cascading", "PleKernelDatabase.cpp"),
     os.path.join("src", "cascading", "EstimateOnlyPart.cpp"),
     os.path.join("src", "cascading", "StandalonePlePart.cpp"),
+    os.path.join("src", "cascading", "CascadingCompiler.cpp"),
 ]
 
 ethosn_support_lib = env.StaticLibrary("libEthosNSupport", srcs)
