@@ -387,7 +387,7 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     // These will be filtered out by the following layer
     bool fullHeight = GetHeight(prevBuffer->m_StripeShape) >= GetHeight(prevBuffer->m_TensorShape);
     bool fullWidth  = GetWidth(prevBuffer->m_StripeShape) >= GetWidth(prevBuffer->m_TensorShape);
-    bool fullTensor = fullHeight && fullWidth;
+    bool fullPlane  = fullHeight && fullWidth;
     // At the end of a cascde we can double buffer
 
     const TensorShape& inputStripeShape = prevBuffer->m_StripeShape;
@@ -407,7 +407,7 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
 
     uint32_t memoryOutputChannelsEncoding = GetChannels(pleOutputStripe);
     bool isEndOfCascade                   = cascadeType == CascadeType::End;
-    if (fullTensor && !isEndOfCascade)
+    if (fullPlane && !isEndOfCascade)
     {
         memoryOutputChannelsEncoding = 0;
     }
@@ -416,19 +416,20 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     // Sram buffer takes the Stripe shape of the preceding Ple Op.
     TensorShape memoryOutputStripe =
         CreateStripe(m_OutputTensorShape, memoryOutputStripeEncoding, m_Capabilities.GetBrickGroupShape()[3]);
-    bool fullDepth = memoryOutputStripe[3] >= m_OutputTensorShape[3];
+    bool fullDepth  = memoryOutputStripe[3] >= m_OutputTensorShape[3];
+    bool fullTensor = fullPlane && fullDepth;
 
-    // Do not generate Plans, if there is no fullTensor and no fullDepth for MAXPOOL_3x3_2_2.
-    if (!fullTensor && !fullDepth &&
-        (m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
-         m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD))
+    // Do not generate Middle or End Plans, if there is a MAXPOOL_3x3_2_2 Ple Operation without a full tensor.
+    if ((m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+         m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD) &&
+        !fullTensor)
     {
         return ret;
     }
 
     uint32_t maxOutputStripes = 0;
     // strategy 0
-    if (!fullTensor)
+    if (!fullPlane)
     {
         // if its the end of a cascade we can double buffer the output, if it's not we need to output up to 3 stripes for neighouring data.
         maxOutputStripes = isEndOfCascade ? 2 : 3;
@@ -436,7 +437,7 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     // Strategy 1/3
     else if (isEndOfCascade && fullDepth)
     {
-        assert(fullTensor);
+        assert(fullPlane);
         maxOutputStripes = 1;
     }
     else if (!isEndOfCascade)
@@ -446,7 +447,7 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     }
     else if (!fullDepth)
     {
-        assert(fullTensor && isEndOfCascade);
+        assert(fullPlane && isEndOfCascade);
         maxOutputStripes = 2;
     }
 

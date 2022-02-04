@@ -888,6 +888,29 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
             }
         }
 
+        WHEN("Asked to produce Middle plans with split Height in Sram")
+        {
+            Buffer prevBufferEven;
+            prevBufferEven.m_Lifetime         = Lifetime::Cascade;
+            prevBufferEven.m_Location         = Location::Sram;
+            prevBufferEven.m_Format           = CascadingBufferFormat::NHWCB;
+            prevBufferEven.m_QuantizationInfo = { 0, 1.0f };
+            prevBufferEven.m_TensorShape      = tsInEven;
+            prevBufferEven.m_StripeShape      = TensorShape{ 1, 8, 128, 64 };
+            prevBufferEven.m_Order            = TraversalOrder::Xyz;
+            prevBufferEven.m_SizeInBytes      = 1 * 8 * 128 * 64;
+            prevBufferEven.m_NumStripes       = 1;
+
+            Plans plansEven =
+                partEven.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, &prevBufferEven, 1);
+            SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Middle Sram NoFullTensorInput");
+
+            THEN("The are no valid plans that start in Sram and end in Sram")
+            {
+                CHECK(plansEven.size() == 0);
+            }
+        }
+
         WHEN("Asked to produce Middle plans with an input buffer in Sram")
         {
             Buffer prevBufferEven;
@@ -920,7 +943,7 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                 partOdd.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, &prevBufferOdd, 1);
             SavePlansToDot(plansOdd, "FusedPlePart GetPlans MaxPoolOdd Middle Sram Input");
 
-            THEN("The are no valid plans that start in Sram and end in Sram")
+            THEN("The are valid plans that start in Sram and end in Sram")
             {
                 // Middle Sram: MaxPoolEven checks
                 paramsEven.m_InputLocation  = PlanInputLocation::Sram;
