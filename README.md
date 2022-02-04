@@ -359,7 +359,7 @@ There are multiple ways to exercise the Ethos-N NPU driver:
     An example of running **Mobilenet_v1_1.0_224_quant.tflite** on the Ethos-N NPU is:
 
     ```sh
-    LD_LIBRARY_PATH=<path_to_ethosn_libraries>:<path_to_armnn_libs> ./tests/ExecuteNetwork -f tflite-binary -i input -y qasymm8 -o MobilenetV1/Predictions/Reshape_1 -z qasymm8 -d input_data.txt -m mobilenet_v1_1.0_224_quant.tflite -c EthosNAcc -c CpuRef
+    LD_LIBRARY_PATH=<path_to_ethosn_libraries>:<path_to_armnn_libs> ./tests/ExecuteNetwork -f tflite-binary -i input -y qasymmu8 -o MobilenetV1/Predictions/Reshape_1 -z qasymmu8 -d input_data.txt -m mobilenet_v1_1.0_224_quant.tflite -c EthosNAcc -c CpuRef
     ```
 
 ## Power Management
