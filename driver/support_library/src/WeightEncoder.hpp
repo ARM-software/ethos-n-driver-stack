@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -92,7 +92,8 @@ public:
     struct WeightCompressionParams
     {
         WeightCompressionParams()
-            : m_ReloadCompressionParams(true)
+            : m_EncodingParams()
+            , m_ReloadCompressionParams(true)
             , m_Zdiv(ZDivisor::RLE_DISABLED)
             , m_Wdiv(WDivisor::UNCOMPRESSED)
             , m_TruncationEnabled(false)
