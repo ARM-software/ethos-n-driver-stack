@@ -397,8 +397,12 @@ After you install the Android NN driver with Arm NN in Android, install the Etho
 
 2. The Ethos-N kernel module is treated as a pre-build by the Android build and the Ethos-N kernel module must be built before proceeding. To build the Ethos-N kernel module, see the instructions in setup_android.sh.
 
-3. In an Android build, we recommend adding the vendor-specific drivers to the /vendor file system so that the /system and /vendor filesystems can be updated independently. This can be achieved by adding the kernel module and firmware to your device.mk, for example:
+3. Update device.mk with instructions to include Arm NN Ethos-N backend and add Ethos-N kernel module and firmware
 
+    We need to add a few config lines in device.mk. Arm NN needs a build flag to include the Ethos-N driver.
+    * ARMNN_ETHOSN_ENABLE := 1
+
+    In an Android build, we recommend adding the vendor-specific drivers to the /vendor file system so that the /system and /vendor file systems can be updated independently. This can be achieved by adding the kernel module and firmware to your device.mk, for example:
      * BOARD_VENDOR_KERNEL_MODULES += vendor/arm/ethos-n-driver-stack/kernel-module/ethosn.ko
      * PRODUCT_COPY_FILES += vendor/arm/ethos-n-driver-stack/firmware/ethosn.bin:$(TARGET_COPY_OUT_VENDOR)/lib/firmware/ethosn.bin
 
