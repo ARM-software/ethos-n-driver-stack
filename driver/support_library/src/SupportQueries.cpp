@@ -39,7 +39,7 @@ enum class PadMode
 
 static const std::unordered_set<uint32_t> g_ConvolutionKernelSizes = { 1, 2, 3, 5, 7, 9 };
 
-void SetReason(const char* reasonFull, char* reasonTruncated, size_t maxLength, ...)
+void ETHOSN_PRINTF_LIKE(printf, 1, 4) SetReason(const char* reasonFull, char* reasonTruncated, size_t maxLength, ...)
 {
     if (reasonTruncated)
     {
@@ -185,7 +185,7 @@ bool IsQuantizationDimSupported(const TensorInfo& info,
 
         if (dim != expectedDim)
         {
-            SetReason("%s: Per channel quantization axis must be %d for %s", reason, reasonMaxLength, what, expectedDim,
+            SetReason("%s: Per channel quantization axis must be %u for %s", reason, reasonMaxLength, what, expectedDim,
                       name);
             return false;
         }
@@ -193,7 +193,7 @@ bool IsQuantizationDimSupported(const TensorInfo& info,
         if (info.m_QuantizationInfo.GetScales().size() != info.m_Dimensions[dim])
         {
             SetReason("%s: %s must have quantization scales with same number of elements as the quantization dim. "
-                      "Expected: %d, got: %d.",
+                      "Expected: %u, got: %zu.",
                       reason, reasonMaxLength, what, name, info.m_Dimensions[dim],
                       info.m_QuantizationInfo.GetScales().size());
             return false;
@@ -304,7 +304,7 @@ bool IsTensorDepthSupported(
 
     if (maxChunkSize > sramSize)
     {
-        SetReason("%s: Tensor max depth cannot fit in SRAM (%d / %d)", reason, reasonMaxLength, what, maxChunkSize,
+        SetReason("%s: Tensor max depth cannot fit in SRAM (%zu / %zu)", reason, reasonMaxLength, what, maxChunkSize,
                   sramSize);
         return false;
     }
@@ -604,7 +604,7 @@ SupportedLevel SupportQueries::IsConvolutionSupported(const TensorInfo& biasInfo
 
     if ((g_ConvolutionKernelSizes.count(kernelHeight) == 0U) || (g_ConvolutionKernelSizes.count(kernelWidth) == 0U))
     {
-        SetReason("Unsupported kernel size. Width(%d)/height(%d) must be in { 1, 2, 3, 5, 7, 9 }", reason,
+        SetReason("Unsupported kernel size. Width(%u)/height(%u) must be in { 1, 2, 3, 5, 7, 9 }", reason,
                   reasonMaxLength, kernelWidth, kernelHeight);
         return SupportedLevel::EstimateOnly;
     }
@@ -779,7 +779,7 @@ SupportedLevel SupportQueries::IsDepthwiseConvolutionSupported(const TensorInfo&
 
     if ((kernelHeight != kernelWidth) || (g_ConvolutionKernelSizes.count(kernelHeight) == 0U))
     {
-        SetReason("Unsupported kernel size. Width(%d)/height(%d) must be in { 1, 2, 3, 5, 7, 9 }", reason,
+        SetReason("Unsupported kernel size. Width(%u)/height(%u) must be in { 1, 2, 3, 5, 7, 9 }", reason,
                   reasonMaxLength, kernelWidth, kernelHeight);
         return SupportedLevel::EstimateOnly;
     }
@@ -948,7 +948,7 @@ SupportedLevel SupportQueries::IsTransposeConvolutionSupported(const TensorInfo&
 
     if ((g_ConvolutionKernelSizes.count(kernelHeight) == 0U) || (g_ConvolutionKernelSizes.count(kernelWidth) == 0U))
     {
-        SetReason("Unsupported kernel size. Width(%d)/height(%d) must be in { 1, 2, 3, 5, 7, 9 }", reason,
+        SetReason("Unsupported kernel size. Width(%u)/height(%u) must be in { 1, 2, 3, 5, 7, 9 }", reason,
                   reasonMaxLength, kernelWidth, kernelHeight);
         return SupportedLevel::EstimateOnly;
     }
