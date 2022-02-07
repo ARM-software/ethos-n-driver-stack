@@ -94,7 +94,7 @@
 
 
 ## Reinterpret quantization
-- No specific restrictions
+- No specific restrictions.
 
 
 ## ReLU

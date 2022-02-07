@@ -150,12 +150,11 @@ To download the components, enter the following commands:
 ```sh
 mkdir driver_stack
 cd driver_stack
-git clone https://github.com/Arm-software/armnn --branch master
-cd armnn/
-git reset --hard c42a987aa53d0fd842c34dee90abef5a9ff15fa4
-cd ..
-git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 22.02dev1
+git clone https://github.com/Arm-software/armnn --branch v22.02
+git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 22.02
 ```
+
+    _Note: The default branch on GitHub has changed to main._
 
 ## Build the Ethos-N NPU driver
 
@@ -257,7 +256,7 @@ You must follow specific steps to build the Ethos-N NPU driver. You must build t
     ln -s <path_to>/driver_stack/ethos-n-driver-stack/armnn-ethos-n-backend ethos-n
     ```
 
-8. Build Arm NN for TensorFlow Lite. For instructions about building Arm NN, see <https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment>.
+8. Build Arm NN for TensorFlow Lite. For instructions about building Arm NN, see <https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment>. The instructions are listed for Arm NN v21.08, but are still applicable for the current version.
 
 
     The following build options are required by the CMake call in the [**Build Arm NN**](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment/build-arm-nn) section of the guide:
@@ -276,8 +275,6 @@ You must follow specific steps to build the Ethos-N NPU driver. You must build t
     _Note: Arm uses TensorFlow Lite as an example. You can also build Arm NN for [ONNX](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment/generate-the-build-dependencies-for-onnx)._
 
     _Note: Please make sure that all the requirements for Arm NN are met before building Arm NN._
-
-9. If you require Android NNAPI support, see the [Instructions for how to build the Arm NN Android NNAPI driver](https://github.com/Arm-software/android-nn-driver#armnn-android-neural-networks-driver).
 
 ## Exercise the Ethos-N NPU driver
 
@@ -387,15 +384,15 @@ To build the Ethos-N driver stack in Android, you must first install the Android
 
  _Note: The Android build folder is the same folder that you put the Android NN driver._
 
-After you install the Android NN driver with Arm NN in Android, install the Ethos-N driver stack:
+After you install the Android NN driver with Arm NN in Android, install the Ethos-N driver stack using the setup_android.sh script. You can edit the paths in the script and execute it, or use the script as reference if you create your own script. The script performs the following steps:
 
-1. The code in armnn-ethos-n-backend is an Arm NN backend which is built by Arm NN. For Arm NN to build the backend, you must create a symbolic link from the Arm NN src backend folder to the Ethos-N NPU backend folder:
+1. The code in armnn-ethos-n-backend is an Arm NN backend which is built by Arm NN. For Arm NN to build the backend, a symbolic link is needed from the Arm NN src backend folder to the Ethos-N NPU backend folder:
 
     ```sh
     ln -s ../../../../ethos-n-driver-stack/armnn-ethos-n-backend ../android-nn-driver/armnn/src/backends/ethos-n
     ```
 
-2. The Ethos-N kernel module is treated as a pre-build by the Android build and the Ethos-N kernel module must be built before proceeding. To build the Ethos-N kernel module, see the instructions in setup_android.sh.
+2. Build the Ethos-N kernel module, which will be treated as a pre-built by the Android build.
 
 3. Update device.mk with instructions to include Arm NN Ethos-N backend and add Ethos-N kernel module and firmware
 
@@ -413,14 +410,11 @@ After you install the Android NN driver with Arm NN in Android, install the Etho
         insmod /vendor/lib/modules/ethosn.ko
     ```
 
-
 5. To ensure the device tree contains the correct nodes for your Ethos-N hardware, the Ethos-N dts files must be merged with your dts file.
 
-   _Note: Please refer to the 'setup_android.sh' script for this step. You can edit the paths in the script and execute it, or use the script as reference if you create your own script._
+Build the Android image. Flash and run the image according to your normal target instructions.
 
-6. Build the Android image. Flash and run the image according to your normal target instructions.
-
-   _Note: If you get "No firmware found." in the kernel log, make sure your kernel searches for firmware files in /vendor/lib/firmware. For example, this can be done by adding the kernel argument "firmware_class.path=/vendor/lib/firmware/" when booting. If you want to use a different folder for your firmware files, you can also edit the build to make sure the ethonsn.bin file is moved to the different folder._
+    _Note: If you get "No firmware found." in the kernel log, make sure your kernel searches for firmware files in /vendor/lib/firmware. For example, this can be done by adding the kernel argument "firmware_class.path=/vendor/lib/firmware/" when booting. If you want to use a different folder for your firmware files, you can also edit the build to make sure the ethonsn.bin file is moved to the different folder._
 
 To use the Android NN driver and Arm NN, please see the instructions in the "Testing" section of the integration guide: https://github.com/ARM-software/android-nn-driver/blob/master/docs/IntegratorGuide.md#testing.
 
@@ -429,7 +423,6 @@ To specify the Ethos-N backend, use "-c EthosNAcc", for example:
 ```sh
 adb shell /vendor/bin/hw/android.hardware.neuralnetworks@1.3-service-armnn -v -c EthosNAcc
 ```
-
 
 ## Limitations
 
