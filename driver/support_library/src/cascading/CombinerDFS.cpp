@@ -348,23 +348,27 @@ bool Combiner::ArePlansCompatible(const Plan& sPlan, const Plan& dPlan, const Pa
 bool Combiner::IsPlanAllocated(SramAllocator& alloc, const Plan& plan, PleOperations& pleOps) const
 {
     // Get input and total SRAM sizes required for the plan
-    const SizeInBytes sTotSize = GetTotSizeInBytes(plan);
-    const SizeInBytes sInSize  = GetInputsSizeInBytes(plan);
+    const SizeInBytes sTotSize  = GetTotSizeInBytes(plan);
+    const SizeInBytes sInSize   = GetInputsSizeInBytes(plan);
+    PleKernelInfo pleKernelInfo = plan.GetPleKernelInfo(m_Caps);
+    uint32_t pleKernelSize      = 0;
+    bool newPleKernel           = false;
 
-    PleKernelIdSize pleIdSize = plan.GetPleKernelIdSize(m_Caps);
-    uint32_t pleKernelSize    = 0;
-    bool newPleKernel         = false;
-
-    if (pleIdSize.m_KernelId.has_value())
+    if (pleKernelInfo.m_PleOp != nullptr)
     {
         // If PLE kernel of the current plan is already used by previous part of the same
         // section, then its size is not counted.
-        if (std::find(pleOps.begin(), pleOps.end(), pleIdSize.m_KernelId.value()) == pleOps.end())
+        if (std::find(pleOps.begin(), pleOps.end(), pleKernelInfo.m_PleOp->m_PleKernelId) == pleOps.end())
         {
-            pleKernelSize = pleIdSize.m_Size;
-            newPleKernel  = true;
+            pleKernelSize                       = pleKernelInfo.m_Size;
+            newPleKernel                        = true;
+            pleKernelInfo.m_PleOp->m_LoadKernel = true;
             assert(pleKernelSize != 0);
             assert(pleKernelSize <= m_Caps.GetMaxPleSize());
+        }
+        else
+        {
+            pleKernelInfo.m_PleOp->m_LoadKernel = false;
         }
     }
 
@@ -388,7 +392,7 @@ bool Combiner::IsPlanAllocated(SramAllocator& alloc, const Plan& plan, PleOperat
 
         if (newPleKernel)
         {
-            pleOps.push_back(pleIdSize.m_KernelId.value());
+            pleOps.push_back(pleKernelInfo.m_PleOp->m_PleKernelId);
         }
 
         return true;

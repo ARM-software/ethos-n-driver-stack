@@ -154,7 +154,7 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
     command_stream::BlockConfig blkConfig = { 16u, 16u };
     auto op                               = std::make_unique<PleOp>(Lifetime::Cascade, m_KernelOperation, blkConfig,
                                       static_cast<uint32_t>(m_InputTensorShapes.size()), m_InputTensorShapes,
-                                      m_OutputTensorShape, m_DataType);
+                                      m_OutputTensorShape, m_DataType, true);
 
     OwnedOpGraph opGraph;
     PartInputMapping inputMappings;

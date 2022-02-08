@@ -715,6 +715,7 @@ std::string GetOpString(Op* op)
         stream << "Output Stripe Shape = " << ToString(pleOp->m_OutputStripeShape) << "\n";
         stream << "Output Data type = " << ToString(pleOp->m_OutputDataType) << "\n";
         stream << "Ple kernel Id = " << ToString(pleOp->m_PleKernelId) << "\n";
+        stream << "Kernel Load = " << ToString(pleOp->m_LoadKernel) << "\n";
     }
     stream << "Operation Ids = " << ArrayToString(op->m_OperationIds) << "\n";
     return stream.str();

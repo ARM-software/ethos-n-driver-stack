@@ -224,7 +224,7 @@ void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
                 // A fuse only ple operation only has 1 input
                 auto op = std::make_unique<PleOp>(Lifetime::Cascade, m_KernelOperation, info.m_PleCompute.m_BlockConfig,
                                                   1, std::vector<TensorShape>{ info.m_PleCompute.m_Input },
-                                                  info.m_PleCompute.m_Output, m_DataType);
+                                                  info.m_PleCompute.m_Output, m_DataType, true);
 
                 auto outBufferAndPleOp = AddPleToOpGraph(opGraph, lifetime, order, info.m_Memory.m_Output.m_Shape,
                                                          numMemoryStripes, std::move(op), m_OutputTensorShape,
@@ -262,7 +262,7 @@ void FusedPlePart::CreateFuseOnlyPlans(const PleOnlyInfo& info, TraversalOrder o
             // A fuse only ple operation only has 1 input
             auto op = std::make_unique<PleOp>(Lifetime::Cascade, m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
                                               std::vector<TensorShape>{ info.m_PleCompute.m_Input },
-                                              info.m_PleCompute.m_Output, m_DataType);
+                                              info.m_PleCompute.m_Output, m_DataType, true);
 
             auto outBufferAndPleOp = AddPleToOpGraph(opGraph, lifetime, order, info.m_Memory.m_Output.m_Shape,
                                                      numMemoryStripes, std::move(op), m_OutputTensorShape,

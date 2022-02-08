@@ -20,6 +20,11 @@ namespace ethosn
 {
 namespace support_library
 {
+
+class Buffer;
+class Op;
+class PleOp;
+
 enum class OpType
 {
     DmaOp,
@@ -53,17 +58,13 @@ struct SizeInBytes
     uint32_t m_TotAtomic = 0;
 };
 
-struct PleKernelIdSize
+struct PleKernelInfo
 {
-    utils::Optional<command_stream::cascading::PleKernelId> m_KernelId;
     uint32_t m_Size;
+    PleOp* m_PleOp;
 };
 
 bool IsCompressed(CascadingBufferFormat format);
-
-class Buffer;
-class Op;
-class PleOp;
 
 /// A graph of connected Ops and Buffers.
 ///
@@ -162,7 +163,7 @@ public:
 
     ethosn::command_stream::BlockConfig GetBlockConfigures(const PartOutputSlot& partOutputSlot) const;
 
-    PleKernelIdSize GetPleKernelIdSize(const HardwareCapabilities& cap) const;
+    PleKernelInfo GetPleKernelInfo(const HardwareCapabilities& cap) const;
 
     /// The graph of Ops and Buffers which define how this plan would be executed.
     OwnedOpGraph m_OpGraph;
@@ -252,7 +253,8 @@ public:
           uint32_t numInputs,
           std::vector<TensorShape> inputStripeShapes,
           TensorShape outputStripeShape,
-          command_stream::DataType dataType);
+          command_stream::DataType dataType,
+          bool loadKernel);
 
     utils::Optional<command_stream::BlockConfig> GetBlockConfig() override
     {
@@ -266,6 +268,7 @@ public:
     TensorShape m_OutputStripeShape;
     command_stream::DataType m_OutputDataType;
     command_stream::cascading::PleKernelId m_PleKernelId;
+    bool m_LoadKernel;
 };
 
 class ConcatOp : public Op

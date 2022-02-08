@@ -219,23 +219,24 @@ ethosn::command_stream::BlockConfig Plan::GetBlockConfigures(const PartOutputSlo
     }
 }
 
-PleKernelIdSize Plan::GetPleKernelIdSize(const HardwareCapabilities& cap) const
+PleKernelInfo Plan::GetPleKernelInfo(const HardwareCapabilities& cap) const
 {
-    PleKernelIdSize pleKernelIdSize;
-    pleKernelIdSize.m_Size = 0;
+    PleKernelInfo pleKernelInfo;
+    pleKernelInfo.m_Size  = 0;
+    pleKernelInfo.m_PleOp = nullptr;
 
     for (auto& op : m_OpGraph.GetOps())
     {
         if (IsObjectOfType<PleOp>(op))
         {
-            PleOp* pleOp               = static_cast<PleOp*>(op);
-            pleKernelIdSize.m_Size     = cap.GetMaxPleSize();
-            pleKernelIdSize.m_KernelId = pleOp->m_PleKernelId;
+            PleOp* pleOp          = static_cast<PleOp*>(op);
+            pleKernelInfo.m_Size  = cap.GetMaxPleSize();
+            pleKernelInfo.m_PleOp = pleOp;
             break;
         }
     }
 
-    return pleKernelIdSize;
+    return pleKernelInfo;
 }
 
 Op* OwnedOpGraph::AddOp(std::unique_ptr<Op> op)
@@ -333,6 +334,7 @@ PleOp::PleOp()
     , m_OutputStripeShape{ 0, 0, 0, 0 }
     , m_OutputDataType{ command_stream::DataType::U8 }
     , m_PleKernelId{ command_stream::cascading::PleKernelId::NOT_FOUND }
+    , m_LoadKernel{ true }
 {}
 
 PleOp::PleOp(Lifetime lifetime,
@@ -341,7 +343,8 @@ PleOp::PleOp(Lifetime lifetime,
              uint32_t numInputs,
              std::vector<TensorShape> inputStripeShapes,
              TensorShape outputStripeShape,
-             command_stream::DataType dataType)
+             command_stream::DataType dataType,
+             bool loadKernel)
     : Op("PleOp", lifetime)
     , m_Op(op)
     , m_BlockConfig(blockConfig)
@@ -349,6 +352,7 @@ PleOp::PleOp(Lifetime lifetime,
     , m_InputStripeShapes(inputStripeShapes)
     , m_OutputStripeShape(outputStripeShape)
     , m_OutputDataType(dataType)
+    , m_LoadKernel(loadKernel)
 {
     m_PleKernelId = plelib::FindPleKernelIdFromDatabase(blockConfig, (inputStripeShapes.at(0))[2], dataType, op);
 }
