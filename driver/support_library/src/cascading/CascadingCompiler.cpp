@@ -74,37 +74,37 @@ std::unique_ptr<CompiledNetwork> CascadingCompiler::Compile()
     return compiledNetwork;
 }
 
-void CascadingCompiler::ProcessDmaOp(Op* const ptrDmaOp)
+void CascadingCompiler::ProcessDmaOp(const Op* const ptrDmaOp)
 {
     ETHOSN_UNUSED(ptrDmaOp);
 }
 
-void CascadingCompiler::ProcessMceOp(Op* const ptrMceOp)
+void CascadingCompiler::ProcessMceOp(const Op* const ptrMceOp)
 {
     ETHOSN_UNUSED(ptrMceOp);
 }
 
-void CascadingCompiler::ProcessPleOp(Op* const ptrPleOp)
+void CascadingCompiler::ProcessPleOp(const Op* const ptrPleOp)
 {
     ETHOSN_UNUSED(ptrPleOp);
 }
 
-void CascadingCompiler::ProcessConcatOp(Op* const ptrConcatOp)
+void CascadingCompiler::ProcessConcatOp(const Op* const ptrConcatOp)
 {
     ETHOSN_UNUSED(ptrConcatOp);
 }
 
-void CascadingCompiler::ProcessSplitOp(Op* const ptrSplitOp)
+void CascadingCompiler::ProcessSplitOp(const Op* const ptrSplitOp)
 {
     ETHOSN_UNUSED(ptrSplitOp);
 }
 
-void CascadingCompiler::ProcessSpaceToDepthOp(Op* const ptrSpaceToDepthOp)
+void CascadingCompiler::ProcessSpaceToDepthOp(const Op* const ptrSpaceToDepthOp)
 {
     ETHOSN_UNUSED(ptrSpaceToDepthOp);
 }
 
-void CascadingCompiler::ProcessTransposeOp(Op* const ptrTransposeOp)
+void CascadingCompiler::ProcessTransposeOp(const Op* const ptrTransposeOp)
 {
     ETHOSN_UNUSED(ptrTransposeOp);
 }

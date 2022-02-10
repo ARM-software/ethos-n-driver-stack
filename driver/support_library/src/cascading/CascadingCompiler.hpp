@@ -31,13 +31,13 @@ public:
 
 private:
     // Private functions for processing OpGraph Ops
-    void ProcessDmaOp(Op* const ptrDmaOp);
-    void ProcessMceOp(Op* const ptrMceOp);
-    void ProcessPleOp(Op* const ptrPleOp);
-    void ProcessConcatOp(Op* const ptrConcatOp);
-    void ProcessSplitOp(Op* const ptrSplitOp);
-    void ProcessSpaceToDepthOp(Op* const ptrSpaceToDepthOp);
-    void ProcessTransposeOp(Op* const ptrTransposeOp);
+    void ProcessDmaOp(const Op* const ptrDmaOp);
+    void ProcessMceOp(const Op* const ptrMceOp);
+    void ProcessPleOp(const Op* const ptrPleOp);
+    void ProcessConcatOp(const Op* const ptrConcatOp);
+    void ProcessSplitOp(const Op* const ptrSplitOp);
+    void ProcessSpaceToDepthOp(const Op* const ptrSpaceToDepthOp);
+    void ProcessTransposeOp(const Op* const ptrTransposeOp);
 
     // Merged OpGraph used to generate the command stream, set at creation time.
     const OpGraph m_MergedOpGraph;
