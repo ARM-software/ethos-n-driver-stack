@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited.
+ * (C) COPYRIGHT 2018-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -436,7 +436,8 @@ struct ethosn_buffer *ethosn_buffer_get(int fd)
 	if (!file)
 		return ERR_PTR(-EBADF);
 
-	if (!is_ethosn_buffer_file(file)) {
+	if (!is_ethosn_buffer_file(file) &&
+	    !is_ethosn_dma_buf_file(file)) {
 		fput(file);
 
 		return ERR_PTR(-EINVAL);
@@ -459,7 +460,8 @@ void put_ethosn_buffer(struct ethosn_buffer *buf)
 	if (WARN_ON(!buf->file))
 		return;
 
-	if (WARN_ON(!is_ethosn_buffer_file(buf->file)))
+	if (WARN_ON(!is_ethosn_buffer_file(buf->file) &&
+		    !is_ethosn_dma_buf_file(buf->file)))
 		return;
 
 	fput(buf->file);
