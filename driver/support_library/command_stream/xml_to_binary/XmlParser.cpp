@@ -782,7 +782,7 @@ void XmlParser::Pop(const std::string& key, DataLocation& value)
     }
 }
 
-template <typename T, typename = decltype(T::height, T::width, T::channels)>
+template <typename T, typename>
 void XmlParser::Pop(const std::string& keyPrefix, T& value)
 {
     Pop(keyPrefix + "/HEIGHT", value.height);
