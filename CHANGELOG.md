@@ -1,5 +1,44 @@
 # Changelog for Arm® Ethos™-N Driver Stack
 
+## 22.02
+
+### New features
+
+- Support for Arm NN 22.02
+- DRAM usage for intermediate tensors has been decreased. Depending on the network and hardware configuration, this can lead to a 90% reduction in DRAM usage for intermediate tensors.
+
+### Public API changes
+
+- Temporarily disabled Split, SpaceToDepth and Transpose operations. They will be re-enabled in a future release. These operations are now only supported at the "EstimateOnly" level. They can be used in SPA and will contribute zero performance impact, but cannot be compiled for execution on the actual hardware.
+- Removed deprecated method GetMappedBuffer in driver library.
+- Changes to the Arm NN Ethos-N NPU backend configuration file:
+  - The "COMPILER_ALGORITHM" flag has been removed.
+  - The estimation approach used when "PERFORMANCE_CURRENT=0" has changed to be closer to what we expect from a future release of the driver stack. The "PERFORMANCE_CURRENT" is used as follows:
+    - 0 is used to report the estimation numbers of the possible future performance of the driver stack.
+    - 1 is used to report the estimation numbers of the current performance of the driver stack.
+
+### Other changes
+
+- Cascading support:
+  - Added support for performance estimation, producing estimation numbers that are closer to what we expect from a future release of the driver stack.
+  - Improved compilation time for some networks.
+- Arm NN Ethos-N NPU backend:
+  - Added caching functionality via model options to improve compilation time.
+    - Saving: Set "SaveCachedNetwork" to true and supply a valid file path to an empty file for "CachedNetworkFilePath".
+    - Loading: Set "SaveCachedNetwork" to false and supply a valid file path to the previously saved network for "CachedNetworkFilePath".
+  - Added StrictPrecision via model options. When enabled the network is more precise as the Re-quantize operations aren't fused, but it is slower to compile as there will be additional operations. This is currently only supported for the Concat operation.
+  - The backend no longer uses a deprecated method to access weights tensors from Fully Connected layers. This removes a warning from the Arm NN log.
+- Support library:
+  - Fixed a bug where the order of output buffers in the CompiledNetwork wouldn't match the order the outputs were added to the Network.
+- Initial Android build instructions added in the README.md
+- Kernel module:
+  - Enable SMMU translation table entries pre-loading by default.
+  - Improved mailbox and firmware error handling and reporting.
+
+### Known issues
+
+- None
+
 ## 21.11
 
 ### New features
