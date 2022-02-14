@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -12,6 +12,7 @@
 
 #include <array>
 #include <type_traits>
+#include <vector>
 
 namespace std
 {
@@ -19,6 +20,8 @@ template <typename T>
 class span
 {
 public:
+    constexpr span() noexcept = default;
+
     template <typename U>
     constexpr span(U* const data, const size_t size) noexcept
         : m_Data(data)
@@ -47,6 +50,16 @@ public:
         : span(array, N)
     {}
 
+    template <typename U>
+    constexpr span(const std::vector<U>& vec) noexcept
+        : span(vec.data(), vec.size())
+    {}
+
+    template <typename U>
+    constexpr span(std::vector<U>& vec) noexcept
+        : span(vec.data(), vec.size())
+    {}
+
     constexpr auto data() const noexcept
     {
         return m_Data;
@@ -73,8 +86,8 @@ public:
     }
 
 private:
-    T* m_Data;
-    size_t m_Size;
+    T* m_Data{};
+    size_t m_Size{};
 };
 }    // namespace std
 
