@@ -600,48 +600,6 @@ void Parse(mxml_node_t& parent, const cascading::FmSData& fmData)
     Parse(*mxmlNewElement(&parent, "STRIPE_ID_STRIDES"), fmData.stripeIdStrides);
 }
 
-void Parse(mxml_node_t& parent, const cascading::AgentType& value)
-{
-    switch (value)
-    {
-        case cascading::AgentType::IFM_STREAMER:
-        {
-            Parse(parent, "IFM_STREAMER");
-            break;
-        }
-        case cascading::AgentType::MCE_SCHEDULER:
-        {
-            Parse(parent, "MCE_SCHEDULER");
-            break;
-        }
-        case cascading::AgentType::OFM_STREAMER:
-        {
-            Parse(parent, "OFM_STREAMER");
-            break;
-        }
-        case cascading::AgentType::PLE_LOADER:
-        {
-            Parse(parent, "PLE_LOADER");
-            break;
-        }
-        case cascading::AgentType::PLE_SCHEDULER:
-        {
-            Parse(parent, "PLE_SCHEDULER");
-            break;
-        }
-        case cascading::AgentType::WGT_STREAMER:
-        {
-            Parse(parent, "WGT_STREAMER");
-            break;
-        }
-        default:
-        {
-            // Bad binary
-            throw ParseException("Invalid AgentType in binary input: " + std::to_string(static_cast<uint32_t>(value)));
-        }
-    }
-}
-
 void Parse(mxml_node_t& parent, const cascading::IfmS& ifms)
 {
     Parse(*mxmlNewElement(&parent, "IFM_STREAMER"), ifms.fmData);
@@ -652,6 +610,12 @@ void Parse(mxml_node_t& parent, const cascading::OfmS& ofms)
     Parse(*mxmlNewElement(&parent, "OFM_STREAMER"), ofms.fmData);
 }
 
+void Parse(mxml_node_t& parent, const cascading::WgtSWorkSize<uint16_t>& size)
+{
+    Parse(*mxmlNewElement(&parent, "OFM_CHANNELS"), size.ofmChannels);
+    Parse(*mxmlNewElement(&parent, "IFM_CHANNELS"), size.ifmChannels);
+}
+
 void Parse(mxml_node_t& parent, const cascading::WgtS& wgts)
 {
     mxml_node_t* agent_op = mxmlNewElement(&parent, "WGT_STREAMER");
@@ -659,7 +623,9 @@ void Parse(mxml_node_t& parent, const cascading::WgtS& wgts)
     Parse(*mxmlNewElement(agent_op, "BUFFER_ID"), wgts.bufferId);
     Parse(*mxmlNewElement(agent_op, "METADATA_BUFFER_ID"), wgts.metadataBufferId);
     Parse(*mxmlNewElement(agent_op, "TILE"), wgts.tile);
+    Parse(*mxmlNewElement(agent_op, "EDGE_STRIPE_OFM_CHANNELS"), wgts.edgeStripeOfmChannels);
     Parse(*mxmlNewElement(agent_op, "NUM_STRIPES"), wgts.numStripes);
+    Parse(*mxmlNewElement(agent_op, "STRIPE_ID_STRIDES"), wgts.stripeIdStrides);
 }
 
 void Parse(mxml_node_t& parent, const cascading::BlockSize& size)
@@ -776,11 +742,12 @@ void Parse(mxml_node_t& parent, const cascading::PleInputMode value)
     }
 }
 
-void Parse(mxml_node_t& parent, const cascading::PleSWorkSize<uint16_t>& size)
+template <typename T>
+void Parse(mxml_node_t& parent, const cascading::TensorSize<T>& size)
 {
-    Parse(*mxmlNewElement(&parent, "OFM_HEIGHT"), size.ofmHeight);
-    Parse(*mxmlNewElement(&parent, "OFM_WIDTH"), size.ofmWidth);
-    Parse(*mxmlNewElement(&parent, "OFM_CHANNELS"), size.ofmChannels);
+    Parse(*mxmlNewElement(&parent, "HEIGHT"), size.height);
+    Parse(*mxmlNewElement(&parent, "WIDTH"), size.width);
+    Parse(*mxmlNewElement(&parent, "CHANNELS"), size.channels);
 }
 
 void Parse(mxml_node_t& parent, const cascading::PleS& ples)
@@ -793,7 +760,7 @@ void Parse(mxml_node_t& parent, const cascading::PleS& ples)
     Parse(*mxmlNewElement(agent_op, "EDGE_STRIPE_SIZE"), ples.edgeStripeSize);
     Parse(*mxmlNewElement(agent_op, "NUM_STRIPES"), ples.numStripes);
     Parse(*mxmlNewElement(agent_op, "STRIPE_ID_STRIDES"), ples.stripeIdStrides);
-    Parse(*mxmlNewElement(agent_op, "MCE_OP"), ples.mceOp);
+    Parse(*mxmlNewElement(agent_op, "INPUT_MODE"), ples.inputMode);
     Parse(*mxmlNewElement(agent_op, "PLE_KERNEL_ID"), cascading::PleKernelId2String(ples.pleKernelId));
     Parse(*mxmlNewElement(agent_op, "PLE_KERNEL_SRAM_ADDR"), ples.pleKernelSramAddr);
     Parse(*mxmlNewElement(agent_op, "IFM_TILE_0"), ples.ifmTile0);
@@ -804,8 +771,6 @@ void Parse(mxml_node_t& parent, const cascading::PleS& ples)
 
 void Parse(mxml_node_t& parent, const cascading::AgentData& data)
 {
-    Parse(*mxmlNewElement(&parent, "AGENT_TYPE"), data.type);
-
     switch (data.type)
     {
         case cascading::AgentType::IFM_STREAMER:

@@ -93,17 +93,16 @@ private:
     void Pop(const std::string& key, ethosn::command_stream::SectionType& value);
     void Pop(const std::string& key, ethosn::command_stream::PleOperation& value);
 
-    template <typename T, typename = decltype(T::height, T::width, T::channels)>
-    void Pop(const std::string& keyPrefix, T& value);
-
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::Dependency& value);
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::Tile& value);
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::BlockSize& value);
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::MceSWorkSize<uint16_t>& value);
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::StrideXy<uint8_t>& value);
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::ReluActivation& value);
+    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::WgtSWorkSize<uint16_t>& value);
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::PleIfmInfo& value);
-    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::PleSWorkSize<uint16_t>& value);
+    template <typename T>
+    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::TensorSize<T>& value);
     void Pop(const std::string& key, ethosn::command_stream::cascading::MceOperation& value);
     void Pop(const std::string& key, ethosn::command_stream::cascading::PleInputMode& value);
     void Pop(const std::string& key, ethosn::command_stream::cascading::PleKernelId& value);

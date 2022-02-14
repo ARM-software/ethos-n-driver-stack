@@ -30,9 +30,6 @@ struct Tile
 
 ETHOSN_DECL_SV_VECTOR_STRUCT(TensorSize, height, width, channels)
 
-/// Ifm/Ofm Streamer work size
-ETHOSN_DECL_SV_VECTOR_STRUCT(FmSWorkSize, height, width, channels)
-
 /// Ifm/Ofm Streamer common data
 struct FmSData
 {
@@ -47,12 +44,12 @@ struct FmSData
     /// Size of the stripes at the edge of each dimension
     TensorSize<uint16_t> edgeStripeSize;
     /// Strides in dram for stripe coordinates
-    FmSWorkSize<uint16_t> stripeDramStrides;
+    TensorSize<uint32_t> stripeDramStrides;
     /// Number of unique stripes in each tensor dimension (numStripesTotal will be
     /// a larger multiple of the product of all dimensions if reloading is needed)
-    FmSWorkSize<uint16_t> numStripes;
+    TensorSize<uint16_t> numStripes;
     /// Stride info for stripe ID (scalar) to stripe coord (ND) conversion
-    FmSWorkSize<uint16_t> stripeIdStrides;
+    TensorSize<uint16_t> stripeIdStrides;
 };
 
 /// Ifm Streamer data
@@ -76,17 +73,26 @@ struct WeightsMetadata
     uint32_t size;
 };
 
+/// Mce Scheduler work size
+ETHOSN_DECL_SV_VECTOR_STRUCT(WgtSWorkSize, ofmChannels, ifmChannels)
+
 /// Weight Streamer data
 struct WgtS
 {
+    using WorkSize = WgtSWorkSize<uint16_t>;
+
     /// Buffer ID of the weights tensor
     uint16_t bufferId;
     /// Buffer ID of the weights metadata array of (offset, size) pairs (WeightsMetadata)
     uint16_t metadataBufferId;
     /// Weight SRAM tile info
     Tile tile;
-    /// Number of unique stripes (numStripesTotal will be a larger multiple if reloading is needed)
-    uint16_t numStripes;
+    /// Number of ofm channels in stripes at the edge of the ofmChannels dimension
+    uint16_t edgeStripeOfmChannels;
+    /// Number of stripes for each "work" dimension
+    WorkSize numStripes;
+    /// Stride info for stripe ID (scalar) to stripe coord (ND) conversion
+    WorkSize stripeIdStrides;
 };
 
 struct BlockSize
@@ -144,7 +150,7 @@ struct MceS
     PleKernelId pleKernelId;
 };
 
-/// Ple Loader data
+/// PLE Loader data
 struct PleL
 {
     /// ID of the kernel used
@@ -152,9 +158,6 @@ struct PleL
     /// Destination SRAM address
     uint16_t sramAddr;
 };
-
-/// Ple Scheduler work size
-ETHOSN_DECL_SV_VECTOR_STRUCT(PleSWorkSize, ofmHeight, ofmWidth, ofmChannels)
 
 struct PleIfmInfo
 {
@@ -174,32 +177,30 @@ enum class PleInputMode : uint8_t
     SRAM,
 };
 
-/// Ple Scheduler data
+/// PLE Scheduler data
 struct PleS
 {
-    using WorkSize = PleSWorkSize<uint16_t>;
     /// Output tile
     Tile ofmTile;
     /// Output zero correction
     int16_t ofmZeroPoint;
-    /// Default tripe size
-    WorkSize dfltStripeSize;
-    /// Edge tripe size
-    WorkSize edgeStripeSize;
+    /// Default ofm stripe size
+    TensorSize<uint16_t> dfltStripeSize;
+    /// Edge ofm stripe size
+    TensorSize<uint16_t> edgeStripeSize;
     /// Number of unique stripes in each ofm tensor dimension
-    WorkSize numStripes;
+    TensorSize<uint16_t> numStripes;
     /// Stride info for stripe ID (scalar) to stripe coord (ND) conversion
-    WorkSize stripeIdStrides;
-    /// MCE operation mode
-    PleInputMode mceOp;
-
-    // kernel data
-    /// ID of the kernel used
+    TensorSize<uint16_t> stripeIdStrides;
+    /// Source of input data to PLE
+    PleInputMode inputMode;
+    /// ID of the PLE kernel used
     PleKernelId pleKernelId;
-    /// Ple kernel location in SRAM
+    /// PLE kernel location in SRAM
     uint16_t pleKernelSramAddr;
 
-    // Additional fields to be used only if mceOP is SRAM
+    // Additional fields to be used only if inputMode is SRAM
+
     /// First input tile
     Tile ifmTile0;
     /// First input zero correction, multiplier and shift

@@ -352,7 +352,6 @@ const std::string g_XmlStr =
         <NUM_AGENTS>6</NUM_AGENTS>
     </CASCADE>
     <AGENT>
-        <AGENT_TYPE>WGT_STREAMER</AGENT_TYPE>
         <WGT_STREAMER>
             <BUFFER_ID>3</BUFFER_ID>
             <METADATA_BUFFER_ID>128</METADATA_BUFFER_ID>
@@ -361,7 +360,15 @@ const std::string g_XmlStr =
                 <NUM_SLOTS>2</NUM_SLOTS>
                 <SLOT_SIZE>1024</SLOT_SIZE>
             </TILE>
-            <NUM_STRIPES>32</NUM_STRIPES>
+            <EDGE_STRIPE_OFM_CHANNELS>8</EDGE_STRIPE_OFM_CHANNELS>
+            <NUM_STRIPES>
+                <OFM_CHANNELS>4</OFM_CHANNELS>
+                <IFM_CHANNELS>2</IFM_CHANNELS>
+            </NUM_STRIPES>
+            <STRIPE_ID_STRIDES>
+                <OFM_CHANNELS>2</OFM_CHANNELS>
+                <IFM_CHANNELS>1</IFM_CHANNELS>
+            </STRIPE_ID_STRIDES>
         </WGT_STREAMER>
         <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
         <SCHEDULE_DEPENDENCY>
@@ -414,7 +421,6 @@ const std::string g_XmlStr =
         </WRITE_DEPENDENCY>
     </AGENT>
     <AGENT>
-        <AGENT_TYPE>IFM_STREAMER</AGENT_TYPE>
         <IFM_STREAMER>
             <DRAM_OFFSET>512</DRAM_OFFSET>
             <BUFFER_ID>3</BUFFER_ID>
@@ -500,7 +506,6 @@ const std::string g_XmlStr =
         </WRITE_DEPENDENCY>
     </AGENT>
     <AGENT>
-        <AGENT_TYPE>OFM_STREAMER</AGENT_TYPE>
         <OFM_STREAMER>
             <DRAM_OFFSET>512</DRAM_OFFSET>
             <BUFFER_ID>0</BUFFER_ID>
@@ -586,7 +591,6 @@ const std::string g_XmlStr =
         </WRITE_DEPENDENCY>
     </AGENT>
     <AGENT>
-        <AGENT_TYPE>MCE_SCHEDULER</AGENT_TYPE>
         <MCE_SCHEDULER>
             <IFM_TILE>
                 <BASE_ADDR>0</BASE_ADDR>
@@ -640,7 +644,6 @@ const std::string g_XmlStr =
         <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
     </AGENT>
     <AGENT>
-        <AGENT_TYPE>PLE_LOADER</AGENT_TYPE>
         <PLE_LOADER>
             <PLE_KERNEL_ID>SIGMOID_16X8_1_S</PLE_KERNEL_ID>
             <SRAM_ADDR>4096</SRAM_ADDR>
@@ -684,7 +687,6 @@ const std::string g_XmlStr =
         </WRITE_DEPENDENCY>
     </AGENT>
     <AGENT>
-        <AGENT_TYPE>PLE_SCHEDULER</AGENT_TYPE>
         <PLE_SCHEDULER>
             <OFM_TILE>
                 <BASE_ADDR>0</BASE_ADDR>
@@ -693,26 +695,26 @@ const std::string g_XmlStr =
             </OFM_TILE>
             <OFM_ZERO_POINT>3</OFM_ZERO_POINT>
             <DFLT_STRIPE_SIZE>
-                <OFM_HEIGHT>8</OFM_HEIGHT>
-                <OFM_WIDTH>8</OFM_WIDTH>
-                <OFM_CHANNELS>8</OFM_CHANNELS>
+                <HEIGHT>8</HEIGHT>
+                <WIDTH>8</WIDTH>
+                <CHANNELS>8</CHANNELS>
             </DFLT_STRIPE_SIZE>
             <EDGE_STRIPE_SIZE>
-                <OFM_HEIGHT>8</OFM_HEIGHT>
-                <OFM_WIDTH>8</OFM_WIDTH>
-                <OFM_CHANNELS>8</OFM_CHANNELS>
+                <HEIGHT>8</HEIGHT>
+                <WIDTH>8</WIDTH>
+                <CHANNELS>8</CHANNELS>
             </EDGE_STRIPE_SIZE>
             <NUM_STRIPES>
-                <OFM_HEIGHT>8</OFM_HEIGHT>
-                <OFM_WIDTH>8</OFM_WIDTH>
-                <OFM_CHANNELS>8</OFM_CHANNELS>
+                <HEIGHT>8</HEIGHT>
+                <WIDTH>8</WIDTH>
+                <CHANNELS>8</CHANNELS>
             </NUM_STRIPES>
             <STRIPE_ID_STRIDES>
-                <OFM_HEIGHT>8</OFM_HEIGHT>
-                <OFM_WIDTH>8</OFM_WIDTH>
-                <OFM_CHANNELS>8</OFM_CHANNELS>
+                <HEIGHT>8</HEIGHT>
+                <WIDTH>8</WIDTH>
+                <CHANNELS>8</CHANNELS>
             </STRIPE_ID_STRIDES>
-            <MCE_OP>MCE_ONE_OG</MCE_OP>
+            <INPUT_MODE>MCE_ONE_OG</INPUT_MODE>
             <PLE_KERNEL_ID>DOWNSAMPLE_2X2_16X16_1</PLE_KERNEL_ID>
             <PLE_KERNEL_SRAM_ADDR>4096</PLE_KERNEL_SRAM_ADDR>
             <IFM_TILE_0>
