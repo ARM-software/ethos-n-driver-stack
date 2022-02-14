@@ -298,11 +298,12 @@ Plans FusedPlePart::GetLonelyPlans(uint32_t numWeightStripes) const
 
     // Try to generate plans as per Beginning of a section. This guarantees larger stripes
     // and helps to reduce overhead.
+    // The estimation doesn't take into account overheads so we need to use this heuristic
     StripeInfos stripeInfos = {};
     for (auto&& blockConfig : validBlockConfigs)
     {
         // Todo generate all stripes again
-        m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Lonely, &stripeInfos);
+        m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Beginning, &stripeInfos);
     }
 
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
