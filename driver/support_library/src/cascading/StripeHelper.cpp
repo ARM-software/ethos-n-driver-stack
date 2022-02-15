@@ -546,7 +546,8 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
                 CreateStripe(m_MceInputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
             TensorShape mceOutputEncoding = ApplyMceShapeMult({ 0, 0, 0, m_Capabilities.GetNumberOfOgs() });
-            TensorShape mceOutputStripe = CreateStripe(inputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
+            TensorShape mceOutputStripe =
+                CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
             const TensorShape& outputShape = m_PleOutputTensorShape;
             TensorShape pleOutputStripe    = ApplyPleShapeMult(mceOutputStripe);
