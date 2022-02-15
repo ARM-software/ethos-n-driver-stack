@@ -269,6 +269,7 @@ public:
     command_stream::DataType m_OutputDataType;
     command_stream::cascading::PleKernelId m_PleKernelId;
     bool m_LoadKernel;
+    utils::Optional<uint32_t> m_Offset;
 };
 
 class ConcatOp : public Op
@@ -315,6 +316,9 @@ public:
     TensorShape m_StripeShape;
     TraversalOrder m_Order;
     uint32_t m_SizeInBytes;
+
+    /// This value is set by the Combiner for SRAM buffers
+    utils::Optional<uint32_t> m_Offset;
 
     /// This value should be easily calculable from m_SizeInBytes and m_StripeShape (and possibly some format parameters),
     /// but is useful to store by itself nonetheless.

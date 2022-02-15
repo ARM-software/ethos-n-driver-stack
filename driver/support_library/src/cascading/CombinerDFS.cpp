@@ -345,62 +345,130 @@ bool Combiner::ArePlansCompatible(const Plan& sPlan, const Plan& dPlan, const Pa
 // Check if there is sufficient SRAM for plan to fit
 // into the SRAM allocation for the combination that
 // is compatible with the plan
-bool Combiner::IsPlanAllocated(SramAllocator& alloc, const Plan& plan, PleOperations& pleOps) const
+bool Combiner::IsPlanAllocated(SramAllocator& alloc,
+                               const Plan& plan,
+                               PleOperations& pleOps,
+                               const Buffer* const outBufOfPrevPlanInSection,
+                               const StatsType sectionType) const
 {
-    // Get input and total SRAM sizes required for the plan
-    const SizeInBytes sTotSize  = GetTotSizeInBytes(plan);
-    const SizeInBytes sInSize   = GetInputsSizeInBytes(plan);
     PleKernelInfo pleKernelInfo = plan.GetPleKernelInfo(m_Caps);
     uint32_t pleKernelSize      = 0;
     bool newPleKernel           = false;
+    bool isSramAllocated        = true;
+
+    using Allocated = std::pair<bool, uint32_t>;
+    Allocated bufferAllocated, pleKernelAllocated;
+    SramAllocator localAlloc = alloc;
+
+    // We are not yet sure what could be a good userId here so we are using zero
+    SramAllocator::UserId userId = 0;
 
     if (pleKernelInfo.m_PleOp != nullptr)
     {
         // If PLE kernel of the current plan is already used by previous part of the same
         // section, then its size is not counted.
-        if (std::find(pleOps.begin(), pleOps.end(), pleKernelInfo.m_PleOp->m_PleKernelId) == pleOps.end())
+
+        auto CheckPleKernel =
+            [&pleKernelInfo](const std::pair<command_stream::cascading::PleKernelId, uint32_t>& plePair) {
+                return (pleKernelInfo.m_PleOp->m_PleKernelId == plePair.first);
+            };
+
+        auto pleIterator = std::find_if(pleOps.begin(), pleOps.end(), CheckPleKernel);
+
+        if (pleIterator == pleOps.end())
         {
             pleKernelSize                       = pleKernelInfo.m_Size;
             newPleKernel                        = true;
             pleKernelInfo.m_PleOp->m_LoadKernel = true;
             assert(pleKernelSize != 0);
             assert(pleKernelSize <= m_Caps.GetMaxPleSize());
+
+            // Allocate the PleKernel
+            pleKernelAllocated =
+                localAlloc.Allocate(userId, (pleKernelSize / m_Caps.GetNumberOfSrams()), AllocationPreference::Start);
+
+            isSramAllocated = pleKernelAllocated.first;
+
+            if (isSramAllocated == true)
+            {
+                pleKernelInfo.m_PleOp->m_Offset = pleKernelAllocated.second;
+            }
         }
         else
         {
             pleKernelInfo.m_PleOp->m_LoadKernel = false;
+            pleKernelInfo.m_PleOp->m_Offset     = pleIterator->second;
         }
     }
 
-    using Allocated = std::pair<bool, uint32_t>;
-    Allocated allocated;
-    SramAllocator localAlloc = alloc;
+    if (isSramAllocated)
+    {
+        // Allocate the Buffers
+        // Note this function assumes the plan can be merged with the combination
+        // that is associated with the sram allocation. Therefore, the additional
+        // sram usage of this plan is the total size - input size in case it is
+        // not a start of a section.
+        const OpGraph::BufferList& buffers         = plan.m_OpGraph.GetBuffers();
+        const PartInputMapping inputBuffersMapping = plan.m_InputMappings;
 
-    // We are not yet sure what could be a good userId here so we are using zero
-    SramAllocator::UserId userId = 0;
+        OpGraph::BufferList::const_iterator buffersIterator = buffers.begin();
 
-    // Note this function assumes the plan can be merged with the combination
-    // that is associated with the sram allocation. Therefore, the additional
-    // sram usage of this plan is the total size - input size.
-    allocated =
-        localAlloc.Allocate(userId, (sTotSize.m_Tot - sInSize.m_Tot + pleKernelSize) / m_Caps.GetNumberOfSrams(),
-                            AllocationPreference::Start);
+        bool inputBufferNeedAllocation = false;
 
-    if (allocated.first)
+        if (sectionType == StatsType::StartSection)
+        {
+            inputBufferNeedAllocation = true;
+        }
+
+        while (buffersIterator != buffers.end())
+        {
+            Buffer* const buf         = *buffersIterator;
+            const uint32_t bufferSize = buf->m_SizeInBytes;
+
+            if (buf->m_Location == Location::Sram)
+            {
+                // If an input buffer is in start of a section, or it's other buffer (i.e output buffer) in start/continue/end of section
+                if (inputBufferNeedAllocation || inputBuffersMapping.count(buf) == 0)
+                {
+                    assert(bufferSize != 0);
+
+                    bufferAllocated = localAlloc.Allocate(userId, (bufferSize / m_Caps.GetNumberOfSrams()),
+                                                          AllocationPreference::Start);
+
+                    isSramAllocated = bufferAllocated.first;
+
+                    if (isSramAllocated == true)
+                    {
+                        buf->m_Offset = bufferAllocated.second;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                // If an input buffer in a continue or end section
+                else
+                {
+                    assert(outBufOfPrevPlanInSection != nullptr && outBufOfPrevPlanInSection->m_Offset.has_value());
+                    buf->m_Offset = outBufOfPrevPlanInSection->m_Offset;
+                }
+            }
+
+            ++buffersIterator;
+        }
+    }
+
+    if (isSramAllocated)
     {
         alloc = localAlloc;
 
         if (newPleKernel)
         {
-            pleOps.push_back(pleKernelInfo.m_PleOp->m_PleKernelId);
+            pleOps.push_back(std::make_pair(pleKernelInfo.m_PleOp->m_PleKernelId, pleKernelAllocated.second));
         }
+    }
 
-        return true;
-    }
-    else
-    {
-        return false;
-    }
+    return isSramAllocated;
 }
 
 bool Combiner::IsPlanInputGlueable(const Plan& plan) const
@@ -955,7 +1023,7 @@ Combination Combiner::EndSection(const BasePart& part,
                 continue;
             }
 
-            if (!IsPlanAllocated(tempAlloc, plan, tempPleOps))
+            if (!IsPlanAllocated(tempAlloc, plan, tempPleOps, sramBuffer, StatsType::EndSection))
             {
                 continue;
             }
@@ -1058,7 +1126,7 @@ Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPar
                 PleOperations pleOps = {};
 
                 // Allocation requirement are different for start of section
-                if (!IsPlanAllocated(tempAlloc, plan, pleOps))
+                if (!IsPlanAllocated(tempAlloc, plan, pleOps, nullptr, StatsType::StartSection))
                 {
                     continue;
                 }
@@ -1234,7 +1302,7 @@ Combination Combiner::ContinueSection(const BasePart& part,
                 continue;
             }
 
-            if (!IsPlanAllocated(tempAlloc, plan, tempPleOps))
+            if (!IsPlanAllocated(tempAlloc, plan, tempPleOps, sramBuffer, StatsType::ContinueSection))
             {
                 continue;
             }

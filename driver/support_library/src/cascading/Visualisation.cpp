@@ -716,8 +716,14 @@ std::string GetOpString(Op* op)
         stream << "Output Data type = " << ToString(pleOp->m_OutputDataType) << "\n";
         stream << "Ple kernel Id = " << ToString(pleOp->m_PleKernelId) << "\n";
         stream << "Kernel Load = " << ToString(pleOp->m_LoadKernel) << "\n";
+        if (pleOp->m_Offset.has_value())
+        {
+            stream << "Offset = " << ToString(pleOp->m_Offset.value()) << "\n";
+        }
     }
+
     stream << "Operation Ids = " << ArrayToString(op->m_OperationIds) << "\n";
+
     return stream.str();
 }
 
@@ -733,7 +739,12 @@ std::string GetBufferString(Buffer* buffer)
     stream << "Stripe shape = " << ToString(buffer->m_StripeShape) << "\n";
     stream << "Num. Stripes = " << buffer->m_NumStripes << "\n";
     stream << "Order = " << ToString(buffer->m_Order) << "\n";
+    if (buffer->m_Offset.has_value())
+    {
+        stream << "Offset = " << ToString(buffer->m_Offset.value()) << "\n";
+    }
     stream << "Size in bytes = " << buffer->m_SizeInBytes << "\n";
+
     return stream.str();
 }
 

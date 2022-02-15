@@ -52,7 +52,7 @@ struct Elem
 
 constexpr size_t g_InvalidCombRank = std::numeric_limits<size_t>::max();
 
-using PleOperations = std::vector<command_stream::cascading::PleKernelId>;
+using PleOperations = std::vector<std::pair<command_stream::cascading::PleKernelId, uint32_t>>;
 
 struct Combination
 {
@@ -230,7 +230,11 @@ public:
     bool ArePlansCompatible(const Plan& sPlan, const Plan& dPlan, const PartConnection& outputSlot);
     bool ArePlansCompatibleImpl(const Plan& sPlan, const Plan& dPlan, const PartConnection& outputSlot) const;
 
-    bool IsPlanAllocated(SramAllocator& alloc, const Plan& plan, PleOperations& pleOps) const;
+    bool IsPlanAllocated(SramAllocator& alloc,
+                         const Plan& plan,
+                         PleOperations& pleOps,
+                         const Buffer* const outBufOfPrevPlanInSection,
+                         const StatsType sectionType) const;
     bool IsPlanInputGlueable(const Plan& plan) const;
     bool IsPlanOutputGlueable(const Plan& plan) const;
     bool ArePlansAllowedToMerge(const Plan& reference, const Plan& current, const PartConnection& outputSlot) const;
