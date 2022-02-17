@@ -573,10 +573,17 @@ void Parse(mxml_node_t& parent, const Delay& value)
     Parse(*mxmlNewElement(operation, "VALUE"), value.m_Value());
 }
 
-template <typename T, typename = decltype(T::height, T::width, T::channels)>
-void Parse(mxml_node_t& parent, const T& size)
+template <typename T>
+void Parse(mxml_node_t& parent, const cascading::TensorSize<T>& size)
 {
     Parse(*mxmlNewElement(&parent, "HEIGHT"), size.height);
+    Parse(*mxmlNewElement(&parent, "WIDTH"), size.width);
+    Parse(*mxmlNewElement(&parent, "CHANNELS"), size.channels);
+}
+
+template <typename T>
+void Parse(mxml_node_t& parent, const cascading::SupertensorSize<T>& size)
+{
     Parse(*mxmlNewElement(&parent, "WIDTH"), size.width);
     Parse(*mxmlNewElement(&parent, "CHANNELS"), size.channels);
 }
@@ -595,7 +602,7 @@ void Parse(mxml_node_t& parent, const cascading::FmSData& fmData)
     Parse(*mxmlNewElement(&parent, "TILE"), fmData.tile);
     Parse(*mxmlNewElement(&parent, "DFLT_STRIPE_SIZE"), fmData.dfltStripeSize);
     Parse(*mxmlNewElement(&parent, "EDGE_STRIPE_SIZE"), fmData.edgeStripeSize);
-    Parse(*mxmlNewElement(&parent, "STRIPE_DRAM_STRIDES"), fmData.stripeDramStrides);
+    Parse(*mxmlNewElement(&parent, "SUPERTENSOR_SIZE_IN_CELLS"), fmData.supertensorSizeInCells);
     Parse(*mxmlNewElement(&parent, "NUM_STRIPES"), fmData.numStripes);
     Parse(*mxmlNewElement(&parent, "STRIPE_ID_STRIDES"), fmData.stripeIdStrides);
 }
@@ -740,14 +747,6 @@ void Parse(mxml_node_t& parent, const cascading::PleInputMode value)
                                  std::to_string(static_cast<uint32_t>(value)));
         }
     }
-}
-
-template <typename T>
-void Parse(mxml_node_t& parent, const cascading::TensorSize<T>& size)
-{
-    Parse(*mxmlNewElement(&parent, "HEIGHT"), size.height);
-    Parse(*mxmlNewElement(&parent, "WIDTH"), size.width);
-    Parse(*mxmlNewElement(&parent, "CHANNELS"), size.channels);
 }
 
 void Parse(mxml_node_t& parent, const cascading::PleS& ples)

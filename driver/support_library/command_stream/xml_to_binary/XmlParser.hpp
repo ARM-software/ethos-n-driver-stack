@@ -103,6 +103,8 @@ private:
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::PleIfmInfo& value);
     template <typename T>
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::TensorSize<T>& value);
+    template <typename T>
+    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::SupertensorSize<T>& value);
     void Pop(const std::string& key, ethosn::command_stream::cascading::MceOperation& value);
     void Pop(const std::string& key, ethosn::command_stream::cascading::PleInputMode& value);
     void Pop(const std::string& key, ethosn::command_stream::cascading::PleKernelId& value);

@@ -327,7 +327,7 @@ void XmlParser::Pop(const std::string& keyPrefix, cascading::FmSData& value)
     Pop("TILE", value.tile);
     Pop("DFLT_STRIPE_SIZE", value.dfltStripeSize);
     Pop("EDGE_STRIPE_SIZE", value.edgeStripeSize);
-    Pop("STRIPE_DRAM_STRIDES", value.stripeDramStrides);
+    Pop("SUPERTENSOR_SIZE_IN_CELLS", value.supertensorSizeInCells);
     Pop("NUM_STRIPES", value.numStripes);
     Pop("STRIPE_ID_STRIDES", value.stripeIdStrides);
 }
@@ -783,6 +783,13 @@ template <typename T>
 void XmlParser::Pop(const std::string& keyPrefix, cascading::TensorSize<T>& value)
 {
     Pop(keyPrefix + "/HEIGHT", value.height);
+    Pop(keyPrefix + "/WIDTH", value.width);
+    Pop(keyPrefix + "/CHANNELS", value.channels);
+}
+
+template <typename T>
+void XmlParser::Pop(const std::string& keyPrefix, cascading::SupertensorSize<T>& value)
+{
     Pop(keyPrefix + "/WIDTH", value.width);
     Pop(keyPrefix + "/CHANNELS", value.channels);
 }

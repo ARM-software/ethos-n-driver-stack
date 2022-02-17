@@ -28,6 +28,7 @@ struct Tile
     uint16_t slotSize;
 };
 
+ETHOSN_DECL_SV_VECTOR_STRUCT(SupertensorSize, width, channels)
 ETHOSN_DECL_SV_VECTOR_STRUCT(TensorSize, height, width, channels)
 
 /// Ifm/Ofm Streamer common data
@@ -43,8 +44,9 @@ struct FmSData
     TensorSize<uint16_t> dfltStripeSize;
     /// Size of the stripes at the edge of each dimension
     TensorSize<uint16_t> edgeStripeSize;
-    /// Strides in dram for stripe coordinates
-    TensorSize<uint32_t> stripeDramStrides;
+    /// Size of the supertensor in number of cells in the width and channels dimensions.
+    /// Cells are 1x1x1 (NHWC/NCHW), 8x8x16 (NHWCB), 8x16x16 (FCAF_WIDE) or 8x8x32 (FCAF_DEEP)
+    SupertensorSize<uint16_t> supertensorSizeInCells;
     /// Number of unique stripes in each tensor dimension (numStripesTotal will be
     /// a larger multiple of the product of all dimensions if reloading is needed)
     TensorSize<uint16_t> numStripes;

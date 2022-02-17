@@ -439,11 +439,10 @@ const std::string g_XmlStr =
                 <WIDTH>4</WIDTH>
                 <CHANNELS>1</CHANNELS>
             </EDGE_STRIPE_SIZE>
-            <STRIPE_DRAM_STRIDES>
-                <HEIGHT>4</HEIGHT>
+            <SUPERTENSOR_SIZE_IN_CELLS>
                 <WIDTH>1</WIDTH>
                 <CHANNELS>2</CHANNELS>
-            </STRIPE_DRAM_STRIDES>
+            </SUPERTENSOR_SIZE_IN_CELLS>
             <NUM_STRIPES>
                 <HEIGHT>512</HEIGHT>
                 <WIDTH>128</WIDTH>
@@ -524,11 +523,10 @@ const std::string g_XmlStr =
                 <WIDTH>8</WIDTH>
                 <CHANNELS>8</CHANNELS>
             </EDGE_STRIPE_SIZE>
-            <STRIPE_DRAM_STRIDES>
-                <HEIGHT>8</HEIGHT>
+            <SUPERTENSOR_SIZE_IN_CELLS>
                 <WIDTH>8</WIDTH>
                 <CHANNELS>8</CHANNELS>
-            </STRIPE_DRAM_STRIDES>
+            </SUPERTENSOR_SIZE_IN_CELLS>
             <NUM_STRIPES>
                 <HEIGHT>8</HEIGHT>
                 <WIDTH>8</WIDTH>
