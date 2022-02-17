@@ -88,7 +88,8 @@ protected:
                                       TraversalOrder order,
                                       WeightEncoderCache& weightEncoderCache,
                                       Plans& plans,
-                                      uint32_t numWeightStripes) const;
+                                      uint32_t numWeightStripes,
+                                      bool couldSourceBeFcaf) const;
 
     TensorShape m_InputTensorShape;
     TensorShape m_OutputTensorShape;
@@ -110,7 +111,8 @@ private:
                                const TensorShape& inputTensorShape,
                                const TensorShape& inputStripeShape,
                                const TensorShape& outputStripeShape,
-                               uint32_t numStripes) const;
+                               uint32_t numStripes,
+                               bool couldSourceBeFcaf) const;
 
     std::pair<Buffer*, Op*> AddMceToOpGraph(OwnedOpGraph& opGraph,
                                             Lifetime lifetime,
@@ -121,13 +123,15 @@ private:
                                             const TensorShape& inputShape,
                                             const QuantizationInfo& inputQuantInfo,
                                             impl::ConvData& convData,
-                                            WeightEncoderCache& weightEncoderCache) const;
+                                            WeightEncoderCache& weightEncoderCache,
+                                            bool couldSourceBeFcaf) const;
 
     void CreateMceOnlyPlans(const impl::MceOnlyInfo& info,
                             TraversalOrder order,
                             WeightEncoderCache& weightEncoderCache,
                             Plans& plans,
-                            uint32_t numWeightStripes) const;
+                            uint32_t numWeightStripes,
+                            bool couldSourceBeFcaf) const;
 
     Buffer* AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
                                             Lifetime lifetime,

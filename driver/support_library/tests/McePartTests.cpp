@@ -167,12 +167,15 @@ struct CheckPlansParams
     utils::Optional<uint32_t> m_UpscaleFactor;
     utils::Optional<command_stream::UpsampleType> m_UpsampleType;
     utils::Optional<std::set<uint32_t>> m_OperationIds;
+    utils::Optional<bool> m_CouldFcafDecomp;
     /// @}
 
     std::vector<PlanDescPredicate>
         m_Any;    ///< At least one plan must pass each of these predicates (though not necessarily the same plan for each).
     PlanDescFunc m_All =
         nullptr;    ///< If set, this function will be called once per plan, to perform additional checks on all plans.
+
+    const HardwareCapabilities* m_Caps = nullptr;
 };
 
 // Get the buffers from the OpGraph
@@ -259,6 +262,30 @@ void CheckInputSram(PlanDesc& desc, const CheckPlansParams& params)
     }
     // m_StripeShape, m_Order, m_SizeInBytes and m_NumStripes will depend on the streaming strategy, and so cannot be checked generically
     CHECK(desc.m_InputSram->m_EncodedWeights == nullptr);
+
+    if (params.m_CouldFcafDecomp)
+    {
+        // data could be FCAF decompressed
+        const bool stripeCellAligned = utils::IsCompressionFormatCompatibleWithStripeAndShape(
+                                           CompilerDataCompressedFormat::FCAF_DEEP, desc.m_InputSram->m_StripeShape) |
+                                       utils::IsCompressionFormatCompatibleWithStripeAndShape(
+                                           CompilerDataCompressedFormat::FCAF_WIDE, desc.m_InputSram->m_StripeShape);
+        if (params.m_CouldFcafDecomp.value() && stripeCellAligned)
+        {
+            // check the tile size is multiple of cell size.
+            const uint32_t fcafCellSize = 8 * 8 * 32;
+            CHECK((desc.m_InputSram->m_SizeInBytes % fcafCellSize) == 0);
+            CHECK(desc.m_InputSram->m_SizeInBytes >=
+                  (utils::TotalSizeBytes(desc.m_InputSram->m_StripeShape) * desc.m_InputSram->m_NumStripes));
+        }
+        else
+        {
+            CHECK(params.m_Caps != nullptr);
+
+            uint32_t maxTileSize = utils::MaxTileSize(desc.m_InputSram->m_TensorShape, *params.m_Caps);
+            CHECK(desc.m_InputSram->m_SizeInBytes <= maxTileSize);
+        }
+    }
 }
 
 void CheckWeightsDram(PlanDesc& desc, const CheckPlansParams& params)
@@ -753,6 +780,8 @@ TEST_CASE("McePart GetPlans structure")
             {
                 params.m_InputLocation   = PlanInputLocation::Sram;
                 params.m_OutputLocations = PlanOutputLocation::Sram | PlanOutputLocation::PleInputSram;
+                params.m_CouldFcafDecomp = false;
+                params.m_Caps            = &caps;
                 // Confirm that we have at least one plan that ends in Sram and at least one that ends in PleInputSram
                 params.m_Any.push_back(
                     [](const PlanDesc& plan) { return plan.m_Output->m_Location == Location::Sram; });
@@ -774,6 +803,143 @@ TEST_CASE("McePart GetPlans structure")
             prevBuffer.m_Order            = TraversalOrder::Xyz;
             prevBuffer.m_SizeInBytes      = 8 * 16 * 16 * 1;
             prevBuffer.m_NumStripes       = 1;
+            Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, &prevBuffer, 1);
+            SavePlansToDot(plans, "McePart GetPlans structure End");
+
+            THEN("The plans are valid and start in Sram and end in Sram")
+            {
+                params.m_InputLocation   = PlanInputLocation::Sram;
+                params.m_OutputLocations = PlanOutputLocation::Sram;
+                CheckPlans(plans, params);
+            }
+        }
+    }
+}
+
+// Check if the tile size is multiple of FCAF cell size
+// if the data in the input SRAM buffer is FCAF de-compressed.
+TEST_CASE("McePart GetPlans InputSramBuffer")
+{
+    GIVEN("A simple McePart")
+    {
+        const CompilationOptions compOpt;
+        EstimationOptions estOps;
+        const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO);
+
+        const PartId partId = 0;
+        TensorShape tsIn    = { 1, 24, 24, 16 };
+        TensorShape tsOut   = { 1, 64, 64, 1 };
+        const std::vector<uint8_t> weights(1 * 1 * utils::GetChannels(tsIn) * utils::GetChannels(tsOut), 1);
+        const std::vector<int32_t> bias(utils::GetChannels(tsOut), 0);
+        const QuantizationInfo inputQuantInfo(0, 1.0f);
+        const QuantizationInfo outputQuantInfo(0, 1.0f);
+        const TensorInfo weightsTensorInfo{ TensorShape{ 1, 1, utils::GetChannels(tsIn), utils::GetChannels(tsOut) },
+                                            DataType::UINT8_QUANTIZED, DataFormat::HWIO, QuantizationInfo(0, 0.9f) };
+        const TensorInfo biasTensorInfo({ 1, 1, 1, utils::GetChannels(tsOut) });
+        const std::set<uint32_t> operationIds   = { 1, 2, 3 };
+        const command_stream::MceOperation csOp = command_stream::MceOperation::CONVOLUTION;
+        const Stride stride                     = {};
+        const uint32_t padTop                   = 0;
+        const uint32_t padLeft                  = 0;
+        McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, weights, biasTensorInfo,
+                     bias, stride, padTop, padLeft, csOp, estOps, compOpt, caps, operationIds,
+                     ethosn::command_stream::DataType::U8);
+
+        CheckPlansParams params;
+        params.m_PartId            = partId;
+        params.m_InputShape        = tsIn;
+        params.m_InputQuantInfo    = inputQuantInfo;
+        params.m_OutputShape       = tsOut;
+        params.m_OutputQuantInfo   = outputQuantInfo;
+        params.m_WeightsTensorInfo = weightsTensorInfo;
+        params.m_MceOp             = csOp;
+        params.m_Stride            = stride;
+        params.m_PadTop            = padTop;
+        params.m_PadLeft           = padLeft;
+        params.m_OperationIds      = operationIds;
+
+        WHEN("Asked to produce Lonely plans")
+        {
+            Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
+            SavePlansToDot(plans, "McePart GetPlans structure Lonely");
+
+            THEN("The plans are valid, start and end in Sram")
+            {
+                params.m_InputLocation   = PlanInputLocation::Sram;
+                params.m_OutputLocations = PlanOutputLocation::Sram;
+                params.m_CouldFcafDecomp = true;
+                params.m_Caps            = &caps;
+                CheckPlans(plans, params);
+            }
+        }
+
+        WHEN("Asked to produce Beginning plans")
+        {
+            Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 0);
+            SavePlansToDot(plans, "McePart GetPlans structure Beginning");
+
+            THEN("The plans are valid and start in Sram and end in either Sram or PleInputSram")
+            {
+                params.m_InputLocation   = PlanInputLocation::Sram;
+                params.m_OutputLocations = PlanOutputLocation::Sram | PlanOutputLocation::PleInputSram;
+                params.m_CouldFcafDecomp = true;
+                params.m_Caps            = &caps;
+                // Confirm that we have at least one plan that ends in Sram and at least one that ends in PleInputSram
+                params.m_Any.push_back(
+                    [](const PlanDesc& plan) { return plan.m_Output->m_Location == Location::Sram; });
+                params.m_Any.push_back(
+                    [](const PlanDesc& plan) { return plan.m_Output->m_Location == Location::PleInputSram; });
+                CheckPlans(plans, params);
+            }
+        }
+
+        WHEN("Asked to produce Middle plans")
+        {
+            Buffer prevBuffer;
+            prevBuffer.m_Lifetime         = Lifetime::Cascade;
+            prevBuffer.m_Location         = Location::Sram;
+            prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
+            prevBuffer.m_QuantizationInfo = { 0, 1.0f };
+            prevBuffer.m_TensorShape      = tsIn;
+            prevBuffer.m_StripeShape      = TensorShape{ 1, 8, 16, 16 };
+            prevBuffer.m_Order            = TraversalOrder::Xyz;
+            prevBuffer.m_SizeInBytes      = 8 * 16 * 16 * 1;
+            prevBuffer.m_NumStripes       = 1;
+            params.m_CouldFcafDecomp      = false;
+            params.m_Caps                 = &caps;
+
+            Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, &prevBuffer, 1);
+            SavePlansToDot(plans, "McePart GetPlans structure Middle");
+
+            THEN("The plans are valid and start in Sram and end in either Sram or PleInputSram")
+            {
+                params.m_InputLocation   = PlanInputLocation::Sram;
+                params.m_OutputLocations = PlanOutputLocation::Sram | PlanOutputLocation::PleInputSram;
+                params.m_CouldFcafDecomp = false;
+                params.m_Caps            = &caps;
+                // Confirm that we have at least one plan that ends in Sram and at least one that ends in PleInputSram
+                params.m_Any.push_back(
+                    [](const PlanDesc& plan) { return plan.m_Output->m_Location == Location::Sram; });
+                params.m_Any.push_back(
+                    [](const PlanDesc& plan) { return plan.m_Output->m_Location == Location::PleInputSram; });
+                CheckPlans(plans, params);
+            }
+        }
+
+        WHEN("Asked to produce End plans")
+        {
+            Buffer prevBuffer;
+            prevBuffer.m_Lifetime         = Lifetime::Cascade;
+            prevBuffer.m_Location         = Location::Sram;
+            prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
+            prevBuffer.m_QuantizationInfo = { 0, 1.0f };
+            prevBuffer.m_TensorShape      = tsIn;
+            prevBuffer.m_StripeShape      = TensorShape{ 1, 8, 16, 16 };
+            prevBuffer.m_Order            = TraversalOrder::Xyz;
+            prevBuffer.m_SizeInBytes      = 8 * 16 * 16 * 1;
+            prevBuffer.m_NumStripes       = 1;
+            params.m_CouldFcafDecomp      = false;
+            params.m_Caps                 = &caps;
             Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, &prevBuffer, 1);
             SavePlansToDot(plans, "McePart GetPlans structure End");
 

@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -186,9 +186,13 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
         stripeInfos.m_MceAndPleInfos.emplace(mceAndPleInfo);
     }
 
+    // Fully connected input cannot be de-compressed from FCAF
+    const bool couldSourceBeFcaf = false;
+
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
-        CreateMceAndIdentityPlePlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret, numWeightStripes);
+        CreateMceAndIdentityPlePlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret, numWeightStripes,
+                                     couldSourceBeFcaf);
     }
     return ret;
 }
