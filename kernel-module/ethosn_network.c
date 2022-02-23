@@ -41,11 +41,10 @@
 #include <linux/pm_runtime.h>
 #include <linux/poll.h>
 #include <linux/slab.h>
+#include <linux/stddef.h>
 #include <linux/uaccess.h>
 #include <linux/version.h>
 #include <linux/wait.h>
-
-#include <stdbool.h>
 
 #define ETHOSN_INFERENCE_ABORTED   -1
 

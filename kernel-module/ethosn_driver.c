@@ -1655,3 +1655,7 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Arm Limited");
 MODULE_DESCRIPTION("Arm Ethos-N Driver");
 MODULE_VERSION(ETHOSN_DRIVER_VERSION);
+/* From kernel version 5.15, the dma_buf symbols are in a separate namespace */
+#if (KERNEL_VERSION(5, 15, 0) <= LINUX_VERSION_CODE)
+MODULE_IMPORT_NS(DMA_BUF);
+#endif
