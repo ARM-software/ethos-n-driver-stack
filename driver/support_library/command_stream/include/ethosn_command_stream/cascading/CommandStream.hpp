@@ -75,7 +75,7 @@ struct WeightsMetadata
     uint32_t size;
 };
 
-/// Mce Scheduler work size
+/// Weight Streamer work size
 ETHOSN_DECL_SV_VECTOR_STRUCT(WgtSWorkSize, ofmChannels, ifmChannels)
 
 /// Weight Streamer data
