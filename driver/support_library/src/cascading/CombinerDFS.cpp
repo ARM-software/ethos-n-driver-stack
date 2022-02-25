@@ -415,7 +415,7 @@ bool Combiner::IsPlanAllocated(SramAllocator& alloc,
 
         bool inputBufferNeedAllocation = false;
 
-        if (sectionType == StatsType::StartSection)
+        if (sectionType == StatsType::StartSection || sectionType == StatsType::SinglePartSection)
         {
             inputBufferNeedAllocation = true;
         }
@@ -1149,18 +1149,18 @@ Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPar
 // It does not need to check if the plan is compatible
 // with the available SRAM since only valid plans are generated.
 //
-// - - - ---            -------------            --- - - -
-//          |          |             |          |
-//          |          |   -------   |          |
-//          |  ------  |  |       |  |  ------  |
-//          |-| DRAM |-|--|   Y   |--|-| DRAM |-|
-//          |  ------  |  |       |  |  ------  |
-//          |          |   -------   |          |
-//          |          |             |          |
-// - - - ---            -------------            --- - - -
-//                            ^
-//                            |
-//                   Single part section
+// - - - ---            -----------------------------            --- - - -
+//          |          |                             |          |
+//          |          |           -------           |          |
+//          |  ------  |  ------  |       |  ------  |  ------  |
+//          |-| DRAM |-|-| SRAM |-|   Y   |-| SRAM |-|-| DRAM |-|
+//          |  ------  |  ------  |       |  ------  |  ------  |
+//          |          |           -------           |          |
+//          |          |                             |          |
+// - - - ---            -----------------------------            --- - - -
+//                                    ^
+//                                    |
+//                            Single part section
 //
 Combination Combiner::SinglePartSection(const BasePart& part)
 {
@@ -1176,11 +1176,18 @@ Combination Combiner::SinglePartSection(const BasePart& part)
 
         for (Plan& plan : plans)
         {
+            SramAllocator alloc(m_Caps.GetTotalSramSize() / m_Caps.GetNumberOfSrams());
+            PleOperations pleOps = {};
+
             if (!IsPlanInputGlueable(plan))
             {
                 continue;
             }
             if (!IsPlanOutputGlueable(plan))
+            {
+                continue;
+            }
+            if (!IsPlanAllocated(alloc, plan, pleOps, nullptr, StatsType::SinglePartSection))
             {
                 continue;
             }

@@ -2667,9 +2667,122 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
     ETHOSN_UNUSED(outBufferAndPleOp);
 }
 
-TEST_CASE("SectionSramAllocationForBuffersAndPleOps", "[CombinerDFS]")
+TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
 {
-    GIVEN("A Graph of three parts where their corresponding plans fit into a single section")
+    GIVEN("A Graph of one part where its corresponding plan fits into a single section")
+    {
+        GraphOfParts graph;
+
+        auto& parts = graph.m_Parts;
+
+        auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+
+        const BasePart& partA = *pA;
+
+        parts.push_back(std::move(pA));
+
+        PartInputSlot partAInputSlot   = { partA.GetPartId(), 0 };
+        PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
+
+        ethosn::support_library::impl::NumMemoryStripes numMemoryStripes;
+        const std::set<uint32_t> operationIds = { 0 };
+
+        const CompilationOptions compOpt;
+        const EstimationOptions estOpt;
+        const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+        const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+        Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+        SramAllocator alloc(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams());
+        uint32_t currentSramOffset = 0;
+        PleOperations pleOps       = {};
+
+        Plan planA;
+
+        const uint32_t inputBufferSize  = 512;
+        const uint32_t outputBufferSize = 512;
+
+        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(
+            Lifetime::Cascade, Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 },
+            TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, inputBufferSize, QuantizationInfo()));
+        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(
+            Lifetime::Cascade, Location::PleInputSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 },
+            TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, outputBufferSize, QuantizationInfo()));
+
+        planA.m_OpGraph.AddOp(
+            std::make_unique<MceOp>(Lifetime::Cascade, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                    BlockConfig{ 8u, 8u }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
+                                    TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+
+        planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[0], partAInputSlot } };
+        planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[1], partAOutputSlot } };
+
+        WHEN("Lonely section with a plan that has no Ple Op")
+        {
+            REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == false);
+            REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
+            REQUIRE(combiner.IsPlanAllocated(alloc, planA, pleOps, nullptr, StatsType::SinglePartSection) == true);
+            REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == true);
+            REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.value() == currentSramOffset);
+            currentSramOffset = planA.m_OpGraph.GetBuffers()[0]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
+            REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
+            REQUIRE(pleOps.size() == 0);
+        }
+
+        WHEN("Lonely section with a plan that has Ple Op")
+        {
+            // Adding a passthrough PLE kernel to the plan
+            // The PleKernelId is expected to be PASSTHROUGH_8x8_2
+            auto op =
+                std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
+                                        BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                        TensorShape{ 1, 8, 8, 8 }, ethosn::command_stream::DataType::U8, true);
+            numMemoryStripes.m_Output = 1;
+            auto outBufferAndPleOp    = AddPleToOpGraph(planA.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
+                                                     TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
+                                                     TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
+
+            PleOp* ptrPleOp = dynamic_cast<PleOp*>(planA.m_OpGraph.GetOp(1));
+            if (ptrPleOp == nullptr)
+            {
+                REQUIRE(false);
+            }
+
+            if (ptrPleOp != nullptr)
+            {
+                REQUIRE(ptrPleOp->m_Offset.has_value() == false);
+            }
+
+            REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == false);
+            REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
+            REQUIRE(planA.m_OpGraph.GetBuffers()[2]->m_Offset.has_value() == false);
+            REQUIRE(combiner.IsPlanAllocated(alloc, planA, pleOps, nullptr, StatsType::SinglePartSection) == true);
+
+            if (ptrPleOp != nullptr)
+            {
+                REQUIRE(ptrPleOp->m_Offset.has_value() == true);
+                REQUIRE(ptrPleOp->m_Offset.value() == currentSramOffset);
+            }
+
+            currentSramOffset += hwCaps.GetMaxPleSize() / hwCaps.GetNumberOfSrams();
+            REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == true);
+            REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.value() == currentSramOffset);
+            currentSramOffset += planA.m_OpGraph.GetBuffers()[0]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
+            // Note that Buffer 1 is the output from MceOp where its location is in PleInputSRAM not SRAM
+            REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
+            REQUIRE(planA.m_OpGraph.GetBuffers()[2]->m_Offset.has_value() == true);
+            REQUIRE(planA.m_OpGraph.GetBuffers()[2]->m_Offset.value() == currentSramOffset);
+            currentSramOffset += planA.m_OpGraph.GetBuffers()[2]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
+            REQUIRE(pleOps.size() == 1);
+
+            ETHOSN_UNUSED(outBufferAndPleOp);
+        }
+    }
+}
+
+TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
+{
+    GIVEN("A Graph of three parts where their corresponding plans fits into a single section")
     {
         GraphOfParts graph;
 
@@ -2703,7 +2816,7 @@ TEST_CASE("SectionSramAllocationForBuffersAndPleOps", "[CombinerDFS]")
         const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
         Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
-        SramAllocator alloc(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), tmpAlloc;
+        SramAllocator alloc(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams());
         uint32_t currentSramOffset = 0;
         PleOperations pleOps       = {};
 
@@ -2729,18 +2842,14 @@ TEST_CASE("SectionSramAllocationForBuffersAndPleOps", "[CombinerDFS]")
 
         WHEN("Starting the section with the first plan that has no Ple Op")
         {
-            THEN("SRAM allocation for the plan buffers should be as following")
-            {
-
-                REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == false);
-                REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
-                REQUIRE(combiner.IsPlanAllocated(alloc, planA, pleOps, nullptr, StatsType::StartSection) == true);
-                REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == true);
-                REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.value() == currentSramOffset);
-                currentSramOffset = planA.m_OpGraph.GetBuffers()[0]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
-                REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
-                REQUIRE(pleOps.size() == 0);
-            }
+            REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == false);
+            REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
+            REQUIRE(combiner.IsPlanAllocated(alloc, planA, pleOps, nullptr, StatsType::StartSection) == true);
+            REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == true);
+            REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.value() == currentSramOffset);
+            currentSramOffset = planA.m_OpGraph.GetBuffers()[0]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
+            REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
+            REQUIRE(pleOps.size() == 0);
         }
 
         WHEN("Starting the section with the first plan that has Ple Op")
@@ -2756,17 +2865,33 @@ TEST_CASE("SectionSramAllocationForBuffersAndPleOps", "[CombinerDFS]")
                                                      TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
                                                      TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
-            REQUIRE((reinterpret_cast<PleOp*>(planA.m_OpGraph.GetOp(1)))->m_Offset.has_value() == false);
+            PleOp* ptrPleOp = dynamic_cast<PleOp*>(planA.m_OpGraph.GetOp(1));
+            if (ptrPleOp == nullptr)
+            {
+                REQUIRE(false);
+            }
+
+            if (ptrPleOp != nullptr)
+            {
+                REQUIRE(ptrPleOp->m_Offset.has_value() == false);
+            }
+
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == false);
             REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
             REQUIRE(planA.m_OpGraph.GetBuffers()[2]->m_Offset.has_value() == false);
             REQUIRE(combiner.IsPlanAllocated(alloc, planA, pleOps, nullptr, StatsType::StartSection) == true);
-            REQUIRE((reinterpret_cast<PleOp*>(planA.m_OpGraph.GetOp(1)))->m_Offset.has_value() == true);
-            REQUIRE((reinterpret_cast<PleOp*>(planA.m_OpGraph.GetOp(1)))->m_Offset.value() == currentSramOffset);
+
+            if (ptrPleOp != nullptr)
+            {
+                REQUIRE(ptrPleOp->m_Offset.has_value() == true);
+                REQUIRE(ptrPleOp->m_Offset.value() == currentSramOffset);
+            }
+
             currentSramOffset += hwCaps.GetMaxPleSize() / hwCaps.GetNumberOfSrams();
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == true);
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.value() == currentSramOffset);
             currentSramOffset += planA.m_OpGraph.GetBuffers()[0]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
+            // Note that Buffer 1 is the output from MceOp where its location is in PleInputSRAM not SRAM
             REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
             REQUIRE(planA.m_OpGraph.GetBuffers()[2]->m_Offset.has_value() == true);
             REQUIRE(planA.m_OpGraph.GetBuffers()[2]->m_Offset.value() == currentSramOffset);
@@ -2819,13 +2944,24 @@ TEST_CASE("SectionSramAllocationForBuffersAndPleOps", "[CombinerDFS]")
                                                          TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
                                                          TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
-                REQUIRE((reinterpret_cast<PleOp*>(planB.m_OpGraph.GetOp(1)))->m_LoadKernel == true);
+                PleOp* ptrPleOpA = dynamic_cast<PleOp*>(planA.m_OpGraph.GetOp(1));
+                PleOp* ptrPleOpB = dynamic_cast<PleOp*>(planB.m_OpGraph.GetOp(1));
+                if (ptrPleOpA == nullptr || ptrPleOpB == nullptr)
+                {
+                    REQUIRE(false);
+                }
+
+                REQUIRE(ptrPleOpB->m_LoadKernel == true);
                 REQUIRE(combiner.IsPlanAllocated(alloc, planB, pleOps, planA.m_OpGraph.GetBuffers()[2],
                                                  StatsType::ContinueSection) == true);
                 REQUIRE(pleOps.size() == 1);
-                REQUIRE((reinterpret_cast<PleOp*>(planB.m_OpGraph.GetOp(1)))->m_LoadKernel == false);
-                REQUIRE((reinterpret_cast<PleOp*>(planB.m_OpGraph.GetOp(1)))->m_Offset ==
-                        (reinterpret_cast<PleOp*>(planA.m_OpGraph.GetOp(1)))->m_Offset);
+
+                if (ptrPleOpA != nullptr && ptrPleOpB != nullptr)
+                {
+                    REQUIRE(ptrPleOpB->m_LoadKernel == false);
+                    REQUIRE(ptrPleOpB->m_Offset == ptrPleOpA->m_Offset);
+                }
+
                 REQUIRE(planB.m_OpGraph.GetBuffers()[2]->m_Offset.value() == currentSramOffset);
                 currentSramOffset += planB.m_OpGraph.GetBuffers()[2]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
 
@@ -2846,12 +2982,28 @@ TEST_CASE("SectionSramAllocationForBuffersAndPleOps", "[CombinerDFS]")
                                                          TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
                                                          TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
-                REQUIRE((reinterpret_cast<PleOp*>(planB.m_OpGraph.GetOp(1)))->m_LoadKernel == true);
+                PleOp* ptrPleOpA = dynamic_cast<PleOp*>(planA.m_OpGraph.GetOp(1));
+                PleOp* ptrPleOpB = dynamic_cast<PleOp*>(planB.m_OpGraph.GetOp(1));
+                if (ptrPleOpA == nullptr || ptrPleOpB == nullptr)
+                {
+                    REQUIRE(false);
+                }
+
+                if (ptrPleOpB != nullptr)
+                {
+                    REQUIRE(ptrPleOpB->m_LoadKernel == true);
+                }
+
                 REQUIRE(combiner.IsPlanAllocated(alloc, planB, pleOps, planA.m_OpGraph.GetBuffers()[2],
                                                  StatsType::ContinueSection) == true);
                 REQUIRE(pleOps.size() == 2);
-                REQUIRE((reinterpret_cast<PleOp*>(planB.m_OpGraph.GetOp(1)))->m_LoadKernel == true);
-                REQUIRE((reinterpret_cast<PleOp*>(planB.m_OpGraph.GetOp(1)))->m_Offset == currentSramOffset);
+
+                if (ptrPleOpB != nullptr)
+                {
+                    REQUIRE(ptrPleOpB->m_LoadKernel == true);
+                    REQUIRE(ptrPleOpB->m_Offset == currentSramOffset);
+                }
+
                 currentSramOffset += hwCaps.GetMaxPleSize() / hwCaps.GetNumberOfSrams();
                 REQUIRE(planB.m_OpGraph.GetBuffers()[2]->m_Offset.value() == currentSramOffset);
                 currentSramOffset += planB.m_OpGraph.GetBuffers()[2]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
@@ -2901,13 +3053,33 @@ TEST_CASE("SectionSramAllocationForBuffersAndPleOps", "[CombinerDFS]")
                         planC.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz, TensorShape{ 1, 8, 8, 8 },
                         numMemoryStripes, std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
-                    REQUIRE((reinterpret_cast<PleOp*>(planC.m_OpGraph.GetOp(1)))->m_LoadKernel == true);
+                    PleOp* ptrPleOpA = dynamic_cast<PleOp*>(planA.m_OpGraph.GetOp(1));
+                    PleOp* ptrPleOpB = dynamic_cast<PleOp*>(planB.m_OpGraph.GetOp(1));
+                    PleOp* ptrPleOpC = dynamic_cast<PleOp*>(planC.m_OpGraph.GetOp(1));
+                    if (ptrPleOpA == nullptr || ptrPleOpB == nullptr || ptrPleOpC == nullptr)
+                    {
+                        REQUIRE(false);
+                    }
+
+                    if (ptrPleOpC != nullptr)
+                    {
+                        REQUIRE(ptrPleOpC->m_LoadKernel == true);
+                    }
+
                     REQUIRE(combiner.IsPlanAllocated(alloc, planC, pleOps, planB.m_OpGraph.GetBuffers()[2],
                                                      StatsType::EndSection) == true);
                     REQUIRE(pleOps.size() == 2);
-                    REQUIRE((reinterpret_cast<PleOp*>(planC.m_OpGraph.GetOp(1)))->m_LoadKernel == false);
-                    REQUIRE((reinterpret_cast<PleOp*>(planC.m_OpGraph.GetOp(1)))->m_Offset ==
-                            (reinterpret_cast<PleOp*>(planB.m_OpGraph.GetOp(1)))->m_Offset);
+
+                    if (ptrPleOpC != nullptr)
+                    {
+                        REQUIRE(ptrPleOpC->m_LoadKernel == false);
+                    }
+
+                    if (ptrPleOpC != nullptr && ptrPleOpB != nullptr)
+                    {
+                        REQUIRE(ptrPleOpC->m_Offset == ptrPleOpB->m_Offset);
+                    }
+
                     REQUIRE(planC.m_OpGraph.GetBuffers()[2]->m_Offset.value() == currentSramOffset);
                     currentSramOffset += planC.m_OpGraph.GetBuffers()[2]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
 
@@ -2928,12 +3100,32 @@ TEST_CASE("SectionSramAllocationForBuffersAndPleOps", "[CombinerDFS]")
                         planC.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz, TensorShape{ 1, 8, 8, 8 },
                         numMemoryStripes, std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
-                    REQUIRE((reinterpret_cast<PleOp*>(planC.m_OpGraph.GetOp(1)))->m_LoadKernel == true);
+                    PleOp* ptrPleOpB = dynamic_cast<PleOp*>(planB.m_OpGraph.GetOp(1));
+                    PleOp* ptrPleOpC = dynamic_cast<PleOp*>(planC.m_OpGraph.GetOp(1));
+                    if (ptrPleOpB == nullptr || ptrPleOpC == nullptr)
+                    {
+                        REQUIRE(false);
+                    }
+
+                    if (ptrPleOpC != nullptr)
+                    {
+                        REQUIRE(ptrPleOpC->m_LoadKernel == true);
+                    }
+
                     REQUIRE(combiner.IsPlanAllocated(alloc, planC, pleOps, planB.m_OpGraph.GetBuffers()[2],
                                                      StatsType::EndSection) == true);
                     REQUIRE(pleOps.size() == 3);
-                    REQUIRE((reinterpret_cast<PleOp*>(planB.m_OpGraph.GetOp(1)))->m_LoadKernel == true);
-                    REQUIRE((reinterpret_cast<PleOp*>(planC.m_OpGraph.GetOp(1)))->m_Offset == currentSramOffset);
+
+                    if (ptrPleOpB != nullptr)
+                    {
+                        REQUIRE(ptrPleOpB->m_LoadKernel == true);
+                    }
+
+                    if (ptrPleOpC != nullptr)
+                    {
+                        REQUIRE(ptrPleOpC->m_Offset == currentSramOffset);
+                    }
+
                     currentSramOffset += hwCaps.GetMaxPleSize() / hwCaps.GetNumberOfSrams();
                     REQUIRE(planC.m_OpGraph.GetBuffers()[2]->m_Offset.value() == currentSramOffset);
                     currentSramOffset += planC.m_OpGraph.GetBuffers()[2]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
