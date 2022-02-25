@@ -1,4 +1,3 @@
-//
 // Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -19,6 +18,89 @@
 using namespace ethosn::support_library;
 using namespace ethosn::command_stream;
 using PleKernelId = ethosn::command_stream::cascading::PleKernelId;
+
+// These Mock classes are used locally to create a test framework for double-buffering logic.
+class WeightPart : public MockPart
+{
+public:
+    WeightPart(PartId id,
+               uint32_t* numPlansCounter,
+               std::vector<uint32_t>* numWeightBuffers,
+               std::function<bool(CascadeType, PartId)> filter)
+        : MockPart(id)
+        , m_NumPlansCounter(numPlansCounter)
+        , m_NumWeightBuffers(numWeightBuffers)
+        , m_Filter(filter)
+    {}
+
+    virtual Plans GetPlans(CascadeType cascadeType,
+                           ethosn::command_stream::BlockConfig,
+                           Buffer*,
+                           uint32_t numWeightBuffers) const override
+    {
+        if (!m_Filter(cascadeType, m_PartId))
+        {
+            return Plans();
+        }
+        Plans plans;
+
+        PartInputMapping inputMappings;
+        PartOutputMapping outputMappings;
+
+        OwnedOpGraph opGraph;
+
+        opGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+                                                   TraversalOrder::Xyz));
+        Buffer* buffer             = opGraph.GetBuffers()[0];
+        buffer->m_TensorShape      = { 1, 16, 16, 16 };
+        buffer->m_StripeShape      = { 1, 16, 16, 16 };
+        buffer->m_SizeInBytes      = 16 * 16 * 16;
+        buffer->m_QuantizationInfo = { 0, 1.f };
+
+        inputMappings[buffer]  = PartInputSlot{ m_PartId, 0 };
+        outputMappings[buffer] = PartOutputSlot{ m_PartId, 0 };
+
+        Plan plan(std::move(inputMappings), std::move(outputMappings));
+        plan.m_OpGraph = std::move(opGraph);
+        plans.push_back(std::move(plan));
+
+        (*m_NumPlansCounter)++;
+        m_NumWeightBuffers->push_back(numWeightBuffers);
+
+        return plans;
+    }
+
+    virtual utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const override
+    {
+        return {};
+    }
+
+    bool CanDoubleBufferWeights() const override
+    {
+        return true;
+    }
+
+    uint32_t* m_NumPlansCounter;
+    std::vector<uint32_t>* m_NumWeightBuffers;
+    // Function instance used to store the filter lambda function.
+    std::function<bool(CascadeType, PartId)> m_Filter;
+};
+
+class NoWeightPart : public WeightPart
+{
+public:
+    NoWeightPart(PartId id,
+                 uint32_t* numPlansCounter,
+                 std::vector<uint32_t>* weightBuffers,
+                 std::function<bool(CascadeType, PartId)> filter)
+        : WeightPart(id, numPlansCounter, weightBuffers, filter)
+    {}
+
+    bool CanDoubleBufferWeights() const override
+    {
+        return false;
+    }
+};
 
 TEST_CASE("IsPartSiso", "[CombinerDFS]")
 {
@@ -451,6 +533,374 @@ TEST_CASE("IsPartSo and IsPartMo", "[CombinerDFS]")
 
     REQUIRE(combiner.IsPartSo(partF) == false);
     REQUIRE(combiner.IsPartMo(partF) == false);
+}
+
+// Manually creates a 3-part network consisting of MockParts without weights, to test the double buffering logic of the Combiner.
+// The topology is chosen to test cases including:
+//      * StandalonePle kernels without weights.
+//      * Start/Continue/EndSection logic only.
+TEST_CASE("DoubleBufferingTestVariant_PleKernelsOnly", "[CombinerDFS]")
+{
+    // Create graph:
+    //
+    //  Input - A (Ple) - B (Ple) - C (Ple)
+    //
+
+    GraphOfParts graph;
+    auto& parts              = graph.m_Parts;
+    auto& connections        = graph.m_Connections;
+    uint32_t numPlansCounter = 0;
+    std::array<std::vector<uint32_t>, 3> planWeightBuffers;
+    // Filter lambda function used to force the Combiner in generating specific Plans for specific Parts.
+    auto filter = [](auto cascadeType, auto partId) {
+        return ((partId == 1 && cascadeType == CascadeType::Beginning) ||
+                (partId == 2 && cascadeType == CascadeType::Middle) ||
+                (partId == 3 && cascadeType == CascadeType::End));
+    };
+
+    auto pInput = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pA = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[0], filter);
+    auto pB = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[1], filter);
+    auto pC = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[2], filter);
+
+    BasePart& partA = *pA;
+
+    PartId partInputId = pInput->GetPartId();
+    PartId partAId     = pA->GetPartId();
+    PartId partBId     = pB->GetPartId();
+    PartId partCId     = pC->GetPartId();
+    parts.push_back(std::move(pInput));
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+
+    PartOutputSlot partInputOutputSlot0 = { partInputId, 0 };
+
+    PartInputSlot partAInputSlot0   = { partAId, 0 };
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+
+    PartInputSlot partBInputSlot0   = { partBId, 0 };
+    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
+
+    PartInputSlot partCInputSlot0 = { partCId, 0 };
+
+    connections[partAInputSlot0] = partInputOutputSlot0;
+    connections[partBInputSlot0] = partAOutputSlot0;
+    connections[partCInputSlot0] = partBOutputSlot0;
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    combiner.TopologicalSortParts();
+    Combination comb = combiner.FindBestCombinationForPart(partA);
+
+    // The network consists of mocked Ple kernels without weights, hence no double buffering should be taking place.
+    // Number of plans: 1 weightStripes * (1 PlePlan/weightStripe + 1 PlePlan/weightStripe + 1 PlePlan/weightStripe) == 3.
+    // Number of weightStripes per plan per part: e.g. PlePart generates 1x plans, with 1 weightStripes.
+    REQUIRE(numPlansCounter == 3);
+    REQUIRE(planWeightBuffers[0] == std::vector<uint32_t>{ 1 });
+    REQUIRE(planWeightBuffers[1] == std::vector<uint32_t>{ 1 });
+    REQUIRE(planWeightBuffers[2] == std::vector<uint32_t>{ 1 });
+}
+
+// Manually creates a 3-part network consisting of MockParts with and without weights, to test the double buffering logic of the Combiner.
+// The topology is chosen to test cases including:
+//      * Mce and StandalonePle kernels with and without weights.
+//      * SinglePartSection logic only.
+TEST_CASE("DoubleBufferingTestVariant_SinglePartSection", "[CombinerDFS]")
+{
+    // Create graph:
+    //
+    //  Input - A (Ple) - B (Mce) - C (Ple)
+    //
+
+    GraphOfParts graph;
+    auto& parts              = graph.m_Parts;
+    auto& connections        = graph.m_Connections;
+    uint32_t numPlansCounter = 0;
+    std::array<std::vector<uint32_t>, 3> planWeightBuffers;
+    // Filter lambda function used to force the Combiner in generating specific Plans for specific Parts.
+    auto filter = [](auto cascadeType, auto partId) {
+        return ((partId == 1 && cascadeType == CascadeType::Lonely) ||
+                (partId == 2 && cascadeType == CascadeType::Lonely) ||
+                (partId == 3 && cascadeType == CascadeType::Lonely));
+    };
+
+    auto pInput = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pA = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[0], filter);
+    auto pB = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[1], filter);
+    auto pC = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[2], filter);
+
+    BasePart& partA = *pA;
+
+    PartId partInputId = pInput->GetPartId();
+    PartId partAId     = pA->GetPartId();
+    PartId partBId     = pB->GetPartId();
+    PartId partCId     = pC->GetPartId();
+    parts.push_back(std::move(pInput));
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+
+    PartOutputSlot partInputOutputSlot0 = { partInputId, 0 };
+
+    PartInputSlot partAInputSlot0   = { partAId, 0 };
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+
+    PartInputSlot partBInputSlot0   = { partBId, 0 };
+    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
+
+    PartInputSlot partCInputSlot0 = { partCId, 0 };
+
+    connections[partAInputSlot0] = partInputOutputSlot0;
+    connections[partBInputSlot0] = partAOutputSlot0;
+    connections[partCInputSlot0] = partBOutputSlot0;
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    combiner.TopologicalSortParts();
+    Combination comb = combiner.FindBestCombinationForPart(partA);
+
+    // The network consists of mocked Mce and Ple kernels with and without weights, hence only the first Mce should be double buffered.
+    // Number of plans: 1 weightStripes * 1 PlePlan/weightStripe + 2 weightStripes * 1 McePlan/weightStripe + 1 weightStripe * 1 PlePlan/weightStripe == 4.
+    // Number of weightStripes per plan per part: PlePart generates 1x plans, with 1 weightStripes.
+    //                                            McePart generates 2x plans, with 1 and 2 weightStripes respectively.
+    //                                            PlePart generates 1x plans, with 1 weightStripes, since only SinglePartSection is called.
+    REQUIRE(numPlansCounter == 4);
+    REQUIRE(planWeightBuffers[0] == std::vector<uint32_t>{ 1 });
+    REQUIRE(planWeightBuffers[1] == std::vector<uint32_t>{ 1, 2 });
+    REQUIRE(planWeightBuffers[2] == std::vector<uint32_t>{ 1 });
+}
+
+// Manually creates a 3-part network consisting of MockParts with and without weights, to test the double buffering logic of the Combiner.
+// The topology is chosen to test cases including:
+//      * Mce and StandalonePle kernels with and without weights.
+//      * Start/Continue/EndSection logic only.
+TEST_CASE("DoubleBufferingTestVariant_McePleMce", "[CombinerDFS]")
+{
+    // Create graph:
+    //
+    //  Input - A (Mce) - B (Ple) - C (Mce)
+    //
+
+    GraphOfParts graph;
+    auto& parts              = graph.m_Parts;
+    auto& connections        = graph.m_Connections;
+    uint32_t numPlansCounter = 0;
+    std::array<std::vector<uint32_t>, 3> planWeightBuffers;
+    // Filter lambda function used to force the Combiner in generating specific Plans for specific Parts.
+    auto filter = [](auto cascadeType, auto partId) {
+        return ((partId == 1 && cascadeType == CascadeType::Beginning) ||
+                (partId == 2 && cascadeType == CascadeType::Middle) ||
+                (partId == 3 && cascadeType == CascadeType::End));
+    };
+
+    auto pInput = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pA     = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[0], filter);
+    auto pB = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[1], filter);
+    auto pC = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[2], filter);
+
+    BasePart& partA = *pA;
+
+    PartId partInputId = pInput->GetPartId();
+    PartId partAId     = pA->GetPartId();
+    PartId partBId     = pB->GetPartId();
+    PartId partCId     = pC->GetPartId();
+    parts.push_back(std::move(pInput));
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+
+    PartOutputSlot partInputOutputSlot0 = { partInputId, 0 };
+
+    PartInputSlot partAInputSlot0   = { partAId, 0 };
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+
+    PartInputSlot partBInputSlot0   = { partBId, 0 };
+    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
+
+    PartInputSlot partCInputSlot0 = { partCId, 0 };
+
+    connections[partAInputSlot0] = partInputOutputSlot0;
+    connections[partBInputSlot0] = partAOutputSlot0;
+    connections[partCInputSlot0] = partBOutputSlot0;
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    combiner.TopologicalSortParts();
+    Combination comb = combiner.FindBestCombinationForPart(partA);
+
+    // The network consists of mocked Mce and Ple kernels with and without weights, hence only the first Mce should be double buffered.
+    // Number of plans: 2 weightStripes * (1 McePlan/weightStripe + 1 PlePlan/weightStripe + 1 PlePlan/weightStripe) == 6.
+    // Number of weightStripes per plan per part: e.g. McePart generates 2x plans, with 1 and 2 weightStripes respectively.
+    REQUIRE(numPlansCounter == 6);
+    REQUIRE(planWeightBuffers[0] == std::vector<uint32_t>{ 1, 2 });
+    REQUIRE(planWeightBuffers[1] == std::vector<uint32_t>{ 1, 2 });
+    REQUIRE(planWeightBuffers[2] == std::vector<uint32_t>{ 1, 2 });
+}
+
+// Manually creates a 3-part network consisting of MockParts with and without weights, to test the double buffering logic of the Combiner.
+// The topology is chosen to test cases including:
+//      * Mce and StandalonePle kernels with and without weights.
+//      * Start/Continue/EndSection logic only.
+TEST_CASE("DoubleBufferingTestVariant_PleMceMce", "[CombinerDFS]")
+{
+    // Create graph:
+    //
+    //  Input - A (Ple) - B (Mce) - C (Mce)
+    //
+
+    GraphOfParts graph;
+    auto& parts              = graph.m_Parts;
+    auto& connections        = graph.m_Connections;
+    uint32_t numPlansCounter = 0;
+    std::array<std::vector<uint32_t>, 3> planWeightBuffers;
+    // Filter lambda function used to force the Combiner in generating specific Plans for specific Parts.
+    auto filter = [](auto cascadeType, auto partId) {
+        return ((partId == 1 && cascadeType == CascadeType::Beginning) ||
+                (partId == 2 && cascadeType == CascadeType::Middle) ||
+                (partId == 3 && cascadeType == CascadeType::End));
+    };
+
+    auto pInput = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pA = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[0], filter);
+    auto pB = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[1], filter);
+    auto pC = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[2], filter);
+
+    BasePart& partA = *pA;
+
+    PartId partInputId = pInput->GetPartId();
+    PartId partAId     = pA->GetPartId();
+    PartId partBId     = pB->GetPartId();
+    PartId partCId     = pC->GetPartId();
+    parts.push_back(std::move(pInput));
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+
+    PartOutputSlot partInputOutputSlot0 = { partInputId, 0 };
+
+    PartInputSlot partAInputSlot0   = { partAId, 0 };
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+
+    PartInputSlot partBInputSlot0   = { partBId, 0 };
+    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
+
+    PartInputSlot partCInputSlot0 = { partCId, 0 };
+
+    connections[partAInputSlot0] = partInputOutputSlot0;
+    connections[partBInputSlot0] = partAOutputSlot0;
+    connections[partCInputSlot0] = partBOutputSlot0;
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    combiner.TopologicalSortParts();
+    Combination comb = combiner.FindBestCombinationForPart(partA);
+
+    // The network consists of mocked Mce and Ple kernels with and without weights, hence only the first Mce should be double buffered.
+    // Number of plans: 1 weightStripe * 1 PlePlan/weightStripe + 2 weightStripes * (1 McePlan/weightStripe + 1 McePlan/weightStripe) == 5.
+    // Number of weightStripes per plan per part: e.g. PlePart generates 1x plans, with 1 weightStripe.
+    //                                            e.g. McePart generates 2x plans, with 1 and 2 weightStripes respectively.
+    REQUIRE(numPlansCounter == 5);
+    REQUIRE(planWeightBuffers[0] == std::vector<uint32_t>{ 1 });
+    REQUIRE(planWeightBuffers[1] == std::vector<uint32_t>{ 1, 2 });
+    REQUIRE(planWeightBuffers[2] == std::vector<uint32_t>{ 1, 2 });
+}
+
+// Manually creates a 4-part network consisting of MockParts with and without weights, to test the double buffering logic of the Combiner.
+// The topology is chosen to test cases including:
+//      * Mce and StandalonePle kernels with and without weights.
+//      * Start/Continue/EndSection logic only.
+TEST_CASE("DoubleBufferingTestVariant_PleMceMcePle", "[CombinerDFS]")
+{
+    // Create graph:
+    //
+    //  Input - A (Ple) - B (Mce) - C (Mce) - D (Ple)
+    //
+
+    GraphOfParts graph;
+    auto& parts              = graph.m_Parts;
+    auto& connections        = graph.m_Connections;
+    uint32_t numPlansCounter = 0;
+    std::array<std::vector<uint32_t>, 4> planWeightBuffers;
+    // Filter lambda function used to force the Combiner in generating specific Plans for specific Parts.
+    auto filter = [](auto cascadeType, auto partId) {
+        return ((partId == 1 && cascadeType == CascadeType::Beginning) ||
+                (partId == 2 && cascadeType == CascadeType::Middle) ||
+                (partId == 3 && cascadeType == CascadeType::Middle) ||
+                (partId == 4 && cascadeType == CascadeType::End));
+    };
+
+    auto pInput = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pA = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[0], filter);
+    auto pB = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[1], filter);
+    auto pC = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[2], filter);
+    auto pD = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[3], filter);
+
+    BasePart& partA = *pA;
+
+    PartId partInputId = pInput->GetPartId();
+    PartId partAId     = pA->GetPartId();
+    PartId partBId     = pB->GetPartId();
+    PartId partCId     = pC->GetPartId();
+    PartId partDId     = pD->GetPartId();
+    parts.push_back(std::move(pInput));
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pD));
+
+    PartOutputSlot partInputOutputSlot0 = { partInputId, 0 };
+
+    PartInputSlot partAInputSlot0   = { partAId, 0 };
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+
+    PartInputSlot partBInputSlot0   = { partBId, 0 };
+    PartOutputSlot partBOutputSlot0 = { partBId, 0 };
+
+    PartInputSlot partCInputSlot0   = { partCId, 0 };
+    PartOutputSlot partCOutputSlot0 = { partCId, 0 };
+
+    PartInputSlot partDInputSlot0 = { partDId, 0 };
+
+    connections[partAInputSlot0] = partInputOutputSlot0;
+    connections[partBInputSlot0] = partAOutputSlot0;
+    connections[partCInputSlot0] = partBOutputSlot0;
+    connections[partDInputSlot0] = partCOutputSlot0;
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    combiner.TopologicalSortParts();
+    Combination comb = combiner.FindBestCombinationForPart(partA);
+
+    // The network consists of mocked Mce and Ple kernels with and without weights, hence only the first Mce should be double buffered.
+    // Number of plans: 1 weightStripe * 1 PlePlan/weightStripe + 2 weightStripes * (1 McePlan/weightStripe + 1 McePlan/weightStripe + 1 PlePlan/weightStripe) == 7.
+    // Number of weightStripes per plan per part: e.g. PlePart generates 1x plans, with 1 weightStripe.
+    //                                            e.g. McePart generates 2x plans, with 1 and 2 weightStripes respectively.
+    REQUIRE(numPlansCounter == 7);
+    REQUIRE(planWeightBuffers[0] == std::vector<uint32_t>{ 1 });
+    REQUIRE(planWeightBuffers[1] == std::vector<uint32_t>{ 1, 2 });
+    REQUIRE(planWeightBuffers[2] == std::vector<uint32_t>{ 1, 2 });
+    REQUIRE(planWeightBuffers[3] == std::vector<uint32_t>{ 1, 2 });
 }
 
 // Manually creates a partial combination starting and ending in Sram and converts it to an OpGraph using the GetOpGraphForCombination.

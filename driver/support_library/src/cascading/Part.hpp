@@ -183,6 +183,7 @@ public:
 
     virtual bool HasActivationBounds() const;
     virtual void ModifyActivationBounds(int16_t lowerBound, int16_t upperBound);
+    virtual bool CanDoubleBufferWeights() const;
 
     DotAttributes GetDotAttributes(DetailLevel) const override;
 

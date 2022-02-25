@@ -61,6 +61,11 @@ utils::Optional<ethosn::command_stream::MceOperation> FusedPlePart::GetMceOperat
     return {};
 }
 
+bool FusedPlePart::CanDoubleBufferWeights() const
+{
+    return true;
+}
+
 Buffer* FusedPlePart::AddIdentityWeights(OwnedOpGraph& opGraph,
                                          Lifetime lifetime,
                                          const impl::MceStripesInfo& mceComputeInfo,

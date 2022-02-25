@@ -975,7 +975,8 @@ Combination Combiner::EndSection(const BasePart& part,
                                  const BasePart& sPart,
                                  const Combination& comb,
                                  const SramAllocator& alloc,
-                                 uint32_t numWeightStripes,
+                                 uint32_t prevNumWeightStripes,
+                                 bool prevDoubleBuffered,
                                  const PleOperations& pleOps)
 {
     UpdateStats(StatsType::EndSection);
@@ -998,42 +999,65 @@ Combination Combiner::EndSection(const BasePart& part,
         ethosn::command_stream::BlockConfig blkConfig = sPlan.GetBlockConfigures(connection.m_Source);
         Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
 
-        Plans plans = part.GetPlans(CascadeType::End, blkConfig, sramBuffer, numWeightStripes);
-
-        for (Plan& plan : plans)
+        // Check if this Part can double buffer.
+        // By default, no double buffering is performed.
+        uint32_t currNumWeightStripesMax = g_NumWeightStripesMin;
+        if (part.CanDoubleBufferWeights() && !prevDoubleBuffered)
         {
-            // Make a copy of the allocator since every plan needs to have its own,
-            // each potential section won't allocate from the same allocator.
-            SramAllocator tempAlloc = alloc;
+            currNumWeightStripesMax = g_NumWeightStripesMax;
+        }
 
-            PleOperations tempPleOps = pleOps;
+        // Double buffering is performed on a per Section basis, i.e. either the entire Section double buffers weights
+        // (if the Parts allow it) or the Section single buffers weights. This double buffering is considered when the
+        // Part being evaluated can be double buffered.
+        for (uint32_t currNumWeightStripes = g_NumWeightStripesMin; currNumWeightStripes <= currNumWeightStripesMax;
+             ++currNumWeightStripes)
+        {
+            // Determine which numWeightStripes to use, based on the history of double-buffering.
+            // If previous Part was double-buffered, then:
+            //      1. Pass that number of weightStripes during current plan generation
+            //      2. Pass the same number to the next Parts, during the recursive plan generation calls.
+            // Otherwise, pass the current weightStripe number from the local for-loop.
+            // This is necessary, because if there was no double-buffering in the past and there is the possibility
+            // to double buffer now, then multiple plans must be created for both single buffering and double buffering weights.
+            uint32_t numWeightStripes = prevDoubleBuffered ? prevNumWeightStripes : currNumWeightStripes;
+            Plans plans               = part.GetPlans(CascadeType::End, blkConfig, sramBuffer, numWeightStripes);
 
-            if (!IsPlanOutputGlueable(plan))
+            for (Plan& plan : plans)
             {
-                continue;
+                // Make a copy of the allocator since every plan needs to have its own,
+                // each potential section won't allocate from the same allocator.
+                SramAllocator tempAlloc = alloc;
+
+                PleOperations tempPleOps = pleOps;
+
+                if (!IsPlanOutputGlueable(plan))
+                {
+                    continue;
+                }
+
+                if (!ArePlansCompatible(sPlan, plan, connection))
+                {
+                    continue;
+                }
+
+                if (!ArePlansAllowedToMerge(sPlan, plan, connection))
+                {
+                    continue;
+                }
+
+                if (!IsPlanAllocated(tempAlloc, plan, tempPleOps, sramBuffer, StatsType::EndSection))
+                {
+                    continue;
+                }
+
+                // Add current part and plan to the combination,
+                Combination section =
+                    comb + Combination(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
+
+                Combinations options = { result, section };
+                result               = GetBestCombination(options);
             }
-
-            if (!ArePlansCompatible(sPlan, plan, connection))
-            {
-                continue;
-            }
-
-            if (!ArePlansAllowedToMerge(sPlan, plan, connection))
-            {
-                continue;
-            }
-
-            if (!IsPlanAllocated(tempAlloc, plan, tempPleOps, sramBuffer, StatsType::EndSection))
-            {
-                continue;
-            }
-
-            // Add current part and plan to the combination,
-            Combination section =
-                comb + Combination(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
-
-            Combinations options = { result, section };
-            result               = GetBestCombination(options);
         }
 
         //  Next part in the graph
@@ -1091,12 +1115,24 @@ Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPar
         assert(m_GraphOfParts.GetPartInputs(part.GetPartId()).size() == 1 &&
                m_GraphOfParts.GetPartOutputs(part.GetPartId()).size() == 1);
 
-        // The weight buffering will be improved by NNXSW-3628
-        for (uint32_t numWeightStripes = g_NumWeightStripesMin; numWeightStripes <= g_NumWeightStripesMax;
-             numWeightStripes++)
+        // Check if this Part can double buffer.
+        // By default, no double buffering is performed.
+        uint32_t currNumWeightStripesMax = g_NumWeightStripesMin;
+        bool hasSectionDoubleBuffered    = false;
+        if (part.CanDoubleBufferWeights())
         {
-            Plans plans =
-                part.GetPlans(CascadeType::Beginning, ethosn::command_stream::BlockConfig{}, nullptr, numWeightStripes);
+            currNumWeightStripesMax  = g_NumWeightStripesMax;
+            hasSectionDoubleBuffered = true;
+        }
+
+        // Double buffering is performed on a per Section basis, i.e. either the entire Section double buffers weights
+        // (if the Parts allow it) or the Section single buffers weights. This double buffering is considered when the
+        // Part being evaluated can be double buffered.
+        for (uint32_t currNumWeightStripes = g_NumWeightStripesMin; currNumWeightStripes <= currNumWeightStripesMax;
+             ++currNumWeightStripes)
+        {
+            Plans plans = part.GetPlans(CascadeType::Beginning, ethosn::command_stream::BlockConfig{}, nullptr,
+                                        currNumWeightStripes);
 
             // SISO part:
             //
@@ -1134,8 +1170,10 @@ Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPar
 
                 // Options to be estimated: consider continuing and ending the current section
                 // in the next part
-                Combination ended     = EndSection(nextPart, part, head, tempAlloc, numWeightStripes, pleOps);
-                Combination continued = ContinueSection(nextPart, part, head, tempAlloc, numWeightStripes, pleOps);
+                Combination ended =
+                    EndSection(nextPart, part, head, tempAlloc, currNumWeightStripes, hasSectionDoubleBuffered, pleOps);
+                Combination continued = ContinueSection(nextPart, part, head, tempAlloc, currNumWeightStripes,
+                                                        hasSectionDoubleBuffered, pleOps);
                 Combinations options  = { result, continued, ended };
                 result                = GetBestCombination(options);
             }
@@ -1168,11 +1206,22 @@ Combination Combiner::SinglePartSection(const BasePart& part)
 
     Combination result = {};
 
-    for (uint32_t numWeightStripes = g_NumWeightStripesMin; numWeightStripes <= g_NumWeightStripesMax;
-         numWeightStripes++)
+    // Check if this Part can double buffer.
+    // By default, no double buffering is performed.
+    uint32_t currNumWeightStripesMax = g_NumWeightStripesMin;
+    if (part.CanDoubleBufferWeights())
+    {
+        currNumWeightStripesMax = g_NumWeightStripesMax;
+    }
+
+    // Double buffering is performed on a per Section basis, i.e. either the entire Section double buffers weights
+    // (if the Parts allow it) or the Section single buffers weights. This double buffering is considered when the
+    // Part being evaluated can be double buffered.
+    for (uint32_t currNumWeightStripes = g_NumWeightStripesMin; currNumWeightStripes <= currNumWeightStripesMax;
+         ++currNumWeightStripes)
     {
         Plans plans =
-            part.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, numWeightStripes);
+            part.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, currNumWeightStripes);
 
         for (Plan& plan : plans)
         {
@@ -1224,7 +1273,8 @@ Combination Combiner::ContinueSection(const BasePart& part,
                                       const BasePart& sPart,
                                       const Combination& comb,
                                       const SramAllocator& alloc,
-                                      uint32_t numWeightStripes,
+                                      uint32_t prevNumWeightStripes,
+                                      bool prevDoubleBuffered,
                                       const PleOperations& pleOps)
 {
     UpdateStats(StatsType::ContinueSection);
@@ -1284,55 +1334,84 @@ Combination Combiner::ContinueSection(const BasePart& part,
         ethosn::command_stream::BlockConfig blkConfig = sPlan.GetBlockConfigures(connection.m_Source);
         Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
 
-        Plans plans = part.GetPlans(CascadeType::Middle, blkConfig, sramBuffer, numWeightStripes);
-
-        for (Plan& plan : plans)
+        // Check if this Part can double buffer.
+        // By default, no double buffering is performed.
+        uint32_t currNumWeightStripesMax = g_NumWeightStripesMin;
+        bool hasSectionDoubleBuffered    = false;
+        if (part.CanDoubleBufferWeights() && !prevDoubleBuffered)
         {
-            // Make a copy of the allocator since every plan needs to have its own,
-            // each potential section won't allocate from the same allocator.
-            SramAllocator tempAlloc = alloc;
+            currNumWeightStripesMax = g_NumWeightStripesMax;
+        }
 
-            PleOperations tempPleOps = pleOps;
+        if (part.CanDoubleBufferWeights() || prevDoubleBuffered)
+        {
+            hasSectionDoubleBuffered = true;
+        }
 
-            if (!ArePlansCompatible(sPlan, plan, connection))
+        // Double buffering is performed on a per Section basis, i.e. either the entire Section double buffers weights
+        // (if the Parts allow it) or the Section single buffers weights. This double buffering is considered when the
+        // Part being evaluated can be double buffered.
+        for (uint32_t currNumWeightStripes = g_NumWeightStripesMin; currNumWeightStripes <= currNumWeightStripesMax;
+             ++currNumWeightStripes)
+        {
+            // Determine which numWeightStripes to use, based on the history of double-buffering.
+            // If previous Part was double-buffered, then:
+            //      1. Pass that number of weightStripes during current plan generation
+            //      2. Pass the same number to the next Parts, during the recursive plan generation calls.
+            // Otherwise, pass the current weightStripe number from the local for-loop.
+            // This is necessary, because if there was no double-buffering in the past and there is the possibility
+            // to double buffer now, then multiple plans must be created for both single buffering and double buffering weights.
+            uint32_t numWeightStripes = prevDoubleBuffered ? prevNumWeightStripes : currNumWeightStripes;
+            Plans plans               = part.GetPlans(CascadeType::Middle, blkConfig, sramBuffer, numWeightStripes);
+
+            for (Plan& plan : plans)
             {
-                continue;
+                // Make a copy of the allocator since every plan needs to have its own,
+                // each potential section won't allocate from the same allocator.
+                SramAllocator tempAlloc = alloc;
+
+                PleOperations tempPleOps = pleOps;
+
+                if (!ArePlansCompatible(sPlan, plan, connection))
+                {
+                    continue;
+                }
+
+                if (!ArePlansAllowedToMerge(sPlan, plan, connection))
+                {
+                    continue;
+                }
+
+                if (!ArePlansStreamingStrategiesCompatible(sPlan, plan, connection))
+                {
+                    continue;
+                }
+
+                if (!IsPlanAllocated(tempAlloc, plan, tempPleOps, sramBuffer, StatsType::EndSection))
+                {
+                    continue;
+                }
+
+                // Add current part and plan to the combination,
+                // no glue is required. Current part is SISO and
+                // has a single input/output
+                Combination section =
+                    comb + Combination(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
+
+                // Options to be estimated
+                Combinations options;
+
+                // Next one is the last part of the section
+                Combination ended = EndSection(*nextPartGraph, part, section, tempAlloc, numWeightStripes,
+                                               hasSectionDoubleBuffered, tempPleOps);
+
+                // Next one is the middle part of the section
+                Combination continued = ContinueSection(*nextPartGraph, part, section, tempAlloc, numWeightStripes,
+                                                        hasSectionDoubleBuffered, tempPleOps);
+                options               = { result, continued, ended };
+
+                result = GetBestCombination(options);
             }
-
-            if (!ArePlansAllowedToMerge(sPlan, plan, connection))
-            {
-                continue;
-            }
-
-            if (!ArePlansStreamingStrategiesCompatible(sPlan, plan, connection))
-            {
-                continue;
-            }
-
-            if (!IsPlanAllocated(tempAlloc, plan, tempPleOps, sramBuffer, StatsType::ContinueSection))
-            {
-                continue;
-            }
-
-            // Add current part and plan to the combination,
-            // no glue is required. Current part is SISO and
-            // has a single input/output
-            Combination section =
-                comb + Combination(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
-
-            // Options to be estimated
-            Combinations options;
-
-            // Next one is the last part of the section
-            Combination ended = EndSection(*nextPartGraph, part, section, tempAlloc, numWeightStripes, tempPleOps);
-
-            // Next one is the middle part of the section
-            Combination continued =
-                ContinueSection(*nextPartGraph, part, section, tempAlloc, numWeightStripes, tempPleOps);
-
-            options = { result, continued, ended };
-
-            result = GetBestCombination(options);
         }
     }
 

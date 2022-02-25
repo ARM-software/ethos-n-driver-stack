@@ -780,6 +780,11 @@ bool McePart::HasActivationBounds() const
     return true;
 }
 
+bool McePart::CanDoubleBufferWeights() const
+{
+    return true;
+}
+
 void McePart::ModifyActivationBounds(int16_t lowerBound, int16_t upperBound)
 {
     m_LowerBound = lowerBound;

@@ -80,6 +80,7 @@ public:
 
     bool HasActivationBounds() const override;
     void ModifyActivationBounds(int16_t lowerBound, int16_t upperBound) override;
+    bool CanDoubleBufferWeights() const override;
 
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
 

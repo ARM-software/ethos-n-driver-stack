@@ -188,7 +188,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Requantize Same Quantization")
     std::shared_ptr<Operand> requantize = AddRequantize(network, *input, RequantizeInfo({ 0, 1.f })).tensor;
     std::shared_ptr<Output> output      = AddOutput(network, *requantize).tensor;
 
-    bool dumpToFile = true;
+    bool dumpToFile = false;
     if (dumpToFile)
     {
         std::ofstream stream("NetworkToGraphOfPartsConverterTest Requantize.dot");
@@ -198,7 +198,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Requantize Same Quantization")
     NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
     GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
-    bool dumpGraphOfPartsToFile = true;
+    bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
     {
         std::ofstream stream("NetworkToGraphOfPartsConverterTest Requantize Output.dot");
@@ -248,7 +248,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Requantize")
     std::shared_ptr<Operand> requantize = AddRequantize(network, *input, RequantizeInfo({ 1, 1.2f })).tensor;
     std::shared_ptr<Output> output      = AddOutput(network, *requantize).tensor;
 
-    bool dumpToFile = true;
+    bool dumpToFile = false;
     if (dumpToFile)
     {
         std::ofstream stream("NetworkToGraphOfPartsConverterTest Requantize.dot");
@@ -258,7 +258,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Requantize")
     NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
     GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
-    bool dumpGraphOfPartsToFile = true;
+    bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
     {
         std::ofstream stream("NetworkToGraphOfPartsConverterTest Requantize Output.dot");

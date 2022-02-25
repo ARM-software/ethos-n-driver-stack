@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -36,6 +36,7 @@ public:
                    uint32_t numWeightStripes) const override;
 
     utils::Optional<ethosn::command_stream::MceOperation> GetMceOperation() const override;
+    bool CanDoubleBufferWeights() const override;
 
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
 

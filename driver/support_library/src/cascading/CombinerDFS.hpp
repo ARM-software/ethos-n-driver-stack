@@ -258,7 +258,8 @@ public:
                                 const BasePart& sPart,
                                 const Combination& comb,
                                 const SramAllocator& alloc,
-                                uint32_t numWeightStripes,
+                                uint32_t prevNumWeightStripes,
+                                bool prevDoubleBuffered,
                                 const PleOperations& pleOps);
 
     Combination SinglePartSection(const BasePart& part);
@@ -267,7 +268,8 @@ public:
                            const BasePart& sPart,
                            const Combination& comb,
                            const SramAllocator& alloc,
-                           uint32_t numWeightStripes,
+                           uint32_t prevNumWeightStripes,
+                           bool prevDoubleBuffered,
                            const PleOperations& pleOps);
 
     Combination StartSection(const BasePart& part, const BasePart& nextPart, const SramAllocator& alloc);
