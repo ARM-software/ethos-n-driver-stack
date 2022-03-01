@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -98,7 +98,7 @@ public:
     /// This is used to build up the lifetime of the buffer (the first time it is used and the last time it is used),
     /// which then determines where that buffer can be allocated (to allow re-use of memory between buffers whose
     /// lifetimes do not overlap).
-    void MarkBufferUsedAtTime(uint32_t bufferId, uint32_t currentTime);
+    void MarkBufferUsedAtTime(uint32_t bufferId, uint32_t startTime, uint32_t endTime);
 
     /// If the given buffer is an SRAM buffer then returns the offset in SRAM of the given buffer,
     /// otherwise returns zero.

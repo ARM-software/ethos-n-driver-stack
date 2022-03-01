@@ -641,6 +641,26 @@ std::string ToString(PleKernelId id)
     }
 }
 
+std::string ToString(BufferType t)
+{
+    switch (t)
+    {
+        case BufferType::Input:
+            return "Input";
+        case BufferType::Output:
+            return "Output";
+        case BufferType::ConstantDma:
+            return "ConstantDma";
+        case BufferType::ConstantControlUnit:
+            return "ConstantControlUnit";
+        case BufferType::Intermediate:
+            return "Intermediate";
+        default:
+            ETHOSN_FAIL_MSG("Unknown type");
+            return "";
+    }
+}
+
 /// Replaces any illegal characters to form a valid .dot file "ID".
 std::string SanitizeId(std::string s)
 {
@@ -744,6 +764,10 @@ std::string GetBufferString(Buffer* buffer)
         stream << "Offset = " << ToString(buffer->m_Offset.value()) << "\n";
     }
     stream << "Size in bytes = " << buffer->m_SizeInBytes << "\n";
+    if (buffer->m_BufferType.has_value())
+    {
+        stream << "Type = " << ToString(buffer->m_BufferType.value()) << "\n";
+    }
 
     return stream.str();
 }

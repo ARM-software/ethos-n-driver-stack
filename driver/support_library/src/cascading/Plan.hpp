@@ -317,6 +317,9 @@ public:
     TraversalOrder m_Order;
     uint32_t m_SizeInBytes;
 
+    /// This value is set by the different parts for DRAM buffers
+    utils::Optional<BufferType> m_BufferType;
+
     /// This value is set by the Combiner for SRAM buffers
     utils::Optional<uint32_t> m_Offset;
 

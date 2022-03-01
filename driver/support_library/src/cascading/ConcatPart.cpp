@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -69,6 +69,7 @@ void ConcatPart::CreateConcatDramPlan(Plans& plans) const
         inputBuffer->m_TensorShape      = m_InputTensorsInfo[inputIndex].m_Dimensions;
         inputBuffer->m_SizeInBytes      = impl::CalculateBufferSize(inputBuffer->m_TensorShape, format);
         inputBuffer->m_QuantizationInfo = m_InputTensorsInfo[inputIndex].m_QuantizationInfo;
+        inputBuffer->m_BufferType       = BufferType::Intermediate;
         opGraph.AddConsumer(inputBuffer, op, inputIndex);
         inputMappings[inputBuffer] = PartInputSlot{ m_PartId, inputIndex };
     }
@@ -79,6 +80,7 @@ void ConcatPart::CreateConcatDramPlan(Plans& plans) const
     outputBuffer->m_TensorShape      = expectedOutputInfo.m_Dimensions;
     outputBuffer->m_SizeInBytes      = impl::CalculateBufferSize(outputBuffer->m_TensorShape, format);
     outputBuffer->m_QuantizationInfo = expectedOutputInfo.m_QuantizationInfo;
+    outputBuffer->m_BufferType       = BufferType::Intermediate;
     opGraph.SetProducer(outputBuffer, op);
     outputMappings[outputBuffer] = PartOutputSlot{ m_PartId, 0 };
 

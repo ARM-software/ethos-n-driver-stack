@@ -30,13 +30,12 @@ std::unique_ptr<CompiledNetwork> CascadingCompiler::Compile()
 {
     OpGraph::OpList opsInExecutionOrder = m_MergedOpGraph.GetOps();
 
-    assert(opsInExecutionOrder.size() != 0);
+    assert(opsInExecutionOrder.size() != 0 && m_CommandStreamAgents.size() == 0);
 
     try
     {
         for (auto currentOp : opsInExecutionOrder)
         {
-
             if (IsObjectOfType<DmaOp>(currentOp))
             {
                 ProcessDmaOp(currentOp);
@@ -65,8 +64,15 @@ std::unique_ptr<CompiledNetwork> CascadingCompiler::Compile()
         return std::unique_ptr<CompiledNetworkImpl>(nullptr);
     }
 
-    m_BufferManager.AddCommandStream(m_CommandStream);
+    // Add the lifetime information of the intermediate DRAM buffers so the memory required to store these
+    // buffers is reduced
+    AddLifetimeInfoForIntermediateDramBuffers();
 
+    // Add the generated command stream to the buffer manager
+    CommandStream commandStream{ m_CommandStreamAgents };
+    //m_BufferManager.AddCommandStream(commandStream);
+
+    // Create the compiled network using the updated BufferManager instance
     std::unique_ptr<CompiledNetworkImpl> compiledNetwork = std::make_unique<CompiledNetworkImpl>(
         m_BufferManager.GetConstantDmaData(), m_BufferManager.GetConstantControlUnitData(),
         m_BufferManager.GetBuffers(), m_OperationIds);
@@ -74,37 +80,86 @@ std::unique_ptr<CompiledNetwork> CascadingCompiler::Compile()
     return compiledNetwork;
 }
 
-void CascadingCompiler::ProcessDmaOp(const Op* const ptrDmaOp)
+OpGraph CascadingCompiler::GetMergedOpGraph() const
+{
+    return m_MergedOpGraph;
+}
+
+// Private function to add the lifetime information of the intermediate DRAM buffers
+void CascadingCompiler::AddLifetimeInfoForIntermediateDramBuffers()
+{
+    // Lifetime start of the buffer holds the producer agent Id
+    uint32_t lifetimeStart;
+    // Lifetime end of the buffer holds the last consumer agent Id
+    uint32_t lifetimeEnd;
+
+    // Add the lifetime information for each intermediate DRAM buffer
+    for (Buffer* buffer : m_MergedOpGraph.GetBuffers())
+    {
+        if (buffer->m_Location == Location::Dram)
+        {
+            assert(buffer->m_BufferType.has_value());
+
+            // Check that the buffer type is intermediate
+            if (buffer->m_BufferType.value() == BufferType::Intermediate)
+            {
+                // Set the Lifetime start and end of the intermediate DRAM buffer
+                Op* producer = m_MergedOpGraph.GetProducer(buffer);
+                assert(producer != nullptr);
+
+                lifetimeStart = m_OpToAgentIdMapping.at(producer);
+                lifetimeEnd   = 0;
+
+                OpGraph::ConsumersList consumers = m_MergedOpGraph.GetConsumers(buffer);
+                assert(consumers.size() >= 1);
+                for (auto consumer : consumers)
+                {
+                    uint32_t consumerAgentId = m_OpToAgentIdMapping.at(consumer.first);
+                    if (consumerAgentId > lifetimeEnd)
+                    {
+                        lifetimeEnd = consumerAgentId;
+                    }
+                }
+
+                // Add lifetime information of the corresponding buffer to the buffer manager
+                m_BufferManager.MarkBufferUsedAtTime(m_IntermdiateDramBufToBufIdMapping.at(buffer), lifetimeStart,
+                                                     lifetimeEnd + 1);
+            }
+        }
+    }
+}
+
+void CascadingCompiler::ProcessDmaOp(Op* const ptrDmaOp)
 {
     ETHOSN_UNUSED(ptrDmaOp);
 }
 
-void CascadingCompiler::ProcessMceOp(const Op* const ptrMceOp)
+void CascadingCompiler::ProcessMceOp(Op* const ptrMceOp)
 {
     ETHOSN_UNUSED(ptrMceOp);
 }
 
-void CascadingCompiler::ProcessPleOp(const Op* const ptrPleOp)
+void CascadingCompiler::ProcessPleOp(Op* const ptrPleOp)
 {
     ETHOSN_UNUSED(ptrPleOp);
 }
 
-void CascadingCompiler::ProcessConcatOp(const Op* const ptrConcatOp)
+void CascadingCompiler::ProcessConcatOp(Op* const ptrConcatOp)
 {
     ETHOSN_UNUSED(ptrConcatOp);
 }
 
-void CascadingCompiler::ProcessSplitOp(const Op* const ptrSplitOp)
+void CascadingCompiler::ProcessSplitOp(Op* const ptrSplitOp)
 {
     ETHOSN_UNUSED(ptrSplitOp);
 }
 
-void CascadingCompiler::ProcessSpaceToDepthOp(const Op* const ptrSpaceToDepthOp)
+void CascadingCompiler::ProcessSpaceToDepthOp(Op* const ptrSpaceToDepthOp)
 {
     ETHOSN_UNUSED(ptrSpaceToDepthOp);
 }
 
-void CascadingCompiler::ProcessTransposeOp(const Op* const ptrTransposeOp)
+void CascadingCompiler::ProcessTransposeOp(Op* const ptrTransposeOp)
 {
     ETHOSN_UNUSED(ptrTransposeOp);
 }

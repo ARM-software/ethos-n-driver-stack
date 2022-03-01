@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -60,6 +60,7 @@ void InputPart::CreatePlanForInputPart(Lifetime lifetime, TraversalOrder order, 
     buffer->m_TensorShape        = m_OutputTensorShape;
     buffer->m_SizeInBytes        = impl::CalculateBufferSize(m_OutputTensorShape, format);
     buffer->m_QuantizationInfo   = m_OutputQuantizationInfo;
+    buffer->m_BufferType         = BufferType::Input;
     outputMappings[buffer.get()] = PartOutputSlot{ m_PartId, 0 };
     opGraph.AddBuffer(std::move(buffer));
 

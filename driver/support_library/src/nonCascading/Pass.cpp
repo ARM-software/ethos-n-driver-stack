@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -144,7 +144,29 @@ void Pass::PostGenerate(command_stream::CommandStreamBuffer& cmdStream, bool dum
     {
         for (uint32_t cmdIdx = m_CommandStreamFirstCommandIdx; cmdIdx <= m_CommandStreamLastCommandIdx; ++cmdIdx)
         {
-            bufferManager.MarkBufferUsedAtTime(bufferId, cmdIdx);
+            const CompilerBufferInfo& compiledBufferInfo = bufferManager.GetBuffers().at(bufferId);
+            uint32_t start                               = compiledBufferInfo.m_LifetimeStart;
+            uint32_t end                                 = compiledBufferInfo.m_LifetimeEnd;
+
+            if (compiledBufferInfo.m_LifetimeStart == CompilerBufferInfo::ms_InvalidValue)
+            {
+                start = cmdIdx;
+            }
+            else
+            {
+                start = std::min(start, cmdIdx);
+            }
+
+            if (compiledBufferInfo.m_LifetimeEnd == CompilerBufferInfo::ms_InvalidValue)
+            {
+                end = cmdIdx + 1;
+            }
+            else
+            {
+                end = std::max(end, cmdIdx + 1);
+            }
+
+            bufferManager.MarkBufferUsedAtTime(bufferId, start, end);
         }
     }
 }

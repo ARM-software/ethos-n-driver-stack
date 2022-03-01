@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -91,25 +91,12 @@ void BufferManager::ChangeBufferAlignment(uint32_t bufferId, uint32_t alignment)
     m_Buffers.at(bufferId).m_Size = utils::RoundUpToNearestMultiple(bufferSize, alignment);
 }
 
-void BufferManager::MarkBufferUsedAtTime(uint32_t bufferId, uint32_t currentTime)
+void BufferManager::MarkBufferUsedAtTime(uint32_t bufferId, uint32_t startTime, uint32_t endTime)
 {
     CompilerBufferInfo& buffer = m_Buffers.at(bufferId);
-    if (buffer.m_LifetimeStart == CompilerBufferInfo::ms_InvalidValue)
-    {
-        buffer.m_LifetimeStart = currentTime;
-    }
-    else
-    {
-        buffer.m_LifetimeStart = std::min(buffer.m_LifetimeStart, currentTime);
-    }
-    if (buffer.m_LifetimeEnd == CompilerBufferInfo::ms_InvalidValue)
-    {
-        buffer.m_LifetimeEnd = currentTime + 1;
-    }
-    else
-    {
-        buffer.m_LifetimeEnd = std::max(buffer.m_LifetimeEnd, currentTime + 1);
-    }
+
+    buffer.m_LifetimeStart = startTime;
+    buffer.m_LifetimeEnd   = endTime;
 }
 
 uint32_t BufferManager::GetSramOffset(uint32_t bufferId)

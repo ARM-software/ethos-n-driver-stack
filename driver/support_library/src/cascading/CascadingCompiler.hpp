@@ -6,7 +6,6 @@
 #pragma once
 
 #include "Plan.hpp"
-#include "ethosn_command_stream/CommandStreamBuffer.hpp"
 #include <unordered_map>
 
 using namespace std;
@@ -28,16 +27,23 @@ public:
     CascadingCompiler& operator=(const CascadingCompiler&) = delete;
     ~CascadingCompiler();
     std::unique_ptr<CompiledNetwork> Compile();
+    OpGraph GetMergedOpGraph() const;
 
 private:
+    // Private function to add the lifetime information of the intermediate DRAM buffers
+    void AddLifetimeInfoForIntermediateDramBuffers();
+
     // Private functions for processing OpGraph Ops
-    void ProcessDmaOp(const Op* const ptrDmaOp);
-    void ProcessMceOp(const Op* const ptrMceOp);
-    void ProcessPleOp(const Op* const ptrPleOp);
-    void ProcessConcatOp(const Op* const ptrConcatOp);
-    void ProcessSplitOp(const Op* const ptrSplitOp);
-    void ProcessSpaceToDepthOp(const Op* const ptrSpaceToDepthOp);
-    void ProcessTransposeOp(const Op* const ptrTransposeOp);
+    void ProcessDmaOp(Op* const ptrDmaOp);
+    void ProcessMceOp(Op* const ptrMceOp);
+    void ProcessPleOp(Op* const ptrPleOp);
+    void ProcessConcatOp(Op* const ptrConcatOp);
+    void ProcessSplitOp(Op* const ptrSplitOp);
+    void ProcessSpaceToDepthOp(Op* const ptrSpaceToDepthOp);
+    void ProcessTransposeOp(Op* const ptrTransposeOp);
+
+    // Intermediate DRAM Buffer to Buffer Id mapping
+    std::unordered_map<Buffer*, uint32_t> m_IntermdiateDramBufToBufIdMapping;
 
     // Merged OpGraph used to generate the command stream, set at creation time.
     const OpGraph m_MergedOpGraph;
@@ -47,14 +53,14 @@ private:
     HardwareCapabilities m_Capabilities;
     const CompilationOptions m_CompilationOptions;
 
-    // Data structures for up the sequence dependencies (i.e ReadAfterWrite and SramOverlap)
-    std::unordered_map<Op*, uint8_t> m_ReadAfterWriteDependencies;
+    // Data structure for mapping an Op to its Agents ID
+    std::unordered_map<Op*, uint32_t> m_OpToAgentIdMapping;
     // Data structures for down the sequence dependencies (i.e WriteAfterRead and ScheduleTime)
-    std::unordered_map<Op*, Dependency*> m_WriteAfterReadDependencies;
-    std::unordered_map<Op*, Dependency*> m_ScheduleTimeDependencies;
+    std::unordered_map<Op*, Dependency*> m_PendingWriteAfterReadDependencyForConsumerOp;
+    std::unordered_map<Op*, Dependency*> m_PendingScheduleTimeDependencyForConsumerOp;
 
-    // Command Stream Buffer to be added to the BufferManager instance at BufferId = 0
-    command_stream::CommandStreamBuffer m_CommandStream;
+    // Command stream agents used to build the command stream that is stored in the BufferManager instance at BufferId = 0
+    std::vector<Agent> m_CommandStreamAgents;
 
     // BufferManager instance which maintains and builds up the set of buffers required by the compiled network
     BufferManager m_BufferManager;

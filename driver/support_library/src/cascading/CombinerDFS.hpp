@@ -244,6 +244,7 @@ public:
 
     Combination GetBestCombination() const;
     Combination GetBestCombination(Combinations& combs) const;
+    OpGraph GetMergedOpGraphForBestCombination() const;
     CascadingBufferFormat
         GetBestCascadingBufferDramFormat(const std::array<TensorShape, 2> inputOutputStripeShapes) const;
 
@@ -321,6 +322,8 @@ private:
     std::vector<std::pair<size_t, const BasePart*>> m_PartOrderTable;
 
     Combination m_BestCombination;
+    OpGraph m_MergedOpGraphForBestCombination;
+    bool m_MergedOpGraphReady;
 
     std::vector<std::unique_ptr<Glue>> m_GluesVector;
     std::unordered_map<const BasePart*, const Combination> m_CombinationPerPartMap;

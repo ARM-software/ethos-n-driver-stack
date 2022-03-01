@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -62,6 +62,7 @@ void ReshapePart::CreateReinterpretDramPlan(Plans& plans) const
     buffer->m_TensorShape      = m_OutputTensorShape;
     buffer->m_SizeInBytes      = impl::CalculateBufferSize(m_InputTensorShape, format);
     buffer->m_QuantizationInfo = m_OutputQuantizationInfo;
+    buffer->m_BufferType       = BufferType::Intermediate;
 
     inputMappings[buffer]  = PartInputSlot{ m_PartId, 0 };
     outputMappings[buffer] = PartOutputSlot{ m_PartId, 0 };

@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -26,11 +26,11 @@ TEST_CASE("BufferManager alignment")
     m.AddDram(BufferType::Input, 1);
     m.AddDram(BufferType::Input, 1);
     uint32_t intermediateId1 = m.AddDram(BufferType::Intermediate, 1);
-    m.MarkBufferUsedAtTime(intermediateId1, 0);
+    m.MarkBufferUsedAtTime(intermediateId1, 0, 1);
     uint32_t intermediateId2 = m.AddDram(BufferType::Intermediate, 1);
-    m.MarkBufferUsedAtTime(intermediateId2, 0);
+    m.MarkBufferUsedAtTime(intermediateId2, 0, 1);
     uint32_t intermediateId3 = m.AddDram(BufferType::Intermediate, 1);
-    m.MarkBufferUsedAtTime(intermediateId3, 0);
+    m.MarkBufferUsedAtTime(intermediateId3, 0, 1);
     m.AddDram(BufferType::Output, 1);
     m.AddDram(BufferType::Output, 1);
     m.AddDram(BufferType::Output, 1);

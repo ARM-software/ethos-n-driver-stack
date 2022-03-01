@@ -75,9 +75,11 @@ void DumpDebugInfo(const GraphOfParts& parts,
 std::pair<DmaOp*, Buffer*> CreateDramBufferAndDmaOp(Buffer* b, OwnedOpGraph& opGraph)
 {
     // Create a DRAM buffer where the data is coming from or going to
-    auto dramBuffer = std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+    auto dramBuffer          = std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
                                                b->m_TensorShape, TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
                                                utils::TotalSizeBytesNHWCB(b->m_TensorShape), b->m_QuantizationInfo);
+    dramBuffer->m_BufferType = BufferType::Intermediate;
+
     // Create a DMA operatoin that is moving data from DRAM to SRAM or viceversa
     auto dma              = std::make_unique<DmaOp>();
     DmaOp* dmaRaw         = dma.get();
@@ -611,6 +613,12 @@ Combination Combiner::GetBestCombination() const
     return m_BestCombination;
 }
 
+OpGraph Combiner::GetMergedOpGraphForBestCombination() const
+{
+    assert(m_MergedOpGraphReady == true);
+    return m_MergedOpGraphForBestCombination;
+}
+
 CascadingBufferFormat
     Combiner::GetBestCascadingBufferDramFormat(const std::array<TensorShape, 2> inputOutputStripeShapes) const
 {
@@ -704,6 +712,7 @@ std::unique_ptr<Glue> Combiner::GenerateGlueBetweenSramAndSram(const Buffer* buf
     auto dramBuffer = std::make_unique<Buffer>(
         Lifetime::Atomic, Location::Dram, cascadingBufferFormat, buffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
         TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(buffer->m_TensorShape), buffer->m_QuantizationInfo);
+    dramBuffer->m_BufferType = BufferType::Intermediate;
 
     auto dma1             = std::make_unique<DmaOp>();
     DmaOp* dma1Raw        = dma1.get();
@@ -734,6 +743,7 @@ std::unique_ptr<Glue> Combiner::GenerateGlueBetweenSramAndSrams(const Buffer* bu
     auto dramBuffer = std::make_unique<Buffer>(
         Lifetime::Atomic, Location::Dram, cascadingBufferFormat, buffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
         TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(buffer->m_TensorShape), buffer->m_QuantizationInfo);
+    dramBuffer->m_BufferType = BufferType::Intermediate;
 
     // A input DMA is shared to move data from source SRAM
     // to the DRAM buffer.
@@ -1529,6 +1539,7 @@ Combiner::Combiner(const GraphOfParts& graphOfParts,
     , m_Caps(caps)
     , m_EstOpt(estOpt)
     , m_DebuggingContext(debuggingContext)
+    , m_MergedOpGraphReady(false)
 {}
 
 bool Combiner::Visit(const BasePart* current,
@@ -1632,6 +1643,10 @@ void Combiner::Run()
 
     assert(IsPartInput(*m_FirstPartAfterSort));
     m_BestCombination = m_BestCombination + FindBestCombinationForPart(*m_FirstPartAfterSort);
+
+    m_MergedOpGraphForBestCombination = GetOpGraphForCombination(m_BestCombination, m_GraphOfParts);
+
+    m_MergedOpGraphReady = true;
 }
 
 Combinations Cascading::Combine(const GraphOfParts& parts)
@@ -1854,6 +1869,11 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
                 // Record the fact that this buffer has been shared, so that when making connections (below), we
                 // connect to the correct buffer.
                 mergedBuffers[b] = sharedBuffer;
+                // Intermediate and output buffers are merged then the merged buffer type should be the output buffer
+                if (b->m_BufferType.has_value() && b->m_BufferType.value() == BufferType::Output)
+                {
+                    sharedBuffer->m_BufferType = b->m_BufferType;
+                }
             }
             else
             {
