@@ -31,6 +31,23 @@ struct Tile
 ETHOSN_DECL_SV_VECTOR_STRUCT(SupertensorSize, width, channels)
 ETHOSN_DECL_SV_VECTOR_STRUCT(TensorSize, height, width, channels)
 
+/// Ifm/Ofm Data type
+enum class FmsDataType : uint8_t
+{
+    NHWC,
+    FCAF_WIDE,
+    FCAF_DEEP,
+};
+
+/// FCAF Compression Info
+struct FcafInfo
+{
+    /// Zero point info needed for FCAF
+    uint8_t zeroPoint;
+    /// Signed activation info needed for FCAF
+    bool signedActivation;
+};
+
 /// Ifm/Ofm Streamer common data
 struct FmSData
 {
@@ -38,6 +55,10 @@ struct FmSData
     uint32_t dramOffset;
     /// Buffer ID of the supertensor
     uint16_t bufferId;
+    /// IFM/OFM data type
+    FmsDataType dataType;
+    /// FCAF Compression Info
+    FcafInfo fcafInfo;
     /// IFM/OFM SRAM tile info
     Tile tile;
     /// Default stripe size. Actual stripe size could be smaller at the tensor edges

@@ -595,10 +595,45 @@ void Parse(mxml_node_t& parent, const cascading::Tile& tile)
     Parse(*mxmlNewElement(&parent, "SLOT_SIZE"), tile.slotSize);
 }
 
+void Parse(mxml_node_t& parent, const cascading::FmsDataType& dataType)
+{
+    switch (dataType)
+    {
+        case cascading::FmsDataType::NHWC:
+        {
+            Parse(parent, "NHWC");
+            break;
+        }
+        case cascading::FmsDataType::FCAF_WIDE:
+        {
+            Parse(parent, "FCAF_WIDE");
+            break;
+        }
+        case cascading::FmsDataType::FCAF_DEEP:
+        {
+            Parse(parent, "FCAF_DEEP");
+            break;
+        }
+        default:
+        {
+            throw ParseException("Invalid Data Type in binary input: " +
+                                 std::to_string(static_cast<uint32_t>(dataType)));
+        }
+    }
+}
+
+void Parse(mxml_node_t& parent, const cascading::FcafInfo& fcafInfo)
+{
+    Parse(*mxmlNewElement(&parent, "ZERO_POINT"), fcafInfo.zeroPoint);
+    Parse(*mxmlNewElement(&parent, "SIGNED_ACTIVATION"), fcafInfo.signedActivation);
+}
+
 void Parse(mxml_node_t& parent, const cascading::FmSData& fmData)
 {
     Parse(*mxmlNewElement(&parent, "DRAM_OFFSET"), fmData.dramOffset);
     Parse(*mxmlNewElement(&parent, "BUFFER_ID"), fmData.bufferId);
+    Parse(*mxmlNewElement(&parent, "DATA_TYPE"), fmData.dataType);
+    Parse(*mxmlNewElement(&parent, "FCAF_INFO"), fmData.fcafInfo);
     Parse(*mxmlNewElement(&parent, "TILE"), fmData.tile);
     Parse(*mxmlNewElement(&parent, "DFLT_STRIPE_SIZE"), fmData.dfltStripeSize);
     Parse(*mxmlNewElement(&parent, "EDGE_STRIPE_SIZE"), fmData.edgeStripeSize);

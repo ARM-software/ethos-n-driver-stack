@@ -112,6 +112,8 @@ private:
     void Pop(const std::string& key, ethosn::command_stream::cascading::MceAlgorithm& value);
     void Pop(const std::string& key, ethosn::command_stream::cascading::PleInputMode& value);
     void Pop(const std::string& key, ethosn::command_stream::cascading::PleKernelId& value);
+    void Pop(const std::string& key, ethosn::command_stream::cascading::FmsDataType& value);
+    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::FcafInfo& value);
 
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::FmSData& value);
 

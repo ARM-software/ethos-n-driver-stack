@@ -326,6 +326,8 @@ void XmlParser::Pop(const std::string& keyPrefix, cascading::FmSData& value)
 {
     Pop(keyPrefix + "/DRAM_OFFSET", value.dramOffset);
     Pop(keyPrefix + "/BUFFER_ID", value.bufferId);
+    Pop(keyPrefix + "/DATA_TYPE", value.dataType);
+    Pop("FCAF_INFO", value.fcafInfo);
     Pop("TILE", value.tile);
     Pop("DFLT_STRIPE_SIZE", value.dfltStripeSize);
     Pop("EDGE_STRIPE_SIZE", value.edgeStripeSize);
@@ -840,6 +842,30 @@ void XmlParser::Pop(const std::string& keyPrefix, cascading::Tile& value)
     Pop(keyPrefix + "/BASE_ADDR", value.baseAddr);
     Pop(keyPrefix + "/NUM_SLOTS", value.numSlots);
     Pop(keyPrefix + "/SLOT_SIZE", value.slotSize);
+}
+
+void XmlParser::Pop(const std::string& keyPrefix, cascading::FcafInfo& value)
+{
+    Pop(keyPrefix + "/ZERO_POINT", value.zeroPoint);
+    Pop(keyPrefix + "/SIGNED_ACTIVATION", value.signedActivation);
+}
+
+void XmlParser::Pop(const std::string& key, cascading::FmsDataType& value)
+{
+    const std::string str = Pop(key);
+
+#define POP_DATA_TYPE_CASE(op)                                                                                         \
+    if (str == #op)                                                                                                    \
+    {                                                                                                                  \
+        value = cascading::FmsDataType::op;                                                                            \
+        return;                                                                                                        \
+    }
+
+    POP_DATA_TYPE_CASE(NHWC)
+    POP_DATA_TYPE_CASE(FCAF_WIDE)
+    POP_DATA_TYPE_CASE(FCAF_DEEP)
+
+    throw ParseException(key + " is not a valid data type: " + str);
 }
 
 void XmlParser::SaxCallback(mxml_node_t* node, mxml_sax_event_t event, void* parserAsVoid)

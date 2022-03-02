@@ -424,6 +424,11 @@ const std::string g_XmlStr =
             <IFM_STREAMER>
                 <DRAM_OFFSET>512</DRAM_OFFSET>
                 <BUFFER_ID>3</BUFFER_ID>
+                <DATA_TYPE>NHWC</DATA_TYPE>
+                <FCAF_INFO>
+                    <ZERO_POINT>0</ZERO_POINT>
+                    <SIGNED_ACTIVATION>0</SIGNED_ACTIVATION>
+                </FCAF_INFO>
                 <TILE>
                     <BASE_ADDR>512</BASE_ADDR>
                     <NUM_SLOTS>2</NUM_SLOTS>
@@ -508,6 +513,11 @@ const std::string g_XmlStr =
             <OFM_STREAMER>
                 <DRAM_OFFSET>512</DRAM_OFFSET>
                 <BUFFER_ID>0</BUFFER_ID>
+                <DATA_TYPE>NHWC</DATA_TYPE>
+                <FCAF_INFO>
+                    <ZERO_POINT>0</ZERO_POINT>
+                    <SIGNED_ACTIVATION>0</SIGNED_ACTIVATION>
+                </FCAF_INFO>
                 <TILE>
                     <BASE_ADDR>0</BASE_ADDR>
                     <NUM_SLOTS>0</NUM_SLOTS>
