@@ -47,8 +47,8 @@
  * This is common for the fat binary (ethosn.bin) and the individual
  * firmware binaries (sub-components of the fat binary).
  */
-#define ETHOSN_FIRMWARE_VERSION_MAJOR 3
-#define ETHOSN_FIRMWARE_VERSION_MINOR 1
+#define ETHOSN_FIRMWARE_VERSION_MAJOR 4
+#define ETHOSN_FIRMWARE_VERSION_MINOR 0
 #define ETHOSN_FIRMWARE_VERSION_PATCH 0
 
 /** Max length of a cache line. Used to separate host and Ethos-N data. */
@@ -180,14 +180,11 @@ static inline bool ethosn_queue_skip(struct ethosn_queue *queue,
 
 /**
  * Reads the given number of bytes from the queue.
- * The caller is required to commit the read_pending pointer
- * to queue.read when they have ensured that it can be advanced.
  * Returns false if there is not enough data in the queue to read.
  */
-static inline bool ethosn_queue_read(const struct ethosn_queue *queue,
+static inline bool ethosn_queue_read(struct ethosn_queue *queue,
 				     uint8_t *dst,
-				     uint32_t size,
-				     uint32_t *read_pending)
+				     uint32_t size)
 {
 	const uint32_t mask = queue->capacity - 1;
 	uint32_t read = queue->read;
@@ -202,39 +199,48 @@ static inline bool ethosn_queue_read(const struct ethosn_queue *queue,
 		read = (read + 1) & mask;
 	}
 
-	*read_pending = read;
+	queue->read = read;
 
 	return true;
 }
 
 /**
- * Writes the given buffer of bytes to the queue.
- * The caller is required to commit the write_pending pointer
- * to queue.write when they have ensured that the payload is
+ * Writes the given buffers of bytes to the queue.
+ * The caller is required to commit the out_write_pending pointer
+ * to queue->write when they have ensured that the payload is
  * readable (e.g. flushed) by the "reading" CPU.
  * Returns false if there is not enough free space in the queue.
+ * @buffers:	Array of length num_buffers, each element is a pointer to a
+ *              buffer to be written to the queue.
+ * @sizes:	Array of length num_buffers, each element is the length of the
+ *              corrresponding buffer in @buffers
  */
 static inline bool ethosn_queue_write(struct ethosn_queue *queue,
-				      const uint8_t *src,
-				      uint32_t size,
-				      uint32_t *write_pending)
+				      const uint8_t *const *buffers,
+				      const uint32_t *sizes,
+				      uint32_t num_buffers,
+				      uint32_t *out_write_pending)
 {
 	const uint32_t mask = queue->capacity - 1;
-	uint32_t write;
-	uint32_t i;
+	uint32_t write = queue->write;
+	uint32_t i, j;
+	uint32_t total_bytes = 0;
 
 	/* Check if there is enough space for our data */
-	if (ethosn_queue_get_free_space(queue) < size)
+	for (i = 0; i < num_buffers; ++i)
+		total_bytes += sizes[i];
+
+	if (ethosn_queue_get_free_space(queue) < total_bytes)
 		return false;
 
-	write = *write_pending;
+	/* Write each buffer, one after the other */
+	for (i = 0; i < num_buffers; ++i)
+		for (j = 0; j < sizes[i]; ++j) {
+			queue->data[write] = buffers[i][j];
+			write = (write + 1) & mask;
+		}
 
-	for (i = 0; i < size; ++i) {
-		queue->data[write] = src[i];
-		write = (write + 1) & mask;
-	}
-
-	*write_pending = write;
+	*out_write_pending = write;
 
 	return true;
 }

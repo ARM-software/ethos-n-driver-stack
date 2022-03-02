@@ -652,38 +652,13 @@ int ethosn_read_message(struct ethosn_core *core,
 {
 	struct ethosn_queue *queue = core->mailbox_response->cpu_addr;
 	bool ret;
-	uint32_t read_pending;
-
-	if (core->mailbox_response->size <
-	    (sizeof(*queue) + queue->capacity) ||
-	    !is_power_of_2(queue->capacity)) {
-		dev_err(core->dev,
-			"Illegal mailbox queue capacity. alloc_size=%zu, queue capacity=%u\n",
-			core->mailbox_request->size, queue->capacity);
-
-		return -EFAULT;
-	}
 
 	ethosn_dma_sync_for_cpu(core->allocator, core->mailbox_response);
 
 	ret = ethosn_queue_read(queue, (uint8_t *)header,
-				sizeof(struct ethosn_message_header),
-				&read_pending);
+				sizeof(struct ethosn_message_header));
 	if (!ret)
 		return 0;
-
-	/*
-	 * It's possible that the "writing" side (e.g. CU firmware) has written
-	 * the header but hasn't yet written the payload. In this case we give
-	 * up and will try again once the "writing" side sends the interrupt to
-	 * indicate it has finished writing the whole message.
-	 */
-	if ((ethosn_queue_get_size(queue) -
-	     sizeof(struct ethosn_message_header)) <
-	    header->length)
-		return 0;
-
-	queue->read = read_pending;
 
 	dev_dbg(core->dev,
 		"Received message. type=%u, length=%u, read=%u, write=%u.\n",
@@ -700,7 +675,13 @@ int ethosn_read_message(struct ethosn_core *core,
 		return -ENOMEM;
 	}
 
-	ret = ethosn_queue_read(queue, data, header->length, &read_pending);
+	/*
+	 * We assume that if there is any data in the queue at all
+	 * then the full message is available. Partial messages should not be
+	 * observable, as the firmware updates its write pointer only
+	 * once the full message is written.
+	 */
+	ret = ethosn_queue_read(queue, data, header->length);
 	if (!ret) {
 		dev_err(core->dev,
 			"Failed to read message payload. size=%u, queue capacity=%u\n",
@@ -708,8 +689,6 @@ int ethosn_read_message(struct ethosn_core *core,
 
 		return -EFAULT;
 	}
-
-	queue->read = read_pending;
 
 	ethosn_dma_sync_for_device(core->allocator, core->mailbox_response);
 
@@ -743,16 +722,10 @@ int ethosn_write_message(struct ethosn_core *core,
 	};
 	bool ret;
 	uint32_t write_pending;
-
-	if (core->mailbox_response->size <
-	    (sizeof(*queue) + queue->capacity) ||
-	    !is_power_of_2(queue->capacity)) {
-		dev_err(core->dev,
-			"Illegal mailbox queue capacity. alloc_size=%zu, queue capacity=%u\n",
-			core->mailbox_request->size, queue->capacity);
-
-		return -EFAULT;
-	}
+	const uint8_t *buffers[2] = {
+		(const uint8_t *)&header, (const uint8_t *)data
+	};
+	uint32_t sizes[2] = { sizeof(header), length };
 
 	ethosn_dma_sync_for_cpu(core->allocator, core->mailbox_request);
 
@@ -760,21 +733,14 @@ int ethosn_write_message(struct ethosn_core *core,
 		"Write message. type=%u, length=%zu, read=%u, write=%u.\n",
 		type, length, queue->read, queue->write);
 
-	write_pending = queue->write;
-
 	ret =
-		ethosn_queue_write(queue, (uint8_t *)&header,
-				   sizeof(struct ethosn_message_header),
+		ethosn_queue_write(queue, buffers, sizes, 2,
 				   &write_pending);
 	if (!ret)
 		return ret;
 
-	ret = ethosn_queue_write(queue, data, length, &write_pending);
-	if (!ret)
-		return ret;
-
 	/*
-	 * Sync the payload before committing the updated write pointer so that
+	 * Sync the data before committing the updated write pointer so that
 	 * the "reading" side (e.g. CU firmware) can't read invalid data.
 	 */
 	ethosn_dma_sync_for_device(core->allocator, core->mailbox_request);
