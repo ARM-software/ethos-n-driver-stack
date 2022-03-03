@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2020,2022 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -167,6 +167,18 @@ void DumpProfilingData(const std::vector<ProfilingEntry>& profilingData, std::os
             {
                 o << "\t\t\t"
                   << R"("counter_value": )" << std::to_string(entry.GetCounterValue()) << "\n";
+                break;
+            }
+            case ProfilingEntry::MetadataCategory::FirmwarePle:
+            {
+                o << "\t\t\t"
+                  << R"("firmware_ple_value": )" << std::to_string(entry.m_MetadataValue) << "\n";
+                break;
+            }
+            case ProfilingEntry::MetadataCategory::FirmwareUdma:
+            {
+                o << "\t\t\t"
+                  << R"("firmware_udma_value": )" << std::to_string(entry.m_MetadataValue) << "\n";
                 break;
             }
             default:

@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2020-2021 Arm Limited. All rights reserved.
+ * (C) COPYRIGHT 2020-2022 Arm Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -113,25 +113,30 @@ enum class FirmwareCounterName {
 
 using EntryData = decltype(ethosn_profiling_entry::data);
 
-/* Note that the order of these categories matters for the python parser that */
-/* generates the json file. New categories need to be added at the bottom of */
-/* the list. */
+/*
+ * Note that the order of these categories matters for the python parser that
+ * generates the json file. New categories need to be added at the bottom of
+ * the list.
+ */
 enum class EntryDataCategory: uint8_t {
-	WfeSleeping,            /* Legacy & Strategy X */
-	Inference,              /* Legacy & Strategy X */
-	Command,                /* Legacy & Strategy X */
-	Dma,                    /* Legacy & Strategy X */
-	Tsu,                    /* Legacy & Strategy X */
-	MceStripeSetup,         /* Legacy only */
-	PleStripeSetup,         /* Legacy only */
-	Label,                  /* Custom use */
-	DmaSetup,               /* Legacy only */
-	GetCompleteCommand,     /* Legacy only */
-	ScheduleNextCommand,    /* Legacy only */
-	WfeChecking,            /* Legacy only */
-	TimeSync,               /* Legacy & Strategy X */
-	Agent,                  /* Strategy X only */
-	AgentStripe,            /* Strategy X only */
+	/*                          Legacy?   StrategyX?   Cascading? */
+	WfeSleeping,            /*   Yes         Yes         Yes     */
+	Inference,              /*   Yes         Yes         Yes     */
+	Command,                /*   Yes         Yes         Yes     */
+	Dma,                    /*   Yes         Yes         Yes     */
+	Tsu,                    /*   Yes         Yes         Yes     */
+	MceStripeSetup,         /*   Yes         No          Yes     */
+	PleStripeSetup,         /*   Yes         No          Yes     */
+	Label,                  /* Custom use                        */
+	DmaSetup,               /*   Yes         No          Yes     */
+	GetCompleteCommand,     /*   Yes         No          No      */
+	ScheduleNextCommand,    /*   Yes         No          No      */
+	WfeChecking,            /*   Yes         No          No      */
+	TimeSync,               /*   Yes         Yes         Yes     */
+	Agent,                  /*   No          Yes         No      */
+	AgentStripe,            /*   No          Yes         No      */
+	Ple,                    /*   No          No          Yes     */
+	Udma                    /*   No          No          Yes     */
 };
 
 /* Describes the encoding of the "Data" field. */
@@ -193,6 +198,14 @@ union DataUnion {
 				uint8_t m_CommandIdx : 8;
 				uint8_t m_StripeIdx : 8;
 			} m_AgentStripeFields;
+			struct {
+				uint8_t m_CommandIdx : 8;
+				uint8_t m_StripeIdx : 8;
+			} m_PleFields;
+			struct {
+				uint8_t m_CommandIdx : 8;
+				uint8_t m_StripeIdx : 8;
+			} m_UdmaFields;
 		};
 	};
 };

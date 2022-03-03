@@ -1,5 +1,5 @@
 //
-// Copyright © 2019-2021 Arm Limited.
+// Copyright © 2019-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -176,7 +176,10 @@ public:
         // Non-firmware related categories go here.
         InferenceLifetime,
         BufferLifetime,
-        CounterValue
+        CounterValue,
+
+        FirmwarePle,
+        FirmwareUdma,
     };
     MetadataCategory m_MetadataCategory;
     /// @}
