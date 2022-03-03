@@ -122,4 +122,7 @@ private:
     XmlData m_XmlData;
 
     ethosn::command_stream::CommandStreamBuffer m_CSBuffer;
+    /// Cascading agents which have been parsed but not added to the command
+    /// stream yet.
+    std::vector<ethosn::command_stream::cascading::Agent> m_PendingAgents;
 };

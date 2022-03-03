@@ -847,7 +847,7 @@ void Parse(mxml_node_t& parent, const Cascade& value)
 
     for (auto& agent : cascade)
     {
-        mxml_node_t* agent_op = mxmlNewElement(&parent, "AGENT");
+        mxml_node_t* agent_op = mxmlNewElement(operation, "AGENT");
         Parse(*agent_op, agent.data);
         Parse(*agent_op, agent.info);
     }

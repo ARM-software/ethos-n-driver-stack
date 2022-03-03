@@ -118,7 +118,9 @@ void XmlParser::ParseKnownAgent()
     Pop(data);
     cascading::AgentDependencyInfo info{};
     Pop(info);
-    m_CSBuffer.EmplaceBack(cascading::Agent{ data, info });
+    // We can't add to the command stream immediately, otherwise agents would
+    // be added before the CASCADE command.
+    m_PendingAgents.push_back(cascading::Agent{ data, info });
 }
 
 void XmlParser::ParseAgent()
@@ -870,7 +872,9 @@ void XmlParser::SaxCallback(mxml_node_t* node, mxml_sax_event_t event, void* par
             mxml_node_t* const parent    = mxmlGetParent(node);
             const std::string parentName = (parent != nullptr) ? mxmlGetElement(parent) : "";
 
-            if (parentName == rootName)
+            // The mxml parser has just finished an element - check if this was an element
+            // which we need to parse (a command or an agent in a cascade)
+            if (parentName == rootName || parentName == "CASCADE")
             {
                 const std::string name = mxmlGetElement(node);
 
@@ -917,6 +921,15 @@ void XmlParser::SaxCallback(mxml_node_t* node, mxml_sax_event_t event, void* par
                 else if (name == "CASCADE")
                 {
                     parser->Parse<Opcode::CASCADE>();
+
+                    // Add all agents parsed as part of this CASCADE element
+                    // (we can't add them as we parse them, otherwise they'd
+                    //  end up before the CASCADE command).
+                    for (const cascading::Agent& a : parser->m_PendingAgents)
+                    {
+                        parser->m_CSBuffer.EmplaceBack(a);
+                    }
+                    parser->m_PendingAgents.clear();
                 }
                 else if (name == "AGENT")
                 {
