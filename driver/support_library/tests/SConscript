@@ -70,6 +70,7 @@ srcs = [
     "EstimateOnlyPartTests.cpp",
     "BufferManagerTests.cpp",
     "StandalonePlePartTests.cpp",
+    "CascadingCompilerTests.cpp",
 ]
 
 internal_dir = os.path.join(

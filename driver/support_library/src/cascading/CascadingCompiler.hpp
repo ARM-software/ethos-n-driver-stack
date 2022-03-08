@@ -6,15 +6,21 @@
 #pragma once
 
 #include "Plan.hpp"
+#include "ethosn_command_stream/CommandStreamBuffer.hpp"
 #include <unordered_map>
-
-using namespace std;
-using namespace ethosn::command_stream::cascading;
 
 namespace ethosn
 {
 namespace support_library
 {
+namespace cascading_compiler
+{
+
+using AgentIdType         = std::vector<command_stream::cascading::Agent>::size_type;
+using MultiMapIterator    = std::multimap<Op*, AgentIdType>::iterator;
+using RelativeAgentIdType = uint8_t;
+
+constexpr uint8_t g_MaxRelativeAgentPosition = 255;
 
 class CascadingCompiler
 {
@@ -26,13 +32,10 @@ public:
     CascadingCompiler(const CascadingCompiler&) = delete;
     CascadingCompiler& operator=(const CascadingCompiler&) = delete;
     ~CascadingCompiler();
+    std::vector<command_stream::cascading::Agent> GetCommandStreamOfAgents();
     std::unique_ptr<CompiledNetwork> Compile();
-    OpGraph GetMergedOpGraph() const;
 
 private:
-    // Private function to add the lifetime information of the intermediate DRAM buffers
-    void AddLifetimeInfoForIntermediateDramBuffers();
-
     // Private functions for processing OpGraph Ops
     void ProcessDmaOp(Op* const ptrDmaOp);
     void ProcessMceOp(Op* const ptrMceOp);
@@ -41,6 +44,60 @@ private:
     void ProcessSplitOp(Op* const ptrSplitOp);
     void ProcessSpaceToDepthOp(Op* const ptrSpaceToDepthOp);
     void ProcessTransposeOp(Op* const ptrTransposeOp);
+
+    // Private function to add IFM_STREAMER to the command stream
+    AgentIdType AddIfmStreamerToCommandStream(DmaOp* const ptrDmaOp);
+    // Private function to add WGT_STREAMER to the command stream
+    AgentIdType AddWeightStreamerToCommandStream(DmaOp* const ptrDmaOp);
+    // Private function to add MCE_SCHEDULER to the command stream
+    AgentIdType AddMceSchedulerToCommandStream(MceOp* const ptrMceOp,
+                                               const command_stream::cascading::PleKernelId pleKernelId);
+    // Private function to add PLE_LOADER to the command stream
+    AgentIdType AddPleLoaderToCommandStream(PleOp* const ptrPleOp);
+    // Private function to add PLE_SCHEDULER to the command stream
+    AgentIdType AddPleSchedulerToCommandStream(PleOp* const ptrPleOp);
+    // Private function to add OFM_STREAMER to the command stream
+    AgentIdType AddOfmStreamerToCommandStream(DmaOp* const ptrDmaOp);
+
+    // Private function to add ReadAfterWrite Dependency
+    // Consumer agent creates and own the dependency
+    inline void AddReadAfterWriteDependency(const command_stream::cascading::AgentType consumerAgentType,
+                                            const AgentIdType consumerAgentId,
+                                            const command_stream::cascading::AgentType producerAgentType,
+                                            const AgentIdType producerAgentId);
+    // Private function to add SRAM Overlap Dependency
+    // Consumer agent creates and own the dependency
+    inline void AddSramOverlapDependency(const command_stream::cascading::AgentType consumerAgentType,
+                                         const AgentIdType consumerAgentId,
+                                         const command_stream::cascading::AgentType producerAgentType,
+                                         const AgentIdType producerAgentId);
+    // Private function to add WriteAfterRead Dependency
+    // Last consumer agent creates the dependency and assign it to the producer agent
+    inline void AddWriteAfterReadDependency(const command_stream::cascading::AgentType consumerAgentType,
+                                            const AgentIdType consumerAgentId,
+                                            const command_stream::cascading::AgentType producerAgentType,
+                                            const AgentIdType producerAgentId);
+    // Private function to add ScheduleTime Dependency
+    // First consumer agent creates the dependency and assign it to the producer agent
+    inline void AddScheduleTimeDependency(const command_stream::cascading::AgentType consumerAgentType,
+                                          const AgentIdType consumerAgentId,
+                                          const command_stream::cascading::AgentType producerAgentType,
+                                          const AgentIdType producerAgentId);
+    // Private function to fill the dependency data for Read After Write or SRAM Overlap dependencies
+    void FillConsumerAgentDependency(command_stream::cascading::Dependency& consumerAgentDependency,
+                                     const command_stream::cascading::AgentType consumerAgentType,
+                                     const AgentIdType consumerAgentId,
+                                     const command_stream::cascading::AgentType producerAgentType,
+                                     const AgentIdType producerAgentId);
+    // Private function to fill the dependency data for Write After Read or Schedule Time dependencies
+    void FillProducerAgentDependency(command_stream::cascading::Dependency& producerAgentDependency,
+                                     const command_stream::cascading::AgentType consumerAgentType,
+                                     const AgentIdType consumerAgentId,
+                                     const command_stream::cascading::AgentType producerAgentType,
+                                     const AgentIdType producerAgentId);
+
+    // Private function to add the lifetime information of the intermediate DRAM buffers
+    void AddLifetimeInfoForIntermediateDramBuffers();
 
     // Intermediate DRAM Buffer to Buffer Id mapping
     std::unordered_map<Buffer*, uint32_t> m_IntermdiateDramBufToBufIdMapping;
@@ -53,18 +110,18 @@ private:
     HardwareCapabilities m_Capabilities;
     const CompilationOptions m_CompilationOptions;
 
-    // Data structure for mapping an Op to its Agents ID
-    std::unordered_map<Op*, uint32_t> m_OpToAgentIdMapping;
-    // Data structures for down the sequence dependencies (i.e WriteAfterRead and ScheduleTime)
-    std::unordered_map<Op*, Dependency*> m_PendingWriteAfterReadDependencyForConsumerOp;
-    std::unordered_map<Op*, Dependency*> m_PendingScheduleTimeDependencyForConsumerOp;
+    // Data structure for mapping an Op to its Agent ID
+    std::unordered_map<Op*, AgentIdType> m_OpToAgentIdMapping;
+    // Data structure for mapping a Ple kernel to its loader Agent
+    std::unordered_map<command_stream::cascading::PleKernelId, AgentIdType> m_PleKernelToPleLoaderAgentIdMapping;
 
-    // Command stream agents used to build the command stream that is stored in the BufferManager instance at BufferId = 0
-    std::vector<Agent> m_CommandStreamAgents;
+    // Command stream agents used to build the command stream and to be stored in the BufferManager instance at BufferId = 0
+    std::vector<command_stream::cascading::Agent> m_CommandStreamAgents;
+    command_stream::CommandStreamBuffer m_CommandStream;
 
     // BufferManager instance which maintains and builds up the set of buffers required by the compiled network
     BufferManager m_BufferManager;
 };
-
+}    // namespace cascading_compiler
 }    // namespace support_library
 }    // namespace ethosn
