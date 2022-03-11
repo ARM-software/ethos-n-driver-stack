@@ -25,7 +25,7 @@ enum class DataFormat
 class Buffer
 {
 public:
-    Buffer(Buffer&& buffer);
+    Buffer(Buffer&& otherBuffer);
 
     // Device allocates the buffer.
     Buffer(uint32_t size, DataFormat format);
@@ -49,6 +49,11 @@ public:
     Buffer(const uint8_t* src, uint32_t size, DataFormat format, const std::string& device);
 
     ~Buffer();
+
+    explicit operator bool() const
+    {
+        return bufferImpl != nullptr;
+    }
 
     // Returns the size of the buffer.
     uint32_t GetSize();

@@ -19,8 +19,8 @@ namespace ethosn
 namespace driver_library
 {
 
-Buffer::Buffer(Buffer&& buffer)
-    : bufferImpl(std::move(buffer.bufferImpl.get()))
+Buffer::Buffer(Buffer&& otherBuffer)
+    : bufferImpl(std::move(otherBuffer.bufferImpl))
 {
     if (profiling::g_CurrentConfiguration.m_EnableProfiling)
     {
@@ -60,16 +60,6 @@ Buffer::Buffer(const uint8_t* src, uint32_t size, DataFormat format)
     : Buffer(src, size, format, DEVICE_NODE)
 {}
 
-uint32_t Buffer::GetSize()
-{
-    return bufferImpl->GetSize();
-}
-
-DataFormat Buffer::GetDataFormat()
-{
-    return bufferImpl->GetDataFormat();
-}
-
 Buffer::~Buffer()
 {
     if (profiling::g_CurrentConfiguration.m_EnableProfiling)
@@ -80,18 +70,48 @@ Buffer::~Buffer()
     }
 }
 
+uint32_t Buffer::GetSize()
+{
+    if (!bufferImpl)
+    {
+        throw std::runtime_error("Unable to GetSize as BufferImpl is null");
+    }
+    return bufferImpl->GetSize();
+}
+
+DataFormat Buffer::GetDataFormat()
+{
+    if (!bufferImpl)
+    {
+        throw std::runtime_error("Unable to GetDataFormat as BufferImpl is null");
+    }
+    return bufferImpl->GetDataFormat();
+}
+
 const int& Buffer::GetBufferHandle() const
 {
+    if (!bufferImpl)
+    {
+        throw std::runtime_error("Unable to GetBufferHandle as BufferImpl is null");
+    }
     return bufferImpl->GetBufferHandle();
 }
 
 uint8_t* Buffer::Map()
 {
+    if (!bufferImpl)
+    {
+        throw std::runtime_error("Unable to Map as BufferImpl is null");
+    }
     return bufferImpl->Map();
 }
 
 void Buffer::Unmap()
 {
+    if (!bufferImpl)
+    {
+        throw std::runtime_error("Unable to Unmap as BufferImpl is null");
+    }
     bufferImpl->Unmap();
 }
 
