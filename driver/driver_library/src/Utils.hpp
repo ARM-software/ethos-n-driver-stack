@@ -1,9 +1,10 @@
 //
-// Copyright © 2018-2020 Arm Limited. All rights reserved.
+// Copyright © 2018-2020,2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
 
+#include <ethosn_utils/Log.hpp>
 #include <ethosn_utils/Macros.hpp>
 
 #include <algorithm>
@@ -20,6 +21,14 @@ namespace ethosn
 {
 namespace driver_library
 {
+
+#if !defined(NDEBUG)
+constexpr ethosn::utils::log::Severity g_LogCompileTimeMaxSeverity = ethosn::utils::log::Severity::Debug;
+#else
+constexpr ethosn::utils::log::Severity g_LogCompileTimeMaxSeverity = ethosn::utils::log::Severity::Info;
+#endif
+using LoggerType = ethosn::utils::log::Logger<g_LogCompileTimeMaxSeverity>;
+extern LoggerType g_Logger;
 
 /// Returns the first argument rounded UP to the nearest multiple of the second argument
 constexpr uint64_t RoundUpToNearestMultiple(uint64_t num, uint64_t nearestMultiple)

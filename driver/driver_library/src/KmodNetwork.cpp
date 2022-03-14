@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -285,7 +285,7 @@ void KmodNetworkImpl::DumpIntermediateBuffers()
     {
         throw std::runtime_error("Missing m_CompiledNetwork");
     }
-    std::cout << "Dumping intermediate buffers..." << std::endl;
+    g_Logger.Debug("Dumping intermediate buffers...");
 
     // Check if any intermediate buffers overlap memory with each another, and warn in this case that the
     // developer should probably modify support library to use non-overlapping intermediate buffers, otherwise
@@ -298,10 +298,10 @@ void KmodNetworkImpl::DumpIntermediateBuffers()
         {
             if (buffers[i].m_Offset + buffers[i].m_Size > buffers[i + 1].m_Offset)
             {
-                std::cerr
-                    << "Warning: intermediate buffers are overlapping and so the data about to be dumped may "
-                    << "be corrupted. Consider enabling the debugDisableBufferReuse option in the Support Library to "
-                    << "prevent this." << std::endl;
+                g_Logger.Warning(
+                    "Intermediate buffers are overlapping and so the data about to be dumped may "
+                    "be corrupted. Consider enabling the debugDisableBufferReuse option in the Support Library to "
+                    "prevent this.");
             }
         }
     }
@@ -311,7 +311,7 @@ void KmodNetworkImpl::DumpIntermediateBuffers()
     if (intermediateBufferFd < 0)
     {
         int err = errno;
-        std::cerr << "Unable to get intermediate buffer: " << strerror(err) << std::endl;
+        g_Logger.Error("Unable to get intermediate buffer: %s", strerror(err));
         return;
     }
 
@@ -321,14 +321,14 @@ void KmodNetworkImpl::DumpIntermediateBuffers()
     if (size < 0)
     {
         int err = errno;
-        std::cerr << "Unable to seek intermediate buffer: " << strerror(err) << std::endl;
+        g_Logger.Error("Unable to seek intermediate buffer: %s", strerror(err));
         close(intermediateBufferFd);
         return;
     }
     if (size != m_CompiledNetwork->m_IntermediateDataSize)
     {
-        std::cerr << "Intermediate data was of unexpected size: CompiledNetwork: "
-                  << m_CompiledNetwork->m_IntermediateDataSize << ", Kernel: " << size << std::endl;
+        g_Logger.Error("Intermediate data was of unexpected size: CompiledNetwork: %d, Kernel: %zu",
+                       m_CompiledNetwork->m_IntermediateDataSize, static_cast<size_t>(size));
     }
 
     if (size > 0)    // There may not be any intermediate data at all
@@ -338,7 +338,7 @@ void KmodNetworkImpl::DumpIntermediateBuffers()
         if (data == MAP_FAILED)
         {
             int err = errno;
-            std::cerr << "Unable to map buffer: " << strerror(err) << std::endl;
+            g_Logger.Error("Unable to map buffer: %s", strerror(err));
             close(intermediateBufferFd);
             return;
         }
@@ -362,8 +362,8 @@ void KmodNetworkImpl::DumpIntermediateBuffers()
                                                  [&](const auto& b) { return b.m_Id == cmd.m_DramBufferId(); });
                 if (bufferInfoIt == m_CompiledNetwork->m_IntermediateDataBufferInfos.end())
                 {
-                    std::cerr << "Can't find buffer info for buffer ID " << cmd.m_DramBufferId()
-                              << ", which would have been dumped to " << cmd.m_Filename().data() << std::endl;
+                    g_Logger.Error("Can't find buffer info for buffer ID %d, which would have been dumped to %s",
+                                   cmd.m_DramBufferId(), cmd.m_Filename().data());
                 }
                 else
                 {
@@ -374,8 +374,7 @@ void KmodNetworkImpl::DumpIntermediateBuffers()
 
                     std::ofstream fs(dumpFilename.c_str());
                     WriteHex(fs, 0, data + bufferInfoIt->m_Offset, bufferInfoIt->m_Size);
-                    std::cout << "Dumped intermediate buffer " << bufferInfoIt->m_Id << " to " << dumpFilename
-                              << std::endl;
+                    g_Logger.Debug("Dumped intermediate buffer %d to %s", bufferInfoIt->m_Id, dumpFilename.c_str());
                 }
             }
         }
@@ -384,12 +383,12 @@ void KmodNetworkImpl::DumpIntermediateBuffers()
     }
     else
     {
-        std::cerr << "No intermediate data to dump" << std::endl;
+        g_Logger.Error("No intermediate data to dump");
     }
 
     close(intermediateBufferFd);
 
-    std::cout << "Finished dumping intermediate buffers" << std::endl;
+    g_Logger.Debug("Finished dumping intermediate buffers");
 }
 
 }    // namespace driver_library

@@ -7,6 +7,8 @@
 
 #include <ethosn_utils/Macros.hpp>
 
+#include "Utils.hpp"
+
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -84,7 +86,7 @@ Configuration GetConfigFromString(const char* str)
             auto hwCounters = Split(optionValue, ',');
             if (hwCounters.size() > 6)
             {
-                std::cerr << "There can only be at most 6 hardware counters\n";
+                g_Logger.Error("There can only be at most 6 hardware counters");
                 continue;
             }
             for (auto counter : hwCounters)

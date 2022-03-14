@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2018-2021 Arm Limited.
+# Copyright © 2018-2022 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -41,6 +41,7 @@ srcs = [
     os.path.join("src", "ProfilingInternal.cpp"),
     os.path.join("src", "DumpProfiling.cpp"),
     os.path.join("src", "NetworkImpl.cpp"),
+    os.path.join("src", "Utils.cpp"),
 ]
 
 if env["target"] == "kmod":
