@@ -89,10 +89,10 @@ cd <path_to_sparse>/sparse
 sudo make PREFIX=/usr install
 ```
 
-Also, if you want to build unit tests for the Ethos-N NPU user-space libraries, you must install Catch2. We recommend `v2.13.0`. To install Catch2, enter the following commands:
+Also, if you want to build unit tests for the Ethos-N NPU user-space libraries, you must install Catch2. We recommend `v2.13.8`. To install Catch2, enter the following commands:
 
 ```sh
-git clone --depth 1 https://github.com/catchorg/Catch2.git --branch v2.13.0 <path_to_catch>/Catch2
+git clone --depth 1 https://github.com/catchorg/Catch2.git --branch v2.13.8 <path_to_catch>/Catch2
 ```
 
 ## Install the Linux source tree
