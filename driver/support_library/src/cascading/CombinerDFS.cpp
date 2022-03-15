@@ -608,7 +608,7 @@ Combination Combiner::GetBestCombination(Combinations& combs) const
     return Combination{};
 }
 
-Combination Combiner::GetBestCombination() const
+const Combination& Combiner::GetBestCombination() const
 {
     return m_BestCombination;
 }
@@ -1647,17 +1647,6 @@ void Combiner::Run()
     m_MergedOpGraphForBestCombination = GetOpGraphForCombination(m_BestCombination, m_GraphOfParts);
 
     m_MergedOpGraphReady = true;
-}
-
-Combinations Cascading::Combine(const GraphOfParts& parts)
-{
-    ETHOSN_UNUSED(parts);
-
-    m_Combiner.Run();
-
-    Combination bestComb = m_Combiner.GetBestCombination();
-
-    return { bestComb };
 }
 
 // Take in input a combination and generate an OpGraph.

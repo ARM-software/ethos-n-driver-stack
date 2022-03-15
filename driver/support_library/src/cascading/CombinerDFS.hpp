@@ -242,7 +242,7 @@ public:
                                                const Plan& current,
                                                const PartConnection& slots) const;
 
-    Combination GetBestCombination() const;
+    const Combination& GetBestCombination() const;
     Combination GetBestCombination(Combinations& combs) const;
     OpGraph GetMergedOpGraphForBestCombination() const;
     CascadingBufferFormat

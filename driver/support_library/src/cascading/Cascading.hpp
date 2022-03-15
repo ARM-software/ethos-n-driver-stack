@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -25,10 +25,9 @@ public:
 
     const GraphOfParts& GetGraphOfParts() const;
 
-    Combinations Combine(const GraphOfParts&);
     NetworkPerformanceData EstimateNetwork(const Network& network);
 
-    const Combination* GetBestCombination();
+    const Combination& GetBestCombination();
 
 private:
     void EstimatePerformance();
@@ -39,9 +38,7 @@ private:
     const DebuggingContext& m_DebuggingContext;
 
     NetworkPerformanceData m_PerformanceStream;
-    const Combination* m_BestCombination;
     Combiner m_Combiner;
-    Combinations m_ValidCombinations;
     GraphOfParts m_GraphOfParts;
 };
 
