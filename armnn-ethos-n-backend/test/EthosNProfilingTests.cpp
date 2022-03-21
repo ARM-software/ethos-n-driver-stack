@@ -7,6 +7,7 @@
 #include "EthosNBackendId.hpp"
 #include "EthosNBackendProfilingContext.hpp"
 #include "EthosNTestUtils.hpp"
+#include "ProfilingOptionsConverter.hpp"
 
 #include <CommonTestUtils.hpp>
 #include <doctest/doctest.h>
@@ -14,6 +15,7 @@
 using namespace armnn;
 using namespace armnn::profiling;
 using namespace testing_utils;
+using namespace arm::pipe;
 
 TEST_SUITE("EthosNProfiling")
 {
@@ -28,7 +30,7 @@ TEST_SUITE("EthosNProfiling")
         armnn::RuntimeImpl runtime(options);
         auto& profilingService = GetProfilingService(&runtime);
 
-        const armnn::profiling::ICounterMappings& counterMap = profilingService.GetCounterMappings();
+        const arm::pipe::ICounterMappings& counterMap = profilingService.GetCounterMappings();
         CHECK(counterMap.GetGlobalId(
             static_cast<uint16_t>(ethosn::driver_library::profiling::PollCounterName::DriverLibraryNumLiveBuffers),
             EthosNBackendId()));
@@ -45,7 +47,8 @@ TEST_SUITE("EthosNProfiling")
             EthosNBackendId()));
 
         options.m_ProfilingOptions.m_EnableProfiling = false;
-        profilingService.ResetExternalProfilingOptions(options.m_ProfilingOptions, true);
+        profilingService.ResetExternalProfilingOptions(ConvertExternalProfilingOptions(options.m_ProfilingOptions),
+                                                       true);
     }
 
     TEST_CASE("TestEnableProfiling")
@@ -106,6 +109,7 @@ TEST_SUITE("EthosNProfiling")
             }
         }
         options.m_ProfilingOptions.m_EnableProfiling = false;
-        profilingService.ResetExternalProfilingOptions(options.m_ProfilingOptions, true);
+        profilingService.ResetExternalProfilingOptions(ConvertExternalProfilingOptions(options.m_ProfilingOptions),
+                                                       true);
     }
 }

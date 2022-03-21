@@ -11,6 +11,7 @@
 #include <armnn/backends/SubgraphView.hpp>
 #include <armnnUtils/Filesystem.hpp>
 
+#include <atomic>
 #include <cstdlib>
 #include <fstream>
 #include <string>
