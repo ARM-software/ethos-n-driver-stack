@@ -10,10 +10,11 @@
 #include "EthosNWorkloadFactory.hpp"
 #include "EthosNWorkloads.hpp"
 
-#include <CreateWorkload.hpp>
 #include <armnnUtils/Filesystem.hpp>
 
 #include <doctest/doctest.h>
+
+using namespace armnn;
 
 TEST_SUITE("EthosNCreateEstimationWorkload")
 {
@@ -97,6 +98,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
         TensorInfo inputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
         inputTensorInfo.SetQuantizationOffset(0);
         inputTensorInfo.SetQuantizationScale(0.9f);
+        inputTensorInfo.SetConstant();
 
         TensorInfo outputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
         outputTensorInfo.SetQuantizationOffset(0);
@@ -119,28 +121,19 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
             armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
         CHECK(optimizedNet != nullptr);
 
-        armnn::Graph& optimisedGraph = GetGraphForTesting(optimizedNet.get());
-        Layer* preCompiledLayer      = nullptr;
-        for (auto& layer : optimisedGraph)
-        {
-            if (layer->GetType() == LayerType::PreCompiled)
-            {
-                preCompiledLayer = layer;
-            }
-        }
-        CHECK(preCompiledLayer != nullptr);
+        // Load graph into runtime
+        armnn::NetworkId networkIdentifier;
+        runtime->LoadNetwork(networkIdentifier, std::move(optimizedNet));
 
-        CreateTensorHandles(optimisedGraph, factory);
+        //Creates structures for inputs and outputs.
+        const std::vector<uint8_t> inputData(inputTensorInfo.GetNumElements());
+        std::vector<uint8_t> outputData(outputTensorInfo.GetNumElements());
 
-        auto workload = MakeAndCheckWorkload<armnn::EthosNPreCompiledWorkload>(*preCompiledLayer, factory);
+        armnn::InputTensors inputTensors{ { 0, armnn::ConstTensor(inputTensorInfo, inputData.data()) } };
+        armnn::OutputTensors outputTensors{ { 0, armnn::Tensor(outputTensorInfo, outputData.data()) } };
 
-        PreCompiledQueueDescriptor queueDescriptor = workload->GetData();
-        CHECK(queueDescriptor.m_Inputs.size() == 1);
-        CHECK(queueDescriptor.m_Outputs.size() == 1);
-
-        // Execute outputs the performance estimation to a file.
-        // read it back so it can be compared.
-        workload->Execute();
+        // Execute network
+        runtime->EnqueueWorkload(networkIdentifier, inputTensors, outputTensors);
 
         const std::string reportFile = config.m_PerfOutDir + "/subgraph_0/report.json";
         const std::string result     = ReadFile(reportFile);
@@ -273,6 +266,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
         TensorInfo inputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
         inputTensorInfo.SetQuantizationOffset(0);
         inputTensorInfo.SetQuantizationScale(0.9f);
+        inputTensorInfo.SetConstant();
 
         TensorInfo outputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
         outputTensorInfo.SetQuantizationOffset(0);
@@ -287,7 +281,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
         poolLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
         poolLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
 
-        std::vector<armnn::BackendId> backends = { factory.GetBackendId() };
+        std::vector<armnn::BackendId> backends = { EthosNBackend::GetIdStatic() };
         armnn::IRuntime::CreationOptions options;
         armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
         armnn::OptimizerOptions optimizerOptions;
@@ -295,28 +289,19 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
             armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
         CHECK(optimizedNet != nullptr);
 
-        armnn::Graph& optimisedGraph = GetGraphForTesting(optimizedNet.get());
-        Layer* preCompiledLayer      = nullptr;
-        for (auto& layer : optimisedGraph)
-        {
-            if (layer->GetType() == LayerType::PreCompiled)
-            {
-                preCompiledLayer = layer;
-            }
-        }
-        CHECK(preCompiledLayer != nullptr);
+        // Load graph into runtime
+        armnn::NetworkId networkIdentifier;
+        runtime->LoadNetwork(networkIdentifier, std::move(optimizedNet));
 
-        CreateTensorHandles(optimisedGraph, factory);
+        //Creates structures for inputs and outputs.
+        const std::vector<uint8_t> inputData(inputTensorInfo.GetNumElements());
+        std::vector<uint8_t> outputData(outputTensorInfo.GetNumElements());
 
-        auto workload = MakeAndCheckWorkload<armnn::EthosNPreCompiledWorkload>(*preCompiledLayer, factory);
+        armnn::InputTensors inputTensors{ { 0, armnn::ConstTensor(inputTensorInfo, inputData.data()) } };
+        armnn::OutputTensors outputTensors{ { 0, armnn::Tensor(outputTensorInfo, outputData.data()) } };
 
-        PreCompiledQueueDescriptor queueDescriptor = workload->GetData();
-        CHECK(queueDescriptor.m_Inputs.size() == 1);
-        CHECK(queueDescriptor.m_Outputs.size() == 1);
-
-        // Execute outputs the performance estimation to a file.
-        // read it back so it can be compared.
-        workload->Execute();
+        // Execute network
+        runtime->EnqueueWorkload(networkIdentifier, inputTensors, outputTensors);
 
         const std::string reportFile = config.m_PerfOutDir + "/subgraph_0/report.json";
         const std::string result     = ReadFile(reportFile);
@@ -412,13 +397,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 
         BackendGlobalConfigSetter configSetter(config, config.QueryCapabilities());
 
-        armnn::Graph graph;
-        armnn::EthosNWorkloadFactory factory(config);
-        auto workload =
-            CreatePreCompiledWorkloadTest<armnn::EthosNPreCompiledWorkload, armnn::DataType::QAsymmU8>(factory, graph);
-
-        // Checks that inputs/outputs are as we expect them (see definition of CreatePreCompiledWorkloadTest).
-        workload.second->Execute();
+        CreateEthosNPrecompiledWorkloadTest();
 
         const std::string reportFile = config.m_PerfOutDir + "/subgraph_0/report.json";
         const std::string result     = ReadFile(reportFile);
@@ -514,12 +493,7 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 
         BackendGlobalConfigSetter configSetter(config, config.QueryCapabilities());
 
-        armnn::Graph graph;
-        armnn::EthosNWorkloadFactory factory(config);
-        auto workload =
-            CreatePreCompiledWorkloadTest<armnn::EthosNPreCompiledWorkload, armnn::DataType::QAsymmU8>(factory, graph);
-
-        workload.second->Execute();
+        CreateEthosNPrecompiledWorkloadTest();
 
         const std::string reportFile = config.m_PerfOutDir + "/subgraph_0/report.json";
         const std::string result     = ReadFile(reportFile);

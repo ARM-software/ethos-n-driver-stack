@@ -7,7 +7,6 @@
 list(APPEND armnnEthosNBackendUnitTests_sources
      EthosNCachingTests.cpp
      EthosNCreateEstimationWorkloadTests.cpp
-     EthosNCreateWorkloadTests.cpp
      EthosNLayerTests.cpp
      EthosNMemCopyTests.cpp
      EthosNOptimizeSubgraphViewTests.cpp

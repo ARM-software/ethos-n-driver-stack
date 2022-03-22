@@ -3,11 +3,23 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "EthosNBackend.hpp"
+#include "EthosNSubgraphViewConverter.hpp"
 #include "EthosNTensorHandle.hpp"
+#include "EthosNTestUtils.hpp"
 #include "EthosNWorkloadFactory.hpp"
 #include "EthosNWorkloads.hpp"
 
 #include <doctest/doctest.h>
+
+#include <fcntl.h>
+#include <fstream>
+#ifdef _WIN32
+#include <io.h>
+#endif
+#if defined(__unix__)
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 using namespace armnn;
 
@@ -25,6 +37,9 @@ TEST_SUITE("EthosNBackend")
         expectedCap.AddOption(BackendOptions::BackendOption("DeviceBaseId", defaultDeviceId));
         expectedCap.AddOption(BackendOptions::BackendOption("NumberOfDevices", numberOfDevices));
         expectedCap.AddOption(BackendOptions::BackendOption("ConstantTensorsAsInputs", true));
+        expectedCap.AddOption(BackendOptions::BackendOption("AsyncExecution", true));
+        expectedCap.AddOption(BackendOptions::BackendOption("ExternallyManagedMemory", true));
+        expectedCap.AddOption(BackendOptions::BackendOption("PreImportIOTensors", true));
 
         CHECK(backendCap.GetBackendId().Get() == expectedCap.GetBackendId().Get());
         CHECK(backendCap.GetOptionCount() == expectedCap.GetOptionCount());
@@ -38,6 +53,12 @@ TEST_SUITE("EthosNBackend")
               expectedCap.GetOption(2).GetValue().AsUnsignedInt());
         CHECK(backendCap.GetOption(3).GetName() == expectedCap.GetOption(3).GetName());
         CHECK(backendCap.GetOption(3).GetValue().AsBool() == expectedCap.GetOption(3).GetValue().AsBool());
+        CHECK(backendCap.GetOption(4).GetName() == expectedCap.GetOption(4).GetName());
+        CHECK(backendCap.GetOption(4).GetValue().AsBool() == expectedCap.GetOption(4).GetValue().AsBool());
+        CHECK(backendCap.GetOption(5).GetName() == expectedCap.GetOption(5).GetName());
+        CHECK(backendCap.GetOption(5).GetValue().AsBool() == expectedCap.GetOption(5).GetValue().AsBool());
+        CHECK(backendCap.GetOption(6).GetName() == expectedCap.GetOption(6).GetName());
+        CHECK(backendCap.GetOption(6).GetValue().AsBool() == expectedCap.GetOption(6).GetValue().AsBool());
     }
 
     TEST_CASE("CreateWorkloadFactoryModelOptions")
@@ -115,5 +136,423 @@ TEST_SUITE("EthosNBackend")
 
         CHECK_THROWS_AS(IBackendInternal::ILayerSupportSharedPtr supportPtr = backend.GetLayerSupport(modelOptions),
                         armnn::InvalidArgumentException);
+    }
+}
+
+bool IsOnHardware()
+{
+    std::ifstream f("/dev/ethosn0");
+    return f.good();
+}
+
+TEST_SUITE("EthosNImportTensorHandle")
+{
+    TEST_CASE("Import")
+    {
+        bool onHardware = IsOnHardware();
+        if (onHardware)
+        {
+            return;
+        }
+        // Create a file to be used as the file descriptor passed in
+        // We don't create a dma_buf here but use a normal file descriptor for this test
+        const char* path = "ImportTensorHandleTestFile";
+        int fd           = open(path, O_RDWR | O_CREAT, S_IREAD | S_IWRITE);
+        CHECK(fd > 0);
+        // Create an ethosn import tensor handle factory with dma buf
+        EthosNConfig config;
+        EthosNImportTensorHandleFactory handleFactory(config, static_cast<MemorySourceFlags>(MemorySource::DmaBuf),
+                                                      static_cast<MemorySourceFlags>(MemorySource::DmaBuf));
+
+        // Create a tensor info needed to create the tensor handle
+        TensorInfo info({ 1, 16, 16, 16 }, DataType::QAsymmU8);
+        unsigned int numElements = info.GetNumElements();
+        // Create some data and fill in the file defined above
+        std::vector<uint8_t> data(numElements, 127);
+        int numBytesWritten = static_cast<int>(write(fd, data.data(), numElements));
+        CHECK(numBytesWritten == numElements);
+        // reset the file descriptor to the beginning so when we Import we read the correct data
+        lseek(fd, 0, SEEK_SET);
+
+        auto handle = handleFactory.CreateTensorHandle(info);
+
+        bool imported = handle->Import(reinterpret_cast<void*>(&fd), MemorySource::DmaBuf);
+        CHECK(imported);
+
+        // Check that the imported data is actually the data we added to the file.
+        uint8_t* buf = reinterpret_cast<uint8_t*>(handle->Map());
+        for (unsigned int i = 0; i < numElements; i++)
+        {
+            CHECK(buf[i] == data[i]);
+        }
+
+        // Modify the internal data
+        for (unsigned int i = 0; i < numElements; i++)
+        {
+            buf[i]++;
+        }
+
+        handle->Unimport();
+
+        lseek(fd, 0, SEEK_SET);
+        std::vector<uint8_t> outputData(numElements);
+        int bytesRead = static_cast<int>(read(fd, outputData.data(), numElements));
+        CHECK(bytesRead == static_cast<int>(numElements));
+
+        for (unsigned int i = 0; i < numElements; i++)
+        {
+            CHECK(outputData[i] == data[i] + 1);
+        }
+
+        close(fd);
+    }
+
+    TEST_CASE("ExecutionWithImportInputsAndOutputs")
+    {
+        bool onHardware = IsOnHardware();
+        if (onHardware)
+        {
+            return;
+        }
+
+        // Create a file to be used as the file descriptor passed in
+        // We don't create a dma_buf here but use a normal file descriptor for this test
+        const char* path = "ExecutionWithImportInput";
+        int fd           = open(path, O_RDWR | O_CREAT, S_IREAD | S_IWRITE);
+        CHECK(fd > 0);
+
+        // Create a file to be used as the file descriptor for output tensors
+        const char* outputPath = "ExecutionWithImportOutput";
+        int outputFd           = open(outputPath, O_RDWR | O_CREAT, S_IREAD | S_IWRITE);
+        CHECK(outputFd > 0);
+        // Reset backend-internal subgraph converter instance id
+        armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
+
+        using namespace testing_utils;
+
+        armnn::EthosNConfig config{};
+        config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
+        config.m_PerfOnly    = false;
+
+        BackendGlobalConfigSetter configSetter(config, config.QueryCapabilities());
+
+        armnn::EthosNWorkloadFactory factory(config);
+        // To create a PreCompiled layer, create a network and Optimize it.
+        armnn::INetworkPtr net = armnn::INetwork::Create();
+
+        armnn::IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input layer");
+        CHECK(inputLayer);
+
+        ActivationDescriptor reluDesc;
+        reluDesc.m_A                              = 255;
+        reluDesc.m_B                              = 0;
+        reluDesc.m_Function                       = ActivationFunction::BoundedReLu;
+        armnn::IConnectableLayer* const reluLayer = net->AddActivationLayer(reluDesc, "relu layer");
+        CHECK(reluLayer);
+
+        armnn::IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output layer");
+        CHECK(outputLayer);
+
+        TensorInfo inputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
+        inputTensorInfo.SetQuantizationOffset(0);
+        inputTensorInfo.SetQuantizationScale(1.f);
+        inputTensorInfo.SetConstant();
+
+        TensorInfo outputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
+        outputTensorInfo.SetQuantizationOffset(0);
+        outputTensorInfo.SetQuantizationScale(1.f);
+
+        inputLayer->GetOutputSlot(0).Connect(reluLayer->GetInputSlot(0));
+        inputLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
+
+        reluLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+        reluLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
+
+        std::vector<armnn::BackendId> backends = { factory.GetBackendId() };
+        armnn::IRuntime::CreationOptions options;
+        armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
+        armnn::OptimizerOptions optimizerOptions;
+        optimizerOptions.m_ImportEnabled = true;
+        armnn::IOptimizedNetworkPtr optimizedNet =
+            armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
+        CHECK(optimizedNet);
+
+        // Load graph into runtime
+        armnn::NetworkId networkIdentifier;
+        INetworkProperties networkProperties(false, MemorySource::DmaBuf, MemorySource::DmaBuf);
+        std::string errMsgs;
+        runtime->LoadNetwork(networkIdentifier, std::move(optimizedNet), errMsgs, networkProperties);
+
+        // Create some data and fill in the file descriptor
+        unsigned int numElements = inputTensorInfo.GetNumElements();
+        std::vector<uint8_t> inputData(numElements, 127);
+        int numBytesWritten = static_cast<int>(write(fd, inputData.data(), numElements));
+        CHECK(numBytesWritten == numElements);
+        // reset the file descriptor to the beginning so when we Import we read the correct data
+        lseek(fd, 0, SEEK_SET);
+
+        // Explicitly initialize the output data to 0 to be different from the input
+        // so we don't assume that the input is correct.
+        std::vector<uint8_t> outputData(outputTensorInfo.GetNumElements(), 0);
+        numBytesWritten = static_cast<int>(write(outputFd, outputData.data(), numElements));
+        CHECK(numBytesWritten == numElements);
+        lseek(outputFd, 0, SEEK_SET);
+
+        InputTensors inputTensors{
+            { 0, ConstTensor(runtime->GetInputTensorInfo(networkIdentifier, 0), &fd) },
+        };
+        OutputTensors outputTensors{ { 0, Tensor(runtime->GetOutputTensorInfo(networkIdentifier, 0), &outputFd) } };
+
+        // Do the inference
+        auto ret = runtime->EnqueueWorkload(networkIdentifier, inputTensors, outputTensors);
+        CHECK(ret == Status::Success);
+
+        // We have no way of Unimporting manually without using the import API.
+        // Execute another inference so the buffer is reset when we import it again.
+        lseek(fd, 0, SEEK_SET);
+        ret = runtime->EnqueueWorkload(networkIdentifier, inputTensors, outputTensors);
+        CHECK(ret == Status::Success);
+
+        // reset the file descriptor to the beginning
+        // and check the output is expected
+        lseek(outputFd, 0, SEEK_SET);
+        int numBytesRead = static_cast<int>(read(outputFd, outputData.data(), numElements));
+        CHECK(numBytesRead == numElements);
+
+        for (unsigned int i = 0; i < numElements; i++)
+        {
+            CHECK(outputData[i] == inputData[i]);
+        }
+    }
+
+    // Test using the Preimport API for both importing inputs and outputs
+    TEST_CASE("ExecutionWithImportInputsAndOutputsPreImport")
+    {
+        bool onHardware = IsOnHardware();
+        if (onHardware)
+        {
+            return;
+        }
+
+        // Create a file to be used as the file descriptor passed in
+        // We don't create a dma_buf here but use a normal file descriptor for this test
+        const char* path = "ExecutionWithImportInput";
+        int fd           = open(path, O_RDWR | O_CREAT, S_IREAD | S_IWRITE);
+        CHECK(fd > 0);
+
+        // Create a file to be used as the file descriptor for output tensors
+        const char* outputPath = "ExecutionWithImportOutput";
+        int outputFd           = open(outputPath, O_RDWR | O_CREAT, S_IREAD | S_IWRITE);
+        CHECK(outputFd > 0);
+        // Reset backend-internal subgraph converter instance id
+        armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
+
+        using namespace testing_utils;
+
+        armnn::EthosNConfig config{};
+        config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
+        config.m_PerfOnly    = false;
+
+        BackendGlobalConfigSetter configSetter(config, config.QueryCapabilities());
+
+        armnn::EthosNWorkloadFactory factory(config);
+        // To create a PreCompiled layer, create a network and Optimize it.
+        armnn::INetworkPtr net = armnn::INetwork::Create();
+
+        armnn::IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input layer");
+        CHECK(inputLayer);
+
+        ActivationDescriptor reluDesc;
+        reluDesc.m_A                              = 255;
+        reluDesc.m_B                              = 0;
+        reluDesc.m_Function                       = ActivationFunction::BoundedReLu;
+        armnn::IConnectableLayer* const reluLayer = net->AddActivationLayer(reluDesc, "relu layer");
+        CHECK(reluLayer);
+
+        armnn::IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output layer");
+        CHECK(outputLayer);
+
+        TensorInfo inputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
+        inputTensorInfo.SetQuantizationOffset(0);
+        inputTensorInfo.SetQuantizationScale(1.f);
+        inputTensorInfo.SetConstant();
+
+        TensorInfo outputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
+        outputTensorInfo.SetQuantizationOffset(0);
+        outputTensorInfo.SetQuantizationScale(1.f);
+
+        inputLayer->GetOutputSlot(0).Connect(reluLayer->GetInputSlot(0));
+        inputLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
+
+        reluLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+        reluLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
+
+        std::vector<armnn::BackendId> backends = { factory.GetBackendId() };
+        armnn::IRuntime::CreationOptions options;
+        armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
+        armnn::OptimizerOptions optimizerOptions;
+        optimizerOptions.m_ImportEnabled = false;
+        armnn::IOptimizedNetworkPtr optimizedNet =
+            armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
+        CHECK(optimizedNet);
+
+        // Load graph into runtime
+        armnn::NetworkId networkIdentifier;
+        INetworkProperties networkProperties(false, MemorySource::DmaBuf, MemorySource::DmaBuf);
+        std::string errMsgs;
+        runtime->LoadNetwork(networkIdentifier, std::move(optimizedNet), errMsgs, networkProperties);
+
+        // Create some data and fill in the file descriptor
+        unsigned int numElements = inputTensorInfo.GetNumElements();
+        std::vector<uint8_t> inputData(numElements, 127);
+        int numBytesWritten = static_cast<int>(write(fd, inputData.data(), numElements));
+        CHECK(numBytesWritten == numElements);
+        // reset the file descriptor to the beginning so when we Import we read the correct data
+        lseek(fd, 0, SEEK_SET);
+
+        // Explicitly initialize the output data to 0 to be different from the input
+        // so we don't assume that the input is correct.
+        std::vector<uint8_t> outputData(outputTensorInfo.GetNumElements(), 0);
+        numBytesWritten = static_cast<int>(write(outputFd, outputData.data(), numElements));
+        CHECK(numBytesWritten == numElements);
+        lseek(outputFd, 0, SEEK_SET);
+
+        InputTensors inputTensors{
+            { 0, ConstTensor(runtime->GetInputTensorInfo(networkIdentifier, 0), &fd) },
+        };
+        OutputTensors outputTensors{ { 0, Tensor(runtime->GetOutputTensorInfo(networkIdentifier, 0), &outputFd) } };
+
+        std::vector<ImportedInputId> importInputsIds =
+            runtime->ImportInputs(networkIdentifier, inputTensors, MemorySource::DmaBuf);
+
+        std::vector<ImportedInputId> importOutputsIds =
+            runtime->ImportOutputs(networkIdentifier, outputTensors, MemorySource::DmaBuf);
+
+        // Do the inference
+        auto ret =
+            runtime->EnqueueWorkload(networkIdentifier, inputTensors, outputTensors, importInputsIds, importOutputsIds);
+        CHECK(ret == Status::Success);
+
+        lseek(fd, 0, SEEK_SET);
+        runtime->ClearImportedInputs(networkIdentifier, importInputsIds);
+        runtime->ClearImportedOutputs(networkIdentifier, importOutputsIds);
+
+        // reset the file descriptor to the beginning
+        // and check the output is expected
+        lseek(outputFd, 0, SEEK_SET);
+        int numBytesRead = static_cast<int>(read(outputFd, outputData.data(), numElements));
+        CHECK(numBytesRead == numElements);
+
+        for (unsigned int i = 0; i < numElements; i++)
+        {
+            CHECK(outputData[i] == inputData[i]);
+        }
+    }
+
+    // Test using the Preimport API for only importing inputs. Not outputs.
+    TEST_CASE("ExecutionWithImportOnlyInputsPreimport")
+    {
+        bool onHardware = IsOnHardware();
+        if (onHardware)
+        {
+            return;
+        }
+
+        // Create a file to be used as the file descriptor passed in
+        // We don't create a dma_buf here but use a normal file descriptor for this test
+        const char* path = "ExecutionWithImportInput";
+        int fd           = open(path, O_RDWR | O_CREAT, S_IREAD | S_IWRITE);
+        CHECK(fd > 0);
+        // Reset backend-internal subgraph converter instance id
+        armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
+
+        using namespace testing_utils;
+
+        armnn::EthosNConfig config{};
+        config.m_PerfVariant = ethosn::support_library::EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO;
+        config.m_PerfOnly    = false;
+
+        BackendGlobalConfigSetter configSetter(config, config.QueryCapabilities());
+
+        armnn::EthosNWorkloadFactory factory(config);
+        // To create a PreCompiled layer, create a network and Optimize it.
+        armnn::INetworkPtr net = armnn::INetwork::Create();
+
+        armnn::IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input layer");
+        CHECK(inputLayer);
+
+        ActivationDescriptor reluDesc;
+        reluDesc.m_A                              = 255;
+        reluDesc.m_B                              = 0;
+        reluDesc.m_Function                       = ActivationFunction::BoundedReLu;
+        armnn::IConnectableLayer* const reluLayer = net->AddActivationLayer(reluDesc, "relu layer");
+        CHECK(reluLayer);
+
+        armnn::IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output layer");
+        CHECK(outputLayer);
+
+        TensorInfo inputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
+        inputTensorInfo.SetQuantizationOffset(0);
+        inputTensorInfo.SetQuantizationScale(1.f);
+        inputTensorInfo.SetConstant();
+
+        TensorInfo outputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
+        outputTensorInfo.SetQuantizationOffset(0);
+        outputTensorInfo.SetQuantizationScale(1.f);
+
+        inputLayer->GetOutputSlot(0).Connect(reluLayer->GetInputSlot(0));
+        inputLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
+
+        reluLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+        reluLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
+
+        std::vector<armnn::BackendId> backends = { factory.GetBackendId() };
+        armnn::IRuntime::CreationOptions options;
+        armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
+        armnn::OptimizerOptions optimizerOptions;
+        optimizerOptions.m_ImportEnabled = false;
+        armnn::IOptimizedNetworkPtr optimizedNet =
+            armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
+        CHECK(optimizedNet);
+
+        // Load graph into runtime
+        armnn::NetworkId networkIdentifier;
+        INetworkProperties networkProperties(false, MemorySource::DmaBuf, MemorySource::Undefined);
+        std::string errMsgs;
+        auto loadNetwork = runtime->LoadNetwork(networkIdentifier, std::move(optimizedNet), errMsgs, networkProperties);
+        CHECK(loadNetwork == armnn::Status::Success);
+
+        // Create some data and fill in the file descriptor
+        unsigned int numElements = inputTensorInfo.GetNumElements();
+        std::vector<uint8_t> inputData(numElements, 127);
+        int numBytesWritten = static_cast<int>(write(fd, inputData.data(), numElements));
+        CHECK(numBytesWritten == numElements);
+        // reset the file descriptor to the beginning so when we Import we read the correct data
+        lseek(fd, 0, SEEK_SET);
+
+        std::vector<uint8_t> outputData(outputTensorInfo.GetNumElements(), 0);
+
+        InputTensors inputTensors{
+            { 0, ConstTensor(runtime->GetInputTensorInfo(networkIdentifier, 0), &fd) },
+        };
+        OutputTensors outputTensors{ { 0, Tensor(runtime->GetOutputTensorInfo(networkIdentifier, 0),
+                                                 outputData.data()) } };
+
+        std::vector<ImportedInputId> importInputsIds =
+            runtime->ImportInputs(networkIdentifier, inputTensors, MemorySource::DmaBuf);
+
+        // Do the inference
+        auto ret = runtime->EnqueueWorkload(networkIdentifier, inputTensors, outputTensors, importInputsIds);
+        CHECK(ret == Status::Success);
+
+        // We have no way of Unimporting manually without using the import API.
+        // Execute another inference so the buffer is reset when we import it again.
+        lseek(fd, 0, SEEK_SET);
+        runtime->ClearImportedInputs(networkIdentifier, importInputsIds);
+
+        for (unsigned int i = 0; i < numElements; i++)
+        {
+            CHECK(outputData[i] == inputData[i]);
+        }
     }
 }

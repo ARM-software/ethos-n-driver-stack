@@ -11,6 +11,8 @@ list(APPEND armnnEthosNBackend_sources
     EthosNCaching.hpp
     EthosNConfig.cpp
     EthosNConfig.hpp
+    EthosNTensorHandleFactory.hpp
+    EthosNTensorHandleFactory.cpp
     EthosNLayerSupport.cpp
     EthosNLayerSupport.hpp
     EthosNBackendProfilingContext.cpp

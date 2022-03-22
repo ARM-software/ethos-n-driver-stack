@@ -127,6 +127,10 @@ TEST_SUITE("EthosNCaching")
 
     TEST_CASE("TestCachingEndToEnd")
     {
+        // Reset the caching pointer
+        EthosNCachingService& resetService = EthosNCachingService::GetInstance();
+        resetService.SetEthosNCachingPtr(std::make_shared<EthosNCaching>());
+
         // Create a temp directory and empty binary file to write to.
         const testing_utils::TempDir tmpDir;
         std::string filePath = tmpDir.Str() + "/EthosN-CachingEndToEnd-TempFile.bin";
@@ -213,6 +217,10 @@ TEST_SUITE("EthosNCaching")
     // Test that emulates an example where there are two subgraphs.
     TEST_CASE("TestCachingWithMultipleSubgraphs")
     {
+        // Reset the caching pointer
+        EthosNCachingService& resetService = EthosNCachingService::GetInstance();
+        resetService.SetEthosNCachingPtr(std::make_shared<EthosNCaching>());
+
         // Create temp file.
         const testing_utils::TempDir tmpDir;
         std::string filePath = tmpDir.Str() + "/EthosN-MultipleSubgraphs-TempFile.bin";
@@ -294,5 +302,8 @@ TEST_SUITE("EthosNCaching")
             CHECK_NOTHROW(backendObjPtr->OptimizeSubgraphView(*subgraphPtr1, { backendOptions }));
             CHECK_NOTHROW(backendObjPtr->OptimizeSubgraphView(*subgraphPtr2, { backendOptions }));
         }
+        // Save the compiled networks so we reset the caching  pointer so we don't break other tests.
+        auto service = EthosNCachingService::GetInstance();
+        service.GetEthosNCachingPtr()->Save();
     }
 }

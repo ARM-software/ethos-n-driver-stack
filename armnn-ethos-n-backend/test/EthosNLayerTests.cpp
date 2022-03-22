@@ -243,6 +243,9 @@ std::vector<LayerTestResult<uint8_t, NumDims>>
     IRuntimePtr runtime(IRuntime::Create(IRuntime::CreationOptions()));
     std::vector<std::string> messages;
     IOptimizedNetworkPtr optimizedNet(nullptr, nullptr);
+    std::shared_ptr<EthosNCaching> context = std::make_shared<EthosNCaching>();
+    auto service                           = EthosNCachingService::GetInstance();
+    service.SetEthosNCachingPtr(context);
     optimizedNet = Optimize(network, backends, runtime->GetDeviceSpec(), OptimizerOptions(), messages);
 
     ARMNN_ASSERT(GetGraphForTesting(optimizedNet.get()).GetNumInputs() == inputInfos.size());
@@ -279,7 +282,10 @@ std::vector<LayerTestResult<uint8_t, NumDims>>
     }
 
     // Create the tensor handles
+    EthosNConfig config;
+    auto tensorHandleFactory = std::make_unique<EthosNTensorHandleFactory>(config);
     TensorHandleFactoryRegistry tmpRegistry;
+    tmpRegistry.RegisterFactory(std::move(tensorHandleFactory));
     for (auto&& layer : optimisedGraph.TopologicalSort())
     {
         layer->CreateTensorHandles(tmpRegistry, workloadFactory);

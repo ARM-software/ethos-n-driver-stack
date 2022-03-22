@@ -115,19 +115,29 @@ public:
     void Execute() const override;
 
 private:
-    void Init(const PreCompiledDescriptor& descriptor,
-              const EthosNPreCompiledObject::Network& network,
-              const std::string& deviceId);
+    void Init(const EthosNPreCompiledObject::Network& network, const std::string& deviceId);
     void SavePerformanceJson() const;
+
+    bool SupportsTensorHandleReplacement() const override
+    {
+        return true;
+    }
+
+    void ReplaceInputTensorHandle(ITensorHandle* tensorHandle, unsigned int slot) override
+    {
+        this->m_Data.m_Inputs[slot] = tensorHandle;
+    }
+
+    void ReplaceOutputTensorHandle(ITensorHandle* tensorHandle, unsigned int slot) override
+    {
+        this->m_Data.m_Outputs[slot] = tensorHandle;
+    }
 
     // The workload does not own the EthosNPreCompiledObject, the ownership is still retained by the pre-compiled layer
     const EthosNPreCompiledObject* m_PreCompiledObject;
 
     // The workload does own the network and the inference instances
     mutable std::unique_ptr<ethosn::driver_library::Network> m_Network;
-
-    std::vector<ethosn::driver_library::Buffer*> m_InputBuffers{};
-    std::vector<ethosn::driver_library::Buffer*> m_OutputBuffers{};
 };
 
 }    //namespace armnn

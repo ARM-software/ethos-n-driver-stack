@@ -7,6 +7,7 @@
 #include "EthosNBackendProfilingContext.hpp"
 #include "EthosNCaching.hpp"
 #include "EthosNConfig.hpp"
+#include "EthosNTensorHandleFactory.hpp"
 
 #include <armnn/backends/IBackendInternal.hpp>
 #include <armnn/backends/OptimizationViews.hpp>
@@ -41,6 +42,16 @@ public:
         CreateWorkloadFactory(const IBackendInternal::IMemoryManagerSharedPtr& memoryManager = nullptr,
                               const ModelOptions& modelOptions                               = {}) const override;
 
+    IBackendInternal::IWorkloadFactoryPtr
+        CreateWorkloadFactory(TensorHandleFactoryRegistry& tensorHandleFactoryRegistry,
+                              const ModelOptions& modelOptions) const override;
+
+    IBackendInternal::IWorkloadFactoryPtr
+        CreateWorkloadFactory(TensorHandleFactoryRegistry& tensorHandleFactoryRegistry,
+                              const ModelOptions& modelOptions,
+                              MemorySourceFlags inputFlags,
+                              MemorySourceFlags outputFlags) const override;
+
     BackendCapabilities GetCapabilities() const override;
 
     IBackendInternal::IBackendContextPtr CreateBackendContext(const IRuntime::CreationOptions&) const override;
@@ -56,6 +67,18 @@ public:
 
     OptimizationViews OptimizeSubgraphView(const SubgraphView& subgraph,
                                            const ModelOptions& modelOptions) const override;
+
+    virtual void RegisterTensorHandleFactories(TensorHandleFactoryRegistry& registry,
+                                               MemorySourceFlags inputFlags,
+                                               MemorySourceFlags outputFlags) override;
+
+    virtual void RegisterTensorHandleFactories(TensorHandleFactoryRegistry& registry) override;
+
+    virtual std::vector<ITensorHandleFactory::FactoryId> GetHandleFactoryPreferences() const override
+    {
+        return std::vector<ITensorHandleFactory::FactoryId>{ EthosNTensorHandleFactory::GetIdStatic(),
+                                                             EthosNImportTensorHandleFactory::GetIdStatic() };
+    }
 
 private:
     /// 'Global' settings for this backend, loaded from config file or queried from the HW.

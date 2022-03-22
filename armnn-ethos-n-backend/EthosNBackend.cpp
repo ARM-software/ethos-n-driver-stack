@@ -10,6 +10,7 @@
 #include "EthosNLayerSupport.hpp"
 #include "EthosNReplaceUnsupported.hpp"
 #include "EthosNSubgraphViewConverter.hpp"
+#include "EthosNTensorHandleFactory.hpp"
 #include "EthosNWorkloadFactory.hpp"
 
 #include <armnn/BackendRegistry.hpp>
@@ -336,6 +337,40 @@ IBackendInternal::IWorkloadFactoryPtr
     return std::make_unique<EthosNWorkloadFactory>(m_Config);
 }
 
+IBackendInternal::IWorkloadFactoryPtr
+    EthosNBackend::CreateWorkloadFactory(class TensorHandleFactoryRegistry& tensorHandleFactoryRegistry,
+                                         const ModelOptions& modelOptions) const
+{
+    std::unique_ptr<ITensorHandleFactory> factory       = std::make_unique<EthosNTensorHandleFactory>(m_Config);
+    std::unique_ptr<ITensorHandleFactory> importFactory = std::make_unique<EthosNImportTensorHandleFactory>(
+        m_Config, static_cast<MemorySourceFlags>(MemorySource::DmaBuf),
+        static_cast<MemorySourceFlags>(MemorySource::DmaBuf));
+
+    tensorHandleFactoryRegistry.RegisterCopyAndImportFactoryPair(factory->GetId(), importFactory->GetId());
+
+    tensorHandleFactoryRegistry.RegisterFactory(std::move(factory));
+    tensorHandleFactoryRegistry.RegisterFactory(std::move(importFactory));
+
+    return CreateWorkloadFactory(nullptr, modelOptions);
+}
+
+IBackendInternal::IWorkloadFactoryPtr
+    EthosNBackend::CreateWorkloadFactory(class TensorHandleFactoryRegistry& tensorHandleFactoryRegistry,
+                                         const ModelOptions& modelOptions,
+                                         MemorySourceFlags importFlags,
+                                         MemorySourceFlags exportFlags) const
+{
+    std::unique_ptr<ITensorHandleFactory> factory = std::make_unique<EthosNTensorHandleFactory>(m_Config);
+    std::unique_ptr<ITensorHandleFactory> importFactory =
+        std::make_unique<EthosNImportTensorHandleFactory>(m_Config, importFlags, exportFlags);
+
+    tensorHandleFactoryRegistry.RegisterCopyAndImportFactoryPair(factory->GetId(), importFactory->GetId());
+
+    tensorHandleFactoryRegistry.RegisterFactory(std::move(factory));
+    tensorHandleFactoryRegistry.RegisterFactory(std::move(importFactory));
+    return CreateWorkloadFactory(nullptr, modelOptions);
+}
+
 BackendCapabilities EthosNBackend::GetCapabilities() const
 {
     BackendCapabilities ethosnCap(EthosNBackend::GetIdStatic());
@@ -348,6 +383,9 @@ BackendCapabilities EthosNBackend::GetCapabilities() const
     // We support Fully Connected layers having their weights and bias as separate inputs to the layer
     // and do not use the deprecated m_Weight or m_Bias members.
     ethosnCap.AddOption(BackendOptions::BackendOption("ConstantTensorsAsInputs", true));
+    ethosnCap.AddOption(BackendOptions::BackendOption("AsyncExecution", true));
+    ethosnCap.AddOption(BackendOptions::BackendOption("ExternallyManagedMemory", true));
+    ethosnCap.AddOption(BackendOptions::BackendOption("PreImportIOTensors", true));
 
     return ethosnCap;
 }
@@ -432,6 +470,34 @@ OptimizationViews EthosNBackend::OptimizeSubgraphView(const SubgraphView& subgra
     armnn::CreatePreCompiledLayerInGraph(optimizationViews, subgraph, m_Config, m_Capabilities, modelOptions);
 
     return optimizationViews;
+}
+
+void EthosNBackend::RegisterTensorHandleFactories(TensorHandleFactoryRegistry& registry,
+                                                  MemorySourceFlags importFlags,
+                                                  MemorySourceFlags exportFlags)
+{
+
+    std::unique_ptr<ITensorHandleFactory> factory = std::make_unique<EthosNTensorHandleFactory>(m_Config);
+    std::unique_ptr<ITensorHandleFactory> importFactory =
+        std::make_unique<EthosNImportTensorHandleFactory>(m_Config, importFlags, exportFlags);
+
+    registry.RegisterCopyAndImportFactoryPair(factory->GetId(), importFactory->GetId());
+
+    registry.RegisterFactory(std::move(factory));
+    registry.RegisterFactory(std::move(importFactory));
+}
+
+void EthosNBackend::RegisterTensorHandleFactories(TensorHandleFactoryRegistry& registry)
+{
+    std::unique_ptr<ITensorHandleFactory> factory       = std::make_unique<EthosNTensorHandleFactory>(m_Config);
+    std::unique_ptr<ITensorHandleFactory> importFactory = std::make_unique<EthosNImportTensorHandleFactory>(
+        m_Config, static_cast<MemorySourceFlags>(MemorySource::DmaBuf),
+        static_cast<MemorySourceFlags>(MemorySource::DmaBuf));
+
+    registry.RegisterCopyAndImportFactoryPair(factory->GetId(), importFactory->GetId());
+
+    registry.RegisterFactory(std::move(factory));
+    registry.RegisterFactory(std::move(importFactory));
 }
 
 armnn::EthosNBackendProfilingService& EthosNBackendProfilingService::Instance()

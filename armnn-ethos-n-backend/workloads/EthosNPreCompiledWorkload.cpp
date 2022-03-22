@@ -219,38 +219,13 @@ void SendProfilingEvents()
 
 }    // anonymous namespace
 
-void EthosNPreCompiledWorkload::Init(const PreCompiledDescriptor& descriptor,
-                                     const EthosNPreCompiledObject::Network& network,
-                                     const std::string& deviceId)
+void EthosNPreCompiledWorkload::Init(const EthosNPreCompiledObject::Network& network, const std::string& deviceId)
 {
     const bool kernelVerified =
         deviceId.empty() ? ethosn::driver_library::VerifyKernel() : ethosn::driver_library::VerifyKernel(deviceId);
     if (!kernelVerified)
     {
         throw RuntimeException("Kernel version is not supported");
-    }
-
-    // Set up the buffers in the PreCompiledLayer::CreateWorkload() method, pass them in PreCompiledQueueDescriptor
-    unsigned int numInputBuffers = descriptor.m_NumInputSlots;
-    m_InputBuffers.resize(numInputBuffers);
-
-    // Fill m_InputBuffers from the input tensor handles, assuming that the order
-    // is the same from the Arm NN inputs slots to the Ethos-N inputs slots.
-    for (unsigned int inputSlotIdx = 0; inputSlotIdx < numInputBuffers; ++inputSlotIdx)
-    {
-        m_InputBuffers[inputSlotIdx] = &(static_cast<EthosNTensorHandle*>(m_Data.m_Inputs[inputSlotIdx])->GetBuffer());
-    }
-
-    // Set up the buffers in the PreCompiledLayer::CreateWorkload() method, pass them in PreCompiledQueueDescriptor
-    unsigned int numOutputBuffers = descriptor.m_NumOutputSlots;
-    m_OutputBuffers.resize(numOutputBuffers);
-
-    // Fill m_OutputBuffers from the output tensor handles, assuming that the order
-    // is the same from the Arm NN output slots to the Ethos-N output slots.
-    for (unsigned int outputSlotIdx = 0; outputSlotIdx < numOutputBuffers; ++outputSlotIdx)
-    {
-        m_OutputBuffers[outputSlotIdx] =
-            &(static_cast<EthosNTensorHandle*>(m_Data.m_Outputs[outputSlotIdx])->GetBuffer());
     }
 
     if (deviceId.empty())
@@ -281,7 +256,7 @@ EthosNPreCompiledWorkload::EthosNPreCompiledWorkload(const PreCompiledQueueDescr
 
     if (!m_PreCompiledObject->IsPerfEstimationOnly())
     {
-        Init(descriptor.m_Parameters, *m_PreCompiledObject->GetNetwork(), deviceId);
+        Init(*m_PreCompiledObject->GetNetwork(), deviceId);
     }
 }
 
@@ -295,11 +270,46 @@ void EthosNPreCompiledWorkload::Execute() const
     }
     else
     {
-        uint32_t numInputBuffers  = static_cast<uint32_t>(m_InputBuffers.size());
-        uint32_t numOutputBuffers = static_cast<uint32_t>(m_OutputBuffers.size());
 
-        const std::unique_ptr<ethosn::driver_library::Inference> inference(m_Network->ScheduleInference(
-            m_InputBuffers.data(), numInputBuffers, m_OutputBuffers.data(), numOutputBuffers));
+        uint32_t numInputBuffers  = static_cast<uint32_t>(m_Data.m_Inputs.size());
+        uint32_t numOutputBuffers = static_cast<uint32_t>(m_Data.m_Outputs.size());
+
+        std::vector<ethosn::driver_library::Buffer*> inputBuffers(numInputBuffers);
+        std::vector<ethosn::driver_library::Buffer*> outputBuffers(numOutputBuffers);
+
+        // Fill inputBuffers from the input tensor handles, assuming that the order
+        // is the same from the Arm NN inputs slots to the Ethos-N inputs slots.
+        for (uint32_t inputSlotIdx = 0; inputSlotIdx < numInputBuffers; ++inputSlotIdx)
+        {
+            auto&& inputTensorHandle = m_Data.m_Inputs[inputSlotIdx];
+            if (static_cast<MemorySource>(inputTensorHandle->GetImportFlags()) == MemorySource::DmaBuf)
+            {
+                inputBuffers[inputSlotIdx] = &(static_cast<EthosNImportTensorHandle*>(inputTensorHandle)->GetBuffer());
+            }
+            else
+            {
+                inputBuffers[inputSlotIdx] = &(static_cast<EthosNTensorHandle*>(inputTensorHandle)->GetBuffer());
+            }
+        }
+        // Fill outputBuffers from the output tensor handles, assuming that the order
+        // is the same from the Arm NN output slots to the Ethos-N output slots.
+        for (uint32_t outputSlotIdx = 0; outputSlotIdx < numOutputBuffers; ++outputSlotIdx)
+        {
+
+            auto&& outputTensorHandle = m_Data.m_Outputs[outputSlotIdx];
+            if (static_cast<MemorySource>(outputTensorHandle->GetImportFlags()) == MemorySource::DmaBuf)
+            {
+                outputBuffers[outputSlotIdx] =
+                    &(static_cast<EthosNImportTensorHandle*>(outputTensorHandle)->GetBuffer());
+            }
+            else
+            {
+                outputBuffers[outputSlotIdx] = &(static_cast<EthosNTensorHandle*>(outputTensorHandle)->GetBuffer());
+            }
+        }
+
+        const std::unique_ptr<ethosn::driver_library::Inference> inference(
+            m_Network->ScheduleInference(inputBuffers.data(), numInputBuffers, outputBuffers.data(), numOutputBuffers));
 
         WaitStatus result = WaitForInference(inference->GetFileDescriptor(), 60);
 

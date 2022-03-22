@@ -36,6 +36,7 @@ bool EthosNWorkloadFactory::IsLayerSupported(const Layer& layer,
 std::unique_ptr<ITensorHandle>
     EthosNWorkloadFactory::CreateSubTensorHandle(ITensorHandle&, TensorShape const&, unsigned int const*) const
 {
+    assert(false);
     return nullptr;
 }
 
@@ -46,26 +47,11 @@ std::unique_ptr<IWorkload> EthosNWorkloadFactory::CreateInput(const InputQueueDe
 }
 
 std::unique_ptr<ITensorHandle>
-    EthosNWorkloadFactory::CreateTensorHandle(const TensorInfo& tensorInfo, DataLayout dataLayout, const bool) const
+    EthosNWorkloadFactory::CreateTensorHandle(const TensorInfo&, DataLayout, const bool) const
 {
-    // only NHWC format is supported
-    if (dataLayout != DataLayout::NHWC)
-    {
-        return nullptr;
-    }
-    if (m_EthosNConfig.m_PerfOnly)
-    {
-        return std::make_unique<ScopedTensorHandle>(tensorInfo);
-    }
-
-    if (m_DeviceId.empty())
-    {
-        return std::make_unique<EthosNTensorHandle>(tensorInfo);
-    }
-    else
-    {
-        return std::make_unique<EthosNTensorHandle>(tensorInfo, m_DeviceId);
-    }
+    // This API is now deprecated so it shouldn't be called.
+    assert(false);
+    return nullptr;
 }
 
 std::unique_ptr<ITensorHandle> EthosNWorkloadFactory::CreateTensorHandle(const TensorInfo& tensorInfo, const bool) const
