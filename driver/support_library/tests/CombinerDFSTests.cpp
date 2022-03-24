@@ -902,6 +902,196 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMcePle", "[CombinerDFS]")
     REQUIRE(planWeightBuffers[3] == std::vector<uint32_t>{ 1, 2 });
 }
 
+// Manually creates a plan using Ops with Atomic Lifetimes to test the SramAllocator logic.
+// The topology is chosen to test cases including:
+//      * Sram Buffers which are consumed by Ops with Atomic Lifetime.
+//      * PleInputSram Buffer which is consumed by a Ple Op
+// I -> Mce -> PleInputSram -> Ple -> O
+//   /
+//  W
+TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
+{
+    GraphOfParts graph;
+    auto& parts = graph.m_Parts;
+
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    PartId partAId = pA->GetPartId();
+    parts.push_back(std::move(pA));
+
+    PartInputSlot partAInputSlot0   = { partAId, 0 };
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+
+    const uint32_t ifmSize = 1 * 16 * 16 * 16;
+    const uint32_t ofmSize = 1 * 16 * 16 * 16;
+
+    // Plan A
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
+                                                       TraversalOrder::Xyz, ifmSize, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram";
+    size_t inputBufferIndex                         = planA.m_OpGraph.GetBuffers().size() - 1;
+
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::PleInputSram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
+                                                       TraversalOrder::Xyz, ifmSize, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "PleInputSram";
+    size_t pleInputSramIndex                        = planA.m_OpGraph.GetBuffers().size() - 1;
+
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 1, 1, 16 }, TensorShape{ 1, 1, 1, 16 },
+                                                       TraversalOrder::Xyz, (uint32_t)16, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "MceWeightsSram";
+    size_t mceWeightsBufferIndex                    = planA.m_OpGraph.GetBuffers().size() - 1;
+
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
+                                                       TraversalOrder::Xyz, ofmSize, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram";
+    size_t outputBufferIndex                        = planA.m_OpGraph.GetBuffers().size() - 1;
+
+    planA.m_OpGraph.AddOp(
+        std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                BlockConfig{ 16u, 16u }, TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
+                                TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+    planA.m_OpGraph.GetOps()[0]->m_DebugTag = "MceOp";
+    size_t mceOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
+    planA.m_OpGraph.AddOp(
+        std::make_unique<PleOp>(Lifetime::Atomic, ethosn::command_stream::PleOperation::PASSTHROUGH,
+                                BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
+                                TensorShape{ 1, 16, 16, 16 }, ethosn::command_stream::DataType::U8, true));
+    size_t pleOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
+    planA.m_OpGraph.GetOps()[1]->m_DebugTag = "PleOp";
+    planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[inputBufferIndex], planA.m_OpGraph.GetOps()[mceOpIndex],
+                                0);
+    planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[pleInputSramIndex], planA.m_OpGraph.GetOps()[mceOpIndex]);
+    planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[pleInputSramIndex], planA.m_OpGraph.GetOps()[pleOpIndex],
+                                0);
+    planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[mceWeightsBufferIndex],
+                                planA.m_OpGraph.GetOps()[mceOpIndex], 1);
+    planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[outputBufferIndex], planA.m_OpGraph.GetOps()[pleOpIndex]);
+    planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[inputBufferIndex], partAInputSlot0 } };
+    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[outputBufferIndex], partAOutputSlot0 } };
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    combiner.TopologicalSortParts();
+
+    SramAllocator alloc(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams());
+    PleOperations pleOps = {};
+
+    // Check that no buffers are allocated before calling IsPlanAllocated().
+    REQUIRE(alloc.GetAllocationSize() == 0);
+    REQUIRE(combiner.IsPlanAllocated(alloc, planA, pleOps, nullptr, StatsType::StartSection) == true);
+    // Check that all 4 buffers (Input, Mce Weights, Ple Code, Output) have been allocated.
+    REQUIRE(alloc.GetAllocationSize() == 4);
+    // Check that 2 buffers (Mce Weights, Input) have been deallocated.
+    combiner.DeallocateUnusedBuffers(planA, alloc);
+    REQUIRE(alloc.GetAllocationSize() == 2);
+    // Check that it is only the Input and Mce Weights buffers that have been deallocated.
+    REQUIRE(alloc.TryFree(0, planA.m_OpGraph.GetBuffers()[inputBufferIndex]->m_Offset.value()) == false);
+    REQUIRE(alloc.TryFree(0, planA.m_OpGraph.GetBuffers()[mceWeightsBufferIndex]->m_Offset.value()) == false);
+}
+
+// Manually creates a plan using Ops with Atomic Lifetimes to test the SramAllocator logic.
+// The topology is chosen to test cases including:
+//      * Sram Buffers which are consumed by Ops with Atomic Lifetime.
+//      * Sram Buffers which are consumed by Ops with Cascade Lifetime.
+//      * PleInputSram Buffer which is consumed by a Ple Op
+// I -> Mce -> PleInputSram -> Ple -> O
+//   /
+//  W
+TEST_CASE("BufferDeallocationTest_CascadeOps", "[CombinerDFS]")
+{
+    GraphOfParts graph;
+    auto& parts = graph.m_Parts;
+
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    PartId partAId = pA->GetPartId();
+    parts.push_back(std::move(pA));
+
+    PartInputSlot partAInputSlot0   = { partAId, 0 };
+    PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+
+    const uint32_t ifmSize = 1 * 16 * 16 * 16;
+    const uint32_t ofmSize = 1 * 16 * 16 * 16;
+
+    // Plan A
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
+                                                       TraversalOrder::Xyz, ifmSize, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram";
+    size_t inputBufferIndex                         = planA.m_OpGraph.GetBuffers().size() - 1;
+
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::PleInputSram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
+                                                       TraversalOrder::Xyz, ifmSize, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "PleInputSram";
+    size_t pleInputSramIndex                        = planA.m_OpGraph.GetBuffers().size() - 1;
+
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 1, 1, 16 }, TensorShape{ 1, 1, 1, 16 },
+                                                       TraversalOrder::Xyz, (uint32_t)16, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "MceWeightsSram";
+    size_t mceWeightsBufferIndex                    = planA.m_OpGraph.GetBuffers().size() - 1;
+
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
+                                                       TraversalOrder::Xyz, ofmSize, QuantizationInfo()));
+    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram";
+    size_t outputBufferIndex                        = planA.m_OpGraph.GetBuffers().size() - 1;
+
+    planA.m_OpGraph.AddOp(
+        std::make_unique<MceOp>(Lifetime::Cascade, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                BlockConfig{ 16u, 16u }, TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
+                                TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+    planA.m_OpGraph.GetOps()[0]->m_DebugTag = "MceOp";
+    size_t mceOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
+    planA.m_OpGraph.AddOp(
+        std::make_unique<PleOp>(Lifetime::Atomic, ethosn::command_stream::PleOperation::PASSTHROUGH,
+                                BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
+                                TensorShape{ 1, 16, 16, 16 }, ethosn::command_stream::DataType::U8, true));
+    size_t pleOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
+    planA.m_OpGraph.GetOps()[1]->m_DebugTag = "PleOp";
+    planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[inputBufferIndex], planA.m_OpGraph.GetOps()[mceOpIndex],
+                                0);
+    planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[pleInputSramIndex], planA.m_OpGraph.GetOps()[mceOpIndex]);
+    planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[pleInputSramIndex], planA.m_OpGraph.GetOps()[pleOpIndex],
+                                0);
+    planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[mceWeightsBufferIndex],
+                                planA.m_OpGraph.GetOps()[mceOpIndex], 1);
+    planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[outputBufferIndex], planA.m_OpGraph.GetOps()[pleOpIndex]);
+    planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[inputBufferIndex], partAInputSlot0 } };
+    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[outputBufferIndex], partAOutputSlot0 } };
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    combiner.TopologicalSortParts();
+
+    SramAllocator alloc(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams());
+    PleOperations pleOps = {};
+
+    // Check that no buffers are allocated before calling IsPlanAllocated().
+    REQUIRE(alloc.GetAllocationSize() == 0);
+    REQUIRE(combiner.IsPlanAllocated(alloc, planA, pleOps, nullptr, StatsType::StartSection) == true);
+    // Check that all 4 buffers (Input, Mce Weights, Ple Code, Output) have been allocated.
+    REQUIRE(alloc.GetAllocationSize() == 4);
+    // Check that none of the buffers have been deallocated.
+    combiner.DeallocateUnusedBuffers(planA, alloc);
+    REQUIRE(alloc.GetAllocationSize() == 4);
+}
+
 // Manually creates a partial combination starting and ending in Sram and converts it to an OpGraph using the GetOpGraphForCombination.
 // The topology is chosen to test cases including:
 //      * Partial combinations starting and ending in Sram

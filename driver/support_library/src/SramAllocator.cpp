@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -122,6 +122,11 @@ std::string SramAllocator::DumpUsage() const
                std::string("\n");
     }
     return ret;
+}
+
+size_t SramAllocator::GetAllocationSize() const
+{
+    return m_UsedMemory.size();
 }
 
 void SramAllocator::CollapseRegions()
