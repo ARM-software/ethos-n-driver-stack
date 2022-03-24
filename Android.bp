@@ -52,6 +52,7 @@ cc_library {
         "driver/driver_library/src/NetworkImpl.cpp",
         "driver/driver_library/src/KmodNetwork.cpp",
         "driver/driver_library/src/KmodProfiling.cpp",
+        "driver/driver_library/src/Utils.cpp",
     ],
 }
 
