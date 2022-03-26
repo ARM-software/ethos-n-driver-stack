@@ -10,6 +10,7 @@
 #include "../Utils.hpp"
 
 #include <ethosn_command_stream/CommandData.hpp>
+#include <ethosn_command_stream/CommandStream.hpp>
 
 #include <string>
 
@@ -35,6 +36,7 @@ using Plans = std::vector<Plan>;
 
 std::string ToString(Location l);
 std::string ToString(DataFormat f);
+std::string ToString(command_stream::DataType t);
 std::string ToString(CompilerDataFormat f);
 std::string ToString(CompilerDataCompressedFormat f);
 std::string ToString(const TensorInfo& i);
@@ -44,6 +46,7 @@ std::string ToString(command_stream::MceOperation o);
 std::string ToString(CompilerMceAlgorithm a);
 std::string ToString(command_stream::PleOperation o);
 std::string ToString(command_stream::BlockConfig b);
+std::string ToString(command_stream::cascading::PleKernelId id);
 std::string ToString(const QuantizationInfo& q);
 std::string ToString(const Stride& s);
 std::string ToString(command_stream::DataFormat f);

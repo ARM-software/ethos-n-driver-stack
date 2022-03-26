@@ -701,52 +701,6 @@ std::string Escape(std::string s, char alignmentChar = 'n')
     return s;
 }
 
-std::string GetOpString(Op* op)
-{
-    std::stringstream stream;
-    DmaOp* dmaOp = dynamic_cast<DmaOp*>(op);
-    MceOp* mceOp = dynamic_cast<MceOp*>(op);
-    PleOp* pleOp = dynamic_cast<PleOp*>(op);
-    if (dmaOp != nullptr)
-    {
-        stream << "DmaOp\n";
-    }
-    else if (mceOp != nullptr)
-    {
-        stream << "MceOp\n";
-        stream << "Op = " << ToString(mceOp->m_Op) << "\n";
-        stream << "Algo = " << ToString(mceOp->m_Algo) << "\n";
-        stream << "Block Config = " << ToString(mceOp->m_BlockConfig) << "\n";
-        stream << "Input Stripe Shape = " << ToString(mceOp->m_InputStripeShape) << "\n";
-        stream << "Output Stripe Shape = " << ToString(mceOp->m_OutputStripeShape) << "\n";
-        stream << "Weights Stripe Shape = " << ToString(mceOp->m_WeightsStripeShape) << "\n";
-        stream << "Order = " << ToString(mceOp->m_Order) << "\n";
-        stream << "Stride = " << ToString(mceOp->m_Stride) << "\n";
-        stream << "Pad L/T = " << mceOp->m_PadLeft << ", " << mceOp->m_PadTop << "\n";
-        stream << "Lower/Upper Bound = " << mceOp->m_LowerBound << ", " << mceOp->m_UpperBound << "\n";
-    }
-    else if (pleOp != nullptr)
-    {
-        stream << "PleOp\n";
-        stream << "Op = " << ToString(pleOp->m_Op) << "\n";
-        stream << "Block Config = " << ToString(pleOp->m_BlockConfig) << "\n";
-        stream << "Num Inputs = " << pleOp->m_NumInputs << "\n";
-        stream << "Input Stripe Shapes = " << ArrayToString(pleOp->m_InputStripeShapes) << "\n";
-        stream << "Output Stripe Shape = " << ToString(pleOp->m_OutputStripeShape) << "\n";
-        stream << "Output Data type = " << ToString(pleOp->m_OutputDataType) << "\n";
-        stream << "Ple kernel Id = " << ToString(pleOp->m_PleKernelId) << "\n";
-        stream << "Kernel Load = " << ToString(pleOp->m_LoadKernel) << "\n";
-        if (pleOp->m_Offset.has_value())
-        {
-            stream << "Offset = " << ToString(pleOp->m_Offset.value()) << "\n";
-        }
-    }
-
-    stream << "Operation Ids = " << ArrayToString(op->m_OperationIds) << "\n";
-
-    return stream.str();
-}
-
 std::string GetBufferString(Buffer* buffer)
 {
     std::stringstream stream;
@@ -773,28 +727,20 @@ std::string GetBufferString(Buffer* buffer)
 
 DotAttributes GetDotAttributes(Op* op, DetailLevel detailLevel, uint32_t idxInOpGraph)
 {
-    DotAttributes result;
-    result.m_Id    = SanitizeId(op->m_DebugTag);
-    result.m_Shape = "oval";
+    DotAttributes result = op->GetDotAttributes(detailLevel);
+    result.m_Id          = SanitizeId(op->m_DebugTag);
+    result.m_Shape       = "oval";
 
-    std::stringstream label;
-    label << op->m_DebugTag;
+    std::stringstream preLabel;
+    preLabel << op->m_DebugTag;
     if (detailLevel == DetailLevel::High)
     {
-        label << "\n";
-        label << "Idx in OpGraph: " << idxInOpGraph << "\n";
-        label << "Lifetime = " << ToString(op->m_Lifetime) << "\n";
-
-        label << GetOpString(op);
+        preLabel << "\n";
+        preLabel << "Idx in OpGraph: " << idxInOpGraph << "\n";
+        preLabel << "Lifetime = " << ToString(op->m_Lifetime) << "\n";
     }
-    result.m_Label = label.str();
-
-    // Show different Op types in different colours to make them easier to distinguish
-    DmaOp* dmaOp = dynamic_cast<DmaOp*>(op);
-    if (dmaOp != nullptr)
-    {
-        result.m_Color = "darkgoldenrod";
-    }
+    preLabel << result.m_Label;
+    result.m_Label = preLabel.str();
 
     return result;
 }
@@ -985,9 +931,25 @@ void SaveOpGraphEdges(const OpGraph& graph, const NodeIds& nodeIds, std::ostream
     }
 }
 
+int HasWeightsBuffer(const OpGraph& graph, Op* const o)
+{
+    OpGraph::BufferList bufList = graph.GetInputs(o);
+    int weightsBufferIndex      = -1;
+    int bufferIndex             = 0;
+    for (auto&& buf : bufList)
+    {
+        if (buf->m_Format == CascadingBufferFormat::WEIGHT)
+        {
+            weightsBufferIndex = bufferIndex;
+        }
+        bufferIndex++;
+    }
+    return weightsBufferIndex;
+}
+
 /// Heuristic to make the 'weights' input of MceOps appear to the side of the MceOp so it doesn't interrupt
 /// the general flow of the network from top to bottom:
-///    Input number 1 of every MceOp, and all its antecedents are placed on the same 'rank'
+///    The weights input (usually input 1) of every MceOp, and all its antecedents are placed on the same 'rank'
 void ApplyOpGraphRankHeuristic(const OpGraph& graph,
                                const std::vector<Op*>& opsSubset,
                                const NodeIds& nodeIds,
@@ -995,10 +957,11 @@ void ApplyOpGraphRankHeuristic(const OpGraph& graph,
 {
     for (auto&& o : opsSubset)
     {
-        if (dynamic_cast<MceOp*>(o) != nullptr && graph.GetInputs(o).size() >= 2)
+        int hasWeightsBufferIdx = (HasWeightsBuffer(graph, o));
+        if (hasWeightsBufferIdx != -1)
         {
             stream << "{ rank = \"same\"; " << nodeIds.at(o) << "; ";
-            Buffer* buf = graph.GetInputs(o)[1];
+            Buffer* buf = graph.GetInputs(o)[hasWeightsBufferIdx];
             while (buf != nullptr)
             {
                 stream << nodeIds.at(buf) << "; ";
@@ -1374,7 +1337,7 @@ void SaveOpGraphToTxtFile(const OpGraph& graph, std::ostream& stream)
     auto ops = graph.GetOps();
     for (auto op : ops)
     {
-        stream << GetOpString(op);
+        stream << op->GetDotAttributes(DetailLevel::High).m_Label;
         stream << "\n";
         stream << "\nInput Buffers: \n";
         auto inputBufs = graph.GetInputs(op);

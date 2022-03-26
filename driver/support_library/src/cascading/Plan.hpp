@@ -196,6 +196,9 @@ public:
     {
         return 1;
     }
+
+    virtual DotAttributes GetDotAttributes(DetailLevel) const override;
+
     Lifetime m_Lifetime;
     std::set<uint32_t> m_OperationIds;
 };
@@ -205,6 +208,7 @@ class DmaOp : public Op
 public:
     DmaOp();
     DmaOp(Lifetime lifetime);
+    virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 };
 
 class MceOp : public Op
@@ -229,6 +233,8 @@ public:
     {
         return m_BlockConfig;
     }
+
+    virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 
     command_stream::MceOperation m_Op;
     CompilerMceAlgorithm m_Algo;
@@ -264,6 +270,9 @@ public:
         return m_BlockConfig;
     }
     uint32_t GetGeneratingNumAgents() override final;
+
+    virtual DotAttributes GetDotAttributes(DetailLevel) const override;
+
     command_stream::PleOperation m_Op;
     command_stream::BlockConfig m_BlockConfig;
     uint32_t m_NumInputs;

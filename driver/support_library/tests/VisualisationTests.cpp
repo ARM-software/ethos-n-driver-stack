@@ -187,6 +187,7 @@ TEST_CASE("SaveOpGraphToDot Graph Topology", "[Visualisation]")
     dmaWeights.m_DebugTag = "Dma Weights";
     Buffer sramWeights;
     sramWeights.m_DebugTag = "Sram Weights";
+    sramWeights.m_Format   = CascadingBufferFormat::WEIGHT;
 
     MceOp mce;
     mce.m_DebugTag = "Mce";
@@ -984,7 +985,6 @@ IntermediateSramInput1 -> Mce2[ label="Input 0"]
 Mce2 -> OutputSram1
 IntermediateSramInput2 -> Mce2[ label="Input 1"]
 Mce2 -> OutputSram2
-{ rank = "same"; Mce2; IntermediateSramInput2; }
 }
 InputSram2 -> IntermediateSramInput1
 InputSram2 -> IntermediateSramInput2

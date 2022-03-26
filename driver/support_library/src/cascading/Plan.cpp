@@ -269,6 +269,11 @@ Op::Op(const char* defaultTagPrefix, Lifetime lifetime)
     , m_OperationIds()
 {}
 
+DotAttributes Op::GetDotAttributes(DetailLevel) const
+{
+    return DotAttributes();
+}
+
 DmaOp::DmaOp()
     : Op("DmaOp")
 {}
@@ -276,6 +281,19 @@ DmaOp::DmaOp()
 DmaOp::DmaOp(Lifetime lifetime)
     : Op("DmaOp", lifetime)
 {}
+
+DotAttributes DmaOp::GetDotAttributes(DetailLevel detail) const
+{
+    DotAttributes result;
+    if (detail == DetailLevel::High)
+    {
+        result.m_Label = "DmaOp\n";
+        result.m_Label += "Operation Ids = " + ArrayToString(this->m_OperationIds) + "\n";
+    }
+
+    result.m_Color = std::string("darkgoldenrod");
+    return result;
+}
 
 MceOp::MceOp()
     : Op("MceOp")
@@ -325,6 +343,28 @@ MceOp::MceOp(Lifetime lifetime,
     , m_UpperBound(upperBound)
 {}
 
+DotAttributes MceOp::GetDotAttributes(DetailLevel detail) const
+{
+    DotAttributes result;
+    if (detail == DetailLevel::High)
+    {
+        result.m_Label = "MceOp\n";
+        result.m_Label += "Op = " + ToString(this->m_Op) + "\n";
+        result.m_Label += "Algo = " + ToString(this->m_Algo) + "\n";
+        result.m_Label += "Block Config = " + ToString(this->m_BlockConfig) + "\n";
+        result.m_Label += "Input Stripe Shape = " + ToString(this->m_InputStripeShape) + "\n";
+        result.m_Label += "Output Stripe Shape = " + ToString(this->m_OutputStripeShape) + "\n";
+        result.m_Label += "Weights Stripe Shape = " + ToString(this->m_WeightsStripeShape) + "\n";
+        result.m_Label += "Order = " + ToString(this->m_Order) + "\n";
+        result.m_Label += "Stride = " + ToString(this->m_Stride) + "\n";
+        result.m_Label += "Pad L/T = " + to_string(this->m_PadLeft) + ", " + to_string(this->m_PadTop) + "\n";
+        result.m_Label +=
+            "Lower/Upper Bound = " + to_string(this->m_LowerBound) + ", " + to_string(this->m_UpperBound) + "\n";
+        result.m_Label += "Operation Ids = " + ArrayToString(this->m_OperationIds) + "\n";
+    }
+    return result;
+}
+
 PleOp::PleOp()
     : Op("PleOp")
     , m_Op(PleOperation::FAULT)
@@ -360,6 +400,29 @@ PleOp::PleOp(Lifetime lifetime,
 uint32_t PleOp::GetGeneratingNumAgents()
 {
     return m_LoadKernel ? 2 : 1;
+}
+
+DotAttributes PleOp::GetDotAttributes(DetailLevel detail) const
+{
+    DotAttributes result;
+    if (detail == DetailLevel::High)
+    {
+        result.m_Label = "PleOp\n";
+        result.m_Label += "Op = " + ToString(this->m_Op) + "\n";
+        result.m_Label += "Block Config = " + ToString(this->m_BlockConfig) + "\n";
+        result.m_Label += "Num Inputs = " + to_string(this->m_NumInputs) + "\n";
+        result.m_Label += "Input Stripe Shapes = " + ArrayToString(this->m_InputStripeShapes) + "\n";
+        result.m_Label += "Output Stripe Shape = " + ToString(this->m_OutputStripeShape) + "\n";
+        result.m_Label += "Output Data type = " + ToString(this->m_OutputDataType) + "\n";
+        result.m_Label += "Ple kernel Id = " + ToString(this->m_PleKernelId) + "\n";
+        result.m_Label += "Kernel Load = " + ToString(this->m_LoadKernel) + "\n";
+        if (this->m_Offset.has_value())
+        {
+            result.m_Label += "Offset = " + ToString(this->m_Offset.value()) + "\n";
+        }
+        result.m_Label += "Operation Ids = " + ArrayToString(this->m_OperationIds) + "\n";
+    }
+    return result;
 }
 
 ConcatOp::ConcatOp()
