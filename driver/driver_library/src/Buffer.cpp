@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -43,6 +43,21 @@ Buffer::Buffer(uint32_t size, DataFormat format, const std::string& device)
 
 Buffer::Buffer(uint32_t size, DataFormat format)
     : Buffer(size, format, DEVICE_NODE)
+{}
+
+Buffer::Buffer(int fd, uint32_t size, const std::string& device)
+    : bufferImpl{ std::make_unique<BufferImpl>(fd, size, device) }
+{
+    if (profiling::g_CurrentConfiguration.m_EnableProfiling)
+    {
+        RecordLifetimeEvent(this, profiling::g_BufferToLifetimeEventId,
+                            profiling::ProfilingEntry::Type::TimelineEventStart,
+                            profiling::ProfilingEntry::MetadataCategory::BufferLifetime);
+    }
+}
+
+Buffer::Buffer(int fd, uint32_t size)
+    : Buffer(fd, size, DEVICE_NODE)
 {}
 
 Buffer::Buffer(const uint8_t* src, uint32_t size, DataFormat format, const std::string& device)

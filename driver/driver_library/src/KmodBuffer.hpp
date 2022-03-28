@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -70,6 +70,39 @@ public:
         uint8_t* data = Map();
         std::copy_n(src, size, data);
         Unmap();
+    }
+
+    BufferImpl(int fd, uint32_t size, const std::string& device)
+        : m_MappedData(nullptr)
+        , m_Size(size)
+        , m_Format(DataFormat::NHWC)
+    {
+        const ethosn_dma_buf_req importedBufferReq = {
+            static_cast<__u32>(fd),
+            O_RDWR | O_CLOEXEC,
+            size,
+        };
+
+        int ethosnFd = open(device.c_str(), O_RDONLY);
+        if (ethosnFd < 0)
+        {
+            throw std::runtime_error(std::string("Unable to open " + device + ": ") + strerror(errno));
+        }
+
+        // Check compatibility between driver library and the kernel
+        if (!VerifyKernel(device))
+        {
+            close(ethosnFd);
+            throw std::runtime_error(std::string("Wrong kernel module version\n"));
+        }
+
+        m_BufferFd = ioctl(ethosnFd, ETHOSN_IOCTL_IMPORT_BUFFER, &importedBufferReq);
+        int err    = errno;
+        close(ethosnFd);
+        if (m_BufferFd < 0)
+        {
+            throw std::runtime_error(std::string("Failed to import  buffer: ") + strerror(err));
+        }
     }
 
     ~BufferImpl()

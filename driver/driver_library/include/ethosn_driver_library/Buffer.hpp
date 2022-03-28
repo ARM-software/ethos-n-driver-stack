@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -30,6 +30,10 @@ public:
     // Device allocates the buffer.
     Buffer(uint32_t size, DataFormat format);
     Buffer(uint32_t size, DataFormat format, const std::string& device);
+
+    // Device imports the buffer.
+    Buffer(int fd, uint32_t size);
+    Buffer(int fd, uint32_t size, const std::string& device);
 
     // Data is copied from src into the buffer. Any access after creation is via Map()/Unmap():
     //
