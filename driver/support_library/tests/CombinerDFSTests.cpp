@@ -49,8 +49,7 @@ public:
 
         OwnedOpGraph opGraph;
 
-        opGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
-                                                   TraversalOrder::Xyz));
+        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
         Buffer* buffer             = opGraph.GetBuffers()[0];
         buffer->m_TensorShape      = { 1, 16, 16, 16 };
         buffer->m_StripeShape      = { 1, 16, 16, 16 };
@@ -936,11 +935,11 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
 
     // Plan A
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
     planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramA";
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
     planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramA";
@@ -962,7 +961,7 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
     glueA_B.m_InputSlot                     = { glueA_B.m_Graph.GetOps()[0], 0 };
     glueA_B.m_Output.push_back(glueA_B.m_Graph.GetOps()[1]);
     glueA_B.m_OutDmaOffset = 1;
-    glueA_B.m_Graph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+    glueA_B.m_Graph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
     glueA_B.m_Graph.GetBuffers().back()->m_BufferType = BufferType::Intermediate;
@@ -972,11 +971,11 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
 
     // Plan B
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramB";
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramB";
@@ -999,7 +998,7 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
 
     // Plan C
     Plan planC;
-    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramC";
@@ -1123,7 +1122,7 @@ TEST_CASE("GetOpGraphForDfsMISOSramsToDrams", "[CombinerDFS]")
 
     // Plan A
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramA";
@@ -1134,7 +1133,7 @@ TEST_CASE("GetOpGraphForDfsMISOSramsToDrams", "[CombinerDFS]")
 
     // Plan B
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramB";
@@ -1159,12 +1158,12 @@ TEST_CASE("GetOpGraphForDfsMISOSramsToDrams", "[CombinerDFS]")
 
     // Plan C
     Plan planC;
-    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planC.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Intermediate;
     planC.m_OpGraph.GetBuffers().back()->m_DebugTag   = "Input0DramC";
-    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planC.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Intermediate;
@@ -1273,7 +1272,7 @@ TEST_CASE("GetOpGraphForDfsMISODramsToSrams", "[CombinerDFS]")
 
     // Plan A
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planA.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Intermediate;
@@ -1286,7 +1285,7 @@ TEST_CASE("GetOpGraphForDfsMISODramsToSrams", "[CombinerDFS]")
 
     // Plan B
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Intermediate;
@@ -1313,11 +1312,11 @@ TEST_CASE("GetOpGraphForDfsMISODramsToSrams", "[CombinerDFS]")
 
     // Plan C
     Plan planC;
-    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "Input0DramC";
-    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "Input1DramC";
@@ -1431,7 +1430,7 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialDram", "[CombinerDFS]")
 
     // Plan A
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramA";
@@ -1439,7 +1438,7 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialDram", "[CombinerDFS]")
 
     // Plan B
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramB";
@@ -1447,7 +1446,7 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialDram", "[CombinerDFS]")
 
     // Plan C
     Plan planC;
-    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramC";
@@ -1455,12 +1454,12 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialDram", "[CombinerDFS]")
 
     // Plan D
     Plan planD;
-    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planD.m_OpGraph.GetBuffers().back()->m_DebugTag   = "InputDramD";
     planD.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Intermediate;
-    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planD.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramD";
@@ -1596,7 +1595,7 @@ TEST_CASE("GetOpGraphForDfsCombinationMergedBuffer", "[CombinerDFS]")
 
     // Plan A
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
     planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "PlanA_Buffer0";
@@ -1604,7 +1603,7 @@ TEST_CASE("GetOpGraphForDfsCombinationMergedBuffer", "[CombinerDFS]")
 
     // Plan B
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "PlanB_Buffer0";
@@ -1620,7 +1619,7 @@ TEST_CASE("GetOpGraphForDfsCombinationMergedBuffer", "[CombinerDFS]")
 
     // Plan C
     Plan planC;
-    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "PlanC_Buffer0";
@@ -1734,7 +1733,7 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     connections[partGInputSlot1]  = partDEOutputSlot1;
 
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
     planA.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
@@ -1750,7 +1749,7 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
 
     // Part consisting of node B
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram1";
@@ -1759,7 +1758,7 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
 
     // Part consisting of node C
     Plan planC;
-    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram2";
@@ -1768,19 +1767,19 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
 
     // Part consisting of nodes D and E
     Plan planDE;
-    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
     planDE.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateSramInput1";
-    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 0, QuantizationInfo()));
     planDE.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram1";
-    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 4, QuantizationInfo()));
     planDE.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateSramInput2";
-    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                         TraversalOrder::Xyz, 0, QuantizationInfo()));
     planDE.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram2";
@@ -1821,7 +1820,7 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
 
     // Part consisting of node F
     Plan planF;
-    planF.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+    planF.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
     planF.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
@@ -1830,12 +1829,12 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
 
     // Part consisting of node G
     Plan planG;
-    planG.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+    planG.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
     planG.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
     planG.m_OpGraph.GetBuffers().back()->m_DebugTag   = "OutputDram2";
-    planG.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+    planG.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
     planG.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
@@ -2106,7 +2105,7 @@ TEST_CASE("ArePlansCompatible", "[CombinerDFS]")
 
     // Part consisting of node A
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDram";
@@ -2114,7 +2113,7 @@ TEST_CASE("ArePlansCompatible", "[CombinerDFS]")
 
     // Part consisting of node B
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram1";
@@ -2171,31 +2170,31 @@ TEST_CASE("GluePartToCombination", "[CombinerDFS]")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB.m_OutputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBOutputSlot } };
 
     Plan planC;
-    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planC.m_OutputMappings = { { planC.m_OpGraph.GetBuffers()[0], partCOutputSlot } };
 
     Plan planD;
-    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 48 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
 
@@ -2498,34 +2497,34 @@ TEST_CASE("GetCombPartsInOrder", "[CombinerDFS]")
     GraphOfParts gOfParts;
 
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB.m_InputMappings  = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
     planB.m_OutputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBOutputSlot } };
 
     Plan planC;
-    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planC.m_InputMappings  = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
     planC.m_OutputMappings = { { planC.m_OpGraph.GetBuffers()[0], partCOutputSlot } };
 
     Plan planD;
-    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planD.m_InputMappings  = { { planD.m_OpGraph.GetBuffers()[0], partDInputSlot } };
     planD.m_OutputMappings = { { planD.m_OpGraph.GetBuffers()[0], partDOutputSlot } };
 
     Plan planE;
-    planE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planE.m_InputMappings = { { planD.m_OpGraph.GetBuffers()[0], partEInputSlot } };
@@ -2622,19 +2621,19 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
     Plan planC;
-    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planC.m_InputMappings = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
@@ -2752,25 +2751,25 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
 
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
     Plan planC;
-    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planC.m_InputMappings = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
 
     Plan planD;
-    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planD.m_InputMappings = { { planD.m_OpGraph.GetBuffers()[0], partDInputSlot } };
@@ -2856,13 +2855,13 @@ TEST_CASE("IsPlanInputGlueable", "[CombinerDFS]")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(
-        Lifetime::Atomic, Location::VirtualSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 64, 64, 64 },
-        TensorShape{ 1, 8, 16, 48 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::VirtualSram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 48 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
 
@@ -2875,13 +2874,13 @@ TEST_CASE("IsPlanInputGlueable", "[CombinerDFS]")
     REQUIRE(combiner.IsPlanInputGlueable(planA) == false);
 
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 48 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
 
@@ -2927,10 +2926,10 @@ TEST_CASE("ArePlansAllowedToMerge", "[CombinerDFS]")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
 
@@ -2944,7 +2943,7 @@ TEST_CASE("ArePlansAllowedToMerge", "[CombinerDFS]")
     planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[1], partAOutputSlot } };
 
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB.m_OpGraph.AddOp(
@@ -2967,9 +2966,9 @@ TEST_CASE("ArePlansAllowedToMerge", "[CombinerDFS]")
 
     // Create a new plan with a different Block Config i.e. 8x32
     Plan planBdiffBlockConfig;
-    planBdiffBlockConfig.m_OpGraph.AddBuffer(std::make_unique<Buffer>(
-        Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 64, 64, 64 },
-        TensorShape{ 1, 8, 16, 16 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planBdiffBlockConfig.m_OpGraph.AddBuffer(
+        std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 64, 64, 64 },
+                                 TensorShape{ 1, 8, 16, 16 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
     planBdiffBlockConfig.m_OpGraph.AddOp(
         std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
                                 BlockConfig{ 16u, 16u }, TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 },
@@ -2992,9 +2991,9 @@ TEST_CASE("ArePlansAllowedToMerge", "[CombinerDFS]")
 
     // Create a new plan with a different streaming strategy
     Plan planBdiffStrategy;
-    planBdiffStrategy.m_OpGraph.AddBuffer(std::make_unique<Buffer>(
-        Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 64, 64, 64 },
-        TensorShape{ 1, 8, 16, 64 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planBdiffStrategy.m_OpGraph.AddBuffer(
+        std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 64, 64, 64 },
+                                 TensorShape{ 1, 8, 16, 64 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
 
     planBdiffStrategy.m_InputMappings = { { planBdiffStrategy.m_OpGraph.GetBuffers()[0], partBInputSlot } };
 
@@ -3022,16 +3021,16 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
     const uint32_t ifmSize = 524288;
     const uint32_t ofmSize = 65536;
 
-    auto mockBuffer = std::make_unique<Buffer>(Lifetime::Cascade, Location::Sram, CascadingBufferFormat::NHWCB,
-                                               TensorShape{ 1, 32, 16, 1024 }, TensorShape{ 1, 32, 16, 1024 },
-                                               TraversalOrder::Xyz, ifmSize, QuantizationInfo());
+    auto mockBuffer =
+        std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 32, 16, 1024 },
+                                 TensorShape{ 1, 32, 16, 1024 }, TraversalOrder::Xyz, ifmSize, QuantizationInfo());
     mockBuffer.get()->m_Offset = 0;
 
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Cascade, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 32, 16, 1024 }, TensorShape{ 1, 32, 16, 1024 },
                                                        TraversalOrder::Xyz, ifmSize, QuantizationInfo()));
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 32, 16, 1024 }, TensorShape{ 1, 4, 16, 1024 },
                                                        TraversalOrder::Xyz, ofmSize, QuantizationInfo()));
 
@@ -3164,12 +3163,12 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
         const uint32_t inputBufferSize  = 512;
         const uint32_t outputBufferSize = 512;
 
-        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(
-            Lifetime::Cascade, Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 },
-            TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, inputBufferSize, QuantizationInfo()));
-        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(
-            Lifetime::Cascade, Location::PleInputSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 },
-            TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, outputBufferSize, QuantizationInfo()));
+        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                           TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
+                                                           TraversalOrder::Xyz, inputBufferSize, QuantizationInfo()));
+        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::PleInputSram, CascadingBufferFormat::NHWCB,
+                                                           TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
+                                                           TraversalOrder::Xyz, outputBufferSize, QuantizationInfo()));
 
         planA.m_OpGraph.AddOp(
             std::make_unique<MceOp>(Lifetime::Cascade, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
@@ -3287,12 +3286,12 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
         const uint32_t inputBufferSize  = 512;
         const uint32_t outputBufferSize = 512;
 
-        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(
-            Lifetime::Cascade, Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 },
-            TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, inputBufferSize, QuantizationInfo()));
-        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(
-            Lifetime::Cascade, Location::PleInputSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 },
-            TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, outputBufferSize, QuantizationInfo()));
+        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                           TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
+                                                           TraversalOrder::Xyz, inputBufferSize, QuantizationInfo()));
+        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::PleInputSram, CascadingBufferFormat::NHWCB,
+                                                           TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
+                                                           TraversalOrder::Xyz, outputBufferSize, QuantizationInfo()));
 
         planA.m_OpGraph.AddOp(
             std::make_unique<MceOp>(Lifetime::Cascade, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
@@ -3366,11 +3365,11 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
             const uint32_t OutputBufferSize = 512;
 
             planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(
-                Lifetime::Cascade, Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 },
-                TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, InputBufferSize, QuantizationInfo()));
+                Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
+                TraversalOrder::Xyz, InputBufferSize, QuantizationInfo()));
 
             planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(
-                Lifetime::Cascade, Location::PleInputSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 },
+                Location::PleInputSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 },
                 TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, OutputBufferSize, QuantizationInfo()));
 
             planB.m_OpGraph.AddOp(
@@ -3476,11 +3475,11 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                 const uint32_t OutputBufferSize = 512;
 
                 planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(
-                    Lifetime::Cascade, Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 },
-                    TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, InputBufferSize, QuantizationInfo()));
+                    Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
+                    TraversalOrder::Xyz, InputBufferSize, QuantizationInfo()));
 
                 planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(
-                    Lifetime::Cascade, Location::PleInputSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 },
+                    Location::PleInputSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 },
                     TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, OutputBufferSize, QuantizationInfo()));
 
                 planC.m_OpGraph.AddOp(
@@ -3634,7 +3633,7 @@ TEST_CASE("ArePlansAllowedToMerge IdentityParts", "[CombinerDFS]")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
     MceOp mceOp(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
@@ -3645,7 +3644,7 @@ TEST_CASE("ArePlansAllowedToMerge IdentityParts", "[CombinerDFS]")
     planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot0 } };
 
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Sram, CascadingBufferFormat::NHWCB,
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     PleOp pleOp(Lifetime::Atomic, PleOperation::PASSTHROUGH, BlockConfig{ 16u, 16u }, 1U,

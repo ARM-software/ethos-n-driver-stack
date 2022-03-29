@@ -64,7 +64,7 @@ void ConcatPart::CreateConcatDramPlan(Plans& plans) const
 
     for (uint32_t inputIndex = 0; inputIndex < m_InputTensorsInfo.size(); inputIndex++)
     {
-        opGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, format, TraversalOrder::Xyz));
+        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
         Buffer* inputBuffer             = opGraph.GetBuffers()[inputIndex];
         inputBuffer->m_TensorShape      = m_InputTensorsInfo[inputIndex].m_Dimensions;
         inputBuffer->m_SizeInBytes      = impl::CalculateBufferSize(inputBuffer->m_TensorShape, format);
@@ -75,7 +75,7 @@ void ConcatPart::CreateConcatDramPlan(Plans& plans) const
     }
 
     TensorInfo expectedOutputInfo = Concatenation::CalculateOutputTensorInfo(m_InputTensorsInfo, m_ConcatInfo);
-    opGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, format, TraversalOrder::Xyz));
+    opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
     Buffer* outputBuffer             = opGraph.GetBuffers().back();
     outputBuffer->m_TensorShape      = expectedOutputInfo.m_Dimensions;
     outputBuffer->m_SizeInBytes      = impl::CalculateBufferSize(outputBuffer->m_TensorShape, format);

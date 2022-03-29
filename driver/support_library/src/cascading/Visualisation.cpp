@@ -751,7 +751,6 @@ std::string GetBufferString(Buffer* buffer)
 {
     std::stringstream stream;
     stream << "\n";
-    stream << "Lifetime = " << ToString(buffer->m_Lifetime) << "\n";
     stream << "Location = " << ToString(buffer->m_Location) << "\n";
     stream << "Format = " << ToString(buffer->m_Format) << "\n";
     stream << "Quant. Info = " << ToString(buffer->m_QuantizationInfo) << "\n";

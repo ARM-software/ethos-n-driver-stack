@@ -135,7 +135,6 @@ private:
                             bool couldSourceBeFcaf) const;
 
     Buffer* AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
-                                            Lifetime lifetime,
                                             const impl::MceStripesInfo& mceComputeInfo,
                                             const impl::NumStripesType& numMemoryWeightStripes,
                                             const TensorShape& memoryWeightStripe,

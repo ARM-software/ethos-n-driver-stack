@@ -67,7 +67,6 @@ bool FusedPlePart::CanDoubleBufferWeights() const
 }
 
 Buffer* FusedPlePart::AddIdentityWeights(OwnedOpGraph& opGraph,
-                                         Lifetime lifetime,
                                          const impl::MceStripesInfo& mceComputeInfo,
                                          const impl::NumStripesType& numMemoryWeightStripes,
                                          const TensorShape& memoryWeightStripe,
@@ -100,19 +99,17 @@ Buffer* FusedPlePart::AddIdentityWeights(OwnedOpGraph& opGraph,
 
     CascadingBufferFormat formatInDram = impl::GetCascadingBufferFormatFromCompilerDataFormat(
         ConvertExternalToCompilerDataFormat(convData.weightInfo.m_DataFormat));
-    Buffer* dramWeightBuffer =
-        opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Dram, formatInDram, order));
-    dramWeightBuffer->m_TensorShape      = convData.weightInfo.m_Dimensions;
+    Buffer* dramWeightBuffer        = opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, formatInDram, order));
+    dramWeightBuffer->m_TensorShape = convData.weightInfo.m_Dimensions;
     dramWeightBuffer->m_EncodedWeights   = std::move(encodedWeights);
     dramWeightBuffer->m_SizeInBytes      = static_cast<uint32_t>(dramWeightBuffer->m_EncodedWeights->m_Data.size());
     dramWeightBuffer->m_QuantizationInfo = convData.weightInfo.m_QuantizationInfo;
     dramWeightBuffer->m_BufferType       = BufferType::ConstantDma;
 
     CascadingBufferFormat formatInSram = GetCascadingBufferFormatFromCompilerDataFormat(CompilerDataFormat::WEIGHT);
-    Buffer* sramWeightBuffer =
-        opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Sram, formatInSram, order));
-    sramWeightBuffer->m_TensorShape      = dramWeightBuffer->m_TensorShape;
-    sramWeightBuffer->m_StripeShape      = memoryWeightStripe;
+    Buffer* sramWeightBuffer        = opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, formatInSram, order));
+    sramWeightBuffer->m_TensorShape = dramWeightBuffer->m_TensorShape;
+    sramWeightBuffer->m_StripeShape = memoryWeightStripe;
     sramWeightBuffer->m_QuantizationInfo = convData.weightInfo.m_QuantizationInfo;
     sramWeightBuffer->m_NumStripes       = numMemoryWeightStripes;
     sramWeightBuffer->m_SizeInBytes      = dramWeightBuffer->m_EncodedWeights->m_MaxSize * numMemoryWeightStripes;
@@ -151,7 +148,7 @@ std::pair<Buffer*, Buffer*> FusedPlePart::AddIdentityMceOpForSubGraph(OwnedOpGra
     std::vector<int32_t> biasData(numIfm, 0);
 
     // Add input Buffer.
-    opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Sram, CascadingBufferFormat::NHWCB, order));
+    opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, order));
     Buffer* idMceOpInBuff = buffers.back();
 
     // Add Weight buffers and DmaOp.
@@ -160,22 +157,21 @@ std::pair<Buffer*, Buffer*> FusedPlePart::AddIdentityMceOpForSubGraph(OwnedOpGra
     convData.weightData      = weightsData;
     convData.biasInfo        = biasInfo;
     convData.biasData        = std::move(biasData);
-    Buffer* weightSramBuffer = AddIdentityWeights(opGraph, lifetime, mceComputeInfo, numMemoryStripes.m_Weight,
+    Buffer* weightSramBuffer = AddIdentityWeights(opGraph, mceComputeInfo, numMemoryStripes.m_Weight,
                                                   memoryStripes.m_Weight.m_Shape, order, convData, weightEncoderCache);
 
     int16_t lowerBound = m_DataType == command_stream::DataType::U8 ? 0 : -128;
     int16_t upperBound = m_DataType == command_stream::DataType::U8 ? 255 : 127;
 
     // Add MceOp.
-    opGraph.AddOp(std::make_unique<MceOp>(Lifetime::Cascade, MceOperation::DEPTHWISE_CONVOLUTION,
-                                          CompilerMceAlgorithm::Direct, mceComputeInfo.m_BlockConfig,
-                                          mceComputeInfo.m_Input, mceComputeInfo.m_Output, mceComputeInfo.m_Weight,
-                                          order, Stride(1, 1), 0, 0, lowerBound, upperBound));
+    opGraph.AddOp(std::make_unique<MceOp>(lifetime, MceOperation::DEPTHWISE_CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                          mceComputeInfo.m_BlockConfig, mceComputeInfo.m_Input, mceComputeInfo.m_Output,
+                                          mceComputeInfo.m_Weight, order, Stride(1, 1), 0, 0, lowerBound, upperBound));
     Op* idMceOp             = ops.back();
     idMceOp->m_OperationIds = m_CorrespondingOperationIds;
 
     // Add Output Buffer.
-    opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::PleInputSram, CascadingBufferFormat::NHWCB, order));
+    opGraph.AddBuffer(std::make_unique<Buffer>(Location::PleInputSram, CascadingBufferFormat::NHWCB, order));
     Buffer* idMceOpOutBuff = buffers.back();
 
     opGraph.AddConsumer(idMceOpInBuff, idMceOp, 0);
@@ -228,8 +224,8 @@ void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
                                                 m_InputTensorShape, m_InputQuantizationInfo, order, weightEncoderCache);
 
                 // A fuse only ple operation only has 1 input
-                auto op = std::make_unique<PleOp>(Lifetime::Cascade, m_KernelOperation, info.m_PleCompute.m_BlockConfig,
-                                                  1, std::vector<TensorShape>{ info.m_PleCompute.m_Input },
+                auto op = std::make_unique<PleOp>(lifetime, m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
+                                                  std::vector<TensorShape>{ info.m_PleCompute.m_Input },
                                                   info.m_PleCompute.m_Output, m_DataType, true);
 
                 auto outBufferAndPleOp = AddPleToOpGraph(opGraph, lifetime, order, info.m_Memory.m_Output.m_Shape,
@@ -263,10 +259,10 @@ void FusedPlePart::CreateFuseOnlyPlans(const PleOnlyInfo& info, TraversalOrder o
             PartOutputMapping outputMappings;
             auto pleInBuffer =
                 AddPleInBuffer(opGraph, numPleInputStripes, m_InputTensorShape, info.m_Memory.m_PleInput.m_Shape,
-                               m_InputQuantizationInfo, lifetime, order, Location::PleInputSram);
+                               m_InputQuantizationInfo, order, Location::PleInputSram);
 
             // A fuse only ple operation only has 1 input
-            auto op = std::make_unique<PleOp>(Lifetime::Cascade, m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
+            auto op = std::make_unique<PleOp>(lifetime, m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
                                               std::vector<TensorShape>{ info.m_PleCompute.m_Input },
                                               info.m_PleCompute.m_Output, m_DataType, true);
 
@@ -483,6 +479,9 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
         TensorShape memoryWeightStripe = mceWeightStripe;
 
         MceAndPleInfo mceAndPleInfo;
+
+        mceAndPleInfo.m_Lifetime = fullTensor ? Lifetime::Atomic : Lifetime::Cascade;
+
         mceAndPleInfo.m_MceCompute.m_Input       = mceInputStripe;
         mceAndPleInfo.m_MceCompute.m_Output      = mceOutputStripe;
         mceAndPleInfo.m_MceCompute.m_Weight      = mceWeightStripe;
@@ -502,6 +501,9 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     else if (prevBuffer->m_Location == Location::PleInputSram)
     {
         PleOnlyInfo pleOnlyInfo;
+
+        pleOnlyInfo.m_Lifetime = fullTensor ? Lifetime::Atomic : Lifetime::Cascade;
+
         pleOnlyInfo.m_PleCompute.m_Input       = mceInputStripe;
         pleOnlyInfo.m_PleCompute.m_Output      = pleOutputStripe;
         pleOnlyInfo.m_PleCompute.m_BlockConfig = blockConfig;

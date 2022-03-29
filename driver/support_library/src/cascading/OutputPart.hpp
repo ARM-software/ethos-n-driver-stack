@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -34,7 +34,7 @@ private:
     const TensorShape m_InputTensorShape;
     QuantizationInfo m_InputQuantizationInfo;
 
-    void CreatePlanForOutputPart(Lifetime lifetime, TraversalOrder order, Plans& plans) const;
+    void CreatePlanForOutputPart(TraversalOrder order, Plans& plans) const;
 };
 
 }    // namespace support_library

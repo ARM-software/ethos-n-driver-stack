@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -148,7 +148,6 @@ void CheckInputDram(const CheckPlansParams& params, PlanDesc& desc)
     if (params.m_InputLocation == PlanInputLocation::Dram)
     {
         CHECK(desc.m_InputDram->m_Location == Location::Dram);
-        CHECK(desc.m_InputDram->m_Lifetime == Lifetime::Cascade);
         CHECK(desc.m_InputDram->m_Format == CascadingBufferFormat::NHWCB);
         if (params.m_InputQuantInfo)
         {
@@ -170,7 +169,6 @@ void CheckInputSram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Input SRAM buffer
     CHECK(desc.m_InputSram->m_Location == Location::Sram);
-    CHECK(desc.m_InputSram->m_Lifetime == Lifetime::Cascade);
     CHECK(desc.m_InputSram->m_Format == CascadingBufferFormat::NHWCB);
     if (params.m_InputQuantInfo)
     {
@@ -198,7 +196,6 @@ void CheckWeightsDram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Weights DRAM buffer
     CHECK(desc.m_WeightsDram->m_Location == Location::Dram);
-    CHECK(desc.m_WeightsDram->m_Lifetime == Lifetime::Cascade);
     CHECK(desc.m_WeightsDram->m_Format == CascadingBufferFormat::WEIGHT);
     if (params.m_WeightsTensorInfo)
     {
@@ -217,7 +214,6 @@ void CheckWeightsSram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Weights SRAM buffer
     CHECK(desc.m_WeightsSram->m_Location == Location::Sram);
-    CHECK(desc.m_WeightsSram->m_Lifetime == Lifetime::Cascade);
     CHECK(desc.m_WeightsSram->m_Format == CascadingBufferFormat::WEIGHT);
     if (params.m_WeightsTensorInfo)
     {
@@ -239,7 +235,6 @@ void CheckPleInputSram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Ple Input SRAM buffer
     CHECK(desc.m_PleInputSram->m_Location == Location::PleInputSram);
-    CHECK(desc.m_PleInputSram->m_Lifetime == Lifetime::Cascade);
     CHECK(desc.m_PleInputSram->m_Format == CascadingBufferFormat::NHWCB);
     if (params.m_OutputQuantInfo)
     {
@@ -263,7 +258,6 @@ void CheckOutputSram(PlanDesc& desc, const CheckPlansParams& params)
     if (desc.m_OutputSram)
     {
         CHECK(desc.m_OutputSram->m_Location == Location::Sram);
-        CHECK(desc.m_OutputSram->m_Lifetime == Lifetime::Cascade);
         CHECK(desc.m_OutputSram->m_Format == CascadingBufferFormat::NHWCB);
         if (params.m_OutputQuantInfo)
         {
@@ -292,7 +286,6 @@ void CheckOutputDram(PlanDesc& desc, const CheckPlansParams& params)
     if (desc.m_OutputDram)
     {
         CHECK(desc.m_OutputDram->m_Location == Location::Dram);
-        CHECK(desc.m_OutputDram->m_Lifetime == Lifetime::Cascade);
         CHECK(desc.m_OutputDram->m_Format == CascadingBufferFormat::NHWCB);
         if (params.m_OutputQuantInfo)
         {

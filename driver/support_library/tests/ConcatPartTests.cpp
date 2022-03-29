@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -58,7 +58,6 @@ void CheckConcatDram(Buffer* concatBuffer, const CheckPlansParams& params)
     if (concatBuffer)
     {
         CHECK(concatBuffer->m_Location == Location::Dram);
-        CHECK(concatBuffer->m_Lifetime == Lifetime::Atomic);
         CHECK(concatBuffer->m_Format == params.m_DataFormat);
         CHECK(concatBuffer->m_TensorShape == params.m_OutputTensorInfo.m_Dimensions);
         CHECK(concatBuffer->m_Order == TraversalOrder::Xyz);

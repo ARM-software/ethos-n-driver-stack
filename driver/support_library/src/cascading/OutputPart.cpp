@@ -40,7 +40,7 @@ Plans OutputPart::GetPlans(CascadeType cascadeType,
 
     if (cascadeType == CascadeType::End || cascadeType == CascadeType::Lonely)
     {
-        CreatePlanForOutputPart(Lifetime::Atomic, TraversalOrder::Xyz, plans);
+        CreatePlanForOutputPart(TraversalOrder::Xyz, plans);
     }
 
     return plans;
@@ -49,14 +49,14 @@ Plans OutputPart::GetPlans(CascadeType cascadeType,
 OutputPart::~OutputPart()
 {}
 
-void OutputPart::CreatePlanForOutputPart(Lifetime lifetime, TraversalOrder order, Plans& plans) const
+void OutputPart::CreatePlanForOutputPart(TraversalOrder order, Plans& plans) const
 {
     PartInputMapping inputMappings;
     PartOutputMapping outputMappings;
     OwnedOpGraph opGraph;
 
     CascadingBufferFormat format   = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
-    std::unique_ptr<Buffer> buffer = std::make_unique<Buffer>(lifetime, Location::Dram, format, order);
+    std::unique_ptr<Buffer> buffer = std::make_unique<Buffer>(Location::Dram, format, order);
     buffer->m_TensorShape          = m_InputTensorShape;
     buffer->m_SizeInBytes          = impl::CalculateBufferSize(m_InputTensorShape, format);
     buffer->m_QuantizationInfo     = m_InputQuantizationInfo;

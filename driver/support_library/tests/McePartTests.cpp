@@ -168,6 +168,7 @@ struct CheckPlansParams
     utils::Optional<command_stream::UpsampleType> m_UpsampleType;
     utils::Optional<std::set<uint32_t>> m_OperationIds;
     utils::Optional<bool> m_CouldFcafDecomp;
+    utils::Optional<Lifetime> m_Lifetime;
     /// @}
 
     std::vector<PlanDescPredicate>
@@ -218,7 +219,6 @@ void CheckInputDram(const CheckPlansParams& params, PlanDesc& desc)
     if (params.m_InputLocation == PlanInputLocation::Dram)
     {
         CHECK(desc.m_InputDram->m_Location == Location::Dram);
-        CHECK(desc.m_InputDram->m_Lifetime == Lifetime::Cascade);
         CHECK(desc.m_InputDram->m_Format == CascadingBufferFormat::NHWCB);
         if (params.m_InputQuantInfo)
         {
@@ -240,7 +240,6 @@ void CheckInputSram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Input SRAM buffer
     CHECK(desc.m_InputSram->m_Location == Location::Sram);
-    CHECK(desc.m_InputSram->m_Lifetime == Lifetime::Cascade);
     CHECK(desc.m_InputSram->m_Format == CascadingBufferFormat::NHWCB);
     if (params.m_InputQuantInfo)
     {
@@ -292,7 +291,6 @@ void CheckWeightsDram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Weights DRAM buffer
     CHECK(desc.m_WeightsDram->m_Location == Location::Dram);
-    CHECK(desc.m_WeightsDram->m_Lifetime == Lifetime::Cascade);
     CHECK(desc.m_WeightsDram->m_Format == CascadingBufferFormat::WEIGHT);
     if (params.m_WeightsTensorInfo)
     {
@@ -311,7 +309,6 @@ void CheckWeightsSram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Weights SRAM buffer
     CHECK(desc.m_WeightsSram->m_Location == Location::Sram);
-    CHECK(desc.m_WeightsSram->m_Lifetime == Lifetime::Cascade);
     CHECK(desc.m_WeightsSram->m_Format == CascadingBufferFormat::WEIGHT);
     if (params.m_WeightsTensorInfo)
     {
@@ -333,7 +330,6 @@ void CheckPleInputSram(PlanDesc& desc, const CheckPlansParams& params)
 {
     // Check properties of Ple Input SRAM buffer
     CHECK(desc.m_PleInputSram->m_Location == Location::PleInputSram);
-    CHECK(desc.m_PleInputSram->m_Lifetime == Lifetime::Cascade);
     CHECK(desc.m_PleInputSram->m_Format == CascadingBufferFormat::NHWCB);
     if (params.m_OutputQuantInfo)
     {
@@ -357,7 +353,6 @@ void CheckOutputSram(PlanDesc& desc, const CheckPlansParams& params)
     if (desc.m_OutputSram)
     {
         CHECK(desc.m_OutputSram->m_Location == Location::Sram);
-        CHECK(desc.m_OutputSram->m_Lifetime == Lifetime::Cascade);
         CHECK(desc.m_OutputSram->m_Format == CascadingBufferFormat::NHWCB);
         if (params.m_OutputQuantInfo)
         {
@@ -386,7 +381,6 @@ void CheckOutputDram(PlanDesc& desc, const CheckPlansParams& params)
     if (desc.m_OutputDram)
     {
         CHECK(desc.m_OutputDram->m_Location == Location::Dram);
-        CHECK(desc.m_OutputDram->m_Lifetime == Lifetime::Cascade);
         CHECK(desc.m_OutputDram->m_Format == CascadingBufferFormat::NHWCB);
         if (params.m_OutputQuantInfo)
         {
@@ -470,7 +464,10 @@ void CheckWeightsDma(const CheckPlansParams& params, PlanDesc& desc)
 void CheckMce(const CheckPlansParams& params, PlanDesc& desc)
 {
     // Check properties of Mce Op
-    CHECK(desc.m_Mce->m_Lifetime == Lifetime::Cascade);
+    if (params.m_Lifetime)
+    {
+        CHECK(desc.m_Mce->m_Lifetime == params.m_Lifetime.value());
+    }
     if (params.m_OperationIds)
     {
         CHECK(desc.m_Mce->m_OperationIds == params.m_OperationIds.value());
@@ -507,7 +504,10 @@ void CheckPle(PlanDesc& desc, const CheckPlansParams& params)
     // Check properties of Ple Op (if we have one)
     if (desc.m_Ple)
     {
-        CHECK(desc.m_Ple->m_Lifetime == Lifetime::Cascade);
+        if (params.m_Lifetime)
+        {
+            CHECK(desc.m_Ple->m_Lifetime == params.m_Lifetime.value());
+        }
         if (params.m_OperationIds)
         {
             CHECK(desc.m_Ple->m_OperationIds == params.m_OperationIds.value());
@@ -738,6 +738,14 @@ TEST_CASE("McePart GetPlans structure")
             {
                 params.m_InputLocation   = PlanInputLocation::Sram;
                 params.m_OutputLocations = PlanOutputLocation::Sram;
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_Mce->m_Lifetime == Lifetime::Atomic) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Atomic) && (plan.m_OutputSram->m_NumStripes == 1);
+                });
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_Mce->m_Lifetime == Lifetime::Cascade) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Cascade);
+                });
                 CheckPlans(plans, params);
             }
         }
@@ -756,6 +764,14 @@ TEST_CASE("McePart GetPlans structure")
                     [](const PlanDesc& plan) { return plan.m_Output->m_Location == Location::Sram; });
                 params.m_Any.push_back(
                     [](const PlanDesc& plan) { return plan.m_Output->m_Location == Location::PleInputSram; });
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_Mce->m_Lifetime == Lifetime::Atomic) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Atomic) && (plan.m_OutputSram->m_NumStripes == 1);
+                });
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_Mce->m_Lifetime == Lifetime::Cascade) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Cascade);
+                });
                 CheckPlans(plans, params);
             }
         }
@@ -763,7 +779,6 @@ TEST_CASE("McePart GetPlans structure")
         WHEN("Asked to produce Middle plans")
         {
             Buffer prevBuffer;
-            prevBuffer.m_Lifetime         = Lifetime::Cascade;
             prevBuffer.m_Location         = Location::Sram;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
@@ -782,6 +797,7 @@ TEST_CASE("McePart GetPlans structure")
                 params.m_OutputLocations = PlanOutputLocation::Sram | PlanOutputLocation::PleInputSram;
                 params.m_CouldFcafDecomp = false;
                 params.m_Caps            = &caps;
+                params.m_Lifetime        = Lifetime::Cascade;
                 // Confirm that we have at least one plan that ends in Sram and at least one that ends in PleInputSram
                 params.m_Any.push_back(
                     [](const PlanDesc& plan) { return plan.m_Output->m_Location == Location::Sram; });
@@ -794,7 +810,6 @@ TEST_CASE("McePart GetPlans structure")
         WHEN("Asked to produce End plans")
         {
             Buffer prevBuffer;
-            prevBuffer.m_Lifetime         = Lifetime::Cascade;
             prevBuffer.m_Location         = Location::Sram;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
@@ -810,6 +825,7 @@ TEST_CASE("McePart GetPlans structure")
             {
                 params.m_InputLocation   = PlanInputLocation::Sram;
                 params.m_OutputLocations = PlanOutputLocation::Sram;
+                params.m_Lifetime        = Lifetime::Cascade;
                 CheckPlans(plans, params);
             }
         }
@@ -869,6 +885,14 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
                 params.m_OutputLocations = PlanOutputLocation::Sram;
                 params.m_CouldFcafDecomp = true;
                 params.m_Caps            = &caps;
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_Mce->m_Lifetime == Lifetime::Atomic) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Atomic) && (plan.m_OutputSram->m_NumStripes == 1);
+                });
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_Mce->m_Lifetime == Lifetime::Cascade) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Cascade);
+                });
                 CheckPlans(plans, params);
             }
         }
@@ -889,6 +913,14 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
                     [](const PlanDesc& plan) { return plan.m_Output->m_Location == Location::Sram; });
                 params.m_Any.push_back(
                     [](const PlanDesc& plan) { return plan.m_Output->m_Location == Location::PleInputSram; });
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_Mce->m_Lifetime == Lifetime::Atomic) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Atomic) && (plan.m_OutputSram->m_NumStripes == 1);
+                });
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_Mce->m_Lifetime == Lifetime::Cascade) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Cascade);
+                });
                 CheckPlans(plans, params);
             }
         }
@@ -896,7 +928,6 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
         WHEN("Asked to produce Middle plans")
         {
             Buffer prevBuffer;
-            prevBuffer.m_Lifetime         = Lifetime::Cascade;
             prevBuffer.m_Location         = Location::Sram;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
@@ -917,6 +948,7 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
                 params.m_OutputLocations = PlanOutputLocation::Sram | PlanOutputLocation::PleInputSram;
                 params.m_CouldFcafDecomp = false;
                 params.m_Caps            = &caps;
+                params.m_Lifetime        = Lifetime::Cascade;
                 // Confirm that we have at least one plan that ends in Sram and at least one that ends in PleInputSram
                 params.m_Any.push_back(
                     [](const PlanDesc& plan) { return plan.m_Output->m_Location == Location::Sram; });
@@ -929,7 +961,6 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
         WHEN("Asked to produce End plans")
         {
             Buffer prevBuffer;
-            prevBuffer.m_Lifetime         = Lifetime::Cascade;
             prevBuffer.m_Location         = Location::Sram;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
@@ -940,6 +971,7 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
             prevBuffer.m_NumStripes       = 1;
             params.m_CouldFcafDecomp      = false;
             params.m_Caps                 = &caps;
+
             Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, &prevBuffer, 1);
             SavePlansToDot(plans, "McePart GetPlans structure End");
 
@@ -947,6 +979,7 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
             {
                 params.m_InputLocation   = PlanInputLocation::Sram;
                 params.m_OutputLocations = PlanOutputLocation::Sram;
+                params.m_Lifetime        = Lifetime::Cascade;
                 CheckPlans(plans, params);
             }
         }
@@ -1017,13 +1050,21 @@ TEST_CASE("McePart GetPlans Strategy3", "[slow]")
                     return inputSramValid && weightsSramValid && pleInputSramValid && outputSramValid && mceValid &&
                            pleValid;
                 });
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_Mce->m_Lifetime == Lifetime::Atomic) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Atomic) && (plan.m_OutputSram->m_NumStripes == 1);
+                });
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_Mce->m_Lifetime == Lifetime::Cascade) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Cascade);
+                });
                 CheckPlans(plans, params);
             }
         }
     }
 }
 
-/// Checks that McePart::GetPlans returns a sensible plan for strategy 3.
+/// Checks that McePart::GetPlans returns a sensible plan for strategy 0.
 /// This covers the Buffer/Op properties which aren't covered by above 'structure' test as they are specific
 /// to the strategy.
 TEST_CASE("McePart GetPlans Strategy0", "[slow]")
@@ -1087,6 +1128,14 @@ TEST_CASE("McePart GetPlans Strategy0", "[slow]")
                     return inputSramValid && weightsSramValid && pleInputSramValid && outputSramValid && mceValid &&
                            pleValid;
                 });
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_Mce->m_Lifetime == Lifetime::Atomic) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Atomic) && (plan.m_OutputSram->m_NumStripes == 1);
+                });
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_Mce->m_Lifetime == Lifetime::Cascade) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Cascade);
+                });
                 CheckPlans(plans, params);
             }
         }
@@ -1115,7 +1164,6 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
             command_stream::BlockConfig requestedBlockConfig = { 32u, 8u };
 
             Buffer prevBuffer;
-            prevBuffer.m_Lifetime         = Lifetime::Cascade;
             prevBuffer.m_Location         = Location::Sram;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
@@ -1134,14 +1182,14 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
             THEN("The plans all use the requested block config, Sram Buffer, and the number of weight stripes")
             {
                 CheckPlansParams params;
-                params.m_All = [&](const PlanDesc& plan) {
+                params.m_Lifetime = Lifetime::Cascade;
+                params.m_All      = [&](const PlanDesc& plan) {
                     CHECK(plan.m_Mce->m_BlockConfig == requestedBlockConfig);
                     if (plan.m_Ple)
                     {
                         CHECK(plan.m_Ple->m_BlockConfig == requestedBlockConfig);
                     }
 
-                    CHECK(plan.m_Input->m_Lifetime == prevBuffer.m_Lifetime);
                     CHECK(plan.m_Input->m_Location == prevBuffer.m_Location);
                     CHECK(plan.m_Input->m_Format == prevBuffer.m_Format);
                     CHECK(plan.m_Input->m_QuantizationInfo == prevBuffer.m_QuantizationInfo);
@@ -1161,7 +1209,6 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
             command_stream::BlockConfig requestedBlockConfig = { 32u, 8u };
 
             Buffer prevBuffer;
-            prevBuffer.m_Lifetime         = Lifetime::Cascade;
             prevBuffer.m_Location         = Location::Sram;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
@@ -1185,7 +1232,6 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
             command_stream::BlockConfig requestedBlockConfig = { 32u, 8u };
 
             Buffer prevBuffer;
-            prevBuffer.m_Lifetime         = Lifetime::Cascade;
             prevBuffer.m_Location         = Location::Sram;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
@@ -1287,6 +1333,14 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
                     }
                     return pass;
                 });
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_Mce->m_Lifetime == Lifetime::Atomic) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Atomic) && (plan.m_OutputSram->m_NumStripes == 1);
+                });
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_Mce->m_Lifetime == Lifetime::Cascade) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Cascade);
+                });
                 CheckPlans(plans, params);
 
                 command_stream::BlockConfig requestedBlockConfig = { 16u, 8u };
@@ -1338,6 +1392,7 @@ TEST_CASE("McePart GetPlans Winograd")
                 CheckPlansParams params;
                 params.m_InputShape  = tsIn;
                 params.m_OutputShape = tsOut;
+                params.m_Lifetime    = Lifetime::Cascade;
                 params.m_All         = [&](const PlanDesc& plan) {
                     if (plan.m_Mce->m_WeightsStripeShape[2] < numIfms)
                     {
@@ -1389,6 +1444,7 @@ TEST_CASE("McePart GetPlans Split input in height and width in the case of block
                 CheckPlansParams params;
                 params.m_InputShape  = tsIn;
                 params.m_OutputShape = tsOut;
+                params.m_Lifetime    = Lifetime::Cascade;
                 params.m_Any.push_back([&](const PlanDesc& plan) {
                     return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 72, 8, 256 } &&
                            plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 72, 8, 64 } &&
@@ -1428,6 +1484,7 @@ TEST_CASE("McePart GetPlans Split input in depth")
                 CheckPlansParams params;
                 params.m_InputShape  = tsIn;
                 params.m_OutputShape = tsOut;
+                params.m_Lifetime    = Lifetime::Cascade;
                 params.m_All         = [&](const PlanDesc& plan) {
                     CHECK(!(plan.m_InputSram->m_StripeShape == TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() } &&
                             plan.m_InputSram->m_NumStripes == 1));
@@ -1473,6 +1530,7 @@ TEST_CASE("McePart GetPlans Split output in depth")
                 CheckPlansParams params;
                 params.m_InputShape  = inputShape;
                 params.m_OutputShape = outputShape;
+                params.m_Lifetime    = Lifetime::Cascade;
                 params.m_Any.push_back([&](const PlanDesc& plan) {
                     TensorShape inputStripe{ 1, 8, 8, 32 };
                     uint32_t numInputStripes = 1;
@@ -1529,7 +1587,6 @@ TEST_CASE("McePart GetPlans MobileNet V1")
         // Define common properties of the "prevBuffer", which will be the case for all Parts we're testing. This avoids
         // duplicating these lines for each Part being tested.
         Buffer prevBuffer;
-        prevBuffer.m_Lifetime         = Lifetime::Cascade;
         prevBuffer.m_Location         = Location::Sram;
         prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
         prevBuffer.m_QuantizationInfo = { 0, 1.0f };
@@ -1560,6 +1617,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             prevBuffer.m_SizeInBytes = 112 * 112 * 64;
 
             Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, &prevBuffer, 1);
+            SavePlansToDot(plans, "McePart GetPlans MobileNet Part 2");
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
@@ -1575,6 +1633,10 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_Output->m_Location == Location::Sram &&
                        plan.m_Output->m_StripeShape == TensorShape{ 1, 112, 112, 32 } &&
                        plan.m_Output->m_NumStripes == 1;
+            });
+            params.m_Any.push_back([](const PlanDesc& plan) {
+                return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_Mce->m_Lifetime == Lifetime::Atomic) &&
+                       (plan.m_Ple->m_Lifetime == Lifetime::Atomic) && (plan.m_OutputSram->m_NumStripes == 1);
             });
             CheckPlans(plans, params);
         }
@@ -1596,6 +1658,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             prevBuffer.m_SizeInBytes = 112 * 112 * 32;
 
             Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, &prevBuffer, 1);
+            SavePlansToDot(plans, "McePart GetPlans MobileNet Part 3");
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
@@ -1611,6 +1674,10 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_Output->m_Location == Location::Sram &&
                        plan.m_Output->m_StripeShape == TensorShape{ 1, 112, 112, 32 } &&
                        plan.m_Output->m_NumStripes == 1;
+            });
+            params.m_Any.push_back([](const PlanDesc& plan) {
+                return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_Mce->m_Lifetime == Lifetime::Atomic) &&
+                       (plan.m_Ple->m_Lifetime == Lifetime::Atomic) && (plan.m_OutputSram->m_NumStripes == 1);
             });
             CheckPlans(plans, params);
         }
@@ -1628,6 +1695,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             prevBuffer.m_SizeInBytes = 112 * 112 * 32;
 
             Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, &prevBuffer, 2);
+            SavePlansToDot(plans, "McePart GetPlans MobileNet Part 4");
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
@@ -1644,7 +1712,10 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_Output->m_StripeShape == TensorShape{ 1, 112, 112, 32 } &&
                        plan.m_Output->m_NumStripes == 0;
             });
-            ;
+            params.m_Any.push_back([](const PlanDesc& plan) {
+                return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_Mce->m_Lifetime == Lifetime::Atomic) &&
+                       (plan.m_Ple->m_Lifetime == Lifetime::Atomic) && (plan.m_OutputSram->m_NumStripes == 1);
+            });
             CheckPlans(plans, params);
         }
 
@@ -1662,6 +1733,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             prevBuffer.m_SizeInBytes = 56 * 56 * 256;
 
             Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, &prevBuffer, 2);
+            SavePlansToDot(plans, "McePart GetPlans MobileNet Part 6");
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
@@ -1677,6 +1749,10 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        // The following Part is another McePart, so we'll use the plan which includes a Passthrough PLE.
                        plan.m_Output->m_Location == Location::Sram &&
                        plan.m_Output->m_StripeShape == TensorShape{ 1, 56, 56, 64 } && plan.m_Output->m_NumStripes == 1;
+            });
+            params.m_Any.push_back([](const PlanDesc& plan) {
+                return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_Mce->m_Lifetime == Lifetime::Atomic) &&
+                       (plan.m_Ple->m_Lifetime == Lifetime::Atomic) && (plan.m_OutputSram->m_NumStripes == 1);
             });
             CheckPlans(plans, params);
         }
@@ -1694,6 +1770,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             prevBuffer.m_SizeInBytes = 56 * 56 * 64;
 
             Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, &prevBuffer, 2);
+            SavePlansToDot(plans, "McePart GetPlans MobileNet Part 7");
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
@@ -1709,6 +1786,10 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_Output->m_Location == Location::Sram &&
                        plan.m_Output->m_StripeShape == TensorShape{ 1, 56, 56, 128 } &&
                        plan.m_Output->m_NumStripes == 1;
+            });
+            params.m_Any.push_back([](const PlanDesc& plan) {
+                return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_Mce->m_Lifetime == Lifetime::Atomic) &&
+                       (plan.m_Ple->m_Lifetime == Lifetime::Atomic) && (plan.m_OutputSram->m_NumStripes == 1);
             });
             CheckPlans(plans, params);
         }
@@ -1727,6 +1808,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             prevBuffer.m_SizeInBytes = 56 * 56 * 128;
 
             Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, &prevBuffer, 2);
+            SavePlansToDot(plans, "McePart GetPlans MobileNet Part 8");
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
@@ -1742,6 +1824,10 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_Output->m_Location == Location::Sram &&
                        plan.m_Output->m_StripeShape == TensorShape{ 1, 56, 56, 128 } &&
                        plan.m_Output->m_NumStripes == 1;
+            });
+            params.m_Any.push_back([](const PlanDesc& plan) {
+                return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_Mce->m_Lifetime == Lifetime::Atomic) &&
+                       (plan.m_Ple->m_Lifetime == Lifetime::Atomic) && (plan.m_OutputSram->m_NumStripes == 1);
             });
             CheckPlans(plans, params);
         }
@@ -1759,6 +1845,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             prevBuffer.m_SizeInBytes = 56 * 56 * 128;
 
             Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, &prevBuffer, 2);
+            SavePlansToDot(plans, "McePart GetPlans MobileNet Part 9");
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
@@ -1774,6 +1861,10 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_Output->m_Location == Location::PleInputSram &&
                        plan.m_Output->m_StripeShape == TensorShape{ 1, 56, 56, 32 } && plan.m_Output->m_NumStripes == 0;
             });
+            params.m_Any.push_back([](const PlanDesc& plan) {
+                return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_Mce->m_Lifetime == Lifetime::Atomic) &&
+                       (plan.m_Ple->m_Lifetime == Lifetime::Atomic) && (plan.m_OutputSram->m_NumStripes == 1);
+            });
             CheckPlans(plans, params);
         }
     }
@@ -1787,7 +1878,6 @@ TEST_CASE("McePart GetPlans MobileNet V1")
         // Define common properties of the "prevBuffer", which will be the case for all Parts we're testing. This avoids
         // duplicating these lines for each Part being tested.
         Buffer prevBuffer;
-        prevBuffer.m_Lifetime         = Lifetime::Cascade;
         prevBuffer.m_Location         = Location::Sram;
         prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
         prevBuffer.m_QuantizationInfo = { 0, 1.0f };
@@ -1809,7 +1899,9 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             prevBuffer.m_SizeInBytes = 8 * 112 * 32 * 3;
 
             Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 32u, 8u }, &prevBuffer, 1);
+            SavePlansToDot(plans, "McePart GetPlans MobileNet Part 2 1TOPS_2PLE_RATIO");
             CheckPlansParams params;
+            params.m_Lifetime = Lifetime::Cascade;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 112, 32 } &&
                        plan.m_InputSram->m_NumStripes == 3 &&
@@ -1846,7 +1938,9 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             prevBuffer.m_SizeInBytes = 8 * 112 * 32 * 3;
 
             Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 32u, 8u }, &prevBuffer, 1);
+            SavePlansToDot(plans, "McePart GetPlans MobileNet Part 3 1TOPS_2PLE_RATIO");
             CheckPlansParams params;
+            params.m_Lifetime = Lifetime::Cascade;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 112, 32 } &&
                        plan.m_InputSram->m_NumStripes == 3 &&
@@ -1881,7 +1975,9 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             prevBuffer.m_NumStripes  = 1;
 
             Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 32u, 8u }, &prevBuffer, 1);
+            SavePlansToDot(plans, "McePart GetPlans MobileNet Part 4 1TOPS_2PLE_RATIO");
             CheckPlansParams params;
+            params.m_Lifetime = Lifetime::Cascade;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 112, 32 } &&
                        plan.m_InputSram->m_NumStripes == 1 &&
@@ -1911,6 +2007,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                           Stride{ 2, 2 }, 1, 1, compOpt, caps, estOpts);
 
             Plans plans = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 2);
+            SavePlansToDot(plans, "McePart GetPlans MobileNet Part 6 1TOPS_2PLE_RATIO");
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 56, 256 } &&
@@ -1929,6 +2026,16 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_Output->m_Location == Location::Sram &&
                        plan.m_Output->m_StripeShape == TensorShape{ 1, 8, 56, 64 } && plan.m_Output->m_NumStripes == 1;
             });
+            params.m_Any.push_back([](const PlanDesc& plan) {
+                TensorShape outputShape{ 1, 56, 56, 64 };
+                return (plan.m_Mce->m_Lifetime == Lifetime::Atomic) && (plan.m_Ple->m_Lifetime == Lifetime::Atomic) &&
+                       (plan.m_OutputSram->m_StripeShape[1] >= outputShape[1]) &&
+                       (plan.m_OutputSram->m_StripeShape[2] >= outputShape[2]) &&
+                       (plan.m_OutputSram->m_StripeShape[3] >= outputShape[3]);
+            });
+            params.m_Any.push_back([](const PlanDesc& plan) {
+                return (plan.m_Mce->m_Lifetime == Lifetime::Cascade) && (plan.m_Ple->m_Lifetime == Lifetime::Cascade);
+            });
             CheckPlans(plans, params);
         }
 
@@ -1944,6 +2051,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                                      Stride{ 1, 1 }, 0, 0, compOpt, caps, estOpts);
 
             Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
+            SavePlansToDot(plans, "McePart GetPlans MobileNet Part 7 1TOPS_2PLE_RATIO");
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 56, 64 } &&
@@ -1959,6 +2067,10 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                        plan.m_Output->m_StripeShape == TensorShape{ 1, 8, 56, 128 } &&
                        plan.m_Output->m_NumStripes ==
                            3;    // The following McePart has a kernel with height 3 so neighbouring stripes are needed
+            });
+            params.m_Any.push_back([](const PlanDesc& plan) { return (plan.m_Mce->m_Lifetime == Lifetime::Atomic); });
+            params.m_Any.push_back([](const PlanDesc& plan) {
+                return (plan.m_Mce->m_Lifetime == Lifetime::Cascade) && (plan.m_Ple->m_Lifetime == Lifetime::Cascade);
             });
             CheckPlans(plans, params);
         }
@@ -1980,7 +2092,9 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             prevBuffer.m_NumStripes  = 3;
 
             Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 32u, 8u }, &prevBuffer, 1);
+            SavePlansToDot(plans, "McePart GetPlans MobileNet Part 8 1TOPS_2PLE_RATIO");
             CheckPlansParams params;
+            params.m_Lifetime = Lifetime::Cascade;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 56, 128 } &&
                        plan.m_InputSram->m_NumStripes == 3 &&
@@ -2010,6 +2124,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                                      Stride{ 1, 1 }, 0, 0, compOpt, caps, estOpts);
 
             Plans plans = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 2);
+            SavePlansToDot(plans, "McePart GetPlans MobileNet Part 9 1TOPS_2PLE_RATIO");
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 bool b = true;
@@ -2026,6 +2141,10 @@ TEST_CASE("McePart GetPlans MobileNet V1")
                 b &= plan.m_Output->m_StripeShape == TensorShape{ 1, 56, 56, 8 };
                 b &= plan.m_Output->m_NumStripes == 0;
                 return b;
+            });
+            params.m_Any.push_back([](const PlanDesc& plan) { return (plan.m_Mce->m_Lifetime == Lifetime::Atomic); });
+            params.m_Any.push_back([](const PlanDesc& plan) {
+                return (plan.m_Mce->m_Lifetime == Lifetime::Cascade) && (plan.m_Ple->m_Lifetime == Lifetime::Cascade);
             });
             CheckPlans(plans, params);
         }
@@ -2066,6 +2185,14 @@ TEST_CASE("McePart GetPlans Upsampling")
                     return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 16, 64, 16 } &&
                            plan.m_PleInputSram->m_StripeShape == TensorShape{ 1, 32, 128, 16 };
                 });
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_Mce->m_Lifetime == Lifetime::Atomic) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Atomic) && (plan.m_OutputSram->m_NumStripes == 1);
+                });
+                params.m_Any.push_back([](const PlanDesc& plan) {
+                    return (plan.m_Mce->m_Lifetime == Lifetime::Cascade) &&
+                           (plan.m_Ple->m_Lifetime == Lifetime::Cascade);
+                });
                 CheckPlans(plans, params);
             }
         }
@@ -2073,7 +2200,6 @@ TEST_CASE("McePart GetPlans Upsampling")
         WHEN("Asked to generate Middle plans")
         {
             Buffer prevBuffer;
-            prevBuffer.m_Lifetime         = Lifetime::Cascade;
             prevBuffer.m_Location         = Location::Sram;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
@@ -2094,6 +2220,7 @@ TEST_CASE("McePart GetPlans Upsampling")
                 params.m_OutputShape   = tsOut;
                 params.m_UpscaleFactor = 2;
                 params.m_UpsampleType  = command_stream::UpsampleType::NEAREST_NEIGHBOUR;
+                params.m_Lifetime      = Lifetime::Cascade;
                 params.m_All           = [&](const PlanDesc& plan) {
                     CHECK(plan.m_PleInputSram->m_StripeShape[1] == 2 * plan.m_InputSram->m_StripeShape[1]);
                     CHECK(plan.m_PleInputSram->m_StripeShape[2] == 2 * plan.m_InputSram->m_StripeShape[2]);

@@ -371,8 +371,7 @@ DummyOp::DummyOp()
 {}
 
 Buffer::Buffer()
-    : Buffer(Lifetime::Cascade,
-             Location::Dram,
+    : Buffer(Location::Dram,
              CascadingBufferFormat::NHWCB,
              { 0, 0, 0, 0 },
              { 0, 0, 0, 0 },
@@ -381,12 +380,11 @@ Buffer::Buffer()
              QuantizationInfo())
 {}
 
-Buffer::Buffer(Lifetime lifetime, Location location, CascadingBufferFormat format, TraversalOrder order)
-    : Buffer(lifetime, location, format, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, order, 0, QuantizationInfo())
+Buffer::Buffer(Location location, CascadingBufferFormat format, TraversalOrder order)
+    : Buffer(location, format, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, order, 0, QuantizationInfo())
 {}
 
-Buffer::Buffer(Lifetime lifetime,
-               Location location,
+Buffer::Buffer(Location location,
                CascadingBufferFormat format,
                TensorShape tensorShape,
                TensorShape stripeShape,
@@ -394,7 +392,6 @@ Buffer::Buffer(Lifetime lifetime,
                uint32_t sizeInBytes,
                QuantizationInfo quantInfo)
     : DebuggableObject("Buffer")
-    , m_Lifetime(lifetime)
     , m_Location(location)
     , m_Format(format)
     , m_QuantizationInfo(quantInfo)
@@ -435,10 +432,6 @@ SizeInBytes GetTotSizeInBytes(const Plan& plan)
         if (buf->m_Location == Location::Sram)
         {
             result.m_Tot += size;
-            if (buf->m_Lifetime == Lifetime::Atomic)
-            {
-                result.m_TotAtomic += size;
-            }
         }
         ++it;
     }
@@ -458,10 +451,6 @@ SizeInBytes GetInputsSizeInBytes(const Plan& plan)
         if (buf->m_Location == Location::Sram)
         {
             result.m_Tot += size;
-            if (buf->m_Lifetime == Lifetime::Atomic)
-            {
-                result.m_TotAtomic += size;
-            }
         }
         ++it;
     }

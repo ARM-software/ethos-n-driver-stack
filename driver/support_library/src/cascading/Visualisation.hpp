@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -34,7 +34,6 @@ enum class CompilerMceAlgorithm;
 using Plans = std::vector<Plan>;
 
 std::string ToString(Location l);
-std::string ToString(Lifetime l);
 std::string ToString(DataFormat f);
 std::string ToString(CompilerDataFormat f);
 std::string ToString(CompilerDataCompressedFormat f);

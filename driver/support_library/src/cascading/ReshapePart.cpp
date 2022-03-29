@@ -57,7 +57,7 @@ void ReshapePart::CreateReinterpretDramPlan(Plans& plans) const
     PartInputMapping inputMappings;
     PartOutputMapping outputMappings;
     OwnedOpGraph opGraph;
-    opGraph.AddBuffer(std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, format, TraversalOrder::Xyz));
+    opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
     Buffer* buffer             = opGraph.GetBuffers()[0];
     buffer->m_TensorShape      = m_OutputTensorShape;
     buffer->m_SizeInBytes      = impl::CalculateBufferSize(m_InputTensorShape, format);

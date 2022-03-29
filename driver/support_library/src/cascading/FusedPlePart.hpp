@@ -51,7 +51,6 @@ private:
     Plans GetBeginningPlans(uint32_t numWeightStripes) const;
 
     Buffer* AddIdentityWeights(OwnedOpGraph& opGraph,
-                               Lifetime lifetime,
                                const impl::MceStripesInfo& mceComputeInfo,
                                const impl::NumStripesType& numMemoryWeightStripes,
                                const TensorShape& memoryWeightStripe,

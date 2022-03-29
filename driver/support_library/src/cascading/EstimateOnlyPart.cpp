@@ -42,7 +42,7 @@ Plans EstimateOnlyPart::GetPlans(CascadeType cascadeType,
 
     if (cascadeType == CascadeType::Lonely)
     {
-        CreatePlanForEstimateOnlyPart(Lifetime::Atomic, TraversalOrder::Xyz, plans);
+        CreatePlanForEstimateOnlyPart(TraversalOrder::Xyz, plans);
     }
 
     return plans;
@@ -51,7 +51,7 @@ Plans EstimateOnlyPart::GetPlans(CascadeType cascadeType,
 EstimateOnlyPart::~EstimateOnlyPart()
 {}
 
-void EstimateOnlyPart::CreatePlanForEstimateOnlyPart(Lifetime lifetime, TraversalOrder order, Plans& plans) const
+void EstimateOnlyPart::CreatePlanForEstimateOnlyPart(TraversalOrder order, Plans& plans) const
 {
     PartInputMapping inputMappings;
     PartOutputMapping outputMappings;
@@ -65,7 +65,7 @@ void EstimateOnlyPart::CreatePlanForEstimateOnlyPart(Lifetime lifetime, Traversa
 
     for (uint32_t inputIndex = 0; inputIndex < m_InputTensorsInfo.size(); inputIndex++)
     {
-        opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Dram, format, order));
+        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, order));
         Buffer* inputBuffer             = opGraph.GetBuffers().back();
         inputBuffer->m_TensorShape      = m_InputTensorsInfo[inputIndex].m_Dimensions;
         inputBuffer->m_SizeInBytes      = impl::CalculateBufferSize(inputBuffer->m_TensorShape, format);
@@ -77,7 +77,7 @@ void EstimateOnlyPart::CreatePlanForEstimateOnlyPart(Lifetime lifetime, Traversa
 
     for (uint32_t outputIndex = 0; outputIndex < m_OutputTensorsInfo.size(); outputIndex++)
     {
-        opGraph.AddBuffer(std::make_unique<Buffer>(lifetime, Location::Dram, format, order));
+        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, order));
         Buffer* outputBuffer             = opGraph.GetBuffers().back();
         outputBuffer->m_TensorShape      = m_OutputTensorsInfo[outputIndex].m_Dimensions;
         outputBuffer->m_SizeInBytes      = impl::CalculateBufferSize(outputBuffer->m_TensorShape, format);

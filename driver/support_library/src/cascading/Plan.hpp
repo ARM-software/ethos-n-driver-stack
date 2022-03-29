@@ -296,9 +296,8 @@ class Buffer : public DebuggableObject
 {
 public:
     Buffer();
-    Buffer(Lifetime lifetime, Location location, CascadingBufferFormat format, TraversalOrder order);
-    Buffer(Lifetime lifetime,
-           Location location,
+    Buffer(Location location, CascadingBufferFormat format, TraversalOrder order);
+    Buffer(Location location,
            CascadingBufferFormat format,
            TensorShape tensorShape,
            TensorShape stripeShape,
@@ -308,7 +307,6 @@ public:
     virtual ~Buffer()
     {}
 
-    Lifetime m_Lifetime;
     Location m_Location;
     CascadingBufferFormat m_Format;
     QuantizationInfo m_QuantizationInfo;

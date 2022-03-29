@@ -75,8 +75,8 @@ void DumpDebugInfo(const GraphOfParts& parts,
 std::pair<DmaOp*, Buffer*> CreateDramBufferAndDmaOp(Buffer* b, OwnedOpGraph& opGraph)
 {
     // Create a DRAM buffer where the data is coming from or going to
-    auto dramBuffer          = std::make_unique<Buffer>(Lifetime::Atomic, Location::Dram, CascadingBufferFormat::NHWCB,
-                                               b->m_TensorShape, TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
+    auto dramBuffer          = std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB, b->m_TensorShape,
+                                               TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
                                                utils::TotalSizeBytesNHWCB(b->m_TensorShape), b->m_QuantizationInfo);
     dramBuffer->m_BufferType = BufferType::Intermediate;
 
@@ -710,8 +710,8 @@ std::unique_ptr<Glue> Combiner::GenerateGlueBetweenSramAndSram(const Buffer* buf
     Glue* resultRaw = result.get();
 
     auto dramBuffer = std::make_unique<Buffer>(
-        Lifetime::Atomic, Location::Dram, cascadingBufferFormat, buffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
-        TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(buffer->m_TensorShape), buffer->m_QuantizationInfo);
+        Location::Dram, cascadingBufferFormat, buffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
+        utils::TotalSizeBytesNHWCB(buffer->m_TensorShape), buffer->m_QuantizationInfo);
     dramBuffer->m_BufferType = BufferType::Intermediate;
 
     auto dma1             = std::make_unique<DmaOp>();
@@ -741,8 +741,8 @@ std::unique_ptr<Glue> Combiner::GenerateGlueBetweenSramAndSrams(const Buffer* bu
 
     // A single DRAM buffer is shared
     auto dramBuffer = std::make_unique<Buffer>(
-        Lifetime::Atomic, Location::Dram, cascadingBufferFormat, buffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
-        TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(buffer->m_TensorShape), buffer->m_QuantizationInfo);
+        Location::Dram, cascadingBufferFormat, buffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
+        utils::TotalSizeBytesNHWCB(buffer->m_TensorShape), buffer->m_QuantizationInfo);
     dramBuffer->m_BufferType = BufferType::Intermediate;
 
     // A input DMA is shared to move data from source SRAM
@@ -976,6 +976,34 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
     return result;
 }
 
+void Combiner::DeallocateUnusedBuffers(const Plan& sPlan, SramAllocator& allocator)
+{
+    for (auto&& buffer : sPlan.m_OpGraph.GetBuffers())
+    {
+        if (buffer->m_Location != Location::Sram)
+        {
+            continue;
+        }
+
+        assert(buffer->m_Offset.has_value() == true);
+
+        bool allConsumersAreAtomic          = false;
+        OpGraph::ConsumersList consumerList = sPlan.m_OpGraph.GetConsumers(buffer);
+
+        if (!consumerList.empty())
+        {
+            allConsumersAreAtomic =
+                std::all_of(consumerList.begin(), consumerList.end(),
+                            [](std::pair<Op*, uint32_t> x) { return x.first->m_Lifetime == Lifetime::Atomic; });
+        }
+
+        if (allConsumersAreAtomic == true)
+        {
+            allocator.Free(0, buffer->m_Offset.value());
+        }
+    }
+}
+
 // Try to end a section of the combination.
 // This is called only when a section needs to be ended since the plan
 // requirements are different to ContinueSection
@@ -1009,6 +1037,9 @@ Combination Combiner::EndSection(const BasePart& part,
         ethosn::command_stream::BlockConfig blkConfig = sPlan.GetBlockConfigures(connection.m_Source);
         Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
 
+        SramAllocator allocCopy = alloc;
+        DeallocateUnusedBuffers(sPlan, allocCopy);
+
         // Check if this Part can double buffer.
         // By default, no double buffering is performed.
         uint32_t currNumWeightStripesMax = g_NumWeightStripesMin;
@@ -1037,7 +1068,7 @@ Combination Combiner::EndSection(const BasePart& part,
             {
                 // Make a copy of the allocator since every plan needs to have its own,
                 // each potential section won't allocate from the same allocator.
-                SramAllocator tempAlloc = alloc;
+                SramAllocator tempAlloc = allocCopy;
 
                 PleOperations tempPleOps = pleOps;
 
@@ -1344,6 +1375,9 @@ Combination Combiner::ContinueSection(const BasePart& part,
         ethosn::command_stream::BlockConfig blkConfig = sPlan.GetBlockConfigures(connection.m_Source);
         Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
 
+        SramAllocator allocCopy = alloc;
+        DeallocateUnusedBuffers(sPlan, allocCopy);
+
         // Check if this Part can double buffer.
         // By default, no double buffering is performed.
         uint32_t currNumWeightStripesMax = g_NumWeightStripesMin;
@@ -1378,7 +1412,7 @@ Combination Combiner::ContinueSection(const BasePart& part,
             {
                 // Make a copy of the allocator since every plan needs to have its own,
                 // each potential section won't allocate from the same allocator.
-                SramAllocator tempAlloc = alloc;
+                SramAllocator tempAlloc = allocCopy;
 
                 PleOperations tempPleOps = pleOps;
 

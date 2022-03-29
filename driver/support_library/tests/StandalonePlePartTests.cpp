@@ -96,7 +96,6 @@ void CheckOutputBuffer(Buffer* buffer, const CheckPlansParams& params)
     if (buffer)
     {
         CHECK(buffer->m_Location == Location::Sram);
-        CHECK(buffer->m_Lifetime == Lifetime::Cascade);
         CHECK(buffer->m_Format == params.m_DataFormat);
         CHECK(buffer->m_TensorShape == params.m_OutputTensorInfo.m_Dimensions);
         CHECK(buffer->m_StripeShape == params.m_OutputStripeShape);
@@ -112,7 +111,6 @@ void CheckInputBuffer(Buffer* buffer, const CheckPlansParams& params, size_t buf
     if (buffer)
     {
         CHECK(buffer->m_Location == Location::Sram);
-        CHECK(buffer->m_Lifetime == Lifetime::Cascade);
         CHECK(buffer->m_Format == params.m_DataFormat);
         CHECK(buffer->m_TensorShape == params.m_InputTensorsInfo[bufIdx].m_Dimensions);
         CHECK(buffer->m_StripeShape == params.m_InputStripeShapes[bufIdx]);

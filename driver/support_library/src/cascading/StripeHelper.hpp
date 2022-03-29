@@ -147,7 +147,6 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
                        const TensorShape& tensorShape,
                        const TensorShape& pleInputMemoryShape,
                        const QuantizationInfo& quantInfo,
-                       Lifetime lifetime,
                        TraversalOrder order,
                        Location location);
 

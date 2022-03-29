@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -37,7 +37,6 @@ void CheckOutputDram(Buffer* outputBuffer, const CheckPlansParams& params)
     if (outputBuffer)
     {
         CHECK(outputBuffer->m_Location == Location::Dram);
-        CHECK(outputBuffer->m_Lifetime == Lifetime::Atomic);
         CHECK(outputBuffer->m_Format == CascadingBufferFormat::NHWCB);
         CHECK(outputBuffer->m_QuantizationInfo == params.m_InputQuantInfo);
         CHECK(outputBuffer->m_TensorShape == params.m_InputShape);

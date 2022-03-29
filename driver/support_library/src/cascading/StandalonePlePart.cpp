@@ -151,8 +151,12 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
 
     // Uses block configure (16, 16) which will be ignored
     // by a standalone PLE kernel.
+    // Standalone PLE Ops either have an Atomic Lifetime or
+    // form Lonely plans. In the latter case, Lifetime is
+    // irrelevant because SRAM eviction will not take place.
+    // Therefore, Lifetime::Atomic is used in all cases below.
     command_stream::BlockConfig blkConfig = { 16u, 16u };
-    auto op                               = std::make_unique<PleOp>(Lifetime::Cascade, m_KernelOperation, blkConfig,
+    auto op                               = std::make_unique<PleOp>(Lifetime::Atomic, m_KernelOperation, blkConfig,
                                       static_cast<uint32_t>(m_InputTensorShapes.size()), m_InputTensorShapes,
                                       m_OutputTensorShape, m_DataType, true);
 
@@ -170,15 +174,14 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
     // PLE input buffers
     for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)
     {
-        pleInputBuffers[i] =
-            AddPleInBuffer(opGraph, rv.inputSramAllocations.at(i).numStripesInTile, m_InputTensorShapes.at(i),
-                           rv.inputSramAllocations.at(i).stripeShape, m_InputQuantizationInfos.at(i), Lifetime::Cascade,
-                           TraversalOrder::Xyz, Location::Sram);
+        pleInputBuffers[i] = AddPleInBuffer(opGraph, rv.inputSramAllocations.at(i).numStripesInTile,
+                                            m_InputTensorShapes.at(i), rv.inputSramAllocations.at(i).stripeShape,
+                                            m_InputQuantizationInfos.at(i), TraversalOrder::Xyz, Location::Sram);
     }
 
     // Output buffer
     auto outBufferAndPleOp = AddPleToOpGraph(
-        opGraph, Lifetime::Cascade, TraversalOrder::Xyz, rv.outputSramAllocation.stripeShape, numMemoryStripes,
+        opGraph, Lifetime::Atomic, TraversalOrder::Xyz, rv.outputSramAllocation.stripeShape, numMemoryStripes,
         std::move(op), m_OutputTensorShape, m_OutputQuantizationInfo, m_CorrespondingOperationIds);
 
     for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)

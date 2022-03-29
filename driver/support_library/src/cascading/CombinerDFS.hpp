@@ -241,6 +241,7 @@ public:
     bool ArePlansStreamingStrategiesCompatible(const Plan& reference,
                                                const Plan& current,
                                                const PartConnection& slots) const;
+    void DeallocateUnusedBuffers(const Plan& sPlan, SramAllocator& allocator);
 
     const Combination& GetBestCombination() const;
     Combination GetBestCombination(Combinations& combs) const;
