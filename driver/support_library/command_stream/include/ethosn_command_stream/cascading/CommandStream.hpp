@@ -121,6 +121,20 @@ enum class MceOperation : uint8_t
 /// Mce Scheduler work size
 ETHOSN_DECL_SV_VECTOR_STRUCT(MceSWorkSize, ofmHeight, ofmWidth, ofmChannels, ifmChannels)
 
+struct FilterShape
+{
+    uint8_t width;
+    uint8_t height;
+    ETHOSN_USE_AS_SV_VECTOR(FilterShape, uint8_t, 2)
+};
+
+struct Padding
+{
+    uint8_t left;
+    uint8_t top;
+    ETHOSN_USE_AS_SV_VECTOR(Padding, uint8_t, 2)
+};
+
 /// Mce Scheduler data
 struct MceS
 {
@@ -146,6 +160,8 @@ struct MceS
     int16_t ifmZeroPoint;
     /// Mce Op mode can be: conv, depthwise, fully connected
     MceOperation mceOpMode;
+    FilterShape filterShape;
+    Padding padding;
     /// Relu activation values
     ReluActivation reluActiv;
     /// ID of the PLE kernel

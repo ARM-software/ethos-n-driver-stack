@@ -366,6 +366,8 @@ void XmlParser::Pop(cascading::MceS& value)
     Pop("CONV_STRIDE_XY", value.convStrideXy);
     Pop("MCE_SCHEDULER/IFM_ZERO_POINT", value.ifmZeroPoint);
     Pop("MCE_SCHEDULER/MCE_OP_MODE", value.mceOpMode);
+    Pop("FILTER_SHAPE", value.filterShape);
+    Pop("PADDING", value.padding);
     Pop("RELU_ACTIV", value.reluActiv);
 }
 
@@ -436,7 +438,6 @@ void XmlParser::Pop(const std::string& keyPrefix, cascading::WgtSWorkSize<uint16
 
 void XmlParser::Pop(const std::string& keyPrefix, cascading::PleIfmInfo& value)
 {
-
     Pop(keyPrefix + "/ZERO_POINT", value.zeroPoint);
     Pop(keyPrefix + "/MULTIPLIER", value.multiplier);
     Pop(keyPrefix + "/SHIFT", value.shift);
@@ -462,6 +463,18 @@ void XmlParser::Pop(const std::string& key, cascading::MceOperation& value)
     {
         throw ParseException(key + " is not a MceOperation: " + str);
     }
+}
+
+void XmlParser::Pop(const std::string& keyPrefix, cascading::FilterShape& value)
+{
+    Pop(keyPrefix + "/WIDTH", value.width);
+    Pop(keyPrefix + "/HEIGHT", value.height);
+}
+
+void XmlParser::Pop(const std::string& keyPrefix, cascading::Padding& value)
+{
+    Pop(keyPrefix + "/LEFT", value.left);
+    Pop(keyPrefix + "/TOP", value.top);
 }
 
 void XmlParser::Pop(const std::string& key, cascading::PleInputMode& value)

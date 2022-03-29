@@ -634,6 +634,14 @@ const std::string g_XmlStr =
                 </CONV_STRIDE_XY>
                 <IFM_ZERO_POINT>-2</IFM_ZERO_POINT>
                 <MCE_OP_MODE>DEPTHWISE_CONVOLUTION</MCE_OP_MODE>
+                <FILTER_SHAPE>
+                    <WIDTH>7</WIDTH>
+                    <HEIGHT>18</HEIGHT>
+                </FILTER_SHAPE>
+                <PADDING>
+                    <LEFT>12</LEFT>
+                    <TOP>15</TOP>
+                </PADDING>
                 <RELU_ACTIV>
                     <MIN>-3</MIN>
                     <MAX>2</MAX>
