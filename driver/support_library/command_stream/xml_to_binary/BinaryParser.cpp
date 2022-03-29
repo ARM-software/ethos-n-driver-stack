@@ -614,6 +614,11 @@ void Parse(mxml_node_t& parent, const cascading::FmsDataType& dataType)
             Parse(parent, "FCAF_DEEP");
             break;
         }
+        case cascading::FmsDataType::NHWCB:
+        {
+            Parse(parent, "NHWCB");
+            break;
+        }
         default:
         {
             throw ParseException("Invalid Data Type in binary input: " +

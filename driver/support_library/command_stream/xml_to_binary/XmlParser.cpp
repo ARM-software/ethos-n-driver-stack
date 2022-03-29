@@ -865,6 +865,7 @@ void XmlParser::Pop(const std::string& key, cascading::FmsDataType& value)
     POP_DATA_TYPE_CASE(NHWC)
     POP_DATA_TYPE_CASE(FCAF_WIDE)
     POP_DATA_TYPE_CASE(FCAF_DEEP)
+    POP_DATA_TYPE_CASE(NHWCB)
 
     throw ParseException(key + " is not a valid data type: " + str);
 }

@@ -37,6 +37,7 @@ enum class FmsDataType : uint8_t
     NHWC,
     FCAF_WIDE,
     FCAF_DEEP,
+    NHWCB,
 };
 
 /// FCAF Compression Info
