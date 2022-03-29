@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -90,6 +90,28 @@ enum class FixGraphSeverity
     // 'Meta' values required for easy iteration over all severity values. Update these if the above values are changed.
     Lowest  = Low,
     Highest = High
+};
+
+enum class NodeType
+{
+    InputNode,
+    OutputNode,
+    ConstantNode,
+    MceOperationNode,
+    FuseOnlyPleOperationNode,
+    LeakyReluNode,
+    StandalonePleOperationNode,
+    McePostProcessOperationNode,
+    SoftmaxNode,
+    RequantizeNode,
+    CopyNode,
+    FormatConversionNode,
+    SpaceToDepthNode,
+    ReinterpretNode,
+    ConcatNode,
+    ExtractSubtensorNode,
+    EstimateOnlyNode,
+    NameOnlyNode
 };
 
 using NodeId = size_t;
@@ -188,8 +210,8 @@ public:
     /// @{
     virtual void ResetPreparation();
     virtual void PrepareAfterPassAssignment(SramAllocator& sramAllocator);
-    virtual bool IsPrepared() = 0;    // Subclasses must implement this and perform their own checks.
-
+    virtual bool IsPrepared()      = 0;    // Subclasses must implement this and perform their own checks.
+    virtual NodeType GetNodeType() = 0;
     /// Attempts to make changes to the graph in order to allow this node to be prepared in the next iteration.
     /// This could, for example, change the hints on some nodes or add a new node to the graph.
     /// The severity parameter allows some modifications to be made only if absolutely necessary (i.e. no other

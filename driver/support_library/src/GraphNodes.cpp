@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -79,6 +79,11 @@ bool InputNode::IsPrepared()
     return true;
 }
 
+NodeType InputNode::GetNodeType()
+{
+    return NodeType::InputNode;
+}
+
 void InputNode::Generate(command_stream::CommandStreamBuffer& cmdStream, BufferManager& bufferManager, bool dumpRam)
 {
     Node::Generate(cmdStream, bufferManager, dumpRam);
@@ -113,6 +118,11 @@ void ConstantNode::PrepareAfterPassAssignment(SramAllocator&)
 bool ConstantNode::IsPrepared()
 {
     return true;
+}
+
+NodeType ConstantNode::GetNodeType()
+{
+    return NodeType::ConstantNode;
 }
 
 void ConstantNode::Generate(command_stream::CommandStreamBuffer& cmdStream, BufferManager& bufferManager, bool dumpRam)
@@ -308,6 +318,11 @@ bool MceOperationNode::IsPrepared()
     return m_Pass != nullptr;
 }
 
+NodeType MceOperationNode::GetNodeType()
+{
+    return NodeType::MceOperationNode;
+}
+
 DotAttributes MceOperationNode::GetDotAttributes()
 {
     DotAttributes result    = Node::GetDotAttributes();
@@ -366,6 +381,11 @@ bool McePostProcessOperationNode::IsPrepared()
     return m_Pass != nullptr;
 }
 
+NodeType McePostProcessOperationNode::GetNodeType()
+{
+    return NodeType::McePostProcessOperationNode;
+}
+
 DotAttributes McePostProcessOperationNode::GetDotAttributes()
 {
     DotAttributes result = Node::GetDotAttributes();
@@ -419,6 +439,11 @@ bool FuseOnlyPleOperationNode::IsAgnosticToRequantisation() const
 bool FuseOnlyPleOperationNode::IsPrepared()
 {
     return m_Pass != nullptr;
+}
+
+NodeType FuseOnlyPleOperationNode::GetNodeType()
+{
+    return NodeType::FuseOnlyPleOperationNode;
 }
 
 void FuseOnlyPleOperationNode::SetFixGraphInsertIdentityNodeHint(bool isIdentityNode)
@@ -525,6 +550,11 @@ bool StandalonePleOperationNode::IsPrepared()
     return m_Pass != nullptr;
 }
 
+NodeType StandalonePleOperationNode::GetNodeType()
+{
+    return NodeType::StandalonePleOperationNode;
+}
+
 DotAttributes StandalonePleOperationNode::GetDotAttributes()
 {
     DotAttributes result = Node::GetDotAttributes();
@@ -561,6 +591,11 @@ FormatConversionNode::FormatConversionNode(NodeId id,
 bool FormatConversionNode::IsPrepared()
 {
     return m_Pass != nullptr;
+}
+
+NodeType FormatConversionNode::GetNodeType()
+{
+    return NodeType::FormatConversionNode;
 }
 
 DotAttributes FormatConversionNode::GetDotAttributes()
@@ -619,6 +654,11 @@ bool SpaceToDepthNode::IsPrepared()
     return m_Pass != nullptr;
 }
 
+NodeType SpaceToDepthNode::GetNodeType()
+{
+    return NodeType::SpaceToDepthNode;
+}
+
 ReinterpretNode::ReinterpretNode(NodeId id,
                                  const TensorShape& outputTensorShape,
                                  DataType dataType,
@@ -644,6 +684,11 @@ bool ReinterpretNode::IsPrepared()
         return false;
     }
     return true;
+}
+
+NodeType ReinterpretNode::GetNodeType()
+{
+    return NodeType::ReinterpretNode;
 }
 
 void ReinterpretNode::Generate(command_stream::CommandStreamBuffer& cmdStream,
@@ -749,6 +794,11 @@ bool ConcatNode::IsPrepared()
     return true;
 }
 
+NodeType ConcatNode::GetNodeType()
+{
+    return NodeType::ConcatNode;
+}
+
 DotAttributes ConcatNode::GetDotAttributes()
 {
     DotAttributes result = Node::GetDotAttributes();
@@ -817,6 +867,11 @@ bool ExtractSubtensorNode::IsPrepared()
     return m_Pass != nullptr;
 }
 
+NodeType ExtractSubtensorNode::GetNodeType()
+{
+    return NodeType::ExtractSubtensorNode;
+}
+
 bool ExtractSubtensorNode::FixGraph(Graph& graph, FixGraphSeverity)
 {
     // It may be that the we cannot be placed into an McePlePass, so if there isn't one directly after us
@@ -852,6 +907,11 @@ bool SoftmaxNode::IsPrepared()
     return false;
 }
 
+NodeType SoftmaxNode::GetNodeType()
+{
+    return NodeType::SoftmaxNode;
+}
+
 SoftmaxNode::SoftmaxNode(NodeId id,
                          const TensorShape& outputTensorShape,
                          DataType dataType,
@@ -873,6 +933,11 @@ CopyNode::CopyNode(NodeId id,
 bool CopyNode::IsPrepared()
 {
     return m_Pass != nullptr;
+}
+
+NodeType CopyNode::GetNodeType()
+{
+    return NodeType::CopyNode;
 }
 
 bool CopyNode::FixGraph(Graph& graph, FixGraphSeverity severity)
@@ -908,6 +973,11 @@ RequantizeNode::RequantizeNode(NodeId id,
 bool RequantizeNode::IsPrepared()
 {
     return m_Pass != nullptr;
+}
+
+NodeType RequantizeNode::GetNodeType()
+{
+    return NodeType::RequantizeNode;
 }
 
 bool RequantizeNode::FixGraph(Graph& graph, FixGraphSeverity severity)
@@ -980,6 +1050,11 @@ bool OutputNode::IsPrepared()
         return false;
     }
     return true;
+}
+
+NodeType OutputNode::GetNodeType()
+{
+    return NodeType::OutputNode;
 }
 
 bool OutputNode::FixGraph(Graph& graph, FixGraphSeverity severity)
@@ -1056,6 +1131,11 @@ EstimateOnlyNode::EstimateOnlyNode(NodeId id,
 bool EstimateOnlyNode::IsPrepared()
 {
     return false;
+}
+
+NodeType EstimateOnlyNode::GetNodeType()
+{
+    return NodeType::EstimateOnlyNode;
 }
 
 void EstimateOnlyNode::Estimate(NetworkPerformanceData& perfData, const EstimationOptions&)

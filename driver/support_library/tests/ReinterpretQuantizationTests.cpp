@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -242,8 +242,8 @@ SCENARIO("Visit ReinterpretQuantization Operation")
                 const std::unique_ptr<Node>& outputNode              = graphNodes[nodeIdxToCheck];
 
                 //Check that the ReinterpretNode is correctly created
-                const ReinterpretNode* reinterpretNode = dynamic_cast<const ReinterpretNode*>(outputNode.get());
-                REQUIRE(reinterpretNode != nullptr);
+                auto reinterpretNode = outputNode.get();
+                REQUIRE(reinterpretNode->GetNodeType() == NodeType::ReinterpretNode);
 
                 const QuantizationInfo actualQuantizationInfo = reinterpretNode->GetQuantizationInfo();
                 CAPTURE(actualQuantizationInfo.GetZeroPoint(), actualQuantizationInfo.GetScale(),

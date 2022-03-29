@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -29,6 +29,7 @@ public:
     InputNode(NodeId id, const TensorInfo& outputTensorInfo, std::set<uint32_t> correspondingOperationIds);
 
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
     void Generate(command_stream::CommandStreamBuffer& cmdStream, BufferManager& bufferManager, bool dumpRam) override;
     DotAttributes GetDotAttributes() override;
     void ResetPreparation() override;
@@ -46,6 +47,7 @@ public:
     {}    // OutputNode doesn't really have an output...
 
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
     void Generate(command_stream::CommandStreamBuffer& cmdStream, BufferManager& bufferManager, bool dumpRam) override;
     DotAttributes GetDotAttributes() override;
     bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
@@ -76,6 +78,7 @@ public:
 
     void PrepareAfterPassAssignment(SramAllocator& sramAllocator) override;
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
     void Generate(command_stream::CommandStreamBuffer& cmdStream, BufferManager& bufferManager, bool dumpRam) override;
 
     DotAttributes GetDotAttributes() override;
@@ -138,6 +141,7 @@ public:
     void SetFixGraphAlgorithmHint(AlgorithmHint a);
 
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
     DotAttributes GetDotAttributes() override;
 
     bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
@@ -186,6 +190,7 @@ public:
     bool IsAgnosticToRequantisation() const;
 
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
     DotAttributes GetDotAttributes() override;
 
     bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
@@ -243,6 +248,7 @@ public:
     command_stream::PleOperation GetKernelOperation() const;
 
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
     DotAttributes GetDotAttributes() override;
     bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
 
@@ -265,6 +271,7 @@ public:
     void Apply(ethosn::command_stream::MceData& mceData) const;
 
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
     DotAttributes GetDotAttributes() override;
     bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
 
@@ -284,6 +291,7 @@ public:
                 std::set<uint32_t> correspondingOperationIds);
 
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
 };
 
 class RequantizeNode : public Node
@@ -297,6 +305,7 @@ public:
                    std::set<uint32_t> correspondingOperationIds);
 
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
     bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
     DotAttributes GetDotAttributes() override;
 
@@ -315,6 +324,7 @@ public:
              std::set<uint32_t> correspondingOperationIds);
 
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
     bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
     DotAttributes GetDotAttributes() override;
 };
@@ -330,6 +340,7 @@ public:
                          std::set<uint32_t> correspondingOperationIds);
 
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
     DotAttributes GetDotAttributes() override;
     bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
 };
@@ -345,6 +356,7 @@ public:
                      std::set<uint32_t> correspondingOperationIds);
 
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
 };
 
 class ReinterpretNode : public Node
@@ -358,6 +370,7 @@ public:
                     std::set<uint32_t> correspondingOperationIds);
 
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
     void Generate(command_stream::CommandStreamBuffer& cmdStream, BufferManager& bufferManager, bool dumpRam) override;
     DotAttributes GetDotAttributes() override;
     bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
@@ -376,6 +389,7 @@ public:
                std::set<uint32_t> correspondingOperationIds);
 
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
     void Generate(command_stream::CommandStreamBuffer& cmdStream, BufferManager& bufferManager, bool dumpRam) override;
     DotAttributes GetDotAttributes() override;
     bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
@@ -404,6 +418,7 @@ public:
 
     DotAttributes GetDotAttributes() override;
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
     bool FixGraph(Graph& graph, FixGraphSeverity severity) override;
 
     TensorShape GetSupertensorOffset();
@@ -424,6 +439,7 @@ public:
                      const char* reasons);
 
     bool IsPrepared() override;
+    NodeType GetNodeType() override;
 
     void Estimate(NetworkPerformanceData& perfStream, const EstimationOptions& estimationOptions) override;
 

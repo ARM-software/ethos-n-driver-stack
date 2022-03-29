@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -37,6 +37,11 @@ public:
     bool IsPrepared() override
     {
         return false;
+    }
+
+    NodeType GetNodeType() override
+    {
+        return NodeType::NameOnlyNode;
     }
 
     std::string m_Name;
@@ -186,18 +191,17 @@ TEST_CASE("FixGraph ConvertOutputTo")
 
     // Check resulting graph structure
     REQUIRE(g.GetNodes().size() == 4);    // Two new node should have been added
-    const FormatConversionNode* fmtConv1 = dynamic_cast<const FormatConversionNode*>(g.GetNodes()[2].get());
-    const FormatConversionNode* fmtConv2 = dynamic_cast<const FormatConversionNode*>(g.GetNodes()[3].get());
-    REQUIRE(fmtConv1 != nullptr);
+    auto fmtConv1 = g.GetNodes()[2].get();
+    auto fmtConv2 = g.GetNodes()[3].get();
+    REQUIRE(fmtConv1->GetNodeType() == NodeType::FormatConversionNode);
     REQUIRE(fmtConv1->GetFormat() == CompilerDataFormat::NHWCB);
-    REQUIRE(fmtConv2 != nullptr);
+    REQUIRE(fmtConv2->GetNodeType() == NodeType::FormatConversionNode);
     REQUIRE(fmtConv2->GetFormat() == CompilerDataFormat::NHWC);
 
     REQUIRE(input->GetOutputs()[0] == fmtConv1->GetInput(0));
     REQUIRE(fmtConv1->GetOutputs()[0] == fmtConv2->GetInput(0));
     REQUIRE(fmtConv2->GetOutputs()[0] == conv->GetInput(0));
 }
-
 /// Checks that setting FixGraphConvertOutputTo on a node which already has a FormatConversionNode
 /// on its output doesn't add another. If it did this could lead to the preparation loop getting stuck
 /// and repeatedly adding more nodes with no benefit.
@@ -232,7 +236,7 @@ TEST_CASE("FixGraph InputNode -> OutputNode Adds CopyNode")
     output->FixGraph(graph, FixGraphSeverity::Highest);
 
     REQUIRE(graph.GetNodes().size() == 3);
-    REQUIRE(dynamic_cast<CopyNode*>(graph.GetNodes()[2].get()));
+    REQUIRE(graph.GetNodes()[2]->GetNodeType() == NodeType::CopyNode);
 }
 
 /// Checks that going from InputNode -> ReinterpretNode -> OutputNode adds a Copy Node
@@ -252,7 +256,7 @@ TEST_CASE("FixGraph InputNode -> ReinterpretNode -> OutputNode Adds CopyNode")
     output->FixGraph(graph, FixGraphSeverity::Highest);
 
     REQUIRE(graph.GetNodes().size() == 4);
-    REQUIRE(dynamic_cast<CopyNode*>(graph.GetNodes()[3].get()));
+    REQUIRE(graph.GetNodes()[3].get()->GetNodeType() == NodeType::CopyNode);
 }
 
 /// Checks that going from any Node to ReinterpretNode works fine when the Node before
@@ -295,10 +299,9 @@ TEST_CASE("FixGraph modifies CompressionHint for ReinterpretNode")
     graph.Connect(fuseOnlyPleOperation, reinterpret0);
     graph.Connect(reinterpret0, reinterpret1);
 
-    const FuseOnlyPleOperationNode* fuseOnlyPleNode =
-        dynamic_cast<const FuseOnlyPleOperationNode*>(graph.GetNodes()[2].get());
-    const ReinterpretNode* reinterpretNode0 = dynamic_cast<const ReinterpretNode*>(graph.GetNodes()[3].get());
-    const ReinterpretNode* reinterpretNode1 = dynamic_cast<const ReinterpretNode*>(graph.GetNodes()[4].get());
+    auto fuseOnlyPleNode  = graph.GetNodes()[2].get();
+    auto reinterpretNode0 = graph.GetNodes()[3].get();
+    auto reinterpretNode1 = graph.GetNodes()[4].get();
 
     // Checks before fixing the graph
     REQUIRE(fuseOnlyPleNode->GetCompressionHint() != CompressionHint::RequiredUncompressed);
@@ -309,9 +312,9 @@ TEST_CASE("FixGraph modifies CompressionHint for ReinterpretNode")
     reinterpret1->FixGraph(graph, FixGraphSeverity::Highest);
 
     REQUIRE(graph.GetNodes().size() == 5);
-    fuseOnlyPleNode  = dynamic_cast<const FuseOnlyPleOperationNode*>(graph.GetNodes()[2].get());
-    reinterpretNode0 = dynamic_cast<const ReinterpretNode*>(graph.GetNodes()[3].get());
-    reinterpretNode1 = dynamic_cast<const ReinterpretNode*>(graph.GetNodes()[4].get());
+    fuseOnlyPleNode  = graph.GetNodes()[2].get();
+    reinterpretNode0 = graph.GetNodes()[3].get();
+    reinterpretNode1 = graph.GetNodes()[4].get();
 
     REQUIRE(fuseOnlyPleNode->GetCompressionHint() != CompressionHint::RequiredUncompressed);
     REQUIRE(reinterpretNode0->GetCompressionHint() == CompressionHint::RequiredUncompressed);
@@ -321,9 +324,9 @@ TEST_CASE("FixGraph modifies CompressionHint for ReinterpretNode")
     reinterpret0->FixGraph(graph, FixGraphSeverity::Highest);
 
     REQUIRE(graph.GetNodes().size() == 5);
-    fuseOnlyPleNode  = dynamic_cast<const FuseOnlyPleOperationNode*>(graph.GetNodes()[2].get());
-    reinterpretNode0 = dynamic_cast<const ReinterpretNode*>(graph.GetNodes()[3].get());
-    reinterpretNode1 = dynamic_cast<const ReinterpretNode*>(graph.GetNodes()[4].get());
+    fuseOnlyPleNode  = graph.GetNodes()[2].get();
+    reinterpretNode0 = graph.GetNodes()[3].get();
+    reinterpretNode1 = graph.GetNodes()[4].get();
 
     REQUIRE(fuseOnlyPleNode->GetCompressionHint() == CompressionHint::RequiredUncompressed);
     REQUIRE(reinterpretNode0->GetCompressionHint() == CompressionHint::RequiredUncompressed);
