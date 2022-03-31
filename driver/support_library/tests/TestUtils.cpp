@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -10,6 +10,7 @@
 #include "../src/cascading/Plan.hpp"
 
 #include <cstring>
+#include <typeinfo>
 
 namespace ethosn
 {
@@ -96,6 +97,21 @@ ethosn::command_stream::CommandStream GetCommandStream(const CompiledNetwork* co
         reinterpret_cast<const uint32_t*>(cnImpl->GetConstantControlUnitData().data() + cmdStreamBufferInfo->m_Offset);
     const uint32_t* end = begin + cmdStreamBufferInfo->m_Size / sizeof(uint32_t);
     return ethosn::command_stream::CommandStream(begin, end);
+}
+
+bool IsEstimateOnlyOp(const Op* const op)
+{
+    return typeid(*op) == typeid(EstimateOnlyOp);
+}
+
+bool IsMceOp(const Op* const op)
+{
+    return typeid(*op) == typeid(MceOp);
+}
+
+bool IsPleOp(const Op* const op)
+{
+    return typeid(*op) == typeid(PleOp);
 }
 
 }    // namespace support_library

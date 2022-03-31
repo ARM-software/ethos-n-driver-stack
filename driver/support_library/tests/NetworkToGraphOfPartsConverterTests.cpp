@@ -341,8 +341,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Requantize EstimateOnly")
             TensorShape{ 1, 1, 1, 16 });
     REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
             TensorShape{ 1, 1, 1, 16 });
-    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
-    REQUIRE(estimateOnlyOp != nullptr);
+    Op* maybeEstimateOnlyOp = plans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
+    EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
     CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Output scale must be bigger than input scale / 128") !=
           std::string::npos);
 }
@@ -541,8 +542,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat EstimateOnly")
             TensorShape{ 1, 16, 16, 24 });
     REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
             TensorShape{ 1, 16, 16, 48 });
-    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
-    REQUIRE(estimateOnlyOp != nullptr);
+    Op* maybeEstimateOnlyOp = plans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
+    EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
     CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Concatenation along the channels dimension (axis 3) requires "
                                                        "input tensors with a multiple of 16 channels") !=
           std::string::npos);
@@ -634,8 +636,10 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
     REQUIRE(meanxyPlePart_7x7 != nullptr);
     auto meanxyPlans_7x7 =
         meanxyPlePart_7x7->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(dynamic_cast<PleOp*>(meanxyPlans_7x7[0].m_OpGraph.GetOp(2))->m_Op ==
-            ethosn::command_stream::PleOperation::MEAN_XY_7X7);
+    Op* maybePleOpMeanXy7x7 = meanxyPlans_7x7[0].m_OpGraph.GetOp(2);
+    REQUIRE(IsPleOp(maybePleOpMeanXy7x7));
+    PleOp* pleOpMeanXy7x7 = static_cast<PleOp*>(maybePleOpMeanXy7x7);
+    REQUIRE(pleOpMeanXy7x7->m_Op == ethosn::command_stream::PleOperation::MEAN_XY_7X7);
     REQUIRE(graph.GetPartInputs(1).size() == 1);
     REQUIRE(graph.GetPartOutputs(1).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
@@ -651,8 +655,10 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
     REQUIRE(meanxyPoolPlePart_7x7 != nullptr);
     auto meanxyPoolPlans_7x7 =
         meanxyPoolPlePart_7x7->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(dynamic_cast<PleOp*>(meanxyPoolPlans_7x7[0].m_OpGraph.GetOp(2))->m_Op ==
-            ethosn::command_stream::PleOperation::MEAN_XY_7X7);
+    Op* maybePleOpMeanXyPoolPlans7x7 = meanxyPoolPlans_7x7[0].m_OpGraph.GetOp(2);
+    REQUIRE(IsPleOp(maybePleOpMeanXyPoolPlans7x7));
+    PleOp* pleOpMeanXyPool7x7 = static_cast<PleOp*>(maybePleOpMeanXyPoolPlans7x7);
+    REQUIRE(pleOpMeanXyPool7x7->m_Op == ethosn::command_stream::PleOperation::MEAN_XY_7X7);
     REQUIRE(graph.GetPartInputs(3).size() == 1);
     REQUIRE(graph.GetPartOutputs(3).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 3, 0 }).value().m_PartId == 0);
@@ -674,8 +680,10 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
     REQUIRE(meanxyPlePart_8x8 != nullptr);
     auto meanxyPlans_8x8 =
         meanxyPlePart_8x8->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(dynamic_cast<PleOp*>(meanxyPlans_8x8[0].m_OpGraph.GetOp(2))->m_Op ==
-            ethosn::command_stream::PleOperation::MEAN_XY_8X8);
+    Op* maybePleOpMeanXyPlans8x8 = meanxyPlans_8x8[0].m_OpGraph.GetOp(2);
+    REQUIRE(IsPleOp(maybePleOpMeanXyPlans8x8));
+    PleOp* pleOpMeanXyPlans8x8 = static_cast<PleOp*>(maybePleOpMeanXyPlans8x8);
+    REQUIRE(pleOpMeanXyPlans8x8->m_Op == ethosn::command_stream::PleOperation::MEAN_XY_8X8);
     REQUIRE(graph.GetPartInputs(6).size() == 1);
     REQUIRE(graph.GetPartOutputs(6).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 6, 0 }).value().m_PartId == 5);
@@ -691,8 +699,10 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MeanXy")
     REQUIRE(meanxyPoolPlePart_8x8 != nullptr);
     auto meanxyPoolPlans_8x8 =
         meanxyPoolPlePart_8x8->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(dynamic_cast<PleOp*>(meanxyPoolPlans_8x8[0].m_OpGraph.GetOp(2))->m_Op ==
-            ethosn::command_stream::PleOperation::MEAN_XY_8X8);
+    Op* maybePleOpMeanXyPoolPlans8x8 = meanxyPoolPlans_8x8[0].m_OpGraph.GetOp(2);
+    REQUIRE(IsPleOp(maybePleOpMeanXyPoolPlans8x8));
+    PleOp* pleOpMeanXyPoolPlans8x8 = static_cast<PleOp*>(maybePleOpMeanXyPoolPlans8x8);
+    REQUIRE(pleOpMeanXyPoolPlans8x8->m_Op == ethosn::command_stream::PleOperation::MEAN_XY_8X8);
     REQUIRE(graph.GetPartInputs(8).size() == 1);
     REQUIRE(graph.GetPartOutputs(8).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 8, 0 }).value().m_PartId == 5);
@@ -778,8 +788,10 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
     const FusedPlePart* tanhPlePart = dynamic_cast<const FusedPlePart*>(&graph.GetPart(1));
     REQUIRE(tanhPlePart != nullptr);
     auto tanhPlans = tanhPlePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(dynamic_cast<PleOp*>(tanhPlans[0].m_OpGraph.GetOp(2))->m_Op ==
-            ethosn::command_stream::PleOperation::SIGMOID);
+    Op* maybePleOpTanhPlans = tanhPlans[0].m_OpGraph.GetOp(2);
+    REQUIRE(IsPleOp(maybePleOpTanhPlans));
+    PleOp* pleOpTanhPlans = static_cast<PleOp*>(maybePleOpTanhPlans);
+    REQUIRE(pleOpTanhPlans->m_Op == ethosn::command_stream::PleOperation::SIGMOID);
     REQUIRE(graph.GetPartInputs(1).size() == 1);
     REQUIRE(graph.GetPartOutputs(1).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
@@ -794,8 +806,10 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
     REQUIRE(sigmoidPlePart != nullptr);
     auto sigmoidPlans =
         sigmoidPlePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(dynamic_cast<PleOp*>(sigmoidPlans[0].m_OpGraph.GetOp(2))->m_Op ==
-            ethosn::command_stream::PleOperation::SIGMOID);
+    Op* maybePleOpSigmoidPlans = sigmoidPlans[0].m_OpGraph.GetOp(2);
+    REQUIRE(IsPleOp(maybePleOpSigmoidPlans));
+    PleOp* pleOpSigmoidPlans = static_cast<PleOp*>(maybePleOpSigmoidPlans);
+    REQUIRE(pleOpSigmoidPlans->m_Op == ethosn::command_stream::PleOperation::SIGMOID);
     REQUIRE(graph.GetPartInputs(3).size() == 1);
     REQUIRE(graph.GetPartOutputs(3).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 3, 0 }).value().m_PartId == 0);
@@ -810,8 +824,10 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest LeakyRelu Sigmoid Tanh")
     REQUIRE(leakyreluPlePart != nullptr);
     auto leakyreluPlans =
         leakyreluPlePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(dynamic_cast<PleOp*>(leakyreluPlans[0].m_OpGraph.GetOp(2))->m_Op ==
-            ethosn::command_stream::PleOperation::LEAKY_RELU);
+    Op* maybePleOpLeakyReluPlans = leakyreluPlans[0].m_OpGraph.GetOp(2);
+    REQUIRE(IsPleOp(maybePleOpLeakyReluPlans));
+    PleOp* pleOpLeakyReluPlans = static_cast<PleOp*>(maybePleOpLeakyReluPlans);
+    REQUIRE(pleOpLeakyReluPlans->m_Op == ethosn::command_stream::PleOperation::LEAKY_RELU);
     REQUIRE(graph.GetPartInputs(5).size() == 1);
     REQUIRE(graph.GetPartOutputs(5).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 5, 0 }).value().m_PartId == 0);
@@ -881,8 +897,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter LeakyRelu EstimateOnly")
             TensorShape{ 1, 16, 16, 16 });
     REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
             TensorShape{ 1, 16, 16, 16 });
-    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
-    REQUIRE(estimateOnlyOp != nullptr);
+    Op* maybeEstimateOnlyOp = plans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
+    EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
     CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Leaky relu alpha must be less than 1 and greater than 0") !=
           std::string::npos);
 }
@@ -963,8 +980,10 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MaxPool_3X3_2_2")
     REQUIRE(maxpoolEvenPart != nullptr);
     auto maxpoolEvenPlans =
         maxpoolEvenPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(dynamic_cast<PleOp*>(maxpoolEvenPlans[0].m_OpGraph.GetOp(2))->m_Op ==
-            ethosn::command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN);
+    Op* maybePleOpMaxPoolEvenPlans = maxpoolEvenPlans[0].m_OpGraph.GetOp(2);
+    REQUIRE(IsPleOp(maybePleOpMaxPoolEvenPlans));
+    PleOp* pleOpMaxPoolEvenPlans = static_cast<PleOp*>(maybePleOpMaxPoolEvenPlans);
+    REQUIRE(pleOpMaxPoolEvenPlans->m_Op == ethosn::command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN);
     REQUIRE(graph.GetPartInputs(1).size() == 1);
     REQUIRE(graph.GetPartOutputs(1).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
@@ -984,8 +1003,10 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest MaxPool_3X3_2_2")
     REQUIRE(maxpoolOddPart != nullptr);
     auto maxpoolOddPlans =
         maxpoolOddPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(dynamic_cast<PleOp*>(maxpoolOddPlans[0].m_OpGraph.GetOp(2))->m_Op ==
-            ethosn::command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD);
+    Op* maybePleOpMaxPoolOddPlans = maxpoolOddPlans[0].m_OpGraph.GetOp(2);
+    REQUIRE(IsPleOp(maybePleOpMaxPoolOddPlans));
+    PleOp* pleOpMaxPoolOddPlans = static_cast<PleOp*>(maybePleOpMaxPoolOddPlans);
+    REQUIRE(pleOpMaxPoolOddPlans->m_Op == ethosn::command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD);
     REQUIRE(graph.GetPartInputs(4).size() == 1);
     REQUIRE(graph.GetPartOutputs(4).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 4, 0 }).value().m_PartId == 3);
@@ -1066,8 +1087,10 @@ TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected")
     const FullyConnectedPart* part = dynamic_cast<const FullyConnectedPart*>(&graph.GetPart(1));
     REQUIRE(part != nullptr);
 
-    auto plans   = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    MceOp* mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
+    auto plans     = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    Op* maybeMceOp = plans[0].m_OpGraph.GetOp(1);
+    REQUIRE(IsMceOp(maybeMceOp));
+    MceOp* mceOp = static_cast<MceOp*>(maybeMceOp);
     REQUIRE(mceOp->m_Op == ethosn::command_stream::MceOperation::FULLY_CONNECTED);
 }
 
@@ -1147,8 +1170,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected EstimateOnly")
             TensorShape{ 1, 1, 2, 256 });
     REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
             TensorShape{ 1, 1, 1, 64 });
-    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
-    REQUIRE(estimateOnlyOp != nullptr);
+    Op* maybeEstimateOnlyOp = plans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
+    EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
     CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find(
               "Input to fully connected is expected to be one dimensional using the channels dimension.") !=
           std::string::npos);
@@ -1306,13 +1330,17 @@ TEST_CASE("NetworkToGraphOfPartsConverter Strided Depthwise")
     REQUIRE(operation.value() == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION);
 
     {
-        auto plans   = plePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-        PleOp* pleOp = dynamic_cast<PleOp*>(plans[0].m_OpGraph.GetOp(2));
+        auto plans     = plePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+        Op* maybePleOp = plans[0].m_OpGraph.GetOp(2);
+        REQUIRE(IsPleOp(maybePleOp));
+        PleOp* pleOp = static_cast<PleOp*>(maybePleOp);
         REQUIRE(pleOp->m_Op == ethosn::command_stream::PleOperation::INTERLEAVE_2X2_2_2);
     }
     {
-        auto plans   = mcePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-        MceOp* mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
+        auto plans     = mcePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+        Op* maybeMceOp = plans[0].m_OpGraph.GetOp(1);
+        REQUIRE(IsMceOp(maybeMceOp));
+        MceOp* mceOp = static_cast<MceOp*>(maybeMceOp);
         REQUIRE(mceOp->m_Stride == Stride{ 2, 2 });
     }
 }
@@ -1456,8 +1484,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Depthwise EstimateOnly")
             TensorShape{ 1, 1, 1, 3 });
     REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
             TensorShape{ 1, 1, 1, 3 });
-    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
-    REQUIRE(estimateOnlyOp != nullptr);
+    Op* maybeEstimateOnlyOp = plans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
+    EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
     CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Bias for depthwise conv must have quantization parameters with "
                                                        "zero point of 0 and scale of input scale x weight scale") !=
           std::string::npos);
@@ -1519,8 +1548,10 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA")
     REQUIRE(avePoolPlePart != nullptr);
     auto avePoolPlans =
         avePoolPlePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(dynamic_cast<PleOp*>(avePoolPlans[0].m_OpGraph.GetOp(0))->m_Op ==
-            ethosn::command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA);
+    Op* maybePleOpAvePoolPlans = avePoolPlans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsPleOp(maybePleOpAvePoolPlans));
+    PleOp* pleOpAvePoolPlans = static_cast<PleOp*>(maybePleOpAvePoolPlans);
+    REQUIRE(pleOpAvePoolPlans->m_Op == ethosn::command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA);
     REQUIRE(graph.GetPartInputs(1).size() == 1);
     REQUIRE(graph.GetPartOutputs(1).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
@@ -1584,8 +1615,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest AVGPOOL_3X3_1_1_UDMA EstimateOnly"
             TensorShape{ 1, 16, 16, 16 });
     REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
             TensorShape{ 1, 17, 16, 16 });
-    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
-    REQUIRE(estimateOnlyOp != nullptr);
+    Op* maybeEstimateOnlyOp = plans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
+    EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
     CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Unsupported configuration in AVG pooling") !=
           std::string::npos);
 }
@@ -1657,8 +1689,10 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION")
     REQUIRE(additionPlePart != nullptr);
     auto additionPlans =
         additionPlePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(dynamic_cast<PleOp*>(additionPlans[0].m_OpGraph.GetOp(0))->m_Op ==
-            ethosn::command_stream::PleOperation::ADDITION);
+    Op* maybePleOpAdditionPlans = additionPlans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsPleOp(maybePleOpAdditionPlans));
+    PleOp* pleOpAdditionPlans = static_cast<PleOp*>(maybePleOpAdditionPlans);
+    REQUIRE(pleOpAdditionPlans->m_Op == ethosn::command_stream::PleOperation::ADDITION);
     REQUIRE(graph.GetPartInputs(2).size() == 2);
     REQUIRE(graph.GetPartOutputs(2).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 0);
@@ -1738,8 +1772,10 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION_RESCALE")
     REQUIRE(additionPlePart != nullptr);
     auto additionPlans =
         additionPlePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(dynamic_cast<PleOp*>(additionPlans[0].m_OpGraph.GetOp(0))->m_Op ==
-            ethosn::command_stream::PleOperation::ADDITION_RESCALE);
+    Op* maybePleOpAdditionPlans = additionPlans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsPleOp(maybePleOpAdditionPlans));
+    PleOp* pleOpAdditionPlans = static_cast<PleOp*>(maybePleOpAdditionPlans);
+    REQUIRE(pleOpAdditionPlans->m_Op == ethosn::command_stream::PleOperation::ADDITION_RESCALE);
     REQUIRE(graph.GetPartInputs(2).size() == 2);
     REQUIRE(graph.GetPartOutputs(2).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 0);
@@ -1811,8 +1847,9 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest ADDITION EstimateOnly")
             TensorShape{ 1, 16, 16, 16 });
     REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
             TensorShape{ 1, 16, 16, 16 });
-    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
-    REQUIRE(estimateOnlyOp != nullptr);
+    Op* maybeEstimateOnlyOp = plans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
+    EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
     CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Cannot stretch along the requested dimensions.") !=
           std::string::npos);
 }
@@ -1863,9 +1900,10 @@ TEST_CASE("NetworkToGraphOfPartsConverter Resize")
     // between the Parts are covered by NetworkToGraphOfPartsConverterTest
     const McePart* mcePart = dynamic_cast<const McePart*>(&graph.GetPart(1));
     REQUIRE(mcePart != nullptr);
-    auto plans = mcePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    auto mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
-    REQUIRE(mceOp != nullptr);
+    auto plans     = mcePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    Op* maybeMceOp = plans[0].m_OpGraph.GetOp(1);
+    REQUIRE(IsMceOp(maybeMceOp));
+    MceOp* mceOp = static_cast<MceOp*>(maybeMceOp);
     CHECK(mceOp->m_UpscaleFactor == 2);
     CHECK(mceOp->m_UpsampleType == ethosn::command_stream::UpsampleType::BILINEAR);
 }
@@ -1917,8 +1955,10 @@ TEST_CASE("NetworkToGraphOfPartsConverter Relu")
     const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(1));
     REQUIRE(part != nullptr);
 
-    auto plans   = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    MceOp* mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
+    auto plans     = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    Op* maybeMceOp = plans[0].m_OpGraph.GetOp(1);
+    REQUIRE(IsMceOp(maybeMceOp));
+    MceOp* mceOp = static_cast<MceOp*>(maybeMceOp);
     // Ensure the lower and upper bound on the mce op is correct.
     REQUIRE(mceOp->m_LowerBound == 100);
     REQUIRE(mceOp->m_UpperBound == 200);
@@ -1997,8 +2037,10 @@ TEST_CASE("NetworkToGraphOfPartsConverter Conv Relu")
     const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(1));
     REQUIRE(part != nullptr);
 
-    auto plans   = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    MceOp* mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
+    auto plans     = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    Op* maybeMceOp = plans[0].m_OpGraph.GetOp(1);
+    REQUIRE(IsMceOp(maybeMceOp));
+    MceOp* mceOp = static_cast<MceOp*>(maybeMceOp);
     // Ensure the lower and upper bound on the mce op is correct.
     REQUIRE(mceOp->m_LowerBound == 100);
     REQUIRE(mceOp->m_UpperBound == 200);
@@ -2079,8 +2121,10 @@ TEST_CASE("NetworkToGraphOfPartsConverter Relu Conv")
         const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(1));
         REQUIRE(part != nullptr);
 
-        auto plans   = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-        MceOp* mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
+        auto plans     = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+        Op* maybeMceOp = plans[0].m_OpGraph.GetOp(1);
+        REQUIRE(IsMceOp(maybeMceOp));
+        MceOp* mceOp = static_cast<MceOp*>(maybeMceOp);
         // Ensure the lower and upper bound on the identity mce op for the relu is correct.
         REQUIRE(mceOp->m_LowerBound == 100);
         REQUIRE(mceOp->m_UpperBound == 200);
@@ -2090,8 +2134,10 @@ TEST_CASE("NetworkToGraphOfPartsConverter Relu Conv")
         const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(2));
         REQUIRE(part != nullptr);
 
-        auto plans   = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-        MceOp* mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
+        auto plans     = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+        Op* maybeMceOp = plans[0].m_OpGraph.GetOp(1);
+        REQUIRE(IsMceOp(maybeMceOp));
+        MceOp* mceOp = static_cast<MceOp*>(maybeMceOp);
         // Ensure the lower and upper bound on convolution hasn't changed.
         REQUIRE(mceOp->m_LowerBound == 0);
         REQUIRE(mceOp->m_UpperBound == 255);
@@ -2156,8 +2202,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Conv EstimateOnly")
             TensorShape{ 1, 16, 16, 16 });
     REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
             TensorShape{ 1, 8, 16, 16 });
-    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
-    REQUIRE(estimateOnlyOp != nullptr);
+    Op* maybeEstimateOnlyOp = plans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
+    EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
     CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find(
               "Unsupported stride. Stride X and Y must be equal and in { 1, 2 }") != std::string::npos);
 }
@@ -2211,9 +2258,10 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution")
     // between the Parts are covered by NetworkToGraphOfPartsConverterTest
     const McePart* mcePart = dynamic_cast<const McePart*>(&graph.GetPart(1));
     REQUIRE(mcePart != nullptr);
-    auto plans = mcePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    auto mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
-    REQUIRE(mceOp != nullptr);
+    auto plans     = mcePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    Op* maybeMceOp = plans[0].m_OpGraph.GetOp(1);
+    REQUIRE(IsMceOp(maybeMceOp));
+    MceOp* mceOp = static_cast<MceOp*>(maybeMceOp);
     CHECK(mceOp->m_UpscaleFactor == 2);
     CHECK(mceOp->m_UpsampleType == ethosn::command_stream::UpsampleType::TRANSPOSE);
     CHECK(mceOp->m_PadTop == 2);
@@ -2271,9 +2319,10 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution Large Weights")
     // between the Parts are covered by NetworkToGraphOfPartsConverterTest
     const McePart* mcePart1 = dynamic_cast<const McePart*>(&graph.GetPart(1));
     REQUIRE(mcePart1 != nullptr);
-    auto plans1 = mcePart1->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    auto mceOp1 = dynamic_cast<MceOp*>(plans1[0].m_OpGraph.GetOp(1));
-    REQUIRE(mceOp1 != nullptr);
+    auto plans1     = mcePart1->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    Op* maybeMceOp1 = plans1[0].m_OpGraph.GetOp(1);
+    REQUIRE(IsMceOp(maybeMceOp1));
+    MceOp* mceOp1 = static_cast<MceOp*>(maybeMceOp1);
     CHECK(mceOp1->m_UpscaleFactor == 2);
     CHECK(mceOp1->m_UpsampleType == ethosn::command_stream::UpsampleType::TRANSPOSE);
     CHECK(mceOp1->m_PadTop == 0);
@@ -2283,9 +2332,10 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution Large Weights")
 
     const McePart* mcePart2 = dynamic_cast<const McePart*>(&graph.GetPart(2));
     REQUIRE(mcePart2 != nullptr);
-    auto plans2 = mcePart2->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    auto mceOp2 = dynamic_cast<MceOp*>(plans2[0].m_OpGraph.GetOp(1));
-    REQUIRE(mceOp2 != nullptr);
+    auto plans2     = mcePart2->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    Op* maybeMceOp2 = plans2[0].m_OpGraph.GetOp(1);
+    REQUIRE(IsMceOp(maybeMceOp2));
+    MceOp* mceOp2 = static_cast<MceOp*>(maybeMceOp2);
     CHECK(mceOp2->m_UpscaleFactor == 1);
     CHECK(mceOp2->m_UpsampleType == ethosn::command_stream::UpsampleType::OFF);
     CHECK(mceOp2->m_PadTop == 4);
@@ -2349,8 +2399,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution EstimateOnly")
             TensorShape{ 1, 16, 16, 16 });
     REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
             TensorShape{ 1, 46, 46, 4 });
-    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
-    REQUIRE(estimateOnlyOp != nullptr);
+    Op* maybeEstimateOnlyOp = plans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
+    EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
     CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Unsupported stride") != std::string::npos);
 }
 
@@ -2647,8 +2698,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter Softmax EstimateOnly")
             TensorShape{ 1, 16, 16, 16 });
     REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
             TensorShape{ 1, 16, 16, 16 });
-    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
-    REQUIRE(estimateOnlyOp != nullptr);
+    Op* maybeEstimateOnlyOp = plans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
+    EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
     CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("softmax is not supported by ethosn NPU") != std::string::npos);
 }
 
@@ -2713,8 +2765,10 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Downsample_2x2")
     REQUIRE(downsamplePart != nullptr);
     auto downsamplePlans =
         downsamplePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    REQUIRE(dynamic_cast<PleOp*>(downsamplePlans[0].m_OpGraph.GetOp(2))->m_Op ==
-            ethosn::command_stream::PleOperation::DOWNSAMPLE_2X2);
+    Op* maybePleOpDownsamplePlans = downsamplePlans[0].m_OpGraph.GetOp(2);
+    REQUIRE(IsPleOp(maybePleOpDownsamplePlans));
+    PleOp* pleOpDownsamplePlans = static_cast<PleOp*>(maybePleOpDownsamplePlans);
+    REQUIRE(pleOpDownsamplePlans->m_Op == ethosn::command_stream::PleOperation::DOWNSAMPLE_2X2);
     REQUIRE(graph.GetPartInputs(1).size() == 1);
     REQUIRE(graph.GetPartOutputs(1).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
@@ -2770,9 +2824,10 @@ TEST_CASE("NetworkToGraphOfPartsConverter DepthToSpace")
     // between the Parts are covered by NetworkToGraphOfPartsConverterTest
     const McePart* mcePart = dynamic_cast<const McePart*>(&graph.GetPart(1));
     REQUIRE(mcePart != nullptr);
-    auto plans = mcePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    auto mceOp = dynamic_cast<MceOp*>(plans[0].m_OpGraph.GetOp(1));
-    REQUIRE(mceOp != nullptr);
+    auto plans     = mcePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    Op* maybeMceOp = plans[0].m_OpGraph.GetOp(1);
+    REQUIRE(IsMceOp(maybeMceOp));
+    MceOp* mceOp = static_cast<MceOp*>(maybeMceOp);
     CHECK(mceOp->m_UpscaleFactor == 2);
     CHECK(mceOp->m_UpsampleType == ethosn::command_stream::UpsampleType::TRANSPOSE);
     CHECK(mceOp->m_PadTop == 1);
@@ -2828,8 +2883,9 @@ TEST_CASE("NetworkToGraphOfPartsConverter DepthToSpace EstimateOnly")
             TensorShape{ 1, 1, 1, 16 });
     REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
             TensorShape{ 1, 1, 1, 16 });
-    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
-    REQUIRE(estimateOnlyOp != nullptr);
+    Op* maybeEstimateOnlyOp = plans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
+    EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
     CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Only block size of 2 is supported") != std::string::npos);
 }
 
@@ -2877,7 +2933,8 @@ TEST_CASE("NetworkToGraphOfPartsConverter EstimateOnly")
             TensorShape{ 1, 1, 1, 16 });
     REQUIRE(plans[0].GetOutputBuffer(PartOutputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
             TensorShape{ 1, 1, 1, 16 });
-    auto estimateOnlyOp = dynamic_cast<EstimateOnlyOp*>(plans[0].m_OpGraph.GetOp(0));
-    REQUIRE(estimateOnlyOp != nullptr);
+    Op* maybeEstimateOnlyOp = plans[0].m_OpGraph.GetOp(0);
+    REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
+    EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
     CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("EstimateOnly operation added.") != std::string::npos);
 }

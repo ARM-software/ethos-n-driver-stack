@@ -3262,20 +3262,17 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
                                              TensorShape{ 1, 4, 16, 1024 }, numMemoryStripes, std::move(op),
                                              TensorShape{ 1, 4, 16, 1024 }, QuantizationInfo(), operationIds);
 
-    PleOp* ptrPleOp = dynamic_cast<PleOp*>(planA.m_OpGraph.GetOp(1));
-    if (ptrPleOp == nullptr)
-    {
-        REQUIRE(false);
-    }
+    Op* maybePleOp   = planA.m_OpGraph.GetOp(1);
+    const bool isPle = IsPleOp(maybePleOp);
+    REQUIRE(isPle);
+
+    PleOp* actualPleOp = static_cast<PleOp*>(maybePleOp);
 
     // With a PLE kernel, the plan can still fit into SRAM and there is a need to Load the Kernel
     SramAllocator alloc2 = alloc;
     REQUIRE(combiner.IsPlanAllocated(alloc2, planA, pleOps, mockBuffer.get(), StatsType::ContinueSection) == true);
     REQUIRE(pleOps.size() == 1);
-    if (ptrPleOp != nullptr)
-    {
-        REQUIRE(ptrPleOp->m_LoadKernel == true);
-    }
+    REQUIRE(actualPleOp->m_LoadKernel == true);
 
     // PLE kernel used previously has different block height
     // The plan is expected to be fit into SRAM and there is a need to Load the Kernel
@@ -3284,10 +3281,7 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
     PleOperations pleOps1  = { { pleKernel1, 0 } };
     REQUIRE(combiner.IsPlanAllocated(alloc3, planA, pleOps1, mockBuffer.get(), StatsType::ContinueSection) == true);
     REQUIRE(pleOps1.size() == 2);
-    if (ptrPleOp != nullptr)
-    {
-        REQUIRE(ptrPleOp->m_LoadKernel == true);
-    }
+    REQUIRE(actualPleOp->m_LoadKernel == true);
 
     // PLE kernel passthrough is already used previously in the same
     // section, the plan is expected to be fit into SRAM and no need to Load the Kernel
@@ -3296,10 +3290,7 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
     PleOperations pleOps2  = { { pleKernel2, 0 } };
     REQUIRE(combiner.IsPlanAllocated(alloc4, planA, pleOps2, mockBuffer.get(), StatsType::ContinueSection) == true);
     REQUIRE(pleOps2.size() == 1);
-    if (ptrPleOp != nullptr)
-    {
-        REQUIRE(ptrPleOp->m_LoadKernel == false);
-    }
+    REQUIRE(actualPleOp->m_LoadKernel == false);
 
     SramAllocator alloc5 = alloc;
     // Allocate memory where the plan and the allocated memory exceeds the SRAM Size
@@ -3310,10 +3301,7 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
     PleOperations pleOps3 = {};
     REQUIRE(combiner.IsPlanAllocated(alloc5, planA, pleOps3, mockBuffer.get(), StatsType::ContinueSection) == false);
     REQUIRE(pleOps3.size() == 0);
-    if (ptrPleOp != nullptr)
-    {
-        REQUIRE(ptrPleOp->m_LoadKernel == true);
-    }
+    REQUIRE(actualPleOp->m_LoadKernel == true);
 
     ETHOSN_UNUSED(outBufferAndPleOp);
 }
@@ -3393,27 +3381,21 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
                                                      TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
                                                      TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
-            PleOp* ptrPleOp = dynamic_cast<PleOp*>(planA.m_OpGraph.GetOp(1));
-            if (ptrPleOp == nullptr)
-            {
-                REQUIRE(false);
-            }
+            Op* maybePleOp   = planA.m_OpGraph.GetOp(1);
+            const bool isPle = IsPleOp(maybePleOp);
+            REQUIRE(isPle);
 
-            if (ptrPleOp != nullptr)
-            {
-                REQUIRE(ptrPleOp->m_Offset.has_value() == false);
-            }
+            PleOp* actualPleOp = static_cast<PleOp*>(maybePleOp);
+
+            REQUIRE(actualPleOp->m_Offset.has_value() == false);
 
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == false);
             REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
             REQUIRE(planA.m_OpGraph.GetBuffers()[2]->m_Offset.has_value() == false);
             REQUIRE(combiner.IsPlanAllocated(alloc, planA, pleOps, nullptr, StatsType::SinglePartSection) == true);
 
-            if (ptrPleOp != nullptr)
-            {
-                REQUIRE(ptrPleOp->m_Offset.has_value() == true);
-                REQUIRE(ptrPleOp->m_Offset.value() == currentSramOffset);
-            }
+            REQUIRE(actualPleOp->m_Offset.has_value() == true);
+            REQUIRE(actualPleOp->m_Offset.value() == currentSramOffset);
 
             currentSramOffset += hwCaps.GetMaxPleSize() / hwCaps.GetNumberOfSrams();
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == true);
@@ -3516,27 +3498,21 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                                                      TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
                                                      TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
-            PleOp* ptrPleOp = dynamic_cast<PleOp*>(planA.m_OpGraph.GetOp(1));
-            if (ptrPleOp == nullptr)
-            {
-                REQUIRE(false);
-            }
+            Op* maybePleOp   = planA.m_OpGraph.GetOp(1);
+            const bool isPle = IsPleOp(maybePleOp);
+            REQUIRE(isPle);
 
-            if (ptrPleOp != nullptr)
-            {
-                REQUIRE(ptrPleOp->m_Offset.has_value() == false);
-            }
+            PleOp* actualPleOp = static_cast<PleOp*>(maybePleOp);
+
+            REQUIRE(actualPleOp->m_Offset.has_value() == false);
 
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == false);
             REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
             REQUIRE(planA.m_OpGraph.GetBuffers()[2]->m_Offset.has_value() == false);
             REQUIRE(combiner.IsPlanAllocated(alloc, planA, pleOps, nullptr, StatsType::StartSection) == true);
 
-            if (ptrPleOp != nullptr)
-            {
-                REQUIRE(ptrPleOp->m_Offset.has_value() == true);
-                REQUIRE(ptrPleOp->m_Offset.value() == currentSramOffset);
-            }
+            REQUIRE(actualPleOp->m_Offset.has_value() == true);
+            REQUIRE(actualPleOp->m_Offset.value() == currentSramOffset);
 
             currentSramOffset += hwCaps.GetMaxPleSize() / hwCaps.GetNumberOfSrams();
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == true);
@@ -3595,23 +3571,25 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                                                          TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
                                                          TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
-                PleOp* ptrPleOpA = dynamic_cast<PleOp*>(planA.m_OpGraph.GetOp(1));
-                PleOp* ptrPleOpB = dynamic_cast<PleOp*>(planB.m_OpGraph.GetOp(1));
-                if (ptrPleOpA == nullptr || ptrPleOpB == nullptr)
-                {
-                    REQUIRE(false);
-                }
+                Op* maybePleOpA   = planA.m_OpGraph.GetOp(1);
+                const bool isPleA = IsPleOp(maybePleOpA);
+                REQUIRE(isPleA);
 
-                REQUIRE(ptrPleOpB->m_LoadKernel == true);
+                PleOp* actualPleOpA = static_cast<PleOp*>(maybePleOpA);
+
+                Op* maybePleOpB   = planB.m_OpGraph.GetOp(1);
+                const bool isPleB = IsPleOp(maybePleOpB);
+                REQUIRE(isPleB);
+
+                PleOp* actualPleOpB = static_cast<PleOp*>(maybePleOpB);
+
+                REQUIRE(actualPleOpB->m_LoadKernel == true);
                 REQUIRE(combiner.IsPlanAllocated(alloc, planB, pleOps, planA.m_OpGraph.GetBuffers()[2],
                                                  StatsType::ContinueSection) == true);
                 REQUIRE(pleOps.size() == 1);
 
-                if (ptrPleOpA != nullptr && ptrPleOpB != nullptr)
-                {
-                    REQUIRE(ptrPleOpB->m_LoadKernel == false);
-                    REQUIRE(ptrPleOpB->m_Offset == ptrPleOpA->m_Offset);
-                }
+                REQUIRE(actualPleOpB->m_LoadKernel == false);
+                REQUIRE(actualPleOpB->m_Offset == actualPleOpA->m_Offset);
 
                 REQUIRE(planB.m_OpGraph.GetBuffers()[2]->m_Offset.value() == currentSramOffset);
                 currentSramOffset += planB.m_OpGraph.GetBuffers()[2]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
@@ -3633,27 +3611,24 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                                                          TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
                                                          TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
-                PleOp* ptrPleOpA = dynamic_cast<PleOp*>(planA.m_OpGraph.GetOp(1));
-                PleOp* ptrPleOpB = dynamic_cast<PleOp*>(planB.m_OpGraph.GetOp(1));
-                if (ptrPleOpA == nullptr || ptrPleOpB == nullptr)
-                {
-                    REQUIRE(false);
-                }
+                Op* maybePleOpA   = planA.m_OpGraph.GetOp(1);
+                const bool isPleA = IsPleOp(maybePleOpA);
+                REQUIRE(isPleA);
 
-                if (ptrPleOpB != nullptr)
-                {
-                    REQUIRE(ptrPleOpB->m_LoadKernel == true);
-                }
+                Op* maybePleOpB   = planB.m_OpGraph.GetOp(1);
+                const bool isPleB = IsPleOp(maybePleOpB);
+                REQUIRE(isPleB);
+
+                PleOp* actualPleOpB = static_cast<PleOp*>(maybePleOpB);
+
+                REQUIRE(actualPleOpB->m_LoadKernel == true);
 
                 REQUIRE(combiner.IsPlanAllocated(alloc, planB, pleOps, planA.m_OpGraph.GetBuffers()[2],
                                                  StatsType::ContinueSection) == true);
                 REQUIRE(pleOps.size() == 2);
 
-                if (ptrPleOpB != nullptr)
-                {
-                    REQUIRE(ptrPleOpB->m_LoadKernel == true);
-                    REQUIRE(ptrPleOpB->m_Offset == currentSramOffset);
-                }
+                REQUIRE(actualPleOpB->m_LoadKernel == true);
+                REQUIRE(actualPleOpB->m_Offset == currentSramOffset);
 
                 currentSramOffset += hwCaps.GetMaxPleSize() / hwCaps.GetNumberOfSrams();
                 REQUIRE(planB.m_OpGraph.GetBuffers()[2]->m_Offset.value() == currentSramOffset);
@@ -3704,32 +3679,31 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                         planC.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz, TensorShape{ 1, 8, 8, 8 },
                         numMemoryStripes, std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
-                    PleOp* ptrPleOpA = dynamic_cast<PleOp*>(planA.m_OpGraph.GetOp(1));
-                    PleOp* ptrPleOpB = dynamic_cast<PleOp*>(planB.m_OpGraph.GetOp(1));
-                    PleOp* ptrPleOpC = dynamic_cast<PleOp*>(planC.m_OpGraph.GetOp(1));
-                    if (ptrPleOpA == nullptr || ptrPleOpB == nullptr || ptrPleOpC == nullptr)
-                    {
-                        REQUIRE(false);
-                    }
+                    Op* maybePleOpA   = planA.m_OpGraph.GetOp(1);
+                    const bool isPleA = IsPleOp(maybePleOpA);
+                    REQUIRE(isPleA);
 
-                    if (ptrPleOpC != nullptr)
-                    {
-                        REQUIRE(ptrPleOpC->m_LoadKernel == true);
-                    }
+                    Op* maybePleOpB   = planB.m_OpGraph.GetOp(1);
+                    const bool isPleB = IsPleOp(maybePleOpB);
+                    REQUIRE(isPleB);
+
+                    PleOp* actualPleOpB = static_cast<PleOp*>(maybePleOpB);
+
+                    Op* maybePleOpC   = planC.m_OpGraph.GetOp(1);
+                    const bool isPleC = IsPleOp(maybePleOpC);
+                    REQUIRE(isPleC);
+
+                    PleOp* actualPleOpC = static_cast<PleOp*>(maybePleOpC);
+
+                    REQUIRE(actualPleOpC->m_LoadKernel == true);
 
                     REQUIRE(combiner.IsPlanAllocated(alloc, planC, pleOps, planB.m_OpGraph.GetBuffers()[2],
                                                      StatsType::EndSection) == true);
                     REQUIRE(pleOps.size() == 2);
 
-                    if (ptrPleOpC != nullptr)
-                    {
-                        REQUIRE(ptrPleOpC->m_LoadKernel == false);
-                    }
+                    REQUIRE(actualPleOpC->m_LoadKernel == false);
 
-                    if (ptrPleOpC != nullptr && ptrPleOpB != nullptr)
-                    {
-                        REQUIRE(ptrPleOpC->m_Offset == ptrPleOpB->m_Offset);
-                    }
+                    REQUIRE(actualPleOpC->m_Offset == actualPleOpB->m_Offset);
 
                     REQUIRE(planC.m_OpGraph.GetBuffers()[2]->m_Offset.value() == currentSramOffset);
                     currentSramOffset += planC.m_OpGraph.GetBuffers()[2]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
@@ -3751,31 +3725,27 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                         planC.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz, TensorShape{ 1, 8, 8, 8 },
                         numMemoryStripes, std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
-                    PleOp* ptrPleOpB = dynamic_cast<PleOp*>(planB.m_OpGraph.GetOp(1));
-                    PleOp* ptrPleOpC = dynamic_cast<PleOp*>(planC.m_OpGraph.GetOp(1));
-                    if (ptrPleOpB == nullptr || ptrPleOpC == nullptr)
-                    {
-                        REQUIRE(false);
-                    }
+                    Op* maybePleOpB   = planB.m_OpGraph.GetOp(1);
+                    const bool isPleB = IsPleOp(maybePleOpB);
+                    REQUIRE(isPleB);
 
-                    if (ptrPleOpC != nullptr)
-                    {
-                        REQUIRE(ptrPleOpC->m_LoadKernel == true);
-                    }
+                    PleOp* actualPleOpB = static_cast<PleOp*>(maybePleOpB);
+
+                    Op* maybePleOpC   = planC.m_OpGraph.GetOp(1);
+                    const bool isPleC = IsPleOp(maybePleOpC);
+                    REQUIRE(isPleC);
+
+                    PleOp* actualPleOpC = static_cast<PleOp*>(maybePleOpC);
+
+                    REQUIRE(actualPleOpC->m_LoadKernel == true);
 
                     REQUIRE(combiner.IsPlanAllocated(alloc, planC, pleOps, planB.m_OpGraph.GetBuffers()[2],
                                                      StatsType::EndSection) == true);
                     REQUIRE(pleOps.size() == 3);
 
-                    if (ptrPleOpB != nullptr)
-                    {
-                        REQUIRE(ptrPleOpB->m_LoadKernel == true);
-                    }
+                    REQUIRE(actualPleOpB->m_LoadKernel == true);
 
-                    if (ptrPleOpC != nullptr)
-                    {
-                        REQUIRE(ptrPleOpC->m_Offset == currentSramOffset);
-                    }
+                    REQUIRE(actualPleOpC->m_Offset == currentSramOffset);
 
                     currentSramOffset += hwCaps.GetMaxPleSize() / hwCaps.GetNumberOfSrams();
                     REQUIRE(planC.m_OpGraph.GetBuffers()[2]->m_Offset.value() == currentSramOffset);

@@ -8,6 +8,7 @@
 #include "../include/ethosn_support_library/Support.hpp"
 #include "../src/Utils.hpp"
 #include "../src/cascading/Part.hpp"
+#include "../src/cascading/Plan.hpp"
 
 #include <ethosn_command_stream/CommandStreamBuffer.hpp>
 
@@ -80,6 +81,10 @@ public:
 
     std::string m_Name;
 };
+
+bool IsEstimateOnlyOp(const Op* const op);
+bool IsMceOp(const Op* const op);
+bool IsPleOp(const Op* const op);
 
 }    // namespace support_library
 }    // namespace ethosn
