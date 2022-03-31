@@ -689,6 +689,28 @@ void Parse(mxml_node_t& parent, const cascading::MceOperation value)
     }
 }
 
+void Parse(mxml_node_t& parent, const cascading::MceAlgorithm value)
+{
+    switch (value)
+    {
+        case cascading::MceAlgorithm::DIRECT:
+        {
+            Parse(parent, "DIRECT");
+            break;
+        }
+        case cascading::MceAlgorithm::WINOGRAD:
+        {
+            Parse(parent, "WINOGRAD");
+            break;
+        }
+        default:
+        {
+            throw ParseException("Invalid MceAlgorithm in binary input: " +
+                                 std::to_string(static_cast<uint32_t>(value)));
+        }
+    }
+}
+
 void Parse(mxml_node_t& parent, const cascading::FilterShape& filterShape)
 {
     Parse(*mxmlNewElement(&parent, "WIDTH"), filterShape.width);
@@ -721,6 +743,7 @@ void Parse(mxml_node_t& parent, const cascading::MceS& mces)
     Parse(*mxmlNewElement(agent_op, "CONV_STRIDE_XY"), mces.convStrideXy);
     Parse(*mxmlNewElement(agent_op, "IFM_ZERO_POINT"), mces.ifmZeroPoint);
     Parse(*mxmlNewElement(agent_op, "MCE_OP_MODE"), mces.mceOpMode);
+    Parse(*mxmlNewElement(agent_op, "ALGORITHM"), mces.algorithm);
     Parse(*mxmlNewElement(agent_op, "FILTER_SHAPE"), mces.filterShape);
     Parse(*mxmlNewElement(agent_op, "PADDING"), mces.padding);
     Parse(*mxmlNewElement(agent_op, "IFM_DELTA"), mces.ifmDelta);

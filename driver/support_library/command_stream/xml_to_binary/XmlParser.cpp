@@ -366,6 +366,7 @@ void XmlParser::Pop(cascading::MceS& value)
     Pop("CONV_STRIDE_XY", value.convStrideXy);
     Pop("MCE_SCHEDULER/IFM_ZERO_POINT", value.ifmZeroPoint);
     Pop("MCE_SCHEDULER/MCE_OP_MODE", value.mceOpMode);
+    Pop("MCE_SCHEDULER/ALGORITHM", value.algorithm);
     Pop("FILTER_SHAPE", value.filterShape);
     Pop("PADDING", value.padding);
     Pop("IFM_DELTA", value.ifmDelta);
@@ -463,6 +464,24 @@ void XmlParser::Pop(const std::string& key, cascading::MceOperation& value)
     else
     {
         throw ParseException(key + " is not a MceOperation: " + str);
+    }
+}
+
+void XmlParser::Pop(const std::string& key, cascading::MceAlgorithm& value)
+{
+    std::string str = Pop(key);
+
+    if (str == "DIRECT")
+    {
+        value = cascading::MceAlgorithm::DIRECT;
+    }
+    else if (str == "WINOGRAD")
+    {
+        value = cascading::MceAlgorithm::WINOGRAD;
+    }
+    else
+    {
+        throw ParseException(key + " is not an MceAlgorithm: " + str);
     }
 }
 

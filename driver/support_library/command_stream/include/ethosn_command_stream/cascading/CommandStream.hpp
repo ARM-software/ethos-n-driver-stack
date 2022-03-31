@@ -142,6 +142,12 @@ struct IfmDelta
     ETHOSN_USE_AS_SV_VECTOR(IfmDelta, int8_t, 2)
 };
 
+enum class MceAlgorithm : uint8_t
+{
+    DIRECT,
+    WINOGRAD,
+};
+
 /// Mce Scheduler data
 struct MceS
 {
@@ -167,6 +173,7 @@ struct MceS
     int16_t ifmZeroPoint;
     /// Mce Op mode can be: conv, depthwise, fully connected
     MceOperation mceOpMode;
+    MceAlgorithm algorithm;
     FilterShape filterShape;
     Padding padding;
     IfmDelta ifmDelta;

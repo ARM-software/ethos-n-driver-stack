@@ -634,6 +634,7 @@ const std::string g_XmlStr =
                 </CONV_STRIDE_XY>
                 <IFM_ZERO_POINT>-2</IFM_ZERO_POINT>
                 <MCE_OP_MODE>DEPTHWISE_CONVOLUTION</MCE_OP_MODE>
+                <ALGORITHM>WINOGRAD</ALGORITHM>
                 <FILTER_SHAPE>
                     <WIDTH>7</WIDTH>
                     <HEIGHT>18</HEIGHT>
