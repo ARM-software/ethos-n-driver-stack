@@ -642,6 +642,10 @@ const std::string g_XmlStr =
                     <LEFT>12</LEFT>
                     <TOP>15</TOP>
                 </PADDING>
+                <IFM_DELTA>
+                    <WIDTH>1</WIDTH>
+                    <HEIGHT>-1</HEIGHT>
+                </IFM_DELTA>
                 <RELU_ACTIV>
                     <MIN>-3</MIN>
                     <MAX>2</MAX>
@@ -649,7 +653,8 @@ const std::string g_XmlStr =
             </MCE_SCHEDULER>
             <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
         </AGENT>
-        <AGENT>
+)"
+    R"(<AGENT>
             <PLE_LOADER>
                 <PLE_KERNEL_ID>SIGMOID_16X8_1_S</PLE_KERNEL_ID>
                 <SRAM_ADDR>4096</SRAM_ADDR>
@@ -795,8 +800,7 @@ const std::string g_XmlStr =
             </WRITE_DEPENDENCY>
         </AGENT>
     </CASCADE>
-)"
-    R"(<!--Command13-->
+    <!--Command13-->
     <OPERATION_SPACE_TO_DEPTH>
         <INPUT_INFO>
             <DATA_TYPE>U8</DATA_TYPE>

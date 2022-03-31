@@ -135,6 +135,13 @@ struct Padding
     ETHOSN_USE_AS_SV_VECTOR(Padding, uint8_t, 2)
 };
 
+struct IfmDelta
+{
+    int8_t width;
+    int8_t height;
+    ETHOSN_USE_AS_SV_VECTOR(IfmDelta, int8_t, 2)
+};
+
 /// Mce Scheduler data
 struct MceS
 {
@@ -162,6 +169,7 @@ struct MceS
     MceOperation mceOpMode;
     FilterShape filterShape;
     Padding padding;
+    IfmDelta ifmDelta;
     /// Relu activation values
     ReluActivation reluActiv;
     /// ID of the PLE kernel

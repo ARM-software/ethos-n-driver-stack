@@ -101,6 +101,7 @@ private:
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::ReluActivation& value);
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::FilterShape& value);
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::Padding& value);
+    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::IfmDelta& ifmDelta);
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::WgtSWorkSize<uint16_t>& value);
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::PleIfmInfo& value);
     template <typename T>

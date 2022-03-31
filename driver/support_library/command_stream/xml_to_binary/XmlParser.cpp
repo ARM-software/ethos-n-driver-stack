@@ -368,6 +368,7 @@ void XmlParser::Pop(cascading::MceS& value)
     Pop("MCE_SCHEDULER/MCE_OP_MODE", value.mceOpMode);
     Pop("FILTER_SHAPE", value.filterShape);
     Pop("PADDING", value.padding);
+    Pop("IFM_DELTA", value.ifmDelta);
     Pop("RELU_ACTIV", value.reluActiv);
 }
 
@@ -475,6 +476,12 @@ void XmlParser::Pop(const std::string& keyPrefix, cascading::Padding& value)
 {
     Pop(keyPrefix + "/LEFT", value.left);
     Pop(keyPrefix + "/TOP", value.top);
+}
+
+void XmlParser::Pop(const std::string& keyPrefix, cascading::IfmDelta& value)
+{
+    Pop(keyPrefix + "/WIDTH", value.width);
+    Pop(keyPrefix + "/HEIGHT", value.height);
 }
 
 void XmlParser::Pop(const std::string& key, cascading::PleInputMode& value)

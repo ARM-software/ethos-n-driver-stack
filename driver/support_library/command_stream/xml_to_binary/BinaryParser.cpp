@@ -701,6 +701,12 @@ void Parse(mxml_node_t& parent, const cascading::Padding& padding)
     Parse(*mxmlNewElement(&parent, "TOP"), padding.top);
 }
 
+void Parse(mxml_node_t& parent, const cascading::IfmDelta& ifmDelta)
+{
+    Parse(*mxmlNewElement(&parent, "WIDTH"), ifmDelta.width);
+    Parse(*mxmlNewElement(&parent, "HEIGHT"), ifmDelta.height);
+}
+
 void Parse(mxml_node_t& parent, const cascading::MceS& mces)
 {
     mxml_node_t* agent_op = mxmlNewElement(&parent, "MCE_SCHEDULER");
@@ -717,6 +723,7 @@ void Parse(mxml_node_t& parent, const cascading::MceS& mces)
     Parse(*mxmlNewElement(agent_op, "MCE_OP_MODE"), mces.mceOpMode);
     Parse(*mxmlNewElement(agent_op, "FILTER_SHAPE"), mces.filterShape);
     Parse(*mxmlNewElement(agent_op, "PADDING"), mces.padding);
+    Parse(*mxmlNewElement(agent_op, "IFM_DELTA"), mces.ifmDelta);
     Parse(*mxmlNewElement(agent_op, "RELU_ACTIV"), mces.reluActiv);
 }
 
