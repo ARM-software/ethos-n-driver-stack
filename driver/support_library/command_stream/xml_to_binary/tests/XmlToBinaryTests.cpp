@@ -645,6 +645,7 @@ const std::string g_XmlStr =
                 <IFM_ZERO_POINT>-2</IFM_ZERO_POINT>
                 <MCE_OP_MODE>DEPTHWISE_CONVOLUTION</MCE_OP_MODE>
                 <ALGORITHM>WINOGRAD</ALGORITHM>
+                <IS_WIDE_FILTER>1</IS_WIDE_FILTER>
                 <FILTER_SHAPE>
                     <WIDTH>7</WIDTH>
                     <HEIGHT>18</HEIGHT>

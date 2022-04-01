@@ -195,6 +195,7 @@ struct MceS
     /// Mce Op mode can be: conv, depthwise, fully connected
     MceOperation mceOpMode;
     MceAlgorithm algorithm;
+    uint8_t isWideFilter;
     FilterShape filterShape;
     Padding padding;
     IfmDelta ifmDelta;
