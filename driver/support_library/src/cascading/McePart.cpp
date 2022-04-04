@@ -93,7 +93,9 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     bool fullWidth                    = GetWidth(sramBuffer->m_StripeShape) >= GetWidth(sramBuffer->m_TensorShape);
     bool fullTensor                   = fullHeight && fullWidth;
     TensorShape mceOutputEncoding     = { 0, 0, 0, 0 };
-    if (fullTensor && numWeightStripes == 1)
+    // If we have the full plane, the number of weight stripes is 1 and we're in the middle of a cascade we can use the full tensor
+    // But if we're at the end of a cascade we can split the output depth so we get more parallelism.
+    if (fullTensor && numWeightStripes == 1 && cascadeType == CascadeType::Middle)
     {
         // strategy 3
         mceOutputEncoding = { 0, 0, 0, 0 };

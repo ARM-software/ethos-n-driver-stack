@@ -832,6 +832,92 @@ TEST_CASE("McePart GetPlans structure")
     }
 }
 
+/// Checks that McePart::GetPlans with end cascade generate the correct stripe shapes given a full tensor input
+/// For the end of a cascade we can split the output in depth because we don't need the full tensor in memory anymore as
+/// there are no further cascading.
+TEST_CASE("McePart End Cascade full tensor")
+{
+    GIVEN("A simple McePart")
+    {
+        const CompilationOptions compOpt;
+        EstimationOptions estOps;
+        const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
+
+        const PartId partId = 0;
+        TensorShape tsIn    = { 1, 19, 19, 256 };
+        TensorShape tsOut   = { 1, 19, 19, 256 };
+        const std::vector<uint8_t> weights(1 * 1 * utils::GetChannels(tsIn) * utils::GetChannels(tsOut), 1);
+        const std::vector<int32_t> bias(utils::GetChannels(tsOut), 0);
+        const QuantizationInfo inputQuantInfo(0, 1.0f);
+        const QuantizationInfo outputQuantInfo(0, 1.0f);
+        const TensorInfo weightsTensorInfo{ TensorShape{ 1, 1, utils::GetChannels(tsIn), 1 }, DataType::UINT8_QUANTIZED,
+                                            DataFormat::HWIM, QuantizationInfo(0, 0.9f) };
+        const TensorInfo biasTensorInfo({ 1, 1, 1, utils::GetChannels(tsOut) });
+        const std::set<uint32_t> operationIds   = { 1, 2, 3 };
+        const command_stream::MceOperation csOp = command_stream::MceOperation::CONVOLUTION;
+        const Stride stride                     = {};
+        const uint32_t padTop                   = 0;
+        const uint32_t padLeft                  = 0;
+        McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, weights, biasTensorInfo,
+                     bias, stride, padTop, padLeft, csOp, estOps, compOpt, caps, operationIds,
+                     ethosn::command_stream::DataType::U8);
+
+        CheckPlansParams params;
+        params.m_PartId            = partId;
+        params.m_InputShape        = tsIn;
+        params.m_InputQuantInfo    = inputQuantInfo;
+        params.m_OutputShape       = tsOut;
+        params.m_OutputQuantInfo   = outputQuantInfo;
+        params.m_WeightsTensorInfo = weightsTensorInfo;
+        params.m_MceOp             = csOp;
+        params.m_Stride            = stride;
+        params.m_PadTop            = padTop;
+        params.m_PadLeft           = padLeft;
+        params.m_OperationIds      = operationIds;
+
+        WHEN("Asked to produce End plans")
+        {
+            Buffer prevBuffer;
+            prevBuffer.m_Location         = Location::Sram;
+            prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
+            prevBuffer.m_QuantizationInfo = { 0, 1.0f };
+            prevBuffer.m_TensorShape      = tsIn;
+            prevBuffer.m_StripeShape      = TensorShape{ 1, 24, 24, 256 };
+            prevBuffer.m_Order            = TraversalOrder::Xyz;
+            prevBuffer.m_SizeInBytes      = 24 * 24 * 256 * 1;
+            prevBuffer.m_NumStripes       = 1;
+
+            Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16U, 16U }, &prevBuffer, 1);
+            SavePlansToDot(plans, "McePart End Cascade");
+
+            THEN("The plans have split the output of the mce, ple and memory buffer")
+            {
+                params.m_InputLocation   = PlanInputLocation::Sram;
+                params.m_OutputLocations = PlanOutputLocation::Sram;
+                params.m_CouldFcafDecomp = false;
+                params.m_Caps            = &caps;
+                // Confirm that we have at least one plan that ends in Sram and at least one that ends in PleInputSram
+                params.m_Any.push_back(
+                    [](const PlanDesc& plan) { return plan.m_Output->m_Location == Location::Sram; });
+                params.m_All = [&](const PlanDesc& plan) {
+                    CHECK(plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16U, 16U });
+                    CHECK(plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 24, 24, 256 });
+                    CHECK(plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 24, 24, 16 });
+                    CHECK(plan.m_Ple->m_BlockConfig == command_stream::BlockConfig{ 16U, 16U });
+                    CHECK(plan.m_Ple->m_InputStripeShapes[0] == TensorShape{ 1, 24, 24, 16 });
+                    CHECK(plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 24, 24, 16 });
+
+                    CHECK(plan.m_Input->m_TensorShape == TensorShape{ 1, 19, 19, 256 });
+                    CHECK(plan.m_Input->m_StripeShape == TensorShape{ 1, 24, 24, 256 });
+                    CHECK(plan.m_Output->m_TensorShape == TensorShape{ 1, 19, 19, 256 });
+                    CHECK(plan.m_Output->m_StripeShape == TensorShape{ 1, 24, 24, 16 });
+                };
+                CheckPlans(plans, params);
+            }
+        }
+    }
+}
+
 // Check if the tile size is multiple of FCAF cell size
 // if the data in the input SRAM buffer is FCAF de-compressed.
 TEST_CASE("McePart GetPlans InputSramBuffer")
