@@ -159,8 +159,100 @@ inline void setMcesAlgorithm(MceS& mceSchedulerData, CompilerMceAlgorithm algori
         assert(false);
     }
 }
-
 }    // namespace MceSUtils
+
+namespace PleSUtils
+{
+
+inline void
+    SetPlesHeightStripeInfo(PleS& pleSchedulerData, const TensorShape& ofmShape, const TensorShape& ofmStripeShape)
+{
+    uint16_t ofmHeight       = static_cast<uint16_t>(utils::GetHeight(ofmShape));
+    uint16_t ofmStripeHeight = static_cast<uint16_t>(utils::GetHeight(ofmStripeShape));
+
+    pleSchedulerData.dfltStripeSize.height = ofmStripeHeight;
+    pleSchedulerData.numStripes.height     = static_cast<uint16_t>(utils::GetNumStripesH(ofmShape, ofmStripeShape));
+
+    pleSchedulerData.edgeStripeSize.height = ofmStripeHeight;
+
+    uint16_t remainingHeight = ofmHeight % ofmStripeHeight;
+    if (remainingHeight != 0)
+    {
+        pleSchedulerData.edgeStripeSize.height = remainingHeight;
+    }
+}
+
+inline void
+    SetPlesWidthStripeInfo(PleS& pleSchedulerData, const TensorShape& ofmShape, const TensorShape& ofmStripeShape)
+{
+    uint16_t ofmWidth       = static_cast<uint16_t>(utils::GetWidth(ofmShape));
+    uint16_t ofmStripeWidth = static_cast<uint16_t>(utils::GetWidth(ofmStripeShape));
+
+    pleSchedulerData.dfltStripeSize.width = ofmStripeWidth;
+    pleSchedulerData.numStripes.width     = static_cast<uint16_t>(utils::GetNumStripesW(ofmShape, ofmStripeShape));
+
+    pleSchedulerData.edgeStripeSize.width = ofmStripeWidth;
+
+    uint16_t remainingWidth = ofmWidth % ofmStripeWidth;
+    if (remainingWidth != 0)
+    {
+        pleSchedulerData.edgeStripeSize.width = remainingWidth;
+    }
+}
+
+inline void
+    SetPlesChannelsStripeInfo(PleS& pleSchedulerData, const TensorShape& ofmShape, const TensorShape& ofmStripeShape)
+{
+    uint16_t ofmChannels       = static_cast<uint16_t>(utils::GetChannels(ofmShape));
+    uint16_t ofmStripeChannels = static_cast<uint16_t>(utils::GetChannels(ofmStripeShape));
+
+    pleSchedulerData.dfltStripeSize.channels = ofmStripeChannels;
+    pleSchedulerData.numStripes.channels     = static_cast<uint16_t>(utils::GetNumStripesC(ofmShape, ofmStripeShape));
+
+    pleSchedulerData.edgeStripeSize.channels = ofmStripeChannels;
+
+    uint16_t remainingChannels = ofmChannels % ofmStripeChannels;
+    if (remainingChannels != 0)
+    {
+        pleSchedulerData.edgeStripeSize.channels = remainingChannels;
+    }
+}
+
+inline void SetStripeIdStrides(PleS& pleSchedulerData, Buffer* outputBuffer)
+{
+    if (outputBuffer->m_Order == TraversalOrder::Xyz)
+    {
+        pleSchedulerData.stripeIdStrides.height = static_cast<uint16_t>(pleSchedulerData.numStripes.width);
+        pleSchedulerData.stripeIdStrides.width  = 1;
+        pleSchedulerData.stripeIdStrides.channels =
+            static_cast<uint16_t>(pleSchedulerData.numStripes.width * pleSchedulerData.numStripes.height);
+    }
+    else
+    {
+        assert(false);
+    }
+}
+
+inline void SetFusedPleSInputMode(PleS& pleSchedulerData, MceOp* pleOpProducer)
+{
+    // Calculate input mode of Ple OP dependent on input buffer producer.
+    switch (pleOpProducer->m_Op)
+    {
+        case command_stream::MceOperation::CONVOLUTION:
+            pleSchedulerData.inputMode = PleInputMode::MCE_ALL_OGS;
+            break;
+        case command_stream::MceOperation::DEPTHWISE_CONVOLUTION:
+            pleSchedulerData.inputMode = PleInputMode::MCE_ONE_OG;
+            break;
+        case command_stream::MceOperation::FULLY_CONNECTED:
+            pleSchedulerData.inputMode = PleInputMode::MCE_ALL_OGS;
+            break;
+        default:
+            assert(false);
+    }
+}
+
+}    // namespace PleSUtils
 }    // namespace cascading_compiler
 }    // namespace support_library
 }    // namespace ethosn

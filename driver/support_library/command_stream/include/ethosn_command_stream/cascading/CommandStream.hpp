@@ -348,8 +348,8 @@ struct AgentData
 /// that are needed by other/this agent
 struct Ratio
 {
-    uint8_t other;
-    uint8_t self;
+    uint16_t other;
+    uint16_t self;
 };
 
 /// Used to represent a dependency between this agent and some other agent

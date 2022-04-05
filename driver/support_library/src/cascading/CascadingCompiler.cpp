@@ -143,7 +143,7 @@ void CascadingCompiler::ProcessMceOp(Op* const ptrMceOp)
     AgentIdType pleLoaderAgentId = 0;
     PleOp* ptrPleOp              = static_cast<PleOp*>(mceOpConsumer.first);
 
-    if (ptrPleOp->m_LoadKernel == true)
+    if (ptrPleOp->m_LoadKernel)
     {
         pleLoaderAgentId = AddPleLoaderToCommandStream(ptrPleOp);
     }
@@ -176,19 +176,109 @@ void CascadingCompiler::ProcessMceOp(Op* const ptrMceOp)
     AddScheduleTimeDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::WGT_STREAMER,
                               m_OpToAgentIdMapping[m_MergedOpGraph.GetProducer(inputBuffers[1])]);
     // Schedule Time Dependency for [PLE Loader][MceScheduler]
-    if (ptrPleOp->m_LoadKernel == true)
+    if (ptrPleOp->m_LoadKernel)
     {
         AddScheduleTimeDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::PLE_LOADER,
                                   pleLoaderAgentId);
     }
-
     // Add 'SRAM Overlap' dependency information
     // No identified SRAM Overlap dependencies
 }
 
 void CascadingCompiler::ProcessPleOp(Op* const ptrPleOp)
 {
-    AddPleSchedulerToCommandStream(static_cast<PleOp*>(ptrPleOp));
+    // Get the input buffers to the Ple Op
+    OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrPleOp);
+    assert(inputBuffers.size() == 1 || inputBuffers.size() == 2);
+
+    for (auto inputBuffer : inputBuffers)
+    {
+        assert(inputBuffer->m_Offset.has_value());
+        ETHOSN_UNUSED(inputBuffer);
+    }
+
+    // Get the output buffer from the Ple Op
+    Buffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrPleOp);
+    assert(outputBuffer->m_Offset.has_value());
+
+    // Determine whether ple op is standalone or fused
+    bool isStandAlonePle = false;
+    if (inputBuffers[0]->m_Location == Location::PleInputSram)
+    {
+        isStandAlonePle = false;
+    }
+    else if (inputBuffers[0]->m_Location == Location::Sram)
+    {
+        isStandAlonePle = true;
+    }
+    else
+    {
+        assert(false);
+    }
+
+    bool loadKernel = static_cast<PleOp*>(ptrPleOp)->m_LoadKernel;
+    if (isStandAlonePle)
+    {
+        AgentIdType pleLoaderAgentId = {};
+
+        if (loadKernel)
+        {
+            pleLoaderAgentId = AddPleLoaderToCommandStream(static_cast<PleOp*>(ptrPleOp));
+        }
+
+        AgentIdType pleSchedulerAgentId = AddPleSchedulerToCommandStream(static_cast<PleOp*>(ptrPleOp));
+
+        // Read After Write Dependency for [PleScheduler][IfmStreamer]
+        AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
+                                    m_OpToAgentIdMapping[m_MergedOpGraph.GetProducer(inputBuffers[0])]);
+
+        if (loadKernel)
+        {
+            // Read After Write Dependency for [PleScheduler][PleLoader]
+            AddReadAfterWriteDependency(
+                AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::PLE_LOADER,
+                m_PleKernelToPleLoaderAgentIdMapping[static_cast<PleOp*>(ptrPleOp)->m_PleKernelId]);
+        }
+
+        // Write After Read Dependency for [IfmStreamer][PleScheduler]
+        AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
+                                    m_OpToAgentIdMapping[m_MergedOpGraph.GetProducer(inputBuffers[0])]);
+
+        // Schedule Time Dependency for [IfmStreamer][PleScheduler]
+        AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
+                                  m_OpToAgentIdMapping[m_MergedOpGraph.GetProducer(inputBuffers[0])]);
+
+        if (loadKernel)
+        {
+            // Schedule Time Dependency for [PleLoader][PleScheduler]
+            AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::PLE_LOADER,
+                                      pleLoaderAgentId);
+        }
+    }
+    else
+    {
+        AgentIdType pleSchedulerAgentId = AddPleSchedulerToCommandStream(static_cast<PleOp*>(ptrPleOp));
+
+        // Read After Write Dependency for [PleScheduler][MceScheduler]
+        AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::MCE_SCHEDULER,
+                                    m_OpToAgentIdMapping[m_MergedOpGraph.GetProducer(inputBuffers[0])]);
+        if (loadKernel)
+        {
+            // Read After Write Dependency for [PleScheduler][PleLoader]
+            AddReadAfterWriteDependency(
+                AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::PLE_LOADER,
+                m_PleKernelToPleLoaderAgentIdMapping[static_cast<PleOp*>(ptrPleOp)->m_PleKernelId]);
+        }
+
+        // Write After Read Dependency for [MceScheduler][PleScheduler]
+        AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::MCE_SCHEDULER,
+                                    m_OpToAgentIdMapping[m_MergedOpGraph.GetProducer(inputBuffers[0])]);
+
+        // Schedule Time Dependency for [MceScheduler][PleScheduler]
+        AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::MCE_SCHEDULER,
+                                  m_OpToAgentIdMapping[m_MergedOpGraph.GetProducer(inputBuffers[0])]);
+    }
+    ETHOSN_UNUSED(outputBuffer);
 }
 
 void CascadingCompiler::ProcessConcatOp(Op* const ptrConcatOp)
@@ -218,14 +308,11 @@ AgentIdType CascadingCompiler::AddIfmStreamerToCommandStream(DmaOp* const ptrDma
     ifmStreamerData.fmData.dfltStripeSize.height   = 1;
     ifmStreamerData.fmData.dfltStripeSize.width    = 1;
     ifmStreamerData.fmData.dfltStripeSize.channels = 1;
+    ifmStreamerData.fmData.numStripes.height       = 1;
+    ifmStreamerData.fmData.numStripes.width        = 1;
     ifmStreamerData.fmData.numStripes.channels     = 1;
 
-    AgentDependencyInfo dependencyInfo;
-    dependencyInfo.numStripesTotal                         = 0;
-    dependencyInfo.readDependencies[0].relativeAgentId     = 0;
-    dependencyInfo.readDependencies[1].relativeAgentId     = 0;
-    dependencyInfo.writeDependencies[0].relativeAgentId    = 0;
-    dependencyInfo.scheduleDependencies[0].relativeAgentId = 0;
+    AgentDependencyInfo dependencyInfo = {};
 
     Agent ifmStreamerAgent{ ifmStreamerData, dependencyInfo };
 
@@ -242,12 +329,7 @@ AgentIdType CascadingCompiler::AddWeightStreamerToCommandStream(DmaOp* const ptr
 {
     WgtS weightStreamerData = {};
 
-    AgentDependencyInfo dependencyInfo;
-    dependencyInfo.numStripesTotal                         = 0;
-    dependencyInfo.readDependencies[0].relativeAgentId     = 0;
-    dependencyInfo.readDependencies[1].relativeAgentId     = 0;
-    dependencyInfo.writeDependencies[0].relativeAgentId    = 0;
-    dependencyInfo.scheduleDependencies[0].relativeAgentId = 0;
+    AgentDependencyInfo dependencyInfo = {};
 
     Agent weightStreamerAgent{ weightStreamerData, dependencyInfo };
 
@@ -315,13 +397,9 @@ AgentIdType CascadingCompiler::AddMceSchedulerToCommandStream(MceOp* const ptrMc
     mceSchedulerData.reluActiv.max = ptrMceOp->m_UpperBound;
     mceSchedulerData.pleKernelId   = pleKernelId;
 
-    AgentDependencyInfo dependencyInfo;
+    AgentDependencyInfo dependencyInfo = {};
     dependencyInfo.numStripesTotal =
         static_cast<uint16_t>(utils::GetNumStripesTotal(outputBuffer->m_TensorShape, outputBuffer->m_StripeShape));
-    dependencyInfo.readDependencies[0].relativeAgentId     = 0;
-    dependencyInfo.readDependencies[1].relativeAgentId     = 0;
-    dependencyInfo.writeDependencies[0].relativeAgentId    = 0;
-    dependencyInfo.scheduleDependencies[0].relativeAgentId = 0;
 
     Agent mceSchedulerAgent{ mceSchedulerData, dependencyInfo };
 
@@ -341,12 +419,8 @@ AgentIdType CascadingCompiler::AddPleLoaderToCommandStream(PleOp* const ptrPleOp
     pleLoaderData.pleKernelId = ptrPleOp->m_PleKernelId;
     pleLoaderData.sramAddr    = static_cast<uint16_t>(ptrPleOp->m_Offset.value());
 
-    AgentDependencyInfo dependencyInfo;
-    dependencyInfo.numStripesTotal                         = 1;
-    dependencyInfo.readDependencies[0].relativeAgentId     = 0;
-    dependencyInfo.readDependencies[1].relativeAgentId     = 0;
-    dependencyInfo.writeDependencies[0].relativeAgentId    = 0;
-    dependencyInfo.scheduleDependencies[0].relativeAgentId = 0;
+    AgentDependencyInfo dependencyInfo = {};
+    dependencyInfo.numStripesTotal     = 1;
 
     Agent pleLoaderAgent{ pleLoaderData, dependencyInfo };
 
@@ -361,18 +435,92 @@ AgentIdType CascadingCompiler::AddPleLoaderToCommandStream(PleOp* const ptrPleOp
 // Private function to add PLE_SCHEDULER to the command stream
 AgentIdType CascadingCompiler::AddPleSchedulerToCommandStream(PleOp* const ptrPleOp)
 {
-    PleS pleSchedulerData = {};
+    // Get the input buffers to the Ple Op
+    OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrPleOp);
+    assert(inputBuffers.size() == 1 || inputBuffers.size() == 2);
 
-    AgentDependencyInfo dependencyInfo;
-    dependencyInfo.numStripesTotal                         = 0;
-    dependencyInfo.readDependencies[0].relativeAgentId     = 0;
-    dependencyInfo.readDependencies[1].relativeAgentId     = 0;
-    dependencyInfo.writeDependencies[0].relativeAgentId    = 0;
-    dependencyInfo.scheduleDependencies[0].relativeAgentId = 0;
+    Buffer* inputBuffer0 = inputBuffers[0];
 
-    Agent pleSchedulerAgent{ pleSchedulerData, dependencyInfo };
+    // Get the output buffer from the Ple Op
+    Buffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrPleOp);
 
-    // Push the Mce Scheduler agent to the command stream
+    PleS pleS = {};
+
+    pleS.ofmTile = {
+        static_cast<uint16_t>(outputBuffer->m_Offset.value()), static_cast<uint16_t>(outputBuffer->m_NumStripes),
+        static_cast<uint16_t>(impl::CalculateBufferSize(outputBuffer->m_StripeShape, outputBuffer->m_Format))
+    };
+
+    pleS.ofmZeroPoint = static_cast<int16_t>(outputBuffer->m_QuantizationInfo.GetZeroPoint());
+
+    PleSUtils::SetPlesHeightStripeInfo(pleS, outputBuffer->m_TensorShape, ptrPleOp->m_OutputStripeShape);
+    PleSUtils::SetPlesWidthStripeInfo(pleS, outputBuffer->m_TensorShape, ptrPleOp->m_OutputStripeShape);
+    PleSUtils::SetPlesChannelsStripeInfo(pleS, outputBuffer->m_TensorShape, ptrPleOp->m_OutputStripeShape);
+
+    PleSUtils::SetStripeIdStrides(pleS, outputBuffer);
+
+    // Calculate input mode of Ple OP dependent on input buffer producer.
+    auto pleOpProducer = m_MergedOpGraph.GetProducer(inputBuffer0);
+    if (inputBuffer0->m_Location == Location::Sram)
+    {
+        pleS.inputMode = PleInputMode::SRAM;
+    }
+    else if (inputBuffer0->m_Location == Location::PleInputSram)
+    {
+        PleSUtils::SetFusedPleSInputMode(pleS, static_cast<MceOp*>(pleOpProducer));
+    }
+    else
+    {
+        assert(false);
+    }
+
+    pleS.pleKernelSramAddr = static_cast<uint16_t>(ptrPleOp->m_Offset.value());
+
+    pleS.pleKernelId = ptrPleOp->m_PleKernelId;
+
+    if (pleS.inputMode == PleInputMode::SRAM)
+    {
+        pleS.ifmTile0 = {
+            static_cast<uint16_t>(inputBuffer0->m_Offset.value()), static_cast<uint16_t>(inputBuffer0->m_NumStripes),
+            static_cast<uint16_t>(impl::CalculateBufferSize(inputBuffer0->m_StripeShape, inputBuffer0->m_Format))
+        };
+
+        const double outputScale = outputBuffer->m_QuantizationInfo.GetScale();
+        const double inputScale0 = inputBuffer0->m_QuantizationInfo.GetScale();
+        uint16_t multiplier0;
+        uint16_t shift0;
+        utils::CalculateRescaleMultiplierAndShift(inputScale0 / outputScale, multiplier0, shift0);
+
+        pleS.ifmInfo0 = { static_cast<int16_t>(inputBuffer0->m_QuantizationInfo.GetZeroPoint()), multiplier0, shift0 };
+
+        if (inputBuffers.size() == 2)
+        {
+            Buffer* inputBuffer1 = inputBuffers[1];
+
+            const double inputScale1 = inputBuffer1->m_QuantizationInfo.GetScale();
+            uint16_t multiplier1;
+            uint16_t shift1;
+            utils::CalculateRescaleMultiplierAndShift(inputScale1 / outputScale, multiplier1, shift1);
+
+            pleS.ifmTile1 = { static_cast<uint16_t>(inputBuffer1->m_Offset.value()),
+                              static_cast<uint16_t>(inputBuffer1->m_NumStripes),
+                              static_cast<uint16_t>(
+                                  impl::CalculateBufferSize(inputBuffer1->m_StripeShape, inputBuffer1->m_Format)) };
+
+            pleS.ifmInfo1 = { static_cast<int16_t>(inputBuffer1->m_QuantizationInfo.GetZeroPoint()), multiplier1,
+                              shift1 };
+        }
+    }
+
+    AgentData agentData{ pleS };
+
+    AgentDependencyInfo info = {};
+    info.numStripesTotal =
+        static_cast<uint16_t>(utils::GetNumStripesTotal(outputBuffer->m_TensorShape, outputBuffer->m_StripeShape));
+
+    Agent pleSchedulerAgent{ agentData, info };
+
+    // Push the Ple Scheduler agent to the command stream
     AgentIdType agentId            = m_CommandStreamAgents.size();
     m_OpToAgentIdMapping[ptrPleOp] = agentId;
     m_CommandStreamAgents.push_back(pleSchedulerAgent);
@@ -385,12 +533,7 @@ AgentIdType CascadingCompiler::AddOfmStreamerToCommandStream(DmaOp* const ptrDma
 {
     OfmS ofmStreamerData = {};
 
-    AgentDependencyInfo dependencyInfo;
-    dependencyInfo.numStripesTotal                         = 0;
-    dependencyInfo.readDependencies[0].relativeAgentId     = 0;
-    dependencyInfo.readDependencies[1].relativeAgentId     = 0;
-    dependencyInfo.writeDependencies[0].relativeAgentId    = 0;
-    dependencyInfo.scheduleDependencies[0].relativeAgentId = 0;
+    AgentDependencyInfo dependencyInfo = {};
 
     Agent ofmStreamerAgent{ ofmStreamerData, dependencyInfo };
 
@@ -412,7 +555,7 @@ inline void CascadingCompiler::AddReadAfterWriteDependency(const AgentType consu
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
 
-    if (producerAgentType != AgentType::WGT_STREAMER)
+    if ((producerAgentType != AgentType::WGT_STREAMER) && (producerAgentType != AgentType::MCE_SCHEDULER))
     {
         Dependency& consumerAgentReadDependency0Ref =
             m_CommandStreamAgents[consumerAgentId].info.readDependencies.at(0);
@@ -439,8 +582,9 @@ inline void CascadingCompiler::AddSramOverlapDependency(const command_stream::ca
 {
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
+    assert((producerAgentType != AgentType::MCE_SCHEDULER));
 
-    if (producerAgentType != AgentType::WGT_STREAMER)
+    if ((producerAgentType != AgentType::WGT_STREAMER))
     {
         Dependency& consumerAgentReadDependency0Ref =
             m_CommandStreamAgents[consumerAgentId].info.readDependencies.at(0);
@@ -524,22 +668,22 @@ void CascadingCompiler::FillConsumerAgentDependency(command_stream::cascading::D
             // Read After Write Dependency for [MceScheduler][IfmStreamer]
             if (producerAgentType == AgentType::IFM_STREAMER)
             {
-                consumerAgentDependency.outerRatio.other = static_cast<uint8_t>(
+                consumerAgentDependency.outerRatio.other = static_cast<uint16_t>(
                     producerAgent.data.ifm.fmData.numStripes.width * producerAgent.data.ifm.fmData.numStripes.height *
                     producerAgent.data.ifm.fmData.numStripes.channels);
-                consumerAgentDependency.outerRatio.self = static_cast<uint8_t>(
+                consumerAgentDependency.outerRatio.self = static_cast<uint16_t>(
                     consumerAgent.data.mce.numStripes.ofmHeight * consumerAgent.data.mce.numStripes.ofmWidth *
                     consumerAgent.data.mce.numStripes.ifmChannels);
 
-                uint8_t widthRatio  = static_cast<uint8_t>(consumerAgent.data.mce.numStripes.ofmWidth /
-                                                          producerAgent.data.ifm.fmData.dfltStripeSize.width);
-                uint8_t heightRatio = static_cast<uint8_t>(consumerAgent.data.mce.numStripes.ofmHeight /
-                                                           producerAgent.data.ifm.fmData.dfltStripeSize.height);
+                uint8_t widthRatio  = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.mce.numStripes.ofmWidth, producerAgent.data.ifm.fmData.numStripes.width));
+                uint8_t heightRatio = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.mce.numStripes.ofmHeight, producerAgent.data.ifm.fmData.numStripes.height));
 
                 assert(consumerAgent.data.mce.numStripes.ifmChannels ==
                        producerAgent.data.ifm.fmData.numStripes.channels);
 
-                consumerAgentDependency.innerRatio.other = static_cast<uint8_t>(widthRatio * heightRatio);
+                consumerAgentDependency.innerRatio.other = static_cast<uint16_t>(widthRatio * heightRatio);
                 consumerAgentDependency.innerRatio.self  = 1;
 
                 if ((producerAgent.data.ifm.fmData.numStripes.height > 1 &&
@@ -567,9 +711,9 @@ void CascadingCompiler::FillConsumerAgentDependency(command_stream::cascading::D
                 }
                 else
                 {
-                    consumerAgentDependency.outerRatio.self = static_cast<uint8_t>(
+                    consumerAgentDependency.outerRatio.self = static_cast<uint16_t>(
                         consumerAgent.data.mce.numStripes.ofmHeight * consumerAgent.data.mce.numStripes.ofmWidth);
-                    consumerAgentDependency.innerRatio.self = static_cast<uint8_t>(
+                    consumerAgentDependency.innerRatio.self = static_cast<uint16_t>(
                         consumerAgent.data.mce.numStripes.ofmHeight * consumerAgent.data.mce.numStripes.ofmWidth);
                 }
 
@@ -590,6 +734,108 @@ void CascadingCompiler::FillConsumerAgentDependency(command_stream::cascading::D
 
         case AgentType::PLE_SCHEDULER:
         {
+            // Read After Write Dependency for [PleScheduler][IfmStreamer]
+            if (producerAgentType == AgentType::IFM_STREAMER)
+            {
+                // Calculate outer ratios using number of stripes
+                consumerAgentDependency.outerRatio.other = static_cast<uint16_t>(
+                    producerAgent.data.ifm.fmData.numStripes.width * producerAgent.data.ifm.fmData.numStripes.height *
+                    producerAgent.data.ifm.fmData.numStripes.channels);
+                consumerAgentDependency.outerRatio.self = static_cast<uint16_t>(
+                    consumerAgent.data.pleS.numStripes.height * consumerAgent.data.pleS.numStripes.width *
+                    consumerAgent.data.pleS.numStripes.channels);
+
+                // Calculate inner ratios using ratio of stripe size
+                uint8_t widthRatio   = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.pleS.numStripes.width, producerAgent.data.ifm.fmData.numStripes.width));
+                uint8_t heightRatio  = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.pleS.numStripes.height, producerAgent.data.ifm.fmData.numStripes.height));
+                uint8_t channelRatio = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.pleS.numStripes.channels, producerAgent.data.ifm.fmData.numStripes.channels));
+
+                consumerAgentDependency.innerRatio.other =
+                    static_cast<uint16_t>(widthRatio * heightRatio * channelRatio);
+                consumerAgentDependency.innerRatio.self = 1;
+
+                // Set boundary to 1 if producer stripe count is not a factor of consumer stripe count
+                uint8_t numberOfIfmStripesInXYDimProducer = static_cast<uint8_t>(
+                    producerAgent.data.ifm.fmData.numStripes.width * producerAgent.data.ifm.fmData.numStripes.height);
+                uint8_t numberOfIfmStripesInXYDimConsumer = static_cast<uint8_t>(
+                    consumerAgent.data.pleS.numStripes.width * consumerAgent.data.pleS.numStripes.height);
+
+                uint8_t ifmStripeRemainder =
+                    static_cast<uint8_t>(numberOfIfmStripesInXYDimConsumer % numberOfIfmStripesInXYDimProducer);
+                if (ifmStripeRemainder == 0)
+                {
+                    consumerAgentDependency.boundary = 0;
+                }
+                else
+                {
+                    consumerAgentDependency.boundary = 1;
+                }
+            }
+            // Read After Write Dependency for [PleScheduler][MceScheduler]
+            else if (producerAgentType == AgentType::MCE_SCHEDULER)
+            {
+                // Calculate outer ratios using number of stripes
+                consumerAgentDependency.outerRatio.other = static_cast<uint16_t>(
+                    producerAgent.data.mce.numStripes.ofmWidth * producerAgent.data.mce.numStripes.ofmHeight *
+                    producerAgent.data.mce.numStripes.ofmChannels);
+                consumerAgentDependency.outerRatio.self = static_cast<uint16_t>(
+                    consumerAgent.data.pleS.numStripes.height * consumerAgent.data.pleS.numStripes.width *
+                    consumerAgent.data.pleS.numStripes.channels);
+
+                // Calculate inner ratios using ratio of stripe size
+                uint8_t widthRatio   = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.pleS.numStripes.width, producerAgent.data.mce.numStripes.ofmWidth));
+                uint8_t heightRatio  = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.pleS.numStripes.height, producerAgent.data.mce.numStripes.ofmHeight));
+                uint8_t channelRatio = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.pleS.numStripes.channels, producerAgent.data.mce.numStripes.ofmChannels));
+
+                consumerAgentDependency.innerRatio.other =
+                    static_cast<uint16_t>(widthRatio * heightRatio * channelRatio);
+                consumerAgentDependency.innerRatio.self = 1;
+
+                // Set boundary to 1 if producer stripe count is not a factor of consumer stripe count
+                uint8_t numberOfIfmStripesInXYDimProducer = static_cast<uint8_t>(
+                    producerAgent.data.mce.numStripes.ofmWidth * producerAgent.data.mce.numStripes.ofmHeight);
+                uint8_t numberOfIfmStripesInXYDimConsumer = static_cast<uint8_t>(
+                    consumerAgent.data.pleS.numStripes.width * consumerAgent.data.pleS.numStripes.height);
+
+                uint8_t ifmStripeRemainder =
+                    static_cast<uint8_t>(numberOfIfmStripesInXYDimConsumer % numberOfIfmStripesInXYDimProducer);
+                if (ifmStripeRemainder == 0)
+                {
+                    consumerAgentDependency.boundary = 0;
+                }
+                else
+                {
+                    consumerAgentDependency.boundary = 1;
+                }
+            }
+            // Read After Write Dependency for [PleScheduler][PleLoader]
+            else if (producerAgentType == AgentType::PLE_LOADER)
+            {
+                consumerAgentDependency.outerRatio.other = 1U;
+                consumerAgentDependency.outerRatio.self  = static_cast<uint16_t>(
+                    consumerAgent.data.pleS.numStripes.height * consumerAgent.data.pleS.numStripes.width *
+                    consumerAgent.data.pleS.numStripes.channels);
+
+                uint8_t widthRatio   = static_cast<uint8_t>(consumerAgent.data.pleS.numStripes.width / 1U);
+                uint8_t heightRatio  = static_cast<uint8_t>(consumerAgent.data.pleS.numStripes.height / 1U);
+                uint8_t channelRatio = static_cast<uint8_t>(consumerAgent.data.pleS.numStripes.channels / 1U);
+
+                consumerAgentDependency.innerRatio.other = 1U;
+                consumerAgentDependency.innerRatio.self =
+                    static_cast<uint16_t>(widthRatio * heightRatio * channelRatio);
+
+                consumerAgentDependency.boundary = 0;
+            }
+            else
+            {
+                assert(false);
+            }
             break;
         }
 
@@ -635,23 +881,23 @@ void CascadingCompiler::FillProducerAgentDependency(command_stream::cascading::D
             // Schedule Time Dependency for [IfmStreamer][MceScheduler]
             if (producerAgentType == AgentType::IFM_STREAMER)
             {
-                producerAgentDependency.outerRatio.other = static_cast<uint8_t>(
+                producerAgentDependency.outerRatio.other = static_cast<uint16_t>(
                     consumerAgent.data.mce.numStripes.ofmHeight * consumerAgent.data.mce.numStripes.ofmWidth *
                     consumerAgent.data.mce.numStripes.ifmChannels);
-                producerAgentDependency.outerRatio.self = static_cast<uint8_t>(
+                producerAgentDependency.outerRatio.self = static_cast<uint16_t>(
                     producerAgent.data.ifm.fmData.numStripes.width * producerAgent.data.ifm.fmData.numStripes.height *
                     producerAgent.data.ifm.fmData.numStripes.channels);
 
-                uint8_t widthRatio  = static_cast<uint8_t>(consumerAgent.data.mce.numStripes.ofmWidth /
-                                                          producerAgent.data.ifm.fmData.dfltStripeSize.width);
-                uint8_t heightRatio = static_cast<uint8_t>(consumerAgent.data.mce.numStripes.ofmHeight /
-                                                           producerAgent.data.ifm.fmData.dfltStripeSize.height);
+                uint8_t widthRatio  = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.mce.numStripes.ofmWidth, producerAgent.data.ifm.fmData.numStripes.width));
+                uint8_t heightRatio = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.mce.numStripes.ofmHeight, producerAgent.data.ifm.fmData.numStripes.height));
 
                 assert(producerAgent.data.ifm.fmData.numStripes.channels ==
                        consumerAgent.data.mce.numStripes.ifmChannels);
 
                 producerAgentDependency.innerRatio.other = 1;
-                producerAgentDependency.innerRatio.self  = static_cast<uint8_t>(widthRatio * heightRatio);
+                producerAgentDependency.innerRatio.self  = static_cast<uint16_t>(widthRatio * heightRatio);
 
                 if ((producerAgent.data.ifm.fmData.numStripes.height > 1 &&
                      consumerAgent.data.mce.filterShape.height > 1) ||
@@ -676,9 +922,9 @@ void CascadingCompiler::FillProducerAgentDependency(command_stream::cascading::D
                 }
                 else
                 {
-                    producerAgentDependency.outerRatio.other = static_cast<uint8_t>(
+                    producerAgentDependency.outerRatio.other = static_cast<uint16_t>(
                         consumerAgent.data.mce.numStripes.ofmHeight * consumerAgent.data.mce.numStripes.ofmWidth);
-                    producerAgentDependency.innerRatio.other = static_cast<uint8_t>(
+                    producerAgentDependency.innerRatio.other = static_cast<uint16_t>(
                         consumerAgent.data.mce.numStripes.ofmHeight * consumerAgent.data.mce.numStripes.ofmWidth);
                 }
 
@@ -690,12 +936,14 @@ void CascadingCompiler::FillProducerAgentDependency(command_stream::cascading::D
             // Schedule Time Dependency for [PleLoader][MceScheduler]
             else if (producerAgentType == AgentType::PLE_LOADER)
             {
-                producerAgentDependency.outerRatio.other = static_cast<uint8_t>(
-                    consumerAgent.data.mce.numStripes.ofmHeight * consumerAgent.data.mce.numStripes.ofmWidth);
+                producerAgentDependency.outerRatio.other = static_cast<uint16_t>(
+                    consumerAgent.data.mce.numStripes.ofmHeight * consumerAgent.data.mce.numStripes.ofmWidth *
+                    consumerAgent.data.mce.numStripes.ifmChannels);
                 producerAgentDependency.outerRatio.self = 1;
 
-                producerAgentDependency.innerRatio.other = static_cast<uint8_t>(
-                    consumerAgent.data.mce.numStripes.ofmHeight * consumerAgent.data.mce.numStripes.ofmWidth);
+                producerAgentDependency.innerRatio.other = static_cast<uint16_t>(
+                    consumerAgent.data.mce.numStripes.ofmHeight * consumerAgent.data.mce.numStripes.ofmWidth *
+                    consumerAgent.data.mce.numStripes.ifmChannels);
                 producerAgentDependency.innerRatio.self = 1;
 
                 producerAgentDependency.boundary = 0;
@@ -715,6 +963,112 @@ void CascadingCompiler::FillProducerAgentDependency(command_stream::cascading::D
 
         case AgentType::PLE_SCHEDULER:
         {
+            // Write After Read Dependency for [PleScheduler][IfmStreamer]
+            if (producerAgentType == AgentType::IFM_STREAMER)
+            {
+                // Calculate outer ratios using number of stripes.
+                producerAgentDependency.outerRatio.other = static_cast<uint16_t>(
+                    consumerAgent.data.pleS.numStripes.height * consumerAgent.data.pleS.numStripes.width *
+                    consumerAgent.data.pleS.numStripes.channels);
+                producerAgentDependency.outerRatio.self = static_cast<uint16_t>(
+                    producerAgent.data.ifm.fmData.numStripes.width * producerAgent.data.ifm.fmData.numStripes.height *
+                    producerAgent.data.ifm.fmData.numStripes.channels);
+
+                // Calculate inner ratios using ratio of stripe size
+                uint8_t widthRatio   = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.pleS.numStripes.width, producerAgent.data.ifm.fmData.numStripes.width));
+                uint8_t heightRatio  = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.pleS.numStripes.height, producerAgent.data.ifm.fmData.numStripes.height));
+                uint8_t channelRatio = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.pleS.numStripes.channels, producerAgent.data.ifm.fmData.numStripes.channels));
+
+                producerAgentDependency.innerRatio.other = 1U;
+                producerAgentDependency.innerRatio.self =
+                    static_cast<uint16_t>(widthRatio * heightRatio * channelRatio);
+
+                // Set boundary to 1 if producer stripe count is not a factor of consumer stripe count
+                uint16_t numberOfIfmStripesInXYDimProducer = static_cast<uint16_t>(
+                    producerAgent.data.ifm.fmData.numStripes.width * producerAgent.data.ifm.fmData.numStripes.height *
+                    producerAgent.data.ifm.fmData.numStripes.channels);
+                uint16_t numberOfIfmStripesInXYDimConsumer = static_cast<uint16_t>(
+                    consumerAgent.data.pleS.numStripes.width * consumerAgent.data.pleS.numStripes.height *
+                    consumerAgent.data.pleS.numStripes.channels);
+
+                uint8_t ifmStripeRemainder =
+                    static_cast<uint8_t>(numberOfIfmStripesInXYDimConsumer % numberOfIfmStripesInXYDimProducer);
+
+                if (ifmStripeRemainder == 0)
+                {
+                    producerAgentDependency.boundary = 0U;
+                }
+                else
+                {
+                    producerAgentDependency.boundary = 1U;
+                }
+            }
+            else if (producerAgentType == AgentType::MCE_SCHEDULER)
+            {
+                // Calculate outer ratios using number of stripes
+                producerAgentDependency.outerRatio.other = static_cast<uint16_t>(
+                    consumerAgent.data.pleS.numStripes.height * consumerAgent.data.pleS.numStripes.width *
+                    consumerAgent.data.pleS.numStripes.channels);
+                producerAgentDependency.outerRatio.self = static_cast<uint16_t>(
+                    producerAgent.data.mce.numStripes.ofmHeight * producerAgent.data.mce.numStripes.ofmWidth *
+                    producerAgent.data.mce.numStripes.ofmChannels);
+
+                // Calculate inner ratios using ratio of stripe size
+                uint8_t widthRatio   = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.pleS.numStripes.width, producerAgent.data.mce.numStripes.ofmWidth));
+                uint8_t heightRatio  = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.pleS.numStripes.height, producerAgent.data.mce.numStripes.ofmHeight));
+                uint8_t channelRatio = static_cast<uint8_t>(utils::DivRoundUp(
+                    consumerAgent.data.pleS.numStripes.channels, producerAgent.data.mce.numStripes.ofmChannels));
+
+                producerAgentDependency.innerRatio.other = 1;
+                producerAgentDependency.innerRatio.self =
+                    static_cast<uint16_t>(widthRatio * heightRatio * channelRatio);
+
+                // Set boundary to 1 if producer stripe count is not a factor of consumer stripe count
+                uint16_t numberOfIfmStripesInXYDimProducer = static_cast<uint16_t>(
+                    producerAgent.data.mce.numStripes.ofmWidth * producerAgent.data.mce.numStripes.ofmHeight *
+                    producerAgent.data.mce.numStripes.ofmChannels);
+                uint16_t numberOfIfmStripesInXYDimConsumer = static_cast<uint16_t>(
+                    consumerAgent.data.pleS.numStripes.width * consumerAgent.data.pleS.numStripes.height *
+                    consumerAgent.data.pleS.numStripes.channels);
+
+                uint8_t ifmStripeRemainder =
+                    static_cast<uint8_t>(numberOfIfmStripesInXYDimConsumer % numberOfIfmStripesInXYDimProducer);
+
+                if (ifmStripeRemainder == 0)
+                {
+                    producerAgentDependency.boundary = 0;
+                }
+                else
+                {
+                    producerAgentDependency.boundary = 1;
+                }
+            }
+            else if (producerAgentType == AgentType::PLE_LOADER)
+            {
+                producerAgentDependency.outerRatio.other = static_cast<uint16_t>(
+                    consumerAgent.data.pleS.numStripes.height * consumerAgent.data.pleS.numStripes.width *
+                    consumerAgent.data.pleS.numStripes.channels);
+                producerAgentDependency.outerRatio.self = 1U;
+
+                uint8_t widthRatio   = static_cast<uint8_t>(consumerAgent.data.pleS.numStripes.width);
+                uint8_t heightRatio  = static_cast<uint8_t>(consumerAgent.data.pleS.numStripes.height);
+                uint8_t channelRatio = static_cast<uint8_t>(consumerAgent.data.pleS.numStripes.channels);
+
+                producerAgentDependency.innerRatio.other =
+                    static_cast<uint16_t>(widthRatio * heightRatio * channelRatio);
+                producerAgentDependency.innerRatio.self = 1U;
+
+                producerAgentDependency.boundary = 0;
+            }
+            else
+            {
+                assert(false);
+            }
             break;
         }
 
