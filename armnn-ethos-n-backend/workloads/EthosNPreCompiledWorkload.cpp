@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -12,7 +12,7 @@
 
 #include <armnn/ArmNN.hpp>
 #include <armnn/utility/Assert.hpp>
-#include <common/include/Threads.hpp>
+#include <armnnUtils/Threads.hpp>
 #include <ethosn_driver_library/Network.hpp>
 #include <ethosn_support_library/Support.hpp>
 
@@ -33,8 +33,6 @@
 #elif defined(_MSC_VER)
 #include <io.h>
 #endif
-
-using namespace arm::pipe;
 
 // Error codes for the WaitStatus class
 enum class WaitErrorCode
@@ -195,10 +193,10 @@ void SendProfilingEvents()
         auto eventGuid  = guidGenerator.NextGuid();
         auto timeInNanoSeconds =
             std::chrono::duration_cast<std::chrono::nanoseconds>(event.m_Timestamp.time_since_epoch()).count();
-        sender->SendTimelineEventBinaryPacket(static_cast<uint64_t>(timeInNanoSeconds), GetCurrentThreadId(),
-                                              eventGuid);
+        sender->SendTimelineEventBinaryPacket(static_cast<uint64_t>(timeInNanoSeconds),
+                                              armnnUtils::Threads::GetCurrentThreadId(), eventGuid);
 
-        auto executionLinkId = IProfilingService::GetNextGuid();
+        auto executionLinkId = profiling::ProfilingService::GetNextGuid();
 
         // If we are sending Start and End timeline events then we add a link to the Start/End of Life Event Classes.
         if (event.m_Type == ProfilingEntry::Type::TimelineEventStart)

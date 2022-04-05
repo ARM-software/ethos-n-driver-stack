@@ -1,5 +1,5 @@
 //
-// Copyright © 2020,2022 Arm Limited.
+// Copyright © 2020 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -12,8 +12,6 @@ namespace armnn
 
 namespace profiling
 {
-
-using namespace arm::pipe;
 
 uint16_t EthosNBackendProfilingContext::RegisterCounters(uint16_t currentMaxGlobalCounterID)
 {
@@ -46,8 +44,8 @@ uint16_t EthosNBackendProfilingContext::RegisterCounters(uint16_t currentMaxGlob
     return nextMaxGlobalCounterId;
 }
 
-arm::pipe::Optional<std::string>
-    EthosNBackendProfilingContext::ActivateCounters(uint32_t capturePeriod, const std::vector<uint16_t>& counterIds)
+Optional<std::string> EthosNBackendProfilingContext::ActivateCounters(uint32_t capturePeriod,
+                                                                      const std::vector<uint16_t>& counterIds)
 {
     if (capturePeriod == 0 || counterIds.size() == 0)
     {
@@ -55,7 +53,7 @@ arm::pipe::Optional<std::string>
     }
     m_CapturePeriod  = capturePeriod;
     m_ActiveCounters = counterIds;
-    return arm::pipe::Optional<std::string>();
+    return Optional<std::string>();
 }
 
 std::vector<Timestamp> EthosNBackendProfilingContext::ReportCounterValues()

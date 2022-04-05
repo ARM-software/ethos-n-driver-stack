@@ -1,5 +1,5 @@
 //
-// Copyright © 2020-2022 Arm Limited.
+// Copyright © 2020-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -14,7 +14,7 @@ namespace armnn
 namespace profiling
 {
 
-class EthosNBackendProfilingContext : public arm::pipe::IBackendProfilingContext
+class EthosNBackendProfilingContext : public IBackendProfilingContext
 {
 public:
     EthosNBackendProfilingContext(IBackendInternal::IBackendProfilingPtr& backendProfiling)
@@ -38,27 +38,26 @@ public:
     // 5. EnableProfiling(flag = false)
     // 6. goto step 2
     uint16_t RegisterCounters(uint16_t currentMaxGlobalCounterID) override;
-    arm::pipe::Optional<std::string> ActivateCounters(uint32_t capturePeriod,
-                                                      const std::vector<uint16_t>& counterIds) override;
-    std::vector<arm::pipe::Timestamp> ReportCounterValues() override;
+    Optional<std::string> ActivateCounters(uint32_t capturePeriod, const std::vector<uint16_t>& counterIds) override;
+    std::vector<Timestamp> ReportCounterValues() override;
     bool EnableProfiling(bool flag) override;
     bool EnableTimelineReporting(bool flag) override;
 
     bool IsProfilingEnabled() const;
-    arm::pipe::IProfilingGuidGenerator& GetGuidGenerator() const;
-    arm::pipe::ISendTimelinePacket* GetSendTimelinePacket() const;
+    IProfilingGuidGenerator& GetGuidGenerator() const;
+    ISendTimelinePacket* GetSendTimelinePacket() const;
 
-    std::map<uint64_t, arm::pipe::ProfilingDynamicGuid>& GetIdToEntityGuids();
+    std::map<uint64_t, ProfilingDynamicGuid>& GetIdToEntityGuids();
 
 private:
     bool m_ProfilingEnabled;
-    arm::pipe::IProfilingGuidGenerator& m_GuidGenerator;
-    std::unique_ptr<arm::pipe::ISendTimelinePacket> m_SendTimelinePacket;
+    IProfilingGuidGenerator& m_GuidGenerator;
+    std::unique_ptr<ISendTimelinePacket> m_SendTimelinePacket;
     IBackendInternal::IBackendProfilingPtr& m_BackendProfiling;
     uint32_t m_CapturePeriod;
     ethosn::driver_library::profiling::Configuration m_Config;
     std::vector<uint16_t> m_ActiveCounters;
-    std::map<uint64_t, arm::pipe::ProfilingDynamicGuid> m_IdToEntityGuids;
+    std::map<uint64_t, ProfilingDynamicGuid> m_IdToEntityGuids;
 };
 
 }    // namespace profiling
