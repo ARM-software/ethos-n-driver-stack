@@ -787,7 +787,8 @@ void Parse(mxml_node_t& parent, const cascading::MceS& mces)
     Parse(*mxmlNewElement(agent_op, "IS_WIDE_FILTER"), mces.isWideFilter);
     Parse(*mxmlNewElement(agent_op, "FILTER_SHAPE"), mces.filterShape);
     Parse(*mxmlNewElement(agent_op, "PADDING"), mces.padding);
-    Parse(*mxmlNewElement(agent_op, "IFM_DELTA"), mces.ifmDelta);
+    Parse(*mxmlNewElement(agent_op, "IFM_DELTA_DEFAULT"), mces.ifmDeltaDefault);
+    Parse(*mxmlNewElement(agent_op, "IFM_DELTA_EDGE"), mces.ifmDeltaEdge);
     Parse(*mxmlNewElement(agent_op, "RELU_ACTIV"), mces.reluActiv);
 }
 

@@ -654,10 +654,14 @@ const std::string g_XmlStr =
                     <LEFT>12</LEFT>
                     <TOP>15</TOP>
                 </PADDING>
-                <IFM_DELTA>
+                <IFM_DELTA_DEFAULT>
                     <WIDTH>1</WIDTH>
                     <HEIGHT>-1</HEIGHT>
-                </IFM_DELTA>
+                </IFM_DELTA_DEFAULT>
+                <IFM_DELTA_EDGE>
+                    <WIDTH>2</WIDTH>
+                    <HEIGHT>-2</HEIGHT>
+                </IFM_DELTA_EDGE>
                 <RELU_ACTIV>
                     <MIN>-3</MIN>
                     <MAX>2</MAX>

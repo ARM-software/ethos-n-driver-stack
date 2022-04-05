@@ -372,7 +372,8 @@ void XmlParser::Pop(cascading::MceS& value)
     Pop("MCE_SCHEDULER/IS_WIDE_FILTER", value.isWideFilter);
     Pop("FILTER_SHAPE", value.filterShape);
     Pop("PADDING", value.padding);
-    Pop("IFM_DELTA", value.ifmDelta);
+    Pop("IFM_DELTA_DEFAULT", value.ifmDeltaDefault);
+    Pop("IFM_DELTA_EDGE", value.ifmDeltaEdge);
     Pop("RELU_ACTIV", value.reluActiv);
 }
 

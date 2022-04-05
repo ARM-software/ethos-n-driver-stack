@@ -199,7 +199,8 @@ struct MceS
     uint8_t isWideFilter;
     FilterShape filterShape;
     Padding padding;
-    IfmDelta ifmDelta;
+    IfmDelta ifmDeltaDefault;
+    IfmDelta ifmDeltaEdge;
     /// Relu activation values
     ReluActivation reluActiv;
     /// ID of the PLE kernel
