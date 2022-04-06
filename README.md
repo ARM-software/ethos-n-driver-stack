@@ -78,7 +78,8 @@ sudo apt install git \
     bison \
     flex \
     libssl-dev \
-    bc
+    bc \
+    rsync
 ```
 
 You must build and install sparse. We recommend `v0.6.3`. To build and install sparse, enter the following commands:
@@ -310,6 +311,9 @@ There are multiple ways to exercise the Ethos-N NPU driver:
     * Add `tests=1` to your scons commands to build the user-space component unit tests.
     * Make sure your CPATH scons variable, which is specified on the command-line, points to
       `<path_to_catch>/Catch2/single_include/catch2/`.
+    * Make sure that your unit_test_kernel_dir scons variable, which is specified on the command-line, points to the Linux kernel source tree used to build the Ethos-N NPU Linux kernel module. The Linux kernel's user-space headers will be used when building and running the unit tests to determine what features that are supported and should be tested.
+    _Note: In order to support all the unit tests, the Linux kernel source tree used must be version 5.6 or higher. The Linux kernel source tree should be the same as the one used to compile the Linux kernel module._
+    _Note: If the Linux kernel source tree does not contain the Linux kernel's generated user-space headers, scons will generate them using the Linux kernel's `headers_install` make target._
 
     If you have cross compiled the driver, copy the following files onto the target platform:
     * `UnitTests` built for the Ethos-N NPU support library inside `<path_to>/driver_stack/ethos-n-driver-stack/driver/support_library/build/release_<platform>/tests`.

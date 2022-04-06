@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2018-2021 Arm Limited.
+# Copyright © 2018-2022 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -21,7 +21,14 @@ env.Append(
 srcs = ["main.cpp", "DriverLibraryTests.cpp", "BufferTests.cpp", "ConfigTests.cpp"]
 
 if env["target"] == "kmod":
-    srcs.append("DriverLibraryKmodTests.cpp")
+    # Generate the kernel headers in <kernel dir>/usr/include/linux
+    # so that all the driver library tests can be properly built
+    env.Command(
+        os.path.join(env["unit_test_kernel_dir"], "usr", "include", "linux", "dma-heap.h"),
+        [],
+        "make -C " + env["unit_test_kernel_dir"] + " headers_install ARCH=arm64",
+    )
+    srcs.extend(["DriverLibraryKmodTests.cpp", "ImportedBufferKmodTests.cpp"])
 
 internal_dir = os.path.join(
     env["driver_library_dir"],
@@ -50,6 +57,14 @@ if os.path.isdir(internal_dir):
     )
     env.Repository(os.path.join(env["driver_library_dir"], "..", "..", "internal", "driver"))
     internal_srcs = [f for f in os.listdir(internal_dir) if f.endswith("cpp")]
+if env["platform"] != "android-ndk":
+    env.PrependUnique(
+        CPPPATH=[
+            # Add the generated user space headers from the kernel source that the variable is pointed at
+            # to the include search paths
+            os.path.join(env["unit_test_kernel_dir"], "usr", "include"),
+        ]
+    )
 # Add internal unit tests
 srcs.extend(internal_srcs)
 
