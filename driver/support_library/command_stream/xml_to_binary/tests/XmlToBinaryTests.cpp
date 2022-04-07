@@ -646,6 +646,8 @@ const std::string g_XmlStr =
                 <MCE_OP_MODE>DEPTHWISE_CONVOLUTION</MCE_OP_MODE>
                 <ALGORITHM>WINOGRAD</ALGORITHM>
                 <IS_WIDE_FILTER>1</IS_WIDE_FILTER>
+                <IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>1</IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>
+                <IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>1</IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>
                 <FILTER_SHAPE>
                     <WIDTH>7</WIDTH>
                     <HEIGHT>18</HEIGHT>
@@ -662,6 +664,10 @@ const std::string g_XmlStr =
                     <WIDTH>2</WIDTH>
                     <HEIGHT>-2</HEIGHT>
                 </IFM_DELTA_EDGE>
+                <IFM_STRIPE_SHAPE>
+                    <WIDTH>10</WIDTH>
+                    <HEIGHT>11</HEIGHT>
+                </IFM_STRIPE_SHAPE>
                 <RELU_ACTIV>
                     <MIN>-3</MIN>
                     <MAX>2</MAX>

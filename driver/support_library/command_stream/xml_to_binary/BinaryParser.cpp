@@ -769,6 +769,12 @@ void Parse(mxml_node_t& parent, const cascading::IfmDelta& ifmDelta)
     Parse(*mxmlNewElement(&parent, "HEIGHT"), ifmDelta.height);
 }
 
+void Parse(mxml_node_t& parent, const cascading::IfmStripeShape& ifmStripeShape)
+{
+    Parse(*mxmlNewElement(&parent, "WIDTH"), ifmStripeShape.width);
+    Parse(*mxmlNewElement(&parent, "HEIGHT"), ifmStripeShape.height);
+}
+
 void Parse(mxml_node_t& parent, const cascading::MceS& mces)
 {
     mxml_node_t* agent_op = mxmlNewElement(&parent, "MCE_SCHEDULER");
@@ -785,10 +791,13 @@ void Parse(mxml_node_t& parent, const cascading::MceS& mces)
     Parse(*mxmlNewElement(agent_op, "MCE_OP_MODE"), mces.mceOpMode);
     Parse(*mxmlNewElement(agent_op, "ALGORITHM"), mces.algorithm);
     Parse(*mxmlNewElement(agent_op, "IS_WIDE_FILTER"), mces.isWideFilter);
+    Parse(*mxmlNewElement(agent_op, "IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE"), mces.isExtraIfmStripeAtRightEdge);
+    Parse(*mxmlNewElement(agent_op, "IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE"), mces.isExtraIfmStripeAtBottomEdge);
     Parse(*mxmlNewElement(agent_op, "FILTER_SHAPE"), mces.filterShape);
     Parse(*mxmlNewElement(agent_op, "PADDING"), mces.padding);
     Parse(*mxmlNewElement(agent_op, "IFM_DELTA_DEFAULT"), mces.ifmDeltaDefault);
     Parse(*mxmlNewElement(agent_op, "IFM_DELTA_EDGE"), mces.ifmDeltaEdge);
+    Parse(*mxmlNewElement(agent_op, "IFM_STRIPE_SHAPE"), mces.ifmStripeShape);
     Parse(*mxmlNewElement(agent_op, "RELU_ACTIV"), mces.reluActiv);
 }
 

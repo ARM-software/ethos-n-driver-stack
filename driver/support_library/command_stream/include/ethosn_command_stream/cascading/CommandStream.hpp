@@ -164,6 +164,13 @@ struct IfmDelta
     ETHOSN_USE_AS_SV_VECTOR(IfmDelta, int8_t, 2)
 };
 
+struct IfmStripeShape
+{
+    uint16_t width;
+    uint16_t height;
+    ETHOSN_USE_AS_SV_VECTOR(IfmStripeShape, uint16_t, 2)
+};
+
 enum class MceAlgorithm : uint8_t
 {
     DIRECT,
@@ -197,10 +204,13 @@ struct MceS
     MceOperation mceOpMode;
     MceAlgorithm algorithm;
     uint8_t isWideFilter;
+    uint8_t isExtraIfmStripeAtRightEdge;
+    uint8_t isExtraIfmStripeAtBottomEdge;
     FilterShape filterShape;
     Padding padding;
     IfmDelta ifmDeltaDefault;
     IfmDelta ifmDeltaEdge;
+    IfmStripeShape ifmStripeShape;
     /// Relu activation values
     ReluActivation reluActiv;
     /// ID of the PLE kernel

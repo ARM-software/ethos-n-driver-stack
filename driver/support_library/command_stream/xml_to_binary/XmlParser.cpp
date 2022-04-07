@@ -370,10 +370,13 @@ void XmlParser::Pop(cascading::MceS& value)
     Pop("MCE_SCHEDULER/MCE_OP_MODE", value.mceOpMode);
     Pop("MCE_SCHEDULER/ALGORITHM", value.algorithm);
     Pop("MCE_SCHEDULER/IS_WIDE_FILTER", value.isWideFilter);
+    Pop("MCE_SCHEDULER/IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE", value.isExtraIfmStripeAtRightEdge);
+    Pop("MCE_SCHEDULER/IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE", value.isExtraIfmStripeAtBottomEdge);
     Pop("FILTER_SHAPE", value.filterShape);
     Pop("PADDING", value.padding);
     Pop("IFM_DELTA_DEFAULT", value.ifmDeltaDefault);
     Pop("IFM_DELTA_EDGE", value.ifmDeltaEdge);
+    Pop("IFM_STRIPE_SHAPE", value.ifmStripeShape);
     Pop("RELU_ACTIV", value.reluActiv);
 }
 
@@ -502,6 +505,12 @@ void XmlParser::Pop(const std::string& keyPrefix, cascading::Padding& value)
 }
 
 void XmlParser::Pop(const std::string& keyPrefix, cascading::IfmDelta& value)
+{
+    Pop(keyPrefix + "/WIDTH", value.width);
+    Pop(keyPrefix + "/HEIGHT", value.height);
+}
+
+void XmlParser::Pop(const std::string& keyPrefix, cascading::IfmStripeShape& value)
 {
     Pop(keyPrefix + "/WIDTH", value.width);
     Pop(keyPrefix + "/HEIGHT", value.height);
