@@ -357,6 +357,11 @@ PleOp::PleOp(Lifetime lifetime,
     m_PleKernelId = plelib::FindPleKernelIdFromDatabase(blockConfig, (inputStripeShapes.at(0))[2], dataType, op);
 }
 
+uint32_t PleOp::GetGeneratingNumAgents()
+{
+    return m_LoadKernel ? 2 : 1;
+}
+
 ConcatOp::ConcatOp()
     : Op("ConcatOp")
 {}

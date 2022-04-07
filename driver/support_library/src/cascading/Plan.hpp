@@ -192,7 +192,10 @@ public:
     {
         return utils::Optional<command_stream::BlockConfig>{};
     }
-
+    virtual uint32_t GetGeneratingNumAgents()
+    {
+        return 1;
+    }
     Lifetime m_Lifetime;
     std::set<uint32_t> m_OperationIds;
 };
@@ -260,7 +263,7 @@ public:
     {
         return m_BlockConfig;
     }
-
+    uint32_t GetGeneratingNumAgents() override final;
     command_stream::PleOperation m_Op;
     command_stream::BlockConfig m_BlockConfig;
     uint32_t m_NumInputs;
