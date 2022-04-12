@@ -6,6 +6,7 @@
 #include "NetworkToGraphOfPartsConverter.hpp"
 
 #include "ConcatPart.hpp"
+#include "ConstantPart.hpp"
 #include "EstimateOnlyPart.hpp"
 #include "FullyConnectedPart.hpp"
 #include "FusedPlePart.hpp"
@@ -101,6 +102,19 @@ void NetworkToGraphOfPartsConverter::Visit(Output& output)
     parts.push_back(outputPart.get());
     m_GraphOfParts.m_Parts.push_back(std::move(outputPart));
     ConnectParts(output, parts);
+}
+
+void NetworkToGraphOfPartsConverter::Visit(Constant& constant)
+{
+    std::vector<BasePart*> parts;
+    CompilerDataFormat compilerDataFormat = ConvertExternalToCompilerDataFormat(constant.GetTensorInfo().m_DataFormat);
+    auto constPart                        = std::make_unique<ConstantPart>(
+        m_GraphOfParts.GeneratePartId(), constant.GetTensorInfo().m_Dimensions, compilerDataFormat,
+        constant.GetTensorInfo().m_QuantizationInfo, std::set<uint32_t>{ constant.GetId() },
+        m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+    parts.push_back(constPart.get());
+    m_GraphOfParts.m_Parts.push_back(std::move(constPart));
+    ConnectParts(constant, parts);
 }
 
 void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)

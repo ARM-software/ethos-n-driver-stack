@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -58,6 +58,7 @@ uint32_t CalculateBufferSize(const TensorShape& shape, CascadingBufferFormat f)
         case CascadingBufferFormat::NHWCB:
             return utils::TotalSizeBytesNHWCB(shape);
         case CascadingBufferFormat::NHWC:
+        case CascadingBufferFormat::WEIGHT:
             return utils::TotalSizeBytes(shape);
         default:
             assert(false);
