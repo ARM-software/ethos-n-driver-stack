@@ -311,8 +311,10 @@ TEST_CASE("MceScheduler Agent Data Test", "[CascadingCompiler]")
     REQUIRE(mceSData.padding.left == 0);
     REQUIRE(mceSData.padding.top == 0);
 
-    REQUIRE(mceSData.ifmDelta.height == ifmDeltaHeight);
-    REQUIRE(mceSData.ifmDelta.width == ifmDeltaWidth);
+    REQUIRE(mceSData.ifmDeltaDefault.height == ifmDeltaHeight);
+    REQUIRE(mceSData.ifmDeltaDefault.width == ifmDeltaWidth);
+    REQUIRE(mceSData.ifmDeltaEdge.height == ifmDeltaHeight);
+    REQUIRE(mceSData.ifmDeltaEdge.width == ifmDeltaWidth);
 
     REQUIRE(mceSData.reluActiv.max == 255);
     REQUIRE(mceSData.reluActiv.min == 0);

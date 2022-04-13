@@ -303,9 +303,13 @@ AgentIdType CascadingCompiler::AddMceSchedulerToCommandStream(MceOp* const ptrMc
     mceSchedulerData.filterShape.width  = static_cast<uint8_t>(inputBuffers[1]->m_TensorShape[2]);
     mceSchedulerData.padding.left       = static_cast<uint8_t>(ptrMceOp->m_PadLeft);
     mceSchedulerData.padding.top        = static_cast<uint8_t>(ptrMceOp->m_PadTop);
-    mceSchedulerData.ifmDelta.height =
+    mceSchedulerData.ifmDeltaDefault.height =
         static_cast<int8_t>(inputBuffers[0]->m_TensorShape[1] - outputBuffer->m_TensorShape[1]);
-    mceSchedulerData.ifmDelta.width =
+    mceSchedulerData.ifmDeltaDefault.width =
+        static_cast<int8_t>(inputBuffers[0]->m_TensorShape[2] - outputBuffer->m_TensorShape[2]);
+    mceSchedulerData.ifmDeltaEdge.height =
+        static_cast<int8_t>(inputBuffers[0]->m_TensorShape[1] - outputBuffer->m_TensorShape[1]);
+    mceSchedulerData.ifmDeltaEdge.width =
         static_cast<int8_t>(inputBuffers[0]->m_TensorShape[2] - outputBuffer->m_TensorShape[2]);
     mceSchedulerData.reluActiv.min = ptrMceOp->m_LowerBound;
     mceSchedulerData.reluActiv.max = ptrMceOp->m_UpperBound;
