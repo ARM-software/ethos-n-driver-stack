@@ -351,7 +351,6 @@ void XmlParser::Pop(cascading::WgtS& value)
     Pop("WGT_STREAMER/BUFFER_ID", value.bufferId);
     Pop("WGT_STREAMER/METADATA_BUFFER_ID", value.metadataBufferId);
     Pop("TILE", value.tile);
-    Pop("WGT_STREAMER/EDGE_STRIPE_OFM_CHANNELS", value.edgeStripeOfmChannels);
     Pop("NUM_STRIPES", value.numStripes);
     Pop("STRIPE_ID_STRIDES", value.stripeIdStrides);
 }

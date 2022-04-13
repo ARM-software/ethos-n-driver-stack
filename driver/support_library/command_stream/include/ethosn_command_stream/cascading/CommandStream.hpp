@@ -111,8 +111,6 @@ struct WgtS
     uint16_t metadataBufferId;
     /// Weight SRAM tile info
     Tile tile;
-    /// Number of ofm channels in stripes at the edge of the ofmChannels dimension
-    uint16_t edgeStripeOfmChannels;
     /// Number of stripes for each "work" dimension
     WorkSize numStripes;
     /// Stride info for stripe ID (scalar) to stripe coord (ND) conversion

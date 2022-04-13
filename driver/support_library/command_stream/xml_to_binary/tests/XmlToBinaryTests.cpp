@@ -360,7 +360,6 @@ const std::string g_XmlStr =
                     <NUM_SLOTS>2</NUM_SLOTS>
                     <SLOT_SIZE>1024</SLOT_SIZE>
                 </TILE>
-                <EDGE_STRIPE_OFM_CHANNELS>8</EDGE_STRIPE_OFM_CHANNELS>
                 <NUM_STRIPES>
                     <OFM_CHANNELS>4</OFM_CHANNELS>
                     <IFM_CHANNELS>2</IFM_CHANNELS>

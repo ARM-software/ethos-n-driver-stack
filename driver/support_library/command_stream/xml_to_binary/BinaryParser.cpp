@@ -670,7 +670,6 @@ void Parse(mxml_node_t& parent, const cascading::WgtS& wgts)
     Parse(*mxmlNewElement(agent_op, "BUFFER_ID"), wgts.bufferId);
     Parse(*mxmlNewElement(agent_op, "METADATA_BUFFER_ID"), wgts.metadataBufferId);
     Parse(*mxmlNewElement(agent_op, "TILE"), wgts.tile);
-    Parse(*mxmlNewElement(agent_op, "EDGE_STRIPE_OFM_CHANNELS"), wgts.edgeStripeOfmChannels);
     Parse(*mxmlNewElement(agent_op, "NUM_STRIPES"), wgts.numStripes);
     Parse(*mxmlNewElement(agent_op, "STRIPE_ID_STRIDES"), wgts.stripeIdStrides);
 }
