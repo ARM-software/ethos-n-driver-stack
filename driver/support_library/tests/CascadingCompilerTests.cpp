@@ -94,7 +94,7 @@ public:
         plePlan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x000000F0;
         pleOp = std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::LEAKY_RELU,
                                         BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                        TensorShape{ 1, 8, 8, 10 }, ethosn::command_stream::DataType::U8, true);
+                                        TensorShape{ 1, 8, 8, 32 }, ethosn::command_stream::DataType::U8, true);
         pleOp.get()->m_Offset     = 0x000000FF;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp    = AddPleToOpGraph(plePlan.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
@@ -259,10 +259,15 @@ public:
 
         // Plan weightDramPlan
         weightDramPlan.m_OpGraph.AddBuffer(
-            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 1, 3, 1 },
+            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::WEIGHT, TensorShape{ 1, 1, 3, 1 },
                                      TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
-        weightDramPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
-        weightDramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "WeightDramBuffer";
+        weightDramPlan.m_OpGraph.GetBuffers().back()->m_BufferType     = BufferType::ConstantDma;
+        weightDramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag       = "WeightDramBuffer";
+        encodedWeights                                                 = std::make_shared<EncodedWeights>();
+        encodedWeights->m_Data                                         = { 1, 2, 3, 4 };
+        encodedWeights->m_MaxSize                                      = 10;
+        encodedWeights->m_Metadata                                     = { { 0, 2 }, { 2, 2 } };
+        weightDramPlan.m_OpGraph.GetBuffers().back()->m_EncodedWeights = encodedWeights;
         weightDramPlan.m_OutputMappings = { { weightDramPlan.m_OpGraph.GetBuffers()[0], weightDramPartOutputSlot0 } };
 
         // Glue glueWeightDram_WeightSram
@@ -273,16 +278,17 @@ public:
 
         // Plan weightSramPlan
         weightSramPlan.m_OpGraph.AddBuffer(
-            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 1, 3, 1 },
+            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::WEIGHT, TensorShape{ 1, 1, 3, 1 },
                                      TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
-        weightSramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "WeightSramBuffer";
-        weightSramPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x00000FF0;
-        weightSramPlan.m_OpGraph.GetBuffers().back()->m_NumStripes = 3;
+        weightSramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag    = "WeightSramBuffer";
+        weightSramPlan.m_OpGraph.GetBuffers().back()->m_Offset      = 0x00000FF0;
+        weightSramPlan.m_OpGraph.GetBuffers().back()->m_NumStripes  = 3;
+        weightSramPlan.m_OpGraph.GetBuffers().back()->m_SizeInBytes = encodedWeights->m_MaxSize;
         weightSramPlan.m_InputMappings  = { { weightSramPlan.m_OpGraph.GetBuffers()[0], weightSramPartInputSlot0 } };
         weightSramPlan.m_OutputMappings = { { weightSramPlan.m_OpGraph.GetBuffers()[0], weightSramPartOutputSlot0 } };
 
         Buffer* ptrWeightBuffer = weightSramPlan.m_OpGraph.GetBuffers().back();
-        weightStripeSize        = CalculateBufferSize(ptrWeightBuffer->m_StripeShape, ptrWeightBuffer->m_Format);
+        weightSize              = ptrWeightBuffer->m_SizeInBytes / ptrWeightBuffer->m_NumStripes;
         kernelHeight            = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[1]);
         kernelWidth             = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[2]);
 
@@ -326,7 +332,7 @@ public:
         pleOp.get()->m_Offset     = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp    = AddPleToOpGraph(mcePlePlan.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
-                                                 TensorShape{ 1, 8, 8, 32 }, numMemoryStripes, std::move(pleOp),
+                                                 TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp),
                                                  TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
         mcePlePlan.m_OpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         mcePlePlan.m_OpGraph.AddConsumer(mcePlePlan.m_OpGraph.GetBuffers()[2], mcePlePlan.m_OpGraph.GetOps()[1], 0);
@@ -401,9 +407,9 @@ public:
         return inputStripeSize;
     }
 
-    uint32_t getWeightStripeSize()
+    uint32_t getWeightSize()
     {
-        return weightStripeSize;
+        return weightSize;
     }
 
     int32_t getInputZeroPoint()
@@ -444,10 +450,12 @@ private:
     Glue glueOutputSram_OutputDram;
     Plan outputDramPlan;
 
+    std::shared_ptr<EncodedWeights> encodedWeights;
+
     std::unique_ptr<PleOp> pleOp;
 
     uint32_t inputStripeSize;
-    uint32_t weightStripeSize;
+    uint32_t weightSize;
     int32_t inputZeroPoint;
 
     uint8_t kernelHeight;
@@ -487,11 +495,11 @@ TEST_CASE("MceScheduler Agent Data Test", "[CascadingCompiler]")
 
     REQUIRE(mceSData.ifmTile.baseAddr == 0x00000F0F);
     REQUIRE(mceSData.ifmTile.numSlots == 4);
-    REQUIRE(mceSData.ifmTile.slotSize == mceOpGraph.getInputStripeSize());
+    REQUIRE(mceSData.ifmTile.slotSize == mceOpGraph.getInputStripeSize() / hwCaps.GetNumberOfSrams());
 
     REQUIRE(mceSData.wgtTile.baseAddr == 0x00000FF0);
     REQUIRE(mceSData.wgtTile.numSlots == 3);
-    REQUIRE(mceSData.wgtTile.slotSize == mceOpGraph.getWeightStripeSize());
+    REQUIRE(mceSData.wgtTile.slotSize == mceOpGraph.getWeightSize() / hwCaps.GetNumberOfSrams());
 
     REQUIRE(mceSData.blockSize.width == 16);
     REQUIRE(mceSData.blockSize.height == 16);
@@ -582,7 +590,7 @@ TEST_CASE("PleScheduler Agent Data Test", "[CascadingCompiler]")
     // agent is set correctly.
     REQUIRE(pleSchedulerAgent.data.pleS.ofmTile.baseAddr == 0x000F0FF);
     REQUIRE(pleSchedulerAgent.data.pleS.ofmTile.numSlots == 1);
-    REQUIRE(pleSchedulerAgent.data.pleS.ofmTile.slotSize == 2048);
+    REQUIRE(pleSchedulerAgent.data.pleS.ofmTile.slotSize == 256);
     REQUIRE(pleSchedulerAgent.data.pleS.ofmZeroPoint == 0);
 
     REQUIRE(pleSchedulerAgent.data.pleS.dfltStripeSize.height == 4);
@@ -628,20 +636,20 @@ TEST_CASE("PleScheduler Standalone Agent Data Test", "[CascadingCompiler]")
     // the PleScheduler agent is set correctly.
     REQUIRE(pleSAgent.data.pleS.ofmTile.baseAddr == 0x0000F00);
     REQUIRE(pleSAgent.data.pleS.ofmTile.numSlots == 1);
-    REQUIRE(pleSAgent.data.pleS.ofmTile.slotSize == 2048);
+    REQUIRE(pleSAgent.data.pleS.ofmTile.slotSize == 256);
     REQUIRE(pleSAgent.data.pleS.ofmZeroPoint == 0);
 
     REQUIRE(pleSAgent.data.pleS.dfltStripeSize.height == 8);
     REQUIRE(pleSAgent.data.pleS.dfltStripeSize.width == 8);
-    REQUIRE(pleSAgent.data.pleS.dfltStripeSize.channels == 10);
+    REQUIRE(pleSAgent.data.pleS.dfltStripeSize.channels == 32);
 
     REQUIRE(pleSAgent.data.pleS.numStripes.height == 10);
     REQUIRE(pleSAgent.data.pleS.numStripes.width == 10);
-    REQUIRE(pleSAgent.data.pleS.numStripes.channels == 3);
+    REQUIRE(pleSAgent.data.pleS.numStripes.channels == 1);
 
     REQUIRE(pleSAgent.data.pleS.edgeStripeSize.height == 8);
     REQUIRE(pleSAgent.data.pleS.edgeStripeSize.width == 8);
-    REQUIRE(pleSAgent.data.pleS.edgeStripeSize.channels == 4);
+    REQUIRE(pleSAgent.data.pleS.edgeStripeSize.channels == 24);
 
     REQUIRE(pleSAgent.data.pleS.stripeIdStrides.height == 10);
     REQUIRE(pleSAgent.data.pleS.stripeIdStrides.width == 1);
@@ -654,7 +662,7 @@ TEST_CASE("PleScheduler Standalone Agent Data Test", "[CascadingCompiler]")
 
     REQUIRE(pleSAgent.data.pleS.ifmTile0.baseAddr == 0x0000000F);
     REQUIRE(pleSAgent.data.pleS.ifmTile0.numSlots == 0);
-    REQUIRE(pleSAgent.data.pleS.ifmTile0.slotSize == 1024);
+    REQUIRE(pleSAgent.data.pleS.ifmTile0.slotSize == 128);
 
     REQUIRE(pleSAgent.data.pleS.ifmInfo0.zeroPoint == 0);
     REQUIRE(pleSAgent.data.pleS.ifmInfo0.multiplier == 32768);
@@ -754,6 +762,14 @@ TEST_CASE("OfmStreamer-IfmStreamer ReadAfterWriteDependency Test", "[CascadingCo
 
 // OfmStreamer Agent - Read After Write Dependency Test
 TEST_CASE("OfmStreamer-PleScheduler ReadAfterWriteDependency Test", "[CascadingCompiler]")
+{}
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+// Sram Overlap Dependency Tests
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+// WeightStreamer Agent - Sram Overlap Dependency Test
+TEST_CASE("WeightStreamer-OfmStreamer SramOverlpaDependency Test", "[CascadingCompiler]")
 {}
 
 //////////////////////////////////////////////////////////////////////////////////////////////

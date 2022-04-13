@@ -16,6 +16,168 @@ namespace support_library
 {
 namespace cascading_compiler
 {
+
+namespace CommonUtils
+{
+inline void SetTileInfoForBuffer(const HardwareCapabilities& hwCap, Tile& tile, const Buffer* const buffer)
+{
+    assert(buffer->m_Format == CascadingBufferFormat::NHWCB || buffer->m_Format == CascadingBufferFormat::WEIGHT);
+
+    tile.baseAddr = static_cast<uint16_t>(buffer->m_Offset.value());
+    tile.numSlots = static_cast<uint16_t>(buffer->m_NumStripes);
+
+    switch (buffer->m_Format)
+    {
+        case CascadingBufferFormat::NHWCB:
+            tile.slotSize =
+                static_cast<uint16_t>(utils::TotalSizeBytesNHWCB(buffer->m_StripeShape) / hwCap.GetNumberOfSrams());
+            break;
+        case CascadingBufferFormat::WEIGHT:
+            tile.slotSize =
+                static_cast<uint16_t>(buffer->m_SizeInBytes / (hwCap.GetNumberOfSrams() * buffer->m_NumStripes));
+            break;
+        default:
+            assert(false);
+    }
+}
+}    // namespace CommonUtils
+
+namespace StreamersUtils
+{
+inline void SetBufferDataType(FmSData& streamerData, const CascadingBufferFormat bufferFormat)
+{
+    switch (bufferFormat)
+    {
+        case CascadingBufferFormat::NHWC:
+            streamerData.dataType = FmsDataType::NHWC;
+            break;
+        case CascadingBufferFormat::NHWCB:
+            streamerData.dataType = FmsDataType::NHWCB;
+            break;
+        case CascadingBufferFormat::FCAF_DEEP:
+            streamerData.dataType = FmsDataType::FCAF_DEEP;
+            break;
+        case CascadingBufferFormat::FCAF_WIDE:
+            streamerData.dataType = FmsDataType::FCAF_WIDE;
+            break;
+        default:
+            assert(false);
+    }
+}
+
+inline void SetStripeHeightInfo(FmSData& streamerData, const TensorShape& tensorShape, const TensorShape& stripeShape)
+{
+    uint16_t tensorHeight = static_cast<uint16_t>(utils::GetHeight(tensorShape));
+    uint16_t stripeHeight = static_cast<uint16_t>(utils::GetHeight(stripeShape));
+
+    assert(stripeHeight != 0);
+
+    streamerData.numStripes.height = static_cast<uint16_t>(utils::GetNumStripesH(tensorShape, stripeShape));
+
+    streamerData.dfltStripeSize.height = stripeHeight;
+
+    streamerData.edgeStripeSize.height = stripeHeight;
+
+    uint16_t remainingHeight = tensorHeight % stripeHeight;
+
+    if (remainingHeight != 0)
+    {
+        streamerData.edgeStripeSize.height = remainingHeight;
+    }
+}
+
+inline void SetStripeWidthInfo(FmSData& streamerData, const TensorShape& tensorShape, const TensorShape& stripeShape)
+{
+    uint16_t tensorWidth = static_cast<uint16_t>(utils::GetWidth(tensorShape));
+    uint16_t stripeWidth = static_cast<uint16_t>(utils::GetWidth(stripeShape));
+
+    assert(stripeWidth != 0);
+
+    streamerData.numStripes.width = static_cast<uint16_t>(utils::GetNumStripesW(tensorShape, stripeShape));
+
+    streamerData.dfltStripeSize.width = stripeWidth;
+
+    streamerData.edgeStripeSize.width = stripeWidth;
+
+    uint16_t remainingWidth = tensorWidth % stripeWidth;
+
+    if (remainingWidth != 0)
+    {
+        streamerData.edgeStripeSize.width = remainingWidth;
+    }
+}
+
+inline void SetStripeChannelsInfo(FmSData& streamerData, const TensorShape& tensorShape, const TensorShape& stripeShape)
+{
+    uint16_t tensorChannels = static_cast<uint16_t>(utils::GetChannels(tensorShape));
+    uint16_t stripeChannels = static_cast<uint16_t>(utils::GetChannels(stripeShape));
+
+    assert(stripeChannels != 0);
+
+    streamerData.numStripes.channels = static_cast<uint16_t>(utils::GetNumStripesC(tensorShape, stripeShape));
+
+    streamerData.dfltStripeSize.channels = stripeChannels;
+
+    streamerData.edgeStripeSize.channels = stripeChannels;
+
+    uint16_t remainingChannels = tensorChannels % stripeChannels;
+
+    if (remainingChannels != 0)
+    {
+        streamerData.edgeStripeSize.channels = remainingChannels;
+    }
+}
+
+inline void SetSuperTensorSizeInCells(FmSData& streamerData,
+                                      const TensorShape& tensorShape,
+                                      const CascadingBufferFormat bufferFormat)
+{
+    uint16_t cellWidth = 0;
+    uint16_t cellDepth = 0;
+
+    switch (bufferFormat)
+    {
+        case CascadingBufferFormat::NHWC:
+            cellWidth = 1;
+            cellDepth = 1;
+            break;
+        case CascadingBufferFormat::NHWCB:
+            cellWidth = 8;
+            cellDepth = 16;
+            break;
+        case CascadingBufferFormat::FCAF_DEEP:
+            cellWidth = 8;
+            cellDepth = 32;
+            break;
+        case CascadingBufferFormat::FCAF_WIDE:
+            cellWidth = 16;
+            cellDepth = 16;
+            break;
+        default:
+            assert(false);
+    }
+
+    streamerData.supertensorSizeInCells.width    = static_cast<uint16_t>(utils::DivRoundUp(tensorShape[2], cellWidth));
+    streamerData.supertensorSizeInCells.channels = static_cast<uint16_t>(utils::DivRoundUp(tensorShape[3], cellDepth));
+}
+
+inline void SetStripeIdStrides(FmSData& streamerData, TraversalOrder traversalOrder)
+{
+    if (traversalOrder == TraversalOrder::Xyz)
+    {
+        streamerData.stripeIdStrides.height =
+            static_cast<uint16_t>(streamerData.numStripes.width * streamerData.numStripes.channels);
+        streamerData.stripeIdStrides.width    = streamerData.numStripes.channels;
+        streamerData.stripeIdStrides.channels = 1U;
+    }
+    else
+    {
+        assert(false);
+    }
+}
+
+}    // namespace StreamersUtils
+
 namespace MceSUtils
 {
 
@@ -124,6 +286,7 @@ inline void SetStripeIdStrides(MceS& mceSchedulerData, TraversalOrder traversalO
         assert(false);
     }
 }
+
 inline void setMcesOpMode(MceS& mceSchedulerData, command_stream::MceOperation operationMode)
 {
     if (operationMode == command_stream::MceOperation::CONVOLUTION)
