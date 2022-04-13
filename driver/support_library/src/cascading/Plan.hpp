@@ -192,8 +192,9 @@ public:
     {
         return utils::Optional<command_stream::BlockConfig>{};
     }
-    virtual uint32_t GetGeneratingNumAgents()
+    virtual uint32_t GetNumberOfAgents(uint32_t numberOfInputs = 1) const
     {
+        ETHOSN_UNUSED(numberOfInputs);
         return 1;
     }
 
@@ -269,8 +270,8 @@ public:
     {
         return m_BlockConfig;
     }
-    uint32_t GetGeneratingNumAgents() override final;
 
+    virtual uint32_t GetNumberOfAgents(uint32_t) const override final;
     virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 
     command_stream::PleOperation m_Op;
@@ -288,6 +289,10 @@ class ConcatOp : public Op
 {
 public:
     ConcatOp();
+    virtual uint32_t GetNumberOfAgents(uint32_t numberOfInputs) const override final
+    {
+        return numberOfInputs * 2;
+    }
 };
 
 class EstimateOnlyOp : public Op

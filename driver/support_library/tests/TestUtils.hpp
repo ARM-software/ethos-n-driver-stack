@@ -18,6 +18,7 @@ namespace support_library
 {
 
 HardwareCapabilities GetEthosN78HwCapabilities();
+HardwareCapabilities GetEthosN78HwCapabilities(uint32_t ctrlAgentWindowSizeOverride);
 HardwareCapabilities GetEthosN78HwCapabilities(EthosNVariant variant, uint32_t sramSizeOverride = 0);
 
 std::vector<char> GetRawDefaultCapabilities();

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -37,7 +37,7 @@ TEST_CASE("Invalid capabilities")
     {
         FirmwareAndHardwareCapabilities caps;
         caps.m_Header.m_Size    = sizeof(FirmwareAndHardwareCapabilities);
-        caps.m_Header.m_Version = 17;
+        caps.m_Header.m_Version = FW_AND_HW_CAPABILITIES_VERSION + 10;
         REQUIRE_THROWS_AS(CreateNetwork(GetRawCapabilities(caps)), VersionMismatchException);
     }
 }
@@ -129,7 +129,7 @@ TEST_CASE("Correct capabilities")
     memcpy(&capsFromOptsSL, capsFromSupportLibVect.data(), sizeof(FirmwareAndHardwareCapabilities));
 
     // Test some random values after being turned from vector into FirmwareAndHardwareCapabilities again.
-    REQUIRE(capsFromOptsSL.m_Header.m_Version == 3);
+    REQUIRE(capsFromOptsSL.m_Header.m_Version == FW_AND_HW_CAPABILITIES_VERSION);
     REQUIRE(capsFromOptsSL.m_TotalSramSize == 1048576);
     REQUIRE(capsFromOptsSL.m_TotalAccumulatorsPerOg == 512);
 }

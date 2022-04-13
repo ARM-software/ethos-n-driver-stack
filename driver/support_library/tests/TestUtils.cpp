@@ -30,6 +30,14 @@ HardwareCapabilities GetEthosN78HwCapabilities()
     return HardwareCapabilities(fwHwCapabilities);
 }
 
+HardwareCapabilities GetEthosN78HwCapabilities(uint32_t ctrlWindowSizeOverride)
+{
+    FirmwareAndHardwareCapabilities fwHwCapabilities =
+        GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, 0);
+    fwHwCapabilities.m_AgentWindowSize = ctrlWindowSizeOverride;
+    return HardwareCapabilities(fwHwCapabilities);
+}
+
 HardwareCapabilities GetEthosN78HwCapabilities(EthosNVariant variant, uint32_t sramSizeOverride)
 {
     FirmwareAndHardwareCapabilities fwHwCapabilities = GetEthosN78FwHwCapabilities(variant, sramSizeOverride);

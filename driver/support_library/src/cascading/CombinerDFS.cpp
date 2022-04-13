@@ -1015,7 +1015,8 @@ Combination Combiner::EndSection(const BasePart& part,
                                  const SramAllocator& alloc,
                                  uint32_t prevNumWeightStripes,
                                  bool prevDoubleBuffered,
-                                 const PleOperations& pleOps)
+                                 const PleOperations& pleOps,
+                                 uint32_t totalAgents)
 {
     UpdateStats(StatsType::EndSection);
 
@@ -1092,6 +1093,11 @@ Combination Combiner::EndSection(const BasePart& part,
                     continue;
                 }
 
+                if (!IsSectionSizeSupported(StatsType::EndSection, plan, totalAgents))
+                {
+                    continue;
+                }
+
                 // Add current part and plan to the combination,
                 Combination section =
                     comb + Combination(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
@@ -1119,6 +1125,73 @@ Combination Combiner::EndSection(const BasePart& part,
         }
     }
 
+    return result;
+}
+
+bool Combiner::IsSectionSizeSupported(const StatsType sectionInfo, const Plan& plan, uint32_t& totalAgents)
+{
+    bool result = true;
+
+    // Account for any Dma Ops in the glue logic at the input edge of the plan
+    if (sectionInfo == StatsType::StartSection || sectionInfo == StatsType::SinglePartSection)
+    {
+        for (auto const& inputMapping : plan.m_InputMappings)
+        {
+            // A corresponding Dma Op in glue logic is not needed if the buffer is in Dram
+            if (inputMapping.first->m_Location != Location::Dram)
+            {
+                // If any of the input buffer's consumers is Cascade, the buffer's producer Dma Op
+                // must also be cascade. Assume that the Dma Op would result in a single agent.
+                // Therefore, increment the agent count by one.
+                OpGraph::ConsumersList consumers = plan.m_OpGraph.GetConsumers(inputMapping.first);
+                bool aConsumerIsCascade          = std::any_of(consumers.begin(), consumers.end(),
+                                                      [](auto& p) { return p.first->m_Lifetime == Lifetime::Cascade; });
+                totalAgents += aConsumerIsCascade;
+            }
+        }
+    }
+
+    // Count Agents for each Op in the graph. The Ops should be in execution order.
+    for (Op* op : plan.m_OpGraph.GetOps())
+    {
+        uint32_t numberOfInputs = static_cast<uint32_t>(plan.m_OpGraph.GetInputs(op).size());
+        totalAgents += op->GetNumberOfAgents(numberOfInputs);
+        result &= totalAgents <= m_Caps.GetAgentWindowSize();
+
+        // The total is to be reset when all preceding Agents have finished execution.
+        // All preceding Agents must finish execution when an Atomic Op finishes
+        // execution. This Atomic Op must be in the path from IFM to OFM. We can
+        // identify whether an Op is in the path from IFM to OFM by checking its
+        // output buffer's format. If the buffer's format is WEIGHT, it means that the
+        // buffer's producer loads weights and hence it is not in the IFM to OFM path.
+        if (plan.m_OpGraph.GetOutput(op)->m_Format != CascadingBufferFormat::WEIGHT)
+        {
+            totalAgents = op->m_Lifetime == Lifetime::Atomic ? 0 : totalAgents;
+        }
+    }
+
+    // Account for any Dma Ops in the glue logic at the output edge of the plan
+    if (sectionInfo == StatsType::EndSection || sectionInfo == StatsType::SinglePartSection)
+    {
+        for (auto const& outputMapping : plan.m_OutputMappings)
+        {
+            // A corresponding Dma Op in glue logic is not needed if the buffer is in Dram
+            if (outputMapping.first->m_Location != Location::Dram)
+            {
+                // If the output buffer's producer is cascade, the buffer's consumer Dma Op must also
+                // be cascade. Assume that the Dma Op would result in a single agent. Therefore,
+                // increment the agent count by one.
+                Op* producer = plan.m_OpGraph.GetProducer(outputMapping.first);
+                if (producer != nullptr)
+                {
+                    bool isCascade = producer->m_Lifetime == Lifetime::Cascade;
+                    totalAgents += isCascade;
+                }
+            }
+        }
+    }
+
+    result &= totalAgents <= m_Caps.GetAgentWindowSize();
     return result;
 }
 
@@ -1207,14 +1280,22 @@ Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPar
                 {
                     continue;
                 }
+
+                // Start counting total agents at 0 becasue this is the start of a section
+                uint32_t totalAgents = 0;
+                if (!IsSectionSizeSupported(StatsType::StartSection, plan, totalAgents))
+                {
+                    continue;
+                }
+
                 Combination head(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first, m_GraphOfParts);
 
                 // Options to be estimated: consider continuing and ending the current section
                 // in the next part
-                Combination ended =
-                    EndSection(nextPart, part, head, tempAlloc, currNumWeightStripes, hasSectionDoubleBuffered, pleOps);
+                Combination ended     = EndSection(nextPart, part, head, tempAlloc, currNumWeightStripes,
+                                               hasSectionDoubleBuffered, pleOps, totalAgents);
                 Combination continued = ContinueSection(nextPart, part, head, tempAlloc, currNumWeightStripes,
-                                                        hasSectionDoubleBuffered, pleOps);
+                                                        hasSectionDoubleBuffered, pleOps, totalAgents);
                 Combinations options  = { result, continued, ended };
                 result                = GetBestCombination(options);
             }
@@ -1281,6 +1362,12 @@ Combination Combiner::SinglePartSection(const BasePart& part)
             {
                 continue;
             }
+            // Start counting total agents from 0 because this is a single part section
+            uint32_t totalAgents = 0;
+            if (!IsSectionSizeSupported(StatsType::SinglePartSection, plan, totalAgents))
+            {
+                continue;
+            }
             // Glue will be added later on.
             // In this case local optimum = global optimum so
             // it can get the best plan for the part.
@@ -1316,7 +1403,8 @@ Combination Combiner::ContinueSection(const BasePart& part,
                                       const SramAllocator& alloc,
                                       uint32_t prevNumWeightStripes,
                                       bool prevDoubleBuffered,
-                                      const PleOperations& pleOps)
+                                      const PleOperations& pleOps,
+                                      uint32_t totalAgents)
 {
     UpdateStats(StatsType::ContinueSection);
 
@@ -1436,6 +1524,11 @@ Combination Combiner::ContinueSection(const BasePart& part,
                     continue;
                 }
 
+                if (!IsSectionSizeSupported(StatsType::ContinueSection, plan, totalAgents))
+                {
+                    continue;
+                }
+
                 // Add current part and plan to the combination,
                 // no glue is required. Current part is SISO and
                 // has a single input/output
@@ -1447,11 +1540,11 @@ Combination Combiner::ContinueSection(const BasePart& part,
 
                 // Next one is the last part of the section
                 Combination ended = EndSection(*nextPartGraph, part, section, tempAlloc, numWeightStripes,
-                                               hasSectionDoubleBuffered, tempPleOps);
+                                               hasSectionDoubleBuffered, tempPleOps, totalAgents);
 
                 // Next one is the middle part of the section
                 Combination continued = ContinueSection(*nextPartGraph, part, section, tempAlloc, numWeightStripes,
-                                                        hasSectionDoubleBuffered, tempPleOps);
+                                                        hasSectionDoubleBuffered, tempPleOps, totalAgents);
                 options               = { result, continued, ended };
 
                 result = GetBestCombination(options);

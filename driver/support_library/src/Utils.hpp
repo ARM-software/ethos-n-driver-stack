@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -75,6 +75,7 @@ public:
     uint32_t GetTotalAccumulatorsPerOg() const;
     uint32_t GetMacUnitsPerOg() const;
     uint32_t GetNumberOfPleLanes() const;
+    uint32_t GetAgentWindowSize() const;
 
     // It is always 16 MACs per wingorad output block either for 1D (1x3/3x1 filter) or 2D (3x3 filter).
     uint32_t GetMacsPerWinogradOutputBlock() const

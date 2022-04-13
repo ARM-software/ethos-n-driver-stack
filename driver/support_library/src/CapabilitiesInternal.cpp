@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -125,6 +125,8 @@ FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant varian
     fwHwCapabilities.m_WeightCompressionVersion     = 1;
     fwHwCapabilities.m_ActivationCompressionVersion = 1;
     fwHwCapabilities.m_IsNchwSupported              = 1;
+
+    fwHwCapabilities.m_AgentWindowSize = 64;
 
     return fwHwCapabilities;
 }

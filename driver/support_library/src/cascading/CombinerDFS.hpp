@@ -262,7 +262,8 @@ public:
                                 const SramAllocator& alloc,
                                 uint32_t prevNumWeightStripes,
                                 bool prevDoubleBuffered,
-                                const PleOperations& pleOps);
+                                const PleOperations& pleOps,
+                                uint32_t totalAgents);
 
     Combination SinglePartSection(const BasePart& part);
 
@@ -272,7 +273,8 @@ public:
                            const SramAllocator& alloc,
                            uint32_t prevNumWeightStripes,
                            bool prevDoubleBuffered,
-                           const PleOperations& pleOps);
+                           const PleOperations& pleOps,
+                           uint32_t totalAgents);
 
     Combination StartSection(const BasePart& part, const BasePart& nextPart, const SramAllocator& alloc);
 
@@ -312,6 +314,9 @@ public:
                std::map<const BasePart*, PartState>& partStates);
 
     bool TopologicalSortParts();
+
+    bool IsSectionSizeSupported(const StatsType sectionInfo, const Plan& plan, uint32_t& totalAgents);
+    bool DoAgentsInGraphFitInsideWindow(const OpGraph& opGraph, Buffer* inputBuffer, uint32_t& totalAgents);
 
 private:
     const GraphOfParts& m_GraphOfParts;

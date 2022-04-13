@@ -397,7 +397,7 @@ PleOp::PleOp(Lifetime lifetime,
     m_PleKernelId = plelib::FindPleKernelIdFromDatabase(blockConfig, (inputStripeShapes.at(0))[2], dataType, op);
 }
 
-uint32_t PleOp::GetGeneratingNumAgents()
+uint32_t PleOp::GetNumberOfAgents(uint32_t) const
 {
     return m_LoadKernel ? 2 : 1;
 }
