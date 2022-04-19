@@ -7,6 +7,8 @@
 #include "../include/ethosn_driver_library/Network.hpp"
 #include "../src/Utils.hpp"
 
+#include <ethosn_utils/KernelUtils.hpp>
+
 #include <linux/version.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
 #include <linux/dma-heap.h>
@@ -14,97 +16,15 @@
 
 #include <catch.hpp>
 
-#include <chrono>
 #include <cstring>
-#include <dirent.h>
 #include <fcntl.h>
-#include <fstream>
-#include <iostream>
 #include <sys/ioctl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/utsname.h>
-#include <thread>
 #include <unistd.h>
 
 using namespace ethosn::driver_library;
 
 namespace
 {
-
-bool IsDeviceStatusOkay(const std::string& filePath)
-{
-    std::ifstream fileStream(filePath);
-    if (!fileStream.is_open())
-        return false;
-    std::string isOkay;
-    getline(fileStream, isOkay);
-    constexpr char okay[] = "okay";
-    return isOkay.compare(0, strlen(okay), okay) == 0;
-}
-
-bool IsCore0IommuAvailable(const std::string& filePath)
-{
-    std::ifstream fileStream(filePath + "/core0/iommus");
-    return fileStream.is_open();
-}
-
-bool IsKernelVersionHigherOrEqualTo(int kernelVersion, int kernelPatchLevel)
-{
-    utsname linuxReleaseInfo = {};
-    REQUIRE(!uname(&linuxReleaseInfo));
-    int actualKernelVersion, actualKernelPatchLevel;
-    REQUIRE(sscanf(linuxReleaseInfo.release, "%d.%d", &actualKernelVersion, &actualKernelPatchLevel) == 2);
-    return ((kernelVersion < actualKernelVersion) ||
-            ((kernelVersion == actualKernelVersion) && (kernelPatchLevel <= actualKernelPatchLevel)));
-}
-
-bool IsNpuCoreBehindIommus()
-{
-    constexpr char deviceTreePath[] = "/proc/device-tree";
-    DIR* dir                        = opendir(deviceTreePath);
-    REQUIRE(dir != nullptr);
-    dirent* ent;
-    constexpr char deviceBindingPrefix[] = "ethosn@";
-    bool coreFound                       = false;
-    while ((ent = readdir(dir)) != nullptr)
-    {
-        const std::string dirName(ent->d_name);
-        if (dirName.find(deviceBindingPrefix, 0, strlen(deviceBindingPrefix)) == std::string::npos)
-        {
-            continue;
-        }
-        const std::string devicePath = deviceTreePath + std::string("/") + dirName;
-        if (!IsDeviceStatusOkay(devicePath + "/status"))
-        {
-            continue;
-        }
-        if (!IsDeviceStatusOkay(devicePath + "/core0/status"))
-        {
-            continue;
-        }
-        coreFound = true;
-        if (IsCore0IommuAvailable(devicePath))
-        {
-            break;
-        }
-    }
-    if (ent == nullptr)
-    {
-        if (coreFound)
-        {
-            INFO("No NPU core is behind a IOMMU.");
-        }
-        else
-        {
-            INFO("No \"ethosn@xxxxxxx\" device tree node was found.");
-        }
-    }
-    closedir(dir);
-    return ent != nullptr;
-}
-
 class DmaHeapBuffer
 {
 public:
@@ -144,7 +64,7 @@ private:
 TEST_CASE("SimpleImportedBufferAllocation")
 {
     // check the kernel version to be higher or equal to 5.6.
-    if (!IsKernelVersionHigherOrEqualTo(5, 6))
+    if (!ethosn::utils::IsKernelVersionHigherOrEqualTo(5, 6))
     {
         INFO("Kernel version lower than 5.6.");
         INFO("No tests will be performed.");
@@ -152,8 +72,9 @@ TEST_CASE("SimpleImportedBufferAllocation")
     }
 
     // check that NPU core is behind a IOMMU.
-    if (!IsNpuCoreBehindIommus())
+    if (!ethosn::utils::IsNpuCoreBehindIommus())
     {
+        INFO("No NPU core is behind a IOMMU or \"ethosn@xxxxxxx\" not found in the device tree.");
         INFO("No tests will be performed.");
         return;
     }
@@ -174,7 +95,7 @@ TEST_CASE("SimpleImportedBufferAllocation")
 TEST_CASE("ImportedBufferSource")
 {
     // check the kernel version to be higher or equal to 5.6.
-    if (!IsKernelVersionHigherOrEqualTo(5, 6))
+    if (!ethosn::utils::IsKernelVersionHigherOrEqualTo(5, 6))
     {
         INFO("Kernel version lower than 5.6.");
         INFO("No tests will be performed.");
@@ -182,8 +103,9 @@ TEST_CASE("ImportedBufferSource")
     }
 
     // check that NPU core is behind a IOMMU.
-    if (!IsNpuCoreBehindIommus())
+    if (!ethosn::utils::IsNpuCoreBehindIommus())
     {
+        INFO("No NPU core is behind a IOMMU or \"ethosn@xxxxxxx\" not found in the device tree.");
         INFO("No tests will be performed.");
         return;
     }
@@ -209,7 +131,7 @@ TEST_CASE("ImportedBufferSource")
 TEST_CASE("ImportedBufferMap/Unmap")
 {
     // check the kernel version to be higher or equal to 5.6.
-    if (!IsKernelVersionHigherOrEqualTo(5, 6))
+    if (!ethosn::utils::IsKernelVersionHigherOrEqualTo(5, 6))
     {
         INFO("Kernel version lower than 5.6.");
         INFO("No tests will be performed.");
@@ -217,8 +139,9 @@ TEST_CASE("ImportedBufferMap/Unmap")
     }
 
     // check that NPU core is behind a IOMMU.
-    if (!IsNpuCoreBehindIommus())
+    if (!ethosn::utils::IsNpuCoreBehindIommus())
     {
+        INFO("No NPU core is behind a IOMMU or \"ethosn@xxxxxxx\" not found in the device tree.");
         INFO("No tests will be performed.");
         return;
     }
