@@ -118,7 +118,7 @@ static size_t ethosn_page_size(unsigned int start,
 	return size;
 }
 
-static int ethosn_nr_pages(struct ethosn_dma_info_internal *dma_info)
+static int ethosn_nr_sg_objects(struct ethosn_dma_info_internal *dma_info)
 {
 	int nr_pages = 0;
 
@@ -128,6 +128,15 @@ static int ethosn_nr_pages(struct ethosn_dma_info_internal *dma_info)
 		nr_pages = DIV_ROUND_UP(dma_info->info.size, PAGE_SIZE);
 
 	return nr_pages;
+}
+
+static int ethosn_nr_pages(struct ethosn_dma_info_internal *dma_info)
+{
+
+	/* info.size is calculated on import and can be used for scatterlists
+	 * also.
+	 */
+	return DIV_ROUND_UP(dma_info->info.size, PAGE_SIZE);
 }
 
 static struct ethosn_iommu_stream *iommu_get_stream(
@@ -216,7 +225,7 @@ static dma_addr_t iommu_alloc_iova(struct device *dev,
 
 	bitmap_set(stream->bitmap, start, nr_pages);
 
-	iova = stream->addr_base + ethosn_page_size(0, start, dma);
+	iova = stream->addr_base + PAGE_SIZE * start;
 ret:
 	spin_unlock_irqrestore(&stream->lock, flags);
 
@@ -378,7 +387,7 @@ static int iommu_iova_map(struct ethosn_dma_allocator *allocator,
 		iommu_get_stream(domain, stream_id);
 	struct ethosn_dma_info_internal *dma_info =
 		container_of(_dma_info, typeof(*dma_info), info);
-	int nr_pages = ethosn_nr_pages(dma_info);
+	int nr_scatter_pages = ethosn_nr_sg_objects(dma_info);
 	dma_addr_t start_addr = 0;
 	int i, err, iommu_prot = 0;
 
@@ -416,7 +425,7 @@ static int iommu_iova_map(struct ethosn_dma_allocator *allocator,
 		"%s: mapping %lu bytes starting at 0x%llX prot 0x%x\n",
 		__func__, dma_info->info.size, start_addr, iommu_prot);
 
-	for (i = 0; i < nr_pages; ++i) {
+	for (i = 0; i < nr_scatter_pages; ++i) {
 		if (stream->page)
 			iommu_unmap(
 				domain->iommu_domain,
@@ -466,7 +475,7 @@ free_iova:
 	 * Use start_addr since dma_info isn't updated in the
 	 * case of error.
 	 */
-	iommu_free_iova(start_addr, stream, nr_pages);
+	iommu_free_iova(start_addr, stream, ethosn_nr_pages(dma_info));
 
 early_exit:
 
@@ -552,6 +561,13 @@ static struct ethosn_dma_info *iommu_import(
 	scatterlist = dma_buf_internal->sgt->sgl;
 	for_each_sg(scatterlist, tmp_scatterlist, dma_buf_internal->sgt->nents,
 		    i) {
+		if (tmp_scatterlist->offset != 0) {
+			dev_err(
+				allocator->dev,
+				"failed to iommu import scatterlist offset is not zero, we only support zero");
+			goto free_dma_address;
+		}
+
 		pages[i] = sg_page(tmp_scatterlist);
 		dma_addr[i] = sg_dma_address(tmp_scatterlist);
 		scatterlist_size += sg_dma_len(tmp_scatterlist);
@@ -645,10 +661,11 @@ static void iommu_iova_unmap(struct ethosn_dma_allocator *allocator,
 		return;
 
 	if (dma_info->info.size) {
+		int nr_scatter_pages = ethosn_nr_sg_objects(dma_info);
 		int nr_pages = ethosn_nr_pages(dma_info);
 
 		iommu_unmap_iova_pages(dma_info, domain->iommu_domain, stream,
-				       nr_pages);
+				       nr_scatter_pages);
 
 		iommu_free_iova(dma_info->info.iova_addr, stream, nr_pages);
 	}
@@ -680,7 +697,7 @@ static void iommu_sync_for_device(struct ethosn_dma_allocator *allocator,
 {
 	struct ethosn_dma_info_internal *dma_info =
 		container_of(_dma_info, typeof(*dma_info), info);
-	int nr_pages = ethosn_nr_pages(dma_info);
+	int nr_pages = ethosn_nr_sg_objects(dma_info);
 	int i;
 
 	if (dma_info->dma_buf_internal)
@@ -700,14 +717,14 @@ static void iommu_sync_for_cpu(struct ethosn_dma_allocator *allocator,
 {
 	struct ethosn_dma_info_internal *dma_info =
 		container_of(_dma_info, typeof(*dma_info), info);
-	int nr_pages = ethosn_nr_pages(dma_info);
+	int nr_scatter_pages = ethosn_nr_sg_objects(dma_info);
 	int i;
 
 	if (dma_info->dma_buf_internal)
 		dma_buf_end_cpu_access(dma_info->dma_buf_internal->dmabuf,
 				       DMA_FROM_DEVICE);
 	else
-		for (i = 0; i < nr_pages; ++i)
+		for (i = 0; i < nr_scatter_pages; ++i)
 			dma_sync_single_for_cpu(allocator->dev,
 						dma_info->dma_addr[i],
 						ethosn_page_size(i, i + 1,
@@ -721,10 +738,10 @@ static int iommu_mmap(struct ethosn_dma_allocator *allocator,
 {
 	struct ethosn_dma_info_internal *dma_info =
 		container_of(_dma_info, typeof(*dma_info), info);
-	int nr_pages = ethosn_nr_pages(dma_info);
+	int nr_scatter_pages = ethosn_nr_sg_objects(dma_info);
 	int i;
 
-	for (i = 0; i < nr_pages; ++i) {
+	for (i = 0; i < nr_scatter_pages; ++i) {
 		unsigned long addr = vma->vm_start + ethosn_page_size(0, i,
 								      dma_info);
 		unsigned long pfn = page_to_pfn(dma_info->pages[i]);
