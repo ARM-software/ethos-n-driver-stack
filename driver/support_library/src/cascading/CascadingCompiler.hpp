@@ -112,8 +112,19 @@ private:
 
     // Data structure for mapping an Op to its Agent ID
     std::unordered_map<Op*, AgentIdType> m_OpToAgentIdMapping;
+
+    // Define a Hash functor for enum classes to workaround an issue found when compiling with g++ 5.1
+    struct EnumHasher
+    {
+        template <typename T>
+        std::size_t operator()(T t) const
+        {
+            return static_cast<std::size_t>(t);
+        }
+    };
     // Data structure for mapping a Ple kernel to its loader Agent
-    std::unordered_map<command_stream::cascading::PleKernelId, AgentIdType> m_PleKernelToPleLoaderAgentIdMapping;
+    std::unordered_map<command_stream::cascading::PleKernelId, AgentIdType, EnumHasher>
+        m_PleKernelToPleLoaderAgentIdMapping;
 
     // Command stream agents used to build the command stream and to be stored in the BufferManager instance at BufferId = 0
     std::vector<command_stream::cascading::Agent> m_CommandStreamAgents;
