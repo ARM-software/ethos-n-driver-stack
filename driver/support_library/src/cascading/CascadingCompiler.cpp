@@ -268,7 +268,7 @@ AgentIdType CascadingCompiler::AddMceSchedulerToCommandStream(MceOp* const ptrMc
     // Get the output buffer from the Mce Op
     Buffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrMceOp);
 
-    MceS mceSchedulerData;
+    MceS mceSchedulerData = {};
 
     mceSchedulerData.ifmTile = {
         static_cast<uint16_t>(inputBuffers[0]->m_Offset.value()), static_cast<uint16_t>(inputBuffers[0]->m_NumStripes),
