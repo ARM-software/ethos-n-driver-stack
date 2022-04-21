@@ -707,20 +707,21 @@ inline void CascadingCompiler::AddReadAfterWriteDependency(const AgentType consu
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
 
-    if ((producerAgentType != AgentType::WGT_STREAMER) && (producerAgentType != AgentType::MCE_SCHEDULER))
-    {
-        Dependency& consumerAgentReadDependency0Ref =
-            m_CommandStreamAgents[consumerAgentId].info.readDependencies.at(0);
-        consumerAgentReadDependency0Ref.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
-        FillConsumerAgentDependency(consumerAgentReadDependency0Ref, consumerAgentType, consumerAgentId,
-                                    producerAgentType, producerAgentId);
-    }
-    else
+    if (producerAgentType == AgentType::WGT_STREAMER || producerAgentType == AgentType::MCE_SCHEDULER ||
+        (producerAgentType == AgentType::IFM_STREAMER && consumerAgentType == AgentType::PLE_SCHEDULER))
     {
         Dependency& consumerAgentReadDependency1Ref =
             m_CommandStreamAgents[consumerAgentId].info.readDependencies.at(1);
         consumerAgentReadDependency1Ref.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
         FillConsumerAgentDependency(consumerAgentReadDependency1Ref, consumerAgentType, consumerAgentId,
+                                    producerAgentType, producerAgentId);
+    }
+    else
+    {
+        Dependency& consumerAgentReadDependency0Ref =
+            m_CommandStreamAgents[consumerAgentId].info.readDependencies.at(0);
+        consumerAgentReadDependency0Ref.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
+        FillConsumerAgentDependency(consumerAgentReadDependency0Ref, consumerAgentType, consumerAgentId,
                                     producerAgentType, producerAgentId);
     }
 }
@@ -889,7 +890,7 @@ void CascadingCompiler::FillConsumerAgentDependency(command_stream::cascading::D
                 consumerAgentDependency.outerRatio.other = 1;
                 consumerAgentDependency.innerRatio.other = 1;
 
-                if (producerAgent.data.ifm.fmData.numStripes.channels > 1)
+                if (producerAgent.data.wgt.numStripes.ofmChannels > 1)
                 {
                     consumerAgentDependency.outerRatio.self = 1;
                     consumerAgentDependency.innerRatio.self = 1;
@@ -1150,7 +1151,7 @@ void CascadingCompiler::FillProducerAgentDependency(command_stream::cascading::D
             // Schedule Time Dependency for [WeightStreamer][MceScheduler]
             else if (producerAgentType == AgentType::WGT_STREAMER)
             {
-                if (producerAgent.data.ifm.fmData.numStripes.channels > 1)
+                if (producerAgent.data.wgt.numStripes.ofmChannels > 1)
                 {
                     producerAgentDependency.outerRatio.other = 1;
                     producerAgentDependency.innerRatio.other = 1;

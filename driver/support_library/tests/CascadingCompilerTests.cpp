@@ -235,6 +235,7 @@ public:
                                      TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
         inputDramPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
         inputDramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "InputDramBuffer";
+        inputDramPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x00000F0A;
         inputDramPlan.m_OutputMappings = { { inputDramPlan.m_OpGraph.GetBuffers()[0], inputDramPartOutputSlot0 } };
 
         // Glue glueInputDram_InputSram
@@ -469,11 +470,84 @@ private:
 
 // IfmStreamer Agent Data Test
 TEST_CASE("IfmStreamer Agent Data Test", "[CascadingCompiler]")
-{}
+{
+    MceOpGraph mceOpGraph = MceOpGraph();
+    OpGraph mergedOpGraph = mceOpGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& ifmSAgent = commandStream[0];
+    const IfmS& ifmSData   = ifmSAgent.data.ifm;
+
+    REQUIRE(ifmSData.fmData.dramOffset == 0);
+    REQUIRE(ifmSData.fmData.bufferId == 1);
+    REQUIRE(ifmSData.fmData.dataType == FmsDataType::NHWCB);
+
+    REQUIRE(ifmSData.fmData.fcafInfo.signedActivation == 0);
+    REQUIRE(ifmSData.fmData.fcafInfo.zeroPoint == false);
+
+    REQUIRE(ifmSData.fmData.tile.baseAddr == 3855);
+    REQUIRE(ifmSData.fmData.tile.numSlots == 4);
+    REQUIRE(ifmSData.fmData.tile.slotSize == 128);
+
+    REQUIRE(ifmSData.fmData.dfltStripeSize.height == 8);
+    REQUIRE(ifmSData.fmData.dfltStripeSize.width == 8);
+    REQUIRE(ifmSData.fmData.dfltStripeSize.channels == 16);
+
+    REQUIRE(ifmSData.fmData.edgeStripeSize.height == 8);
+    REQUIRE(ifmSData.fmData.edgeStripeSize.width == 8);
+    REQUIRE(ifmSData.fmData.edgeStripeSize.channels == 3);
+
+    REQUIRE(ifmSData.fmData.supertensorSizeInCells.width == 20);
+    REQUIRE(ifmSData.fmData.supertensorSizeInCells.channels == 1);
+
+    REQUIRE(ifmSData.fmData.numStripes.height == 20);
+    REQUIRE(ifmSData.fmData.numStripes.width == 20);
+    REQUIRE(ifmSData.fmData.numStripes.channels == 1);
+
+    REQUIRE(ifmSData.fmData.stripeIdStrides.height == 20);
+    REQUIRE(ifmSData.fmData.stripeIdStrides.width == 1);
+    REQUIRE(ifmSData.fmData.stripeIdStrides.channels == 1);
+}
 
 // WeightStreamer Agent Data Test
 TEST_CASE("WeightStreamer Agent Data Test", "[CascadingCompiler]")
-{}
+{
+    MceOpGraph mceOpGraph = MceOpGraph();
+    OpGraph mergedOpGraph = mceOpGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& wgtSAgent = commandStream[1];
+    const WgtS& wgtSData   = wgtSAgent.data.wgt;
+
+    REQUIRE(wgtSData.bufferId == 2);
+    REQUIRE(wgtSData.metadataBufferId == 3);
+
+    REQUIRE(wgtSData.tile.baseAddr == 0x00000FF0);
+    REQUIRE(wgtSData.tile.numSlots == 3);
+    REQUIRE(wgtSData.tile.slotSize == 1);
+
+    REQUIRE(wgtSData.numStripes.ifmChannels == 1);
+    REQUIRE(wgtSData.numStripes.ofmChannels == 1);
+
+    REQUIRE(wgtSData.stripeIdStrides.ifmChannels == 1);
+    REQUIRE(wgtSData.stripeIdStrides.ofmChannels == 1);
+}
 
 // MceScheduler Agent Data Test
 TEST_CASE("MceScheduler Agent Data Test", "[CascadingCompiler]")
@@ -499,7 +573,7 @@ TEST_CASE("MceScheduler Agent Data Test", "[CascadingCompiler]")
 
     REQUIRE(mceSData.wgtTile.baseAddr == 0x00000FF0);
     REQUIRE(mceSData.wgtTile.numSlots == 3);
-    REQUIRE(mceSData.wgtTile.slotSize == mceOpGraph.getWeightSize() / hwCaps.GetNumberOfSrams());
+    REQUIRE(mceSData.wgtTile.slotSize == 1);
 
     REQUIRE(mceSData.blockSize.width == 16);
     REQUIRE(mceSData.blockSize.height == 16);
@@ -671,7 +745,52 @@ TEST_CASE("PleScheduler Standalone Agent Data Test", "[CascadingCompiler]")
 
 // OfmStreamer Agent Data Test
 TEST_CASE("OfmStreamer Agent Data Test", "[CascadingCompiler]")
-{}
+{
+    MceOpGraph mceOpGraph = MceOpGraph();
+    OpGraph mergedOpGraph = mceOpGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& ofmSAgent = commandStream[5];
+    const OfmS& ofmSData   = ofmSAgent.data.ofm;
+
+    REQUIRE(ofmSData.fmData.dramOffset == 0);
+    REQUIRE(ofmSData.fmData.bufferId == 4);
+    REQUIRE(ofmSData.fmData.dataType == FmsDataType::NHWCB);
+
+    REQUIRE(ofmSData.fmData.fcafInfo.signedActivation == 0);
+    REQUIRE(ofmSData.fmData.fcafInfo.zeroPoint == false);
+
+    REQUIRE(ofmSData.fmData.tile.baseAddr == 61695);
+    REQUIRE(ofmSData.fmData.tile.numSlots == 1);
+    REQUIRE(ofmSData.fmData.tile.slotSize == 256);
+
+    REQUIRE(ofmSData.fmData.dfltStripeSize.height == 4);
+    REQUIRE(ofmSData.fmData.dfltStripeSize.width == 4);
+    REQUIRE(ofmSData.fmData.dfltStripeSize.channels == 32);
+
+    REQUIRE(ofmSData.fmData.edgeStripeSize.height == 4);
+    REQUIRE(ofmSData.fmData.edgeStripeSize.width == 4);
+    REQUIRE(ofmSData.fmData.edgeStripeSize.channels == 24);
+
+    REQUIRE(ofmSData.fmData.supertensorSizeInCells.width == 10);
+    REQUIRE(ofmSData.fmData.supertensorSizeInCells.channels == 2);
+
+    REQUIRE(ofmSData.fmData.numStripes.height == 20);
+    REQUIRE(ofmSData.fmData.numStripes.width == 20);
+    REQUIRE(ofmSData.fmData.numStripes.channels == 1);
+
+    REQUIRE(ofmSData.fmData.stripeIdStrides.height == 20);
+    REQUIRE(ofmSData.fmData.stripeIdStrides.width == 1);
+    REQUIRE(ofmSData.fmData.stripeIdStrides.channels == 1);
+}
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 // Read After Write Dependency Tests
@@ -683,15 +802,95 @@ TEST_CASE("IfmStreamer-OfmStreamer ReadAfterWriteDependency Test", "[CascadingCo
 
 // MceScheduler Agent - Read After Write Dependency Test
 TEST_CASE("MceScheduler-IfmStreamer ReadAfterWriteDependency Test", "[CascadingCompiler]")
-{}
+{
+    MceOpGraph mceOpGraph = MceOpGraph();
+    OpGraph mergedOpGraph = mceOpGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& ifmSAgent           = commandStream[0];
+    const Agent& mceSAgent           = commandStream[3];
+    const Dependency& readDependency = mceSAgent.info.readDependencies.at(0);
+
+    uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
+                                  mceSAgent.data.mce.numStripes.ifmChannels;
+    uint32_t numberOfIfmStripes = ifmSAgent.data.ifm.fmData.numStripes.height *
+                                  ifmSAgent.data.ifm.fmData.numStripes.width *
+                                  ifmSAgent.data.ifm.fmData.numStripes.channels;
+
+    REQUIRE(readDependency.relativeAgentId == 3);
+    REQUIRE(readDependency.outerRatio.other == numberOfIfmStripes);
+    REQUIRE(readDependency.outerRatio.self == numberOfMceStripes);
+    REQUIRE(readDependency.innerRatio.other == 1);
+    REQUIRE(readDependency.innerRatio.self == 1);
+    REQUIRE(readDependency.boundary == 1);
+}
 
 // MceScheduler Agent - Read After Write Dependency Test
 TEST_CASE("MceScheduler-WeightStreamer ReadAfterWriteDependency Test", "[CascadingCompiler]")
-{}
+{
+    MceOpGraph mceOpGraph = MceOpGraph();
+    OpGraph mergedOpGraph = mceOpGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& mceSAgent           = commandStream[3];
+    const Dependency& readDependency = mceSAgent.info.readDependencies.at(1);
+
+    REQUIRE(readDependency.relativeAgentId == 2);
+    REQUIRE(readDependency.outerRatio.other == 1);
+    REQUIRE(readDependency.outerRatio.self == 6);
+    REQUIRE(readDependency.innerRatio.other == 1);
+    REQUIRE(readDependency.innerRatio.self == 6);
+    REQUIRE(readDependency.boundary == 0);
+}
 
 // PleScheduler Agent - Read After Write Dependency Test
 TEST_CASE("PleScheduler-IfmStreamer ReadAfterWriteDependency Test", "[CascadingCompiler]")
-{}
+{
+    StandalonePleOpGraph saPleOpGraph = StandalonePleOpGraph();
+    OpGraph mergedOpGraph             = saPleOpGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& ifmSAgent           = commandStream[0];
+    const Agent& pleSAgent           = commandStream[2];
+    const Dependency& readDependency = pleSAgent.info.readDependencies.at(1);
+
+    uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
+                                  pleSAgent.data.pleS.numStripes.channels;
+    uint32_t numberOfIfmStripes = ifmSAgent.data.ifm.fmData.numStripes.height *
+                                  ifmSAgent.data.ifm.fmData.numStripes.width *
+                                  ifmSAgent.data.ifm.fmData.numStripes.channels;
+
+    REQUIRE(readDependency.relativeAgentId == 2);
+    REQUIRE(readDependency.outerRatio.other == numberOfIfmStripes);
+    REQUIRE(readDependency.outerRatio.self == numberOfPleStripes);
+    REQUIRE(readDependency.innerRatio.other == 1);
+    REQUIRE(readDependency.innerRatio.self == 1);
+    REQUIRE(readDependency.boundary == 1);
+}
 
 // PleScheduler Agent - Read After Write Dependency Test
 TEST_CASE("PleScheduler-MceScheduler ReadAfterWriteDependency Test", "[CascadingCompiler]")
@@ -708,15 +907,14 @@ TEST_CASE("PleScheduler-MceScheduler ReadAfterWriteDependency Test", "[Cascading
 
     std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
-    const Agent& mceSAgent = commandStream[3];
-    const Agent& pleSAgent = commandStream[4];
+    const Agent& mceSAgent           = commandStream[3];
+    const Agent& pleSAgent           = commandStream[4];
+    const Dependency& readDependency = pleSAgent.info.readDependencies.at(1);
 
     uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
                                   mceSAgent.data.mce.numStripes.ofmChannels;
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
-
-    const Dependency& readDependency = pleSAgent.info.readDependencies.at(1);
 
     REQUIRE(readDependency.relativeAgentId == 1);
     REQUIRE(readDependency.outerRatio.other == numberOfMceStripes);
@@ -741,12 +939,11 @@ TEST_CASE("PleScheduler-PleLoader ReadAfterWriteDependency Test", "[CascadingCom
 
     std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
-    const Agent& pleSAgent = commandStream[4];
+    const Agent& pleSAgent           = commandStream[4];
+    const Dependency& readDependency = pleSAgent.info.readDependencies.at(0);
 
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
-
-    const Dependency& readDependency = pleSAgent.info.readDependencies.at(0);
 
     REQUIRE(readDependency.relativeAgentId == 2);
     REQUIRE(readDependency.outerRatio.other == 1);
@@ -762,7 +959,29 @@ TEST_CASE("OfmStreamer-IfmStreamer ReadAfterWriteDependency Test", "[CascadingCo
 
 // OfmStreamer Agent - Read After Write Dependency Test
 TEST_CASE("OfmStreamer-PleScheduler ReadAfterWriteDependency Test", "[CascadingCompiler]")
-{}
+{
+    StandalonePleOpGraph saPleOpGraph = StandalonePleOpGraph();
+    OpGraph mergedOpGraph             = saPleOpGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& ofmSAgent           = commandStream[3];
+    const Dependency& readDependency = ofmSAgent.info.readDependencies.at(0);
+
+    REQUIRE(readDependency.relativeAgentId == 1);
+    REQUIRE(readDependency.outerRatio.other == 1);
+    REQUIRE(readDependency.outerRatio.self == 1);
+    REQUIRE(readDependency.innerRatio.other == 1);
+    REQUIRE(readDependency.innerRatio.self == 1);
+    REQUIRE(readDependency.boundary == 0);
+}
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 // Sram Overlap Dependency Tests
@@ -778,11 +997,69 @@ TEST_CASE("WeightStreamer-OfmStreamer SramOverlpaDependency Test", "[CascadingCo
 
 // IfmStreamer Agent - Write After Read Dependency Test
 TEST_CASE("IfmStreamer-MceScheduler WriteAfterReadDependency Test", "[CascadingCompiler]")
-{}
+{
+    MceOpGraph mceOpGraph = MceOpGraph();
+    OpGraph mergedOpGraph = mceOpGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& ifmSAgent            = commandStream[0];
+    const Agent& mceSAgent            = commandStream[3];
+    const Dependency& writeDependency = ifmSAgent.info.writeDependencies.at(0);
+
+    uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
+                                  mceSAgent.data.mce.numStripes.ifmChannels;
+    uint32_t numberOfIfmStripes = ifmSAgent.data.ifm.fmData.numStripes.height *
+                                  ifmSAgent.data.ifm.fmData.numStripes.width *
+                                  ifmSAgent.data.ifm.fmData.numStripes.channels;
+
+    REQUIRE(writeDependency.relativeAgentId == 3);
+    REQUIRE(writeDependency.outerRatio.other == numberOfMceStripes);
+    REQUIRE(writeDependency.outerRatio.self == numberOfIfmStripes);
+    REQUIRE(writeDependency.innerRatio.other == 1);
+    REQUIRE(writeDependency.innerRatio.self == 1);
+    REQUIRE(writeDependency.boundary == 1);
+}
 
 // IfmStreamer Agent - Write After Read Dependency Test
 TEST_CASE("IfmStreamer-PleScheduler WriteAfterReadDependency Test", "[CascadingCompiler]")
-{}
+{
+    StandalonePleOpGraph saPleOpGraph = StandalonePleOpGraph();
+    OpGraph mergedOpGraph             = saPleOpGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& ifmSAgent            = commandStream[0];
+    const Agent& pleSAgent            = commandStream[2];
+    const Dependency& writeDependency = ifmSAgent.info.writeDependencies.at(0);
+
+    uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
+                                  pleSAgent.data.pleS.numStripes.channels;
+    uint32_t numberOfIfmStripes = ifmSAgent.data.ifm.fmData.numStripes.height *
+                                  ifmSAgent.data.ifm.fmData.numStripes.width *
+                                  ifmSAgent.data.ifm.fmData.numStripes.channels;
+
+    REQUIRE(writeDependency.relativeAgentId == 2);
+    REQUIRE(writeDependency.outerRatio.other == numberOfPleStripes);
+    REQUIRE(writeDependency.outerRatio.self == numberOfIfmStripes);
+    REQUIRE(writeDependency.innerRatio.other == 1);
+    REQUIRE(writeDependency.innerRatio.self == 1);
+    REQUIRE(writeDependency.boundary == 1);
+}
 
 // IfmStreamer Agent - Write After Read Dependency Test
 TEST_CASE("IfmStreamer-OfmStreamer WriteAfterReadDependency Test", "[CascadingCompiler]")
@@ -790,7 +1067,29 @@ TEST_CASE("IfmStreamer-OfmStreamer WriteAfterReadDependency Test", "[CascadingCo
 
 // WeightStreamer Agent - Write After Read Dependency Test
 TEST_CASE("WeightStreamer-MceScheduler WriteAfterReadDependency Test", "[CascadingCompiler]")
-{}
+{
+    MceOpGraph mceOpGraph = MceOpGraph();
+    OpGraph mergedOpGraph = mceOpGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& wgtSAgent            = commandStream[1];
+    const Dependency& writeDependency = wgtSAgent.info.writeDependencies.at(0);
+
+    REQUIRE(writeDependency.relativeAgentId == 2);
+    REQUIRE(writeDependency.outerRatio.other == 6);
+    REQUIRE(writeDependency.outerRatio.self == 1);
+    REQUIRE(writeDependency.innerRatio.other == 6);
+    REQUIRE(writeDependency.innerRatio.self == 1);
+    REQUIRE(writeDependency.boundary == 0);
+}
 
 // MceScheduler Agent - Write After Read Dependency Test
 TEST_CASE("MceScheduler-PleScheduler WriteAfterReadDependency Test", "[CascadingCompiler]")
@@ -807,15 +1106,14 @@ TEST_CASE("MceScheduler-PleScheduler WriteAfterReadDependency Test", "[Cascading
 
     std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
-    const Agent& mceSAgent = commandStream[3];
-    const Agent& pleSAgent = commandStream[4];
+    const Agent& mceSAgent            = commandStream[3];
+    const Agent& pleSAgent            = commandStream[4];
+    const Dependency& writeDependency = mceSAgent.info.writeDependencies.at(0);
 
     uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
                                   mceSAgent.data.mce.numStripes.ofmChannels;
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
-
-    const Dependency& writeDependency = mceSAgent.info.writeDependencies.at(0);
 
     REQUIRE(writeDependency.relativeAgentId == 1);
     REQUIRE(writeDependency.outerRatio.other == numberOfPleStripes);
@@ -827,7 +1125,29 @@ TEST_CASE("MceScheduler-PleScheduler WriteAfterReadDependency Test", "[Cascading
 
 // PleScheduler Agent - Write After Read Dependency Test
 TEST_CASE("PleScheduler-OfmStreamer WriteAfterReadDependency Test", "[CascadingCompiler]")
-{}
+{
+    StandalonePleOpGraph saPleOpGraph = StandalonePleOpGraph();
+    OpGraph mergedOpGraph             = saPleOpGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& pleSAgent            = commandStream[2];
+    const Dependency& writeDependency = pleSAgent.info.writeDependencies.at(0);
+
+    REQUIRE(writeDependency.relativeAgentId == 1);
+    REQUIRE(writeDependency.outerRatio.other == 1);
+    REQUIRE(writeDependency.outerRatio.self == 1);
+    REQUIRE(writeDependency.innerRatio.other == 1);
+    REQUIRE(writeDependency.innerRatio.self == 1);
+    REQUIRE(writeDependency.boundary == 0);
+}
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 // Schedule Time Dependency Tests
@@ -835,11 +1155,68 @@ TEST_CASE("PleScheduler-OfmStreamer WriteAfterReadDependency Test", "[CascadingC
 
 // IfmStreamer Agent - Schedule Time Dependency Test
 TEST_CASE("IfmStreamer-MceScheduler ScheduleTimeDependency Test", "[CascadingCompiler]")
-{}
+{
+    MceOpGraph mceOpGraph = MceOpGraph();
+    OpGraph mergedOpGraph = mceOpGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& mceSAgent               = commandStream[3];
+    const Agent& pleSAgent               = commandStream[4];
+    const Dependency& scheduleDependency = mceSAgent.info.scheduleDependencies.at(0);
+
+    uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
+                                  mceSAgent.data.mce.numStripes.ofmChannels;
+    uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
+                                  pleSAgent.data.pleS.numStripes.channels;
+
+    REQUIRE(scheduleDependency.relativeAgentId == 1);
+    REQUIRE(scheduleDependency.outerRatio.other == numberOfPleStripes);
+    REQUIRE(scheduleDependency.outerRatio.self == numberOfMceStripes);
+    REQUIRE(scheduleDependency.innerRatio.other == 1);
+    REQUIRE(scheduleDependency.innerRatio.self == 70);
+    REQUIRE(scheduleDependency.boundary == 1);
+}
 
 // IfmStreamer Agent - Schedule Time Dependency Test
 TEST_CASE("IfmStreamer-PleScheduler ScheduleTimeDependency Test", "[CascadingCompiler]")
-{}
+{
+    StandalonePleOpGraph saPleOpGraph = StandalonePleOpGraph();
+    OpGraph mergedOpGraph             = saPleOpGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& ifmSAgent               = commandStream[0];
+    const Agent& pleSAgent               = commandStream[2];
+    const Dependency& scheduleDependency = ifmSAgent.info.scheduleDependencies.at(0);
+
+    uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
+                                  pleSAgent.data.pleS.numStripes.channels;
+    uint32_t numberOfIfmStripes = ifmSAgent.data.ifm.fmData.numStripes.height *
+                                  ifmSAgent.data.ifm.fmData.numStripes.width *
+                                  ifmSAgent.data.ifm.fmData.numStripes.channels;
+
+    REQUIRE(scheduleDependency.relativeAgentId == 2);
+    REQUIRE(scheduleDependency.outerRatio.other == numberOfPleStripes);
+    REQUIRE(scheduleDependency.outerRatio.self == numberOfIfmStripes);
+    REQUIRE(scheduleDependency.innerRatio.other == 1);
+    REQUIRE(scheduleDependency.innerRatio.self == 1);
+    REQUIRE(scheduleDependency.boundary == 1);
+}
 
 // IfmStreamer Agent - Schedule Time Dependency Test
 TEST_CASE("IfmStreamer-OfmStreamer ScheduleTimeDependency Test", "[CascadingCompiler]")
@@ -847,7 +1224,35 @@ TEST_CASE("IfmStreamer-OfmStreamer ScheduleTimeDependency Test", "[CascadingComp
 
 // WeightStreamer Agent - Schedule Time Dependency Test
 TEST_CASE("WeightStreamer-MceScheduler ScheduleTimeDependency Test", "[CascadingCompiler]")
-{}
+{
+    MceOpGraph mceOpGraph = MceOpGraph();
+    OpGraph mergedOpGraph = mceOpGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& mceSAgent               = commandStream[3];
+    const Agent& pleSAgent               = commandStream[4];
+    const Dependency& scheduleDependency = mceSAgent.info.scheduleDependencies.at(0);
+
+    uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
+                                  mceSAgent.data.mce.numStripes.ofmChannels;
+    uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
+                                  pleSAgent.data.pleS.numStripes.channels;
+
+    REQUIRE(scheduleDependency.relativeAgentId == 1);
+    REQUIRE(scheduleDependency.outerRatio.other == numberOfPleStripes);
+    REQUIRE(scheduleDependency.outerRatio.self == numberOfMceStripes);
+    REQUIRE(scheduleDependency.innerRatio.other == 1);
+    REQUIRE(scheduleDependency.innerRatio.self == 70);
+    REQUIRE(scheduleDependency.boundary == 1);
+}
 
 // MceScheduler Agent - Schedule Time Dependency Test
 TEST_CASE("MceScheduler-PleScheduler ScheduleTimeDependency Test", "[CascadingCompiler]")
@@ -864,15 +1269,14 @@ TEST_CASE("MceScheduler-PleScheduler ScheduleTimeDependency Test", "[CascadingCo
 
     std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
-    const Agent& mceSAgent = commandStream[3];
-    const Agent& pleSAgent = commandStream[4];
+    const Agent& mceSAgent               = commandStream[3];
+    const Agent& pleSAgent               = commandStream[4];
+    const Dependency& scheduleDependency = mceSAgent.info.scheduleDependencies.at(0);
 
     uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
                                   mceSAgent.data.mce.numStripes.ofmChannels;
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
-
-    const Dependency& scheduleDependency = mceSAgent.info.scheduleDependencies.at(0);
 
     REQUIRE(scheduleDependency.relativeAgentId == 1);
     REQUIRE(scheduleDependency.outerRatio.other == numberOfPleStripes);
@@ -897,19 +1301,19 @@ TEST_CASE("PleLoader-MceScheduler ScheduleTimeDependency Test", "[CascadingCompi
 
     std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
-    const Agent& pleLAgent                   = commandStream[2];
-    const Agent& mceSAgent                   = commandStream[3];
-    const Dependency& pleLScheduleDependency = pleLAgent.info.scheduleDependencies.at(0);
+    const Agent& pleLAgent               = commandStream[2];
+    const Agent& mceSAgent               = commandStream[3];
+    const Dependency& scheduleDependency = pleLAgent.info.scheduleDependencies.at(0);
 
     uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
                                   mceSAgent.data.mce.numStripes.ifmChannels;
 
-    REQUIRE(pleLScheduleDependency.relativeAgentId == 1);
-    REQUIRE(pleLScheduleDependency.outerRatio.other == numberOfMceStripes);
-    REQUIRE(pleLScheduleDependency.outerRatio.self == 1);
-    REQUIRE(pleLScheduleDependency.innerRatio.other == numberOfMceStripes);
-    REQUIRE(pleLScheduleDependency.innerRatio.self == 1);
-    REQUIRE(pleLScheduleDependency.boundary == 0);
+    REQUIRE(scheduleDependency.relativeAgentId == 1);
+    REQUIRE(scheduleDependency.outerRatio.other == numberOfMceStripes);
+    REQUIRE(scheduleDependency.outerRatio.self == 1);
+    REQUIRE(scheduleDependency.innerRatio.other == numberOfMceStripes);
+    REQUIRE(scheduleDependency.innerRatio.self == 1);
+    REQUIRE(scheduleDependency.boundary == 0);
 }
 
 // PleLoader Agent - Schedule Time Dependency Test
@@ -927,13 +1331,12 @@ TEST_CASE("PleLoader-PleScheduler ScheduleTimeDependency Test", "[CascadingCompi
 
     std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
-    const Agent& pleLAgent = commandStream[1];
-    const Agent& pleSAgent = commandStream[2];
+    const Agent& pleLAgent               = commandStream[1];
+    const Agent& pleSAgent               = commandStream[2];
+    const Dependency& scheduleDependency = pleLAgent.info.scheduleDependencies.at(0);
 
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
-
-    const Dependency& scheduleDependency = pleLAgent.info.scheduleDependencies.at(0);
 
     REQUIRE(scheduleDependency.relativeAgentId == 1);
     REQUIRE(scheduleDependency.outerRatio.other == numberOfPleStripes);
@@ -945,7 +1348,29 @@ TEST_CASE("PleLoader-PleScheduler ScheduleTimeDependency Test", "[CascadingCompi
 
 // PleScheduler Agent - Schedule Time Dependency Test
 TEST_CASE("PleScheduler-OfmStreamer ScheduleTimeDependency Test", "[CascadingCompiler]")
-{}
+{
+    StandalonePleOpGraph saPleOpGraph = StandalonePleOpGraph();
+    OpGraph mergedOpGraph             = saPleOpGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& pleSAgent               = commandStream[2];
+    const Dependency& scheduleDependency = pleSAgent.info.scheduleDependencies.at(0);
+
+    REQUIRE(scheduleDependency.relativeAgentId == 1);
+    REQUIRE(scheduleDependency.outerRatio.other == 1);
+    REQUIRE(scheduleDependency.outerRatio.self == 1);
+    REQUIRE(scheduleDependency.innerRatio.other == 1);
+    REQUIRE(scheduleDependency.innerRatio.self == 1);
+    REQUIRE(scheduleDependency.boundary == 0);
+}
 
 // OfmStreamer Agent - Schedule Time Dependency Test
 TEST_CASE("OfmStreamer-IfmStreamer ScheduleTimeDependency Test", "[CascadingCompiler]")

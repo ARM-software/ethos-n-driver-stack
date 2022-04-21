@@ -29,12 +29,12 @@ inline void SetTileInfoForBuffer(const HardwareCapabilities& hwCap, Tile& tile, 
     switch (buffer->m_Format)
     {
         case CascadingBufferFormat::NHWCB:
-            tile.slotSize =
-                static_cast<uint16_t>(utils::TotalSizeBytesNHWCB(buffer->m_StripeShape) / hwCap.GetNumberOfSrams());
+            tile.slotSize = static_cast<uint16_t>(
+                utils::DivRoundUp(utils::TotalSizeBytesNHWCB(buffer->m_StripeShape), hwCap.GetNumberOfSrams()));
             break;
         case CascadingBufferFormat::WEIGHT:
-            tile.slotSize =
-                static_cast<uint16_t>(buffer->m_SizeInBytes / (hwCap.GetNumberOfSrams() * buffer->m_NumStripes));
+            tile.slotSize = static_cast<uint16_t>(
+                utils::DivRoundUp(buffer->m_SizeInBytes, (hwCap.GetNumberOfSrams() * buffer->m_NumStripes)));
             break;
         default:
             assert(false);
