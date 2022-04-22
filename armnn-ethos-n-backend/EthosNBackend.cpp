@@ -198,6 +198,36 @@ SubgraphView ReinterpretGraphToSubgraph(Graph& newGraph)
     ARMNN_NO_DEPRECATE_WARN_END
 }
 
+std::string GetDeviceOptionVal(const ModelOptions& modelOptions)
+{
+    for (const auto& optionsGroup : modelOptions)
+    {
+        if (optionsGroup.GetBackendId() != EthosNBackend::GetIdStatic())
+        {
+            continue;
+        }
+
+        for (size_t i = 0; i < optionsGroup.GetOptionCount(); ++i)
+        {
+            const BackendOptions::BackendOption& option = optionsGroup.GetOption(i);
+
+            if (option.GetName() != "Device")
+            {
+                continue;
+            }
+
+            if (!option.GetValue().IsString())
+            {
+                throw armnn::InvalidArgumentException("Invalid value type for Device - must be string.");
+            }
+
+            return option.GetValue().AsString();
+        }
+    }
+
+    return "";
+}
+
 }    // namespace ethosnbackend
 
 void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
@@ -309,29 +339,10 @@ IBackendInternal::IWorkloadFactoryPtr
     auto caching = EthosNCachingService::GetInstance().GetEthosNCachingPtr();
     caching->Save();
 
-    for (const auto& optionsGroup : modelOptions)
+    const std::string deviceId = ethosnbackend::GetDeviceOptionVal(modelOptions);
+    if (!deviceId.empty())
     {
-        if (optionsGroup.GetBackendId() == EthosNBackend::GetIdStatic())
-        {
-            for (size_t i = 0; i < optionsGroup.GetOptionCount(); ++i)
-            {
-                const BackendOptions::BackendOption& option = optionsGroup.GetOption(i);
-
-                if (option.GetName() == "Device")
-                {
-                    if (option.GetValue().IsString())
-                    {
-                        const std::string deviceVal = option.GetValue().AsString();
-
-                        return std::make_unique<EthosNWorkloadFactory>(m_Config, deviceVal);
-                    }
-                    else
-                    {
-                        throw armnn::InvalidArgumentException("Invalid value type for Device - must be string.");
-                    }
-                }
-            }
-        }
+        return std::make_unique<EthosNWorkloadFactory>(m_Config, deviceId);
     }
 
     return std::make_unique<EthosNWorkloadFactory>(m_Config);
@@ -341,10 +352,24 @@ IBackendInternal::IWorkloadFactoryPtr
     EthosNBackend::CreateWorkloadFactory(class TensorHandleFactoryRegistry& tensorHandleFactoryRegistry,
                                          const ModelOptions& modelOptions) const
 {
-    std::unique_ptr<ITensorHandleFactory> factory       = std::make_unique<EthosNTensorHandleFactory>(m_Config);
-    std::unique_ptr<ITensorHandleFactory> importFactory = std::make_unique<EthosNImportTensorHandleFactory>(
-        m_Config, static_cast<MemorySourceFlags>(MemorySource::DmaBuf),
-        static_cast<MemorySourceFlags>(MemorySource::DmaBuf));
+    std::unique_ptr<ITensorHandleFactory> factory;
+    std::unique_ptr<ITensorHandleFactory> importFactory;
+
+    const std::string deviceId = ethosnbackend::GetDeviceOptionVal(modelOptions);
+    if (deviceId.empty())
+    {
+        factory       = std::make_unique<EthosNTensorHandleFactory>(m_Config);
+        importFactory = std::make_unique<EthosNImportTensorHandleFactory>(
+            m_Config, static_cast<MemorySourceFlags>(MemorySource::DmaBuf),
+            static_cast<MemorySourceFlags>(MemorySource::DmaBuf));
+    }
+    else
+    {
+        factory       = std::make_unique<EthosNTensorHandleFactory>(m_Config, deviceId);
+        importFactory = std::make_unique<EthosNImportTensorHandleFactory>(
+            m_Config, deviceId, static_cast<MemorySourceFlags>(MemorySource::DmaBuf),
+            static_cast<MemorySourceFlags>(MemorySource::DmaBuf));
+    }
 
     tensorHandleFactoryRegistry.RegisterCopyAndImportFactoryPair(factory->GetId(), importFactory->GetId());
 
@@ -360,9 +385,20 @@ IBackendInternal::IWorkloadFactoryPtr
                                          MemorySourceFlags importFlags,
                                          MemorySourceFlags exportFlags) const
 {
-    std::unique_ptr<ITensorHandleFactory> factory = std::make_unique<EthosNTensorHandleFactory>(m_Config);
-    std::unique_ptr<ITensorHandleFactory> importFactory =
-        std::make_unique<EthosNImportTensorHandleFactory>(m_Config, importFlags, exportFlags);
+    std::unique_ptr<ITensorHandleFactory> factory;
+    std::unique_ptr<ITensorHandleFactory> importFactory;
+
+    const std::string deviceId = ethosnbackend::GetDeviceOptionVal(modelOptions);
+    if (deviceId.empty())
+    {
+        factory       = std::make_unique<EthosNTensorHandleFactory>(m_Config);
+        importFactory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config, importFlags, exportFlags);
+    }
+    else
+    {
+        factory       = std::make_unique<EthosNTensorHandleFactory>(m_Config, deviceId);
+        importFactory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config, deviceId, importFlags, exportFlags);
+    }
 
     tensorHandleFactoryRegistry.RegisterCopyAndImportFactoryPair(factory->GetId(), importFactory->GetId());
 
