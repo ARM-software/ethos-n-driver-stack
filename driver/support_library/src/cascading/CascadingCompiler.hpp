@@ -117,7 +117,7 @@ private:
     struct EnumHasher
     {
         template <typename T>
-        std::size_t operator()(T t) const
+        std::size_t operator()(T t) const noexcept
         {
             return static_cast<std::size_t>(t);
         }
