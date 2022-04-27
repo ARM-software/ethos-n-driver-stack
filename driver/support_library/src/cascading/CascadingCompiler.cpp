@@ -7,9 +7,6 @@
 #include "CascadingCompiler.hpp"
 #include "CascadingCompilerUtils.hpp"
 
-#define ETHOSN_ASSERT_MSG(cond, msg) assert(cond)
-#include "ethosn_utils/NumericCast.hpp"
-
 #include <memory>
 
 namespace ethosn
@@ -872,8 +869,8 @@ AgentIdType CascadingCompiler::AddOfmStreamerToCommandStream(Op* const ptrOp,
     StreamersUtils::SetStripeChannelsInfo(ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
                                           outputSramBuffer->m_StripeShape);
 
-    StreamersUtils::SetSuperTensorSizeInCells(ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
-                                              outputSramBuffer->m_Format);
+    StreamersUtils::SetSuperTensorSizeInCells(ofmStreamerData.fmData, outputDramBuffer->m_TensorShape,
+                                              outputDramBuffer->m_Format);
 
     StreamersUtils::SetStripeIdStrides(ofmStreamerData.fmData, outputDramBuffer->m_Order);
 

@@ -730,6 +730,92 @@ private:
     OpGraph mergedOpGraph;
 };
 
+class ConcatOpGraph
+{
+public:
+    ConcatOpGraph()
+    {
+        auto& parts = graph.m_Parts;
+
+        auto concatPart = std::make_unique<MockPart>(graph.GeneratePartId());
+
+        PartId concatPartId = concatPart->GetPartId();
+
+        parts.push_back(std::move(concatPart));
+
+        PartInputSlot concatPartInputSlot0   = { concatPartId, 0 };
+        PartInputSlot concatPartInputSlot1   = { concatPartId, 1 };
+        PartOutputSlot concatPartOutputSlot0 = { concatPartId, 0 };
+
+        const std::set<uint32_t> operationIds = { 0 };
+
+        // Plan concatPlan
+        concatPlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                                TensorShape{ 1, 16, 16, 3 }, TensorShape{ 1, 8, 8, 16 },
+                                                                TraversalOrder::Xyz, 4, QuantizationInfo()));
+        concatPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "Input1DramBuffer";
+        concatPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x00000FFF;
+        concatPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
+        concatPlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                                TensorShape{ 1, 16, 8, 3 }, TensorShape{ 1, 8, 8, 16 },
+                                                                TraversalOrder::Xyz, 4, QuantizationInfo()));
+        concatPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "Input2DramBuffer";
+        concatPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x0000F000;
+        concatPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
+        concatPlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 24, 3 },
+                                     TensorShape{ 1, 16, 24, 3 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
+        concatPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "OutputDramBuffer";
+        concatPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x0000F00F;
+        concatPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
+        concatPlan.m_OpGraph.AddOp(std::make_unique<ConcatOp>());
+        concatPlan.m_OpGraph.GetOps()[0]->m_DebugTag = "ConcatOp";
+        concatPlan.m_OpGraph.AddConsumer(concatPlan.m_OpGraph.GetBuffers()[0], concatPlan.m_OpGraph.GetOps()[0], 0);
+        concatPlan.m_OpGraph.AddConsumer(concatPlan.m_OpGraph.GetBuffers()[1], concatPlan.m_OpGraph.GetOps()[0], 1);
+        concatPlan.m_OpGraph.SetProducer(concatPlan.m_OpGraph.GetBuffers()[2], concatPlan.m_OpGraph.GetOps()[0]);
+        concatPlan.m_InputMappings  = { { concatPlan.m_OpGraph.GetBuffers()[0], concatPartInputSlot0 },
+                                       { concatPlan.m_OpGraph.GetBuffers()[1], concatPartInputSlot1 } };
+        concatPlan.m_OutputMappings = { { concatPlan.m_OpGraph.GetBuffers()[2], concatPartOutputSlot0 } };
+
+        Elem elemInput1Dram = { std::make_shared<Plan>(std::move(input1DramPlan)), {} };
+        Elem elemInput2Dram = { std::make_shared<Plan>(std::move(input2DramPlan)), {} };
+        Elem elemConcat     = { std::make_shared<Plan>(std::move(concatPlan)), {} };
+        Elem elemOutputDram = { std::make_shared<Plan>(std::move(outputDramPlan)), {} };
+
+        comb.m_Elems.insert(std::make_pair(0, elemConcat));
+        comb.m_PartIdsInOrder.push_back(0);
+
+        bool dumpInputGraphToFile = false;
+        if (dumpInputGraphToFile)
+        {
+            std::ofstream stream("Concat_Graph.dot");
+            SaveCombinationToDot(comb, graph, stream, DetailLevel::High);
+        }
+
+        mergedOpGraph = GetOpGraphForCombination(comb, graph);
+
+        bool dumpOutputGraphToFile = false;
+        if (dumpOutputGraphToFile)
+        {
+            std::ofstream stream("Concat_Graph_Merged.dot");
+            SaveOpGraphToDot(mergedOpGraph, stream, DetailLevel::High);
+        }
+    }
+    OpGraph GetMergedOpGraph()
+    {
+        return mergedOpGraph;
+    }
+
+private:
+    GraphOfParts graph;
+    Plan input1DramPlan;
+    Plan input2DramPlan;
+    Plan concatPlan;
+    Plan outputDramPlan;
+    Combination comb;
+    OpGraph mergedOpGraph;
+};
+
 // IfmStreamer Agent Data Test
 TEST_CASE("IfmStreamer Agent Data Test", "[CascadingCompiler]")
 {
@@ -1055,13 +1141,196 @@ TEST_CASE("OfmStreamer Agent Data Test", "[CascadingCompiler]")
     REQUIRE(ofmSData.fmData.stripeIdStrides.channels == 1);
 }
 
+// Concat Op Agent Data Test
+TEST_CASE("Concat Op Agent Data Test", "[CascadingCompiler]")
+{
+    ConcatOpGraph inputOutputMergeGraph = ConcatOpGraph();
+    OpGraph mergedOpGraph               = inputOutputMergeGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& ifmSAgent1 = commandStream[0];
+    const Agent& ofmSAgent1 = commandStream[1];
+    const Agent& ifmSAgent2 = commandStream[2];
+    const Agent& ofmSAgent2 = commandStream[3];
+
+    const IfmS& ifmSData1 = ifmSAgent1.data.ifm;
+    const OfmS& ofmSData1 = ofmSAgent1.data.ofm;
+    const IfmS& ifmSData2 = ifmSAgent2.data.ifm;
+    const OfmS& ofmSData2 = ofmSAgent2.data.ofm;
+
+    // IfmSData1
+    REQUIRE(ifmSData1.fmData.bufferId == 2);
+    REQUIRE(ifmSData1.fmData.dramOffset == 0);
+    REQUIRE(ifmSData1.fmData.dataType == FmsDataType::NHWCB);
+
+    REQUIRE(ifmSData1.fmData.fcafInfo.zeroPoint == 0);
+    REQUIRE(ifmSData1.fmData.fcafInfo.signedActivation == false);
+
+    REQUIRE(ifmSData1.fmData.tile.baseAddr == 0);
+    REQUIRE(ifmSData1.fmData.tile.numSlots == 2);
+    REQUIRE(ifmSData1.fmData.tile.slotSize == 128);
+
+    REQUIRE(ifmSData1.fmData.dfltStripeSize.height == 8);
+    REQUIRE(ifmSData1.fmData.dfltStripeSize.width == 8);
+    REQUIRE(ifmSData1.fmData.dfltStripeSize.channels == 3);
+
+    REQUIRE(ifmSData1.fmData.edgeStripeSize.height == 8);
+    REQUIRE(ifmSData1.fmData.edgeStripeSize.width == 8);
+    REQUIRE(ifmSData1.fmData.edgeStripeSize.channels == 3);
+
+    REQUIRE(ifmSData1.fmData.supertensorSizeInCells.width == 2);
+    REQUIRE(ifmSData1.fmData.supertensorSizeInCells.channels == 1);
+
+    REQUIRE(ifmSData1.fmData.numStripes.height == 1);
+    REQUIRE(ifmSData1.fmData.numStripes.width == 1);
+    REQUIRE(ifmSData1.fmData.numStripes.channels == 1);
+
+    REQUIRE(ifmSData1.fmData.stripeIdStrides.height == 1);
+    REQUIRE(ifmSData1.fmData.stripeIdStrides.width == 1);
+    REQUIRE(ifmSData1.fmData.stripeIdStrides.channels == 1);
+
+    // ofmSData1
+    REQUIRE(ofmSData1.fmData.bufferId == 1);
+    REQUIRE(ofmSData1.fmData.dramOffset == 0);
+    REQUIRE(ofmSData1.fmData.dataType == FmsDataType::NHWCB);
+
+    REQUIRE(ofmSData1.fmData.fcafInfo.zeroPoint == 0);
+    REQUIRE(ofmSData1.fmData.fcafInfo.signedActivation == false);
+
+    REQUIRE(ofmSData1.fmData.tile.baseAddr == 0);
+    REQUIRE(ofmSData1.fmData.tile.numSlots == 2);
+    REQUIRE(ofmSData1.fmData.tile.slotSize == 128);
+
+    REQUIRE(ofmSData1.fmData.dfltStripeSize.height == 8);
+    REQUIRE(ofmSData1.fmData.dfltStripeSize.width == 8);
+    REQUIRE(ofmSData1.fmData.dfltStripeSize.channels == 3);
+
+    REQUIRE(ofmSData1.fmData.edgeStripeSize.height == 8);
+    REQUIRE(ofmSData1.fmData.edgeStripeSize.width == 8);
+    REQUIRE(ofmSData1.fmData.edgeStripeSize.channels == 3);
+
+    REQUIRE(ofmSData1.fmData.supertensorSizeInCells.width == 3);
+    REQUIRE(ofmSData1.fmData.supertensorSizeInCells.channels == 1);
+
+    REQUIRE(ofmSData1.fmData.numStripes.height == 1);
+    REQUIRE(ofmSData1.fmData.numStripes.width == 1);
+    REQUIRE(ofmSData1.fmData.numStripes.channels == 1);
+
+    REQUIRE(ofmSData1.fmData.stripeIdStrides.height == 1);
+    REQUIRE(ofmSData1.fmData.stripeIdStrides.width == 1);
+    REQUIRE(ofmSData1.fmData.stripeIdStrides.channels == 1);
+
+    // ifmsData2
+    REQUIRE(ifmSData2.fmData.bufferId == 3);
+    REQUIRE(ifmSData2.fmData.dramOffset == 0);
+    REQUIRE(ifmSData2.fmData.dataType == FmsDataType::NHWCB);
+
+    REQUIRE(ifmSData2.fmData.fcafInfo.zeroPoint == 0);
+    REQUIRE(ifmSData2.fmData.fcafInfo.signedActivation == false);
+
+    REQUIRE(ifmSData2.fmData.tile.baseAddr == 256);
+    REQUIRE(ifmSData2.fmData.tile.numSlots == 2);
+    REQUIRE(ifmSData2.fmData.tile.slotSize == 128);
+
+    REQUIRE(ifmSData2.fmData.dfltStripeSize.height == 8);
+    REQUIRE(ifmSData2.fmData.dfltStripeSize.width == 8);
+    REQUIRE(ifmSData2.fmData.dfltStripeSize.channels == 3);
+
+    REQUIRE(ifmSData2.fmData.edgeStripeSize.height == 8);
+    REQUIRE(ifmSData2.fmData.edgeStripeSize.width == 8);
+    REQUIRE(ifmSData2.fmData.edgeStripeSize.channels == 3);
+
+    REQUIRE(ifmSData2.fmData.supertensorSizeInCells.width == 1);
+    REQUIRE(ifmSData2.fmData.supertensorSizeInCells.channels == 1);
+
+    REQUIRE(ifmSData2.fmData.numStripes.height == 1);
+    REQUIRE(ifmSData2.fmData.numStripes.width == 1);
+    REQUIRE(ifmSData2.fmData.numStripes.channels == 1);
+
+    REQUIRE(ifmSData2.fmData.stripeIdStrides.height == 1);
+    REQUIRE(ifmSData2.fmData.stripeIdStrides.width == 1);
+    REQUIRE(ifmSData2.fmData.stripeIdStrides.channels == 1);
+
+    // ofmsData2
+    REQUIRE(ofmSData2.fmData.bufferId == 1);
+    REQUIRE(ofmSData2.fmData.dramOffset == 0x00000800);
+    REQUIRE(ofmSData2.fmData.dataType == FmsDataType::NHWCB);
+
+    REQUIRE(ofmSData2.fmData.fcafInfo.zeroPoint == 0);
+    REQUIRE(ofmSData2.fmData.fcafInfo.signedActivation == false);
+
+    REQUIRE(ofmSData2.fmData.tile.baseAddr == 256);
+    REQUIRE(ofmSData2.fmData.tile.numSlots == 2);
+    REQUIRE(ofmSData2.fmData.tile.slotSize == 128);
+
+    REQUIRE(ofmSData2.fmData.dfltStripeSize.height == 8);
+    REQUIRE(ofmSData2.fmData.dfltStripeSize.width == 8);
+    REQUIRE(ofmSData2.fmData.dfltStripeSize.channels == 3);
+
+    REQUIRE(ofmSData2.fmData.edgeStripeSize.height == 8);
+    REQUIRE(ofmSData2.fmData.edgeStripeSize.width == 8);
+    REQUIRE(ofmSData2.fmData.edgeStripeSize.channels == 3);
+
+    REQUIRE(ofmSData2.fmData.supertensorSizeInCells.width == 3);
+    REQUIRE(ofmSData2.fmData.supertensorSizeInCells.channels == 1);
+
+    REQUIRE(ofmSData2.fmData.numStripes.height == 1);
+    REQUIRE(ofmSData2.fmData.numStripes.width == 1);
+    REQUIRE(ofmSData2.fmData.numStripes.channels == 1);
+
+    REQUIRE(ofmSData2.fmData.stripeIdStrides.height == 1);
+    REQUIRE(ofmSData2.fmData.stripeIdStrides.width == 1);
+    REQUIRE(ofmSData2.fmData.stripeIdStrides.channels == 1);
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////
 // Read After Write Dependency Tests
 //////////////////////////////////////////////////////////////////////////////////////////////
 
 // IfmStreamer Agent - Read After Write Dependency Test
 TEST_CASE("IfmStreamer-OfmStreamer ReadAfterWriteDependency Test", "[CascadingCompiler]")
-{}
+{
+    ConcatOpGraph inputOutputMergeGraph = ConcatOpGraph();
+    OpGraph mergedOpGraph               = inputOutputMergeGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& ofmSAgent1 = commandStream[1];
+    const Agent& ofmSAgent2 = commandStream[3];
+
+    const Dependency& readDependency1 = ofmSAgent1.info.readDependencies.at(0);
+    const Dependency& readDependency2 = ofmSAgent2.info.readDependencies.at(0);
+
+    // ifmS1 -> ofmS1
+    REQUIRE(readDependency1.relativeAgentId == 1);
+    REQUIRE(readDependency1.outerRatio.other == 1);
+    REQUIRE(readDependency1.outerRatio.self == 1);
+    REQUIRE(readDependency1.innerRatio.other == 1);
+    REQUIRE(readDependency1.innerRatio.self == 1);
+    REQUIRE(readDependency1.boundary == 0);
+    // ifmS2 -> ofmS2
+    REQUIRE(readDependency2.relativeAgentId == 1);
+    REQUIRE(readDependency2.outerRatio.other == 1);
+    REQUIRE(readDependency2.outerRatio.self == 1);
+    REQUIRE(readDependency2.innerRatio.other == 1);
+    REQUIRE(readDependency2.innerRatio.self == 1);
+    REQUIRE(readDependency2.boundary == 0);
+}
 
 // MceScheduler Agent - Read After Write Dependency Test
 TEST_CASE("MceScheduler-IfmStreamer ReadAfterWriteDependency Test", "[CascadingCompiler]")
@@ -1326,7 +1595,40 @@ TEST_CASE("IfmStreamer-PleScheduler WriteAfterReadDependency Test", "[CascadingC
 
 // IfmStreamer Agent - Write After Read Dependency Test
 TEST_CASE("IfmStreamer-OfmStreamer WriteAfterReadDependency Test", "[CascadingCompiler]")
-{}
+{
+    ConcatOpGraph inputOutputMergeGraph = ConcatOpGraph();
+    OpGraph mergedOpGraph               = inputOutputMergeGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& ifmSAgent1 = commandStream[0];
+    const Agent& ifmSAgent2 = commandStream[2];
+
+    const Dependency& writeDependency1 = ifmSAgent1.info.writeDependencies.at(0);
+    const Dependency& writeDependency2 = ifmSAgent2.info.writeDependencies.at(0);
+
+    // ifmS1 -> ofmS1
+    REQUIRE(writeDependency1.relativeAgentId == 1);
+    REQUIRE(writeDependency1.outerRatio.other == 1);
+    REQUIRE(writeDependency1.outerRatio.self == 1);
+    REQUIRE(writeDependency1.innerRatio.other == 1);
+    REQUIRE(writeDependency1.innerRatio.self == 1);
+    REQUIRE(writeDependency1.boundary == 0);
+    // ifmS2 -> ofmS2
+    REQUIRE(writeDependency2.relativeAgentId == 1);
+    REQUIRE(writeDependency2.outerRatio.other == 1);
+    REQUIRE(writeDependency2.outerRatio.self == 1);
+    REQUIRE(writeDependency2.innerRatio.other == 1);
+    REQUIRE(writeDependency2.innerRatio.self == 1);
+    REQUIRE(writeDependency2.boundary == 0);
+}
 
 // WeightStreamer Agent - Write After Read Dependency Test
 TEST_CASE("WeightStreamer-MceScheduler WriteAfterReadDependency Test", "[CascadingCompiler]")
@@ -1483,7 +1785,40 @@ TEST_CASE("IfmStreamer-PleScheduler ScheduleTimeDependency Test", "[CascadingCom
 
 // IfmStreamer Agent - Schedule Time Dependency Test
 TEST_CASE("IfmStreamer-OfmStreamer ScheduleTimeDependency Test", "[CascadingCompiler]")
-{}
+{
+    ConcatOpGraph inputOutputMergeGraph = ConcatOpGraph();
+    OpGraph mergedOpGraph               = inputOutputMergeGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& ifmSAgent1 = commandStream[0];
+    const Agent& ifmSAgent2 = commandStream[2];
+
+    const Dependency& scheduleDependency1 = ifmSAgent1.info.scheduleDependencies.at(0);
+    const Dependency& scheduleDependency2 = ifmSAgent2.info.scheduleDependencies.at(0);
+
+    // ifmS1 -> ofmS1
+    REQUIRE(scheduleDependency1.relativeAgentId == 1);
+    REQUIRE(scheduleDependency1.outerRatio.other == 1);
+    REQUIRE(scheduleDependency1.outerRatio.self == 1);
+    REQUIRE(scheduleDependency1.innerRatio.other == 1);
+    REQUIRE(scheduleDependency1.innerRatio.self == 1);
+    REQUIRE(scheduleDependency1.boundary == 0);
+    // ifmS2 -> ofmS2
+    REQUIRE(scheduleDependency2.relativeAgentId == 1);
+    REQUIRE(scheduleDependency2.outerRatio.other == 1);
+    REQUIRE(scheduleDependency2.outerRatio.self == 1);
+    REQUIRE(scheduleDependency2.innerRatio.other == 1);
+    REQUIRE(scheduleDependency2.innerRatio.self == 1);
+    REQUIRE(scheduleDependency2.boundary == 0);
+}
 
 // WeightStreamer Agent - Schedule Time Dependency Test
 TEST_CASE("WeightStreamer-MceScheduler ScheduleTimeDependency Test", "[CascadingCompiler]")
