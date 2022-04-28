@@ -393,6 +393,12 @@ AgentIdType CascadingCompiler::AddIfmStreamerToCommandStream(DmaOp* const ptrDma
     ifmStreamerData.fmData.bufferId =
         static_cast<uint16_t>(m_BufferManager.AddDram(BufferType::Input, inputDramBuffer->m_SizeInBytes));
 
+    // If this is an Intermediate Dram Buffer, add it to the IntermdiateDramBufToBufId map with the appropriate Id
+    if (inputDramBuffer->m_BufferType.value() == BufferType::Intermediate)
+    {
+        m_IntermdiateDramBufToBufIdMapping[inputDramBuffer] = ifmStreamerData.fmData.bufferId;
+    }
+
     StreamersUtils::SetBufferDataType(ifmStreamerData.fmData, inputDramBuffer->m_Format);
     ifmStreamerData.fmData.fcafInfo.signedActivation = false;
     ifmStreamerData.fmData.fcafInfo.zeroPoint =
@@ -662,6 +668,12 @@ AgentIdType CascadingCompiler::AddOfmStreamerToCommandStream(DmaOp* const ptrDma
 
     ofmStreamerData.fmData.bufferId =
         static_cast<uint16_t>(m_BufferManager.AddDram(BufferType::Output, outputDramBuffer->m_SizeInBytes));
+
+    // If this is an Intermediate Dram Buffer, add it to the IntermdiateDramBufToBufId map with the appropriate Id
+    if (outputDramBuffer->m_BufferType.value() == BufferType::Intermediate)
+    {
+        m_IntermdiateDramBufToBufIdMapping[outputDramBuffer] = ofmStreamerData.fmData.bufferId;
+    }
 
     StreamersUtils::SetBufferDataType(ofmStreamerData.fmData, outputDramBuffer->m_Format);
 
@@ -1354,6 +1366,21 @@ void CascadingCompiler::FillProducerAgentDependency(command_stream::cascading::D
             break;
         }
     }
+}
+
+const BufferManager& CascadingCompiler::GetBufferManager()
+{
+    return m_BufferManager;
+}
+
+const OpGraph& CascadingCompiler::GetMergedOpGraph()
+{
+    return m_MergedOpGraph;
+}
+
+const std::unordered_map<Buffer*, uint32_t>& CascadingCompiler::GetIntermdiateDramBufToBufIdMapping()
+{
+    return m_IntermdiateDramBufToBufIdMapping;
 }
 
 // Private function to add the lifetime information of the intermediate DRAM buffers

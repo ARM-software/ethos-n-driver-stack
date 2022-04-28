@@ -39,6 +39,11 @@ public:
     std::vector<command_stream::cascading::Agent> GetCommandStreamOfAgents();
     std::unique_ptr<CompiledNetwork> Compile();
 
+    // Functions used to retrieve private members
+    const BufferManager& GetBufferManager();
+    const OpGraph& GetMergedOpGraph();
+    const std::unordered_map<Buffer*, uint32_t>& GetIntermdiateDramBufToBufIdMapping();
+
 private:
     // Private functions for processing OpGraph Ops
     void ProcessDmaOp(Op* const ptrDmaOp);

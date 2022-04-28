@@ -468,6 +468,269 @@ private:
     OpGraph mergedOpGraph;
 };
 
+// This class creates a network consisting of an Intermediate Dram Buffer with multiple consumers
+class MceOpGraphIntermediateDramBuffers
+{
+public:
+    MceOpGraphIntermediateDramBuffers()
+    {
+        // Create graph:
+        //                /-> D (SramBuffer) - E (DramBuffer)
+        //  A (Mce + Ple) ->  B (SramBuffer) - C (DramBuffer)
+        //
+        auto& parts       = graph.m_Parts;
+        auto& connections = graph.m_Connections;
+
+        auto pA        = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto pB        = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto pC        = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto pD        = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto pE        = std::make_unique<MockPart>(graph.GeneratePartId());
+        PartId partAId = pA->GetPartId();
+        PartId partBId = pB->GetPartId();
+        PartId partCId = pC->GetPartId();
+        PartId partDId = pD->GetPartId();
+        PartId partEId = pE->GetPartId();
+        parts.push_back(std::move(pA));
+        parts.push_back(std::move(pB));
+        parts.push_back(std::move(pC));
+        parts.push_back(std::move(pD));
+        parts.push_back(std::move(pE));
+
+        PartOutputSlot partAOutputSlot0 = { partAId, 0 };
+        PartOutputSlot partAOutputSlot1 = { partAId, 1 };
+
+        PartInputSlot partBInputSlot0   = { partBId, 0 };
+        PartOutputSlot partBOutputSlot0 = { partBId, 0 };
+
+        PartInputSlot partCInputSlot0 = { partCId, 0 };
+
+        PartInputSlot partDInputSlot0   = { partDId, 0 };
+        PartOutputSlot partDOutputSlot0 = { partDId, 0 };
+
+        PartInputSlot partEInputSlot0 = { partEId, 0 };
+
+        connections[partBInputSlot0] = partAOutputSlot0;
+        connections[partCInputSlot0] = partBOutputSlot0;
+        connections[partDInputSlot0] = partAOutputSlot1;
+        connections[partEInputSlot0] = partDOutputSlot0;
+
+        // Plan A
+        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                           TensorShape{ 1, 160, 160, 3 }, TensorShape{ 0, 0, 0, 0 },
+                                                           TraversalOrder::Xyz, 0, QuantizationInfo()));
+        planA.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
+        planA.m_OpGraph.GetBuffers().back()->m_DebugTag   = "InputDramBuffer";
+
+        planA.m_OpGraph.AddOp(std::make_unique<DmaOp>());
+        planA.m_OpGraph.GetOps()[0]->m_DebugTag = "InputDmaOp";
+
+        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                           TensorShape{ 1, 160, 160, 3 }, TensorShape{ 1, 8, 8, 16 },
+                                                           TraversalOrder::Xyz, 0, QuantizationInfo()));
+        planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSramBuffer";
+        planA.m_OpGraph.GetBuffers().back()->m_Offset   = 0x0000000F;
+
+        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::WEIGHT,
+                                                           TensorShape{ 1, 1, 3, 1 }, TensorShape{ 0, 0, 0, 0 },
+                                                           TraversalOrder::Xyz, 0, QuantizationInfo()));
+        planA.m_OpGraph.GetBuffers().back()->m_BufferType     = BufferType::ConstantDma;
+        planA.m_OpGraph.GetBuffers().back()->m_DebugTag       = "WeightsDramBuffer";
+        encodedWeights                                        = std::make_shared<EncodedWeights>();
+        encodedWeights->m_Data                                = { 1, 2, 3, 4 };
+        encodedWeights->m_MaxSize                             = 10;
+        encodedWeights->m_Metadata                            = { { 0, 2 }, { 2, 2 } };
+        planA.m_OpGraph.GetBuffers().back()->m_EncodedWeights = encodedWeights;
+
+        planA.m_OpGraph.AddOp(std::make_unique<DmaOp>());
+        planA.m_OpGraph.GetOps()[1]->m_DebugTag = "WeightsDmaOp";
+
+        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                           TensorShape{ 1, 1, 3, 1 }, TensorShape{ 1, 1, 16, 1 },
+                                                           TraversalOrder::Xyz, 4, QuantizationInfo()));
+        planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "WeightsSramBuffer";
+        planA.m_OpGraph.GetBuffers().back()->m_Offset   = 0x000000F0;
+
+        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::PleInputSram, CascadingBufferFormat::NHWCB,
+                                                           TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                           TraversalOrder::Xyz, 0, QuantizationInfo()));
+        planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "PleSramBuffer";
+        planA.m_OpGraph.GetBuffers().back()->m_Offset   = 0x000000FF;
+
+        planA.m_OpGraph.AddOp(std::make_unique<MceOp>(
+            Lifetime::Cascade, ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+            BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 },
+            TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        planA.m_OpGraph.GetOps()[2]->m_DebugTag = "Mce";
+
+        // Adding a passthrough PLE kernel to the plan
+        // The PleKernelId is expected to be PASSTHROUGH_8x8_1
+        planA.m_OpGraph.AddOp(
+            std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
+                                    BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                    TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true));
+        planA.m_OpGraph.GetOps()[3]->m_DebugTag = "Ple";
+
+        // Get the PleOp from the OpGraph, check that it is indeed a PleOp and set the Offset
+        Op* maybePleOp = planA.m_OpGraph.GetOp(3);
+        REQUIRE(IsPleOp(maybePleOp));
+        PleOp* actualPleOp    = static_cast<PleOp*>(maybePleOp);
+        actualPleOp->m_Offset = 0x00000F00;
+
+        planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                           TensorShape{ 1, 80, 80, 24 }, TensorShape{ 1, 4, 4, 32 },
+                                                           TraversalOrder::Xyz, 0, QuantizationInfo()));
+        planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramBuffer";
+        planA.m_OpGraph.GetBuffers().back()->m_Offset   = 0x00000F0F;
+
+        planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[0], planA.m_OpGraph.GetOps()[0], 0);
+        planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[1], planA.m_OpGraph.GetOps()[0]);
+        planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[1], planA.m_OpGraph.GetOps()[2], 0);
+        planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[2], planA.m_OpGraph.GetOps()[1], 0);
+        planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[3], planA.m_OpGraph.GetOps()[1]);
+        planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[3], planA.m_OpGraph.GetOps()[2], 1);
+        planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[4], planA.m_OpGraph.GetOps()[2]);
+        planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[4], planA.m_OpGraph.GetOps()[3], 0);
+        planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[5], planA.m_OpGraph.GetOps()[3]);
+        planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[5], partAOutputSlot0 },
+                                   { planA.m_OpGraph.GetBuffers()[5], partAOutputSlot1 } };
+
+        // GlueA_B
+        glueA_B.m_Graph.AddOp(std::make_unique<DmaOp>());
+        glueA_B.m_Graph.GetOps()[0]->m_DebugTag = "InputDma";
+
+        glueA_B.m_Graph.AddOp(std::make_unique<DmaOp>());
+        glueA_B.m_Graph.GetOps()[1]->m_DebugTag = "OutputDmaBranchA";
+
+        glueA_B.m_Graph.AddOp(std::make_unique<DmaOp>());
+        glueA_B.m_Graph.GetOps()[2]->m_DebugTag = "OutputDmaBranchB";
+
+        glueA_B.m_InputSlot = { glueA_B.m_Graph.GetOps()[0], 0 };
+        glueA_B.m_Output.push_back(glueA_B.m_Graph.GetOps()[1]);
+        glueA_B.m_Output.push_back(glueA_B.m_Graph.GetOps()[2]);
+        glueA_B.m_OutDmaOffset = 1;
+
+        glueA_B.m_Graph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                           TensorShape{ 1, 80, 80, 24 }, TensorShape{ 0, 0, 0, 0 },
+                                                           TraversalOrder::Xyz, 0, QuantizationInfo()));
+        glueA_B.m_Graph.GetBuffers().back()->m_BufferType = BufferType::Intermediate;
+        glueA_B.m_Graph.GetBuffers().back()->m_DebugTag   = "IntermediateDramBuffer";
+
+        glueA_B.m_Graph.AddConsumer(glueA_B.m_Graph.GetBuffers()[0], glueA_B.m_Graph.GetOps()[1], 0);
+        glueA_B.m_Graph.AddConsumer(glueA_B.m_Graph.GetBuffers()[0], glueA_B.m_Graph.GetOps()[2], 0);
+        glueA_B.m_Graph.SetProducer(glueA_B.m_Graph.GetBuffers()[0], glueA_B.m_Graph.GetOps()[0]);
+
+        // Plan B
+        planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                           TensorShape{ 1, 80, 80, 24 }, TensorShape{ 1, 8, 8, 32 },
+                                                           TraversalOrder::Xyz, 4, QuantizationInfo()));
+        planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "SramBufferBranchA";
+        planB.m_OpGraph.GetBuffers().back()->m_Offset   = 0x00000FF0;
+
+        planB.m_InputMappings  = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
+        planB.m_OutputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBOutputSlot0 } };
+
+        // GlueB_C
+        glueB_C.m_Graph.AddOp(std::make_unique<DmaOp>());
+        glueB_C.m_Graph.GetOps()[0]->m_DebugTag = "DmaOpBranchA";
+
+        glueB_C.m_InputSlot = { glueB_C.m_Graph.GetOps()[0], 0 };
+        glueB_C.m_Output.push_back(glueB_C.m_Graph.GetOps()[0]);
+
+        // Plan C
+        planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                           TensorShape{ 1, 80, 80, 24 }, TensorShape{ 0, 0, 0, 0 },
+                                                           TraversalOrder::Xyz, 0, QuantizationInfo()));
+        planC.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
+        planC.m_OpGraph.GetBuffers().back()->m_DebugTag   = "OutputDramBufferBranchA";
+
+        planC.m_InputMappings = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot0 } };
+
+        // Plan D
+        planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                           TensorShape{ 1, 80, 80, 24 }, TensorShape{ 1, 8, 8, 32 },
+                                                           TraversalOrder::Xyz, 4, QuantizationInfo()));
+        planD.m_OpGraph.GetBuffers().back()->m_DebugTag = "SramBufferBranchB";
+        planD.m_OpGraph.GetBuffers().back()->m_Offset   = 0x00000FFF;
+
+        planD.m_InputMappings  = { { planD.m_OpGraph.GetBuffers()[0], partDInputSlot0 } };
+        planD.m_OutputMappings = { { planD.m_OpGraph.GetBuffers()[0], partDOutputSlot0 } };
+
+        // GlueD_E
+        glueD_E.m_Graph.AddOp(std::make_unique<DmaOp>());
+        glueD_E.m_Graph.GetOps()[0]->m_DebugTag = "DmaOpBranchB";
+
+        glueD_E.m_InputSlot = { glueD_E.m_Graph.GetOps()[0], 0 };
+        glueD_E.m_Output.push_back(glueD_E.m_Graph.GetOps()[0]);
+
+        // Plan E
+        planE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                           TensorShape{ 1, 80, 80, 24 }, TensorShape{ 0, 0, 0, 0 },
+                                                           TraversalOrder::Xyz, 0, QuantizationInfo()));
+        planE.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
+        planE.m_OpGraph.GetBuffers().back()->m_DebugTag   = "OutputDramBufferBranchB";
+
+        planE.m_InputMappings = { { planE.m_OpGraph.GetBuffers()[0], partEInputSlot0 } };
+
+        // Add to Combination all the Plans and Glues
+        Elem elemA = { std::make_shared<Plan>(std::move(planA)),
+                       { { partBInputSlot0, { &glueA_B, true } }, { partDInputSlot0, { &glueA_B, true } } } };
+        Elem elemB = { std::make_shared<Plan>(std::move(planB)), { { partCInputSlot0, { &glueB_C, true } } } };
+        Elem elemC = { std::make_shared<Plan>(std::move(planC)), {} };
+        Elem elemD = { std::make_shared<Plan>(std::move(planD)), { { partEInputSlot0, { &glueD_E, true } } } };
+        Elem elemE = { std::make_shared<Plan>(std::move(planE)), {} };
+
+        comb.m_Elems.insert(std::make_pair(0, elemA));
+        comb.m_PartIdsInOrder.push_back(0);
+        comb.m_Elems.insert(std::make_pair(1, elemB));
+        comb.m_PartIdsInOrder.push_back(1);
+        comb.m_Elems.insert(std::make_pair(2, elemC));
+        comb.m_PartIdsInOrder.push_back(2);
+        comb.m_Elems.insert(std::make_pair(3, elemD));
+        comb.m_PartIdsInOrder.push_back(3);
+        comb.m_Elems.insert(std::make_pair(4, elemE));
+        comb.m_PartIdsInOrder.push_back(4);
+
+        bool dumpInputGraphToFile = false;
+        if (dumpInputGraphToFile)
+        {
+            std::ofstream stream("IntermediateDramBufferLifetime Test Input.dot");
+            SaveCombinationToDot(comb, graph, stream, DetailLevel::High);
+        }
+
+        mergedOpGraph = GetOpGraphForCombination(comb, graph);
+
+        bool dumpOutputGraphToFile = false;
+        if (dumpOutputGraphToFile)
+        {
+            std::ofstream stream("IntermediateDramBufferLifetime Test Output.dot");
+            SaveOpGraphToDot(mergedOpGraph, stream, DetailLevel::High);
+        }
+    }
+
+    OpGraph GetMergedOpGraph()
+    {
+        return mergedOpGraph;
+    }
+
+private:
+    GraphOfParts graph;
+
+    Plan planA;
+    Glue glueA_B;
+    Plan planB;
+    Glue glueB_C;
+    Plan planC;
+    Plan planD;
+    Glue glueD_E;
+    Plan planE;
+
+    std::shared_ptr<EncodedWeights> encodedWeights;
+
+    Combination comb;
+    OpGraph mergedOpGraph;
+};
+
 // IfmStreamer Agent Data Test
 TEST_CASE("IfmStreamer Agent Data Test", "[CascadingCompiler]")
 {
@@ -1375,3 +1638,40 @@ TEST_CASE("PleScheduler-OfmStreamer ScheduleTimeDependency Test", "[CascadingCom
 // OfmStreamer Agent - Schedule Time Dependency Test
 TEST_CASE("OfmStreamer-IfmStreamer ScheduleTimeDependency Test", "[CascadingCompiler]")
 {}
+
+// Producer-Consumer Agent - Intermediate Dram Buffer Lifetime Test
+// Manually creates a network consisting of a Glue with an Intermediate Dram Buffer, to test the lifetime logic of the CascadingCompiler.
+// The topology is chosen to test cases including:
+//      * Intermediate Dram Buffers with branches, whose end of Lifetime depends on their last consumer Op.
+TEST_CASE("Producer-Consumer IntermediateDramBufferLifetime Test", "[CascadingCompiler]")
+{
+    MceOpGraphIntermediateDramBuffers mceOpGraphIntermediateBuffers = MceOpGraphIntermediateDramBuffers();
+    OpGraph mergedOpGraph                                           = mceOpGraphIntermediateBuffers.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    // Create CascadingCompiler object and generate command stream
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    uint32_t buffId;
+
+    // Use dedicated functions to retrieve private OpGraph, IntermdiateDramBufToBufIdMapping and BufferManager
+    for (Buffer* buffer : cascadingCompiler.GetMergedOpGraph().GetBuffers())
+    {
+        if (buffer->m_Location == Location::Dram && buffer->m_BufferType.value() == BufferType::Intermediate)
+        {
+            // Retrieve Buffer Id from Intermediate Dram Buffer using m_IntermdiateDramBufToBufIdMapping.
+            // Buffer Id is internal to m_BufferManager
+            buffId = cascadingCompiler.GetIntermdiateDramBufToBufIdMapping().at(buffer);
+
+            BufferManager bufferManager = cascadingCompiler.GetBufferManager();
+
+            // Use Buffer Id to retrieve the appropriate Buffer's CompilerBufferInfo and use that to check the Lifetimes.
+            REQUIRE(bufferManager.GetBuffers().at(buffId).m_LifetimeStart == 5);
+            REQUIRE(bufferManager.GetBuffers().at(buffId).m_LifetimeEnd == 9);
+        }
+    }
+}
