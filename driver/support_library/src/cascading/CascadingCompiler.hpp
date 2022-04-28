@@ -55,7 +55,10 @@ private:
     void ProcessTransposeOp(Op* const ptrTransposeOp);
 
     // Private function to add IFM_STREAMER to the command stream
-    AgentIdType AddIfmStreamerToCommandStream(DmaOp* const ptrDmaOp);
+    AgentIdType AddIfmStreamerToCommandStream(Op* const ptrOp,
+                                              const uint16_t inputDramBufferId,
+                                              const Buffer* const inputDramBuffer,
+                                              const Buffer* const inputSramBuffer);
     // Private function to add WGT_STREAMER to the command stream
     AgentIdType AddWeightStreamerToCommandStream(DmaOp* const ptrDmaOp);
     // Private function to add MCE_SCHEDULER to the command stream
@@ -66,7 +69,10 @@ private:
     // Private function to add PLE_SCHEDULER to the command stream
     AgentIdType AddPleSchedulerToCommandStream(PleOp* const ptrPleOp);
     // Private function to add OFM_STREAMER to the command stream
-    AgentIdType AddOfmStreamerToCommandStream(DmaOp* const ptrDmaOp);
+    AgentIdType AddOfmStreamerToCommandStream(Op* const ptrOp,
+                                              const Buffer* const outputSramBuffer,
+                                              const uint16_t outputDramBufferId,
+                                              const Buffer* const outputDramBuffer);
 
     // Private function to add ReadAfterWrite Dependency
     // Consumer agent creates and own the dependency

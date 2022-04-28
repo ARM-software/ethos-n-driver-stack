@@ -5,7 +5,6 @@
 
 #include "../src/cascading/CascadingCompiler.hpp"
 #include "../src/cascading/CombinerDFS.hpp"
-#include "../src/cascading/PartUtils.hpp"
 #include "../src/cascading/StripeHelper.hpp"
 #include "TestUtils.hpp"
 
@@ -255,7 +254,7 @@ public:
         inputSramPlan.m_OutputMappings = { { inputSramPlan.m_OpGraph.GetBuffers()[0], inputSramPartOutputSlot0 } };
 
         Buffer* ptrInputBuffer = inputSramPlan.m_OpGraph.GetBuffers().back();
-        inputStripeSize        = CalculateBufferSize(ptrInputBuffer->m_StripeShape, ptrInputBuffer->m_Format);
+        inputStripeSize        = utils::TotalSizeBytesNHWCB(ptrInputBuffer->m_StripeShape);
         inputZeroPoint         = ptrInputBuffer->m_QuantizationInfo.GetZeroPoint();
 
         // Plan weightDramPlan
