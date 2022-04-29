@@ -1184,7 +1184,7 @@ TEST_CASE("PleScheduler-MceScheduler ReadAfterWriteDependency Test", "[Cascading
     REQUIRE(readDependency.outerRatio.self == numberOfPleStripes);
     REQUIRE(readDependency.innerRatio.other == 70);
     REQUIRE(readDependency.innerRatio.self == 1);
-    REQUIRE(readDependency.boundary == 0);
+    REQUIRE(readDependency.boundary == 1);
 }
 
 // PleScheduler Agent - Read After Write Dependency Test

@@ -8,6 +8,9 @@
 #include "Plan.hpp"
 #include "Utils.hpp"
 
+#define ETHOSN_ASSERT_MSG(cond, msg) assert(cond)
+#include "ethosn_utils/NumericCast.hpp"
+
 using namespace ethosn::command_stream::cascading;
 
 namespace ethosn
@@ -23,17 +26,17 @@ inline void SetTileInfoForBuffer(const HardwareCapabilities& hwCap, Tile& tile, 
 {
     assert(buffer->m_Format == CascadingBufferFormat::NHWCB || buffer->m_Format == CascadingBufferFormat::WEIGHT);
 
-    tile.baseAddr = static_cast<uint16_t>(buffer->m_Offset.value());
-    tile.numSlots = static_cast<uint16_t>(buffer->m_NumStripes);
+    tile.baseAddr = ethosn::utils::NumericCast<uint16_t>(buffer->m_Offset.value());
+    tile.numSlots = ethosn::utils::NumericCast<uint16_t>(buffer->m_NumStripes);
 
     switch (buffer->m_Format)
     {
         case CascadingBufferFormat::NHWCB:
-            tile.slotSize = static_cast<uint16_t>(
+            tile.slotSize = ethosn::utils::NumericCast<uint16_t>(
                 utils::DivRoundUp(utils::TotalSizeBytesNHWCB(buffer->m_StripeShape), hwCap.GetNumberOfSrams()));
             break;
         case CascadingBufferFormat::WEIGHT:
-            tile.slotSize = static_cast<uint16_t>(
+            tile.slotSize = ethosn::utils::NumericCast<uint16_t>(
                 utils::DivRoundUp(buffer->m_SizeInBytes, (hwCap.GetNumberOfSrams() * buffer->m_NumStripes)));
             break;
         default:
@@ -87,12 +90,13 @@ inline void SetBufferDataType(FmSData& streamerData, const CascadingBufferFormat
 
 inline void SetStripeHeightInfo(FmSData& streamerData, const TensorShape& tensorShape, const TensorShape& stripeShape)
 {
-    uint16_t tensorHeight = static_cast<uint16_t>(utils::GetHeight(tensorShape));
-    uint16_t stripeHeight = static_cast<uint16_t>(utils::GetHeight(stripeShape));
+    uint16_t tensorHeight = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(tensorShape));
+    uint16_t stripeHeight = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(stripeShape));
 
     assert(stripeHeight != 0);
 
-    streamerData.numStripes.height = static_cast<uint16_t>(utils::GetNumStripesH(tensorShape, stripeShape));
+    streamerData.numStripes.height =
+        ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesH(tensorShape, stripeShape));
 
     streamerData.dfltStripeSize.height = stripeHeight;
 
@@ -108,12 +112,13 @@ inline void SetStripeHeightInfo(FmSData& streamerData, const TensorShape& tensor
 
 inline void SetStripeWidthInfo(FmSData& streamerData, const TensorShape& tensorShape, const TensorShape& stripeShape)
 {
-    uint16_t tensorWidth = static_cast<uint16_t>(utils::GetWidth(tensorShape));
-    uint16_t stripeWidth = static_cast<uint16_t>(utils::GetWidth(stripeShape));
+    uint16_t tensorWidth = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(tensorShape));
+    uint16_t stripeWidth = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(stripeShape));
 
     assert(stripeWidth != 0);
 
-    streamerData.numStripes.width = static_cast<uint16_t>(utils::GetNumStripesW(tensorShape, stripeShape));
+    streamerData.numStripes.width =
+        ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesW(tensorShape, stripeShape));
 
     streamerData.dfltStripeSize.width = stripeWidth;
 
@@ -129,12 +134,13 @@ inline void SetStripeWidthInfo(FmSData& streamerData, const TensorShape& tensorS
 
 inline void SetStripeChannelsInfo(FmSData& streamerData, const TensorShape& tensorShape, const TensorShape& stripeShape)
 {
-    uint16_t tensorChannels = static_cast<uint16_t>(utils::GetChannels(tensorShape));
-    uint16_t stripeChannels = static_cast<uint16_t>(utils::GetChannels(stripeShape));
+    uint16_t tensorChannels = ethosn::utils::NumericCast<uint16_t>(utils::GetChannels(tensorShape));
+    uint16_t stripeChannels = ethosn::utils::NumericCast<uint16_t>(utils::GetChannels(stripeShape));
 
     assert(stripeChannels != 0);
 
-    streamerData.numStripes.channels = static_cast<uint16_t>(utils::GetNumStripesC(tensorShape, stripeShape));
+    streamerData.numStripes.channels =
+        ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesC(tensorShape, stripeShape));
 
     streamerData.dfltStripeSize.channels = stripeChannels;
 
@@ -177,8 +183,10 @@ inline void SetSuperTensorSizeInCells(FmSData& streamerData,
             assert(false);
     }
 
-    streamerData.supertensorSizeInCells.width    = static_cast<uint16_t>(utils::DivRoundUp(tensorShape[2], cellWidth));
-    streamerData.supertensorSizeInCells.channels = static_cast<uint16_t>(utils::DivRoundUp(tensorShape[3], cellDepth));
+    streamerData.supertensorSizeInCells.width =
+        ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(tensorShape[2], cellWidth));
+    streamerData.supertensorSizeInCells.channels =
+        ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(tensorShape[3], cellDepth));
 }
 
 inline void SetStripeIdStrides(FmSData& streamerData, TraversalOrder traversalOrder)
@@ -186,7 +194,7 @@ inline void SetStripeIdStrides(FmSData& streamerData, TraversalOrder traversalOr
     if (traversalOrder == TraversalOrder::Xyz)
     {
         streamerData.stripeIdStrides.height =
-            static_cast<uint16_t>(streamerData.numStripes.width * streamerData.numStripes.channels);
+            ethosn::utils::NumericCast<uint16_t>(streamerData.numStripes.width * streamerData.numStripes.channels);
         streamerData.stripeIdStrides.width    = streamerData.numStripes.channels;
         streamerData.stripeIdStrides.channels = 1U;
     }
@@ -204,12 +212,13 @@ namespace MceSUtils
 inline void
     SetMcesOfmHeightStripeInfo(MceS& mceSchedulerData, const TensorShape& ofmShape, const TensorShape& ofmStripeShape)
 {
-    uint16_t ofmHeight       = static_cast<uint16_t>(utils::GetHeight(ofmShape));
-    uint16_t ofmStripeHeight = static_cast<uint16_t>(utils::GetHeight(ofmStripeShape));
+    uint16_t ofmHeight       = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(ofmShape));
+    uint16_t ofmStripeHeight = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(ofmStripeShape));
 
     assert(ofmStripeHeight != 0);
 
-    mceSchedulerData.numStripes.ofmHeight = static_cast<uint16_t>(utils::GetNumStripesH(ofmShape, ofmStripeShape));
+    mceSchedulerData.numStripes.ofmHeight =
+        ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesH(ofmShape, ofmStripeShape));
 
     mceSchedulerData.dfltStripeSize.ofmHeight = ofmStripeHeight;
 
@@ -226,12 +235,13 @@ inline void
 inline void
     SetMcesOfmWidthStripeInfo(MceS& mceSchedulerData, const TensorShape& ofmShape, const TensorShape& ofmStripeShape)
 {
-    uint16_t ofmWidth       = static_cast<uint16_t>(utils::GetWidth(ofmShape));
-    uint16_t ofmStripeWidth = static_cast<uint16_t>(utils::GetWidth(ofmStripeShape));
+    uint16_t ofmWidth       = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(ofmShape));
+    uint16_t ofmStripeWidth = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(ofmStripeShape));
 
     assert(ofmStripeWidth != 0);
 
-    mceSchedulerData.numStripes.ofmWidth = static_cast<uint16_t>(utils::GetNumStripesW(ofmShape, ofmStripeShape));
+    mceSchedulerData.numStripes.ofmWidth =
+        ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesW(ofmShape, ofmStripeShape));
 
     mceSchedulerData.dfltStripeSize.ofmWidth = ofmStripeWidth;
 
@@ -248,12 +258,13 @@ inline void
 inline void
     SetMcesOfmChannelsStripeInfo(MceS& mceSchedulerData, const TensorShape& ofmShape, const TensorShape& ofmStripeShape)
 {
-    uint16_t ofmChannels       = static_cast<uint16_t>(utils::GetChannels(ofmShape));
-    uint16_t ofmStripeChannels = static_cast<uint16_t>(utils::GetChannels(ofmStripeShape));
+    uint16_t ofmChannels       = ethosn::utils::NumericCast<uint16_t>(utils::GetChannels(ofmShape));
+    uint16_t ofmStripeChannels = ethosn::utils::NumericCast<uint16_t>(utils::GetChannels(ofmStripeShape));
 
     assert(ofmStripeChannels != 0);
 
-    mceSchedulerData.numStripes.ofmChannels = static_cast<uint16_t>(utils::GetNumStripesC(ofmShape, ofmStripeShape));
+    mceSchedulerData.numStripes.ofmChannels =
+        ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesC(ofmShape, ofmStripeShape));
 
     mceSchedulerData.dfltStripeSize.ofmChannels = ofmStripeChannels;
 
@@ -270,12 +281,13 @@ inline void
 inline void
     SetMcesIfmChannelsStripeInfo(MceS& mceSchedulerData, const TensorShape& ifmShape, const TensorShape& ifmStripeShape)
 {
-    uint16_t ifmChannels       = static_cast<uint16_t>(utils::GetChannels(ifmShape));
-    uint16_t ifmStripeChannels = static_cast<uint16_t>(utils::GetChannels(ifmStripeShape));
+    uint16_t ifmChannels       = ethosn::utils::NumericCast<uint16_t>(utils::GetChannels(ifmShape));
+    uint16_t ifmStripeChannels = ethosn::utils::NumericCast<uint16_t>(utils::GetChannels(ifmStripeShape));
 
     assert(ifmStripeChannels != 0);
 
-    mceSchedulerData.numStripes.ifmChannels = static_cast<uint16_t>(utils::GetNumStripesC(ifmShape, ifmStripeShape));
+    mceSchedulerData.numStripes.ifmChannels =
+        ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesC(ifmShape, ifmStripeShape));
 
     mceSchedulerData.dfltStripeSize.ifmChannels = ifmStripeChannels;
 
@@ -293,12 +305,12 @@ inline void SetStripeIdStrides(MceS& mceSchedulerData, TraversalOrder traversalO
 {
     if (traversalOrder == TraversalOrder::Xyz)
     {
-        mceSchedulerData.stripeIdStrides.ofmHeight =
-            static_cast<uint16_t>(mceSchedulerData.numStripes.ifmChannels * mceSchedulerData.numStripes.ofmWidth);
-        mceSchedulerData.stripeIdStrides.ofmWidth = mceSchedulerData.numStripes.ifmChannels;
-        mceSchedulerData.stripeIdStrides.ofmChannels =
-            static_cast<uint16_t>(mceSchedulerData.numStripes.ifmChannels * mceSchedulerData.numStripes.ofmWidth *
-                                  mceSchedulerData.numStripes.ofmHeight);
+        mceSchedulerData.stripeIdStrides.ofmHeight = ethosn::utils::NumericCast<uint16_t>(
+            mceSchedulerData.numStripes.ifmChannels * mceSchedulerData.numStripes.ofmWidth);
+        mceSchedulerData.stripeIdStrides.ofmWidth    = mceSchedulerData.numStripes.ifmChannels;
+        mceSchedulerData.stripeIdStrides.ofmChannels = ethosn::utils::NumericCast<uint16_t>(
+            mceSchedulerData.numStripes.ifmChannels * mceSchedulerData.numStripes.ofmWidth *
+            mceSchedulerData.numStripes.ofmHeight);
         mceSchedulerData.stripeIdStrides.ifmChannels = 1U;
     }
     else
@@ -350,11 +362,12 @@ namespace PleSUtils
 inline void
     SetPlesHeightStripeInfo(PleS& pleSchedulerData, const TensorShape& ofmShape, const TensorShape& ofmStripeShape)
 {
-    uint16_t ofmHeight       = static_cast<uint16_t>(utils::GetHeight(ofmShape));
-    uint16_t ofmStripeHeight = static_cast<uint16_t>(utils::GetHeight(ofmStripeShape));
+    uint16_t ofmHeight       = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(ofmShape));
+    uint16_t ofmStripeHeight = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(ofmStripeShape));
 
     pleSchedulerData.dfltStripeSize.height = ofmStripeHeight;
-    pleSchedulerData.numStripes.height     = static_cast<uint16_t>(utils::GetNumStripesH(ofmShape, ofmStripeShape));
+    pleSchedulerData.numStripes.height =
+        ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesH(ofmShape, ofmStripeShape));
 
     pleSchedulerData.edgeStripeSize.height = ofmStripeHeight;
 
@@ -368,11 +381,12 @@ inline void
 inline void
     SetPlesWidthStripeInfo(PleS& pleSchedulerData, const TensorShape& ofmShape, const TensorShape& ofmStripeShape)
 {
-    uint16_t ofmWidth       = static_cast<uint16_t>(utils::GetWidth(ofmShape));
-    uint16_t ofmStripeWidth = static_cast<uint16_t>(utils::GetWidth(ofmStripeShape));
+    uint16_t ofmWidth       = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(ofmShape));
+    uint16_t ofmStripeWidth = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(ofmStripeShape));
 
     pleSchedulerData.dfltStripeSize.width = ofmStripeWidth;
-    pleSchedulerData.numStripes.width     = static_cast<uint16_t>(utils::GetNumStripesW(ofmShape, ofmStripeShape));
+    pleSchedulerData.numStripes.width =
+        ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesW(ofmShape, ofmStripeShape));
 
     pleSchedulerData.edgeStripeSize.width = ofmStripeWidth;
 
@@ -386,11 +400,12 @@ inline void
 inline void
     SetPlesChannelsStripeInfo(PleS& pleSchedulerData, const TensorShape& ofmShape, const TensorShape& ofmStripeShape)
 {
-    uint16_t ofmChannels       = static_cast<uint16_t>(utils::GetChannels(ofmShape));
-    uint16_t ofmStripeChannels = static_cast<uint16_t>(utils::GetChannels(ofmStripeShape));
+    uint16_t ofmChannels       = ethosn::utils::NumericCast<uint16_t>(utils::GetChannels(ofmShape));
+    uint16_t ofmStripeChannels = ethosn::utils::NumericCast<uint16_t>(utils::GetChannels(ofmStripeShape));
 
     pleSchedulerData.dfltStripeSize.channels = ofmStripeChannels;
-    pleSchedulerData.numStripes.channels     = static_cast<uint16_t>(utils::GetNumStripesC(ofmShape, ofmStripeShape));
+    pleSchedulerData.numStripes.channels =
+        ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesC(ofmShape, ofmStripeShape));
 
     pleSchedulerData.edgeStripeSize.channels = ofmStripeChannels;
 
@@ -405,10 +420,11 @@ inline void SetStripeIdStrides(PleS& pleSchedulerData, Buffer* outputBuffer)
 {
     if (outputBuffer->m_Order == TraversalOrder::Xyz)
     {
-        pleSchedulerData.stripeIdStrides.height = static_cast<uint16_t>(pleSchedulerData.numStripes.width);
-        pleSchedulerData.stripeIdStrides.width  = 1;
-        pleSchedulerData.stripeIdStrides.channels =
-            static_cast<uint16_t>(pleSchedulerData.numStripes.width * pleSchedulerData.numStripes.height);
+        pleSchedulerData.stripeIdStrides.height =
+            ethosn::utils::NumericCast<uint16_t>(pleSchedulerData.numStripes.width);
+        pleSchedulerData.stripeIdStrides.width    = 1;
+        pleSchedulerData.stripeIdStrides.channels = ethosn::utils::NumericCast<uint16_t>(
+            pleSchedulerData.numStripes.width * pleSchedulerData.numStripes.height);
     }
     else
     {
