@@ -14,6 +14,7 @@ BACKEND_SOURCES := \
         EthosNBackend.cpp \
         EthosNCaching.cpp \
         EthosNConfig.cpp \
+        EthosNTensorHandleFactory.cpp \
         EthosNLayerSupport.cpp \
         EthosNBackendProfilingContext.cpp \
         EthosNSubgraphViewConverter.cpp \
@@ -51,7 +52,6 @@ BACKEND_TEST_SOURCES := \
         test/EthosNBackendTests.cpp \
         test/EthosNCachingTests.cpp \
         test/EthosNCreateEstimationWorkloadTests.cpp \
-        test/EthosNCreateWorkloadTests.cpp \
         test/EthosNLayerTests.cpp \
         test/EthosNMemCopyTests.cpp \
         test/EthosNOptimizeSubgraphViewTests.cpp \
