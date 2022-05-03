@@ -9,6 +9,7 @@
 #include "DebuggableObject.hpp"
 
 #include <functional>
+#include <typeinfo>
 #include <utility>
 #include <vector>
 
@@ -52,7 +53,7 @@ const D* GetObjectAs(const B* obj)
 template <typename D, typename B>
 bool IsObjectOfType(const B* obj)
 {
-    return (GetObjectAs<D>(obj) != nullptr);
+    return typeid(*obj) == typeid(D);
 }
 
 using PartId         = uint32_t;
