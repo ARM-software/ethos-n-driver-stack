@@ -226,6 +226,10 @@ using OutputStats = InputStats;
 
 struct WeightsStats : InputStats
 {
+    WeightsStats() noexcept
+        : m_WeightCompressionSavings()
+    {}
+
     float m_WeightCompressionSavings;
 };
 
