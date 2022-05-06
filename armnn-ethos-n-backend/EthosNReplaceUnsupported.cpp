@@ -72,14 +72,22 @@ bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph,
 
                 const ConstTensor weights(weightInfo, weightData);
 
-                depthwiseLayer->m_Weight = std::make_unique<ScopedTensorHandle>(weights);
+                const auto weightsLayer =
+                    replacementGraph.AddLayer<ConstantLayer>("Replacement for Constant-Multiplication Weights");
+                weightsLayer->m_LayerOutput = std::make_shared<ScopedTensorHandle>(weights);
+                weightsLayer->GetOutputSlot(0).SetTensorInfo(weightInfo);
+                weightsLayer->GetOutputSlot(0).Connect(depthwiseLayer->GetInputSlot(1));
 
                 ARMNN_NO_DEPRECATE_WARN_BEGIN
                 SubgraphView patternSubgraph({ patternSubgraphInput }, { &layer->GetOutputSlot() },
                                              { layer, constantLayer });
                 ARMNN_NO_DEPRECATE_WARN_END
 
-                graph.SubstituteSubgraph(patternSubgraph, SubgraphView{ depthwiseLayer });
+                /// Constructs a sub-graph view with the new weights, depthwise and the correct input and output slots.
+                SubgraphView view({ depthwiseLayer, weightsLayer }, { &depthwiseLayer->GetInputSlot(0) },
+                                  { &depthwiseLayer->GetOutputSlot(0) });
+
+                graph.SubstituteSubgraph(patternSubgraph, view);
 
                 return true;
             }
@@ -303,7 +311,6 @@ bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer)
     const std::vector<uint8_t> weightsData(replacementConfig.m_WeightsInfo.GetNumElements(),
                                            replacementConfig.m_WeightsQuantizedValue);
     const ConstTensor weights(replacementConfig.m_WeightsInfo, weightsData);
-    depthwiseLayer->m_Weight = std::make_unique<ScopedTensorHandle>(weights);
 
     // Rescale the bias data
     const void* constData =
@@ -317,13 +324,27 @@ bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer)
         return false;
     }
     const ConstTensor rescaledBias(replacementConfig.m_BiasInfo, rescaledBiasData.value());
-    depthwiseLayer->m_Bias = std::make_unique<ScopedTensorHandle>(rescaledBias);
 
     ARMNN_NO_DEPRECATE_WARN_BEGIN
     SubgraphView patternSubgraph({ subgraphInputSlot }, { &layer->GetOutputSlot() }, { layer, constantLayer });
     ARMNN_NO_DEPRECATE_WARN_END
 
-    graph.SubstituteSubgraph(patternSubgraph, SubgraphView{ depthwiseLayer });
+    const auto weightsLayer =
+        replacementGraph.AddLayer<ConstantLayer>("Replacement for Constant-Addition Identity Weights");
+    weightsLayer->m_LayerOutput = std::make_shared<ScopedTensorHandle>(weights);
+    weightsLayer->GetOutputSlot(0).SetTensorInfo(replacementConfig.m_WeightsInfo);
+    weightsLayer->GetOutputSlot(0).Connect(depthwiseLayer->GetInputSlot(1));
+
+    const auto biasLayer     = replacementGraph.AddLayer<ConstantLayer>("Replacement for Constant-Addition Bias");
+    biasLayer->m_LayerOutput = std::make_shared<ScopedTensorHandle>(rescaledBias);
+    biasLayer->GetOutputSlot(0).SetTensorInfo(replacementConfigOpt.value().m_BiasInfo);
+    biasLayer->GetOutputSlot(0).Connect(depthwiseLayer->GetInputSlot(2));
+
+    /// Constructs a sub-graph view with the depthwise, bias and weight layers with the correct input and output slots.
+    SubgraphView view({ depthwiseLayer, weightsLayer, biasLayer }, { &depthwiseLayer->GetInputSlot(0) },
+                      { &depthwiseLayer->GetOutputSlot(0) });
+
+    graph.SubstituteSubgraph(patternSubgraph, view);
 
     return true;
 }

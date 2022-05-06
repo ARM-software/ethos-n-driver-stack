@@ -408,17 +408,6 @@ public:
                               const TransposeDescriptor& descriptor,
                               Optional<std::string&> reasonIfUnsupported) const override;
 
-    bool IsUnidirectionalSequenceLstmSupported(
-        const TensorInfo& input,
-        const TensorInfo& outputStateIn,
-        const TensorInfo& cellStateIn,
-        const TensorInfo& output,
-        const Optional<TensorInfo>& hiddenStateOutput,
-        const Optional<TensorInfo>& cellStateOutput,
-        const LstmDescriptor& descriptor,
-        const LstmInputParamsInfo& paramsInfo,
-        Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const override;
-
     bool IsChannelShuffleSupported(const TensorInfo& input,
                                    const TensorInfo& output,
                                    const ChannelShuffleDescriptor& descriptor,

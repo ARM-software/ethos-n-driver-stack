@@ -64,21 +64,25 @@ TEST_SUITE("EthosNReplaceUnsupported")
         Graph pattern = net->GetGraph();
         ethosnbackend::ReplaceUnsupportedLayers(pattern, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
-        CHECK(pattern.GetNumLayers() == 3);
+        CHECK(pattern.GetNumLayers() == 4);
 
         const std::vector<Layer*> vecPattern(pattern.begin(), pattern.end());
 
         Layer* inputLayer     = vecPattern[0];
-        Layer* depthwiseLayer = vecPattern[1];
-        Layer* outputLayer    = vecPattern[2];
+        Layer* weightsLayer   = vecPattern[1];
+        Layer* depthwiseLayer = vecPattern[2];
+        Layer* outputLayer    = vecPattern[3];
 
         CHECK(inputLayer->GetType() == LayerType::Input);
+        CHECK(weightsLayer->GetType() == LayerType::Constant);
         CHECK(depthwiseLayer->GetType() == LayerType::DepthwiseConvolution2d);
         CHECK(outputLayer->GetType() == LayerType::Output);
 
         Layer* depthwiseInput  = &depthwiseLayer->GetInputSlots()[0].GetConnectedOutputSlot()->GetOwningLayer();
+        Layer* depthwiseInput1 = &depthwiseLayer->GetInputSlots()[1].GetConnectedOutputSlot()->GetOwningLayer();
         Layer* depthwiseOutput = &depthwiseLayer->GetOutputSlots()[0].GetConnections()[0]->GetOwningLayer();
         CHECK(depthwiseInput == inputLayer);
+        CHECK(depthwiseInput1 == weightsLayer);
         CHECK(depthwiseOutput == outputLayer);
 
         Layer* inputNextLayer  = &inputLayer->GetOutputSlots()[0].GetConnections()[0]->GetOwningLayer();
@@ -87,8 +91,8 @@ TEST_SUITE("EthosNReplaceUnsupported")
         CHECK(outputPrevLayer == depthwiseLayer);
 
         // Depthwise weights should be exact with the Constant data
-        const uint8_t* dwWeightData = PolymorphicPointerDowncast<DepthwiseConvolution2dLayer>(depthwiseLayer)
-                                          ->m_Weight->GetConstTensor<uint8_t>();
+        const uint8_t* dwWeightData =
+            PolymorphicPointerDowncast<ConstantLayer>(weightsLayer)->m_LayerOutput->GetConstTensor<uint8_t>();
         std::vector<uint8_t> depthwiseWeights(dwWeightData, dwWeightData + constData.size());
         CHECK(depthwiseWeights == constData);
     }
@@ -344,22 +348,27 @@ TEST_SUITE("EthosNReplaceUnsupported")
             // Expected modified pattern:
             // Input -> DepthwiseConvolution2d -> Output
             const std::vector<Layer*> outLayers(g.begin(), g.end());
-            CHECK(outLayers.size() == 3);
+            CHECK(outLayers.size() == 5);
 
-            Layer* inputLayer  = outLayers[0];
-            Layer* layer1      = outLayers[1];
-            Layer* outputLayer = outLayers[2];
+            Layer* inputLayer     = outLayers[0];
+            Layer* weightsLayer   = outLayers[1];
+            Layer* biasLayer      = outLayers[2];
+            Layer* depthwiseLayer = outLayers[3];
+            Layer* outputLayer    = outLayers[4];
 
             CHECK(inputLayer->GetType() == LayerType::Input);
-            CHECK(layer1->GetType() == LayerType::DepthwiseConvolution2d);
+            CHECK(weightsLayer->GetType() == LayerType::Constant);
+            CHECK(biasLayer->GetType() == LayerType::Constant);
+            CHECK(depthwiseLayer->GetType() == LayerType::DepthwiseConvolution2d);
             CHECK(outputLayer->GetType() == LayerType::Output);
 
-            const DepthwiseConvolution2dLayer* depthwiseLayer =
-                PolymorphicPointerDowncast<DepthwiseConvolution2dLayer>(layer1);
-
             Layer* depthwiseInput  = &depthwiseLayer->GetInputSlots()[0].GetConnectedOutputSlot()->GetOwningLayer();
+            Layer* depthwiseInput1 = &depthwiseLayer->GetInputSlots()[1].GetConnectedOutputSlot()->GetOwningLayer();
+            Layer* depthwiseInput2 = &depthwiseLayer->GetInputSlots()[2].GetConnectedOutputSlot()->GetOwningLayer();
             Layer* depthwiseOutput = &depthwiseLayer->GetOutputSlots()[0].GetConnections()[0]->GetOwningLayer();
             CHECK(depthwiseInput == inputLayer);
+            CHECK(depthwiseInput1 == weightsLayer);
+            CHECK(depthwiseInput2 == biasLayer);
             CHECK(depthwiseOutput == outputLayer);
 
             Layer* inputNextLayer  = &inputLayer->GetOutputSlots()[0].GetConnections()[0]->GetOwningLayer();
@@ -368,16 +377,19 @@ TEST_SUITE("EthosNReplaceUnsupported")
             CHECK(outputPrevLayer == depthwiseLayer);
 
             // Check weights tensor info and data
-            CHECK(depthwiseLayer->m_Weight->GetTensorInfo() ==
+            CHECK(weightsLayer->GetOutputSlot(0).GetTensorInfo() ==
                   TensorInfo(TensorShape{ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.5f, 0, true));
-            const uint8_t* dwWeightData = depthwiseLayer->m_Weight->GetConstTensor<uint8_t>();
-            CHECK(std::all_of(dwWeightData, dwWeightData + depthwiseLayer->m_Weight->GetShape().GetNumElements(),
+            const uint8_t* dwWeightData =
+                PolymorphicPointerDowncast<ConstantLayer>(weightsLayer)->m_LayerOutput->GetConstTensor<uint8_t>();
+            CHECK(std::all_of(dwWeightData,
+                              dwWeightData + weightsLayer->GetOutputSlot(0).GetTensorInfo().GetShape().GetNumElements(),
                               [](auto x) { return x == 2; }));
 
             // Check bias tensor info and data
-            CHECK(depthwiseLayer->m_Bias->GetTensorInfo() ==
+            CHECK(biasLayer->GetOutputSlot(0).GetTensorInfo() ==
                   TensorInfo(TensorShape{ 1, 1, 1, 4 }, DataType::Signed32, 0.5f, 0, true));
-            const int32_t* dwBiasData = depthwiseLayer->m_Bias->GetConstTensor<int32_t>();
+            const int32_t* dwBiasData =
+                PolymorphicPointerDowncast<ConstantLayer>(biasLayer)->m_LayerOutput->GetConstTensor<int32_t>();
             std::vector<int32_t> expectedBiasData;
             switch (constantDataType)
             {
@@ -393,9 +405,10 @@ TEST_SUITE("EthosNReplaceUnsupported")
                 default:
                     ARMNN_ASSERT_MSG(false, "Not implemented");
             }
-            CHECK(
-                (std::vector<int32_t>(dwBiasData, dwBiasData + depthwiseLayer->m_Weight->GetShape().GetNumElements()) ==
-                 expectedBiasData));
+            CHECK((std::vector<int32_t>(
+                       dwBiasData,
+                       dwBiasData + weightsLayer->GetOutputSlot(0).GetTensorInfo().GetShape().GetNumElements()) ==
+                   expectedBiasData));
         };
         // Try both combinations of input/const as first/second input. The resulting graph should be identical
         // no matter the order of the inputs.

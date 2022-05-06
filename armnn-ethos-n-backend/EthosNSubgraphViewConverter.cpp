@@ -51,6 +51,48 @@ EthosNSubgraphViewConverter::EthosNSubgraphViewConverter(const SubgraphView& sub
     }
 }
 
+template <typename LayerType>
+std::pair<const ConstTensorHandle*, const ConstTensorHandle&> GetBiasAndWeightsHandle(LayerType& layer)
+{
+
+    // Get the weights tensor from the layer connected to input slot #1
+    if (layer.GetNumInputSlots() < 2)
+    {
+        throw armnn::Exception("Layer doesn't have a second input slot");
+    }
+    const OutputSlot* weightsSlot = layer.GetInputSlot(1).GetConnectedOutputSlot();
+    if (weightsSlot == nullptr)
+    {
+        throw armnn::Exception("Layer's weight slot not connected");
+    }
+    const Layer& weightsLayer = weightsSlot->GetOwningLayer();
+    if (weightsLayer.GetType() != armnn::LayerType::Constant)
+    {
+        throw armnn::Exception("Layer's weight slot connected to non-constant layer");
+    }
+    const ConstTensorHandle& weightsHandle =
+        *armnn::PolymorphicDowncast<const ConstantLayer*>(&weightsLayer)->m_LayerOutput;
+
+    // Get the bias tensor (if any) from the layer connected to input slot #2
+    const ConstTensorHandle* biasHandle = nullptr;
+    if (layer.GetNumInputSlots() >= 3)    // Bias input is optional
+    {
+        const OutputSlot* biasSlot = layer.GetInputSlot(2).GetConnectedOutputSlot();
+        if (biasSlot == nullptr)
+        {
+            throw armnn::Exception("Layer's bias slot not connected");
+        }
+        const Layer& biasLayer = biasSlot->GetOwningLayer();
+        if (biasLayer.GetType() != armnn::LayerType::Constant)
+        {
+            throw armnn::Exception("Layer's bias slot connected to non-constant layer");
+        }
+        biasHandle = armnn::PolymorphicDowncast<const ConstantLayer*>(&biasLayer)->m_LayerOutput.get();
+    }
+
+    return { biasHandle, weightsHandle };
+}
+
 EthosNConstantPtr EthosNSubgraphViewConverter::AddBiases(const Layer& layer,
                                                          const ConstTensorHandle* bias,
                                                          const TensorInfo& weightInfo,
@@ -330,11 +372,12 @@ void EthosNSubgraphViewConverter::AddDepthwiseConvolution2dLayer(const IConnecta
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
-    ARMNN_ASSERT(depthwiseConvolution2dLayer.m_Weight);
-    auto biases  = AddBiases(depthwiseConvolution2dLayer, depthwiseConvolution2dLayer.m_Bias.get(),
-                            depthwiseConvolution2dLayer.m_Weight->GetTensorInfo(), descriptor.m_BiasEnabled);
+    auto biasAndWeightsHandle = GetBiasAndWeightsHandle(depthwiseConvolution2dLayer);
+
+    auto biases  = AddBiases(depthwiseConvolution2dLayer, biasAndWeightsHandle.first,
+                            biasAndWeightsHandle.second.GetTensorInfo(), descriptor.m_BiasEnabled);
     auto weights = AddWeights(depthwiseConvolution2dLayer, depthwiseConvolution2dLayer.GetParameters().m_DataLayout,
-                              *depthwiseConvolution2dLayer.m_Weight);
+                              biasAndWeightsHandle.second);
 
     auto outputInfo      = layer->GetOutputSlot(0).GetTensorInfo();
     auto convolutionInfo = BuildEthosNConvolutionInfo(descriptor, outputInfo.GetQuantizationOffset(),
@@ -394,43 +437,11 @@ void EthosNSubgraphViewConverter::AddFullyConnectedLayer(const IConnectableLayer
     const FullyConnectedLayer& fullyConnectedLayer = *PolymorphicPointerDowncast<const FullyConnectedLayer>(layer);
     FullyConnectedDescriptor descriptor            = fullyConnectedLayer.GetParameters();
 
-    // Get the weights tensor from the layer connected to input slot #1
-    if (fullyConnectedLayer.GetNumInputSlots() < 2)
-    {
-        throw armnn::Exception("Fully Connected doesn't have a second input slot");
-    }
-    const OutputSlot* weightsSlot = fullyConnectedLayer.GetInputSlot(1).GetConnectedOutputSlot();
-    if (weightsSlot == nullptr)
-    {
-        throw armnn::Exception("Fully Connected's weight slot not connected");
-    }
-    const Layer& weightsLayer = weightsSlot->GetOwningLayer();
-    if (weightsLayer.GetType() != LayerType::Constant)
-    {
-        throw armnn::Exception("Fully Connected's weight slot connected to non-constant layer");
-    }
-    const ConstTensorHandle& weightsHandle =
-        *armnn::PolymorphicDowncast<const ConstantLayer*>(&weightsLayer)->m_LayerOutput;
+    auto biasAndWeightsHandle = GetBiasAndWeightsHandle(fullyConnectedLayer);
 
-    // Get the bias tensor (if any) from the layer connected to input slot #2
-    const ConstTensorHandle* biasHandle = nullptr;
-    if (fullyConnectedLayer.GetNumInputSlots() >= 3)    // Bias input is optional
-    {
-        const OutputSlot* biasSlot = fullyConnectedLayer.GetInputSlot(2).GetConnectedOutputSlot();
-        if (biasSlot == nullptr)
-        {
-            throw armnn::Exception("Fully Connected's bias slot not connected");
-        }
-        const Layer& biasLayer = biasSlot->GetOwningLayer();
-        if (biasLayer.GetType() != LayerType::Constant)
-        {
-            throw armnn::Exception("Fully Connected's bias slot connected to non-constant layer");
-        }
-        biasHandle = armnn::PolymorphicDowncast<const ConstantLayer*>(&biasLayer)->m_LayerOutput.get();
-    }
-
-    auto biases  = AddBiases(fullyConnectedLayer, biasHandle, weightsHandle.GetTensorInfo(), descriptor.m_BiasEnabled);
-    auto weights = AddWeights(fullyConnectedLayer, weightsHandle);
+    auto biases  = AddBiases(fullyConnectedLayer, biasAndWeightsHandle.first,
+                            biasAndWeightsHandle.second.GetTensorInfo(), descriptor.m_BiasEnabled);
+    auto weights = AddWeights(fullyConnectedLayer, biasAndWeightsHandle.second);
 
     const TensorInfo& outputInfo                      = layer->GetOutputSlot(0).GetTensorInfo();
     ethosn_lib::FullyConnectedInfo fullyConnectedInfo = BuildEthosNFullyConnectedLayerInfo(
