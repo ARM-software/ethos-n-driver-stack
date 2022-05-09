@@ -497,16 +497,46 @@ void XmlParser::Pop(const std::string& keyPrefix, cascading::FilterShape& value)
     Pop(keyPrefix + "/HEIGHT", value.height);
 }
 
+void XmlParser::Pop(const std::string&, std::array<cascading::FilterShape, 4>(&value))
+{
+    int idx = 0;
+    for (auto& filterShape : value)
+    {
+        Pop(std::to_string(idx), filterShape);
+        idx++;
+    }
+}
+
 void XmlParser::Pop(const std::string& keyPrefix, cascading::Padding& value)
 {
     Pop(keyPrefix + "/LEFT", value.left);
     Pop(keyPrefix + "/TOP", value.top);
 }
 
+void XmlParser::Pop(const std::string&, std::array<cascading::Padding, 4>(&value))
+{
+    int idx = 0;
+    for (auto& padding : value)
+    {
+        Pop(std::to_string(idx), padding);
+        idx++;
+    }
+}
+
 void XmlParser::Pop(const std::string& keyPrefix, cascading::IfmDelta& value)
 {
     Pop(keyPrefix + "/WIDTH", value.width);
     Pop(keyPrefix + "/HEIGHT", value.height);
+}
+
+void XmlParser::Pop(const std::string&, std::array<cascading::IfmDelta, 4>(&value))
+{
+    int idx = 0;
+    for (auto& ifmDelta : value)
+    {
+        Pop(std::to_string(idx), ifmDelta);
+        idx++;
+    }
 }
 
 void XmlParser::Pop(const std::string& keyPrefix, cascading::IfmStripeShape& value)

@@ -867,16 +867,16 @@ TEST_CASE("MceScheduler Agent Data Test", "[CascadingCompiler]")
     REQUIRE(mceSData.mceOpMode == cascading::MceOperation::CONVOLUTION);
     REQUIRE(mceSData.algorithm == cascading::MceAlgorithm::DIRECT);
 
-    REQUIRE(mceSData.filterShape.height == mceOpGraph.getKernelHeight());
-    REQUIRE(mceSData.filterShape.width == mceOpGraph.getKernelWidth());
+    REQUIRE(mceSData.filterShape[0].height == mceOpGraph.getKernelHeight());
+    REQUIRE(mceSData.filterShape[0].width == mceOpGraph.getKernelWidth());
 
-    REQUIRE(mceSData.padding.left == 0);
-    REQUIRE(mceSData.padding.top == 0);
+    REQUIRE(mceSData.padding[0].left == 0);
+    REQUIRE(mceSData.padding[0].top == 0);
 
-    REQUIRE(mceSData.ifmDeltaDefault.height == mceOpGraph.getIfmDeltaHeight());
-    REQUIRE(mceSData.ifmDeltaDefault.width == mceOpGraph.getIfmDeltaWidth());
-    REQUIRE(mceSData.ifmDeltaEdge.height == mceOpGraph.getIfmDeltaHeight());
-    REQUIRE(mceSData.ifmDeltaEdge.width == mceOpGraph.getIfmDeltaWidth());
+    REQUIRE(mceSData.ifmDeltaDefault[0].height == mceOpGraph.getIfmDeltaHeight());
+    REQUIRE(mceSData.ifmDeltaDefault[0].width == mceOpGraph.getIfmDeltaWidth());
+    REQUIRE(mceSData.ifmDeltaEdge[0].height == mceOpGraph.getIfmDeltaHeight());
+    REQUIRE(mceSData.ifmDeltaEdge[0].width == mceOpGraph.getIfmDeltaWidth());
 
     REQUIRE(mceSData.reluActiv.max == 255);
     REQUIRE(mceSData.reluActiv.min == 0);

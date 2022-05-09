@@ -692,19 +692,22 @@ AgentIdType CascadingCompiler::AddMceSchedulerToCommandStream(MceOp* const ptrMc
 
     MceSUtils::setMcesOpMode(mceSchedulerData, ptrMceOp->m_Op);
     MceSUtils::setMcesAlgorithm(mceSchedulerData, ptrMceOp->m_Algo);
+    for (int i = 0; i < 4; i++)
+    {
+        mceSchedulerData.filterShape[i].height = static_cast<uint8_t>(weightBuffer->m_TensorShape[1]);
+        mceSchedulerData.filterShape[i].width  = static_cast<uint8_t>(weightBuffer->m_TensorShape[2]);
+        mceSchedulerData.padding[i].left       = static_cast<uint8_t>(ptrMceOp->m_PadLeft);
+        mceSchedulerData.padding[i].top        = static_cast<uint8_t>(ptrMceOp->m_PadTop);
+        mceSchedulerData.ifmDeltaDefault[i].height =
+            static_cast<int8_t>(inputBuffer->m_TensorShape[1] - outputBuffer->m_TensorShape[1]);
+        mceSchedulerData.ifmDeltaDefault[i].width =
+            static_cast<int8_t>(inputBuffer->m_TensorShape[2] - outputBuffer->m_TensorShape[2]);
+        mceSchedulerData.ifmDeltaEdge[i].height =
+            static_cast<int8_t>(inputBuffer->m_TensorShape[1] - outputBuffer->m_TensorShape[1]);
+        mceSchedulerData.ifmDeltaEdge[i].width =
+            static_cast<int8_t>(inputBuffer->m_TensorShape[2] - outputBuffer->m_TensorShape[2]);
+    }
 
-    mceSchedulerData.filterShape.height = static_cast<uint8_t>(weightBuffer->m_TensorShape[1]);
-    mceSchedulerData.filterShape.width  = static_cast<uint8_t>(weightBuffer->m_TensorShape[2]);
-    mceSchedulerData.padding.left       = static_cast<uint8_t>(ptrMceOp->m_PadLeft);
-    mceSchedulerData.padding.top        = static_cast<uint8_t>(ptrMceOp->m_PadTop);
-    mceSchedulerData.ifmDeltaDefault.height =
-        static_cast<int8_t>(inputBuffer->m_TensorShape[1] - outputBuffer->m_TensorShape[1]);
-    mceSchedulerData.ifmDeltaDefault.width =
-        static_cast<int8_t>(inputBuffer->m_TensorShape[2] - outputBuffer->m_TensorShape[2]);
-    mceSchedulerData.ifmDeltaEdge.height =
-        static_cast<int8_t>(inputBuffer->m_TensorShape[1] - outputBuffer->m_TensorShape[1]);
-    mceSchedulerData.ifmDeltaEdge.width =
-        static_cast<int8_t>(inputBuffer->m_TensorShape[2] - outputBuffer->m_TensorShape[2]);
     mceSchedulerData.reluActiv.min = ptrMceOp->m_LowerBound;
     mceSchedulerData.reluActiv.max = ptrMceOp->m_UpperBound;
     mceSchedulerData.pleKernelId   = pleKernelId;
@@ -1059,9 +1062,9 @@ void CascadingCompiler::FillConsumerAgentDependency(command_stream::cascading::D
                 consumerAgentDependency.innerRatio.self  = 1;
 
                 if ((producerAgent.data.ifm.fmData.numStripes.height > 1 &&
-                     consumerAgent.data.mce.filterShape.height > 1) ||
+                     consumerAgent.data.mce.filterShape[0].height > 1) ||
                     (producerAgent.data.ifm.fmData.numStripes.width > 1 &&
-                     consumerAgent.data.mce.filterShape.width > 1))
+                     consumerAgent.data.mce.filterShape[0].width > 1))
                 {
                     consumerAgentDependency.boundary = 1;
                 }
@@ -1322,9 +1325,9 @@ void CascadingCompiler::FillProducerAgentDependency(command_stream::cascading::D
                 producerAgentDependency.innerRatio.self  = static_cast<uint16_t>(widthRatio * heightRatio);
 
                 if ((producerAgent.data.ifm.fmData.numStripes.height > 1 &&
-                     consumerAgent.data.mce.filterShape.height > 1) ||
+                     consumerAgent.data.mce.filterShape[0].height > 1) ||
                     (producerAgent.data.ifm.fmData.numStripes.width > 1 &&
-                     consumerAgent.data.mce.filterShape.width > 1))
+                     consumerAgent.data.mce.filterShape[0].width > 1))
                 {
                     producerAgentDependency.boundary = 1;
                 }

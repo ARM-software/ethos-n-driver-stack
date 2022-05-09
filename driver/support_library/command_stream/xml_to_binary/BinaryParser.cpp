@@ -756,16 +756,46 @@ void Parse(mxml_node_t& parent, const cascading::FilterShape& filterShape)
     Parse(*mxmlNewElement(&parent, "HEIGHT"), filterShape.height);
 }
 
+void Parse(mxml_node_t& parent, const std::array<cascading::FilterShape, 4>(&filterShape))
+{
+    int idx = 0;
+    for (const auto& value : filterShape)
+    {
+        Parse(*mxmlNewElement(&parent, std::to_string(idx).c_str()), value);
+        idx++;
+    }
+}
+
 void Parse(mxml_node_t& parent, const cascading::Padding& padding)
 {
     Parse(*mxmlNewElement(&parent, "LEFT"), padding.left);
     Parse(*mxmlNewElement(&parent, "TOP"), padding.top);
 }
 
+void Parse(mxml_node_t& parent, const std::array<cascading::Padding, 4>(&padding))
+{
+    int idx = 0;
+    for (const auto& value : padding)
+    {
+        Parse(*mxmlNewElement(&parent, std::to_string(idx).c_str()), value);
+        idx++;
+    }
+}
+
 void Parse(mxml_node_t& parent, const cascading::IfmDelta& ifmDelta)
 {
     Parse(*mxmlNewElement(&parent, "WIDTH"), ifmDelta.width);
     Parse(*mxmlNewElement(&parent, "HEIGHT"), ifmDelta.height);
+}
+
+void Parse(mxml_node_t& parent, const std::array<cascading::IfmDelta, 4>(&ifmDelta))
+{
+    int idx = 0;
+    for (const auto& value : ifmDelta)
+    {
+        Parse(*mxmlNewElement(&parent, std::to_string(idx).c_str()), value);
+        idx++;
+    }
 }
 
 void Parse(mxml_node_t& parent, const cascading::IfmStripeShape& ifmStripeShape)

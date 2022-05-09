@@ -11,6 +11,7 @@
 #include <ethosn_utils/SmallVector.hpp>
 #include <ethosn_utils/Span.hpp>
 
+#include <array>
 #include <cstdint>
 
 namespace ethosn
@@ -204,10 +205,10 @@ struct MceS
     uint8_t isWideFilter;
     uint8_t isExtraIfmStripeAtRightEdge;
     uint8_t isExtraIfmStripeAtBottomEdge;
-    FilterShape filterShape;
-    Padding padding;
-    IfmDelta ifmDeltaDefault;
-    IfmDelta ifmDeltaEdge;
+    std::array<FilterShape, static_cast<uint8_t>(4U)> filterShape;
+    std::array<Padding, static_cast<uint8_t>(4U)> padding;
+    std::array<IfmDelta, static_cast<uint8_t>(4U)> ifmDeltaDefault;
+    std::array<IfmDelta, static_cast<uint8_t>(4U)> ifmDeltaEdge;
     IfmStripeShape ifmStripeShape;
     /// Relu activation values
     ReluActivation reluActiv;

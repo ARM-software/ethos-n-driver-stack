@@ -648,20 +648,76 @@ const std::string g_XmlStr =
                 <IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>1</IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>
                 <IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>1</IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>
                 <FILTER_SHAPE>
-                    <WIDTH>7</WIDTH>
-                    <HEIGHT>18</HEIGHT>
+                    <0>
+                        <WIDTH>2</WIDTH>
+                        <HEIGHT>2</HEIGHT>
+                    </0>
+                    <1>
+                        <WIDTH>2</WIDTH>
+                        <HEIGHT>1</HEIGHT>
+                    </1>
+                    <2>
+                        <WIDTH>1</WIDTH>
+                        <HEIGHT>2</HEIGHT>
+                    </2>
+                    <3>
+                        <WIDTH>1</WIDTH>
+                        <HEIGHT>1</HEIGHT>
+                    </3>
                 </FILTER_SHAPE>
                 <PADDING>
-                    <LEFT>12</LEFT>
-                    <TOP>15</TOP>
+                    <0>
+                        <LEFT>12</LEFT>
+                        <TOP>15</TOP>
+                    </0>
+                    <1>
+                        <LEFT>15</LEFT>
+                        <TOP>12</TOP>
+                    </1>
+                    <2>
+                        <LEFT>0</LEFT>
+                        <TOP>8</TOP>
+                    </2>
+                    <3>
+                        <LEFT>8</LEFT>
+                        <TOP>0</TOP>
+                    </3>
                 </PADDING>
                 <IFM_DELTA_DEFAULT>
-                    <WIDTH>1</WIDTH>
-                    <HEIGHT>-1</HEIGHT>
+                    <0>
+                        <WIDTH>3</WIDTH>
+                        <HEIGHT>-3</HEIGHT>
+                    </0>
+                    <1>
+                        <WIDTH>-3</WIDTH>
+                        <HEIGHT>3</HEIGHT>
+                    </1>
+                    <2>
+                        <WIDTH>2</WIDTH>
+                        <HEIGHT>-2</HEIGHT>
+                    </2>
+                    <3>
+                        <WIDTH>-2</WIDTH>
+                        <HEIGHT>2</HEIGHT>
+                    </3>
                 </IFM_DELTA_DEFAULT>
                 <IFM_DELTA_EDGE>
-                    <WIDTH>2</WIDTH>
-                    <HEIGHT>-2</HEIGHT>
+                    <0>
+                        <WIDTH>1</WIDTH>
+                        <HEIGHT>-2</HEIGHT>
+                    </0>
+                    <1>
+                        <WIDTH>-2</WIDTH>
+                        <HEIGHT>1</HEIGHT>
+                    </1>
+                    <2>
+                        <WIDTH>1</WIDTH>
+                        <HEIGHT>1</HEIGHT>
+                    </2>
+                    <3>
+                        <WIDTH>-1</WIDTH>
+                        <HEIGHT>-1</HEIGHT>
+                    </3>
                 </IFM_DELTA_EDGE>
                 <IFM_STRIPE_SHAPE>
                     <WIDTH>10</WIDTH>
