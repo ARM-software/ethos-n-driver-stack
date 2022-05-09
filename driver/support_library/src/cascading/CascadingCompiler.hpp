@@ -36,13 +36,15 @@ public:
     CascadingCompiler(const CascadingCompiler&) = delete;
     CascadingCompiler& operator=(const CascadingCompiler&) = delete;
     ~CascadingCompiler();
-    std::vector<command_stream::cascading::Agent> GetCommandStreamOfAgents();
+
+    // Compile a given network and return the compiled network
     std::unique_ptr<CompiledNetwork> Compile();
 
     // Functions used to retrieve private members
-    const BufferManager& GetBufferManager();
-    const OpGraph& GetMergedOpGraph();
-    const std::unordered_map<Buffer*, uint32_t>& GetIntermdiateDramBufToBufIdMapping();
+    const std::vector<command_stream::cascading::Agent>& GetCommandStreamOfAgents() const;
+    const BufferManager& GetBufferManager() const;
+    const OpGraph& GetMergedOpGraph() const;
+    const std::unordered_map<Buffer*, uint32_t>& GetIntermdiateDramBufToBufIdMapping() const;
 
 private:
     // Private functions for processing OpGraph Ops

@@ -29,6 +29,7 @@ CascadingCompiler::CascadingCompiler(const OpGraph& mergedOpGraph,
 CascadingCompiler::~CascadingCompiler()
 {}
 
+// Compile a given network and return the compiled network
 std::unique_ptr<CompiledNetwork> CascadingCompiler::Compile()
 {
     OpGraph::OpList opsInExecutionOrder = m_MergedOpGraph.GetOps();
@@ -87,11 +88,28 @@ std::unique_ptr<CompiledNetwork> CascadingCompiler::Compile()
     return compiledNetwork;
 }
 
-std::vector<Agent> CascadingCompiler::GetCommandStreamOfAgents()
+// Functions used to retrieve private members
+const std::vector<Agent>& CascadingCompiler::GetCommandStreamOfAgents() const
 {
     return m_CommandStreamAgents;
 }
 
+const BufferManager& CascadingCompiler::GetBufferManager() const
+{
+    return m_BufferManager;
+}
+
+const OpGraph& CascadingCompiler::GetMergedOpGraph() const
+{
+    return m_MergedOpGraph;
+}
+
+const std::unordered_map<Buffer*, uint32_t>& CascadingCompiler::GetIntermdiateDramBufToBufIdMapping() const
+{
+    return m_IntermdiateDramBufToBufIdMapping;
+}
+
+// Private functions for processing OpGraph Ops
 void CascadingCompiler::ProcessDmaOp(Op* const ptrDmaOp)
 {
     // Get the input buffer to the Dma Op
@@ -1522,21 +1540,6 @@ void CascadingCompiler::FillProducerAgentDependency(command_stream::cascading::D
             break;
         }
     }
-}
-
-const BufferManager& CascadingCompiler::GetBufferManager()
-{
-    return m_BufferManager;
-}
-
-const OpGraph& CascadingCompiler::GetMergedOpGraph()
-{
-    return m_MergedOpGraph;
-}
-
-const std::unordered_map<Buffer*, uint32_t>& CascadingCompiler::GetIntermdiateDramBufToBufIdMapping()
-{
-    return m_IntermdiateDramBufToBufIdMapping;
 }
 
 // Private function to add the lifetime information of the intermediate DRAM buffers

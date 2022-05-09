@@ -743,7 +743,7 @@ TEST_CASE("IfmStreamer Agent Data Test", "[CascadingCompiler]")
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& ifmSAgent = commandStream[0];
     const IfmS& ifmSData   = ifmSAgent.data.ifm;
@@ -792,7 +792,7 @@ TEST_CASE("WeightStreamer Agent Data Test", "[CascadingCompiler]")
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& wgtSAgent = commandStream[1];
     const WgtS& wgtSData   = wgtSAgent.data.wgt;
@@ -824,7 +824,7 @@ TEST_CASE("MceScheduler Agent Data Test", "[CascadingCompiler]")
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& mceSAgent = commandStream[3];
     const MceS& mceSData   = mceSAgent.data.mce;
@@ -897,7 +897,7 @@ TEST_CASE("PleLoader Agent Data Test", "[CascadingCompiler]")
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& pleLAgent = commandStream[2];
     const PleL& pleLData   = pleLAgent.data.pleL;
@@ -919,8 +919,9 @@ TEST_CASE("PleScheduler Agent Data Test", "[CascadingCompiler]")
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
-    Agent pleSchedulerAgent          = commandStream[4];
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& pleSchedulerAgent = commandStream[4];
 
     // The network consists of all agent types. Here we test that the PleScheduler
     // agent is set correctly.
@@ -964,7 +965,7 @@ TEST_CASE("PleScheduler Standalone Agent Data Test", "[CascadingCompiler]")
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& pleSAgent = commandStream[2];
 
@@ -1018,7 +1019,7 @@ TEST_CASE("OfmStreamer Agent Data Test", "[CascadingCompiler]")
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& ofmSAgent = commandStream[5];
     const OfmS& ofmSData   = ofmSAgent.data.ofm;
@@ -1075,7 +1076,7 @@ TEST_CASE("MceScheduler-IfmStreamer ReadAfterWriteDependency Test", "[CascadingC
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& ifmSAgent           = commandStream[0];
     const Agent& mceSAgent           = commandStream[3];
@@ -1108,7 +1109,7 @@ TEST_CASE("MceScheduler-WeightStreamer ReadAfterWriteDependency Test", "[Cascadi
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& mceSAgent           = commandStream[3];
     const Dependency& readDependency = mceSAgent.info.readDependencies.at(1);
@@ -1134,7 +1135,7 @@ TEST_CASE("PleScheduler-IfmStreamer ReadAfterWriteDependency Test", "[CascadingC
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& ifmSAgent           = commandStream[0];
     const Agent& pleSAgent           = commandStream[2];
@@ -1167,7 +1168,7 @@ TEST_CASE("PleScheduler-MceScheduler ReadAfterWriteDependency Test", "[Cascading
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& mceSAgent           = commandStream[3];
     const Agent& pleSAgent           = commandStream[4];
@@ -1199,7 +1200,7 @@ TEST_CASE("PleScheduler-PleLoader ReadAfterWriteDependency Test", "[CascadingCom
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& pleSAgent           = commandStream[4];
     const Dependency& readDependency = pleSAgent.info.readDependencies.at(0);
@@ -1232,7 +1233,7 @@ TEST_CASE("OfmStreamer-PleScheduler ReadAfterWriteDependency Test", "[CascadingC
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& ofmSAgent           = commandStream[3];
     const Dependency& readDependency = ofmSAgent.info.readDependencies.at(0);
@@ -1270,7 +1271,7 @@ TEST_CASE("IfmStreamer-MceScheduler WriteAfterReadDependency Test", "[CascadingC
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& ifmSAgent            = commandStream[0];
     const Agent& mceSAgent            = commandStream[3];
@@ -1303,7 +1304,7 @@ TEST_CASE("IfmStreamer-PleScheduler WriteAfterReadDependency Test", "[CascadingC
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& ifmSAgent            = commandStream[0];
     const Agent& pleSAgent            = commandStream[2];
@@ -1340,7 +1341,7 @@ TEST_CASE("WeightStreamer-MceScheduler WriteAfterReadDependency Test", "[Cascadi
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& wgtSAgent            = commandStream[1];
     const Dependency& writeDependency = wgtSAgent.info.writeDependencies.at(0);
@@ -1366,7 +1367,7 @@ TEST_CASE("MceScheduler-PleScheduler WriteAfterReadDependency Test", "[Cascading
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& mceSAgent            = commandStream[3];
     const Agent& pleSAgent            = commandStream[4];
@@ -1398,7 +1399,7 @@ TEST_CASE("PleScheduler-OfmStreamer WriteAfterReadDependency Test", "[CascadingC
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& pleSAgent            = commandStream[2];
     const Dependency& writeDependency = pleSAgent.info.writeDependencies.at(0);
@@ -1428,7 +1429,7 @@ TEST_CASE("IfmStreamer-MceScheduler ScheduleTimeDependency Test", "[CascadingCom
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& mceSAgent               = commandStream[3];
     const Agent& pleSAgent               = commandStream[4];
@@ -1460,7 +1461,7 @@ TEST_CASE("IfmStreamer-PleScheduler ScheduleTimeDependency Test", "[CascadingCom
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& ifmSAgent               = commandStream[0];
     const Agent& pleSAgent               = commandStream[2];
@@ -1497,7 +1498,7 @@ TEST_CASE("WeightStreamer-MceScheduler ScheduleTimeDependency Test", "[Cascading
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& mceSAgent               = commandStream[3];
     const Agent& pleSAgent               = commandStream[4];
@@ -1529,7 +1530,7 @@ TEST_CASE("MceScheduler-PleScheduler ScheduleTimeDependency Test", "[CascadingCo
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& mceSAgent               = commandStream[3];
     const Agent& pleSAgent               = commandStream[4];
@@ -1561,7 +1562,7 @@ TEST_CASE("PleLoader-MceScheduler ScheduleTimeDependency Test", "[CascadingCompi
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& pleLAgent               = commandStream[2];
     const Agent& mceSAgent               = commandStream[3];
@@ -1591,7 +1592,7 @@ TEST_CASE("PleLoader-PleScheduler ScheduleTimeDependency Test", "[CascadingCompi
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& pleLAgent               = commandStream[1];
     const Agent& pleSAgent               = commandStream[2];
@@ -1621,7 +1622,7 @@ TEST_CASE("PleScheduler-OfmStreamer ScheduleTimeDependency Test", "[CascadingCom
     CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
 
-    std::vector<Agent> commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
 
     const Agent& pleSAgent               = commandStream[2];
     const Dependency& scheduleDependency = pleSAgent.info.scheduleDependencies.at(0);
@@ -1666,7 +1667,7 @@ TEST_CASE("Producer-Consumer IntermediateDramBufferLifetime Test", "[CascadingCo
             // Buffer Id is internal to m_BufferManager
             buffId = cascadingCompiler.GetIntermdiateDramBufToBufIdMapping().at(buffer);
 
-            BufferManager bufferManager = cascadingCompiler.GetBufferManager();
+            const BufferManager& bufferManager = cascadingCompiler.GetBufferManager();
 
             // Use Buffer Id to retrieve the appropriate Buffer's CompilerBufferInfo and use that to check the Lifetimes.
             REQUIRE(bufferManager.GetBuffers().at(buffId).m_LifetimeStart == 5);
