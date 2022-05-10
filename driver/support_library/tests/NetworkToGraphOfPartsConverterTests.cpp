@@ -475,6 +475,86 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat")
     REQUIRE(graph.GetConnectedInputSlots({ 6, 0 }).size() == 0);
 }
 
+// Test the Network to graph of parts converter with a concat operation that must use NHWC
+TEST_CASE("NetworkToGraphOfPartsConverterTest Concat NHWC")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo inputInfo{
+        { { 1, 1, 1, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    // Have a concat axis not a multiple of the brick group shape
+    TensorInfo input2Info{
+        { { 1, 1, 5, 16 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.f },
+    };
+
+    const std::shared_ptr<Network> network =
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+
+    // Network topology:
+    /*
+       { Input2 } \ 
+                  -> Concatenation -> Output
+       { Input  } /
+    */
+
+    std::vector<Operand*> layers;
+    std::shared_ptr<Operand> input = AddInput(network, inputInfo).tensor;
+    layers.push_back(input.get());
+    std::shared_ptr<Operand> input2 = AddInput(network, input2Info).tensor;
+    layers.push_back(input2.get());
+
+    std::shared_ptr<Operand> concat = AddConcatenation(network, layers, ConcatenationInfo(2, { 0, 1.f })).tensor;
+    std::shared_ptr<Output> output  = AddOutput(network, *concat).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest Concat.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverterTest Concat Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    REQUIRE(dynamic_cast<const ConcatPart*>(&graph.GetPart(2)) != nullptr);
+    REQUIRE(graph.GetPartInputs(2).size() == 2);
+    REQUIRE(graph.GetPartOutputs(2).size() == 1);
+
+    // The plans generated from this concat part should have NHWC input and output buffers.
+    Plans plans =
+        graph.GetPart(2).GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{ 16u, 16u }, nullptr, 0);
+    for (auto&& plan : plans)
+    {
+        auto& inputMappings = plan.m_InputMappings;
+        for (auto&& inputMapping : inputMappings)
+        {
+            REQUIRE(inputMapping.first->m_Format == CascadingBufferFormat::NHWC);
+        }
+        auto& outputMappings = plan.m_OutputMappings;
+        for (auto&& outputMapping : outputMappings)
+        {
+            REQUIRE(outputMapping.first->m_Format == CascadingBufferFormat::NHWC);
+        }
+    }
+}
+
 TEST_CASE("NetworkToGraphOfPartsConverterTest Concat EstimateOnly")
 {
     const HardwareCapabilities caps = GetEthosN78HwCapabilities();

@@ -629,8 +629,24 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
         }
 
         auto concatInfo = concat.GetConcatenationInfo();
+
+        // Figure out if we need to use NHWC or if we can get away with NHWCB (which should be more efficient).
+        // We can use NHWCB if the dimensions along the concat axis are all multiples of the brick group size, so
+        // that the DMA is capable of placing the tensors correctly in DRAM.
+        CompilerDataFormat format = CompilerDataFormat::NHWCB;
+        for (uint32_t i = 0; i < numInputs; ++i)
+        {
+            if (concat.GetInput(i).GetTensorInfo().m_Dimensions[concatInfo.m_Axis] %
+                    m_Capabilities.GetBrickGroupShape()[concatInfo.m_Axis] !=
+                0)
+            {
+                format = CompilerDataFormat::NHWC;
+                break;
+            }
+        }
+
         auto concatPart = std::make_unique<ConcatPart>(
-            m_GraphOfParts.GeneratePartId(), inputTensorsInfo, concat.GetConcatenationInfo(), CompilerDataFormat::NHWCB,
+            m_GraphOfParts.GeneratePartId(), inputTensorsInfo, concat.GetConcatenationInfo(), format,
             std::set<uint32_t>{ concat.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         // Mark the ConcatPart Output for connection with any subsequent Parts.
