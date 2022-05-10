@@ -336,9 +336,18 @@ void XmlParser::Pop(const std::string& keyPrefix, cascading::FmSData& value)
     Pop("STRIPE_ID_STRIDES", value.stripeIdStrides);
 }
 
+void XmlParser::Pop(const std::string& keyPrefix, cascading::PackedBoundaryThickness& value)
+{
+    Pop(keyPrefix + "/LEFT", value.left);
+    Pop(keyPrefix + "/TOP", value.top);
+    Pop(keyPrefix + "/RIGHT", value.right);
+    Pop(keyPrefix + "/BOTTOM", value.bottom);
+}
+
 void XmlParser::Pop(cascading::IfmS& value)
 {
     Pop("IFM_STREAMER", value.fmData);
+    Pop("PACKED_BOUNDARY_THICKNESS", value.packedBoundaryThickness);
 }
 
 void XmlParser::Pop(cascading::OfmS& value)
@@ -371,6 +380,8 @@ void XmlParser::Pop(cascading::MceS& value)
     Pop("MCE_SCHEDULER/IS_WIDE_FILTER", value.isWideFilter);
     Pop("MCE_SCHEDULER/IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE", value.isExtraIfmStripeAtRightEdge);
     Pop("MCE_SCHEDULER/IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE", value.isExtraIfmStripeAtBottomEdge);
+    Pop("MCE_SCHEDULER/IS_PACKED_BOUNDARY_X", value.isPackedBoundaryX);
+    Pop("MCE_SCHEDULER/IS_PACKED_BOUNDARY_Y", value.isPackedBoundaryY);
     Pop("FILTER_SHAPE", value.filterShape);
     Pop("PADDING", value.padding);
     Pop("IFM_DELTA_DEFAULT", value.ifmDeltaDefault);

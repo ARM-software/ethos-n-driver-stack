@@ -457,6 +457,12 @@ const std::string g_XmlStr =
                     <WIDTH>1</WIDTH>
                     <CHANNELS>2</CHANNELS>
                 </STRIPE_ID_STRIDES>
+                <PACKED_BOUNDARY_THICKNESS>
+                    <LEFT>5</LEFT>
+                    <TOP>6</TOP>
+                    <RIGHT>7</RIGHT>
+                    <BOTTOM>8</BOTTOM>
+                </PACKED_BOUNDARY_THICKNESS>
             </IFM_STREAMER>
             <NUM_STRIPES_TOTAL>96</NUM_STRIPES_TOTAL>
             <SCHEDULE_DEPENDENCY>
@@ -647,6 +653,8 @@ const std::string g_XmlStr =
                 <IS_WIDE_FILTER>1</IS_WIDE_FILTER>
                 <IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>1</IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>
                 <IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>1</IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>
+                <IS_PACKED_BOUNDARY_X>1</IS_PACKED_BOUNDARY_X>
+                <IS_PACKED_BOUNDARY_Y>1</IS_PACKED_BOUNDARY_Y>
                 <FILTER_SHAPE>
                     <0>
                         <WIDTH>2</WIDTH>

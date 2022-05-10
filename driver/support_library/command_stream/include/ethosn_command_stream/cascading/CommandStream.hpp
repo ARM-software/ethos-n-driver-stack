@@ -77,11 +77,23 @@ struct FmSData
     TensorSize<uint16_t> stripeIdStrides;
 };
 
+struct PackedBoundaryThickness
+{
+    uint8_t left;
+    uint8_t top;
+    uint8_t right;
+    uint8_t bottom;
+    ETHOSN_USE_AS_SV_VECTOR(PackedBoundaryThickness, uint8_t, 4)
+};
+
 /// Ifm Streamer data
 struct IfmS
 {
     FmSData fmData;
-    // add read-specific fields as needed
+    /// How much (if any) boundary data on each side should be loaded and packed into the same slot as the
+    /// central (non-boundary) data. This is expected to be used for streaming strategies that split
+    /// the IFM in both width and height, and therefore need boundary data that cannot be re-used.
+    PackedBoundaryThickness packedBoundaryThickness;
 };
 
 /// Output Streamer data
@@ -205,10 +217,17 @@ struct MceS
     uint8_t isWideFilter;
     uint8_t isExtraIfmStripeAtRightEdge;
     uint8_t isExtraIfmStripeAtBottomEdge;
+    /// Does the IFM tile contain boundary data packed in the X-direction.
+    uint8_t isPackedBoundaryX;
+    /// Does the IFM tile contain boundary data packed in the Y-direction.
+    uint8_t isPackedBoundaryY;
     std::array<FilterShape, static_cast<uint8_t>(4U)> filterShape;
     std::array<Padding, static_cast<uint8_t>(4U)> padding;
     std::array<IfmDelta, static_cast<uint8_t>(4U)> ifmDeltaDefault;
     std::array<IfmDelta, static_cast<uint8_t>(4U)> ifmDeltaEdge;
+    /// The width/height (in elements) of IFM slots.
+    /// This would typically be the same as dfltStripeSize, but may be different in cases of
+    /// upsampling, VALID padding and/or packed boundary data.
     IfmStripeShape ifmStripeShape;
     /// Relu activation values
     ReluActivation reluActiv;

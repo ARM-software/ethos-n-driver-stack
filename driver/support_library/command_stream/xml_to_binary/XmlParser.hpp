@@ -120,6 +120,7 @@ private:
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::FcafInfo& value);
 
     void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::FmSData& value);
+    void Pop(const std::string& keyPrefix, ethosn::command_stream::cascading::PackedBoundaryThickness& value);
 
     void Pop(ethosn::command_stream::cascading::AgentDependencyInfo& info);
     void Pop(ethosn::command_stream::cascading::IfmS& value);

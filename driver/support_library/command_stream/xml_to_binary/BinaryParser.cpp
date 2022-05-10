@@ -647,9 +647,19 @@ void Parse(mxml_node_t& parent, const cascading::FmSData& fmData)
     Parse(*mxmlNewElement(&parent, "STRIPE_ID_STRIDES"), fmData.stripeIdStrides);
 }
 
+void Parse(mxml_node_t& parent, const cascading::PackedBoundaryThickness& value)
+{
+    Parse(*mxmlNewElement(&parent, "LEFT"), value.left);
+    Parse(*mxmlNewElement(&parent, "TOP"), value.top);
+    Parse(*mxmlNewElement(&parent, "RIGHT"), value.right);
+    Parse(*mxmlNewElement(&parent, "BOTTOM"), value.bottom);
+}
+
 void Parse(mxml_node_t& parent, const cascading::IfmS& ifms)
 {
-    Parse(*mxmlNewElement(&parent, "IFM_STREAMER"), ifms.fmData);
+    mxml_node_t* n = mxmlNewElement(&parent, "IFM_STREAMER");
+    Parse(*n, ifms.fmData);
+    Parse(*mxmlNewElement(n, "PACKED_BOUNDARY_THICKNESS"), ifms.packedBoundaryThickness);
 }
 
 void Parse(mxml_node_t& parent, const cascading::OfmS& ofms)
@@ -822,6 +832,8 @@ void Parse(mxml_node_t& parent, const cascading::MceS& mces)
     Parse(*mxmlNewElement(agent_op, "IS_WIDE_FILTER"), mces.isWideFilter);
     Parse(*mxmlNewElement(agent_op, "IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE"), mces.isExtraIfmStripeAtRightEdge);
     Parse(*mxmlNewElement(agent_op, "IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE"), mces.isExtraIfmStripeAtBottomEdge);
+    Parse(*mxmlNewElement(agent_op, "IS_PACKED_BOUNDARY_X"), mces.isPackedBoundaryX);
+    Parse(*mxmlNewElement(agent_op, "IS_PACKED_BOUNDARY_Y"), mces.isPackedBoundaryY);
     Parse(*mxmlNewElement(agent_op, "FILTER_SHAPE"), mces.filterShape);
     Parse(*mxmlNewElement(agent_op, "PADDING"), mces.padding);
     Parse(*mxmlNewElement(agent_op, "IFM_DELTA_DEFAULT"), mces.ifmDeltaDefault);
