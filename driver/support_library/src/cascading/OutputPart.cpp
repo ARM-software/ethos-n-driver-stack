@@ -38,7 +38,7 @@ Plans OutputPart::GetPlans(CascadeType cascadeType,
 
     Plans plans;
 
-    if (cascadeType == CascadeType::End || cascadeType == CascadeType::Lonely)
+    if (cascadeType == CascadeType::Lonely)
     {
         CreatePlanForOutputPart(TraversalOrder::Xyz, plans);
     }

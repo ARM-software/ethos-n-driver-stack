@@ -62,7 +62,8 @@ private:
     AgentIdType AddIfmStreamerToCommandStream(Op* const ptrOp,
                                               const uint16_t inputDramBufferId,
                                               const Buffer* const inputDramBuffer,
-                                              const Buffer* const inputSramBuffer);
+                                              const Buffer* const inputSramBuffer,
+                                              const CascadingBufferFormat transferFormat);
     // Private function to add WGT_STREAMER to the command stream
     AgentIdType AddWeightStreamerToCommandStream(DmaOp* const ptrDmaOp);
     // Private function to add MCE_SCHEDULER to the command stream

@@ -27,6 +27,7 @@ struct EstimatedOpGraph;
 struct Combination;
 enum class Location;
 enum class Lifetime;
+enum class CascadingBufferFormat;
 enum class CompilerDataFormat;
 enum class CompilerDataCompressedFormat;
 enum class TraversalOrder;
@@ -35,6 +36,7 @@ enum class CompilerMceAlgorithm;
 using Plans = std::vector<Plan>;
 
 std::string ToString(Location l);
+std::string ToString(CascadingBufferFormat f);
 std::string ToString(DataFormat f);
 std::string ToString(command_stream::DataType t);
 std::string ToString(CompilerDataFormat f);
@@ -124,10 +126,7 @@ void SavePlansToDot(const Plans& plans, std::ostream& stream, DetailLevel detail
 
 /// Saves a Combination of Plans and Glues to a dot file format to visualise it.
 /// detailLevel controls how much detail is shown on the visualisation.
-void SaveCombinationToDot(const Combination& combination,
-                          const GraphOfParts& graphOfParts,
-                          std::ostream& stream,
-                          DetailLevel detailLevel);
+void SaveCombinationToDot(const Combination& combination, std::ostream& stream, DetailLevel detailLevel);
 
 }    // namespace support_library
 }    // namespace ethosn

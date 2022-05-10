@@ -54,7 +54,6 @@ public:
                                    DetailLevel detailLevel) const;
     void SaveCombinationToDot(CompilationOptions::DebugLevel level,
                               const Combination& combination,
-                              const GraphOfParts& graphOfParts,
                               const std::string& fileName,
                               DetailLevel detailLevel) const;
 

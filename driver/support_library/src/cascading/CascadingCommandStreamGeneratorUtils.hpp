@@ -32,6 +32,7 @@ inline void SetTileInfoForBuffer(const HardwareCapabilities& hwCap, Tile& tile, 
 
     switch (buffer->m_Format)
     {
+        // Intentional fallthrough
         case CascadingBufferFormat::NHWCB:
             tile.slotSize = ethosn::utils::NumericCast<uint16_t>(
                 utils::DivRoundUp(utils::TotalSizeBytesNHWCB(buffer->m_StripeShape), hwCap.GetNumberOfSrams()));

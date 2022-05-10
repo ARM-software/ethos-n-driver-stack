@@ -114,7 +114,7 @@ Buffer* FusedPlePart::AddIdentityWeights(OwnedOpGraph& opGraph,
     sramWeightBuffer->m_NumStripes       = numMemoryWeightStripes;
     sramWeightBuffer->m_SizeInBytes      = dramWeightBuffer->m_EncodedWeights->m_MaxSize * numMemoryWeightStripes;
 
-    Op* dmaOp             = opGraph.AddOp(std::make_unique<DmaOp>());
+    Op* dmaOp             = opGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::WEIGHT));
     dmaOp->m_OperationIds = m_CorrespondingOperationIds;
 
     opGraph.AddConsumer(dramWeightBuffer, dmaOp, 0);

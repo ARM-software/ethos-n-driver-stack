@@ -173,14 +173,9 @@ TEST_CASE("OutputPart Plan Generation", "[OutputPartTests]")
             Plans plans = outputPart.GetPlans(CascadeType::End, command_stream::BlockConfig{}, nullptr, 0);
             SavePlansToDot(plans, "OutputPart GetPlans structure End");
 
-            THEN("The number of generated plans = 1")
+            THEN("The number of generated plans = 0")
             {
-                CHECK(plans.size() == 1);
-            }
-
-            AND_THEN("The plan is valid and end in Dram")
-            {
-                CheckPlans(plans, params);
+                CHECK(plans.size() == 0);
             }
         }
     }

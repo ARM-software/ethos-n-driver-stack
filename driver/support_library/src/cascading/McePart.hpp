@@ -99,7 +99,6 @@ protected:
     TensorShape m_OutputTensorShape;
     mutable WeightEncoderCache m_WeightEncoderCache;
 
-private:
     Plans GetLonelyPlans(uint32_t numWeightStripes) const;
     Plans GetBeginningPlans(uint32_t numWeightStripes) const;
 

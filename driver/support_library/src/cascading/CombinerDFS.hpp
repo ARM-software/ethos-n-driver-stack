@@ -17,37 +17,69 @@ namespace support_library
 
 using PlanCache = std::unordered_map<PartId, Plans>;
 
-/// The graph of Ops and Buffers that would need to be inserted between two plans to make the compatible,
-/// for example some DmaOps.
-struct Glue
+// Store the connections between the glues
+struct GlueConnections
 {
-    Glue() noexcept
+    // Store a map of buffer replacements
+    // e.g. used when merging output and input buffers when cascading plans in a section
+    std::unordered_map<Buffer*, Buffer*> m_ReplacementBuffers;
+    // Store the connection between ops and buffers.
+    // This can point to ops and buffers which are not within the glue
+    std::multimap<Op*, Buffer*> m_OpsToBuffers;
+    // Store the connection between buffers and ops.
+    // This can point to ops and buffers which are not within the glue
+    std::multimap<Buffer*, Op*> m_BuffersToOps;
+};
+
+// The end of a plan which connects to another plan
+// E.g. for two plans connected as: planA -> planB
+// planA -> EndingGlue -> StartingGlue -> planB
+struct EndingGlue
+{
+    EndingGlue() noexcept
     {}
 
     OwnedOpGraph m_Graph;
-    /// The Op (and which of its inputs) of m_Graph that need to be connected to the output buffer of 'plan1'.
-    /// Unused if no glue is required.
-    std::pair<Op*, uint32_t> m_InputSlot = { nullptr, 0 };
-    /// The Op of m_Graph that needs to connected to the input buffer of 'plan2'.
-    /// Unused if no glue is required.
-    std::vector<Op*> m_Output;
 
-    uint32_t m_OutDmaOffset = 0;
+    // Store how this enidng glue connects to the previous plan / ending glue
+    // Note this is different to the connections in the starting glue as it only stores the connection to its plan
+    GlueConnections m_ExternalConnections;
 };
 
-struct GlueInfo
+// The start of a plan which connects to another plan
+// E.g. for two plans connected as: planA -> planB
+// planA -> EndingGlue -> StartingGlue -> planB
+struct StartingGlue
 {
-    const Glue* m_Glue;
-    bool m_OutDma;
+    StartingGlue() noexcept
+    {}
+
+    OwnedOpGraph m_Graph;
+
+    // Store how this starting glue connects to the previous plan / ending glue and the following plan
+    // Note this is different to the connections in the ending glue as it stores how the connectoion to both its plan
+    // AND the previous ending glue/plan
+    GlueConnections m_ExternalConnections;
+};
+
+// Specifies an ending glue and multiple starting glues
+// Used as a return type for functions which generate glue
+struct StartingAndEndingGlues
+{
+    // There can be multiple starting glues when there are branches and multiple input buffers to the same plan.
+    std::vector<StartingGlue> m_StartingGlues;
+    EndingGlue m_EndingGlue;
 };
 
 /// A single element in a combination
 struct Elem
 {
-    using Glues = std::unordered_map<PartInputSlot, GlueInfo>;
-
     std::shared_ptr<Plan> m_Plan;
-    Glues m_Glues;
+
+    // The starting glue attachs to inputs of a plan
+    std::unordered_map<PartInputSlot, std::shared_ptr<StartingGlue>> m_StartingGlues;
+    // The ending glue attachs to outputs of a plan
+    std::unordered_map<PartOutputSlot, std::shared_ptr<EndingGlue>> m_EndingGlues;
 };
 
 constexpr size_t g_InvalidCombRank = std::numeric_limits<size_t>::max();
@@ -59,61 +91,16 @@ struct Combination
     Combination()
     {}
 
-    // Create a combination with a single element without any edge/glue information
-    Combination(const BasePart& part, Plan&& plan, size_t orderRank, const GraphOfParts& graphOfParts)
-        : Combination(part, std::make_shared<Plan>(std::move(plan)), nullptr, nullptr, orderRank, false, graphOfParts)
+    Combination(const BasePart& part)
+        : Combination(part, Plan(), SIZE_MAX)
     {}
 
-    // Create a combination with a single element without plan information,
-    // this is used when updating edge/glue information for a part with
-    // multiple outputs where the plan has been already selected and
-    // won't be changed when merging combinations
-    // Note glue should not change the header ID and rank of the
-    // combination
-    Combination(const BasePart& part, const PartInputSlot* edge, const Glue* glue, const GraphOfParts& graphOfParts)
-        : Combination(part, nullptr, edge, glue, SIZE_MAX, true, graphOfParts)
-    {}
-
-    Combination(const BasePart& part,
-                const PartInputSlot* edge,
-                const Glue* glue,
-                bool outDma,
-                const GraphOfParts& graphOfParts)
-        : Combination(part, nullptr, edge, glue, SIZE_MAX, outDma, graphOfParts)
-    {}
-
-    // Create a combination with a single element with edge/glue information,
-    // if no edge/glue information is provided (e.g. nullptr) the combination
-    // will consider the case where no glue is required on any output edge of
-    // the part
-    Combination(const BasePart& part,
-                std::shared_ptr<Plan> plan,
-                const PartInputSlot* slot,
-                const Glue* glue,
-                size_t orderRank,
-                bool outDma,
-                const GraphOfParts& graphOfParts)
+    // Create a combination with a single element plan
+    Combination(const BasePart& part, Plan&& plan, size_t orderRank)
     {
         // Create a new element
-        Elem elem = { plan, {} };
-        // Insert glue value (it can be null if no glue is required)
-        // if a valid edge is provided
-        if (slot)
-        {
-            GlueInfo glueInfo = { glue, outDma };
-            elem.m_Glues.insert(std::make_pair(*slot, glueInfo));
-        }
-        else
-        {
-            // Consider no glue on all the output edges (i.e. mergeable)
-            const auto& destSlots = graphOfParts.GetDestinationConnections(part.GetPartId());
-            for (auto& slots : destSlots)
-            {
-                GlueInfo glueInfo = { nullptr, false };
-                elem.m_Glues.insert(std::make_pair(slots.m_Destination, glueInfo));
-            }
-        }
-        m_Elems.insert(std::make_pair(part.GetPartId(), elem));
+        Elem elem = { std::make_shared<Plan>(std::move(plan)), {}, {} };
+        m_Elems.insert({ part.GetPartId(), elem });
 
         // Update the Header's rank in topological order
         m_HeadOrderRank = orderRank;
@@ -146,32 +133,25 @@ struct Combination
 
         for (auto& rhsElemIt : rhs.m_Elems)
         {
-            auto resultElemIt = result.m_Elems.find(rhsElemIt.first);
-            if (resultElemIt != result.m_Elems.end())
-            {
-                assert(rhsElemIt.second.m_Plan.get() == nullptr ||
-                       resultElemIt->second.m_Plan == rhsElemIt.second.m_Plan);
-                for (auto& glueIt : rhsElemIt.second.m_Glues)
-                {
-                    auto edgeIt = resultElemIt->second.m_Glues.find(glueIt.first);
-                    if (edgeIt != resultElemIt->second.m_Glues.end())
-                    {
-                        // Take the glue value of rhs
-                        edgeIt->second = glueIt.second;
-                    }
-                    else
-                    {
-                        // Add edge/glue information
-                        resultElemIt->second.m_Glues.insert(glueIt);
-                    }
-                }
-            }
-            else
-            {
-                result.m_Elems.insert(rhsElemIt);
-            }
+            // Can't add combinations which share part id's.
+            assert(result.m_Elems.find(rhsElemIt.first) == result.m_Elems.end());
+            result.m_Elems.insert(rhsElemIt);
         }
         return result;
+    }
+
+    void AddEndingGlue(EndingGlue&& glue, PartOutputSlot outputSlot)
+    {
+        const auto& it = m_Elems.find(outputSlot.m_PartId);
+        assert(it != m_Elems.end());
+        it->second.m_EndingGlues.insert({ outputSlot, std::make_shared<EndingGlue>(std::move(glue)) });
+    }
+
+    void SetStartingGlue(StartingGlue&& glue, PartInputSlot inputSlot)
+    {
+        const auto& it = m_Elems.find(inputSlot.m_PartId);
+        assert(it != m_Elems.end());
+        it->second.m_StartingGlues.insert({ inputSlot, std::make_shared<StartingGlue>(std::move(glue)) });
     }
 
     using Elems          = std::unordered_map<PartId, Elem>;
@@ -244,14 +224,14 @@ public:
     void DeallocateUnusedBuffers(const Plan& sPlan, SramAllocator& allocator);
 
     const Combination& GetBestCombination() const;
-    Combination GetBestCombination(Combinations& combs) const;
+    Combination GetBestCombination(const Combinations& combs);
     OpGraph GetMergedOpGraphForBestCombination() const;
     CascadingBufferFormat
         GetBestCascadingBufferDramFormat(const std::array<TensorShape, 2> inputOutputStripeShapes) const;
 
     const Plan& GetPlanForPartFromCombination(const BasePart& part, const Combination& comb) const;
-    std::pair<bool, const Glue*> GetGlue(const Buffer* outputBuffer, const Buffer* inputBuffer);
-    std::pair<bool, const Glue*> GetSharedGlue(const Buffer* outputBuffer, std::vector<const Buffer*>& inputBuffer);
+    std::pair<bool, StartingAndEndingGlues> GetGlue(Buffer* outputBuffer, Buffer* inputBuffer);
+    std::pair<bool, StartingAndEndingGlues> GetSharedGlue(Buffer* outputBuffer, std::vector<Buffer*>& inputBuffer);
 
     Combination FindBestCombinationForPart(const BasePart& part);
     virtual Combination FindBestCombinationForPartImpl(const BasePart& part);
@@ -278,15 +258,21 @@ public:
 
     Combination StartSection(const BasePart& part, const BasePart& nextPart, const SramAllocator& alloc);
 
-    std::unique_ptr<Glue> GenerateGlueBetweenSramAndDram() const;
-    std::unique_ptr<Glue> GenerateGlueBetweenSramAndSram(const Buffer* buffer,
-                                                         const CascadingBufferFormat cascadingBufferFormat) const;
-    std::unique_ptr<Glue> GenerateGlueBetweenSramAndSrams(const Buffer* buffer,
-                                                          const CascadingBufferFormat cascadingBufferFormat,
-                                                          uint32_t numOfOuputs) const;
-    Combination GluePartToCombinationDestToSrcs(const BasePart& part,
-                                                const Combination& comb,
-                                                const std::vector<PartConnection>& sources);
+    StartingAndEndingGlues GenerateGlueBetweenSramAndDram(Buffer* sramBuffer,
+                                                          Buffer* dramBuffer,
+                                                          const CascadingBufferFormat cascadingBufferFormat) const;
+    StartingAndEndingGlues GenerateGlueBetweenDramAndSram(Buffer* dramBuffer,
+                                                          Buffer* sramBuffer,
+                                                          const CascadingBufferFormat cascadingBufferFormat) const;
+    StartingAndEndingGlues GenerateGlueBetweenDramAndSramWithConversion(Buffer* inputBuffer,
+                                                                        Buffer* outputBuffer) const;
+    StartingAndEndingGlues GenerateGlueBetweenSramAndSram(Buffer* sourceBuffer,
+                                                          Buffer* destBuffer,
+                                                          const CascadingBufferFormat cascadingBufferFormat) const;
+    StartingAndEndingGlues GenerateSharedGlue(Buffer* sourceBuffer,
+                                              std::vector<Buffer*>& destBuffers,
+                                              const CascadingBufferFormat cascadingBufferFormat) const;
+    StartingAndEndingGlues GenerateGlueBetweenDramAndDram(Buffer* inputBuffer, Buffer* outputBuffer) const;
 
     Combination GluePartToCombinationSrcToDests(const BasePart& sPart,
                                                 const Combination& comb,
@@ -319,6 +305,9 @@ public:
     bool DoAgentsInGraphFitInsideWindow(const OpGraph& opGraph, Buffer* inputBuffer, uint32_t& totalAgents);
 
 private:
+    // Add glue to input slots and output slots which do not have glue already
+    // This is needed so it can estimate partial combinations
+    Combination AddTempGlues(const Combination& combination);
     const GraphOfParts& m_GraphOfParts;
     const HardwareCapabilities& m_Caps;
     const EstimationOptions& m_EstOpt;
@@ -331,7 +320,7 @@ private:
     OpGraph m_MergedOpGraphForBestCombination;
     bool m_MergedOpGraphReady;
 
-    std::vector<std::unique_ptr<Glue>> m_GluesVector;
+    std::vector<StartingAndEndingGlues> m_GluesVector;
     std::unordered_map<const BasePart*, const Combination> m_CombinationPerPartMap;
 
     std::vector<size_t> m_Stats{ std::vector<size_t>(static_cast<size_t>(StatsType::NumStats), 0) };

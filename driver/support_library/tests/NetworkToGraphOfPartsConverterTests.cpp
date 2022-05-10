@@ -1173,8 +1173,16 @@ TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected")
     const FullyConnectedPart* part = dynamic_cast<const FullyConnectedPart*>(&graph.GetPart(3));
     REQUIRE(part != nullptr);
 
-    auto plans     = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
-    Op* maybeMceOp = plans[0].m_OpGraph.GetOp(1);
+    auto plans      = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
+    Op* maybeDmaOp0 = plans[0].m_OpGraph.GetOp(0);
+    REQUIRE(typeid(*maybeDmaOp0) == typeid(DmaOp));
+    DmaOp* dmaOp0 = static_cast<DmaOp*>(maybeDmaOp0);
+    REQUIRE(dmaOp0->m_TransferFormat == CascadingBufferFormat::NHWCB);
+    Op* maybeDmaOp1 = plans[0].m_OpGraph.GetOp(1);
+    REQUIRE(typeid(*maybeDmaOp1) == typeid(DmaOp));
+    DmaOp* dmaOp1 = static_cast<DmaOp*>(maybeDmaOp1);
+    REQUIRE(dmaOp1->m_TransferFormat == CascadingBufferFormat::WEIGHT);
+    Op* maybeMceOp = plans[0].m_OpGraph.GetOp(2);
     REQUIRE(IsMceOp(maybeMceOp));
     MceOp* mceOp = static_cast<MceOp*>(maybeMceOp);
     REQUIRE(mceOp->m_Op == ethosn::command_stream::MceOperation::FULLY_CONNECTED);

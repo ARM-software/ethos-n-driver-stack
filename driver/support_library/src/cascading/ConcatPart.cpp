@@ -56,11 +56,11 @@ void ConcatPart::CreateConcatDramPlan(Plans& plans) const
     PartOutputMapping outputMappings;
     OwnedOpGraph opGraph;
 
-    auto concatOp      = std::make_unique<ConcatOp>();
+    CascadingBufferFormat format = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
+
+    auto concatOp      = std::make_unique<ConcatOp>(format);
     Op* op             = opGraph.AddOp(std::move(concatOp));
     op->m_OperationIds = m_CorrespondingOperationIds;
-
-    CascadingBufferFormat format = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
 
     for (uint32_t inputIndex = 0; inputIndex < m_InputTensorsInfo.size(); inputIndex++)
     {

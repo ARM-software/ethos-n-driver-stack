@@ -176,14 +176,14 @@ TEST_CASE("SaveOpGraphToDot Graph Topology", "[Visualisation]")
 
     Buffer dramIfm;
     dramIfm.m_DebugTag = "Dram Ifm";
-    DmaOp dmaIfm;
+    DmaOp dmaIfm(CascadingBufferFormat::NHWCB);
     dmaIfm.m_DebugTag = "Dma Ifm";
     Buffer sramIfm;
     sramIfm.m_DebugTag = "Sram Ifm";
 
     Buffer dramWeights;
     dramWeights.m_DebugTag = "Dram Weights";
-    DmaOp dmaWeights;
+    DmaOp dmaWeights(CascadingBufferFormat::WEIGHT);
     dmaWeights.m_DebugTag = "Dma Weights";
     Buffer sramWeights;
     sramWeights.m_DebugTag = "Sram Weights";
@@ -194,7 +194,7 @@ TEST_CASE("SaveOpGraphToDot Graph Topology", "[Visualisation]")
 
     Buffer sramOfm;
     sramOfm.m_DebugTag = "Sram Ofm";
-    DmaOp dmaOfm;
+    DmaOp dmaOfm(CascadingBufferFormat::NHWCB);
     dmaOfm.m_DebugTag = "Dma Ofm";
     Buffer dramOfm;
     dramOfm.m_DebugTag = "Dram Ofm";
@@ -294,7 +294,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
     mce.m_DebugTag = "Mce";
     graph.AddOp(&mce);
 
-    DmaOp dma(Lifetime::Cascade);
+    DmaOp dma(CascadingBufferFormat::NHWCB, Lifetime::Cascade);
     dma.m_DebugTag = "Dma";
     graph.AddOp(&dma);
 
@@ -320,7 +320,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
         R"(digraph SupportLibraryGraph
 {
 Mce[label = "Mce\nIdx in OpGraph: 0\nLifetime = Atomic\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlock Config = 3x4\nInput Stripe Shape = [1, 2, 3, 4]\nOutput Stripe Shape = [5, 6, 7, 8]\nWeights Stripe Shape = [9, 10, 11, 12]\nOrder = Zxy\nStride = 10, 20\nPad L/T = 30, 40\nLower/Upper Bound = 100, 200\nOperation Ids = []\n", shape = oval]
-Dma[label = "Dma\nIdx in OpGraph: 1\nLifetime = Cascade\nDmaOp\nOperation Ids = []\n", shape = oval, color = darkgoldenrod]
+Dma[label = "Dma\nIdx in OpGraph: 1\nLifetime = Cascade\nDmaOp\nOperation Ids = []\nTransfer Format = NHWCB\n", shape = oval, color = darkgoldenrod]
 Ple[label = "Ple\nIdx in OpGraph: 2\nLifetime = Atomic\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nOutput Data type = U8\nPle kernel Id = ADDITION_16X16_1\nKernel Load = 1\nOffset = 0\nOperation Ids = []\n", shape = oval]
 Buffer1[label = "Buffer1\nLocation = PleInputSram\nFormat = WEIGHT\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\nOrder = Zxy\nOffset = 0\nSize in bytes = 1234\nType = Intermediate\n", shape = box]
 }
@@ -671,7 +671,7 @@ TEST_CASE("SavePlansToDot Graph Topology", "[Visualisation]")
     PartInputSlot planBInputSlot   = PartInputSlot{ 1, 0 };
     PartOutputSlot planBOutputSlot = PartOutputSlot{ 1, 0 };
     planBOpGraph.AddBuffer(std::make_unique<Buffer>());
-    planBOpGraph.AddOp(std::make_unique<DmaOp>());
+    planBOpGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
     planBOpGraph.AddBuffer(std::make_unique<Buffer>());
     planBOpGraph.AddConsumer(planBOpGraph.GetBuffers()[0], planBOpGraph.GetOps()[0], 0);
     planBOpGraph.SetProducer(planBOpGraph.GetBuffers()[1], planBOpGraph.GetOps()[0]);
@@ -806,13 +806,6 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDram";
     planA.m_OutputMappings                          = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot0 } };
 
-    // Glue between A and B
-    Glue glueA_BC;
-    glueA_BC.m_Graph.AddOp(std::make_unique<DmaOp>());
-    glueA_BC.m_Graph.GetOps()[0]->m_DebugTag = "InputDma";
-    glueA_BC.m_InputSlot                     = { glueA_BC.m_Graph.GetOps()[0], 0 };
-    glueA_BC.m_Output.push_back(glueA_BC.m_Graph.GetOps()[0]);
-
     // Part consisting of node B
     Plan planB;
     planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
@@ -863,27 +856,6 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     planDE.m_OpGraph.SetProducer(planDE.m_OpGraph.GetBuffers()[1], planDE.m_OpGraph.GetOps()[0]);
     planDE.m_OpGraph.SetProducer(planDE.m_OpGraph.GetBuffers()[3], planDE.m_OpGraph.GetOps()[0]);
 
-    // Glue between D and F
-    Glue glueD_F;
-    glueD_F.m_Graph.AddOp(std::make_unique<DmaOp>());
-    glueD_F.m_Graph.GetOps()[0]->m_DebugTag = "OutputDma1";
-    glueD_F.m_InputSlot                     = { glueD_F.m_Graph.GetOps()[0], 0 };
-    glueD_F.m_Output.push_back(glueD_F.m_Graph.GetOps()[0]);
-
-    // Glue between D and G
-    Glue glueD_G;
-    glueD_G.m_Graph.AddOp(std::make_unique<DmaOp>());
-    glueD_G.m_Graph.GetOps()[0]->m_DebugTag = "OutputDma2";
-    glueD_G.m_InputSlot                     = { glueD_G.m_Graph.GetOps()[0], 0 };
-    glueD_G.m_Output.push_back(glueD_G.m_Graph.GetOps()[0]);
-
-    // Glue between E and G
-    Glue glueE_G;
-    glueE_G.m_Graph.AddOp(std::make_unique<DmaOp>());
-    glueE_G.m_Graph.GetOps()[0]->m_DebugTag = "OutputDma3";
-    glueE_G.m_InputSlot                     = { glueE_G.m_Graph.GetOps()[0], 0 };
-    glueE_G.m_Output.push_back(glueE_G.m_Graph.GetOps()[0]);
-
     // Part consisting of node F
     Plan planF;
     planF.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
@@ -905,18 +877,86 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     planG.m_InputMappings                           = { { planG.m_OpGraph.GetBuffers()[0], partGInputSlot0 },
                               { planG.m_OpGraph.GetBuffers()[1], partGInputSlot1 } };
 
-    // Create Combination with all the plans and glues
+    // The end glueing of A is empty. But the starting glue of B has the connections.
+    auto endingGlueA = std::make_shared<EndingGlue>();
+
+    auto startingGlueB = std::make_shared<StartingGlue>();
+    startingGlueB->m_Graph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
+    startingGlueB->m_Graph.GetOps()[0]->m_DebugTag = "InputDma";
+    startingGlueB->m_ExternalConnections.m_BuffersToOps.insert(
+        { planA.m_OpGraph.GetBuffers().back(), startingGlueB->m_Graph.GetOps()[0] });
+    startingGlueB->m_ExternalConnections.m_OpsToBuffers.insert(
+        { startingGlueB->m_Graph.GetOps()[0], planB.m_OpGraph.GetBuffers()[0] });
+
+    auto endingGlueB = std::make_shared<EndingGlue>();
+
+    auto startingGlueC = std::make_shared<StartingGlue>();
+    startingGlueC->m_ExternalConnections.m_ReplacementBuffers.insert(
+        { planC.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetBuffers()[0] });
+
+    auto endingGlueC = std::make_shared<EndingGlue>();
+
+    auto startingGlueDE = std::make_shared<StartingGlue>();
+    startingGlueDE->m_ExternalConnections.m_ReplacementBuffers.insert(
+        { planDE.m_OpGraph.GetBuffers()[0], planC.m_OpGraph.GetBuffers()[0] });
+    startingGlueDE->m_ExternalConnections.m_ReplacementBuffers.insert(
+        { planDE.m_OpGraph.GetBuffers()[2], planC.m_OpGraph.GetBuffers()[0] });
+
+    auto endingGlueD = std::make_shared<EndingGlue>();
+    endingGlueD->m_Graph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
+    endingGlueD->m_Graph.GetOps()[0]->m_DebugTag = "OutputDma1";
+    endingGlueD->m_ExternalConnections.m_BuffersToOps.insert(
+        { planDE.m_OpGraph.GetBuffers()[1], endingGlueD->m_Graph.GetOps()[0] });
+    endingGlueD->m_Graph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
+    endingGlueD->m_Graph.GetOps()[0]->m_DebugTag = "OutputDma2";
+    endingGlueD->m_ExternalConnections.m_BuffersToOps.insert(
+        { planDE.m_OpGraph.GetBuffers()[3], endingGlueD->m_Graph.GetOps()[1] });
+    auto startingGlueF = std::make_shared<StartingGlue>();
+    startingGlueF->m_ExternalConnections.m_OpsToBuffers.insert(
+        { endingGlueD->m_Graph.GetOps()[0], planF.m_OpGraph.GetBuffers().back() });
+
+    auto startingGluefromDtoG = std::make_shared<StartingGlue>();
+    startingGluefromDtoG->m_ExternalConnections.m_OpsToBuffers.insert(
+        { endingGlueD->m_Graph.GetOps()[1], planG.m_OpGraph.GetBuffers()[0] });
+
+    auto endingGlueE = std::make_shared<EndingGlue>();
+    endingGlueE->m_Graph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
+    endingGlueE->m_Graph.GetOps()[0]->m_DebugTag = "OutputDma3";
+    endingGlueE->m_ExternalConnections.m_BuffersToOps.insert(
+        { planDE.m_OpGraph.GetBuffers()[1], endingGlueE->m_Graph.GetOps()[0] });
+    auto startingGluefromEtoG = std::make_shared<StartingGlue>();
+    startingGluefromEtoG->m_ExternalConnections.m_OpsToBuffers.insert(
+        { endingGlueE->m_Graph.GetOps()[0], planG.m_OpGraph.GetBuffers()[1] });
+
     Combination comb;
 
-    Elem elemA  = { std::make_shared<Plan>(std::move(planA)), { { partBInputSlot0, { &glueA_BC, true } } } };
-    Elem elemB  = { std::make_shared<Plan>(std::move(planB)), {} };
-    Elem elemC  = { std::make_shared<Plan>(std::move(planC)), {} };
-    Elem elemDE = { std::make_shared<Plan>(std::move(planDE)),
-                    { { partFInputSlot0, { &glueD_F, true } },
-                      { partGInputSlot0, { &glueD_G, true } },
-                      { partGInputSlot1, { &glueE_G, true } } } };
-    Elem elemF  = { std::make_shared<Plan>(std::move(planF)), {} };
-    Elem elemG  = { std::make_shared<Plan>(std::move(planG)), {} };
+    Elem elemA;
+    elemA.m_Plan        = std::make_shared<Plan>(std::move(planA));
+    elemA.m_EndingGlues = { { partAOutputSlot0, endingGlueA } };
+
+    Elem elemB;
+    elemB.m_Plan          = std::make_shared<Plan>(std::move(planB));
+    elemB.m_StartingGlues = { { partBInputSlot0, startingGlueB } };
+    elemB.m_EndingGlues   = { { partBOutputSlot0, endingGlueB } };
+
+    Elem elemC;
+    elemC.m_Plan          = std::make_shared<Plan>(std::move(planC));
+    elemC.m_StartingGlues = { { partCInputSlot0, startingGlueC } };
+    elemC.m_EndingGlues   = { { partCOutputSlot0, endingGlueC } };
+
+    Elem elemDE;
+    elemDE.m_Plan          = std::make_shared<Plan>(std::move(planDE));
+    elemDE.m_StartingGlues = { { partDEInputSlot0, startingGlueDE } };
+    elemDE.m_EndingGlues   = { { partDEOutputSlot0, endingGlueD }, { partDEOutputSlot1, endingGlueE } };
+
+    Elem elemF;
+    elemF.m_Plan          = std::make_shared<Plan>(std::move(planF));
+    elemF.m_StartingGlues = { { partFInputSlot0, startingGlueF } };
+
+    Elem elemG;
+    elemG.m_Plan          = std::make_shared<Plan>(std::move(planG));
+    elemG.m_StartingGlues = { { partGInputSlot0, startingGluefromDtoG }, { partGInputSlot1, startingGluefromEtoG } };
+
     comb.m_Elems.insert(std::make_pair(0, elemA));
     comb.m_PartIdsInOrder.push_back(0);
     comb.m_Elems.insert(std::make_pair(1, elemB));
@@ -935,12 +975,12 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     if (dumpToFile)
     {
         std::ofstream stream("SaveCombinationToDot Graph Topology.dot");
-        SaveCombinationToDot(comb, graph, stream, DetailLevel::Low);
+        SaveCombinationToDot(comb, stream, DetailLevel::Low);
     }
 
     // Save to a string and check against expected result
     std::stringstream stream;
-    SaveCombinationToDot(comb, graph, stream, DetailLevel::Low);
+    SaveCombinationToDot(comb, stream, DetailLevel::Low);
 
     std::string expected =
         R"(digraph SupportLibraryGraph
@@ -951,30 +991,50 @@ label="Plan 6"
 labeljust=l
 InputDram[label = "InputDram", shape = box, color = brown]
 }
-subgraph clusterPlan_6_Glue_0
+subgraph clusterPlan_6_Ending_Glue
 {
-label="Plan 6 Glue 0"
+label="Plan 6 Ending Glue"
 labeljust=l
-InputDma[label = "InputDma", shape = oval, color = darkgoldenrod]
 }
-InputDram -> InputDma
-subgraph clusterPlan_9
+subgraph clusterPlan_8
 {
-label="Plan 9"
+label="Plan 8"
 labeljust=l
 InputSram1[label = "InputSram1", shape = box, color = blue]
 }
-InputDma -> InputSram1
-subgraph clusterPlan_11
+subgraph clusterPlan_8_Starting_Glue
 {
-label="Plan 11"
+label="Plan 8 Starting Glue"
+labeljust=l
+InputDma[label = "InputDma", shape = oval, color = darkgoldenrod]
+}
+InputDram -> InputDma 
+InputDma -> InputSram1 
+subgraph clusterPlan_8_Ending_Glue
+{
+label="Plan 8 Ending Glue"
+labeljust=l
+}
+subgraph clusterPlan_10
+{
+label="Plan 10"
 labeljust=l
 InputSram2[label = "InputSram2", shape = box, color = blue]
 }
-InputSram1 -> InputSram2
-subgraph clusterPlan_13
+subgraph clusterPlan_10_Starting_Glue
 {
-label="Plan 13"
+label="Plan 10 Starting Glue"
+labeljust=l
+}
+InputSram1 -> InputSram2 [style = dashed]
+subgraph clusterPlan_10_Ending_Glue
+{
+label="Plan 10 Ending Glue"
+labeljust=l
+}
+subgraph clusterPlan_12
+{
+label="Plan 12"
 labeljust=l
 Mce2[label = "Mce2", shape = oval]
 IntermediateSramInput1[label = "IntermediateSramInput1", shape = box, color = blue]
@@ -986,45 +1046,60 @@ Mce2 -> OutputSram1
 IntermediateSramInput2 -> Mce2[ label="Input 1"]
 Mce2 -> OutputSram2
 }
-InputSram2 -> IntermediateSramInput1
-InputSram2 -> IntermediateSramInput2
-subgraph clusterPlan_13_Glue_0
+subgraph clusterPlan_12_Starting_Glue
 {
-label="Plan 13 Glue 0"
+label="Plan 12 Starting Glue"
 labeljust=l
-OutputDma1[label = "OutputDma1", shape = oval, color = darkgoldenrod]
 }
-OutputSram1 -> OutputDma1
-subgraph clusterPlan_13_Glue_1
+InputSram2 -> IntermediateSramInput1 [style = dashed]
+InputSram2 -> IntermediateSramInput2 [style = dashed]
+subgraph clusterPlan_12_Ending_Glue
 {
-label="Plan 13 Glue 1"
+label="Plan 12 Ending Glue"
 labeljust=l
 OutputDma2[label = "OutputDma2", shape = oval, color = darkgoldenrod]
+DmaOp_25[label = "DmaOp 25", shape = oval, color = darkgoldenrod]
 }
-OutputSram1 -> OutputDma2
-subgraph clusterPlan_13_Glue_2
+OutputSram1 -> OutputDma2 
+OutputSram2 -> DmaOp_25 
+subgraph clusterPlan_12_Ending_Glue
 {
-label="Plan 13 Glue 2"
+label="Plan 12 Ending Glue"
 labeljust=l
 OutputDma3[label = "OutputDma3", shape = oval, color = darkgoldenrod]
 }
-OutputSram2 -> OutputDma3
-subgraph clusterPlan_22
+OutputSram1 -> OutputDma3 
+subgraph clusterPlan_18
 {
-label="Plan 22"
+label="Plan 18"
 labeljust=l
 OutputDram1[label = "OutputDram1", shape = box, color = brown]
 }
-OutputDma1 -> OutputDram1
-subgraph clusterPlan_24
+subgraph clusterPlan_18_Starting_Glue
 {
-label="Plan 24"
+label="Plan 18 Starting Glue"
+labeljust=l
+}
+OutputDma2 -> OutputDram1 
+subgraph clusterPlan_20
+{
+label="Plan 20"
 labeljust=l
 OutputDram2[label = "OutputDram2", shape = box, color = brown]
 OutputDram3[label = "OutputDram3", shape = box, color = brown]
 }
-OutputDma2 -> OutputDram2
-OutputDma3 -> OutputDram3
+subgraph clusterPlan_20_Starting_Glue
+{
+label="Plan 20 Starting Glue"
+labeljust=l
+}
+DmaOp_25 -> OutputDram2 
+subgraph clusterPlan_20_Starting_Glue
+{
+label="Plan 20 Starting Glue"
+labeljust=l
+}
+OutputDma3 -> OutputDram3 
 }
 )";
 
@@ -1105,10 +1180,10 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planD.m_InputMappings = { { planD.m_OpGraph.GetBuffers()[0], partDInputSlot } };
 
-    Combination combA(partA, std::move(planA), 0, graph);
-    Combination combB(partB, std::move(planB), 1, graph);
-    Combination combC(partC, std::move(planC), 2, graph);
-    Combination combD(partD, std::move(planD), 3, graph);
+    Combination combA(partA, std::move(planA), 0);
+    Combination combB(partB, std::move(planB), 1);
+    Combination combC(partC, std::move(planC), 2);
+    Combination combD(partD, std::move(planD), 3);
 
     // Merge the combinations
     Combination comb = combB + combD + combC + combA;
@@ -1148,13 +1223,13 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
     bool dumpToFile = false;
     if (dumpToFile)
     {
-        std::ofstream stream("SaveCombinationToDot Graph Topology.dot");
-        SaveCombinationToDot(combGlued, graph, stream, DetailLevel::Low);
+        std::ofstream stream("SaveCombinationBranchToDot.dot");
+        SaveCombinationToDot(combGlued, stream, DetailLevel::Low);
     }
 
     // Save to a string and check against expected result
     std::stringstream stream;
-    SaveCombinationToDot(combGlued, graph, stream, DetailLevel::Low);
+    SaveCombinationToDot(combGlued, stream, DetailLevel::Low);
 
     std::string expected =
         R"(digraph SupportLibraryGraph
@@ -1165,49 +1240,59 @@ label="Plan 4"
 labeljust=l
 Buffer_5[label = "Buffer 5", shape = box, color = blue]
 }
-subgraph clusterPlan_4_Glue_0
+subgraph clusterPlan_4_Ending_Glue
 {
-label="Plan 4 Glue 0"
-labeljust=l
-DmaOp_14[label = "DmaOp 14", shape = oval, color = darkgoldenrod]
-DmaOp_15[label = "DmaOp 15", shape = oval, color = darkgoldenrod]
-DmaOp_16[label = "DmaOp 16", shape = oval, color = darkgoldenrod]
-Buffer_13[label = "Buffer 13", shape = box, color = brown]
-DmaOp_14 -> Buffer_13
-Buffer_13 -> DmaOp_15
-Buffer_13 -> DmaOp_16
-}
-Buffer_5 -> DmaOp_14
-subgraph clusterPlan_4_Glue_2
-{
-label="Plan 4 Glue 2"
+label="Plan 4 Ending Glue"
 labeljust=l
 DmaOp_12[label = "DmaOp 12", shape = oval, color = darkgoldenrod]
+DmaOp_14[label = "DmaOp 14", shape = oval, color = darkgoldenrod]
+Buffer_13[label = "Buffer 13", shape = box, color = brown]
+DmaOp_14 -> Buffer_13
 }
-Buffer_5 -> DmaOp_12
+Buffer_5 -> DmaOp_12 
+Buffer_5 -> DmaOp_14 
 subgraph clusterPlan_6
 {
 label="Plan 6"
 labeljust=l
 Buffer_7[label = "Buffer 7", shape = box, color = blue]
 }
-DmaOp_15 -> Buffer_7
+subgraph clusterPlan_6_Starting_Glue
+{
+label="Plan 6 Starting Glue"
+labeljust=l
+DmaOp_15[label = "DmaOp 15", shape = oval, color = darkgoldenrod]
+}
+Buffer_13 -> DmaOp_15 
+DmaOp_15 -> Buffer_7 
 subgraph clusterPlan_10
 {
 label="Plan 10"
 labeljust=l
 Buffer_11[label = "Buffer 11", shape = box, color = brown]
 }
-DmaOp_12 -> Buffer_11
+subgraph clusterPlan_10_Starting_Glue
+{
+label="Plan 10 Starting Glue"
+labeljust=l
+}
+DmaOp_12 -> Buffer_11 
 subgraph clusterPlan_8
 {
 label="Plan 8"
 labeljust=l
 Buffer_9[label = "Buffer 9", shape = box, color = blue]
 }
-DmaOp_16 -> Buffer_9
+subgraph clusterPlan_8_Starting_Glue
+{
+label="Plan 8 Starting Glue"
+labeljust=l
+DmaOp_16[label = "DmaOp 16", shape = oval, color = darkgoldenrod]
+}
+Buffer_13 -> DmaOp_16 
+DmaOp_16 -> Buffer_9 
 }
 )";
-
-    REQUIRE(stream.str() == expected);
+    std::string output = stream.str();
+    REQUIRE(output == expected);
 }

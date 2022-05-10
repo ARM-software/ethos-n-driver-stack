@@ -90,6 +90,9 @@ public:
     using BufferList    = std::vector<Buffer*>;
     using ConsumersList = std::vector<std::pair<Op*, uint32_t>>;
 
+    // Merge another OpGraph into the current one
+    void MergeOpGraph(const OpGraph& other);
+
     /// Simple queries
     /// @{
     const OpList& GetOps() const;
@@ -117,7 +120,7 @@ public:
     void AddConsumer(Buffer* buffer, Op* consumerOp, uint32_t opInputIdx);
     /// @}
 
-private:
+protected:
     /// All of the Ops in the graph, in no particular order.
     OpList m_Ops;
     /// All of the Buffers in the graph, in no particular order.
@@ -137,8 +140,17 @@ private:
 class OwnedOpGraph : public OpGraph
 {
 public:
+    OwnedOpGraph()
+    {}
+    OwnedOpGraph(const OwnedOpGraph&) = delete;
+    OwnedOpGraph(OwnedOpGraph&&)      = default;
+    OwnedOpGraph& operator=(OwnedOpGraph&&) = default;
+
     Op* AddOp(std::unique_ptr<Op> op);
     Buffer* AddBuffer(std::unique_ptr<Buffer> buffer);
+
+    // Merge another OpGraph into the current one taking ownership of the other opgraphs ops and buffers
+    void MergeOpGraph(OwnedOpGraph& other);
 
 private:
     std::vector<std::unique_ptr<Op>> m_Ops;
@@ -207,9 +219,11 @@ public:
 class DmaOp : public Op
 {
 public:
-    DmaOp();
-    DmaOp(Lifetime lifetime);
+    DmaOp(CascadingBufferFormat transferFormat);
+    DmaOp(CascadingBufferFormat transferFormat, Lifetime lifetime);
     virtual DotAttributes GetDotAttributes(DetailLevel) const override;
+
+    CascadingBufferFormat m_TransferFormat;
 };
 
 class MceOp : public Op
@@ -289,11 +303,13 @@ public:
 class ConcatOp : public Op
 {
 public:
-    ConcatOp();
+    ConcatOp(CascadingBufferFormat transferFormat);
     virtual uint32_t GetNumberOfAgents(uint32_t numberOfInputs) const override final
     {
         return numberOfInputs * 2;
     }
+
+    CascadingBufferFormat m_TransferFormat;
 };
 
 class EstimateOnlyOp : public Op

@@ -4,6 +4,7 @@
 //
 
 #include "FullyConnectedPart.hpp"
+#include "PartUtils.hpp"
 
 using namespace ethosn::command_stream;
 
@@ -16,6 +17,7 @@ using namespace utils;
 
 FullyConnectedPart::FullyConnectedPart(PartId id,
                                        const TensorShape& inputTensorShape,
+                                       const TensorShape& reinterpretedInputShape,
                                        const TensorShape& outputTensorShape,
                                        const QuantizationInfo& inputQuantizationInfo,
                                        const QuantizationInfo& outputQuantizationInfo,
@@ -29,7 +31,7 @@ FullyConnectedPart::FullyConnectedPart(PartId id,
                                        std::set<uint32_t> operationIds,
                                        command_stream::DataType dataType)
     : McePart(id,
-              inputTensorShape,
+              reinterpretedInputShape,
               outputTensorShape,
               inputQuantizationInfo,
               outputQuantizationInfo,
@@ -46,6 +48,7 @@ FullyConnectedPart::FullyConnectedPart(PartId id,
               capabilities,
               operationIds,
               dataType)
+    , m_OriginalInputShape(inputTensorShape)
 {}
 
 Plans FullyConnectedPart::GetPlans(CascadeType cascadeType,
@@ -189,10 +192,75 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
     // Fully connected input cannot be de-compressed from FCAF
     const bool couldSourceBeFcaf = false;
 
-    for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
+    for (const MceAndPleInfo& info : stripeInfos.m_MceAndPleInfos)
     {
-        CreateMceAndIdentityPlePlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret, numWeightStripes,
-                                     couldSourceBeFcaf);
+        TraversalOrder order = TraversalOrder::Xyz;
+        auto lifetime        = info.m_Lifetime;
+        for (auto numInputStripes = info.m_Memory.m_Input.m_Range.m_Min;
+             numInputStripes <= info.m_Memory.m_Input.m_Range.m_Max; ++numInputStripes)
+        {
+            for (auto numOutputStripes = info.m_Memory.m_Output.m_Range.m_Min;
+                 numOutputStripes <= info.m_Memory.m_Output.m_Range.m_Max; ++numOutputStripes)
+            {
+                for (auto numPleInputStripes = info.m_Memory.m_PleInput.m_Range.m_Min;
+                     numPleInputStripes <= info.m_Memory.m_PleInput.m_Range.m_Max; ++numPleInputStripes)
+                {
+                    NumMemoryStripes numMemoryStripes;
+                    numMemoryStripes.m_Input    = numInputStripes;
+                    numMemoryStripes.m_Output   = numOutputStripes;
+                    numMemoryStripes.m_Weight   = numWeightStripes;
+                    numMemoryStripes.m_PleInput = numPleInputStripes;
+                    OwnedOpGraph opGraph;
+                    PartInputMapping inputMappings;
+                    PartOutputMapping outputMappings;
+                    impl::ConvData convData;
+                    convData.weightInfo = m_WeightsInfo;
+                    convData.weightData = m_WeightsData;
+                    convData.biasInfo   = m_BiasInfo;
+                    convData.biasData   = m_BiasData;
+
+                    opGraph.AddBuffer(
+                        std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWC, TraversalOrder::Xyz));
+                    Buffer* dramInput        = opGraph.GetBuffers().back();
+                    dramInput->m_TensorShape = m_OriginalInputShape;
+                    // The input buffer size of fully connected must be rounded up to the next 1024.
+                    dramInput->m_SizeInBytes = utils::RoundUpToNearestMultiple(
+                        impl::CalculateBufferSize(m_OriginalInputShape, CascadingBufferFormat::NHWC), 1024);
+                    dramInput->m_QuantizationInfo = m_OutputQuantizationInfo;
+                    dramInput->m_BufferType       = BufferType::Intermediate;
+
+                    // Use NHWCB specifically for Fully connected as the format in SRAM needs to be copied from an NHWC buffer byte by byte
+                    Op* dmaOp             = opGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
+                    dmaOp->m_OperationIds = m_CorrespondingOperationIds;
+
+                    auto sramInputAndMceOp = AddMceToOpGraph(
+                        opGraph, lifetime, order, info.m_MceCompute, info.m_Memory, numMemoryStripes,
+                        m_InputTensorShape, m_InputQuantizationInfo, convData, m_WeightEncoderCache, couldSourceBeFcaf);
+
+                    opGraph.AddConsumer(dramInput, dmaOp, 0);
+                    opGraph.SetProducer(sramInputAndMceOp.first, dmaOp);
+
+                    auto pleInBuffer = impl::AddPleInBuffer(opGraph, numPleInputStripes, m_OutputTensorShape,
+                                                            info.m_Memory.m_PleInput.m_Shape, m_OutputQuantizationInfo,
+                                                            order, Location::PleInputSram);
+                    opGraph.SetProducer(pleInBuffer, sramInputAndMceOp.second);
+
+                    // Create an identity ple Op
+                    std::unique_ptr<PleOp> pleOp =
+                        std::make_unique<PleOp>(lifetime, PleOperation::PASSTHROUGH, info.m_MceCompute.m_BlockConfig, 1,
+                                                std::vector<TensorShape>{ info.m_PleCompute.m_Input },
+                                                info.m_PleCompute.m_Output, m_DataType, true);
+                    auto outBufferAndPleOp = AddPleToOpGraph(opGraph, lifetime, order, info.m_Memory.m_Output.m_Shape,
+                                                             numMemoryStripes, std::move(pleOp), m_OutputTensorShape,
+                                                             m_OutputQuantizationInfo, m_CorrespondingOperationIds);
+                    opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
+                    inputMappings[dramInput]                = PartInputSlot{ m_PartId, 0 };
+                    outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
+                    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), ret, false,
+                               true);
+                }
+            }
+        }
     }
     return ret;
 }

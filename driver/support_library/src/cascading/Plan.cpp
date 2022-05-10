@@ -19,6 +19,16 @@ bool IsCompressed(CascadingBufferFormat format)
     return format == CascadingBufferFormat::FCAF_DEEP || format == CascadingBufferFormat::FCAF_WIDE;
 }
 
+void OpGraph::MergeOpGraph(const OpGraph& other)
+{
+    m_Ops.insert(std::end(m_Ops), std::begin(other.m_Ops), std::end(other.m_Ops));
+    m_Buffers.insert(std::end(m_Buffers), std::begin(other.m_Buffers), std::end(other.m_Buffers));
+    m_BufferProducers.insert(std::begin(other.m_BufferProducers), std::end(other.m_BufferProducers));
+    m_BufferConsumers.insert(std::begin(other.m_BufferConsumers), std::end(other.m_BufferConsumers));
+    m_OpOutputs.insert(std::begin(other.m_OpOutputs), std::end(other.m_OpOutputs));
+    m_OpInputs.insert(std::begin(other.m_OpInputs), std::end(other.m_OpInputs));
+}
+
 const OpGraph::OpList& OpGraph::GetOps() const
 {
     return m_Ops;
@@ -257,6 +267,22 @@ Buffer* OwnedOpGraph::AddBuffer(std::unique_ptr<Buffer> buffer)
     return raw;
 }
 
+void OwnedOpGraph::MergeOpGraph(OwnedOpGraph& other)
+{
+    for (auto&& op : other.m_Ops)
+    {
+        AddOp(std::move(op));
+    }
+    for (auto&& buf : other.m_Buffers)
+    {
+        AddBuffer(std::move(buf));
+    }
+    m_BufferProducers.insert(std::begin(other.m_BufferProducers), std::end(other.m_BufferProducers));
+    m_BufferConsumers.insert(std::begin(other.m_BufferConsumers), std::end(other.m_BufferConsumers));
+    m_OpOutputs.insert(std::begin(other.m_OpOutputs), std::end(other.m_OpOutputs));
+    m_OpInputs.insert(std::begin(other.m_OpInputs), std::end(other.m_OpInputs));
+}
+
 Op::Op(const char* defaultTagPrefix)
     : DebuggableObject(defaultTagPrefix)
     , m_Lifetime(Lifetime::Cascade)
@@ -274,12 +300,14 @@ DotAttributes Op::GetDotAttributes(DetailLevel) const
     return DotAttributes();
 }
 
-DmaOp::DmaOp()
+DmaOp::DmaOp(CascadingBufferFormat transferFormat)
     : Op("DmaOp")
+    , m_TransferFormat(transferFormat)
 {}
 
-DmaOp::DmaOp(Lifetime lifetime)
+DmaOp::DmaOp(CascadingBufferFormat transferFormat, Lifetime lifetime)
     : Op("DmaOp", lifetime)
+    , m_TransferFormat(transferFormat)
 {}
 
 DotAttributes DmaOp::GetDotAttributes(DetailLevel detail) const
@@ -289,6 +317,7 @@ DotAttributes DmaOp::GetDotAttributes(DetailLevel detail) const
     {
         result.m_Label = "DmaOp\n";
         result.m_Label += "Operation Ids = " + ArrayToString(this->m_OperationIds) + "\n";
+        result.m_Label += "Transfer Format = " + ToString(this->m_TransferFormat) + "\n";
     }
 
     result.m_Color = std::string("darkgoldenrod");
@@ -425,8 +454,9 @@ DotAttributes PleOp::GetDotAttributes(DetailLevel detail) const
     return result;
 }
 
-ConcatOp::ConcatOp()
+ConcatOp::ConcatOp(CascadingBufferFormat transferFormat)
     : Op("ConcatOp")
+    , m_TransferFormat(transferFormat)
 {}
 
 EstimateOnlyOp::EstimateOnlyOp(const std::string& reasonForEstimateOnly)

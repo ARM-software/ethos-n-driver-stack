@@ -148,7 +148,7 @@ void CheckInputDram(const CheckPlansParams& params, PlanDesc& desc)
     if (params.m_InputLocation == PlanInputLocation::Dram)
     {
         CHECK(desc.m_InputDram->m_Location == Location::Dram);
-        CHECK(desc.m_InputDram->m_Format == CascadingBufferFormat::NHWCB);
+        CHECK(desc.m_InputDram->m_Format == CascadingBufferFormat::NHWC);
         if (params.m_InputQuantInfo)
         {
             CHECK(desc.m_InputDram->m_QuantizationInfo == params.m_InputQuantInfo.value());
@@ -159,7 +159,7 @@ void CheckInputDram(const CheckPlansParams& params, PlanDesc& desc)
         }
         CHECK(desc.m_InputDram->m_StripeShape == TensorShape{ 0, 0, 0, 0 });
         CHECK(desc.m_InputDram->m_Order == TraversalOrder::Xyz);
-        CHECK(desc.m_InputDram->m_SizeInBytes == utils::TotalSizeBytesNHWCB(desc.m_InputDram->m_TensorShape));
+        CHECK(desc.m_InputDram->m_SizeInBytes == utils::GetNumElements(desc.m_InputDram->m_TensorShape));
         CHECK(desc.m_InputDram->m_NumStripes == 0);
         CHECK(desc.m_InputDram->m_EncodedWeights == nullptr);
     }
@@ -167,6 +167,37 @@ void CheckInputDram(const CheckPlansParams& params, PlanDesc& desc)
 
 void CheckInputSram(PlanDesc& desc, const CheckPlansParams& params)
 {
+    // However we interpret it as NHWCB so that it gets copied without conversion into SRAM.
+    // We choose the smallest shape that will encompass all the data when it is interpreted in brick format.
+    auto GetShapeContainingLinearElements = [](const TensorShape& brickGroupShape, uint32_t numElements) {
+        const uint32_t brickGroupHeight           = brickGroupShape[1];
+        const uint32_t brickGroupWidth            = brickGroupShape[2];
+        const uint32_t brickGroupChannels         = brickGroupShape[3];
+        const uint32_t patchHeight                = 4;
+        const uint32_t patchWidth                 = 4;
+        const uint32_t patchesPerBrickGroupHeight = brickGroupHeight / patchHeight;
+        const uint32_t patchesPerBrickGroupWidth  = brickGroupWidth / patchWidth;
+        const uint32_t patchesPerBrickGroup =
+            patchesPerBrickGroupHeight * patchesPerBrickGroupWidth * brickGroupChannels;
+
+        // If there are less than one bricks worth of elements then we can have a tensor with a single patch in XY
+        // and up to 16 channels.
+        // If there are between one and two bricks worth of elements then we can have a tensor with a column of two
+        // patches in XY and 16 channels. Note we always need 16 channels in this case as the first brick is full.
+        // If there are between two and four bricks worth of elements then we can have a tensor of a full brick group.
+        // Again note we always need 16 channels in this case as the first two brick are full.
+        // If we have more than four bricks of elements then we add brick groups behind the first one (i.e. stacking
+        // along depth). The number of channels in the final brick group may be less than 16 if there is less
+        // than a full bricks worth of elements in that final brick group.
+        const uint32_t numPatches = utils::DivRoundUp(numElements, patchWidth * patchHeight);
+        const uint32_t reinterpretedWidth =
+            numPatches <= brickGroupChannels * patchesPerBrickGroupHeight ? patchWidth : brickGroupWidth;
+        const uint32_t reinterpretedHeight = numPatches <= brickGroupChannels ? patchHeight : brickGroupHeight;
+        const uint32_t numFullBrickGroups  = numPatches / patchesPerBrickGroup;
+        const uint32_t reinterpretedChannels =
+            brickGroupChannels * numFullBrickGroups + std::min(brickGroupChannels, numPatches % patchesPerBrickGroup);
+        return TensorShape{ 1, reinterpretedHeight, reinterpretedWidth, reinterpretedChannels };
+    };
     // Check properties of Input SRAM buffer
     CHECK(desc.m_InputSram->m_Location == Location::Sram);
     CHECK(desc.m_InputSram->m_Format == CascadingBufferFormat::NHWCB);
@@ -181,7 +212,8 @@ void CheckInputSram(PlanDesc& desc, const CheckPlansParams& params)
     }
     if (params.m_InputShape)
     {
-        CHECK(desc.m_InputSram->m_TensorShape == params.m_InputShape.value());
+        CHECK(desc.m_InputSram->m_TensorShape ==
+              GetShapeContainingLinearElements({ 1, 8, 8, 16 }, utils::GetNumElements(params.m_InputShape.value())));
     }
     else if (
         desc.m_InputDram)    // If we weren't provided with an expected shape, then at least check that it's consistent between the Dram and Sram buffers
@@ -587,9 +619,10 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
         EstimationOptions estOps;
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
 
-        const PartId partId = 0;
-        TensorShape tsIn    = { 1, 8, 8, 32 };
-        TensorShape tsOut   = { 1, 1, 1, 1024 };
+        const PartId partId  = 0;
+        TensorShape tsInOrig = { 1, 1, 1, 2048 };
+        TensorShape tsIn     = { 1, 8, 8, 32 };
+        TensorShape tsOut    = { 1, 1, 1, 1024 };
         const std::vector<uint8_t> weights(1 * 1 * 2048 * 1024, 0);
         const std::vector<int32_t> bias(1024, 0);
         const QuantizationInfo inputQuantInfo(0, 1.0f);
@@ -598,8 +631,8 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
                                             DataFormat::HWIO, QuantizationInfo(0, 0.9f) };
         const TensorInfo biasTensorInfo({ 1, 1, 1, 1024 });
         const std::set<uint32_t> operationIds = { 1, 2, 3 };
-        FullyConnectedPart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, weights,
-                                biasTensorInfo, bias, estOps, compOpt, caps, operationIds,
+        FullyConnectedPart part(partId, tsInOrig, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo,
+                                weights, biasTensorInfo, bias, estOps, compOpt, caps, operationIds,
                                 ethosn::command_stream::DataType::U8);
 
         WHEN("Asked to generate plans")
@@ -610,6 +643,8 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
             THEN("The plans are valid and contain at least one plan with the full IFM and full OFM")
             {
                 CheckPlansParams params;
+                params.m_InputLocation = PlanInputLocation::Dram;
+                params.m_InputShape    = tsInOrig;
                 params.m_Any.push_back([](const PlanDesc& plan) {
                     bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 8, 32 } &&
                                           plan.m_InputSram->m_Order == TraversalOrder::Xyz &&
@@ -643,6 +678,8 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
             THEN("The plans are valid and contain at least one plan with the full IFM and partial OFM")
             {
                 CheckPlansParams params;
+                params.m_InputLocation = PlanInputLocation::Dram;
+                params.m_InputShape    = tsInOrig;
                 params.m_Any.push_back([](const PlanDesc& plan) {
                     bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 8, 32 } &&
                                           plan.m_InputSram->m_Order == TraversalOrder::Xyz &&
@@ -676,6 +713,8 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
             THEN("The plans are valid and contain at least one plan with the partial IFM and partial OFM")
             {
                 CheckPlansParams params;
+                params.m_InputLocation = PlanInputLocation::Dram;
+                params.m_InputShape    = tsInOrig;
                 params.m_Any.push_back([](const PlanDesc& plan) {
                     bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 8, 16 } &&
                                           plan.m_InputSram->m_Order == TraversalOrder::Xyz &&

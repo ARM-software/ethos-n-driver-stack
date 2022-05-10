@@ -386,7 +386,7 @@ void NetworkToGraphOfPartsConverter::Visit(FullyConnected& fullyConnected)
                                  static_cast<uint8_t>(weightsInfo.m_QuantizationInfo.GetZeroPoint()));
 
         auto fcPart = std::make_unique<FullyConnectedPart>(
-            m_GraphOfParts.GeneratePartId(), reinterpretedInput,
+            m_GraphOfParts.GeneratePartId(), inputTensorInfo.m_Dimensions, reinterpretedInput,
             fullyConnected.GetOutput(0).GetTensorInfo().m_Dimensions,
             fullyConnected.GetInput(0).GetTensorInfo().m_QuantizationInfo,
             fullyConnected.GetOutput(0).GetTensorInfo().m_QuantizationInfo, weightsInfo, paddedWeightsData,

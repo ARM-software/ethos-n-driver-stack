@@ -20,7 +20,28 @@ namespace support_library
 ethosn::support_library::Plans
     MockPart::GetPlans(CascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const
 {
-    return Plans();
+    Plans plans;
+
+    PartInputMapping inputMappings;
+    PartOutputMapping outputMappings;
+
+    OwnedOpGraph opGraph;
+
+    opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
+    Buffer* buffer             = opGraph.GetBuffers()[0];
+    buffer->m_TensorShape      = { 1, 16, 16, 16 };
+    buffer->m_StripeShape      = { 1, 16, 16, 16 };
+    buffer->m_SizeInBytes      = 16 * 16 * 16;
+    buffer->m_QuantizationInfo = { 0, 1.f };
+
+    inputMappings[buffer]  = PartInputSlot{ m_PartId, 0 };
+    outputMappings[buffer] = PartOutputSlot{ m_PartId, 0 };
+
+    Plan plan(std::move(inputMappings), std::move(outputMappings));
+    plan.m_OpGraph = std::move(opGraph);
+    plans.push_back(std::move(plan));
+
+    return plans;
 }
 
 HardwareCapabilities GetEthosN78HwCapabilities()

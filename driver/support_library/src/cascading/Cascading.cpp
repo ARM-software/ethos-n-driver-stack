@@ -40,15 +40,14 @@ bool IsNodeOfType(const Node* node)
 void SaveDebugFilesForUnestimatedCombination(std::string folder,
                                              const DebuggingContext& debuggingContext,
                                              const Combination& comb,
-                                             const OpGraph& opGraph,
-                                             const GraphOfParts& graphOfParts)
+                                             const OpGraph& opGraph)
 {
     MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
 
-    debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, graphOfParts,
-                                          folder + "/Simple.dot", DetailLevel::Low);
-    debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, graphOfParts,
-                                          folder + "/Detailed.dot", DetailLevel::High);
+    debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, folder + "/Simple.dot",
+                                          DetailLevel::Low);
+    debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, folder + "/Detailed.dot",
+                                          DetailLevel::High);
 
     debuggingContext.SaveOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, folder + "/MergedSimple.dot",
                                       DetailLevel::Low);
@@ -109,7 +108,7 @@ NetworkPerformanceData Cascading::EstimateNetwork(const Network& network)
         MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("BestCombination").c_str());
         OpGraph g = GetOpGraphForCombination(m_Combiner.GetBestCombination(), m_GraphOfParts);
         SaveDebugFilesForUnestimatedCombination("BestCombination", m_DebuggingContext, m_Combiner.GetBestCombination(),
-                                                g, m_GraphOfParts);
+                                                g);
     }
 
     EstimatePerformance();

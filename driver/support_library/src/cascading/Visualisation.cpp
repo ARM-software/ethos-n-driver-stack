@@ -1356,10 +1356,48 @@ void SaveOpGraphToTxtFile(const OpGraph& graph, std::ostream& stream)
     stream << "-------------------------------------------------------------------------\n";
 }
 
-void SaveCombinationToDot(const Combination& combination,
-                          const GraphOfParts& graphOfParts,
+// Dump a map to the output stream but sort the output so the results are deterministic.
+template <typename T>
+void DumpMapInSortedOrder(const T& map,
                           std::ostream& stream,
-                          DetailLevel detailLevel)
+                          const NodeIds& nodeIds,
+                          std::string additionalOptions = "")
+{
+    std::vector<std::string> nodeIdsOrdered;
+    for (auto&& srcAndDest : map)
+    {
+        nodeIdsOrdered.push_back(nodeIds.at(srcAndDest.first) + " -> " + nodeIds.at(srcAndDest.second) + " " +
+                                 additionalOptions + "\n");
+    }
+    std::sort(nodeIdsOrdered.begin(), nodeIdsOrdered.end(),
+              [](const std::string& left, const std::string& right) { return left < right; });
+    for (const std::string& str : nodeIdsOrdered)
+    {
+        stream << str;
+    }
+}
+
+template <typename T>
+void DumpMapInSortedOrderReverse(const T& map,
+                                 std::ostream& stream,
+                                 const NodeIds& nodeIds,
+                                 std::string additionalOptions = "")
+{
+    std::vector<std::string> nodeIdsOrdered;
+    for (auto&& srcAndDest : map)
+    {
+        nodeIdsOrdered.push_back(nodeIds.at(srcAndDest.second) + " -> " + nodeIds.at(srcAndDest.first) + " " +
+                                 additionalOptions + "\n");
+    }
+    std::sort(nodeIdsOrdered.begin(), nodeIdsOrdered.end(),
+              [](const std::string& left, const std::string& right) { return left < right; });
+    for (const std::string& str : nodeIdsOrdered)
+    {
+        stream << str;
+    }
+}
+
+void SaveCombinationToDot(const Combination& combination, std::ostream& stream, DetailLevel detailLevel)
 {
     stream << "digraph SupportLibraryGraph"
            << "\n";
@@ -1373,8 +1411,7 @@ void SaveCombinationToDot(const Combination& combination,
 
     for (auto& partId : combination.m_PartIdsInOrder)
     {
-        const BasePart& part = graphOfParts.GetPart(partId);
-        auto elemIt          = combination.m_Elems.find(partId);
+        auto elemIt = combination.m_Elems.find(partId);
         assert(elemIt != combination.m_Elems.end());
         const Plan& plan = *elemIt->second.m_Plan;
 
@@ -1386,93 +1423,53 @@ void SaveCombinationToDot(const Combination& combination,
         stream << "}"
                << "\n";
 
-        // Connect plan to its inputs
-        auto inputSlots = graphOfParts.GetPartInputs(part.GetPartId());
-        for (PartInputSlot inputSlot : inputSlots)
+        // Construct an ordered map from the unordered map so we have consistent visualisation output
+        const std::unordered_map<PartInputSlot, std::shared_ptr<StartingGlue>>& startingGlues =
+            elemIt->second.m_StartingGlues;
+        std::map<PartInputSlot, std::shared_ptr<StartingGlue>> startingGluesOrdered(startingGlues.begin(),
+                                                                                    startingGlues.end());
+        for (const std::pair<PartInputSlot, std::shared_ptr<StartingGlue>>& slotAndStartingGlue : startingGluesOrdered)
         {
-            if (edgeInputs.find(inputSlot) != edgeInputs.end())
-            {
-                std::string source = edgeInputs.at(inputSlot);
-                std::string dest   = nodeIds.at(plan.GetInputBuffer(inputSlot));
-                stream << source << " -> " << dest << "\n";
-            }
+            StartingGlue* startingGlue = slotAndStartingGlue.second.get();
+            std::string glueLabel      = plan.m_DebugTag + " Starting Glue";
+            DotAttributes attr(SanitizeId(glueLabel), glueLabel, "");
+            DumpSubgraphHeaderToDotFormat(attr, stream);
+            NodeIds newNodeIds = SaveOpGraphAsBody(startingGlue->m_Graph, stream, detailLevel);
+            nodeIds.insert(newNodeIds.begin(), newNodeIds.end());
+            stream << "}"
+                   << "\n";
+
+            // Add the connections
+            // Note the replacement buffers are represented in the glue
+            // as the key being the buffer to be replaced and the value is the buffer which replaces it
+            // In the visualisation both buffers should be shown
+            // but the buffer being replaced should be "on top" so the arrow needs to be swapped.
+            DumpMapInSortedOrder(startingGlue->m_ExternalConnections.m_BuffersToOps, stream, nodeIds);
+            DumpMapInSortedOrder(startingGlue->m_ExternalConnections.m_OpsToBuffers, stream, nodeIds);
+            DumpMapInSortedOrderReverse(startingGlue->m_ExternalConnections.m_ReplacementBuffers, stream, nodeIds,
+                                        "[style = dashed]");
         }
-
-        // Deal with each input edge, which may have a glue attached
-        uint32_t glueCounter = 0;
-        auto outputEdges     = graphOfParts.GetDestinationConnections(partId);
-        std::map<const Glue*, uint32_t> glueCounters;
-        std::map<const Glue*, uint32_t> glueOutDmaCounters;
-        for (const PartConnection& inOutSlots : outputEdges)
+        const std::unordered_map<PartOutputSlot, std::shared_ptr<EndingGlue>>& endingGlues =
+            elemIt->second.m_EndingGlues;
+        std::map<PartOutputSlot, std::shared_ptr<EndingGlue>> endingGluesOrdered(endingGlues.begin(),
+                                                                                 endingGlues.end());
+        for (const std::pair<PartOutputSlot, std::shared_ptr<EndingGlue>>& slotAndEndingGlue : endingGluesOrdered)
         {
-            const PartInputSlot inputSlot = inOutSlots.m_Destination;
-            auto glueIt                   = elemIt->second.m_Glues.find(inputSlot);
+            EndingGlue* endingGlue = slotAndEndingGlue.second.get();
+            std::string glueLabel  = plan.m_DebugTag + " Ending Glue";
+            DotAttributes attr(SanitizeId(glueLabel), glueLabel, "");
+            DumpSubgraphHeaderToDotFormat(attr, stream);
+            NodeIds newNodeIds = SaveOpGraphAsBody(endingGlue->m_Graph, stream, detailLevel);
+            nodeIds.insert(newNodeIds.begin(), newNodeIds.end());
+            stream << "}"
+                   << "\n";
 
-            const Glue* glue = nullptr;
-            GlueInfo glueInfo;
-            if (glueIt != elemIt->second.m_Glues.end())
-            {
-                glueInfo = glueIt->second;
-
-                if (glueInfo.m_Glue && !glueInfo.m_Glue->m_Graph.GetOps().empty())
-                {
-                    glue = glueInfo.m_Glue;
-                }
-            }
-
-            if (glue != nullptr)
-            {
-                // A glue may be shared between multiple output edges each of
-                // which is attached to a separate output DMA.
-                // The counter for each glue is used to ensure there is a
-                // one to one mapping between output dma and edge.
-                if (glueCounters.find(glue) == glueCounters.end())
-                {
-                    glueCounters[glue] = 0;
-                    assert(glueOutDmaCounters.find(glue) == glueOutDmaCounters.end());
-                    glueOutDmaCounters[glue] = 0;
-                }
-
-                // A glue is only added for visualization once
-                if (glueCounters[glue] == 0)
-                {
-                    // Save Glue as isolated subgraph
-                    std::string glueLabel = plan.m_DebugTag + " Glue " + std::to_string(glueCounter);
-                    DotAttributes attr(SanitizeId(glueLabel), glueLabel, "");
-                    DumpSubgraphHeaderToDotFormat(attr, stream);
-                    NodeIds newNodeIds = SaveOpGraphAsBody(glue->m_Graph, stream, detailLevel);
-                    nodeIds.insert(newNodeIds.begin(), newNodeIds.end());
-                    stream << "}"
-                           << "\n";
-
-                    // Connect the glue to its input plan
-                    stream << nodeIds.at(plan.GetOutputBuffer(inOutSlots.m_Source)) << " -> "
-                           << nodeIds.at(glue->m_InputSlot.first);
-                    // If the consumer has multiple inputs, label each one as the order is important.
-                    if (glue->m_Graph.GetInputs(glue->m_InputSlot.first).size() > 1)
-                    {
-                        stream << "[ label=\"Input " << glue->m_InputSlot.second << "\"]";
-                    }
-                    stream << "\n";
-                }
-
-                glueCounters[glue] += 1;
-
-                if (glueInfo.m_OutDma)
-                {
-                    edgeInputs[inputSlot] = nodeIds.at(glue->m_Output.at(glueOutDmaCounters[glue]));
-                    glueOutDmaCounters[glue] += 1;
-                }
-                else
-                {
-                    edgeInputs[inputSlot] = nodeIds.at(glue->m_Graph.GetBuffers().at(0));
-                }
-            }
-            else
-            {
-                edgeInputs[inOutSlots.m_Destination] = nodeIds.at(plan.GetOutputBuffer(inOutSlots.m_Source));
-            }
-            ++glueCounter;
+            // Add the connections
+            // It is the same logic as in the starting glue above.
+            DumpMapInSortedOrder(endingGlue->m_ExternalConnections.m_BuffersToOps, stream, nodeIds);
+            DumpMapInSortedOrder(endingGlue->m_ExternalConnections.m_OpsToBuffers, stream, nodeIds);
+            DumpMapInSortedOrderReverse(endingGlue->m_ExternalConnections.m_ReplacementBuffers, stream, nodeIds,
+                                        "[style = dashed]");
         }
     }
 

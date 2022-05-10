@@ -163,9 +163,11 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(Op* const ptrDmaOp)
             assert(inputBuffer->m_BufferType.value() == BufferType::Intermediate ||
                    inputBuffer->m_BufferType.value() == BufferType::Input);
 
-            uint16_t inputBufferId = AddDramBufferAndCacheId(inputBuffer, ptrDmaOp);
-            AgentIdType ifmStreamerAgentId =
-                AddIfmStreamerToCommandStream(ptrDmaOp, inputBufferId, inputBuffer, outputBuffer);
+            DmaOp* const dmaOp = static_cast<DmaOp* const>(ptrDmaOp);
+
+            uint16_t inputBufferId         = AddDramBufferAndCacheId(inputBuffer, ptrDmaOp);
+            AgentIdType ifmStreamerAgentId = AddIfmStreamerToCommandStream(ptrDmaOp, inputBufferId, inputBuffer,
+                                                                           outputBuffer, dmaOp->m_TransferFormat);
 
             // Only intermediate input buffers need the dependencies not inputs to the network
             if (inputBuffer->m_BufferType == BufferType::Intermediate)
@@ -504,9 +506,11 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
         {
             inputBufferId = AddDramBufferAndCacheId(inputBuffer, ptrConcatOp);
 
+            ConcatOp* const concatOp = static_cast<ConcatOp* const>(ptrConcatOp);
+
             // Ifm Streamer Agent
-            AgentIdType ifmStreamerAgentId =
-                AddIfmStreamerToCommandStream(ptrConcatOp, inputBufferId, inputBuffer, &sramBuffer);
+            AgentIdType ifmStreamerAgentId = AddIfmStreamerToCommandStream(ptrConcatOp, inputBufferId, inputBuffer,
+                                                                           &sramBuffer, concatOp->m_TransferFormat);
 
             // Ofm Streamer Agent
             AgentIdType ofmStreamerAgentId =
@@ -617,7 +621,8 @@ void CascadingCommandStreamGenerator::ProcessTransposeOp(Op* const ptrTransposeO
 AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(Op* const ptrOp,
                                                                            const uint16_t inputDramBufferId,
                                                                            const Buffer* const inputDramBuffer,
-                                                                           const Buffer* const inputSramBuffer)
+                                                                           const Buffer* const inputSramBuffer,
+                                                                           const CascadingBufferFormat transferFormat)
 {
     assert(IsObjectOfType<DmaOp>(ptrOp) || IsObjectOfType<ConcatOp>(ptrOp));
     assert(inputSramBuffer->m_Format == CascadingBufferFormat::NHWCB);
@@ -626,7 +631,7 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(Op* c
 
     ifmStreamerData.fmData.bufferId = inputDramBufferId;
 
-    StreamersUtils::SetBufferDataType(ifmStreamerData.fmData, inputDramBuffer->m_Format);
+    StreamersUtils::SetBufferDataType(ifmStreamerData.fmData, transferFormat);
     ifmStreamerData.fmData.fcafInfo.signedActivation = false;
     ifmStreamerData.fmData.fcafInfo.zeroPoint =
         ethosn::utils::NumericCast<uint8_t>(inputDramBuffer->m_QuantizationInfo.GetZeroPoint());
@@ -640,8 +645,7 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(Op* c
     StreamersUtils::SetStripeChannelsInfo(m_Capabilities, ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
                                           inputSramBuffer->m_StripeShape);
 
-    StreamersUtils::SetSuperTensorSizeInCells(ifmStreamerData.fmData, inputDramBuffer->m_TensorShape,
-                                              inputDramBuffer->m_Format);
+    StreamersUtils::SetSuperTensorSizeInCells(ifmStreamerData.fmData, inputDramBuffer->m_TensorShape, transferFormat);
 
     StreamersUtils::SetStripeIdStrides(ifmStreamerData.fmData, inputDramBuffer->m_Order);
 
