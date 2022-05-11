@@ -259,7 +259,7 @@ public:
 
         // Plan weightDramPlan
         weightDramPlan.m_OpGraph.AddBuffer(
-            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::WEIGHT, TensorShape{ 1, 1, 3, 1 },
+            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::WEIGHT, TensorShape{ 1, 3, 1, 1 },
                                      TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
         weightDramPlan.m_OpGraph.GetBuffers().back()->m_BufferType     = BufferType::ConstantDma;
         weightDramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag       = "WeightDramBuffer";
@@ -278,7 +278,7 @@ public:
 
         // Plan weightSramPlan
         weightSramPlan.m_OpGraph.AddBuffer(
-            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::WEIGHT, TensorShape{ 1, 1, 3, 1 },
+            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::WEIGHT, TensorShape{ 1, 3, 1, 1 },
                                      TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
         weightSramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag    = "WeightSramBuffer";
         weightSramPlan.m_OpGraph.GetBuffers().back()->m_Offset      = 0x00000FF0;
@@ -289,8 +289,8 @@ public:
 
         Buffer* ptrWeightBuffer = weightSramPlan.m_OpGraph.GetBuffers().back();
         weightSize              = ptrWeightBuffer->m_SizeInBytes / ptrWeightBuffer->m_NumStripes;
-        kernelHeight            = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[1]);
-        kernelWidth             = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[2]);
+        kernelHeight            = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[0]);
+        kernelWidth             = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[1]);
 
         // Plan mcePlePlan
         mcePlePlan.m_OpGraph.AddBuffer(
@@ -299,7 +299,7 @@ public:
         mcePlePlan.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateInputSramBuffer";
         mcePlePlan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x00000FFF;
         mcePlePlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                                TensorShape{ 1, 1, 3, 1 }, TensorShape{ 1, 1, 16, 1 },
+                                                                TensorShape{ 1, 3, 1, 1 }, TensorShape{ 1, 16, 1, 1 },
                                                                 TraversalOrder::Xyz, 4, QuantizationInfo()));
         mcePlePlan.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateWeightSramBuffer";
         mcePlePlan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x0000F000;
@@ -1733,6 +1733,431 @@ private:
     OpGraph mergedOpGraph;
 };
 
+class StridedConvOpGraph
+{
+public:
+    StridedConvOpGraph(uint32_t padLeft, uint32_t padTop, TensorShape outputTensorShape)
+    {
+        auto& parts       = graph.m_Parts;
+        auto& connections = graph.m_Connections;
+
+        auto inputDramPart  = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto inputSramPart  = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto weightDramPart = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto weightSramPart = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto mcePlePart     = std::make_unique<MockPart>(graph.GeneratePartId());
+
+        auto weight2DramPart = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto weight2SramPart = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto mcePle2Part     = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto outputDramPart  = std::make_unique<MockPart>(graph.GeneratePartId());
+
+        PartId inputDramPartId  = inputDramPart->GetPartId();
+        PartId inputSramPartId  = inputSramPart->GetPartId();
+        PartId weightDramPartId = weightDramPart->GetPartId();
+        PartId weightSramPartId = weightSramPart->GetPartId();
+        PartId mcePlePartId     = mcePlePart->GetPartId();
+
+        PartId weight2DramPartId = weight2DramPart->GetPartId();
+        PartId weight2SramPartId = weight2SramPart->GetPartId();
+        PartId mcePle2PartId     = mcePle2Part->GetPartId();
+        PartId outputDramPartId  = outputDramPart->GetPartId();
+
+        parts.push_back(std::move(inputDramPart));
+        parts.push_back(std::move(inputSramPart));
+        parts.push_back(std::move(weightDramPart));
+        parts.push_back(std::move(weightSramPart));
+        parts.push_back(std::move(mcePlePart));
+
+        parts.push_back(std::move(weight2DramPart));
+        parts.push_back(std::move(weight2SramPart));
+        parts.push_back(std::move(mcePle2Part));
+        parts.push_back(std::move(outputDramPart));
+
+        PartOutputSlot inputDramPartOutputSlot0  = { inputDramPartId, 0 };
+        PartOutputSlot weightDramPartOutputSlot0 = { weightDramPartId, 0 };
+
+        PartInputSlot inputSramPartInputSlot0   = { inputSramPartId, 0 };
+        PartOutputSlot inputSramPartOutputSlot0 = { inputSramPartId, 0 };
+
+        PartInputSlot weightSramPartInputSlot0   = { weightSramPartId, 0 };
+        PartOutputSlot weightSramPartOutputSlot0 = { weightSramPartId, 0 };
+
+        PartInputSlot mcePlePartInputSlot0   = { mcePlePartId, 0 };
+        PartInputSlot mcePlePartInputSlot1   = { mcePlePartId, 1 };
+        PartOutputSlot mcePlePartOutputSlot0 = { mcePlePartId, 0 };
+
+        PartOutputSlot weight2DramPartOutputSlot0 = { weight2DramPartId, 0 };
+
+        PartInputSlot weight2SramPartInputSlot0   = { weight2SramPartId, 0 };
+        PartOutputSlot weight2SramPartOutputSlot0 = { weight2SramPartId, 0 };
+
+        PartInputSlot mcePle2PartInputSlot0   = { mcePle2PartId, 0 };
+        PartInputSlot mcePle2PartInputSlot1   = { mcePle2PartId, 1 };
+        PartOutputSlot mcePle2PartOutputSlot0 = { mcePle2PartId, 0 };
+
+        PartInputSlot outputDramPartInputSlot0 = { outputDramPartId, 0 };
+
+        connections[inputSramPartInputSlot0]  = inputDramPartOutputSlot0;
+        connections[weightSramPartInputSlot0] = weightDramPartOutputSlot0;
+        connections[mcePlePartInputSlot0]     = inputSramPartOutputSlot0;
+        connections[mcePlePartInputSlot1]     = weightSramPartOutputSlot0;
+
+        connections[weight2SramPartInputSlot0] = weight2DramPartOutputSlot0;
+        connections[mcePle2PartInputSlot0]     = mcePlePartOutputSlot0;
+        connections[mcePle2PartInputSlot1]     = weight2SramPartOutputSlot0;
+        connections[outputDramPartInputSlot0]  = mcePle2PartOutputSlot0;
+
+        const std::set<uint32_t> operationIds = { 0 };
+        ethosn::support_library::impl::NumMemoryStripes numMemoryStripes;
+
+        // Plan inputDramPlan
+        inputDramPlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                                   TensorShape{ 1, 5, 5, 1 }, TensorShape{ 0, 0, 0, 0 },
+                                                                   TraversalOrder::Xyz, 0, QuantizationInfo()));
+        inputDramPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
+        inputDramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "InputDramBuffer";
+        inputDramPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x00000F0A;
+        inputDramPlan.m_OutputMappings = { { inputDramPlan.m_OpGraph.GetBuffers()[0], inputDramPartOutputSlot0 } };
+
+        // Glue glueInputDram_InputSram
+        glueInputDram_InputSram.m_Graph.AddOp(std::make_unique<DmaOp>());
+        glueInputDram_InputSram.m_Graph.GetOps()[0]->m_DebugTag = "InputDmaOp";
+        glueInputDram_InputSram.m_InputSlot                     = { glueInputDram_InputSram.m_Graph.GetOps()[0], 0 };
+        glueInputDram_InputSram.m_Output.push_back(glueInputDram_InputSram.m_Graph.GetOps()[0]);
+
+        // Plan inputSramPlan
+        inputSramPlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                                   TensorShape{ 1, 5, 5, 1 }, TensorShape{ 1, 5, 5, 1 },
+                                                                   TraversalOrder::Xyz, 4, QuantizationInfo()));
+        inputSramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "InputSramBuffer";
+        inputSramPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x00000F0F;
+        inputSramPlan.m_OpGraph.GetBuffers().back()->m_NumStripes = 1;
+        inputSramPlan.m_InputMappings  = { { inputSramPlan.m_OpGraph.GetBuffers()[0], inputSramPartInputSlot0 } };
+        inputSramPlan.m_OutputMappings = { { inputSramPlan.m_OpGraph.GetBuffers()[0], inputSramPartOutputSlot0 } };
+
+        Buffer* ptrInputBuffer = inputSramPlan.m_OpGraph.GetBuffers().back();
+        inputStripeSize        = utils::TotalSizeBytesNHWCB(ptrInputBuffer->m_StripeShape);
+        inputZeroPoint         = ptrInputBuffer->m_QuantizationInfo.GetZeroPoint();
+
+        // Plan weightDramPlan
+        weightDramPlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::WEIGHT, TensorShape{ 3, 3, 2, 1 },
+                                     TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
+        weightDramPlan.m_OpGraph.GetBuffers().back()->m_BufferType     = BufferType::ConstantDma;
+        weightDramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag       = "WeightDramBuffer";
+        encodedWeights                                                 = std::make_shared<EncodedWeights>();
+        encodedWeights->m_Data                                         = { 1, 2, 3, 4 };
+        encodedWeights->m_MaxSize                                      = 10;
+        encodedWeights->m_Metadata                                     = { { 0, 2 }, { 2, 2 } };
+        weightDramPlan.m_OpGraph.GetBuffers().back()->m_EncodedWeights = encodedWeights;
+        weightDramPlan.m_OutputMappings = { { weightDramPlan.m_OpGraph.GetBuffers()[0], weightDramPartOutputSlot0 } };
+
+        // Glue glueWeightDram_WeightSram
+        glueWeightDram_WeightSram.m_Graph.AddOp(std::make_unique<DmaOp>());
+        glueWeightDram_WeightSram.m_Graph.GetOps()[0]->m_DebugTag = "WeightDmaOp";
+        glueWeightDram_WeightSram.m_InputSlot = { glueWeightDram_WeightSram.m_Graph.GetOps()[0], 0 };
+        glueWeightDram_WeightSram.m_Output.push_back(glueWeightDram_WeightSram.m_Graph.GetOps()[0]);
+
+        // Plan weightSramPlan
+        weightSramPlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::WEIGHT, TensorShape{ 3, 3, 1, 1 },
+                                     TensorShape{ 3, 3, 1, 1 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+        weightSramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag    = "WeightSramBuffer";
+        weightSramPlan.m_OpGraph.GetBuffers().back()->m_Offset      = 0x00000FF0;
+        weightSramPlan.m_OpGraph.GetBuffers().back()->m_NumStripes  = 1;
+        weightSramPlan.m_OpGraph.GetBuffers().back()->m_SizeInBytes = encodedWeights->m_MaxSize;
+        weightSramPlan.m_InputMappings  = { { weightSramPlan.m_OpGraph.GetBuffers()[0], weightSramPartInputSlot0 } };
+        weightSramPlan.m_OutputMappings = { { weightSramPlan.m_OpGraph.GetBuffers()[0], weightSramPartOutputSlot0 } };
+
+        Buffer* ptrWeightBuffer = weightSramPlan.m_OpGraph.GetBuffers().back();
+        weightSize              = ptrWeightBuffer->m_SizeInBytes / ptrWeightBuffer->m_NumStripes;
+        kernelHeight            = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[1]);
+        kernelWidth             = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[2]);
+
+        // Plan mcePlePlan
+        mcePlePlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                                TensorShape{ 1, 5, 5, 1 }, TensorShape{ 1, 5, 5, 1 },
+                                                                TraversalOrder::Xyz, 1, QuantizationInfo()));
+        mcePlePlan.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateInputSramBuffer";
+        mcePlePlan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x00000FFF;
+        mcePlePlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                                TensorShape{ 1, 3, 3, 1 }, TensorShape{ 1, 3, 3, 1 },
+                                                                TraversalOrder::Xyz, 1, QuantizationInfo()));
+        mcePlePlan.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateWeightSramBuffer";
+        mcePlePlan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x0000F000;
+        mcePlePlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::PleInputSram, CascadingBufferFormat::NHWCB,
+                                                                TensorShape{ 1, 5, 5, 1 }, TensorShape{ 1, 5, 5, 1 },
+                                                                TraversalOrder::Xyz, 0, QuantizationInfo()));
+        mcePlePlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "OutputPleInputSramBuffer";
+        mcePlePlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x0000F00F;
+        mcePlePlan.m_OpGraph.GetBuffers().back()->m_NumStripes = 1;
+
+        mcePlePlan.m_OpGraph.AddOp(std::make_unique<MceOp>(
+            Lifetime::Cascade, ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+            BlockConfig{ 16u, 16u }, TensorShape{ 1, 5, 5, 1 }, TensorShape{ 1, 5, 5, 1 }, outputTensorShape,
+            TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        mcePlePlan.m_OpGraph.GetOps()[0]->m_DebugTag = "MceOp Stride 1x1";
+
+        mcePlePlan.m_OpGraph.AddConsumer(mcePlePlan.m_OpGraph.GetBuffers()[0], mcePlePlan.m_OpGraph.GetOps()[0], 0);
+        mcePlePlan.m_OpGraph.AddConsumer(mcePlePlan.m_OpGraph.GetBuffers()[1], mcePlePlan.m_OpGraph.GetOps()[0], 1);
+        mcePlePlan.m_OpGraph.SetProducer(mcePlePlan.m_OpGraph.GetBuffers()[2], mcePlePlan.m_OpGraph.GetOps()[0]);
+
+        ifmDeltaHeight = static_cast<int8_t>(inputSramPlan.m_OpGraph.GetBuffers()[0]->m_TensorShape[1] -
+                                             mcePlePlan.m_OpGraph.GetBuffers()[2]->m_TensorShape[1]);
+        ifmDeltaWidth  = static_cast<int8_t>(inputSramPlan.m_OpGraph.GetBuffers()[0]->m_TensorShape[2] -
+                                            mcePlePlan.m_OpGraph.GetBuffers()[2]->m_TensorShape[2]);
+
+        // Adding an Interleave PLE kernel to the plan
+        pleOp =
+            std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::INTERLEAVE_2X2_2_2,
+                                    BlockConfig{ 16u, 16u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 5, 5, 1 } },
+                                    TensorShape{ 1, 5, 5, 1 }, ethosn::command_stream::DataType::U8, true);
+        pleOp.get()->m_Offset     = 0x0000F0F0;
+        numMemoryStripes.m_Output = 1;
+        auto outBufferAndPleOp    = AddPleToOpGraph(mcePlePlan.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
+                                                 TensorShape{ 1, 5, 5, 1 }, numMemoryStripes, std::move(pleOp),
+                                                 TensorShape{ 1, 5, 5, 1 }, QuantizationInfo(), operationIds);
+        mcePlePlan.m_OpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
+        mcePlePlan.m_OpGraph.AddConsumer(mcePlePlan.m_OpGraph.GetBuffers()[2], mcePlePlan.m_OpGraph.GetOps()[1], 0);
+
+        mcePlePlan.m_InputMappings  = { { mcePlePlan.m_OpGraph.GetBuffers()[0], mcePlePartInputSlot0 },
+                                       { mcePlePlan.m_OpGraph.GetBuffers()[1], mcePlePartInputSlot1 } };
+        mcePlePlan.m_OutputMappings = { { mcePlePlan.m_OpGraph.GetBuffers()[3], mcePlePartOutputSlot0 } };
+
+        // Plan weight2DramPlan
+        weight2DramPlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::WEIGHT, TensorShape{ 3, 3, 1, 1 },
+                                     TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
+        weight2DramPlan.m_OpGraph.GetBuffers().back()->m_BufferType     = BufferType::ConstantDma;
+        weight2DramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag       = "Weight2DramBuffer";
+        encodedWeights2                                                 = std::make_shared<EncodedWeights>();
+        encodedWeights2->m_Data                                         = { 1, 2, 3, 4 };
+        encodedWeights2->m_MaxSize                                      = 10;
+        encodedWeights2->m_Metadata                                     = { { 0, 2 }, { 2, 2 } };
+        weight2DramPlan.m_OpGraph.GetBuffers().back()->m_EncodedWeights = encodedWeights2;
+        weight2DramPlan.m_OutputMappings                                = { { weight2DramPlan.m_OpGraph.GetBuffers()[0],
+                                               weight2DramPartOutputSlot0 } };
+
+        // Glue glueWeightDram_WeightSram
+        glueWeight2Dram_Weight2Sram.m_Graph.AddOp(std::make_unique<DmaOp>());
+        glueWeight2Dram_Weight2Sram.m_Graph.GetOps()[0]->m_DebugTag = "Weight2DmaOp";
+        glueWeight2Dram_Weight2Sram.m_InputSlot = { glueWeight2Dram_Weight2Sram.m_Graph.GetOps()[0], 0 };
+        glueWeight2Dram_Weight2Sram.m_Output.push_back(glueWeight2Dram_Weight2Sram.m_Graph.GetOps()[0]);
+
+        // Plan weightSramPlan
+        weight2SramPlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::WEIGHT, TensorShape{ 3, 3, 1, 1 },
+                                     TensorShape{ 3, 3, 1, 1 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+        weight2SramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag    = "Weight2SramBuffer";
+        weight2SramPlan.m_OpGraph.GetBuffers().back()->m_Offset      = 0x00000FF0;
+        weight2SramPlan.m_OpGraph.GetBuffers().back()->m_NumStripes  = 1;
+        weight2SramPlan.m_OpGraph.GetBuffers().back()->m_SizeInBytes = encodedWeights2->m_MaxSize;
+        weight2SramPlan.m_InputMappings  = { { weight2SramPlan.m_OpGraph.GetBuffers()[0], weight2SramPartInputSlot0 } };
+        weight2SramPlan.m_OutputMappings = { { weight2SramPlan.m_OpGraph.GetBuffers()[0],
+                                               weight2SramPartOutputSlot0 } };
+
+        Buffer* ptrWeightBuffer2 = weight2SramPlan.m_OpGraph.GetBuffers().back();
+        weightSize2              = ptrWeightBuffer2->m_SizeInBytes / ptrWeightBuffer2->m_NumStripes;
+        kernelHeight2            = static_cast<uint8_t>(ptrWeightBuffer2->m_TensorShape[1]);
+        kernelWidth2             = static_cast<uint8_t>(ptrWeightBuffer2->m_TensorShape[2]);
+
+        // Plan mcePlePlan
+        mcePle2Plan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                                 TensorShape{ 1, 5, 5, 1 }, TensorShape{ 1, 5, 5, 1 },
+                                                                 TraversalOrder::Xyz, 1, QuantizationInfo()));
+        mcePle2Plan.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateInput2SramBuffer";
+        mcePle2Plan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x00000FFF;
+        mcePle2Plan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                                 TensorShape{ 1, 3, 3, 1 }, TensorShape{ 1, 3, 3, 1 },
+                                                                 TraversalOrder::Xyz, 1, QuantizationInfo()));
+        mcePle2Plan.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateWeight2SramBuffer";
+        mcePle2Plan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x0000F000;
+        mcePle2Plan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::PleInputSram, CascadingBufferFormat::NHWCB,
+                                                                 outputTensorShape, outputTensorShape,
+                                                                 TraversalOrder::Xyz, 4, QuantizationInfo()));
+        mcePle2Plan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "outputPleInputSramBuffer";
+        mcePle2Plan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x0000F00F;
+        mcePle2Plan.m_OpGraph.GetBuffers().back()->m_NumStripes = 1;
+
+        mcePle2Plan.m_OpGraph.AddOp(std::make_unique<MceOp>(
+            Lifetime::Cascade, ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+            BlockConfig{ 16u, 16u }, TensorShape{ 1, 5, 5, 1 }, outputTensorShape, outputTensorShape,
+            TraversalOrder::Xyz, Stride(2, 2), padLeft, padTop, 0, 255));
+        (static_cast<MceOp*>(mcePle2Plan.m_OpGraph.GetOps()[0]))->m_uninterleavedInputShape = TensorShape{ 1, 5, 5, 1 };
+
+        mcePle2Plan.m_OpGraph.GetOps()[0]->m_DebugTag = "MceOp Stride 2x2";
+
+        mcePle2Plan.m_OpGraph.AddConsumer(mcePle2Plan.m_OpGraph.GetBuffers()[0], mcePle2Plan.m_OpGraph.GetOps()[0], 0);
+        mcePle2Plan.m_OpGraph.AddConsumer(mcePle2Plan.m_OpGraph.GetBuffers()[1], mcePle2Plan.m_OpGraph.GetOps()[0], 1);
+        mcePle2Plan.m_OpGraph.SetProducer(mcePle2Plan.m_OpGraph.GetBuffers()[2], mcePle2Plan.m_OpGraph.GetOps()[0]);
+
+        // Adding a passthrough PLE kernel to the plan
+        // The PleKernelId is expected to be PASSTHROUGH_8x8_1
+        pleOp2 = std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
+                                         BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ outputTensorShape },
+                                         outputTensorShape, ethosn::command_stream::DataType::U8, true);
+        pleOp2.get()->m_Offset    = 0x0000F0F0;
+        numMemoryStripes.m_Output = 1;
+        auto outBufferAndPleOp2 =
+            AddPleToOpGraph(mcePle2Plan.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz, outputTensorShape,
+                            numMemoryStripes, std::move(pleOp2), outputTensorShape, QuantizationInfo(), operationIds);
+        mcePle2Plan.m_OpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
+        mcePle2Plan.m_OpGraph.AddConsumer(mcePle2Plan.m_OpGraph.GetBuffers()[2], mcePle2Plan.m_OpGraph.GetOps()[1], 0);
+
+        mcePle2Plan.m_InputMappings  = { { mcePle2Plan.m_OpGraph.GetBuffers()[0], mcePle2PartInputSlot0 },
+                                        { mcePle2Plan.m_OpGraph.GetBuffers()[1], mcePle2PartInputSlot1 } };
+        mcePle2Plan.m_OutputMappings = { { mcePle2Plan.m_OpGraph.GetBuffers()[3], mcePle2PartOutputSlot0 } };
+
+        // Glue glueOutputSram_OutputDram
+        glueOutputSram_OutputDram.m_Graph.AddOp(std::make_unique<DmaOp>());
+        glueOutputSram_OutputDram.m_Graph.GetOps()[0]->m_DebugTag = "outputDmaOp";
+        glueOutputSram_OutputDram.m_InputSlot = { glueOutputSram_OutputDram.m_Graph.GetOps()[0], 0 };
+        glueOutputSram_OutputDram.m_Output.push_back(glueOutputSram_OutputDram.m_Graph.GetOps()[0]);
+
+        // Plan outputDramPlan
+        outputDramPlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                                    outputTensorShape, TensorShape{ 0, 0, 0, 0 },
+                                                                    TraversalOrder::Xyz, 0, QuantizationInfo()));
+        outputDramPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
+        outputDramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "outputDramBuffer";
+        outputDramPlan.m_InputMappings = { { outputDramPlan.m_OpGraph.GetBuffers()[0], outputDramPartInputSlot0 } };
+
+        Elem elemInputDram  = { std::make_shared<Plan>(std::move(inputDramPlan)),
+                               { { inputSramPartInputSlot0, { &glueInputDram_InputSram, true } } } };
+        Elem elemInputSram  = { std::make_shared<Plan>(std::move(inputSramPlan)), {} };
+        Elem elemWeightDram = { std::make_shared<Plan>(std::move(weightDramPlan)),
+                                { { weightSramPartInputSlot0, { &glueWeightDram_WeightSram, true } } } };
+        Elem elemWeightSram = { std::make_shared<Plan>(std::move(weightSramPlan)), {} };
+        Elem elemMcePle     = { std::make_shared<Plan>(std::move(mcePlePlan)), {} };
+
+        Elem elemWeight2Dram = { std::make_shared<Plan>(std::move(weight2DramPlan)),
+                                 { { weight2SramPartInputSlot0, { &glueWeight2Dram_Weight2Sram, true } } } };
+        Elem elemWeight2Sram = { std::make_shared<Plan>(std::move(weight2SramPlan)), {} };
+        Elem elemMcePle2     = { std::make_shared<Plan>(std::move(mcePle2Plan)),
+                             { { outputDramPartInputSlot0, { &glueOutputSram_OutputDram, true } } } };
+        Elem elemoutputDram  = { std::make_shared<Plan>(std::move(outputDramPlan)), {} };
+
+        comb.m_Elems.insert(std::make_pair(0, elemInputDram));
+        comb.m_PartIdsInOrder.push_back(0);
+        comb.m_Elems.insert(std::make_pair(1, elemInputSram));
+        comb.m_PartIdsInOrder.push_back(1);
+        comb.m_Elems.insert(std::make_pair(2, elemWeightDram));
+        comb.m_PartIdsInOrder.push_back(2);
+        comb.m_Elems.insert(std::make_pair(3, elemWeightSram));
+        comb.m_PartIdsInOrder.push_back(3);
+        comb.m_Elems.insert(std::make_pair(4, elemMcePle));
+        comb.m_PartIdsInOrder.push_back(4);
+
+        comb.m_Elems.insert(std::make_pair(5, elemWeight2Dram));
+        comb.m_PartIdsInOrder.push_back(5);
+        comb.m_Elems.insert(std::make_pair(6, elemWeight2Sram));
+        comb.m_PartIdsInOrder.push_back(6);
+        comb.m_Elems.insert(std::make_pair(7, elemMcePle2));
+        comb.m_PartIdsInOrder.push_back(7);
+        comb.m_Elems.insert(std::make_pair(8, elemoutputDram));
+        comb.m_PartIdsInOrder.push_back(8);
+
+        bool dumpInputGraphToFile = false;
+        if (dumpInputGraphToFile)
+        {
+            std::ofstream stream("CascadingCompiler_StridedConvOpGraph_Input.dot");
+            SaveCombinationToDot(comb, graph, stream, DetailLevel::High);
+        }
+
+        mergedOpGraph = GetOpGraphForCombination(comb, graph);
+
+        bool dumpOutputGraphToFile = false;
+        if (dumpOutputGraphToFile)
+        {
+            std::ofstream stream("CascadingCompiler_StridedConvOpGraph_Output.dot");
+            SaveOpGraphToDot(mergedOpGraph, stream, DetailLevel::High);
+        }
+
+        ETHOSN_UNUSED(outBufferAndPleOp);
+        ETHOSN_UNUSED(outBufferAndPleOp2);
+    }
+
+    OpGraph GetMergedOpGraph()
+    {
+        return mergedOpGraph;
+    }
+
+    uint32_t getInputStripeSize()
+    {
+        return inputStripeSize;
+    }
+
+    uint32_t getWeightSize()
+    {
+        return weightSize;
+    }
+
+    int32_t getInputZeroPoint()
+    {
+        return inputZeroPoint;
+    }
+
+    uint8_t getKernelHeight()
+    {
+        return kernelHeight;
+    }
+
+    uint8_t getKernelWidth()
+    {
+        return kernelWidth;
+    }
+
+    int8_t getIfmDeltaHeight()
+    {
+        return ifmDeltaHeight;
+    }
+
+    int8_t getIfmDeltaWidth()
+    {
+        return ifmDeltaWidth;
+    }
+
+private:
+    GraphOfParts graph;
+
+    Plan inputDramPlan;
+    Glue glueInputDram_InputSram;
+    Plan inputSramPlan;
+    Plan weightDramPlan;
+    Glue glueWeightDram_WeightSram;
+    Plan weightSramPlan;
+    Plan mcePlePlan;
+
+    Plan weight2DramPlan;
+    Glue glueWeight2Dram_Weight2Sram;
+    Plan weight2SramPlan;
+    Plan mcePle2Plan;
+    Glue glueOutputSram_OutputDram;
+    Plan outputDramPlan;
+
+    std::shared_ptr<EncodedWeights> encodedWeights;
+    std::shared_ptr<EncodedWeights> encodedWeights2;
+
+    std::unique_ptr<PleOp> pleOp;
+    std::unique_ptr<PleOp> pleOp2;
+
+    uint32_t inputStripeSize;
+    uint32_t weightSize;
+    uint32_t weightSize2;
+    int32_t inputZeroPoint;
+
+    uint8_t kernelHeight;
+    uint8_t kernelWidth;
+    uint8_t kernelHeight2;
+    uint8_t kernelWidth2;
+    int8_t ifmDeltaHeight;
+    int8_t ifmDeltaWidth;
+
+    Combination comb;
+    OpGraph mergedOpGraph;
+};
+
 //////////////////////////////////////////////////////////////////////////////////////////////
 // Agent Data Tests
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -1887,6 +2312,126 @@ TEST_CASE("MceScheduler Agent Data Test", "[CascadingCompiler]")
 
     REQUIRE(mceSData.reluActiv.max == 255);
     REQUIRE(mceSData.reluActiv.min == 0);
+
+    REQUIRE(mceSData.pleKernelId == cascading::PleKernelId::PASSTHROUGH_8X8_1);
+}
+
+TEST_CASE("MceScheduler Agent Data Test - 3x3 Convolution - 2x2 Stride - Valid Padding", "[CascadingCompiler]")
+{
+    StridedConvOpGraph stridedConvGraph = StridedConvOpGraph(0, 0, { 1, 2, 2, 1 });
+    OpGraph mergedOpGraph               = stridedConvGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& mceSAgent = commandStream[7];
+    const MceS& mceSData   = mceSAgent.data.mce;
+
+    // Submap 0
+    REQUIRE(mceSData.filterShape[0].height == 2);
+    REQUIRE(mceSData.filterShape[0].width == 2);
+    REQUIRE(mceSData.padding[0].left == 0);
+    REQUIRE(mceSData.padding[0].top == 0);
+    REQUIRE(mceSData.ifmDeltaDefault[0].height == 1);
+    REQUIRE(mceSData.ifmDeltaDefault[0].width == 1);
+    REQUIRE(mceSData.ifmDeltaEdge[0].height == 1);
+    REQUIRE(mceSData.ifmDeltaEdge[0].width == 1);
+
+    // Submap 1
+    REQUIRE(mceSData.filterShape[1].height == 2);
+    REQUIRE(mceSData.filterShape[1].width == 1);
+    REQUIRE(mceSData.padding[1].left == 0);
+    REQUIRE(mceSData.padding[1].top == 0);
+    REQUIRE(mceSData.ifmDeltaDefault[1].height == 1);
+    REQUIRE(mceSData.ifmDeltaDefault[1].width == 0);
+    REQUIRE(mceSData.ifmDeltaEdge[1].height == 1);
+    REQUIRE(mceSData.ifmDeltaEdge[1].width == 0);
+
+    // Submap 2
+    REQUIRE(mceSData.filterShape[2].height == 1);
+    REQUIRE(mceSData.filterShape[2].width == 2);
+    REQUIRE(mceSData.padding[2].left == 0);
+    REQUIRE(mceSData.padding[2].top == 0);
+    REQUIRE(mceSData.ifmDeltaDefault[2].height == 0);
+    REQUIRE(mceSData.ifmDeltaDefault[2].width == 1);
+    REQUIRE(mceSData.ifmDeltaEdge[2].height == 0);
+    REQUIRE(mceSData.ifmDeltaEdge[2].width == 1);
+
+    // Submap 3
+    REQUIRE(mceSData.filterShape[3].height == 1);
+    REQUIRE(mceSData.filterShape[3].width == 1);
+    REQUIRE(mceSData.padding[3].left == 0);
+    REQUIRE(mceSData.padding[3].top == 0);
+    REQUIRE(mceSData.ifmDeltaDefault[3].height == 0);
+    REQUIRE(mceSData.ifmDeltaDefault[3].width == 0);
+    REQUIRE(mceSData.ifmDeltaEdge[3].height == 0);
+    REQUIRE(mceSData.ifmDeltaEdge[3].width == 0);
+
+    REQUIRE(mceSData.pleKernelId == cascading::PleKernelId::PASSTHROUGH_8X8_1);
+}
+
+TEST_CASE("MceScheduler Agent Data Test - 3x3 Convolution - 2x2 Stride - Same Padding", "[CascadingCompiler]")
+{
+    StridedConvOpGraph stridedConvGraph = StridedConvOpGraph(1, 1, { 1, 3, 3, 1 });
+    OpGraph mergedOpGraph               = stridedConvGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCompiler cascadingCompiler(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = cascadingCompiler.Compile();
+
+    const std::vector<Agent>& commandStream = cascadingCompiler.GetCommandStreamOfAgents();
+
+    const Agent& mceSAgent = commandStream[7];
+    const MceS& mceSData   = mceSAgent.data.mce;
+
+    // Submap 0
+    REQUIRE(mceSData.filterShape[0].height == 1);
+    REQUIRE(mceSData.filterShape[0].width == 1);
+    REQUIRE(mceSData.padding[0].left == 0);
+    REQUIRE(mceSData.padding[0].top == 0);
+    REQUIRE(mceSData.ifmDeltaDefault[0].height == 0);
+    REQUIRE(mceSData.ifmDeltaDefault[0].width == 0);
+    REQUIRE(mceSData.ifmDeltaEdge[0].height == 0);
+    REQUIRE(mceSData.ifmDeltaEdge[0].width == 0);
+
+    // Submap 1
+    REQUIRE(mceSData.filterShape[1].height == 1);
+    REQUIRE(mceSData.filterShape[1].width == 2);
+    REQUIRE(mceSData.padding[1].left == 1);
+    REQUIRE(mceSData.padding[1].top == 0);
+    REQUIRE(mceSData.ifmDeltaDefault[1].height == 0);
+    REQUIRE(mceSData.ifmDeltaDefault[1].width == -1);
+    REQUIRE(mceSData.ifmDeltaEdge[1].height == 0);
+    REQUIRE(mceSData.ifmDeltaEdge[1].width == -1);
+
+    // Submap 2
+    REQUIRE(mceSData.filterShape[2].height == 2);
+    REQUIRE(mceSData.filterShape[2].width == 1);
+    REQUIRE(mceSData.padding[2].left == 0);
+    REQUIRE(mceSData.padding[2].top == 1);
+    REQUIRE(mceSData.ifmDeltaDefault[2].height == -1);
+    REQUIRE(mceSData.ifmDeltaDefault[2].width == 0);
+    REQUIRE(mceSData.ifmDeltaEdge[2].height == -1);
+    REQUIRE(mceSData.ifmDeltaEdge[2].width == 0);
+
+    // Submap 3
+    REQUIRE(mceSData.filterShape[3].height == 2);
+    REQUIRE(mceSData.filterShape[3].width == 2);
+    REQUIRE(mceSData.padding[3].left == 1);
+    REQUIRE(mceSData.padding[3].top == 1);
+    REQUIRE(mceSData.ifmDeltaDefault[3].height == -1);
+    REQUIRE(mceSData.ifmDeltaDefault[3].width == -1);
+    REQUIRE(mceSData.ifmDeltaEdge[3].height == -1);
+    REQUIRE(mceSData.ifmDeltaEdge[3].width == -1);
 
     REQUIRE(mceSData.pleKernelId == cascading::PleKernelId::PASSTHROUGH_8X8_1);
 }

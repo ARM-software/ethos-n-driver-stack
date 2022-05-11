@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Plan.hpp"
+#include "SubmapFilter.hpp"
 #include "Utils.hpp"
 
 #define ETHOSN_ASSERT_MSG(cond, msg) assert(cond)
@@ -352,6 +353,101 @@ inline void setMcesAlgorithm(MceS& mceSchedulerData, CompilerMceAlgorithm algori
     else
     {
         assert(false);
+    }
+}
+
+inline void setMcesStridedConvolutionData(MceS& mceSchedulerData, const OpGraph& mergedOpGraph, MceOp* const ptrMceOp)
+{
+
+    // Get the input buffers to the Mce Op
+    OpGraph::BufferList inputBuffers = mergedOpGraph.GetInputs(ptrMceOp);
+    Buffer* weightBuffer             = inputBuffers[g_MceWeightBufferIndex];
+
+    // Set the filter shapes
+    auto filters =
+        GetSubmapFilters(weightBuffer->m_TensorShape[1], weightBuffer->m_TensorShape[0], ptrMceOp->m_Stride.m_X,
+                         ptrMceOp->m_Stride.m_Y, ptrMceOp->m_PadLeft, ptrMceOp->m_PadTop, weightBuffer->m_TensorShape);
+
+    mceSchedulerData.filterShape[0].height = ethosn::utils::NumericCast<uint8_t>(filters[0].GetFilterY());
+    mceSchedulerData.filterShape[0].width  = ethosn::utils::NumericCast<uint8_t>(filters[0].GetFilterX());
+
+    mceSchedulerData.filterShape[1].height = ethosn::utils::NumericCast<uint8_t>(filters[1].GetFilterY());
+    mceSchedulerData.filterShape[1].width  = ethosn::utils::NumericCast<uint8_t>(filters[1].GetFilterX());
+
+    mceSchedulerData.filterShape[2].height = ethosn::utils::NumericCast<uint8_t>(filters[2].GetFilterY());
+    mceSchedulerData.filterShape[2].width  = ethosn::utils::NumericCast<uint8_t>(filters[2].GetFilterX());
+
+    mceSchedulerData.filterShape[3].height = ethosn::utils::NumericCast<uint8_t>(filters[3].GetFilterY());
+    mceSchedulerData.filterShape[3].width  = ethosn::utils::NumericCast<uint8_t>(filters[3].GetFilterX());
+
+    // Set the padding information and Ifm delta for each sub map
+    for (uint8_t subMapIndex = 0; subMapIndex < 4; subMapIndex++)
+    {
+        // Set the padding information for each sub map
+        const uint32_t x        = subMapIndex % ptrMceOp->m_Stride.m_X;
+        const uint32_t y        = subMapIndex / ptrMceOp->m_Stride.m_X;
+        const uint32_t shiftedX = (x + ptrMceOp->m_PadLeft) % ptrMceOp->m_Stride.m_X;
+        const uint32_t shiftedY = (y + ptrMceOp->m_PadTop) % ptrMceOp->m_Stride.m_Y;
+
+        const uint32_t leftPad =
+            utils::DivRoundUp(static_cast<uint32_t>(std::max(
+                                  static_cast<int32_t>(ptrMceOp->m_PadLeft) - static_cast<int32_t>(shiftedX), 0)),
+                              ptrMceOp->m_Stride.m_X);
+        mceSchedulerData.padding[subMapIndex].left = ethosn::utils::NumericCast<uint8_t>(leftPad);
+
+        const uint32_t topPad =
+            utils::DivRoundUp(static_cast<uint32_t>(std::max(
+                                  static_cast<int32_t>(ptrMceOp->m_PadTop) - static_cast<int32_t>(shiftedY), 0)),
+                              ptrMceOp->m_Stride.m_Y);
+        mceSchedulerData.padding[subMapIndex].top = ethosn::utils::NumericCast<uint8_t>(topPad);
+
+        // Set the Ifm delta for each sub map
+        assert(ptrMceOp->m_uninterleavedInputShape.has_value());
+
+        uint32_t currSubmapInputWidth  = 0;
+        uint32_t currSubmapInputHeight = 0;
+
+        if (ptrMceOp->m_Stride.m_X > 1 || ptrMceOp->m_Stride.m_Y > 1)
+        {
+            /// This represents the post interleave input width for the specific submap index.
+            currSubmapInputWidth = utils::DivRoundUp(
+                static_cast<uint32_t>(
+                    std::max(static_cast<int32_t>(utils::GetWidth(ptrMceOp->m_uninterleavedInputShape.value())) -
+                                 static_cast<int32_t>(x),
+                             0)),
+                ptrMceOp->m_Stride.m_X);
+            /// This represents the post interleave input height for the specific submap index.
+            currSubmapInputHeight = utils::DivRoundUp(
+                static_cast<uint32_t>(
+                    std::max(static_cast<int32_t>(utils::GetHeight(ptrMceOp->m_uninterleavedInputShape.value())) -
+                                 static_cast<int32_t>(y),
+                             0)),
+                ptrMceOp->m_Stride.m_Y);
+        }
+
+        /// Ifm stripe width/height delta is the amount of valid data outside the ifm stripe on the right/bottom edge
+        /// that can be used to calculate the Ofm stripe. This is equal to the difference between the IFM and OFM
+        /// width/height when at the edges of the whole IFM.
+
+        const int32_t ifmStripeNeighboringDataRight =
+            static_cast<int32_t>(currSubmapInputWidth) -
+            static_cast<int32_t>(utils::GetWidth(ptrMceOp->m_OutputStripeShape));
+
+        const int32_t ifmStripeNeighboringDataBottom =
+            static_cast<int32_t>(currSubmapInputHeight) -
+            static_cast<int32_t>(utils::GetHeight(ptrMceOp->m_OutputStripeShape));
+
+        // Set the Ifm delta default
+        mceSchedulerData.ifmDeltaDefault[subMapIndex].height =
+            ethosn::utils::NumericCast<int8_t>(ifmStripeNeighboringDataBottom);
+        mceSchedulerData.ifmDeltaDefault[subMapIndex].width =
+            ethosn::utils::NumericCast<int8_t>(ifmStripeNeighboringDataRight);
+
+        // Set the Ifm delta edge
+        mceSchedulerData.ifmDeltaEdge[subMapIndex].height =
+            ethosn::utils::NumericCast<int8_t>(ifmStripeNeighboringDataBottom);
+        mceSchedulerData.ifmDeltaEdge[subMapIndex].width =
+            ethosn::utils::NumericCast<int8_t>(ifmStripeNeighboringDataRight);
     }
 }
 }    // namespace MceSUtils

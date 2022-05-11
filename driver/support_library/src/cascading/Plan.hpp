@@ -251,6 +251,7 @@ public:
     command_stream::UpsampleType m_UpsampleType;
     int16_t m_LowerBound;
     int16_t m_UpperBound;
+    utils::Optional<TensorShape> m_uninterleavedInputShape;
 };
 
 class PleOp : public Op

@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "../Compiler.hpp"
 #include "CascadingCompiler.hpp"
 #include "CascadingCompilerUtils.hpp"
+#include "Compiler.hpp"
 
 #include <memory>
 
@@ -709,20 +709,36 @@ AgentIdType CascadingCompiler::AddMceSchedulerToCommandStream(MceOp* const ptrMc
 
     MceSUtils::setMcesOpMode(mceSchedulerData, ptrMceOp->m_Op);
     MceSUtils::setMcesAlgorithm(mceSchedulerData, ptrMceOp->m_Algo);
-    for (int i = 0; i < 4; i++)
+
+    if (ptrMceOp->m_Stride.m_X == 1 && ptrMceOp->m_Stride.m_Y == 1)
     {
-        mceSchedulerData.filterShape[i].height = static_cast<uint8_t>(weightBuffer->m_TensorShape[1]);
-        mceSchedulerData.filterShape[i].width  = static_cast<uint8_t>(weightBuffer->m_TensorShape[2]);
-        mceSchedulerData.padding[i].left       = static_cast<uint8_t>(ptrMceOp->m_PadLeft);
-        mceSchedulerData.padding[i].top        = static_cast<uint8_t>(ptrMceOp->m_PadTop);
-        mceSchedulerData.ifmDeltaDefault[i].height =
+        for (int i = 0; i < 4; i++)
+        {
+            mceSchedulerData.filterShape[i].height =
+                ethosn::utils::NumericCast<uint8_t>(weightBuffer->m_TensorShape[0]);
+            mceSchedulerData.filterShape[i].width = ethosn::utils::NumericCast<uint8_t>(weightBuffer->m_TensorShape[1]);
+        }
+
+        mceSchedulerData.padding[0].left = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_PadLeft);
+        mceSchedulerData.padding[0].top  = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_PadTop);
+
+        mceSchedulerData.ifmDeltaDefault[0].height =
             static_cast<int8_t>(inputBuffer->m_TensorShape[1] - outputBuffer->m_TensorShape[1]);
-        mceSchedulerData.ifmDeltaDefault[i].width =
+        mceSchedulerData.ifmDeltaDefault[0].width =
             static_cast<int8_t>(inputBuffer->m_TensorShape[2] - outputBuffer->m_TensorShape[2]);
-        mceSchedulerData.ifmDeltaEdge[i].height =
+
+        mceSchedulerData.ifmDeltaEdge[0].height =
             static_cast<int8_t>(inputBuffer->m_TensorShape[1] - outputBuffer->m_TensorShape[1]);
-        mceSchedulerData.ifmDeltaEdge[i].width =
+        mceSchedulerData.ifmDeltaEdge[0].width =
             static_cast<int8_t>(inputBuffer->m_TensorShape[2] - outputBuffer->m_TensorShape[2]);
+    }
+    else if (ptrMceOp->m_Stride.m_X == 2 && ptrMceOp->m_Stride.m_Y == 2)
+    {
+        MceSUtils::setMcesStridedConvolutionData(mceSchedulerData, m_MergedOpGraph, ptrMceOp);
+    }
+    else
+    {
+        assert(false);
     }
 
     mceSchedulerData.reluActiv.min = ptrMceOp->m_LowerBound;

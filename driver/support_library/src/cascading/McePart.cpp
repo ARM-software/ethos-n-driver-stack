@@ -452,8 +452,12 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
                                 m_Stride, m_PadLeft, m_PadTop, m_LowerBound, m_UpperBound);
     mceOp->m_UpscaleFactor = m_UpscaleFactor;
     mceOp->m_UpsampleType  = m_UpsampleType;
-    Op* op                 = opGraph.AddOp(std::move(mceOp));
-    op->m_OperationIds     = m_CorrespondingOperationIds;
+    if (m_UninterleavedInputShape.has_value())
+    {
+        mceOp->m_uninterleavedInputShape = m_UninterleavedInputShape;
+    }
+    Op* op             = opGraph.AddOp(std::move(mceOp));
+    op->m_OperationIds = m_CorrespondingOperationIds;
     opGraph.AddConsumer(sramInBuffer, op, 0);
     opGraph.AddConsumer(sramWeightBuffer, op, 1);
 
@@ -832,6 +836,11 @@ ethosn::support_library::DotAttributes McePart::GetDotAttributes(DetailLevel det
             "StripeGenerator.PleShapeMultiplier = " + ToString(m_StripeGenerator.m_PleShapeMultiplier) + "\n";
     }
     return result;
+}
+
+void McePart::setUninterleavedInputShape(TensorShape uninterleavedInputShape)
+{
+    m_UninterleavedInputShape = uninterleavedInputShape;
 }
 
 }    // namespace support_library

@@ -144,7 +144,8 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
     }
     else
     {
-        TensorInfo mceOperationInput = depthwise.GetInput(0).GetTensorInfo();
+        TensorInfo mceOperationInput        = depthwise.GetInput(0).GetTensorInfo();
+        TensorShape uninterleavedInputShape = depthwise.GetInput(0).GetTensorInfo().m_Dimensions;
 
         // Check if it is a strided depthwise and add a FusedPlePart.
         if (convInfo.m_Stride.m_X > 1 || convInfo.m_Stride.m_Y > 1)
@@ -203,6 +204,11 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
             std::set<uint32_t>{ depthwise.GetId(), depthwise.GetBias().GetId(), depthwise.GetWeights().GetId() },
             GetCommandDataType(depthwise.GetOutput(0).GetTensorInfo().m_DataType));
 
+        if (convInfo.m_Stride.m_X > 1 || convInfo.m_Stride.m_Y > 1)
+        {
+            mcePart->setUninterleavedInputShape(uninterleavedInputShape);
+        }
+
         parts.push_back(mcePart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
     }
@@ -238,6 +244,8 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
     }
     else
     {
+        TensorShape uninterleavedInputShape = convolution.GetInput(0).GetTensorInfo().m_Dimensions;
+
         // Check if it is a strided convolution and add a FusedPlePart.
         if (convInfo.m_Stride.m_X > 1 || convInfo.m_Stride.m_Y > 1)
         {
@@ -290,6 +298,11 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
             m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
             std::set<uint32_t>{ convolution.GetId(), convolution.GetBias().GetId(), convolution.GetWeights().GetId() },
             GetCommandDataType(convolution.GetOutput(0).GetTensorInfo().m_DataType));
+
+        if (convInfo.m_Stride.m_X > 1 || convInfo.m_Stride.m_Y > 1)
+        {
+            mcePart->setUninterleavedInputShape(uninterleavedInputShape);
+        }
 
         parts.push_back(mcePart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(mcePart));

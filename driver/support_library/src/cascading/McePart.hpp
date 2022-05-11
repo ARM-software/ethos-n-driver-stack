@@ -84,6 +84,8 @@ public:
 
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
 
+    void setUninterleavedInputShape(TensorShape uninterleavedInputShape);
+
 protected:
     void CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                                       TraversalOrder order,
@@ -92,6 +94,7 @@ protected:
                                       uint32_t numWeightStripes,
                                       bool couldSourceBeFcaf) const;
 
+    utils::Optional<TensorShape> m_UninterleavedInputShape;
     TensorShape m_InputTensorShape;
     TensorShape m_OutputTensorShape;
     mutable WeightEncoderCache m_WeightEncoderCache;
