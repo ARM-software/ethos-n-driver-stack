@@ -685,39 +685,48 @@ void ethosn_set_power_ctrl(struct ethosn_core *core,
 }
 
 /**
- * ethosn_set_mmu_stream_id() - Configure the mmu stream id0.
+ * ethosn_set_mmu_stream_ids() - Configure the mmu stream IDs.
  * @core:	Pointer to Ethos-N core
  *
  * Return: Negative error code on error, zero otherwise
  */
-int ethosn_set_mmu_stream_id(struct ethosn_core *core)
+static int ethosn_set_mmu_stream_ids(struct ethosn_core *core)
 {
 	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(core->dev);
 	int ret = -EINVAL;
-	unsigned int stream_id;
-	static const int mmusid_0 = DL1_STREAM0_MMUSID;
+	u32 smmu_stream_id;
+
+	if (!fwspec)
+		return ret;
 
 	/*
 	 * Currently, it is permitted to define only one stream id in the dts
 	 * file. There is no advantage of defining multiple stream ids when
 	 * the device uses all the streams at almost all the times.
 	 */
-	if (fwspec->num_ids > 1) {
+	if (fwspec->num_ids != 1) {
 		dev_err(core->dev,
-			"Support for multiple streams for a single device is not allowed\n");
+			"Number of stream IDs specified(%u) for the device is invalid. Only one stream for a single device is allowed\n",
+			fwspec->num_ids);
 
 		return ret;
 	}
 
-	stream_id = fwspec->ids[0];
+	smmu_stream_id = fwspec->ids[0];
 
 	/*
 	 * The value of stream id fetched from the dts is used to program the
-	 * STREAM0_MMUSID register. The other stream id registers are programmed
-	 * based on this value in the firmware.
+	 * multiple STREAM*_MMUSID registers.
 	 */
-	ethosn_write_top_reg(core, DL1_RP, mmusid_0, stream_id);
-	ethosn_write_top_reg(core, DL1_RP, GP_MMUSID0, stream_id);
+	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM0_MMUSID, smmu_stream_id);
+	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM1_MMUSID, smmu_stream_id);
+	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM2_MMUSID, smmu_stream_id);
+	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM3_MMUSID, smmu_stream_id);
+	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM4_MMUSID, smmu_stream_id);
+	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM5_MMUSID, smmu_stream_id);
+	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM6_MMUSID, smmu_stream_id);
+	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM7_MMUSID, smmu_stream_id);
+	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM8_MMUSID, smmu_stream_id);
 
 	return 0;
 }
@@ -1550,9 +1559,9 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 	if (ret)
 		return ret;
 
-	/* Set MMU Stream id0 if iommu is present */
+	/* Setup the MMU Stream IDs if iommu is present */
 	if (ethosn_smmu_available(core->dev)) {
-		ret = ethosn_set_mmu_stream_id(core);
+		ret = ethosn_set_mmu_stream_ids(core);
 		if (ret)
 			return ret;
 	}

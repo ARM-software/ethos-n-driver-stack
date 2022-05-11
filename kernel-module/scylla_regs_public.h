@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2020 Arm Limited.
+ * (C) COPYRIGHT 2018-2020,2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -63,6 +63,14 @@
 #define DL1_STREAM0_NSAID 0x3004
 #define DL1_STREAM0_MMUSID 0x3008
 #define DL1_STREAM0_MMUSSID 0x300C
+#define DL1_STREAM1_MMUSID 0x4008
+#define DL1_STREAM2_MMUSID 0x5008
+#define DL1_STREAM3_MMUSID 0x6008
+#define DL1_STREAM4_MMUSID 0x7008
+#define DL1_STREAM5_MMUSID 0x8008
+#define DL1_STREAM6_MMUSID 0x9008
+#define DL1_STREAM7_MMUSID 0xA008
+#define DL1_STREAM8_MMUSID 0xB008
 #define DL1_STREAM0_ATTR_CONTROL 0x3010
 #define DL1_STREAM0_MEMATTR 0x3014
 #define DL1_STREAM0_ADDRESS_EXTEND 0x3018

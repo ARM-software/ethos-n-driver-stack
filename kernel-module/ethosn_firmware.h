@@ -591,7 +591,6 @@ struct ethosn_message_error_response {
  * between kernel driver and firmware
  */
 #define GP_IRQ                          DL1_GP0
-#define GP_MMUSID0                      DL1_GP1
 #define GP_MAILBOX                      DL1_GP2
 #define GP_STREAM1_ADDRESS_EXTEND       DL1_GP3
 #define GP_STREAM2_ADDRESS_EXTEND       DL1_GP4
