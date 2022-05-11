@@ -534,12 +534,6 @@ constexpr std::vector<Out> Map(const std::vector<In>& container, Func func)
     return result;
 }
 
-template <typename T>
-T NextEnumValue(T current)
-{
-    return static_cast<T>(static_cast<uint32_t>(current) + 1);
-}
-
 struct Fraction
 {
     uint32_t m_Numerator;

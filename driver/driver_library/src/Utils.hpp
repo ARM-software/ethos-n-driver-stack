@@ -165,11 +165,5 @@ uint32_t GetLastAddressedMemory(const std::vector<TBufferInfo>& buffers)
     return BufferSize(*maxBuffer);
 }
 
-template <typename T>
-T NextEnumValue(T current)
-{
-    return static_cast<T>(static_cast<uint32_t>(current) + 1);
-}
-
 }    // namespace driver_library
 }    // namespace ethosn

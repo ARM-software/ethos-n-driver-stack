@@ -8,6 +8,8 @@
 #include "ProfilingInternal.hpp"
 #include "Utils.hpp"
 
+#include <ethosn_utils/Enums.hpp>
+
 #include <ostream>
 #include <string>
 #include <vector>
@@ -24,7 +26,7 @@ void DumpAllProfilingData(std::ostream& outStream)
     std::vector<ProfilingEntry> entries = profiling::g_ProfilingEntries;
     // As well as dumping the currently queued profiling events, include a sample of every pollable counter.
     for (PollCounterName counter = static_cast<PollCounterName>(PollCounterName::DriverLibraryNumLiveBuffers);
-         counter < PollCounterName::NumValues; counter = NextEnumValue(counter))
+         counter < PollCounterName::NumValues; counter = ethosn::utils::NextEnumValue(counter))
     {
         ProfilingEntry entry;
         entry.m_Timestamp        = std::chrono::high_resolution_clock::now();

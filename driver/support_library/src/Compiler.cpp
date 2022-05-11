@@ -18,6 +18,8 @@
 #include "nonCascading/SpaceToDepthPass.hpp"
 #include "nonCascading/Strategies.hpp"
 
+#include <ethosn_utils/Enums.hpp>
+
 #include <fstream>
 #include <numeric>
 #include <sstream>
@@ -270,7 +272,7 @@ void Compiler::Prepare(bool isPerfEstimate)
         // First try making less severe changes and then only escalate to more severe changes if necessary.
         // This prevents making potentially suboptimal changes to the graph that aren't necessary.
         for (FixGraphSeverity severity = FixGraphSeverity::Lowest; severity <= FixGraphSeverity::Highest;
-             severity                  = utils::NextEnumValue(severity))
+             severity                  = ethosn::utils::NextEnumValue(severity))
         {
             for (auto& n : nodes)
             {

@@ -48,12 +48,6 @@ bool VerifyLibraries()
     return IsDriverLibSupported && IsSupportLibSupported;
 }
 
-template <typename T>
-T NextEnumValue(T current)
-{
-    return static_cast<T>(static_cast<uint32_t>(current) + 1);
-}
-
 BackendRegistry::StaticRegistryInitializer g_RegisterHelper{ BackendRegistryInstance(), EthosNBackend::GetIdStatic(),
                                                              []() {
                                                                  return IBackendInternalUniquePtr(new EthosNBackend);
