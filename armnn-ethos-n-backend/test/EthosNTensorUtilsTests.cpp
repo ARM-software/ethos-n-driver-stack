@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -104,6 +104,45 @@ TEST_SUITE("EthosNTensorUtils")
                                   DataType::QAsymmU8, 0.1f, 20) == ethosn_lib::ReluInfo(10, 30));
         CHECK(BuildEthosNReluInfo(ActivationDescriptor(ActivationFunction::BoundedReLu, 1.0f, -1.0f),
                                   DataType::QAsymmS8, 0.1f, -20) == ethosn_lib::ReluInfo(-30, -10));
+    }
+
+    TEST_CASE("BuildEthosNBiasesInfo")
+    {
+        // Declare a set of parameters that are supported, so we can re-use these for the different subcases
+        const TensorInfo inputInfo({ 1, 16, 16, 16 }, DataType::QAsymmU8, 1.0f, 0);
+        const TensorInfo weightInfo({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
+        TensorInfo biasInfo({ 1, 1, 1, 16 }, DataType::Signed32, 0.9f, 0, true);
+
+        Convolution2dDescriptor descriptor;
+        descriptor.m_BiasEnabled = true;
+        descriptor.m_DataLayout  = DataLayout::NHWC;
+        descriptor.m_StrideX     = 1;
+        descriptor.m_StrideY     = 1;
+        auto ExpectFail = [](const TensorInfo& biasInfo, const TensorInfo& inputInfo, const TensorInfo& weightInfo) {
+            BuildEthosNBiasesInfo(biasInfo, inputInfo, weightInfo);
+        };
+        //In this scenario we assume that tolerance is 1%
+        SUBCASE("Tolerable difference")
+        {
+            auto newScales = std::vector<float>{ 0.891999976f };
+            biasInfo.SetQuantizationScales(newScales);
+            auto res = BuildEthosNBiasesInfo(biasInfo, inputInfo, weightInfo);
+            CHECK(res.m_QuantizationInfo.GetScale(0) == 0.899999976f);
+        }
+        //In this scenario we assume that tolerance is 1%
+        SUBCASE("Intolerable difference")
+        {
+            auto newScales = std::vector<float>{ 0.890999976f };
+            biasInfo.SetQuantizationScales(newScales);
+            CHECK_THROWS_AS(ExpectFail(biasInfo, inputInfo, weightInfo), InvalidArgumentException);
+        }
+        SUBCASE("Different amount of biases")
+        {
+            auto newScales = std::vector<float>{ 0.899999976f, 1.0f };
+            biasInfo.SetQuantizationScales(newScales);
+            REQUIRE_THROWS_WITH(ExpectFail(biasInfo, inputInfo, weightInfo),
+                                "The amount of biases scales(2) is different from weightScales*inputScales(1)");
+        }
     }
 }
 

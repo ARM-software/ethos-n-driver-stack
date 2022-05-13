@@ -312,6 +312,14 @@ ethosn_lib::TensorInfo BuildEthosNFullyConnectedWeightsInfo(const TensorInfo& we
     return ethosnWeightsInfo;
 }
 
+// Measure the relative percentage difference between x and y(e.g. y is 2% more than x)
+// Function returns TRUE if the difference is NOT tolerable
+bool IsNotTolerable(float x, float y, float tolerance)
+{
+    float toleranceValue = std::fabs(x * tolerance);
+    return std::fabs(x - y) > toleranceValue;
+}
+
 ethosn_lib::TensorInfo
     BuildEthosNBiasesInfo(const TensorInfo& biasesInfo, const TensorInfo& inputInfo, const TensorInfo& weightsInfo)
 {
@@ -331,11 +339,27 @@ ethosn_lib::TensorInfo
     }
     // The shape returned by BuildEthosNTensorInfo will be padded incorrectly.
     ethosnBiasesInfo.m_Dimensions = { 1, 1, 1, biasesInfo.GetNumElements() };
-    // For some networks the quantisation scale of the bias may not be exactly correct, but the Ethos-N requires this.
-    // Arm NN will validate that they are at least approximately correct, so we are safe to force this here.
     ethosn_lib::QuantizationScales inputScales(inputInfo.GetQuantizationScales());
     ethosn_lib::QuantizationScales weightScales(weightsInfo.GetQuantizationScales());
-    ethosnBiasesInfo.m_QuantizationInfo.SetScales(inputScales * weightScales);
+    auto ethosScales = inputScales * weightScales;
+    auto biasScales  = biasesInfo.GetQuantizationScales();
+    if (ethosScales.size() != biasScales.size())
+    {
+        throw InvalidArgumentException("The amount of biases scales(" + std::to_string(biasScales.size()) +
+                                       ") is different from weightScales*inputScales(" +
+                                       std::to_string(ethosScales.size()) + ")");
+    }
+    // Validate the quantization scales
+    auto mismatchThreshold = 0.01f;
+    for (unsigned int i = 0; i < ethosScales.size(); i++)
+    {
+        if (IsNotTolerable(ethosScales[i], biasScales[i], mismatchThreshold))
+        {
+            throw InvalidArgumentException("Bias quantization scales are mismatched by more than " +
+                                           std::to_string(mismatchThreshold * 100) + "%");
+        }
+    }
+    ethosnBiasesInfo.m_QuantizationInfo.SetScales(ethosScales);
     return ethosnBiasesInfo;
 }
 
@@ -344,6 +368,15 @@ armnn::ethosn_lib::TensorInfo
 {
     TensorInfo biasInfo({ numBiasElements }, DataType::Signed32);
     biasInfo.SetConstant(true);
+    // The support library requires bias to be present and the old 0 initialized value strategy
+    // doesn't work now as it will almolst certainly result in intolerable mismatch
+    ethosn_lib::QuantizationScales inputScales(inputInfo.GetQuantizationScales());
+    ethosn_lib::QuantizationScales weightScales(weightsInfo.GetQuantizationScales());
+    // Set the bias to the same value as BuildEthosNBiasesInfo will, so that the tolerance check will be satisfied
+    auto biasScales = inputScales * weightScales;
+    std::vector<float> biasScalesVec;
+    biasScalesVec.assign(std::begin(biasScales), std::end(biasScales));
+    biasInfo.SetQuantizationScales(biasScalesVec);
 
     return BuildEthosNBiasesInfo(biasInfo, inputInfo, weightsInfo);
 }

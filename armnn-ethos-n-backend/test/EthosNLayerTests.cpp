@@ -449,7 +449,7 @@ LayerTestResult<uint8_t, 4>
     const bool isWeightDataTypeSymmetric = weightDataType == armnn::DataType::QSymmS8;
     const int32_t weightZeroPoint        = isWeightDataTypeSymmetric ? 42 : 0;
     TensorInfo weightsInfo(kernelShape, weightDataType, weightScale, weightZeroPoint, true);
-    TensorInfo biasesInfo(biasesShape, DataType::Signed32, 1.0f, 0, true);
+    TensorInfo biasesInfo(biasesShape, DataType::Signed32, 0.5f, 0, true);
 
     // input weight is -42
     // the weight data are quantized
