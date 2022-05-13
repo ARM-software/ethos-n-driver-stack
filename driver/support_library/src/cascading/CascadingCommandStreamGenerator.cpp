@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "CascadingCompiler.hpp"
-#include "CascadingCompilerUtils.hpp"
+#include "CascadingCommandStreamGenerator.hpp"
+#include "CascadingCommandStreamGeneratorUtils.hpp"
 #include "Compiler.hpp"
 
 #include <memory>
@@ -16,21 +16,21 @@ namespace support_library
 namespace cascading_compiler
 {
 
-CascadingCompiler::CascadingCompiler(const OpGraph& mergedOpGraph,
-                                     const std::set<uint32_t>& operationIds,
-                                     const HardwareCapabilities& capabilities,
-                                     const CompilationOptions& compilationOptions)
+CascadingCommandStreamGenerator::CascadingCommandStreamGenerator(const OpGraph& mergedOpGraph,
+                                                                 const std::set<uint32_t>& operationIds,
+                                                                 const HardwareCapabilities& capabilities,
+                                                                 const CompilationOptions& compilationOptions)
     : m_MergedOpGraph{ mergedOpGraph }
     , m_OperationIds{ operationIds }
     , m_Capabilities{ capabilities }
     , m_CompilationOptions{ compilationOptions }
 {}
 
-CascadingCompiler::~CascadingCompiler()
+CascadingCommandStreamGenerator::~CascadingCommandStreamGenerator()
 {}
 
 // Compile a given network and return the compiled network
-std::unique_ptr<CompiledNetwork> CascadingCompiler::Compile()
+std::unique_ptr<CompiledNetworkImpl> CascadingCommandStreamGenerator::Generate()
 {
     OpGraph::OpList opsInExecutionOrder = m_MergedOpGraph.GetOps();
 
@@ -80,6 +80,8 @@ std::unique_ptr<CompiledNetwork> CascadingCompiler::Compile()
     }
     m_BufferManager.AddCommandStream(m_CommandStream);
 
+    m_BufferManager.Allocate(GetConstDebuggingContext());
+
     // Create the compiled network using the updated BufferManager instance
     std::unique_ptr<CompiledNetworkImpl> compiledNetwork = std::make_unique<CompiledNetworkImpl>(
         m_BufferManager.GetConstantDmaData(), m_BufferManager.GetConstantControlUnitData(),
@@ -89,28 +91,29 @@ std::unique_ptr<CompiledNetwork> CascadingCompiler::Compile()
 }
 
 // Functions used to retrieve private members
-const std::vector<Agent>& CascadingCompiler::GetCommandStreamOfAgents() const
+const std::vector<Agent>& CascadingCommandStreamGenerator::GetCommandStreamOfAgents() const
 {
     return m_CommandStreamAgents;
 }
 
-const BufferManager& CascadingCompiler::GetBufferManager() const
+const BufferManager& CascadingCommandStreamGenerator::GetBufferManager() const
 {
     return m_BufferManager;
 }
 
-const OpGraph& CascadingCompiler::GetMergedOpGraph() const
+const OpGraph& CascadingCommandStreamGenerator::GetMergedOpGraph() const
 {
     return m_MergedOpGraph;
 }
 
-const std::unordered_map<Buffer*, uint32_t>& CascadingCompiler::GetIntermdiateDramBufToBufIdMapping() const
+const std::unordered_map<Buffer*, uint32_t>&
+    CascadingCommandStreamGenerator::GetIntermdiateDramBufToBufIdMapping() const
 {
     return m_IntermdiateDramBufToBufIdMapping;
 }
 
 // Private functions for processing OpGraph Ops
-void CascadingCompiler::ProcessDmaOp(Op* const ptrDmaOp)
+void CascadingCommandStreamGenerator::ProcessDmaOp(Op* const ptrDmaOp)
 {
     // Get the input buffer to the Dma Op
     OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrDmaOp);
@@ -129,13 +132,20 @@ void CascadingCompiler::ProcessDmaOp(Op* const ptrDmaOp)
         if (inputBuffer->m_Format != CascadingBufferFormat::WEIGHT)
         {
             // Ifm Streamer Agent
-            uint16_t inputBufferId = static_cast<uint16_t>(
-                m_BufferManager.AddDram(inputBuffer->m_BufferType.value(), inputBuffer->m_SizeInBytes));
-
-            // If this is an Intermediate Dram Buffer, add it to the IntermdiateDramBufToBufId map with the appropriate Id
+            uint16_t inputBufferId = std::numeric_limits<uint16_t>::max();
+            assert(inputBuffer->m_BufferType.value() == BufferType::Intermediate ||
+                   inputBuffer->m_BufferType.value() == BufferType::Input);
             if (inputBuffer->m_BufferType.value() == BufferType::Intermediate)
             {
+                // If this is an Intermediate Dram Buffer, add it to the IntermdiateDramBufToBufId map with the appropriate Id
+                inputBufferId = ethosn::utils::NumericCast<uint16_t>(
+                    m_BufferManager.AddDram(inputBuffer->m_BufferType.value(), inputBuffer->m_SizeInBytes));
                 m_IntermdiateDramBufToBufIdMapping[inputBuffer] = inputBufferId;
+            }
+            else if (inputBuffer->m_BufferType.value() == BufferType::Input)
+            {
+                inputBufferId = ethosn::utils::NumericCast<uint16_t>(
+                    m_BufferManager.AddDramInput(inputBuffer->m_SizeInBytes, *ptrDmaOp->m_OperationIds.begin()));
             }
 
             AgentIdType ifmStreamerAgentId =
@@ -206,6 +216,11 @@ void CascadingCompiler::ProcessDmaOp(Op* const ptrDmaOp)
         {
             m_IntermdiateDramBufToBufIdMapping[outputBuffer] = outputBufferId;
         }
+        else if (outputBuffer->m_BufferType.value() == BufferType::Output)
+        {
+            //TODO make this generic
+            m_BufferManager.ChangeToOutput(outputBufferId, 3, 0);
+        }
 
         // Ofm Streamer Agent
         AgentIdType ofmStreamerAgentId =
@@ -235,7 +250,7 @@ void CascadingCompiler::ProcessDmaOp(Op* const ptrDmaOp)
     }
 }
 
-void CascadingCompiler::ProcessMceOp(Op* const ptrMceOp)
+void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
 {
     // Get the input buffers to the Mce Op
     OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrMceOp);
@@ -313,7 +328,7 @@ void CascadingCompiler::ProcessMceOp(Op* const ptrMceOp)
     }
 }
 
-void CascadingCompiler::ProcessPleOp(Op* const ptrPleOp)
+void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
 {
     // Get the input buffers to the Ple Op
     OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrPleOp);
@@ -405,11 +420,6 @@ void CascadingCompiler::ProcessPleOp(Op* const ptrPleOp)
                 m_PleKernelToPleLoaderAgentIdMapping[static_cast<PleOp*>(ptrPleOp)->m_PleKernelId]);
         }
 
-        // Write After Read Dependency for [MceScheduler][PleScheduler]
-        AddWriteAfterReadDependency(
-            AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::MCE_SCHEDULER,
-            m_OpToAgentIdMapping[m_MergedOpGraph.GetProducer(inputBuffers[g_PleInputBuffer0Index])]);
-
         // Schedule Time Dependency for [MceScheduler][PleScheduler]
         AddScheduleTimeDependency(
             AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::MCE_SCHEDULER,
@@ -418,7 +428,7 @@ void CascadingCompiler::ProcessPleOp(Op* const ptrPleOp)
     ETHOSN_UNUSED(outputBuffer);
 }
 
-void CascadingCompiler::ProcessConcatOp(Op* const ptrConcatOp)
+void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
 {
     // Get the input buffers to the Concat Op
     OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrConcatOp);
@@ -564,26 +574,26 @@ void CascadingCompiler::ProcessConcatOp(Op* const ptrConcatOp)
     }
 }
 
-void CascadingCompiler::ProcessSplitOp(Op* const ptrSplitOp)
+void CascadingCommandStreamGenerator::ProcessSplitOp(Op* const ptrSplitOp)
 {
     ETHOSN_UNUSED(ptrSplitOp);
 }
 
-void CascadingCompiler::ProcessSpaceToDepthOp(Op* const ptrSpaceToDepthOp)
+void CascadingCommandStreamGenerator::ProcessSpaceToDepthOp(Op* const ptrSpaceToDepthOp)
 {
     ETHOSN_UNUSED(ptrSpaceToDepthOp);
 }
 
-void CascadingCompiler::ProcessTransposeOp(Op* const ptrTransposeOp)
+void CascadingCommandStreamGenerator::ProcessTransposeOp(Op* const ptrTransposeOp)
 {
     ETHOSN_UNUSED(ptrTransposeOp);
 }
 
 // Private function to add IFM_STREAMER to the command stream
-AgentIdType CascadingCompiler::AddIfmStreamerToCommandStream(Op* const ptrOp,
-                                                             const uint16_t inputDramBufferId,
-                                                             const Buffer* const inputDramBuffer,
-                                                             const Buffer* const inputSramBuffer)
+AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(Op* const ptrOp,
+                                                                           const uint16_t inputDramBufferId,
+                                                                           const Buffer* const inputDramBuffer,
+                                                                           const Buffer* const inputSramBuffer)
 {
     assert(IsObjectOfType<DmaOp>(ptrOp) || IsObjectOfType<ConcatOp>(ptrOp));
 
@@ -625,7 +635,7 @@ AgentIdType CascadingCompiler::AddIfmStreamerToCommandStream(Op* const ptrOp,
 }
 
 // Private function to add WGT_STREAMER to the command stream
-AgentIdType CascadingCompiler::AddWeightStreamerToCommandStream(DmaOp* const ptrDmaOp)
+AgentIdType CascadingCommandStreamGenerator::AddWeightStreamerToCommandStream(DmaOp* const ptrDmaOp)
 {
     // Get the input buffer to the Dma Op
     OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrDmaOp);
@@ -662,9 +672,9 @@ AgentIdType CascadingCompiler::AddWeightStreamerToCommandStream(DmaOp* const ptr
 
     AgentDependencyInfo dependencyInfo = {};
 
-    Agent weightStreamerAgent{ weightStreamerData, dependencyInfo };
     dependencyInfo.numStripesTotal = ethosn::utils::NumericCast<uint16_t>(
         utils::GetNumStripesTotal(weightsSramBuffer->m_TensorShape, weightsSramBuffer->m_StripeShape));
+    Agent weightStreamerAgent{ weightStreamerData, dependencyInfo };
 
     // Push the Weight Streamer agent to the command stream
     AgentIdType agentId            = m_CommandStreamAgents.size();
@@ -675,7 +685,8 @@ AgentIdType CascadingCompiler::AddWeightStreamerToCommandStream(DmaOp* const ptr
 }
 
 // Private function to add MCE_SCHEDULER to the command stream
-AgentIdType CascadingCompiler::AddMceSchedulerToCommandStream(MceOp* const ptrMceOp, const PleKernelId pleKernelId)
+AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceOp* const ptrMceOp,
+                                                                            const PleKernelId pleKernelId)
 {
     // Get the input buffers to the Mce Op
     OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrMceOp);
@@ -741,6 +752,9 @@ AgentIdType CascadingCompiler::AddMceSchedulerToCommandStream(MceOp* const ptrMc
         assert(false);
     }
 
+    mceSchedulerData.ifmStripeShapeDefault.height = ethosn::utils::NumericCast<uint16_t>(inputBuffer->m_StripeShape[1]);
+    mceSchedulerData.ifmStripeShapeDefault.width  = ethosn::utils::NumericCast<uint16_t>(inputBuffer->m_StripeShape[2]);
+
     mceSchedulerData.reluActiv.min = ptrMceOp->m_LowerBound;
     mceSchedulerData.reluActiv.max = ptrMceOp->m_UpperBound;
     mceSchedulerData.pleKernelId   = pleKernelId;
@@ -760,7 +774,7 @@ AgentIdType CascadingCompiler::AddMceSchedulerToCommandStream(MceOp* const ptrMc
 }
 
 // Private function to add PLE_LOADER to the command stream
-AgentIdType CascadingCompiler::AddPleLoaderToCommandStream(PleOp* const ptrPleOp)
+AgentIdType CascadingCommandStreamGenerator::AddPleLoaderToCommandStream(PleOp* const ptrPleOp)
 {
     // Create a new Ple Loader agent
     PleL pleLoaderData        = {};
@@ -781,7 +795,7 @@ AgentIdType CascadingCompiler::AddPleLoaderToCommandStream(PleOp* const ptrPleOp
 }
 
 // Private function to add PLE_SCHEDULER to the command stream
-AgentIdType CascadingCompiler::AddPleSchedulerToCommandStream(PleOp* const ptrPleOp)
+AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleOp* const ptrPleOp)
 {
     // Get the input buffers to the Ple Op
     OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrPleOp);
@@ -791,7 +805,10 @@ AgentIdType CascadingCompiler::AddPleSchedulerToCommandStream(PleOp* const ptrPl
 
     // Get the output buffer from the Ple Op
     Buffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrPleOp);
-    assert(ptrPleOp->m_OutputStripeShape == outputBuffer->m_StripeShape);
+    if (ptrPleOp->m_Lifetime == Lifetime::Atomic)
+    {
+        assert(ptrPleOp->m_OutputStripeShape == outputBuffer->m_StripeShape);
+    }
 
     PleS pleS = {};
 
@@ -870,10 +887,10 @@ AgentIdType CascadingCompiler::AddPleSchedulerToCommandStream(PleOp* const ptrPl
 }
 
 // Private function to add OFM_STREAMER to the command stream
-AgentIdType CascadingCompiler::AddOfmStreamerToCommandStream(Op* const ptrOp,
-                                                             const Buffer* const outputSramBuffer,
-                                                             const uint16_t outputDramBufferId,
-                                                             const Buffer* const outputDramBuffer)
+AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(Op* const ptrOp,
+                                                                           const Buffer* const outputSramBuffer,
+                                                                           const uint16_t outputDramBufferId,
+                                                                           const Buffer* const outputDramBuffer)
 {
     assert(IsObjectOfType<DmaOp>(ptrOp) || IsObjectOfType<ConcatOp>(ptrOp));
 
@@ -922,10 +939,10 @@ AgentIdType CascadingCompiler::AddOfmStreamerToCommandStream(Op* const ptrOp,
 
 // Private function to add ReadAfterWrite Dependency
 // Consumer agent creates and own the dependency
-inline void CascadingCompiler::AddReadAfterWriteDependency(const AgentType consumerAgentType,
-                                                           const AgentIdType consumerAgentId,
-                                                           const AgentType producerAgentType,
-                                                           const AgentIdType producerAgentId)
+inline void CascadingCommandStreamGenerator::AddReadAfterWriteDependency(const AgentType consumerAgentType,
+                                                                         const AgentIdType consumerAgentId,
+                                                                         const AgentType producerAgentType,
+                                                                         const AgentIdType producerAgentId)
 {
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
@@ -951,10 +968,11 @@ inline void CascadingCompiler::AddReadAfterWriteDependency(const AgentType consu
 
 // Private function to add SRAM Overlap Dependency
 // Consumer agent creates and own the dependency
-inline void CascadingCompiler::AddSramOverlapDependency(const command_stream::cascading::AgentType consumerAgentType,
-                                                        const AgentIdType consumerAgentId,
-                                                        const command_stream::cascading::AgentType producerAgentType,
-                                                        const AgentIdType producerAgentId)
+inline void CascadingCommandStreamGenerator::AddSramOverlapDependency(
+    const command_stream::cascading::AgentType consumerAgentType,
+    const AgentIdType consumerAgentId,
+    const command_stream::cascading::AgentType producerAgentType,
+    const AgentIdType producerAgentId)
 {
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
@@ -980,10 +998,10 @@ inline void CascadingCompiler::AddSramOverlapDependency(const command_stream::ca
 
 // Private function to add WriteAfterRead Dependency
 // Last consumer agent creates the dependency and assign it to the producer agent
-inline void CascadingCompiler::AddWriteAfterReadDependency(const AgentType consumerAgentType,
-                                                           const AgentIdType consumerAgentId,
-                                                           const AgentType producerAgentType,
-                                                           const AgentIdType producerAgentId)
+inline void CascadingCommandStreamGenerator::AddWriteAfterReadDependency(const AgentType consumerAgentType,
+                                                                         const AgentIdType consumerAgentId,
+                                                                         const AgentType producerAgentType,
+                                                                         const AgentIdType producerAgentId)
 {
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
@@ -996,10 +1014,10 @@ inline void CascadingCompiler::AddWriteAfterReadDependency(const AgentType consu
 
 // Private function to add ScheduleTime Dependency
 // First consumer agent creates the dependency and assign it to the producer agent
-inline void CascadingCompiler::AddScheduleTimeDependency(const AgentType consumerAgentType,
-                                                         const AgentIdType consumerAgentId,
-                                                         const AgentType producerAgentType,
-                                                         const AgentIdType producerAgentId)
+inline void CascadingCommandStreamGenerator::AddScheduleTimeDependency(const AgentType consumerAgentType,
+                                                                       const AgentIdType consumerAgentId,
+                                                                       const AgentType producerAgentType,
+                                                                       const AgentIdType producerAgentId)
 {
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
@@ -1017,11 +1035,12 @@ inline void CascadingCompiler::AddScheduleTimeDependency(const AgentType consume
 }
 
 // Private function to fill the dependency data for Read After Write or SRAM Overlap dependencies
-void CascadingCompiler::FillConsumerAgentDependency(command_stream::cascading::Dependency& consumerAgentDependency,
-                                                    const command_stream::cascading::AgentType consumerAgentType,
-                                                    const AgentIdType consumerAgentId,
-                                                    const command_stream::cascading::AgentType producerAgentType,
-                                                    const AgentIdType producerAgentId)
+void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
+    command_stream::cascading::Dependency& consumerAgentDependency,
+    const command_stream::cascading::AgentType consumerAgentType,
+    const AgentIdType consumerAgentId,
+    const command_stream::cascading::AgentType producerAgentType,
+    const AgentIdType producerAgentId)
 {
     Agent& consumerAgent = m_CommandStreamAgents[consumerAgentId];
     Agent& producerAgent = m_CommandStreamAgents[producerAgentId];
@@ -1337,11 +1356,12 @@ void CascadingCompiler::FillConsumerAgentDependency(command_stream::cascading::D
 }
 
 // Private function to fill the dependency data for Write After Read or Schedule Time dependencies
-void CascadingCompiler::FillProducerAgentDependency(command_stream::cascading::Dependency& producerAgentDependency,
-                                                    const command_stream::cascading::AgentType consumerAgentType,
-                                                    const AgentIdType consumerAgentId,
-                                                    const command_stream::cascading::AgentType producerAgentType,
-                                                    const AgentIdType producerAgentId)
+void CascadingCommandStreamGenerator::FillProducerAgentDependency(
+    command_stream::cascading::Dependency& producerAgentDependency,
+    const command_stream::cascading::AgentType consumerAgentType,
+    const AgentIdType consumerAgentId,
+    const command_stream::cascading::AgentType producerAgentType,
+    const AgentIdType producerAgentId)
 {
     Agent& consumerAgent = m_CommandStreamAgents[consumerAgentId];
     Agent& producerAgent = m_CommandStreamAgents[producerAgentId];
@@ -1554,6 +1574,7 @@ void CascadingCompiler::FillProducerAgentDependency(command_stream::cascading::D
                     producerAgentDependency.boundary = 1U;
                 }
             }
+            // Schedule Time Dependency for [MceScheduler][PleScheduler]
             else if (producerAgentType == AgentType::MCE_SCHEDULER)
             {
                 // Calculate outer ratios using number of stripes
@@ -1668,7 +1689,7 @@ void CascadingCompiler::FillProducerAgentDependency(command_stream::cascading::D
 }
 
 // Private function to add the lifetime information of the intermediate DRAM buffers
-void CascadingCompiler::AddLifetimeInfoForIntermediateDramBuffers()
+void CascadingCommandStreamGenerator::AddLifetimeInfoForIntermediateDramBuffers()
 {
     // Lifetime start of the buffer holds the producer agent Id
     AgentIdType lifetimeStart;

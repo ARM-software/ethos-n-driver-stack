@@ -4,12 +4,13 @@
 //
 
 #include "Compiler.hpp"
-
 #include "GraphNodes.hpp"
 #include "Optimization.hpp"
 #include "SramAllocator.hpp"
 #include "cascading/Cascading.hpp"
+#include "cascading/CascadingCommandStreamGenerator.hpp"
 #include "cascading/EstimationUtils.hpp"
+#include "cascading/NetworkToGraphOfPartsConverter.hpp"
 #include "nonCascading/ConversionPass.hpp"
 #include "nonCascading/McePlePass.hpp"
 #include "nonCascading/NonCascading.hpp"
@@ -24,6 +25,10 @@
 #include <numeric>
 #include <sstream>
 #include <vector>
+
+#include <ethosn_utils/Filesystem.hpp>
+
+using namespace ethosn::utils;
 
 namespace ethosn
 {
@@ -145,14 +150,71 @@ Compiler::Compiler(const Network& network,
 Compiler::~Compiler()
 {}
 
+void SaveDebugFilesForUnestimatedCombination(std::string folder,
+                                             const DebuggingContext& debuggingContext,
+                                             const Combination& comb,
+                                             const OpGraph& opGraph,
+                                             const GraphOfParts& graphOfParts)
+{
+    MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
+
+    debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, graphOfParts,
+                                          folder + "/Simple.dot", DetailLevel::Low);
+    debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, graphOfParts,
+                                          folder + "/Detailed.dot", DetailLevel::High);
+
+    debuggingContext.SaveOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, folder + "/MergedSimple.dot",
+                                      DetailLevel::Low);
+    debuggingContext.SaveOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, folder + "/MergedDetailed.dot",
+                                      DetailLevel::High);
+}
+
 std::unique_ptr<CompiledNetwork> Compiler::Compile()
 {
     DumpNetwork(m_Network);
+
+    // The compiler will need to split the network into supported subgraphs and have the appropriate ids for each.
+    // See the Support Library public interface design note for more details.
+    // For now we're just passing the full network ids through.
+    std::set<uint32_t> operationIds = m_Network.GetOperationIds();
+
     try
     {
-        Convert();
-        Prepare(false);
-        Generate();
+        const char* cascadingValue    = "1";
+        const char* cascadingRunValue = std::getenv("CASCADING_RUN");
+        if (cascadingRunValue != nullptr && std::strcmp(cascadingRunValue, cascadingValue) == 0)
+        {
+            NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(m_Network, m_Capabilities,
+                                                                            m_EstimationOptions, m_CompilationOptions);
+            const GraphOfParts m_GraphOfParts = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+            Combiner combiner(m_GraphOfParts, m_Capabilities, m_EstimationOptions, GetDebuggingContext());
+            combiner.Run();
+
+            if (GetDebuggingContext().m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+            {
+                MakeDirectory(GetDebuggingContext().GetAbsolutePathOutputFileName("BestCombination").c_str());
+                OpGraph g = GetOpGraphForCombination(combiner.GetBestCombination(), m_GraphOfParts);
+                SaveDebugFilesForUnestimatedCombination("BestCombination", GetDebuggingContext(),
+                                                        combiner.GetBestCombination(), g, m_GraphOfParts);
+            }
+
+            OpGraph mergedOpGraph = combiner.GetMergedOpGraphForBestCombination();
+            cascading_compiler::CascadingCommandStreamGenerator commandStreamGenerator(
+                mergedOpGraph, operationIds, m_Capabilities, m_CompilationOptions);
+            std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+            return compiledNetwork;
+        }
+        else
+        {
+            Convert();
+            Prepare(false);
+            Generate();
+
+            std::unique_ptr<CompiledNetworkImpl> compiledNetwork = std::make_unique<CompiledNetworkImpl>(
+                m_BufferManager.GetConstantDmaData(), m_BufferManager.GetConstantControlUnitData(),
+                m_BufferManager.GetBuffers(), operationIds);
+            return compiledNetwork;
+        }
     }
     catch (const NotSupportedException& e)
     {
@@ -161,17 +223,6 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
         g_Logger.Error("Error: %s", e.what());
         return std::unique_ptr<CompiledNetworkImpl>(nullptr);
     }
-
-    // The compiler will need to split the network into supported subgraphs and have the appropriate ids for each.
-    // See the Support Library public interface design note for more details.
-    // For now we're just passing the full network ids through.
-    std::set<uint32_t> compiledOperationIds = m_Network.GetOperationIds();
-
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = std::make_unique<CompiledNetworkImpl>(
-        m_BufferManager.GetConstantDmaData(), m_BufferManager.GetConstantControlUnitData(),
-        m_BufferManager.GetBuffers(), compiledOperationIds);
-
-    return compiledNetwork;
 }
 
 NetworkPerformanceData Compiler::EstimatePerformance()

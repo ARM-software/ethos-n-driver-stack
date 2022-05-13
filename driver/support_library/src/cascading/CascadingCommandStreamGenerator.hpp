@@ -13,6 +13,7 @@ namespace ethosn
 {
 namespace support_library
 {
+class CompiledNetworkImpl;
 namespace cascading_compiler
 {
 
@@ -26,19 +27,19 @@ constexpr uint8_t g_MceWeightBufferIndex     = 1;
 constexpr uint8_t g_PleInputBuffer0Index     = 0;
 constexpr uint8_t g_PleInputBuffer1Index     = 1;
 
-class CascadingCompiler
+class CascadingCommandStreamGenerator
 {
 public:
-    CascadingCompiler(const OpGraph& mergedOpGraph,
-                      const std::set<uint32_t>& operationIds,
-                      const HardwareCapabilities& capabilities,
-                      const CompilationOptions& compilationOptions);
-    CascadingCompiler(const CascadingCompiler&) = delete;
-    CascadingCompiler& operator=(const CascadingCompiler&) = delete;
-    ~CascadingCompiler();
+    CascadingCommandStreamGenerator(const OpGraph& mergedOpGraph,
+                                    const std::set<uint32_t>& operationIds,
+                                    const HardwareCapabilities& capabilities,
+                                    const CompilationOptions& compilationOptions);
+    CascadingCommandStreamGenerator(const CascadingCommandStreamGenerator&) = delete;
+    CascadingCommandStreamGenerator& operator=(const CascadingCommandStreamGenerator&) = delete;
+    ~CascadingCommandStreamGenerator();
 
     // Compile a given network and return the compiled network
-    std::unique_ptr<CompiledNetwork> Compile();
+    std::unique_ptr<CompiledNetworkImpl> Generate();
 
     // Functions used to retrieve private members
     const std::vector<command_stream::cascading::Agent>& GetCommandStreamOfAgents() const;

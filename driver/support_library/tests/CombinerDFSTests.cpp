@@ -3584,7 +3584,7 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
             REQUIRE(actualPleOp->m_Offset.has_value() == true);
             REQUIRE(actualPleOp->m_Offset.value() == currentSramOffset);
 
-            currentSramOffset += hwCaps.GetMaxPleSize() / hwCaps.GetNumberOfSrams();
+            currentSramOffset += hwCaps.GetMaxPleSize();
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == true);
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.value() == currentSramOffset);
             currentSramOffset += planA.m_OpGraph.GetBuffers()[0]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
@@ -3701,7 +3701,7 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
             REQUIRE(actualPleOp->m_Offset.has_value() == true);
             REQUIRE(actualPleOp->m_Offset.value() == currentSramOffset);
 
-            currentSramOffset += hwCaps.GetMaxPleSize() / hwCaps.GetNumberOfSrams();
+            currentSramOffset += hwCaps.GetMaxPleSize();
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == true);
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.value() == currentSramOffset);
             currentSramOffset += planA.m_OpGraph.GetBuffers()[0]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
@@ -3817,7 +3817,7 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                 REQUIRE(actualPleOpB->m_LoadKernel == true);
                 REQUIRE(actualPleOpB->m_Offset == currentSramOffset);
 
-                currentSramOffset += hwCaps.GetMaxPleSize() / hwCaps.GetNumberOfSrams();
+                currentSramOffset += hwCaps.GetMaxPleSize();
                 REQUIRE(planB.m_OpGraph.GetBuffers()[2]->m_Offset.value() == currentSramOffset);
                 currentSramOffset += planB.m_OpGraph.GetBuffers()[2]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
 
@@ -3934,7 +3934,7 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
 
                     REQUIRE(actualPleOpC->m_Offset == currentSramOffset);
 
-                    currentSramOffset += hwCaps.GetMaxPleSize() / hwCaps.GetNumberOfSrams();
+                    currentSramOffset += hwCaps.GetMaxPleSize();
                     REQUIRE(planC.m_OpGraph.GetBuffers()[2]->m_Offset.value() == currentSramOffset);
                     currentSramOffset += planC.m_OpGraph.GetBuffers()[2]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
 

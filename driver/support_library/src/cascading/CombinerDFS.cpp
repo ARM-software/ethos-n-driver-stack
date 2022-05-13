@@ -386,8 +386,7 @@ bool Combiner::IsPlanAllocated(SramAllocator& alloc,
             assert(pleKernelSize <= m_Caps.GetMaxPleSize());
 
             // Allocate the PleKernel
-            pleKernelAllocated =
-                localAlloc.Allocate(userId, (pleKernelSize / m_Caps.GetNumberOfSrams()), AllocationPreference::Start);
+            pleKernelAllocated = localAlloc.Allocate(userId, (pleKernelSize), AllocationPreference::Start);
 
             isSramAllocated = pleKernelAllocated.first;
 
@@ -1646,6 +1645,8 @@ Combination Combiner::FindBestCombinationForPartImpl(const BasePart& part)
     Combinations options = { start, lonely };
 
     result = GetBestCombination(options);
+
+    assert(result.m_Elems.count(part.GetPartId()) == 1);
 
     return result;
 }

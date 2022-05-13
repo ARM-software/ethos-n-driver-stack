@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -78,7 +78,7 @@ private:
     /// @{
     std::vector<std::unique_ptr<IStrategy>> m_AllowedStrategies;
     std::vector<command_stream::BlockConfig> m_AllowedBlockConfigs;
-    HardwareCapabilities m_Capabilities;
+    const HardwareCapabilities m_Capabilities;
     const CompilationOptions& m_CompilationOptions;
     /// @}
 
