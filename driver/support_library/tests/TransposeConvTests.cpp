@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -248,8 +248,10 @@ TEST_CASE("TransposeConvSupported")
 
     // Overall scale out of range
     {
-        TensorInfo biasInfo({ 1, 1, 1, 10 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 8.0f));
-        TensorInfo weightsInfo({ 3, 3, 5, 10 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, QuantizationInfo(0, 2.0f));
+        TensorInfo biasInfo({ 1, 1, 1, 10 }, DataType::INT32_QUANTIZED, DataFormat::NHWC,
+                            QuantizationInfo(0, 262160.0f));
+        TensorInfo weightsInfo({ 3, 3, 5, 10 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO,
+                               QuantizationInfo(0, 65540.f));
         ConvolutionInfo convInfo(Padding(0, 0, 0, 0), Stride(2, 2), QuantizationInfo(0, 0.1f));
         TensorInfo inputInfo({ 1, 1, 1, 5 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 4.0f));
         REQUIRE(queries.IsTransposeConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason,

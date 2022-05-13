@@ -207,7 +207,7 @@ constexpr T RoundUpToNearestMultiple(T num, S nearestMultiple)
 /// for use in a quantized multiplication.
 inline void CalculateQuantizedMultiplierSmallerThanOne(double multiplier, uint16_t& outScale, uint32_t& outShift)
 {
-    assert(multiplier >= 0.0f && multiplier < 1.0f);
+    assert(multiplier >= 0.0f);
     if (multiplier == 0.0f)
     {
         outScale = 0;
@@ -217,9 +217,9 @@ inline void CalculateQuantizedMultiplierSmallerThanOne(double multiplier, uint16
     {
         const int exp = std::ilogb(multiplier);
         outShift      = static_cast<uint32_t>(-exp - 1);
-        assert(outShift < 32);
-        uint32_t outScaleU32 =
-            static_cast<uint32_t>(std::lround(std::scalbn(multiplier, static_cast<int>(16U + outShift))));
+        outShift += 16;
+        outShift             = outShift > 47 ? 47 : outShift;
+        uint32_t outScaleU32 = static_cast<uint32_t>(std::lround(std::scalbn(multiplier, static_cast<int>(outShift))));
         assert(outScaleU32 <= (1U << 16));
         if (outScaleU32 == (1U << 16))
         {

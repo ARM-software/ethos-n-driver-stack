@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -261,11 +261,6 @@ WeightEncoder::EncodedOfm
     prevCompParams = compParams;
 
     return { std::move(writer.GetBitstream()), static_cast<uint32_t>(writer.GetOffset()) };
-}
-
-uint32_t WeightEncoder::GetOfmShiftOffset() const
-{
-    return 16;
 }
 
 /// Number of Ofm processed in parallel which is the minimum number of
@@ -1416,8 +1411,6 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
                         outputQuantizationInfo.GetScale();
                     utils::CalculateQuantizedMultiplierSmallerThanOne(overallScale, params.m_OfmScaleFactor,
                                                                       params.m_OfmShift);
-
-                    params.m_OfmShift += GetOfmShiftOffset();
 
                     params.m_OfmBias      = biasData[ofmIdx];
                     params.m_OfmZeroPoint = static_cast<uint32_t>(outputQuantizationInfo.GetZeroPoint());

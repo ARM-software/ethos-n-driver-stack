@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -228,8 +228,7 @@ TEST_CASE("ConvolutionSupported")
             queries.IsConvolutionSupported(biasInfo, weightsInfo, convInfo, inputInfo, nullptr, reason, sizeof(reason));
         INFO(reason);
         REQUIRE(isSupported == SupportedLevel::EstimateOnly);
-        REQUIRE(Contains(reason,
-                         "Overall scale (of the input * weights / output) should be in the range [2.328306e-10, 1)"));
+        REQUIRE(Contains(reason, "Overall scale (of the input * weights / output) should be in the range"));
     }
 
     SECTION("Supported conv overall scale: just fits")
@@ -237,11 +236,11 @@ TEST_CASE("ConvolutionSupported")
         const auto inputDataType = GENERATE(DataType::UINT8_QUANTIZED, DataType::INT8_QUANTIZED);
 
         TensorInfo biasInfo({ 1, 1, 1, 1 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
-        biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 2.33e-10f });
+        biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 4.66e-10f });
         biasInfo.m_QuantizationInfo.SetZeroPoint(0);
         biasInfo.m_QuantizationInfo.SetQuantizationDim(3);
         TensorInfo weightsInfo({ 1, 1, 1, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO);
-        weightsInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 2.33e-10f });
+        weightsInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 4.66e-10f });
         weightsInfo.m_QuantizationInfo.SetZeroPoint(0);
         weightsInfo.m_QuantizationInfo.SetQuantizationDim(3);
         ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 }, { 0, 1.f });
@@ -624,11 +623,11 @@ TEST_CASE("DepthwiseConvolutionSupported")
     SECTION("Unsupported overall scale on one channel")
     {
         TensorInfo biasInfo({ 1, 1, 1, 3 }, DataType::INT32_QUANTIZED, DataFormat::NHWC);
-        biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f, 3.0f });
+        biasInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f, 65540.f });
         biasInfo.m_QuantizationInfo.SetZeroPoint(0);
         biasInfo.m_QuantizationInfo.SetQuantizationDim(3);
         TensorInfo weightsInfo({ 1, 1, 3, 1 }, DataType::UINT8_QUANTIZED, DataFormat::HWIM);
-        weightsInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f, 3.0f });
+        weightsInfo.m_QuantizationInfo.SetScales(QuantizationScales{ 0.1f, 0.2f, 65540.f });
         weightsInfo.m_QuantizationInfo.SetZeroPoint(0);
         weightsInfo.m_QuantizationInfo.SetQuantizationDim(2);
         ConvolutionInfo convInfo({ 0, 0, 0, 0 }, { 1, 1 });

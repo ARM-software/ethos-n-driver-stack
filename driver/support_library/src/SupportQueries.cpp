@@ -324,13 +324,10 @@ bool IsQuantizationScaleSupported(const QuantizationScales& overallScale,
                                   char* reason,
                                   size_t reasonMaxLength)
 {
-    // The shift is encoded with 5 bits
-    constexpr uint32_t maxShift = (1 << 5);
-    const float minScale        = std::exp2f(-(static_cast<float>(maxShift)));
-    if (overallScale.min() < minScale || overallScale.max() >= 1.0f)
+    if (overallScale.min() <= powf(2, -31) || overallScale.max() >= 65536.0f)
     {
-        SetReason("%s: Overall scale (of the input * weights / output) should be in the range [%e, 1)", reason,
-                  reasonMaxLength, what, minScale);
+        SetReason("%s: Overall scale (of the input * weights / output) should be in the range (2^-31, 65536)", reason,
+                  reasonMaxLength, what);
         return false;
     }
     return true;

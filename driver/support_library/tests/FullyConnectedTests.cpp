@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -206,9 +206,9 @@ TEST_CASE("FullyConnectedSupported")
 
     SECTION("Estimate only for overall multiplier out of range")
     {
-        TensorInfo weights{ { 1, 1, 4096, 1000 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, { 0, 1.0f } };
+        TensorInfo weights{ { 1, 1, 4096, 1000 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, { 0, 65540.0f } };
         TensorInfo input({ 1, 1, 1, 4096 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.0f));
-        TensorInfo bias{ { 1, 1, 1, 1000 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, 1.0f } };
+        TensorInfo bias{ { 1, 1, 1, 1000 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, 65540.0f } };
         FullyConnectedInfo fcInfo({ 0, 1.0f });
         REQUIRE(queries.IsFullyConnectedSupported(bias, weights, fcInfo, input, nullptr, reason, sizeof(reason)) ==
                 SupportedLevel::EstimateOnly);
