@@ -326,7 +326,7 @@ bool IsQuantizationScaleSupported(const QuantizationScales& overallScale,
 {
     if (overallScale.min() <= powf(2, -32) || overallScale.max() >= 65536.0f)
     {
-        SetReason("%s: Overall scale (of the input * weights / output) should be in the range (2^-31, 65536)", reason,
+        SetReason("%s: Overall scale (of the input * weights / output) should be in the range (2^-32, 65536)", reason,
                   reasonMaxLength, what);
         return false;
     }
