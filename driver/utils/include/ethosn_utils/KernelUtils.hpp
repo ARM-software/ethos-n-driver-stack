@@ -8,11 +8,13 @@
 #include <cstring>
 #include <stdexcept>
 
+#if defined(__unix__)
 #include <dirent.h>
 #include <fstream>
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
+#endif
 
 namespace ethosn
 {
@@ -40,6 +42,7 @@ inline bool IsCore0IommuAvailable(const std::string& filePath)
 
 inline bool IsKernelVersionHigherOrEqualTo(int kernelVersion, int kernelPatchLevel)
 {
+#if defined(__unix__)
     utsname linuxReleaseInfo = {};
     if (uname(&linuxReleaseInfo))
     {
@@ -52,10 +55,17 @@ inline bool IsKernelVersionHigherOrEqualTo(int kernelVersion, int kernelPatchLev
     }
     return ((kernelVersion < actualKernelVersion) ||
             ((kernelVersion == actualKernelVersion) && (kernelPatchLevel <= actualKernelPatchLevel)));
+#else
+    ETHOSN_UNUSED(kernelVersion);
+    ETHOSN_UNUSED(kernelPatchLevel);
+    throw std::runtime_error("Not supported on this platform");
+    return false;
+#endif
 }
 
 inline bool IsNpuCoreBehindIommus()
 {
+#if defined(__unix__)
     constexpr char deviceTreePath[] = "/proc/device-tree";
     DIR* dir                        = opendir(deviceTreePath);
     if (dir == nullptr)
@@ -87,6 +97,10 @@ inline bool IsNpuCoreBehindIommus()
     }
     closedir(dir);
     return ent != nullptr;
+#else
+    throw std::runtime_error("Not supported on this platform");
+    return false;
+#endif
 }
 
 }    // namespace utils
