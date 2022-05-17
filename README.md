@@ -2,7 +2,7 @@
 
 ## About the Arm Ethos-N Neural Processing Unit (NPU)
 
-The Arm Ethos-N NPUs improve the inference performance of neural networks. The NPUs target 8-bit integer quantized Convolutional Neural Networks (CNN). However, the NPUs also improve the performance of 16-bit integer CNN and Recurrent Neural Networks (RNN). Please note that 16-bit integer and RNN support are not part of this driver stack release.
+The Arm Ethos-N NPUs improve the inference performance of neural networks. The NPUs target 8-bit integer quantized Convolutional Neural Networks (CNN).
 
 For more information, see <https://www.arm.com/solutions/artificial-intelligence>.
 
