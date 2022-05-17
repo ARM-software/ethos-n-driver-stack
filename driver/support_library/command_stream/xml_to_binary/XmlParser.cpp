@@ -375,6 +375,8 @@ void XmlParser::Pop(cascading::MceS& value)
     Pop("STRIPE_ID_STRIDES", value.stripeIdStrides);
     Pop("CONV_STRIDE_XY", value.convStrideXy);
     Pop("MCE_SCHEDULER/IFM_ZERO_POINT", value.ifmZeroPoint);
+    Pop("MCE_SCHEDULER/UPSAMPLE_TYPE", value.upsampleType);
+    Pop("UPSAMPLE_EDGE_MODE", value.upsampleEdgeMode);
     Pop("MCE_SCHEDULER/MCE_OP_MODE", value.mceOpMode);
     Pop("MCE_SCHEDULER/ALGORITHM", value.algorithm);
     Pop("MCE_SCHEDULER/IS_WIDE_FILTER", value.isWideFilter);
@@ -386,7 +388,8 @@ void XmlParser::Pop(cascading::MceS& value)
     Pop("PADDING", value.padding);
     Pop("IFM_DELTA_DEFAULT", value.ifmDeltaDefault);
     Pop("IFM_DELTA_EDGE", value.ifmDeltaEdge);
-    Pop("IFM_STRIPE_SHAPE", value.ifmStripeShape);
+    Pop("IFM_STRIPE_SHAPE_DEFAULT", value.ifmStripeShapeDefault);
+    Pop("IFM_STRIPE_SHAPE_EDGE", value.ifmStripeShapeEdge);
     Pop("RELU_ACTIV", value.reluActiv);
 }
 
@@ -460,6 +463,56 @@ void XmlParser::Pop(const std::string& keyPrefix, cascading::PleIfmInfo& value)
     Pop(keyPrefix + "/ZERO_POINT", value.zeroPoint);
     Pop(keyPrefix + "/MULTIPLIER", value.multiplier);
     Pop(keyPrefix + "/SHIFT", value.shift);
+}
+
+void XmlParser::Pop(const std::string& key, cascading::UpsampleType& value)
+{
+    std::string str = Pop(key);
+
+    if (str == "BILINEAR")
+    {
+        value = cascading::UpsampleType::BILINEAR;
+    }
+    else if (str == "NEAREST_NEIGHBOUR")
+    {
+        value = cascading::UpsampleType::NEAREST_NEIGHBOUR;
+    }
+    else if (str == "TRANSPOSE")
+    {
+        value = cascading::UpsampleType::TRANSPOSE;
+    }
+    else if (str == "OFF")
+    {
+        value = cascading::UpsampleType::TRANSPOSE;
+    }
+    else
+    {
+        throw ParseException(key + " is not a upsampleType: " + str);
+    }
+}
+
+void XmlParser::Pop(const std::string& keyPrefix, cascading::UpsampleEdgeModeType& value)
+{
+    Pop(keyPrefix + "/ROW", value.row);
+    Pop(keyPrefix + "/COL", value.col);
+}
+
+void XmlParser::Pop(const std::string& key, cascading::UpsampleEdgeMode& value)
+{
+    std::string str = Pop(key);
+
+    if (str == "GENERATE")
+    {
+        value = cascading::UpsampleEdgeMode::GENERATE;
+    }
+    else if (str == "DROP")
+    {
+        value = cascading::UpsampleEdgeMode::DROP;
+    }
+    else
+    {
+        throw ParseException(key + " is not an upsampleEdgeModeType: " + str);
+    }
 }
 
 void XmlParser::Pop(const std::string& key, cascading::MceOperation& value)

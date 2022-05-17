@@ -648,6 +648,11 @@ const std::string g_XmlStr =
                     <Y>2</Y>
                 </CONV_STRIDE_XY>
                 <IFM_ZERO_POINT>-2</IFM_ZERO_POINT>
+                <UPSAMPLE_TYPE>TRANSPOSE</UPSAMPLE_TYPE>
+                <UPSAMPLE_EDGE_MODE>
+                    <ROW>DROP</ROW>
+                    <COL>GENERATE</COL>
+                </UPSAMPLE_EDGE_MODE>
                 <MCE_OP_MODE>DEPTHWISE_CONVOLUTION</MCE_OP_MODE>
                 <ALGORITHM>WINOGRAD</ALGORITHM>
                 <IS_WIDE_FILTER>1</IS_WIDE_FILTER>
@@ -727,10 +732,14 @@ const std::string g_XmlStr =
                         <HEIGHT>-1</HEIGHT>
                     </3>
                 </IFM_DELTA_EDGE>
-                <IFM_STRIPE_SHAPE>
+                <IFM_STRIPE_SHAPE_DEFAULT>
                     <WIDTH>10</WIDTH>
                     <HEIGHT>11</HEIGHT>
-                </IFM_STRIPE_SHAPE>
+                </IFM_STRIPE_SHAPE_DEFAULT>
+                <IFM_STRIPE_SHAPE_EDGE>
+                    <WIDTH>5</WIDTH>
+                    <HEIGHT>6</HEIGHT>
+                </IFM_STRIPE_SHAPE_EDGE>
                 <RELU_ACTIV>
                     <MIN>-3</MIN>
                     <MAX>2</MAX>

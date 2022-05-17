@@ -710,6 +710,68 @@ void Parse(mxml_node_t& parent, const cascading::ReluActivation& relu)
     Parse(*mxmlNewElement(&parent, "MAX"), relu.max);
 }
 
+void Parse(mxml_node_t& parent, const cascading::UpsampleType& value)
+{
+    switch (value)
+    {
+        case cascading::UpsampleType::TRANSPOSE:
+        {
+            Parse(parent, "TRANSPOSE");
+            break;
+        }
+        case cascading::UpsampleType::NEAREST_NEIGHBOUR:
+        {
+            Parse(parent, "NEAREST NEIGHBOUR");
+            break;
+        }
+        case cascading::UpsampleType::BILINEAR:
+        {
+            Parse(parent, "BILINEAR");
+            break;
+        }
+        case cascading::UpsampleType::OFF:
+        {
+            Parse(parent, "OFF");
+            break;
+        }
+        default:
+        {
+            // Bad binary
+            throw ParseException("Invalid upsampleType in binary input: " +
+                                 std::to_string(static_cast<uint32_t>(value)));
+        }
+    }
+}
+
+void Parse(mxml_node_t& parent, const cascading::UpsampleEdgeMode& value)
+{
+    switch (value)
+    {
+        case cascading::UpsampleEdgeMode::DROP:
+        {
+            Parse(parent, "DROP");
+            break;
+        }
+        case cascading::UpsampleEdgeMode::GENERATE:
+        {
+            Parse(parent, "GENERATE");
+            break;
+        }
+        default:
+        {
+            // Bad binary
+            throw ParseException("Invalid upsampleEdgeMode in binary input: " +
+                                 std::to_string(static_cast<uint32_t>(value)));
+        }
+    }
+}
+
+void Parse(mxml_node_t& parent, const cascading::UpsampleEdgeModeType& value)
+{
+    Parse(*mxmlNewElement(&parent, "ROW"), value.row);
+    Parse(*mxmlNewElement(&parent, "COL"), value.col);
+}
+
 void Parse(mxml_node_t& parent, const cascading::MceOperation value)
 {
     switch (value)
@@ -827,6 +889,8 @@ void Parse(mxml_node_t& parent, const cascading::MceS& mces)
     Parse(*mxmlNewElement(agent_op, "STRIPE_ID_STRIDES"), mces.stripeIdStrides);
     Parse(*mxmlNewElement(agent_op, "CONV_STRIDE_XY"), mces.convStrideXy);
     Parse(*mxmlNewElement(agent_op, "IFM_ZERO_POINT"), mces.ifmZeroPoint);
+    Parse(*mxmlNewElement(agent_op, "UPSAMPLE_TYPE"), mces.upsampleType);
+    Parse(*mxmlNewElement(agent_op, "UPSAMPLE_EDGE_MODE"), mces.upsampleEdgeMode);
     Parse(*mxmlNewElement(agent_op, "MCE_OP_MODE"), mces.mceOpMode);
     Parse(*mxmlNewElement(agent_op, "ALGORITHM"), mces.algorithm);
     Parse(*mxmlNewElement(agent_op, "IS_WIDE_FILTER"), mces.isWideFilter);
@@ -838,7 +902,8 @@ void Parse(mxml_node_t& parent, const cascading::MceS& mces)
     Parse(*mxmlNewElement(agent_op, "PADDING"), mces.padding);
     Parse(*mxmlNewElement(agent_op, "IFM_DELTA_DEFAULT"), mces.ifmDeltaDefault);
     Parse(*mxmlNewElement(agent_op, "IFM_DELTA_EDGE"), mces.ifmDeltaEdge);
-    Parse(*mxmlNewElement(agent_op, "IFM_STRIPE_SHAPE"), mces.ifmStripeShape);
+    Parse(*mxmlNewElement(agent_op, "IFM_STRIPE_SHAPE_DEFAULT"), mces.ifmStripeShapeDefault);
+    Parse(*mxmlNewElement(agent_op, "IFM_STRIPE_SHAPE_EDGE"), mces.ifmStripeShapeEdge);
     Parse(*mxmlNewElement(agent_op, "RELU_ACTIV"), mces.reluActiv);
 }
 

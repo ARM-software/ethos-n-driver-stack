@@ -188,6 +188,26 @@ enum class MceAlgorithm : uint8_t
     WINOGRAD,
 };
 
+enum class UpsampleType : uint8_t
+{
+    OFF,
+    BILINEAR,
+    NEAREST_NEIGHBOUR,
+    TRANSPOSE,
+};
+
+enum class UpsampleEdgeMode : uint8_t
+{
+    GENERATE,
+    DROP,
+};
+
+struct UpsampleEdgeModeType
+{
+    UpsampleEdgeMode row;
+    UpsampleEdgeMode col;
+};
+
 /// Mce Scheduler data
 struct MceS
 {
@@ -211,6 +231,10 @@ struct MceS
     StrideXy<uint8_t> convStrideXy;
     /// Ifm zero point
     int16_t ifmZeroPoint;
+    /// Upsample type
+    UpsampleType upsampleType;
+    /// Upsample edge mode
+    UpsampleEdgeModeType upsampleEdgeMode;
     /// Mce Op mode can be: conv, depthwise, fully connected
     MceOperation mceOpMode;
     MceAlgorithm algorithm;
@@ -228,7 +252,8 @@ struct MceS
     /// The width/height (in elements) of IFM slots.
     /// This would typically be the same as dfltStripeSize, but may be different in cases of
     /// upsampling, VALID padding and/or packed boundary data.
-    IfmStripeShape ifmStripeShape;
+    IfmStripeShape ifmStripeShapeDefault;
+    IfmStripeShape ifmStripeShapeEdge;
     /// Relu activation values
     ReluActivation reluActiv;
     /// ID of the PLE kernel
