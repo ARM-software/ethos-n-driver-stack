@@ -545,20 +545,30 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 
         inputLayer.GetOutputSlot(0).SetTensorInfo(tensorInfo);
 
-        armnn::IConnectableLayer& supportedLayer1 = *myNetwork->AddConvolution2dLayer(
-            supportedConvDesc, supportedWeights, EmptyOptional(), "supported layer 1");
+        IConnectableLayer& supportedLayer1 = *myNetwork->AddConvolution2dLayer(supportedConvDesc, "supported layer 1");
+        armnn::IConnectableLayer* supportedWeightsLayer =
+            myNetwork->AddConstantLayer(supportedWeights, "Conv2dWeights");
+        supportedWeightsLayer->GetOutputSlot(0).SetTensorInfo(supportedWeightsInfo);
+        supportedWeightsLayer->GetOutputSlot(0).Connect(supportedLayer1.GetInputSlot(1));
 
         supportedLayer1.GetOutputSlot(0).SetTensorInfo(tensorInfo);
         inputLayer.GetOutputSlot(0).Connect(supportedLayer1.GetInputSlot(0));
 
-        armnn::IConnectableLayer& unsupportedLayer = *myNetwork->AddConvolution2dLayer(
-            unsupportedConvDesc, unsupportedWeights, EmptyOptional(), "unsupported layer");
+        IConnectableLayer& unsupportedLayer =
+            *myNetwork->AddConvolution2dLayer(unsupportedConvDesc, "unsupported layer");
+        armnn::IConnectableLayer* unsupportedWeightsLayer =
+            myNetwork->AddConstantLayer(unsupportedWeights, "Conv2dWeights");
+        unsupportedWeightsLayer->GetOutputSlot(0).SetTensorInfo(unsupportedWeightsInfo);
+        unsupportedWeightsLayer->GetOutputSlot(0).Connect(unsupportedLayer.GetInputSlot(1));
 
         unsupportedLayer.GetOutputSlot(0).SetTensorInfo(tensorInfo);
         supportedLayer1.GetOutputSlot(0).Connect(unsupportedLayer.GetInputSlot(0));
 
-        armnn::IConnectableLayer& supportedLayer2 = *myNetwork->AddConvolution2dLayer(
-            supportedConvDesc, supportedWeights, EmptyOptional(), "supported layer 2");
+        IConnectableLayer& supportedLayer2 = *myNetwork->AddConvolution2dLayer(supportedConvDesc, "supported layer 2");
+        armnn::IConnectableLayer* supportedWeightsLayer2 =
+            myNetwork->AddConstantLayer(supportedWeights, "Conv2dWeights");
+        supportedWeightsLayer2->GetOutputSlot(0).SetTensorInfo(supportedWeightsInfo);
+        supportedWeightsLayer2->GetOutputSlot(0).Connect(supportedLayer2.GetInputSlot(1));
 
         supportedLayer2.GetOutputSlot(0).SetTensorInfo(tensorInfo);
         unsupportedLayer.GetOutputSlot(0).Connect(supportedLayer2.GetInputSlot(0));
@@ -614,9 +624,11 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 
         const std::string reportFile1 = config.m_PerfOutDir + "/subgraph_0/report.json";
         const std::string reportFile2 = config.m_PerfOutDir + "/subgraph_1/report.json";
+        const std::string reportFile3 = config.m_PerfOutDir + "/subgraph_2/report.json";
 
         const std::string result1 = ReadFile(reportFile1);
         const std::string result2 = ReadFile(reportFile2);
+        const std::string result3 = ReadFile(reportFile3);
 
         const std::string golden1 = R"({
 	"Config":
@@ -757,6 +769,44 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 )";
 
         // The order of the subgraphs is not deterministic due to the way Arm NN constructs them
-        CHECK((((result1 == golden1) && (result2 == golden2)) || ((result1 == golden2) && (result2 == golden1))));
+        // map the subgraphs to the results
+        std::string subgraph1;
+        if (result1.find("Input from input layer") != std::string::npos)
+        {
+            subgraph1 = result1;
+        }
+        else if (result2.find("Input from input layer") != std::string::npos)
+        {
+            subgraph1 = result2;
+        }
+        else if (result3.find("Input from input layer") != std::string::npos)
+        {
+            subgraph1 = result3;
+        }
+        else
+        {
+            CHECK(false);
+        }
+
+        std::string subgraph2;
+        if (result1.find("Input from unsupported layer") != std::string::npos)
+        {
+            subgraph2 = result1;
+        }
+        else if (result2.find("Input from unsupported layer") != std::string::npos)
+        {
+            subgraph2 = result2;
+        }
+        else if (result3.find("Input from unsupported layer") != std::string::npos)
+        {
+            subgraph2 = result3;
+        }
+        else
+        {
+            CHECK(false);
+        }
+
+        CHECK(subgraph1 == golden1);
+        CHECK(subgraph2 == golden2);
     }
 }

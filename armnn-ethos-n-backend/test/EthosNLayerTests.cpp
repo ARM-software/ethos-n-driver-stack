@@ -27,7 +27,19 @@ IConnectableLayer* AddConvolutionLayerToNetwork(INetwork& network,
                                                 const ConstTensor& weights,
                                                 const ConstTensor& biases)
 {
-    return network.AddConvolution2dLayer(descriptor, weights, Optional<ConstTensor>(biases), "convolution");
+    IConnectableLayer* convolutionLayer    = network.AddConvolution2dLayer(descriptor, "convolution");
+    armnn::IConnectableLayer* weightsLayer = network.AddConstantLayer(weights, "convolutionWeights");
+    weightsLayer->GetOutputSlot(0).SetTensorInfo(weights.GetInfo());
+    weightsLayer->GetOutputSlot(0).Connect(convolutionLayer->GetInputSlot(1));
+
+    if (descriptor.m_BiasEnabled)
+    {
+        armnn::IConnectableLayer* biasLayer = network.AddConstantLayer(biases, "convolutionBiases");
+        biasLayer->GetOutputSlot(0).SetTensorInfo(biases.GetInfo());
+        biasLayer->GetOutputSlot(0).Connect(convolutionLayer->GetInputSlot(2));
+    }
+
+    return convolutionLayer;
 }
 
 IConnectableLayer* AddConvolutionLayerToNetwork(INetwork& network,
@@ -42,7 +54,7 @@ IConnectableLayer* AddConvolutionLayerToNetwork(INetwork& network,
 
     if (descriptor.m_BiasEnabled)
     {
-        armnn::IConnectableLayer* biasLayer = network.AddConstantLayer(biases, "DepthwiseConvolutionWeights");
+        armnn::IConnectableLayer* biasLayer = network.AddConstantLayer(biases, "DepthwiseConvolutionBiases");
         biasLayer->GetOutputSlot(0).SetTensorInfo(biases.GetInfo());
         biasLayer->GetOutputSlot(0).Connect(convolutionLayer->GetInputSlot(2));
     }
@@ -604,7 +616,7 @@ LayerTestResult<uint8_t, 4>
     TensorInfo inputInfo({ 1, 1, 1, 2 }, DataType::QAsymmU8, 1.0f, 0);
     std::vector<uint8_t> inputData{ 1, 2 };    // Representing 1.0, 2.0
 
-    TensorInfo weightsInfo({ 2, 1, 1, 2 }, DataType::QAsymmU8);    // OHWI
+    TensorInfo weightsInfo({ 2, 1, 1, 2 }, DataType::QAsymmS8);    // OHWI
     weightsInfo.SetQuantizationDim(0);
     weightsInfo.SetQuantizationScales({ 2.0f, 3.0f });
     weightsInfo.SetConstant(true);
@@ -629,9 +641,9 @@ LayerTestResult<uint8_t, 4>
     desc.m_BiasEnabled = true;
     desc.m_DataLayout  = DataLayout::NHWC;
 
-    armnn::INetworkPtr net              = armnn::INetwork::Create();
-    IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
-    IConnectableLayer* const convLayer = net->AddConvolution2dLayer(desc, weights, Optional<ConstTensor>(bias), "conv");
+    armnn::INetworkPtr net               = armnn::INetwork::Create();
+    IConnectableLayer* const inputLayer  = net->AddInputLayer(0, "input");
+    IConnectableLayer* const convLayer   = AddConvolutionLayerToNetwork(*net, desc, weights, bias);
     IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output");
 
     // Connect the layers
@@ -888,8 +900,16 @@ LayerTestResult<uint8_t, 4> PreCompiledMaxPooling2dTest(armnn::IWorkloadFactory&
     // Construct the network
     armnn::INetworkPtr net              = armnn::INetwork::Create();
     IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input");
-    IConnectableLayer* const convLayer =
-        net->AddConvolution2dLayer(convDescriptor, weights, Optional<ConstTensor>(biases), "conv");
+    IConnectableLayer* const convLayer  = net->AddConvolution2dLayer(convDescriptor, "conv");
+    IConnectableLayer* weightsLayer     = net->AddConstantLayer(weights, "convolutionWeights");
+    weightsLayer->GetOutputSlot(0).SetTensorInfo(weights.GetInfo());
+    weightsLayer->GetOutputSlot(0).Connect(convLayer->GetInputSlot(1));
+    if (convDescriptor.m_BiasEnabled)
+    {
+        armnn::IConnectableLayer* biasLayer = net->AddConstantLayer(biases, "convolutionBiases");
+        biasLayer->GetOutputSlot(0).SetTensorInfo(biases.GetInfo());
+        biasLayer->GetOutputSlot(0).Connect(convLayer->GetInputSlot(2));
+    }
     IConnectableLayer* const poolingLayer = net->AddPooling2dLayer(poolDescriptor, "pooling2d");
     IConnectableLayer* const outputLayer  = net->AddOutputLayer(0, "output");
 

@@ -53,8 +53,10 @@ SubgraphView::SubgraphViewPtr BuildActivationSubgraph(Graph& graph, ActivationFu
     activationLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
     // Construct sub-graph
-    return CreateSubgraphViewFrom(CreateInputsFrom({ activationLayer }), CreateOutputsFrom({ activationLayer }),
-                                  { activationLayer });
+    armnn::SubgraphView view({ activationLayer }, { &activationLayer->GetInputSlot(0) },
+                             { &activationLayer->GetOutputSlot(0) });
+
+    return std::make_unique<SubgraphView>(view);
 }
 
 class TestEthosNSubgraphViewConverter final : public EthosNSubgraphViewConverter
@@ -116,8 +118,11 @@ TEST_SUITE("EthosNSupport")
         additionLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
         // Construct sub-graph
-        SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
-            CreateInputsFrom({ additionLayer }), CreateOutputsFrom({ additionLayer }), { additionLayer });
+        armnn::SubgraphView view({ additionLayer },
+                                 { &additionLayer->GetInputSlot(0), &additionLayer->GetInputSlot(1) },
+                                 { &additionLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         // Set up Ethos-N sub-graph converter
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
@@ -162,8 +167,12 @@ TEST_SUITE("EthosNSupport")
         concatLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
         // Construct sub-graph
-        SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
-            CreateInputsFrom({ concatLayer }), CreateOutputsFrom({ concatLayer }), { concatLayer });
+        armnn::SubgraphView view({ concatLayer },
+                                 { &concatLayer->GetInputSlot(0), &concatLayer->GetInputSlot(1),
+                                   &concatLayer->GetInputSlot(2), &concatLayer->GetInputSlot(3) },
+                                 { &concatLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         // Set up Ethos-N sub-graph converter
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
@@ -303,9 +312,10 @@ TEST_SUITE("EthosNSupport")
         inputLayer->GetOutputSlot(0).Connect(fullyConnectedLayer->GetInputSlot(0));
         fullyConnectedLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
-        SubgraphView::SubgraphViewPtr subgraphPtr =
-            CreateSubgraphViewFrom({ &fullyConnectedLayer->GetInputSlot(0) },
-                                   { &fullyConnectedLayer->GetOutputSlot(0) }, { fullyConnectedLayer });
+        armnn::SubgraphView view({ fullyConnectedLayer }, { &fullyConnectedLayer->GetInputSlot(0) },
+                                 { &fullyConnectedLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
@@ -429,9 +439,10 @@ TEST_SUITE("EthosNSupport")
         inputLayer->GetOutputSlot(0).Connect(depthwiseConvolutionLayer->GetInputSlot(0));
         depthwiseConvolutionLayer->GetOutputSlot().Connect(outputLayer->GetInputSlot(0));
 
-        SubgraphView::SubgraphViewPtr subgraphPtr =
-            CreateSubgraphViewFrom({ &depthwiseConvolutionLayer->GetInputSlot(0) },
-                                   { &depthwiseConvolutionLayer->GetOutputSlot(0) }, { depthwiseConvolutionLayer });
+        armnn::SubgraphView view({ depthwiseConvolutionLayer }, { &depthwiseConvolutionLayer->GetInputSlot(0) },
+                                 { &depthwiseConvolutionLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
@@ -465,6 +476,20 @@ TEST_SUITE("EthosNSupport")
 
         convLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
+        // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
+        // as separate layers with connections. For now, we need to do both.
+        auto weights           = graph.AddLayer<ConstantLayer>("Weights");
+        weights->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
+        weights->m_LayerOutput->Allocate();
+        weights->GetOutputSlot().SetTensorInfo(weightInfo);
+        weights->GetOutputSlot().Connect(convLayer->GetInputSlot(1));
+
+        auto bias           = graph.AddLayer<ConstantLayer>("Bias");
+        bias->m_LayerOutput = std::make_unique<ScopedTensorHandle>(biasInfo);
+        bias->m_LayerOutput->Allocate();
+        bias->GetOutputSlot().SetTensorInfo(biasInfo);
+        bias->GetOutputSlot().Connect(convLayer->GetInputSlot(2));
+
         SetWeightAndBias(convLayer, weightInfo, biasInfo);
 
         Layer* const outputLayer = graph.AddLayer<OutputLayer>(0, "output");
@@ -473,8 +498,9 @@ TEST_SUITE("EthosNSupport")
         convLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
         // Retrieve Subgraph
-        SubgraphView::SubgraphViewPtr subgraphPtr =
-            CreateSubgraphViewFrom(CreateInputsFrom({ convLayer }), CreateOutputsFrom({ convLayer }), { convLayer });
+        armnn::SubgraphView view({ convLayer }, { &convLayer->GetInputSlot(0) }, { &convLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         // Set up Ethos-N sub-graph converter
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
@@ -520,8 +546,9 @@ TEST_SUITE("EthosNSupport")
         convLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
         // Retrieve Subgraph
-        SubgraphView::SubgraphViewPtr subgraphPtr =
-            CreateSubgraphViewFrom(CreateInputsFrom({ convLayer }), CreateOutputsFrom({ convLayer }), { convLayer });
+        armnn::SubgraphView view({ convLayer }, { &convLayer->GetInputSlot(0) }, { &convLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         // Set up Ethos-N sub-graph converter
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
@@ -551,8 +578,10 @@ TEST_SUITE("EthosNSupport")
         softmaxLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
         // Construct sub-graph
-        SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
-            CreateInputsFrom({ softmaxLayer }), CreateOutputsFrom({ softmaxLayer }), { softmaxLayer });
+        armnn::SubgraphView view({ softmaxLayer }, { &softmaxLayer->GetInputSlot(0) },
+                                 { &softmaxLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         // Set up Ethos-N sub-graph converter
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
@@ -577,8 +606,10 @@ TEST_SUITE("EthosNSupport")
         pooling2dLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
         // Construct the sub-graph
-        SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
-            CreateInputsFrom({ pooling2dLayer }), CreateOutputsFrom({ pooling2dLayer }), { pooling2dLayer });
+        armnn::SubgraphView view({ pooling2dLayer }, { &pooling2dLayer->GetInputSlot(0) },
+                                 { &pooling2dLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         return subgraphPtr;
     }
@@ -705,8 +736,10 @@ TEST_SUITE("EthosNSupport")
         reshapeLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
         // Construct sub-graph
-        SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
-            CreateInputsFrom({ reshapeLayer }), CreateOutputsFrom({ reshapeLayer }), { reshapeLayer });
+        armnn::SubgraphView view({ reshapeLayer }, { &reshapeLayer->GetInputSlot(0) },
+                                 { &reshapeLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         // Set up Ethos-N  sub-graph converter
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
@@ -741,8 +774,10 @@ TEST_SUITE("EthosNSupport")
         transposeLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
         // Construct sub-graph
-        SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
-            CreateInputsFrom({ transposeLayer }), CreateOutputsFrom({ transposeLayer }), { transposeLayer });
+        armnn::SubgraphView view({ transposeLayer }, { &transposeLayer->GetInputSlot(0) },
+                                 { &transposeLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         // Set up Ethos-N  sub-graph converter
         EthosNConfig config;
@@ -778,8 +813,10 @@ TEST_SUITE("EthosNSupport")
         quantizeLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
 
         // Construct sub-graph
-        SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
-            CreateInputsFrom({ quantizeLayer }), CreateOutputsFrom({ quantizeLayer }), { quantizeLayer });
+        armnn::SubgraphView view({ quantizeLayer }, { &quantizeLayer->GetInputSlot(0) },
+                                 { &quantizeLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         // Set up Ethos-N  sub-graph converter
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
@@ -816,8 +853,10 @@ TEST_SUITE("EthosNSupport")
         resizeLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
         // Construct sub-graph
-        SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
-            CreateInputsFrom({ resizeLayer }), CreateOutputsFrom({ resizeLayer }), { resizeLayer });
+        armnn::SubgraphView view({ resizeLayer }, { &resizeLayer->GetInputSlot(0) },
+                                 { &resizeLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         // Set up Ethos-N  sub-graph converter
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
@@ -854,6 +893,19 @@ TEST_SUITE("EthosNSupport")
 
         convLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
+        // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
+        // as separate layers with connections. For now, we need to do both.
+        auto weights           = graph.AddLayer<ConstantLayer>("Weights");
+        weights->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
+        weights->m_LayerOutput->Allocate();
+        weights->GetOutputSlot().SetTensorInfo(weightInfo);
+        weights->GetOutputSlot().Connect(convLayer->GetInputSlot(1));
+        auto bias           = graph.AddLayer<ConstantLayer>("Bias");
+        bias->m_LayerOutput = std::make_unique<ScopedTensorHandle>(biasInfo);
+        bias->m_LayerOutput->Allocate();
+        bias->GetOutputSlot().SetTensorInfo(biasInfo);
+        bias->GetOutputSlot().Connect(convLayer->GetInputSlot(2));
+
         SetWeightAndBias(convLayer, weightInfo, biasInfo);
 
         Layer* const outputLayer = graph.AddLayer<OutputLayer>(0, "output");
@@ -862,8 +914,10 @@ TEST_SUITE("EthosNSupport")
         convLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
         // Retrieve Subgraph
-        SubgraphView::SubgraphViewPtr subgraphPtr =
-            CreateSubgraphViewFrom(CreateInputsFrom({ convLayer }), CreateOutputsFrom({ convLayer }), { convLayer });
+        armnn::SubgraphView view({ convLayer, weights, bias }, { &convLayer->GetInputSlot(0) },
+                                 { &convLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         // Set up Ethos-N sub-graph converter
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
@@ -902,8 +956,10 @@ TEST_SUITE("EthosNSupport")
         standInLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
         // Retrieve Subgraph
-        SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
-            CreateInputsFrom({ standInLayer }), CreateOutputsFrom({ standInLayer }), { standInLayer });
+        armnn::SubgraphView view({ standInLayer }, { &standInLayer->GetInputSlot(0) },
+                                 { &standInLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         armnn::EthosNConfig config{};
 
@@ -942,8 +998,10 @@ TEST_SUITE("EthosNSupport")
         standInLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
         // Retrieve Subgraph
-        SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
-            CreateInputsFrom({ standInLayer }), CreateOutputsFrom({ standInLayer }), { standInLayer });
+        armnn::SubgraphView view({ standInLayer }, { &standInLayer->GetInputSlot(0) },
+                                 { &standInLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         armnn::EthosNConfig config{};
         config.m_PerfOnly    = true;
@@ -983,8 +1041,10 @@ TEST_SUITE("EthosNSupport")
         standInLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
         // Retrieve Subgraph
-        SubgraphView::SubgraphViewPtr subgraphPtr = CreateSubgraphViewFrom(
-            CreateInputsFrom({ standInLayer }), CreateOutputsFrom({ standInLayer }), { standInLayer });
+        armnn::SubgraphView view({ standInLayer }, { &standInLayer->GetInputSlot(0) },
+                                 { &standInLayer->GetOutputSlot(0) });
+
+        auto subgraphPtr = std::make_unique<SubgraphView>(view);
 
         armnn::EthosNConfig config{};
         config.m_PerfOnly    = true;

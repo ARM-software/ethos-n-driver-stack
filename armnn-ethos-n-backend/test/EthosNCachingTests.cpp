@@ -64,6 +64,20 @@ SubgraphView::SubgraphViewPtr CreateSimpleSubgraph(Graph& graph)
 
     Convolution2dLayer* const convLayer = graph.AddLayer<Convolution2dLayer>(convolutionDescriptor, "conv layer");
     CHECK(convLayer);
+
+    // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
+    // as separate layers with connections. For now, we need to do both.
+    auto weights           = graph.AddLayer<ConstantLayer>("Weights");
+    weights->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
+    weights->m_LayerOutput->Allocate();
+    weights->GetOutputSlot().SetTensorInfo(weightInfo);
+    weights->GetOutputSlot().Connect(convLayer->GetInputSlot(1));
+    auto bias           = graph.AddLayer<ConstantLayer>("Bias");
+    bias->m_LayerOutput = std::make_unique<ScopedTensorHandle>(biasInfo);
+    bias->m_LayerOutput->Allocate();
+    bias->GetOutputSlot().SetTensorInfo(biasInfo);
+    bias->GetOutputSlot().Connect(convLayer->GetInputSlot(2));
+
     SetWeightAndBias(convLayer, weightInfo, biasInfo);
     convLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
@@ -75,7 +89,10 @@ SubgraphView::SubgraphViewPtr CreateSimpleSubgraph(Graph& graph)
     convLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
 
     // Create the subgraph view for the whole network
-    return CreateSubgraphViewFrom(CreateInputsFrom({ convLayer }), CreateOutputsFrom({ convLayer }), { convLayer });
+
+    armnn::SubgraphView view({ convLayer, weights, bias }, { &convLayer->GetInputSlot(0) },
+                             { &convLayer->GetOutputSlot(0) });
+    return std::make_unique<SubgraphView>(view);
 }
 
 }    // anonymous namespace

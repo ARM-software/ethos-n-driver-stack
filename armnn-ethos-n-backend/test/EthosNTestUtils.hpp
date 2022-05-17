@@ -167,7 +167,10 @@ inline void CreateEthosNPrecompiledWorkloadTest()
     const std::string convLayerName("conv layer");
 
     // Create convolution layer without biases
-    convLayer = net->AddConvolution2dLayer(convDesc2d, weights, EmptyOptional(), convLayerName.c_str());
+    convLayer                              = net->AddConvolution2dLayer(convDesc2d, convLayerName.c_str());
+    armnn::IConnectableLayer* weightsLayer = net->AddConstantLayer(weights, "Conv2dWeights");
+    weightsLayer->GetOutputSlot(0).SetTensorInfo(weightsTensorInfo);
+    weightsLayer->GetOutputSlot(0).Connect((*convLayer).GetInputSlot(1));
 
     CHECK(convLayer);
 

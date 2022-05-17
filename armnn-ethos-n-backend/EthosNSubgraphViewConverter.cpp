@@ -328,11 +328,12 @@ void EthosNSubgraphViewConverter::AddConvolution2dLayer(const IConnectableLayer*
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
-    ARMNN_ASSERT(convolutionLayer.m_Weight);
-    auto biases = AddBiases(convolutionLayer, convolutionLayer.m_Bias.get(), convolutionLayer.m_Weight->GetTensorInfo(),
+    auto biasAndWeightsHandle = GetBiasAndWeightsHandle(convolutionLayer);
+
+    auto biases = AddBiases(convolutionLayer, biasAndWeightsHandle.first, biasAndWeightsHandle.second.GetTensorInfo(),
                             descriptor.m_BiasEnabled);
     auto weights =
-        AddWeights(convolutionLayer, convolutionLayer.GetParameters().m_DataLayout, *convolutionLayer.m_Weight);
+        AddWeights(convolutionLayer, convolutionLayer.GetParameters().m_DataLayout, biasAndWeightsHandle.second);
 
     auto& outputInfo                                      = convolutionLayer.GetOutputSlot(0).GetTensorInfo();
     Optional<ethosn_lib::ConvolutionInfo> convolutionInfo = BuildEthosNConvolutionInfo(
