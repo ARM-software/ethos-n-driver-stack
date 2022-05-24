@@ -1580,7 +1580,10 @@ TEST_CASE("GetOpGraphForDfsMISODramsToSrams", "[CombinerDFS]")
 //            \   (   )
 //            |   (   )
 //            \-> ( C )
-//            \-> ( D )
+//            \-> ( D ) -> ( E )
+//
+//  D's input buffer is DRAM, but it can share glue with B, C because
+//  it is not an output part.
 TEST_CASE("GetOpGraphForDfsCombinationPartialDram", "[CombinerDFS]")
 {
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
@@ -1593,26 +1596,32 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialDram", "[CombinerDFS]")
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pE = std::make_unique<MockPart>(graph.GeneratePartId());
 
     BasePart& partA = *pA;
     BasePart& partB = *pB;
     BasePart& partC = *pC;
     BasePart& partD = *pD;
+    BasePart& partE = *pE;
 
     parts.push_back(std::move(pA));
     parts.push_back(std::move(pB));
     parts.push_back(std::move(pC));
     parts.push_back(std::move(pD));
+    parts.push_back(std::move(pE));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
+    PartOutputSlot partDOutputSlot = { partD.GetPartId(), 0 };
 
     PartInputSlot partBInputSlot = { partB.GetPartId(), 0 };
     PartInputSlot partCInputSlot = { partC.GetPartId(), 0 };
     PartInputSlot partDInputSlot = { partD.GetPartId(), 0 };
+    PartInputSlot partEInputSlot = { partE.GetPartId(), 0 };
 
     connections[partBInputSlot] = { partAOutputSlot };
     connections[partCInputSlot] = { partAOutputSlot };
     connections[partDInputSlot] = { partAOutputSlot };
+    connections[partEInputSlot] = { partDOutputSlot };
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -2902,6 +2911,9 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     //  A - -> B
     //  |
     //   -- >  D
+    //
+    //  D is an output node on DRAM and cannot share
+    //  glue with B, C
     GraphOfParts graph;
     auto& parts       = graph.m_Parts;
     auto& connections = graph.m_Connections;
@@ -3010,8 +3022,10 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
 
     Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, destPartEdge);
 
-    // One glue shared by A-B, A-C (SRAM - SRAM) and A-D (SRAM - DRAM)
-    // The glue has (1) 1 x input DMA (2) DRAM buffer (3) 2 x ouput DMA
+    // One glue shared by A-B, A-C (SRAM - SRAM)
+    // The glue has (1) 1 x input DMA (2) DRAM buffer (3) 2 x ouput DMA.
+    // A-D uses a separate glue (SRAM - DRAM) that has one DMA.
+    // Note part D is an output that cannot use the shared glue.
     REQUIRE(combGlued.m_Elems.size() == 4);
 
     // Elem Part A's glue should have three elements
@@ -3028,13 +3042,185 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     REQUIRE(elemAD != elemIt->second.m_Glues.end());
 
     REQUIRE(elemAB->second.m_Glue == elemAC->second.m_Glue);
-    REQUIRE(elemAB->second.m_Glue == elemAD->second.m_Glue);
+    REQUIRE(elemAB->second.m_Glue != elemAD->second.m_Glue);
     REQUIRE(elemAB->second.m_OutDma == true);
     REQUIRE(elemAC->second.m_OutDma == true);
-    REQUIRE(elemAD->second.m_OutDma == false);
+    REQUIRE(elemAD->second.m_OutDma == true);
     REQUIRE(elemAB->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
-    REQUIRE(elemAB->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Format == CascadingBufferFormat::NHWCB);
+    REQUIRE(elemAB->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Format == CascadingBufferFormat::FCAF_DEEP);
     REQUIRE(elemAB->second.m_Glue->m_Graph.GetOps().size() == 3);
+
+    REQUIRE(elemAD->second.m_Glue->m_Graph.GetOps().size() == 1);
+    REQUIRE(elemAD->second.m_Glue->m_Graph.GetBuffers().size() == 0);
+}
+
+TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
+{
+    // Create graph:
+    //
+    //
+    //   - - > C
+    //  |
+    //  A - -> B
+    //  |
+    //   -- >  D --> E
+    //
+    //  D is not an output node, but its buffer  in DRAM is in NHWC format
+    //  and cannot share glue with B, C
+    //  Note that E is merely a "dummy" part to make D an non-output
+    //  part.
+    GraphOfParts graph;
+    auto& parts       = graph.m_Parts;
+    auto& connections = graph.m_Connections;
+
+    auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pD = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pE = std::make_unique<MockPart>(graph.GeneratePartId());
+
+    BasePart& partA = *pA;
+    BasePart& partB = *pB;
+    BasePart& partC = *pC;
+    BasePart& partD = *pD;
+    BasePart& partE = *pE;
+
+    PartId partAId = pA->GetPartId();
+    PartId partBId = pB->GetPartId();
+    PartId partCId = pC->GetPartId();
+    PartId partDId = pD->GetPartId();
+
+    parts.push_back(std::move(pA));
+    parts.push_back(std::move(pB));
+    parts.push_back(std::move(pC));
+    parts.push_back(std::move(pD));
+    parts.push_back(std::move(pE));
+
+    PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
+    PartOutputSlot partDOutputSlot = { partD.GetPartId(), 0 };
+
+    PartInputSlot partBInputSlot = { partB.GetPartId(), 0 };
+    PartInputSlot partCInputSlot = { partC.GetPartId(), 0 };
+    PartInputSlot partDInputSlot = { partD.GetPartId(), 0 };
+    PartInputSlot partEInputSlot = { partE.GetPartId(), 0 };
+
+    connections[partBInputSlot] = { partAOutputSlot };
+    connections[partCInputSlot] = { partAOutputSlot };
+    connections[partDInputSlot] = { partAOutputSlot };
+    connections[partEInputSlot] = { partDOutputSlot };
+
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    Plan planA;
+    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
+
+    Plan planB;
+    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
+
+    Plan planC;
+    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planC.m_InputMappings = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
+
+    Plan planD;
+    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWC,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planD.m_InputMappings = { { planD.m_OpGraph.GetBuffers()[0], partDInputSlot } };
+
+    Plan planE;
+    planE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
+                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    planE.m_InputMappings = { { planE.m_OpGraph.GetBuffers()[0], partDInputSlot } };
+
+    Combination combA(partA, std::move(planA), 0, graph);
+    Combination combB(partB, std::move(planB), 1, graph);
+    Combination combC(partC, std::move(planC), 2, graph);
+    Combination combD(partD, std::move(planD), 3, graph);
+    Combination combE(partE, std::move(planE), 4, graph);
+
+    // Merge the combinations
+    Combination comb = combE + combB + combD + combC + combA;
+
+    REQUIRE(combA.m_PartIdsInOrder[0] == 0);
+    REQUIRE(combA.m_HeadOrderRank == 0);
+    REQUIRE(combB.m_PartIdsInOrder[0] == 1);
+    REQUIRE(combB.m_HeadOrderRank == 1);
+    REQUIRE(combC.m_PartIdsInOrder[0] == 2);
+    REQUIRE(combC.m_HeadOrderRank == 2);
+    REQUIRE(combD.m_PartIdsInOrder[0] == 3);
+    REQUIRE(combD.m_HeadOrderRank == 3);
+    REQUIRE(comb.m_PartIdsInOrder[0] == 0);
+    REQUIRE(comb.m_HeadOrderRank == 0);
+
+    // There is no glue
+    for (PartId i = 0; i < graph.m_Parts.size(); ++i)
+    {
+        const BasePart& part = graph.GetPart(i);
+        for (auto& glueIt : comb.m_Elems.at(part.GetPartId()).m_Glues)
+        {
+            REQUIRE(glueIt.second.m_Glue == nullptr);
+        }
+    }
+
+    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+
+    std::vector<PartConnection> destPartEdge;
+
+    // Part B and the edge that connects to its source Part A
+    PartConnection edgeA2B = graph.GetConnectionsBetween(partAId, partBId).at(0);
+    destPartEdge.push_back(edgeA2B);
+    // Part C and the edge that connects to its source Part A
+    PartConnection edgeA2C = graph.GetConnectionsBetween(partAId, partCId).at(0);
+    destPartEdge.push_back(edgeA2C);
+    // Part D and the edge that connects to its source Part A
+    PartConnection edgeA2D = graph.GetConnectionsBetween(partAId, partDId).at(0);
+    destPartEdge.push_back(edgeA2D);
+
+    Combination combGlued = combiner.GluePartToCombinationSrcToDests(partA, comb, destPartEdge);
+
+    // One glue shared by A-B, A-C (SRAM - SRAM)
+    // The glue has (1) 1 x input DMA (2) DRAM buffer (3) 2 x ouput DMA.
+    // A-D uses a separate glue (SRAM - DRAM) that has one DMA.
+    // Note part D's input buffer in DRAM is NHWC so that it
+    // cannot share glue with others.
+    REQUIRE(combGlued.m_Elems.size() == 5);
+
+    // Elem Part A's glue should have three elements
+    // (*edgeAB, *glue0) (*edgeAC, *glue0) (*edgeAD, *glue1)
+    auto elemIt = combGlued.m_Elems.find(partAId);
+    REQUIRE(elemIt != combGlued.m_Elems.end());
+    REQUIRE(elemIt->second.m_Glues.size() == 3);
+
+    auto elemAB = elemIt->second.m_Glues.find(edgeA2B.m_Destination);
+    REQUIRE(elemAB != elemIt->second.m_Glues.end());
+    auto elemAC = elemIt->second.m_Glues.find(edgeA2C.m_Destination);
+    REQUIRE(elemAC != elemIt->second.m_Glues.end());
+    auto elemAD = elemIt->second.m_Glues.find(edgeA2D.m_Destination);
+    REQUIRE(elemAD != elemIt->second.m_Glues.end());
+
+    REQUIRE(elemAB->second.m_Glue == elemAC->second.m_Glue);
+    REQUIRE(elemAB->second.m_Glue != elemAD->second.m_Glue);
+    REQUIRE(elemAB->second.m_OutDma == true);
+    REQUIRE(elemAC->second.m_OutDma == true);
+    REQUIRE(elemAD->second.m_OutDma == true);
+    REQUIRE(elemAB->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Location == Location::Dram);
+    REQUIRE(elemAB->second.m_Glue->m_Graph.GetBuffers().at(0)->m_Format == CascadingBufferFormat::FCAF_DEEP);
+    REQUIRE(elemAB->second.m_Glue->m_Graph.GetOps().size() == 3);
+
+    REQUIRE(elemAD->second.m_Glue->m_Graph.GetOps().size() == 1);
+    REQUIRE(elemAD->second.m_Glue->m_Graph.GetBuffers().size() == 0);
 }
 
 TEST_CASE("IsPlanInputGlueable", "[CombinerDFS]")

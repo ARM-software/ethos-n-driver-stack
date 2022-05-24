@@ -315,9 +315,10 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         Location outputLocation      = Location::Sram;
         CascadingBufferFormat format = sramOutputBuffer->m_Format;
         bool isCompressed            = false;
-        if (opGraph.GetConsumers(sramOutputBuffer).size() == 1)
+
+        for (uint32_t i = 0; i < uint32_t(opGraph.GetConsumers(sramOutputBuffer).size()); i++)
         {
-            DmaOp* dmaOp = GetObjectAs<DmaOp>(opGraph.GetConsumers(sramOutputBuffer)[0].first);
+            DmaOp* dmaOp = GetObjectAs<DmaOp>(opGraph.GetConsumers(sramOutputBuffer)[i].first);
             if (dmaOp != nullptr && unprocessed.count(dmaOp) > 0)
             {
                 Buffer* dmaOutput = opGraph.GetOutput(dmaOp);
@@ -503,6 +504,7 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
     std::vector<EstimatedPass> unsortedPasses;
     std::unordered_set<Op*> unprocessedOps(opGraph.GetOps().begin(), opGraph.GetOps().end());
     std::map<uint32_t, std::string> operationIdFailureReasons;
+
     for (Op* op : opGraph.GetOps())
     {
         if (unprocessedOps.count(op) == 0)

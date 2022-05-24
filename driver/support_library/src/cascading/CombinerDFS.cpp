@@ -917,9 +917,13 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
     std::vector<bool> inputBufferSram;
     std::vector<std::pair<PartConnection, const Buffer*>> buffersEdgesUseOwnGlue;
 
-    // (1) source location SRAM and number of edges > 1 --- a shared glue
-    //     will be used
-    // (2) otherwise each edge uses its own glue
+    auto canUseSharedGlue = [&](const BasePart& part, const Buffer* inputBuffer) -> bool {
+        return ((!IsPartOutput(part) && inputBuffer->m_Format != CascadingBufferFormat::NHWC) ||
+                inputBuffer->m_Location == Location::Sram);
+    };
+
+    // Gets the number of branches that are not output or input buffer in SRAM
+    uint32_t noOfBranchesToShareGlue = 0;
     for (const auto& partEdge : destPartEdge)
     {
         const BasePart& part = m_GraphOfParts.GetPart(partEdge.m_Destination.m_PartId);
@@ -928,7 +932,31 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
         const Buffer* inputBuffer = plan.GetInputBuffer(partEdge.m_Destination);
         assert(inputBuffer != nullptr);
 
-        if (isSrcLocationSram && destPartEdge.size() > 1)
+        noOfBranchesToShareGlue += canUseSharedGlue(part, inputBuffer);
+    }
+
+    for (const auto& partEdge : destPartEdge)
+    {
+        const BasePart& part = m_GraphOfParts.GetPart(partEdge.m_Destination.m_PartId);
+        const Plan& plan     = GetPlanForPartFromCombination(part, comb);
+
+        const Buffer* inputBuffer = plan.GetInputBuffer(partEdge.m_Destination);
+        assert(inputBuffer != nullptr);
+
+        // A branch is attached to a shared glue if the following conditions are met:
+        // it is either not a output part and its input buffer format is not NHWC,
+        // or its input buffer is SRAM
+        // and there are at least 2 such branches
+        // otherwise it uses its own glue
+        // Reason for not assigning a branch that is an output in DRAM:
+        // Intermediate and output buffers cannot be shared and using its
+        // own glue prevents the output DRAM buffer being merged with
+        // the intermediate buffer (created for the glue).
+        // A branch with input buffer formant in NHWC cannot use shared glue
+        // because the format of the intermediate buffer of a shared glue is NHWCB.
+        bool useSharedGlue = noOfBranchesToShareGlue > 1 && canUseSharedGlue(part, inputBuffer);
+
+        if (isSrcLocationSram && useSharedGlue)
         {
             buffersSharingGlue.push_back(inputBuffer);
             edgesSharingGlue.push_back(std::make_pair(partEdge, inputBuffer->m_Location == Location::Sram));
@@ -940,7 +968,6 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
     }
 
     assert(buffersSharingGlue.size() == edgesSharingGlue.size());
-    assert(buffersSharingGlue.size() == 0 || buffersEdgesUseOwnGlue.size() == 0);
 
     for (const auto branch : buffersEdgesUseOwnGlue)
     {
