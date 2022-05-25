@@ -1,5 +1,5 @@
 //
-// Copyright © 2019-2021 Arm Limited.
+// Copyright © 2019-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -154,10 +154,46 @@ void CMMParser::ExtractBTFromCMM(std::ostream& output)
         ethosn_buffer_desc bufferInfo = GetBinaryDataFromHexFile<ethosn_buffer_desc>(
             m_Input, inferenceAddress + static_cast<uint32_t>(sizeof(ethosn_buffer_array)) +
                          i * static_cast<uint32_t>(sizeof(ethosn_buffer_desc)));
+
+        std::string tType = "";
+        switch (bufferInfo.type)
+        {
+            case ETHOSN_BUFFER_INPUT:
+            {
+                tType = "INPUT";
+                break;
+            }
+            case ETHOSN_BUFFER_INTERMEDIATE:
+            {
+                tType = "INTERMEDIATE";
+                break;
+            }
+            case ETHOSN_BUFFER_OUTPUT:
+            {
+                tType = "OUTPUT";
+                break;
+            }
+            case ETHOSN_BUFFER_CONSTANT:
+            {
+                tType = "CONSTANT";
+                break;
+            }
+            case ETHOSN_BUFFER_CMD_FW:
+            {
+                tType = "CMD_FW";
+                break;
+            }
+            default:
+            {
+                tType = "UNKNOWN";
+                break;
+            }
+        }
         output << "  <BUFFER>" << std::endl;
         output << "    <ID>" << i << "</ID>" << std::endl;
         output << "    <ADDRESS>0x" << std::hex << bufferInfo.address << "</ADDRESS>" << std::endl;
         output << "    <SIZE>" << std::dec << bufferInfo.size << "</SIZE>" << std::endl;
+        output << "    <TYPE>" << tType << "</TYPE>" << std::endl;
         output << "  </BUFFER>" << std::endl;
     }
     output << "</BIND>" << std::endl;

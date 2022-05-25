@@ -331,6 +331,14 @@ struct ethosn_message_header {
 /******************************************************************************
  * Inference
  ******************************************************************************/
+enum ethosn_buffer_type {
+	ETHOSN_BUFFER_INPUT,
+	ETHOSN_BUFFER_INTERMEDIATE,
+	ETHOSN_BUFFER_OUTPUT,
+	ETHOSN_BUFFER_CONSTANT,
+	ETHOSN_BUFFER_CMD_FW,
+	ETHOSN_BUFFER_MAX
+};
 
 /**
  * struct ethosn_buffer_desc - Buffer descriptor
@@ -340,6 +348,7 @@ struct ethosn_message_header {
 struct ethosn_buffer_desc {
 	ethosn_address_t address;
 	uint32_t         size;
+	uint32_t         type;
 };
 
 /**

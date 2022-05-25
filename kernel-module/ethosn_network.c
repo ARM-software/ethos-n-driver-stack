@@ -99,7 +99,8 @@ static int set_binding(struct ethosn_network *network,
 		       struct ethosn_buffer_info *buf_info,
 		       ethosn_address_t container_start,
 		       ethosn_address_t container_size,
-		       bool check_in_container)
+		       bool check_in_container,
+		       enum ethosn_buffer_type buffer_type)
 {
 	ethosn_address_t buf_start = container_start + buf_info->offset;
 	ethosn_address_t buf_end = buf_start + buf_info->size;
@@ -127,6 +128,7 @@ static int set_binding(struct ethosn_network *network,
 
 	buffers->buffers[buf_info->id].address = buf_start;
 	buffers->buffers[buf_info->id].size = buf_info->size;
+	buffers->buffers[buf_info->id].type = buffer_type;
 
 	return 0;
 }
@@ -138,7 +140,8 @@ static int update_bindings(struct ethosn_network *network,
 			   ethosn_address_t container_start,
 			   ethosn_address_t container_size,
 			   bool check_duplicates,
-			   bool check_in_container)
+			   bool check_in_container,
+			   enum ethosn_buffer_type buffer_type)
 {
 	u32 i;
 	ethosn_address_t min_buf_start = container_size;
@@ -175,7 +178,8 @@ static int update_bindings(struct ethosn_network *network,
 				  buf_info,
 				  container_start,
 				  container_size,
-				  check_in_container);
+				  check_in_container,
+				  buffer_type);
 		if (ret)
 			return ret;
 
@@ -364,7 +368,8 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 				      dma_info->iova_addr,
 				      dma_info->size,
 				      false,
-				      true);
+				      true,
+				      ETHOSN_BUFFER_INPUT);
 		if (ret)
 			goto out_inference_error;
 	}
@@ -380,7 +385,8 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 				      dma_info->iova_addr,
 				      dma_info->size,
 				      false,
-				      true);
+				      true,
+				      ETHOSN_BUFFER_OUTPUT);
 		if (ret)
 			goto out_inference_error;
 	}
@@ -394,7 +400,8 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 			      network->intermediate_data[core_id] == NULL ? 0 :
 			      network->intermediate_data[core_id]->size,
 			      false,
-			      true);
+			      true,
+			      ETHOSN_BUFFER_INTERMEDIATE);
 
 	if (ret)
 		goto out_inference_error;
@@ -800,7 +807,8 @@ static int init_bindings(struct ethosn_network *network,
 			 ethosn_address_t container_start,
 			 ethosn_address_t container_size,
 			 bool check_in_container,
-			 struct ethosn_buffer_info **binfos_save)
+			 struct ethosn_buffer_info **binfos_save,
+			 enum ethosn_buffer_type buffer_type)
 {
 	struct ethosn_buffer_info *binfos;
 	size_t binfos_size;
@@ -825,7 +833,8 @@ static int init_bindings(struct ethosn_network *network,
 			      container_start,
 			      container_size,
 			      true,
-			      check_in_container);
+			      check_in_container,
+			      buffer_type);
 
 	if (ret || !binfos_save)
 		goto out_free_binfos;
@@ -866,7 +875,8 @@ static int init_inference_data(struct ethosn_network *network,
 			    network->constant_dma_data->iova_addr,
 			    net_req->dma_data.size,
 			    true,
-			    NULL);
+			    NULL,
+			    ETHOSN_BUFFER_CONSTANT);
 	if (ret)
 		return ret;
 
@@ -880,7 +890,8 @@ static int init_inference_data(struct ethosn_network *network,
 					   &core->dma_map),
 			    net_req->cu_data.size,
 			    true,
-			    NULL);
+			    NULL,
+			    ETHOSN_BUFFER_CMD_FW);
 	if (ret)
 		return ret;
 
@@ -891,7 +902,8 @@ static int init_inference_data(struct ethosn_network *network,
 			    0,
 			    0,
 			    false,
-			    &network->intermediates);
+			    &network->intermediates,
+			    ETHOSN_BUFFER_INTERMEDIATE);
 	if (ret)
 		return ret;
 
@@ -904,7 +916,8 @@ static int init_inference_data(struct ethosn_network *network,
 			    0,
 			    0,
 			    false,
-			    &network->inputs);
+			    &network->inputs,
+			    ETHOSN_BUFFER_INPUT);
 	if (ret)
 		return ret;
 
@@ -926,7 +939,8 @@ static int init_inference_data(struct ethosn_network *network,
 			    0,
 			    0,
 			    false,
-			    &network->outputs);
+			    &network->outputs,
+			    ETHOSN_BUFFER_OUTPUT);
 	if (ret)
 		return ret;
 

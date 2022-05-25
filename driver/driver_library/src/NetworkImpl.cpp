@@ -465,11 +465,12 @@ void NetworkImpl::DumpCmm(Buffer* const inputBuffers[],
 template <typename TBufferInfo>
 void FillBufferTable(std::vector<ethosn_buffer_desc>& bufferTable,
                      uint64_t baseAddress,
-                     const std::vector<TBufferInfo>& bufferInfos)
+                     const std::vector<TBufferInfo>& bufferInfos,
+                     const ethosn_buffer_type bufferType)
 {
     for (auto&& buffer : bufferInfos)
     {
-        bufferTable[buffer.m_Id] = { baseAddress + buffer.m_Offset, buffer.m_Size };
+        bufferTable[buffer.m_Id] = { baseAddress + buffer.m_Offset, buffer.m_Size, bufferType };
     }
 }
 
@@ -502,11 +503,14 @@ std::vector<uint32_t> NetworkImpl::BuildInferenceData(uint64_t constantControlUn
     // Fill in the buffer table, which is ordered by buffer ID.
     std::vector<ethosn_buffer_desc> bufferTable(numBuffers);
     FillBufferTable(bufferTable, constantControlUnitDataBaseAddress,
-                    m_CompiledNetwork->m_ConstantControlUnitDataBufferInfos);
-    FillBufferTable(bufferTable, constantDmaDataBaseAddress, m_CompiledNetwork->m_ConstantDmaDataBufferInfos);
-    FillBufferTable(bufferTable, inputBuffersBaseAddress, m_CompiledNetwork->m_InputBufferInfos);
-    FillBufferTable(bufferTable, outputBuffersBaseAddress, m_CompiledNetwork->m_OutputBufferInfos);
-    FillBufferTable(bufferTable, intermediateDataBaseAddress, m_CompiledNetwork->m_IntermediateDataBufferInfos);
+                    m_CompiledNetwork->m_ConstantControlUnitDataBufferInfos, ETHOSN_BUFFER_CMD_FW);
+    FillBufferTable(bufferTable, constantDmaDataBaseAddress, m_CompiledNetwork->m_ConstantDmaDataBufferInfos,
+                    ETHOSN_BUFFER_CONSTANT);
+    FillBufferTable(bufferTable, inputBuffersBaseAddress, m_CompiledNetwork->m_InputBufferInfos, ETHOSN_BUFFER_INPUT);
+    FillBufferTable(bufferTable, outputBuffersBaseAddress, m_CompiledNetwork->m_OutputBufferInfos,
+                    ETHOSN_BUFFER_OUTPUT);
+    FillBufferTable(bufferTable, intermediateDataBaseAddress, m_CompiledNetwork->m_IntermediateDataBufferInfos,
+                    ETHOSN_BUFFER_INTERMEDIATE);
 
     // Append buffer table to raw data.
     for (const auto& bufferInfo : bufferTable)
