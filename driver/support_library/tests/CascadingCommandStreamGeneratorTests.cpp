@@ -2987,7 +2987,7 @@ TEST_CASE("PleScheduler-PleLoader ReadAfterWriteDependency Test", "[CascadingCom
 }
 
 // OfmStreamer Agent - Read After Write Dependency Test
-TEST_CASE("OfmStreamer-IfmStreamer ReadAfterWriteDependency Test", "[CascadingCommandStreamGenerator][.]")
+TEST_CASE("OfmStreamer-IfmStreamer ReadAfterWriteDependency Test", "[CascadingCommandStreamGenerator]")
 {
     TwoMceDramIntermediateOpGraph twoMceOpMergeGraph = TwoMceDramIntermediateOpGraph();
     OpGraph mergedOpGraph                            = twoMceOpMergeGraph.GetMergedOpGraph();
@@ -3045,7 +3045,7 @@ TEST_CASE("OfmStreamer-PleScheduler ReadAfterWriteDependency Test", "[CascadingC
 //////////////////////////////////////////////////////////////////////////////////////////////
 
 // WeightStreamer Agent - Sram Overlap Dependency Test
-TEST_CASE("WeightStreamer-OfmStreamer SramOverlapDependency Test", "[CascadingCommandStreamGenerator][.]")
+TEST_CASE("WeightStreamer-OfmStreamer SramOverlapDependency Test", "[CascadingCommandStreamGenerator]")
 {
     TwoMceDramIntermediateOpGraph twoMceOpMergeGraph = TwoMceDramIntermediateOpGraph();
     OpGraph mergedOpGraph                            = twoMceOpMergeGraph.GetMergedOpGraph();
@@ -3552,7 +3552,7 @@ TEST_CASE("PleScheduler-OfmStreamer ScheduleTimeDependency Test", "[CascadingCom
 }
 
 // OfmStreamer Agent - Schedule Time Dependency Test
-TEST_CASE("OfmStreamer-IfmStreamer ScheduleTimeDependency Test", "[CascadingCommandStreamGenerator][.]")
+TEST_CASE("OfmStreamer-IfmStreamer ScheduleTimeDependency Test", "[CascadingCommandStreamGenerator]")
 {
     TwoMceDramIntermediateOpGraph twoMceOpMergeGraph = TwoMceDramIntermediateOpGraph();
     OpGraph mergedOpGraph                            = twoMceOpMergeGraph.GetMergedOpGraph();
@@ -3581,7 +3581,7 @@ TEST_CASE("OfmStreamer-IfmStreamer ScheduleTimeDependency Test", "[CascadingComm
 // Manually creates a network consisting of a Glue with an Intermediate Dram Buffer, to test the lifetime logic of the CascadingCommandStreamGenerator.
 // The topology is chosen to test cases including:
 //      * Intermediate Dram Buffers with branches, whose end of Lifetime depends on their last consumer Op.
-TEST_CASE("Producer-Consumer IntermediateDramBufferLifetime Test", "[CascadingCommandStreamGenerator][.]")
+TEST_CASE("Producer-Consumer IntermediateDramBufferLifetime Test", "[CascadingCommandStreamGenerator]")
 {
     MceOpGraphIntermediateDramBuffers mceOpGraphIntermediateBuffers = MceOpGraphIntermediateDramBuffers();
     OpGraph mergedOpGraph                                           = mceOpGraphIntermediateBuffers.GetMergedOpGraph();
@@ -3594,16 +3594,14 @@ TEST_CASE("Producer-Consumer IntermediateDramBufferLifetime Test", "[CascadingCo
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt);
     std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
 
-    uint32_t buffId;
-
     // Use dedicated functions to retrieve private OpGraph, IntermdiateDramBufToBufIdMapping and BufferManager
     for (Buffer* buffer : commandStreamGenerator.GetMergedOpGraph().GetBuffers())
     {
         if (buffer->m_Location == Location::Dram && buffer->m_BufferType.value() == BufferType::Intermediate)
         {
-            // Retrieve Buffer Id from Intermediate Dram Buffer using m_IntermdiateDramBufToBufIdMapping.
+            // Retrieve Buffer Id for a Dram Buffer using m_DramBufToBufIdMapping.
             // Buffer Id is internal to m_BufferManager
-            buffId = commandStreamGenerator.GetIntermdiateDramBufToBufIdMapping().at(buffer);
+            auto buffId = commandStreamGenerator.GetDramBufToBufIdMapping().at(buffer);
 
             const BufferManager& bufferManager = commandStreamGenerator.GetBufferManager();
 

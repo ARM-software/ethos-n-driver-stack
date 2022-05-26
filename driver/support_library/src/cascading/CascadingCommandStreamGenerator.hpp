@@ -45,7 +45,7 @@ public:
     const std::vector<command_stream::cascading::Agent>& GetCommandStreamOfAgents() const;
     const BufferManager& GetBufferManager() const;
     const OpGraph& GetMergedOpGraph() const;
-    const std::unordered_map<Buffer*, uint32_t>& GetIntermdiateDramBufToBufIdMapping() const;
+    const std::unordered_map<Buffer*, uint32_t>& GetDramBufToBufIdMapping() const;
 
 private:
     // Private functions for processing OpGraph Ops
@@ -117,8 +117,10 @@ private:
     // Private function to add the lifetime information of the intermediate DRAM buffers
     void AddLifetimeInfoForIntermediateDramBuffers();
 
-    // Intermediate DRAM Buffer to Buffer Id mapping
-    std::unordered_map<Buffer*, uint32_t> m_IntermdiateDramBufToBufIdMapping;
+    // DRAM Buffer to Buffer Id mapping
+    std::unordered_map<Buffer*, uint32_t> m_DramBufToBufIdMapping;
+    // Used for intermediate and input buffers as they can be duplicated
+    uint16_t AddDramBufferAndCacheId(Buffer* inputBuffer, Op* const op);
 
     // Merged OpGraph used to generate the command stream, set at creation time.
     const OpGraph m_MergedOpGraph;

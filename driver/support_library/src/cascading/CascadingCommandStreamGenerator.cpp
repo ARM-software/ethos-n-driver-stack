@@ -106,10 +106,34 @@ const OpGraph& CascadingCommandStreamGenerator::GetMergedOpGraph() const
     return m_MergedOpGraph;
 }
 
-const std::unordered_map<Buffer*, uint32_t>&
-    CascadingCommandStreamGenerator::GetIntermdiateDramBufToBufIdMapping() const
+const std::unordered_map<Buffer*, uint32_t>& CascadingCommandStreamGenerator::GetDramBufToBufIdMapping() const
 {
-    return m_IntermdiateDramBufToBufIdMapping;
+    return m_DramBufToBufIdMapping;
+}
+
+uint16_t CascadingCommandStreamGenerator::AddDramBufferAndCacheId(Buffer* inputBuffer, Op* const op)
+{
+    uint16_t inputBufferId = std::numeric_limits<uint16_t>::max();
+    if (m_DramBufToBufIdMapping.find(inputBuffer) != m_DramBufToBufIdMapping.end())
+    {
+        inputBufferId = ethosn::utils::NumericCast<uint16_t>(m_DramBufToBufIdMapping[inputBuffer]);
+    }
+    else
+    {
+        if (inputBuffer->m_BufferType.value() == BufferType::Input)
+        {
+            inputBufferId = ethosn::utils::NumericCast<uint16_t>(
+                m_BufferManager.AddDramInput(inputBuffer->m_SizeInBytes, *op->m_OperationIds.begin()));
+            m_DramBufToBufIdMapping[inputBuffer] = inputBufferId;
+        }
+        else if (inputBuffer->m_BufferType.value() == BufferType::Intermediate)
+        {
+            inputBufferId = ethosn::utils::NumericCast<uint16_t>(
+                m_BufferManager.AddDram(inputBuffer->m_BufferType.value(), inputBuffer->m_SizeInBytes));
+            m_DramBufToBufIdMapping[inputBuffer] = inputBufferId;
+        }
+    }
+    return inputBufferId;
 }
 
 // Private functions for processing OpGraph Ops
@@ -131,23 +155,10 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(Op* const ptrDmaOp)
 
         if (inputBuffer->m_Format != CascadingBufferFormat::WEIGHT)
         {
-            // Ifm Streamer Agent
-            uint16_t inputBufferId = std::numeric_limits<uint16_t>::max();
             assert(inputBuffer->m_BufferType.value() == BufferType::Intermediate ||
                    inputBuffer->m_BufferType.value() == BufferType::Input);
-            if (inputBuffer->m_BufferType.value() == BufferType::Intermediate)
-            {
-                // If this is an Intermediate Dram Buffer, add it to the IntermdiateDramBufToBufId map with the appropriate Id
-                inputBufferId = ethosn::utils::NumericCast<uint16_t>(
-                    m_BufferManager.AddDram(inputBuffer->m_BufferType.value(), inputBuffer->m_SizeInBytes));
-                m_IntermdiateDramBufToBufIdMapping[inputBuffer] = inputBufferId;
-            }
-            else if (inputBuffer->m_BufferType.value() == BufferType::Input)
-            {
-                inputBufferId = ethosn::utils::NumericCast<uint16_t>(
-                    m_BufferManager.AddDramInput(inputBuffer->m_SizeInBytes, *ptrDmaOp->m_OperationIds.begin()));
-            }
 
+            uint16_t inputBufferId = AddDramBufferAndCacheId(inputBuffer, ptrDmaOp);
             AgentIdType ifmStreamerAgentId =
                 AddIfmStreamerToCommandStream(ptrDmaOp, inputBufferId, inputBuffer, outputBuffer);
 
@@ -211,10 +222,11 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(Op* const ptrDmaOp)
         uint16_t outputBufferId = static_cast<uint16_t>(
             m_BufferManager.AddDram(outputBuffer->m_BufferType.value(), outputBuffer->m_SizeInBytes));
 
-        // If this is an Intermediate Dram Buffer, add it to the IntermdiateDramBufToBufId map with the appropriate Id
+        // If this is an Intermediate Dram Buffer, add it to the DramBufToBufId map with the appropriate Id
         if (outputBuffer->m_BufferType.value() == BufferType::Intermediate)
         {
-            m_IntermdiateDramBufToBufIdMapping[outputBuffer] = outputBufferId;
+            assert(m_DramBufToBufIdMapping.find(outputBuffer) == m_DramBufToBufIdMapping.end());
+            m_DramBufToBufIdMapping[outputBuffer] = outputBufferId;
         }
         else if (outputBuffer->m_BufferType.value() == BufferType::Output)
         {
@@ -445,7 +457,8 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
     // If this is an Intermediate Dram Buffer, add it to the IntermdiateDramBufToBufId map with the appropriate Id
     if (outputBuffer->m_BufferType.value() == BufferType::Intermediate)
     {
-        m_IntermdiateDramBufToBufIdMapping[outputBuffer] = outputBufferId;
+        assert(m_DramBufToBufIdMapping.find(outputBuffer) == m_DramBufToBufIdMapping.end());
+        m_DramBufToBufIdMapping[outputBuffer] = outputBufferId;
     }
 
     uint32_t sramBufferOffset = 0U;
@@ -479,97 +492,103 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
         // Set output DRAM buffer offset
         outputBuffer->m_Offset = dramBufferOffset;
 
-        uint16_t inputBufferId = static_cast<uint16_t>(
-            m_BufferManager.AddDram(inputBuffer->m_BufferType.value(), inputBuffer->m_SizeInBytes));
-
-        // If this is an Intermediate Dram Buffer, add it to the IntermdiateDramBufToBufId map with the appropriate Id
-        if (inputBuffer->m_BufferType.value() == BufferType::Intermediate)
+        uint16_t inputBufferId;
+        // If this is an Intermediate or Input Dram Buffer, add it to the DramBufToBufId map with the appropriate Id
+        if (inputBuffer->m_BufferType.value() == BufferType::Intermediate ||
+            inputBuffer->m_BufferType.value() == BufferType::Input)
         {
-            m_IntermdiateDramBufToBufIdMapping[inputBuffer] = inputBufferId;
-        }
+            inputBufferId = AddDramBufferAndCacheId(inputBuffer, ptrConcatOp);
 
-        // Ifm Streamer Agent
-        AgentIdType ifmStreamerAgentId =
-            AddIfmStreamerToCommandStream(ptrConcatOp, inputBufferId, inputBuffer, &sramBuffer);
+            // Ifm Streamer Agent
+            AgentIdType ifmStreamerAgentId =
+                AddIfmStreamerToCommandStream(ptrConcatOp, inputBufferId, inputBuffer, &sramBuffer);
 
-        // Ofm Streamer Agent
-        AgentIdType ofmStreamerAgentId =
-            AddOfmStreamerToCommandStream(ptrConcatOp, &sramBuffer, outputBufferId, outputBuffer);
+            // Ofm Streamer Agent
+            AgentIdType ofmStreamerAgentId =
+                AddOfmStreamerToCommandStream(ptrConcatOp, &sramBuffer, outputBufferId, outputBuffer);
 
-        // Add 'Read After Write' dependency to the OfmStreamer agent
-        // Read After Write Dependency for [OfmStreamer][IfmStreamer]
-        AddReadAfterWriteDependency(AgentType::OFM_STREAMER, ofmStreamerAgentId, AgentType::IFM_STREAMER,
-                                    ifmStreamerAgentId);
+            // Add 'Read After Write' dependency to the OfmStreamer agent
+            // Read After Write Dependency for [OfmStreamer][IfmStreamer]
+            AddReadAfterWriteDependency(AgentType::OFM_STREAMER, ofmStreamerAgentId, AgentType::IFM_STREAMER,
+                                        ifmStreamerAgentId);
 
-        // Add 'Write After Read' dependency information to the IfmStreamer agent
-        // Write After Read Dependency for [IfmStreamer][OfmStreamer]
-        AddWriteAfterReadDependency(AgentType::OFM_STREAMER, ofmStreamerAgentId, AgentType::IFM_STREAMER,
-                                    ifmStreamerAgentId);
+            // Add 'Write After Read' dependency information to the IfmStreamer agent
+            // Write After Read Dependency for [IfmStreamer][OfmStreamer]
+            AddWriteAfterReadDependency(AgentType::OFM_STREAMER, ofmStreamerAgentId, AgentType::IFM_STREAMER,
+                                        ifmStreamerAgentId);
 
-        // Add 'Schedule Time' dependency information to the OfmStreamer agent
-        // Schedule Time Dependency for [IfmStreamer][OfmStreamer]
-        AddScheduleTimeDependency(AgentType::OFM_STREAMER, ofmStreamerAgentId, AgentType::IFM_STREAMER,
-                                  ifmStreamerAgentId);
+            // Add 'Schedule Time' dependency information to the OfmStreamer agent
+            // Schedule Time Dependency for [IfmStreamer][OfmStreamer]
+            AddScheduleTimeDependency(AgentType::OFM_STREAMER, ofmStreamerAgentId, AgentType::IFM_STREAMER,
+                                      ifmStreamerAgentId);
 
-        // Update the SRAM offset value for the next IfmStreamer Agent
-        sramBufferOffset = sramBufferOffset + (sramBuffer.m_NumStripes * sramBufferSlotSize);
+            // Update the SRAM offset value for the next IfmStreamer Agent
+            sramBufferOffset = sramBufferOffset + (sramBuffer.m_NumStripes * sramBufferSlotSize);
 
-        // Update the Output DRAM offset value for the next OfmStreamer Agent
-        std::tuple<bool, bool, bool> isHWCSplit =
-            utils::IsSplitting(outputBuffer->m_TensorShape, inputBuffer->m_TensorShape);
+            // Update the Output DRAM offset value for the next OfmStreamer Agent
+            std::tuple<bool, bool, bool> isHWCSplit =
+                utils::IsSplitting(outputBuffer->m_TensorShape, inputBuffer->m_TensorShape);
 
-        // Concatenation is happening in the Height dimension
-        if (std::get<0>(isHWCSplit))
-        {
-            if (outputBuffer->m_Format == CascadingBufferFormat::NHWCB)
+            // Concatenation is happening in the Height dimension
+            if (std::get<0>(isHWCSplit))
             {
-                assert(utils::GetHeight(inputBuffer->m_TensorShape) %
-                           utils::GetHeight(m_Capabilities.GetBrickGroupShape()) ==
-                       0);
+                if (outputBuffer->m_Format == CascadingBufferFormat::NHWCB)
+                {
+                    assert(utils::GetHeight(inputBuffer->m_TensorShape) %
+                               utils::GetHeight(m_Capabilities.GetBrickGroupShape()) ==
+                           0);
+                }
+
+                uint32_t heightOffset =
+                    CommonUtils::CalculateBufferSize(inputBuffer->m_TensorShape, inputBuffer->m_Format);
+                dramBufferOffset = dramBufferOffset + heightOffset;
             }
-
-            uint32_t heightOffset = CommonUtils::CalculateBufferSize(inputBuffer->m_TensorShape, inputBuffer->m_Format);
-            dramBufferOffset      = dramBufferOffset + heightOffset;
-        }
-        // Concatenation is happening in the Width dimension
-        else if (std::get<1>(isHWCSplit))
-        {
-            uint32_t widthOffset;
-
-            if (outputBuffer->m_Format == CascadingBufferFormat::NHWC)
+            // Concatenation is happening in the Width dimension
+            else if (std::get<1>(isHWCSplit))
             {
-                widthOffset =
-                    utils::GetChannels(inputBuffer->m_TensorShape) * utils::GetWidth(inputBuffer->m_TensorShape);
+                uint32_t widthOffset;
+
+                if (outputBuffer->m_Format == CascadingBufferFormat::NHWC)
+                {
+                    widthOffset =
+                        utils::GetChannels(inputBuffer->m_TensorShape) * utils::GetWidth(inputBuffer->m_TensorShape);
+                }
+                else
+                {
+                    assert(utils::GetWidth(inputBuffer->m_TensorShape) %
+                               utils::GetWidth(m_Capabilities.GetBrickGroupShape()) ==
+                           0);
+
+                    uint32_t widthInBrickGroups =
+                        utils::DivRoundUp(utils::GetWidth(inputBuffer->m_TensorShape),
+                                          utils::GetWidth(m_Capabilities.GetBrickGroupShape()));
+                    uint32_t channelsInBrickGroups =
+                        utils::DivRoundUp(utils::GetChannels(inputBuffer->m_TensorShape),
+                                          utils::GetChannels(m_Capabilities.GetBrickGroupShape()));
+                    uint32_t numberOfBrickGroups = channelsInBrickGroups * widthInBrickGroups;
+                    widthOffset =
+                        numberOfBrickGroups * CommonUtils::CalculateBufferSize(m_Capabilities.GetBrickGroupShape(),
+                                                                               CascadingBufferFormat::NHWCB);
+                }
+
+                dramBufferOffset = dramBufferOffset + widthOffset;
             }
-            else
+            // Concatenation is happening in the Depth/Channels dimension
+            else if (std::get<2>(isHWCSplit))
             {
-                assert(utils::GetWidth(inputBuffer->m_TensorShape) %
-                           utils::GetWidth(m_Capabilities.GetBrickGroupShape()) ==
-                       0);
-
-                uint32_t widthInBrickGroups = utils::DivRoundUp(utils::GetWidth(inputBuffer->m_TensorShape),
-                                                                utils::GetWidth(m_Capabilities.GetBrickGroupShape()));
+                assert(outputBuffer->m_Format == CascadingBufferFormat::NHWCB);
                 uint32_t channelsInBrickGroups =
                     utils::DivRoundUp(utils::GetChannels(inputBuffer->m_TensorShape),
                                       utils::GetChannels(m_Capabilities.GetBrickGroupShape()));
-                uint32_t numberOfBrickGroups = channelsInBrickGroups * widthInBrickGroups;
-                widthOffset =
-                    numberOfBrickGroups *
-                    CommonUtils::CalculateBufferSize(m_Capabilities.GetBrickGroupShape(), CascadingBufferFormat::NHWCB);
+                uint32_t depthOffset =
+                    channelsInBrickGroups *
+                    CommonUtils::CalculateBufferSize(m_Capabilities.GetBrickGroupShape(), outputBuffer->m_Format);
+                dramBufferOffset = dramBufferOffset + depthOffset;
             }
-
-            dramBufferOffset = dramBufferOffset + widthOffset;
         }
-        // Concatenation is happening in the Depth/Channels dimension
-        else if (std::get<2>(isHWCSplit))
+        else
         {
-            assert(outputBuffer->m_Format == CascadingBufferFormat::NHWCB);
-            uint32_t channelsInBrickGroups = utils::DivRoundUp(utils::GetChannels(inputBuffer->m_TensorShape),
-                                                               utils::GetChannels(m_Capabilities.GetBrickGroupShape()));
-            uint32_t depthOffset =
-                channelsInBrickGroups *
-                CommonUtils::CalculateBufferSize(m_Capabilities.GetBrickGroupShape(), outputBuffer->m_Format);
-            dramBufferOffset = dramBufferOffset + depthOffset;
+            assert(false);
         }
     }
 }
@@ -1706,7 +1725,7 @@ void CascadingCommandStreamGenerator::AddLifetimeInfoForIntermediateDramBuffers(
             // Check that the buffer type is intermediate
             if (buffer->m_BufferType.value() == BufferType::Intermediate)
             {
-                // Set the Lifetime start and end of the intermediate DRAM buffer
+                // Set the Lifetime start and end of the DRAM buffer
                 Op* producer = m_MergedOpGraph.GetProducer(buffer);
                 assert(producer != nullptr);
 
@@ -1725,7 +1744,7 @@ void CascadingCommandStreamGenerator::AddLifetimeInfoForIntermediateDramBuffers(
                 }
 
                 // Add lifetime information of the corresponding buffer to the buffer manager
-                m_BufferManager.MarkBufferUsedAtTime(m_IntermdiateDramBufToBufIdMapping.at(buffer),
+                m_BufferManager.MarkBufferUsedAtTime(m_DramBufToBufIdMapping.at(buffer),
                                                      static_cast<uint32_t>(lifetimeStart),
                                                      static_cast<uint32_t>(lifetimeEnd + 1));
             }
