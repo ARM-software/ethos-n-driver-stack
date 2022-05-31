@@ -259,6 +259,18 @@ struct ethosn_mailbox {
 	uint32_t         severity;
 };
 
+/**
+ * struct ethosn_debug_monitor_channel - Two-way debug monitor communications
+ * channel.
+ * @var request:	Pointer to message queue going from host to Ethos-N .
+ * @var response:	Pointer to message queue going from Ethos-N to host.
+ *
+ */
+struct ethosn_debug_monitor_channel {
+	ethosn_address_t request;
+	ethosn_address_t response;
+};
+
 /******************************************************************************
  * Message types
  ******************************************************************************/
@@ -584,6 +596,7 @@ struct ethosn_message_error_response {
 #define GP_STREAM1_ADDRESS_EXTEND       DL1_GP3
 #define GP_STREAM2_ADDRESS_EXTEND       DL1_GP4
 #define GP_TASK_STACK                   DL1_GP5
+#define GP_DEBUG_MONITOR_CHANNEL        DL1_GP6
 
 #pragma pack(pop)
 
