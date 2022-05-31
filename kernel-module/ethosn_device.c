@@ -46,7 +46,7 @@
 
 /* Timeout in us when resetting the Ethos-N */
 #define ETHOSN_RESET_TIMEOUT_US         (10 * 1000 * 1000)
-#define ETHOSN_RESET_WAIT_US            1
+#define ETHOSN_RESET_WAIT_US            1000
 
 /* Regset32 entry */
 #define REGSET32(r) { __stringify(r), \

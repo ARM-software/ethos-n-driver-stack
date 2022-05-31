@@ -70,7 +70,7 @@
 
 /* Timeout in us when pinging the Ethos-N and waiting for a pong. */
 #define ETHOSN_PING_TIMEOUT_US (10 * 1000 * 1000)
-#define ETHOSN_PING_WAIT_US 1
+#define ETHOSN_PING_WAIT_US 1000
 
 #define ETHOSN_MAX_NUM_IRQS 3
 
