@@ -1055,14 +1055,8 @@ void Parse(mxml_node_t& parent, const Cascade& value)
 }
 }    // namespace
 
-BinaryParser::BinaryParser(std::istream& input)
-    : m_XmlDoc(mxmlNewXML("1.0"))
+void ParseBinary(CommandStream& cstream, mxml_node_t* xmlRoot)
 {
-    mxml_node_t* xmlRoot = mxmlNewElement(m_XmlDoc.get(), g_XmlRootName);
-
-    std::vector<uint8_t> data = ReadBinaryData(input);
-
-    CommandStream cstream(data.data(), data.data() + data.size());
     mxmlElementSetAttr(xmlRoot, "VERSION_MAJOR", std::to_string(cstream.GetVersionMajor()).c_str());
     mxmlElementSetAttr(xmlRoot, "VERSION_MINOR", std::to_string(cstream.GetVersionMinor()).c_str());
     mxmlElementSetAttr(xmlRoot, "VERSION_PATCH", std::to_string(cstream.GetVersionPatch()).c_str());
@@ -1138,6 +1132,28 @@ BinaryParser::BinaryParser(std::istream& input)
         }
         ++commandCounter;
     }
+}
+
+BinaryParser::BinaryParser(std::istream& input)
+    : m_XmlDoc(mxmlNewXML("1.0"))
+{
+    mxml_node_t* xmlRoot = mxmlNewElement(m_XmlDoc.get(), g_XmlRootName);
+
+    std::vector<uint8_t> data = ReadBinaryData(input);
+
+    CommandStream cstream(data.data(), data.data() + data.size());
+
+    ParseBinary(cstream, xmlRoot);
+}
+
+BinaryParser::BinaryParser(const std::vector<uint32_t>& data)
+    : m_XmlDoc(mxmlNewXML("1.0"))
+{
+    mxml_node_t* xmlRoot = mxmlNewElement(m_XmlDoc.get(), g_XmlRootName);
+
+    CommandStream cstream(data.data(), data.data() + data.size());
+
+    ParseBinary(cstream, xmlRoot);
 }
 
 void BinaryParser::WriteXml(std::ostream& output, int wrapMargin)
