@@ -833,7 +833,7 @@ void Parse(mxml_node_t& parent, const std::array<cascading::FilterShape, 4>(&fil
     int idx = 0;
     for (const auto& value : filterShape)
     {
-        Parse(*mxmlNewElement(&parent, std::to_string(idx).c_str()), value);
+        Parse(*mxmlNewElement(&parent, ("VALUE_" + std::to_string(idx)).c_str()), value);
         idx++;
     }
 }
@@ -849,7 +849,7 @@ void Parse(mxml_node_t& parent, const std::array<cascading::Padding, 4>(&padding
     int idx = 0;
     for (const auto& value : padding)
     {
-        Parse(*mxmlNewElement(&parent, std::to_string(idx).c_str()), value);
+        Parse(*mxmlNewElement(&parent, ("VALUE_" + std::to_string(idx)).c_str()), value);
         idx++;
     }
 }
@@ -865,7 +865,7 @@ void Parse(mxml_node_t& parent, const std::array<cascading::IfmDelta, 4>(&ifmDel
     int idx = 0;
     for (const auto& value : ifmDelta)
     {
-        Parse(*mxmlNewElement(&parent, std::to_string(idx).c_str()), value);
+        Parse(*mxmlNewElement(&parent, ("VALUE_" + std::to_string(idx)).c_str()), value);
         idx++;
     }
 }

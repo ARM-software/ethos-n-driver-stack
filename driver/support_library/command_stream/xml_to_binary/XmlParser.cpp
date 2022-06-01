@@ -566,7 +566,7 @@ void XmlParser::Pop(const std::string&, std::array<cascading::FilterShape, 4>(&v
     int idx = 0;
     for (auto& filterShape : value)
     {
-        Pop(std::to_string(idx), filterShape);
+        Pop("VALUE_" + std::to_string(idx), filterShape);
         idx++;
     }
 }
@@ -582,7 +582,7 @@ void XmlParser::Pop(const std::string&, std::array<cascading::Padding, 4>(&value
     int idx = 0;
     for (auto& padding : value)
     {
-        Pop(std::to_string(idx), padding);
+        Pop("VALUE_" + std::to_string(idx), padding);
         idx++;
     }
 }
@@ -598,7 +598,7 @@ void XmlParser::Pop(const std::string&, std::array<cascading::IfmDelta, 4>(&valu
     int idx = 0;
     for (auto& ifmDelta : value)
     {
-        Pop(std::to_string(idx), ifmDelta);
+        Pop("VALUE_" + std::to_string(idx), ifmDelta);
         idx++;
     }
 }

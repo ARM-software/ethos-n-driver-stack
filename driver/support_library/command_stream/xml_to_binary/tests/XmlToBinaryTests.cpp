@@ -661,76 +661,76 @@ const std::string g_XmlStr =
                 <IS_PACKED_BOUNDARY_X>1</IS_PACKED_BOUNDARY_X>
                 <IS_PACKED_BOUNDARY_Y>1</IS_PACKED_BOUNDARY_Y>
                 <FILTER_SHAPE>
-                    <0>
+                    <VALUE_0>
                         <WIDTH>2</WIDTH>
                         <HEIGHT>2</HEIGHT>
-                    </0>
-                    <1>
+                    </VALUE_0>
+                    <VALUE_1>
                         <WIDTH>2</WIDTH>
                         <HEIGHT>1</HEIGHT>
-                    </1>
-                    <2>
+                    </VALUE_1>
+                    <VALUE_2>
                         <WIDTH>1</WIDTH>
                         <HEIGHT>2</HEIGHT>
-                    </2>
-                    <3>
+                    </VALUE_2>
+                    <VALUE_3>
                         <WIDTH>1</WIDTH>
                         <HEIGHT>1</HEIGHT>
-                    </3>
+                    </VALUE_3>
                 </FILTER_SHAPE>
                 <PADDING>
-                    <0>
+                    <VALUE_0>
                         <LEFT>12</LEFT>
                         <TOP>15</TOP>
-                    </0>
-                    <1>
+                    </VALUE_0>
+                    <VALUE_1>
                         <LEFT>15</LEFT>
                         <TOP>12</TOP>
-                    </1>
-                    <2>
+                    </VALUE_1>
+                    <VALUE_2>
                         <LEFT>0</LEFT>
                         <TOP>8</TOP>
-                    </2>
-                    <3>
+                    </VALUE_2>
+                    <VALUE_3>
                         <LEFT>8</LEFT>
                         <TOP>0</TOP>
-                    </3>
+                    </VALUE_3>
                 </PADDING>
                 <IFM_DELTA_DEFAULT>
-                    <0>
+                    <VALUE_0>
                         <WIDTH>3</WIDTH>
                         <HEIGHT>-3</HEIGHT>
-                    </0>
-                    <1>
+                    </VALUE_0>
+                    <VALUE_1>
                         <WIDTH>-3</WIDTH>
                         <HEIGHT>3</HEIGHT>
-                    </1>
-                    <2>
+                    </VALUE_1>
+                    <VALUE_2>
                         <WIDTH>2</WIDTH>
                         <HEIGHT>-2</HEIGHT>
-                    </2>
-                    <3>
+                    </VALUE_2>
+                    <VALUE_3>
                         <WIDTH>-2</WIDTH>
                         <HEIGHT>2</HEIGHT>
-                    </3>
+                    </VALUE_3>
                 </IFM_DELTA_DEFAULT>
                 <IFM_DELTA_EDGE>
-                    <0>
+                    <VALUE_0>
                         <WIDTH>1</WIDTH>
                         <HEIGHT>-2</HEIGHT>
-                    </0>
-                    <1>
+                    </VALUE_0>
+                    <VALUE_1>
                         <WIDTH>-2</WIDTH>
                         <HEIGHT>1</HEIGHT>
-                    </1>
-                    <2>
+                    </VALUE_1>
+                    <VALUE_2>
                         <WIDTH>1</WIDTH>
                         <HEIGHT>1</HEIGHT>
-                    </2>
-                    <3>
+                    </VALUE_2>
+                    <VALUE_3>
                         <WIDTH>-1</WIDTH>
                         <HEIGHT>-1</HEIGHT>
-                    </3>
+                    </VALUE_3>
                 </IFM_DELTA_EDGE>
                 <IFM_STRIPE_SHAPE_DEFAULT>
                     <WIDTH>10</WIDTH>
