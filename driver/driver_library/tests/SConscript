@@ -67,13 +67,19 @@ if env["platform"] != "android-ndk":
     )
 # Add internal unit tests
 srcs.extend(internal_srcs)
+objs = env.Object(srcs)
 
 libs = [ethosn_driver_shared]
 # Catch2 uses android log APIs (could probably disable this in a catch config somewhere instead)
 if env["platform"] == "android-ndk":
     libs.append("log")
+else:
+    # Make the objects for the unit test binary depend on the Linux kernel user space header
+    # directory so the headers are always generated before building the objects
+    for o in objs:
+        env.Depends(o, os.path.join(env["unit_test_kernel_dir"], "usr", "include"))
 
-unitTests = env.Program("UnitTests", srcs, LIBS=libs)
+unitTests = env.Program("UnitTests", objs, LIBS=libs)
 testAlias = env.Alias("driver-unit-tests", [unitTests], unitTests[0].abspath)
 env.Alias("unit-tests", testAlias)
 AlwaysBuild(testAlias)
