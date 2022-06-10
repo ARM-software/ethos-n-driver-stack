@@ -184,6 +184,11 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
             NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(m_Network, m_Capabilities,
                                                                             m_EstimationOptions, m_CompilationOptions);
             const GraphOfParts m_GraphOfParts = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+            m_DebuggingContext.SaveGraphOfPartsToDot(CompilationOptions::DebugLevel::Medium, m_GraphOfParts,
+                                                     "Cascaded_GraphOfParts.dot", DetailLevel::Low);
+            m_DebuggingContext.SaveGraphOfPartsToDot(CompilationOptions::DebugLevel::Medium, m_GraphOfParts,
+                                                     "Cascaded_GraphOfPartsDetailed.dot", DetailLevel::High);
+
             Combiner combiner(m_GraphOfParts, m_Capabilities, m_EstimationOptions, m_DebuggingContext);
             combiner.Run();
 
