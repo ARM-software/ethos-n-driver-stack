@@ -42,5 +42,47 @@ inline std::string ReplaceAll(std::string str, const std::string& from, const st
     return str;
 }
 
+static inline std::string Rtrim(const std::string& s)
+{
+    return s.substr(0, s.find_last_not_of(" \n\r\t") + 1);
+}
+
+static inline std::string Trim(const std::string& str)
+{
+    size_t start = str.find_first_not_of(" \n\r\t");
+    if (start == std::string::npos)
+    {
+        start = 0;
+    }
+    size_t end = str.find_last_not_of(" \n\r\t");
+    if (end == std::string::npos)
+    {
+        end = str.length();
+    }
+    return str.substr(start, end - start + 1);
+}
+
+static inline std::vector<std::string> Split(const std::string& s, const std::string& delim)
+{
+    std::vector<std::string> result;
+    size_t pos = 0;
+    while (true)
+    {
+        size_t newPos = s.find(delim, pos);
+        if (newPos == std::string::npos)
+        {
+            result.push_back(s.substr(pos));
+            break;
+        }
+        else
+        {
+            result.push_back(s.substr(pos, newPos - pos));
+        }
+        pos = newPos + 1;
+    }
+
+    return result;
+}
+
 }    // namespace utils
 }    // namespace ethosn
