@@ -33,7 +33,7 @@ FusedPlePart::FusedPlePart(PartId id,
                            const HardwareCapabilities& capabilities,
                            std::set<uint32_t> correspondingOperationIds,
                            command_stream::DataType dataType)
-    : BasePart(id, CompilerDataFormat::NONE, correspondingOperationIds, estOpt, compOpt, capabilities)
+    : BasePart(id, "FusedPlePart", CompilerDataFormat::NONE, correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape(inputTensorShape)
     , m_OutputTensorShape(outputTensorShape)
     , m_InputQuantizationInfo(inputQuantizationInfo)
@@ -552,7 +552,6 @@ Plans FusedPlePart::GetPlans(CascadeType cascadeType,
 ethosn::support_library::DotAttributes FusedPlePart::GetDotAttributes(DetailLevel detail) const
 {
     DotAttributes result = BasePart::GetDotAttributes(detail);
-    result.m_Label       = "FusedPlePart: " + result.m_Label;
     if (detail >= DetailLevel::High)
     {
         result.m_Label += "InputTensorShape = " + ToString(m_InputTensorShape) + "\n";

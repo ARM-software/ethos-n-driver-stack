@@ -23,7 +23,7 @@ EstimateOnlyPart::EstimateOnlyPart(PartId id,
                                    const EstimationOptions& estOpt,
                                    const CompilationOptions& compOpt,
                                    const HardwareCapabilities& capabilities)
-    : BasePart(id, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, capabilities)
+    : BasePart(id, "EstimateOnlyPart", compilerDataFormat, correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorsInfo{ inputTensorsInfo }
     , m_OutputTensorsInfo{ outputTensorsInfo }
     , m_ReasonForEstimateOnly{ reasonForEstimateOnly }
@@ -93,7 +93,6 @@ void EstimateOnlyPart::CreatePlanForEstimateOnlyPart(TraversalOrder order, Plans
 ethosn::support_library::DotAttributes EstimateOnlyPart::GetDotAttributes(DetailLevel detail) const
 {
     DotAttributes result = BasePart::GetDotAttributes(detail);
-    result.m_Label       = "EstimateOnlyPart: " + result.m_Label;
     if (detail >= DetailLevel::High)
     {
         result.m_Label += "InputTensorsInfo = " + ArrayToString(m_InputTensorsInfo) + "\n";

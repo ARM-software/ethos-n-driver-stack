@@ -151,10 +151,13 @@ class BasePart : public DebuggableObject
 {
 public:
     BasePart(PartId id,
+             const char* debugPartType,
              const EstimationOptions& estOpt,
              const CompilationOptions& compOpt,
              const HardwareCapabilities& capabilities)
-        : DebuggableObject("BasePart")
+        // Explicitly set the debug tag based on the Part ID, to make the identifiers consistent.
+        : DebuggableObject(DebuggableObject::ExplicitDebugTag(),
+                           (std::string(debugPartType) + " " + std::to_string(id)).c_str())
         , m_PartId{ id }
         , m_CompilerDataFormat{ CompilerDataFormat::NONE }
         , m_EstimationOptions{ estOpt }
@@ -162,12 +165,15 @@ public:
         , m_Capabilities{ capabilities }
     {}
     BasePart(PartId id,
+             const char* debugPartType,
              const CompilerDataFormat compilerDataFormat,
              const std::set<uint32_t> correspondingOperationIds,
              const EstimationOptions& estOpt,
              const CompilationOptions& compOpt,
              const HardwareCapabilities& capabilities)
-        : DebuggableObject("BasePart")
+        // Explicitly set the debug tag based on the Part ID, to make the identifiers consistent.
+        : DebuggableObject(DebuggableObject::ExplicitDebugTag(),
+                           (std::string(debugPartType) + " " + std::to_string(id)).c_str())
         , m_PartId{ id }
         , m_CompilerDataFormat{ compilerDataFormat }
         , m_CorrespondingOperationIds{ correspondingOperationIds }

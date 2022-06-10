@@ -219,7 +219,7 @@ McePart::McePart(PartId id,
                  const HardwareCapabilities& capabilities,
                  std::set<uint32_t> operationIds,
                  command_stream::DataType dataType)
-    : BasePart(id, CompilerDataFormat::NONE, operationIds, estOpt, compOpt, capabilities)
+    : BasePart(id, "McePart", CompilerDataFormat::NONE, operationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape(inputTensorShape)
     , m_OutputTensorShape(outputTensorShape)
     , m_WeightEncoderCache{ capabilities }
@@ -254,6 +254,7 @@ McePart::McePart(PartId id,
 
 McePart::McePart(ConstructionParams&& params)
     : BasePart(params.m_Id,
+               "McePart",
                CompilerDataFormat::NONE,
                params.m_OperationIds,
                params.m_EstOpt,
@@ -803,7 +804,6 @@ void McePart::ModifyActivationBounds(int16_t lowerBound, int16_t upperBound)
 ethosn::support_library::DotAttributes McePart::GetDotAttributes(DetailLevel detail) const
 {
     DotAttributes result = BasePart::GetDotAttributes(detail);
-    result.m_Label       = "McePart: " + result.m_Label;
     if (detail >= DetailLevel::High)
     {
         result.m_Label += "InputTensorShape = " + ToString(m_InputTensorShape) + "\n";

@@ -71,7 +71,6 @@ ethosn::support_library::DotAttributes BasePart::GetDotAttributes(DetailLevel de
     if (detail >= DetailLevel::High)
     {
         result.m_Label += "\n";
-        result.m_Label += "PartId = " + ToString(m_PartId) + "\n";
         result.m_Label += "CompilerDataFormat = " + ToString(m_CompilerDataFormat) + "\n";
         result.m_Label += "CorrespondingOperationIds = " + ArrayToString(m_CorrespondingOperationIds) + "\n";
     }

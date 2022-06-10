@@ -39,7 +39,7 @@ private:
 
 public:
     MockPart(PartId id)
-        : BasePart(id, estOpt, compOpt, GetEthosN78HwCapabilities())
+        : BasePart(id, "MockPart", estOpt, compOpt, GetEthosN78HwCapabilities())
     {}
     virtual Plans GetPlans(CascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const override;
 

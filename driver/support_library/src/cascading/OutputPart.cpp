@@ -22,7 +22,7 @@ OutputPart::OutputPart(PartId id,
                        const EstimationOptions& estOpt,
                        const CompilationOptions& compOpt,
                        const HardwareCapabilities& capabilities)
-    : BasePart(id, compilerDataFormat, correspondingOperationIds, estOpt, compOpt, capabilities)
+    : BasePart(id, "OutputPart", compilerDataFormat, correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape{ inputTensorShape }
     , m_InputQuantizationInfo(quantizationInfo)
 {}
@@ -70,7 +70,6 @@ void OutputPart::CreatePlanForOutputPart(TraversalOrder order, Plans& plans) con
 ethosn::support_library::DotAttributes OutputPart::GetDotAttributes(DetailLevel detail) const
 {
     DotAttributes result = BasePart::GetDotAttributes(detail);
-    result.m_Label       = "OutputPart: " + result.m_Label;
     if (detail >= DetailLevel::High)
     {
         result.m_Label += "InputTensorShape = " + ToString(m_InputTensorShape) + "\n";
