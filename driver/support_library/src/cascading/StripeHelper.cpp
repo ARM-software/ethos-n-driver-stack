@@ -3,9 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "PartUtils.hpp"
 #include "StripeHelper.hpp"
+
+#include "PartUtils.hpp"
 #include "WeightEncoderCache.hpp"
+#include <ethosn_utils/Strings.hpp>
+
+#include <fstream>
+#include <regex>
 
 namespace ethosn
 {
@@ -13,6 +18,178 @@ namespace support_library
 {
 namespace impl
 {
+
+StripeConfig GetDefaultStripeConfig(const char* identifier)
+{
+    // Start with a defaultly constructed StripeConfig, which has everything enabled
+    StripeConfig result;
+
+    // Apply the rules from the config file, if one is set
+    const char* env = std::getenv("ETHOSN_SUPPORT_LIBRARY_DEBUG_STRIPE_CONFIG");
+    if (env && strlen(env) > 0)
+    {
+        // The config file has a simple format. A list of sections with each section starting with a regex that defines
+        // which parts that section applies to. The contents of each section are a series of commands, executed in order,
+        // which enable/disable stripe config options.
+        //
+        // <regex>:
+        // <command1>
+        // <command2>
+        // # more commands...
+        //
+        // <regex>:
+        // <command1>
+        // <command2>
+        // # more commands...
+        //
+        // # more sections
+        //
+        // A simple example:
+        //
+        // McePart 3:
+        //
+        // DisableAll
+        // Splits.WidthHeight=True
+        // BlockConfig(8,8)=True
+
+        std::ifstream file(env);
+        if (!file.good())
+        {
+            throw std::runtime_error("Error opening stripe config file: " + std::string(env));
+        }
+
+        std::string line;
+        uint32_t lineNumber = 0;
+        auto reportError    = [&lineNumber](std::string msg) {
+            throw std::runtime_error("Error in stripe config file at line " + std::to_string(lineNumber) + ": " + msg);
+        };
+
+        bool active = false;    // Does the section of the file we are in match the identifier given
+        while (getline(file, line))
+        {
+            ++lineNumber;
+            line = ethosn::utils::Trim(line);
+            if (line.empty() || line[0] == '#')
+            {
+                // Empty (or whitespace) lines or comments - ignore
+                continue;
+            }
+
+            if (line.back() == ':')
+            {
+                // Start of new section
+                active = false;
+                // Check if the regex for this section matches the identifier given
+                std::regex regex(line.substr(0, line.length() - 1));
+                if (std::regex_match(identifier, regex))
+                {
+                    active = true;
+                }
+            }
+            else
+            {
+                // Command within a section. Only process if the regex matched
+                if (active)
+                {
+                    std::vector<std::string> parts = ethosn::utils::Split(line, "=");
+                    if (line == "DisableAll")
+                    {
+                        result.DisableAll();
+                    }
+                    else if (parts.size() == 2)
+                    {
+                        const std::string& name     = parts[0];
+                        const std::string& valueStr = parts[1];
+
+                        bool value;
+                        if (valueStr == "True")
+                        {
+                            value = true;
+                        }
+                        else if (valueStr == "False")
+                        {
+                            value = false;
+                        }
+                        else
+                        {
+                            reportError("Invalid value '" + valueStr + "'. Must be True or False.");
+                        }
+
+                        const std::regex blockConfigRegex(R"(BlockConfig\((\d+),(\d+)\))");
+                        std::smatch match;
+                        if (name == "Splits.HeightOnly")
+                        {
+                            result.splits.heightOnly = value;
+                        }
+                        else if (name == "Splits.WidthOnly")
+                        {
+                            result.splits.widthOnly = value;
+                        }
+                        else if (name == "Splits.WidthHeight")
+                        {
+                            result.splits.widthHeight = value;
+                        }
+                        else if (name == "Splits.WidthHeightOutputDepth")
+                        {
+                            result.splits.widthHeightOutputDepth = value;
+                        }
+                        else if (name == "Splits.WidthHeightOutputDepthInputDepth")
+                        {
+                            result.splits.widthHeightOutputDepthInputDepth = value;
+                        }
+                        else if (name == "Splits.OutputDepthInputDepth")
+                        {
+                            result.splits.outputDepthInputDepth = value;
+                        }
+                        else if (name == "Splits.OutputDepthOnly")
+                        {
+                            result.splits.outputDepthOnly = value;
+                        }
+                        else if (name == "Splits.InputDepthOnly")
+                        {
+                            result.splits.inputDepthOnly = value;
+                        }
+                        else if (name == "Splits.None")
+                        {
+                            result.splits.none = value;
+                        }
+                        else if (std::regex_match(name, match, blockConfigRegex))
+                        {
+                            uint32_t w = std::atoi(match[1].str().c_str());
+                            uint32_t h = std::atoi(match[2].str().c_str());
+                            ethosn::command_stream::BlockConfig b{ w, h };
+                            auto it = std::find(result.blockConfigs.begin(), result.blockConfigs.end(), b);
+                            if (value)
+                            {
+                                if (it == result.blockConfigs.end())
+                                {
+                                    result.blockConfigs.push_back(b);
+                                }
+                            }
+                            else
+                            {
+                                if (it != result.blockConfigs.end())
+                                {
+                                    result.blockConfigs.erase(it);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            reportError("Unknown name in assignment: " + name);
+                        }
+                    }
+                    else
+                    {
+                        reportError("Unexpected command syntax: " + line);
+                    }
+                }
+            }
+        }
+    }
+
+    return result;
+}
 
 /// Generates a stripe shape given an encoding and an input tensor
 /// Tries to create a stripe with the stripe shape in the encoding, if the dimension is 0 then it uses the full length of that dimension.
@@ -40,7 +217,8 @@ StripeGenerator::StripeGenerator(const TensorShape& mceInput,
                                  command_stream::PleOperation pleOp,
                                  utils::ShapeMultiplier mceShapeMult,
                                  utils::ShapeMultiplier pleShapeMult,
-                                 const HardwareCapabilities& m_Capabilities)
+                                 const HardwareCapabilities& m_Capabilities,
+                                 StripeConfig stripeConfig)
     : m_MceInputTensorShape(mceInput)
     , m_MceOutputTensorShape(mceOutput)
     , m_PleOutputTensorShape(pleOutput)
@@ -53,6 +231,7 @@ StripeGenerator::StripeGenerator(const TensorShape& mceInput,
     , m_MceShapeMultiplier(mceShapeMult)
     , m_PleShapeMultiplier(pleShapeMult)
     , m_Capabilities(m_Capabilities)
+    , m_StripeConfig(stripeConfig)
 {}
 
 void StripeGenerator::CreateNumStripes(CascadeType cascadeType,
@@ -108,8 +287,10 @@ void StripeGenerator::CreateNumStripes(CascadeType cascadeType,
     }
 }
 
-StripeSplitInfo StripeGenerator::SetPleKernelSplitRestrictions(CascadeType cascadeType) const
+StripeConfig StripeGenerator::ApplyPleKernelSplitRestrictions(CascadeType cascadeType) const
 {
+    StripeConfig result = m_StripeConfig;
+
     // MaxPool_3x3_2_2 cannot be cascaded if it isn't the full tensor and can only be cascaded along height or depth.
     // This way, IFM streaming cannot cause data corruption in Ple Sram.
     if (m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
@@ -117,28 +298,37 @@ StripeSplitInfo StripeGenerator::SetPleKernelSplitRestrictions(CascadeType casca
     {
         if (cascadeType == CascadeType::Beginning)
         {
-            return { 0, 0, 0, 0 };
+            result.DisableSplitHeight();
+            result.DisableSplitWidth();
+            result.DisableSplitInputDepth();
+            result.DisableSplitOutputDepth();
         }
         else
         {
-            return { 1, 0, 1, 1 };
+            result.DisableSplitWidth();
         }
     }
-    else
+
+    return result;
+}
+StripeInfos StripeGenerator::GenerateStripes(CascadeType cascadeType) const
+{
+    StripeInfos result;
+    for (auto&& blockConfig : m_StripeConfig.blockConfigs)
     {
-        return { 1, 1, 1, 1 };
+        GenerateStripes(blockConfig, cascadeType, result);
     }
+    return result;
 }
 
-void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockConfig,
+void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig blockConfig,
                                       CascadeType cascadeType,
-                                      StripeInfos* outStripeInfos) const
+                                      StripeInfos& outStripeInfos) const
 {
     using namespace utils;
-    assert(outStripeInfos);
 
     // Set Stripe split restrictions, depending on the Ple kernel type.
-    StripeSplitInfo stripeSplitInfo = SetPleKernelSplitRestrictions(cascadeType);
+    StripeConfig stripeConfig = ApplyPleKernelSplitRestrictions(cascadeType);
 
     uint32_t strideMultiplier  = 1U;
     bool isDepthwise           = false;
@@ -239,7 +429,7 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
             mceAndPleInfo.m_Memory.m_Output   = { outputCopy, memoryOutputStripe };
             mceAndPleInfo.m_Memory.m_Weight   = { weightCopy, memoryWeightStripe };
             mceAndPleInfo.m_Memory.m_PleInput = { pleInputRange, memoryPleInputStripe };
-            outStripeInfos->m_MceAndPleInfos.insert(mceAndPleInfo);
+            outStripeInfos.m_MceAndPleInfos.insert(mceAndPleInfo);
         }
         {
             MceOnlyInfo mceOnlyInfo;
@@ -255,7 +445,7 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
             mceOnlyInfo.m_Memory.m_Output   = { { 0, 0 }, { 0, 0, 0, 0 } };
             mceOnlyInfo.m_Memory.m_Weight   = { weightCopy, memoryWeightStripe };
             mceOnlyInfo.m_Memory.m_PleInput = { pleInputRange, memoryPleInputStripe };
-            outStripeInfos->m_MceOnlyInfos.insert(mceOnlyInfo);
+            outStripeInfos.m_MceOnlyInfos.insert(mceOnlyInfo);
         }
         {
             PleOnlyInfo pleOnlyInfo;
@@ -270,20 +460,20 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
             pleOnlyInfo.m_Memory.m_Output   = { outputCopy, memoryOutputStripe };
             pleOnlyInfo.m_Memory.m_Weight   = { { 0, 0 }, { 0, 0, 0, 0 } };
             pleOnlyInfo.m_Memory.m_PleInput = { pleInputRange, memoryPleInputStripe };
-            outStripeInfos->m_PleOnlyInfos.insert(pleOnlyInfo);
+            outStripeInfos.m_PleOnlyInfos.insert(pleOnlyInfo);
         }
         {
             DmaOnlyInfo dmaOnlyInfo;
             dmaOnlyInfo.m_Lifetime = lifetime;
             dmaOnlyInfo.m_Input    = { inputCopy, memoryInputStripe };
             dmaOnlyInfo.m_Output   = { outputCopy, memoryOutputStripe };
-            outStripeInfos->m_DmaOnlyInfos.insert(dmaOnlyInfo);
+            outStripeInfos.m_DmaOnlyInfos.insert(dmaOnlyInfo);
         }
     };
 
     // Use the minimum stripe size possible to minimize the time before processing.
     // Try splitting height first.
-    if (stripeSplitInfo.splitInputHeight)
+    if (stripeConfig.splits.heightOnly)
     {
         TensorShape mceInputEncoding  = { 0, blockConfig.m_BlockHeight(), 0, 0 };
         const TensorShape& inputShape = m_MceInputTensorShape;
@@ -309,7 +499,7 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
     }
 
     // Split only input in height while the output is full tensor.
-    if (stripeSplitInfo.splitInputHeight)
+    if (stripeConfig.splits.heightOnly)
     {
         TensorShape mceInputEncoding  = { 0, blockConfig.m_BlockHeight(), 0, 0 };
         const TensorShape& inputShape = m_MceInputTensorShape;
@@ -338,7 +528,7 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
     }
 
     // Try splitting width.
-    if (stripeSplitInfo.splitInputWidth)
+    if (stripeConfig.splits.widthOnly)
     {
         TensorShape mceInputEncoding  = { 0, 0, blockConfig.m_BlockWidth(), 0 };
         const TensorShape& inputShape = m_MceInputTensorShape;
@@ -382,7 +572,7 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
             for (uint32_t widthMultiplier = 1; widthMultiplier <= blockWidthMultiplier; ++widthMultiplier)
             {
                 // Try splitting width and height.
-                if (stripeSplitInfo.splitInputWidth && stripeSplitInfo.splitInputHeight)
+                if (stripeConfig.splits.widthHeight)
                 {
                     TensorShape mceInputEncoding  = { 0, heightMultiplier * blockConfig.m_BlockHeight(),
                                                      widthMultiplier * blockConfig.m_BlockWidth(), 0 };
@@ -419,8 +609,7 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
                 }
 
                 // Try split height width and output depth.
-                if (stripeSplitInfo.splitInputHeight && stripeSplitInfo.splitInputWidth &&
-                    stripeSplitInfo.splitOutputDepth)
+                if (stripeConfig.splits.widthHeightOutputDepth)
                 {
                     const uint32_t height = heightMultiplier * blockConfig.m_BlockHeight();
                     const uint32_t width  = widthMultiplier * blockConfig.m_BlockWidth();
@@ -449,7 +638,7 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
 
                 // Try split input depth.
                 // Note we have to limit the height and width to the block size.
-                if (stripeSplitInfo.splitInputDepth && stripeSplitInfo.splitInputWidth)
+                if (stripeConfig.splits.widthHeightOutputDepthInputDepth)
                 {
                     TensorShape mceInputEncoding  = { 0, blockConfig.m_BlockHeight(), blockConfig.m_BlockWidth(),
                                                      m_Capabilities.GetNumberOfOgs() * strideMultiplier };
@@ -481,8 +670,8 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
 
         if (cascadeType == CascadeType::Lonely)
         {
-            // Try split output depth.
-            if (stripeSplitInfo.splitOutputDepth)
+            // Try split output depth and input depth.
+            if (stripeConfig.splits.outputDepthInputDepth)
             {
                 // With depthwise each only OFM needs 1 IFM.
                 TensorShape mceInputEncoding  = { 0, 0, 0, m_Capabilities.GetNumberOfOgs() };
@@ -507,8 +696,8 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
                                memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
             }
 
-            // Try split height width and output depth.
-            if (stripeSplitInfo.splitInputHeight && stripeSplitInfo.splitInputWidth && stripeSplitInfo.splitOutputDepth)
+            // Try split height width and output depth and input depth.
+            if (stripeConfig.splits.widthHeightOutputDepthInputDepth)
             {
                 for (uint32_t heightMultiplier = 1; heightMultiplier <= blockHeightMultiplier; ++heightMultiplier)
                 {
@@ -545,7 +734,7 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
 
         // Try split depth for compute but the memory buffer is the full tensor
         // e.g. strategy 1 cascading.
-        if (stripeSplitInfo.splitInputDepth)
+        if (stripeConfig.splits.outputDepthInputDepth)
         {
             TensorShape mceInputEncoding  = { 0, 0, 0, m_Capabilities.GetNumberOfOgs() };
             const TensorShape& inputShape = m_MceInputTensorShape;
@@ -573,7 +762,7 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
         if (cascadeType == CascadeType::Lonely)
         {
             // Try split output depth.
-            if (stripeSplitInfo.splitOutputDepth)
+            if (stripeConfig.splits.outputDepthOnly)
             {
                 TensorShape mceInputEncoding  = { 0, 0, 0, 0 };
                 const TensorShape& inputShape = m_MceInputTensorShape;
@@ -602,7 +791,7 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
         }
         // Try split depth for compute but the memory buffer is the full tensor
         // e.g. strategy 1 cascading.
-        if (stripeSplitInfo.splitOutputDepth)
+        if (stripeConfig.splits.outputDepthOnly)
         {
             TensorShape mceInputEncoding  = { 0, 0, 0, 0 };
             const TensorShape& inputShape = m_MceInputTensorShape;
@@ -631,6 +820,7 @@ void StripeGenerator::GenerateStripes(ethosn::command_stream::BlockConfig blockC
     // Don't split at all.
     // This is needed if all of the stripes above are larger than the tensor
     // and none of them are added.
+    if (stripeConfig.splits.none)
     {
         TensorShape mceInputEncoding = { 0, 0, 0, 0 };
         TensorShape mceInputStripe =

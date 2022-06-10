@@ -51,10 +51,14 @@ FusedPlePart::FusedPlePart(PartId id,
                         op,
                         ShapeMultiplier::Identity,
                         shapeMultiplier,
-                        capabilities)
+                        capabilities,
+                        GetDefaultStripeConfig(m_DebugTag.c_str()))
     , m_WeightEncoderCache{ capabilities }
     , m_DataType(dataType)
-{}
+{
+    m_StripeGenerator.m_StripeConfig.blockConfigs =
+        FilterPleBlockConfigs(m_KernelOperation, m_StripeGenerator.m_StripeConfig.blockConfigs);
+}
 
 utils::Optional<ethosn::command_stream::MceOperation> FusedPlePart::GetMceOperation() const
 {
@@ -281,32 +285,10 @@ Plans FusedPlePart::GetLonelyPlans(uint32_t numWeightStripes) const
 {
     Plans ret;
 
-    // Fully connected only supports 8x8 block configs
-    const std::vector<BlockConfig> blockConfigs = { { 16u, 16u },
-                                                    { 16u, 8u },
-                                                    { 8u, 16u },
-                                                    { 8u, 8u },
-                                                    {
-                                                        32u,
-                                                        8u,
-                                                    },
-                                                    { 8u, 32u } };
-    std::vector<BlockConfig> validBlockConfigs  = FilterPleBlockConfigs(m_KernelOperation, blockConfigs);
-
-    if (validBlockConfigs.size() == 0)
-    {
-        throw InternalErrorException("Fused PLE part: no valid block size found");
-    }
-
     // Try to generate plans as per Beginning of a section. This guarantees larger stripes
     // and helps to reduce overhead.
     // The estimation doesn't take into account overheads so we need to use this heuristic
-    StripeInfos stripeInfos = {};
-    for (auto&& blockConfig : validBlockConfigs)
-    {
-        // Todo generate all stripes again
-        m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Beginning, &stripeInfos);
-    }
+    StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Beginning);
 
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
@@ -320,12 +302,7 @@ Plans FusedPlePart::GetLonelyPlans(uint32_t numWeightStripes) const
     }
 
     // Generate all possible plans.
-    stripeInfos = {};
-    for (auto&& blockConfig : validBlockConfigs)
-    {
-        // Todo generate all stripes again
-        m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Lonely, &stripeInfos);
-    }
+    stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Lonely);
 
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
@@ -339,30 +316,7 @@ Plans FusedPlePart::GetBeginningPlans(uint32_t numWeightStripes) const
 {
     Plans ret;
 
-    // Fully connected only supports 8x8 block configs
-    const std::vector<BlockConfig> blockConfigs = { { 16u, 16u },
-                                                    { 16u, 8u },
-                                                    { 8u, 16u },
-                                                    { 8u, 8u },
-                                                    {
-                                                        32u,
-                                                        8u,
-                                                    },
-                                                    { 8u, 32u } };
-
-    std::vector<BlockConfig> validBlockConfigs = FilterPleBlockConfigs(m_KernelOperation, blockConfigs);
-
-    if (validBlockConfigs.size() == 0)
-    {
-        throw InternalErrorException("Fused PLE part: no valid block size found");
-    }
-
-    StripeInfos stripeInfos;
-    for (auto&& blockConfig : validBlockConfigs)
-    {
-        // Todo generate all stripes again
-        m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Beginning, &stripeInfos);
-    }
+    StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Beginning);
 
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {

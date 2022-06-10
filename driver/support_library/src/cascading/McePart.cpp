@@ -246,7 +246,8 @@ McePart::McePart(PartId id,
                         PleOperation::PASSTHROUGH,
                         ShapeMultiplier::Identity,
                         ShapeMultiplier::Identity,
-                        capabilities)
+                        capabilities,
+                        GetDefaultStripeConfig(m_DebugTag.c_str()))
     , m_DataType(dataType)
     , m_LowerBound(dataType == command_stream::DataType::U8 ? 0 : -128)
     , m_UpperBound(dataType == command_stream::DataType::U8 ? 255 : 127)
@@ -286,7 +287,8 @@ McePart::McePart(ConstructionParams&& params)
                         PleOperation::PASSTHROUGH,
                         ShapeMultiplier{ m_UpscaleFactor, m_UpscaleFactor, 1 },
                         ShapeMultiplier::Identity,
-                        params.m_Capabilities)
+                        params.m_Capabilities,
+                        GetDefaultStripeConfig(m_DebugTag.c_str()))
     , m_DataType(params.m_DataType)
     , m_LowerBound(params.m_LowerBound)
     , m_UpperBound(params.m_UpperBound)
@@ -567,25 +569,10 @@ Plans McePart::GetLonelyPlans(uint32_t numWeightStripes) const
 {
     Plans ret;
 
-    const std::vector<BlockConfig> blockConfigs = { { 16u, 16u },
-                                                    { 16u, 8u },
-                                                    { 8u, 16u },
-                                                    { 8u, 8u },
-                                                    {
-                                                        32u,
-                                                        8u,
-                                                    },
-                                                    { 8u, 32u } };
-
     // Try to generate plans as per Beginning of a section. This guarantees larger stripes
     // and helps to reduce overhead.
     // The estimation doesn't take into account overheads so we need to use this heuristic
-    StripeInfos stripeInfos = {};
-    for (auto&& blockConfig : blockConfigs)
-    {
-        // Todo generate all stripes again
-        m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Beginning, &stripeInfos);
-    }
+    StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Beginning);
 
     // Data could be de-compressed from FCAF
     const bool couldSourceBeFcaf = true;
@@ -603,11 +590,7 @@ Plans McePart::GetLonelyPlans(uint32_t numWeightStripes) const
     }
 
     // Generate all possible plans.
-    stripeInfos = {};
-    for (auto&& blockConfig : blockConfigs)
-    {
-        m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Lonely, &stripeInfos);
-    }
+    stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Lonely);
 
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
@@ -622,21 +605,7 @@ Plans McePart::GetBeginningPlans(uint32_t numWeightStripes) const
 {
     Plans ret;
 
-    const std::vector<BlockConfig> blockConfigs = { { 16u, 16u },
-                                                    { 16u, 8u },
-                                                    { 8u, 16u },
-                                                    { 8u, 8u },
-                                                    {
-                                                        32u,
-                                                        8u,
-                                                    },
-                                                    { 8u, 32u } };
-    StripeInfos stripeInfos;
-    for (auto&& blockConfig : blockConfigs)
-    {
-        // Todo generate all stripes again
-        m_StripeGenerator.GenerateStripes(blockConfig, CascadeType::Beginning, &stripeInfos);
-    }
+    StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Beginning);
 
     // The plan will be "glued" to the end plan from the previous section.
     // Therefore the input buffer tile cannot be unconditionally clamped to the

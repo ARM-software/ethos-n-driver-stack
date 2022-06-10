@@ -16,14 +16,87 @@ namespace support_library
 namespace impl
 {
 
-// Store Stripe split information per dimension.
-struct StripeSplitInfo
+/// Settings to specify which stripe splitting strategies and block sizes can be used.
+struct StripeConfig
 {
-    bool splitInputHeight;
-    bool splitInputWidth;
-    bool splitInputDepth;
-    bool splitOutputDepth;
+    /// Set of flags to specify which dimensions can be split.
+    /// Any dimensions not mentioned in a name are implicitly not split.
+    struct
+    {
+        bool heightOnly                       = true;
+        bool widthOnly                        = true;
+        bool widthHeight                      = true;
+        bool widthHeightOutputDepth           = true;
+        bool widthHeightOutputDepthInputDepth = true;
+        bool outputDepthInputDepth            = true;
+        bool outputDepthOnly                  = true;
+        bool inputDepthOnly                   = true;
+        bool none                             = true;
+    } splits;
+
+    std::vector<ethosn::command_stream::BlockConfig> blockConfigs = { { 16u, 16u },
+                                                                      { 16u, 8u },
+                                                                      { 8u, 16u },
+                                                                      { 8u, 8u },
+                                                                      {
+                                                                          32u,
+                                                                          8u,
+                                                                      },
+                                                                      { 8u, 32u } };
+
+    /// Disables all splitting strategies and block configs.
+    /// After calling this you will most likely want to re-enable some, otherwise no
+    /// plans will be generated!
+    void DisableAll()
+    {
+        splits.heightOnly                       = false;
+        splits.widthOnly                        = false;
+        splits.widthHeight                      = false;
+        splits.widthHeightOutputDepth           = false;
+        splits.widthHeightOutputDepthInputDepth = false;
+        splits.outputDepthInputDepth            = false;
+        splits.outputDepthOnly                  = false;
+        splits.inputDepthOnly                   = false;
+        splits.none                             = false;
+        blockConfigs.clear();
+    }
+
+    /// Helper functions to disable all splitting strategies which split tensors
+    /// in certain dimensions.
+    /// @{
+    void DisableSplitHeight()
+    {
+        splits.heightOnly                       = false;
+        splits.widthHeight                      = false;
+        splits.widthHeightOutputDepth           = false;
+        splits.widthHeightOutputDepthInputDepth = false;
+    }
+    void DisableSplitWidth()
+    {
+        splits.widthOnly                        = false;
+        splits.widthHeight                      = false;
+        splits.widthHeightOutputDepth           = false;
+        splits.widthHeightOutputDepthInputDepth = false;
+    }
+    void DisableSplitInputDepth()
+    {
+        splits.widthHeightOutputDepthInputDepth = false;
+        splits.outputDepthInputDepth            = false;
+        splits.inputDepthOnly                   = false;
+    }
+    void DisableSplitOutputDepth()
+    {
+        splits.widthHeightOutputDepth           = false;
+        splits.widthHeightOutputDepthInputDepth = false;
+        splits.outputDepthInputDepth            = false;
+        splits.outputDepthOnly                  = false;
+    }
+    /// @}
 };
+
+/// Gets a StripeConfig with everything enabled, unless there is a debug config file provided
+/// which overrides this for the identifier given.
+StripeConfig GetDefaultStripeConfig(const char* identifier);
 
 using NumStripesType = uint32_t;
 struct NumStripes
@@ -180,11 +253,10 @@ public:
                     command_stream::PleOperation pleOp,
                     utils::ShapeMultiplier mceShapeMult,
                     utils::ShapeMultiplier pleShapeMult,
-                    const HardwareCapabilities& caps);
+                    const HardwareCapabilities& caps,
+                    StripeConfig stripeConfig);
 
-    void GenerateStripes(const ethosn::command_stream::BlockConfig blockConfig,
-                         CascadeType cascadeType,
-                         StripeInfos* outStripeInfos) const;
+    StripeInfos GenerateStripes(CascadeType cascadeType) const;
 
     void CreateNumStripes(CascadeType cascadeType,
                           uint32_t kernelHeight,
@@ -193,7 +265,7 @@ public:
                           NumStripes& numStripesWeights,
                           NumStripes& numStripesPleInput) const;
 
-    StripeSplitInfo SetPleKernelSplitRestrictions(CascadeType cascadeType) const;
+    StripeConfig ApplyPleKernelSplitRestrictions(CascadeType cascadeType) const;
 
     TensorShape m_MceInputTensorShape;
     TensorShape m_MceOutputTensorShape;
@@ -208,6 +280,13 @@ public:
     utils::ShapeMultiplier m_PleShapeMultiplier;
 
     const HardwareCapabilities& m_Capabilities;
+
+    StripeConfig m_StripeConfig;
+
+private:
+    void GenerateStripes(const ethosn::command_stream::BlockConfig blockConfig,
+                         CascadeType cascadeType,
+                         StripeInfos& outStripeInfos) const;
 };
 
 };    // namespace impl
