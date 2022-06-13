@@ -889,6 +889,8 @@ void Parse(mxml_node_t& parent, const cascading::MceS& mces)
     Parse(*mxmlNewElement(agent_op, "STRIPE_ID_STRIDES"), mces.stripeIdStrides);
     Parse(*mxmlNewElement(agent_op, "CONV_STRIDE_XY"), mces.convStrideXy);
     Parse(*mxmlNewElement(agent_op, "IFM_ZERO_POINT"), mces.ifmZeroPoint);
+    Parse(*mxmlNewElement(agent_op, "IS_IFM_SIGNED"), mces.isIfmSigned);
+    Parse(*mxmlNewElement(agent_op, "IS_OFM_SIGNED"), mces.isOfmSigned);
     Parse(*mxmlNewElement(agent_op, "UPSAMPLE_TYPE"), mces.upsampleType);
     Parse(*mxmlNewElement(agent_op, "UPSAMPLE_EDGE_MODE"), mces.upsampleEdgeMode);
     Parse(*mxmlNewElement(agent_op, "MCE_OP_MODE"), mces.mceOpMode);

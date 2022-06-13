@@ -375,6 +375,8 @@ void XmlParser::Pop(cascading::MceS& value)
     Pop("STRIPE_ID_STRIDES", value.stripeIdStrides);
     Pop("CONV_STRIDE_XY", value.convStrideXy);
     Pop("MCE_SCHEDULER/IFM_ZERO_POINT", value.ifmZeroPoint);
+    Pop("MCE_SCHEDULER/IS_IFM_SIGNED", value.isIfmSigned);
+    Pop("MCE_SCHEDULER/IS_OFM_SIGNED", value.isOfmSigned);
     Pop("MCE_SCHEDULER/UPSAMPLE_TYPE", value.upsampleType);
     Pop("UPSAMPLE_EDGE_MODE", value.upsampleEdgeMode);
     Pop("MCE_SCHEDULER/MCE_OP_MODE", value.mceOpMode);

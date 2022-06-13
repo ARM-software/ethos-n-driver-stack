@@ -231,6 +231,10 @@ struct MceS
     StrideXy<uint8_t> convStrideXy;
     /// Ifm zero point
     int16_t ifmZeroPoint;
+    /// Is Ifm signed
+    uint8_t isIfmSigned;
+    /// Is Ofm signed
+    uint8_t isOfmSigned;
     /// Upsample type
     UpsampleType upsampleType;
     /// Upsample edge mode

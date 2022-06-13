@@ -648,6 +648,8 @@ const std::string g_XmlStr =
                     <Y>2</Y>
                 </CONV_STRIDE_XY>
                 <IFM_ZERO_POINT>-2</IFM_ZERO_POINT>
+                <IS_IFM_SIGNED>1</IS_IFM_SIGNED>
+                <IS_OFM_SIGNED>0</IS_OFM_SIGNED>
                 <UPSAMPLE_TYPE>TRANSPOSE</UPSAMPLE_TYPE>
                 <UPSAMPLE_EDGE_MODE>
                     <ROW>DROP</ROW>
