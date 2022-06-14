@@ -25,8 +25,6 @@ public:
 
     const BackendId& GetBackendId() const override;
 
-    static bool IsLayerSupported(const Layer& layer, Optional<DataType> dataType, std::string& outReasonIfUnsupported);
-
     bool SupportsSubTensors() const override
     {
         return false;

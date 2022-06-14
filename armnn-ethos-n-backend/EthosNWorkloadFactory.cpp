@@ -10,7 +10,6 @@
 #include "EthosNWorkloads.hpp"
 
 #include <Layer.hpp>
-#include <armnn/Utils.hpp>
 #include <armnn/backends/MemCopyWorkload.hpp>
 
 namespace armnn
@@ -24,13 +23,6 @@ static const BackendId s_Id{ EthosNBackendId() };
 const BackendId& EthosNWorkloadFactory::GetBackendId() const
 {
     return s_Id;
-}
-
-bool EthosNWorkloadFactory::IsLayerSupported(const Layer& layer,
-                                             Optional<DataType> dataType,
-                                             std::string& outReasonIfUnsupported)
-{
-    return IWorkloadFactory::IsLayerSupported(s_Id, layer, dataType, outReasonIfUnsupported);
 }
 
 std::unique_ptr<ITensorHandle>
