@@ -53,143 +53,68 @@ BackendRegistry::StaticRegistryInitializer g_RegisterHelper{ BackendRegistryInst
                                                                  return IBackendInternalUniquePtr(new EthosNBackend);
                                                              } };
 
-Graph CloneGraph(const SubgraphView& originalSubgraph)
+// The returned subgraph contains Input and Output layers that the
+// original subgraph does not have.
+SubgraphView CloneSubgraph(const SubgraphView& originalSubgraph)
 {
-    Graph newGraph = Graph();
-    ARMNN_NO_DEPRECATE_WARN_BEGIN
-    std::unordered_map<const Layer*, Layer*> originalToClonedLayerMap;
-    std::list<armnn::Layer*> originalSubgraphLayers = originalSubgraph.GetLayers();
+    SubgraphView newSubgraph                = originalSubgraph.GetWorkingCopy();
+    INetworkPtr newNetwork                  = INetwork::Create();
+    SubgraphView::IConnectableLayers layers = newSubgraph.GetIConnectableLayers();
+    SubgraphView::IInputSlots inputs        = newSubgraph.GetIInputSlots();
+    SubgraphView::IOutputSlots outputs      = newSubgraph.GetIOutputSlots();
+    LayerBindingId slotCount                = 0;
 
-    for (auto&& originalLayer : originalSubgraphLayers)
+    // Process SubgraphView inputs
+    for (uint32_t i = 0; i < originalSubgraph.GetNumInputSlots(); ++i)
     {
-        Layer* const layer = originalLayer->Clone(newGraph);
-        originalToClonedLayerMap.emplace(originalLayer, layer);
-    }
+        // Get info about the original input layer and its output slot
+        const IOutputSlot* originalOutputSlot = originalSubgraph.GetIInputSlot(i)->GetConnection();
+        const std::string& layerName          = originalOutputSlot->GetOwningIConnectableLayer().GetName();
+        const TensorInfo tensorInfo           = originalOutputSlot->GetTensorInfo();
 
-    LayerBindingId slotCount = 0;
+        // Create an input layer and connect its output slot
+        IConnectableLayer* newInputLayer = newNetwork->AddInputLayer(slotCount, layerName.c_str());
+        IInputSlot* newInputSlot         = newSubgraph.GetIInputSlot(i);
+        newInputLayer->GetOutputSlot(0).Connect(*newInputSlot);
+        newInputLayer->GetOutputSlot(0).SetTensorInfo(tensorInfo);
 
-    // SubstituteSubgraph() currently cannot be called on a Graph that contains only one layer.
-    // CloneGraph() and ReinterpretGraphToSubgraph() are used to work around this.
-
-    // creating new layers for the input slots, adding them to the new graph and connecting them
-
-    for (auto originalSubgraphInputSlot : originalSubgraph.GetInputSlots())
-    {
-        Layer& originalSubgraphLayer = originalSubgraphInputSlot->GetOwningLayer();
-        Layer* const clonedLayer     = originalToClonedLayerMap[&originalSubgraphLayer];
-
-        const std::string& originalLayerName =
-            originalSubgraphInputSlot->GetConnectedOutputSlot()->GetOwningLayer().GetNameStr();
-
-        // add it as an input layer into the new graph
-        InputLayer* const newInputLayer = newGraph.AddLayer<InputLayer>(slotCount, originalLayerName.c_str());
-        InputSlot& clonedLayerIS        = clonedLayer->GetInputSlot(originalSubgraphInputSlot->GetSlotIndex());
-        newInputLayer->GetOutputSlot(0).Connect(clonedLayerIS);
-        newInputLayer->GetOutputSlot(0).SetTensorInfo(
-            originalSubgraphInputSlot->GetConnectedOutputSlot()->GetTensorInfo());
-
+        layers.emplace_front(newInputLayer);
         ++slotCount;
     }
 
-    std::list<Layer*>::iterator it;
-    for (it = originalSubgraphLayers.begin(); it != originalSubgraphLayers.end(); ++it)
+    // Process SubgraphView outputs
+    for (uint32_t i = 0; i < originalSubgraph.GetNumOutputSlots(); ++i)
     {
-        Layer* originalSubgraphLayer = *it;
-        Layer* const clonedLayer     = originalToClonedLayerMap[originalSubgraphLayer];
+        // Get info about the original output layer and its input slot
+        const IOutputSlot* originalOutputSlot = originalSubgraph.GetIOutputSlot(i);
+        const std::string& layerName = originalOutputSlot->GetConnection(0)->GetOwningIConnectableLayer().GetName();
+        const TensorInfo& tensorInfo = originalOutputSlot->GetTensorInfo();
 
-        //connect all cloned layers as per original subgraph
-        auto outputSlot = clonedLayer->BeginOutputSlots();
-        for (auto&& originalOutputSlot : originalSubgraphLayer->GetOutputSlots())
-        {
-            for (auto&& connection : originalOutputSlot.GetConnections())
-            {
-                const Layer& otherTgtLayer = connection->GetOwningLayer();
-                // in the case that the connection is a layer outside the subgraph, it will not have a corresponding connection
-                if (originalToClonedLayerMap.find(&otherTgtLayer) != originalToClonedLayerMap.end())
-                {
-                    Layer* const newGrTgtLayer = originalToClonedLayerMap[&otherTgtLayer];
+        // Create an output layer and connect its input slot
+        IConnectableLayer* newOutputLayer = newNetwork->AddOutputLayer(slotCount, layerName.c_str());
+        IOutputSlot* newOutputSlot        = newSubgraph.GetIOutputSlot(i);
+        newOutputSlot->Connect(newOutputLayer->GetInputSlot(0));
+        newOutputSlot->SetTensorInfo(tensorInfo);
 
-                    InputSlot& inputSlot = newGrTgtLayer->GetInputSlot(connection->GetSlotIndex());
-                    outputSlot->Connect(inputSlot);
-                }
-            }
-            outputSlot->SetTensorInfo(originalOutputSlot.GetTensorInfo());
-            ++outputSlot;
-        }
-    }
-
-    // creating new layers for the output slots, adding them to the new graph and connecting them
-    for (auto os : originalSubgraph.GetOutputSlots())
-    {
-        Layer& originalSubgraphLayer = os->GetOwningLayer();
-        Layer* const clonedLayer     = originalToClonedLayerMap[&originalSubgraphLayer];
-
-        uint32_t i = 0;
-        for (; i < originalSubgraphLayer.GetNumOutputSlots(); ++i)
-        {
-            if (os == &originalSubgraphLayer.GetOutputSlot(i))
-            {
-                break;
-            }
-        }
-
-        ARMNN_ASSERT(i < originalSubgraphLayer.GetNumOutputSlots());
-
-        const std::string& originalLayerName = os->GetConnection(0)->GetOwningLayer().GetNameStr();
-
-        OutputSlot* outputSlotOfLayer     = &clonedLayer->GetOutputSlot(i);
-        OutputLayer* const newOutputLayer = newGraph.AddLayer<OutputLayer>(slotCount, originalLayerName.c_str());
+        layers.emplace_back(newOutputLayer);
         ++slotCount;
-
-        outputSlotOfLayer->Connect(newOutputLayer->GetInputSlot(0));
-        outputSlotOfLayer->SetTensorInfo(originalSubgraphLayer.GetOutputSlot(i).GetTensorInfo());
     }
-    ARMNN_NO_DEPRECATE_WARN_END
 
-    return newGraph;
+    return SubgraphView(std::move(layers), std::move(inputs), std::move(outputs)).GetWorkingCopy();
 }
 
-// This is different to creating a subgraph directly from the Graph
-// and is needed to obtain a subgraph that does not contain the input and output layers
-SubgraphView ReinterpretGraphToSubgraph(Graph& newGraph)
+SubgraphView RemoveInputOutputLayers(SubgraphView& subgraph)
 {
-    std::list<Layer*> graphLayers(newGraph.begin(), newGraph.end());
-    std::list<Layer*> subgrLayers;
-
-    std::vector<InputLayer*> inputLayersNewGr;
-    std::vector<OutputLayer*> outputLayersNewGr;
-
-    for (auto layer : graphLayers)
-    {
-        switch (layer->GetType())
+    SubgraphView::IConnectableLayers layers;
+    subgraph.ForEachIConnectableLayer([&](IConnectableLayer* layer) {
+        if (layer->GetType() != armnn::LayerType::Input && layer->GetType() != armnn::LayerType::Output)
         {
-            case LayerType::Input:
-                inputLayersNewGr.push_back(PolymorphicDowncast<InputLayer*>(layer));
-                break;
-            case LayerType::Output:
-                outputLayersNewGr.push_back(PolymorphicDowncast<OutputLayer*>(layer));
-                break;
-            default:
-                subgrLayers.push_back(layer);
-                break;
+            layers.push_back(layer);
         }
-    }
-
-    std::vector<InputSlot*> inSlotsPointers;
-    for (InputLayer* is : inputLayersNewGr)
-    {
-        inSlotsPointers.push_back(is->GetOutputSlot(0).GetConnection(0));
-    }
-
-    std::vector<OutputSlot*> outSlotsPointers;
-    for (OutputLayer* os : outputLayersNewGr)
-    {
-        outSlotsPointers.push_back(os->GetInputSlot(0).GetConnectedOutputSlot());
-    }
-
-    ARMNN_NO_DEPRECATE_WARN_BEGIN
-    return SubgraphView(std::move(inSlotsPointers), std::move(outSlotsPointers), std::move(subgrLayers));
-    ARMNN_NO_DEPRECATE_WARN_END
+    });
+    SubgraphView::IInputSlots inputs   = subgraph.GetIInputSlots();
+    SubgraphView::IOutputSlots outputs = subgraph.GetIOutputSlots();
+    return SubgraphView(std::move(layers), std::move(inputs), std::move(outputs));
 }
 
 std::string GetDeviceOptionVal(const ModelOptions& modelOptions)
@@ -230,15 +155,12 @@ void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
                                    const std::vector<char>& capabilities,
                                    const ModelOptions& modelOptions)
 {
-    SubgraphView subgraphToCompile = subgraph;
-
-    // Graph is needed here to keep ownership of the layers
-    Graph newGraph = ethosnbackend::CloneGraph(subgraph);
+    SubgraphView newSubgraph = ethosnbackend::CloneSubgraph(subgraph);
 
     // Constant configuration to always replace unsupported layer patterns
-    ethosnbackend::ReplaceUnsupportedLayers(newGraph, config, capabilities);
+    ethosnbackend::ReplaceUnsupportedLayers(newSubgraph, config, capabilities);
 
-    subgraphToCompile = ethosnbackend::ReinterpretGraphToSubgraph(newGraph);
+    SubgraphView subgraphToCompile = ethosnbackend::RemoveInputOutputLayers(newSubgraph);
 
     std::vector<CompiledBlobPtr> compiledNetworks;
 

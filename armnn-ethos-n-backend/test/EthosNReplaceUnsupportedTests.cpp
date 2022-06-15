@@ -35,7 +35,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
     // Input -> DepthwiseConvolution2d -> Output
     TEST_CASE("ConstMulToDepthwiseReplacement")
     {
-        auto net = std::make_unique<NetworkImpl>();
+        auto net = INetwork::CreateRaw();
 
         TensorInfo inputInfo({ 1, 8, 8, 16 }, DataType::QAsymmU8, 1.0f, 0);
         TensorInfo constInfo({ 1, 1, 1, 16 }, DataType::QAsymmU8, 0.9f, 0, true);
@@ -61,32 +61,37 @@ TEST_SUITE("EthosNReplaceUnsupported")
         mul->GetOutputSlot(0).Connect(output->GetInputSlot(0));
 
         // Substitute the subgraph and check for expected pattern and connections
-        Graph pattern = net->GetGraph();
+        auto pattern = SubgraphView({ input, constant, mul, output }, {}, {}).GetWorkingCopy();
         ethosnbackend::ReplaceUnsupportedLayers(pattern, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
-        CHECK(pattern.GetNumLayers() == 4);
+        CHECK(pattern.GetIConnectableLayers().size() == 4);
 
-        const std::vector<Layer*> vecPattern(pattern.begin(), pattern.end());
+        const std::vector<IConnectableLayer*> vecPattern(pattern.beginIConnectable(), pattern.endIConnectable());
 
-        Layer* inputLayer     = vecPattern[0];
-        Layer* weightsLayer   = vecPattern[1];
-        Layer* depthwiseLayer = vecPattern[2];
-        Layer* outputLayer    = vecPattern[3];
+        IConnectableLayer* inputLayer     = vecPattern[0];
+        IConnectableLayer* weightsLayer   = vecPattern[1];
+        IConnectableLayer* depthwiseLayer = vecPattern[2];
+        IConnectableLayer* outputLayer    = vecPattern[3];
 
         CHECK(inputLayer->GetType() == LayerType::Input);
         CHECK(weightsLayer->GetType() == LayerType::Constant);
         CHECK(depthwiseLayer->GetType() == LayerType::DepthwiseConvolution2d);
         CHECK(outputLayer->GetType() == LayerType::Output);
 
-        Layer* depthwiseInput  = &depthwiseLayer->GetInputSlots()[0].GetConnectedOutputSlot()->GetOwningLayer();
-        Layer* depthwiseInput1 = &depthwiseLayer->GetInputSlots()[1].GetConnectedOutputSlot()->GetOwningLayer();
-        Layer* depthwiseOutput = &depthwiseLayer->GetOutputSlots()[0].GetConnections()[0]->GetOwningLayer();
+        IConnectableLayer* depthwiseInput =
+            &depthwiseLayer->GetInputSlot(0).GetConnection()->GetOwningIConnectableLayer();
+        IConnectableLayer* depthwiseInput1 =
+            &depthwiseLayer->GetInputSlot(1).GetConnection()->GetOwningIConnectableLayer();
+        IConnectableLayer* depthwiseOutput =
+            &depthwiseLayer->GetOutputSlot(0).GetConnection(0)->GetOwningIConnectableLayer();
         CHECK(depthwiseInput == inputLayer);
         CHECK(depthwiseInput1 == weightsLayer);
         CHECK(depthwiseOutput == outputLayer);
 
-        Layer* inputNextLayer  = &inputLayer->GetOutputSlots()[0].GetConnections()[0]->GetOwningLayer();
-        Layer* outputPrevLayer = &outputLayer->GetInputSlots()[0].GetConnectedOutputSlot()->GetOwningLayer();
+        IConnectableLayer* inputNextLayer =
+            &inputLayer->GetOutputSlot(0).GetConnection(0)->GetOwningIConnectableLayer();
+        IConnectableLayer* outputPrevLayer =
+            &outputLayer->GetInputSlot(0).GetConnection()->GetOwningIConnectableLayer();
         CHECK(inputNextLayer == depthwiseLayer);
         CHECK(outputPrevLayer == depthwiseLayer);
 
@@ -109,7 +114,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
     // Input -> ReinterpretQuantize -> Output
     TEST_CASE("ScalarMulToReinterpretQuantizeReplacement")
     {
-        auto net = std::make_unique<NetworkImpl>();
+        auto net = INetwork::CreateRaw();
 
         // Quantization scale is calculated for floating range [0,2]
         float providedConstantQuantisation = (static_cast<float>(2)) / (static_cast<float>(255));
@@ -139,29 +144,33 @@ TEST_SUITE("EthosNReplaceUnsupported")
         mul->GetOutputSlot(0).Connect(output->GetInputSlot(0));
 
         // Substitute the subgraph and check for expected pattern and connections
-        Graph pattern = net->GetGraph();
+        auto pattern = SubgraphView({ input, constant, mul, output }, {}, {}).GetWorkingCopy();
         ethosnbackend::ReplaceUnsupportedLayers(pattern, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
-        CHECK(pattern.GetNumLayers() == 3);
+        CHECK(pattern.GetIConnectableLayers().size() == 3);
 
-        const std::vector<Layer*> vecPattern(pattern.begin(), pattern.end());
+        const std::vector<IConnectableLayer*> vecPattern(pattern.beginIConnectable(), pattern.endIConnectable());
 
-        Layer* inputLayer   = vecPattern[0];
-        Layer* standInLayer = vecPattern[1];
-        Layer* outputLayer  = vecPattern[2];
+        IConnectableLayer* inputLayer   = vecPattern[0];
+        IConnectableLayer* standInLayer = vecPattern[1];
+        IConnectableLayer* outputLayer  = vecPattern[2];
 
         CHECK(inputLayer->GetType() == LayerType::Input);
         CHECK(standInLayer->GetType() == LayerType::StandIn);
-        CHECK(standInLayer->GetNameStr() == "EthosNBackend:ReplaceScalarMulWithReinterpretQuantization");
+        CHECK(std::strcmp(standInLayer->GetName(), "EthosNBackend:ReplaceScalarMulWithReinterpretQuantization") == 0);
         CHECK(outputLayer->GetType() == LayerType::Output);
 
-        Layer* standInLayerInput  = &standInLayer->GetInputSlots()[0].GetConnectedOutputSlot()->GetOwningLayer();
-        Layer* standInLayerOutput = &standInLayer->GetOutputSlots()[0].GetConnections()[0]->GetOwningLayer();
+        IConnectableLayer* standInLayerInput =
+            &standInLayer->GetInputSlot(0).GetConnection()->GetOwningIConnectableLayer();
+        IConnectableLayer* standInLayerOutput =
+            &standInLayer->GetOutputSlot(0).GetConnection(0)->GetOwningIConnectableLayer();
         CHECK(standInLayerInput == inputLayer);
         CHECK(standInLayerOutput == outputLayer);
 
-        Layer* inputNextLayer  = &inputLayer->GetOutputSlots()[0].GetConnections()[0]->GetOwningLayer();
-        Layer* outputPrevLayer = &outputLayer->GetInputSlots()[0].GetConnectedOutputSlot()->GetOwningLayer();
+        IConnectableLayer* inputNextLayer =
+            &inputLayer->GetOutputSlot(0).GetConnection(0)->GetOwningIConnectableLayer();
+        IConnectableLayer* outputPrevLayer =
+            &outputLayer->GetInputSlot(0).GetConnection()->GetOwningIConnectableLayer();
         CHECK(inputNextLayer == standInLayer);
         CHECK(outputPrevLayer == standInLayer);
     }
@@ -246,13 +255,13 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
     /// Creates a graph comprising an Addition of two other layers, which are either Inputs or Constants, depending
     /// on the flags provided. For any layers which are Constants, dummy constant data is generated.
-    Graph CreateAdditionGraph(const TensorInfo& input0Info,
-                              bool isInput0Constant,
-                              const TensorInfo& input1Info,
-                              bool isInput1Constant,
-                              const TensorInfo& outputInfo)
+    SubgraphView CreateAdditionGraph(const TensorInfo& input0Info,
+                                     bool isInput0Constant,
+                                     const TensorInfo& input1Info,
+                                     bool isInput1Constant,
+                                     const TensorInfo& outputInfo)
     {
-        auto net = std::make_unique<NetworkImpl>();
+        auto net = INetwork::CreateRaw();
 
         auto AddConstLayer = [&net](const TensorInfo& info, const char* name) -> IConnectableLayer* {
             switch (info.GetDataType())
@@ -295,7 +304,13 @@ TEST_SUITE("EthosNReplaceUnsupported")
         input1->GetOutputSlot(0).Connect(add->GetInputSlot(1));
         add->GetOutputSlot(0).Connect(output->GetInputSlot(0));
 
-        return net->GetGraph();
+        return SubgraphView{ { input0, input1, add, output }, {}, {} }.GetWorkingCopy();
+    }
+
+    IConnectableLayer* GetIConnectableLayerWithName(SubgraphView& g, const char* name)
+    {
+        auto check = [&](auto i) { return std::strcmp(i->GetName(), name) == 0; };
+        return *std::find_if(g.beginIConnectable(), g.endIConnectable(), check);
     }
 
     }    // namespace
@@ -304,27 +319,27 @@ TEST_SUITE("EthosNReplaceUnsupported")
     {
         // Failure case - not an Addition layer
         {
-            Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                          TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0, true), true,
-                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
-            CHECK(ReplaceConstantAdditionWithDepthwise(g, *g.begin()) == false);
+            SubgraphView g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                                 TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0, true), true,
+                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
+            CHECK(ReplaceConstantAdditionWithDepthwise(g, *g.beginIConnectable()) == false);
         }
 
         // Failure case - addition that doesn't need replacing (as it is supported natively - not a broadcast)
         {
-            Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0, true), true,
-                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
-            AdditionLayer* addLayer = PolymorphicPointerDowncast<AdditionLayer>(GetFirstLayerWithName(g, "add"));
+            SubgraphView g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0, true), true,
+                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
+            IConnectableLayer* addLayer = GetIConnectableLayerWithName(g, "add");
             CHECK(ReplaceConstantAdditionWithDepthwise(g, addLayer) == false);
         }
 
         // Error case - neither input is a constant - Depthwise
         {
-            Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                          TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
-            AdditionLayer* addLayer = PolymorphicPointerDowncast<AdditionLayer>(GetFirstLayerWithName(g, "add"));
+            SubgraphView g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                                 TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
+            IConnectableLayer* addLayer = GetIConnectableLayerWithName(g, "add");
             CHECK(ReplaceConstantAdditionWithDepthwise(g, addLayer) == false);
         }
 
@@ -334,10 +349,10 @@ TEST_SUITE("EthosNReplaceUnsupported")
             TensorInfo constantInfo({ 1, 1, 1, 4 }, constantDataType, 10.0f, 2, true);
             TensorInfo inputInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0);
 
-            Graph g                 = CreateAdditionGraph(isInput0Constant ? constantInfo : inputInfo, isInput0Constant,
-                                          isInput1Constant ? constantInfo : inputInfo, isInput1Constant,
-                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
-            AdditionLayer* addLayer = PolymorphicPointerDowncast<AdditionLayer>(GetFirstLayerWithName(g, "add"));
+            SubgraphView g = CreateAdditionGraph(isInput0Constant ? constantInfo : inputInfo, isInput0Constant,
+                                                 isInput1Constant ? constantInfo : inputInfo, isInput1Constant,
+                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
+            IConnectableLayer* addLayer = GetIConnectableLayerWithName(g, "add");
             CHECK(ReplaceConstantAdditionWithDepthwise(g, addLayer) == true);
 
             // Original pattern:
@@ -347,14 +362,14 @@ TEST_SUITE("EthosNReplaceUnsupported")
             //
             // Expected modified pattern:
             // Input -> DepthwiseConvolution2d -> Output
-            const std::vector<Layer*> outLayers(g.begin(), g.end());
+            const std::vector<IConnectableLayer*> outLayers(g.beginIConnectable(), g.endIConnectable());
             CHECK(outLayers.size() == 5);
 
-            Layer* inputLayer     = outLayers[0];
-            Layer* weightsLayer   = outLayers[1];
-            Layer* biasLayer      = outLayers[2];
-            Layer* depthwiseLayer = outLayers[3];
-            Layer* outputLayer    = outLayers[4];
+            IConnectableLayer* inputLayer     = outLayers[0];
+            IConnectableLayer* weightsLayer   = outLayers[1];
+            IConnectableLayer* biasLayer      = outLayers[2];
+            IConnectableLayer* depthwiseLayer = outLayers[3];
+            IConnectableLayer* outputLayer    = outLayers[4];
 
             CHECK(inputLayer->GetType() == LayerType::Input);
             CHECK(weightsLayer->GetType() == LayerType::Constant);
@@ -362,25 +377,30 @@ TEST_SUITE("EthosNReplaceUnsupported")
             CHECK(depthwiseLayer->GetType() == LayerType::DepthwiseConvolution2d);
             CHECK(outputLayer->GetType() == LayerType::Output);
 
-            Layer* depthwiseInput  = &depthwiseLayer->GetInputSlots()[0].GetConnectedOutputSlot()->GetOwningLayer();
-            Layer* depthwiseInput1 = &depthwiseLayer->GetInputSlots()[1].GetConnectedOutputSlot()->GetOwningLayer();
-            Layer* depthwiseInput2 = &depthwiseLayer->GetInputSlots()[2].GetConnectedOutputSlot()->GetOwningLayer();
-            Layer* depthwiseOutput = &depthwiseLayer->GetOutputSlots()[0].GetConnections()[0]->GetOwningLayer();
+            IConnectableLayer* depthwiseInput =
+                &depthwiseLayer->GetInputSlot(0).GetConnection()->GetOwningIConnectableLayer();
+            IConnectableLayer* depthwiseInput1 =
+                &depthwiseLayer->GetInputSlot(1).GetConnection()->GetOwningIConnectableLayer();
+            IConnectableLayer* depthwiseInput2 =
+                &depthwiseLayer->GetInputSlot(2).GetConnection()->GetOwningIConnectableLayer();
+            IConnectableLayer* depthwiseOutput =
+                &depthwiseLayer->GetOutputSlot(0).GetConnection(0)->GetOwningIConnectableLayer();
             CHECK(depthwiseInput == inputLayer);
             CHECK(depthwiseInput1 == weightsLayer);
             CHECK(depthwiseInput2 == biasLayer);
             CHECK(depthwiseOutput == outputLayer);
 
-            Layer* inputNextLayer  = &inputLayer->GetOutputSlots()[0].GetConnections()[0]->GetOwningLayer();
-            Layer* outputPrevLayer = &outputLayer->GetInputSlots()[0].GetConnectedOutputSlot()->GetOwningLayer();
+            IConnectableLayer* inputNextLayer =
+                &inputLayer->GetOutputSlot(0).GetConnection(0)->GetOwningIConnectableLayer();
+            IConnectableLayer* outputPrevLayer =
+                &outputLayer->GetInputSlot(0).GetConnection()->GetOwningIConnectableLayer();
             CHECK(inputNextLayer == depthwiseLayer);
             CHECK(outputPrevLayer == depthwiseLayer);
 
             // Check weights tensor info and data
             CHECK(weightsLayer->GetOutputSlot(0).GetTensorInfo() ==
                   TensorInfo(TensorShape{ 1, 1, 1, 4 }, DataType::QAsymmU8, 0.5f, 0, true));
-            const uint8_t* dwWeightData =
-                PolymorphicPointerDowncast<ConstantLayer>(weightsLayer)->m_LayerOutput->GetConstTensor<uint8_t>();
+            const uint8_t* dwWeightData = weightsLayer->GetConstantTensorsByRef()[0].get()->GetConstTensor<uint8_t>();
             CHECK(std::all_of(dwWeightData,
                               dwWeightData + weightsLayer->GetOutputSlot(0).GetTensorInfo().GetShape().GetNumElements(),
                               [](auto x) { return x == 2; }));
@@ -388,8 +408,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
             // Check bias tensor info and data
             CHECK(biasLayer->GetOutputSlot(0).GetTensorInfo() ==
                   TensorInfo(TensorShape{ 1, 1, 1, 4 }, DataType::Signed32, 0.5f, 0, true));
-            const int32_t* dwBiasData =
-                PolymorphicPointerDowncast<ConstantLayer>(biasLayer)->m_LayerOutput->GetConstTensor<int32_t>();
+            const int32_t* dwBiasData = biasLayer->GetConstantTensorsByRef()[0].get()->GetConstTensor<int32_t>();
             std::vector<int32_t> expectedBiasData;
             switch (constantDataType)
             {
@@ -424,14 +443,14 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
     /// Creates a graph comprising an Multiplication of two other layers, which are either Inputs or Constants, depending
     /// on the flags provided. For any layers which are Constants, dummy constant data is generated.
-    Graph CreateMultiplicationGraph(const TensorInfo& input0Info,
-                                    bool isInput0Constant,
-                                    const TensorInfo& input1Info,
-                                    bool isInput1Constant,
-                                    const TensorInfo& outputInfo,
-                                    int startData = 0)
+    SubgraphView CreateMultiplicationGraph(const TensorInfo& input0Info,
+                                           bool isInput0Constant,
+                                           const TensorInfo& input1Info,
+                                           bool isInput1Constant,
+                                           const TensorInfo& outputInfo,
+                                           int startData = 0)
     {
-        auto net = std::make_unique<NetworkImpl>();
+        auto net = INetwork::CreateRaw();
 
         auto AddConstLayer = [&net](const TensorInfo& info, const char* name, int startData) -> IConnectableLayer* {
             switch (info.GetDataType())
@@ -481,7 +500,7 @@ TEST_SUITE("EthosNReplaceUnsupported")
         input1->GetOutputSlot(0).Connect(mul->GetInputSlot(1));
         mul->GetOutputSlot(0).Connect(output->GetInputSlot(0));
 
-        return net->GetGraph();
+        return SubgraphView{ { input0, input1, mul, output }, {}, {} };
     }
 
     }    // namespace
@@ -492,43 +511,43 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
         // Failure case - not a Multiplication layer
         {
-            Graph g = CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                                TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0, true), true,
-                                                TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
-            CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(
-                      g, *g.begin(), EthosNConfig(), EthosNConfig().QueryCapabilities(), failureReason) == false);
+            SubgraphView g = CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                                       TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0, true),
+                                                       true, TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
+            CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(g, *g.beginIConnectable(), EthosNConfig(),
+                                                                         EthosNConfig().QueryCapabilities(),
+                                                                         failureReason) == false);
         }
 
         // Failure case - multiplication that doesn't need replacing with ReinterpretQuantization as it needs
         // to be replaced with Depthwise instead
         {
-            Graph g = CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                                TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0, true), true,
-                                                TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
-            MultiplicationLayer* mulLayer =
-                PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
+            SubgraphView g = CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                                       TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0, true),
+                                                       true, TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
+            IConnectableLayer* mulLayer = GetIConnectableLayerWithName(g, "mul");
+
             CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(
                       g, mulLayer, EthosNConfig(), EthosNConfig().QueryCapabilities(), failureReason) == false);
         }
 
         // Error case - neither input is a constant
         {
-            Graph g = CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                                TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                                TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
-            MultiplicationLayer* mulLayer =
-                PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
+            SubgraphView g = CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                                       TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                                       TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
+            IConnectableLayer* mulLayer = GetIConnectableLayerWithName(g, "mul");
             CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(
                       g, mulLayer, EthosNConfig(), EthosNConfig().QueryCapabilities(), failureReason) == false);
         }
 
         // Error case - Incorrect data-type for constant
         {
-            Graph g = CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                                TensorInfo({ 1, 1, 1, 1 }, DataType::Signed64, 1.0f, 0, true), true,
-                                                TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), 0);
-            MultiplicationLayer* mulLayer =
-                PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
+            SubgraphView g =
+                CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                          TensorInfo({ 1, 1, 1, 1 }, DataType::Signed64, 1.0f, 0, true), true,
+                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), 0);
+            IConnectableLayer* mulLayer = GetIConnectableLayerWithName(g, "mul");
             CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(
                       g, mulLayer, EthosNConfig(), EthosNConfig().QueryCapabilities(), failureReason) == false);
             CHECK(failureReason == "Data type is not supported");
@@ -536,11 +555,11 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
         // Error case - constant is negative
         {
-            Graph g = CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                                TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.007f, 127, true), true,
-                                                TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
-            MultiplicationLayer* mulLayer =
-                PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
+            SubgraphView g =
+                CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                          TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.007f, 127, true), true,
+                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
+            IConnectableLayer* mulLayer = GetIConnectableLayerWithName(g, "mul");
             CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(
                       g, mulLayer, EthosNConfig(), EthosNConfig().QueryCapabilities(), failureReason) == false);
             CHECK(failureReason == "Quantization info for input, scalar and output are not coherent");
@@ -548,11 +567,11 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
         // Error case - constant is zero
         {
-            Graph g = CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                                TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.007f, 127, true), true,
-                                                TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), 127);
-            MultiplicationLayer* mulLayer =
-                PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
+            SubgraphView g =
+                CreateMultiplicationGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                          TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 0.007f, 127, true), true,
+                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), 127);
+            IConnectableLayer* mulLayer = GetIConnectableLayerWithName(g, "mul");
             CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(
                       g, mulLayer, EthosNConfig(), EthosNConfig().QueryCapabilities(), failureReason) == false);
             CHECK(failureReason == "Quantization info for input, scalar and output are not coherent");
@@ -563,12 +582,11 @@ TEST_SUITE("EthosNReplaceUnsupported")
             float providedConstantQuantisation = (static_cast<float>(2)) / (static_cast<float>(255));
             int providedConstantValue          = static_cast<int>(10 / providedConstantQuantisation);
 
-            Graph g = CreateMultiplicationGraph(
+            SubgraphView g = CreateMultiplicationGraph(
                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 0.5f, 0), false,
                 TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, providedConstantQuantisation, 0, true), true,
                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), providedConstantValue);
-            MultiplicationLayer* mulLayer =
-                PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
+            IConnectableLayer* mulLayer = GetIConnectableLayerWithName(g, "mul");
             CHECK(ReplaceScalarMultiplicationWithReinterpretQuantization(
                       g, mulLayer, EthosNConfig(), EthosNConfig().QueryCapabilities(), failureReason) == false);
             CHECK(failureReason == "Quantization info for input, scalar and output are not coherent");
@@ -586,9 +604,8 @@ TEST_SUITE("EthosNReplaceUnsupported")
                 TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, providedConstantQuantisation, 0, true);
             const TensorInfo output = TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0);
 
-            Graph g = CreateMultiplicationGraph(input0, false, input1, true, output, 255);
-            MultiplicationLayer* mulLayer =
-                PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
+            SubgraphView g              = CreateMultiplicationGraph(input0, false, input1, true, output, 255);
+            IConnectableLayer* mulLayer = GetIConnectableLayerWithName(g, "mul");
 
             CHECK(layerSupport.GetMultiplicationSupportedMode(input0, input1, output) ==
                   EthosNLayerSupport::MultiplicationSupportedMode::None);
@@ -610,9 +627,8 @@ TEST_SUITE("EthosNReplaceUnsupported")
                 TensorInfo({ 1, 2, 2, 1 }, DataType::QAsymmU8, providedConstantQuantisation, 0, true);
             const TensorInfo output = TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0);
 
-            Graph g = CreateMultiplicationGraph(input0, false, input1, true, output, 255);
-            MultiplicationLayer* mulLayer =
-                PolymorphicPointerDowncast<MultiplicationLayer>(GetFirstLayerWithName(g, "mul"));
+            SubgraphView g              = CreateMultiplicationGraph(input0, false, input1, true, output, 255);
+            IConnectableLayer* mulLayer = GetIConnectableLayerWithName(g, "mul");
 
             CHECK(layerSupport.GetMultiplicationSupportedMode(input0, input1, output) ==
                   EthosNLayerSupport::MultiplicationSupportedMode::EstimateOnly);
@@ -626,38 +642,38 @@ TEST_SUITE("EthosNReplaceUnsupported")
 
         // Failure case - not an Addition layer
         {
-            Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                          TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0, true), true,
-                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
-            CHECK(ReplaceConstantAdditionWithReinterpretQuantization(g, *g.begin(), reason) == false);
+            SubgraphView g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                                 TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0, true), true,
+                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
+            CHECK(ReplaceConstantAdditionWithReinterpretQuantization(g, *g.beginIConnectable(), reason) == false);
         }
 
         // Failure case - addition that doesn't need replacing (as it is supported natively)
         // Fails as it does not need to be replaced by Reinterpret Quantization
         {
-            Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0, true), true,
-                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
-            AdditionLayer* addLayer = PolymorphicPointerDowncast<AdditionLayer>(GetFirstLayerWithName(g, "add"));
+            SubgraphView g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0, true), true,
+                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
+            IConnectableLayer* addLayer = GetIConnectableLayerWithName(g, "add");
             CHECK(ReplaceConstantAdditionWithReinterpretQuantization(g, addLayer, reason) == false);
         }
 
         // Error case - neither input is a constant which is a requirement for Reinterpret Quantization
         {
-            Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                          TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
-                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
-            AdditionLayer* addLayer = PolymorphicPointerDowncast<AdditionLayer>(GetFirstLayerWithName(g, "add"));
+            SubgraphView g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                                 TensorInfo({ 1, 1, 1, 4 }, DataType::QAsymmU8, 1.0f, 0), false,
+                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 0));
+            IConnectableLayer* addLayer = GetIConnectableLayerWithName(g, "add");
             CHECK(ReplaceConstantAdditionWithReinterpretQuantization(g, addLayer, reason) == false);
         }
 
         // Error case - Quantization info is not coherent (Output Offset different than expected)
         // Positive constant means the output offset should be lower than input offset
         {
-            Graph g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 5), false,
-                                          TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0, true), true,
-                                          TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 10));
-            AdditionLayer* addLayer = PolymorphicPointerDowncast<AdditionLayer>(GetFirstLayerWithName(g, "add"));
+            SubgraphView g = CreateAdditionGraph(TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 5), false,
+                                                 TensorInfo({ 1, 1, 1, 1 }, DataType::QAsymmU8, 1.0f, 0, true), true,
+                                                 TensorInfo({ 1, 8, 8, 4 }, DataType::QAsymmU8, 1.0f, 10));
+            IConnectableLayer* addLayer = GetIConnectableLayerWithName(g, "add");
             CHECK(ReplaceConstantAdditionWithReinterpretQuantization(g, addLayer, reason) == false);
             CHECK(reason == "Quantization info for input, scalar and output are not coherent");
         }

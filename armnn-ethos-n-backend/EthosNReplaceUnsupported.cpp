@@ -25,17 +25,17 @@ namespace ethosnbackend
 // Expected modified pattern:
 // Input -> DepthwiseConvolution2d -> Output
 //
-bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph,
-                                                Layer* layer,
+bool ReplaceConstantMultiplicationWithDepthwise(SubgraphView& graph,
+                                                IConnectableLayer* layer,
                                                 const EthosNConfig&,
                                                 const std::vector<char>&)
 {
     if (layer->GetType() == LayerType::Multiplication)
     {
-        InputSlot* patternSubgraphInput = &layer->GetInputSlot(0);
+        IInputSlot* patternSubgraphInput = &layer->GetInputSlot(0);
 
-        Layer* inputLayer    = &patternSubgraphInput->GetConnectedOutputSlot()->GetOwningLayer();
-        Layer* constantLayer = &layer->GetInputSlots()[1].GetConnectedOutputSlot()->GetOwningLayer();
+        IConnectableLayer* inputLayer    = &patternSubgraphInput->GetConnection()->GetOwningIConnectableLayer();
+        IConnectableLayer* constantLayer = &layer->GetInputSlot(1).GetConnection()->GetOwningIConnectableLayer();
 
         // Figure out which of the two inputs is the constant
         if (constantLayer->GetType() != LayerType::Constant)
@@ -46,20 +46,20 @@ bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph,
 
         if (constantLayer->GetType() == LayerType::Constant)
         {
-            const TensorInfo& inputInfo = inputLayer->GetOutputSlot().GetTensorInfo();
-            const TensorInfo& constInfo = constantLayer->GetOutputSlot().GetTensorInfo();
+            const TensorInfo& inputInfo = inputLayer->GetOutputSlot(0).GetTensorInfo();
+            const TensorInfo& constInfo = constantLayer->GetOutputSlot(0).GetTensorInfo();
 
             // Add a Depthwise only where the constant input is a scalar that takes the form { 1, 1, 1, C }.
             // The scalar is used as weights for the convolution.
             if (constInfo.GetShape() == TensorShape({ 1, 1, 1, inputInfo.GetShape()[3] }))
             {
-                Graph replacementGraph;
+                INetworkPtr replacementGraph = INetwork::Create();
 
                 DepthwiseConvolution2dDescriptor desc;
                 desc.m_DataLayout = DataLayout::NHWC;
 
-                const auto depthwiseLayer = replacementGraph.AddLayer<DepthwiseConvolution2dLayer>(
-                    desc, "Replacement for Constant-Multiplication");
+                const auto depthwiseLayer =
+                    replacementGraph->AddDepthwiseConvolution2dLayer(desc, "Replacement for Constant-Multiplication");
 
                 TensorInfo weightInfo        = constInfo;
                 const TensorInfo& outputInfo = layer->GetOutputSlot(0).GetTensorInfo();
@@ -67,22 +67,17 @@ bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph,
                 ARMNN_ASSERT_MSG(M == 1, "Constant multiplication only support 1x1x1xC, so M should always be 1 here");
                 weightInfo.SetShape({ 1, 1, 1, constInfo.GetShape()[3] * M });    //1HW(I*M)
 
-                const void* weightData = PolymorphicPointerDowncast<const ConstantLayer>(constantLayer)
-                                             ->m_LayerOutput->GetConstTensor<void>();
+                const IConnectableLayer::ConstantTensors constantTensorsRef = constantLayer->GetConstantTensorsByRef();
+                const void* weightData = constantTensorsRef.at(0).get()->GetConstTensor<void>();
 
                 const ConstTensor weights(weightInfo, weightData);
 
-                const auto weightsLayer =
-                    replacementGraph.AddLayer<ConstantLayer>("Replacement for Constant-Multiplication Weights");
-                weightsLayer->m_LayerOutput = std::make_shared<ScopedTensorHandle>(weights);
+                const auto weightsLayer = replacementGraph->AddConstantLayer(weights);
                 weightsLayer->GetOutputSlot(0).SetTensorInfo(weightInfo);
                 weightsLayer->GetOutputSlot(0).Connect(depthwiseLayer->GetInputSlot(1));
 
-                ARMNN_NO_DEPRECATE_WARN_BEGIN
-                SubgraphView patternSubgraph({ patternSubgraphInput }, { &layer->GetOutputSlot() },
-                                             { layer, constantLayer });
-                ARMNN_NO_DEPRECATE_WARN_END
-
+                SubgraphView patternSubgraph({ layer, constantLayer }, { patternSubgraphInput },
+                                             { &layer->GetOutputSlot(0) });
                 /// Constructs a sub-graph view with the new weights, depthwise and the correct input and output slots.
                 SubgraphView view({ depthwiseLayer, weightsLayer }, { &depthwiseLayer->GetInputSlot(0) },
                                   { &depthwiseLayer->GetOutputSlot(0) });
@@ -104,15 +99,18 @@ bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph,
 // Expected modified pattern:
 // Input -> ReinterpretQuantize -> Output
 //
-bool ReplaceScalarMultiplicationWithReinterpretQuantization(
-    Graph& graph, Layer* layer, const EthosNConfig&, const std::vector<char>&, std::string& outFailureReason)
+bool ReplaceScalarMultiplicationWithReinterpretQuantization(SubgraphView& graph,
+                                                            IConnectableLayer* layer,
+                                                            const EthosNConfig&,
+                                                            const std::vector<char>&,
+                                                            std::string& outFailureReason)
 {
     if (layer->GetType() == LayerType::Multiplication)
     {
-        InputSlot* patternSubgraphInput = &layer->GetInputSlot(0);
+        IInputSlot* patternSubgraphInput = &layer->GetInputSlot(0);
 
-        Layer* inputLayer    = &patternSubgraphInput->GetConnectedOutputSlot()->GetOwningLayer();
-        Layer* constantLayer = &layer->GetInputSlots()[1].GetConnectedOutputSlot()->GetOwningLayer();
+        IConnectableLayer* inputLayer    = &patternSubgraphInput->GetConnection()->GetOwningIConnectableLayer();
+        IConnectableLayer* constantLayer = &layer->GetInputSlot(1).GetConnection()->GetOwningIConnectableLayer();
 
         // Figure out which of the two inputs is the constant
         if (constantLayer->GetType() != LayerType::Constant)
@@ -123,26 +121,26 @@ bool ReplaceScalarMultiplicationWithReinterpretQuantization(
 
         if (constantLayer->GetType() == LayerType::Constant)
         {
-            const TensorInfo& constInfo  = constantLayer->GetOutputSlot().GetTensorInfo();
-            const TensorInfo& outputInfo = layer->GetOutputSlot().GetTensorInfo();
-            const TensorInfo& inputInfo  = inputLayer->GetOutputSlot().GetTensorInfo();
+            const TensorInfo& constInfo  = constantLayer->GetOutputSlot(0).GetTensorInfo();
+            const TensorInfo& outputInfo = layer->GetOutputSlot(0).GetTensorInfo();
+            const TensorInfo& inputInfo  = inputLayer->GetOutputSlot(0).GetTensorInfo();
 
             // Add a ReinterpretQuantize only where the constant input is a scalar that takes the form { 1, 1, 1, 1 }.
             if (constInfo.GetShape() == TensorShape({ 1, 1, 1, 1 }))
             {
-                auto ConvertDataToFloat = [](Layer* layer, DataType dataType) {
+                auto ConvertDataToFloat = [](IConnectableLayer* layer, DataType dataType) {
                     switch (dataType)
                     {
                         case DataType::QAsymmU8:
-                            return static_cast<float>(PolymorphicPointerDowncast<const ConstantLayer>(layer)
-                                                          ->m_LayerOutput->GetConstTensor<uint8_t>()[0]);
+                            return static_cast<float>(
+                                layer->GetConstantTensorsByRef()[0].get()->GetConstTensor<uint8_t>()[0]);
                         case DataType::QSymmS8:
                         case DataType::QAsymmS8:
-                            return static_cast<float>(PolymorphicPointerDowncast<const ConstantLayer>(layer)
-                                                          ->m_LayerOutput->GetConstTensor<int8_t>()[0]);
+                            return static_cast<float>(
+                                layer->GetConstantTensorsByRef()[0].get()->GetConstTensor<int8_t>()[0]);
                         case DataType::Signed32:
-                            return static_cast<float>(PolymorphicPointerDowncast<const ConstantLayer>(layer)
-                                                          ->m_LayerOutput->GetConstTensor<int32_t>()[0]);
+                            return static_cast<float>(
+                                layer->GetConstantTensorsByRef()[0].get()->GetConstTensor<int32_t>()[0]);
                         default:
                             throw Exception("Data type not supported");
                     }
@@ -173,7 +171,7 @@ bool ReplaceScalarMultiplicationWithReinterpretQuantization(
                     return false;
                 }
 
-                Graph replacementGraph;
+                INetworkPtr replacementGraph = INetwork::Create();
 
                 StandInDescriptor desc;
                 desc.m_NumInputs  = 1;
@@ -183,13 +181,11 @@ bool ReplaceScalarMultiplicationWithReinterpretQuantization(
                 // that we could directly add.
                 // We set a custom value to name parameter of the StandIn layer which then is used to add the
                 // ReinterpretQuantize layer from the Support Library.
-                const auto standInLayer = replacementGraph.AddLayer<StandInLayer>(
+                const auto standInLayer = replacementGraph->AddStandInLayer(
                     desc, "EthosNBackend:ReplaceScalarMulWithReinterpretQuantization");
 
-                ARMNN_NO_DEPRECATE_WARN_BEGIN
-                SubgraphView patternSubgraph({ patternSubgraphInput }, { &layer->GetOutputSlot() },
-                                             { layer, constantLayer });
-                ARMNN_NO_DEPRECATE_WARN_END
+                SubgraphView patternSubgraph({ layer, constantLayer }, { patternSubgraphInput },
+                                             { &layer->GetOutputSlot(0) });
 
                 graph.SubstituteSubgraph(patternSubgraph, SubgraphView{ standInLayer });
 
@@ -210,8 +206,8 @@ bool ReplaceScalarMultiplicationWithReinterpretQuantization(
 //                 OR
 // Input -> ReinterpretQuantize -> Output
 //
-bool ReplaceMultiplication(Graph& graph,
-                           Layer* layer,
+bool ReplaceMultiplication(SubgraphView& graph,
+                           IConnectableLayer* layer,
                            const EthosNConfig& config,
                            const std::vector<char>& capabilities)
 {
@@ -220,8 +216,8 @@ bool ReplaceMultiplication(Graph& graph,
         EthosNLayerSupport supportChecks(config, capabilities);
 
         EthosNLayerSupport::MultiplicationSupportedMode supportedMode = supportChecks.GetMultiplicationSupportedMode(
-            layer->GetInputSlot(0).GetConnectedOutputSlot()->GetTensorInfo(),
-            layer->GetInputSlot(1).GetConnectedOutputSlot()->GetTensorInfo(), layer->GetOutputSlot(0).GetTensorInfo());
+            layer->GetInputSlot(0).GetConnection()->GetTensorInfo(),
+            layer->GetInputSlot(1).GetConnection()->GetTensorInfo(), layer->GetOutputSlot(0).GetTensorInfo());
 
         std::string failureReason;
 
@@ -256,7 +252,7 @@ bool ReplaceMultiplication(Graph& graph,
 // Expected modified pattern:
 // Input -> DepthwiseConvolution2d -> Output
 //
-bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer)
+bool ReplaceConstantAdditionWithDepthwise(SubgraphView& graph, IConnectableLayer* layer)
 {
     if (layer->GetType() != LayerType::Addition)
     {
@@ -264,11 +260,11 @@ bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer)
     }
 
     // Figure out which of the two inputs is the constant
-    Layer* inputLayer            = nullptr;
-    Layer* constantLayer         = nullptr;
-    InputSlot* subgraphInputSlot = nullptr;
-    Layer* inputLayer0           = &layer->GetInputSlot(0).GetConnectedOutputSlot()->GetOwningLayer();
-    Layer* inputLayer1           = &layer->GetInputSlot(1).GetConnectedOutputSlot()->GetOwningLayer();
+    IConnectableLayer* inputLayer    = nullptr;
+    IConnectableLayer* constantLayer = nullptr;
+    IInputSlot* subgraphInputSlot    = nullptr;
+    IConnectableLayer* inputLayer0   = &layer->GetInputSlot(0).GetConnection()->GetOwningIConnectableLayer();
+    IConnectableLayer* inputLayer1   = &layer->GetInputSlot(1).GetConnection()->GetOwningIConnectableLayer();
     if (inputLayer0->GetType() == LayerType::Constant)
     {
         inputLayer        = inputLayer1;
@@ -287,9 +283,9 @@ bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer)
         return false;
     }
 
-    const TensorInfo& inputInfo  = inputLayer->GetOutputSlot().GetTensorInfo();
-    const TensorInfo& constInfo  = constantLayer->GetOutputSlot().GetTensorInfo();
-    const TensorInfo& outputInfo = layer->GetOutputSlot().GetTensorInfo();
+    const TensorInfo& inputInfo  = inputLayer->GetOutputSlot(0).GetTensorInfo();
+    const TensorInfo& constInfo  = constantLayer->GetOutputSlot(0).GetTensorInfo();
+    const TensorInfo& outputInfo = layer->GetOutputSlot(0).GetTensorInfo();
 
     // Get the configuration of the replacement layer.
     // Note that we expect this should always succeed, because otherwise the IsSupported check above would have failed.
@@ -302,10 +298,10 @@ bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer)
     }
     const ConstantAddToDepthwiseReplacementConfig& replacementConfig = replacementConfigOpt.value();
 
-    Graph replacementGraph;
+    INetworkPtr replacementGraph = INetwork::Create();
 
-    const auto depthwiseLayer = replacementGraph.AddLayer<DepthwiseConvolution2dLayer>(
-        replacementConfig.m_Desc, "Replacement for Constant-Addition");
+    const auto depthwiseLayer =
+        replacementGraph->AddDepthwiseConvolution2dLayer(replacementConfig.m_Desc, "Replacement for Constant-Addition");
 
     // Create identity weights
     const std::vector<uint8_t> weightsData(replacementConfig.m_WeightsInfo.GetNumElements(),
@@ -313,8 +309,7 @@ bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer)
     const ConstTensor weights(replacementConfig.m_WeightsInfo, weightsData);
 
     // Rescale the bias data
-    const void* constData =
-        PolymorphicPointerDowncast<const ConstantLayer>(constantLayer)->m_LayerOutput->GetConstTensor<void>();
+    const void* constData = constantLayer->GetConstantTensorsByRef()[0].get()->GetConstTensor<void>();
     Optional<std::vector<int32_t>> rescaledBiasData =
         ethosntensorutils::ConvertTensorValuesToSigned32(constData, constInfo, replacementConfig.m_BiasInfo);
     if (!rescaledBiasData.has_value())
@@ -325,18 +320,14 @@ bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer)
     }
     const ConstTensor rescaledBias(replacementConfig.m_BiasInfo, rescaledBiasData.value());
 
-    ARMNN_NO_DEPRECATE_WARN_BEGIN
-    SubgraphView patternSubgraph({ subgraphInputSlot }, { &layer->GetOutputSlot() }, { layer, constantLayer });
-    ARMNN_NO_DEPRECATE_WARN_END
+    SubgraphView patternSubgraph({ layer, constantLayer }, { subgraphInputSlot }, { &layer->GetOutputSlot(0) });
 
     const auto weightsLayer =
-        replacementGraph.AddLayer<ConstantLayer>("Replacement for Constant-Addition Identity Weights");
-    weightsLayer->m_LayerOutput = std::make_shared<ScopedTensorHandle>(weights);
+        replacementGraph->AddConstantLayer(weights, "Replacement for Constant-Addition Identity Weights");
     weightsLayer->GetOutputSlot(0).SetTensorInfo(replacementConfig.m_WeightsInfo);
     weightsLayer->GetOutputSlot(0).Connect(depthwiseLayer->GetInputSlot(1));
 
-    const auto biasLayer     = replacementGraph.AddLayer<ConstantLayer>("Replacement for Constant-Addition Bias");
-    biasLayer->m_LayerOutput = std::make_shared<ScopedTensorHandle>(rescaledBias);
+    const auto biasLayer = replacementGraph->AddConstantLayer(rescaledBias, "Replacement for Constant-Addition Bias");
     biasLayer->GetOutputSlot(0).SetTensorInfo(replacementConfigOpt.value().m_BiasInfo);
     biasLayer->GetOutputSlot(0).Connect(depthwiseLayer->GetInputSlot(2));
 
@@ -349,18 +340,20 @@ bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer)
     return true;
 }
 
-bool ReplaceConstantAdditionWithReinterpretQuantization(Graph& graph, Layer* layer, std::string& outFailureReason)
+bool ReplaceConstantAdditionWithReinterpretQuantization(SubgraphView& graph,
+                                                        IConnectableLayer* layer,
+                                                        std::string& outFailureReason)
 {
     if (layer->GetType() != LayerType::Addition)
     {
         return false;
     }
 
-    InputSlot* patternSubgraphInput = &layer->GetInputSlot(0);
+    IInputSlot* patternSubgraphInput = &layer->GetInputSlot(0);
 
     // Figure out which of the two inputs is the constant, swap if necessary
-    Layer* inputLayer    = &patternSubgraphInput->GetConnectedOutputSlot()->GetOwningLayer();
-    Layer* constantLayer = &layer->GetInputSlots()[1].GetConnectedOutputSlot()->GetOwningLayer();
+    IConnectableLayer* inputLayer    = &patternSubgraphInput->GetConnection()->GetOwningIConnectableLayer();
+    IConnectableLayer* constantLayer = &layer->GetInputSlot(1).GetConnection()->GetOwningIConnectableLayer();
     if (constantLayer->GetType() != LayerType::Constant)
     {
         patternSubgraphInput = &layer->GetInputSlot(1);
@@ -370,33 +363,30 @@ bool ReplaceConstantAdditionWithReinterpretQuantization(Graph& graph, Layer* lay
     // If still not constant, neither input is
     if (constantLayer->GetType() != LayerType::Constant)
     {
-        // Neither Layer is constant
+        // Neither IConnectableLayer is constant
         return false;
     }
 
     // Get layer tensor info
-    const TensorInfo& constInfo  = constantLayer->GetOutputSlot().GetTensorInfo();
-    const TensorInfo& outputInfo = layer->GetOutputSlot().GetTensorInfo();
-    const TensorInfo& inputInfo  = inputLayer->GetOutputSlot().GetTensorInfo();
+    const TensorInfo& constInfo  = constantLayer->GetOutputSlot(0).GetTensorInfo();
+    const TensorInfo& outputInfo = layer->GetOutputSlot(0).GetTensorInfo();
+    const TensorInfo& inputInfo  = inputLayer->GetOutputSlot(0).GetTensorInfo();
 
     // Add a Reinterpret only where the constant input is a scalar that takes the form { 1, 1, 1, 1 }.
     // The scalar is used as weights for the convolution.
     if (constInfo.GetShape() == TensorShape({ 1, 1, 1, 1 }))
     {
 
-        auto ConvertDataToFloat = [](Layer* layer, DataType dataType) {
+        auto ConvertDataToFloat = [](IConnectableLayer* layer, DataType dataType) {
             switch (dataType)
             {
                 case DataType::QAsymmU8:
-                    return static_cast<float>(PolymorphicPointerDowncast<const ConstantLayer>(layer)
-                                                  ->m_LayerOutput->GetConstTensor<uint8_t>()[0]);
+                    return static_cast<float>(layer->GetConstantTensorsByRef()[0].get()->GetConstTensor<uint8_t>()[0]);
                 case DataType::QSymmS8:
                 case DataType::QAsymmS8:
-                    return static_cast<float>(PolymorphicPointerDowncast<const ConstantLayer>(layer)
-                                                  ->m_LayerOutput->GetConstTensor<int8_t>()[0]);
+                    return static_cast<float>(layer->GetConstantTensorsByRef()[0].get()->GetConstTensor<int8_t>()[0]);
                 case DataType::Signed32:
-                    return static_cast<float>(PolymorphicPointerDowncast<const ConstantLayer>(layer)
-                                                  ->m_LayerOutput->GetConstTensor<int32_t>()[0]);
+                    return static_cast<float>(layer->GetConstantTensorsByRef()[0].get()->GetConstTensor<int32_t>()[0]);
                 default:
                     throw Exception("Data type not supported");
             }
@@ -417,7 +407,7 @@ bool ReplaceConstantAdditionWithReinterpretQuantization(Graph& graph, Layer* lay
             return false;
         }
 
-        Graph replacementGraph;
+        INetworkPtr replacementGraph = INetwork::Create();
         StandInDescriptor desc;
         desc.m_NumInputs  = 1;
         desc.m_NumOutputs = 1;
@@ -440,11 +430,9 @@ bool ReplaceConstantAdditionWithReinterpretQuantization(Graph& graph, Layer* lay
         // We set a custom value to name parameter of the StandIn layer which then is used to add the
         // ReinterpretQuantize layer from the Support Library.
         const auto standInLayer =
-            replacementGraph.AddLayer<StandInLayer>(desc, "EthosNBackend:ReplaceScalarAddWithReinterpretQuantization");
+            replacementGraph->AddStandInLayer(desc, "EthosNBackend:ReplaceScalarAddWithReinterpretQuantization");
 
-        ARMNN_NO_DEPRECATE_WARN_BEGIN
-        SubgraphView patternSubgraph({ patternSubgraphInput }, { &layer->GetOutputSlot() }, { layer, constantLayer });
-        ARMNN_NO_DEPRECATE_WARN_END
+        SubgraphView patternSubgraph({ layer, constantLayer }, { patternSubgraphInput }, { &layer->GetOutputSlot(0) });
         graph.SubstituteSubgraph(patternSubgraph, SubgraphView{ standInLayer });
 
         return true;
@@ -453,14 +441,17 @@ bool ReplaceConstantAdditionWithReinterpretQuantization(Graph& graph, Layer* lay
     return false;
 }
 
-bool ReplaceAddition(Graph& graph, Layer* layer, const EthosNConfig& config, const std::vector<char>& capabilities)
+bool ReplaceAddition(SubgraphView& graph,
+                     IConnectableLayer* layer,
+                     const EthosNConfig& config,
+                     const std::vector<char>& capabilities)
 {
     if (layer->GetType() == LayerType::Addition)
     {
         EthosNLayerSupport supportChecks(config, capabilities);
         auto supportedMode = supportChecks.GetAdditionSupportedMode(
-            layer->GetInputSlot(0).GetConnectedOutputSlot()->GetTensorInfo(),
-            layer->GetInputSlot(1).GetConnectedOutputSlot()->GetTensorInfo(), layer->GetOutputSlot(0).GetTensorInfo());
+            layer->GetInputSlot(0).GetConnection()->GetTensorInfo(),
+            layer->GetInputSlot(1).GetConnection()->GetTensorInfo(), layer->GetOutputSlot(0).GetTensorInfo());
 
         std::string failureReason;
 
@@ -486,9 +477,9 @@ bool ReplaceAddition(Graph& graph, Layer* layer, const EthosNConfig& config, con
     return false;
 }
 
-void ReplaceUnsupportedLayers(Graph& graph, const EthosNConfig& config, const std::vector<char>& capabilities)
+void ReplaceUnsupportedLayers(SubgraphView& graph, const EthosNConfig& config, const std::vector<char>& capabilities)
 {
-    using ReplacementFunc                    = bool (*)(Graph&, Layer*, const EthosNConfig&, const std::vector<char>&);
+    using ReplacementFunc = bool (*)(SubgraphView&, IConnectableLayer*, const EthosNConfig&, const std::vector<char>&);
     const ReplacementFunc replacementFuncs[] = {
         &ReplaceMultiplication,
         &ReplaceAddition,
@@ -498,7 +489,7 @@ void ReplaceUnsupportedLayers(Graph& graph, const EthosNConfig& config, const st
     do
     {
         madeChange = false;
-        for (Layer* layer : graph)
+        for (IConnectableLayer* layer : graph.GetIConnectableLayers())
         {
             for (const ReplacementFunc f : replacementFuncs)
             {
