@@ -470,7 +470,7 @@ void FillBufferTable(std::vector<ethosn_buffer_desc>& bufferTable,
 {
     for (auto&& buffer : bufferInfos)
     {
-        bufferTable[buffer.m_Id] = { baseAddress + buffer.m_Offset, buffer.m_Size, bufferType };
+        bufferTable[buffer.m_Id] = { baseAddress + buffer.m_Offset, buffer.m_Size, static_cast<uint32_t>(bufferType) };
     }
 }
 

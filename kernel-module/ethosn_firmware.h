@@ -356,6 +356,10 @@ enum ethosn_buffer_type {
  * struct ethosn_buffer_desc - Buffer descriptor
  * @var address:	Pointer to buffer.
  * @var size:		Size in bytes of buffer.
+ * @var type		Type of the buffer, as a member of ethosn_buffer_type.
+ *			Stored as a uint32_t to have a well-defined size,
+ *			as this struct needs to be consistent between kernel
+ *			module and firmware.
  */
 struct ethosn_buffer_desc {
 	ethosn_address_t address;
