@@ -554,6 +554,76 @@ inline void SetFusedPleSInputMode(PleS& pleSchedulerData, MceOp* pleOpProducer)
 }
 
 }    // namespace PleSUtils
+
+namespace DependencyUtils
+{
+
+inline void CalculateInnerRatio(command_stream::cascading::Dependency& agentDependency)
+{
+    if (agentDependency.outerRatio.self > agentDependency.outerRatio.other)
+    {
+        agentDependency.innerRatio.self =
+            ethosn::utils::NumericCast<uint16_t>(agentDependency.outerRatio.self / agentDependency.outerRatio.other);
+    }
+    else
+    {
+        agentDependency.innerRatio.other =
+            ethosn::utils::NumericCast<uint16_t>(agentDependency.outerRatio.other / agentDependency.outerRatio.self);
+    }
+}
+
+inline uint8_t CalculateGCD(uint16_t a, uint16_t b)
+{
+    if (a == 0)
+    {
+        return ethosn::utils::NumericCast<uint8_t>(b);
+    }
+    return CalculateGCD(b % a, a);
+}
+
+inline uint8_t FindGreatestCommonDenominator(uint16_t a, uint16_t b, uint8_t c)
+{
+    uint8_t gcdAB = CalculateGCD(a, b);
+    if (c == 0)
+    {
+        return gcdAB;
+    }
+    else
+    {
+        return CalculateGCD(gcdAB, c);
+    }
+    return 1;
+}
+
+inline void CalculateRemainingAgentDependencies(command_stream::cascading::Dependency& agentDependency)
+{
+    uint8_t boundary = 0U;
+    if (agentDependency.outerRatio.self > agentDependency.outerRatio.other)
+    {
+        boundary = agentDependency.boundary = ethosn::utils::NumericCast<uint8_t>(
+            agentDependency.outerRatio.self - (agentDependency.innerRatio.self * agentDependency.outerRatio.other));
+        agentDependency.innerRatio.other = 1;
+    }
+    else
+    {
+        boundary = ethosn::utils::NumericCast<uint8_t>(
+            agentDependency.outerRatio.other - (agentDependency.innerRatio.other * agentDependency.outerRatio.self));
+        agentDependency.innerRatio.self = 1;
+    }
+
+    agentDependency.boundary = boundary;
+    uint8_t commonFactor     = FindGreatestCommonDenominator(agentDependency.outerRatio.other,
+                                                         agentDependency.outerRatio.self, agentDependency.boundary);
+
+    // Reduce dependency values by a common factor to produce equivalent but smaller outer ratios
+    agentDependency.outerRatio.other =
+        ethosn::utils::NumericCast<uint16_t>(agentDependency.outerRatio.other / commonFactor);
+    agentDependency.outerRatio.self =
+        ethosn::utils::NumericCast<uint16_t>(agentDependency.outerRatio.self / commonFactor);
+    agentDependency.boundary = ethosn::utils::NumericCast<uint8_t>(agentDependency.boundary / commonFactor);
+}
+
+}    // namespace DependencyUtils
 }    // namespace cascading_compiler
 }    // namespace support_library
 }    // namespace ethosn

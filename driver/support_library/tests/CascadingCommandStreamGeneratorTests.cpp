@@ -2680,11 +2680,12 @@ TEST_CASE("MceScheduler-IfmStreamer ReadAfterWriteDependency Test", "[CascadingC
                                   ifmSAgent.data.ifm.fmData.numStripes.channels;
 
     CHECK(readDependency.relativeAgentId == 3);
-    CHECK(readDependency.outerRatio.other == numberOfIfmStripes);
-    CHECK(readDependency.outerRatio.self == numberOfMceStripes);
-    CHECK(readDependency.innerRatio.other == 1);
+    CHECK(readDependency.outerRatio.other == numberOfIfmStripes / 2);    // 2 is the common factor between
+    CHECK(readDependency.outerRatio.self ==
+          numberOfMceStripes / 2);    // 400 (IfmStripes), 6 (MceStripes), 4 (boundary)
+    CHECK(readDependency.innerRatio.other == 66);
     CHECK(readDependency.innerRatio.self == 1);
-    CHECK(readDependency.boundary == 1);
+    CHECK(readDependency.boundary == 2);
 }
 
 // MceScheduler Agent - Read After Write Dependency Test
@@ -2743,11 +2744,12 @@ TEST_CASE("PleScheduler-IfmStreamer ReadAfterWriteDependency Test", "[CascadingC
                                   ifmSAgent.data.ifm.fmData.numStripes.channels;
 
     CHECK(readDependency.relativeAgentId == 2);
-    CHECK(readDependency.outerRatio.other == numberOfIfmStripes);
-    CHECK(readDependency.outerRatio.self == numberOfPleStripes);
-    CHECK(readDependency.innerRatio.other == 1);
+    CHECK(readDependency.outerRatio.other == numberOfIfmStripes / 100);    // 100 is the common factor between
+    CHECK(readDependency.outerRatio.self ==
+          numberOfPleStripes / 100);    // 400 (IfmStripes), 100 (PleStripes), 0 (boundary)
+    CHECK(readDependency.innerRatio.other == 4);
     CHECK(readDependency.innerRatio.self == 1);
-    CHECK(readDependency.boundary == 1);
+    CHECK(readDependency.boundary == 0);
 }
 
 // PleScheduler Agent - Read After Write Dependency Test
@@ -2777,10 +2779,11 @@ TEST_CASE("PleScheduler-MceScheduler ReadAfterWriteDependency Test", "[Cascading
                                   pleSAgent.data.pleS.numStripes.channels;
 
     CHECK(readDependency.relativeAgentId == 1);
-    CHECK(readDependency.outerRatio.other == numberOfMceStripes);
-    CHECK(readDependency.outerRatio.self == numberOfPleStripes);
-    CHECK(readDependency.innerRatio.other == 70);
-    CHECK(readDependency.innerRatio.self == 1);
+    CHECK(readDependency.outerRatio.other == numberOfMceStripes / 4);    // 4 is the common factor between
+    CHECK(readDependency.outerRatio.self ==
+          numberOfPleStripes / 4);    // 400 (PleStripes), 12 (MceStripes), 4 (boundary)
+    CHECK(readDependency.innerRatio.other == 1);
+    CHECK(readDependency.innerRatio.self == 33);
     CHECK(readDependency.boundary == 1);
 }
 
@@ -2811,10 +2814,11 @@ TEST_CASE("MceScheduler-PleScheduler ReadAfterWriteDependency Test", "[Cascading
                                   pleSAgent.data.pleS.numStripes.channels;
 
     CHECK(readDependency.relativeAgentId == 2);
-    CHECK(readDependency.outerRatio.other == numberOfPleStripes);
-    CHECK(readDependency.outerRatio.self == numberOfMceStripes);
-    CHECK(readDependency.innerRatio.other == 1);
-    CHECK(readDependency.innerRatio.self == 70);
+    CHECK(readDependency.outerRatio.other == numberOfPleStripes / 4);    // 4 is the common factor between
+    CHECK(readDependency.outerRatio.self ==
+          numberOfMceStripes / 4);    // 400 (PleStripes), 12 (MceStripes), 4 (boundary)
+    CHECK(readDependency.innerRatio.other == 33);
+    CHECK(readDependency.innerRatio.self == 1);
     CHECK(readDependency.boundary == 1);
 }
 
@@ -2875,8 +2879,6 @@ TEST_CASE("OfmStreamer-IfmStreamer ReadAfterWriteDependency Test", "[CascadingCo
     CHECK(readDependency.innerRatio.other == 1);
     CHECK(readDependency.innerRatio.self == 1);
     CHECK(readDependency.boundary == 0);
-
-    ETHOSN_UNUSED(commandStream);
 }
 
 // OfmStreamer Agent - Read After Write Dependency Test
@@ -2928,13 +2930,13 @@ TEST_CASE("WeightStreamer-OfmStreamer SramOverlapDependency Test", "[CascadingCo
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
-    const Agent& wgtSAgent           = commandStream[1];
+    const Agent& wgtSAgent           = commandStream[7];
     const Dependency& readDependency = wgtSAgent.info.readDependencies.at(0);
 
-    CHECK(readDependency.relativeAgentId == 1);
-    CHECK(readDependency.outerRatio.other == 400);
+    CHECK(readDependency.relativeAgentId == 2);
+    CHECK(readDependency.outerRatio.other == 200);
     CHECK(readDependency.outerRatio.self == 1);
-    CHECK(readDependency.innerRatio.other == 400);
+    CHECK(readDependency.innerRatio.other == 200);
     CHECK(readDependency.innerRatio.self == 1);
     CHECK(readDependency.boundary == 0);
 
@@ -2973,11 +2975,12 @@ TEST_CASE("IfmStreamer-MceScheduler WriteAfterReadDependency Test", "[CascadingC
                                   ifmSAgent.data.ifm.fmData.numStripes.channels;
 
     CHECK(writeDependency.relativeAgentId == 3);
-    CHECK(writeDependency.outerRatio.other == numberOfMceStripes);
-    CHECK(writeDependency.outerRatio.self == numberOfIfmStripes);
+    CHECK(writeDependency.outerRatio.other == numberOfMceStripes / 2);    // 2 is the common factor between
+    CHECK(writeDependency.outerRatio.self ==
+          numberOfIfmStripes / 2);    // 400 (MceStripes), 6 (IfmStripes), 4 (boundary)
     CHECK(writeDependency.innerRatio.other == 1);
-    CHECK(writeDependency.innerRatio.self == 1);
-    CHECK(writeDependency.boundary == 1);
+    CHECK(writeDependency.innerRatio.self == 66);
+    CHECK(writeDependency.boundary == 2);
 }
 
 // IfmStreamer Agent - Write After Read Dependency Test
@@ -3008,11 +3011,12 @@ TEST_CASE("IfmStreamer-PleScheduler WriteAfterReadDependency Test", "[CascadingC
                                   ifmSAgent.data.ifm.fmData.numStripes.channels;
 
     CHECK(writeDependency.relativeAgentId == 2);
-    CHECK(writeDependency.outerRatio.other == numberOfPleStripes);
-    CHECK(writeDependency.outerRatio.self == numberOfIfmStripes);
+    CHECK(writeDependency.outerRatio.other == numberOfPleStripes / 100);    // 100 is the common factor between
+    CHECK(writeDependency.outerRatio.self ==
+          numberOfIfmStripes / 100);    // 400 (PleStripes), 100 (IfmStripes), 0 (boundary)
     CHECK(writeDependency.innerRatio.other == 1);
-    CHECK(writeDependency.innerRatio.self == 1);
-    CHECK(writeDependency.boundary == 1);
+    CHECK(writeDependency.innerRatio.self == 4);
+    CHECK(writeDependency.boundary == 0);
 }
 
 // IfmStreamer Agent - Write After Read Dependency Test
@@ -3075,14 +3079,14 @@ TEST_CASE("WeightStreamer-MceScheduler WriteAfterReadDependency Test", "[Cascadi
     const Dependency& writeDependency = wgtSAgent.info.writeDependencies.at(0);
 
     CHECK(writeDependency.relativeAgentId == 2);
-    CHECK(writeDependency.outerRatio.other == 6);
+    CHECK(writeDependency.outerRatio.other == 12);
     CHECK(writeDependency.outerRatio.self == 1);
-    CHECK(writeDependency.innerRatio.other == 6);
+    CHECK(writeDependency.innerRatio.other == 12);
     CHECK(writeDependency.innerRatio.self == 1);
     CHECK(writeDependency.boundary == 0);
 }
 
-// MceScheduler Agent - Write After Read Dependency Test
+// PleScheduler Agent - Write After Read Dependency Test
 TEST_CASE("PleScheduler-MceScheduler WriteAfterReadDependency Test", "[CascadingCommandStreamGenerator]")
 {
     TwoMceSramIntermediateOpGraph mceOpGraph = TwoMceSramIntermediateOpGraph();
@@ -3109,10 +3113,11 @@ TEST_CASE("PleScheduler-MceScheduler WriteAfterReadDependency Test", "[Cascading
                                   pleSAgent.data.pleS.numStripes.channels;
 
     CHECK(writeDependency.relativeAgentId == 2);
-    CHECK(writeDependency.outerRatio.other == numberOfMceStripes);
-    CHECK(writeDependency.outerRatio.self == numberOfPleStripes);
-    CHECK(writeDependency.innerRatio.other == 70);
-    CHECK(writeDependency.innerRatio.self == 1);
+    CHECK(writeDependency.outerRatio.other == numberOfMceStripes / 4);    // 4 is the common factor between
+    CHECK(writeDependency.outerRatio.self ==
+          numberOfPleStripes / 4);    // 400 (PleStripes), 12 (MceStripes), 4 (boundary)
+    CHECK(writeDependency.innerRatio.other == 1);
+    CHECK(writeDependency.innerRatio.self == 33);
     CHECK(writeDependency.boundary == 1);
 }
 
@@ -3166,20 +3171,22 @@ TEST_CASE("IfmStreamer-MceScheduler ScheduleTimeDependency Test", "[CascadingCom
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
     const Agent& mceSAgent               = commandStream[3];
-    const Agent& pleSAgent               = commandStream[4];
-    const Dependency& scheduleDependency = mceSAgent.info.scheduleDependencies.at(0);
+    const Agent& ifmSAgent               = commandStream[0];
+    const Dependency& scheduleDependency = ifmSAgent.info.scheduleDependencies.at(0);
 
     uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
-                                  mceSAgent.data.mce.numStripes.ofmChannels;
-    uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
-                                  pleSAgent.data.pleS.numStripes.channels;
+                                  mceSAgent.data.mce.numStripes.ifmChannels;
+    uint32_t numberOfIfmStripes = ifmSAgent.data.ifm.fmData.numStripes.height *
+                                  ifmSAgent.data.ifm.fmData.numStripes.width *
+                                  ifmSAgent.data.ifm.fmData.numStripes.channels;
 
-    CHECK(scheduleDependency.relativeAgentId == 1);
-    CHECK(scheduleDependency.outerRatio.other == numberOfPleStripes);
-    CHECK(scheduleDependency.outerRatio.self == numberOfMceStripes);
+    CHECK(scheduleDependency.relativeAgentId == 3);
+    CHECK(scheduleDependency.outerRatio.other == numberOfMceStripes / 2);    // 2 is the common factor between
+    CHECK(scheduleDependency.outerRatio.self ==
+          numberOfIfmStripes / 2);    // 400 (MceStripes), 6 (IfmStripes), 4 (boundary)
     CHECK(scheduleDependency.innerRatio.other == 1);
-    CHECK(scheduleDependency.innerRatio.self == 70);
-    CHECK(scheduleDependency.boundary == 1);
+    CHECK(scheduleDependency.innerRatio.self == 66);
+    CHECK(scheduleDependency.boundary == 2);
 }
 
 // IfmStreamer Agent - Schedule Time Dependency Test
@@ -3210,11 +3217,12 @@ TEST_CASE("IfmStreamer-PleScheduler ScheduleTimeDependency Test", "[CascadingCom
                                   ifmSAgent.data.ifm.fmData.numStripes.channels;
 
     CHECK(scheduleDependency.relativeAgentId == 2);
-    CHECK(scheduleDependency.outerRatio.other == numberOfPleStripes);
-    CHECK(scheduleDependency.outerRatio.self == numberOfIfmStripes);
+    CHECK(scheduleDependency.outerRatio.other == numberOfPleStripes / 100);    // 100 is the common factor between
+    CHECK(scheduleDependency.outerRatio.self ==
+          numberOfIfmStripes / 100);    // 400 (PleStripes), 100 (IfmStripes), 0 (boundary)
     CHECK(scheduleDependency.innerRatio.other == 1);
-    CHECK(scheduleDependency.innerRatio.self == 1);
-    CHECK(scheduleDependency.boundary == 1);
+    CHECK(scheduleDependency.innerRatio.self == 4);
+    CHECK(scheduleDependency.boundary == 0);
 }
 
 // IfmStreamer Agent - Schedule Time Dependency Test
@@ -3274,20 +3282,19 @@ TEST_CASE("WeightStreamer-MceScheduler ScheduleTimeDependency Test", "[Cascading
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
     const Agent& mceSAgent               = commandStream[3];
-    const Agent& pleSAgent               = commandStream[4];
-    const Dependency& scheduleDependency = mceSAgent.info.scheduleDependencies.at(0);
+    const Agent& wgtSAgent               = commandStream[1];
+    const Dependency& scheduleDependency = wgtSAgent.info.scheduleDependencies.at(0);
 
     uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
                                   mceSAgent.data.mce.numStripes.ofmChannels;
-    uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
-                                  pleSAgent.data.pleS.numStripes.channels;
+    uint32_t numberOfWgtStripes = wgtSAgent.data.wgt.numStripes.ofmChannels * wgtSAgent.data.wgt.numStripes.ifmChannels;
 
-    CHECK(scheduleDependency.relativeAgentId == 1);
-    CHECK(scheduleDependency.outerRatio.other == numberOfPleStripes);
-    CHECK(scheduleDependency.outerRatio.self == numberOfMceStripes);
-    CHECK(scheduleDependency.innerRatio.other == 1);
-    CHECK(scheduleDependency.innerRatio.self == 70);
-    CHECK(scheduleDependency.boundary == 1);
+    CHECK(scheduleDependency.relativeAgentId == 2);
+    CHECK(scheduleDependency.outerRatio.other == numberOfMceStripes);
+    CHECK(scheduleDependency.outerRatio.self == numberOfWgtStripes);
+    CHECK(scheduleDependency.innerRatio.other == 12);
+    CHECK(scheduleDependency.innerRatio.self == 1);
+    CHECK(scheduleDependency.boundary == 0);
 }
 
 // MceScheduler Agent - Schedule Time Dependency Test
@@ -3317,10 +3324,11 @@ TEST_CASE("MceScheduler-PleScheduler ScheduleTimeDependency Test", "[CascadingCo
                                   pleSAgent.data.pleS.numStripes.channels;
 
     CHECK(scheduleDependency.relativeAgentId == 1);
-    CHECK(scheduleDependency.outerRatio.other == numberOfPleStripes);
-    CHECK(scheduleDependency.outerRatio.self == numberOfMceStripes);
-    CHECK(scheduleDependency.innerRatio.other == 1);
-    CHECK(scheduleDependency.innerRatio.self == 70);
+    CHECK(scheduleDependency.outerRatio.other == numberOfPleStripes / 4);    // 4 is the common factor between
+    CHECK(scheduleDependency.outerRatio.self ==
+          numberOfMceStripes / 4);    // 400 (PleStripes), 12 (MceStripes), 4 (boundary)
+    CHECK(scheduleDependency.innerRatio.other == 33);
+    CHECK(scheduleDependency.innerRatio.self == 1);
     CHECK(scheduleDependency.boundary == 1);
 }
 
@@ -3351,10 +3359,11 @@ TEST_CASE("PleScheduler-MceScheduler ScheduleTimeDependency Test", "[CascadingCo
                                   pleSAgent.data.pleS.numStripes.channels;
 
     CHECK(scheduleDependency.relativeAgentId == 2);
-    CHECK(scheduleDependency.outerRatio.other == numberOfMceStripes);
-    CHECK(scheduleDependency.outerRatio.self == numberOfPleStripes);
-    CHECK(scheduleDependency.innerRatio.other == 70);
-    CHECK(scheduleDependency.innerRatio.self == 1);
+    CHECK(scheduleDependency.outerRatio.other == numberOfMceStripes / 4);    // 4 is the common factor between
+    CHECK(scheduleDependency.outerRatio.self ==
+          numberOfPleStripes / 4);    // 400 (PleStripes), 12 (MceStripes), 4 (boundary)
+    CHECK(scheduleDependency.innerRatio.other == 1);
+    CHECK(scheduleDependency.innerRatio.self == 33);
     CHECK(scheduleDependency.boundary == 1);
 }
 
@@ -3468,13 +3477,22 @@ TEST_CASE("OfmStreamer-IfmStreamer ScheduleTimeDependency Test", "[CascadingComm
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
     const Agent& ofmSAgent               = commandStream[5];
+    const Agent& ifmSAgent               = commandStream[6];
     const Dependency& scheduleDependency = ofmSAgent.info.scheduleDependencies.at(0);
 
+    uint32_t numOfOfmStripes = ofmSAgent.data.ofm.fmData.numStripes.height *
+                               ofmSAgent.data.ofm.fmData.numStripes.width *
+                               ofmSAgent.data.ofm.fmData.numStripes.channels;
+    uint32_t numOfIfmStripes = ifmSAgent.data.ifm.fmData.numStripes.height *
+                               ifmSAgent.data.ifm.fmData.numStripes.width *
+                               ifmSAgent.data.ifm.fmData.numStripes.channels;
+
     CHECK(scheduleDependency.relativeAgentId == 1);
-    CHECK(scheduleDependency.outerRatio.other == 200);
-    CHECK(scheduleDependency.outerRatio.self == 400);
+    CHECK(scheduleDependency.outerRatio.other == numOfIfmStripes / 200);    // 200 is the common factor between
+    CHECK(scheduleDependency.outerRatio.self ==
+          numOfOfmStripes / 200);    // 200 (IfmStripes), 200 (OfmStripes), 0 (boundary)
     CHECK(scheduleDependency.innerRatio.other == 1);
-    CHECK(scheduleDependency.innerRatio.self == 400);
+    CHECK(scheduleDependency.innerRatio.self == 2);
     CHECK(scheduleDependency.boundary == 0);
 }
 
