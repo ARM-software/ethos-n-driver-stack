@@ -335,14 +335,6 @@ void ethosn_set_power_ctrl(struct ethosn_core *core,
 			   bool clk_on);
 
 /**
- * ethosn_set_mmu_stream_id() - Configure the mmu stream id0.
- * @core:-	Pointer to the Ethos-N core
- *
- * Return: Negative error code on error, zero otherwise
- */
-int ethosn_set_mmu_stream_id(struct ethosn_core *core);
-
-/**
  * ethosn_set_addr_ext() - Set address extension offset for stream.
  * @core:	Pointer to Ethos-N core.
  * @stream:	Which stream to update.
