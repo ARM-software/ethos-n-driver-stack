@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2020,2022 Arm Limited.
+ * (C) COPYRIGHT 2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -20,12 +20,13 @@
  *
  */
 
-#ifndef _ETHOSN_DMA_CARVEOUT_H_
-#define _ETHOSN_DMA_CARVEOUT_H_
+#ifndef _ETHOSN_ASSET_ALLOCATOR_H_
+#define _ETHOSN_ASSET_ALLOCATOR_H_
 
-#include "ethosn_dma.h"
+#define ETHOSN_ASSET_ALLOCATOR_DRIVER_NAME  "ethosn-asset_allocator"
 
-struct ethosn_dma_sub_allocator *ethosn_dma_carveout_allocator_create(
-	struct device *dev);
+int ethosn_asset_allocator_platform_driver_register(void);
 
-#endif /* _ETHOSN_DMA_CARVEOUT_H_ */
+void ethosn_asset_allocator_platform_driver_unregister(void);
+
+#endif /* _ETHOSN_ASSET_ALLOCATOR_H_ */

@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited.
+ * (C) COPYRIGHT 2018-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -31,29 +31,29 @@
 /* This value was found experimentally by checking the smallest size which
  * the kernel module could successfully load and run a small inference on.
  */
-#define CARVEOUT_MIN_SIZE (resource_size_t)(4 * 1024 * 1024)
+#define CARVEOUT_MIN_SIZE ((resource_size_t)(4 * 1024 * 1024))
 
 /* The NCU MCU provides the lower 29 bits worth of address space and uses
  * the address extension register to provide the upper bits. As we don't
  * currently support changing the address extension register at runtime, the
  * NCU MCU is limited to these 29 bits (512 MB).
  */
-#define CARVEOUT_MAX_SIZE (resource_size_t)(512 * 1024 * 1024)
+#define CARVEOUT_MAX_SIZE ((resource_size_t)(512 * 1024 * 1024))
 
 /* Our current implementation of ethosn_set_addr_ext() means that the lower
  * 29 bits of the carveout base address is ignored, so the address must be
  * aligned otherwise the NPU would write to addresses below the base address.
  */
-#define CARVEOUT_ALIGNMENT (resource_size_t)(512 * 1024 * 1024)
+#define CARVEOUT_ALIGNMENT ((resource_size_t)(512 * 1024 * 1024))
 
 struct ethosn_allocator_internal {
-	struct ethosn_dma_allocator allocator;
+	struct ethosn_dma_sub_allocator allocator;
 
-	struct device_node          *res_mem;
+	struct device_node              *res_mem;
 };
 
 static struct ethosn_dma_info *carveout_alloc(
-	struct ethosn_dma_allocator *allocator,
+	struct ethosn_dma_sub_allocator *allocator,
 	const size_t size,
 	gfp_t gfp)
 {
@@ -91,20 +91,18 @@ static struct ethosn_dma_info *carveout_alloc(
 	return dma_info;
 }
 
-static int carveout_map(struct ethosn_dma_allocator *allocator,
+static int carveout_map(struct ethosn_dma_sub_allocator *allocator,
 			struct ethosn_dma_info *dma_info,
-			int prot,
-			enum ethosn_stream_id stream_id)
+			int prot)
 {
 	return 0;
 }
 
-static void carveout_unmap(struct ethosn_dma_allocator *allocator,
-			   struct ethosn_dma_info *dma_info,
-			   enum ethosn_stream_id stream_id)
+static void carveout_unmap(struct ethosn_dma_sub_allocator *allocator,
+			   struct ethosn_dma_info *dma_info)
 {}
 
-static void carveout_free(struct ethosn_dma_allocator *allocator,
+static void carveout_free(struct ethosn_dma_sub_allocator *allocator,
 			  struct ethosn_dma_info *dma_info)
 {
 	const dma_addr_t dma_addr = dma_info->iova_addr;
@@ -120,15 +118,15 @@ static void carveout_free(struct ethosn_dma_allocator *allocator,
 	devm_kfree(allocator->dev, dma_info);
 }
 
-static void carveout_sync_for_device(struct ethosn_dma_allocator *allocator,
+static void carveout_sync_for_device(struct ethosn_dma_sub_allocator *allocator,
 				     struct ethosn_dma_info *dma_info)
 {}
 
-static void carveout_sync_for_cpu(struct ethosn_dma_allocator *allocator,
+static void carveout_sync_for_cpu(struct ethosn_dma_sub_allocator *allocator,
 				  struct ethosn_dma_info *dma_info)
 {}
 
-static int carveout_mmap(struct ethosn_dma_allocator *allocator,
+static int carveout_mmap(struct ethosn_dma_sub_allocator *allocator,
 			 struct vm_area_struct *const vma,
 			 const struct ethosn_dma_info *const dma_info)
 {
@@ -157,8 +155,8 @@ static int carveout_mmap(struct ethosn_dma_allocator *allocator,
 }
 
 static dma_addr_t carveout_get_addr_base(
-	struct ethosn_dma_allocator *_allocator,
-	enum ethosn_stream_id stream_id)
+	struct ethosn_dma_sub_allocator *_allocator,
+	enum ethosn_stream_type stream_type)
 {
 	struct ethosn_allocator_internal *allocator =
 		container_of(_allocator, typeof(*allocator), allocator);
@@ -174,8 +172,8 @@ static dma_addr_t carveout_get_addr_base(
 }
 
 static resource_size_t carveout_get_addr_size(
-	struct ethosn_dma_allocator *_allocator,
-	enum ethosn_stream_id stream_id)
+	struct ethosn_dma_sub_allocator *_allocator,
+	enum ethosn_stream_type stream_type)
 {
 	struct ethosn_allocator_internal *allocator =
 		container_of(_allocator, typeof(*allocator), allocator);
@@ -190,7 +188,9 @@ static resource_size_t carveout_get_addr_size(
 		return resource_size(&r);
 }
 
-static void carveout_allocator_destroy(struct ethosn_dma_allocator *allocator)
+static void carveout_allocator_destroy(
+	struct ethosn_dma_sub_allocator *allocator,
+	enum ethosn_stream_type stream_type)
 {
 	struct device *dev;
 
@@ -203,7 +203,7 @@ static void carveout_allocator_destroy(struct ethosn_dma_allocator *allocator)
 	devm_kfree(dev, allocator);
 }
 
-struct ethosn_dma_allocator *ethosn_dma_carveout_allocator_create(
+struct ethosn_dma_sub_allocator *ethosn_dma_carveout_allocator_create(
 	struct device *dev)
 {
 	static struct ethosn_dma_allocator_ops ops = {
@@ -296,6 +296,7 @@ struct ethosn_dma_allocator *ethosn_dma_carveout_allocator_create(
 	allocator->res_mem = res_mem;
 	allocator->allocator.dev = dev;
 	allocator->allocator.ops = &ops;
+	allocator->allocator.smmu_stream_id = 0;
 
 	return &allocator->allocator;
 }

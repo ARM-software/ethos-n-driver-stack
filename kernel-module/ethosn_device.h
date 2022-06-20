@@ -71,9 +71,10 @@ struct ethosn_device {
 	int                           parent_id;
 	int                           num_cores;
 	struct ethosn_inference_queue queue;
-	struct ethosn_dma_allocator   *allocator;
+	struct ethosn_dma_allocator   *asset_allocator;
 	uint32_t                      current_busy_cores;
 	uint32_t                      status_mask;
+	bool                          smmu_available;
 	struct dentry                 *debug_dir;
 };
 
@@ -88,7 +89,7 @@ struct ethosn_core {
 	int                         queue_size;
 
 	struct ethosn_device        *parent;
-	struct ethosn_dma_allocator *allocator;
+	struct ethosn_dma_allocator *main_allocator;
 	struct ethosn_addr_map      dma_map;
 	struct ethosn_addr_map      firmware_map;
 	struct ethosn_addr_map      work_data_map;
@@ -294,14 +295,6 @@ void ethosn_write_top_reg(struct ethosn_core *core,
 u32 ethosn_read_top_reg(struct ethosn_core *core,
 			const u32 page,
 			const u32 offset);
-
-/**
- * ethosn_smmu_available() -  Checks if SMMU is available.
- * @dev: Pointer to struct device.
- *
- * Return: 'true' if SMMU is available, otherwise 'false'
- */
-bool ethosn_smmu_available(struct device *dev);
 
 /**
  * ethosn_reset_and_start_ethosn() - Perform startup sequence for device

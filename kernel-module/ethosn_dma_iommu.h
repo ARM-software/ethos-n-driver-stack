@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2020 Arm Limited.
+ * (C) COPYRIGHT 2018-2020,2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -27,7 +27,23 @@
 
 #include <linux/types.h>
 
-struct ethosn_dma_allocator *ethosn_dma_iommu_allocator_create(
-	struct device *dev);
+#define IOMMU_FIRMWARE_ADDR_BASE        0x20000000UL
+#define IOMMU_WORKING_DATA_ADDR_BASE    0x40000000UL
+
+/**
+ * IOMMU_COMMAND_STREAM includes the region for command stream and all other
+ * constant cu data (ie weights metadata and binding table).
+ */
+#define IOMMU_COMMAND_STREAM_ADDR_BASE           0x60000000UL
+#define IOMMU_WEIGHT_DATA_ADDR_BASE              0x80000000UL
+#define IOMMU_INTERMEDIATE_BUFFER_ADDR_BASE      0xA0000000UL
+#define IOMMU_BUFFER_ADDR_BASE                   0xC0000000UL
+
+/* IOMMU address space size, use the same for all streams. */
+#define IOMMU_ADDR_SIZE 0x20000000UL
+
+struct ethosn_dma_sub_allocator *ethosn_dma_iommu_allocator_create(
+	struct device *dev,
+	enum ethosn_stream_type stream_type);
 
 #endif /* _ETHOSN_DMA_IOMMU_H_ */

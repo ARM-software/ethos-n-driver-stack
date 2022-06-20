@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2021 Arm Limited.
+ * (C) COPYRIGHT 2021-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -37,13 +37,66 @@
 
 	core0 {
 		compatible = "ethosn-core";
-		iommus = <&smmu_ethosn0 0>;
 		status = "okay";
+
+		main_allocator {
+			compatible = "ethosn-main_allocator";
+			status = "okay";
+
+			firmware {
+				compatible = "ethosn-memory";
+				iommus = <&smmu_ethosn0 0>;
+			};
+
+			working_data {
+				compatible = "ethosn-memory";
+				iommus = <&smmu_ethosn0 1>;
+			};
+		};
 	};
 
 	core1 {
 		compatible = "ethosn-core";
-		iommus = <&smmu_ethosn0 1>;
 		status = "okay";
+
+		main_allocator {
+			compatible = "ethosn-main_allocator";
+			status = "okay";
+
+			firmware {
+				compatible = "ethosn-memory";
+				iommus = <&smmu_ethosn0 2>;
+			};
+
+			working_data {
+				compatible = "ethosn-memory";
+				iommus = <&smmu_ethosn0 3>;
+			};
+		};
+	};
+
+	asset_allocator {
+		compatible = "ethosn-asset_allocator";
+		status = "okay";
+
+		command_stream {
+			compatible = "ethosn-memory";
+			iommus = <&smmu_ethosn0 4>;
+		};
+
+		weight_data {
+			compatible = "ethosn-memory";
+			iommus = <&smmu_ethosn0 5>;
+		};
+
+		buffer_data {
+			compatible = "ethosn-memory";
+			iommus = <&smmu_ethosn0 6>;
+		};
+
+		intermediate_data {
+			compatible = "ethosn-memory";
+			iommus = <&smmu_ethosn0 7>;
+		};
 	};
 };

@@ -31,12 +31,10 @@
 #include <linux/device.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/iommu.h>
 #include <linux/pm_runtime.h>
-
-#define ETHOSN_CORE_DRIVER_NAME    "ethosn-core"
-#define ETHOSN_CORE_NUM_MAX        64
 
 static ssize_t architecture_show(struct device *dev,
 				 struct device_attribute *attr,
@@ -425,7 +423,7 @@ static const struct dev_pm_ops ethosn_pm_ops = {
 #define ETHOSN_PM_OPS (NULL)
 #endif  /* CONFIG_PM */
 
-static struct ethosn_device *ethosn_driver(struct platform_device *pdev)
+struct ethosn_device *ethosn_driver(struct platform_device *pdev)
 {
 	struct ethosn_device *ethosn = dev_get_drvdata(pdev->dev.parent);
 
@@ -435,6 +433,9 @@ static struct ethosn_device *ethosn_driver(struct platform_device *pdev)
 static int ethosn_child_pdev_remove(struct platform_device *pdev)
 {
 	struct ethosn_core *core = dev_get_drvdata(&pdev->dev);
+	struct ethosn_device *ethosn = ethosn_driver(pdev);
+
+	BUG_ON(ethosn->num_cores <= 0);
 
 	/* We need to disable the runtime pm and
 	 * hence wake up the core before tear down
@@ -442,9 +443,18 @@ static int ethosn_child_pdev_remove(struct platform_device *pdev)
 	pm_runtime_disable(core->dev);
 
 	ethosn_device_deinit(core);
-	ethosn_dma_allocator_destroy(&core->allocator);
+
+	dev_info(&pdev->dev, "Depopulate ethosn core child devices\n");
+
+	/* Main allocator handled as a child node in SMMU case */
+	if (ethosn->smmu_available)
+		of_platform_depopulate(&pdev->dev);
+	else
+		ethosn_destroy_carveout_main_allocator(core);
 
 	sysfs_remove_files(&core->dev->kobj, attrs);
+	dev_set_drvdata(&pdev->dev, NULL);
+
 	dev_dbg(&pdev->dev, "Removed core %u from parent %u\n",
 		core->core_id, core->parent->parent_id);
 
@@ -455,7 +465,6 @@ static int ethosn_child_pdev_probe(struct platform_device *pdev)
 {
 	struct ethosn_device *ethosn = ethosn_driver(pdev);
 	int core_id;
-	int core_count = of_get_child_count(pdev->dev.parent->of_node);
 	int ret = 0;
 
 	dev_info(&pdev->dev, "Probing core\n");
@@ -466,21 +475,7 @@ static int ethosn_child_pdev_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	if (core_count > ETHOSN_CORE_NUM_MAX) {
-		dev_err(&pdev->dev, "Invalid number of cores, max = %d\n",
-			ETHOSN_CORE_NUM_MAX);
-
-		return -EINVAL;
-	}
-
 	core_id = ethosn->num_cores;
-
-	if (core_id >= core_count) {
-		dev_err(&pdev->dev, "Invalid core id enumeration (%d)\n",
-			core_id);
-
-		return -EINVAL;
-	}
 
 	/* Allocating the core device (ie struct ethosn_core)
 	 * Allocated against parent device
@@ -501,8 +496,10 @@ static int ethosn_child_pdev_probe(struct platform_device *pdev)
 	dev_set_drvdata(&pdev->dev, ethosn->core[core_id]);
 
 	ret = sysfs_create_files(&ethosn->core[core_id]->dev->kobj, attrs);
-	if (ret)
-		return -ENOMEM;
+	if (ret) {
+		ret = -ENOMEM;
+		goto err_free_core;
+	}
 
 	pm_runtime_set_autosuspend_delay(&pdev->dev,
 					 ETHOSN_AUTOSUSPEND_DELAY_MS);
@@ -517,9 +514,25 @@ static int ethosn_child_pdev_probe(struct platform_device *pdev)
 		dev_dbg(&pdev->dev,
 			"Reserved mem not present or init failed\n");
 
-	dev_dbg(&pdev->dev, "Core probed\n");
+	/* Main allocator handled as a child node in SMMU case */
+	if (ethosn->smmu_available) {
+		ret = of_platform_default_populate(pdev->dev.of_node, NULL,
+						   &pdev->dev);
+		if (ret) {
+			dev_err(&pdev->dev,
+				"Failed to populate child devices\n");
+
+			ret = -EINVAL;
+			goto err_free_core;
+		}
+	}
 
 	++ethosn->num_cores;
+
+	return ret;
+
+err_free_core:
+	devm_kfree(&pdev->dev, ethosn->core[core_id]);
 
 	return ret;
 }

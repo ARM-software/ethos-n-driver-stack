@@ -27,6 +27,9 @@
 #include "ethosn_firmware.h"
 #include "ethosn_network.h"
 #include "ethosn_core.h"
+#include "ethosn_main_allocator.h"
+#include "ethosn_asset_allocator.h"
+#include "ethosn_sub_allocator.h"
 #include "ethosn_smc.h"
 #include "uapi/ethosn.h"
 
@@ -1029,6 +1032,81 @@ err_remove_chardev:
 	return ret;
 }
 
+static int ethosn_create_carveout_asset_allocator(struct ethosn_device *ethosn)
+{
+	int ret;
+
+	ethosn->asset_allocator =
+		ethosn_dma_top_allocator_create(ethosn->dev,
+						ETHOSN_ALLOCATOR_CARVEOUT);
+
+	if (IS_ERR_OR_NULL(ethosn->asset_allocator))
+		return PTR_ERR(ethosn->asset_allocator);
+
+	/* Carveout case doesn't distinguish between streams,
+	 * giving IO BUFFERS as a parameter is still required.
+	 */
+	ret = ethosn_dma_sub_allocator_create(ethosn->dev,
+					      ethosn->asset_allocator,
+					      ETHOSN_STREAM_IO_BUFFER,
+					      false);
+
+	if (ret) {
+		ethosn_dma_top_allocator_destroy(ethosn->dev,
+						 &ethosn->asset_allocator);
+
+		return ret;
+	}
+
+	return 0;
+}
+
+static void ethosn_destroy_carveout_asset_allocators(
+	struct ethosn_device *ethosn)
+{
+	ethosn_dma_sub_allocator_destroy(ethosn->asset_allocator,
+					 ETHOSN_STREAM_IO_BUFFER);
+
+	ethosn_dma_top_allocator_destroy(ethosn->dev, &ethosn->asset_allocator);
+}
+
+static int ethosn_create_carveout_main_allocator(struct ethosn_core *core)
+{
+	int ret;
+
+	core->main_allocator =
+		ethosn_dma_top_allocator_create(core->dev,
+						ETHOSN_ALLOCATOR_CARVEOUT);
+
+	if (IS_ERR_OR_NULL(core->main_allocator))
+		return PTR_ERR(core->main_allocator);
+
+	/* Carveout case doesn't distinguish between streams,
+	 * giving IO BUFFER as a parameter is still required.
+	 */
+	ret = ethosn_dma_sub_allocator_create(core->dev,
+					      core->main_allocator,
+					      ETHOSN_STREAM_IO_BUFFER,
+					      false);
+
+	if (ret) {
+		ethosn_dma_top_allocator_destroy(core->dev,
+						 &core->main_allocator);
+
+		return ret;
+	}
+
+	return 0;
+}
+
+void ethosn_destroy_carveout_main_allocator(struct ethosn_core *core)
+{
+	ethosn_dma_sub_allocator_destroy(core->main_allocator,
+					 ETHOSN_STREAM_IO_BUFFER);
+
+	ethosn_dma_top_allocator_destroy(core->dev, &core->main_allocator);
+}
+
 /**
  * ethosn_driver_probe() - Do common probing functionality
  * @core:	ethosn core struct
@@ -1051,6 +1129,7 @@ static int ethosn_driver_probe(struct ethosn_core *core,
 	struct ethosn_profiling_config config = {};
 	const phys_addr_t core_addr = top_regs->start;
 	int ret = ethosn_smc_version_check(core->dev);
+	const bool smmu_available = core->parent->smmu_available;
 
 #ifdef ETHOSN_NS
 
@@ -1096,9 +1175,15 @@ static int ethosn_driver_probe(struct ethosn_core *core,
 	core->force_firmware_level_interrupts =
 		force_firmware_level_interrupts;
 
-	core->allocator = ethosn_dma_allocator_create(core->dev);
-	if (IS_ERR_OR_NULL(core->allocator))
-		return PTR_ERR(core->allocator);
+	/* Only create an allocator in the carveout case as the SMMU case
+	 * implements main allocators as child nodes which will be populated
+	 * by the platform driver for those nodes.
+	 */
+	if (!smmu_available) {
+		ret = ethosn_create_carveout_main_allocator(core);
+		if (ret)
+			return ret;
+	}
 
 	/* Default to profiling disabled */
 	config.enable_profiling = false;
@@ -1127,19 +1212,10 @@ static int ethosn_driver_probe(struct ethosn_core *core,
 device_deinit:
 	ethosn_device_deinit(core);
 destroy_allocator:
-	ethosn_dma_allocator_destroy(&core->allocator);
+	if (!smmu_available)
+		ethosn_destroy_carveout_main_allocator(core);
 
 	return ret;
-}
-
-/**
- * ethosn_pdev_num_cores() - Get the number of cores
- * @pdev: Platform device
- * Return: count of cores
- */
-static unsigned int ethosn_pdev_num_cores(struct platform_device *pdev)
-{
-	return of_get_available_child_count(pdev->dev.of_node);
 }
 
 /*****************************************************************************
@@ -1281,10 +1357,69 @@ static int ethosn_pdev_remove(struct platform_device *pdev)
 	struct ethosn_device *ethosn =
 		dev_get_drvdata(&pdev->dev);
 
+	dev_dbg(&pdev->dev, "Depopulating children");
 	/* Force depopulating children */
 	of_platform_depopulate(&pdev->dev);
 
-	ethosn_dma_allocator_destroy(&ethosn->allocator);
+	if (!ethosn->smmu_available)
+		ethosn_destroy_carveout_asset_allocators(ethosn);
+
+	return 0;
+}
+
+static unsigned int ethosn_pdev_get_num_cores(struct platform_device *pdev)
+{
+	unsigned int num_cores = 0;
+	struct device_node *node = NULL;
+
+	for_each_available_child_of_node(pdev->dev.of_node, node) {
+		if (of_device_is_compatible(node, ETHOSN_CORE_DRIVER_NAME))
+			num_cores++;
+	}
+
+	dev_info(&pdev->dev, "num_cores = %u\n", num_cores);
+
+	return num_cores;
+}
+
+static int ethosn_pdev_get_smmu_status_from_dts(struct device *dev,
+						bool *smmu_available)
+{
+	struct device_node *asset_allocator_node = NULL;
+	struct device_node *child = NULL;
+	bool iommu_found = false;
+	int len = 0;
+
+	/* Both main and asset allocators should contain a child node
+	 * with the iommu property, and should not exist in the
+	 * device tree without this property. It is sufficent to check
+	 * the asset allocator for an iommu property.
+	 */
+	for_each_available_child_of_node(dev->of_node, child) {
+		if (of_device_is_compatible(child,
+					    ETHOSN_ASSET_ALLOCATOR_DRIVER_NAME))
+			break;
+	}
+
+	if (!child)
+		goto exit;
+
+	asset_allocator_node = child;
+
+	/* if asset allocator is present then iommu should be present
+	 * in its child nodes. But this is checked explicitly here
+	 * anyways. Also its enough to check for only one node of asset
+	 * allocator.
+	 */
+	child = of_get_next_available_child(asset_allocator_node, NULL);
+	iommu_found = !IS_ERR_OR_NULL(of_find_property(child,
+						       "iommus",
+						       &len));
+	if (!iommu_found)
+		return -EINVAL;
+
+exit:
+	*smmu_available = iommu_found;
 
 	return 0;
 }
@@ -1308,14 +1443,29 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 	struct ethosn_device *ethosn = NULL;
 	int platform_id = -1;
 	char name[16];
+	bool smmu_available;
+
+	ret = ethosn_pdev_get_smmu_status_from_dts(&pdev->dev, &smmu_available);
+
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to locate iommus in allocators\n");
+
+		return ret;
+	}
 
 	dma_set_mask_and_coherent(&pdev->dev,
 				  DMA_BIT_MASK(ETHOSN_SMMU_MAX_ADDR_BITS));
 
-	num_of_npus = ethosn_pdev_num_cores(pdev);
-
+	num_of_npus = ethosn_pdev_get_num_cores(pdev);
 	if (num_of_npus == 0) {
 		dev_info(&pdev->dev, "Failed to probe any NPU\n");
+
+		return -EINVAL;
+	}
+
+	if (num_of_npus > ETHOSN_CORE_NUM_MAX) {
+		dev_err(&pdev->dev, "Invalid number of cores, max = %d\n",
+			ETHOSN_CORE_NUM_MAX);
 
 		return -EINVAL;
 	}
@@ -1344,17 +1494,22 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 
 	ethosn->current_busy_cores = 0;
 	ethosn->status_mask = 0;
+	ethosn->smmu_available = smmu_available;
 
 	snprintf(name, sizeof(name), "ethosn%u", ethosn->parent_id);
 	ethosn->debug_dir = debugfs_create_dir(name, NULL);
 
-	/* Create a top level allocator for parent device
-	 */
-	ethosn->allocator = ethosn_dma_allocator_create(ethosn->dev);
-	if (IS_ERR_OR_NULL(ethosn->allocator))
-		goto err_free_ethosn;
-
 	INIT_LIST_HEAD(&ethosn->queue.inference_queue);
+
+	/* Only create an allocator in the carveout case as the SMMU case
+	 * implements asset allocators as child nodes which will be populated
+	 * by the platform driver for those nodes.
+	 */
+	if (!smmu_available) {
+		ret = ethosn_create_carveout_asset_allocator(ethosn);
+		if (ret)
+			goto err_free_ethosn;
+	}
 
 	/* Allocate space for num_of_npus ethosn cores */
 	ethosn->core = devm_kzalloc(&pdev->dev,
@@ -1405,10 +1560,11 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 		dev_dbg(&pdev->dev,
 			"Reserved mem not present or init failed\n");
 
-	if (!ethosn_smmu_available(&pdev->dev))
+	if (!smmu_available)
 		if (ret)
 			goto err_depopulate_device;
 
+	dev_dbg(&pdev->dev, "smmu available\n");
 	/* Enumerate irqs */
 	num_irqs = ethosn_pdev_enum_interrupts(
 		pdev,
@@ -1464,10 +1620,14 @@ err_depopulate_device:
 	ethosn_pdev_remove(pdev);
 err_free_core_list:
 	devm_kfree(&pdev->dev, ethosn->core);
+
 err_destroy_allocator:
-	ethosn_dma_allocator_destroy(&ethosn->allocator);
+	if (!smmu_available)
+		ethosn_destroy_carveout_asset_allocators(ethosn);
+
 err_free_ethosn:
 	devm_kfree(&pdev->dev, ethosn);
+
 err_early_exit:
 	ida_simple_remove(&ethosn_ida, platform_id);
 
@@ -1635,7 +1795,22 @@ static int __init ethosn_init(void)
 	if (ret)
 		return ret;
 
+	ret = ethosn_main_allocator_platform_driver_register();
+
+	if (ret)
+		return ret;
+
+	ret = ethosn_mem_stream_platform_driver_register();
+
+	if (ret)
+		return ret;
+
 	ret = ethosn_core_platform_driver_register();
+
+	if (ret)
+		return ret;
+
+	ret = ethosn_asset_allocator_platform_driver_register();
 
 	if (ret)
 		return ret;
@@ -1645,8 +1820,11 @@ static int __init ethosn_init(void)
 
 static void __exit ethosn_exit(void)
 {
-	platform_driver_unregister(&ethosn_pdev_driver);
 	ethosn_core_platform_driver_unregister();
+	ethosn_mem_stream_platform_driver_unregister();
+	ethosn_asset_allocator_platform_driver_unregister();
+	ethosn_main_allocator_platform_driver_unregister();
+	platform_driver_unregister(&ethosn_pdev_driver);
 	ethosn_class_release();
 }
 

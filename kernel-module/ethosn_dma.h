@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited.
+ * (C) COPYRIGHT 2018-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -35,38 +35,88 @@ struct device;
 struct vm_area_struct;
 
 /**
- * Streams identifier
+ * Stream type
  */
-enum  ethosn_stream_id {
-	ETHOSN_STREAM_FIRMWARE       = 0,
-	ETHOSN_STREAM_WORKING_DATA   = 1,
-	ETHOSN_STREAM_COMMAND_STREAM = 2,
-	ETHOSN_STREAM_DMA            = 3,
+enum  ethosn_stream_type {
+	ETHOSN_STREAM_FIRMWARE            = 0,
+	ETHOSN_STREAM_WORKING_DATA        = 1,
+	ETHOSN_STREAM_COMMAND_STREAM      = 2,
+	ETHOSN_STREAM_DEBUG               = 3,
+	ETHOSN_STREAM_PLE_CODE            = 4,
+	ETHOSN_STREAM_WEIGHT_DATA         = 5,
+	ETHOSN_STREAM_IO_BUFFER           = 6,
+	ETHOSN_STREAM_INTERMEDIATE_BUFFER = 7,
+	ETHOSN_STREAM_RESERVED            = 8,
+	ETHOSN_STREAM_INVALID             = 9,
+};
+
+/**
+ * Allocator identifier
+ */
+enum  ethosn_alloc_type {
+	ETHOSN_ALLOCATOR_MAIN     = 0,
+	ETHOSN_ALLOCATOR_ASSET    = 1,
+	ETHOSN_ALLOCATOR_CARVEOUT = 2,
+	ETHOSN_ALLOCATOR_INVALID  = 3,
 };
 
 /*
  * Used to save the result of dma_alloc calls for matching dma_free calls.
  * Also, iova_addr is used to set the buffer table for inferences.
+ * stream_type is used to select the appropriate sub-allocator from the
+ * main or asset allocator for additional dma operations such as mapping,
+ * unmapping, and syncing for the device and cpu.
  */
 struct ethosn_dma_info {
-	size_t     size;
-	void       *cpu_addr;
-	dma_addr_t iova_addr;
+	size_t                  size;
+	void                    *cpu_addr;
+	dma_addr_t              iova_addr;
+	enum ethosn_stream_type stream_type;
 };
 
 /**
- * struct ethosn_dma_allocator_ops - Allocator operations for DMA memory
+ * struct ethosn_dma_sub_allocator - Contains allocator operations for DMA
+ * memory
  * @ops                Allocator operations
+ * @smmu_stream_id     SMMU stream id for the SMMU case, 0 in carveout
  * @dev                Device bound to the allocator
  */
-struct ethosn_dma_allocator {
+struct ethosn_dma_sub_allocator {
 	const struct ethosn_dma_allocator_ops *ops;
+	u32                                   smmu_stream_id;
 	struct device                         *dev;
 };
 
+struct ethosn_dma_allocator {
+	enum ethosn_alloc_type type;
+};
+
+/**
+ * Types of allocators
+ */
+struct ethosn_main_allocator {
+	struct ethosn_dma_sub_allocator *firmware;
+	struct ethosn_dma_sub_allocator *working_data;
+	struct ethosn_dma_allocator     allocator;
+};
+
+struct ethosn_asset_allocator {
+	struct ethosn_dma_sub_allocator *command_stream;
+	struct ethosn_dma_sub_allocator *weight_data;
+	struct ethosn_dma_sub_allocator *io_buffer;
+	struct ethosn_dma_sub_allocator *intermediate_buffer;
+	struct ethosn_dma_allocator     allocator;
+};
+
+struct ethosn_carveout_allocator {
+	struct ethosn_dma_sub_allocator *carveout;
+	struct ethosn_dma_allocator     allocator;
+};
+
 /**
  * struct ethosn_dma_allocator_ops - Allocator operations for DMA memory
- * @destroy:           Deinitialize the allocator and free private resources
+ * @destroy:           Deinitialize the DMA memory allocator and free private
+ *                     resources
  * @alloc:             Allocate DMA memory
  * @free               Free DMA memory allocated with alloc
  * @map                Map virtual addresses
@@ -82,70 +132,109 @@ struct ethosn_dma_allocator {
  * @get_addr_size      Get address size
  */
 struct ethosn_dma_allocator_ops {
-	void                   (*destroy)(
-		struct ethosn_dma_allocator *allocator);
+	void (*destroy)(struct ethosn_dma_sub_allocator *
+			allocator,
+			enum ethosn_stream_type stream_type);
 
-	struct ethosn_dma_info *(*alloc)(struct ethosn_dma_allocator *allocator,
+	struct ethosn_dma_info *(*alloc)(struct ethosn_dma_sub_allocator *
+					 allocator,
 					 size_t size,
 					 gfp_t gfp);
-	int                    (*map)(struct ethosn_dma_allocator *allocator,
-				      struct ethosn_dma_info *dma_info,
-				      int prot,
-				      enum ethosn_stream_id stream_id);
-	struct ethosn_dma_info *(*import)(struct ethosn_dma_allocator *
+	int (*map)(struct ethosn_dma_sub_allocator *allocator,
+		   struct ethosn_dma_info *dma_info,
+		   int prot);
+
+	struct ethosn_dma_info *(*import)(struct ethosn_dma_sub_allocator *
 					  allocator,
 					  int fd,
 					  size_t size);
-	void (*release)(struct ethosn_dma_allocator *
+	void (*release)(struct ethosn_dma_sub_allocator *
 			allocator,
 			struct ethosn_dma_info *const
 			dma_info);
-	void (*unmap)(struct ethosn_dma_allocator *allocator,
-		      struct ethosn_dma_info *dma_info,
-		      enum ethosn_stream_id stream_id);
-	void (*free)(struct ethosn_dma_allocator *allocator,
+	void (*unmap)(struct ethosn_dma_sub_allocator *allocator,
+		      struct ethosn_dma_info *dma_info);
+	void (*free)(struct ethosn_dma_sub_allocator *allocator,
 		     struct ethosn_dma_info *dma_info);
-	void (*sync_for_device)(struct ethosn_dma_allocator *
+	void (*sync_for_device)(struct ethosn_dma_sub_allocator *
 				allocator,
 				struct ethosn_dma_info *
 				dma_info);
-	void (*sync_for_cpu)(struct ethosn_dma_allocator *
+	void (*sync_for_cpu)(struct ethosn_dma_sub_allocator *
 			     allocator,
 			     struct ethosn_dma_info *dma_info);
-	int  (*mmap)(struct ethosn_dma_allocator *allocator,
+	int  (*mmap)(struct ethosn_dma_sub_allocator *allocator,
 		     struct vm_area_struct *const vma,
 		     const struct ethosn_dma_info *const
 		     dma_info);
-	dma_addr_t      (*get_addr_base)(struct ethosn_dma_allocator *
+	dma_addr_t      (*get_addr_base)(struct ethosn_dma_sub_allocator *
 					 allocator,
-					 enum ethosn_stream_id stream_id);
-	resource_size_t (*get_addr_size)(struct ethosn_dma_allocator *
+					 enum ethosn_stream_type stream_type);
+	resource_size_t (*get_addr_size)(struct ethosn_dma_sub_allocator *
 					 allocator,
-					 enum ethosn_stream_id stream_id);
+					 enum ethosn_stream_type stream_type);
 };
 
 /**
- * ethosn_dma_allocator_create() - Initializes a DMA memory allocator
- * @allocator: Allocator object
+ * ethosn_dma_top_allocator_create() - Initializes a container for DMA memory
+ * allocators
+ * @dev: Device to create the top-level allocator against
+ * @type: Top-level allocator type to create, determines what sub-allocators it
+ * can store
  * Return:
  *  Pointer to ethosn_dma_allocator struct representing the DMA memory allocator
  *  Or NULL or negative error code on failure
  */
-struct ethosn_dma_allocator *ethosn_dma_allocator_create(struct device *dev);
+struct ethosn_dma_allocator *ethosn_dma_top_allocator_create(struct device *dev,
+							     enum
+							     ethosn_alloc_type
+							     type);
 
 /**
- * ethosn_dma_allocator_destroy() - Destroy the allocator and free all internal
- * resources.
- * @allocator: pointer to location of the allocator object to destory
+ * ethosn_dma_top_allocator_destroy() - Destroy the allocator container.
+ * Does not destroy the DMA allocators which must be destroyed beforehand
+ * @dev: Device that the top-level allocator was created with
+ * @top_allocator: Pointer to the location of the top-level allocator to
+ * destroy
+ * Return:
+ *   0 or negative error code on failure
  */
-void ethosn_dma_allocator_destroy(struct ethosn_dma_allocator **allocator);
+int ethosn_dma_top_allocator_destroy(struct device *dev,
+				     struct ethosn_dma_allocator
+				     **top_allocator);
+
+/**
+ * ethosn_dma_sub_allocator_create() - Initializes a DMA memory allocator
+ * @dev: Device to create the DMA memory allocator against
+ * @top_allocator: Pointer to the top-level allocator to make the sub-allocator
+ * under
+ * @stream_type: Stream type to select the sub-allocator to create
+ * @is_smmu_available: Is SMMU availabe in this device.
+ * Return:
+ *  0 or negative error code on failure
+ */
+int ethosn_dma_sub_allocator_create(struct device *dev,
+				    struct ethosn_dma_allocator *top_allocator,
+				    enum ethosn_stream_type stream_type,
+				    bool is_smmu_available);
+
+/**
+ * ethosn_dma_sub_allocator_destroy() - Destroy the sub-allocator and free all
+ * internal resources.
+ * @top_allocator: Pointer to top-level allocator containing the sub-allocator
+ * to be destroyed
+ * @stream_type: Stream type to select the sub-allocator to destroy
+ */
+void ethosn_dma_sub_allocator_destroy(
+	struct ethosn_dma_allocator *top_allocator,
+	enum ethosn_stream_type stream_type);
 
 /**
  * ethosn_dma_alloc_and_map() - Allocate and map DMA memory
- * @allocator: Allocator object
+ * @allocator: Top-level allocator for sub-allocators
  * @size: bytes of memory
  * @prot: read/write protection
- * @stream_id: Stream identifier
+ * @stream_type: Stream type to select the sub-allocator to use
  * @gfp: GFP flags
  * @debug_tag: (optional) string to identify the allocation. This will be
  *   printed to the console if debug prints are enabled.
@@ -158,14 +247,15 @@ struct ethosn_dma_info *ethosn_dma_alloc_and_map(
 	struct ethosn_dma_allocator *allocator,
 	size_t size,
 	int prot,
-	enum ethosn_stream_id stream_id,
+	enum ethosn_stream_type stream_type,
 	gfp_t gfp,
 	const char *debug_tag);
 
 /**
  * ethosn_dma_alloc() - Allocate DMA memory without mapping
- * @allocator: Allocator object
+ * @top_allocator: Top-level allocator for sub-allocators
  * @size: bytes of memory
+ * @stream_type: Stream type to select the sub-allocator to use
  * @gfp: GFP flags
  * @debug_tag: (optional) string to identify the allocation. This will be
  *   printed to the console if debug prints are enabled.
@@ -174,79 +264,76 @@ struct ethosn_dma_info *ethosn_dma_alloc_and_map(
  *  Pointer to ethosn_dma_info struct representing the allocation
  *  Or NULL or negative error code on failure
  */
-struct ethosn_dma_info *ethosn_dma_alloc(struct ethosn_dma_allocator *allocator,
-					 size_t size,
-					 gfp_t gfp,
-					 const char *debug_tag);
+struct ethosn_dma_info *ethosn_dma_alloc(
+	struct ethosn_dma_allocator *top_allocator,
+	size_t size,
+	enum ethosn_stream_type stream_type,
+	gfp_t gfp,
+	const char *debug_tag);
 
 /**
  * ethosn_dma_map() - Map DMA memory
- * @allocator: Allocator object
+ * @top_allocator: Top-level allocator for sub-allocators
  * @dma_info: Pointer to ethosn_dma_info struct representing the allocation
  * @prot: read/write protection
- * @stream_id: Stream identifier
  *
  * Return:
  *  0 or negative on failure
  */
-int ethosn_dma_map(struct ethosn_dma_allocator *allocator,
+int ethosn_dma_map(struct ethosn_dma_allocator *top_allocator,
 		   struct ethosn_dma_info *dma_info,
-		   int prot,
-		   enum ethosn_stream_id stream_id);
+		   int prot);
 
 /**
  * ethosn_dma_unmap() - Unmap DMA memory
- * @allocator: Allocator object
+ * @top_allocator: Top-level allocator for sub-allocators
  * @dma_info: Allocation information
- * @stream_id: Stream identifier
  */
-void ethosn_dma_unmap(struct ethosn_dma_allocator *allocator,
-		      struct ethosn_dma_info *dma_info,
-		      enum ethosn_stream_id stream_id);
+void ethosn_dma_unmap(struct ethosn_dma_allocator *top_allocator,
+		      struct ethosn_dma_info *dma_info);
 
 /**
- * ethosn_dma_free() - Unmap and Free allocated DMA
- * @allocator: Allocator object
+ * ethosn_dma_unmap_and_free() - Unmap and Free allocated DMA
+ * @top_allocator: Top-level allocator for sub-allocators
  * @dma_info: Allocation information
- * @stream_id: Stream identifier
  */
-void ethosn_dma_unmap_and_free(struct ethosn_dma_allocator *allocator,
-			       struct ethosn_dma_info *const dma_info,
-			       enum ethosn_stream_id stream_id);
+void ethosn_dma_unmap_and_free(struct ethosn_dma_allocator *top_allocator,
+			       struct ethosn_dma_info *const dma_info);
 
 /**
  * ethosn_dma_free() - Free allocated DMA
- * @allocator: Allocator object
+ * @top_allocator: Top-level allocator for sub-allocators
  * @dma_info: Allocation information
  */
-void ethosn_dma_free(struct ethosn_dma_allocator *allocator,
+void ethosn_dma_free(struct ethosn_dma_allocator *top_allocator,
 		     struct ethosn_dma_info *dma_info);
 
 /**
  * ethosn_dma_get_addr_base() - Get base address of a given stream
- * @allocator: Allocator object
- * @stream_id: Stream identifier
+ * @top_allocator: Top-level allocator for sub-allocators
+ * @stream_type: Stream type to select the sub-allocator to use
  *
  * Return:
  *  Base address or zero on failure
  */
-dma_addr_t ethosn_dma_get_addr_base(struct ethosn_dma_allocator *allocator,
-				    enum ethosn_stream_id stream_id);
+dma_addr_t ethosn_dma_get_addr_base(struct ethosn_dma_allocator *top_allocator,
+				    enum ethosn_stream_type stream_type);
 
 /**
  * ethosn_dma_get_addr_size() - Get address space size of a given stream
- * @allocator: Allocator object
- * @stream_id: Stream identifier
+ * @top_allocator: Top-level allocator for sub-allocators
+ * @stream_type: Stream type to select the sub-allocator to use
  *
  * Return:
  *  Size of address space or zero on failure
  */
-resource_size_t ethosn_dma_get_addr_size(struct ethosn_dma_allocator *allocator,
-					 enum ethosn_stream_id stream_id);
+resource_size_t ethosn_dma_get_addr_size(
+	struct ethosn_dma_allocator *top_allocator,
+	enum ethosn_stream_type stream_type);
 
 /**
  * ethosn_dma_mmap() - Do MMAP of DMA allocated memory
- * @allocator: Allocator object
+ * @top_allocator: Top-level allocator for sub-allocators
  * @vma: memory area
  * @dma_info: DMA allocation information
  *
@@ -254,49 +341,60 @@ resource_size_t ethosn_dma_get_addr_size(struct ethosn_dma_allocator *allocator,
  * * 0 - Success
  * * Negative error code
  */
-int ethosn_dma_mmap(struct ethosn_dma_allocator *allocator,
+int ethosn_dma_mmap(struct ethosn_dma_allocator *top_allocator,
 		    struct vm_area_struct *const vma,
 		    const struct ethosn_dma_info *const dma_info);
 
 /**
  * ethosn_dma_sync_for_device() - Transfer ownership of the memory buffer to
  * the device. Flushes the CPU cache.
- * @allocator: Allocator object
+ * @top_allocator: Top-level allocator for sub-allocators
  * @dma_info: DMA allocation information
  */
-void ethosn_dma_sync_for_device(struct ethosn_dma_allocator *allocator,
+void ethosn_dma_sync_for_device(struct ethosn_dma_allocator *top_allocator,
 				struct ethosn_dma_info *dma_info);
 
 /**
  * ethosn_dma_sync_for_cpu() - Transfer ownership of the memory buffer to
  * the cpu. Invalidates the CPU cache.
- * @allocator: Allocator object
+ * @top_allocator: Top-level allocator for sub-allocators
  * @dma_info: DMA allocation information
  */
-void ethosn_dma_sync_for_cpu(struct ethosn_dma_allocator *allocator,
+void ethosn_dma_sync_for_cpu(struct ethosn_dma_allocator *top_allocator,
 			     struct ethosn_dma_info *dma_info);
 
 /**
  * ethosn_dma_import() - Import shared DMA buffer
- * @allocator: Allocator object
+ * @top_allocator: Top-level allocator for sub-allocators
  * @fd: file descriptor for the shared DMA buffer
  * @size: size of the shared buffer
+ * @stream_type: Stream type to select the sub-allocator to use
  *
  * Return:
  * * 0 - Success
  * * Negative error code
  */
 struct ethosn_dma_info *ethosn_dma_import(
-	struct ethosn_dma_allocator *allocator,
+	struct ethosn_dma_allocator *top_allocator,
 	int fd,
-	size_t size);
+	size_t size,
+	enum ethosn_stream_type stream_type);
 
 /**
  * ethosn_dma_release() - Release shared DMA buffer
- * @allocator: Allocator object
+ * @top_allocator: Top-level allocator for sub-allocators
  * @dma_info: Allocation information
  */
-void ethosn_dma_release(struct ethosn_dma_allocator *allocator,
+void ethosn_dma_release(struct ethosn_dma_allocator *top_allocator,
 			struct ethosn_dma_info *const dma_info);
+
+/**
+ * ethosn_get_sub_allocator
+ * @top_allocator: Top-level allocator for sub-allocators
+ * @stream_type: Stream type to select the sub-allocator to get
+ */
+struct ethosn_dma_sub_allocator *ethosn_get_sub_allocator(
+	struct ethosn_dma_allocator *top_allocator,
+	enum ethosn_stream_type stream_type);
 
 #endif /* _ETHOSN_DMA_H_ */

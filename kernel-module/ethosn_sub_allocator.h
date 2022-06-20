@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2020,2022 Arm Limited.
+ * (C) COPYRIGHT 2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -20,12 +20,20 @@
  *
  */
 
-#ifndef _ETHOSN_DMA_CARVEOUT_H_
-#define _ETHOSN_DMA_CARVEOUT_H_
+#ifndef _ETHOSN_SUB_ALLOCATOR_H_
+#define _ETHOSN_SUB_ALLOCATOR_H_
 
-#include "ethosn_dma.h"
+#define ETHOSN_MEM_STREAM_DRIVER_NAME       "ethosn-memory"
 
-struct ethosn_dma_sub_allocator *ethosn_dma_carveout_allocator_create(
-	struct device *dev);
+#include <linux/platform_device.h>
 
-#endif /* _ETHOSN_DMA_CARVEOUT_H_ */
+/* ethosn_get_global_buffer_data_pdev_for_testing() - Exposes global access to
+ * the pdev of buffer for testing purposes.
+ */
+struct platform_device *ethosn_get_global_buffer_data_pdev_for_testing(void);
+
+int ethosn_mem_stream_platform_driver_register(void);
+
+void ethosn_mem_stream_platform_driver_unregister(void);
+
+#endif /* _ETHOSN_SUB_ALLOCATOR_H_ */

@@ -29,59 +29,238 @@
 #include <linux/iommu.h>
 
 static const struct ethosn_dma_allocator_ops *get_ops(
-	struct ethosn_dma_allocator *allocator)
+	struct ethosn_dma_sub_allocator *sub_allocator)
 {
-	if (allocator)
-		return allocator->ops;
+	if (sub_allocator)
+		return sub_allocator->ops;
 	else
 		return NULL;
 }
 
-struct ethosn_dma_allocator *ethosn_dma_allocator_create(struct device *dev)
+static struct ethosn_dma_sub_allocator **ethosn_get_sub_allocator_ref(
+	struct ethosn_dma_allocator *top_allocator,
+	enum ethosn_stream_type stream_type)
 {
-	struct ethosn_dma_allocator *allocator;
+	if (!top_allocator)
+		return NULL;
 
-	if (ethosn_smmu_available(dev))
-		allocator = ethosn_dma_iommu_allocator_create(dev);
-	else
-		allocator = ethosn_dma_carveout_allocator_create(dev);
+	BUG_ON(stream_type < ETHOSN_STREAM_FIRMWARE ||
+	       stream_type > ETHOSN_STREAM_INTERMEDIATE_BUFFER);
 
-	return allocator;
+	BUG_ON(top_allocator->type >= ETHOSN_ALLOCATOR_INVALID ||
+	       top_allocator->type < ETHOSN_ALLOCATOR_MAIN);
+
+	switch (top_allocator->type) {
+	case ETHOSN_ALLOCATOR_MAIN: {
+		struct ethosn_main_allocator *main_alloc = container_of(
+			top_allocator, struct ethosn_main_allocator,
+			allocator);
+		switch (stream_type) {
+		case ETHOSN_STREAM_FIRMWARE:
+		case ETHOSN_STREAM_PLE_CODE:
+
+			return &main_alloc->firmware;
+		case ETHOSN_STREAM_WORKING_DATA:
+
+			return &main_alloc->working_data;
+		default:
+
+			return NULL;
+		}
+	}
+	case ETHOSN_ALLOCATOR_ASSET: {
+		struct ethosn_asset_allocator *asset_alloc = container_of(
+			top_allocator, struct ethosn_asset_allocator,
+			allocator);
+		switch (stream_type) {
+		case ETHOSN_STREAM_COMMAND_STREAM:
+
+			return &asset_alloc->command_stream;
+		case ETHOSN_STREAM_WEIGHT_DATA:
+
+			return &asset_alloc->weight_data;
+		case ETHOSN_STREAM_IO_BUFFER:
+
+			return &asset_alloc->io_buffer;
+		case ETHOSN_STREAM_INTERMEDIATE_BUFFER:
+
+			return &asset_alloc->intermediate_buffer;
+		default:
+
+			return NULL;
+		}
+	}
+	case ETHOSN_ALLOCATOR_CARVEOUT: {
+		struct ethosn_carveout_allocator *carveout_alloc = container_of(
+			top_allocator, struct ethosn_carveout_allocator,
+			allocator);
+
+		return &carveout_alloc->carveout;
+	}
+	default:
+
+		return NULL;
+	}
 }
 
-void ethosn_dma_allocator_destroy(struct ethosn_dma_allocator **allocator)
+struct ethosn_dma_sub_allocator *ethosn_get_sub_allocator(
+	struct ethosn_dma_allocator *top_allocator,
+	enum ethosn_stream_type stream_type)
 {
-	const struct ethosn_dma_allocator_ops *ops = allocator ?
-						     get_ops(*allocator) : NULL;
+	struct ethosn_dma_sub_allocator **ref = ethosn_get_sub_allocator_ref(
+		top_allocator, stream_type);
+
+	if (!ref)
+		return NULL;
+
+	if (!*ref)
+		return NULL;
+
+	return *ref;
+}
+
+struct ethosn_dma_allocator *ethosn_dma_top_allocator_create(struct device *dev,
+							     enum
+							     ethosn_alloc_type
+							     type)
+{
+	switch (type) {
+	case ETHOSN_ALLOCATOR_MAIN: {
+		struct ethosn_main_allocator *main_alloc;
+
+		main_alloc =
+			devm_kzalloc(dev, sizeof(struct ethosn_main_allocator),
+				     GFP_KERNEL);
+		if (!main_alloc)
+			return ERR_PTR(-ENOMEM);
+
+		main_alloc->allocator.type = ETHOSN_ALLOCATOR_MAIN;
+
+		return &main_alloc->allocator;
+	}
+	case ETHOSN_ALLOCATOR_ASSET: {
+		struct ethosn_asset_allocator *asset_alloc;
+
+		asset_alloc =
+			devm_kzalloc(dev, sizeof(struct ethosn_asset_allocator),
+				     GFP_KERNEL);
+		if (!asset_alloc)
+			return ERR_PTR(-ENOMEM);
+
+		asset_alloc->allocator.type = ETHOSN_ALLOCATOR_ASSET;
+
+		return &asset_alloc->allocator;
+	}
+	case ETHOSN_ALLOCATOR_CARVEOUT: {
+		struct ethosn_carveout_allocator *carveout_alloc;
+
+		carveout_alloc =
+			devm_kzalloc(dev,
+				     sizeof(struct ethosn_carveout_allocator),
+				     GFP_KERNEL);
+		if (!carveout_alloc)
+			return ERR_PTR(-ENOMEM);
+
+		carveout_alloc->allocator.type = ETHOSN_ALLOCATOR_CARVEOUT;
+
+		return &carveout_alloc->allocator;
+	}
+	default:
+
+		return ERR_PTR(-EINVAL);
+	}
+}
+
+int ethosn_dma_top_allocator_destroy(struct device *dev,
+				     struct ethosn_dma_allocator
+				     **top_allocator)
+{
+	if (!top_allocator)
+		return 0;
+
+	*top_allocator = NULL;
+
+	dev_info(dev, "top_allocator destroyed");
+
+	return 0;
+}
+
+int ethosn_dma_sub_allocator_create(struct device *dev,
+				    struct ethosn_dma_allocator *top_allocator,
+				    enum ethosn_stream_type stream_type,
+				    bool is_smmu_available)
+{
+	struct ethosn_dma_sub_allocator **allocator;
+
+	if (!top_allocator)
+		return -EINVAL;
+
+	allocator = ethosn_get_sub_allocator_ref(top_allocator, stream_type);
+
+	if (is_smmu_available)
+		*allocator =
+			ethosn_dma_iommu_allocator_create(dev, stream_type);
+
+	else
+		*allocator = ethosn_dma_carveout_allocator_create(dev);
+
+	if (IS_ERR(*allocator))
+		return PTR_ERR(*allocator);
+
+	return 0;
+}
+
+void ethosn_dma_sub_allocator_destroy(
+	struct ethosn_dma_allocator *top_allocator,
+	enum ethosn_stream_type stream_type)
+{
+	struct ethosn_dma_sub_allocator **sub_allocator;
+	const struct ethosn_dma_allocator_ops *ops;
+
+	sub_allocator =
+		ethosn_get_sub_allocator_ref(top_allocator, stream_type);
+
+	ops = *sub_allocator ? get_ops(*sub_allocator) : NULL;
 
 	if (!ops)
 		return;
 
-	ops->destroy(*allocator);
-	*allocator = NULL;
+	ops->destroy(*sub_allocator, stream_type);
+
+	*sub_allocator = NULL;
 }
 
-struct ethosn_dma_info *ethosn_dma_alloc(struct ethosn_dma_allocator *allocator,
-					 const size_t size,
-					 gfp_t gfp,
-					 const char *debug_tag)
+struct ethosn_dma_info *ethosn_dma_alloc(
+	struct ethosn_dma_allocator *top_allocator,
+	const size_t size,
+	enum ethosn_stream_type stream_type,
+	gfp_t gfp,
+	const char *debug_tag)
 {
-	const struct ethosn_dma_allocator_ops *ops = get_ops(allocator);
+	struct ethosn_dma_sub_allocator *sub_allocator =
+		ethosn_get_sub_allocator(top_allocator, stream_type);
+	const struct ethosn_dma_allocator_ops *ops;
 	struct ethosn_dma_info *dma_info = NULL;
 
+	if (!sub_allocator)
+		goto exit;
+
+	ops = sub_allocator->ops;
 	if (!ops)
 		goto exit;
 
-	dma_info = ops->alloc(allocator, size, gfp);
+	dma_info = ops->alloc(sub_allocator, size, gfp);
 
 	if (IS_ERR_OR_NULL(dma_info)) {
-		dev_err(allocator->dev,
+		dev_err(sub_allocator->dev,
 			"failed to dma_alloc %zu bytes for %s\n",
 			size, debug_tag == NULL ? "(unknown)" : debug_tag);
 		goto exit;
 	}
 
-	dev_dbg(allocator->dev,
+	dma_info->stream_type = stream_type;
+
+	dev_dbg(sub_allocator->dev,
 		"DMA alloc for %s. handle=0x%pK, cpu_addr=0x%pK, size=%zu\n",
 		debug_tag == NULL ? "(unknown)" : debug_tag,
 		dma_info, dma_info->cpu_addr, size);
@@ -93,95 +272,125 @@ struct ethosn_dma_info *ethosn_dma_alloc(struct ethosn_dma_allocator *allocator,
 	 * before being written.
 	 */
 	memset(dma_info->cpu_addr, 0, size);
-	ops->sync_for_device(allocator, dma_info);
+	ops->sync_for_device(sub_allocator, dma_info);
 
 exit:
 
 	return dma_info;
 }
 
-int ethosn_dma_map(struct ethosn_dma_allocator *allocator,
+int ethosn_dma_map(struct ethosn_dma_allocator *top_allocator,
 		   struct ethosn_dma_info *dma_info,
-		   int prot,
-		   enum ethosn_stream_id stream_id)
+		   int prot)
 {
-	const struct ethosn_dma_allocator_ops *ops = get_ops(allocator);
+	struct ethosn_dma_sub_allocator *sub_allocator;
+	const struct ethosn_dma_allocator_ops *ops;
 	int ret = -EINVAL;
 
+	if (IS_ERR_OR_NULL(dma_info))
+		goto exit;
+
+	sub_allocator = ethosn_get_sub_allocator(top_allocator,
+						 dma_info->stream_type);
+
+	if (!sub_allocator)
+		goto exit;
+
+	ops = sub_allocator->ops;
 	if (!ops)
 		goto exit;
 
 	if (!ops->map)
 		goto exit;
 
-	if (IS_ERR_OR_NULL(dma_info))
-		goto exit;
-
-	ret = ops->map(allocator, dma_info, prot, stream_id);
+	ret = ops->map(sub_allocator, dma_info, prot);
 
 	if (ret)
-		dev_err(allocator->dev, "failed mapping dma on stream %d\n",
-			stream_id);
+		dev_err(sub_allocator->dev, "failed mapping dma on stream %d\n",
+			dma_info->stream_type);
 	else
-		dev_dbg(allocator->dev,
+		dev_dbg(sub_allocator->dev,
 			"DMA mapped. handle=0x%pK, iova=0x%llx, prot=0x%x, stream=%u\n",
-			dma_info, dma_info->iova_addr, prot, stream_id);
+			dma_info, dma_info->iova_addr, prot,
+			dma_info->stream_type);
 
 exit:
 
 	return ret;
 }
 
-void ethosn_dma_unmap(struct ethosn_dma_allocator *allocator,
-		      struct ethosn_dma_info *const dma_info,
-		      enum ethosn_stream_id stream_id)
+void ethosn_dma_unmap(struct ethosn_dma_allocator *top_allocator,
+		      struct ethosn_dma_info *const dma_info)
 {
-	const struct ethosn_dma_allocator_ops *ops = get_ops(allocator);
+	struct ethosn_dma_sub_allocator *sub_allocator;
+	const struct ethosn_dma_allocator_ops *ops;
 
+	if (IS_ERR_OR_NULL(dma_info))
+		return;
+
+	sub_allocator = ethosn_get_sub_allocator(top_allocator,
+						 dma_info->stream_type);
+
+	if (!sub_allocator)
+		return;
+
+	ops = sub_allocator->ops;
 	if (!ops)
 		return;
 
 	if (!ops->unmap)
 		return;
 
+	ops->unmap(sub_allocator, dma_info);
+}
+
+void ethosn_dma_free(struct ethosn_dma_allocator *top_allocator,
+		     struct ethosn_dma_info *const dma_info)
+{
+	struct ethosn_dma_sub_allocator *sub_allocator;
+	const struct ethosn_dma_allocator_ops *ops;
+
 	if (IS_ERR_OR_NULL(dma_info))
 		return;
 
-	ops->unmap(allocator, dma_info, stream_id);
-}
+	sub_allocator = ethosn_get_sub_allocator(top_allocator,
+						 dma_info->stream_type);
 
-void ethosn_dma_free(struct ethosn_dma_allocator *allocator,
-		     struct ethosn_dma_info *const dma_info)
-{
-	const struct ethosn_dma_allocator_ops *ops = get_ops(allocator);
+	if (!sub_allocator)
+		return;
 
+	ops = sub_allocator->ops;
 	if (!ops)
 		return;
 
-	if (IS_ERR_OR_NULL(dma_info))
-		return;
-
-	ops->free(allocator, dma_info);
+	ops->free(sub_allocator, dma_info);
 }
 
 struct ethosn_dma_info *ethosn_dma_alloc_and_map(
-	struct ethosn_dma_allocator *allocator,
+	struct ethosn_dma_allocator *top_allocator,
 	const size_t size,
 	int prot,
-	enum ethosn_stream_id stream_id,
+	enum ethosn_stream_type stream_type,
 	gfp_t gfp,
 	const char *debug_tag)
 {
+	struct ethosn_dma_sub_allocator *sub_allocator =
+		ethosn_get_sub_allocator(top_allocator, stream_type);
 	struct ethosn_dma_info *dma_info = NULL;
 	int ret;
 
-	dma_info = ethosn_dma_alloc(allocator, size, gfp, debug_tag);
+	if (!sub_allocator)
+		return NULL;
+
+	dma_info = ethosn_dma_alloc(top_allocator, size, stream_type, gfp,
+				    debug_tag);
 	if (IS_ERR_OR_NULL(dma_info))
 		goto exit;
 
-	ret = ethosn_dma_map(allocator, dma_info, prot, stream_id);
+	ret = ethosn_dma_map(top_allocator, dma_info, prot);
 	if (ret < 0) {
-		dev_err(allocator->dev, "failed to map stream %u\n", stream_id);
+		dev_err(sub_allocator->dev, "failed to map stream %u\n",
+			stream_type);
 		goto exit_free_dma_info;
 	}
 
@@ -190,39 +399,47 @@ exit:
 	return dma_info;
 
 exit_free_dma_info:
-	ethosn_dma_free(allocator, dma_info);
+	ethosn_dma_free(top_allocator, dma_info);
 
 	return NULL;
 }
 
-void ethosn_dma_unmap_and_free(struct ethosn_dma_allocator *allocator,
-			       struct ethosn_dma_info *const dma_info,
-			       enum ethosn_stream_id stream_id)
+void ethosn_dma_unmap_and_free(struct ethosn_dma_allocator *top_allocator,
+			       struct ethosn_dma_info *const dma_info)
 {
-	ethosn_dma_unmap(allocator, dma_info, stream_id);
-	ethosn_dma_free(allocator, dma_info);
+	ethosn_dma_unmap(top_allocator, dma_info);
+	ethosn_dma_free(top_allocator, dma_info);
 }
 
 struct ethosn_dma_info *ethosn_dma_import(
-	struct ethosn_dma_allocator *allocator,
+	struct ethosn_dma_allocator *top_allocator,
 	int fd,
-	size_t size)
+	size_t size,
+	enum ethosn_stream_type stream_type)
 {
-	const struct ethosn_dma_allocator_ops *ops = get_ops(allocator);
+	struct ethosn_dma_sub_allocator *sub_allocator =
+		ethosn_get_sub_allocator(top_allocator, stream_type);
+	const struct ethosn_dma_allocator_ops *ops;
 	struct ethosn_dma_info *dma_info = NULL;
 
+	if (!sub_allocator)
+		goto exit;
+
+	ops = sub_allocator->ops;
 	if (!ops)
 		goto exit;
 
-	dma_info = ops->import(allocator, fd, size);
+	dma_info = ops->import(sub_allocator, fd, size);
 
 	if (IS_ERR_OR_NULL(dma_info)) {
-		dev_err(allocator->dev, "failed to dma_import %zu bytes\n",
+		dev_err(sub_allocator->dev, "failed to dma_import %zu bytes\n",
 			dma_info->size);
 		goto exit;
 	}
 
-	dev_dbg(allocator->dev,
+	dma_info->stream_type = stream_type;
+
+	dev_dbg(sub_allocator->dev,
 		"DMA import. handle=0x%pK, cpu_addr=0x%pK, size=%zu\n",
 		dma_info, dma_info->cpu_addr, dma_info->size);
 
@@ -231,110 +448,158 @@ exit:
 	return dma_info;
 }
 
-void ethosn_dma_release(struct ethosn_dma_allocator *allocator,
+void ethosn_dma_release(struct ethosn_dma_allocator *top_allocator,
 			struct ethosn_dma_info *const dma_info)
 {
-	const struct ethosn_dma_allocator_ops *ops = get_ops(allocator);
-
-	if (!ops)
-		return;
+	struct ethosn_dma_sub_allocator *sub_allocator;
+	const struct ethosn_dma_allocator_ops *ops;
 
 	if (IS_ERR_OR_NULL(dma_info))
 		return;
 
-	ops->release(allocator, dma_info);
+	sub_allocator = ethosn_get_sub_allocator(top_allocator,
+						 dma_info->stream_type);
+
+	if (!sub_allocator)
+		return;
+
+	ops = sub_allocator->ops;
+	if (!ops)
+		return;
+
+	ops->release(sub_allocator, dma_info);
 }
 
-int ethosn_dma_mmap(struct ethosn_dma_allocator *allocator,
+int ethosn_dma_mmap(struct ethosn_dma_allocator *top_allocator,
 		    struct vm_area_struct *const vma,
 		    const struct ethosn_dma_info *const dma_info)
 {
-	const struct ethosn_dma_allocator_ops *ops = get_ops(allocator);
+	struct ethosn_dma_sub_allocator *sub_allocator;
+	const struct ethosn_dma_allocator_ops *ops;
 	int ret = -EINVAL;
 
+	if (IS_ERR_OR_NULL(dma_info))
+		goto exit;
+
+	sub_allocator = ethosn_get_sub_allocator(top_allocator,
+						 dma_info->stream_type);
+
+	if (!sub_allocator)
+		goto exit;
+
+	ops = sub_allocator->ops;
 	if (!ops)
 		goto exit;
 
 	if (!ops->mmap)
 		goto exit;
 
-	return ops->mmap(allocator, vma, dma_info);
+	return ops->mmap(sub_allocator, vma, dma_info);
 
 exit:
 
 	return ret;
 }
 
-resource_size_t ethosn_dma_get_addr_size(struct ethosn_dma_allocator *allocator,
-					 enum ethosn_stream_id stream_id)
+resource_size_t ethosn_dma_get_addr_size(
+	struct ethosn_dma_allocator *top_allocator,
+	enum ethosn_stream_type stream_type)
 {
-	const struct ethosn_dma_allocator_ops *ops = get_ops(allocator);
+	struct ethosn_dma_sub_allocator *sub_allocator =
+		ethosn_get_sub_allocator(top_allocator, stream_type);
+	const struct ethosn_dma_allocator_ops *ops;
 	int ret = -EINVAL;
 
+	if (!sub_allocator)
+		goto exit;
+
+	ops = sub_allocator->ops;
 	if (!ops)
 		goto exit;
 
 	if (!ops->get_addr_size)
 		goto exit;
 
-	return ops->get_addr_size(allocator, stream_id);
+	return ops->get_addr_size(sub_allocator, stream_type);
 
 exit:
 
 	return ret;
 }
 
-dma_addr_t ethosn_dma_get_addr_base(struct ethosn_dma_allocator *allocator,
-				    enum ethosn_stream_id stream_id)
+dma_addr_t ethosn_dma_get_addr_base(struct ethosn_dma_allocator *top_allocator,
+				    enum ethosn_stream_type stream_type)
 {
-	const struct ethosn_dma_allocator_ops *ops = get_ops(allocator);
+	struct ethosn_dma_sub_allocator *sub_allocator =
+		ethosn_get_sub_allocator(top_allocator, stream_type);
+	const struct ethosn_dma_allocator_ops *ops;
 	int ret = -EINVAL;
 
+	if (!sub_allocator)
+		goto exit;
+
+	ops = sub_allocator->ops;
 	if (!ops)
 		goto exit;
 
 	if (!ops->get_addr_base)
 		goto exit;
 
-	return ops->get_addr_base(allocator, stream_id);
+	return ops->get_addr_base(sub_allocator, stream_type);
 
 exit:
 
 	return ret;
 }
 
-void ethosn_dma_sync_for_device(struct ethosn_dma_allocator *allocator,
+void ethosn_dma_sync_for_device(struct ethosn_dma_allocator *top_allocator,
 				struct ethosn_dma_info *dma_info)
 {
-	const struct ethosn_dma_allocator_ops *ops = get_ops(allocator);
+	struct ethosn_dma_sub_allocator *sub_allocator;
+	const struct ethosn_dma_allocator_ops *ops;
 
+	if (IS_ERR_OR_NULL(dma_info))
+		return;
+
+	sub_allocator = ethosn_get_sub_allocator(top_allocator,
+						 dma_info->stream_type);
+
+	if (!sub_allocator)
+		return;
+
+	ops = sub_allocator->ops;
 	if (!ops)
 		return;
 
 	if (!ops->sync_for_device)
 		return;
 
+	ops->sync_for_device(sub_allocator, dma_info);
+}
+
+void ethosn_dma_sync_for_cpu(struct ethosn_dma_allocator *top_allocator,
+			     struct ethosn_dma_info *dma_info)
+{
+	struct ethosn_dma_sub_allocator *sub_allocator;
+	const struct ethosn_dma_allocator_ops *ops;
+
 	if (IS_ERR_OR_NULL(dma_info))
 		return;
 
-	ops->sync_for_device(allocator, dma_info);
-}
+	sub_allocator = ethosn_get_sub_allocator(top_allocator,
+						 dma_info->stream_type);
 
-void ethosn_dma_sync_for_cpu(struct ethosn_dma_allocator *allocator,
-			     struct ethosn_dma_info *dma_info)
-{
-	const struct ethosn_dma_allocator_ops *ops = get_ops(allocator);
+	if (!sub_allocator)
+		return;
 
+	ops = sub_allocator->ops;
 	if (!ops)
 		return;
 
 	if (!ops->sync_for_cpu)
 		return;
 
-	if (IS_ERR_OR_NULL(dma_info))
-		return;
-
-	ops->sync_for_cpu(allocator, dma_info);
+	ops->sync_for_cpu(sub_allocator, dma_info);
 }
 
 /* Exported for use by test module */

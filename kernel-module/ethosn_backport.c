@@ -166,3 +166,35 @@ struct sg_table *ethosn_dma_buf_map_attachment(struct dma_buf_attachment
 	return dma_buf_map_attachment(attach, attach->dir);
 #endif
 }
+
+#if (KERNEL_VERSION(4, 19, 0) > LINUX_VERSION_CODE)
+struct device_node *of_get_compatible_child(const struct device_node *parent,
+					    const char *compatible)
+{
+	struct device_node *current_child = NULL;
+
+	for_each_available_child_of_node(parent, current_child) {
+		if (of_device_is_compatible(current_child, compatible))
+			break;
+	}
+
+	return current_child;
+}
+
+bool of_node_name_eq(const struct device_node *node,
+		     const char *name)
+{
+	size_t len;
+
+	if (!node || !name)
+		return false;
+
+	len = strlen(name);
+
+	if (strncmp(name, node->name, len))
+		return false;
+
+	return true;
+}
+
+#endif

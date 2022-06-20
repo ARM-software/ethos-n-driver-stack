@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited.
+ * (C) COPYRIGHT 2018-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -27,6 +27,31 @@
 #include <linux/irqreturn.h>
 
 struct ethosn_core;
+
+struct ethosn_network {
+	/* This is the ethosn device for when the network needs to access
+	 * members of the ethosn struct. Memory allocation and mapping is
+	 * performed using an asset allocator in the ethosn device.
+	 */
+	struct ethosn_device      *ethosn;
+
+	struct ethosn_dma_info    *constant_dma_data;
+	struct ethosn_dma_info    *constant_cu_data;
+	struct ethosn_dma_info    **inference_data;
+	struct ethosn_dma_info    **intermediate_data;
+
+	u32                       num_intermediates;
+	struct ethosn_buffer_info *intermediates;
+
+	u32                       num_inputs;
+	struct ethosn_buffer_info *inputs;
+
+	u32                       num_outputs;
+	struct ethosn_buffer_info *outputs;
+
+	/* file pointer used for ref-counting */
+	struct file               *file;
+};
 
 struct ethosn_inference {
 	struct ethosn_core    *core;

@@ -1,5 +1,5 @@
 #
-# (C) COPYRIGHT 2018-2021 Arm Limited.
+# (C) COPYRIGHT 2018-2022 Arm Limited.
 #
 # This program is free software and is provided to you under the terms of the
 # GNU General Public License version 2 as published by the Free Software
@@ -32,4 +32,7 @@ ethosn-objs := ethosn_core.o \
              ethosn_dma_iommu.o \
              ethosn_driver.o \
              ethosn_network.o \
-             ethosn_smc.o
+             ethosn_smc.o \
+	     ethosn_asset_allocator.o \
+	     ethosn_sub_allocator.o \
+	     ethosn_main_allocator.o

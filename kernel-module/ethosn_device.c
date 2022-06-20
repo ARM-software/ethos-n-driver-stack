@@ -29,7 +29,6 @@
 #include "scylla_regs_public.h"
 
 #include <linux/firmware.h>
-#include <linux/iommu.h>
 #include <linux/log2.h>
 #include <linux/module.h>
 #include <linux/of.h>
@@ -38,6 +37,8 @@
 #include <linux/time.h>
 #include <linux/poll.h>
 #include <linux/jiffies.h>
+
+#define ETHOSN_NAME_PREFIX  "ethosn"
 
 /* Number of bits the MCU Vector Table address is shifted. */
 #define SYSCTLR0_INITVTOR_SHIFT         7
@@ -111,32 +112,6 @@ resource_size_t to_ethosn_addr(const resource_size_t linux_addr,
 	return ethosn_addr;
 }
 
-bool ethosn_smmu_available(struct device *dev)
-{
-	int len;
-	bool has_smmu = false;
-	bool is_parent = of_get_available_child_count(dev->of_node) > 0;
-	struct device_node *node;
-
-	/* iommus property is only available in the children
-	 * nodes (i.e. ethosn-core)
-	 */
-	if (is_parent)
-		node = of_get_next_available_child(dev->of_node, NULL);
-	else
-		node = dev->of_node;
-
-	has_smmu = !IS_ERR_OR_NULL(of_find_property(node, "iommus", &len));
-
-	if (is_parent)
-		of_node_put(node);
-
-	return has_smmu;
-}
-
-/* Exported for use by test module */
-EXPORT_SYMBOL(ethosn_smmu_available);
-
 /**
  * ethosn_mailbox_init() - Initialize the mailbox structure.
  * @core:	Pointer to Ethos-N core.
@@ -183,9 +158,10 @@ static int ethosn_mailbox_init(struct ethosn_core *core)
 		return -EFAULT;
 
 	/* Sync memory to device */
-	ethosn_dma_sync_for_device(core->allocator, core->mailbox);
-	ethosn_dma_sync_for_device(core->allocator, core->mailbox_request);
-	ethosn_dma_sync_for_device(core->allocator, core->mailbox_response);
+	ethosn_dma_sync_for_device(core->main_allocator, core->mailbox);
+	ethosn_dma_sync_for_device(core->main_allocator, core->mailbox_request);
+	ethosn_dma_sync_for_device(core->main_allocator,
+				   core->mailbox_response);
 
 	/* Store mailbox CU address in GP2 */
 	ethosn_write_top_reg(core, DL1_RP, GP_MAILBOX, mailbox_addr);
@@ -259,11 +235,11 @@ static int ethosn_debug_monitor_channel_init(struct ethosn_core *core)
 		    debug_monitor_channel_timer_callback, 0);
 
 	/* Sync memory to device */
-	ethosn_dma_sync_for_device(core->allocator,
+	ethosn_dma_sync_for_device(core->main_allocator,
 				   core->debug_monitor_channel);
-	ethosn_dma_sync_for_device(core->allocator,
+	ethosn_dma_sync_for_device(core->main_allocator,
 				   core->debug_monitor_channel_request);
-	ethosn_dma_sync_for_device(core->allocator,
+	ethosn_dma_sync_for_device(core->main_allocator,
 				   core->debug_monitor_channel_response);
 
 	ethosn_write_top_reg(core, DL1_RP, GP_DEBUG_MONITOR_CHANNEL,
@@ -281,7 +257,7 @@ static int ethosn_debug_monitor_channel_init(struct ethosn_core *core)
  */
 static int mailbox_alloc(struct ethosn_core *core)
 {
-	struct ethosn_dma_allocator *allocator = core->allocator;
+	struct ethosn_dma_allocator *allocator = core->main_allocator;
 	int ret = -ENOMEM;
 
 	core->mailbox =
@@ -338,14 +314,11 @@ static int mailbox_alloc(struct ethosn_core *core)
 	return 0;
 
 err_free_mailbox_response:
-	ethosn_dma_unmap_and_free(allocator, core->mailbox_response,
-				  ETHOSN_STREAM_WORKING_DATA);
+	ethosn_dma_unmap_and_free(allocator, core->mailbox_response);
 err_free_mailbox_request:
-	ethosn_dma_unmap_and_free(allocator, core->mailbox_request,
-				  ETHOSN_STREAM_WORKING_DATA);
+	ethosn_dma_unmap_and_free(allocator, core->mailbox_request);
 err_free_mailbox:
-	ethosn_dma_unmap_and_free(allocator, core->mailbox,
-				  ETHOSN_STREAM_WORKING_DATA);
+	ethosn_dma_unmap_and_free(allocator, core->mailbox);
 err_exit:
 
 	return ret;
@@ -360,7 +333,7 @@ err_exit:
 static int debug_monitor_channel_alloc(struct ethosn_core *core)
 {
 #if defined(ETHOSN_KERNEL_MODULE_DEBUG_MONITOR)
-	struct ethosn_dma_allocator *allocator = core->allocator;
+	struct ethosn_dma_allocator *allocator = core->main_allocator;
 	int ret = -ENOMEM;
 
 	core->debug_monitor_channel =
@@ -412,15 +385,12 @@ static int debug_monitor_channel_alloc(struct ethosn_core *core)
 	return 0;
 
 	ethosn_dma_unmap_and_free(allocator,
-				  core->debug_monitor_channel_response,
-				  ETHOSN_STREAM_WORKING_DATA);
+				  core->debug_monitor_channel_response);
 err_free_debug_monitor_channel_request:
 	ethosn_dma_unmap_and_free(allocator,
-				  core->debug_monitor_channel_request,
-				  ETHOSN_STREAM_WORKING_DATA);
+				  core->debug_monitor_channel_request);
 err_free_debug_monitor_channel:
-	ethosn_dma_unmap_and_free(allocator, core->debug_monitor_channel,
-				  ETHOSN_STREAM_WORKING_DATA);
+	ethosn_dma_unmap_and_free(allocator, core->debug_monitor_channel);
 err_exit:
 
 	return ret;
@@ -436,16 +406,13 @@ err_exit:
  */
 static void ethosn_mailbox_free(struct ethosn_core *core)
 {
-	ethosn_dma_unmap_and_free(core->allocator, core->mailbox,
-				  ETHOSN_STREAM_WORKING_DATA);
+	ethosn_dma_unmap_and_free(core->main_allocator, core->mailbox);
 	core->mailbox = NULL;
 
-	ethosn_dma_unmap_and_free(core->allocator, core->mailbox_request,
-				  ETHOSN_STREAM_WORKING_DATA);
+	ethosn_dma_unmap_and_free(core->main_allocator, core->mailbox_request);
 	core->mailbox_request = NULL;
 
-	ethosn_dma_unmap_and_free(core->allocator, core->mailbox_response,
-				  ETHOSN_STREAM_WORKING_DATA);
+	ethosn_dma_unmap_and_free(core->main_allocator, core->mailbox_response);
 	core->mailbox_response = NULL;
 
 	if (core->mailbox_message) {
@@ -463,18 +430,16 @@ static void ethosn_debug_monitor_channel_free(struct ethosn_core *core)
 #if defined(ETHOSN_KERNEL_MODULE_DEBUG_MONITOR)
 	del_timer(&core->debug_monitor_channel_timer);
 
-	ethosn_dma_unmap_and_free(core->allocator, core->debug_monitor_channel,
-				  ETHOSN_STREAM_WORKING_DATA);
+	ethosn_dma_unmap_and_free(core->main_allocator,
+				  core->debug_monitor_channel);
 	core->debug_monitor_channel = NULL;
 
-	ethosn_dma_unmap_and_free(core->allocator,
-				  core->debug_monitor_channel_request,
-				  ETHOSN_STREAM_WORKING_DATA);
+	ethosn_dma_unmap_and_free(core->main_allocator,
+				  core->debug_monitor_channel_request);
 	core->debug_monitor_channel_request = NULL;
 
-	ethosn_dma_unmap_and_free(core->allocator,
-				  core->debug_monitor_channel_response,
-				  ETHOSN_STREAM_WORKING_DATA);
+	ethosn_dma_unmap_and_free(core->main_allocator,
+				  core->debug_monitor_channel_response);
 	core->debug_monitor_channel_response = NULL;
 #endif
 }
@@ -546,7 +511,7 @@ static int ethosn_boot_firmware(struct ethosn_core *core)
 
 	dev_dbg(core->dev, "vtable[1] (PC) = 0x%x\n", vtable[1]);
 
-	ethosn_dma_sync_for_device(core->allocator, core->firmware_vtable);
+	ethosn_dma_sync_for_device(core->main_allocator, core->firmware_vtable);
 
 	/* Enable events */
 	sysctlr1.bits.mcu_setevnt = 1;
@@ -687,48 +652,100 @@ void ethosn_set_power_ctrl(struct ethosn_core *core,
 }
 
 /**
- * ethosn_set_mmu_stream_ids() - Configure the mmu stream IDs.
+ * ethosn_get_smmu_stream_id() - get SMMU stream id.
+ * @top_allocator:	Pointer to top level allocator.
+ * @stream:		Stream type for which SMMU stream ID is requested for.
+ * @id:			u32 for the stream id to go into.
+ *
+ * Return: Negative error code on error, zero otherwise
+ */
+static int ethosn_get_smmu_stream_id(struct ethosn_dma_allocator *top_allocator,
+				     enum  ethosn_stream_type stream,
+				     u32 *id)
+{
+	struct ethosn_dma_sub_allocator *sub_allocator;
+
+	sub_allocator = ethosn_get_sub_allocator(top_allocator, stream);
+
+	if (IS_ERR_OR_NULL(sub_allocator))
+		return -EINVAL;
+
+	*id = sub_allocator->smmu_stream_id;
+
+	return 0;
+}
+
+/**
+ * ethosn_set_smmu_stream_ids() - Configure the mmu stream IDs.
  * @core:	Pointer to Ethos-N core
  *
  * Return: Negative error code on error, zero otherwise
  */
-static int ethosn_set_mmu_stream_ids(struct ethosn_core *core)
+static int ethosn_set_smmu_stream_ids(struct ethosn_core *core)
 {
-	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(core->dev);
-	int ret = -EINVAL;
+	struct ethosn_device *ethosn = core->parent;
+
+	struct ethosn_dma_allocator *main_alloc = core->main_allocator;
+	struct ethosn_dma_allocator *asset_alloc = ethosn->asset_allocator;
+
 	u32 smmu_stream_id;
+	int ret = -EINVAL;
 
-	if (!fwspec)
+	/* Main Allocator */
+
+	/* Firmware */
+	ret = ethosn_get_smmu_stream_id(main_alloc, ETHOSN_STREAM_FIRMWARE,
+					&smmu_stream_id);
+	if (ret)
 		return ret;
 
-	/*
-	 * Currently, it is permitted to define only one stream id in the dts
-	 * file. There is no advantage of defining multiple stream ids when
-	 * the device uses all the streams at almost all the times.
-	 */
-	if (fwspec->num_ids != 1) {
-		dev_err(core->dev,
-			"Number of stream IDs specified(%u) for the device is invalid. Only one stream for a single device is allowed\n",
-			fwspec->num_ids);
-
-		return ret;
-	}
-
-	smmu_stream_id = fwspec->ids[0];
-
-	/*
-	 * The value of stream id fetched from the dts is used to program the
-	 * multiple STREAM*_MMUSID registers.
-	 */
 	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM0_MMUSID, smmu_stream_id);
-	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM1_MMUSID, smmu_stream_id);
-	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM2_MMUSID, smmu_stream_id);
-	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM3_MMUSID, smmu_stream_id);
 	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM4_MMUSID, smmu_stream_id);
+
+	/* Working Data */
+	ret = ethosn_get_smmu_stream_id(main_alloc, ETHOSN_STREAM_WORKING_DATA,
+					&smmu_stream_id);
+	if (ret)
+		return ret;
+
+	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM1_MMUSID, smmu_stream_id);
+
+	/* Asset Allocator */
+
+	/* Command Stream */
+	ret = ethosn_get_smmu_stream_id(asset_alloc,
+					ETHOSN_STREAM_COMMAND_STREAM,
+					&smmu_stream_id);
+	if (ret)
+		return ret;
+
+	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM2_MMUSID, smmu_stream_id);
+
+	/* Weight Data */
+	ret = ethosn_get_smmu_stream_id(asset_alloc, ETHOSN_STREAM_WEIGHT_DATA,
+					&smmu_stream_id);
+	if (ret)
+		return ret;
+
 	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM5_MMUSID, smmu_stream_id);
+
+	/* Input / Output Buffers */
+	ret = ethosn_get_smmu_stream_id(asset_alloc, ETHOSN_STREAM_IO_BUFFER,
+					&smmu_stream_id);
+	if (ret)
+		return ret;
+
 	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM6_MMUSID, smmu_stream_id);
-	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM7_MMUSID, smmu_stream_id);
 	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM8_MMUSID, smmu_stream_id);
+
+	/* Intermediate Buffers */
+	ret = ethosn_get_smmu_stream_id(asset_alloc,
+					ETHOSN_STREAM_INTERMEDIATE_BUFFER,
+					&smmu_stream_id);
+	if (ret)
+		return ret;
+
+	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM7_MMUSID, smmu_stream_id);
 
 	return 0;
 }
@@ -853,7 +870,7 @@ int ethosn_read_message(struct ethosn_core *core,
 	struct ethosn_queue *queue = core->mailbox_response->cpu_addr;
 	bool ret;
 
-	ethosn_dma_sync_for_cpu(core->allocator, core->mailbox_response);
+	ethosn_dma_sync_for_cpu(core->main_allocator, core->mailbox_response);
 
 	ret = ethosn_queue_read(queue, (uint8_t *)header,
 				sizeof(struct ethosn_message_header));
@@ -890,7 +907,8 @@ int ethosn_read_message(struct ethosn_core *core,
 		return -EFAULT;
 	}
 
-	ethosn_dma_sync_for_device(core->allocator, core->mailbox_response);
+	ethosn_dma_sync_for_device(core->main_allocator,
+				   core->mailbox_response);
 
 	if (core->profiling.config.enable_profiling)
 		++core->profiling.mailbox_messages_received;
@@ -927,7 +945,7 @@ int ethosn_write_message(struct ethosn_core *core,
 	};
 	uint32_t sizes[2] = { sizeof(header), length };
 
-	ethosn_dma_sync_for_cpu(core->allocator, core->mailbox_request);
+	ethosn_dma_sync_for_cpu(core->main_allocator, core->mailbox_request);
 
 	dev_dbg(core->dev,
 		"Write message. type=%u, length=%zu, read=%u, write=%u.\n",
@@ -943,7 +961,7 @@ int ethosn_write_message(struct ethosn_core *core,
 	 * Sync the data before committing the updated write pointer so that
 	 * the "reading" side (e.g. CU firmware) can't read invalid data.
 	 */
-	ethosn_dma_sync_for_device(core->allocator, core->mailbox_request);
+	ethosn_dma_sync_for_device(core->main_allocator, core->mailbox_request);
 
 	/*
 	 * Update the write pointer after all the data has been written.
@@ -951,7 +969,7 @@ int ethosn_write_message(struct ethosn_core *core,
 	queue->write = write_pending;
 
 	/* Sync the write pointer */
-	ethosn_dma_sync_for_device(core->allocator, core->mailbox_request);
+	ethosn_dma_sync_for_device(core->main_allocator, core->mailbox_request);
 	ethosn_notify_firmware(core);
 
 	if (core->profiling.config.enable_profiling)
@@ -1059,7 +1077,7 @@ int ethosn_configure_firmware_profiling(struct ethosn_core *core,
 
 		core->profiling.firmware_buffer_pending =
 			ethosn_dma_alloc_and_map(
-				core->allocator,
+				core->main_allocator,
 				new_config->firmware_buffer_size,
 				ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
 				ETHOSN_STREAM_WORKING_DATA,
@@ -1078,7 +1096,7 @@ int ethosn_configure_firmware_profiling(struct ethosn_core *core,
 			core->profiling.firmware_buffer_pending->cpu_addr;
 		buffer->firmware_write_index = 0;
 		ethosn_dma_sync_for_device(
-			core->allocator,
+			core->main_allocator,
 			core->profiling.firmware_buffer_pending);
 	} else {
 		core->profiling.firmware_buffer_pending = NULL;
@@ -1101,9 +1119,8 @@ int ethosn_configure_firmware_profiling(struct ethosn_core *core,
 
 free_buf:
 	ethosn_dma_unmap_and_free(
-		core->allocator,
-		core->profiling.firmware_buffer_pending,
-		ETHOSN_STREAM_WORKING_DATA);
+		core->main_allocator,
+		core->profiling.firmware_buffer_pending);
 	core->profiling.firmware_buffer_pending = NULL;
 ret:
 
@@ -1122,9 +1139,8 @@ int ethosn_configure_firmware_profiling_ack(struct ethosn_core *core)
 	/* We can now free the old buffer (if any), as we know the firmware is
 	 * no longer writing to it
 	 */
-	ethosn_dma_unmap_and_free(core->allocator,
-				  core->profiling.firmware_buffer,
-				  ETHOSN_STREAM_WORKING_DATA);
+	ethosn_dma_unmap_and_free(core->main_allocator,
+				  core->profiling.firmware_buffer);
 
 	/* What used to be the pending buffer is now the proper one. */
 	core->profiling.firmware_buffer =
@@ -1187,21 +1203,21 @@ static int ethosn_send_region_request(struct ethosn_core *core,
 	switch (region_id) {
 	case ETHOSN_REGION_FIRMWARE:
 		request.addr = to_ethosn_addr(
-			ethosn_dma_get_addr_base(core->allocator,
+			ethosn_dma_get_addr_base(core->main_allocator,
 						 ETHOSN_STREAM_FIRMWARE),
 			&core->firmware_map);
 
-		request.size = ethosn_dma_get_addr_size(core->allocator,
+		request.size = ethosn_dma_get_addr_size(core->main_allocator,
 							ETHOSN_STREAM_FIRMWARE);
 		break;
 	case ETHOSN_REGION_WORKING_DATA_MAIN:
 		request.addr = to_ethosn_addr(
-			ethosn_dma_get_addr_base(core->allocator,
+			ethosn_dma_get_addr_base(core->main_allocator,
 						 ETHOSN_STREAM_WORKING_DATA),
 			&core->work_data_map);
 
 		request.size = ethosn_dma_get_addr_size(
-			core->allocator,
+			core->main_allocator,
 			ETHOSN_STREAM_WORKING_DATA);
 		break;
 	case ETHOSN_REGION_WORKING_DATA_TASK:
@@ -1213,12 +1229,12 @@ static int ethosn_send_region_request(struct ethosn_core *core,
 		break;
 	case ETHOSN_REGION_COMMAND_STREAM:
 		request.addr = to_ethosn_addr(
-			ethosn_dma_get_addr_base(core->allocator,
+			ethosn_dma_get_addr_base(core->parent->asset_allocator,
 						 ETHOSN_STREAM_COMMAND_STREAM),
 			&core->dma_map);
 
 		request.size = ethosn_dma_get_addr_size(
-			core->allocator,
+			core->parent->asset_allocator,
 			ETHOSN_STREAM_COMMAND_STREAM);
 		break;
 	default:
@@ -1260,7 +1276,7 @@ int ethosn_send_stash_request(struct ethosn_core *core)
 	if (!ethosn_stashing_enabled())
 		return 0;
 
-	if (ethosn_smmu_available(core->dev)) {
+	if (core->parent->smmu_available) {
 		dev_dbg(core->dev, "-> SMMU Available");
 
 		return ethosn_write_message(core, ETHOSN_MESSAGE_STASH_REQUEST,
@@ -1352,7 +1368,7 @@ static int verify_firmware(struct ethosn_core *core,
 static int firmware_load(struct ethosn_core *core,
 			 const char *firmware_name)
 {
-	const bool smmu_available = ethosn_smmu_available(core->dev);
+	const bool smmu_available = core->parent->smmu_available;
 	const struct firmware *fw;
 	struct ethosn_big_fw *big_fw;
 	struct ethosn_big_fw_desc *big_fw_desc;
@@ -1396,7 +1412,8 @@ static int firmware_load(struct ethosn_core *core,
 	/* Allocate memory for firmware code */
 	if (!core->firmware) {
 		core->firmware =
-			ethosn_dma_alloc(core->allocator, fw_size,
+			ethosn_dma_alloc(core->main_allocator, fw_size,
+					 ETHOSN_STREAM_FIRMWARE,
 					 GFP_KERNEL,
 					 "firmware-code");
 
@@ -1405,10 +1422,9 @@ static int firmware_load(struct ethosn_core *core,
 			goto release_fw;
 		}
 
-		ret = ethosn_dma_map(core->allocator, core->firmware,
+		ret = ethosn_dma_map(core->main_allocator, core->firmware,
 				     ETHOSN_PROT_READ |
-				     ETHOSN_PROT_WRITE,
-				     ETHOSN_STREAM_FIRMWARE);
+				     ETHOSN_PROT_WRITE);
 		if (ret) {
 			ret = -ENOMEM;
 			goto free_firmware;
@@ -1417,7 +1433,7 @@ static int firmware_load(struct ethosn_core *core,
 
 	memcpy(core->firmware->cpu_addr, fw->data + fw_offset,
 	       fw_size);
-	ethosn_dma_sync_for_device(core->allocator, core->firmware);
+	ethosn_dma_sync_for_device(core->main_allocator, core->firmware);
 
 	if (smmu_available) {
 		ple_kernels_size = code_size - big_fw_desc->ple_offset;
@@ -1425,19 +1441,21 @@ static int firmware_load(struct ethosn_core *core,
 
 		/* Allocate memory for PLE kernels code */
 		if (!core->ple_kernels) {
-			core->ple_kernels = ethosn_dma_alloc(core->allocator,
-							     ple_kernels_size,
-							     GFP_KERNEL,
-							     "ple-kernels");
+			core->ple_kernels = ethosn_dma_alloc(
+				core->main_allocator,
+				ple_kernels_size,
+				ETHOSN_STREAM_FIRMWARE,
+				GFP_KERNEL,
+				"ple-kernels");
 
 			if (IS_ERR_OR_NULL(core->ple_kernels)) {
 				ret = -ENOMEM;
 				goto unmap_firmware;
 			}
 
-			ret = ethosn_dma_map(core->allocator, core->ple_kernels,
-					     ETHOSN_PROT_READ,
-					     ETHOSN_STREAM_FIRMWARE);
+			ret = ethosn_dma_map(core->main_allocator,
+					     core->ple_kernels,
+					     ETHOSN_PROT_READ);
 			if (ret) {
 				ret = -ENOMEM;
 				goto free_ple_kernels;
@@ -1447,13 +1465,14 @@ static int firmware_load(struct ethosn_core *core,
 		memcpy(core->ple_kernels->cpu_addr,
 		       fw->data + ple_kernels_offset,
 		       ple_kernels_size);
-		ethosn_dma_sync_for_device(core->allocator, core->ple_kernels);
+		ethosn_dma_sync_for_device(core->main_allocator,
+					   core->ple_kernels);
 	}
 
 	/* Allocate task stack */
 	if (!core->firmware_stack_task)
 		core->firmware_stack_task =
-			ethosn_dma_alloc_and_map(core->allocator,
+			ethosn_dma_alloc_and_map(core->main_allocator,
 						 ETHOSN_STACK_SIZE,
 						 ETHOSN_PROT_READ |
 						 ETHOSN_PROT_WRITE,
@@ -1469,7 +1488,7 @@ static int firmware_load(struct ethosn_core *core,
 	/* Allocate main stack */
 	if (!core->firmware_stack_main)
 		core->firmware_stack_main =
-			ethosn_dma_alloc_and_map(core->allocator,
+			ethosn_dma_alloc_and_map(core->main_allocator,
 						 ETHOSN_STACK_SIZE,
 						 ETHOSN_PROT_READ |
 						 ETHOSN_PROT_WRITE,
@@ -1485,7 +1504,7 @@ static int firmware_load(struct ethosn_core *core,
 	/* Allocate vtable */
 	if (!core->firmware_vtable)
 		core->firmware_vtable =
-			ethosn_dma_alloc_and_map(core->allocator,
+			ethosn_dma_alloc_and_map(core->main_allocator,
 						 ETHOSN_VTABLE_SIZE *
 						 sizeof(uint32_t),
 						 ETHOSN_PROT_READ |
@@ -1504,24 +1523,22 @@ static int firmware_load(struct ethosn_core *core,
 	return 0;
 
 free_stack_main:
-	ethosn_dma_unmap_and_free(core->allocator, core->firmware_stack_main,
-				  ETHOSN_STREAM_WORKING_DATA);
+	ethosn_dma_unmap_and_free(core->main_allocator,
+				  core->firmware_stack_main);
 free_stack_task:
-	ethosn_dma_unmap_and_free(core->allocator, core->firmware_stack_task,
-				  ETHOSN_STREAM_WORKING_DATA);
+	ethosn_dma_unmap_and_free(core->main_allocator,
+				  core->firmware_stack_task);
 unmap_ple_kernels:
 	if (!core->ple_kernels)
 		goto unmap_firmware;
 
-	ethosn_dma_unmap(core->allocator, core->ple_kernels,
-			 ETHOSN_STREAM_FIRMWARE);
+	ethosn_dma_unmap(core->main_allocator, core->ple_kernels);
 free_ple_kernels:
-	ethosn_dma_free(core->allocator, core->ple_kernels);
+	ethosn_dma_free(core->main_allocator, core->ple_kernels);
 unmap_firmware:
-	ethosn_dma_unmap(core->allocator, core->firmware,
-			 ETHOSN_STREAM_FIRMWARE);
+	ethosn_dma_unmap(core->main_allocator, core->firmware);
 free_firmware:
-	ethosn_dma_free(core->allocator, core->firmware);
+	ethosn_dma_free(core->main_allocator, core->firmware);
 release_fw:
 	release_firmware(fw);
 
@@ -1619,9 +1636,9 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 	if (ret)
 		return ret;
 
-	/* Setup the MMU Stream IDs if iommu is present */
-	if (ethosn_smmu_available(core->dev)) {
-		ret = ethosn_set_mmu_stream_ids(core);
+	/* Setup the SMMU Stream IDs if iommu is present */
+	if (core->parent->smmu_available) {
+		ret = ethosn_set_smmu_stream_ids(core);
 		if (ret)
 			return ret;
 	}
@@ -1629,7 +1646,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 	/* Configure address extension for stream 0, 1 and 2 */
 	ret = ethosn_set_addr_ext(
 		core, ETHOSN_STREAM_FIRMWARE,
-		ethosn_dma_get_addr_base(core->allocator,
+		ethosn_dma_get_addr_base(core->main_allocator,
 					 ETHOSN_STREAM_FIRMWARE),
 		&core->firmware_map);
 	if (ret)
@@ -1637,7 +1654,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 
 	ret = ethosn_set_addr_ext(
 		core, ETHOSN_STREAM_WORKING_DATA,
-		ethosn_dma_get_addr_base(core->allocator,
+		ethosn_dma_get_addr_base(core->main_allocator,
 					 ETHOSN_STREAM_WORKING_DATA),
 		&core->work_data_map);
 	if (ret)
@@ -1645,7 +1662,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 
 	ret = ethosn_set_addr_ext(
 		core, ETHOSN_STREAM_COMMAND_STREAM,
-		ethosn_dma_get_addr_base(core->allocator,
+		ethosn_dma_get_addr_base(core->parent->asset_allocator,
 					 ETHOSN_STREAM_COMMAND_STREAM),
 		&core->dma_map);
 	if (ret)
@@ -1722,6 +1739,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 	 */
 	ret = ethosn_configure_firmware_profiling(core,
 						  &core->profiling.config);
+
 	if (ret != 0)
 		return ret;
 
@@ -1734,26 +1752,25 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
  */
 static void ethosn_firmware_deinit(struct ethosn_core *core)
 {
-	ethosn_dma_unmap_and_free(core->allocator, core->firmware,
-				  ETHOSN_STREAM_FIRMWARE);
+	ethosn_dma_unmap_and_free(core->main_allocator, core->firmware);
 	core->firmware = NULL;
 
 	if (core->ple_kernels)
-		ethosn_dma_unmap_and_free(core->allocator, core->ple_kernels,
-					  ETHOSN_STREAM_FIRMWARE);
+		ethosn_dma_unmap_and_free(core->main_allocator,
+					  core->ple_kernels);
 
 	core->ple_kernels = NULL;
 
-	ethosn_dma_unmap_and_free(core->allocator, core->firmware_stack_main,
-				  ETHOSN_STREAM_WORKING_DATA);
+	ethosn_dma_unmap_and_free(core->main_allocator,
+				  core->firmware_stack_main);
+
 	core->firmware_stack_main = NULL;
 
-	ethosn_dma_unmap_and_free(core->allocator, core->firmware_stack_task,
-				  ETHOSN_STREAM_WORKING_DATA);
+	ethosn_dma_unmap_and_free(core->main_allocator,
+				  core->firmware_stack_task);
 	core->firmware_stack_task = NULL;
 
-	ethosn_dma_unmap_and_free(core->allocator, core->firmware_vtable,
-				  ETHOSN_STREAM_FIRMWARE);
+	ethosn_dma_unmap_and_free(core->main_allocator, core->firmware_vtable);
 	core->firmware_vtable = NULL;
 }
 
@@ -1787,7 +1804,8 @@ static ssize_t mailbox_fops_read(struct file *file,
 	if (core->mailbox_request) {
 		struct ethosn_queue *queue = core->mailbox_request->cpu_addr;
 
-		ethosn_dma_sync_for_cpu(core->allocator, core->mailbox_request);
+		ethosn_dma_sync_for_cpu(core->main_allocator,
+					core->mailbox_request);
 
 		n += scnprintf(&buf[n], sizeof(buf) - n,
 			       "Request queue : %llx\n",
@@ -1803,7 +1821,7 @@ static ssize_t mailbox_fops_read(struct file *file,
 	if (core->mailbox_response) {
 		struct ethosn_queue *queue = core->mailbox_response->cpu_addr;
 
-		ethosn_dma_sync_for_cpu(core->allocator,
+		ethosn_dma_sync_for_cpu(core->main_allocator,
 					core->mailbox_response);
 
 		n += scnprintf(&buf[n], sizeof(buf) - n,
@@ -1820,7 +1838,7 @@ static ssize_t mailbox_fops_read(struct file *file,
 	if (core->mailbox) {
 		struct ethosn_mailbox *mailbox = core->mailbox->cpu_addr;
 
-		ethosn_dma_sync_for_cpu(core->allocator, core->mailbox);
+		ethosn_dma_sync_for_cpu(core->main_allocator, core->mailbox);
 
 		n += scnprintf(&buf[n], sizeof(buf) - n, "Severity      : %u\n",
 			       mailbox->severity);
@@ -1995,7 +2013,7 @@ static ssize_t debug_monitor_channel_read(struct file *file,
 		/* Sync the queue header so that we can read an up-to-date write
 		 * pointer from the firmware
 		 */
-		ethosn_dma_sync_for_cpu(core->allocator,
+		ethosn_dma_sync_for_cpu(core->main_allocator,
 					core->debug_monitor_channel_response);
 		if (ethosn_queue_get_size(queue) > 0)
 			/* Data available */
@@ -2034,7 +2052,7 @@ static ssize_t debug_monitor_channel_read(struct file *file,
 	/* Sync the queue header so that the firmware can read our up-to-date
 	 * read pointer
 	 */
-	ethosn_dma_sync_for_device(core->allocator,
+	ethosn_dma_sync_for_device(core->main_allocator,
 				   core->debug_monitor_channel_response);
 
 	return ret;
@@ -2073,7 +2091,7 @@ static ssize_t debug_monitor_channel_write(struct file *file,
 	/* Sync the queue header so that we can read an up-to-date read pointer
 	 * from the firmware
 	 */
-	ethosn_dma_sync_for_cpu(core->allocator,
+	ethosn_dma_sync_for_cpu(core->main_allocator,
 				core->debug_monitor_channel_request);
 
 	/* Copy data from userspace. This is a simple/slow implementation that
@@ -2100,7 +2118,7 @@ static ssize_t debug_monitor_channel_write(struct file *file,
 		/* Sync the queue data so that the firmware can read our new
 		 * data
 		 */
-		ethosn_dma_sync_for_device(core->allocator,
+		ethosn_dma_sync_for_device(core->main_allocator,
 					   core->debug_monitor_channel_request);
 
 		/*
@@ -2112,7 +2130,7 @@ static ssize_t debug_monitor_channel_write(struct file *file,
 		/* Sync the new write pointer to make sure it's visible to the
 		 * firmware.
 		 */
-		ethosn_dma_sync_for_device(core->allocator,
+		ethosn_dma_sync_for_device(core->main_allocator,
 					   core->debug_monitor_channel_request);
 	}
 
@@ -2151,7 +2169,7 @@ static __poll_t debug_monitor_channel_poll(struct file *file,
 	 * First sync the queue header so that we can read an up-to-date write
 	 * pointer from the firmware
 	 */
-	ethosn_dma_sync_for_cpu(core->allocator,
+	ethosn_dma_sync_for_cpu(core->main_allocator,
 				core->debug_monitor_channel_response);
 	if (ethosn_queue_get_size(queue) > 0)
 		ret = (EPOLLIN | EPOLLRDNORM); /* Data is available*/
@@ -2327,17 +2345,15 @@ void ethosn_device_deinit(struct ethosn_core *core)
 
 	if (!IS_ERR_OR_NULL(core->profiling.firmware_buffer)) {
 		ethosn_dma_unmap_and_free(
-			core->allocator,
-			core->profiling.firmware_buffer,
-			ETHOSN_STREAM_WORKING_DATA);
+			core->main_allocator,
+			core->profiling.firmware_buffer);
 		core->profiling.firmware_buffer = NULL;
 	}
 
 	if (!IS_ERR_OR_NULL(core->profiling.firmware_buffer_pending)) {
 		ethosn_dma_unmap_and_free(
-			core->allocator,
-			core->profiling.firmware_buffer_pending,
-			ETHOSN_STREAM_WORKING_DATA);
+			core->main_allocator,
+			core->profiling.firmware_buffer_pending);
 		core->profiling.firmware_buffer_pending = NULL;
 	}
 }

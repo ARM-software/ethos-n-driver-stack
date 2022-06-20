@@ -29,6 +29,7 @@
 #include <linux/iommu.h>
 #include <linux/eventpoll.h>
 #include <linux/version.h>
+#include <linux/of.h>
 
 #if !defined(EPOLLERR)
 #define EPOLLERR        POLLERR
@@ -75,5 +76,13 @@ int ethosn_bitmap_find_next_zero_area(struct device *dev,
 
 struct sg_table *ethosn_dma_buf_map_attachment(
 	struct dma_buf_attachment *attach);
+
+#if (KERNEL_VERSION(4, 19, 0) > LINUX_VERSION_CODE)
+struct device_node *of_get_compatible_child(const struct device_node *parent,
+					    const char *compatible);
+
+bool of_node_name_eq(const struct device_node *node,
+		     const char *name);
+#endif
 
 #endif /* _ETHOSN_BACKPORT_H_ */

@@ -99,18 +99,13 @@ static int ethosn_dma_view_release(struct inode *const inode,
 	return 0;
 }
 
-static void buffer_unmap_dma(struct ethosn_buffer *buf,
-			     int num_cores)
+static void buffer_unmap_dma(struct ethosn_buffer *buf)
 {
 	struct ethosn_device *ethosn = buf->ethosn;
-	int i;
 
-	/* Unmap iova per core through core allocator */
-	for (i = 0; i < num_cores; ++i)
-		ethosn_dma_unmap(
-			ethosn->core[i]->allocator,
-			buf->dma_info,
-			ETHOSN_STREAM_DMA);
+	ethosn_dma_unmap(
+		ethosn->asset_allocator,
+		buf->dma_info);
 }
 
 static int ethosn_buffer_release(struct inode *const inode,
@@ -129,8 +124,12 @@ static int ethosn_buffer_release(struct inode *const inode,
 
 	dev_dbg(buf->ethosn->dev, "Release buffer. handle=0x%pK\n", buf);
 
-	buffer_unmap_dma(buf, ethosn->num_cores);
-	ethosn_dma_free(ethosn->allocator, buf->dma_info);
+	buffer_unmap_dma(buf);
+
+	/* only for input and output buffers. for other buffers net_fd ops is
+	 * used.
+	 */
+	ethosn_dma_free(ethosn->asset_allocator, buf->dma_info);
 
 	put_device(buf->ethosn->dev);
 
@@ -168,7 +167,7 @@ static int ethosn_buffer_mmap(struct file *const file,
 		return -EBADF;
 
 	buf = file->private_data;
-	allocator = buf->ethosn->allocator;
+	allocator = buf->ethosn->asset_allocator;
 
 	return ethosn_dma_mmap(allocator, vma, buf->dma_info);
 }
@@ -214,14 +213,15 @@ static long ethosn_buffer_ioctl(struct file *file,
 	case ETHOSN_IOCTL_SYNC_FOR_CPU: {
 		dev_dbg(ethosn->dev, "ETHOSN_IOCTL_SYNC_FOR_CPU\n");
 
-		ethosn_dma_sync_for_cpu(ethosn->allocator, buf->dma_info);
+		ethosn_dma_sync_for_cpu(ethosn->asset_allocator, buf->dma_info);
 
 		break;
 	}
 	case ETHOSN_IOCTL_SYNC_FOR_DEVICE: {
 		dev_dbg(ethosn->dev, "ETHOSN_IOCTL_SYNC_FOR_DEVICE\n");
 
-		ethosn_dma_sync_for_device(ethosn->allocator, buf->dma_info);
+		ethosn_dma_sync_for_device(ethosn->asset_allocator,
+					   buf->dma_info);
 		break;
 	}
 	default: {
@@ -240,19 +240,14 @@ static int ethosn_buffer_map_and_get_fd(struct ethosn_buffer *buf,
 {
 	int fd;
 	int ret = -ENOMEM;
-	int i;
 
-	/* Map iova per core through core allocator */
-	for (i = 0; i < ethosn->num_cores; ++i) {
-		int ret = ethosn_dma_map(
-			ethosn->core[i]->allocator,
-			buf->dma_info,
-			ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
-			ETHOSN_STREAM_DMA);
+	ret = ethosn_dma_map(
+		ethosn->asset_allocator,
+		buf->dma_info,
+		ETHOSN_PROT_READ | ETHOSN_PROT_WRITE);
 
-		if (ret < 0)
-			goto err_unmap_dma;
-	}
+	if (ret < 0)
+		goto err_map_failed;
 
 	ret = anon_inode_getfd("ethosn-buffer",
 			       ethosn_fops,
@@ -273,7 +268,9 @@ static int ethosn_buffer_map_and_get_fd(struct ethosn_buffer *buf,
 	return fd;
 
 err_unmap_dma:
-	buffer_unmap_dma(buf, i);
+	buffer_unmap_dma(buf);
+
+err_map_failed:
 
 	return ret;
 }
@@ -301,17 +298,19 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 	dev_dbg(ethosn->dev, "Create buffer. handle=0x%pK, size=%u\n",
 		buf, buf_req->size);
 
-	/* Note:- We create buffers on ethosn.
+	/* Note:- We create buffers using an asset allocator in ethosn.
 	 * For carveout :- Both the cores can access the same buffer as
 	 *                 the complete carveout memory is shared.
-	 * For smmu :- The buffer is allocated on core[0]. And it should
-	 *             be remapped to both the cores. The remapping part
-	 *             is yet to be done.
+	 * For smmu :- The buffer is allocated and then mapped using the
+	 *             io_buffer sub-allocator. All cores are assumed to
+	 *             share the same SMMU so the buffer is accessible
+	 *             by all cores.
 	 */
 	buf->ethosn = ethosn;
 
 	buf->dma_info =
-		ethosn_dma_alloc(ethosn->allocator, buf_req->size, GFP_KERNEL,
+		ethosn_dma_alloc(ethosn->asset_allocator, buf_req->size,
+				 ETHOSN_STREAM_IO_BUFFER, GFP_KERNEL,
 				 "buffer");
 	if (IS_ERR_OR_NULL(buf->dma_info))
 		goto err_kfree;
@@ -323,14 +322,15 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 
 	if (buf_req->flags & MB_ZERO) {
 		memset(buf->dma_info->cpu_addr, 0, buf->dma_info->size);
-		ethosn_dma_sync_for_device(ethosn->allocator, buf->dma_info);
+		ethosn_dma_sync_for_device(ethosn->asset_allocator,
+					   buf->dma_info);
 		dev_dbg(ethosn->dev, "Zeroed device buffer 0x%pK\n", buf);
 	}
 
 	return fd;
 
 err_dma_free:
-	ethosn_dma_free(buf->ethosn->allocator, buf->dma_info);
+	ethosn_dma_free(buf->ethosn->asset_allocator, buf->dma_info);
 err_kfree:
 	kfree(buf);
 
@@ -353,8 +353,8 @@ static int ethosn_dma_buffer_release(struct inode *const inode,
 
 	dev_dbg(buf->ethosn->dev, "Release buffer. handle=0x%pK\n", buf);
 
-	buffer_unmap_dma(buf, ethosn->num_cores);
-	ethosn_dma_release(ethosn->allocator, buf->dma_info);
+	buffer_unmap_dma(buf);
+	ethosn_dma_release(ethosn->asset_allocator, buf->dma_info);
 
 	put_device(buf->ethosn->dev);
 
@@ -388,18 +388,19 @@ int ethosn_buffer_import(struct ethosn_device *ethosn,
 	dev_dbg(ethosn->dev, "Import buffer. handle=0x%pK, fd=%d\n",
 		buf, dma_buf_req->fd);
 
-	/* Note:- We create buffers on ethosn.
+	/* Note:- We create buffers using an asset allocator in ethosn.
 	 * For carveout :- Both the cores can access the same buffer as
 	 *                 the complete carveout memory is shared.
-	 * For smmu :- The buffer is allocated on core[0]. And it should
-	 *             be remapped to both the cores. The remapping part
-	 *             is yet to be done.
+	 * For smmu :- The buffer is allocated and then mapped using the
+	 *             io_buffer sub-allocator. All cores are assumed to
+	 *             share the same SMMU so the buffer is accessible
+	 *             by all cores.
 	 */
 	buf->ethosn = ethosn;
-
 	buf->dma_info =
-		ethosn_dma_import(ethosn->allocator, dma_buf_req->fd,
-				  dma_buf_req->size);
+		ethosn_dma_import(ethosn->asset_allocator, dma_buf_req->fd,
+				  dma_buf_req->size,
+				  ETHOSN_STREAM_IO_BUFFER);
 	if (IS_ERR_OR_NULL(buf->dma_info))
 		goto err_kfree;
 
@@ -411,7 +412,7 @@ int ethosn_buffer_import(struct ethosn_device *ethosn,
 	return fd;
 
 err_dma_release:
-	ethosn_dma_release(ethosn->allocator, buf->dma_info);
+	ethosn_dma_release(ethosn->asset_allocator, buf->dma_info);
 err_kfree:
 	kfree(buf);
 
