@@ -48,7 +48,8 @@ FusedPlePart BuildPart(TensorShape inputShape,
     const QuantizationInfo outputQuantInfo(0, 1.0f);
     const std::set<uint32_t> operationsIds = { 1 };
     FusedPlePart part(partId, inputShape, outputShape, inputQuantInfo, outputQuantInfo, op, shapeMultiplier, estOpts,
-                      compOpts, caps, operationsIds, ethosn::command_stream::DataType::U8);
+                      compOpts, caps, operationsIds, ethosn::command_stream::DataType::U8,
+                      ethosn::command_stream::DataType::U8);
 
     return part;
 }
@@ -609,7 +610,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
         const command_stream::PleOperation csOp = command_stream::PleOperation::PASSTHROUGH;
         const utils::ShapeMultiplier shapeMult  = { 1, 1, 1 };
         FusedPlePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, csOp, shapeMult, estOpts, compOpt, caps,
-                          operationIds, ethosn::command_stream::DataType::U8);
+                          operationIds, ethosn::command_stream::DataType::U8, ethosn::command_stream::DataType::U8);
 
         CheckPlansParams params;
         params.m_PartId          = partId;
@@ -765,12 +766,14 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
         const command_stream::PleOperation csOpEven = command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN;
         const utils::ShapeMultiplier shapeMult      = { { 1, 2 }, { 1, 2 }, 1 };
         FusedPlePart partEven(partId, tsInEven, tsOut, inputQuantInfo, outputQuantInfo, csOpEven, shapeMult, estOpts,
-                              compOpt, caps, operationIds, ethosn::command_stream::DataType::U8);
+                              compOpt, caps, operationIds, ethosn::command_stream::DataType::U8,
+                              ethosn::command_stream::DataType::U8);
 
         TensorShape tsInOdd                        = { 1, 129, 129, 64 };
         const command_stream::PleOperation csOpOdd = command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD;
         FusedPlePart partOdd(partId, tsInOdd, tsOut, inputQuantInfo, outputQuantInfo, csOpOdd, shapeMult, estOpts,
-                             compOpt, caps, operationIds, ethosn::command_stream::DataType::U8);
+                             compOpt, caps, operationIds, ethosn::command_stream::DataType::U8,
+                             ethosn::command_stream::DataType::U8);
 
         CheckPlansParams paramsEven;
         paramsEven.m_PartId          = partId;

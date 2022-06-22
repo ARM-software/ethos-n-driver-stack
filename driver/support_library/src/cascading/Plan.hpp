@@ -232,7 +232,9 @@ public:
           uint32_t padLeft,
           uint32_t padTop,
           int16_t lowerBound,
-          int16_t upperBound);
+          int16_t upperBound,
+          bool isIfmSigned,
+          bool isOfmSigned);
 
     utils::Optional<command_stream::BlockConfig> GetBlockConfig() override
     {
@@ -255,6 +257,8 @@ public:
     command_stream::UpsampleType m_UpsampleType;
     int16_t m_LowerBound;
     int16_t m_UpperBound;
+    bool m_IsIfmSigned;
+    bool m_IsOfmSigned;
     utils::Optional<TensorShape> m_uninterleavedInputShape;
 };
 

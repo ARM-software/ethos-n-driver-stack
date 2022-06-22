@@ -266,7 +266,8 @@ McePart::McePart(PartId id,
                  const CompilationOptions& compOpt,
                  const HardwareCapabilities& capabilities,
                  std::set<uint32_t> operationIds,
-                 command_stream::DataType dataType)
+                 command_stream::DataType inputDataType,
+                 command_stream::DataType outputDataType)
     : BasePart(id, "McePart", CompilerDataFormat::NONE, operationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape(inputTensorShape)
     , m_OutputTensorShape(outputTensorShape)
@@ -299,9 +300,10 @@ McePart::McePart(PartId id,
                         ShapeMultiplier::Identity,
                         capabilities,
                         m_StripeConfig)
-    , m_DataType(dataType)
-    , m_LowerBound(dataType == command_stream::DataType::U8 ? 0 : -128)
-    , m_UpperBound(dataType == command_stream::DataType::U8 ? 255 : 127)
+    , m_InputDataType(inputDataType)
+    , m_OutputDataType(outputDataType)
+    , m_LowerBound(outputDataType == command_stream::DataType::U8 ? 0 : -128)
+    , m_UpperBound(outputDataType == command_stream::DataType::U8 ? 255 : 127)
 {}
 
 McePart::McePart(ConstructionParams&& params)
@@ -343,7 +345,8 @@ McePart::McePart(ConstructionParams&& params)
                         ShapeMultiplier::Identity,
                         params.m_Capabilities,
                         m_StripeConfig)
-    , m_DataType(params.m_DataType)
+    , m_InputDataType(params.m_InputDataType)
+    , m_OutputDataType(params.m_OutputDataType)
     , m_LowerBound(params.m_LowerBound)
     , m_UpperBound(params.m_UpperBound)
 {}
@@ -461,10 +464,13 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
         opGraph, mceStripeInfo, numMemoryStripes.m_Weight, memoryStripesInfo.m_Weight.m_Shape,
         memoryStripesInfo.m_Weight.m_NumLoads, convData, weightEncoderCache, mceOpAlgo);
 
+    uint8_t isIfmSigned = m_InputDataType == command_stream::DataType::S8;
+    uint8_t isOfmSigned = m_OutputDataType == command_stream::DataType::S8;
+
     auto mceOp =
         std::make_unique<MceOp>(m_Operation, mceOpAlgo, mceStripeInfo.m_BlockConfig, mceStripeInfo.m_Input,
                                 mceStripeInfo.m_Output, memoryStripesInfo.m_Weight.m_Shape, TraversalOrder::Xyz,
-                                m_Stride, m_PadLeft, m_PadTop, m_LowerBound, m_UpperBound);
+                                m_Stride, m_PadLeft, m_PadTop, m_LowerBound, m_UpperBound, isIfmSigned, isOfmSigned);
     mceOp->m_UpscaleFactor = m_UpscaleFactor;
     mceOp->m_UpsampleType  = m_UpsampleType;
     if (m_UninterleavedInputShape.has_value())
@@ -520,7 +526,7 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                 std::unique_ptr<PleOp> pleOp =
                     std::make_unique<PleOp>(PleOperation::PASSTHROUGH, info.m_MceCompute.m_BlockConfig, 1,
                                             std::vector<TensorShape>{ info.m_PleCompute.m_Input },
-                                            info.m_PleCompute.m_Output, m_DataType, true);
+                                            info.m_PleCompute.m_Output, m_OutputDataType, true);
                 auto outBufferAndPleOp =
                     AddPleToOpGraph(opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(pleOp),
                                     m_OutputTensorShape, m_OutputQuantizationInfo, m_CorrespondingOperationIds);
@@ -806,6 +812,8 @@ ethosn::support_library::DotAttributes McePart::GetDotAttributes(DetailLevel det
         result.m_Label += "OutputTensorShape = " + ToString(m_OutputTensorShape) + "\n";
         result.m_Label += "InputQuantizationInfo = " + ToString(m_InputQuantizationInfo) + "\n";
         result.m_Label += "OutputQuantizationInfo = " + ToString(m_OutputQuantizationInfo) + "\n";
+        result.m_Label += "InputDataType = " + ToString(m_InputDataType) + "\n";
+        result.m_Label += "OutputDataType = " + ToString(m_OutputDataType) + "\n";
         result.m_Label += "WeightsInfo = " + ToString(m_WeightsInfo) + "\n";
         result.m_Label += "BiasInfo = " + ToString(m_BiasInfo) + "\n";
         result.m_Label += "Stride = " + ToString(m_Stride) + "\n";

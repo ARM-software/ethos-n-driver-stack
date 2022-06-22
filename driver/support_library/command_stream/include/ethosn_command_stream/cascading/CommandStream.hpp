@@ -45,7 +45,7 @@ enum class FmsDataType : uint8_t
 struct FcafInfo
 {
     /// Zero point info needed for FCAF
-    uint8_t zeroPoint;
+    int16_t zeroPoint;
     /// Signed activation info needed for FCAF
     bool signedActivation;
 };

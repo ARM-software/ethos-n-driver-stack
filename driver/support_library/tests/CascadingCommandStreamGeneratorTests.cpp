@@ -103,7 +103,8 @@ private:
 class MceOpGraph
 {
 public:
-    MceOpGraph()
+    MceOpGraph(ethosn::command_stream::DataType mceInputDataType  = ethosn::command_stream::DataType::U8,
+               ethosn::command_stream::DataType mceOutputDataType = ethosn::command_stream::DataType::U8)
     {
         const std::set<uint32_t> operationIds = { 0 };
         ethosn::support_library::impl::NumMemoryStripes numMemoryStripes;
@@ -171,10 +172,11 @@ public:
         kernelWidth             = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[1]);
 
         // Plan mcePlePlan
-        m_OpGraph.AddOp(
-            std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                    BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 },
-                                    TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        m_OpGraph.AddOp(std::make_unique<MceOp>(
+            ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+            TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz,
+            Stride(), 0, 0, 0, 255, mceInputDataType == ethosn::command_stream::DataType::S8,
+            mceOutputDataType == ethosn::command_stream::DataType::S8));
         m_OpGraph.GetOps().back()->m_DebugTag = "MceOp";
 
         m_OpGraph.AddConsumer(ptrInputBuffer, ops.back(), 0);    // connect input sram buffer
@@ -198,7 +200,7 @@ public:
         // The PleKernelId is expected to be PASSTHROUGH_8x8_1
         pleOp = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
                                         std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                        TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
+                                        TensorShape{ 1, 4, 4, 32 }, mceOutputDataType, true);
         pleOp.get()->m_Offset     = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp =
@@ -363,10 +365,10 @@ public:
         m_OpGraph.GetBuffers().back()->m_Offset   = 0x000000F0;
         m_OpGraph.SetProducer(buffers.back(), ops.back());
 
-        m_OpGraph.AddOp(
-            std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                    BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 },
-                                    TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        m_OpGraph.AddOp(std::make_unique<MceOp>(
+            ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+            TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz,
+            Stride(), 0, 0, 0, 255, false, false));
 
         m_OpGraph.AddConsumer(inputSramBuffer, ops.back(), 0);
         m_OpGraph.AddConsumer(buffers.back(), ops.back(), 1);
@@ -622,10 +624,10 @@ public:
         kernelHeight            = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[0]);
         kernelWidth             = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[1]);
 
-        mergedOpGraph.AddOp(
-            std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                    BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 },
-                                    TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        mergedOpGraph.AddOp(std::make_unique<MceOp>(
+            ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+            TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz,
+            Stride(), 0, 0, 0, 255, false, false));
         mergedOpGraph.GetOps().back()->m_DebugTag = "MceOp";
 
         mergedOpGraph.AddConsumer(inputSramBuffer, mergedOpGraph.GetOps().back(), 0);
@@ -723,10 +725,10 @@ public:
         kernelWidth2             = static_cast<uint8_t>(ptrWeightBuffer2->m_TensorShape[1]);
 
         // Plan mcePlePlan
-        mergedOpGraph.AddOp(
-            std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                    BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 },
-                                    TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        mergedOpGraph.AddOp(std::make_unique<MceOp>(
+            ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+            TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz,
+            Stride(), 0, 0, 0, 255, false, false));
         mergedOpGraph.GetOps().back()->m_DebugTag = "MceOp2";
 
         mergedOpGraph.AddConsumer(intermediateSramBuffer, mergedOpGraph.GetOps().back(), 0);
@@ -952,10 +954,10 @@ public:
         kernelWidth             = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[1]);
 
         // Plan mcePlePlan
-        mergedOpGraph.AddOp(
-            std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                    BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 },
-                                    TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        mergedOpGraph.AddOp(std::make_unique<MceOp>(
+            ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+            TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz,
+            Stride(), 0, 0, 0, 255, false, false));
         mergedOpGraph.GetOps().back()->m_DebugTag = "MceOp";
 
         mergedOpGraph.AddConsumer(inputSramBuffer, mergedOpGraph.GetOps().back(), 0);
@@ -1026,10 +1028,10 @@ public:
         kernelWidth2             = static_cast<uint8_t>(ptrWeightBuffer2->m_TensorShape[1]);
 
         // Plan mcePlePlan
-        mergedOpGraph.AddOp(
-            std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                    BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 },
-                                    TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        mergedOpGraph.AddOp(std::make_unique<MceOp>(
+            ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+            TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz,
+            Stride(), 0, 0, 0, 255, false, false));
         mergedOpGraph.GetOps().back()->m_DebugTag = "MceOp2";
 
         mergedOpGraph.AddConsumer(outBufferAndPleOp.first, mergedOpGraph.GetOps().back(), 0);
@@ -1244,10 +1246,10 @@ public:
         kernelWidth             = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[2]);
 
         // Plan mcePlePlan
-        mergedOpGraph.AddOp(std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION,
-                                                    CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
-                                                    TensorShape{ 1, 5, 5, 1 }, TensorShape{ 1, 5, 5, 1 },
-                                                    outputTensorShape, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        mergedOpGraph.AddOp(
+            std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                    BlockConfig{ 16u, 16u }, TensorShape{ 1, 5, 5, 1 }, TensorShape{ 1, 5, 5, 1 },
+                                    outputTensorShape, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255, false, false));
         mergedOpGraph.GetOps().back()->m_DebugTag = "MceOp Stride 1x1";
 
         mergedOpGraph.AddConsumer(ptrInputBuffer, mergedOpGraph.GetOps().back(), 0);    // connect input sram buffer
@@ -1316,10 +1318,10 @@ public:
         kernelWidth2             = static_cast<uint8_t>(ptrWeightBuffer2->m_TensorShape[2]);
 
         // Plan mcePlePlan
-        mergedOpGraph.AddOp(std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION,
-                                                    CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
-                                                    TensorShape{ 1, 5, 5, 1 }, outputTensorShape, outputTensorShape,
-                                                    TraversalOrder::Xyz, Stride(2, 2), padLeft, padTop, 0, 255));
+        mergedOpGraph.AddOp(std::make_unique<MceOp>(
+            ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+            TensorShape{ 1, 5, 5, 1 }, outputTensorShape, outputTensorShape, TraversalOrder::Xyz, Stride(2, 2), padLeft,
+            padTop, 0, 255, false, false));
         (static_cast<MceOp*>(mergedOpGraph.GetOps().back()))->m_uninterleavedInputShape = TensorShape{ 1, 5, 5, 1 };
         mergedOpGraph.GetOps().back()->m_DebugTag                                       = "MceOp Stride 2x2";
 
@@ -1528,10 +1530,10 @@ public:
         kernelWidth             = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[2]);
 
         // Plan mcePlePlan
-        mergedOpGraph.AddOp(
-            std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                    BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 },
-                                    TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        mergedOpGraph.AddOp(std::make_unique<MceOp>(
+            ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+            TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz,
+            Stride(), 0, 0, 0, 255, false, false));
         mergedOpGraph.GetOps()[0]->m_DebugTag = "MceOp";
 
         mergedOpGraph.AddConsumer(ptrInputBuffer, ops.back(), 0);
@@ -2049,7 +2051,12 @@ TEST_CASE("WeightStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
 // MceScheduler Agent Data Test
 TEST_CASE("MceScheduler Agent Data Test", "[CascadingCommandStreamGenerator]")
 {
-    MceOpGraph mceOpGraph = MceOpGraph();
+    const ethosn::command_stream::DataType inputDatatype =
+        GENERATE(ethosn::command_stream::DataType::S8, ethosn::command_stream::DataType::U8);
+    const ethosn::command_stream::DataType outputDatatype =
+        GENERATE(ethosn::command_stream::DataType::S8, ethosn::command_stream::DataType::U8);
+
+    MceOpGraph mceOpGraph = MceOpGraph(inputDatatype, outputDatatype);
     OpGraph mergedOpGraph = mceOpGraph.GetMergedOpGraph();
 
     const CompilationOptions compOpt;
@@ -2114,6 +2121,9 @@ TEST_CASE("MceScheduler Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(mceSData.ifmDeltaDefault[0].width == mceOpGraph.getIfmDeltaDefaultWidth());
     CHECK(mceSData.ifmDeltaEdge[0].height == mceOpGraph.getIfmDeltaEdgeHeight());
     CHECK(mceSData.ifmDeltaEdge[0].width == mceOpGraph.getIfmDeltaEdgeWidth());
+
+    CHECK(mceSData.isIfmSigned == (inputDatatype == ethosn::command_stream::DataType::S8));
+    CHECK(mceSData.isOfmSigned == (outputDatatype == ethosn::command_stream::DataType::S8));
 
     CHECK(mceSData.reluActiv.max == 255);
     CHECK(mceSData.reluActiv.min == 0);

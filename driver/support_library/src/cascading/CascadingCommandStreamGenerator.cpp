@@ -728,7 +728,7 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(Op* c
     StreamersUtils::SetBufferDataType(ifmStreamerData.fmData, transferFormat);
     ifmStreamerData.fmData.fcafInfo.signedActivation = false;
     ifmStreamerData.fmData.fcafInfo.zeroPoint =
-        ethosn::utils::NumericCast<uint8_t>(inputDramBuffer->m_QuantizationInfo.GetZeroPoint());
+        ethosn::utils::NumericCast<int16_t>(inputDramBuffer->m_QuantizationInfo.GetZeroPoint());
 
     CommonUtils::SetTileInfoForBuffer(m_Capabilities, ifmStreamerData.fmData.tile, inputSramBuffer);
 
@@ -857,8 +857,9 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
 
     mceSchedulerData.convStrideXy.x = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_Stride.m_X);
     mceSchedulerData.convStrideXy.y = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_Stride.m_Y);
-    mceSchedulerData.ifmZeroPoint =
-        ethosn::utils::NumericCast<uint16_t>(inputBuffer->m_QuantizationInfo.GetZeroPoint());
+    mceSchedulerData.ifmZeroPoint = ethosn::utils::NumericCast<int16_t>(inputBuffer->m_QuantizationInfo.GetZeroPoint());
+    mceSchedulerData.isIfmSigned  = static_cast<uint8_t>(ptrMceOp->m_IsIfmSigned);
+    mceSchedulerData.isOfmSigned  = static_cast<uint8_t>(ptrMceOp->m_IsOfmSigned);
 
     MceSUtils::setMcesAlgorithm(mceSchedulerData, ptrMceOp->m_Algo);
 
@@ -1063,7 +1064,7 @@ AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(Op* c
 
     ofmStreamerData.fmData.fcafInfo.signedActivation = false;
     ofmStreamerData.fmData.fcafInfo.zeroPoint =
-        ethosn::utils::NumericCast<uint8_t>(outputDramBuffer->m_QuantizationInfo.GetZeroPoint());
+        ethosn::utils::NumericCast<int16_t>(outputDramBuffer->m_QuantizationInfo.GetZeroPoint());
 
     CommonUtils::SetTileInfoForBuffer(m_Capabilities, ofmStreamerData.fmData.tile, outputSramBuffer);
 

@@ -32,7 +32,8 @@ FusedPlePart::FusedPlePart(PartId id,
                            const CompilationOptions& compOpt,
                            const HardwareCapabilities& capabilities,
                            std::set<uint32_t> correspondingOperationIds,
-                           command_stream::DataType dataType)
+                           command_stream::DataType m_InputDataType,
+                           command_stream::DataType m_OutputDataType)
     : BasePart(id, "FusedPlePart", CompilerDataFormat::NONE, correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape(inputTensorShape)
     , m_OutputTensorShape(outputTensorShape)
@@ -57,7 +58,8 @@ FusedPlePart::FusedPlePart(PartId id,
                         capabilities,
                         m_StripeConfig)
     , m_WeightEncoderCache{ capabilities, m_DebugTag.c_str() }
-    , m_DataType(dataType)
+    , m_InputDataType(m_InputDataType)
+    , m_OutputDataType(m_OutputDataType)
 {
     m_StripeGenerator.m_StripeConfig.blockConfigs =
         FilterPleBlockConfigs(m_KernelOperation, m_StripeGenerator.m_StripeConfig.blockConfigs);
@@ -168,14 +170,17 @@ std::pair<Buffer*, Buffer*> FusedPlePart::AddIdentityMceOpForSubGraph(OwnedOpGra
     Buffer* weightSramBuffer = AddIdentityWeights(opGraph, mceComputeInfo, numMemoryStripes.m_Weight,
                                                   memoryStripes.m_Weight.m_Shape, convData, weightEncoderCache);
 
-    int16_t lowerBound = m_DataType == command_stream::DataType::U8 ? 0 : -128;
-    int16_t upperBound = m_DataType == command_stream::DataType::U8 ? 255 : 127;
+    int16_t lowerBound = m_OutputDataType == command_stream::DataType::U8 ? 0 : -128;
+    int16_t upperBound = m_OutputDataType == command_stream::DataType::U8 ? 255 : 127;
+
+    bool isIfmSigned = m_InputDataType == command_stream::DataType::S8;
+    bool isOfmSigned = m_OutputDataType == command_stream::DataType::S8;
 
     // Add MceOp.
     opGraph.AddOp(std::make_unique<MceOp>(MceOperation::DEPTHWISE_CONVOLUTION, CompilerMceAlgorithm::Direct,
                                           mceComputeInfo.m_BlockConfig, mceComputeInfo.m_Input, mceComputeInfo.m_Output,
                                           mceComputeInfo.m_Weight, TraversalOrder::Xyz, Stride(1, 1), 0, 0, lowerBound,
-                                          upperBound));
+                                          upperBound, isIfmSigned, isOfmSigned));
     Op* idMceOp             = ops.back();
     idMceOp->m_OperationIds = m_CorrespondingOperationIds;
 
@@ -239,7 +244,7 @@ void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
                 // A fuse only ple operation only has 1 input
                 auto op = std::make_unique<PleOp>(m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
                                                   std::vector<TensorShape>{ info.m_PleCompute.m_Input },
-                                                  info.m_PleCompute.m_Output, m_DataType, true);
+                                                  info.m_PleCompute.m_Output, m_OutputDataType, true);
 
                 auto outBufferAndPleOp =
                     AddPleToOpGraph(opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(op),
@@ -276,7 +281,7 @@ void FusedPlePart::CreateFuseOnlyPlans(const PleOnlyInfo& info, Plans& plans) co
             // A fuse only ple operation only has 1 input
             auto op = std::make_unique<PleOp>(m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
                                               std::vector<TensorShape>{ info.m_PleCompute.m_Input },
-                                              info.m_PleCompute.m_Output, m_DataType, true);
+                                              info.m_PleCompute.m_Output, m_OutputDataType, true);
 
             auto outBufferAndPleOp =
                 AddPleToOpGraph(opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(op),
@@ -580,6 +585,8 @@ ethosn::support_library::DotAttributes FusedPlePart::GetDotAttributes(DetailLeve
         result.m_Label += "OutputTensorShape = " + ToString(m_OutputTensorShape) + "\n";
         result.m_Label += "InputQuantizationInfo = " + ToString(m_InputQuantizationInfo) + "\n";
         result.m_Label += "OutputQuantizationInfo = " + ToString(m_OutputQuantizationInfo) + "\n";
+        result.m_Label += "InputDataType = " + ToString(m_InputDataType) + "\n";
+        result.m_Label += "OutputDataType = " + ToString(m_OutputDataType) + "\n";
         result.m_Label += "KernelOperation = " + ToString(m_KernelOperation) + "\n";
         result.m_Label += "ShapeMultiplier = " + ToString(m_ShapeMultiplier) + "\n";
 

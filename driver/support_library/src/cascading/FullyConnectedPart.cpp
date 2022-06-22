@@ -29,7 +29,8 @@ FullyConnectedPart::FullyConnectedPart(PartId id,
                                        const CompilationOptions& compOpt,
                                        const HardwareCapabilities& capabilities,
                                        std::set<uint32_t> operationIds,
-                                       command_stream::DataType dataType)
+                                       command_stream::DataType inputDataType,
+                                       command_stream::DataType outputDataType)
     : McePart(id,
               reinterpretedInputShape,
               outputTensorShape,
@@ -47,7 +48,8 @@ FullyConnectedPart::FullyConnectedPart(PartId id,
               compOpt,
               capabilities,
               operationIds,
-              dataType)
+              inputDataType,
+              outputDataType)
     , m_OriginalInputShape(inputTensorShape)
 {}
 
@@ -250,7 +252,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                     std::unique_ptr<PleOp> pleOp =
                         std::make_unique<PleOp>(PleOperation::PASSTHROUGH, info.m_MceCompute.m_BlockConfig, 1,
                                                 std::vector<TensorShape>{ info.m_PleCompute.m_Input },
-                                                info.m_PleCompute.m_Output, m_DataType, true);
+                                                info.m_PleCompute.m_Output, m_OutputDataType, true);
                     auto outBufferAndPleOp =
                         AddPleToOpGraph(opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(pleOp),
                                         m_OutputTensorShape, m_OutputQuantizationInfo, m_CorrespondingOperationIds);

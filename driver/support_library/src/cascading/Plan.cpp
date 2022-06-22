@@ -328,6 +328,8 @@ MceOp::MceOp()
     , m_UpsampleType(command_stream::UpsampleType::OFF)
     , m_LowerBound(0)
     , m_UpperBound(255)
+    , m_IsIfmSigned(false)
+    , m_IsOfmSigned(false)
 {}
 
 MceOp::MceOp(MceOperation op,
@@ -341,7 +343,9 @@ MceOp::MceOp(MceOperation op,
              uint32_t padLeft,
              uint32_t padTop,
              int16_t lowerBound,
-             int16_t upperBound)
+             int16_t upperBound,
+             bool isIfmSigned,
+             bool isOfmSigned)
     : Op("MceOp")
     , m_Op(op)
     , m_Algo(algo)
@@ -357,6 +361,8 @@ MceOp::MceOp(MceOperation op,
     , m_UpsampleType(command_stream::UpsampleType::OFF)
     , m_LowerBound(lowerBound)
     , m_UpperBound(upperBound)
+    , m_IsIfmSigned(isIfmSigned)
+    , m_IsOfmSigned(isOfmSigned)
 {}
 
 DotAttributes MceOp::GetDotAttributes(DetailLevel detail) const
@@ -376,6 +382,8 @@ DotAttributes MceOp::GetDotAttributes(DetailLevel detail) const
         result.m_Label += "Pad L/T = " + to_string(this->m_PadLeft) + ", " + to_string(this->m_PadTop) + "\n";
         result.m_Label +=
             "Lower/Upper Bound = " + to_string(this->m_LowerBound) + ", " + to_string(this->m_UpperBound) + "\n";
+        result.m_Label += "IsIfmSigned = " + to_string(this->m_IsIfmSigned ? 1U : 0U) + "\n";
+        result.m_Label += "IsOfmSigned = " + to_string(this->m_IsOfmSigned ? 1U : 0U) + "\n";
         result.m_Label += "Operation Ids = " + ArrayToString(this->m_OperationIds) + "\n";
     }
     return result;

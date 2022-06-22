@@ -31,7 +31,8 @@ public:
                        const CompilationOptions& compOpt,
                        const HardwareCapabilities& capabilities,
                        std::set<uint32_t> operationIds,
-                       command_stream::DataType dataType);
+                       command_stream::DataType inputDataType,
+                       command_stream::DataType outputDataType);
 
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,

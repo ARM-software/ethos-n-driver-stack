@@ -1013,9 +1013,10 @@ TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
     planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram";
     size_t outputBufferIndex                        = planA.m_OpGraph.GetBuffers().size() - 1;
 
-    planA.m_OpGraph.AddOp(std::make_unique<MceOp>(
-        MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u }, TensorShape{ 1, 16, 16, 16 },
-        TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+    planA.m_OpGraph.AddOp(std::make_unique<MceOp>(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                                  BlockConfig{ 16u, 16u }, TensorShape{ 1, 16, 16, 16 },
+                                                  TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 1, 1, 16 },
+                                                  TraversalOrder::Xyz, Stride(), 0, 0, 0, 255, false, false));
     planA.m_OpGraph.GetOps()[0]->m_DebugTag = "MceOp";
     size_t mceOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
     planA.m_OpGraph.AddOp(
@@ -1108,9 +1109,10 @@ TEST_CASE("BufferDeallocationTest_CascadeOps", "[CombinerDFS]")
     planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram";
     size_t outputBufferIndex                        = planA.m_OpGraph.GetBuffers().size() - 1;
 
-    planA.m_OpGraph.AddOp(std::make_unique<MceOp>(
-        MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u }, TensorShape{ 1, 16, 16, 16 },
-        TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+    planA.m_OpGraph.AddOp(std::make_unique<MceOp>(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                                  BlockConfig{ 16u, 16u }, TensorShape{ 1, 16, 16, 16 },
+                                                  TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 1, 1, 16 },
+                                                  TraversalOrder::Xyz, Stride(), 0, 0, 0, 255, false, false));
     planA.m_OpGraph.GetOps()[0]->m_DebugTag = "MceOp";
     size_t mceOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
     planA.m_OpGraph.AddOp(
@@ -1192,9 +1194,10 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
     planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramA";
     planA.m_OutputMappings                          = { { planA.m_OpGraph.GetBuffers()[1], partAOutputSlot0 } };
-    planA.m_OpGraph.AddOp(std::make_unique<MceOp>(
-        MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u }, TensorShape{ 1, 17, 16, 16 },
-        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+    planA.m_OpGraph.AddOp(std::make_unique<MceOp>(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                                  BlockConfig{ 16u, 16u }, TensorShape{ 1, 17, 16, 16 },
+                                                  TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 1, 1, 16 },
+                                                  TraversalOrder::Xyz, Stride(), 0, 0, 0, 255, false, false));
     planA.m_OpGraph.GetOps()[0]->m_DebugTag = "MceA";
     planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[0], planA.m_OpGraph.GetOps()[0], 0);
     planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[1], planA.m_OpGraph.GetOps()[0]);
@@ -1211,9 +1214,10 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
     planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramB";
     planB.m_InputMappings                           = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
     planB.m_OutputMappings                          = { { planB.m_OpGraph.GetBuffers()[1], partBOutputSlot0 } };
-    planB.m_OpGraph.AddOp(std::make_unique<MceOp>(
-        MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u }, TensorShape{ 1, 17, 16, 16 },
-        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+    planB.m_OpGraph.AddOp(std::make_unique<MceOp>(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                                  BlockConfig{ 16u, 16u }, TensorShape{ 1, 17, 16, 16 },
+                                                  TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 1, 1, 16 },
+                                                  TraversalOrder::Xyz, Stride(), 0, 0, 0, 255, false, false));
     planB.m_OpGraph.GetOps()[0]->m_DebugTag = "MceB";
     planB.m_OpGraph.AddConsumer(planB.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetOps()[0], 0);
     planB.m_OpGraph.SetProducer(planB.m_OpGraph.GetBuffers()[1], planB.m_OpGraph.GetOps()[0]);
@@ -2269,9 +2273,10 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
                                { planDE.m_OpGraph.GetBuffers()[2], partDEInputSlot1 } };
     planDE.m_OutputMappings                          = { { planDE.m_OpGraph.GetBuffers()[1], partDEOutputSlot0 },
                                 { planDE.m_OpGraph.GetBuffers()[3], partDEOutputSlot1 } };
-    planDE.m_OpGraph.AddOp(std::make_unique<MceOp>(
-        MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u }, TensorShape{ 1, 17, 16, 16 },
-        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+    planDE.m_OpGraph.AddOp(std::make_unique<MceOp>(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                                   BlockConfig{ 16u, 16u }, TensorShape{ 1, 17, 16, 16 },
+                                                   TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 1, 1, 16 },
+                                                   TraversalOrder::Xyz, Stride(), 0, 0, 0, 255, false, false));
     planDE.m_OpGraph.GetOps()[0]->m_DebugTag = "Mce2";
     planDE.m_OpGraph.AddConsumer(planDE.m_OpGraph.GetBuffers()[0], planDE.m_OpGraph.GetOps()[0], 0);
     planDE.m_OpGraph.AddConsumer(planDE.m_OpGraph.GetBuffers()[2], planDE.m_OpGraph.GetOps()[0], 1);
@@ -3481,9 +3486,10 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
                                                        TensorShape{ 1, 32, 16, 1024 }, TensorShape{ 1, 4, 16, 1024 },
                                                        TraversalOrder::Xyz, ofmSize, QuantizationInfo()));
 
-    planA.m_OpGraph.AddOp(std::make_unique<MceOp>(
-        MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 8u, 8u }, TensorShape{ 1, 32, 16, 1024 },
-        TensorShape{ 1, 4, 16, 1024 }, TensorShape{ 1, 32, 16, 1024 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+    planA.m_OpGraph.AddOp(std::make_unique<MceOp>(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                                  BlockConfig{ 8u, 8u }, TensorShape{ 1, 32, 16, 1024 },
+                                                  TensorShape{ 1, 4, 16, 1024 }, TensorShape{ 1, 32, 16, 1024 },
+                                                  TraversalOrder::Xyz, Stride(), 0, 0, 0, 255, false, false));
     planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[1], planA.m_OpGraph.GetOps()[0]);
     planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[0], partAInputSlot } };
     planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[1], partAOutputSlot } };
@@ -3600,9 +3606,10 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
                                                            TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
                                                            TraversalOrder::Xyz, outputBufferSize, QuantizationInfo()));
 
-        planA.m_OpGraph.AddOp(std::make_unique<MceOp>(
-            MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 8u, 8u }, TensorShape{ 1, 8, 8, 8 },
-            TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        planA.m_OpGraph.AddOp(std::make_unique<MceOp>(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                                      BlockConfig{ 8u, 8u }, TensorShape{ 1, 8, 8, 8 },
+                                                      TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
+                                                      TraversalOrder::Xyz, Stride(), 0, 0, 0, 255, false, false));
 
         planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[0], partAInputSlot } };
         planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[1], partAOutputSlot } };
@@ -3714,9 +3721,10 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                                                            TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
                                                            TraversalOrder::Xyz, outputBufferSize, QuantizationInfo()));
 
-        planA.m_OpGraph.AddOp(std::make_unique<MceOp>(
-            MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 8u, 8u }, TensorShape{ 1, 8, 8, 8 },
-            TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        planA.m_OpGraph.AddOp(std::make_unique<MceOp>(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                                      BlockConfig{ 8u, 8u }, TensorShape{ 1, 8, 8, 8 },
+                                                      TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
+                                                      TraversalOrder::Xyz, Stride(), 0, 0, 0, 255, false, false));
 
         planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[0], partAInputSlot } };
         planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[1], partAOutputSlot } };
@@ -3788,7 +3796,7 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
             planB.m_OpGraph.AddOp(std::make_unique<MceOp>(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
                                                           BlockConfig{ 8u, 8u }, TensorShape{ 1, 8, 8, 8 },
                                                           TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
-                                                          TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+                                                          TraversalOrder::Xyz, Stride(), 0, 0, 0, 255, false, false));
 
             planB.m_InputMappings  = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
             planB.m_OutputMappings = { { planB.m_OpGraph.GetBuffers()[1], partBOutputSlot } };
@@ -3894,10 +3902,10 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                     Location::PleInputSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 },
                     TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, OutputBufferSize, QuantizationInfo()));
 
-                planC.m_OpGraph.AddOp(std::make_unique<MceOp>(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                                              BlockConfig{ 8u, 8u }, TensorShape{ 1, 8, 8, 8 },
-                                                              TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
-                                                              TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+                planC.m_OpGraph.AddOp(std::make_unique<MceOp>(
+                    MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 8u, 8u },
+                    TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
+                    TraversalOrder::Xyz, Stride(), 0, 0, 0, 255, false, false));
 
                 planC.m_InputMappings  = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
                 planC.m_OutputMappings = { { planC.m_OpGraph.GetBuffers()[1], partCOutputSlot } };
@@ -4045,7 +4053,7 @@ TEST_CASE("ArePlansAllowedToMerge IdentityParts", "[CombinerDFS]")
                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
     MceOp mceOp(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
                 TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 1, 1, 64 },
-                TraversalOrder::Xyz, Stride(), 0, 0, 0, 255);
+                TraversalOrder::Xyz, Stride(), 0, 0, 0, 255, false, false);
     planA.m_OpGraph.AddOp(std::make_unique<MceOp>(std::move(mceOp)));
     planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[0], planA.m_OpGraph.GetOps()[0]);
     planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot0 } };
