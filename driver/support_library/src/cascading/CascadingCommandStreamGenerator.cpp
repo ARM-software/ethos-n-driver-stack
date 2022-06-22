@@ -24,7 +24,10 @@ CascadingCommandStreamGenerator::CascadingCommandStreamGenerator(const OpGraph& 
     , m_OperationIds{ operationIds }
     , m_Capabilities{ capabilities }
     , m_CompilationOptions{ compilationOptions }
-{}
+{
+
+    m_CommandStreamAgents.reserve(m_MergedOpGraph.GetOps().size());
+}
 
 CascadingCommandStreamGenerator::~CascadingCommandStreamGenerator()
 {}
@@ -615,6 +618,7 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(Op* c
                                                                            const Buffer* const inputSramBuffer)
 {
     assert(IsObjectOfType<DmaOp>(ptrOp) || IsObjectOfType<ConcatOp>(ptrOp));
+    assert(inputSramBuffer->m_Format == CascadingBufferFormat::NHWCB);
 
     IfmS ifmStreamerData = {};
 
@@ -627,11 +631,11 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(Op* c
 
     CommonUtils::SetTileInfoForBuffer(m_Capabilities, ifmStreamerData.fmData.tile, inputSramBuffer);
 
-    StreamersUtils::SetStripeHeightInfo(ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
+    StreamersUtils::SetStripeHeightInfo(m_Capabilities, ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
                                         inputSramBuffer->m_StripeShape);
-    StreamersUtils::SetStripeWidthInfo(ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
+    StreamersUtils::SetStripeWidthInfo(m_Capabilities, ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
                                        inputSramBuffer->m_StripeShape);
-    StreamersUtils::SetStripeChannelsInfo(ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
+    StreamersUtils::SetStripeChannelsInfo(m_Capabilities, ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
                                           inputSramBuffer->m_StripeShape);
 
     StreamersUtils::SetSuperTensorSizeInCells(ifmStreamerData.fmData, inputDramBuffer->m_TensorShape,
@@ -824,6 +828,7 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
 
     // Get the output buffer from the Ple Op
     Buffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrPleOp);
+
     if (ptrPleOp->m_Lifetime == Lifetime::Atomic)
     {
         assert(ptrPleOp->m_OutputStripeShape == outputBuffer->m_StripeShape);
@@ -912,6 +917,7 @@ AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(Op* c
                                                                            const Buffer* const outputDramBuffer)
 {
     assert(IsObjectOfType<DmaOp>(ptrOp) || IsObjectOfType<ConcatOp>(ptrOp));
+    assert(outputSramBuffer->m_Format == CascadingBufferFormat::NHWCB);
 
     OfmS ofmStreamerData = {};
 
@@ -930,11 +936,11 @@ AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(Op* c
 
     CommonUtils::SetTileInfoForBuffer(m_Capabilities, ofmStreamerData.fmData.tile, outputSramBuffer);
 
-    StreamersUtils::SetStripeHeightInfo(ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
+    StreamersUtils::SetStripeHeightInfo(m_Capabilities, ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
                                         outputSramBuffer->m_StripeShape);
-    StreamersUtils::SetStripeWidthInfo(ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
+    StreamersUtils::SetStripeWidthInfo(m_Capabilities, ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
                                        outputSramBuffer->m_StripeShape);
-    StreamersUtils::SetStripeChannelsInfo(ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
+    StreamersUtils::SetStripeChannelsInfo(m_Capabilities, ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
                                           outputSramBuffer->m_StripeShape);
 
     StreamersUtils::SetSuperTensorSizeInCells(ofmStreamerData.fmData, outputDramBuffer->m_TensorShape,

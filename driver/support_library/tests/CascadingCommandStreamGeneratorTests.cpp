@@ -20,7 +20,7 @@ using namespace cascading_compiler;
 using PleKernelId = ethosn::command_stream::cascading::PleKernelId;
 
 //////////////////////////////////////////////////////////////////////////////////////////////
-// Cascading Compiler Testing Classes
+// Cascading Command Stream Generation Testing Classes
 //////////////////////////////////////////////////////////////////////////////////////////////
 
 class StandalonePleOpGraph
@@ -573,7 +573,7 @@ public:
 
         // Get the PleOp from the OpGraph, check that it is indeed a PleOp and set the Offset
         Op* maybePleOp = planA.m_OpGraph.GetOp(3);
-        REQUIRE(IsPleOp(maybePleOp));
+        CHECK(IsPleOp(maybePleOp));
         PleOp* actualPleOp    = static_cast<PleOp*>(maybePleOp);
         actualPleOp->m_Offset = 0x00000F00;
 
@@ -727,93 +727,6 @@ private:
 
     std::shared_ptr<EncodedWeights> encodedWeights;
 
-    Combination comb;
-    OpGraph mergedOpGraph;
-};
-
-class ConcatOpGraph
-{
-public:
-    ConcatOpGraph()
-    {
-        auto& parts = graph.m_Parts;
-
-        auto concatPart = std::make_unique<MockPart>(graph.GeneratePartId());
-
-        PartId concatPartId = concatPart->GetPartId();
-
-        parts.push_back(std::move(concatPart));
-
-        PartInputSlot concatPartInputSlot0   = { concatPartId, 0 };
-        PartInputSlot concatPartInputSlot1   = { concatPartId, 1 };
-        PartOutputSlot concatPartOutputSlot0 = { concatPartId, 0 };
-
-        const std::set<uint32_t> operationIds = { 0 };
-
-        // Plan concatPlan
-        concatPlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
-                                                                TensorShape{ 1, 16, 16, 3 }, TensorShape{ 1, 8, 8, 16 },
-                                                                TraversalOrder::Xyz, 4, QuantizationInfo()));
-        concatPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "Input1DramBuffer";
-        concatPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x00000FFF;
-        concatPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
-        concatPlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
-                                                                TensorShape{ 1, 16, 8, 3 }, TensorShape{ 1, 8, 8, 16 },
-                                                                TraversalOrder::Xyz, 4, QuantizationInfo()));
-        concatPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "Input2DramBuffer";
-        concatPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x0000F000;
-        concatPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
-        concatPlan.m_OpGraph.AddBuffer(
-            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 24, 3 },
-                                     TensorShape{ 1, 16, 24, 3 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
-        concatPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "OutputDramBuffer";
-        concatPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x0000F00F;
-        concatPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
-        concatPlan.m_OpGraph.AddOp(std::make_unique<ConcatOp>());
-        concatPlan.m_OpGraph.GetOps()[0]->m_DebugTag = "ConcatOp";
-        concatPlan.m_OpGraph.AddConsumer(concatPlan.m_OpGraph.GetBuffers()[0], concatPlan.m_OpGraph.GetOps()[0], 0);
-        concatPlan.m_OpGraph.AddConsumer(concatPlan.m_OpGraph.GetBuffers()[1], concatPlan.m_OpGraph.GetOps()[0], 1);
-        concatPlan.m_OpGraph.SetProducer(concatPlan.m_OpGraph.GetBuffers()[2], concatPlan.m_OpGraph.GetOps()[0]);
-        concatPlan.m_InputMappings  = { { concatPlan.m_OpGraph.GetBuffers()[0], concatPartInputSlot0 },
-                                       { concatPlan.m_OpGraph.GetBuffers()[1], concatPartInputSlot1 } };
-        concatPlan.m_OutputMappings = { { concatPlan.m_OpGraph.GetBuffers()[2], concatPartOutputSlot0 } };
-
-        Elem elemInput1Dram = { std::make_shared<Plan>(std::move(input1DramPlan)), {} };
-        Elem elemInput2Dram = { std::make_shared<Plan>(std::move(input2DramPlan)), {} };
-        Elem elemConcat     = { std::make_shared<Plan>(std::move(concatPlan)), {} };
-        Elem elemOutputDram = { std::make_shared<Plan>(std::move(outputDramPlan)), {} };
-
-        comb.m_Elems.insert(std::make_pair(0, elemConcat));
-        comb.m_PartIdsInOrder.push_back(0);
-
-        bool dumpInputGraphToFile = false;
-        if (dumpInputGraphToFile)
-        {
-            std::ofstream stream("Concat_Graph.dot");
-            SaveCombinationToDot(comb, graph, stream, DetailLevel::High);
-        }
-
-        mergedOpGraph = GetOpGraphForCombination(comb, graph);
-
-        bool dumpOutputGraphToFile = false;
-        if (dumpOutputGraphToFile)
-        {
-            std::ofstream stream("Concat_Graph_Merged.dot");
-            SaveOpGraphToDot(mergedOpGraph, stream, DetailLevel::High);
-        }
-    }
-
-    OpGraph GetMergedOpGraph()
-    {
-        return mergedOpGraph;
-    }
-
-private:
-    GraphOfParts graph;
-    Plan input1DramPlan;
-    Plan input2DramPlan;
-    Plan concatPlan;
-    Plan outputDramPlan;
     Combination comb;
     OpGraph mergedOpGraph;
 };
@@ -1572,7 +1485,7 @@ public:
         pleOp2 =
             std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
                                     BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                    TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
+                                    TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, false);
         pleOp2.get()->m_Offset    = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp2   = AddPleToOpGraph(mcePle2Plan.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
@@ -1734,10 +1647,473 @@ private:
     OpGraph mergedOpGraph;
 };
 
+class TwoInputsForPleOpGraph
+{
+public:
+    TwoInputsForPleOpGraph()
+    {
+        auto& parts       = graph.m_Parts;
+        auto& connections = graph.m_Connections;
+
+        auto inputDramPart        = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto inputSramPart        = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto weightDramPart       = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto weightSramPart       = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto mcePlePart           = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto intermediateDramPart = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto intermediateSramPart = std::make_unique<MockPart>(graph.GeneratePartId());
+
+        auto input2DramPart   = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto input2SramPart   = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto twoInputsPlePart = std::make_unique<MockPart>(graph.GeneratePartId());
+        auto outputDramPart   = std::make_unique<MockPart>(graph.GeneratePartId());
+
+        PartId inputDramPartId        = inputDramPart->GetPartId();
+        PartId inputSramPartId        = inputSramPart->GetPartId();
+        PartId weightDramPartId       = weightDramPart->GetPartId();
+        PartId weightSramPartId       = weightSramPart->GetPartId();
+        PartId mcePlePartId           = mcePlePart->GetPartId();
+        PartId intermediateDramPartId = intermediateDramPart->GetPartId();
+        PartId intermediateSramPartId = intermediateSramPart->GetPartId();
+
+        PartId input2DramPartId   = input2DramPart->GetPartId();
+        PartId input2SramPartId   = input2SramPart->GetPartId();
+        PartId twoInputsPlePartId = twoInputsPlePart->GetPartId();
+        PartId outputDramPartId   = outputDramPart->GetPartId();
+
+        parts.push_back(std::move(inputDramPart));
+        parts.push_back(std::move(inputSramPart));
+        parts.push_back(std::move(weightDramPart));
+        parts.push_back(std::move(weightSramPart));
+        parts.push_back(std::move(mcePlePart));
+        parts.push_back(std::move(intermediateDramPart));
+        parts.push_back(std::move(intermediateSramPart));
+
+        parts.push_back(std::move(input2DramPart));
+        parts.push_back(std::move(input2SramPart));
+        parts.push_back(std::move(twoInputsPlePart));
+        parts.push_back(std::move(outputDramPart));
+
+        PartOutputSlot inputDramPartOutputSlot0  = { inputDramPartId, 0 };
+        PartOutputSlot weightDramPartOutputSlot0 = { weightDramPartId, 0 };
+
+        PartInputSlot inputSramPartInputSlot0   = { inputSramPartId, 0 };
+        PartOutputSlot inputSramPartOutputSlot0 = { inputSramPartId, 0 };
+
+        PartInputSlot weightSramPartInputSlot0   = { weightSramPartId, 0 };
+        PartOutputSlot weightSramPartOutputSlot0 = { weightSramPartId, 0 };
+
+        PartInputSlot mcePlePartInputSlot0   = { mcePlePartId, 0 };
+        PartInputSlot mcePlePartInputSlot1   = { mcePlePartId, 1 };
+        PartOutputSlot mcePlePartOutputSlot0 = { mcePlePartId, 0 };
+
+        PartInputSlot intermediateDramPartInputSlot0   = { intermediateDramPartId, 0 };
+        PartOutputSlot intermediateDramPartOutputSlot0 = { intermediateDramPartId, 0 };
+
+        PartInputSlot intermediateSramPartInputSlot0   = { intermediateSramPartId, 0 };
+        PartOutputSlot intermediateSramPartOutputSlot0 = { intermediateSramPartId, 0 };
+
+        PartOutputSlot input2DramPartOutputSlot0 = { input2DramPartId, 0 };
+
+        PartInputSlot input2SramPartInputSlot0   = { input2SramPartId, 0 };
+        PartOutputSlot input2SramPartOutputSlot0 = { input2SramPartId, 0 };
+
+        PartInputSlot twoInputsPlePartInputSlot0   = { twoInputsPlePartId, 0 };
+        PartInputSlot twoInputsPlePartInputSlot1   = { twoInputsPlePartId, 1 };
+        PartOutputSlot twoInputsPlePartOutputSlot0 = { twoInputsPlePartId, 0 };
+
+        PartInputSlot outputDramPartInputSlot0 = { outputDramPartId, 0 };
+
+        connections[inputSramPartInputSlot0]        = inputDramPartOutputSlot0;
+        connections[weightSramPartInputSlot0]       = weightDramPartOutputSlot0;
+        connections[mcePlePartInputSlot0]           = inputSramPartOutputSlot0;
+        connections[mcePlePartInputSlot1]           = weightSramPartOutputSlot0;
+        connections[intermediateDramPartInputSlot0] = mcePlePartOutputSlot0;
+        connections[intermediateSramPartInputSlot0] = intermediateDramPartOutputSlot0;
+
+        connections[input2SramPartInputSlot0]   = input2DramPartOutputSlot0;
+        connections[twoInputsPlePartInputSlot0] = intermediateSramPartOutputSlot0;
+        connections[twoInputsPlePartInputSlot1] = input2SramPartOutputSlot0;
+        connections[outputDramPartInputSlot0]   = twoInputsPlePartOutputSlot0;
+
+        const std::set<uint32_t> operationIds = { 0 };
+        ethosn::support_library::impl::NumMemoryStripes numMemoryStripes;
+
+        // Plan inputDramPlan
+        inputDramPlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 160, 160, 3 },
+                                     TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
+        inputDramPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
+        inputDramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "InputDramBuffer";
+        inputDramPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x00000F0A;
+        inputDramPlan.m_OutputMappings = { { inputDramPlan.m_OpGraph.GetBuffers()[0], inputDramPartOutputSlot0 } };
+
+        // Glue glueInputDram_InputSram
+        glueInputDram_InputSram.m_Graph.AddOp(std::make_unique<DmaOp>());
+        glueInputDram_InputSram.m_Graph.GetOps()[0]->m_DebugTag = "InputDmaOp";
+        glueInputDram_InputSram.m_InputSlot                     = { glueInputDram_InputSram.m_Graph.GetOps()[0], 0 };
+        glueInputDram_InputSram.m_Output.push_back(glueInputDram_InputSram.m_Graph.GetOps()[0]);
+
+        // Plan inputSramPlan
+        inputSramPlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 160, 160, 3 },
+                                     TensorShape{ 1, 8, 8, 16 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+        inputSramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "InputSramBuffer";
+        inputSramPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x00000F0F;
+        inputSramPlan.m_OpGraph.GetBuffers().back()->m_NumStripes = 4;
+        inputSramPlan.m_InputMappings  = { { inputSramPlan.m_OpGraph.GetBuffers()[0], inputSramPartInputSlot0 } };
+        inputSramPlan.m_OutputMappings = { { inputSramPlan.m_OpGraph.GetBuffers()[0], inputSramPartOutputSlot0 } };
+
+        Buffer* ptrInputBuffer = inputSramPlan.m_OpGraph.GetBuffers().back();
+        inputStripeSize        = utils::TotalSizeBytesNHWCB(ptrInputBuffer->m_StripeShape);
+        inputZeroPoint         = ptrInputBuffer->m_QuantizationInfo.GetZeroPoint();
+
+        // Plan weightDramPlan
+        weightDramPlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::WEIGHT, TensorShape{ 1, 1, 3, 1 },
+                                     TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
+        weightDramPlan.m_OpGraph.GetBuffers().back()->m_BufferType     = BufferType::ConstantDma;
+        weightDramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag       = "WeightDramBuffer";
+        encodedWeights                                                 = std::make_shared<EncodedWeights>();
+        encodedWeights->m_Data                                         = { 1, 2, 3, 4 };
+        encodedWeights->m_MaxSize                                      = 10;
+        encodedWeights->m_Metadata                                     = { { 0, 2 }, { 2, 2 } };
+        weightDramPlan.m_OpGraph.GetBuffers().back()->m_EncodedWeights = encodedWeights;
+        weightDramPlan.m_OutputMappings = { { weightDramPlan.m_OpGraph.GetBuffers()[0], weightDramPartOutputSlot0 } };
+
+        // Glue glueWeightDram_WeightSram
+        glueWeightDram_WeightSram.m_Graph.AddOp(std::make_unique<DmaOp>());
+        glueWeightDram_WeightSram.m_Graph.GetOps()[0]->m_DebugTag = "WeightDmaOp";
+        glueWeightDram_WeightSram.m_InputSlot = { glueWeightDram_WeightSram.m_Graph.GetOps()[0], 0 };
+        glueWeightDram_WeightSram.m_Output.push_back(glueWeightDram_WeightSram.m_Graph.GetOps()[0]);
+
+        // Plan weightSramPlan
+        weightSramPlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::WEIGHT, TensorShape{ 1, 1, 3, 1 },
+                                     TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+        weightSramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag    = "WeightSramBuffer";
+        weightSramPlan.m_OpGraph.GetBuffers().back()->m_Offset      = 0x00000FF0;
+        weightSramPlan.m_OpGraph.GetBuffers().back()->m_NumStripes  = 3;
+        weightSramPlan.m_OpGraph.GetBuffers().back()->m_SizeInBytes = encodedWeights->m_MaxSize;
+        weightSramPlan.m_InputMappings  = { { weightSramPlan.m_OpGraph.GetBuffers()[0], weightSramPartInputSlot0 } };
+        weightSramPlan.m_OutputMappings = { { weightSramPlan.m_OpGraph.GetBuffers()[0], weightSramPartOutputSlot0 } };
+
+        Buffer* ptrWeightBuffer = weightSramPlan.m_OpGraph.GetBuffers().back();
+        weightSize              = ptrWeightBuffer->m_SizeInBytes / ptrWeightBuffer->m_NumStripes;
+        kernelHeight            = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[1]);
+        kernelWidth             = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[2]);
+
+        // Plan mcePlePlan
+        mcePlePlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 160, 160, 3 },
+                                     TensorShape{ 1, 8, 8, 16 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+        mcePlePlan.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateInputSramBuffer";
+        mcePlePlan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x00000FFF;
+        mcePlePlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                                TensorShape{ 1, 1, 3, 1 }, TensorShape{ 1, 1, 16, 1 },
+                                                                TraversalOrder::Xyz, 4, QuantizationInfo()));
+        mcePlePlan.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateWeightSramBuffer";
+        mcePlePlan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x0000F000;
+        mcePlePlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::PleInputSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 17, 16, 16 },
+                                     TensorShape{ 1, 17, 16, 16 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
+        mcePlePlan.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputPleInputSramBuffer";
+        mcePlePlan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x0000F00F;
+
+        mcePlePlan.m_OpGraph.AddOp(std::make_unique<MceOp>(
+            Lifetime::Cascade, ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+            BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 },
+            TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        mcePlePlan.m_OpGraph.GetOps()[0]->m_DebugTag = "MceOp";
+
+        mcePlePlan.m_OpGraph.AddConsumer(mcePlePlan.m_OpGraph.GetBuffers()[0], mcePlePlan.m_OpGraph.GetOps()[0], 0);
+        mcePlePlan.m_OpGraph.AddConsumer(mcePlePlan.m_OpGraph.GetBuffers()[1], mcePlePlan.m_OpGraph.GetOps()[0], 1);
+        mcePlePlan.m_OpGraph.SetProducer(mcePlePlan.m_OpGraph.GetBuffers()[2], mcePlePlan.m_OpGraph.GetOps()[0]);
+
+        ifmDeltaHeight = static_cast<int8_t>(inputSramPlan.m_OpGraph.GetBuffers()[0]->m_TensorShape[1] -
+                                             mcePlePlan.m_OpGraph.GetBuffers()[2]->m_TensorShape[1]);
+        ifmDeltaWidth  = static_cast<int8_t>(inputSramPlan.m_OpGraph.GetBuffers()[0]->m_TensorShape[2] -
+                                            mcePlePlan.m_OpGraph.GetBuffers()[2]->m_TensorShape[2]);
+
+        // Adding a passthrough PLE kernel to the plan
+        // The PleKernelId is expected to be PASSTHROUGH_8x8_1
+        pleOp = std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
+                                        BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                        TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
+        pleOp.get()->m_Offset     = 0x0000F0F0;
+        numMemoryStripes.m_Output = 1;
+        auto outBufferAndPleOp    = AddPleToOpGraph(mcePlePlan.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
+                                                 TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp),
+                                                 TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
+        mcePlePlan.m_OpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
+        mcePlePlan.m_OpGraph.AddConsumer(mcePlePlan.m_OpGraph.GetBuffers()[2], mcePlePlan.m_OpGraph.GetOps()[1], 0);
+
+        mcePlePlan.m_InputMappings  = { { mcePlePlan.m_OpGraph.GetBuffers()[0], mcePlePartInputSlot0 },
+                                       { mcePlePlan.m_OpGraph.GetBuffers()[1], mcePlePartInputSlot1 } };
+        mcePlePlan.m_OutputMappings = { { mcePlePlan.m_OpGraph.GetBuffers()[3], mcePlePartOutputSlot0 } };
+
+        // Glue glueintermediateSram_intermediateDram
+        glueintermediateSram_intermediateDram.m_Graph.AddOp(std::make_unique<DmaOp>());
+        glueintermediateSram_intermediateDram.m_Graph.GetOps()[0]->m_DebugTag = "intermediateDmaOp";
+        glueintermediateSram_intermediateDram.m_InputSlot = { glueintermediateSram_intermediateDram.m_Graph.GetOps()[0],
+                                                              0 };
+        glueintermediateSram_intermediateDram.m_Output.push_back(
+            glueintermediateSram_intermediateDram.m_Graph.GetOps()[0]);
+
+        // Plan intermediateDramPlan
+        intermediateDramPlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 80, 80, 24 },
+                                     TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
+        intermediateDramPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Intermediate;
+        intermediateDramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "intermediateDramBuffer";
+        intermediateDramPlan.m_InputMappings  = { { intermediateDramPlan.m_OpGraph.GetBuffers()[0],
+                                                   intermediateDramPartInputSlot0 } };
+        intermediateDramPlan.m_OutputMappings = { { intermediateDramPlan.m_OpGraph.GetBuffers()[0],
+                                                    intermediateDramPartOutputSlot0 } };
+
+        // Glue glueintermediateDram_intermediateSram
+        glueintermediateDram_intermediateSram.m_Graph.AddOp(std::make_unique<DmaOp>());
+        glueintermediateDram_intermediateSram.m_Graph.GetOps()[0]->m_DebugTag = "intermediateSramDmaOp";
+        glueintermediateDram_intermediateSram.m_InputSlot = { glueintermediateDram_intermediateSram.m_Graph.GetOps()[0],
+                                                              0 };
+        glueintermediateDram_intermediateSram.m_Output.push_back(
+            glueintermediateDram_intermediateSram.m_Graph.GetOps()[0]);
+
+        // Plan intermediateSramPlan
+        intermediateSramPlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 80, 80, 24 },
+                                     TensorShape{ 1, 8, 8, 16 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+        intermediateSramPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Intermediate;
+        intermediateSramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "intermediateSramBuffer";
+        intermediateSramPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x00000F0F;
+        intermediateSramPlan.m_OpGraph.GetBuffers().back()->m_NumStripes = 4;
+        intermediateSramPlan.m_InputMappings  = { { intermediateSramPlan.m_OpGraph.GetBuffers()[0],
+                                                   intermediateSramPartInputSlot0 } };
+        intermediateSramPlan.m_OutputMappings = { { intermediateSramPlan.m_OpGraph.GetBuffers()[0],
+                                                    intermediateSramPartOutputSlot0 } };
+
+        // Plan input2DramPlan
+        input2DramPlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 1, 3, 1 },
+                                     TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
+        input2DramPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
+        input2DramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "Input2DramBuffer";
+        input2DramPlan.m_OutputMappings = { { input2DramPlan.m_OpGraph.GetBuffers()[0], input2DramPartOutputSlot0 } };
+
+        // Glue glueInput2Dram_Input2Sram
+        glueInput2Dram_Input2Sram.m_Graph.AddOp(std::make_unique<DmaOp>());
+        glueInput2Dram_Input2Sram.m_Graph.GetOps()[0]->m_DebugTag = "Input2DmaOp";
+        glueInput2Dram_Input2Sram.m_InputSlot = { glueInput2Dram_Input2Sram.m_Graph.GetOps()[0], 0 };
+        glueInput2Dram_Input2Sram.m_Output.push_back(glueInput2Dram_Input2Sram.m_Graph.GetOps()[0]);
+
+        // Plan input2SramPlan
+        input2SramPlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 1, 3, 1 },
+                                     TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+        input2SramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "Input2SramBuffer";
+        input2SramPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x00000FF0;
+        input2SramPlan.m_OpGraph.GetBuffers().back()->m_NumStripes = 3;
+        input2SramPlan.m_InputMappings  = { { input2SramPlan.m_OpGraph.GetBuffers()[0], input2SramPartInputSlot0 } };
+        input2SramPlan.m_OutputMappings = { { input2SramPlan.m_OpGraph.GetBuffers()[0], input2SramPartOutputSlot0 } };
+
+        // Plan twoInputsPlePlan
+        twoInputsPlePlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 80, 80, 24 },
+                                     TensorShape{ 1, 8, 8, 16 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+        twoInputsPlePlan.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateInputSramBuffer";
+        twoInputsPlePlan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x00000FFF;
+        twoInputsPlePlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 1, 3, 1 },
+                                     TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+        twoInputsPlePlan.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateInput2SramBuffer";
+        twoInputsPlePlan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x0000F000;
+
+        // Adding a passthrough PLE kernel to the plan
+        // The PleKernelId is expected to be PASSTHROUGH_8x8_1
+        pleOp2 =
+            std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::ADDITION_RESCALE,
+                                    BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                    TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
+        pleOp2.get()->m_Offset    = 0x0000F0F0;
+        numMemoryStripes.m_Output = 1;
+        auto outBufferAndPleOp2   = AddPleToOpGraph(twoInputsPlePlan.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
+                                                  TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp2),
+                                                  TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
+        twoInputsPlePlan.m_OpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
+
+        twoInputsPlePlan.m_OpGraph.AddConsumer(twoInputsPlePlan.m_OpGraph.GetBuffers()[0],
+                                               twoInputsPlePlan.m_OpGraph.GetOps()[0], 0);
+        twoInputsPlePlan.m_OpGraph.AddConsumer(twoInputsPlePlan.m_OpGraph.GetBuffers()[1],
+                                               twoInputsPlePlan.m_OpGraph.GetOps()[0], 1);
+
+        twoInputsPlePlan.m_InputMappings = { { twoInputsPlePlan.m_OpGraph.GetBuffers()[0], twoInputsPlePartInputSlot0 },
+                                             { twoInputsPlePlan.m_OpGraph.GetBuffers()[1],
+                                               twoInputsPlePartInputSlot1 } };
+        twoInputsPlePlan.m_OutputMappings = { { twoInputsPlePlan.m_OpGraph.GetBuffers()[2],
+                                                twoInputsPlePartOutputSlot0 } };
+
+        // Glue glueOutputSram_OutputDram
+        glueOutputSram_OutputDram.m_Graph.AddOp(std::make_unique<DmaOp>());
+        glueOutputSram_OutputDram.m_Graph.GetOps()[0]->m_DebugTag = "outputDmaOp";
+        glueOutputSram_OutputDram.m_InputSlot = { glueOutputSram_OutputDram.m_Graph.GetOps()[0], 0 };
+        glueOutputSram_OutputDram.m_Output.push_back(glueOutputSram_OutputDram.m_Graph.GetOps()[0]);
+
+        // Plan outputDramPlan
+        outputDramPlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 80, 80, 24 },
+                                     TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
+        outputDramPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
+        outputDramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "outputDramBuffer";
+        outputDramPlan.m_InputMappings = { { outputDramPlan.m_OpGraph.GetBuffers()[0], outputDramPartInputSlot0 } };
+
+        Elem elemInputDram        = { std::make_shared<Plan>(std::move(inputDramPlan)),
+                               { { inputSramPartInputSlot0, { &glueInputDram_InputSram, true } } } };
+        Elem elemInputSram        = { std::make_shared<Plan>(std::move(inputSramPlan)), {} };
+        Elem elemWeightDram       = { std::make_shared<Plan>(std::move(weightDramPlan)),
+                                { { weightSramPartInputSlot0, { &glueWeightDram_WeightSram, true } } } };
+        Elem elemWeightSram       = { std::make_shared<Plan>(std::move(weightSramPlan)), {} };
+        Elem elemMcePle           = { std::make_shared<Plan>(std::move(mcePlePlan)),
+                            { { intermediateDramPartInputSlot0, { &glueintermediateSram_intermediateDram, true } } } };
+        Elem elemintermediateDram = { std::make_shared<Plan>(std::move(intermediateDramPlan)),
+                                      { { intermediateSramPartInputSlot0,
+                                          { &glueintermediateDram_intermediateSram, true } } } };
+        Elem elemintermediateSram = { std::make_shared<Plan>(std::move(intermediateSramPlan)), {} };
+
+        Elem elemInput2Dram   = { std::make_shared<Plan>(std::move(input2DramPlan)),
+                                { { input2SramPartInputSlot0, { &glueInput2Dram_Input2Sram, true } } } };
+        Elem elemInput2Sram   = { std::make_shared<Plan>(std::move(input2SramPlan)), {} };
+        Elem elemTwoInputsPle = { std::make_shared<Plan>(std::move(twoInputsPlePlan)),
+                                  { { outputDramPartInputSlot0, { &glueOutputSram_OutputDram, true } } } };
+        Elem elemoutputDram   = { std::make_shared<Plan>(std::move(outputDramPlan)), {} };
+
+        comb.m_Elems.insert(std::make_pair(0, elemInputDram));
+        comb.m_PartIdsInOrder.push_back(0);
+        comb.m_Elems.insert(std::make_pair(1, elemInputSram));
+        comb.m_PartIdsInOrder.push_back(1);
+        comb.m_Elems.insert(std::make_pair(2, elemWeightDram));
+        comb.m_PartIdsInOrder.push_back(2);
+        comb.m_Elems.insert(std::make_pair(3, elemWeightSram));
+        comb.m_PartIdsInOrder.push_back(3);
+        comb.m_Elems.insert(std::make_pair(4, elemMcePle));
+        comb.m_PartIdsInOrder.push_back(4);
+        comb.m_Elems.insert(std::make_pair(5, elemintermediateDram));
+        comb.m_PartIdsInOrder.push_back(5);
+        comb.m_Elems.insert(std::make_pair(6, elemintermediateSram));
+        comb.m_PartIdsInOrder.push_back(6);
+
+        comb.m_Elems.insert(std::make_pair(7, elemInput2Dram));
+        comb.m_PartIdsInOrder.push_back(7);
+        comb.m_Elems.insert(std::make_pair(8, elemInput2Sram));
+        comb.m_PartIdsInOrder.push_back(8);
+        comb.m_Elems.insert(std::make_pair(9, elemTwoInputsPle));
+        comb.m_PartIdsInOrder.push_back(9);
+        comb.m_Elems.insert(std::make_pair(10, elemoutputDram));
+        comb.m_PartIdsInOrder.push_back(10);
+
+        bool dumpInputGraphToFile = false;
+        if (dumpInputGraphToFile)
+        {
+            std::ofstream stream("CascadingCommandStreamGenerator_TwoInputForPle_Input.dot");
+            SaveCombinationToDot(comb, graph, stream, DetailLevel::High);
+        }
+
+        mergedOpGraph = GetOpGraphForCombination(comb, graph);
+
+        bool dumpOutputGraphToFile = false;
+        if (dumpOutputGraphToFile)
+        {
+            std::ofstream stream("CascadingCommandStreamGenerator_TwoInputForPle_Output.dot");
+            SaveOpGraphToDot(mergedOpGraph, stream, DetailLevel::High);
+        }
+
+        ETHOSN_UNUSED(outBufferAndPleOp);
+        ETHOSN_UNUSED(outBufferAndPleOp2);
+    }
+
+    OpGraph GetMergedOpGraph()
+    {
+        return mergedOpGraph;
+    }
+
+    uint32_t getInputStripeSize()
+    {
+        return inputStripeSize;
+    }
+
+    uint32_t getWeightSize()
+    {
+        return weightSize;
+    }
+
+    int32_t getInputZeroPoint()
+    {
+        return inputZeroPoint;
+    }
+
+    uint8_t getKernelHeight()
+    {
+        return kernelHeight;
+    }
+
+    uint8_t getKernelWidth()
+    {
+        return kernelWidth;
+    }
+
+    int8_t getIfmDeltaHeight()
+    {
+        return ifmDeltaHeight;
+    }
+
+    int8_t getIfmDeltaWidth()
+    {
+        return ifmDeltaWidth;
+    }
+
+private:
+    GraphOfParts graph;
+
+    Plan inputDramPlan;
+    Glue glueInputDram_InputSram;
+    Plan inputSramPlan;
+    Plan weightDramPlan;
+    Glue glueWeightDram_WeightSram;
+    Plan weightSramPlan;
+    Plan mcePlePlan;
+    Glue glueintermediateSram_intermediateDram;
+    Plan intermediateDramPlan;
+    Glue glueintermediateDram_intermediateSram;
+    Plan intermediateSramPlan;
+
+    Plan input2DramPlan;
+    Glue glueInput2Dram_Input2Sram;
+    Plan input2SramPlan;
+    Plan twoInputsPlePlan;
+    Glue glueOutputSram_OutputDram;
+    Plan outputDramPlan;
+
+    std::shared_ptr<EncodedWeights> encodedWeights;
+
+    std::unique_ptr<PleOp> pleOp;
+    std::unique_ptr<PleOp> pleOp2;
+
+    uint32_t inputStripeSize;
+    uint32_t weightSize;
+    int32_t inputZeroPoint;
+
+    uint8_t kernelHeight;
+    uint8_t kernelWidth;
+    int8_t ifmDeltaHeight;
+    int8_t ifmDeltaWidth;
+
+    Combination comb;
+    OpGraph mergedOpGraph;
+};
+
 class StridedConvOpGraph
 {
 public:
-    StridedConvOpGraph(uint32_t padLeft, uint32_t padTop, TensorShape outputTensorShape)
+    StridedConvOpGraph(uint32_t padLeft, uint32_t padTop, TensorShape weightTensorShape, TensorShape outputTensorShape)
     {
         auto& parts       = graph.m_Parts;
         auto& connections = graph.m_Connections;
@@ -1842,9 +2218,9 @@ public:
         inputZeroPoint         = ptrInputBuffer->m_QuantizationInfo.GetZeroPoint();
 
         // Plan weightDramPlan
-        weightDramPlan.m_OpGraph.AddBuffer(
-            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::WEIGHT, TensorShape{ 3, 3, 2, 1 },
-                                     TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
+        weightDramPlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::WEIGHT,
+                                                                    weightTensorShape, TensorShape{ 0, 0, 0, 0 },
+                                                                    TraversalOrder::Xyz, 0, QuantizationInfo()));
         weightDramPlan.m_OpGraph.GetBuffers().back()->m_BufferType     = BufferType::ConstantDma;
         weightDramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag       = "WeightDramBuffer";
         encodedWeights                                                 = std::make_shared<EncodedWeights>();
@@ -1861,9 +2237,9 @@ public:
         glueWeightDram_WeightSram.m_Output.push_back(glueWeightDram_WeightSram.m_Graph.GetOps()[0]);
 
         // Plan weightSramPlan
-        weightSramPlan.m_OpGraph.AddBuffer(
-            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::WEIGHT, TensorShape{ 3, 3, 1, 1 },
-                                     TensorShape{ 3, 3, 1, 1 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+        weightSramPlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::WEIGHT,
+                                                                    weightTensorShape, weightTensorShape,
+                                                                    TraversalOrder::Xyz, 4, QuantizationInfo()));
         weightSramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag    = "WeightSramBuffer";
         weightSramPlan.m_OpGraph.GetBuffers().back()->m_Offset      = 0x00000FF0;
         weightSramPlan.m_OpGraph.GetBuffers().back()->m_NumStripes  = 1;
@@ -1883,7 +2259,7 @@ public:
         mcePlePlan.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateInputSramBuffer";
         mcePlePlan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x00000FFF;
         mcePlePlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                                TensorShape{ 1, 3, 3, 1 }, TensorShape{ 1, 3, 3, 1 },
+                                                                weightTensorShape, weightTensorShape,
                                                                 TraversalOrder::Xyz, 1, QuantizationInfo()));
         mcePlePlan.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateWeightSramBuffer";
         mcePlePlan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x0000F000;
@@ -1927,9 +2303,9 @@ public:
         mcePlePlan.m_OutputMappings = { { mcePlePlan.m_OpGraph.GetBuffers()[3], mcePlePartOutputSlot0 } };
 
         // Plan weight2DramPlan
-        weight2DramPlan.m_OpGraph.AddBuffer(
-            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::WEIGHT, TensorShape{ 3, 3, 1, 1 },
-                                     TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
+        weight2DramPlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::WEIGHT,
+                                                                     weightTensorShape, TensorShape{ 0, 0, 0, 0 },
+                                                                     TraversalOrder::Xyz, 0, QuantizationInfo()));
         weight2DramPlan.m_OpGraph.GetBuffers().back()->m_BufferType     = BufferType::ConstantDma;
         weight2DramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag       = "Weight2DramBuffer";
         encodedWeights2                                                 = std::make_shared<EncodedWeights>();
@@ -1947,9 +2323,9 @@ public:
         glueWeight2Dram_Weight2Sram.m_Output.push_back(glueWeight2Dram_Weight2Sram.m_Graph.GetOps()[0]);
 
         // Plan weightSramPlan
-        weight2SramPlan.m_OpGraph.AddBuffer(
-            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::WEIGHT, TensorShape{ 3, 3, 1, 1 },
-                                     TensorShape{ 3, 3, 1, 1 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
+        weight2SramPlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::WEIGHT,
+                                                                     weightTensorShape, weightTensorShape,
+                                                                     TraversalOrder::Xyz, 4, QuantizationInfo()));
         weight2SramPlan.m_OpGraph.GetBuffers().back()->m_DebugTag    = "Weight2SramBuffer";
         weight2SramPlan.m_OpGraph.GetBuffers().back()->m_Offset      = 0x00000FF0;
         weight2SramPlan.m_OpGraph.GetBuffers().back()->m_NumStripes  = 1;
@@ -1970,7 +2346,7 @@ public:
         mcePle2Plan.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateInput2SramBuffer";
         mcePle2Plan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x00000FFF;
         mcePle2Plan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                                 TensorShape{ 1, 3, 3, 1 }, TensorShape{ 1, 3, 3, 1 },
+                                                                 weightTensorShape, weightTensorShape,
                                                                  TraversalOrder::Xyz, 1, QuantizationInfo()));
         mcePle2Plan.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateWeight2SramBuffer";
         mcePle2Plan.m_OpGraph.GetBuffers().back()->m_Offset   = 0x0000F000;
@@ -2159,6 +2535,299 @@ private:
     OpGraph mergedOpGraph;
 };
 
+class ConcatOpGraph
+{
+public:
+    ConcatOpGraph()
+    {
+        auto& parts = graph.m_Parts;
+
+        auto concatPart = std::make_unique<MockPart>(graph.GeneratePartId());
+
+        PartId concatPartId = concatPart->GetPartId();
+
+        parts.push_back(std::move(concatPart));
+
+        PartInputSlot concatPartInputSlot0   = { concatPartId, 0 };
+        PartInputSlot concatPartInputSlot1   = { concatPartId, 1 };
+        PartOutputSlot concatPartOutputSlot0 = { concatPartId, 0 };
+
+        const std::set<uint32_t> operationIds = { 0 };
+
+        // Plan concatPlan
+        concatPlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                                TensorShape{ 1, 16, 16, 3 }, TensorShape{ 1, 8, 8, 16 },
+                                                                TraversalOrder::Xyz, 4, QuantizationInfo()));
+        concatPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "Input1DramBuffer";
+        concatPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x00000FFF;
+        concatPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
+        concatPlan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                                TensorShape{ 1, 16, 8, 3 }, TensorShape{ 1, 8, 8, 16 },
+                                                                TraversalOrder::Xyz, 4, QuantizationInfo()));
+        concatPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "Input2DramBuffer";
+        concatPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x0000F000;
+        concatPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
+        concatPlan.m_OpGraph.AddBuffer(
+            std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 24, 3 },
+                                     TensorShape{ 1, 16, 24, 3 }, TraversalOrder::Xyz, 0, QuantizationInfo()));
+        concatPlan.m_OpGraph.GetBuffers().back()->m_DebugTag   = "OutputDramBuffer";
+        concatPlan.m_OpGraph.GetBuffers().back()->m_Offset     = 0x0000F00F;
+        concatPlan.m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
+        concatPlan.m_OpGraph.AddOp(std::make_unique<ConcatOp>());
+        concatPlan.m_OpGraph.GetOps()[0]->m_DebugTag = "ConcatOp";
+        concatPlan.m_OpGraph.AddConsumer(concatPlan.m_OpGraph.GetBuffers()[0], concatPlan.m_OpGraph.GetOps()[0], 0);
+        concatPlan.m_OpGraph.AddConsumer(concatPlan.m_OpGraph.GetBuffers()[1], concatPlan.m_OpGraph.GetOps()[0], 1);
+        concatPlan.m_OpGraph.SetProducer(concatPlan.m_OpGraph.GetBuffers()[2], concatPlan.m_OpGraph.GetOps()[0]);
+        concatPlan.m_InputMappings  = { { concatPlan.m_OpGraph.GetBuffers()[0], concatPartInputSlot0 },
+                                       { concatPlan.m_OpGraph.GetBuffers()[1], concatPartInputSlot1 } };
+        concatPlan.m_OutputMappings = { { concatPlan.m_OpGraph.GetBuffers()[2], concatPartOutputSlot0 } };
+
+        Elem elemInput1Dram = { std::make_shared<Plan>(std::move(input1DramPlan)), {} };
+        Elem elemInput2Dram = { std::make_shared<Plan>(std::move(input2DramPlan)), {} };
+        Elem elemConcat     = { std::make_shared<Plan>(std::move(concatPlan)), {} };
+        Elem elemOutputDram = { std::make_shared<Plan>(std::move(outputDramPlan)), {} };
+
+        comb.m_Elems.insert(std::make_pair(0, elemConcat));
+        comb.m_PartIdsInOrder.push_back(0);
+
+        bool dumpInputGraphToFile = false;
+        if (dumpInputGraphToFile)
+        {
+            std::ofstream stream("Concat_Graph.dot");
+            SaveCombinationToDot(comb, graph, stream, DetailLevel::High);
+        }
+
+        mergedOpGraph = GetOpGraphForCombination(comb, graph);
+
+        bool dumpOutputGraphToFile = false;
+        if (dumpOutputGraphToFile)
+        {
+            std::ofstream stream("Concat_Graph_Merged.dot");
+            SaveOpGraphToDot(mergedOpGraph, stream, DetailLevel::High);
+        }
+    }
+
+    OpGraph GetMergedOpGraph()
+    {
+        return mergedOpGraph;
+    }
+
+private:
+    GraphOfParts graph;
+    Plan input1DramPlan;
+    Plan input2DramPlan;
+    Plan concatPlan;
+    Plan outputDramPlan;
+    Combination comb;
+    OpGraph mergedOpGraph;
+};
+
+//////////////////////////////////////////////////////////////////////////////////////////////
+// Command Stream Agents Order Tests
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+TEST_CASE("StandalonePleOpGraph Command Stream Agents Order Test", "[CascadingCommandStreamGenerator]")
+{
+    StandalonePleOpGraph opGraph = StandalonePleOpGraph();
+    OpGraph mergedOpGraph        = opGraph.GetMergedOpGraph();
+
+    const std::set<uint32_t> operationIds = { 0 };
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+
+    const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
+
+    CHECK(commandStream.size() == 4);
+    CHECK(commandStream[0].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[1].data.type == AgentType::PLE_LOADER);
+    CHECK(commandStream[2].data.type == AgentType::PLE_SCHEDULER);
+    CHECK(commandStream[3].data.type == AgentType::OFM_STREAMER);
+}
+
+TEST_CASE("MceOpGraph Command Stream Agents Order Test", "[CascadingCommandStreamGenerator]")
+{
+    MceOpGraph opGraph    = MceOpGraph();
+    OpGraph mergedOpGraph = opGraph.GetMergedOpGraph();
+
+    const std::set<uint32_t> operationIds = { 0 };
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+
+    const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
+
+    CHECK(commandStream.size() == 6);
+    CHECK(commandStream[0].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[1].data.type == AgentType::WGT_STREAMER);
+    CHECK(commandStream[2].data.type == AgentType::PLE_LOADER);
+    CHECK(commandStream[3].data.type == AgentType::MCE_SCHEDULER);
+    CHECK(commandStream[4].data.type == AgentType::PLE_SCHEDULER);
+    CHECK(commandStream[5].data.type == AgentType::OFM_STREAMER);
+}
+
+TEST_CASE("MceOpGraphIntermediateDramBuffers Command Stream Agents Order Test", "[CascadingCommandStreamGenerator]")
+{
+    MceOpGraphIntermediateDramBuffers opGraph = MceOpGraphIntermediateDramBuffers();
+    OpGraph mergedOpGraph                     = opGraph.GetMergedOpGraph();
+
+    const std::set<uint32_t> operationIds = { 0 };
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+
+    const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
+
+    CHECK(commandStream.size() == 10);
+    CHECK(commandStream[0].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[1].data.type == AgentType::WGT_STREAMER);
+    CHECK(commandStream[2].data.type == AgentType::PLE_LOADER);
+    CHECK(commandStream[3].data.type == AgentType::MCE_SCHEDULER);
+    CHECK(commandStream[4].data.type == AgentType::PLE_SCHEDULER);
+    CHECK(commandStream[5].data.type == AgentType::OFM_STREAMER);
+    CHECK(commandStream[6].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[7].data.type == AgentType::OFM_STREAMER);
+    CHECK(commandStream[8].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[9].data.type == AgentType::OFM_STREAMER);
+}
+
+TEST_CASE("TwoMceDramIntermediateOpGraph Command Stream Agents Order Test", "[CascadingCommandStreamGenerator]")
+{
+    TwoMceDramIntermediateOpGraph opGraph = TwoMceDramIntermediateOpGraph();
+    OpGraph mergedOpGraph                 = opGraph.GetMergedOpGraph();
+
+    const std::set<uint32_t> operationIds = { 0 };
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+
+    const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
+
+    CHECK(commandStream.size() == 12);
+    CHECK(commandStream[0].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[1].data.type == AgentType::WGT_STREAMER);
+    CHECK(commandStream[2].data.type == AgentType::PLE_LOADER);
+    CHECK(commandStream[3].data.type == AgentType::MCE_SCHEDULER);
+    CHECK(commandStream[4].data.type == AgentType::PLE_SCHEDULER);
+    CHECK(commandStream[5].data.type == AgentType::OFM_STREAMER);
+    CHECK(commandStream[6].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[7].data.type == AgentType::WGT_STREAMER);
+    CHECK(commandStream[8].data.type == AgentType::PLE_LOADER);
+    CHECK(commandStream[9].data.type == AgentType::MCE_SCHEDULER);
+    CHECK(commandStream[10].data.type == AgentType::PLE_SCHEDULER);
+    CHECK(commandStream[11].data.type == AgentType::OFM_STREAMER);
+}
+
+TEST_CASE("MceOpGraphIntermediateSramBuffers Command Stream Agents Order Test", "[CascadingCommandStreamGenerator]")
+{
+    TwoMceSramIntermediateOpGraph opGraph = TwoMceSramIntermediateOpGraph();
+    OpGraph mergedOpGraph                 = opGraph.GetMergedOpGraph();
+
+    const std::set<uint32_t> operationIds = { 0 };
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+
+    const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
+
+    CHECK(commandStream.size() == 9);
+    CHECK(commandStream[0].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[1].data.type == AgentType::WGT_STREAMER);
+    CHECK(commandStream[2].data.type == AgentType::PLE_LOADER);
+    CHECK(commandStream[3].data.type == AgentType::MCE_SCHEDULER);
+    CHECK(commandStream[4].data.type == AgentType::PLE_SCHEDULER);
+    CHECK(commandStream[5].data.type == AgentType::WGT_STREAMER);
+    CHECK(commandStream[6].data.type == AgentType::MCE_SCHEDULER);
+    CHECK(commandStream[7].data.type == AgentType::PLE_SCHEDULER);
+    CHECK(commandStream[8].data.type == AgentType::OFM_STREAMER);
+}
+
+TEST_CASE("TwoInputsForPleOpGraph Command Stream Agents Order Test", "[CascadingCommandStreamGenerator]")
+{
+    TwoInputsForPleOpGraph opGraph = TwoInputsForPleOpGraph();
+    OpGraph mergedOpGraph          = opGraph.GetMergedOpGraph();
+
+    const std::set<uint32_t> operationIds = { 0 };
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+
+    const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
+
+    CHECK(commandStream.size() == 11);
+    CHECK(commandStream[0].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[1].data.type == AgentType::WGT_STREAMER);
+    CHECK(commandStream[2].data.type == AgentType::PLE_LOADER);
+    CHECK(commandStream[3].data.type == AgentType::MCE_SCHEDULER);
+    CHECK(commandStream[4].data.type == AgentType::PLE_SCHEDULER);
+    CHECK(commandStream[5].data.type == AgentType::OFM_STREAMER);
+    CHECK(commandStream[6].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[7].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[8].data.type == AgentType::PLE_LOADER);
+    CHECK(commandStream[9].data.type == AgentType::PLE_SCHEDULER);
+    CHECK(commandStream[10].data.type == AgentType::OFM_STREAMER);
+}
+
+TEST_CASE("StridedConvOpGraph Command Stream Agents Order Test", "[CascadingCommandStreamGenerator]")
+{
+    StridedConvOpGraph opGraph = StridedConvOpGraph(1, 1, { 3, 3, 1, 1 }, { 1, 3, 3, 1 });
+    OpGraph mergedOpGraph      = opGraph.GetMergedOpGraph();
+
+    const std::set<uint32_t> operationIds = { 0 };
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+
+    const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
+
+    CHECK(commandStream.size() == 10);
+    CHECK(commandStream[0].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[1].data.type == AgentType::WGT_STREAMER);
+    CHECK(commandStream[2].data.type == AgentType::PLE_LOADER);
+    CHECK(commandStream[3].data.type == AgentType::MCE_SCHEDULER);
+    CHECK(commandStream[4].data.type == AgentType::PLE_SCHEDULER);
+    CHECK(commandStream[5].data.type == AgentType::WGT_STREAMER);
+    CHECK(commandStream[6].data.type == AgentType::PLE_LOADER);
+    CHECK(commandStream[7].data.type == AgentType::MCE_SCHEDULER);
+    CHECK(commandStream[8].data.type == AgentType::PLE_SCHEDULER);
+    CHECK(commandStream[9].data.type == AgentType::OFM_STREAMER);
+}
+
+TEST_CASE("ConcatOpGraph Command Stream Agents Order Test", "[CascadingCommandStreamGenerator]")
+{
+    ConcatOpGraph opGraph = ConcatOpGraph();
+    OpGraph mergedOpGraph = opGraph.GetMergedOpGraph();
+
+    const std::set<uint32_t> operationIds = { 0 };
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+
+    const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
+
+    CHECK(commandStream.size() == 4);
+    CHECK(commandStream[0].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[1].data.type == AgentType::OFM_STREAMER);
+    CHECK(commandStream[2].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[3].data.type == AgentType::OFM_STREAMER);
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////
 // Agent Data Tests
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -2181,35 +2850,35 @@ TEST_CASE("IfmStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
     const Agent& ifmSAgent = commandStream[0];
     const IfmS& ifmSData   = ifmSAgent.data.ifm;
 
-    REQUIRE(ifmSData.fmData.dramOffset == 0);
-    REQUIRE(ifmSData.fmData.bufferId == 1);
-    REQUIRE(ifmSData.fmData.dataType == FmsDataType::NHWCB);
+    CHECK(ifmSData.fmData.dramOffset == 0);
+    CHECK(ifmSData.fmData.bufferId == 1);
+    CHECK(ifmSData.fmData.dataType == FmsDataType::NHWCB);
 
-    REQUIRE(ifmSData.fmData.fcafInfo.signedActivation == 0);
-    REQUIRE(ifmSData.fmData.fcafInfo.zeroPoint == false);
+    CHECK(ifmSData.fmData.fcafInfo.signedActivation == 0);
+    CHECK(ifmSData.fmData.fcafInfo.zeroPoint == false);
 
-    REQUIRE(ifmSData.fmData.tile.baseAddr == 3855);
-    REQUIRE(ifmSData.fmData.tile.numSlots == 4);
-    REQUIRE(ifmSData.fmData.tile.slotSize == 128);
+    CHECK(ifmSData.fmData.tile.baseAddr == 3855);
+    CHECK(ifmSData.fmData.tile.numSlots == 4);
+    CHECK(ifmSData.fmData.tile.slotSize == 128);
 
-    REQUIRE(ifmSData.fmData.dfltStripeSize.height == 8);
-    REQUIRE(ifmSData.fmData.dfltStripeSize.width == 8);
-    REQUIRE(ifmSData.fmData.dfltStripeSize.channels == 16);
+    CHECK(ifmSData.fmData.dfltStripeSize.height == 8);
+    CHECK(ifmSData.fmData.dfltStripeSize.width == 8);
+    CHECK(ifmSData.fmData.dfltStripeSize.channels == 16);
 
-    REQUIRE(ifmSData.fmData.edgeStripeSize.height == 8);
-    REQUIRE(ifmSData.fmData.edgeStripeSize.width == 8);
-    REQUIRE(ifmSData.fmData.edgeStripeSize.channels == 3);
+    CHECK(ifmSData.fmData.edgeStripeSize.height == 8);
+    CHECK(ifmSData.fmData.edgeStripeSize.width == 8);
+    CHECK(ifmSData.fmData.edgeStripeSize.channels == 16);
 
-    REQUIRE(ifmSData.fmData.supertensorSizeInCells.width == 20);
-    REQUIRE(ifmSData.fmData.supertensorSizeInCells.channels == 1);
+    CHECK(ifmSData.fmData.supertensorSizeInCells.width == 20);
+    CHECK(ifmSData.fmData.supertensorSizeInCells.channels == 1);
 
-    REQUIRE(ifmSData.fmData.numStripes.height == 20);
-    REQUIRE(ifmSData.fmData.numStripes.width == 20);
-    REQUIRE(ifmSData.fmData.numStripes.channels == 1);
+    CHECK(ifmSData.fmData.numStripes.height == 20);
+    CHECK(ifmSData.fmData.numStripes.width == 20);
+    CHECK(ifmSData.fmData.numStripes.channels == 1);
 
-    REQUIRE(ifmSData.fmData.stripeIdStrides.height == 20);
-    REQUIRE(ifmSData.fmData.stripeIdStrides.width == 1);
-    REQUIRE(ifmSData.fmData.stripeIdStrides.channels == 1);
+    CHECK(ifmSData.fmData.stripeIdStrides.height == 20);
+    CHECK(ifmSData.fmData.stripeIdStrides.width == 1);
+    CHECK(ifmSData.fmData.stripeIdStrides.channels == 1);
 }
 
 // WeightStreamer Agent Data Test
@@ -2230,18 +2899,18 @@ TEST_CASE("WeightStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
     const Agent& wgtSAgent = commandStream[1];
     const WgtS& wgtSData   = wgtSAgent.data.wgt;
 
-    REQUIRE(wgtSData.bufferId == 2);
-    REQUIRE(wgtSData.metadataBufferId == 3);
+    CHECK(wgtSData.bufferId == 2);
+    CHECK(wgtSData.metadataBufferId == 3);
 
-    REQUIRE(wgtSData.tile.baseAddr == 0x00000FF0);
-    REQUIRE(wgtSData.tile.numSlots == 3);
-    REQUIRE(wgtSData.tile.slotSize == 1);
+    CHECK(wgtSData.tile.baseAddr == 0x00000FF0);
+    CHECK(wgtSData.tile.numSlots == 3);
+    CHECK(wgtSData.tile.slotSize == 1);
 
-    REQUIRE(wgtSData.numStripes.ifmChannels == 1);
-    REQUIRE(wgtSData.numStripes.ofmChannels == 1);
+    CHECK(wgtSData.numStripes.ifmChannels == 1);
+    CHECK(wgtSData.numStripes.ofmChannels == 1);
 
-    REQUIRE(wgtSData.stripeIdStrides.ifmChannels == 1);
-    REQUIRE(wgtSData.stripeIdStrides.ofmChannels == 1);
+    CHECK(wgtSData.stripeIdStrides.ifmChannels == 1);
+    CHECK(wgtSData.stripeIdStrides.ofmChannels == 1);
 }
 
 // MceScheduler Agent Data Test
@@ -2262,65 +2931,168 @@ TEST_CASE("MceScheduler Agent Data Test", "[CascadingCommandStreamGenerator]")
     const Agent& mceSAgent = commandStream[3];
     const MceS& mceSData   = mceSAgent.data.mce;
 
-    REQUIRE(mceSData.ifmTile.baseAddr == 0x00000F0F);
-    REQUIRE(mceSData.ifmTile.numSlots == 4);
-    REQUIRE(mceSData.ifmTile.slotSize == mceOpGraph.getInputStripeSize() / hwCaps.GetNumberOfSrams());
+    CHECK(mceSData.ifmTile.baseAddr == 0x00000F0F);
+    CHECK(mceSData.ifmTile.numSlots == 4);
+    CHECK(mceSData.ifmTile.slotSize == mceOpGraph.getInputStripeSize() / hwCaps.GetNumberOfSrams());
 
-    REQUIRE(mceSData.wgtTile.baseAddr == 0x00000FF0);
-    REQUIRE(mceSData.wgtTile.numSlots == 3);
-    REQUIRE(mceSData.wgtTile.slotSize == 1);
+    CHECK(mceSData.wgtTile.baseAddr == 0x00000FF0);
+    CHECK(mceSData.wgtTile.numSlots == 3);
+    CHECK(mceSData.wgtTile.slotSize == 1);
 
-    REQUIRE(mceSData.blockSize.width == 16);
-    REQUIRE(mceSData.blockSize.height == 16);
+    CHECK(mceSData.blockSize.width == 16);
+    CHECK(mceSData.blockSize.height == 16);
 
-    REQUIRE(mceSData.dfltStripeSize.ofmHeight == 8);
-    REQUIRE(mceSData.dfltStripeSize.ofmWidth == 8);
-    REQUIRE(mceSData.dfltStripeSize.ofmChannels == 8);
-    REQUIRE(mceSData.dfltStripeSize.ifmChannels == 16);
+    CHECK(mceSData.dfltStripeSize.ofmHeight == 8);
+    CHECK(mceSData.dfltStripeSize.ofmWidth == 8);
+    CHECK(mceSData.dfltStripeSize.ofmChannels == 8);
+    CHECK(mceSData.dfltStripeSize.ifmChannels == 16);
 
-    REQUIRE(mceSData.edgeStripeSize.ofmHeight == 1);
-    REQUIRE(mceSData.edgeStripeSize.ofmWidth == 8);
-    REQUIRE(mceSData.edgeStripeSize.ofmChannels == 8);
-    REQUIRE(mceSData.edgeStripeSize.ifmChannels == 3);
+    CHECK(mceSData.edgeStripeSize.ofmHeight == 1);
+    CHECK(mceSData.edgeStripeSize.ofmWidth == 8);
+    CHECK(mceSData.edgeStripeSize.ofmChannels == 8);
+    CHECK(mceSData.edgeStripeSize.ifmChannels == 3);
 
-    REQUIRE(mceSData.numStripes.ofmHeight == 3);
-    REQUIRE(mceSData.numStripes.ofmWidth == 2);
-    REQUIRE(mceSData.numStripes.ofmChannels == 2);
-    REQUIRE(mceSData.numStripes.ifmChannels == 1);
+    CHECK(mceSData.numStripes.ofmHeight == 3);
+    CHECK(mceSData.numStripes.ofmWidth == 2);
+    CHECK(mceSData.numStripes.ofmChannels == 2);
+    CHECK(mceSData.numStripes.ifmChannels == 1);
 
-    REQUIRE(mceSData.stripeIdStrides.ofmHeight == 2);
-    REQUIRE(mceSData.stripeIdStrides.ofmWidth == 1);
-    REQUIRE(mceSData.stripeIdStrides.ofmChannels == 6);
-    REQUIRE(mceSData.stripeIdStrides.ifmChannels == 1);
+    CHECK(mceSData.stripeIdStrides.ofmHeight == 2);
+    CHECK(mceSData.stripeIdStrides.ofmWidth == 1);
+    CHECK(mceSData.stripeIdStrides.ofmChannels == 6);
+    CHECK(mceSData.stripeIdStrides.ifmChannels == 1);
 
-    REQUIRE(mceSData.convStrideXy.x == 1);
-    REQUIRE(mceSData.convStrideXy.y == 1);
+    CHECK(mceSData.convStrideXy.x == 1);
+    CHECK(mceSData.convStrideXy.y == 1);
 
-    REQUIRE(mceSData.ifmZeroPoint == mceOpGraph.getInputZeroPoint());
-    REQUIRE(mceSData.mceOpMode == cascading::MceOperation::CONVOLUTION);
-    REQUIRE(mceSData.algorithm == cascading::MceAlgorithm::DIRECT);
+    CHECK(mceSData.ifmZeroPoint == mceOpGraph.getInputZeroPoint());
+    CHECK(mceSData.mceOpMode == cascading::MceOperation::CONVOLUTION);
+    CHECK(mceSData.algorithm == cascading::MceAlgorithm::DIRECT);
 
-    REQUIRE(mceSData.filterShape[0].height == mceOpGraph.getKernelHeight());
-    REQUIRE(mceSData.filterShape[0].width == mceOpGraph.getKernelWidth());
+    CHECK(mceSData.filterShape[0].height == mceOpGraph.getKernelHeight());
+    CHECK(mceSData.filterShape[0].width == mceOpGraph.getKernelWidth());
 
-    REQUIRE(mceSData.padding[0].left == 0);
-    REQUIRE(mceSData.padding[0].top == 0);
+    CHECK(mceSData.padding[0].left == 0);
+    CHECK(mceSData.padding[0].top == 0);
 
-    REQUIRE(mceSData.ifmDeltaDefault[0].height == mceOpGraph.getIfmDeltaHeight());
-    REQUIRE(mceSData.ifmDeltaDefault[0].width == mceOpGraph.getIfmDeltaWidth());
-    REQUIRE(mceSData.ifmDeltaEdge[0].height == mceOpGraph.getIfmDeltaHeight());
-    REQUIRE(mceSData.ifmDeltaEdge[0].width == mceOpGraph.getIfmDeltaWidth());
+    CHECK(mceSData.ifmDeltaDefault[0].height == mceOpGraph.getIfmDeltaHeight());
+    CHECK(mceSData.ifmDeltaDefault[0].width == mceOpGraph.getIfmDeltaWidth());
+    CHECK(mceSData.ifmDeltaEdge[0].height == mceOpGraph.getIfmDeltaHeight());
+    CHECK(mceSData.ifmDeltaEdge[0].width == mceOpGraph.getIfmDeltaWidth());
 
-    REQUIRE(mceSData.reluActiv.max == 255);
-    REQUIRE(mceSData.reluActiv.min == 0);
+    CHECK(mceSData.reluActiv.max == 255);
+    CHECK(mceSData.reluActiv.min == 0);
 
-    REQUIRE(mceSData.pleKernelId == cascading::PleKernelId::PASSTHROUGH_8X8_1);
+    CHECK(mceSData.pleKernelId == cascading::PleKernelId::PASSTHROUGH_8X8_1);
+}
+
+TEST_CASE("MceScheduler Agent Data Test - 1x1 Convolution - 2x2 Stride", "[CascadingCommandStreamGenerator]")
+{
+    StridedConvOpGraph stridedConvGraph = StridedConvOpGraph(0, 0, { 1, 1, 1, 1 }, { 1, 2, 2, 1 });
+    OpGraph mergedOpGraph               = stridedConvGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+
+    const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
+
+    const Agent& mceSAgent = commandStream[7];
+    const MceS& mceSData   = mceSAgent.data.mce;
+
+    // Submap 0
+    CHECK(mceSData.filterShape[0].height == 1);
+    CHECK(mceSData.filterShape[0].width == 1);
+    CHECK(mceSData.padding[0].left == 0);
+    CHECK(mceSData.padding[0].top == 0);
+    CHECK(mceSData.ifmDeltaDefault[0].height == 1);
+    CHECK(mceSData.ifmDeltaDefault[0].width == 1);
+    CHECK(mceSData.ifmDeltaEdge[0].height == 1);
+    CHECK(mceSData.ifmDeltaEdge[0].width == 1);
+
+    // Submap 1
+    CHECK(mceSData.filterShape[1].height == 1);
+    CHECK(mceSData.filterShape[1].width == 0);
+
+    // Submap 2
+    CHECK(mceSData.filterShape[2].height == 0);
+    CHECK(mceSData.filterShape[2].width == 1);
+
+    // Submap 3
+    CHECK(mceSData.filterShape[3].height == 0);
+    CHECK(mceSData.filterShape[3].width == 0);
+
+    CHECK(mceSData.pleKernelId == cascading::PleKernelId::PASSTHROUGH_8X8_1);
+}
+
+TEST_CASE("MceScheduler Agent Data Test - 2x2 Convolution - 2x2 Stride - Valid Padding",
+          "[CascadingCommandStreamGenerator]")
+{
+    StridedConvOpGraph stridedConvGraph = StridedConvOpGraph(0, 0, { 2, 2, 1, 1 }, { 1, 2, 2, 1 });
+    OpGraph mergedOpGraph               = stridedConvGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+
+    const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
+
+    const Agent& mceSAgent = commandStream[7];
+    const MceS& mceSData   = mceSAgent.data.mce;
+
+    // Submap 0
+    CHECK(mceSData.filterShape[0].height == 1);
+    CHECK(mceSData.filterShape[0].width == 1);
+    CHECK(mceSData.padding[0].left == 0);
+    CHECK(mceSData.padding[0].top == 0);
+    CHECK(mceSData.ifmDeltaDefault[0].height == 1);
+    CHECK(mceSData.ifmDeltaDefault[0].width == 1);
+    CHECK(mceSData.ifmDeltaEdge[0].height == 1);
+    CHECK(mceSData.ifmDeltaEdge[0].width == 1);
+
+    // Submap 1
+    CHECK(mceSData.filterShape[1].height == 1);
+    CHECK(mceSData.filterShape[1].width == 1);
+    CHECK(mceSData.padding[1].left == 0);
+    CHECK(mceSData.padding[1].top == 0);
+    CHECK(mceSData.ifmDeltaDefault[1].height == 1);
+    CHECK(mceSData.ifmDeltaDefault[1].width == 0);
+    CHECK(mceSData.ifmDeltaEdge[1].height == 1);
+    CHECK(mceSData.ifmDeltaEdge[1].width == 0);
+
+    // Submap 2
+    CHECK(mceSData.filterShape[2].height == 1);
+    CHECK(mceSData.filterShape[2].width == 1);
+    CHECK(mceSData.padding[2].left == 0);
+    CHECK(mceSData.padding[2].top == 0);
+    CHECK(mceSData.ifmDeltaDefault[2].height == 0);
+    CHECK(mceSData.ifmDeltaDefault[2].width == 1);
+    CHECK(mceSData.ifmDeltaEdge[2].height == 0);
+    CHECK(mceSData.ifmDeltaEdge[2].width == 1);
+
+    // Submap 3
+    CHECK(mceSData.filterShape[3].height == 1);
+    CHECK(mceSData.filterShape[3].width == 1);
+    CHECK(mceSData.padding[3].left == 0);
+    CHECK(mceSData.padding[3].top == 0);
+    CHECK(mceSData.ifmDeltaDefault[3].height == 0);
+    CHECK(mceSData.ifmDeltaDefault[3].width == 0);
+    CHECK(mceSData.ifmDeltaEdge[3].height == 0);
+    CHECK(mceSData.ifmDeltaEdge[3].width == 0);
+
+    CHECK(mceSData.pleKernelId == cascading::PleKernelId::PASSTHROUGH_8X8_1);
 }
 
 TEST_CASE("MceScheduler Agent Data Test - 3x3 Convolution - 2x2 Stride - Valid Padding",
           "[CascadingCommandStreamGenerator]")
 {
-    StridedConvOpGraph stridedConvGraph = StridedConvOpGraph(0, 0, { 1, 2, 2, 1 });
+    StridedConvOpGraph stridedConvGraph = StridedConvOpGraph(0, 0, { 3, 3, 1, 1 }, { 1, 2, 2, 1 });
     OpGraph mergedOpGraph               = stridedConvGraph.GetMergedOpGraph();
 
     const CompilationOptions compOpt;
@@ -2336,52 +3108,52 @@ TEST_CASE("MceScheduler Agent Data Test - 3x3 Convolution - 2x2 Stride - Valid P
     const MceS& mceSData   = mceSAgent.data.mce;
 
     // Submap 0
-    REQUIRE(mceSData.filterShape[0].height == 2);
-    REQUIRE(mceSData.filterShape[0].width == 2);
-    REQUIRE(mceSData.padding[0].left == 0);
-    REQUIRE(mceSData.padding[0].top == 0);
-    REQUIRE(mceSData.ifmDeltaDefault[0].height == 1);
-    REQUIRE(mceSData.ifmDeltaDefault[0].width == 1);
-    REQUIRE(mceSData.ifmDeltaEdge[0].height == 1);
-    REQUIRE(mceSData.ifmDeltaEdge[0].width == 1);
+    CHECK(mceSData.filterShape[0].height == 2);
+    CHECK(mceSData.filterShape[0].width == 2);
+    CHECK(mceSData.padding[0].left == 0);
+    CHECK(mceSData.padding[0].top == 0);
+    CHECK(mceSData.ifmDeltaDefault[0].height == 1);
+    CHECK(mceSData.ifmDeltaDefault[0].width == 1);
+    CHECK(mceSData.ifmDeltaEdge[0].height == 1);
+    CHECK(mceSData.ifmDeltaEdge[0].width == 1);
 
     // Submap 1
-    REQUIRE(mceSData.filterShape[1].height == 2);
-    REQUIRE(mceSData.filterShape[1].width == 1);
-    REQUIRE(mceSData.padding[1].left == 0);
-    REQUIRE(mceSData.padding[1].top == 0);
-    REQUIRE(mceSData.ifmDeltaDefault[1].height == 1);
-    REQUIRE(mceSData.ifmDeltaDefault[1].width == 0);
-    REQUIRE(mceSData.ifmDeltaEdge[1].height == 1);
-    REQUIRE(mceSData.ifmDeltaEdge[1].width == 0);
+    CHECK(mceSData.filterShape[1].height == 2);
+    CHECK(mceSData.filterShape[1].width == 1);
+    CHECK(mceSData.padding[1].left == 0);
+    CHECK(mceSData.padding[1].top == 0);
+    CHECK(mceSData.ifmDeltaDefault[1].height == 1);
+    CHECK(mceSData.ifmDeltaDefault[1].width == 0);
+    CHECK(mceSData.ifmDeltaEdge[1].height == 1);
+    CHECK(mceSData.ifmDeltaEdge[1].width == 0);
 
     // Submap 2
-    REQUIRE(mceSData.filterShape[2].height == 1);
-    REQUIRE(mceSData.filterShape[2].width == 2);
-    REQUIRE(mceSData.padding[2].left == 0);
-    REQUIRE(mceSData.padding[2].top == 0);
-    REQUIRE(mceSData.ifmDeltaDefault[2].height == 0);
-    REQUIRE(mceSData.ifmDeltaDefault[2].width == 1);
-    REQUIRE(mceSData.ifmDeltaEdge[2].height == 0);
-    REQUIRE(mceSData.ifmDeltaEdge[2].width == 1);
+    CHECK(mceSData.filterShape[2].height == 1);
+    CHECK(mceSData.filterShape[2].width == 2);
+    CHECK(mceSData.padding[2].left == 0);
+    CHECK(mceSData.padding[2].top == 0);
+    CHECK(mceSData.ifmDeltaDefault[2].height == 0);
+    CHECK(mceSData.ifmDeltaDefault[2].width == 1);
+    CHECK(mceSData.ifmDeltaEdge[2].height == 0);
+    CHECK(mceSData.ifmDeltaEdge[2].width == 1);
 
     // Submap 3
-    REQUIRE(mceSData.filterShape[3].height == 1);
-    REQUIRE(mceSData.filterShape[3].width == 1);
-    REQUIRE(mceSData.padding[3].left == 0);
-    REQUIRE(mceSData.padding[3].top == 0);
-    REQUIRE(mceSData.ifmDeltaDefault[3].height == 0);
-    REQUIRE(mceSData.ifmDeltaDefault[3].width == 0);
-    REQUIRE(mceSData.ifmDeltaEdge[3].height == 0);
-    REQUIRE(mceSData.ifmDeltaEdge[3].width == 0);
+    CHECK(mceSData.filterShape[3].height == 1);
+    CHECK(mceSData.filterShape[3].width == 1);
+    CHECK(mceSData.padding[3].left == 0);
+    CHECK(mceSData.padding[3].top == 0);
+    CHECK(mceSData.ifmDeltaDefault[3].height == 0);
+    CHECK(mceSData.ifmDeltaDefault[3].width == 0);
+    CHECK(mceSData.ifmDeltaEdge[3].height == 0);
+    CHECK(mceSData.ifmDeltaEdge[3].width == 0);
 
-    REQUIRE(mceSData.pleKernelId == cascading::PleKernelId::PASSTHROUGH_8X8_1);
+    CHECK(mceSData.pleKernelId == cascading::PleKernelId::PASSTHROUGH_8X8_1);
 }
 
 TEST_CASE("MceScheduler Agent Data Test - 3x3 Convolution - 2x2 Stride - Same Padding",
           "[CascadingCommandStreamGenerator]")
 {
-    StridedConvOpGraph stridedConvGraph = StridedConvOpGraph(1, 1, { 1, 3, 3, 1 });
+    StridedConvOpGraph stridedConvGraph = StridedConvOpGraph(1, 1, { 3, 3, 1, 1 }, { 1, 3, 3, 1 });
     OpGraph mergedOpGraph               = stridedConvGraph.GetMergedOpGraph();
 
     const CompilationOptions compOpt;
@@ -2397,46 +3169,46 @@ TEST_CASE("MceScheduler Agent Data Test - 3x3 Convolution - 2x2 Stride - Same Pa
     const MceS& mceSData   = mceSAgent.data.mce;
 
     // Submap 0
-    REQUIRE(mceSData.filterShape[0].height == 1);
-    REQUIRE(mceSData.filterShape[0].width == 1);
-    REQUIRE(mceSData.padding[0].left == 0);
-    REQUIRE(mceSData.padding[0].top == 0);
-    REQUIRE(mceSData.ifmDeltaDefault[0].height == 0);
-    REQUIRE(mceSData.ifmDeltaDefault[0].width == 0);
-    REQUIRE(mceSData.ifmDeltaEdge[0].height == 0);
-    REQUIRE(mceSData.ifmDeltaEdge[0].width == 0);
+    CHECK(mceSData.filterShape[0].height == 1);
+    CHECK(mceSData.filterShape[0].width == 1);
+    CHECK(mceSData.padding[0].left == 0);
+    CHECK(mceSData.padding[0].top == 0);
+    CHECK(mceSData.ifmDeltaDefault[0].height == 0);
+    CHECK(mceSData.ifmDeltaDefault[0].width == 0);
+    CHECK(mceSData.ifmDeltaEdge[0].height == 0);
+    CHECK(mceSData.ifmDeltaEdge[0].width == 0);
 
     // Submap 1
-    REQUIRE(mceSData.filterShape[1].height == 1);
-    REQUIRE(mceSData.filterShape[1].width == 2);
-    REQUIRE(mceSData.padding[1].left == 1);
-    REQUIRE(mceSData.padding[1].top == 0);
-    REQUIRE(mceSData.ifmDeltaDefault[1].height == 0);
-    REQUIRE(mceSData.ifmDeltaDefault[1].width == -1);
-    REQUIRE(mceSData.ifmDeltaEdge[1].height == 0);
-    REQUIRE(mceSData.ifmDeltaEdge[1].width == -1);
+    CHECK(mceSData.filterShape[1].height == 1);
+    CHECK(mceSData.filterShape[1].width == 2);
+    CHECK(mceSData.padding[1].left == 1);
+    CHECK(mceSData.padding[1].top == 0);
+    CHECK(mceSData.ifmDeltaDefault[1].height == 0);
+    CHECK(mceSData.ifmDeltaDefault[1].width == -1);
+    CHECK(mceSData.ifmDeltaEdge[1].height == 0);
+    CHECK(mceSData.ifmDeltaEdge[1].width == -1);
 
     // Submap 2
-    REQUIRE(mceSData.filterShape[2].height == 2);
-    REQUIRE(mceSData.filterShape[2].width == 1);
-    REQUIRE(mceSData.padding[2].left == 0);
-    REQUIRE(mceSData.padding[2].top == 1);
-    REQUIRE(mceSData.ifmDeltaDefault[2].height == -1);
-    REQUIRE(mceSData.ifmDeltaDefault[2].width == 0);
-    REQUIRE(mceSData.ifmDeltaEdge[2].height == -1);
-    REQUIRE(mceSData.ifmDeltaEdge[2].width == 0);
+    CHECK(mceSData.filterShape[2].height == 2);
+    CHECK(mceSData.filterShape[2].width == 1);
+    CHECK(mceSData.padding[2].left == 0);
+    CHECK(mceSData.padding[2].top == 1);
+    CHECK(mceSData.ifmDeltaDefault[2].height == -1);
+    CHECK(mceSData.ifmDeltaDefault[2].width == 0);
+    CHECK(mceSData.ifmDeltaEdge[2].height == -1);
+    CHECK(mceSData.ifmDeltaEdge[2].width == 0);
 
     // Submap 3
-    REQUIRE(mceSData.filterShape[3].height == 2);
-    REQUIRE(mceSData.filterShape[3].width == 2);
-    REQUIRE(mceSData.padding[3].left == 1);
-    REQUIRE(mceSData.padding[3].top == 1);
-    REQUIRE(mceSData.ifmDeltaDefault[3].height == -1);
-    REQUIRE(mceSData.ifmDeltaDefault[3].width == -1);
-    REQUIRE(mceSData.ifmDeltaEdge[3].height == -1);
-    REQUIRE(mceSData.ifmDeltaEdge[3].width == -1);
+    CHECK(mceSData.filterShape[3].height == 2);
+    CHECK(mceSData.filterShape[3].width == 2);
+    CHECK(mceSData.padding[3].left == 1);
+    CHECK(mceSData.padding[3].top == 1);
+    CHECK(mceSData.ifmDeltaDefault[3].height == -1);
+    CHECK(mceSData.ifmDeltaDefault[3].width == -1);
+    CHECK(mceSData.ifmDeltaEdge[3].height == -1);
+    CHECK(mceSData.ifmDeltaEdge[3].width == -1);
 
-    REQUIRE(mceSData.pleKernelId == cascading::PleKernelId::PASSTHROUGH_8X8_1);
+    CHECK(mceSData.pleKernelId == cascading::PleKernelId::PASSTHROUGH_8X8_1);
 }
 
 // PleLoader Agent Data Test
@@ -2457,8 +3229,8 @@ TEST_CASE("PleLoader Agent Data Test", "[CascadingCommandStreamGenerator]")
     const Agent& pleLAgent = commandStream[2];
     const PleL& pleLData   = pleLAgent.data.pleL;
 
-    REQUIRE(pleLData.sramAddr == 0x0000F0F0);
-    REQUIRE(pleLData.pleKernelId == cascading::PleKernelId::PASSTHROUGH_8X8_1);
+    CHECK(pleLData.sramAddr == 0x0000F0F0);
+    CHECK(pleLData.pleKernelId == cascading::PleKernelId::PASSTHROUGH_8X8_1);
 }
 
 // PleScheduler Agent Data Test
@@ -2480,31 +3252,31 @@ TEST_CASE("PleScheduler Agent Data Test", "[CascadingCommandStreamGenerator]")
 
     // The network consists of all agent types. Here we test that the PleScheduler
     // agent is set correctly.
-    REQUIRE(pleSchedulerAgent.data.pleS.ofmTile.baseAddr == 0x000F0FF);
-    REQUIRE(pleSchedulerAgent.data.pleS.ofmTile.numSlots == 1);
-    REQUIRE(pleSchedulerAgent.data.pleS.ofmTile.slotSize == 256);
-    REQUIRE(pleSchedulerAgent.data.pleS.ofmZeroPoint == 0);
+    CHECK(pleSchedulerAgent.data.pleS.ofmTile.baseAddr == 0x000F0FF);
+    CHECK(pleSchedulerAgent.data.pleS.ofmTile.numSlots == 1);
+    CHECK(pleSchedulerAgent.data.pleS.ofmTile.slotSize == 256);
+    CHECK(pleSchedulerAgent.data.pleS.ofmZeroPoint == 0);
 
-    REQUIRE(pleSchedulerAgent.data.pleS.dfltStripeSize.height == 4);
-    REQUIRE(pleSchedulerAgent.data.pleS.dfltStripeSize.width == 4);
-    REQUIRE(pleSchedulerAgent.data.pleS.dfltStripeSize.channels == 32);
+    CHECK(pleSchedulerAgent.data.pleS.dfltStripeSize.height == 4);
+    CHECK(pleSchedulerAgent.data.pleS.dfltStripeSize.width == 4);
+    CHECK(pleSchedulerAgent.data.pleS.dfltStripeSize.channels == 32);
 
-    REQUIRE(pleSchedulerAgent.data.pleS.numStripes.height == 20);
-    REQUIRE(pleSchedulerAgent.data.pleS.numStripes.width == 20);
-    REQUIRE(pleSchedulerAgent.data.pleS.numStripes.channels == 1);
+    CHECK(pleSchedulerAgent.data.pleS.numStripes.height == 20);
+    CHECK(pleSchedulerAgent.data.pleS.numStripes.width == 20);
+    CHECK(pleSchedulerAgent.data.pleS.numStripes.channels == 1);
 
-    REQUIRE(pleSchedulerAgent.data.pleS.edgeStripeSize.height == 4);
-    REQUIRE(pleSchedulerAgent.data.pleS.edgeStripeSize.width == 4);
-    REQUIRE(pleSchedulerAgent.data.pleS.edgeStripeSize.channels == 24);
+    CHECK(pleSchedulerAgent.data.pleS.edgeStripeSize.height == 4);
+    CHECK(pleSchedulerAgent.data.pleS.edgeStripeSize.width == 4);
+    CHECK(pleSchedulerAgent.data.pleS.edgeStripeSize.channels == 24);
 
-    REQUIRE(pleSchedulerAgent.data.pleS.stripeIdStrides.height == 20);
-    REQUIRE(pleSchedulerAgent.data.pleS.stripeIdStrides.width == 1);
-    REQUIRE(pleSchedulerAgent.data.pleS.stripeIdStrides.channels == 400);
+    CHECK(pleSchedulerAgent.data.pleS.stripeIdStrides.height == 20);
+    CHECK(pleSchedulerAgent.data.pleS.stripeIdStrides.width == 1);
+    CHECK(pleSchedulerAgent.data.pleS.stripeIdStrides.channels == 400);
 
-    REQUIRE(pleSchedulerAgent.data.pleS.inputMode == PleInputMode::MCE_ALL_OGS);
+    CHECK(pleSchedulerAgent.data.pleS.inputMode == PleInputMode::MCE_ALL_OGS);
 
-    REQUIRE(pleSchedulerAgent.data.pleS.pleKernelSramAddr == 0x0000F0F0);
-    REQUIRE(pleSchedulerAgent.data.pleS.pleKernelId == PleKernelId::PASSTHROUGH_8X8_1);
+    CHECK(pleSchedulerAgent.data.pleS.pleKernelSramAddr == 0x0000F0F0);
+    CHECK(pleSchedulerAgent.data.pleS.pleKernelId == PleKernelId::PASSTHROUGH_8X8_1);
 }
 
 // PleScheduler Standalone Agent Data Test
@@ -2526,39 +3298,39 @@ TEST_CASE("PleScheduler Standalone Agent Data Test", "[CascadingCommandStreamGen
 
     // The network consists of a standalone ple op and DMA ops. Here we test that
     // the PleScheduler agent is set correctly.
-    REQUIRE(pleSAgent.data.pleS.ofmTile.baseAddr == 0x0000F00);
-    REQUIRE(pleSAgent.data.pleS.ofmTile.numSlots == 1);
-    REQUIRE(pleSAgent.data.pleS.ofmTile.slotSize == 256);
-    REQUIRE(pleSAgent.data.pleS.ofmZeroPoint == 0);
+    CHECK(pleSAgent.data.pleS.ofmTile.baseAddr == 0x0000F00);
+    CHECK(pleSAgent.data.pleS.ofmTile.numSlots == 1);
+    CHECK(pleSAgent.data.pleS.ofmTile.slotSize == 256);
+    CHECK(pleSAgent.data.pleS.ofmZeroPoint == 0);
 
-    REQUIRE(pleSAgent.data.pleS.dfltStripeSize.height == 8);
-    REQUIRE(pleSAgent.data.pleS.dfltStripeSize.width == 8);
-    REQUIRE(pleSAgent.data.pleS.dfltStripeSize.channels == 32);
+    CHECK(pleSAgent.data.pleS.dfltStripeSize.height == 8);
+    CHECK(pleSAgent.data.pleS.dfltStripeSize.width == 8);
+    CHECK(pleSAgent.data.pleS.dfltStripeSize.channels == 32);
 
-    REQUIRE(pleSAgent.data.pleS.numStripes.height == 10);
-    REQUIRE(pleSAgent.data.pleS.numStripes.width == 10);
-    REQUIRE(pleSAgent.data.pleS.numStripes.channels == 1);
+    CHECK(pleSAgent.data.pleS.numStripes.height == 10);
+    CHECK(pleSAgent.data.pleS.numStripes.width == 10);
+    CHECK(pleSAgent.data.pleS.numStripes.channels == 1);
 
-    REQUIRE(pleSAgent.data.pleS.edgeStripeSize.height == 8);
-    REQUIRE(pleSAgent.data.pleS.edgeStripeSize.width == 8);
-    REQUIRE(pleSAgent.data.pleS.edgeStripeSize.channels == 24);
+    CHECK(pleSAgent.data.pleS.edgeStripeSize.height == 8);
+    CHECK(pleSAgent.data.pleS.edgeStripeSize.width == 8);
+    CHECK(pleSAgent.data.pleS.edgeStripeSize.channels == 24);
 
-    REQUIRE(pleSAgent.data.pleS.stripeIdStrides.height == 10);
-    REQUIRE(pleSAgent.data.pleS.stripeIdStrides.width == 1);
-    REQUIRE(pleSAgent.data.pleS.stripeIdStrides.channels == 100);
+    CHECK(pleSAgent.data.pleS.stripeIdStrides.height == 10);
+    CHECK(pleSAgent.data.pleS.stripeIdStrides.width == 1);
+    CHECK(pleSAgent.data.pleS.stripeIdStrides.channels == 100);
 
-    REQUIRE(pleSAgent.data.pleS.inputMode == PleInputMode::SRAM);
+    CHECK(pleSAgent.data.pleS.inputMode == PleInputMode::SRAM);
 
-    REQUIRE(pleSAgent.data.pleS.pleKernelSramAddr == 0x000000FF);
-    REQUIRE(pleSAgent.data.pleS.pleKernelId == PleKernelId::LEAKY_RELU_8X8_1);
+    CHECK(pleSAgent.data.pleS.pleKernelSramAddr == 0x000000FF);
+    CHECK(pleSAgent.data.pleS.pleKernelId == PleKernelId::LEAKY_RELU_8X8_1);
 
-    REQUIRE(pleSAgent.data.pleS.ifmTile0.baseAddr == 0x0000000F);
-    REQUIRE(pleSAgent.data.pleS.ifmTile0.numSlots == 0);
-    REQUIRE(pleSAgent.data.pleS.ifmTile0.slotSize == 128);
+    CHECK(pleSAgent.data.pleS.ifmTile0.baseAddr == 0x0000000F);
+    CHECK(pleSAgent.data.pleS.ifmTile0.numSlots == 0);
+    CHECK(pleSAgent.data.pleS.ifmTile0.slotSize == 128);
 
-    REQUIRE(pleSAgent.data.pleS.ifmInfo0.zeroPoint == 0);
-    REQUIRE(pleSAgent.data.pleS.ifmInfo0.multiplier == 32768);
-    REQUIRE(pleSAgent.data.pleS.ifmInfo0.shift == 15);
+    CHECK(pleSAgent.data.pleS.ifmInfo0.zeroPoint == 0);
+    CHECK(pleSAgent.data.pleS.ifmInfo0.multiplier == 32768);
+    CHECK(pleSAgent.data.pleS.ifmInfo0.shift == 15);
 }
 
 // OfmStreamer Agent Data Test
@@ -2579,35 +3351,35 @@ TEST_CASE("OfmStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
     const Agent& ofmSAgent = commandStream[5];
     const OfmS& ofmSData   = ofmSAgent.data.ofm;
 
-    REQUIRE(ofmSData.fmData.dramOffset == 0);
-    REQUIRE(ofmSData.fmData.bufferId == 4);
-    REQUIRE(ofmSData.fmData.dataType == FmsDataType::NHWCB);
+    CHECK(ofmSData.fmData.dramOffset == 0);
+    CHECK(ofmSData.fmData.bufferId == 4);
+    CHECK(ofmSData.fmData.dataType == FmsDataType::NHWCB);
 
-    REQUIRE(ofmSData.fmData.fcafInfo.signedActivation == 0);
-    REQUIRE(ofmSData.fmData.fcafInfo.zeroPoint == false);
+    CHECK(ofmSData.fmData.fcafInfo.signedActivation == 0);
+    CHECK(ofmSData.fmData.fcafInfo.zeroPoint == false);
 
-    REQUIRE(ofmSData.fmData.tile.baseAddr == 61695);
-    REQUIRE(ofmSData.fmData.tile.numSlots == 1);
-    REQUIRE(ofmSData.fmData.tile.slotSize == 256);
+    CHECK(ofmSData.fmData.tile.baseAddr == 61695);
+    CHECK(ofmSData.fmData.tile.numSlots == 1);
+    CHECK(ofmSData.fmData.tile.slotSize == 256);
 
-    REQUIRE(ofmSData.fmData.dfltStripeSize.height == 4);
-    REQUIRE(ofmSData.fmData.dfltStripeSize.width == 4);
-    REQUIRE(ofmSData.fmData.dfltStripeSize.channels == 32);
+    CHECK(ofmSData.fmData.dfltStripeSize.height == 4);
+    CHECK(ofmSData.fmData.dfltStripeSize.width == 4);
+    CHECK(ofmSData.fmData.dfltStripeSize.channels == 32);
 
-    REQUIRE(ofmSData.fmData.edgeStripeSize.height == 4);
-    REQUIRE(ofmSData.fmData.edgeStripeSize.width == 4);
-    REQUIRE(ofmSData.fmData.edgeStripeSize.channels == 24);
+    CHECK(ofmSData.fmData.edgeStripeSize.height == 4);
+    CHECK(ofmSData.fmData.edgeStripeSize.width == 4);
+    CHECK(ofmSData.fmData.edgeStripeSize.channels == 32);
 
-    REQUIRE(ofmSData.fmData.supertensorSizeInCells.width == 10);
-    REQUIRE(ofmSData.fmData.supertensorSizeInCells.channels == 2);
+    CHECK(ofmSData.fmData.supertensorSizeInCells.width == 10);
+    CHECK(ofmSData.fmData.supertensorSizeInCells.channels == 2);
 
-    REQUIRE(ofmSData.fmData.numStripes.height == 20);
-    REQUIRE(ofmSData.fmData.numStripes.width == 20);
-    REQUIRE(ofmSData.fmData.numStripes.channels == 1);
+    CHECK(ofmSData.fmData.numStripes.height == 20);
+    CHECK(ofmSData.fmData.numStripes.width == 20);
+    CHECK(ofmSData.fmData.numStripes.channels == 1);
 
-    REQUIRE(ofmSData.fmData.stripeIdStrides.height == 20);
-    REQUIRE(ofmSData.fmData.stripeIdStrides.width == 1);
-    REQUIRE(ofmSData.fmData.stripeIdStrides.channels == 1);
+    CHECK(ofmSData.fmData.stripeIdStrides.height == 20);
+    CHECK(ofmSData.fmData.stripeIdStrides.width == 1);
+    CHECK(ofmSData.fmData.stripeIdStrides.channels == 1);
 }
 
 // Concat Op Agent Data Test
@@ -2636,128 +3408,128 @@ TEST_CASE("Concat Op Agent Data Test", "[CascadingCommandStreamGenerator]")
     const OfmS& ofmSData2 = ofmSAgent2.data.ofm;
 
     // IfmSData1
-    REQUIRE(ifmSData1.fmData.bufferId == 2);
-    REQUIRE(ifmSData1.fmData.dramOffset == 0);
-    REQUIRE(ifmSData1.fmData.dataType == FmsDataType::NHWCB);
+    CHECK(ifmSData1.fmData.bufferId == 2);
+    CHECK(ifmSData1.fmData.dramOffset == 0);
+    CHECK(ifmSData1.fmData.dataType == FmsDataType::NHWCB);
 
-    REQUIRE(ifmSData1.fmData.fcafInfo.zeroPoint == 0);
-    REQUIRE(ifmSData1.fmData.fcafInfo.signedActivation == false);
+    CHECK(ifmSData1.fmData.fcafInfo.zeroPoint == 0);
+    CHECK(ifmSData1.fmData.fcafInfo.signedActivation == false);
 
-    REQUIRE(ifmSData1.fmData.tile.baseAddr == 0);
-    REQUIRE(ifmSData1.fmData.tile.numSlots == 2);
-    REQUIRE(ifmSData1.fmData.tile.slotSize == 128);
+    CHECK(ifmSData1.fmData.tile.baseAddr == 0);
+    CHECK(ifmSData1.fmData.tile.numSlots == 2);
+    CHECK(ifmSData1.fmData.tile.slotSize == 128);
 
-    REQUIRE(ifmSData1.fmData.dfltStripeSize.height == 8);
-    REQUIRE(ifmSData1.fmData.dfltStripeSize.width == 8);
-    REQUIRE(ifmSData1.fmData.dfltStripeSize.channels == 3);
+    CHECK(ifmSData1.fmData.dfltStripeSize.height == 8);
+    CHECK(ifmSData1.fmData.dfltStripeSize.width == 8);
+    CHECK(ifmSData1.fmData.dfltStripeSize.channels == 3);
 
-    REQUIRE(ifmSData1.fmData.edgeStripeSize.height == 8);
-    REQUIRE(ifmSData1.fmData.edgeStripeSize.width == 8);
-    REQUIRE(ifmSData1.fmData.edgeStripeSize.channels == 3);
+    CHECK(ifmSData1.fmData.edgeStripeSize.height == 8);
+    CHECK(ifmSData1.fmData.edgeStripeSize.width == 8);
+    CHECK(ifmSData1.fmData.edgeStripeSize.channels == 3);
 
-    REQUIRE(ifmSData1.fmData.supertensorSizeInCells.width == 2);
-    REQUIRE(ifmSData1.fmData.supertensorSizeInCells.channels == 1);
+    CHECK(ifmSData1.fmData.supertensorSizeInCells.width == 2);
+    CHECK(ifmSData1.fmData.supertensorSizeInCells.channels == 1);
 
-    REQUIRE(ifmSData1.fmData.numStripes.height == 1);
-    REQUIRE(ifmSData1.fmData.numStripes.width == 1);
-    REQUIRE(ifmSData1.fmData.numStripes.channels == 1);
+    CHECK(ifmSData1.fmData.numStripes.height == 1);
+    CHECK(ifmSData1.fmData.numStripes.width == 1);
+    CHECK(ifmSData1.fmData.numStripes.channels == 1);
 
-    REQUIRE(ifmSData1.fmData.stripeIdStrides.height == 1);
-    REQUIRE(ifmSData1.fmData.stripeIdStrides.width == 1);
-    REQUIRE(ifmSData1.fmData.stripeIdStrides.channels == 1);
+    CHECK(ifmSData1.fmData.stripeIdStrides.height == 1);
+    CHECK(ifmSData1.fmData.stripeIdStrides.width == 1);
+    CHECK(ifmSData1.fmData.stripeIdStrides.channels == 1);
 
     // ofmSData1
-    REQUIRE(ofmSData1.fmData.bufferId == 1);
-    REQUIRE(ofmSData1.fmData.dramOffset == 0);
-    REQUIRE(ofmSData1.fmData.dataType == FmsDataType::NHWCB);
+    CHECK(ofmSData1.fmData.bufferId == 1);
+    CHECK(ofmSData1.fmData.dramOffset == 0);
+    CHECK(ofmSData1.fmData.dataType == FmsDataType::NHWCB);
 
-    REQUIRE(ofmSData1.fmData.fcafInfo.zeroPoint == 0);
-    REQUIRE(ofmSData1.fmData.fcafInfo.signedActivation == false);
+    CHECK(ofmSData1.fmData.fcafInfo.zeroPoint == 0);
+    CHECK(ofmSData1.fmData.fcafInfo.signedActivation == false);
 
-    REQUIRE(ofmSData1.fmData.tile.baseAddr == 0);
-    REQUIRE(ofmSData1.fmData.tile.numSlots == 2);
-    REQUIRE(ofmSData1.fmData.tile.slotSize == 128);
+    CHECK(ofmSData1.fmData.tile.baseAddr == 0);
+    CHECK(ofmSData1.fmData.tile.numSlots == 2);
+    CHECK(ofmSData1.fmData.tile.slotSize == 128);
 
-    REQUIRE(ofmSData1.fmData.dfltStripeSize.height == 8);
-    REQUIRE(ofmSData1.fmData.dfltStripeSize.width == 8);
-    REQUIRE(ofmSData1.fmData.dfltStripeSize.channels == 3);
+    CHECK(ofmSData1.fmData.dfltStripeSize.height == 8);
+    CHECK(ofmSData1.fmData.dfltStripeSize.width == 8);
+    CHECK(ofmSData1.fmData.dfltStripeSize.channels == 3);
 
-    REQUIRE(ofmSData1.fmData.edgeStripeSize.height == 8);
-    REQUIRE(ofmSData1.fmData.edgeStripeSize.width == 8);
-    REQUIRE(ofmSData1.fmData.edgeStripeSize.channels == 3);
+    CHECK(ofmSData1.fmData.edgeStripeSize.height == 8);
+    CHECK(ofmSData1.fmData.edgeStripeSize.width == 8);
+    CHECK(ofmSData1.fmData.edgeStripeSize.channels == 3);
 
-    REQUIRE(ofmSData1.fmData.supertensorSizeInCells.width == 3);
-    REQUIRE(ofmSData1.fmData.supertensorSizeInCells.channels == 1);
+    CHECK(ofmSData1.fmData.supertensorSizeInCells.width == 3);
+    CHECK(ofmSData1.fmData.supertensorSizeInCells.channels == 1);
 
-    REQUIRE(ofmSData1.fmData.numStripes.height == 1);
-    REQUIRE(ofmSData1.fmData.numStripes.width == 1);
-    REQUIRE(ofmSData1.fmData.numStripes.channels == 1);
+    CHECK(ofmSData1.fmData.numStripes.height == 1);
+    CHECK(ofmSData1.fmData.numStripes.width == 1);
+    CHECK(ofmSData1.fmData.numStripes.channels == 1);
 
-    REQUIRE(ofmSData1.fmData.stripeIdStrides.height == 1);
-    REQUIRE(ofmSData1.fmData.stripeIdStrides.width == 1);
-    REQUIRE(ofmSData1.fmData.stripeIdStrides.channels == 1);
+    CHECK(ofmSData1.fmData.stripeIdStrides.height == 1);
+    CHECK(ofmSData1.fmData.stripeIdStrides.width == 1);
+    CHECK(ofmSData1.fmData.stripeIdStrides.channels == 1);
 
     // ifmsData2
-    REQUIRE(ifmSData2.fmData.bufferId == 3);
-    REQUIRE(ifmSData2.fmData.dramOffset == 0);
-    REQUIRE(ifmSData2.fmData.dataType == FmsDataType::NHWCB);
+    CHECK(ifmSData2.fmData.bufferId == 3);
+    CHECK(ifmSData2.fmData.dramOffset == 0);
+    CHECK(ifmSData2.fmData.dataType == FmsDataType::NHWCB);
 
-    REQUIRE(ifmSData2.fmData.fcafInfo.zeroPoint == 0);
-    REQUIRE(ifmSData2.fmData.fcafInfo.signedActivation == false);
+    CHECK(ifmSData2.fmData.fcafInfo.zeroPoint == 0);
+    CHECK(ifmSData2.fmData.fcafInfo.signedActivation == false);
 
-    REQUIRE(ifmSData2.fmData.tile.baseAddr == 256);
-    REQUIRE(ifmSData2.fmData.tile.numSlots == 2);
-    REQUIRE(ifmSData2.fmData.tile.slotSize == 128);
+    CHECK(ifmSData2.fmData.tile.baseAddr == 256);
+    CHECK(ifmSData2.fmData.tile.numSlots == 2);
+    CHECK(ifmSData2.fmData.tile.slotSize == 128);
 
-    REQUIRE(ifmSData2.fmData.dfltStripeSize.height == 8);
-    REQUIRE(ifmSData2.fmData.dfltStripeSize.width == 8);
-    REQUIRE(ifmSData2.fmData.dfltStripeSize.channels == 3);
+    CHECK(ifmSData2.fmData.dfltStripeSize.height == 8);
+    CHECK(ifmSData2.fmData.dfltStripeSize.width == 8);
+    CHECK(ifmSData2.fmData.dfltStripeSize.channels == 3);
 
-    REQUIRE(ifmSData2.fmData.edgeStripeSize.height == 8);
-    REQUIRE(ifmSData2.fmData.edgeStripeSize.width == 8);
-    REQUIRE(ifmSData2.fmData.edgeStripeSize.channels == 3);
+    CHECK(ifmSData2.fmData.edgeStripeSize.height == 8);
+    CHECK(ifmSData2.fmData.edgeStripeSize.width == 8);
+    CHECK(ifmSData2.fmData.edgeStripeSize.channels == 3);
 
-    REQUIRE(ifmSData2.fmData.supertensorSizeInCells.width == 1);
-    REQUIRE(ifmSData2.fmData.supertensorSizeInCells.channels == 1);
+    CHECK(ifmSData2.fmData.supertensorSizeInCells.width == 1);
+    CHECK(ifmSData2.fmData.supertensorSizeInCells.channels == 1);
 
-    REQUIRE(ifmSData2.fmData.numStripes.height == 1);
-    REQUIRE(ifmSData2.fmData.numStripes.width == 1);
-    REQUIRE(ifmSData2.fmData.numStripes.channels == 1);
+    CHECK(ifmSData2.fmData.numStripes.height == 1);
+    CHECK(ifmSData2.fmData.numStripes.width == 1);
+    CHECK(ifmSData2.fmData.numStripes.channels == 1);
 
-    REQUIRE(ifmSData2.fmData.stripeIdStrides.height == 1);
-    REQUIRE(ifmSData2.fmData.stripeIdStrides.width == 1);
-    REQUIRE(ifmSData2.fmData.stripeIdStrides.channels == 1);
+    CHECK(ifmSData2.fmData.stripeIdStrides.height == 1);
+    CHECK(ifmSData2.fmData.stripeIdStrides.width == 1);
+    CHECK(ifmSData2.fmData.stripeIdStrides.channels == 1);
 
     // ofmsData2
-    REQUIRE(ofmSData2.fmData.bufferId == 1);
-    REQUIRE(ofmSData2.fmData.dramOffset == 0x00000800);
-    REQUIRE(ofmSData2.fmData.dataType == FmsDataType::NHWCB);
+    CHECK(ofmSData2.fmData.bufferId == 1);
+    CHECK(ofmSData2.fmData.dramOffset == 0x00000800);
+    CHECK(ofmSData2.fmData.dataType == FmsDataType::NHWCB);
 
-    REQUIRE(ofmSData2.fmData.fcafInfo.zeroPoint == 0);
-    REQUIRE(ofmSData2.fmData.fcafInfo.signedActivation == false);
+    CHECK(ofmSData2.fmData.fcafInfo.zeroPoint == 0);
+    CHECK(ofmSData2.fmData.fcafInfo.signedActivation == false);
 
-    REQUIRE(ofmSData2.fmData.tile.baseAddr == 256);
-    REQUIRE(ofmSData2.fmData.tile.numSlots == 2);
-    REQUIRE(ofmSData2.fmData.tile.slotSize == 128);
+    CHECK(ofmSData2.fmData.tile.baseAddr == 256);
+    CHECK(ofmSData2.fmData.tile.numSlots == 2);
+    CHECK(ofmSData2.fmData.tile.slotSize == 128);
 
-    REQUIRE(ofmSData2.fmData.dfltStripeSize.height == 8);
-    REQUIRE(ofmSData2.fmData.dfltStripeSize.width == 8);
-    REQUIRE(ofmSData2.fmData.dfltStripeSize.channels == 3);
+    CHECK(ofmSData2.fmData.dfltStripeSize.height == 8);
+    CHECK(ofmSData2.fmData.dfltStripeSize.width == 8);
+    CHECK(ofmSData2.fmData.dfltStripeSize.channels == 3);
 
-    REQUIRE(ofmSData2.fmData.edgeStripeSize.height == 8);
-    REQUIRE(ofmSData2.fmData.edgeStripeSize.width == 8);
-    REQUIRE(ofmSData2.fmData.edgeStripeSize.channels == 3);
+    CHECK(ofmSData2.fmData.edgeStripeSize.height == 8);
+    CHECK(ofmSData2.fmData.edgeStripeSize.width == 8);
+    CHECK(ofmSData2.fmData.edgeStripeSize.channels == 3);
 
-    REQUIRE(ofmSData2.fmData.supertensorSizeInCells.width == 3);
-    REQUIRE(ofmSData2.fmData.supertensorSizeInCells.channels == 1);
+    CHECK(ofmSData2.fmData.supertensorSizeInCells.width == 3);
+    CHECK(ofmSData2.fmData.supertensorSizeInCells.channels == 1);
 
-    REQUIRE(ofmSData2.fmData.numStripes.height == 1);
-    REQUIRE(ofmSData2.fmData.numStripes.width == 1);
-    REQUIRE(ofmSData2.fmData.numStripes.channels == 1);
+    CHECK(ofmSData2.fmData.numStripes.height == 1);
+    CHECK(ofmSData2.fmData.numStripes.width == 1);
+    CHECK(ofmSData2.fmData.numStripes.channels == 1);
 
-    REQUIRE(ofmSData2.fmData.stripeIdStrides.height == 1);
-    REQUIRE(ofmSData2.fmData.stripeIdStrides.width == 1);
-    REQUIRE(ofmSData2.fmData.stripeIdStrides.channels == 1);
+    CHECK(ofmSData2.fmData.stripeIdStrides.height == 1);
+    CHECK(ofmSData2.fmData.stripeIdStrides.width == 1);
+    CHECK(ofmSData2.fmData.stripeIdStrides.channels == 1);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -2786,19 +3558,19 @@ TEST_CASE("IfmStreamer-OfmStreamer ReadAfterWriteDependency Test", "[CascadingCo
     const Dependency& readDependency2 = ofmSAgent2.info.readDependencies.at(0);
 
     // ifmS1 -> ofmS1
-    REQUIRE(readDependency1.relativeAgentId == 1);
-    REQUIRE(readDependency1.outerRatio.other == 1);
-    REQUIRE(readDependency1.outerRatio.self == 1);
-    REQUIRE(readDependency1.innerRatio.other == 1);
-    REQUIRE(readDependency1.innerRatio.self == 1);
-    REQUIRE(readDependency1.boundary == 0);
+    CHECK(readDependency1.relativeAgentId == 1);
+    CHECK(readDependency1.outerRatio.other == 1);
+    CHECK(readDependency1.outerRatio.self == 1);
+    CHECK(readDependency1.innerRatio.other == 1);
+    CHECK(readDependency1.innerRatio.self == 1);
+    CHECK(readDependency1.boundary == 0);
     // ifmS2 -> ofmS2
-    REQUIRE(readDependency2.relativeAgentId == 1);
-    REQUIRE(readDependency2.outerRatio.other == 1);
-    REQUIRE(readDependency2.outerRatio.self == 1);
-    REQUIRE(readDependency2.innerRatio.other == 1);
-    REQUIRE(readDependency2.innerRatio.self == 1);
-    REQUIRE(readDependency2.boundary == 0);
+    CHECK(readDependency2.relativeAgentId == 1);
+    CHECK(readDependency2.outerRatio.other == 1);
+    CHECK(readDependency2.outerRatio.self == 1);
+    CHECK(readDependency2.innerRatio.other == 1);
+    CHECK(readDependency2.innerRatio.self == 1);
+    CHECK(readDependency2.boundary == 0);
 }
 
 // MceScheduler Agent - Read After Write Dependency Test
@@ -2826,12 +3598,12 @@ TEST_CASE("MceScheduler-IfmStreamer ReadAfterWriteDependency Test", "[CascadingC
                                   ifmSAgent.data.ifm.fmData.numStripes.width *
                                   ifmSAgent.data.ifm.fmData.numStripes.channels;
 
-    REQUIRE(readDependency.relativeAgentId == 3);
-    REQUIRE(readDependency.outerRatio.other == numberOfIfmStripes);
-    REQUIRE(readDependency.outerRatio.self == numberOfMceStripes);
-    REQUIRE(readDependency.innerRatio.other == 1);
-    REQUIRE(readDependency.innerRatio.self == 1);
-    REQUIRE(readDependency.boundary == 0);
+    CHECK(readDependency.relativeAgentId == 3);
+    CHECK(readDependency.outerRatio.other == numberOfIfmStripes);
+    CHECK(readDependency.outerRatio.self == numberOfMceStripes);
+    CHECK(readDependency.innerRatio.other == 1);
+    CHECK(readDependency.innerRatio.self == 1);
+    CHECK(readDependency.boundary == 0);
 }
 
 // MceScheduler Agent - Read After Write Dependency Test
@@ -2852,12 +3624,12 @@ TEST_CASE("MceScheduler-WeightStreamer ReadAfterWriteDependency Test", "[Cascadi
     const Agent& mceSAgent           = commandStream[3];
     const Dependency& readDependency = mceSAgent.info.readDependencies.at(1);
 
-    REQUIRE(readDependency.relativeAgentId == 2);
-    REQUIRE(readDependency.outerRatio.other == 1);
-    REQUIRE(readDependency.outerRatio.self == 6);
-    REQUIRE(readDependency.innerRatio.other == 1);
-    REQUIRE(readDependency.innerRatio.self == 6);
-    REQUIRE(readDependency.boundary == 0);
+    CHECK(readDependency.relativeAgentId == 2);
+    CHECK(readDependency.outerRatio.other == 1);
+    CHECK(readDependency.outerRatio.self == 6);
+    CHECK(readDependency.innerRatio.other == 1);
+    CHECK(readDependency.innerRatio.self == 6);
+    CHECK(readDependency.boundary == 0);
 }
 
 // PleScheduler Agent - Read After Write Dependency Test
@@ -2885,12 +3657,12 @@ TEST_CASE("PleScheduler-IfmStreamer ReadAfterWriteDependency Test", "[CascadingC
                                   ifmSAgent.data.ifm.fmData.numStripes.width *
                                   ifmSAgent.data.ifm.fmData.numStripes.channels;
 
-    REQUIRE(readDependency.relativeAgentId == 2);
-    REQUIRE(readDependency.outerRatio.other == numberOfIfmStripes);
-    REQUIRE(readDependency.outerRatio.self == numberOfPleStripes);
-    REQUIRE(readDependency.innerRatio.other == 1);
-    REQUIRE(readDependency.innerRatio.self == 1);
-    REQUIRE(readDependency.boundary == 1);
+    CHECK(readDependency.relativeAgentId == 2);
+    CHECK(readDependency.outerRatio.other == numberOfIfmStripes);
+    CHECK(readDependency.outerRatio.self == numberOfPleStripes);
+    CHECK(readDependency.innerRatio.other == 1);
+    CHECK(readDependency.innerRatio.self == 1);
+    CHECK(readDependency.boundary == 1);
 }
 
 // PleScheduler Agent - Read After Write Dependency Test
@@ -2917,12 +3689,12 @@ TEST_CASE("PleScheduler-MceScheduler ReadAfterWriteDependency Test", "[Cascading
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
 
-    REQUIRE(readDependency.relativeAgentId == 1);
-    REQUIRE(readDependency.outerRatio.other == numberOfMceStripes);
-    REQUIRE(readDependency.outerRatio.self == numberOfPleStripes);
-    REQUIRE(readDependency.innerRatio.other == 70);
-    REQUIRE(readDependency.innerRatio.self == 1);
-    REQUIRE(readDependency.boundary == 1);
+    CHECK(readDependency.relativeAgentId == 1);
+    CHECK(readDependency.outerRatio.other == numberOfMceStripes);
+    CHECK(readDependency.outerRatio.self == numberOfPleStripes);
+    CHECK(readDependency.innerRatio.other == 70);
+    CHECK(readDependency.innerRatio.self == 1);
+    CHECK(readDependency.boundary == 1);
 }
 
 // MceScheduler Agent - Read After Write Dependency Test
@@ -2940,7 +3712,7 @@ TEST_CASE("MceScheduler-PleScheduler ReadAfterWriteDependency Test", "[Cascading
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
-    const Agent& mceSAgent           = commandStream[7];
+    const Agent& mceSAgent           = commandStream[6];
     const Agent& pleSAgent           = commandStream[4];
     const Dependency& readDependency = mceSAgent.info.readDependencies.at(0);
 
@@ -2949,12 +3721,12 @@ TEST_CASE("MceScheduler-PleScheduler ReadAfterWriteDependency Test", "[Cascading
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
 
-    REQUIRE(readDependency.relativeAgentId == 3);
-    REQUIRE(readDependency.outerRatio.other == numberOfPleStripes);
-    REQUIRE(readDependency.outerRatio.self == numberOfMceStripes);
-    REQUIRE(readDependency.innerRatio.other == 1);
-    REQUIRE(readDependency.innerRatio.self == 70);
-    REQUIRE(readDependency.boundary == 1);
+    CHECK(readDependency.relativeAgentId == 2);
+    CHECK(readDependency.outerRatio.other == numberOfPleStripes);
+    CHECK(readDependency.outerRatio.self == numberOfMceStripes);
+    CHECK(readDependency.innerRatio.other == 1);
+    CHECK(readDependency.innerRatio.self == 70);
+    CHECK(readDependency.boundary == 1);
 }
 
 // PleScheduler Agent - Read After Write Dependency Test
@@ -2978,12 +3750,12 @@ TEST_CASE("PleScheduler-PleLoader ReadAfterWriteDependency Test", "[CascadingCom
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
 
-    REQUIRE(readDependency.relativeAgentId == 2);
-    REQUIRE(readDependency.outerRatio.other == 1);
-    REQUIRE(readDependency.outerRatio.self == numberOfPleStripes);
-    REQUIRE(readDependency.innerRatio.other == 1);
-    REQUIRE(readDependency.innerRatio.self == numberOfPleStripes);
-    REQUIRE(readDependency.boundary == 0);
+    CHECK(readDependency.relativeAgentId == 2);
+    CHECK(readDependency.outerRatio.other == 1);
+    CHECK(readDependency.outerRatio.self == numberOfPleStripes);
+    CHECK(readDependency.innerRatio.other == 1);
+    CHECK(readDependency.innerRatio.self == numberOfPleStripes);
+    CHECK(readDependency.boundary == 0);
 }
 
 // OfmStreamer Agent - Read After Write Dependency Test
@@ -3004,12 +3776,12 @@ TEST_CASE("OfmStreamer-IfmStreamer ReadAfterWriteDependency Test", "[CascadingCo
     const Agent& ofmSAgent           = commandStream[5];
     const Dependency& readDependency = ofmSAgent.info.readDependencies.at(0);
 
-    REQUIRE(readDependency.relativeAgentId == 1);
-    REQUIRE(readDependency.outerRatio.other == 1);
-    REQUIRE(readDependency.outerRatio.self == 1);
-    REQUIRE(readDependency.innerRatio.other == 1);
-    REQUIRE(readDependency.innerRatio.self == 1);
-    REQUIRE(readDependency.boundary == 0);
+    CHECK(readDependency.relativeAgentId == 1);
+    CHECK(readDependency.outerRatio.other == 1);
+    CHECK(readDependency.outerRatio.self == 1);
+    CHECK(readDependency.innerRatio.other == 1);
+    CHECK(readDependency.innerRatio.self == 1);
+    CHECK(readDependency.boundary == 0);
 
     ETHOSN_UNUSED(commandStream);
 }
@@ -3032,12 +3804,12 @@ TEST_CASE("OfmStreamer-PleScheduler ReadAfterWriteDependency Test", "[CascadingC
     const Agent& ofmSAgent           = commandStream[3];
     const Dependency& readDependency = ofmSAgent.info.readDependencies.at(0);
 
-    REQUIRE(readDependency.relativeAgentId == 1);
-    REQUIRE(readDependency.outerRatio.other == 1);
-    REQUIRE(readDependency.outerRatio.self == 1);
-    REQUIRE(readDependency.innerRatio.other == 1);
-    REQUIRE(readDependency.innerRatio.self == 1);
-    REQUIRE(readDependency.boundary == 0);
+    CHECK(readDependency.relativeAgentId == 1);
+    CHECK(readDependency.outerRatio.other == 1);
+    CHECK(readDependency.outerRatio.self == 1);
+    CHECK(readDependency.innerRatio.other == 1);
+    CHECK(readDependency.innerRatio.self == 1);
+    CHECK(readDependency.boundary == 0);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -3062,12 +3834,12 @@ TEST_CASE("WeightStreamer-OfmStreamer SramOverlapDependency Test", "[CascadingCo
     const Agent& wgtSAgent           = commandStream[1];
     const Dependency& readDependency = wgtSAgent.info.readDependencies.at(0);
 
-    REQUIRE(readDependency.relativeAgentId == 1);
-    REQUIRE(readDependency.outerRatio.other == 400);
-    REQUIRE(readDependency.outerRatio.self == 1);
-    REQUIRE(readDependency.innerRatio.other == 400);
-    REQUIRE(readDependency.innerRatio.self == 1);
-    REQUIRE(readDependency.boundary == 0);
+    CHECK(readDependency.relativeAgentId == 1);
+    CHECK(readDependency.outerRatio.other == 400);
+    CHECK(readDependency.outerRatio.self == 1);
+    CHECK(readDependency.innerRatio.other == 400);
+    CHECK(readDependency.innerRatio.self == 1);
+    CHECK(readDependency.boundary == 0);
 
     ETHOSN_UNUSED(commandStream);
 }
@@ -3101,12 +3873,12 @@ TEST_CASE("IfmStreamer-MceScheduler WriteAfterReadDependency Test", "[CascadingC
                                   ifmSAgent.data.ifm.fmData.numStripes.width *
                                   ifmSAgent.data.ifm.fmData.numStripes.channels;
 
-    REQUIRE(writeDependency.relativeAgentId == 3);
-    REQUIRE(writeDependency.outerRatio.other == numberOfMceStripes);
-    REQUIRE(writeDependency.outerRatio.self == numberOfIfmStripes);
-    REQUIRE(writeDependency.innerRatio.other == 1);
-    REQUIRE(writeDependency.innerRatio.self == 1);
-    REQUIRE(writeDependency.boundary == 0);
+    CHECK(writeDependency.relativeAgentId == 3);
+    CHECK(writeDependency.outerRatio.other == numberOfMceStripes);
+    CHECK(writeDependency.outerRatio.self == numberOfIfmStripes);
+    CHECK(writeDependency.innerRatio.other == 1);
+    CHECK(writeDependency.innerRatio.self == 1);
+    CHECK(writeDependency.boundary == 0);
 }
 
 // IfmStreamer Agent - Write After Read Dependency Test
@@ -3134,12 +3906,12 @@ TEST_CASE("IfmStreamer-PleScheduler WriteAfterReadDependency Test", "[CascadingC
                                   ifmSAgent.data.ifm.fmData.numStripes.width *
                                   ifmSAgent.data.ifm.fmData.numStripes.channels;
 
-    REQUIRE(writeDependency.relativeAgentId == 2);
-    REQUIRE(writeDependency.outerRatio.other == numberOfPleStripes);
-    REQUIRE(writeDependency.outerRatio.self == numberOfIfmStripes);
-    REQUIRE(writeDependency.innerRatio.other == 1);
-    REQUIRE(writeDependency.innerRatio.self == 1);
-    REQUIRE(writeDependency.boundary == 1);
+    CHECK(writeDependency.relativeAgentId == 2);
+    CHECK(writeDependency.outerRatio.other == numberOfPleStripes);
+    CHECK(writeDependency.outerRatio.self == numberOfIfmStripes);
+    CHECK(writeDependency.innerRatio.other == 1);
+    CHECK(writeDependency.innerRatio.self == 1);
+    CHECK(writeDependency.boundary == 1);
 }
 
 // IfmStreamer Agent - Write After Read Dependency Test
@@ -3164,19 +3936,19 @@ TEST_CASE("IfmStreamer-OfmStreamer WriteAfterReadDependency Test", "[CascadingCo
     const Dependency& writeDependency2 = ifmSAgent2.info.writeDependencies.at(0);
 
     // ifmS1 -> ofmS1
-    REQUIRE(writeDependency1.relativeAgentId == 1);
-    REQUIRE(writeDependency1.outerRatio.other == 1);
-    REQUIRE(writeDependency1.outerRatio.self == 1);
-    REQUIRE(writeDependency1.innerRatio.other == 1);
-    REQUIRE(writeDependency1.innerRatio.self == 1);
-    REQUIRE(writeDependency1.boundary == 0);
+    CHECK(writeDependency1.relativeAgentId == 1);
+    CHECK(writeDependency1.outerRatio.other == 1);
+    CHECK(writeDependency1.outerRatio.self == 1);
+    CHECK(writeDependency1.innerRatio.other == 1);
+    CHECK(writeDependency1.innerRatio.self == 1);
+    CHECK(writeDependency1.boundary == 0);
     // ifmS2 -> ofmS2
-    REQUIRE(writeDependency2.relativeAgentId == 1);
-    REQUIRE(writeDependency2.outerRatio.other == 1);
-    REQUIRE(writeDependency2.outerRatio.self == 1);
-    REQUIRE(writeDependency2.innerRatio.other == 1);
-    REQUIRE(writeDependency2.innerRatio.self == 1);
-    REQUIRE(writeDependency2.boundary == 0);
+    CHECK(writeDependency2.relativeAgentId == 1);
+    CHECK(writeDependency2.outerRatio.other == 1);
+    CHECK(writeDependency2.outerRatio.self == 1);
+    CHECK(writeDependency2.innerRatio.other == 1);
+    CHECK(writeDependency2.innerRatio.self == 1);
+    CHECK(writeDependency2.boundary == 0);
 }
 
 // WeightStreamer Agent - Write After Read Dependency Test
@@ -3197,12 +3969,12 @@ TEST_CASE("WeightStreamer-MceScheduler WriteAfterReadDependency Test", "[Cascadi
     const Agent& wgtSAgent            = commandStream[1];
     const Dependency& writeDependency = wgtSAgent.info.writeDependencies.at(0);
 
-    REQUIRE(writeDependency.relativeAgentId == 2);
-    REQUIRE(writeDependency.outerRatio.other == 6);
-    REQUIRE(writeDependency.outerRatio.self == 1);
-    REQUIRE(writeDependency.innerRatio.other == 6);
-    REQUIRE(writeDependency.innerRatio.self == 1);
-    REQUIRE(writeDependency.boundary == 0);
+    CHECK(writeDependency.relativeAgentId == 2);
+    CHECK(writeDependency.outerRatio.other == 6);
+    CHECK(writeDependency.outerRatio.self == 1);
+    CHECK(writeDependency.innerRatio.other == 6);
+    CHECK(writeDependency.innerRatio.self == 1);
+    CHECK(writeDependency.boundary == 0);
 }
 
 // MceScheduler Agent - Write After Read Dependency Test
@@ -3220,7 +3992,7 @@ TEST_CASE("PleScheduler-MceScheduler WriteAfterReadDependency Test", "[Cascading
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
-    const Agent& mceSAgent            = commandStream[7];
+    const Agent& mceSAgent            = commandStream[6];
     const Agent& pleSAgent            = commandStream[4];
     const Dependency& writeDependency = pleSAgent.info.writeDependencies.at(0);
 
@@ -3229,12 +4001,12 @@ TEST_CASE("PleScheduler-MceScheduler WriteAfterReadDependency Test", "[Cascading
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
 
-    REQUIRE(writeDependency.relativeAgentId == 3);
-    REQUIRE(writeDependency.outerRatio.other == numberOfMceStripes);
-    REQUIRE(writeDependency.outerRatio.self == numberOfPleStripes);
-    REQUIRE(writeDependency.innerRatio.other == 70);
-    REQUIRE(writeDependency.innerRatio.self == 1);
-    REQUIRE(writeDependency.boundary == 1);
+    CHECK(writeDependency.relativeAgentId == 2);
+    CHECK(writeDependency.outerRatio.other == numberOfMceStripes);
+    CHECK(writeDependency.outerRatio.self == numberOfPleStripes);
+    CHECK(writeDependency.innerRatio.other == 70);
+    CHECK(writeDependency.innerRatio.self == 1);
+    CHECK(writeDependency.boundary == 1);
 }
 
 // PleScheduler Agent - Write After Read Dependency Test
@@ -3255,12 +4027,12 @@ TEST_CASE("PleScheduler-OfmStreamer WriteAfterReadDependency Test", "[CascadingC
     const Agent& pleSAgent            = commandStream[2];
     const Dependency& writeDependency = pleSAgent.info.writeDependencies.at(0);
 
-    REQUIRE(writeDependency.relativeAgentId == 1);
-    REQUIRE(writeDependency.outerRatio.other == 1);
-    REQUIRE(writeDependency.outerRatio.self == 1);
-    REQUIRE(writeDependency.innerRatio.other == 1);
-    REQUIRE(writeDependency.innerRatio.self == 1);
-    REQUIRE(writeDependency.boundary == 0);
+    CHECK(writeDependency.relativeAgentId == 1);
+    CHECK(writeDependency.outerRatio.other == 1);
+    CHECK(writeDependency.outerRatio.self == 1);
+    CHECK(writeDependency.innerRatio.other == 1);
+    CHECK(writeDependency.innerRatio.self == 1);
+    CHECK(writeDependency.boundary == 0);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -3291,12 +4063,12 @@ TEST_CASE("IfmStreamer-MceScheduler ScheduleTimeDependency Test", "[CascadingCom
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
 
-    REQUIRE(scheduleDependency.relativeAgentId == 1);
-    REQUIRE(scheduleDependency.outerRatio.other == numberOfPleStripes);
-    REQUIRE(scheduleDependency.outerRatio.self == numberOfMceStripes);
-    REQUIRE(scheduleDependency.innerRatio.other == 1);
-    REQUIRE(scheduleDependency.innerRatio.self == 70);
-    REQUIRE(scheduleDependency.boundary == 1);
+    CHECK(scheduleDependency.relativeAgentId == 1);
+    CHECK(scheduleDependency.outerRatio.other == numberOfPleStripes);
+    CHECK(scheduleDependency.outerRatio.self == numberOfMceStripes);
+    CHECK(scheduleDependency.innerRatio.other == 1);
+    CHECK(scheduleDependency.innerRatio.self == 70);
+    CHECK(scheduleDependency.boundary == 1);
 }
 
 // IfmStreamer Agent - Schedule Time Dependency Test
@@ -3324,12 +4096,12 @@ TEST_CASE("IfmStreamer-PleScheduler ScheduleTimeDependency Test", "[CascadingCom
                                   ifmSAgent.data.ifm.fmData.numStripes.width *
                                   ifmSAgent.data.ifm.fmData.numStripes.channels;
 
-    REQUIRE(scheduleDependency.relativeAgentId == 2);
-    REQUIRE(scheduleDependency.outerRatio.other == numberOfPleStripes);
-    REQUIRE(scheduleDependency.outerRatio.self == numberOfIfmStripes);
-    REQUIRE(scheduleDependency.innerRatio.other == 1);
-    REQUIRE(scheduleDependency.innerRatio.self == 1);
-    REQUIRE(scheduleDependency.boundary == 1);
+    CHECK(scheduleDependency.relativeAgentId == 2);
+    CHECK(scheduleDependency.outerRatio.other == numberOfPleStripes);
+    CHECK(scheduleDependency.outerRatio.self == numberOfIfmStripes);
+    CHECK(scheduleDependency.innerRatio.other == 1);
+    CHECK(scheduleDependency.innerRatio.self == 1);
+    CHECK(scheduleDependency.boundary == 1);
 }
 
 // IfmStreamer Agent - Schedule Time Dependency Test
@@ -3354,19 +4126,19 @@ TEST_CASE("IfmStreamer-OfmStreamer ScheduleTimeDependency Test", "[CascadingComm
     const Dependency& scheduleDependency2 = ifmSAgent2.info.scheduleDependencies.at(0);
 
     // ifmS1 -> ofmS1
-    REQUIRE(scheduleDependency1.relativeAgentId == 1);
-    REQUIRE(scheduleDependency1.outerRatio.other == 1);
-    REQUIRE(scheduleDependency1.outerRatio.self == 1);
-    REQUIRE(scheduleDependency1.innerRatio.other == 1);
-    REQUIRE(scheduleDependency1.innerRatio.self == 1);
-    REQUIRE(scheduleDependency1.boundary == 0);
+    CHECK(scheduleDependency1.relativeAgentId == 1);
+    CHECK(scheduleDependency1.outerRatio.other == 1);
+    CHECK(scheduleDependency1.outerRatio.self == 1);
+    CHECK(scheduleDependency1.innerRatio.other == 1);
+    CHECK(scheduleDependency1.innerRatio.self == 1);
+    CHECK(scheduleDependency1.boundary == 0);
     // ifmS2 -> ofmS2
-    REQUIRE(scheduleDependency2.relativeAgentId == 1);
-    REQUIRE(scheduleDependency2.outerRatio.other == 1);
-    REQUIRE(scheduleDependency2.outerRatio.self == 1);
-    REQUIRE(scheduleDependency2.innerRatio.other == 1);
-    REQUIRE(scheduleDependency2.innerRatio.self == 1);
-    REQUIRE(scheduleDependency2.boundary == 0);
+    CHECK(scheduleDependency2.relativeAgentId == 1);
+    CHECK(scheduleDependency2.outerRatio.other == 1);
+    CHECK(scheduleDependency2.outerRatio.self == 1);
+    CHECK(scheduleDependency2.innerRatio.other == 1);
+    CHECK(scheduleDependency2.innerRatio.self == 1);
+    CHECK(scheduleDependency2.boundary == 0);
 }
 
 // WeightStreamer Agent - Schedule Time Dependency Test
@@ -3393,12 +4165,12 @@ TEST_CASE("WeightStreamer-MceScheduler ScheduleTimeDependency Test", "[Cascading
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
 
-    REQUIRE(scheduleDependency.relativeAgentId == 1);
-    REQUIRE(scheduleDependency.outerRatio.other == numberOfPleStripes);
-    REQUIRE(scheduleDependency.outerRatio.self == numberOfMceStripes);
-    REQUIRE(scheduleDependency.innerRatio.other == 1);
-    REQUIRE(scheduleDependency.innerRatio.self == 70);
-    REQUIRE(scheduleDependency.boundary == 1);
+    CHECK(scheduleDependency.relativeAgentId == 1);
+    CHECK(scheduleDependency.outerRatio.other == numberOfPleStripes);
+    CHECK(scheduleDependency.outerRatio.self == numberOfMceStripes);
+    CHECK(scheduleDependency.innerRatio.other == 1);
+    CHECK(scheduleDependency.innerRatio.self == 70);
+    CHECK(scheduleDependency.boundary == 1);
 }
 
 // MceScheduler Agent - Schedule Time Dependency Test
@@ -3425,12 +4197,12 @@ TEST_CASE("MceScheduler-PleScheduler ScheduleTimeDependency Test", "[CascadingCo
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
 
-    REQUIRE(scheduleDependency.relativeAgentId == 1);
-    REQUIRE(scheduleDependency.outerRatio.other == numberOfPleStripes);
-    REQUIRE(scheduleDependency.outerRatio.self == numberOfMceStripes);
-    REQUIRE(scheduleDependency.innerRatio.other == 1);
-    REQUIRE(scheduleDependency.innerRatio.self == 70);
-    REQUIRE(scheduleDependency.boundary == 1);
+    CHECK(scheduleDependency.relativeAgentId == 1);
+    CHECK(scheduleDependency.outerRatio.other == numberOfPleStripes);
+    CHECK(scheduleDependency.outerRatio.self == numberOfMceStripes);
+    CHECK(scheduleDependency.innerRatio.other == 1);
+    CHECK(scheduleDependency.innerRatio.self == 70);
+    CHECK(scheduleDependency.boundary == 1);
 }
 
 // PleScheduler Agent - Schedule Time Dependency Test
@@ -3448,7 +4220,7 @@ TEST_CASE("PleScheduler-MceScheduler ScheduleTimeDependency Test", "[CascadingCo
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
-    const Agent& mceSAgent               = commandStream[7];
+    const Agent& mceSAgent               = commandStream[6];
     const Agent& pleSAgent               = commandStream[4];
     const Dependency& scheduleDependency = pleSAgent.info.scheduleDependencies.at(0);
 
@@ -3457,12 +4229,12 @@ TEST_CASE("PleScheduler-MceScheduler ScheduleTimeDependency Test", "[CascadingCo
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
 
-    REQUIRE(scheduleDependency.relativeAgentId == 3);
-    REQUIRE(scheduleDependency.outerRatio.other == numberOfMceStripes);
-    REQUIRE(scheduleDependency.outerRatio.self == numberOfPleStripes);
-    REQUIRE(scheduleDependency.innerRatio.other == 70);
-    REQUIRE(scheduleDependency.innerRatio.self == 1);
-    REQUIRE(scheduleDependency.boundary == 1);
+    CHECK(scheduleDependency.relativeAgentId == 2);
+    CHECK(scheduleDependency.outerRatio.other == numberOfMceStripes);
+    CHECK(scheduleDependency.outerRatio.self == numberOfPleStripes);
+    CHECK(scheduleDependency.innerRatio.other == 70);
+    CHECK(scheduleDependency.innerRatio.self == 1);
+    CHECK(scheduleDependency.boundary == 1);
 }
 
 // PleLoader Agent - Schedule Time Dependency Test
@@ -3487,12 +4259,12 @@ TEST_CASE("PleLoader-MceScheduler ScheduleTimeDependency Test", "[CascadingComma
     uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
                                   mceSAgent.data.mce.numStripes.ifmChannels;
 
-    REQUIRE(scheduleDependency.relativeAgentId == 1);
-    REQUIRE(scheduleDependency.outerRatio.other == numberOfMceStripes);
-    REQUIRE(scheduleDependency.outerRatio.self == 1);
-    REQUIRE(scheduleDependency.innerRatio.other == numberOfMceStripes);
-    REQUIRE(scheduleDependency.innerRatio.self == 1);
-    REQUIRE(scheduleDependency.boundary == 0);
+    CHECK(scheduleDependency.relativeAgentId == 1);
+    CHECK(scheduleDependency.outerRatio.other == numberOfMceStripes);
+    CHECK(scheduleDependency.outerRatio.self == 1);
+    CHECK(scheduleDependency.innerRatio.other == numberOfMceStripes);
+    CHECK(scheduleDependency.innerRatio.self == 1);
+    CHECK(scheduleDependency.boundary == 0);
 }
 
 // PleLoader Agent - Schedule Time Dependency Test
@@ -3517,12 +4289,12 @@ TEST_CASE("PleLoader-PleScheduler ScheduleTimeDependency Test", "[CascadingComma
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
 
-    REQUIRE(scheduleDependency.relativeAgentId == 1);
-    REQUIRE(scheduleDependency.outerRatio.other == numberOfPleStripes);
-    REQUIRE(scheduleDependency.outerRatio.self == 1);
-    REQUIRE(scheduleDependency.innerRatio.other == numberOfPleStripes);
-    REQUIRE(scheduleDependency.innerRatio.self == 1);
-    REQUIRE(scheduleDependency.boundary == 0);
+    CHECK(scheduleDependency.relativeAgentId == 1);
+    CHECK(scheduleDependency.outerRatio.other == numberOfPleStripes);
+    CHECK(scheduleDependency.outerRatio.self == 1);
+    CHECK(scheduleDependency.innerRatio.other == numberOfPleStripes);
+    CHECK(scheduleDependency.innerRatio.self == 1);
+    CHECK(scheduleDependency.boundary == 0);
 }
 
 // PleScheduler Agent - Schedule Time Dependency Test
@@ -3543,12 +4315,12 @@ TEST_CASE("PleScheduler-OfmStreamer ScheduleTimeDependency Test", "[CascadingCom
     const Agent& pleSAgent               = commandStream[2];
     const Dependency& scheduleDependency = pleSAgent.info.scheduleDependencies.at(0);
 
-    REQUIRE(scheduleDependency.relativeAgentId == 1);
-    REQUIRE(scheduleDependency.outerRatio.other == 1);
-    REQUIRE(scheduleDependency.outerRatio.self == 1);
-    REQUIRE(scheduleDependency.innerRatio.other == 1);
-    REQUIRE(scheduleDependency.innerRatio.self == 1);
-    REQUIRE(scheduleDependency.boundary == 0);
+    CHECK(scheduleDependency.relativeAgentId == 1);
+    CHECK(scheduleDependency.outerRatio.other == 1);
+    CHECK(scheduleDependency.outerRatio.self == 1);
+    CHECK(scheduleDependency.innerRatio.other == 1);
+    CHECK(scheduleDependency.innerRatio.self == 1);
+    CHECK(scheduleDependency.boundary == 0);
 }
 
 // OfmStreamer Agent - Schedule Time Dependency Test
@@ -3569,12 +4341,12 @@ TEST_CASE("OfmStreamer-IfmStreamer ScheduleTimeDependency Test", "[CascadingComm
     const Agent& ofmSAgent               = commandStream[5];
     const Dependency& scheduleDependency = ofmSAgent.info.scheduleDependencies.at(0);
 
-    REQUIRE(scheduleDependency.relativeAgentId == 1);
-    REQUIRE(scheduleDependency.outerRatio.other == 200);
-    REQUIRE(scheduleDependency.outerRatio.self == 400);
-    REQUIRE(scheduleDependency.innerRatio.other == 1);
-    REQUIRE(scheduleDependency.innerRatio.self == 400);
-    REQUIRE(scheduleDependency.boundary == 0);
+    CHECK(scheduleDependency.relativeAgentId == 1);
+    CHECK(scheduleDependency.outerRatio.other == 200);
+    CHECK(scheduleDependency.outerRatio.self == 400);
+    CHECK(scheduleDependency.innerRatio.other == 1);
+    CHECK(scheduleDependency.innerRatio.self == 400);
+    CHECK(scheduleDependency.boundary == 0);
 }
 
 // Producer-Consumer Agent - Intermediate Dram Buffer Lifetime Test
@@ -3606,8 +4378,8 @@ TEST_CASE("Producer-Consumer IntermediateDramBufferLifetime Test", "[CascadingCo
             const BufferManager& bufferManager = commandStreamGenerator.GetBufferManager();
 
             // Use Buffer Id to retrieve the appropriate Buffer's CompilerBufferInfo and use that to check the Lifetimes.
-            REQUIRE(bufferManager.GetBuffers().at(buffId).m_LifetimeStart == 5);
-            REQUIRE(bufferManager.GetBuffers().at(buffId).m_LifetimeEnd == 9);
+            CHECK(bufferManager.GetBuffers().at(buffId).m_LifetimeStart == 5);
+            CHECK(bufferManager.GetBuffers().at(buffId).m_LifetimeEnd == 9);
         }
     }
 }

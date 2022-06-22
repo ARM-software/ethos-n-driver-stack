@@ -89,7 +89,10 @@ inline void SetBufferDataType(FmSData& streamerData, const CascadingBufferFormat
     }
 }
 
-inline void SetStripeHeightInfo(FmSData& streamerData, const TensorShape& tensorShape, const TensorShape& stripeShape)
+inline void SetStripeHeightInfo(const HardwareCapabilities& hwCap,
+                                FmSData& streamerData,
+                                const TensorShape& tensorShape,
+                                const TensorShape& stripeShape)
 {
     uint16_t tensorHeight = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(tensorShape));
     uint16_t stripeHeight = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(stripeShape));
@@ -103,15 +106,19 @@ inline void SetStripeHeightInfo(FmSData& streamerData, const TensorShape& tensor
 
     streamerData.edgeStripeSize.height = stripeHeight;
 
-    uint16_t remainingHeight = tensorHeight % stripeHeight;
+    uint32_t remainingHeight = tensorHeight % stripeHeight;
 
     if (remainingHeight != 0)
     {
-        streamerData.edgeStripeSize.height = remainingHeight;
+        streamerData.edgeStripeSize.height = ethosn::utils::NumericCast<uint16_t>(
+            utils::RoundUpToNearestMultiple(remainingHeight, utils::GetHeight(hwCap.GetBrickGroupShape())));
     }
 }
 
-inline void SetStripeWidthInfo(FmSData& streamerData, const TensorShape& tensorShape, const TensorShape& stripeShape)
+inline void SetStripeWidthInfo(const HardwareCapabilities& hwCap,
+                               FmSData& streamerData,
+                               const TensorShape& tensorShape,
+                               const TensorShape& stripeShape)
 {
     uint16_t tensorWidth = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(tensorShape));
     uint16_t stripeWidth = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(stripeShape));
@@ -125,15 +132,19 @@ inline void SetStripeWidthInfo(FmSData& streamerData, const TensorShape& tensorS
 
     streamerData.edgeStripeSize.width = stripeWidth;
 
-    uint16_t remainingWidth = tensorWidth % stripeWidth;
+    uint32_t remainingWidth = tensorWidth % stripeWidth;
 
     if (remainingWidth != 0)
     {
-        streamerData.edgeStripeSize.width = remainingWidth;
+        streamerData.edgeStripeSize.width = ethosn::utils::NumericCast<uint16_t>(
+            utils::RoundUpToNearestMultiple(remainingWidth, utils::GetWidth(hwCap.GetBrickGroupShape())));
     }
 }
 
-inline void SetStripeChannelsInfo(FmSData& streamerData, const TensorShape& tensorShape, const TensorShape& stripeShape)
+inline void SetStripeChannelsInfo(const HardwareCapabilities& hwCap,
+                                  FmSData& streamerData,
+                                  const TensorShape& tensorShape,
+                                  const TensorShape& stripeShape)
 {
     uint16_t tensorChannels = ethosn::utils::NumericCast<uint16_t>(utils::GetChannels(tensorShape));
     uint16_t stripeChannels = ethosn::utils::NumericCast<uint16_t>(utils::GetChannels(stripeShape));
@@ -147,11 +158,12 @@ inline void SetStripeChannelsInfo(FmSData& streamerData, const TensorShape& tens
 
     streamerData.edgeStripeSize.channels = stripeChannels;
 
-    uint16_t remainingChannels = tensorChannels % stripeChannels;
+    uint32_t remainingChannels = tensorChannels % stripeChannels;
 
     if (remainingChannels != 0)
     {
-        streamerData.edgeStripeSize.channels = remainingChannels;
+        streamerData.edgeStripeSize.channels = ethosn::utils::NumericCast<uint16_t>(
+            utils::RoundUpToNearestMultiple(remainingChannels, utils::GetChannels(hwCap.GetBrickGroupShape())));
     }
 }
 
@@ -363,26 +375,19 @@ inline void setMcesStridedConvolutionData(MceS& mceSchedulerData, const OpGraph&
     OpGraph::BufferList inputBuffers = mergedOpGraph.GetInputs(ptrMceOp);
     Buffer* weightBuffer             = inputBuffers[g_MceWeightBufferIndex];
 
-    // Set the filter shapes
     auto filters =
         GetSubmapFilters(weightBuffer->m_TensorShape[1], weightBuffer->m_TensorShape[0], ptrMceOp->m_Stride.m_X,
                          ptrMceOp->m_Stride.m_Y, ptrMceOp->m_PadLeft, ptrMceOp->m_PadTop, weightBuffer->m_TensorShape);
 
-    mceSchedulerData.filterShape[0].height = ethosn::utils::NumericCast<uint8_t>(filters[0].GetFilterY());
-    mceSchedulerData.filterShape[0].width  = ethosn::utils::NumericCast<uint8_t>(filters[0].GetFilterX());
-
-    mceSchedulerData.filterShape[1].height = ethosn::utils::NumericCast<uint8_t>(filters[1].GetFilterY());
-    mceSchedulerData.filterShape[1].width  = ethosn::utils::NumericCast<uint8_t>(filters[1].GetFilterX());
-
-    mceSchedulerData.filterShape[2].height = ethosn::utils::NumericCast<uint8_t>(filters[2].GetFilterY());
-    mceSchedulerData.filterShape[2].width  = ethosn::utils::NumericCast<uint8_t>(filters[2].GetFilterX());
-
-    mceSchedulerData.filterShape[3].height = ethosn::utils::NumericCast<uint8_t>(filters[3].GetFilterY());
-    mceSchedulerData.filterShape[3].width  = ethosn::utils::NumericCast<uint8_t>(filters[3].GetFilterX());
-
-    // Set the padding information and Ifm delta for each sub map
+    // Set the filter shapes, padding information, and Ifm delta for each sub map
     for (uint8_t subMapIndex = 0; subMapIndex < 4; subMapIndex++)
     {
+        // Set the filter shapes
+        mceSchedulerData.filterShape[subMapIndex].height =
+            ethosn::utils::NumericCast<uint8_t>(filters[subMapIndex].GetFilterY());
+        mceSchedulerData.filterShape[subMapIndex].width =
+            ethosn::utils::NumericCast<uint8_t>(filters[subMapIndex].GetFilterX());
+
         // Set the padding information for each sub map
         const uint32_t x        = subMapIndex % ptrMceOp->m_Stride.m_X;
         const uint32_t y        = subMapIndex / ptrMceOp->m_Stride.m_X;
