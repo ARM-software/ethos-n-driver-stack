@@ -21,7 +21,10 @@ struct DebuggingContext;
 class Cascading
 {
 public:
-    Cascading(const EstimationOptions& estOpt, const CompilationOptions& compOpt, const HardwareCapabilities& caps);
+    Cascading(const EstimationOptions& estOpt,
+              const CompilationOptions& compOpt,
+              const HardwareCapabilities& caps,
+              const DebuggingContext&);
 
     const GraphOfParts& GetGraphOfParts() const;
 

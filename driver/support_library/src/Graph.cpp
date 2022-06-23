@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -443,10 +443,9 @@ void Node::SetBufferId(uint32_t v)
 DotAttributes Node::GetDotAttributes()
 {
     std::stringstream result;
-    const DebuggingContext& debuggingContext = GetDebuggingContext();
 
     result << "Node Id: " << m_Id << "\n";
-    result << "Creation source:" << debuggingContext.GetStringFromNode(this) << "\n";
+    result << "Creation source:" << m_CreationSource << "\n";
     result << "CorrespondingOperationIds:";
     for (auto id : m_CorrespondingOperationIds)
     {

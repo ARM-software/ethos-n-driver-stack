@@ -19,11 +19,13 @@ namespace cascading_compiler
 CascadingCommandStreamGenerator::CascadingCommandStreamGenerator(const OpGraph& mergedOpGraph,
                                                                  const std::set<uint32_t>& operationIds,
                                                                  const HardwareCapabilities& capabilities,
-                                                                 const CompilationOptions& compilationOptions)
+                                                                 const CompilationOptions& compilationOptions,
+                                                                 const DebuggingContext& debuggingContext)
     : m_MergedOpGraph{ mergedOpGraph }
     , m_OperationIds{ operationIds }
     , m_Capabilities{ capabilities }
     , m_CompilationOptions{ compilationOptions }
+    , m_DebuggingContext(debuggingContext)
 {
 
     m_CommandStreamAgents.reserve(m_MergedOpGraph.GetOps().size());
@@ -83,7 +85,7 @@ std::unique_ptr<CompiledNetworkImpl> CascadingCommandStreamGenerator::Generate()
     }
     m_BufferManager.AddCommandStream(m_CommandStream);
 
-    m_BufferManager.Allocate(GetConstDebuggingContext());
+    m_BufferManager.Allocate(m_DebuggingContext);
 
     // Create the compiled network using the updated BufferManager instance
     std::unique_ptr<CompiledNetworkImpl> compiledNetwork = std::make_unique<CompiledNetworkImpl>(

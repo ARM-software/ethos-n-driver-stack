@@ -159,7 +159,7 @@ TEST_CASE("IsPartSiso", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -228,7 +228,7 @@ TEST_CASE("IsPartSimo", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -289,7 +289,7 @@ TEST_CASE("IsPartMiso", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -357,7 +357,7 @@ TEST_CASE("IsPartMimo", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -426,7 +426,7 @@ TEST_CASE("IsPartInput and IsPartOutput", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -511,7 +511,7 @@ TEST_CASE("IsPartSo and IsPartMo", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -590,7 +590,7 @@ TEST_CASE("DoubleBufferingTestVariant_PleKernelsOnly", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -661,7 +661,7 @@ TEST_CASE("DoubleBufferingTestVariant_SinglePartSection", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -734,7 +734,7 @@ TEST_CASE("DoubleBufferingTestVariant_McePleMce", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -805,7 +805,7 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMce", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -885,7 +885,7 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMcePle", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -977,7 +977,7 @@ TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -1074,7 +1074,7 @@ TEST_CASE("BufferDeallocationTest_CascadeOps", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -1309,7 +1309,7 @@ TEST_CASE("GetOpGraphForDfsMISOSramsToDrams", "[CombinerDFS]")
     connections[partCInputSlot1] = { partBOutputSlot };
 
     const CompilationOptions compOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
 
     // Plan A
     Plan planA;
@@ -1459,7 +1459,7 @@ TEST_CASE("GetOpGraphForDfsMISODramsToSrams", "[CombinerDFS]")
     connections[partCInputSlot1] = { partBOutputSlot };
 
     const CompilationOptions compOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
 
     // Plan A
     Plan planA;
@@ -1625,7 +1625,7 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialDram", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     // Plan A
@@ -2239,7 +2239,7 @@ TEST_CASE("FindBestCombinationForPart cache", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     class MockCombiner : public Combiner
@@ -2300,7 +2300,7 @@ TEST_CASE("ArePlansCompatible", "[CombinerDFS]")
 
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
 
     // Part consisting of node A
@@ -2366,7 +2366,7 @@ TEST_CASE("GluePartToCombination", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
@@ -2544,7 +2544,7 @@ TEST_CASE("CombinerSortTest1", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -2627,7 +2627,7 @@ TEST_CASE("CombinerSortTest2", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -2691,7 +2691,7 @@ TEST_CASE("GetCombPartsInOrder", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     GraphOfParts gOfParts;
@@ -2817,7 +2817,7 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
@@ -2950,7 +2950,7 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
@@ -3111,7 +3111,7 @@ TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
@@ -3228,7 +3228,7 @@ TEST_CASE("IsPlanInputGlueable", "[CombinerDFS]")
     GraphOfParts gOfParts;
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
@@ -3299,7 +3299,7 @@ TEST_CASE("ArePlansAllowedToMerge", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
@@ -3421,7 +3421,7 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     ethosn::support_library::impl::NumMemoryStripes numMemoryStripes;
@@ -3515,7 +3515,7 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
 
         const CompilationOptions compOpt;
         const EstimationOptions estOpt;
-        const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+        const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
         const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
         Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -3632,7 +3632,7 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
 
         const CompilationOptions compOpt;
         const EstimationOptions estOpt;
-        const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+        const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
         const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
         Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
@@ -3976,7 +3976,7 @@ TEST_CASE("ArePlansAllowedToMerge IdentityParts", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
@@ -4106,7 +4106,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
 
     GIVEN("Three plans that can be combined into a single section")
     {

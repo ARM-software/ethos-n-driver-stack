@@ -37,7 +37,7 @@ void DumpDebugInfo(const GraphOfParts& parts,
                    const std::string folder)
 {
     using namespace ethosn::utils;
-    if (debuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+    if (debuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
     {
         MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
 
@@ -1789,7 +1789,7 @@ bool Combiner::TopologicalSortParts()
 void Combiner::Run()
 {
     using namespace ethosn::utils;
-    if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
     {
         MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("FindBestCombinationForPart").c_str());
     }
@@ -2119,7 +2119,7 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
 
 void Combiner::SavePartsPlans(const BasePart& part, const Plans& plans) const
 {
-    if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
+    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
     {
         std::ofstream debugPlanCountsDumpFile(
             m_DebuggingContext.GetAbsolutePathOutputFileName("Cascaded_PlanCounts.txt"));

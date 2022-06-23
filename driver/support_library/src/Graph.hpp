@@ -279,6 +279,8 @@ protected:
 
     // The ids of the operations in the input graph that this Node corresponds to
     std::set<uint32_t> m_CorrespondingOperationIds;
+
+    std::string m_CreationSource;
 };
 
 class Edge
@@ -360,9 +362,8 @@ private:
 template <typename TNode, typename... Args>
 TNode* ethosn::support_library::Graph::CreateAndAddNodeWithDebug(const char* addedFrom, Args&&... args)
 {
-    TNode* ptr                         = this->CreateAndAddNode<TNode>(std::forward<Args>(args)...);
-    DebuggingContext& debuggingContext = GetDebuggingContext();
-    debuggingContext.AddNodeCreationSource({ ptr, addedFrom });
+    TNode* ptr            = this->CreateAndAddNode<TNode>(std::forward<Args>(args)...);
+    ptr->m_CreationSource = addedFrom;
 
     return ptr;
 }

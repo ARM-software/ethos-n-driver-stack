@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -28,7 +28,7 @@ public:
         const Node* node;
         std::string creationSource;
     };
-    DebuggingContext(const CompilationOptions::DebugInfo* compilationOptions);
+    DebuggingContext(const CompilationOptions::DebugInfo& debugInfo);
 
     void SaveNetworkToDot(CompilationOptions::DebugLevel level,
                           const Network& network,
@@ -58,7 +58,7 @@ public:
                               const std::string& fileName,
                               DetailLevel detailLevel) const;
 
-    const CompilationOptions::DebugInfo* m_DebugInfo;
+    CompilationOptions::DebugInfo m_DebugInfo;
 
     std::string GetAbsolutePathOutputFileName(const std::string& fileName) const;
 
@@ -74,10 +74,6 @@ private:
     using NodeToCreationSourceContainer = std::unordered_map<const void*, std::string>;
     NodeToCreationSourceContainer m_NodeToCreationSource;
 };
-
-void SetDebuggingContext(const DebuggingContext& debuggingContext);
-DebuggingContext& GetDebuggingContext();
-const DebuggingContext& GetConstDebuggingContext();
 
 }    // namespace support_library
 }    // namespace ethosn

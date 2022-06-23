@@ -82,11 +82,12 @@ GraphOfParts CreateGraphOfParts(const Network& network,
 
 Cascading::Cascading(const EstimationOptions& estOpt,
                      const CompilationOptions& compOpt,
-                     const HardwareCapabilities& hwCap)
+                     const HardwareCapabilities& hwCap,
+                     const DebuggingContext& debuggingContext)
     : m_EstimationOptions(estOpt)
     , m_CompilationOptions(compOpt)
     , m_Capabilities(hwCap)
-    , m_DebuggingContext(GetDebuggingContext())
+    , m_DebuggingContext(debuggingContext)
     , m_Combiner(m_GraphOfParts, hwCap, estOpt, m_DebuggingContext)
 {
     // Constructor
@@ -103,7 +104,7 @@ NetworkPerformanceData Cascading::EstimateNetwork(const Network& network)
 
     m_Combiner.Run();
 
-    if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
     {
         MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("BestCombination").c_str());
         OpGraph g = GetOpGraphForCombination(m_Combiner.GetBestCombination(), m_GraphOfParts);
@@ -131,7 +132,7 @@ void Cascading::EstimatePerformance()
     EstimatedOpGraph estimatedOpGraph =
         ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Capabilities, m_EstimationOptions);
     m_PerformanceStream = estimatedOpGraph.m_PerfData;
-    if (m_DebuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
+    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
     {
         SaveDebugFilesForEstimatedCombination("BestCombination", m_DebuggingContext, combiOpGraph, estimatedOpGraph);
     }

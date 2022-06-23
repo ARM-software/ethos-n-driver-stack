@@ -37,7 +37,7 @@ TEST_CASE("BufferManager alignment")
 
     // Allocate the buffers
     CompilationOptions::DebugInfo debugInfo;
-    m.Allocate(DebuggingContext(&debugInfo));
+    m.Allocate(DebuggingContext(debugInfo));
 
     // Check their alignment
     for (auto& bufferIt : m.GetBuffers())

@@ -33,7 +33,8 @@ public:
     CascadingCommandStreamGenerator(const OpGraph& mergedOpGraph,
                                     const std::set<uint32_t>& operationIds,
                                     const HardwareCapabilities& capabilities,
-                                    const CompilationOptions& compilationOptions);
+                                    const CompilationOptions& compilationOptions,
+                                    const DebuggingContext& debuggingContext);
     CascadingCommandStreamGenerator(const CascadingCommandStreamGenerator&) = delete;
     CascadingCommandStreamGenerator& operator=(const CascadingCommandStreamGenerator&) = delete;
     ~CascadingCommandStreamGenerator();
@@ -129,6 +130,7 @@ private:
     // Compilation parameters, set at creation time.
     HardwareCapabilities m_Capabilities;
     const CompilationOptions m_CompilationOptions;
+    const DebuggingContext& m_DebuggingContext;
 
     // Data structure for mapping an Op to its Agent ID
     std::unordered_map<Op*, AgentIdType> m_OpToAgentIdMapping;

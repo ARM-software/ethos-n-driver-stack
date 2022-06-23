@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -14,14 +14,8 @@ namespace ethosn
 namespace support_library
 {
 
-// s_DebuggingContext is declared as thread_local to be able to support
-// parallel network compilation on different threads. Since the DebuggingContext
-// object is set by the Compiler object, this allows each compilation to have
-// its own debugging information.
-static thread_local DebuggingContext s_DebuggingContext(nullptr);
-
-DebuggingContext::DebuggingContext(const CompilationOptions::DebugInfo* compilationOptions)
-    : m_DebugInfo(compilationOptions)
+DebuggingContext::DebuggingContext(const CompilationOptions::DebugInfo& debugInfo)
+    : m_DebugInfo(debugInfo)
 {}
 
 void DebuggingContext::SaveNetworkToDot(CompilationOptions::DebugLevel level,
@@ -29,7 +23,7 @@ void DebuggingContext::SaveNetworkToDot(CompilationOptions::DebugLevel level,
                                         const std::string& fileName,
                                         DetailLevel detailLevel) const
 {
-    if (m_DebugInfo->m_DumpDebugFiles >= level)
+    if (m_DebugInfo.m_DumpDebugFiles >= level)
     {
         std::ofstream dotStream(GetAbsolutePathOutputFileName(fileName));
         ethosn::support_library::SaveNetworkToDot(network, dotStream, detailLevel);
@@ -40,7 +34,7 @@ void DebuggingContext::DumpGraph(CompilationOptions::DebugLevel level,
                                  const Graph& graph,
                                  const std::string& fileName) const
 {
-    if (m_DebugInfo->m_DumpDebugFiles >= level)
+    if (m_DebugInfo.m_DumpDebugFiles >= level)
     {
         std::ofstream dotStream(GetAbsolutePathOutputFileName(fileName));
         graph.DumpToDotFormat(dotStream);
@@ -52,7 +46,7 @@ void DebuggingContext::SaveGraphOfPartsToDot(CompilationOptions::DebugLevel leve
                                              const std::string& fileName,
                                              DetailLevel detailLevel) const
 {
-    if (m_DebugInfo->m_DumpDebugFiles >= level)
+    if (m_DebugInfo.m_DumpDebugFiles >= level)
     {
         std::ofstream stream(GetAbsolutePathOutputFileName(fileName));
         ethosn::support_library::SaveGraphOfPartsToDot(graphOfParts, stream, detailLevel);
@@ -64,7 +58,7 @@ void DebuggingContext::SavePlansToDot(CompilationOptions::DebugLevel level,
                                       const std::string& fileName,
                                       DetailLevel detailLevel) const
 {
-    if (m_DebugInfo->m_DumpDebugFiles >= level)
+    if (m_DebugInfo.m_DumpDebugFiles >= level)
     {
         std::ofstream stream(GetAbsolutePathOutputFileName(fileName));
         ethosn::support_library::SavePlansToDot(plans, stream, detailLevel);
@@ -76,7 +70,7 @@ void DebuggingContext::SaveOpGraphToDot(CompilationOptions::DebugLevel level,
                                         const std::string& fileName,
                                         DetailLevel detailLevel) const
 {
-    if (m_DebugInfo->m_DumpDebugFiles >= level)
+    if (m_DebugInfo.m_DumpDebugFiles >= level)
     {
         std::ofstream stream(GetAbsolutePathOutputFileName(fileName));
         ethosn::support_library::SaveOpGraphToDot(opGraph, stream, detailLevel);
@@ -89,7 +83,7 @@ void DebuggingContext::SaveEstimatedOpGraphToDot(CompilationOptions::DebugLevel 
                                                  const std::string& fileName,
                                                  DetailLevel detailLevel) const
 {
-    if (m_DebugInfo->m_DumpDebugFiles >= level)
+    if (m_DebugInfo.m_DumpDebugFiles >= level)
     {
         std::ofstream stream(GetAbsolutePathOutputFileName(fileName));
         ethosn::support_library::SaveEstimatedOpGraphToDot(opGraph, estimationDetails, stream, detailLevel);
@@ -102,7 +96,7 @@ void DebuggingContext::SaveCombinationToDot(CompilationOptions::DebugLevel level
                                             const std::string& fileName,
                                             DetailLevel detailLevel) const
 {
-    if (m_DebugInfo->m_DumpDebugFiles >= level)
+    if (m_DebugInfo.m_DumpDebugFiles >= level)
     {
         std::ofstream stream(GetAbsolutePathOutputFileName(fileName));
         ethosn::support_library::SaveCombinationToDot(combination, graphOfParts, stream, detailLevel);
@@ -112,9 +106,9 @@ void DebuggingContext::SaveCombinationToDot(CompilationOptions::DebugLevel level
 std::string DebuggingContext::GetAbsolutePathOutputFileName(const std::string& fileName) const
 {
     std::string debugOutputFile("");
-    if (!m_DebugInfo->m_DebugDir.empty())
+    if (!m_DebugInfo.m_DebugDir.empty())
     {
-        debugOutputFile.append(m_DebugInfo->m_DebugDir + '/');
+        debugOutputFile.append(m_DebugInfo.m_DebugDir + '/');
     }
     debugOutputFile.append(fileName);
 
@@ -137,26 +131,6 @@ const std::string& DebuggingContext::GetStringFromNode(const Node* node) const
     }
     const std::string& value = it->second;
     return value;
-}
-
-void SetDebuggingContext(const DebuggingContext& debuggingContext)
-{
-    s_DebuggingContext = debuggingContext;
-}
-
-DebuggingContext& GetDebuggingContext()
-{
-    return const_cast<DebuggingContext&>(GetConstDebuggingContext());
-}
-
-const DebuggingContext& GetConstDebuggingContext()
-{
-    static const CompilationOptions::DebugInfo defaultDebugInfo;
-    if (!s_DebuggingContext.m_DebugInfo)
-    {
-        s_DebuggingContext = &defaultDebugInfo;
-    }
-    return s_DebuggingContext;
 }
 
 }    // namespace support_library

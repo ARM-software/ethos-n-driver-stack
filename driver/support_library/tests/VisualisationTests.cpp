@@ -1078,7 +1078,7 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(&compOpt.m_DebugInfo);
+    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;

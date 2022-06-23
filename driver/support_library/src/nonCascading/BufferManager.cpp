@@ -208,7 +208,7 @@ void BufferManager::Allocate(const DebuggingContext& debuggingContext)
     }
 
     // Dump intermediate buffer allocations for debugging/analysis
-    if (debuggingContext.m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
+    if (debuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
     {
         std::ofstream f(debuggingContext.GetAbsolutePathOutputFileName("IntermediateDramBuffers.txt"));
         for (uint32_t bufferId : intermediateBufferIds)

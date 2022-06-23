@@ -80,6 +80,7 @@ private:
     std::vector<command_stream::BlockConfig> m_AllowedBlockConfigs;
     const HardwareCapabilities m_Capabilities;
     const CompilationOptions& m_CompilationOptions;
+    DebuggingContext m_DebuggingContext;
     /// @}
 
     /// Performance estimation

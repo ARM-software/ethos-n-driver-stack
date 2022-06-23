@@ -40,12 +40,11 @@ using namespace utils;
 namespace
 {
 
-void DumpNetwork(const Network& network)
+void DumpNetwork(const DebuggingContext& debuggingContext, const Network& network)
 {
-    GetConstDebuggingContext().SaveNetworkToDot(CompilationOptions::DebugLevel::Medium, network, "Network.dot",
-                                                DetailLevel::Low);
-    GetConstDebuggingContext().SaveNetworkToDot(CompilationOptions::DebugLevel::Medium, network, "NetworkDetailed.dot",
-                                                DetailLevel::High);
+    debuggingContext.SaveNetworkToDot(CompilationOptions::DebugLevel::Medium, network, "Network.dot", DetailLevel::Low);
+    debuggingContext.SaveNetworkToDot(CompilationOptions::DebugLevel::Medium, network, "NetworkDetailed.dot",
+                                      DetailLevel::High);
 }
 
 }    // namespace
@@ -142,10 +141,9 @@ Compiler::Compiler(const Network& network,
     , m_AllowedBlockConfigs(GenerateAllowedBlockConfigs(compilationOptions))
     , m_Capabilities(fwAndHwCapabilities)
     , m_CompilationOptions(compilationOptions)
+    , m_DebuggingContext(compilationOptions.m_DebugInfo)
     , m_EstimationOptions(estimationOptions)
-{
-    SetDebuggingContext(DebuggingContext(&compilationOptions.m_DebugInfo));
-}
+{}
 
 Compiler::~Compiler()
 {}
@@ -171,7 +169,7 @@ void SaveDebugFilesForUnestimatedCombination(std::string folder,
 
 std::unique_ptr<CompiledNetwork> Compiler::Compile()
 {
-    DumpNetwork(m_Network);
+    DumpNetwork(m_DebuggingContext, m_Network);
 
     // The compiler will need to split the network into supported subgraphs and have the appropriate ids for each.
     // See the Support Library public interface design note for more details.
@@ -187,20 +185,20 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
             NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(m_Network, m_Capabilities,
                                                                             m_EstimationOptions, m_CompilationOptions);
             const GraphOfParts m_GraphOfParts = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
-            Combiner combiner(m_GraphOfParts, m_Capabilities, m_EstimationOptions, GetDebuggingContext());
+            Combiner combiner(m_GraphOfParts, m_Capabilities, m_EstimationOptions, m_DebuggingContext);
             combiner.Run();
 
-            if (GetDebuggingContext().m_DebugInfo->m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+            if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
             {
-                MakeDirectory(GetDebuggingContext().GetAbsolutePathOutputFileName("BestCombination").c_str());
+                MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("BestCombination").c_str());
                 OpGraph g = GetOpGraphForCombination(combiner.GetBestCombination(), m_GraphOfParts);
-                SaveDebugFilesForUnestimatedCombination("BestCombination", GetDebuggingContext(),
+                SaveDebugFilesForUnestimatedCombination("BestCombination", m_DebuggingContext,
                                                         combiner.GetBestCombination(), g, m_GraphOfParts);
             }
 
             OpGraph mergedOpGraph = combiner.GetMergedOpGraphForBestCombination();
             cascading_compiler::CascadingCommandStreamGenerator commandStreamGenerator(
-                mergedOpGraph, operationIds, m_Capabilities, m_CompilationOptions);
+                mergedOpGraph, operationIds, m_Capabilities, m_CompilationOptions, m_DebuggingContext);
             std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
             return compiledNetwork;
         }
@@ -227,7 +225,7 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
 
 NetworkPerformanceData Compiler::EstimatePerformance()
 {
-    DumpNetwork(m_Network);
+    DumpNetwork(m_DebuggingContext, m_Network);
 
     NetworkPerformanceData performance;
 
@@ -257,7 +255,7 @@ NetworkPerformanceData Compiler::EstimatePerformance()
     {
         try
         {
-            Cascading cascadingEstimate(m_EstimationOptions, m_CompilationOptions, m_Capabilities);
+            Cascading cascadingEstimate(m_EstimationOptions, m_CompilationOptions, m_Capabilities, m_DebuggingContext);
             performance = cascadingEstimate.EstimateNetwork(m_Network);
         }
         catch (const std::exception& e)
@@ -457,11 +455,10 @@ void Compiler::CreateSections()
 
 void Compiler::Generate()
 {
-    const DebuggingContext& debuggingContext = GetConstDebuggingContext();
-    std::vector<Node*> sorted                = m_Graph.GetNodesSorted();
+    std::vector<Node*> sorted = m_Graph.GetNodesSorted();
 
     // If an initial dump is requested, add the sram dump command at the head of the stream.
-    if (debuggingContext.m_DebugInfo->m_InitialSramDump)
+    if (m_DebuggingContext.m_DebugInfo.m_InitialSramDump)
     {
         ethosn::command_stream::DumpSram cmdStrDumpSram;
         const char dumpName[] = "initial_ce";
@@ -472,24 +469,23 @@ void Compiler::Generate()
 
     for (Node* n : sorted)
     {
-        n->Generate(m_CommandStream, m_BufferManager, debuggingContext.m_DebugInfo->m_DumpRam);
+        n->Generate(m_CommandStream, m_BufferManager, m_DebuggingContext.m_DebugInfo.m_DumpRam);
     }
 
     DumpGraph("GraphFinal");
 
     m_BufferManager.AddCommandStream(m_CommandStream);
 
-    m_BufferManager.Allocate(debuggingContext);
+    m_BufferManager.Allocate(m_DebuggingContext);
 }
 
 void Compiler::DumpGraph(const std::string& filename)
 {
-    const DebuggingContext& debuggingContext = GetConstDebuggingContext();
     std::string finalFileName("");
     finalFileName += "NonCascaded_";
     finalFileName += filename;
     finalFileName += ".dot";
-    debuggingContext.DumpGraph(CompilationOptions::DebugLevel::Medium, m_Graph, finalFileName);
+    m_DebuggingContext.DumpGraph(CompilationOptions::DebugLevel::Medium, m_Graph, finalFileName);
 }
 
 CompiledNetworkImpl::CompiledNetworkImpl(const std::vector<uint8_t>& constantDmaData,
