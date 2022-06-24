@@ -59,6 +59,24 @@ uint32_t TryConvertToUnsigned(std::ssub_match submatch, const std::string& line,
     }
 }
 
+int TryConvertToSigned(std::ssub_match submatch, const std::string& line, const size_t lineNo)
+{
+    try
+    {
+        return static_cast<int>(std::stoi(submatch));
+    }
+    catch (std::invalid_argument&)
+    {
+        throw armnn::Exception("Unable to convert to signed integer in config file on line " + std::to_string(lineNo) +
+                               ": " + line);
+    }
+    catch (std::out_of_range&)
+    {
+        throw armnn::Exception("Signed integer out of range in config file on line " + std::to_string(lineNo) + ": " +
+                               line);
+    }
+}
+
 }    // namespace
 
 namespace armnn
@@ -75,6 +93,7 @@ constexpr char EthosNConfig::PERF_WEIGHT_COMPRESSION_SAVING[];
 constexpr char EthosNConfig::PERF_ACTIVATION_COMPRESSION_SAVING[];
 constexpr char EthosNConfig::PERF_CURRENT[];
 constexpr char EthosNConfig::INTERMEDIATE_COMPRESSION[];
+constexpr char EthosNConfig::INFERENCE_TIMEOUT[];
 
 EthosNConfig ReadEthosNConfig()
 {
@@ -185,6 +204,10 @@ std::istream& operator>>(std::istream& configFile, armnn::EthosNConfig& config)
                 else if (m[1] == armnn::EthosNConfig::INTERMEDIATE_COMPRESSION)
                 {
                     config.m_IntermediateCompression = TryConvertToBool(m[2], line, lineNo);
+                }
+                else if (m[1] == armnn::EthosNConfig::INFERENCE_TIMEOUT)
+                {
+                    config.m_InferenceTimeout = TryConvertToSigned(m[2], line, lineNo);
                 }
                 else
                 {

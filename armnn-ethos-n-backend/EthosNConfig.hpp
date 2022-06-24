@@ -23,7 +23,7 @@ struct EthosNConfig
     // clang-format off
     static constexpr char PERF_ONLY_VAR[]                       = "PERFORMANCE_ONLY";                             // boolean
     static constexpr char PERF_VARIANT_VAR[]                    = "PERFORMANCE_VARIANT";                          // enum
-    static constexpr char PERF_SRAM_SIZE_BYTES_OVERRIDE_VAR[]   = "PERFORMANCE_SRAM_SIZE_BYTES_OVERRIDE";         // string
+    static constexpr char PERF_SRAM_SIZE_BYTES_OVERRIDE_VAR[]   = "PERFORMANCE_SRAM_SIZE_BYTES_OVERRIDE";         // uint
     static constexpr char PERF_OUT_DIR_VAR[]                    = "PERFORMANCE_OUTPUT_DIR";                       // string
     static constexpr char DUMP_DEBUG_FILES_VAR[]                = "DUMP_DEBUG_FILES";                             // boolean
     static constexpr char DUMP_RAM_VAR[]                        = "DUMP_RAM";                                     // boolean
@@ -31,6 +31,7 @@ struct EthosNConfig
     static constexpr char PERF_ACTIVATION_COMPRESSION_SAVING[]  = "PERFORMANCE_ACTIVATION_COMPRESSION_SAVING";    // float
     static constexpr char PERF_CURRENT[]                        = "PERFORMANCE_CURRENT";                          // boolean
     static constexpr char INTERMEDIATE_COMPRESSION[]            = "INTERMEDIATE_COMPRESSION";                     // boolean
+    static constexpr char INFERENCE_TIMEOUT[]                   = "INFERENCE_TIMEOUT";                            // int
     // clang-format on
 
     bool m_PerfOnly = false;
@@ -46,6 +47,7 @@ struct EthosNConfig
     float m_PerfWeightCompressionSaving     = 0.0f;
     bool m_PerfCurrent                      = false;
     bool m_IntermediateCompression          = true;
+    int m_InferenceTimeout                  = 60;
 
     std::vector<char> QueryCapabilities() const
     {

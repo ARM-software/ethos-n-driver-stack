@@ -49,14 +49,18 @@ public:
         ethosn::support_library::EstimationOptions m_EstimationOptions;
     };
 
-    EthosNPreCompiledObject(Network network, std::map<uint32_t, std::string> ethosnOperationNameMapping)
+    EthosNPreCompiledObject(Network network,
+                            std::map<uint32_t, std::string> ethosnOperationNameMapping,
+                            int inferenceTimeout)
         : m_IsPerfEstimationOnly(false)
+        , m_InferenceTimeout(inferenceTimeout)
         , m_Network(std::move(network))
         , m_EthosNOperationNameMapping(ethosnOperationNameMapping)
     {}
 
     EthosNPreCompiledObject(PerfData perfData, std::map<uint32_t, std::string> ethosnOperationNameMapping)
         : m_IsPerfEstimationOnly(true)
+        , m_InferenceTimeout(0)    // Not relevant for estimation
         , m_PerfData(std::move(perfData))
         , m_EthosNOperationNameMapping(ethosnOperationNameMapping)
     {}
@@ -78,6 +82,11 @@ public:
         return m_IsPerfEstimationOnly;
     }
 
+    int GetInferenceTimeout() const
+    {
+        return m_InferenceTimeout;
+    }
+
     const Network* GetNetwork() const
     {
         return !m_IsPerfEstimationOnly ? &m_Network : nullptr;
@@ -95,6 +104,7 @@ public:
 
 private:
     const bool m_IsPerfEstimationOnly;
+    const int m_InferenceTimeout;
 
     union
     {

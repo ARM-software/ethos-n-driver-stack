@@ -311,7 +311,8 @@ void EthosNPreCompiledWorkload::Execute() const
         const std::unique_ptr<ethosn::driver_library::Inference> inference(
             m_Network->ScheduleInference(inputBuffers.data(), numInputBuffers, outputBuffers.data(), numOutputBuffers));
 
-        WaitStatus result = WaitForInference(inference->GetFileDescriptor(), 60);
+        WaitStatus result =
+            WaitForInference(inference->GetFileDescriptor(), m_PreCompiledObject->GetInferenceTimeout());
 
         if (EthosNBackendProfilingService::Instance().IsProfilingEnabled())
         {

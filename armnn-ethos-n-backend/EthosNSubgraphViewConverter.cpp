@@ -905,7 +905,7 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
         // m_InstanceId is incremented on each call so it works as the subgraph number.
         auto preCompiledObject = std::make_unique<EthosNPreCompiledObject>(
             EthosNPreCompiledObject::Network(std::move(cachedCompiledNetwork[m_InstanceId])),
-            m_EthosNOperationNameMapping);
+            m_EthosNOperationNameMapping, m_EthosNConfig.m_InferenceTimeout);
 
         // Convert the EthosNPreCompiledObject into a "blob" (void) object and attach the custom blob deleter
         compiledBlobs.emplace_back(preCompiledObject.release(), DeleteAsType<EthosNPreCompiledObject>);
@@ -967,7 +967,8 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
             }
 
             auto preCompiledObject = std::make_unique<EthosNPreCompiledObject>(
-                EthosNPreCompiledObject::Network(std::move(compiledNetworkData)), m_EthosNOperationNameMapping);
+                EthosNPreCompiledObject::Network(std::move(compiledNetworkData)), m_EthosNOperationNameMapping,
+                m_EthosNConfig.m_InferenceTimeout);
 
             // Convert the EthosNPreCompiledObject into a "blob" (void) object and attach the custom blob deleter
             compiledBlobs.emplace_back(preCompiledObject.release(), DeleteAsType<EthosNPreCompiledObject>);
