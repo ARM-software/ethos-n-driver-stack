@@ -2639,8 +2639,8 @@ SupportedLevel SupportQueries::IsResizeSupported(const ResizeInfo& resizeInfo,
 
     if ((resizeInfo.m_NewWidth & 1) ^ (resizeInfo.m_NewHeight & 1))
     {
-        SetReason("Requested width and height must be both even or both odd", reason, reasonMaxLength);
-        return SupportedLevel::Unsupported;
+        SetReason("Requested width and height have different parity, result might be inaccurate", reason,
+                  reasonMaxLength);
     }
 
     if (!(IsQuantizationZeroPointInRange(inputInfo)))

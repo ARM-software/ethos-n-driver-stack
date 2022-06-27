@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -40,16 +40,6 @@ TEST_CASE("ResizeSupported")
     REQUIRE(queries.IsResizeSupported(ResizeInfo(ResizeAlgorithm::BILINEAR, 31, 30, QuantizationInfo(0, 1.0f)), input,
                                       &output, reason, reasonLength) == SupportedLevel::Unsupported);
     REQUIRE(std::string(reason) == "Requested width isn't supported");
-
-    // Test support string reporting with incorrect resizeInfo with odd width, even height.
-    REQUIRE(queries.IsResizeSupported(ResizeInfo(ResizeAlgorithm::BILINEAR, 32, 31, QuantizationInfo(0, 1.0f)), input,
-                                      &output, reason, reasonLength) == SupportedLevel::Unsupported);
-    REQUIRE(std::string(reason) == "Requested width and height must be both even or both odd");
-
-    // Test support string reporting with incorrect resizeInfo with even width, odd height.
-    REQUIRE(queries.IsResizeSupported(ResizeInfo(ResizeAlgorithm::BILINEAR, 31, 32, QuantizationInfo(0, 1.0f)), input,
-                                      &output, reason, reasonLength) == SupportedLevel::Unsupported);
-    REQUIRE(std::string(reason) == "Requested width and height must be both even or both odd");
 
     // Test support string reporting with invalid zero point for input
     input.m_QuantizationInfo.SetZeroPoint(-129);

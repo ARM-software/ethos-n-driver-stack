@@ -112,7 +112,7 @@
 
 ## Resize
 - The resized height or width must be 2n or 2n-1 where n is the original height or width.
-- The resized height and width must both be odd or both be even.
+- If resized height and width are not both odd or both even the result might be less accurate
 
 
 ## Sigmoid
