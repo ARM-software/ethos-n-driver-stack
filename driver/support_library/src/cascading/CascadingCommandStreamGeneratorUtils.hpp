@@ -111,8 +111,15 @@ inline void SetStripeHeightInfo(const HardwareCapabilities& hwCap,
 
     if (remainingHeight != 0)
     {
-        streamerData.edgeStripeSize.height = ethosn::utils::NumericCast<uint16_t>(
-            utils::RoundUpToNearestMultiple(remainingHeight, utils::GetHeight(hwCap.GetBrickGroupShape())));
+        if (streamerData.dataType == FmsDataType::NHWC)
+        {
+            streamerData.edgeStripeSize.height = ethosn::utils::NumericCast<uint16_t>(remainingHeight);
+        }
+        else
+        {
+            streamerData.edgeStripeSize.height = ethosn::utils::NumericCast<uint16_t>(
+                utils::RoundUpToNearestMultiple(remainingHeight, utils::GetHeight(hwCap.GetBrickGroupShape())));
+        }
     }
 }
 
@@ -137,8 +144,15 @@ inline void SetStripeWidthInfo(const HardwareCapabilities& hwCap,
 
     if (remainingWidth != 0)
     {
-        streamerData.edgeStripeSize.width = ethosn::utils::NumericCast<uint16_t>(
-            utils::RoundUpToNearestMultiple(remainingWidth, utils::GetWidth(hwCap.GetBrickGroupShape())));
+        if (streamerData.dataType == FmsDataType::NHWC)
+        {
+            streamerData.edgeStripeSize.width = ethosn::utils::NumericCast<uint16_t>(remainingWidth);
+        }
+        else
+        {
+            streamerData.edgeStripeSize.width = ethosn::utils::NumericCast<uint16_t>(
+                utils::RoundUpToNearestMultiple(remainingWidth, utils::GetWidth(hwCap.GetBrickGroupShape())));
+        }
     }
 }
 
@@ -163,8 +177,15 @@ inline void SetStripeChannelsInfo(const HardwareCapabilities& hwCap,
 
     if (remainingChannels != 0)
     {
-        streamerData.edgeStripeSize.channels = ethosn::utils::NumericCast<uint16_t>(
-            utils::RoundUpToNearestMultiple(remainingChannels, utils::GetChannels(hwCap.GetBrickGroupShape())));
+        if (streamerData.dataType == FmsDataType::NHWC)
+        {
+            streamerData.edgeStripeSize.channels = ethosn::utils::NumericCast<uint16_t>(remainingChannels);
+        }
+        else
+        {
+            streamerData.edgeStripeSize.channels = ethosn::utils::NumericCast<uint16_t>(
+                utils::RoundUpToNearestMultiple(remainingChannels, utils::GetChannels(hwCap.GetBrickGroupShape())));
+        }
     }
 }
 
