@@ -701,8 +701,8 @@ static void iommu_sync_for_device(struct ethosn_dma_allocator *allocator,
 	int i;
 
 	if (dma_info->dma_buf_internal)
-		dma_buf_begin_cpu_access(dma_info->dma_buf_internal->dmabuf,
-					 DMA_TO_DEVICE);
+		dma_buf_end_cpu_access(dma_info->dma_buf_internal->dmabuf,
+				       DMA_TO_DEVICE);
 	else
 		for (i = 0; i < nr_pages; ++i)
 			dma_sync_single_for_device(allocator->dev,
@@ -721,8 +721,8 @@ static void iommu_sync_for_cpu(struct ethosn_dma_allocator *allocator,
 	int i;
 
 	if (dma_info->dma_buf_internal)
-		dma_buf_end_cpu_access(dma_info->dma_buf_internal->dmabuf,
-				       DMA_FROM_DEVICE);
+		dma_buf_begin_cpu_access(dma_info->dma_buf_internal->dmabuf,
+					 DMA_FROM_DEVICE);
 	else
 		for (i = 0; i < nr_scatter_pages; ++i)
 			dma_sync_single_for_cpu(allocator->dev,
