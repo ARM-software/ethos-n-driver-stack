@@ -22,11 +22,11 @@ namespace
 
 const std::string g_XmlStr =
     R"(<?xml version="1.0" encoding="utf-8"?>
-<STREAM VERSION_MAJOR="%VERSION_MAJOR%" VERSION_MINOR="%VERSION_MINOR%" VERSION_PATCH="%VERSION_PATCH%"><!--Command0-->
+<STREAM VERSION_MAJOR="%VERSION_MAJOR%" VERSION_MINOR="%VERSION_MINOR%" VERSION_PATCH="%VERSION_PATCH%"><!-- Command 0 -->
     <SECTION>
         <TYPE>SISO</TYPE>
     </SECTION>
-    <!--Command1-->
+    <!-- Command 1 -->
     <OPERATION_MCE_PLE>
         <INPUT_INFO>
             <DATA_TYPE>U8</DATA_TYPE>
@@ -99,13 +99,13 @@ const std::string g_XmlStr =
             <RESCALE_SHIFT1>0</RESCALE_SHIFT1>
         </PLE_OP_INFO>
     </OPERATION_MCE_PLE>
-    <!--Command2-->
+    <!-- Command 2 -->
     <DELAY>
         <VALUE>3</VALUE>
     </DELAY>
-    <!--Command3-->
+    <!-- Command 3 -->
     <FENCE/>
-    <!--Command4-->
+    <!-- Command 4 -->
     <OPERATION_MCE_PLE>
         <INPUT_INFO>
             <DATA_TYPE>U8</DATA_TYPE>
@@ -178,9 +178,9 @@ const std::string g_XmlStr =
             <RESCALE_SHIFT1>0</RESCALE_SHIFT1>
         </PLE_OP_INFO>
     </OPERATION_MCE_PLE>
-    <!--Command5-->
+    <!-- Command 5 -->
     <FENCE/>
-    <!--Command6-->
+    <!-- Command 6 -->
     <OPERATION_SOFTMAX>
         <INPUT_INFO>
             <DATA_TYPE>U8</DATA_TYPE>
@@ -214,16 +214,16 @@ const std::string g_XmlStr =
         <INPUT_BETA_LEFT_SHIFT>3</INPUT_BETA_LEFT_SHIFT>
         <DIFF_MIN>-1</DIFF_MIN>
     </OPERATION_SOFTMAX>
-    <!--Command7-->
+    <!-- Command 7 -->
     <DUMP_DRAM>
         <DRAM_BUFFER_ID>2</DRAM_BUFFER_ID>
         <FILENAME>OutputModel_NHWCB.hex</FILENAME>
     </DUMP_DRAM>
-    <!--Command8-->
+    <!-- Command 8 -->
     <DUMP_SRAM>
         <PREFIX>output_ce</PREFIX>
     </DUMP_SRAM>
-    <!--Command9-->
+    <!-- Command 9 -->
     <OPERATION_PLE>
         <INPUT_INFO>
             <DATA_TYPE>U8</DATA_TYPE>
@@ -277,7 +277,7 @@ const std::string g_XmlStr =
             <RESCALE_SHIFT1>0</RESCALE_SHIFT1>
         </PLE_OP_INFO>
     </OPERATION_PLE>
-    <!--Command10-->
+    <!-- Command 10 -->
     <OPERATION_PLE>
         <INPUT_INFO>
             <DATA_TYPE>U8</DATA_TYPE>
@@ -318,7 +318,7 @@ const std::string g_XmlStr =
             <RESCALE_SHIFT1>0</RESCALE_SHIFT1>
         </PLE_OP_INFO>
     </OPERATION_PLE>
-    <!--Command11-->
+    <!-- Command 11 -->
     <OPERATION_CONVERT>
         <INPUT_INFO>
             <DATA_TYPE>U8</DATA_TYPE>
@@ -348,9 +348,10 @@ const std::string g_XmlStr =
         </OUTPUT_INFO>
     </OPERATION_CONVERT>
 )"
-    R"(<!--Command12-->
+    R"(<!-- Command 12 -->
     <CASCADE>
         <NUM_AGENTS>6</NUM_AGENTS>
+        <!-- Agent 0 -->
         <AGENT>
             <WGT_STREAMER>
                 <BUFFER_ID>3</BUFFER_ID>
@@ -371,7 +372,8 @@ const std::string g_XmlStr =
             </WGT_STREAMER>
             <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
             <SCHEDULE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>150</RELATIVE_AGENT_ID>
+                <RELATIVE_AGENT_ID>1</RELATIVE_AGENT_ID>
+                <!-- Other agent ID is 1 (IFM_STREAMER) -->
                 <OUTER_RATIO>
                     <OTHER>2</OTHER>
                     <SELF>1</SELF>
@@ -382,32 +384,9 @@ const std::string g_XmlStr =
                 </INNER_RATIO>
                 <BOUNDARY>4</BOUNDARY>
             </SCHEDULE_DEPENDENCY>
-            <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>17</RELATIVE_AGENT_ID>
-                <OUTER_RATIO>
-                    <OTHER>1</OTHER>
-                    <SELF>2</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </READ_DEPENDENCY>
-            <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>5</RELATIVE_AGENT_ID>
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>2</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>8</BOUNDARY>
-            </READ_DEPENDENCY>
             <WRITE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>5</RELATIVE_AGENT_ID>
+                <RELATIVE_AGENT_ID>2</RELATIVE_AGENT_ID>
+                <!-- Other agent ID is 2 (OFM_STREAMER) -->
                 <OUTER_RATIO>
                     <OTHER>1</OTHER>
                     <SELF>1</SELF>
@@ -419,6 +398,7 @@ const std::string g_XmlStr =
                 <BOUNDARY>2</BOUNDARY>
             </WRITE_DEPENDENCY>
         </AGENT>
+        <!-- Agent 1 -->
         <AGENT>
             <IFM_STREAMER>
                 <DRAM_OFFSET>512</DRAM_OFFSET>
@@ -466,7 +446,8 @@ const std::string g_XmlStr =
             </IFM_STREAMER>
             <NUM_STRIPES_TOTAL>96</NUM_STRIPES_TOTAL>
             <SCHEDULE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>117</RELATIVE_AGENT_ID>
+                <RELATIVE_AGENT_ID>2</RELATIVE_AGENT_ID>
+                <!-- Other agent ID is 3 (MCE_SCHEDULER) -->
                 <OUTER_RATIO>
                     <OTHER>1</OTHER>
                     <SELF>1</SELF>
@@ -478,7 +459,8 @@ const std::string g_XmlStr =
                 <BOUNDARY>2</BOUNDARY>
             </SCHEDULE_DEPENDENCY>
             <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>5</RELATIVE_AGENT_ID>
+                <RELATIVE_AGENT_ID>1</RELATIVE_AGENT_ID>
+                <!-- Other agent ID is 0 (WGT_STREAMER) -->
                 <OUTER_RATIO>
                     <OTHER>2</OTHER>
                     <SELF>2</SELF>
@@ -490,7 +472,8 @@ const std::string g_XmlStr =
                 <BOUNDARY>4</BOUNDARY>
             </READ_DEPENDENCY>
             <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>11</RELATIVE_AGENT_ID>
+                <RELATIVE_AGENT_ID>1</RELATIVE_AGENT_ID>
+                <!-- Other agent ID is 0 (WGT_STREAMER) -->
                 <OUTER_RATIO>
                     <OTHER>2</OTHER>
                     <SELF>1</SELF>
@@ -502,7 +485,8 @@ const std::string g_XmlStr =
                 <BOUNDARY>4</BOUNDARY>
             </READ_DEPENDENCY>
             <WRITE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>12</RELATIVE_AGENT_ID>
+                <RELATIVE_AGENT_ID>3</RELATIVE_AGENT_ID>
+                <!-- Other agent ID is 4 (PLE_LOADER) -->
                 <OUTER_RATIO>
                     <OTHER>2</OTHER>
                     <SELF>1</SELF>
@@ -514,6 +498,7 @@ const std::string g_XmlStr =
                 <BOUNDARY>4</BOUNDARY>
             </WRITE_DEPENDENCY>
         </AGENT>
+        <!-- Agent 2 -->
         <AGENT>
             <OFM_STREAMER>
                 <DRAM_OFFSET>512</DRAM_OFFSET>
@@ -555,7 +540,8 @@ const std::string g_XmlStr =
             </OFM_STREAMER>
             <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
             <SCHEDULE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>5</RELATIVE_AGENT_ID>
+                <RELATIVE_AGENT_ID>1</RELATIVE_AGENT_ID>
+                <!-- Other agent ID is 3 (MCE_SCHEDULER) -->
                 <OUTER_RATIO>
                     <OTHER>2</OTHER>
                     <SELF>1</SELF>
@@ -567,7 +553,8 @@ const std::string g_XmlStr =
                 <BOUNDARY>4</BOUNDARY>
             </SCHEDULE_DEPENDENCY>
             <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>5</RELATIVE_AGENT_ID>
+                <RELATIVE_AGENT_ID>2</RELATIVE_AGENT_ID>
+                <!-- Other agent ID is 0 (WGT_STREAMER) -->
                 <OUTER_RATIO>
                     <OTHER>2</OTHER>
                     <SELF>1</SELF>
@@ -579,7 +566,8 @@ const std::string g_XmlStr =
                 <BOUNDARY>4</BOUNDARY>
             </READ_DEPENDENCY>
             <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>5</RELATIVE_AGENT_ID>
+                <RELATIVE_AGENT_ID>1</RELATIVE_AGENT_ID>
+                <!-- Other agent ID is 1 (IFM_STREAMER) -->
                 <OUTER_RATIO>
                     <OTHER>2</OTHER>
                     <SELF>1</SELF>
@@ -591,7 +579,8 @@ const std::string g_XmlStr =
                 <BOUNDARY>4</BOUNDARY>
             </READ_DEPENDENCY>
             <WRITE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>5</RELATIVE_AGENT_ID>
+                <RELATIVE_AGENT_ID>2</RELATIVE_AGENT_ID>
+                <!-- Other agent ID is 4 (PLE_LOADER) -->
                 <OUTER_RATIO>
                     <OTHER>2</OTHER>
                     <SELF>1</SELF>
@@ -603,6 +592,7 @@ const std::string g_XmlStr =
                 <BOUNDARY>4</BOUNDARY>
             </WRITE_DEPENDENCY>
         </AGENT>
+        <!-- Agent 3 -->
         <AGENT>
             <MCE_SCHEDULER>
                 <IFM_TILE>
@@ -750,14 +740,16 @@ const std::string g_XmlStr =
             <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
         </AGENT>
 )"
-    R"(<AGENT>
+    R"(<!-- Agent 4 -->
+        <AGENT>
             <PLE_LOADER>
                 <PLE_KERNEL_ID>SIGMOID_16X8_1_S</PLE_KERNEL_ID>
                 <SRAM_ADDR>4096</SRAM_ADDR>
             </PLE_LOADER>
             <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
             <SCHEDULE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>5</RELATIVE_AGENT_ID>
+                <RELATIVE_AGENT_ID>1</RELATIVE_AGENT_ID>
+                <!-- Other agent ID is 5 (PLE_SCHEDULER) -->
                 <OUTER_RATIO>
                     <OTHER>2</OTHER>
                     <SELF>1</SELF>
@@ -769,7 +761,8 @@ const std::string g_XmlStr =
                 <BOUNDARY>4</BOUNDARY>
             </SCHEDULE_DEPENDENCY>
             <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>5</RELATIVE_AGENT_ID>
+                <RELATIVE_AGENT_ID>3</RELATIVE_AGENT_ID>
+                <!-- Other agent ID is 1 (IFM_STREAMER) -->
                 <OUTER_RATIO>
                     <OTHER>2</OTHER>
                     <SELF>1</SELF>
@@ -781,7 +774,8 @@ const std::string g_XmlStr =
                 <BOUNDARY>4</BOUNDARY>
             </READ_DEPENDENCY>
             <WRITE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>5</RELATIVE_AGENT_ID>
+                <RELATIVE_AGENT_ID>1</RELATIVE_AGENT_ID>
+                <!-- Other agent ID is 5 (PLE_SCHEDULER) -->
                 <OUTER_RATIO>
                     <OTHER>2</OTHER>
                     <SELF>1</SELF>
@@ -793,6 +787,7 @@ const std::string g_XmlStr =
                 <BOUNDARY>4</BOUNDARY>
             </WRITE_DEPENDENCY>
         </AGENT>
+        <!-- Agent 5 -->
         <AGENT>
             <PLE_SCHEDULER>
                 <OFM_TILE>
@@ -846,20 +841,9 @@ const std::string g_XmlStr =
                 </IFM_INFO_1>
             </PLE_SCHEDULER>
             <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
-            <SCHEDULE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>5</RELATIVE_AGENT_ID>
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </SCHEDULE_DEPENDENCY>
             <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>6</RELATIVE_AGENT_ID>
+                <RELATIVE_AGENT_ID>4</RELATIVE_AGENT_ID>
+                <!-- Other agent ID is 1 (IFM_STREAMER) -->
                 <OUTER_RATIO>
                     <OTHER>2</OTHER>
                     <SELF>1</SELF>
@@ -871,7 +855,8 @@ const std::string g_XmlStr =
                 <BOUNDARY>4</BOUNDARY>
             </READ_DEPENDENCY>
             <READ_DEPENDENCY>
-                <RELATIVE_AGENT_ID>7</RELATIVE_AGENT_ID>
+                <RELATIVE_AGENT_ID>3</RELATIVE_AGENT_ID>
+                <!-- Other agent ID is 2 (OFM_STREAMER) -->
                 <OUTER_RATIO>
                     <OTHER>2</OTHER>
                     <SELF>1</SELF>
@@ -882,21 +867,9 @@ const std::string g_XmlStr =
                 </INNER_RATIO>
                 <BOUNDARY>4</BOUNDARY>
             </READ_DEPENDENCY>
-            <WRITE_DEPENDENCY>
-                <RELATIVE_AGENT_ID>8</RELATIVE_AGENT_ID>
-                <OUTER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </OUTER_RATIO>
-                <INNER_RATIO>
-                    <OTHER>2</OTHER>
-                    <SELF>1</SELF>
-                </INNER_RATIO>
-                <BOUNDARY>4</BOUNDARY>
-            </WRITE_DEPENDENCY>
         </AGENT>
     </CASCADE>
-    <!--Command13-->
+    <!-- Command 13 -->
     <OPERATION_SPACE_TO_DEPTH>
         <INPUT_INFO>
             <DATA_TYPE>U8</DATA_TYPE>

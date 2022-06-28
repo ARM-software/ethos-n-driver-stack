@@ -1007,7 +1007,32 @@ void Parse(mxml_node_t& parent, const cascading::Ratio& ratio)
     Parse(*mxmlNewElement(&parent, "SELF"), ratio.self);
 }
 
-void Parse(mxml_node_t& parent, const char* depName, const cascading::Dependency& dep)
+const char* AgentTypeToString(cascading::AgentType t)
+{
+    switch (t)
+    {
+        case cascading::AgentType::IFM_STREAMER:
+            return "IFM_STREAMER";
+        case cascading::AgentType::WGT_STREAMER:
+            return "WGT_STREAMER";
+        case cascading::AgentType::MCE_SCHEDULER:
+            return "MCE_SCHEDULER";
+        case cascading::AgentType::PLE_LOADER:
+            return "PLE_LOADER";
+        case cascading::AgentType::PLE_SCHEDULER:
+            return "PLE_SCHEDULER";
+        case cascading::AgentType::OFM_STREAMER:
+            return "OFM_STREAMER";
+        default:
+            throw ParseException("Invalid cascading agent type: " + std::to_string(static_cast<uint32_t>(t)));
+    };
+}
+
+void Parse(mxml_node_t& parent,
+           const char* depName,
+           const cascading::Dependency& dep,
+           const cascading::CommandStream cascadeCmdStream,
+           uint32_t agentId)
 {
     if (dep.relativeAgentId == 0)
     {
@@ -1017,25 +1042,36 @@ void Parse(mxml_node_t& parent, const char* depName, const cascading::Dependency
     mxml_node_t* child = mxmlNewElement(&parent, depName);
 
     Parse(*mxmlNewElement(child, "RELATIVE_AGENT_ID"), dep.relativeAgentId);
+    // Add helpful comment to indicate the agent this one depends on
+    const uint32_t otherAgentId =
+        strcmp(depName, "READ_DEPENDENCY") == 0 ? agentId - dep.relativeAgentId : agentId + dep.relativeAgentId;
+    mxmlNewElement(child, dep.relativeAgentId == 0
+                              ? "!-- DISABLED --"
+                              : ("!-- Other agent ID is " + std::to_string(otherAgentId) + " (" +
+                                 AgentTypeToString(cascadeCmdStream[otherAgentId].data.type) + ") --")
+                                    .c_str());
     Parse(*mxmlNewElement(child, "OUTER_RATIO"), dep.outerRatio);
     Parse(*mxmlNewElement(child, "INNER_RATIO"), dep.innerRatio);
     Parse(*mxmlNewElement(child, "BOUNDARY"), dep.boundary);
 }
 
-void Parse(mxml_node_t& parent, const cascading::AgentDependencyInfo& agentInfo)
+void Parse(mxml_node_t& parent,
+           const cascading::AgentDependencyInfo& agentInfo,
+           const cascading::CommandStream cascadeCmdStream,
+           uint32_t agentId)
 {
     Parse(*mxmlNewElement(&parent, "NUM_STRIPES_TOTAL"), agentInfo.numStripesTotal);
     for (auto& dep : agentInfo.scheduleDependencies)
     {
-        Parse(parent, "SCHEDULE_DEPENDENCY", dep);
+        Parse(parent, "SCHEDULE_DEPENDENCY", dep, cascadeCmdStream, agentId);
     }
     for (auto& dep : agentInfo.readDependencies)
     {
-        Parse(parent, "READ_DEPENDENCY", dep);
+        Parse(parent, "READ_DEPENDENCY", dep, cascadeCmdStream, agentId);
     }
     for (auto& dep : agentInfo.writeDependencies)
     {
-        Parse(parent, "WRITE_DEPENDENCY", dep);
+        Parse(parent, "WRITE_DEPENDENCY", dep, cascadeCmdStream, agentId);
     }
 }
 
@@ -1048,11 +1084,15 @@ void Parse(mxml_node_t& parent, const Cascade& value)
     const void* const cascadeBegin = &value + 1U;
     const cascading::CommandStream cascade{ static_cast<const cascading::Agent*>(cascadeBegin), value.m_NumAgents() };
 
+    uint32_t agentId = 0;
     for (auto& agent : cascade)
     {
+        // Add helpful comment to indicate the agent ID (very useful for long command streams)
+        mxmlNewElement(operation, ("!-- Agent " + std::to_string(agentId) + " --").c_str());
         mxml_node_t* agent_op = mxmlNewElement(operation, "AGENT");
         Parse(*agent_op, agent.data);
-        Parse(*agent_op, agent.info);
+        Parse(*agent_op, agent.info, cascade, agentId);
+        ++agentId;
     }
 }
 }    // namespace
@@ -1067,7 +1107,7 @@ void ParseBinary(CommandStream& cstream, mxml_node_t* xmlRoot)
     for (const CommandHeader& header : cstream)
     {
         Opcode command = header.m_Opcode();
-        mxmlNewElement(xmlRoot, ("!-- Command " + std::to_string(commandCounter) + "--").c_str());
+        mxmlNewElement(xmlRoot, ("!-- Command " + std::to_string(commandCounter) + " --").c_str());
         switch (command)
         {
             case Opcode::OPERATION_MCE_PLE:
