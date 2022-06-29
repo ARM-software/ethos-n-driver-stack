@@ -536,7 +536,7 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
         sramBuffer.m_NumStripes       = 2;
         sramBuffer.m_QuantizationInfo = inputBuffer->m_QuantizationInfo;
         sramBuffer.m_Offset           = sramBufferOffset;
-        sramBuffer.m_SlotSizeInBytes  = CommonUtils::CalculateBufferSize(sramBufferShape, CascadingBufferFormat::NHWCB);
+        sramBuffer.m_SlotSizeInBytes  = utils::CalculateBufferSize(sramBufferShape, CascadingBufferFormat::NHWCB);
 
         sramBufferSlotSize = sramBuffer.m_SlotSizeInBytes / m_Capabilities.GetNumberOfSrams();
 
@@ -597,9 +597,8 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
                            0);
                 }
 
-                uint32_t heightOffset =
-                    CommonUtils::CalculateBufferSize(inputBuffer->m_TensorShape, inputBuffer->m_Format);
-                dramBufferOffset = dramBufferOffset + heightOffset;
+                uint32_t heightOffset = utils::CalculateBufferSize(inputBuffer->m_TensorShape, inputBuffer->m_Format);
+                dramBufferOffset      = dramBufferOffset + heightOffset;
             }
             // Concatenation is happening in the Width dimension
             else if (std::get<1>(isHWCSplit))
@@ -624,9 +623,8 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
                         utils::DivRoundUp(utils::GetChannels(inputBuffer->m_TensorShape),
                                           utils::GetChannels(m_Capabilities.GetBrickGroupShape()));
                     uint32_t numberOfBrickGroups = channelsInBrickGroups * widthInBrickGroups;
-                    widthOffset =
-                        numberOfBrickGroups * CommonUtils::CalculateBufferSize(m_Capabilities.GetBrickGroupShape(),
-                                                                               CascadingBufferFormat::NHWCB);
+                    widthOffset = numberOfBrickGroups * utils::CalculateBufferSize(m_Capabilities.GetBrickGroupShape(),
+                                                                                   CascadingBufferFormat::NHWCB);
                 }
 
                 dramBufferOffset = dramBufferOffset + widthOffset;
@@ -640,7 +638,7 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
                                       utils::GetChannels(m_Capabilities.GetBrickGroupShape()));
                 uint32_t depthOffset =
                     channelsInBrickGroups *
-                    CommonUtils::CalculateBufferSize(m_Capabilities.GetBrickGroupShape(), outputBuffer->m_Format);
+                    utils::CalculateBufferSize(m_Capabilities.GetBrickGroupShape(), outputBuffer->m_Format);
                 dramBufferOffset = dramBufferOffset + depthOffset;
             }
         }

@@ -58,7 +58,7 @@ void InputPart::CreatePlanForInputPart(TraversalOrder order, Plans& plans) const
     CascadingBufferFormat format = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
     auto buffer                  = std::make_unique<Buffer>(Location::Dram, format, order);
     buffer->m_TensorShape        = m_OutputTensorShape;
-    buffer->m_SizeInBytes        = impl::CalculateBufferSize(m_OutputTensorShape, format);
+    buffer->m_SizeInBytes        = utils::CalculateBufferSize(m_OutputTensorShape, format);
     buffer->m_QuantizationInfo   = m_OutputQuantizationInfo;
     buffer->m_BufferType         = BufferType::Input;
     outputMappings[buffer.get()] = PartOutputSlot{ m_PartId, 0 };

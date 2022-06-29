@@ -106,6 +106,15 @@ void NetworkToGraphOfPartsConverter::Visit(Output& output)
 
 void NetworkToGraphOfPartsConverter::Visit(Constant& constant)
 {
+    if (constant.GetInputs().size() == 0 && constant.GetOutputs().size() == 1 &&
+        constant.GetOutput(0).GetConsumers().size() == 0)
+    {
+        // Weights/Bias are Constant Operations in the Network, but are typically not connected to other Operations and so will
+        // never be relevant in the GraphOfParts. Creating a Part for constant weights is not supported by the
+        // ConstantPart code anyway, so we skip these. This also makes the GraphOfParts simpler.
+        return;
+    }
+
     std::vector<BasePart*> parts;
     CompilerDataFormat compilerDataFormat = ConvertExternalToCompilerDataFormat(constant.GetTensorInfo().m_DataFormat);
     auto constPart                        = std::make_unique<ConstantPart>(

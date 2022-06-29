@@ -126,48 +126,43 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest")
     //  * The number of Input/Output slots
     //  * Whether PartInputSlots connect to PartOutputSlots of the preceding Part
     //  * For the last Part, check that there are no connections to any following PartInputSlots
-    REQUIRE(graph.GetNumParts() == 10);
+    REQUIRE(graph.GetNumParts() == 7);
 
     REQUIRE(dynamic_cast<const InputPart*>(&graph.GetPart(0)) != nullptr);
     REQUIRE(graph.GetPartInputs(0).size() == 0);
     REQUIRE(graph.GetPartOutputs(0).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 0, 0 }).has_value() == false);
 
-    // Check for constant parts
-    REQUIRE(dynamic_cast<const ConstantPart*>(&graph.GetPart(1)) != nullptr);
-    REQUIRE(dynamic_cast<const ConstantPart*>(&graph.GetPart(2)) != nullptr);
-    REQUIRE(dynamic_cast<const ConstantPart*>(&graph.GetPart(3)) != nullptr);
+    REQUIRE(dynamic_cast<const McePart*>(&graph.GetPart(1)) != nullptr);
+    REQUIRE(graph.GetPartInputs(1).size() == 1);
+    REQUIRE(graph.GetPartOutputs(1).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
 
-    REQUIRE(dynamic_cast<const McePart*>(&graph.GetPart(4)) != nullptr);
+    REQUIRE(dynamic_cast<const ReshapePart*>(&graph.GetPart(2)) != nullptr);
+    REQUIRE(graph.GetPartInputs(2).size() == 1);
+    REQUIRE(graph.GetPartOutputs(2).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 1);
+
+    REQUIRE(dynamic_cast<const FusedPlePart*>(&graph.GetPart(3)) != nullptr);
+    REQUIRE(graph.GetPartInputs(3).size() == 1);
+    REQUIRE(graph.GetPartOutputs(3).size() == 1);
+    REQUIRE(graph.GetConnectedOutputSlot({ 3, 0 }).value().m_PartId == 2);
+
+    REQUIRE(dynamic_cast<const FusedPlePart*>(&graph.GetPart(4)) != nullptr);
     REQUIRE(graph.GetPartInputs(4).size() == 1);
     REQUIRE(graph.GetPartOutputs(4).size() == 1);
-    REQUIRE(graph.GetConnectedOutputSlot({ 4, 0 }).value().m_PartId == 0);
+    REQUIRE(graph.GetConnectedOutputSlot({ 4, 0 }).value().m_PartId == 3);
 
-    REQUIRE(dynamic_cast<const ReshapePart*>(&graph.GetPart(5)) != nullptr);
+    REQUIRE(dynamic_cast<const McePart*>(&graph.GetPart(5)) != nullptr);
     REQUIRE(graph.GetPartInputs(5).size() == 1);
     REQUIRE(graph.GetPartOutputs(5).size() == 1);
     REQUIRE(graph.GetConnectedOutputSlot({ 5, 0 }).value().m_PartId == 4);
 
-    REQUIRE(dynamic_cast<const FusedPlePart*>(&graph.GetPart(6)) != nullptr);
+    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(6)) != nullptr);
     REQUIRE(graph.GetPartInputs(6).size() == 1);
-    REQUIRE(graph.GetPartOutputs(6).size() == 1);
+    REQUIRE(graph.GetPartOutputs(6).size() == 0);
     REQUIRE(graph.GetConnectedOutputSlot({ 6, 0 }).value().m_PartId == 5);
-
-    REQUIRE(dynamic_cast<const FusedPlePart*>(&graph.GetPart(7)) != nullptr);
-    REQUIRE(graph.GetPartInputs(7).size() == 1);
-    REQUIRE(graph.GetPartOutputs(7).size() == 1);
-    REQUIRE(graph.GetConnectedOutputSlot({ 7, 0 }).value().m_PartId == 6);
-
-    REQUIRE(dynamic_cast<const McePart*>(&graph.GetPart(8)) != nullptr);
-    REQUIRE(graph.GetPartInputs(8).size() == 1);
-    REQUIRE(graph.GetPartOutputs(8).size() == 1);
-    REQUIRE(graph.GetConnectedOutputSlot({ 8, 0 }).value().m_PartId == 7);
-
-    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(9)) != nullptr);
-    REQUIRE(graph.GetPartInputs(9).size() == 1);
-    REQUIRE(graph.GetPartOutputs(9).size() == 0);
-    REQUIRE(graph.GetConnectedOutputSlot({ 9, 0 }).value().m_PartId == 8);
-    REQUIRE(graph.GetConnectedInputSlots({ 9, 0 }).size() == 0);
+    REQUIRE(graph.GetConnectedInputSlots({ 6, 0 }).size() == 0);
 }
 
 // Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the
@@ -502,7 +497,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat NHWC")
 
     // Network topology:
     /*
-       { Input2 } \ 
+       { Input2 } \
                   -> Concatenation -> Output
        { Input  } /
     */
@@ -1166,11 +1161,11 @@ TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
     }
 
-    // InputPart, ConstantPart, ConstantPart, McePart, OutputPart
-    REQUIRE(graph.GetNumParts() == 5);
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
 
     // McePart has a fully connected part in it
-    const FullyConnectedPart* part = dynamic_cast<const FullyConnectedPart*>(&graph.GetPart(3));
+    const FullyConnectedPart* part = dynamic_cast<const FullyConnectedPart*>(&graph.GetPart(1));
     REQUIRE(part != nullptr);
 
     auto plans      = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
@@ -1252,12 +1247,12 @@ TEST_CASE("NetworkToGraphOfPartsConverter FullyConnected EstimateOnly")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
     }
 
-    // InputPart, ConstantPart, ConstantPart, McePart, OutputPart
-    REQUIRE(graph.GetNumParts() == 5);
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
 
     // We check only the EstimateOnlyPart that we expect to be created - the Input and Output part and connections
     // between the Parts are covered by NetworkToGraphOfPartsConverterTest
-    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(3));
+    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
     REQUIRE(estimateOnlyPart != nullptr);
     auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
     REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
@@ -1336,11 +1331,11 @@ TEST_CASE("NetworkToGraphOfPartsConverter Basic Depthwise")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
     }
 
-    // InputPart, ConstantPart, ConstantPart, McePart, OutputPart
-    REQUIRE(graph.GetNumParts() == 5);
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
 
     // McePart has a depthwise convolution in it
-    const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(3));
+    const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(1));
     REQUIRE(part != nullptr);
     auto operation = part->GetMceOperation();
     REQUIRE(operation.has_value());
@@ -1411,12 +1406,12 @@ TEST_CASE("NetworkToGraphOfPartsConverter Strided Depthwise")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
     }
 
-    // InputPart, ConstantPart, ConstantPart, FusedPlePart, McePart, OutputPart
-    REQUIRE(graph.GetNumParts() == 6);
+    // InputPart, FusedPlePart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 4);
 
     // McePart has a depthwise convolution in it
-    const FusedPlePart* plePart = dynamic_cast<const FusedPlePart*>(&graph.GetPart(3));
-    const McePart* mcePart      = dynamic_cast<const McePart*>(&graph.GetPart(4));
+    const FusedPlePart* plePart = dynamic_cast<const FusedPlePart*>(&graph.GetPart(1));
+    const McePart* mcePart      = dynamic_cast<const McePart*>(&graph.GetPart(2));
     REQUIRE(plePart != nullptr);
     REQUIRE(mcePart != nullptr);
     auto operation = mcePart->GetMceOperation();
@@ -1503,11 +1498,11 @@ TEST_CASE("NetworkToGraphOfPartsConverter Multichannel Depthwise")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
     }
 
-    // InputPart, ConstantPart, ConstantPart, McePart, OutputPart
-    REQUIRE(graph.GetNumParts() == 5);
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
 
     // McePart has a 2D convolution in it
-    const McePart* mcePart = dynamic_cast<const McePart*>(&graph.GetPart(3));
+    const McePart* mcePart = dynamic_cast<const McePart*>(&graph.GetPart(1));
     REQUIRE(mcePart != nullptr);
     auto operation = mcePart->GetMceOperation();
     REQUIRE(operation.has_value());
@@ -1566,12 +1561,12 @@ TEST_CASE("NetworkToGraphOfPartsConverter Depthwise EstimateOnly")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
     }
 
-    // InputPart, ConstantPart, ConstantPart, McePart, OutputPart
-    REQUIRE(graph.GetNumParts() == 5);
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
 
     // We check only the EstimateOnlyPart that we expect to be created - the Input and Output part and connections
     // between the Parts are covered by NetworkToGraphOfPartsConverterTest
-    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(3));
+    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
     REQUIRE(estimateOnlyPart != nullptr);
     auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
     REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
@@ -2125,10 +2120,10 @@ TEST_CASE("NetworkToGraphOfPartsConverter Conv Relu")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
     }
 
-    // InputPart, ConstantPart, ConstantPart, McePart, OutputPart
-    REQUIRE(graph.GetNumParts() == 5);
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
 
-    const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(3));
+    const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(1));
     REQUIRE(part != nullptr);
 
     auto plans     = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
@@ -2208,8 +2203,8 @@ TEST_CASE("NetworkToGraphOfPartsConverter Relu Conv")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
     }
 
-    // InputPart, McePart, ConstantPart, ConstantPart, McePart, OutputPart
-    REQUIRE(graph.GetNumParts() == 6);
+    // InputPart, McePart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 4);
     {
         const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(1));
         REQUIRE(part != nullptr);
@@ -2224,7 +2219,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Relu Conv")
     }
 
     {
-        const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(4));
+        const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(2));
         REQUIRE(part != nullptr);
 
         auto plans     = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
@@ -2284,13 +2279,13 @@ TEST_CASE("NetworkToGraphOfPartsConverter Const as Input EstimateOnly")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
     }
 
-    // ConstPart, ConstPart, ConstPart, McePart, OutputPart
-    REQUIRE(graph.GetNumParts() == 5);
+    // ConstPart, EstimateOnlyPart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
     //Confirm that constant is indeed the first part and in place of input
     const ConstantPart* constPart = dynamic_cast<const ConstantPart*>(&graph.GetPart(0));
     REQUIRE(constPart != nullptr);
     // Check the EstimateOnlyPart and that it's created properly
-    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(3));
+    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
     REQUIRE(estimateOnlyPart != nullptr);
     auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
     REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
@@ -2349,12 +2344,12 @@ TEST_CASE("NetworkToGraphOfPartsConverter Conv EstimateOnly")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
     }
 
-    // InputPart, ConstPart, ConstPart, McePart, OutputPart
-    REQUIRE(graph.GetNumParts() == 5);
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
 
     // We check only the EstimateOnlyPart that we expect to be created - the Input and Output part and connections
     // between the Parts are covered by NetworkToGraphOfPartsConverterTest
-    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(3));
+    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
     REQUIRE(estimateOnlyPart != nullptr);
     auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
     REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
@@ -2410,12 +2405,12 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
     }
 
-    // InputPart, ConstPart, ConstPart, McePart, OutputPart
-    REQUIRE(graph.GetNumParts() == 5);
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
 
     // We check only the McePart that we expect to be created - the Input and Output part and connections
     // between the Parts are covered by NetworkToGraphOfPartsConverterTest
-    const McePart* mcePart = dynamic_cast<const McePart*>(&graph.GetPart(3));
+    const McePart* mcePart = dynamic_cast<const McePart*>(&graph.GetPart(1));
     REQUIRE(mcePart != nullptr);
     auto plans     = mcePart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
     Op* maybeMceOp = plans[0].m_OpGraph.GetOp(1);
@@ -2471,12 +2466,12 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution Large Weights")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
     }
 
-    // InputPart, ConstantPart, ConstantPart, McePart, McePart, OutputPart
-    REQUIRE(graph.GetNumParts() == 6);
+    // InputPart, McePart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 4);
 
     // We check only the MceParts that we expect to be created - the Input and Output part and connections
     // between the Parts are covered by NetworkToGraphOfPartsConverterTest
-    const McePart* mcePart1 = dynamic_cast<const McePart*>(&graph.GetPart(3));
+    const McePart* mcePart1 = dynamic_cast<const McePart*>(&graph.GetPart(1));
     REQUIRE(mcePart1 != nullptr);
     auto plans1     = mcePart1->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
     Op* maybeMceOp1 = plans1[0].m_OpGraph.GetOp(1);
@@ -2489,7 +2484,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution Large Weights")
     CHECK(mceOp1->m_Stride == Stride{ 1, 1 });
     CHECK(mceOp1->m_Op == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION);
 
-    const McePart* mcePart2 = dynamic_cast<const McePart*>(&graph.GetPart(4));
+    const McePart* mcePart2 = dynamic_cast<const McePart*>(&graph.GetPart(2));
     REQUIRE(mcePart2 != nullptr);
     auto plans2     = mcePart2->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
     Op* maybeMceOp2 = plans2[0].m_OpGraph.GetOp(1);
@@ -2546,12 +2541,12 @@ TEST_CASE("NetworkToGraphOfPartsConverter TransposeConvolution EstimateOnly")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
     }
 
-    // InputPart, ConstantPart, ConstantPart, EstimateOnlyPart, OutputPart
-    REQUIRE(graph.GetNumParts() == 5);
+    // InputPart, EstimateOnlyPart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
 
     // We check only the EstimateOnlyPart that we expect to be created - the Input and Output part and connections
     // between the Parts are covered by NetworkToGraphOfPartsConverterTest
-    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(3));
+    const EstimateOnlyPart* estimateOnlyPart = dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1));
     REQUIRE(estimateOnlyPart != nullptr);
     auto plans = estimateOnlyPart->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);
     REQUIRE(plans[0].GetInputBuffer(PartInputSlot{ estimateOnlyPart->GetPartId(), 0 })->m_TensorShape ==
@@ -2630,11 +2625,11 @@ TEST_CASE("NetworkToGraphOfPartsConverter Reinterpret Quantization")
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
     }
 
-    // InputPart, ConstantPart, ConstantPart, McePart, OutputPart
-    REQUIRE(graph.GetNumParts() == 5);
+    // InputPart, McePart, OutputPart
+    REQUIRE(graph.GetNumParts() == 3);
 
     {
-        const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(3));
+        const McePart* part = dynamic_cast<const McePart*>(&graph.GetPart(1));
         REQUIRE(part != nullptr);
 
         auto plans = part->GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 1);

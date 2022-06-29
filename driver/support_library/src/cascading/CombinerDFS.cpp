@@ -805,9 +805,10 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenSramAndSram(Buffer* sourceBu
 {
     StartingAndEndingGlues result;
 
-    auto dramBuffer = std::make_unique<Buffer>(
-        Location::Dram, cascadingBufferFormat, destBuffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
-        TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(destBuffer->m_TensorShape), destBuffer->m_QuantizationInfo);
+    auto dramBuffer = std::make_unique<Buffer>(Location::Dram, cascadingBufferFormat, destBuffer->m_TensorShape,
+                                               TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
+                                               CalculateBufferSize(destBuffer->m_TensorShape, cascadingBufferFormat),
+                                               destBuffer->m_QuantizationInfo);
     dramBuffer->m_BufferType = BufferType::Intermediate;
 
     auto dma1             = std::make_unique<DmaOp>(cascadingBufferFormat);
@@ -839,9 +840,10 @@ StartingAndEndingGlues Combiner::GenerateSharedGlue(Buffer* sourceBuffer,
     StartingAndEndingGlues result;
 
     // A single DRAM buffer is shared
-    auto dramBuffer = std::make_unique<Buffer>(
-        Location::Dram, cascadingBufferFormat, sourceBuffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
-        TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(sourceBuffer->m_TensorShape), sourceBuffer->m_QuantizationInfo);
+    auto dramBuffer = std::make_unique<Buffer>(Location::Dram, cascadingBufferFormat, sourceBuffer->m_TensorShape,
+                                               TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
+                                               CalculateBufferSize(sourceBuffer->m_TensorShape, cascadingBufferFormat),
+                                               sourceBuffer->m_QuantizationInfo);
     dramBuffer->m_BufferType = BufferType::Intermediate;
 
     // A input DMA is shared to move data from source SRAM

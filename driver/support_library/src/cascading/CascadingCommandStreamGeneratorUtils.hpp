@@ -33,25 +33,6 @@ inline void SetTileInfoForBuffer(const HardwareCapabilities& hwCap, Tile& tile, 
         ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(buffer->m_SlotSizeInBytes, hwCap.GetNumberOfSrams()));
 }
 
-uint32_t CalculateBufferSize(const TensorShape& shape, CascadingBufferFormat dataFormat)
-{
-    assert(dataFormat == CascadingBufferFormat::NHWC || dataFormat == CascadingBufferFormat::NCHW ||
-           dataFormat == CascadingBufferFormat::NHWCB || dataFormat == CascadingBufferFormat::FCAF_WIDE ||
-           dataFormat == CascadingBufferFormat::FCAF_DEEP);
-
-    switch (dataFormat)
-    {
-        case CascadingBufferFormat::FCAF_DEEP:
-            return ethosn::support_library::utils::TotalSizeBytesFCAFDeep(shape);
-        case CascadingBufferFormat::FCAF_WIDE:
-            return ethosn::support_library::utils::TotalSizeBytesFCAFWide(shape);
-        case CascadingBufferFormat::NHWCB:
-            return ethosn::support_library::utils::TotalSizeBytesNHWCB(shape);
-        default:
-            return ethosn::support_library::utils::TotalSizeBytes(shape);
-    }
-}
-
 }    // namespace CommonUtils
 
 namespace StreamersUtils

@@ -68,7 +68,7 @@ void EstimateOnlyPart::CreatePlanForEstimateOnlyPart(TraversalOrder order, Plans
         opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, order));
         Buffer* inputBuffer             = opGraph.GetBuffers().back();
         inputBuffer->m_TensorShape      = m_InputTensorsInfo[inputIndex].m_Dimensions;
-        inputBuffer->m_SizeInBytes      = impl::CalculateBufferSize(inputBuffer->m_TensorShape, format);
+        inputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(inputBuffer->m_TensorShape, format);
         inputBuffer->m_QuantizationInfo = m_InputTensorsInfo[inputIndex].m_QuantizationInfo;
         inputBuffer->m_BufferType       = BufferType::Input;
         opGraph.AddConsumer(inputBuffer, op, inputIndex);
@@ -80,7 +80,7 @@ void EstimateOnlyPart::CreatePlanForEstimateOnlyPart(TraversalOrder order, Plans
         opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, order));
         Buffer* outputBuffer             = opGraph.GetBuffers().back();
         outputBuffer->m_TensorShape      = m_OutputTensorsInfo[outputIndex].m_Dimensions;
-        outputBuffer->m_SizeInBytes      = impl::CalculateBufferSize(outputBuffer->m_TensorShape, format);
+        outputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(outputBuffer->m_TensorShape, format);
         outputBuffer->m_QuantizationInfo = m_OutputTensorsInfo[outputIndex].m_QuantizationInfo;
         outputBuffer->m_BufferType       = BufferType::Intermediate;
         opGraph.SetProducer(outputBuffer, op);

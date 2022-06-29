@@ -3,10 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "GraphNodes.hpp"
 #include "Utils.hpp"
 
 #include "Compiler.hpp"
+#include "GraphNodes.hpp"
+#include "cascading/Part.hpp"
 
 namespace ethosn
 {
@@ -171,6 +172,24 @@ uint32_t EstimateWeightSizeBytes(const TensorShape& shape, const HardwareCapabil
     uint32_t numBytesPerIteration            = numBytesPerOfm * numOfmsPerIteration;
     numBytesPerIteration = static_cast<uint32_t>(command_stream::impl::RoundUp<16>(numBytesPerIteration));
     return numBytesPerIteration * numOfmsProducedInParallel;
+}
+
+uint32_t CalculateBufferSize(const TensorShape& shape, CascadingBufferFormat dataFormat)
+{
+    switch (dataFormat)
+    {
+        case CascadingBufferFormat::FCAF_DEEP:
+            return TotalSizeBytesFCAFDeep(shape);
+        case CascadingBufferFormat::FCAF_WIDE:
+            return TotalSizeBytesFCAFWide(shape);
+        case CascadingBufferFormat::NHWCB:
+            return TotalSizeBytesNHWCB(shape);
+        case CascadingBufferFormat::NHWC:
+            return TotalSizeBytes(shape);
+        default:
+            assert(false);
+            return 0;
+    }
 }
 
 uint32_t

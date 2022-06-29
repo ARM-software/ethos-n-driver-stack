@@ -39,6 +39,7 @@ enum class CompilerDataCompressedFormat;
 class Node;
 class FuseOnlyPleOperationNode;
 class MceOperationNode;
+enum class CascadingBufferFormat;
 
 /// The types of algorithm an MceOperation can use or None if it hasn't been decided yet
 /// The decision of what algorithm to use is based on several factors including the AlgorithmHint.
@@ -355,6 +356,8 @@ inline uint32_t TotalSizeBytesFCAFWide(const ethosn::support_library::TensorInfo
     constexpr ethosn::support_library::TensorShape wideCellShape{ 8, 16, 16 };
     return TotalSizeBytesFCAF(tensorInfo.m_Dimensions, wideCellShape);
 }
+
+uint32_t CalculateBufferSize(const TensorShape& shape, CascadingBufferFormat dataFormat);
 
 uint32_t GetNumOrigChannels(uint32_t nChannels,
                             uint32_t strideX,

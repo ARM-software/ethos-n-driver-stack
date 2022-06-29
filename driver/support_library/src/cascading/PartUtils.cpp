@@ -54,21 +54,6 @@ CascadingBufferFormat GetCascadingBufferFormatFromCompilerDataFormat(const Compi
     }
 }
 
-uint32_t CalculateBufferSize(const TensorShape& shape, CascadingBufferFormat f)
-{
-    switch (f)
-    {
-        case CascadingBufferFormat::NHWCB:
-            return utils::TotalSizeBytesNHWCB(shape);
-        case CascadingBufferFormat::NHWC:
-        case CascadingBufferFormat::WEIGHT:
-            return utils::TotalSizeBytes(shape);
-        default:
-            assert(false);
-            return 0;
-    }
-}
-
 std::pair<uint32_t, uint32_t>
     CalculateTileSize(const HardwareCapabilities& caps,
                       const TensorShape& inputTensorShape,

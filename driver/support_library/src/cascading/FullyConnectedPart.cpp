@@ -227,7 +227,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                     dramInput->m_TensorShape = m_OriginalInputShape;
                     // The input buffer size of fully connected must be rounded up to the next 1024.
                     dramInput->m_SizeInBytes = utils::RoundUpToNearestMultiple(
-                        impl::CalculateBufferSize(m_OriginalInputShape, CascadingBufferFormat::NHWC), 1024);
+                        utils::CalculateBufferSize(m_OriginalInputShape, CascadingBufferFormat::NHWC), 1024);
                     dramInput->m_QuantizationInfo = m_OutputQuantizationInfo;
                     dramInput->m_BufferType       = BufferType::Intermediate;
 

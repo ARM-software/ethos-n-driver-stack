@@ -18,7 +18,6 @@ namespace impl
 
 CascadingBufferFormat GetFormat(Location location);
 CascadingBufferFormat GetCascadingBufferFormatFromCompilerDataFormat(const CompilerDataFormat& format);
-uint32_t CalculateBufferSize(const TensorShape& shape, CascadingBufferFormat f);
 std::pair<uint32_t, uint32_t>
     CalculateTileSize(const HardwareCapabilities& caps,
                       const TensorShape& inputTensorShape,

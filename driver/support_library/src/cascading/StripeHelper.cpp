@@ -1142,7 +1142,7 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
 
     // number of stripes in tile is only relevant if the input buffer is in SRAM
     uint32_t numStripesInTile = location == Location::Sram ? numPleInputMemoryStripes : 1;
-    buffer->m_SlotSizeInBytes = impl::CalculateBufferSize(buffer->m_StripeShape, buffer->m_Format);
+    buffer->m_SlotSizeInBytes = utils::CalculateBufferSize(buffer->m_StripeShape, buffer->m_Format);
     buffer->m_SizeInBytes     = buffer->m_SlotSizeInBytes * numStripesInTile;
 
     buffer->m_QuantizationInfo = quantInfo;
