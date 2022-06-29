@@ -6,6 +6,7 @@
 #include "CascadingCommandStreamGenerator.hpp"
 #include "CascadingCommandStreamGeneratorUtils.hpp"
 #include "Compiler.hpp"
+#include "Visualisation.hpp"
 
 #include <memory>
 
@@ -83,6 +84,39 @@ std::unique_ptr<CompiledNetworkImpl> CascadingCommandStreamGenerator::Generate()
     {
         m_CommandStream.EmplaceBack<Agent>(agent);
     }
+
+    // Add DUMP_DRAM commands to the command stream, if requested.
+    if (m_DebuggingContext.m_DebugInfo.m_DumpRam)
+    {
+        for (std::pair<Buffer*, uint32_t> b : m_DramBufToBufIdMapping)
+        {
+            if (b.first->m_BufferType == BufferType::Intermediate)
+            {
+                const TensorShape& shape = b.first->m_TensorShape;
+
+                std::string dumpName;
+                {
+                    std::stringstream ss;
+                    ss << "EthosNIntermediateBuffer_" << b.second;
+                    // Currently all buffers are assumed to be UINT8. This will need changing once we support INT8 too.
+                    ss << "_" << ToString(DataType::UINT8_QUANTIZED);
+                    ss << "_" << ToString(b.first->m_Format);
+                    ss << "_" << shape[0] << "_" << shape[1] << "_" << shape[2] << "_" << shape[3];
+                    ss << ".hex";
+
+                    dumpName = ss.str();
+                }
+
+                ethosn::command_stream::DumpDram cmdStrDumpDram;
+                cmdStrDumpDram.m_DramBufferId() = b.second;
+
+                assert(dumpName.size() < sizeof(cmdStrDumpDram.m_Filename()));
+                std::copy(dumpName.begin(), dumpName.end(), cmdStrDumpDram.m_Filename().begin());
+                m_CommandStream.EmplaceBack(cmdStrDumpDram);
+            }
+        }
+    }
+
     m_BufferManager.AddCommandStream(m_CommandStream);
 
     m_BufferManager.Allocate(m_DebuggingContext);

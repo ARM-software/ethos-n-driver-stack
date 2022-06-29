@@ -32,6 +32,7 @@ enum class CompilerDataFormat;
 enum class CompilerDataCompressedFormat;
 enum class TraversalOrder;
 enum class CompilerMceAlgorithm;
+enum class CascadingBufferFormat;
 
 using Plans = std::vector<Plan>;
 
