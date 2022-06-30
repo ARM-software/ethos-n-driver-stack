@@ -132,7 +132,16 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
             return {};
         }
     }
-    TensorShape mceOutputStripe    = impl::CreateStripe(outputTensorShape, mceOutputEncoding, caps.GetNumberOfOgs());
+    TensorShape mceOutputStripe = impl::CreateStripe(outputTensorShape, mceOutputEncoding, caps.GetNumberOfOgs());
+
+    TensorShape pleOutputEncoding = mceOutputEncoding;
+    if (cascadeType == CascadeType::Middle)
+    {
+        // PLE accumulates the full depth for the middle of an s1 cascade
+        pleOutputEncoding[3] = 0;
+    }
+    TensorShape pleOutputStripe = impl::CreateStripe(outputTensorShape, pleOutputEncoding, caps.GetNumberOfOgs());
+
     uint32_t mceWeightOutputStripe = mceOutputStripe[3];
     bool fullOutputDepth           = mceWeightOutputStripe >= GetChannels(outputTensorShape);
     if (fullOutputDepth && numWeightStripes != 1)
@@ -200,7 +209,7 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     mceAndPleInfo.m_MceCompute.m_Weight      = mceWeightStripe;
     mceAndPleInfo.m_MceCompute.m_BlockConfig = blockConfig;
     mceAndPleInfo.m_PleCompute.m_Input       = mceOutputStripe;
-    mceAndPleInfo.m_PleCompute.m_Output      = mceOutputStripe;
+    mceAndPleInfo.m_PleCompute.m_Output      = pleOutputStripe;
     mceAndPleInfo.m_PleCompute.m_BlockConfig = blockConfig;
 
     mceAndPleInfo.m_Memory.m_Input  = { { numStripes.m_Input, mceInputStripe }, packedBoundaryThickness, numIfmLoads };

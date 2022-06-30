@@ -2832,7 +2832,7 @@ TEST_CASE("PleScheduler-MceScheduler ReadAfterWriteDependency Test", "[Cascading
     CHECK(readDependency.relativeAgentId == 1);
     CHECK(readDependency.outerRatio.other == numberOfMceStripes);
     CHECK(readDependency.outerRatio.self == numberOfPleStripes);
-    CHECK(readDependency.innerRatio.other == 70);
+    CHECK(readDependency.innerRatio.other == 2);
     CHECK(readDependency.innerRatio.self == 1);
     CHECK(readDependency.boundary == 1);
 }

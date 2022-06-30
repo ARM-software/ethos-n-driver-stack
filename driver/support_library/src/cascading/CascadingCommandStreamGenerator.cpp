@@ -1347,11 +1347,11 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
 
                 // Calculate inner ratios using ratio of stripe size
                 uint8_t widthRatio   = ethosn::utils::NumericCast<uint8_t>(utils::DivRoundUp(
-                    consumerAgent.data.pleS.numStripes.width, producerAgent.data.mce.numStripes.ofmWidth));
+                    producerAgent.data.mce.numStripes.ofmWidth, consumerAgent.data.pleS.numStripes.width));
                 uint8_t heightRatio  = ethosn::utils::NumericCast<uint8_t>(utils::DivRoundUp(
-                    consumerAgent.data.pleS.numStripes.height, producerAgent.data.mce.numStripes.ofmHeight));
+                    producerAgent.data.mce.numStripes.ofmHeight, consumerAgent.data.pleS.numStripes.height));
                 uint8_t channelRatio = ethosn::utils::NumericCast<uint8_t>(utils::DivRoundUp(
-                    consumerAgent.data.pleS.numStripes.channels, producerAgent.data.mce.numStripes.ofmChannels));
+                    producerAgent.data.mce.numStripes.ofmChannels, consumerAgent.data.pleS.numStripes.channels));
 
                 consumerAgentDependency.innerRatio.other = ethosn::utils::NumericCast<uint16_t>(
                     widthRatio * heightRatio * channelRatio * producerAgent.data.mce.numStripes.ifmChannels);
