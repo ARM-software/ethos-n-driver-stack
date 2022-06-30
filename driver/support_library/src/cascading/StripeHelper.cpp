@@ -101,57 +101,70 @@ StripeConfig GetDefaultStripeConfig(const char* identifier)
                         const std::string& name     = parts[0];
                         const std::string& valueStr = parts[1];
 
-                        bool value;
-                        if (valueStr == "True")
-                        {
-                            value = true;
-                        }
-                        else if (valueStr == "False")
-                        {
-                            value = false;
-                        }
-                        else
-                        {
-                            reportError("Invalid value '" + valueStr + "'. Must be True or False.");
-                        }
+                        auto valueBool = [&]() {
+                            if (valueStr == "True")
+                            {
+                                return true;
+                            }
+                            else if (valueStr == "False")
+                            {
+                                return false;
+                            }
+                            else
+                            {
+                                reportError("Invalid value '" + valueStr + "'. Must be True or False.");
+                                return false;    // Avoid incorrect warning. This never executes, as the above line throws.
+                            }
+                        };
+                        auto valueUInt = [&]() {
+                            try
+                            {
+                                return static_cast<uint32_t>(std::stoul(valueStr));
+                            }
+                            catch (const std::exception&)
+                            {
+                                reportError("Invalid value '" + valueStr + "'. Must be an unsigned number.");
+                                return 0u;    // Avoid incorrect warning. This never executes, as the above line throws.
+                            }
+                        };
 
                         const std::regex blockConfigRegex(R"(BlockConfig\((\d+),(\d+)\))");
                         std::smatch match;
                         if (name == "Splits.HeightOnly")
                         {
-                            result.splits.heightOnly = value;
+                            result.splits.heightOnly = valueBool();
                         }
                         else if (name == "Splits.WidthOnly")
                         {
-                            result.splits.widthOnly = value;
+                            result.splits.widthOnly = valueBool();
                         }
                         else if (name == "Splits.WidthHeight")
                         {
-                            result.splits.widthHeight = value;
+                            result.splits.widthHeight = valueBool();
                         }
                         else if (name == "Splits.WidthHeightOutputDepth")
                         {
-                            result.splits.widthHeightOutputDepth = value;
+                            result.splits.widthHeightOutputDepth = valueBool();
                         }
                         else if (name == "Splits.WidthHeightOutputDepthInputDepth")
                         {
-                            result.splits.widthHeightOutputDepthInputDepth = value;
+                            result.splits.widthHeightOutputDepthInputDepth = valueBool();
                         }
                         else if (name == "Splits.OutputDepthInputDepth")
                         {
-                            result.splits.outputDepthInputDepth = value;
+                            result.splits.outputDepthInputDepth = valueBool();
                         }
                         else if (name == "Splits.OutputDepthOnly")
                         {
-                            result.splits.outputDepthOnly = value;
+                            result.splits.outputDepthOnly = valueBool();
                         }
                         else if (name == "Splits.InputDepthOnly")
                         {
-                            result.splits.inputDepthOnly = value;
+                            result.splits.inputDepthOnly = valueBool();
                         }
                         else if (name == "Splits.None")
                         {
-                            result.splits.none = value;
+                            result.splits.none = valueBool();
                         }
                         else if (std::regex_match(name, match, blockConfigRegex))
                         {
@@ -159,7 +172,7 @@ StripeConfig GetDefaultStripeConfig(const char* identifier)
                             uint32_t h = std::atoi(match[2].str().c_str());
                             ethosn::command_stream::BlockConfig b{ w, h };
                             auto it = std::find(result.blockConfigs.begin(), result.blockConfigs.end(), b);
-                            if (value)
+                            if (valueBool())
                             {
                                 if (it == result.blockConfigs.end())
                                 {
@@ -173,6 +186,22 @@ StripeConfig GetDefaultStripeConfig(const char* identifier)
                                     result.blockConfigs.erase(it);
                                 }
                             }
+                        }
+                        else if (name == "BlockWidthMultiplier.Min")
+                        {
+                            result.blockWidthMultiplier.min = valueUInt();
+                        }
+                        else if (name == "BlockWidthMultiplier.Max")
+                        {
+                            result.blockWidthMultiplier.max = valueUInt();
+                        }
+                        else if (name == "BlockHeightMultiplier.Min")
+                        {
+                            result.blockHeightMultiplier.min = valueUInt();
+                        }
+                        else if (name == "BlockHeightMultiplier.Max")
+                        {
+                            result.blockHeightMultiplier.max = valueUInt();
                         }
                         else
                         {
@@ -561,15 +590,22 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                        numStripesOutput, numStripesWeightCopy, numStripesPleInput, mceInputStripe, memoryOutputStripe,
                        mceOutputStripe, inputShape, outputShape);
     }
-
-    const uint32_t blockWidthMultiplier  = std::max(1U, GetWidth(m_MceInputTensorShape) / blockConfig.m_BlockWidth());
-    const uint32_t blockHeightMultiplier = std::max(1U, GetHeight(m_MceInputTensorShape) / blockConfig.m_BlockHeight());
+    const uint32_t minBlockWidthMultiplier = m_StripeConfig.blockWidthMultiplier.min;
+    const uint32_t maxBlockWidthMultiplier =
+        std::max(1U, std::min(GetWidth(m_MceInputTensorShape) / blockConfig.m_BlockWidth(),
+                              m_StripeConfig.blockWidthMultiplier.max));
+    const uint32_t minBlockHeightMultiplier = m_StripeConfig.blockHeightMultiplier.min;
+    const uint32_t maxBlockHeightMultiplier =
+        std::max(1U, std::min(GetHeight(m_MceInputTensorShape) / blockConfig.m_BlockHeight(),
+                              m_StripeConfig.blockHeightMultiplier.max));
 
     if (cascadeType == CascadeType::Lonely)
     {
-        for (uint32_t heightMultiplier = 1; heightMultiplier <= blockHeightMultiplier; ++heightMultiplier)
+        for (uint32_t heightMultiplier = minBlockHeightMultiplier; heightMultiplier <= maxBlockHeightMultiplier;
+             ++heightMultiplier)
         {
-            for (uint32_t widthMultiplier = 1; widthMultiplier <= blockWidthMultiplier; ++widthMultiplier)
+            for (uint32_t widthMultiplier = minBlockWidthMultiplier; widthMultiplier <= maxBlockWidthMultiplier;
+                 ++widthMultiplier)
             {
                 // Try splitting width and height.
                 if (stripeConfig.splits.widthHeight)
@@ -699,9 +735,11 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             // Try split height width and output depth and input depth.
             if (stripeConfig.splits.widthHeightOutputDepthInputDepth)
             {
-                for (uint32_t heightMultiplier = 1; heightMultiplier <= blockHeightMultiplier; ++heightMultiplier)
+                for (uint32_t heightMultiplier = minBlockHeightMultiplier; heightMultiplier <= maxBlockHeightMultiplier;
+                     ++heightMultiplier)
                 {
-                    for (uint32_t widthMultiplier = 1; widthMultiplier <= blockWidthMultiplier; ++widthMultiplier)
+                    for (uint32_t widthMultiplier = minBlockWidthMultiplier; widthMultiplier <= maxBlockWidthMultiplier;
+                         ++widthMultiplier)
                     {
                         const uint32_t height = heightMultiplier * blockConfig.m_BlockHeight();
                         const uint32_t width  = widthMultiplier * blockConfig.m_BlockWidth();

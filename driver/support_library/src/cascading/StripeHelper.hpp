@@ -34,6 +34,17 @@ struct StripeConfig
         bool none                             = true;
     } splits;
 
+    struct
+    {
+        uint32_t min = 1;
+        uint32_t max = std::numeric_limits<uint32_t>::max();
+    } blockWidthMultiplier;
+    struct
+    {
+        uint32_t min = 1;
+        uint32_t max = std::numeric_limits<uint32_t>::max();
+    } blockHeightMultiplier;
+
     std::vector<ethosn::command_stream::BlockConfig> blockConfigs = { { 16u, 16u },
                                                                       { 16u, 8u },
                                                                       { 8u, 16u },
