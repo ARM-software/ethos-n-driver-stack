@@ -235,10 +235,10 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(Op* const ptrDmaOp)
             Buffer* mceInput = m_MergedOpGraph.GetInputs(weightBufferConsumer.first)[g_MceIfmBufferIndex];
             assert(mceInput != nullptr);
 
-            Op* ifmDma = m_MergedOpGraph.GetProducer(mceInput);
-            if (IsObjectOfType<DmaOp>(ifmDma))
+            Op* ifmProducer = m_MergedOpGraph.GetProducer(mceInput);
+            if (IsObjectOfType<DmaOp>(ifmProducer))
             {
-                Buffer* ifmDmaInput = m_MergedOpGraph.GetInputs(ifmDma)[0];
+                Buffer* ifmDmaInput = m_MergedOpGraph.GetInputs(ifmProducer)[0];
                 assert(ifmDmaInput != nullptr);
 
                 Op* intermediateProducer = m_MergedOpGraph.GetProducer(ifmDmaInput);
@@ -251,6 +251,31 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(Op* const ptrDmaOp)
                     // Sram Overlap Dependency for [WeightStreamer][OfmStreamer]
                     AddSramOverlapDependency(AgentType::WGT_STREAMER, weightStreamerAgentId, AgentType::OFM_STREAMER,
                                              ofmStreamerAgentId);
+                }
+            }
+            // We also need to check and wait for an MceS in the same section if this is a strategy 1 cascade.
+            // Strategy 1 cascade means that each MCE finishes before the next starts, and our combiner does an
+            // sram eviction for each new layer --- hence a potential sram overlap hazard.
+            // Therefore we need to make sure that the firmware doesn't load the new weights until the weights
+            // from the previous layer are finished with.
+            else if (IsObjectOfType<PleOp>(ifmProducer))
+            {
+                Buffer* pleInput = m_MergedOpGraph.GetInputs(ifmProducer)[0];
+                assert(pleInput != nullptr);
+
+                Op* mce = m_MergedOpGraph.GetProducer(pleInput);
+                if (IsObjectOfType<MceOp>(mce))
+                {
+                    // Check if this is an s1 cascade
+                    if (mce->m_Lifetime == Lifetime::Atomic)
+                    {
+                        AgentIdType mceStreamerAgentId = m_OpToAgentIdMapping[mce];
+
+                        // Add 'Sram Overlap' dependency to the WeightStreamer agent
+                        // Sram Overlap Dependency for [WeightStreamer][MceScheduler]
+                        AddSramOverlapDependency(AgentType::WGT_STREAMER, weightStreamerAgentId,
+                                                 AgentType::MCE_SCHEDULER, mceStreamerAgentId);
+                    }
                 }
             }
         }
@@ -1074,7 +1099,6 @@ inline void CascadingCommandStreamGenerator::AddSramOverlapDependency(
 {
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
-    assert((producerAgentType != AgentType::MCE_SCHEDULER));
 
     if ((producerAgentType != AgentType::WGT_STREAMER))
     {
@@ -1169,6 +1193,20 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
             if (producerAgentType == AgentType::OFM_STREAMER)
             {
                 // The WgtS should wait until the OfmS has completely finished.
+                consumerAgentDependency.outerRatio.other = producerAgent.info.numStripesTotal;
+                consumerAgentDependency.outerRatio.self  = consumerAgent.info.numStripesTotal;
+
+                consumerAgentDependency.innerRatio.other = producerAgent.info.numStripesTotal;
+                consumerAgentDependency.innerRatio.self  = 1;
+
+                consumerAgentDependency.boundary = 0;
+            }
+            // Sram Overlap Dependency for [WeightStreamer][MceScheduler]
+            else if (producerAgentType == AgentType::MCE_SCHEDULER)
+            {
+                // The WgtS needs to wait for an MceS in the same section if this is a strategy 1 cascade,
+                // because these weights shouldn't be loaded until the weights from the previous layer are finished with.
+                // The WgtS should wait until the MceS has completely finished.
                 consumerAgentDependency.outerRatio.other = producerAgent.info.numStripesTotal;
                 consumerAgentDependency.outerRatio.self  = consumerAgent.info.numStripesTotal;
 
