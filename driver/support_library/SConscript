@@ -76,6 +76,7 @@ srcs = [
     os.path.join("src", "cascading", "EstimateOnlyPart.cpp"),
     os.path.join("src", "cascading", "StandalonePlePart.cpp"),
     os.path.join("src", "cascading", "CascadingCommandStreamGenerator.cpp"),
+    os.path.join("src", "cascading", "WeightEncoderCache.cpp"),
 ]
 
 ethosn_support_lib = env.StaticLibrary("libEthosNSupport", srcs)

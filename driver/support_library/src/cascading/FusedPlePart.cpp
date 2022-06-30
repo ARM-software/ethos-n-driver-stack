@@ -55,7 +55,7 @@ FusedPlePart::FusedPlePart(PartId id,
                         shapeMultiplier,
                         capabilities,
                         GetDefaultStripeConfig(m_DebugTag.c_str()))
-    , m_WeightEncoderCache{ capabilities }
+    , m_WeightEncoderCache{ capabilities, m_DebugTag.c_str() }
     , m_DataType(dataType)
 {
     m_StripeGenerator.m_StripeConfig.blockConfigs =

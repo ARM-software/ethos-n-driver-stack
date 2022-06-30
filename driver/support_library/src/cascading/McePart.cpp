@@ -226,7 +226,7 @@ McePart::McePart(PartId id,
     : BasePart(id, "McePart", CompilerDataFormat::NONE, operationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape(inputTensorShape)
     , m_OutputTensorShape(outputTensorShape)
-    , m_WeightEncoderCache{ capabilities }
+    , m_WeightEncoderCache{ capabilities, m_DebugTag.c_str() }
     , m_InputQuantizationInfo(inputQuantizationInfo)
     , m_OutputQuantizationInfo(outputQuantizationInfo)
     , m_WeightsInfo(weightsInfo)
@@ -269,7 +269,7 @@ McePart::McePart(ConstructionParams&& params)
                params.m_Capabilities)
     , m_InputTensorShape(params.m_InputTensorShape)
     , m_OutputTensorShape(params.m_OutputTensorShape)
-    , m_WeightEncoderCache{ params.m_Capabilities }
+    , m_WeightEncoderCache{ params.m_Capabilities, m_DebugTag.c_str() }
     , m_InputQuantizationInfo(params.m_InputQuantizationInfo)
     , m_OutputQuantizationInfo(params.m_OutputQuantizationInfo)
     , m_WeightsInfo(params.m_WeightsInfo)
