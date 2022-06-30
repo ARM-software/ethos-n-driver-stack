@@ -815,7 +815,9 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                 CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
             const TensorShape& outputShape = m_PleOutputTensorShape;
-            TensorShape pleOutputStripe    = ApplyPleShapeMult(mceOutputStripe);
+            // PLE output stripe is the full tensor, as it accumulates the full output depth
+            TensorShape pleOutputStripe =
+                CreateStripe(m_PleOutputTensorShape, { 0, 0, 0, 0 }, m_Capabilities.GetBrickGroupShape()[3]);
 
             TensorShape memoryOutputEncoding = { 0, 0, 0, 0 };
             TensorShape memoryOutputStripe =
