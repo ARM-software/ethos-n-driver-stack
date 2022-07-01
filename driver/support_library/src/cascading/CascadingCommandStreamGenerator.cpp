@@ -931,8 +931,6 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
 
     PleS pleS = {};
 
-    CommonUtils::SetTileInfoForBuffer(m_Capabilities, pleS.ofmTile, outputBuffer);
-
     pleS.ofmZeroPoint = ethosn::utils::NumericCast<int16_t>(outputBuffer->m_QuantizationInfo.GetZeroPoint());
 
     PleSUtils::SetPlesHeightStripeInfo(pleS, outputBuffer->m_TensorShape, ptrPleOp->m_OutputStripeShape);
@@ -941,7 +939,7 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
 
     PleSUtils::SetStripeIdStrides(pleS, outputBuffer);
 
-    // Can't use CommonUtils::SetTileInfoForBuffe because PLE OFM tile might be different to OfmS tile
+    // Can't use CommonUtils::SetTileInfoForBuffer because PLE OFM tile might be different to OfmS tile
     // (strategies where OfmS does the full height but PLE does partial height)
     PleSUtils::SetPlesTileInfo(m_Capabilities, pleS, outputBuffer);
 
@@ -1407,8 +1405,19 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
             // Read After Write Dependency for [OfmStreamer][PleScheduler]
             else if (producerAgentType == AgentType::PLE_SCHEDULER)
             {
-                consumerAgentDependency.outerRatio.other = 1;
-                consumerAgentDependency.outerRatio.self  = 1;
+                // Normally this is a simple 1:1 dependency, but in some cases the PLE can have multiple stripes
+                // for each OFM stripe (strategies where OfmS does the full height but PLE does partial height)
+
+                // Outer ratio is not used (set to max)
+                consumerAgentDependency.outerRatio.other = producerAgent.info.numStripesTotal;
+                consumerAgentDependency.outerRatio.self  = consumerAgent.info.numStripesTotal;
+
+                // Inner ratio based on the stripe heights
+                consumerAgentDependency.innerRatio.other =
+                    consumerAgent.data.ofm.fmData.dfltStripeSize.height / producerAgent.data.pleS.dfltStripeSize.height;
+                consumerAgentDependency.innerRatio.self = 1;
+
+                consumerAgentDependency.boundary = 0;
             }
             else
             {
@@ -1685,8 +1694,16 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
             // Schedule Time Dependency for [PleScheduler][OfmStreamer]
             else if (producerAgentType == AgentType::PLE_SCHEDULER)
             {
-                producerAgentDependency.outerRatio.other = 1;
-                producerAgentDependency.outerRatio.self  = 1;
+                // Normally this is a simple 1:1 dependency, but in some cases the PLE can have multiple stripes
+                // for each OFM stripe (strategies where OfmS does the full height but PLE does partial height)
+                producerAgentDependency.outerRatio.other = consumerAgent.info.numStripesTotal;
+                producerAgentDependency.outerRatio.self  = producerAgent.info.numStripesTotal;
+
+                producerAgentDependency.innerRatio.other =
+                    producerAgent.data.pleS.dfltStripeSize.height / consumerAgent.data.ofm.fmData.dfltStripeSize.height;
+                producerAgentDependency.innerRatio.self = 1;
+
+                producerAgentDependency.boundary = 0;
             }
             else
             {

@@ -2945,8 +2945,8 @@ TEST_CASE("OfmStreamer-IfmStreamer ReadAfterWriteDependency Test", "[CascadingCo
     const Dependency& readDependency = ofmSAgent.info.readDependencies.at(0);
 
     CHECK(readDependency.relativeAgentId == 1);
-    CHECK(readDependency.outerRatio.other == 1);
-    CHECK(readDependency.outerRatio.self == 1);
+    CHECK(readDependency.outerRatio.other == 400);
+    CHECK(readDependency.outerRatio.self == 400);
     CHECK(readDependency.innerRatio.other == 1);
     CHECK(readDependency.innerRatio.self == 1);
     CHECK(readDependency.boundary == 0);
@@ -2973,8 +2973,8 @@ TEST_CASE("OfmStreamer-PleScheduler ReadAfterWriteDependency Test", "[CascadingC
     const Dependency& readDependency = ofmSAgent.info.readDependencies.at(0);
 
     CHECK(readDependency.relativeAgentId == 1);
-    CHECK(readDependency.outerRatio.other == 1);
-    CHECK(readDependency.outerRatio.self == 1);
+    CHECK(readDependency.outerRatio.other == 100);
+    CHECK(readDependency.outerRatio.self == 100);
     CHECK(readDependency.innerRatio.other == 1);
     CHECK(readDependency.innerRatio.self == 1);
     CHECK(readDependency.boundary == 0);
@@ -3205,8 +3205,8 @@ TEST_CASE("PleScheduler-OfmStreamer WriteAfterReadDependency Test", "[CascadingC
     const Dependency& writeDependency = pleSAgent.info.writeDependencies.at(0);
 
     CHECK(writeDependency.relativeAgentId == 1);
-    CHECK(writeDependency.outerRatio.other == 1);
-    CHECK(writeDependency.outerRatio.self == 1);
+    CHECK(writeDependency.outerRatio.other == 100);
+    CHECK(writeDependency.outerRatio.self == 100);
     CHECK(writeDependency.innerRatio.other == 1);
     CHECK(writeDependency.innerRatio.self == 1);
     CHECK(writeDependency.boundary == 0);
@@ -3501,8 +3501,8 @@ TEST_CASE("PleScheduler-OfmStreamer ScheduleTimeDependency Test", "[CascadingCom
     const Dependency& scheduleDependency = pleSAgent.info.scheduleDependencies.at(0);
 
     CHECK(scheduleDependency.relativeAgentId == 1);
-    CHECK(scheduleDependency.outerRatio.other == 1);
-    CHECK(scheduleDependency.outerRatio.self == 1);
+    CHECK(scheduleDependency.outerRatio.other == 100);
+    CHECK(scheduleDependency.outerRatio.self == 100);
     CHECK(scheduleDependency.innerRatio.other == 1);
     CHECK(scheduleDependency.innerRatio.self == 1);
     CHECK(scheduleDependency.boundary == 0);
