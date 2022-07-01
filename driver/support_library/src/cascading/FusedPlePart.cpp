@@ -40,6 +40,7 @@ FusedPlePart::FusedPlePart(PartId id,
     , m_OutputQuantizationInfo(outputQuantizationInfo)
     , m_KernelOperation(op)
     , m_ShapeMultiplier(shapeMultiplier)
+    , m_StripeConfig(GetDefaultStripeConfig(m_DebugTag.c_str()))
     , m_StripeGenerator(m_InputTensorShape,
                         m_InputTensorShape,
                         m_OutputTensorShape,
@@ -54,7 +55,7 @@ FusedPlePart::FusedPlePart(PartId id,
                         ShapeMultiplier::Identity,
                         shapeMultiplier,
                         capabilities,
-                        GetDefaultStripeConfig(m_DebugTag.c_str()))
+                        m_StripeConfig)
     , m_WeightEncoderCache{ capabilities, m_DebugTag.c_str() }
     , m_DataType(dataType)
 {
@@ -397,8 +398,15 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     // strategy 0
     if (!fullPlane)
     {
-        // if its the end of a cascade we can double buffer the output, if it's not we need to output up to 3 stripes for neighouring data.
-        maxOutputStripes = isEndOfCascade ? 2 : 3;
+        if (m_StripeConfig.splits.heightOnly)
+        {
+            // if its the end of a cascade we can double buffer the output, if it's not we need to output up to 3 stripes for neighouring data.
+            maxOutputStripes = isEndOfCascade ? 2 : 3;
+        }
+        else
+        {
+            return ret;
+        }
     }
     // Strategy 1/3
     else if (isEndOfCascade && fullDepth)
@@ -414,7 +422,14 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     else if (!fullDepth)
     {
         assert(fullPlane && isEndOfCascade);
-        maxOutputStripes = 2;
+        if (m_StripeConfig.splits.outputDepthOnly)
+        {
+            maxOutputStripes = 2;
+        }
+        else
+        {
+            return ret;
+        }
     }
 
     NumStripes numStripesOutput = { 1, maxOutputStripes };

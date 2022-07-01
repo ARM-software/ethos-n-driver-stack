@@ -147,6 +147,7 @@ protected:
     uint32_t m_PadTop;
     uint32_t m_PadLeft;
     command_stream::MceOperation m_Operation;
+    impl::StripeConfig m_StripeConfig;
     impl::StripeGenerator m_StripeGenerator;
     command_stream::DataType m_DataType;
     int16_t m_LowerBound;

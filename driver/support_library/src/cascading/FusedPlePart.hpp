@@ -80,6 +80,7 @@ private:
     command_stream::PleOperation m_KernelOperation;
     utils::ShapeMultiplier m_ShapeMultiplier;
 
+    impl::StripeConfig m_StripeConfig;
     impl::StripeGenerator m_StripeGenerator;
 
     mutable WeightEncoderCache m_WeightEncoderCache;

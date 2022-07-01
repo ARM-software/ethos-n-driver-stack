@@ -85,7 +85,8 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
                                        uint32_t strideMultiplier,
                                        const ShapeMultiplier& shapeMultiplier,
                                        const BlockConfig& blockConfig,
-                                       CascadeType cascadeType)
+                                       CascadeType cascadeType,
+                                       const StripeConfig& stripeConfig)
 {
     assert(cascadeType == CascadeType::Middle || cascadeType == CascadeType::End);
     const TensorShape& mceInputStripe = sramBuffer->m_StripeShape;
@@ -98,17 +99,38 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     if (fullTensor && numWeightStripes == 1 && cascadeType == CascadeType::Middle)
     {
         // strategy 3
-        mceOutputEncoding = { 0, 0, 0, 0 };
+        if (stripeConfig.splits.none)
+        {
+            mceOutputEncoding = { 0, 0, 0, 0 };
+        }
+        else
+        {
+            return {};
+        }
     }
     else if (fullTensor)
     {
         // strategy 1
-        mceOutputEncoding = { 0, 0, 0, caps.GetNumberOfOgs() };
+        if (stripeConfig.splits.outputDepthOnly)
+        {
+            mceOutputEncoding = { 0, 0, 0, caps.GetNumberOfOgs() };
+        }
+        else
+        {
+            return {};
+        }
     }
     else
     {
-        mceOutputEncoding = { 0, fullHeight ? 0 : (GetHeight(mceInputStripe) * shapeMultiplier.m_H),
-                              fullWidth ? 0 : (GetWidth(mceInputStripe) * shapeMultiplier.m_W), 0 };
+        if (stripeConfig.splits.heightOnly || stripeConfig.splits.widthOnly || stripeConfig.splits.widthHeight)
+        {
+            mceOutputEncoding = { 0, fullHeight ? 0 : (GetHeight(mceInputStripe) * shapeMultiplier.m_H),
+                                  fullWidth ? 0 : (GetWidth(mceInputStripe) * shapeMultiplier.m_W), 0 };
+        }
+        else
+        {
+            return {};
+        }
     }
     TensorShape mceOutputStripe    = impl::CreateStripe(outputTensorShape, mceOutputEncoding, caps.GetNumberOfOgs());
     uint32_t mceWeightOutputStripe = mceOutputStripe[3];
@@ -239,6 +261,7 @@ McePart::McePart(PartId id,
     , m_PadTop(padTop)
     , m_PadLeft(padLeft)
     , m_Operation(op)
+    , m_StripeConfig(GetDefaultStripeConfig(m_DebugTag.c_str()))
     , m_StripeGenerator(m_InputTensorShape,
                         m_OutputTensorShape,
                         m_OutputTensorShape,
@@ -253,7 +276,7 @@ McePart::McePart(PartId id,
                         ShapeMultiplier::Identity,
                         ShapeMultiplier::Identity,
                         capabilities,
-                        GetDefaultStripeConfig(m_DebugTag.c_str()))
+                        m_StripeConfig)
     , m_DataType(dataType)
     , m_LowerBound(dataType == command_stream::DataType::U8 ? 0 : -128)
     , m_UpperBound(dataType == command_stream::DataType::U8 ? 255 : 127)
@@ -282,6 +305,7 @@ McePart::McePart(ConstructionParams&& params)
     , m_PadTop(params.m_PadTop)
     , m_PadLeft(params.m_PadLeft)
     , m_Operation(params.m_Op)
+    , m_StripeConfig(GetDefaultStripeConfig(m_DebugTag.c_str()))
     , m_StripeGenerator(m_InputTensorShape,
                         m_OutputTensorShape,
                         m_OutputTensorShape,
@@ -296,7 +320,7 @@ McePart::McePart(ConstructionParams&& params)
                         ShapeMultiplier{ m_UpscaleFactor, m_UpscaleFactor, 1 },
                         ShapeMultiplier::Identity,
                         params.m_Capabilities,
-                        GetDefaultStripeConfig(m_DebugTag.c_str()))
+                        m_StripeConfig)
     , m_DataType(params.m_DataType)
     , m_LowerBound(params.m_LowerBound)
     , m_UpperBound(params.m_UpperBound)
@@ -618,7 +642,8 @@ Plans McePart::GetMiddlePlans(ethosn::command_stream::BlockConfig blockConfig,
     bool isDepthwise = m_Operation == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
     auto stripeInfos = GenerateContinueSectionStripeInfos(
         numStripes, sramBuffer, numWeightStripes, isDepthwise, m_Capabilities, m_OutputTensorShape, kernelHeight,
-        kernelWidth, strideMultiplier, m_StripeGenerator.m_MceShapeMultiplier, blockConfig, CascadeType::Middle);
+        kernelWidth, strideMultiplier, m_StripeGenerator.m_MceShapeMultiplier, blockConfig, CascadeType::Middle,
+        m_StripeConfig);
 
     if (!stripeInfos.has_value())
     {
@@ -662,7 +687,8 @@ Plans McePart::GetEndPlans(ethosn::command_stream::BlockConfig blockConfig,
     bool isDepthwise = m_Operation == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
     auto stripeInfos = GenerateContinueSectionStripeInfos(
         numStripes, sramBuffer, numWeightStripes, isDepthwise, m_Capabilities, m_OutputTensorShape, kernelHeight,
-        kernelWidth, strideMultiplier, m_StripeGenerator.m_MceShapeMultiplier, blockConfig, CascadeType::End);
+        kernelWidth, strideMultiplier, m_StripeGenerator.m_MceShapeMultiplier, blockConfig, CascadeType::End,
+        m_StripeConfig);
 
     if (!stripeInfos.has_value())
     {
