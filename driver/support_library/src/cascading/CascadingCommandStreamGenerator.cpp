@@ -1241,9 +1241,9 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                 }
 
                 // The MceS can process more data than is loaded by the IfmS (e.g. two stripes at a time)
-                uint8_t widthRatio  = ethosn::utils::NumericCast<uint8_t>(utils::DivRoundUp(
+                uint16_t widthRatio  = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
                     consumerAgent.data.mce.numStripes.ofmWidth, producerAgent.data.ifm.fmData.numStripes.width));
-                uint8_t heightRatio = ethosn::utils::NumericCast<uint8_t>(utils::DivRoundUp(
+                uint16_t heightRatio = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
                     consumerAgent.data.mce.numStripes.ofmHeight, producerAgent.data.ifm.fmData.numStripes.height));
 
                 if (consumerAgent.data.mce.mceOpMode == MceOperation::DEPTHWISE_CONVOLUTION)
@@ -1346,11 +1346,11 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                 consumerAgentDependency.outerRatio.self  = consumerAgent.info.numStripesTotal;
 
                 // Calculate inner ratios using ratio of stripe size
-                uint8_t widthRatio   = ethosn::utils::NumericCast<uint8_t>(utils::DivRoundUp(
+                uint16_t widthRatio   = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
                     producerAgent.data.mce.numStripes.ofmWidth, consumerAgent.data.pleS.numStripes.width));
-                uint8_t heightRatio  = ethosn::utils::NumericCast<uint8_t>(utils::DivRoundUp(
+                uint16_t heightRatio  = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
                     producerAgent.data.mce.numStripes.ofmHeight, consumerAgent.data.pleS.numStripes.height));
-                uint8_t channelRatio = ethosn::utils::NumericCast<uint8_t>(utils::DivRoundUp(
+                uint16_t channelRatio = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
                     producerAgent.data.mce.numStripes.ofmChannels, consumerAgent.data.pleS.numStripes.channels));
 
                 consumerAgentDependency.innerRatio.other = ethosn::utils::NumericCast<uint16_t>(
@@ -1363,8 +1363,8 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                 uint16_t numberOfIfmStripesInXYDimConsumer = ethosn::utils::NumericCast<uint16_t>(
                     consumerAgent.data.pleS.numStripes.width * consumerAgent.data.pleS.numStripes.height);
 
-                uint8_t ifmStripeRemainder = ethosn::utils::NumericCast<uint8_t>(numberOfIfmStripesInXYDimConsumer %
-                                                                                 numberOfIfmStripesInXYDimProducer);
+                uint16_t ifmStripeRemainder = ethosn::utils::NumericCast<uint16_t>(numberOfIfmStripesInXYDimConsumer %
+                                                                                   numberOfIfmStripesInXYDimProducer);
                 if (ifmStripeRemainder == 0)
                 {
                     consumerAgentDependency.boundary = 0;
@@ -1496,9 +1496,9 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                 }
 
                 // The MceS can process more data than is loaded by the IfmS (e.g. two stripes at a time)
-                uint8_t widthRatio  = ethosn::utils::NumericCast<uint8_t>(utils::DivRoundUp(
+                uint16_t widthRatio  = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
                     consumerAgent.data.mce.numStripes.ofmWidth, producerAgent.data.ifm.fmData.numStripes.width));
-                uint8_t heightRatio = ethosn::utils::NumericCast<uint8_t>(utils::DivRoundUp(
+                uint16_t heightRatio = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
                     consumerAgent.data.mce.numStripes.ofmHeight, producerAgent.data.ifm.fmData.numStripes.height));
 
                 if (consumerAgent.data.mce.mceOpMode == MceOperation::DEPTHWISE_CONVOLUTION)
@@ -1619,11 +1619,11 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                 producerAgentDependency.outerRatio.self  = producerAgent.info.numStripesTotal;
 
                 // Calculate inner ratios using ratio of stripe size
-                uint8_t widthRatio   = ethosn::utils::NumericCast<uint8_t>(utils::DivRoundUp(
+                uint16_t widthRatio   = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
                     consumerAgent.data.pleS.numStripes.width, producerAgent.data.mce.numStripes.ofmWidth));
-                uint8_t heightRatio  = ethosn::utils::NumericCast<uint8_t>(utils::DivRoundUp(
+                uint16_t heightRatio  = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
                     consumerAgent.data.pleS.numStripes.height, producerAgent.data.mce.numStripes.ofmHeight));
-                uint8_t channelRatio = ethosn::utils::NumericCast<uint8_t>(utils::DivRoundUp(
+                uint16_t channelRatio = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
                     consumerAgent.data.pleS.numStripes.channels, producerAgent.data.mce.numStripes.ofmChannels));
 
                 producerAgentDependency.innerRatio.other = 1;
@@ -1638,8 +1638,8 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                     consumerAgent.data.pleS.numStripes.width * consumerAgent.data.pleS.numStripes.height *
                     consumerAgent.data.pleS.numStripes.channels);
 
-                uint8_t ifmStripeRemainder = ethosn::utils::NumericCast<uint8_t>(numberOfIfmStripesInXYDimConsumer %
-                                                                                 numberOfIfmStripesInXYDimProducer);
+                uint16_t ifmStripeRemainder = ethosn::utils::NumericCast<uint16_t>(numberOfIfmStripesInXYDimConsumer %
+                                                                                   numberOfIfmStripesInXYDimProducer);
 
                 if (ifmStripeRemainder == 0)
                 {
