@@ -88,7 +88,6 @@ public:
 
 protected:
     void CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
-                                      TraversalOrder order,
                                       WeightEncoderCache& weightEncoderCache,
                                       Plans& plans,
                                       uint32_t numWeightStripes,
@@ -110,16 +109,8 @@ protected:
                       Buffer* sramBuffer,
                       uint32_t numWeightStripes) const;
 
-    uint32_t CalculateTileSize(const HardwareCapabilities& caps,
-                               const TensorShape& inputTensorShape,
-                               const TensorShape& inputStripeShape,
-                               const TensorShape& outputStripeShape,
-                               uint32_t numStripes,
-                               bool couldSourceBeFcaf) const;
-
     std::pair<Buffer*, Op*> AddMceToOpGraph(OwnedOpGraph& opGraph,
                                             Lifetime lifetime,
-                                            TraversalOrder order,
                                             const impl::MceStripesInfo& mceStripeInfo,
                                             const impl::MemoryStripesInfo& memoryStripesInfo,
                                             impl::NumMemoryStripes& numMemoryStripes,
@@ -130,7 +121,6 @@ protected:
                                             bool couldSourceBeFcaf) const;
 
     void CreateMceOnlyPlans(const impl::MceOnlyInfo& info,
-                            TraversalOrder order,
                             WeightEncoderCache& weightEncoderCache,
                             Plans& plans,
                             uint32_t numWeightStripes,
@@ -140,7 +130,7 @@ protected:
                                             const impl::MceStripesInfo& mceComputeInfo,
                                             const impl::NumStripesType& numMemoryWeightStripes,
                                             const TensorShape& memoryWeightStripe,
-                                            TraversalOrder order,
+                                            uint32_t numLoads,
                                             const impl::ConvData& convData,
                                             WeightEncoderCache& weightEncoderCache,
                                             CompilerMceAlgorithm mceOpAlgo) const;

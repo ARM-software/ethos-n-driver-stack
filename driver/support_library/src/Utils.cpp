@@ -580,6 +580,21 @@ std::tuple<bool, bool, bool> IsSplitting(const TensorShape& tensorShape, const T
     return std::make_tuple(splitH, splitW, splitC);
 }
 
+/// Helper function to check if any packed boundary data is being used.
+/// We can't use the SmallVector Any(x > 0) function, because it requires C++ 17 :(
+bool AnyPackedBoundaryData(const command_stream::cascading::PackedBoundaryThickness& t)
+{
+    return t.left > 0 || t.top > 0 || t.right > 0 || t.bottom > 0;
+}
+
+/// Helper function to check if two packed boundary data structs are equal.
+/// We can't use the SmallVector All(a == b) function, because it requires C++ 17 :(
+bool EqualPackedBoundaryData(const command_stream::cascading::PackedBoundaryThickness& a,
+                             const command_stream::cascading::PackedBoundaryThickness& b)
+{
+    return a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom;
+}
+
 }    // namespace utils
 
 }    // namespace support_library

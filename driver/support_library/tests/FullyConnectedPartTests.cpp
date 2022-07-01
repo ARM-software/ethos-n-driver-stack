@@ -647,7 +647,7 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
                 params.m_InputShape    = tsInOrig;
                 params.m_Any.push_back([](const PlanDesc& plan) {
                     bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 8, 32 } &&
-                                          plan.m_InputSram->m_Order == TraversalOrder::Xyz &&
+                                          plan.m_InputSram->m_Order == TraversalOrder::Zxy &&
                                           plan.m_InputSram->m_SizeInBytes == 8 * 8 * 32 &&
                                           plan.m_InputSram->m_NumStripes == 1;
                     bool weightsSramValid = plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 2048, 1024 } &&
@@ -682,7 +682,7 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
                 params.m_InputShape    = tsInOrig;
                 params.m_Any.push_back([](const PlanDesc& plan) {
                     bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 8, 32 } &&
-                                          plan.m_InputSram->m_Order == TraversalOrder::Xyz &&
+                                          plan.m_InputSram->m_Order == TraversalOrder::Zxy &&
                                           plan.m_InputSram->m_SizeInBytes == 8 * 8 * 32 &&
                                           plan.m_InputSram->m_NumStripes == 1;
                     bool weightsSramValid = plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 2048, 16 } &&
@@ -717,7 +717,7 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
                 params.m_InputShape    = tsInOrig;
                 params.m_Any.push_back([](const PlanDesc& plan) {
                     bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 8, 16 } &&
-                                          plan.m_InputSram->m_Order == TraversalOrder::Xyz &&
+                                          plan.m_InputSram->m_Order == TraversalOrder::Zxy &&
                                           plan.m_InputSram->m_SizeInBytes == 8 * 8 * 16 &&
                                           plan.m_InputSram->m_NumStripes == 1;
                     bool weightsSramValid = plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 1024, 16 } &&

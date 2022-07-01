@@ -260,13 +260,33 @@ bool Combiner::ArePlansCompatibleImpl(const Plan& sPlan, const Plan& dPlan, cons
     // Check if the buffers on the boundary are compatible, i.e. the same (or similar enough that they can be reinterpreted),
     // such that the plans could be directly merged without any additional DMA ops required. Both locations must
     // be on SRAM.
+    bool areOrdersEquivalent;
+    if (sPlanOutputBuffer->m_Location == Location::Sram && planInputBuffer->m_Location == Location::Sram)
+    {
+        const uint32_t numStripesOutputZ = utils::DivRoundUp(GetChannels(sPlanOutputBuffer->m_TensorShape),
+                                                             GetChannels(sPlanOutputBuffer->m_StripeShape));
+        const uint32_t numStripesInputZ =
+            utils::DivRoundUp(GetChannels(planInputBuffer->m_TensorShape), GetChannels(planInputBuffer->m_StripeShape));
+        areOrdersEquivalent =
+            (sPlanOutputBuffer->m_Order == planInputBuffer->m_Order) ||
+            (numStripesInputZ == 1 && numStripesOutputZ == 1 &&
+             (sPlanOutputBuffer->m_Order == TraversalOrder::Xyz || sPlanOutputBuffer->m_Order == TraversalOrder::Zxy) &&
+             (planInputBuffer->m_Order == TraversalOrder::Xyz || planInputBuffer->m_Order == TraversalOrder::Zxy));
+    }
+    else
+    {
+        areOrdersEquivalent = sPlanOutputBuffer->m_Order == planInputBuffer->m_Order;
+    }
     bool areBuffersEquivalent =
         sPlanOutputBuffer->m_Location == planInputBuffer->m_Location && planInputBuffer->m_Location != Location::Dram &&
         sPlanOutputBuffer->m_Location != Location::Dram && sPlanOutputBuffer->m_Format == planInputBuffer->m_Format &&
-        sPlanOutputBuffer->m_StripeShape == planInputBuffer->m_StripeShape &&
-        sPlanOutputBuffer->m_Order == planInputBuffer->m_Order &&
+        sPlanOutputBuffer->m_StripeShape == planInputBuffer->m_StripeShape && areOrdersEquivalent &&
         sPlanOutputBuffer->m_SizeInBytes == planInputBuffer->m_SizeInBytes &&
-        sPlanOutputBuffer->m_NumStripes == planInputBuffer->m_NumStripes;
+        sPlanOutputBuffer->m_SlotSizeInBytes == planInputBuffer->m_SlotSizeInBytes &&
+        sPlanOutputBuffer->m_NumStripes == planInputBuffer->m_NumStripes &&
+        EqualPackedBoundaryData(sPlanOutputBuffer->m_PackedBoundaryThickness,
+                                planInputBuffer->m_PackedBoundaryThickness) &&
+        sPlanOutputBuffer->m_NumLoads == planInputBuffer->m_NumLoads;
 
     if ((!areBuffersEquivalent) || !AreMceOperationsCompatible(sPlanOutputBuffer, planInputBuffer, outputSlot) ||
         !AreBlockConfigsCompatible(sPlan, dPlan, outputSlot))
@@ -630,26 +650,27 @@ OpGraph Combiner::GetMergedOpGraphForBestCombination() const
     return m_MergedOpGraphForBestCombination;
 }
 
-CascadingBufferFormat
-    Combiner::GetBestCascadingBufferDramFormat(const std::array<TensorShape, 2> inputOutputStripeShapes) const
+CascadingBufferFormat Combiner::GetBestCascadingBufferDramFormat(const std::array<Buffer*, 2> sramBuffers) const
 {
     using SupportedCompressedFormats = std::vector<CascadingBufferFormat>;
 
-    constexpr size_t sramStripeShapesSize = inputOutputStripeShapes.size();
-    SupportedCompressedFormats cascadingBufferSupportedTypePerStripe[sramStripeShapesSize];
-    for (size_t sramStripeShapesIdx = 0; sramStripeShapesIdx < sramStripeShapesSize; sramStripeShapesIdx++)
+    constexpr size_t sramBuffersSize = sramBuffers.size();
+    SupportedCompressedFormats cascadingBufferSupportedTypePerStripe[sramBuffersSize];
+    for (size_t sramBufferIdx = 0; sramBufferIdx < sramBuffersSize; sramBufferIdx++)
     {
-        const TensorShape& currentStripeShape = inputOutputStripeShapes[sramStripeShapesIdx];
+        const Buffer* currentBuffer = sramBuffers[sramBufferIdx];
         SupportedCompressedFormats& currentCascadedSupportedTypeList =
-            cascadingBufferSupportedTypePerStripe[sramStripeShapesIdx];
+            cascadingBufferSupportedTypePerStripe[sramBufferIdx];
 
         if (IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_DEEP,
-                                                            currentStripeShape))
+                                                            currentBuffer->m_StripeShape) &&
+            !AnyPackedBoundaryData(currentBuffer->m_PackedBoundaryThickness))
         {
             currentCascadedSupportedTypeList.push_back(CascadingBufferFormat::FCAF_DEEP);
         }
         if (IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_WIDE,
-                                                            currentStripeShape))
+                                                            currentBuffer->m_StripeShape) &&
+            !AnyPackedBoundaryData(currentBuffer->m_PackedBoundaryThickness))
         {
             currentCascadedSupportedTypeList.push_back(CascadingBufferFormat::FCAF_WIDE);
         }
@@ -714,7 +735,7 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenDramAndSramWithConversion(Bu
                                                                               Buffer* outputBuffer) const
 {
     StartingAndEndingGlues result;
-    auto dma1      = std::make_unique<DmaOp>(inputBuffer->m_Format);
+    auto dma1      = std::make_unique<DmaOp>(outputBuffer->m_Format);
     DmaOp* dma1Raw = dma1.get();
 
     TensorShape outputShapeNHWCB = utils::RoundUpHeightAndWidthToBrickGroup(inputBuffer->m_TensorShape);
@@ -730,7 +751,10 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenDramAndSramWithConversion(Bu
         Location::Sram, CascadingBufferFormat::NHWCB, outputShapeNHWCB, sramStripeShape, TraversalOrder::Xyz,
         utils::TotalSizeBytesNHWCB(sramStripeShape), inputBuffer->m_QuantizationInfo);
     sramBuffer->m_BufferType = BufferType::Intermediate;
-    Buffer* sramBufferRaw    = sramBuffer.get();
+    sramBuffer->m_Offset     = 0;    // Nothing else should be resident in SRAM at this point, so we can use any address
+    sramBuffer->m_NumStripes = 1;
+    sramBuffer->m_SlotSizeInBytes = sramBuffer->m_SizeInBytes;
+    Buffer* sramBufferRaw         = sramBuffer.get();
 
     auto dma2      = std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB);
     DmaOp* dma2Raw = dma2.get();
@@ -741,7 +765,7 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenDramAndSramWithConversion(Bu
     intermediateDramBuffer->m_BufferType = BufferType::Intermediate;
     Buffer* intermediateDramBufferRaw    = intermediateDramBuffer.get();
 
-    auto dma3      = std::make_unique<DmaOp>(outputBuffer->m_Format);
+    auto dma3      = std::make_unique<DmaOp>(inputBuffer->m_Format);
     DmaOp* dma3Raw = dma3.get();
 
     // We can choose to the dram buffer in the either in starting or ending
@@ -912,9 +936,11 @@ std::pair<bool, StartingAndEndingGlues> Combiner::GetGlue(Buffer* outputBuffer, 
     else if (outputBuffer->m_Location == Location::Dram && inputBuffer->m_Location == Location::Sram)
     {
         // Going from DRAM to SRAM with NHWC can't be done with splitting in channels so we must add a conversion to NHWCB through SRAM
+        // The firmware doesn't currently support loading NHWC data from DRAM with packed boundary data, so in this case we must also add a conversion
         StartingAndEndingGlues glues;
         if (outputBuffer->m_Format == CascadingBufferFormat::NHWC &&
-            utils::GetChannels(inputBuffer->m_StripeShape) < utils::GetChannels(inputBuffer->m_TensorShape))
+            (utils::GetChannels(inputBuffer->m_StripeShape) < utils::GetChannels(inputBuffer->m_TensorShape) ||
+             utils::AnyPackedBoundaryData(inputBuffer->m_PackedBoundaryThickness)))
         {
             glues = GenerateGlueBetweenDramAndSramWithConversion(inputBuffer, outputBuffer);
             return std::make_pair(true, std::move(glues));
@@ -924,8 +950,7 @@ std::pair<bool, StartingAndEndingGlues> Combiner::GetGlue(Buffer* outputBuffer, 
     }
     else if (outputBuffer->m_Location == Location::Sram && inputBuffer->m_Location == Location::Sram)
     {
-        CascadingBufferFormat cascadingBufferFormat =
-            GetBestCascadingBufferDramFormat({ outputBuffer->m_StripeShape, inputBuffer->m_StripeShape });
+        CascadingBufferFormat cascadingBufferFormat = GetBestCascadingBufferDramFormat({ outputBuffer, inputBuffer });
 
         StartingAndEndingGlues glues = GenerateGlueBetweenSramAndSram(outputBuffer, inputBuffer, cascadingBufferFormat);
         return std::make_pair(true, std::move(glues));
@@ -969,10 +994,9 @@ std::pair<bool, StartingAndEndingGlues> Combiner::GetSharedGlue(Buffer* outputBu
     assert(outputBuffer->m_Location == Location::Sram);
 
     // Use NHWCB if the input buffer is in DRAM, otherwise tries to find a compressed format
-    CascadingBufferFormat cascadingBufferFormat =
-        inputBuffer->m_Location == Location::Dram
-            ? CascadingBufferFormat::NHWCB
-            : GetBestCascadingBufferDramFormat({ outputBuffer->m_StripeShape, inputBuffer->m_StripeShape });
+    CascadingBufferFormat cascadingBufferFormat = inputBuffer->m_Location == Location::Dram
+                                                      ? CascadingBufferFormat::NHWCB
+                                                      : GetBestCascadingBufferDramFormat({ outputBuffer, inputBuffer });
 
     uint32_t numBufferSrams = inputBuffer->m_Location == Location::Sram;
 
@@ -987,7 +1011,7 @@ std::pair<bool, StartingAndEndingGlues> Combiner::GetSharedGlue(Buffer* outputBu
             CascadingBufferFormat cascadingBufferFormatLocal =
                 inputBuffer->m_Location == Location::Dram
                     ? CascadingBufferFormat::NHWCB
-                    : GetBestCascadingBufferDramFormat({ outputBuffer->m_StripeShape, inputBuffer->m_StripeShape });
+                    : GetBestCascadingBufferDramFormat({ outputBuffer, inputBuffer });
 
             // All input buffers must share the same format
             if (cascadingBufferFormatLocal != cascadingBufferFormat)

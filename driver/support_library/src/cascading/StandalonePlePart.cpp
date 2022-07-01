@@ -175,15 +175,15 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
     // PLE input buffers
     for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)
     {
-        pleInputBuffers[i] = AddPleInBuffer(opGraph, rv.inputSramAllocations.at(i).numStripesInTile,
-                                            m_InputTensorShapes.at(i), rv.inputSramAllocations.at(i).stripeShape,
-                                            m_InputQuantizationInfos.at(i), TraversalOrder::Xyz, Location::Sram);
+        pleInputBuffers[i] =
+            AddPleInBuffer(opGraph, rv.inputSramAllocations.at(i).numStripesInTile, m_InputTensorShapes.at(i),
+                           rv.inputSramAllocations.at(i).stripeShape, m_InputQuantizationInfos.at(i), Location::Sram);
     }
 
     // Output buffer
-    auto outBufferAndPleOp = AddPleToOpGraph(
-        opGraph, Lifetime::Atomic, TraversalOrder::Xyz, rv.outputSramAllocation.stripeShape, numMemoryStripes,
-        std::move(op), m_OutputTensorShape, m_OutputQuantizationInfo, m_CorrespondingOperationIds);
+    auto outBufferAndPleOp =
+        AddPleToOpGraph(opGraph, Lifetime::Atomic, rv.outputSramAllocation.stripeShape, numMemoryStripes, std::move(op),
+                        m_OutputTensorShape, m_OutputQuantizationInfo, m_CorrespondingOperationIds);
 
     for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)
     {

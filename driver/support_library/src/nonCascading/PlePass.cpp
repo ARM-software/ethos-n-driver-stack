@@ -615,8 +615,8 @@ PassStats PlePass::GetStats(const EstimationOptions& estimationOptions)
 
         // Input data streaming statistics
         InputStats uncompressedInputStats =
-            GetInputStats(m_Capabilities, roundedUpInputShape, inputStripeShape,
-                          inputLocation == BufferLocation::Dram ? Location::Dram : Location::Sram, inputTileSize);
+            GetInputStatsLegacy(m_Capabilities, roundedUpInputShape, inputStripeShape,
+                                inputLocation == BufferLocation::Dram ? Location::Dram : Location::Sram, inputTileSize);
 
         if (m_Nodes.front()->GetInputCompressed(i))
         {

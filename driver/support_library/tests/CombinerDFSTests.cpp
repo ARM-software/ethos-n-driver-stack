@@ -3697,9 +3697,9 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
                                 TensorShape{ 1, 4, 16, 1024 }, ethosn::command_stream::DataType::U8, true);
 
     numMemoryStripes.m_Output = 1;
-    auto outBufferAndPleOp    = AddPleToOpGraph(planA.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
-                                             TensorShape{ 1, 4, 16, 1024 }, numMemoryStripes, std::move(op),
-                                             TensorShape{ 1, 4, 16, 1024 }, QuantizationInfo(), operationIds);
+    auto outBufferAndPleOp =
+        AddPleToOpGraph(planA.m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 16, 1024 }, numMemoryStripes,
+                        std::move(op), TensorShape{ 1, 4, 16, 1024 }, QuantizationInfo(), operationIds);
 
     Op* maybePleOp   = planA.m_OpGraph.GetOp(1);
     const bool isPle = IsPleOp(maybePleOp);
@@ -3816,9 +3816,9 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
                                         BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
                                         TensorShape{ 1, 8, 8, 8 }, ethosn::command_stream::DataType::U8, true);
             numMemoryStripes.m_Output = 1;
-            auto outBufferAndPleOp    = AddPleToOpGraph(planA.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
-                                                     TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
-                                                     TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
+            auto outBufferAndPleOp =
+                AddPleToOpGraph(planA.m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes,
+                                std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
             Op* maybePleOp   = planA.m_OpGraph.GetOp(1);
             const bool isPle = IsPleOp(maybePleOp);
@@ -3933,9 +3933,9 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                                         BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
                                         TensorShape{ 1, 8, 8, 8 }, ethosn::command_stream::DataType::U8, true);
             numMemoryStripes.m_Output = 1;
-            auto outBufferAndPleOp    = AddPleToOpGraph(planA.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
-                                                     TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
-                                                     TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
+            auto outBufferAndPleOp =
+                AddPleToOpGraph(planA.m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes,
+                                std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
             Op* maybePleOp   = planA.m_OpGraph.GetOp(1);
             const bool isPle = IsPleOp(maybePleOp);
@@ -4006,9 +4006,9 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                     std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } }, TensorShape{ 1, 8, 8, 8 },
                     ethosn::command_stream::DataType::U8, true);
                 numMemoryStripes.m_Output = 1;
-                auto outBufferAndPleOp    = AddPleToOpGraph(planB.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
-                                                         TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
-                                                         TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
+                auto outBufferAndPleOp =
+                    AddPleToOpGraph(planB.m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes,
+                                    std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
                 Op* maybePleOpA   = planA.m_OpGraph.GetOp(1);
                 const bool isPleA = IsPleOp(maybePleOpA);
@@ -4046,9 +4046,9 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
 
                 numMemoryStripes.m_Output = 1;
 
-                auto outBufferAndPleOp = AddPleToOpGraph(planB.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
-                                                         TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
-                                                         TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
+                auto outBufferAndPleOp =
+                    AddPleToOpGraph(planB.m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes,
+                                    std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
                 Op* maybePleOpA   = planA.m_OpGraph.GetOp(1);
                 const bool isPleA = IsPleOp(maybePleOpA);
@@ -4114,9 +4114,9 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                         1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } }, TensorShape{ 1, 8, 8, 8 },
                         ethosn::command_stream::DataType::U8, true);
                     numMemoryStripes.m_Output = 1;
-                    auto outBufferAndPleOp    = AddPleToOpGraph(
-                        planC.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz, TensorShape{ 1, 8, 8, 8 },
-                        numMemoryStripes, std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
+                    auto outBufferAndPleOp =
+                        AddPleToOpGraph(planC.m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes,
+                                        std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
                     Op* maybePleOpA   = planA.m_OpGraph.GetOp(1);
                     const bool isPleA = IsPleOp(maybePleOpA);
@@ -4160,9 +4160,9 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
 
                     numMemoryStripes.m_Output = 1;
 
-                    auto outBufferAndPleOp = AddPleToOpGraph(
-                        planC.m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz, TensorShape{ 1, 8, 8, 8 },
-                        numMemoryStripes, std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
+                    auto outBufferAndPleOp =
+                        AddPleToOpGraph(planC.m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes,
+                                        std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
                     Op* maybePleOpB   = planB.m_OpGraph.GetOp(1);
                     const bool isPleB = IsPleOp(maybePleOpB);

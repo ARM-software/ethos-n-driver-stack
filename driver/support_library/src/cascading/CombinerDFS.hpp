@@ -226,8 +226,7 @@ public:
     const Combination& GetBestCombination() const;
     Combination GetBestCombination(const Combinations& combs);
     OpGraph GetMergedOpGraphForBestCombination() const;
-    CascadingBufferFormat
-        GetBestCascadingBufferDramFormat(const std::array<TensorShape, 2> inputOutputStripeShapes) const;
+    CascadingBufferFormat GetBestCascadingBufferDramFormat(const std::array<Buffer*, 2> sramBuffers) const;
 
     const Plan& GetPlanForPartFromCombination(const BasePart& part, const Combination& comb) const;
     std::pair<bool, StartingAndEndingGlues> GetGlue(Buffer* outputBuffer, Buffer* inputBuffer);

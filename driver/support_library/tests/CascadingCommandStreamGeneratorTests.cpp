@@ -51,16 +51,17 @@ public:
         m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateInputSramBuffer";
         m_OpGraph.GetBuffers().back()->m_Offset   = 0x0000000F;
         Buffer* sramBuffer                        = buffers.back();
+        sramBuffer->m_SlotSizeInBytes             = 1 * 8 * 8 * 16;
         m_OpGraph.SetProducer(buffers.back(), ops.back());
         auto pleOp =
             std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::LEAKY_RELU,
                                     BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
                                     TensorShape{ 1, 8, 8, 32 }, ethosn::command_stream::DataType::U8, true);
-        pleOp.get()->m_Offset                   = 0x000000FF;
-        numMemoryStripes.m_Output               = 1;
-        auto outBufferAndPleOp                  = AddPleToOpGraph(m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
-                                                 TensorShape{ 1, 8, 8, 32 }, numMemoryStripes, std::move(pleOp),
-                                                 TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
+        pleOp.get()->m_Offset     = 0x000000FF;
+        numMemoryStripes.m_Output = 1;
+        auto outBufferAndPleOp =
+            AddPleToOpGraph(m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 8, 8, 32 }, numMemoryStripes,
+                            std::move(pleOp), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
         m_OpGraph.GetBuffers().back()->m_Offset = 0x00000F00;
         m_OpGraph.AddConsumer(sramBuffer, ops.back(), 0);
 
@@ -123,10 +124,11 @@ public:
         // Plan inputSramPlan
         m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                      TensorShape{ 1, 160, 160, 3 }, TensorShape{ 1, 8, 8, 16 },
-                                                     TraversalOrder::Xyz, 4, QuantizationInfo()));
-        m_OpGraph.GetBuffers().back()->m_DebugTag   = "InputSramBuffer";
-        m_OpGraph.GetBuffers().back()->m_Offset     = 0x00000F0F;
-        m_OpGraph.GetBuffers().back()->m_NumStripes = 4;
+                                                     TraversalOrder::Zxy, 4, QuantizationInfo()));
+        m_OpGraph.GetBuffers().back()->m_DebugTag        = "InputSramBuffer";
+        m_OpGraph.GetBuffers().back()->m_Offset          = 0x00000F0F;
+        m_OpGraph.GetBuffers().back()->m_NumStripes      = 4;
+        m_OpGraph.GetBuffers().back()->m_SlotSizeInBytes = 8 * 8 * 16;
         m_OpGraph.SetProducer(buffers.back(), ops.back());
 
         Buffer* ptrInputBuffer = m_OpGraph.GetBuffers().back();
@@ -153,10 +155,11 @@ public:
         m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::WEIGHT,
                                                      TensorShape{ 1, 3, 1, 1 }, TensorShape{ 1, 1, 16, 1 },
                                                      TraversalOrder::Xyz, 4, QuantizationInfo()));
-        m_OpGraph.GetBuffers().back()->m_DebugTag    = "WeightSramBuffer";
-        m_OpGraph.GetBuffers().back()->m_Offset      = 0x00000FF0;
-        m_OpGraph.GetBuffers().back()->m_NumStripes  = 3;
-        m_OpGraph.GetBuffers().back()->m_SizeInBytes = encodedWeights->m_MaxSize;
+        m_OpGraph.GetBuffers().back()->m_DebugTag        = "WeightSramBuffer";
+        m_OpGraph.GetBuffers().back()->m_Offset          = 0x00000FF0;
+        m_OpGraph.GetBuffers().back()->m_NumStripes      = 3;
+        m_OpGraph.GetBuffers().back()->m_SizeInBytes     = encodedWeights->m_MaxSize;
+        m_OpGraph.GetBuffers().back()->m_SlotSizeInBytes = encodedWeights->m_MaxSize;
         m_OpGraph.SetProducer(buffers.back(), ops.back());
 
         Buffer* ptrWeightBuffer = m_OpGraph.GetBuffers().back();
@@ -183,19 +186,21 @@ public:
 
         m_OpGraph.SetProducer(buffers.back(), ops.back());
 
-        ifmDeltaHeight = static_cast<int8_t>(ptrInputBuffer->m_TensorShape[1] - pleInBuffer->m_TensorShape[1]);
-        ifmDeltaWidth  = static_cast<int8_t>(ptrInputBuffer->m_TensorShape[2] - pleInBuffer->m_TensorShape[2]);
+        ifmDeltaDefaultHeight = 0;
+        ifmDeltaDefaultWidth  = 1;
+        ifmDeltaEdgeHeight    = static_cast<int8_t>(ptrInputBuffer->m_TensorShape[1] - pleInBuffer->m_TensorShape[1]);
+        ifmDeltaEdgeWidth     = static_cast<int8_t>(ptrInputBuffer->m_TensorShape[2] - pleInBuffer->m_TensorShape[2]);
 
         // Adding a passthrough PLE kernel to the plan
         // The PleKernelId is expected to be PASSTHROUGH_8x8_1
         pleOp = std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
                                         BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
                                         TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
-        pleOp.get()->m_Offset                   = 0x0000F0F0;
-        numMemoryStripes.m_Output               = 1;
-        auto outBufferAndPleOp                  = AddPleToOpGraph(m_OpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
-                                                 TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp),
-                                                 TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
+        pleOp.get()->m_Offset     = 0x0000F0F0;
+        numMemoryStripes.m_Output = 1;
+        auto outBufferAndPleOp =
+            AddPleToOpGraph(m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes,
+                            std::move(pleOp), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
         m_OpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         m_OpGraph.AddConsumer(pleInBuffer, ops.back(), 0);
 
@@ -251,14 +256,24 @@ public:
         return kernelWidth;
     }
 
-    int8_t getIfmDeltaHeight()
+    int8_t getIfmDeltaDefaultHeight()
     {
-        return ifmDeltaHeight;
+        return ifmDeltaDefaultHeight;
     }
 
-    int8_t getIfmDeltaWidth()
+    int8_t getIfmDeltaDefaultWidth()
     {
-        return ifmDeltaWidth;
+        return ifmDeltaDefaultWidth;
+    }
+
+    int8_t getIfmDeltaEdgeHeight()
+    {
+        return ifmDeltaEdgeHeight;
+    }
+
+    int8_t getIfmDeltaEdgeWidth()
+    {
+        return ifmDeltaEdgeWidth;
     }
 
 private:
@@ -281,8 +296,10 @@ private:
 
     uint8_t kernelHeight;
     uint8_t kernelWidth;
-    int8_t ifmDeltaHeight;
-    int8_t ifmDeltaWidth;
+    int8_t ifmDeltaDefaultHeight;
+    int8_t ifmDeltaDefaultWidth;
+    int8_t ifmDeltaEdgeHeight;
+    int8_t ifmDeltaEdgeWidth;
 
     Combination comb;
 
@@ -536,8 +553,8 @@ public:
         mergedOpGraph.GetBuffers().back()->m_Offset     = 0x00000F0A;
 
         mergedOpGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
+        mergedOpGraph.GetOps()[0]->m_OperationIds = { 1 };
         mergedOpGraph.GetOps().back()->m_DebugTag = "InputDmaOp";
-        mergedOpGraph.GetOps()[0]->m_OperationIds = { 0 };
 
         mergedOpGraph.AddConsumer(mergedOpGraph.GetBuffers().back(), mergedOpGraph.GetOps().back(), 0);
 
@@ -608,8 +625,10 @@ public:
 
         mergedOpGraph.SetProducer(mergedOpGraph.GetBuffers().back(), mergedOpGraph.GetOps().back());
 
-        ifmDeltaHeight = static_cast<int8_t>(inputSramBuffer->m_TensorShape[1] - pleInBuffer->m_TensorShape[1]);
-        ifmDeltaWidth  = static_cast<int8_t>(inputSramBuffer->m_TensorShape[2] - pleInBuffer->m_TensorShape[2]);
+        ifmDeltaDefaultHeight = static_cast<int8_t>(inputSramBuffer->m_TensorShape[1] - pleInBuffer->m_TensorShape[1]);
+        ifmDeltaDefaultWidth  = static_cast<int8_t>(inputSramBuffer->m_TensorShape[2] - pleInBuffer->m_TensorShape[2]);
+        ifmDeltaEdgeHeight    = static_cast<int8_t>(inputSramBuffer->m_TensorShape[1] - pleInBuffer->m_TensorShape[1]);
+        ifmDeltaEdgeWidth     = static_cast<int8_t>(inputSramBuffer->m_TensorShape[2] - pleInBuffer->m_TensorShape[2]);
 
         // Adding a passthrough PLE kernel to the plan
         // The PleKernelId is expected to be PASSTHROUGH_8x8_1
@@ -619,9 +638,9 @@ public:
         pleOp.get()->m_Offset = 0x0000F0F0;
         ethosn::support_library::impl::NumMemoryStripes numMemoryStripes;
         numMemoryStripes.m_Output = 1;
-        auto outBufferAndPleOp    = AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
-                                                 TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp),
-                                                 TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), { 0 });
+        auto outBufferAndPleOp =
+            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes,
+                            std::move(pleOp), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), { 0 });
         mergedOpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         mergedOpGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
 
@@ -707,8 +726,14 @@ public:
 
         mergedOpGraph.SetProducer(mergedOpGraph.GetBuffers().back(), mergedOpGraph.GetOps().back());
 
-        ifmDeltaHeight = static_cast<int8_t>(intermediateSramBuffer->m_TensorShape[1] - pleInBuffer2->m_TensorShape[1]);
-        ifmDeltaWidth  = static_cast<int8_t>(intermediateSramBuffer->m_TensorShape[2] - pleInBuffer2->m_TensorShape[2]);
+        ifmDeltaDefaultHeight =
+            static_cast<int8_t>(intermediateSramBuffer->m_TensorShape[1] - pleInBuffer2->m_TensorShape[1]);
+        ifmDeltaDefaultWidth =
+            static_cast<int8_t>(intermediateSramBuffer->m_TensorShape[2] - pleInBuffer2->m_TensorShape[2]);
+        ifmDeltaEdgeHeight =
+            static_cast<int8_t>(intermediateSramBuffer->m_TensorShape[1] - pleInBuffer2->m_TensorShape[1]);
+        ifmDeltaEdgeWidth =
+            static_cast<int8_t>(intermediateSramBuffer->m_TensorShape[2] - pleInBuffer2->m_TensorShape[2]);
 
         // Adding a passthrough PLE kernel to the plan
         // The PleKernelId is expected to be PASSTHROUGH_8x8_1
@@ -718,9 +743,9 @@ public:
                                     TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
         pleOp2.get()->m_Offset    = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
-        auto outBufferAndPleOp2   = AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
-                                                  TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp2),
-                                                  TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), { 1 });
+        auto outBufferAndPleOp2 =
+            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes,
+                            std::move(pleOp2), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), { 1 });
         mergedOpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         mergedOpGraph.AddConsumer(pleInBuffer2, outBufferAndPleOp2.second, 0);
 
@@ -779,14 +804,24 @@ public:
         return kernelWidth;
     }
 
-    int8_t getIfmDeltaHeight()
+    int8_t getIfmDeltaDefaultHeight()
     {
-        return ifmDeltaHeight;
+        return ifmDeltaDefaultHeight;
     }
 
-    int8_t getIfmDeltaWidth()
+    int8_t getIfmDeltaDefaultWidth()
     {
-        return ifmDeltaWidth;
+        return ifmDeltaDefaultWidth;
+    }
+
+    int8_t getIfmDeltaEdgeHeight()
+    {
+        return ifmDeltaEdgeHeight;
+    }
+
+    int8_t getIfmDeltaEdgeWidth()
+    {
+        return ifmDeltaEdgeWidth;
     }
 
 private:
@@ -820,8 +855,10 @@ private:
     uint8_t kernelWidth;
     uint8_t kernelHeight2;
     uint8_t kernelWidth2;
-    int8_t ifmDeltaHeight;
-    int8_t ifmDeltaWidth;
+    int8_t ifmDeltaDefaultHeight;
+    int8_t ifmDeltaDefaultWidth;
+    int8_t ifmDeltaEdgeHeight;
+    int8_t ifmDeltaEdgeWidth;
 
     Combination comb;
     OwnedOpGraph mergedOpGraph;
@@ -916,10 +953,14 @@ public:
 
         mergedOpGraph.SetProducer(mergedOpGraph.GetBuffers().back(), mergedOpGraph.GetOps().back());
 
-        ifmDeltaHeight = static_cast<int8_t>(inputSramBuffer->m_TensorShape[1] -
-                                             mergedOpGraph.GetBuffers().back()->m_TensorShape[1]);
-        ifmDeltaWidth  = static_cast<int8_t>(inputSramBuffer->m_TensorShape[2] -
-                                            mergedOpGraph.GetBuffers().back()->m_TensorShape[2]);
+        ifmDeltaDefaultHeight = static_cast<int8_t>(inputSramBuffer->m_TensorShape[1] -
+                                                    mergedOpGraph.GetBuffers().back()->m_TensorShape[1]);
+        ifmDeltaDefaultWidth  = static_cast<int8_t>(inputSramBuffer->m_TensorShape[2] -
+                                                   mergedOpGraph.GetBuffers().back()->m_TensorShape[2]);
+        ifmDeltaEdgeHeight    = static_cast<int8_t>(inputSramBuffer->m_TensorShape[1] -
+                                                 mergedOpGraph.GetBuffers().back()->m_TensorShape[1]);
+        ifmDeltaEdgeWidth     = static_cast<int8_t>(inputSramBuffer->m_TensorShape[2] -
+                                                mergedOpGraph.GetBuffers().back()->m_TensorShape[2]);
 
         // Adding a passthrough PLE kernel to the plan
         // The PleKernelId is expected to be PASSTHROUGH_8x8_1
@@ -928,9 +969,9 @@ public:
                                         TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
         pleOp.get()->m_Offset     = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
-        auto outBufferAndPleOp    = AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
-                                                 TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp),
-                                                 TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
+        auto outBufferAndPleOp =
+            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes,
+                            std::move(pleOp), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
         mergedOpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         mergedOpGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
 
@@ -995,9 +1036,9 @@ public:
         pleOp2.get()->m_Offset    = 0x0000F0F0;
         pleOp2->m_LoadKernel      = false;
         numMemoryStripes.m_Output = 1;
-        auto outBufferAndPleOp2   = AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
-                                                  TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp2),
-                                                  TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
+        auto outBufferAndPleOp2 =
+            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes,
+                            std::move(pleOp2), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
         mergedOpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         mergedOpGraph.AddConsumer(pleInBuffer2, outBufferAndPleOp2.second, 0);
 
@@ -1056,14 +1097,24 @@ public:
         return kernelWidth;
     }
 
-    int8_t getIfmDeltaHeight()
+    int8_t getIfmDeltaDefaultHeight()
     {
-        return ifmDeltaHeight;
+        return ifmDeltaDefaultHeight;
     }
 
-    int8_t getIfmDeltaWidth()
+    int8_t getIfmDeltaDefaultWidth()
     {
-        return ifmDeltaWidth;
+        return ifmDeltaDefaultWidth;
+    }
+
+    int8_t getIfmDeltaEdgeHeight()
+    {
+        return ifmDeltaEdgeHeight;
+    }
+
+    int8_t getIfmDeltaEdgeWidth()
+    {
+        return ifmDeltaEdgeWidth;
     }
 
 private:
@@ -1095,8 +1146,10 @@ private:
     uint8_t kernelWidth;
     uint8_t kernelHeight2;
     uint8_t kernelWidth2;
-    int8_t ifmDeltaHeight;
-    int8_t ifmDeltaWidth;
+    int8_t ifmDeltaDefaultHeight;
+    int8_t ifmDeltaDefaultWidth;
+    int8_t ifmDeltaEdgeHeight;
+    int8_t ifmDeltaEdgeWidth;
 
     Combination comb;
     OwnedOpGraph mergedOpGraph;
@@ -1204,9 +1257,9 @@ public:
                                     TensorShape{ 1, 5, 5, 1 }, ethosn::command_stream::DataType::U8, true);
         pleOp.get()->m_Offset     = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
-        auto outBufferAndPleOp    = AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
-                                                 TensorShape{ 1, 5, 5, 1 }, numMemoryStripes, std::move(pleOp),
-                                                 TensorShape{ 1, 5, 5, 1 }, QuantizationInfo(), operationIds);
+        auto outBufferAndPleOp =
+            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TensorShape{ 1, 5, 5, 1 }, numMemoryStripes,
+                            std::move(pleOp), TensorShape{ 1, 5, 5, 1 }, QuantizationInfo(), operationIds);
         mergedOpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         mergedOpGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
 
@@ -1274,8 +1327,8 @@ public:
         pleOp2.get()->m_Offset    = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp2 =
-            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TraversalOrder::Xyz, outputTensorShape, numMemoryStripes,
-                            std::move(pleOp2), outputTensorShape, QuantizationInfo(), operationIds);
+            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, outputTensorShape, numMemoryStripes, std::move(pleOp2),
+                            outputTensorShape, QuantizationInfo(), operationIds);
         mergedOpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         mergedOpGraph.AddConsumer(pleInBuffer2, mergedOpGraph.GetOps().back(), 0);
 
@@ -1483,10 +1536,10 @@ public:
                                         TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
         pleOp.get()->m_Offset     = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
-        auto outBufferAndPleOp    = AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
-                                                 TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp),
-                                                 TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
-        buffers.back()->m_Offset  = 0X0000F0FF;
+        auto outBufferAndPleOp =
+            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes,
+                            std::move(pleOp), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
+        buffers.back()->m_Offset = 0X0000F0FF;
 
         mergedOpGraph.AddConsumer(pleInputBuffer, outBufferAndPleOp.second, 0);
 
@@ -1554,9 +1607,9 @@ public:
                                     TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
         pleOp2.get()->m_Offset    = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
-        auto outBufferAndPleOp2   = AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TraversalOrder::Xyz,
-                                                  TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp2),
-                                                  TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
+        auto outBufferAndPleOp2 =
+            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes,
+                            std::move(pleOp2), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
         mergedOpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
 
         mergedOpGraph.AddConsumer(pleInput0, outBufferAndPleOp2.second, 0);
@@ -1909,8 +1962,8 @@ TEST_CASE("IfmStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(ifmSData.fmData.bufferId == 1);
     CHECK(ifmSData.fmData.dataType == FmsDataType::NHWCB);
 
-    CHECK(ifmSData.fmData.fcafInfo.signedActivation == 0);
-    CHECK(ifmSData.fmData.fcafInfo.zeroPoint == false);
+    CHECK(ifmSData.fmData.fcafInfo.signedActivation == false);
+    CHECK(ifmSData.fmData.fcafInfo.zeroPoint == 0);
 
     CHECK(ifmSData.fmData.tile.baseAddr == 3855);
     CHECK(ifmSData.fmData.tile.numSlots == 4);
@@ -1961,7 +2014,7 @@ TEST_CASE("WeightStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
 
     CHECK(wgtSData.tile.baseAddr == 0x00000FF0);
     CHECK(wgtSData.tile.numSlots == 3);
-    CHECK(wgtSData.tile.slotSize == 1);
+    CHECK(wgtSData.tile.slotSize == 2);
 
     CHECK(wgtSData.numStripes.ifmChannels == 1);
     CHECK(wgtSData.numStripes.ofmChannels == 1);
@@ -1996,7 +2049,7 @@ TEST_CASE("MceScheduler Agent Data Test", "[CascadingCommandStreamGenerator]")
 
     CHECK(mceSData.wgtTile.baseAddr == 0x00000FF0);
     CHECK(mceSData.wgtTile.numSlots == 3);
-    CHECK(mceSData.wgtTile.slotSize == 1);
+    CHECK(mceSData.wgtTile.slotSize == 2);
 
     CHECK(mceSData.blockSize.width == 16);
     CHECK(mceSData.blockSize.height == 16);
@@ -2034,10 +2087,10 @@ TEST_CASE("MceScheduler Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(mceSData.padding[0].left == 0);
     CHECK(mceSData.padding[0].top == 0);
 
-    CHECK(mceSData.ifmDeltaDefault[0].height == mceOpGraph.getIfmDeltaHeight());
-    CHECK(mceSData.ifmDeltaDefault[0].width == mceOpGraph.getIfmDeltaWidth());
-    CHECK(mceSData.ifmDeltaEdge[0].height == mceOpGraph.getIfmDeltaHeight());
-    CHECK(mceSData.ifmDeltaEdge[0].width == mceOpGraph.getIfmDeltaWidth());
+    CHECK(mceSData.ifmDeltaDefault[0].height == mceOpGraph.getIfmDeltaDefaultHeight());
+    CHECK(mceSData.ifmDeltaDefault[0].width == mceOpGraph.getIfmDeltaDefaultWidth());
+    CHECK(mceSData.ifmDeltaEdge[0].height == mceOpGraph.getIfmDeltaEdgeHeight());
+    CHECK(mceSData.ifmDeltaEdge[0].width == mceOpGraph.getIfmDeltaEdgeWidth());
 
     CHECK(mceSData.reluActiv.max == 255);
     CHECK(mceSData.reluActiv.min == 0);
@@ -2430,8 +2483,8 @@ TEST_CASE("OfmStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(ofmSData.fmData.bufferId == 4);
     CHECK(ofmSData.fmData.dataType == FmsDataType::NHWCB);
 
-    CHECK(ofmSData.fmData.fcafInfo.signedActivation == 0);
-    CHECK(ofmSData.fmData.fcafInfo.zeroPoint == false);
+    CHECK(ofmSData.fmData.fcafInfo.signedActivation == false);
+    CHECK(ofmSData.fmData.fcafInfo.zeroPoint == 0);
 
     CHECK(ofmSData.fmData.tile.baseAddr == 61695);
     CHECK(ofmSData.fmData.tile.numSlots == 1);
@@ -2454,7 +2507,7 @@ TEST_CASE("OfmStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
 
     CHECK(ofmSData.fmData.stripeIdStrides.height == 20);
     CHECK(ofmSData.fmData.stripeIdStrides.width == 1);
-    CHECK(ofmSData.fmData.stripeIdStrides.channels == 1);
+    CHECK(ofmSData.fmData.stripeIdStrides.channels == 400);
 }
 
 // Concat Op Agent Data Test
@@ -2673,19 +2726,17 @@ TEST_CASE("MceScheduler-IfmStreamer ReadAfterWriteDependency Test", "[CascadingC
     const Agent& mceSAgent           = commandStream[3];
     const Dependency& readDependency = mceSAgent.info.readDependencies.at(0);
 
-    uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
-                                  mceSAgent.data.mce.numStripes.ifmChannels;
-    uint32_t numberOfIfmStripes = ifmSAgent.data.ifm.fmData.numStripes.height *
-                                  ifmSAgent.data.ifm.fmData.numStripes.width *
-                                  ifmSAgent.data.ifm.fmData.numStripes.channels;
+    uint32_t numberOfMceStripesPerRow =
+        mceSAgent.data.mce.numStripes.ofmWidth * mceSAgent.data.mce.numStripes.ifmChannels;
+    uint32_t numberOfIfmStripesPerRow =
+        ifmSAgent.data.ifm.fmData.numStripes.width * ifmSAgent.data.ifm.fmData.numStripes.channels;
 
     CHECK(readDependency.relativeAgentId == 3);
-    CHECK(readDependency.outerRatio.other == numberOfIfmStripes / 2);    // 2 is the common factor between
-    CHECK(readDependency.outerRatio.self ==
-          numberOfMceStripes / 2);    // 400 (IfmStripes), 6 (MceStripes), 4 (boundary)
-    CHECK(readDependency.innerRatio.other == 66);
+    CHECK(readDependency.outerRatio.other == numberOfIfmStripesPerRow);
+    CHECK(readDependency.outerRatio.self == numberOfMceStripesPerRow);
+    CHECK(readDependency.innerRatio.other == 1);
     CHECK(readDependency.innerRatio.self == 1);
-    CHECK(readDependency.boundary == 2);
+    CHECK(readDependency.boundary == 1);
 }
 
 // MceScheduler Agent - Read After Write Dependency Test
@@ -2709,8 +2760,8 @@ TEST_CASE("MceScheduler-WeightStreamer ReadAfterWriteDependency Test", "[Cascadi
     const Dependency& readDependency = mceSAgent.info.readDependencies.at(1);
 
     CHECK(readDependency.relativeAgentId == 2);
-    CHECK(readDependency.outerRatio.other == 1);
-    CHECK(readDependency.outerRatio.self == 6);
+    CHECK(readDependency.outerRatio.other == 3);
+    CHECK(readDependency.outerRatio.self == 12);
     CHECK(readDependency.innerRatio.other == 1);
     CHECK(readDependency.innerRatio.self == 6);
     CHECK(readDependency.boundary == 0);
@@ -2779,11 +2830,10 @@ TEST_CASE("PleScheduler-MceScheduler ReadAfterWriteDependency Test", "[Cascading
                                   pleSAgent.data.pleS.numStripes.channels;
 
     CHECK(readDependency.relativeAgentId == 1);
-    CHECK(readDependency.outerRatio.other == numberOfMceStripes / 4);    // 4 is the common factor between
-    CHECK(readDependency.outerRatio.self ==
-          numberOfPleStripes / 4);    // 400 (PleStripes), 12 (MceStripes), 4 (boundary)
-    CHECK(readDependency.innerRatio.other == 1);
-    CHECK(readDependency.innerRatio.self == 33);
+    CHECK(readDependency.outerRatio.other == numberOfMceStripes);
+    CHECK(readDependency.outerRatio.self == numberOfPleStripes);
+    CHECK(readDependency.innerRatio.other == 70);
+    CHECK(readDependency.innerRatio.self == 1);
     CHECK(readDependency.boundary == 1);
 }
 
@@ -2805,18 +2855,11 @@ TEST_CASE("MceScheduler-PleScheduler ReadAfterWriteDependency Test", "[Cascading
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
     const Agent& mceSAgent           = commandStream[6];
-    const Agent& pleSAgent           = commandStream[4];
     const Dependency& readDependency = mceSAgent.info.readDependencies.at(0);
 
-    uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
-                                  mceSAgent.data.mce.numStripes.ofmChannels;
-    uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
-                                  pleSAgent.data.pleS.numStripes.channels;
-
     CHECK(readDependency.relativeAgentId == 2);
-    CHECK(readDependency.outerRatio.other == numberOfPleStripes / 4);    // 4 is the common factor between
-    CHECK(readDependency.outerRatio.self ==
-          numberOfMceStripes / 4);    // 400 (PleStripes), 12 (MceStripes), 4 (boundary)
+    CHECK(readDependency.outerRatio.other == 100);
+    CHECK(readDependency.outerRatio.self == 3);
     CHECK(readDependency.innerRatio.other == 33);
     CHECK(readDependency.innerRatio.self == 1);
     CHECK(readDependency.boundary == 1);
@@ -2934,9 +2977,9 @@ TEST_CASE("WeightStreamer-OfmStreamer SramOverlapDependency Test", "[CascadingCo
     const Dependency& readDependency = wgtSAgent.info.readDependencies.at(0);
 
     CHECK(readDependency.relativeAgentId == 2);
-    CHECK(readDependency.outerRatio.other == 200);
+    CHECK(readDependency.outerRatio.other == 400);
     CHECK(readDependency.outerRatio.self == 1);
-    CHECK(readDependency.innerRatio.other == 200);
+    CHECK(readDependency.innerRatio.other == 400);
     CHECK(readDependency.innerRatio.self == 1);
     CHECK(readDependency.boundary == 0);
 
@@ -2965,22 +3008,14 @@ TEST_CASE("IfmStreamer-MceScheduler WriteAfterReadDependency Test", "[CascadingC
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
     const Agent& ifmSAgent            = commandStream[0];
-    const Agent& mceSAgent            = commandStream[3];
     const Dependency& writeDependency = ifmSAgent.info.writeDependencies.at(0);
 
-    uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
-                                  mceSAgent.data.mce.numStripes.ifmChannels;
-    uint32_t numberOfIfmStripes = ifmSAgent.data.ifm.fmData.numStripes.height *
-                                  ifmSAgent.data.ifm.fmData.numStripes.width *
-                                  ifmSAgent.data.ifm.fmData.numStripes.channels;
-
     CHECK(writeDependency.relativeAgentId == 3);
-    CHECK(writeDependency.outerRatio.other == numberOfMceStripes / 2);    // 2 is the common factor between
-    CHECK(writeDependency.outerRatio.self ==
-          numberOfIfmStripes / 2);    // 400 (MceStripes), 6 (IfmStripes), 4 (boundary)
+    CHECK(writeDependency.outerRatio.other == 2);
+    CHECK(writeDependency.outerRatio.self == 20);
     CHECK(writeDependency.innerRatio.other == 1);
-    CHECK(writeDependency.innerRatio.self == 66);
-    CHECK(writeDependency.boundary == 2);
+    CHECK(writeDependency.innerRatio.self == 1);
+    CHECK(writeDependency.boundary == 1);
 }
 
 // IfmStreamer Agent - Write After Read Dependency Test
@@ -3080,8 +3115,8 @@ TEST_CASE("WeightStreamer-MceScheduler WriteAfterReadDependency Test", "[Cascadi
 
     CHECK(writeDependency.relativeAgentId == 2);
     CHECK(writeDependency.outerRatio.other == 12);
-    CHECK(writeDependency.outerRatio.self == 1);
-    CHECK(writeDependency.innerRatio.other == 12);
+    CHECK(writeDependency.outerRatio.self == 3);
+    CHECK(writeDependency.innerRatio.other == 6);
     CHECK(writeDependency.innerRatio.self == 1);
     CHECK(writeDependency.boundary == 0);
 }
@@ -3170,23 +3205,15 @@ TEST_CASE("IfmStreamer-MceScheduler ScheduleTimeDependency Test", "[CascadingCom
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
-    const Agent& mceSAgent               = commandStream[3];
     const Agent& ifmSAgent               = commandStream[0];
     const Dependency& scheduleDependency = ifmSAgent.info.scheduleDependencies.at(0);
 
-    uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
-                                  mceSAgent.data.mce.numStripes.ifmChannels;
-    uint32_t numberOfIfmStripes = ifmSAgent.data.ifm.fmData.numStripes.height *
-                                  ifmSAgent.data.ifm.fmData.numStripes.width *
-                                  ifmSAgent.data.ifm.fmData.numStripes.channels;
-
     CHECK(scheduleDependency.relativeAgentId == 3);
-    CHECK(scheduleDependency.outerRatio.other == numberOfMceStripes / 2);    // 2 is the common factor between
-    CHECK(scheduleDependency.outerRatio.self ==
-          numberOfIfmStripes / 2);    // 400 (MceStripes), 6 (IfmStripes), 4 (boundary)
+    CHECK(scheduleDependency.outerRatio.other == 2);
+    CHECK(scheduleDependency.outerRatio.self == 20);
     CHECK(scheduleDependency.innerRatio.other == 1);
-    CHECK(scheduleDependency.innerRatio.self == 66);
-    CHECK(scheduleDependency.boundary == 2);
+    CHECK(scheduleDependency.innerRatio.self == 1);
+    CHECK(scheduleDependency.boundary == 1);
 }
 
 // IfmStreamer Agent - Schedule Time Dependency Test
@@ -3281,18 +3308,13 @@ TEST_CASE("WeightStreamer-MceScheduler ScheduleTimeDependency Test", "[Cascading
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
-    const Agent& mceSAgent               = commandStream[3];
     const Agent& wgtSAgent               = commandStream[1];
     const Dependency& scheduleDependency = wgtSAgent.info.scheduleDependencies.at(0);
 
-    uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
-                                  mceSAgent.data.mce.numStripes.ofmChannels;
-    uint32_t numberOfWgtStripes = wgtSAgent.data.wgt.numStripes.ofmChannels * wgtSAgent.data.wgt.numStripes.ifmChannels;
-
     CHECK(scheduleDependency.relativeAgentId == 2);
-    CHECK(scheduleDependency.outerRatio.other == numberOfMceStripes);
-    CHECK(scheduleDependency.outerRatio.self == numberOfWgtStripes);
-    CHECK(scheduleDependency.innerRatio.other == 12);
+    CHECK(scheduleDependency.outerRatio.other == 12);
+    CHECK(scheduleDependency.outerRatio.self == 3);
+    CHECK(scheduleDependency.innerRatio.other == 6);
     CHECK(scheduleDependency.innerRatio.self == 1);
     CHECK(scheduleDependency.boundary == 0);
 }
@@ -3324,11 +3346,10 @@ TEST_CASE("MceScheduler-PleScheduler ScheduleTimeDependency Test", "[CascadingCo
                                   pleSAgent.data.pleS.numStripes.channels;
 
     CHECK(scheduleDependency.relativeAgentId == 1);
-    CHECK(scheduleDependency.outerRatio.other == numberOfPleStripes / 4);    // 4 is the common factor between
-    CHECK(scheduleDependency.outerRatio.self ==
-          numberOfMceStripes / 4);    // 400 (PleStripes), 12 (MceStripes), 4 (boundary)
-    CHECK(scheduleDependency.innerRatio.other == 33);
-    CHECK(scheduleDependency.innerRatio.self == 1);
+    CHECK(scheduleDependency.outerRatio.other == numberOfPleStripes);
+    CHECK(scheduleDependency.outerRatio.self == numberOfMceStripes);
+    CHECK(scheduleDependency.innerRatio.other == 1);
+    CHECK(scheduleDependency.innerRatio.self == 70);
     CHECK(scheduleDependency.boundary == 1);
 }
 
@@ -3488,11 +3509,10 @@ TEST_CASE("OfmStreamer-IfmStreamer ScheduleTimeDependency Test", "[CascadingComm
                                ifmSAgent.data.ifm.fmData.numStripes.channels;
 
     CHECK(scheduleDependency.relativeAgentId == 1);
-    CHECK(scheduleDependency.outerRatio.other == numOfIfmStripes / 200);    // 200 is the common factor between
-    CHECK(scheduleDependency.outerRatio.self ==
-          numOfOfmStripes / 200);    // 200 (IfmStripes), 200 (OfmStripes), 0 (boundary)
+    CHECK(scheduleDependency.outerRatio.other == numOfIfmStripes);
+    CHECK(scheduleDependency.outerRatio.self == numOfOfmStripes);
     CHECK(scheduleDependency.innerRatio.other == 1);
-    CHECK(scheduleDependency.innerRatio.self == 2);
+    CHECK(scheduleDependency.innerRatio.self == 400);
     CHECK(scheduleDependency.boundary == 0);
 }
 

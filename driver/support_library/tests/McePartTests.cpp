@@ -1108,7 +1108,7 @@ TEST_CASE("McePart GetPlans Strategy3", "[slow]")
                     }
 
                     bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 16, 16, 16 } &&
-                                          plan.m_InputSram->m_Order == TraversalOrder::Xyz &&
+                                          plan.m_InputSram->m_Order == TraversalOrder::Zxy &&
                                           plan.m_InputSram->m_SizeInBytes == 16 * 16 * 16 &&
                                           plan.m_InputSram->m_NumStripes == 1;
                     bool weightsSramValid = plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 16, 16 } &&
@@ -1186,7 +1186,7 @@ TEST_CASE("McePart GetPlans Strategy0", "[slow]")
                     }
 
                     bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
-                                          plan.m_InputSram->m_Order == TraversalOrder::Xyz &&
+                                          plan.m_InputSram->m_Order == TraversalOrder::Zxy &&
                                           plan.m_InputSram->m_SizeInBytes == 8 * 16 * 16 &&
                                           plan.m_InputSram->m_NumStripes == 1;
                     bool weightsSramValid = plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 16, 16 } &&
@@ -1281,7 +1281,7 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
                     CHECK(plan.m_Input->m_QuantizationInfo == prevBuffer.m_QuantizationInfo);
                     CHECK(plan.m_Input->m_TensorShape == prevBuffer.m_TensorShape);
                     CHECK(plan.m_Input->m_StripeShape == prevBuffer.m_StripeShape);
-                    CHECK(plan.m_Input->m_Order == prevBuffer.m_Order);
+                    // Note that the Order doesn't need to match, because there is only one stripe in Z so both orders are equivalent.
                     CHECK(plan.m_Input->m_SizeInBytes == prevBuffer.m_SizeInBytes);
                     CHECK(plan.m_Input->m_NumStripes == prevBuffer.m_NumStripes);
 
@@ -1379,7 +1379,7 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
                 params.m_OutputShape = outputShape;
                 params.m_Any.push_back([&](const PlanDesc& plan) {
                     bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
-                                          plan.m_InputSram->m_Order == TraversalOrder::Xyz &&
+                                          plan.m_InputSram->m_Order == TraversalOrder::Zxy &&
                                           plan.m_InputSram->m_SizeInBytes == 8 * 16 * 16 * 2 &&
                                           plan.m_InputSram->m_NumStripes == 2;
                     bool weightsSramValid = plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 16, 16 } &&

@@ -322,7 +322,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
 Mce[label = "Mce\nIdx in OpGraph: 0\nLifetime = Atomic\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlock Config = 3x4\nInput Stripe Shape = [1, 2, 3, 4]\nOutput Stripe Shape = [5, 6, 7, 8]\nWeights Stripe Shape = [9, 10, 11, 12]\nOrder = Zxy\nStride = 10, 20\nPad L/T = 30, 40\nLower/Upper Bound = 100, 200\nOperation Ids = []\n", shape = oval]
 Dma[label = "Dma\nIdx in OpGraph: 1\nLifetime = Cascade\nDmaOp\nOperation Ids = []\nTransfer Format = NHWCB\n", shape = oval, color = darkgoldenrod]
 Ple[label = "Ple\nIdx in OpGraph: 2\nLifetime = Atomic\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nOutput Data type = U8\nPle kernel Id = ADDITION_16X16_1\nKernel Load = 1\nOffset = 0\nOperation Ids = []\n", shape = oval]
-Buffer1[label = "Buffer1\nLocation = PleInputSram\nFormat = WEIGHT\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\nOrder = Zxy\nOffset = 0\nSize in bytes = 1234\nType = Intermediate\n", shape = box]
+Buffer1[label = "Buffer1\nLocation = PleInputSram\nFormat = WEIGHT\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\nOrder = Zxy\nOffset = 0\nSize in bytes = 1234\nSlot size in bytes = 0\nType = Intermediate\nPacked boundary thickness = { L: 0, T: 0, R: 0, B: 0}\nNum loads = 1\n", shape = box]
 }
 )";
     REQUIRE(stream.str() == expected);

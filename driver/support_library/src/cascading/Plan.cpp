@@ -497,7 +497,10 @@ Buffer::Buffer(Location location,
     , m_StripeShape(stripeShape)
     , m_Order(order)
     , m_SizeInBytes(sizeInBytes)
+    , m_SlotSizeInBytes(0)
     , m_NumStripes(0)
+    , m_PackedBoundaryThickness({ 0, 0, 0, 0 })
+    , m_NumLoads(1)
 {}
 
 bool IsOutputBufferInDram(const Plan& plan, const PartOutputSlot& outputSlot)

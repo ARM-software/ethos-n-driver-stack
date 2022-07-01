@@ -165,6 +165,10 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     }
     numStripes.m_Output = { 1, maxOutputStripes };
 
+    command_stream::cascading::PackedBoundaryThickness packedBoundaryThickness = { 0, 0, 0, 0 };
+    const uint32_t numIfmLoads                                                 = 1;
+    const uint32_t numWeightLoads                                              = 1;
+
     MceAndPleInfo mceAndPleInfo;
 
     mceAndPleInfo.m_Lifetime = fullTensor ? Lifetime::Atomic : Lifetime::Cascade;
@@ -177,9 +181,9 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     mceAndPleInfo.m_PleCompute.m_Output      = mceOutputStripe;
     mceAndPleInfo.m_PleCompute.m_BlockConfig = blockConfig;
 
-    mceAndPleInfo.m_Memory.m_Input    = { numStripes.m_Input, mceInputStripe };
-    mceAndPleInfo.m_Memory.m_Output   = { numStripes.m_Output, memoryOutputStripe };
-    mceAndPleInfo.m_Memory.m_Weight   = { numStripes.m_Weights, memoryWeightStripe };
+    mceAndPleInfo.m_Memory.m_Input  = { { numStripes.m_Input, mceInputStripe }, packedBoundaryThickness, numIfmLoads };
+    mceAndPleInfo.m_Memory.m_Output = { numStripes.m_Output, memoryOutputStripe };
+    mceAndPleInfo.m_Memory.m_Weight = { { numStripes.m_Weights, memoryWeightStripe }, numWeightLoads };
     mceAndPleInfo.m_Memory.m_PleInput = { numStripes.m_PleInput, mceOutputStripe };
 
     MceOnlyInfo mceOnlyInfo;
@@ -191,9 +195,9 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     mceOnlyInfo.m_MceCompute.m_Weight      = mceWeightStripe;
     mceOnlyInfo.m_MceCompute.m_BlockConfig = blockConfig;
 
-    mceOnlyInfo.m_Memory.m_Input    = { numStripes.m_Input, mceInputStripe };
+    mceOnlyInfo.m_Memory.m_Input    = { { numStripes.m_Input, mceInputStripe }, packedBoundaryThickness, numIfmLoads };
     mceOnlyInfo.m_Memory.m_Output   = { { 0, 0 }, { 0, 0, 0, 0 } };
-    mceOnlyInfo.m_Memory.m_Weight   = { numStripes.m_Weights, memoryWeightStripe };
+    mceOnlyInfo.m_Memory.m_Weight   = { { numStripes.m_Weights, memoryWeightStripe }, numWeightLoads };
     mceOnlyInfo.m_Memory.m_PleInput = { numStripes.m_PleInput, mceOutputStripe };
 
     return std::make_pair(mceAndPleInfo, mceOnlyInfo);
@@ -240,6 +244,8 @@ McePart::McePart(PartId id,
                         m_OutputTensorShape,
                         m_WeightsInfo.m_Dimensions[0],
                         m_WeightsInfo.m_Dimensions[1],
+                        m_PadTop,
+                        m_PadLeft,
                         m_Stride,
                         m_UpscaleFactor,
                         op,
@@ -281,6 +287,8 @@ McePart::McePart(ConstructionParams&& params)
                         m_OutputTensorShape,
                         m_WeightsInfo.m_Dimensions[0],
                         m_WeightsInfo.m_Dimensions[1],
+                        m_PadTop,
+                        m_PadLeft,
                         m_Stride,
                         m_UpscaleFactor,
                         params.m_Op,
@@ -298,7 +306,7 @@ Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
                                                  const impl::MceStripesInfo& mceComputeInfo,
                                                  const impl::NumStripesType& numMemoryWeightStripes,
                                                  const TensorShape& memoryWeightStripe,
-                                                 TraversalOrder order,
+                                                 uint32_t numLoads,
                                                  const impl::ConvData& convData,
                                                  WeightEncoderCache& weightEncoderCache,
                                                  CompilerMceAlgorithm mceOpAlgo) const
@@ -326,20 +334,24 @@ Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
 
     CascadingBufferFormat formatInDram = impl::GetCascadingBufferFormatFromCompilerDataFormat(
         ConvertExternalToCompilerDataFormat(convData.weightInfo.m_DataFormat));
-    Buffer* dramWeightBuffer        = opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, formatInDram, order));
-    dramWeightBuffer->m_TensorShape = convData.weightInfo.m_Dimensions;
+    Buffer* dramWeightBuffer =
+        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, formatInDram, TraversalOrder::Xyz));
+    dramWeightBuffer->m_TensorShape      = convData.weightInfo.m_Dimensions;
     dramWeightBuffer->m_EncodedWeights   = std::move(encodedWeights);
     dramWeightBuffer->m_SizeInBytes      = static_cast<uint32_t>(dramWeightBuffer->m_EncodedWeights->m_Data.size());
     dramWeightBuffer->m_QuantizationInfo = convData.weightInfo.m_QuantizationInfo;
     dramWeightBuffer->m_BufferType       = BufferType::ConstantDma;
 
     CascadingBufferFormat formatInSram = GetCascadingBufferFormatFromCompilerDataFormat(CompilerDataFormat::WEIGHT);
-    Buffer* sramWeightBuffer        = opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, formatInSram, order));
-    sramWeightBuffer->m_TensorShape = dramWeightBuffer->m_TensorShape;
-    sramWeightBuffer->m_StripeShape = memoryWeightStripe;
+    Buffer* sramWeightBuffer =
+        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, formatInSram, TraversalOrder::Xyz));
+    sramWeightBuffer->m_TensorShape      = dramWeightBuffer->m_TensorShape;
+    sramWeightBuffer->m_StripeShape      = memoryWeightStripe;
     sramWeightBuffer->m_QuantizationInfo = convData.weightInfo.m_QuantizationInfo;
     sramWeightBuffer->m_NumStripes       = numMemoryWeightStripes;
     sramWeightBuffer->m_SizeInBytes      = dramWeightBuffer->m_EncodedWeights->m_MaxSize * numMemoryWeightStripes;
+    sramWeightBuffer->m_SlotSizeInBytes  = dramWeightBuffer->m_EncodedWeights->m_MaxSize;
+    sramWeightBuffer->m_NumLoads         = numLoads;
 
     Op* dmaOp             = opGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::WEIGHT));
     dmaOp->m_OperationIds = m_CorrespondingOperationIds;
@@ -351,57 +363,8 @@ Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
     return sramWeightBuffer;
 }
 
-uint32_t McePart::CalculateTileSize(const HardwareCapabilities& caps,
-                                    const TensorShape& inputTensorShape,
-                                    const TensorShape& inputStripeShape,
-                                    const TensorShape& outputStripeShape,
-                                    uint32_t numStripes,
-                                    bool couldSourceBeFcaf) const
-{
-
-    auto kernelHeight               = m_WeightsInfo.m_Dimensions[0];
-    auto padTop                     = m_PadTop;
-    const uint32_t brickGroupHeight = GetHeight(caps.GetBrickGroupShape());
-
-    // Work out the tile sizes by deciding how many stripes we want in each tile
-    const NeedBoundary needBoundaryY = ethosn::support_library::utils::GetBoundaryRequirements(
-        padTop, GetHeight(inputTensorShape), GetHeight(inputStripeShape), GetHeight(outputStripeShape), kernelHeight);
-
-    const bool isStreamingWidth = GetWidth(inputStripeShape) < GetWidth(inputTensorShape);
-
-    const bool needsBoundarySlots = (needBoundaryY.m_Before || needBoundaryY.m_After) && (isStreamingWidth);
-    const uint32_t inputStripeXZ  = GetWidth(inputStripeShape) * GetChannels(inputStripeShape);
-
-    const uint32_t boundarySlotSize = needsBoundarySlots ? (brickGroupHeight * inputStripeXZ) : 0U;
-    const uint32_t defaultSlotSize  = TotalSizeBytes(inputStripeShape);
-
-    // We need the boundary slots both on the top and bottom of the stripe
-    const uint32_t totalSlotSize = (2U * boundarySlotSize) + defaultSlotSize;
-
-    uint32_t inputFullStripeSize = totalSlotSize * numStripes;
-
-    // Input tile clamp is only allowed if the plan is not de-compressed from FCAF
-    // or the stripe shape is not multiple of any type of FCAF cell.
-    // Note if the HW always writes to SRAM in full FCAF cell size if the source FCAF compressed.
-    const bool inputTileClamp =
-        !couldSourceBeFcaf ||
-        (!IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_DEEP, inputStripeShape) &&
-         !IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_WIDE, inputStripeShape));
-
-    if (inputTileClamp)
-    {
-        const uint32_t inputTileSize = utils::MaxTileSize(inputTensorShape, caps);
-        return std::min(inputTileSize, inputFullStripeSize);
-    }
-    else
-    {
-        return inputFullStripeSize;
-    }
-}
-
 std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
                                                  Lifetime lifetime,
-                                                 TraversalOrder order,
                                                  const impl::MceStripesInfo& mceStripeInfo,
                                                  const impl::MemoryStripesInfo& memoryStripesInfo,
                                                  impl::NumMemoryStripes& numMemoryStripes,
@@ -436,18 +399,20 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
     }
 
     Buffer* sramInBuffer =
-        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, order));
-    sramInBuffer->m_TensorShape = inputShape;
-    sramInBuffer->m_StripeShape = memoryStripesInfo.m_Input.m_Shape;
-    sramInBuffer->m_NumStripes  = numMemoryStripes.m_Input;
-    sramInBuffer->m_SizeInBytes =
-        CalculateTileSize(m_Capabilities, sramInBuffer->m_TensorShape, sramInBuffer->m_StripeShape,
-                          memoryStripesInfo.m_PleInput.m_Shape, sramInBuffer->m_NumStripes, couldSourceBeFcaf);
-    sramInBuffer->m_QuantizationInfo = inputQuantInfo;
+        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TraversalOrder::Zxy));
+    sramInBuffer->m_TensorShape                                            = inputShape;
+    sramInBuffer->m_StripeShape                                            = memoryStripesInfo.m_Input.m_Shape;
+    sramInBuffer->m_NumStripes                                             = numMemoryStripes.m_Input;
+    std::tie(sramInBuffer->m_SlotSizeInBytes, sramInBuffer->m_SizeInBytes) = CalculateTileSize(
+        m_Capabilities, sramInBuffer->m_TensorShape, sramInBuffer->m_StripeShape,
+        memoryStripesInfo.m_Input.m_PackedBoundaryThickness, sramInBuffer->m_NumStripes, couldSourceBeFcaf);
+    sramInBuffer->m_QuantizationInfo        = inputQuantInfo;
+    sramInBuffer->m_PackedBoundaryThickness = memoryStripesInfo.m_Input.m_PackedBoundaryThickness;
+    sramInBuffer->m_NumLoads                = memoryStripesInfo.m_Input.m_NumLoads;
 
-    Buffer* sramWeightBuffer = AddWeightBuffersAndDmaOpToMceOp(opGraph, mceStripeInfo, numMemoryStripes.m_Weight,
-                                                               memoryStripesInfo.m_Weight.m_Shape, order, convData,
-                                                               weightEncoderCache, mceOpAlgo);
+    Buffer* sramWeightBuffer = AddWeightBuffersAndDmaOpToMceOp(
+        opGraph, mceStripeInfo, numMemoryStripes.m_Weight, memoryStripesInfo.m_Weight.m_Shape,
+        memoryStripesInfo.m_Weight.m_NumLoads, convData, weightEncoderCache, mceOpAlgo);
 
     auto mceOp =
         std::make_unique<MceOp>(lifetime, m_Operation, mceOpAlgo, mceStripeInfo.m_BlockConfig, mceStripeInfo.m_Input,
@@ -468,7 +433,6 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
 };
 
 void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
-                                           TraversalOrder order,
                                            WeightEncoderCache& weightEncoderCache,
                                            Plans& plans,
                                            uint32_t numWeightStripes,
@@ -497,13 +461,13 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                 convData.weightData   = m_WeightsData;
                 convData.biasInfo     = m_BiasInfo;
                 convData.biasData     = m_BiasData;
-                auto inBufferAndMceOp = AddMceToOpGraph(opGraph, lifetime, order, info.m_MceCompute, info.m_Memory,
+                auto inBufferAndMceOp = AddMceToOpGraph(opGraph, lifetime, info.m_MceCompute, info.m_Memory,
                                                         numMemoryStripes, m_InputTensorShape, m_InputQuantizationInfo,
                                                         convData, weightEncoderCache, couldSourceBeFcaf);
 
                 auto pleInBuffer = impl::AddPleInBuffer(opGraph, numPleInputStripes, m_OutputTensorShape,
                                                         info.m_Memory.m_PleInput.m_Shape, m_OutputQuantizationInfo,
-                                                        order, Location::PleInputSram);
+                                                        Location::PleInputSram);
                 opGraph.SetProducer(pleInBuffer, inBufferAndMceOp.second);
 
                 // Create an identity ple Op
@@ -511,7 +475,7 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                     std::make_unique<PleOp>(lifetime, PleOperation::PASSTHROUGH, info.m_MceCompute.m_BlockConfig, 1,
                                             std::vector<TensorShape>{ info.m_PleCompute.m_Input },
                                             info.m_PleCompute.m_Output, m_DataType, true);
-                auto outBufferAndPleOp = AddPleToOpGraph(opGraph, lifetime, order, info.m_Memory.m_Output.m_Shape,
+                auto outBufferAndPleOp = AddPleToOpGraph(opGraph, lifetime, info.m_Memory.m_Output.m_Shape,
                                                          numMemoryStripes, std::move(pleOp), m_OutputTensorShape,
                                                          m_OutputQuantizationInfo, m_CorrespondingOperationIds);
                 opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
@@ -524,7 +488,6 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
 }
 
 void McePart::CreateMceOnlyPlans(const impl::MceOnlyInfo& info,
-                                 TraversalOrder order,
                                  WeightEncoderCache& weightEncoderCache,
                                  Plans& plans,
                                  uint32_t numWeightStripes,
@@ -550,13 +513,15 @@ void McePart::CreateMceOnlyPlans(const impl::MceOnlyInfo& info,
             convData.weightData   = m_WeightsData;
             convData.biasInfo     = m_BiasInfo;
             convData.biasData     = m_BiasData;
-            auto inBufferAndMceOp = AddMceToOpGraph(opGraph, lifetime, order, info.m_MceCompute, info.m_Memory,
+            auto inBufferAndMceOp = AddMceToOpGraph(opGraph, lifetime, info.m_MceCompute, info.m_Memory,
                                                     numMemoryStripes, m_InputTensorShape, m_InputQuantizationInfo,
                                                     convData, weightEncoderCache, couldSourceBeFcaf);
+
             // We need to add the output buffer first before adding mce to opgraph as it uses it.
+
             auto outBuffer =
                 impl::AddPleInBuffer(opGraph, numPleInputStripes, m_OutputTensorShape, info.m_Memory.m_PleInput.m_Shape,
-                                     m_OutputQuantizationInfo, order, Location::PleInputSram);
+                                     m_OutputQuantizationInfo, Location::PleInputSram);
             opGraph.SetProducer(outBuffer, inBufferAndMceOp.second);
             inputMappings[inBufferAndMceOp.first] = PartInputSlot{ m_PartId, 0 };
             outputMappings[outBuffer]             = PartOutputSlot{ m_PartId, 0 };
@@ -579,8 +544,7 @@ Plans McePart::GetLonelyPlans(uint32_t numWeightStripes) const
 
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
-        CreateMceAndIdentityPlePlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret, numWeightStripes,
-                                     couldSourceBeFcaf);
+        CreateMceAndIdentityPlePlans(i, m_WeightEncoderCache, ret, numWeightStripes, couldSourceBeFcaf);
     }
 
     // Don't continue if at least a plan is valid
@@ -594,8 +558,7 @@ Plans McePart::GetLonelyPlans(uint32_t numWeightStripes) const
 
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
-        CreateMceAndIdentityPlePlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret, numWeightStripes,
-                                     couldSourceBeFcaf);
+        CreateMceAndIdentityPlePlans(i, m_WeightEncoderCache, ret, numWeightStripes, couldSourceBeFcaf);
     }
 
     return ret;
@@ -616,13 +579,12 @@ Plans McePart::GetBeginningPlans(uint32_t numWeightStripes) const
 
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
-        CreateMceAndIdentityPlePlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret, numWeightStripes,
-                                     couldSourceBeFcaf);
+        CreateMceAndIdentityPlePlans(i, m_WeightEncoderCache, ret, numWeightStripes, couldSourceBeFcaf);
     }
 
     for (const MceOnlyInfo& i : stripeInfos.m_MceOnlyInfos)
     {
-        CreateMceOnlyPlans(i, TraversalOrder::Xyz, m_WeightEncoderCache, ret, numWeightStripes, couldSourceBeFcaf);
+        CreateMceOnlyPlans(i, m_WeightEncoderCache, ret, numWeightStripes, couldSourceBeFcaf);
     }
 
     return ret;
@@ -667,10 +629,9 @@ Plans McePart::GetMiddlePlans(ethosn::command_stream::BlockConfig blockConfig,
     // Hence input tile is allowed to be clamped to tensor size.
     const bool couldSourceBeFcaf = false;
 
-    CreateMceAndIdentityPlePlans(stripeInfos.value().first, TraversalOrder::Xyz, m_WeightEncoderCache, ret,
-                                 numWeightStripes, couldSourceBeFcaf);
-    CreateMceOnlyPlans(stripeInfos.value().second, TraversalOrder::Xyz, m_WeightEncoderCache, ret, numWeightStripes,
-                       couldSourceBeFcaf);
+    CreateMceAndIdentityPlePlans(stripeInfos.value().first, m_WeightEncoderCache, ret, numWeightStripes,
+                                 couldSourceBeFcaf);
+    CreateMceOnlyPlans(stripeInfos.value().second, m_WeightEncoderCache, ret, numWeightStripes, couldSourceBeFcaf);
     return ret;
 }
 
@@ -712,8 +673,8 @@ Plans McePart::GetEndPlans(ethosn::command_stream::BlockConfig blockConfig,
     // Hence input tile is allowed to be clamped to tensor size.
     const bool couldSourceBeFcaf = false;
 
-    CreateMceAndIdentityPlePlans(stripeInfos.value().first, TraversalOrder::Xyz, m_WeightEncoderCache, ret,
-                                 numWeightStripes, couldSourceBeFcaf);
+    CreateMceAndIdentityPlePlans(stripeInfos.value().first, m_WeightEncoderCache, ret, numWeightStripes,
+                                 couldSourceBeFcaf);
 
     return ret;
 }

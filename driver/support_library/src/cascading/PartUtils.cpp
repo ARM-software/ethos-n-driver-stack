@@ -3,8 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "../Utils.hpp"
 #include "PartUtils.hpp"
+
+#include "../Utils.hpp"
+
+using namespace ethosn::support_library::utils;
 
 namespace ethosn
 {
@@ -26,7 +29,7 @@ CascadingBufferFormat GetFormat(Location location)
         case Location::VirtualSram:
             return CascadingBufferFormat::NHWC;
         default:
-            throw NotSupportedException("Unkwnown location");
+            throw NotSupportedException("Unknown location");
     }
 }
 
@@ -66,67 +69,42 @@ uint32_t CalculateBufferSize(const TensorShape& shape, CascadingBufferFormat f)
     }
 }
 
-uint32_t CalculateSizeInBytes(const TensorShape& shape)
+std::pair<uint32_t, uint32_t>
+    CalculateTileSize(const HardwareCapabilities& caps,
+                      const TensorShape& inputTensorShape,
+                      const TensorShape& inputStripeShape,
+                      command_stream::cascading::PackedBoundaryThickness packedBoundaryThickness,
+                      uint32_t numStripes,
+                      bool couldSourceBeFcaf)
 {
-    return utils::TotalSizeBytesNHWCB(shape);
-}
+    const TensorShape stripeShapeInclBoundary = {
+        1,
+        GetHeight(inputStripeShape) + packedBoundaryThickness.top + packedBoundaryThickness.bottom,
+        GetWidth(inputStripeShape) + packedBoundaryThickness.left + packedBoundaryThickness.right,
+        GetChannels(inputStripeShape),
+    };
+    const uint32_t slotSize      = TotalSizeBytes(stripeShapeInclBoundary);
+    uint32_t inputFullStripeSize = slotSize * numStripes;
 
-uint32_t CalculateTileSize(const HardwareCapabilities& caps,
-                           const TensorShape& tensorShape,
-                           const TensorShape& stripeShape,
-                           uint32_t numStripes)
-{
-    // Restrict the tile max size to be the full tensor so we don't waste space when we have partial stripes
-    const uint32_t inputFullStripeSize = numStripes * utils::TotalSizeBytesNHWCB(stripeShape);
-    const uint32_t inputTileSize       = utils::MaxTileSize(tensorShape, caps);
+    // Input tile clamp is only allowed if the plan is not de-compressed from FCAF
+    // or the stripe shape is not multiple of any type of FCAF cell.
+    // Note if the HW always writes to SRAM in full FCAF cell size if the source FCAF compressed.
+    const bool inputTileClamp =
+        (!couldSourceBeFcaf ||
+         (!IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_DEEP, inputStripeShape) &&
+          !IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_WIDE,
+                                                           inputStripeShape))) &&
+        !AnyPackedBoundaryData(packedBoundaryThickness);
 
-    return std::min(inputTileSize, inputFullStripeSize);
-}
-
-uint32_t CalculateTileSize(Node* node,
-                           const HardwareCapabilities& caps,
-                           const TensorShape& inputTensorShape,
-                           const TensorShape& inputStripeShape,
-                           const TensorShape& outputStripeShape,
-                           uint32_t numStripes)
-{
-    using namespace ethosn::support_library::utils;
-
-    uint32_t inputFullStripeSize;
-
-    if (IsObjectOfType<MceOperationNode>(node))
+    if (inputTileClamp)
     {
-        auto mceNode                    = GetObjectAs<MceOperationNode>(node);
-        auto kernelHeight               = mceNode->GetWeightsInfo().m_Dimensions[0];
-        auto padTop                     = mceNode->GetPadTop();
-        const uint32_t brickGroupHeight = GetHeight(caps.GetBrickGroupShape());
-
-        // Work out the tile sizes by deciding how many stripes we want in each tile
-        const NeedBoundary needBoundaryY = ethosn::support_library::utils::GetBoundaryRequirements(
-            padTop, GetHeight(inputTensorShape), GetHeight(inputStripeShape), GetHeight(outputStripeShape),
-            kernelHeight);
-
-        const bool isStreamingWidth = GetWidth(inputStripeShape) < GetWidth(inputTensorShape);
-
-        const bool needsBoundarySlots = (needBoundaryY.m_Before || needBoundaryY.m_After) && (isStreamingWidth);
-        const uint32_t inputStripeXZ  = GetWidth(inputStripeShape) * GetChannels(inputStripeShape);
-
-        const uint32_t boundarySlotSize = needsBoundarySlots ? (brickGroupHeight * inputStripeXZ) : 0U;
-        const uint32_t defaultSlotSize  = TotalSizeBytes(inputStripeShape);
-
-        // We need the boundary slots both on the top and bottom of the stripe
-        const uint32_t totalSlotSize = (2U * boundarySlotSize) + defaultSlotSize;
-
-        inputFullStripeSize = totalSlotSize * numStripes;
+        const uint32_t inputTileSize = utils::MaxTileSize(inputTensorShape, caps);
+        return { slotSize, std::min(inputTileSize, inputFullStripeSize) };
     }
     else
     {
-        // Restrict the tile max size to be the full tensor so we don't waste space when we have partial stripes
-        inputFullStripeSize = numStripes * CalculateSizeInBytes(inputStripeShape);
+        return { slotSize, inputFullStripeSize };
     }
-    const uint32_t inputTileSize = utils::MaxTileSize(inputTensorShape, caps);
-
-    return std::min(inputTileSize, inputFullStripeSize);
 }
 
 }    // namespace impl

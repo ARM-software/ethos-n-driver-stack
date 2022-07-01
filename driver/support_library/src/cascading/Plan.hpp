@@ -347,7 +347,12 @@ public:
     TensorShape m_TensorShape;
     TensorShape m_StripeShape;
     TraversalOrder m_Order;
+    /// The size of the entire buffer, in bytes.
     uint32_t m_SizeInBytes;
+    /// Relevant only for SRAM buffers.
+    /// The size of a single slot in the buffer, in bytes. This could be derived from m_StripeShape,
+    /// m_Format, m_PackedBoundaryThickness etc., but it is useful to store by itself.
+    uint32_t m_SlotSizeInBytes;
 
     /// This value is set by the different parts for DRAM buffers
     utils::Optional<BufferType> m_BufferType;
@@ -355,12 +360,23 @@ public:
     /// This value is set by the Combiner for SRAM buffers
     utils::Optional<uint32_t> m_Offset;
 
-    /// This value should be easily calculable from m_SizeInBytes and m_StripeShape (and possibly some format parameters),
+    /// This value should be easily calculable from m_SizeInBytes and m_SlotSizeInBytes,
     /// but is useful to store by itself nonetheless.
     uint32_t m_NumStripes;
 
     /// Relevant only if this is a weights buffer in Dram.
     std::shared_ptr<EncodedWeights> m_EncodedWeights;
+
+    /// Relevant only for SRAM buffers.
+    /// Defines how much boundary data on each side is packed into each stripe in this buffer.
+    command_stream::cascading::PackedBoundaryThickness m_PackedBoundaryThickness;
+
+    /// Relevant only for SRAM buffers.
+    /// How many times the tensor is loaded into this buffer. Normally this would be 1,
+    /// as we stream data in or out once. However, we sometimes need to re-load the same data
+    /// from DRAM multiple times for more complicated streaming strategies, in which case
+    /// this field can be >1 to indicate this.
+    uint32_t m_NumLoads;
 };
 
 bool IsOutputBufferInDram(const Plan& plan, const PartOutputSlot& outputSlot);

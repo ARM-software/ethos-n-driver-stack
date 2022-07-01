@@ -661,6 +661,13 @@ std::string ToString(BufferType t)
     }
 }
 
+std::string ToString(command_stream::cascading::PackedBoundaryThickness t)
+{
+    return "{ L: " + std::to_string(static_cast<int>(t.left)) + ", T: " + std::to_string(static_cast<int>(t.top)) +
+           ", R: " + std::to_string(static_cast<int>(t.right)) + ", B: " + std::to_string(static_cast<int>(t.bottom)) +
+           "}";
+}
+
 /// Replaces any illegal characters to form a valid .dot file "ID".
 std::string SanitizeId(std::string s)
 {
@@ -717,10 +724,13 @@ std::string GetBufferString(Buffer* buffer)
         stream << "Offset = " << ToString(buffer->m_Offset.value()) << "\n";
     }
     stream << "Size in bytes = " << buffer->m_SizeInBytes << "\n";
+    stream << "Slot size in bytes = " << buffer->m_SlotSizeInBytes << "\n";
     if (buffer->m_BufferType.has_value())
     {
         stream << "Type = " << ToString(buffer->m_BufferType.value()) << "\n";
     }
+    stream << "Packed boundary thickness = " << ToString(buffer->m_PackedBoundaryThickness) << "\n";
+    stream << "Num loads = " << buffer->m_NumLoads << "\n";
 
     return stream.str();
 }

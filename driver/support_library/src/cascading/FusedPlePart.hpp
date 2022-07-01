@@ -54,14 +54,12 @@ private:
                                const impl::MceStripesInfo& mceComputeInfo,
                                const impl::NumStripesType& numMemoryWeightStripes,
                                const TensorShape& memoryWeightStripe,
-                               TraversalOrder order,
                                const impl::ConvData& convData,
                                WeightEncoderCache& weightEncoderCache) const;
 
-    void CreateFuseOnlyPlans(const impl::PleOnlyInfo& info, TraversalOrder order, Plans& plans) const;
+    void CreateFuseOnlyPlans(const impl::PleOnlyInfo& info, Plans& plans) const;
 
     void CreateIdentityMceAndFusedPlePlans(const impl::MceAndPleInfo& info,
-                                           TraversalOrder order,
                                            WeightEncoderCache& weightEncoderCache,
                                            Plans& plans,
                                            uint32_t numWeightStripes) const;
@@ -73,7 +71,6 @@ private:
                                                             const impl::MemoryStripesInfo& memoryStripes,
                                                             const TensorShape& inpShape,
                                                             const QuantizationInfo& inpQuantInfo,
-                                                            TraversalOrder order,
                                                             WeightEncoderCache& weightEncoderCache) const;
 
     TensorShape m_InputTensorShape;

@@ -11,6 +11,7 @@
 #include <ethosn_command_stream/BinaryTuple.hpp>
 #include <ethosn_command_stream/CommandData.hpp>
 #include <ethosn_command_stream/PleOperation.hpp>
+#include <ethosn_command_stream/cascading/CommandStream.hpp>
 #include <ethosn_utils/Log.hpp>
 #include <ethosn_utils/Macros.hpp>
 
@@ -668,6 +669,11 @@ std::pair<uint32_t, uint32_t>
     CalculateSpaceToDepthBlockSizes(const TensorShape tensor, uint32_t usedSrams, uint32_t blockSize);
 
 std::tuple<bool, bool, bool> IsSplitting(const TensorShape& tensorShape, const TensorShape& stripeShape);
+
+bool AnyPackedBoundaryData(const command_stream::cascading::PackedBoundaryThickness& t);
+bool EqualPackedBoundaryData(const command_stream::cascading::PackedBoundaryThickness& a,
+                             const command_stream::cascading::PackedBoundaryThickness& b);
+
 }    // namespace utils
 
 }    // namespace support_library

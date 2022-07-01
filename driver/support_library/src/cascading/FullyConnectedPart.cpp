@@ -81,7 +81,10 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
     Plans ret;
 
     // Fully connected only supports 8x8 block configs
-    const BlockConfig blockConfig = { 8u, 8u };
+    const BlockConfig blockConfig                                              = { 8u, 8u };
+    command_stream::cascading::PackedBoundaryThickness packedBoundaryThickness = { 0, 0, 0, 0 };
+    const uint32_t numIfmLoads                                                 = 1;
+    const uint32_t numWeightLoads                                              = 1;
 
     StripeInfos stripeInfos;
     // Full IFM and Full OFM
@@ -110,9 +113,9 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
         mceAndPleInfo.m_PleCompute.m_Output      = mceOutputStripe;
         mceAndPleInfo.m_PleCompute.m_BlockConfig = blockConfig;
 
-        mceAndPleInfo.m_Memory.m_Input    = { numStripesInput, mceInputStripe };
-        mceAndPleInfo.m_Memory.m_Output   = { numStripesOutput, mceOutputStripe };
-        mceAndPleInfo.m_Memory.m_Weight   = { numStripesWeights, weightStripe };
+        mceAndPleInfo.m_Memory.m_Input  = { { numStripesInput, mceInputStripe }, packedBoundaryThickness, numIfmLoads };
+        mceAndPleInfo.m_Memory.m_Output = { numStripesOutput, mceOutputStripe };
+        mceAndPleInfo.m_Memory.m_Weight = { { numStripesWeights, weightStripe }, numWeightLoads };
         mceAndPleInfo.m_Memory.m_PleInput = { { 0, 0 }, mceOutputStripe };
         stripeInfos.m_MceAndPleInfos.emplace(mceAndPleInfo);
     }
@@ -144,9 +147,9 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
         mceAndPleInfo.m_PleCompute.m_Output      = mceOutputStripe;
         mceAndPleInfo.m_PleCompute.m_BlockConfig = blockConfig;
 
-        mceAndPleInfo.m_Memory.m_Input    = { numStripesInput, mceInputStripe };
-        mceAndPleInfo.m_Memory.m_Output   = { numStripesOutput, mceOutputStripe };
-        mceAndPleInfo.m_Memory.m_Weight   = { numStripesWeights, weightStripe };
+        mceAndPleInfo.m_Memory.m_Input  = { { numStripesInput, mceInputStripe }, packedBoundaryThickness, numIfmLoads };
+        mceAndPleInfo.m_Memory.m_Output = { numStripesOutput, mceOutputStripe };
+        mceAndPleInfo.m_Memory.m_Weight = { { numStripesWeights, weightStripe }, numWeightLoads };
         mceAndPleInfo.m_Memory.m_PleInput = { { 0, 0 }, mceOutputStripe };
         stripeInfos.m_MceAndPleInfos.emplace(mceAndPleInfo);
     }
@@ -182,9 +185,9 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
         mceAndPleInfo.m_PleCompute.m_Output      = mceOutputStripe;
         mceAndPleInfo.m_PleCompute.m_BlockConfig = blockConfig;
 
-        mceAndPleInfo.m_Memory.m_Input    = { numStripesInput, mceInputStripe };
-        mceAndPleInfo.m_Memory.m_Output   = { numStripesOutput, mceOutputStripe };
-        mceAndPleInfo.m_Memory.m_Weight   = { numStripesWeights, weightStripe };
+        mceAndPleInfo.m_Memory.m_Input  = { { numStripesInput, mceInputStripe }, packedBoundaryThickness, numIfmLoads };
+        mceAndPleInfo.m_Memory.m_Output = { numStripesOutput, mceOutputStripe };
+        mceAndPleInfo.m_Memory.m_Weight = { { numStripesWeights, weightStripe }, numWeightLoads };
         mceAndPleInfo.m_Memory.m_PleInput = { { 0, 0 }, mceOutputStripe };
         stripeInfos.m_MceAndPleInfos.emplace(mceAndPleInfo);
     }
@@ -194,8 +197,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
 
     for (const MceAndPleInfo& info : stripeInfos.m_MceAndPleInfos)
     {
-        TraversalOrder order = TraversalOrder::Xyz;
-        auto lifetime        = info.m_Lifetime;
+        auto lifetime = info.m_Lifetime;
         for (auto numInputStripes = info.m_Memory.m_Input.m_Range.m_Min;
              numInputStripes <= info.m_Memory.m_Input.m_Range.m_Max; ++numInputStripes)
         {
@@ -234,15 +236,15 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                     dmaOp->m_OperationIds = m_CorrespondingOperationIds;
 
                     auto sramInputAndMceOp = AddMceToOpGraph(
-                        opGraph, lifetime, order, info.m_MceCompute, info.m_Memory, numMemoryStripes,
-                        m_InputTensorShape, m_InputQuantizationInfo, convData, m_WeightEncoderCache, couldSourceBeFcaf);
+                        opGraph, lifetime, info.m_MceCompute, info.m_Memory, numMemoryStripes, m_InputTensorShape,
+                        m_InputQuantizationInfo, convData, m_WeightEncoderCache, couldSourceBeFcaf);
 
                     opGraph.AddConsumer(dramInput, dmaOp, 0);
                     opGraph.SetProducer(sramInputAndMceOp.first, dmaOp);
 
                     auto pleInBuffer = impl::AddPleInBuffer(opGraph, numPleInputStripes, m_OutputTensorShape,
                                                             info.m_Memory.m_PleInput.m_Shape, m_OutputQuantizationInfo,
-                                                            order, Location::PleInputSram);
+                                                            Location::PleInputSram);
                     opGraph.SetProducer(pleInBuffer, sramInputAndMceOp.second);
 
                     // Create an identity ple Op
@@ -250,7 +252,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                         std::make_unique<PleOp>(lifetime, PleOperation::PASSTHROUGH, info.m_MceCompute.m_BlockConfig, 1,
                                                 std::vector<TensorShape>{ info.m_PleCompute.m_Input },
                                                 info.m_PleCompute.m_Output, m_DataType, true);
-                    auto outBufferAndPleOp = AddPleToOpGraph(opGraph, lifetime, order, info.m_Memory.m_Output.m_Shape,
+                    auto outBufferAndPleOp = AddPleToOpGraph(opGraph, lifetime, info.m_Memory.m_Output.m_Shape,
                                                              numMemoryStripes, std::move(pleOp), m_OutputTensorShape,
                                                              m_OutputQuantizationInfo, m_CorrespondingOperationIds);
                     opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);

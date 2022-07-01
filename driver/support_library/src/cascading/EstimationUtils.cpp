@@ -101,13 +101,13 @@ uint32_t GetInputTotalBytes(const HardwareCapabilities& caps,
     return (reloads + 1U) * shape[0] * effectiveHeight * effectiveWidth * shape[3];
 }
 
-InputStats GetInputStats(const HardwareCapabilities& caps,
-                         const TensorShape& shape,
-                         const TensorShape& stripeShape,
-                         const Location location,
-                         const uint32_t tileSize,
-                         const TensorInfo& weights,
-                         const uint32_t numOutStripesC)
+InputStats GetInputStatsLegacy(const HardwareCapabilities& caps,
+                               const TensorShape& shape,
+                               const TensorShape& stripeShape,
+                               const Location location,
+                               const uint32_t tileSize,
+                               const TensorInfo& weights,
+                               const uint32_t numOutStripesC)
 {
     InputStats data;
 
@@ -189,6 +189,71 @@ InputStats GetInputStats(const HardwareCapabilities& caps,
     else
     {
         data.m_MemoryStats.m_Sram = shape[0] * shape[1] * shape[2] * shape[3];
+    }
+
+    return data;
+}
+
+InputStats GetInputStatsCascading(const Buffer& ifmBuffer,
+                                  const TensorShape& weightsShape,
+                                  utils::Optional<CascadingBufferFormat> dramBufferFormat)
+{
+    InputStats data;
+
+    if (dramBufferFormat.has_value())
+    {
+        const uint32_t numStripes        = utils::GetNumStripesTotal(ifmBuffer.m_TensorShape, ifmBuffer.m_StripeShape);
+        data.m_StripesStats.m_NumReloads = ifmBuffer.m_NumLoads - 1;
+
+        // Calculate the total amount of input data to be transferred, included reloading and any packed boundary data.
+        // Note that a simpler calculation of numStripes * m_SlotSizeInBytes is not accurate in cases where there
+        // are partial stripes (in any of the three dimensions), because the slot size will be for the full stripe
+        // shape and so this would overestimate.
+        uint32_t effectiveHeight =
+            GetEffectiveSize(ifmBuffer.m_TensorShape[1], ifmBuffer.m_StripeShape[1],
+                             ifmBuffer.m_PackedBoundaryThickness.top, ifmBuffer.m_PackedBoundaryThickness.bottom);
+        uint32_t effectiveWidth =
+            GetEffectiveSize(ifmBuffer.m_TensorShape[2], ifmBuffer.m_StripeShape[2],
+                             ifmBuffer.m_PackedBoundaryThickness.left, ifmBuffer.m_PackedBoundaryThickness.right);
+        if (dramBufferFormat != CascadingBufferFormat::NHWC)
+        {
+            effectiveHeight = utils::RoundUpToNearestMultiple(effectiveHeight, 8);
+            effectiveWidth  = utils::RoundUpToNearestMultiple(effectiveWidth, 8);
+        }
+        const uint32_t total = ifmBuffer.m_NumLoads * ifmBuffer.m_TensorShape[0] * effectiveHeight * effectiveWidth *
+                               ifmBuffer.m_TensorShape[3];
+
+        // Calculate the minimum amount of data required to start processing.
+        // This is a conservative approximation (i.e. an overestimate).
+        // For example we assume that the stripes needed are non-partial.
+        const uint32_t numStripesNeededToStartProcessing = (weightsShape[0] > 1 || weightsShape[1] > 1) ? 2 : 1;
+        const uint32_t bytesNeededToStartProcessing =
+            std::min(numStripesNeededToStartProcessing * ifmBuffer.m_SlotSizeInBytes, total);
+
+        // Determine how much data can be transferred in parallel.
+        const uint32_t numStripesNeededPerOfmStripe = (weightsShape[0] > 1 || weightsShape[1] > 1) ? 3 : 1;
+        const uint32_t minNumSlotsForBuffering      = numStripesNeededPerOfmStripe + 1;
+
+        const bool buffering = ifmBuffer.m_NumStripes >= minNumSlotsForBuffering;
+
+        if (buffering)
+        {
+            data.m_MemoryStats.m_DramNonParallel = bytesNeededToStartProcessing;
+            data.m_MemoryStats.m_DramParallel    = total - bytesNeededToStartProcessing;
+        }
+        else
+        {
+            data.m_MemoryStats.m_DramNonParallel = total;
+            data.m_MemoryStats.m_DramParallel    = 0;
+        }
+
+        data.m_StripesStats.m_NumCentralStripes  = numStripes;
+        data.m_StripesStats.m_NumBoundaryStripes = 0;
+    }
+    else
+    {
+        data.m_MemoryStats.m_Sram = ifmBuffer.m_TensorShape[0] * ifmBuffer.m_TensorShape[1] *
+                                    ifmBuffer.m_TensorShape[2] * ifmBuffer.m_TensorShape[3];
     }
 
     return data;

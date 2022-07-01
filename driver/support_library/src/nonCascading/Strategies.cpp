@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -412,7 +412,7 @@ TryStripeShapesResult TryStripeShapes(const MceStrategySelectionParameters& stra
     result.m_UpdatedSramAllocator                              = currentSramAllocator;
     FillStrategyConfigOffsets(allocationResults, result.m_StrategyConfig);
 
-    result.m_InputStats = GetInputStats(
+    result.m_InputStats = GetInputStatsLegacy(
         capabilities, inputShape, inputStripe, inputStaticAndOffset.first ? Location::Sram : Location::Dram, inputTile,
         TensorInfo(weightsShape, DataType::UINT8_QUANTIZED, weightsFormat), numOutputStripesZ);
 

@@ -240,6 +240,8 @@ StripeGenerator::StripeGenerator(const TensorShape& mceInput,
                                  const TensorShape& pleOutput,
                                  uint32_t kernelHeight,
                                  uint32_t kernelWidth,
+                                 uint32_t padTop,
+                                 uint32_t padLeft,
                                  const Stride& stride,
                                  uint32_t upscaleFactor,
                                  command_stream::MceOperation op,
@@ -253,6 +255,8 @@ StripeGenerator::StripeGenerator(const TensorShape& mceInput,
     , m_PleOutputTensorShape(pleOutput)
     , m_KernelHeight(kernelHeight)
     , m_KernelWidth(kernelWidth)
+    , m_PadTop(padTop)
+    , m_PadLeft(padLeft)
     , m_Stride(stride)
     , m_UpscaleFactor(upscaleFactor)
     , m_Operation(op)
@@ -441,6 +445,33 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                 weightCopy.m_Max = 1;
             }
         }
+
+        const NeedBoundary needBoundaryY = utils::GetBoundaryRequirements(
+            m_PadTop, GetHeight(inputShape), GetHeight(mceInputStripe), GetHeight(mceOutputStripe), m_KernelHeight);
+        const NeedBoundary needBoundaryX = utils::GetBoundaryRequirements(
+            m_PadLeft, GetWidth(inputShape), GetWidth(mceInputStripe), GetWidth(mceOutputStripe), m_KernelWidth);
+        const bool packBoundaryVertical   = (GetWidth(mceInputStripe) < GetWidth(inputShape));
+        const bool packBoundaryHorizontal = (GetChannels(mceInputStripe) < GetChannels(inputShape));
+
+        command_stream::cascading::PackedBoundaryThickness packedBoundaryThickness;
+        packedBoundaryThickness.left   = (packBoundaryHorizontal && needBoundaryX.m_Before) ? 8 : 0;
+        packedBoundaryThickness.top    = (packBoundaryVertical && needBoundaryY.m_Before) ? 8 : 0;
+        packedBoundaryThickness.right  = (packBoundaryHorizontal && needBoundaryX.m_After) ? 8 : 0;
+        packedBoundaryThickness.bottom = (packBoundaryVertical && needBoundaryY.m_After) ? 8 : 0;
+
+        // OFM is always traversed in XYZ order and IFM always in ZXY. Therefore IFM data needs multiple loads if there
+        // is more than one stripe in OFM depth, and the IFM has more than one stripe.
+        const uint32_t numIfmLoads = !isDepthwise && (GetWidth(mceInputStripe) < GetWidth(inputShape) ||
+                                                      GetHeight(mceInputStripe) < GetHeight(inputShape) ||
+                                                      GetChannels(mceInputStripe) < GetChannels(inputShape))
+                                         ? utils::DivRoundUp(GetChannels(mceOutputShape), GetChannels(mceOutputStripe))
+                                         : 1;
+
+        const uint32_t numWeightLoads = !isDepthwise && GetChannels(mceInputStripe) < GetChannels(inputShape)
+                                            ? (utils::DivRoundUp(GetWidth(mceOutputShape), GetWidth(mceOutputStripe)) *
+                                               utils::DivRoundUp(GetHeight(mceOutputShape), GetHeight(mceOutputStripe)))
+                                            : 1;
+
         {
             MceAndPleInfo mceAndPleInfo;
 
@@ -454,9 +485,9 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             mceAndPleInfo.m_PleCompute.m_Output      = pleOutputStripe;
             mceAndPleInfo.m_PleCompute.m_BlockConfig = blockConfig;
 
-            mceAndPleInfo.m_Memory.m_Input    = { inputCopy, memoryInputStripe };
+            mceAndPleInfo.m_Memory.m_Input = { { inputCopy, memoryInputStripe }, packedBoundaryThickness, numIfmLoads };
             mceAndPleInfo.m_Memory.m_Output   = { outputCopy, memoryOutputStripe };
-            mceAndPleInfo.m_Memory.m_Weight   = { weightCopy, memoryWeightStripe };
+            mceAndPleInfo.m_Memory.m_Weight   = { { weightCopy, memoryWeightStripe }, numWeightLoads };
             mceAndPleInfo.m_Memory.m_PleInput = { pleInputRange, memoryPleInputStripe };
             outStripeInfos.m_MceAndPleInfos.insert(mceAndPleInfo);
         }
@@ -470,9 +501,9 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             mceOnlyInfo.m_MceCompute.m_Weight      = mceWeightStripe;
             mceOnlyInfo.m_MceCompute.m_BlockConfig = blockConfig;
 
-            mceOnlyInfo.m_Memory.m_Input    = { inputCopy, memoryInputStripe };
-            mceOnlyInfo.m_Memory.m_Output   = { { 0, 0 }, { 0, 0, 0, 0 } };
-            mceOnlyInfo.m_Memory.m_Weight   = { weightCopy, memoryWeightStripe };
+            mceOnlyInfo.m_Memory.m_Input  = { { inputCopy, memoryInputStripe }, packedBoundaryThickness, numIfmLoads };
+            mceOnlyInfo.m_Memory.m_Output = { { 0, 0 }, { 0, 0, 0, 0 } };
+            mceOnlyInfo.m_Memory.m_Weight = { { weightCopy, memoryWeightStripe }, numWeightLoads };
             mceOnlyInfo.m_Memory.m_PleInput = { pleInputRange, memoryPleInputStripe };
             outStripeInfos.m_MceOnlyInfos.insert(mceOnlyInfo);
         }
@@ -485,9 +516,9 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             pleOnlyInfo.m_PleCompute.m_Output      = pleOutputStripe;
             pleOnlyInfo.m_PleCompute.m_BlockConfig = blockConfig;
 
-            pleOnlyInfo.m_Memory.m_Input    = { { 0, 0 }, { 0, 0, 0, 0 } };
+            pleOnlyInfo.m_Memory.m_Input    = { { { 0, 0 }, { 0, 0, 0, 0 } }, { 0, 0, 0, 0 }, 0 };
             pleOnlyInfo.m_Memory.m_Output   = { outputCopy, memoryOutputStripe };
-            pleOnlyInfo.m_Memory.m_Weight   = { { 0, 0 }, { 0, 0, 0, 0 } };
+            pleOnlyInfo.m_Memory.m_Weight   = { { { 0, 0 }, { 0, 0, 0, 0 } }, 0 };
             pleOnlyInfo.m_Memory.m_PleInput = { pleInputRange, memoryPleInputStripe };
             outStripeInfos.m_PleOnlyInfos.insert(pleOnlyInfo);
         }
@@ -960,6 +991,24 @@ bool MemoryStripeInfo::operator<(const MemoryStripeInfo& rhs) const
     return false;
 }
 
+bool InputMemoryStripeInfo::operator<(const InputMemoryStripeInfo& rhs) const
+{
+    auto lhsTuple = std::make_tuple(static_cast<const MemoryStripeInfo&>(*this), m_PackedBoundaryThickness.left,
+                                    m_PackedBoundaryThickness.top, m_PackedBoundaryThickness.right,
+                                    m_PackedBoundaryThickness.bottom, m_NumLoads);
+    auto rhsTuple = std::make_tuple(static_cast<const MemoryStripeInfo&>(rhs), rhs.m_PackedBoundaryThickness.left,
+                                    rhs.m_PackedBoundaryThickness.top, rhs.m_PackedBoundaryThickness.right,
+                                    rhs.m_PackedBoundaryThickness.bottom, rhs.m_NumLoads);
+    return lhsTuple < rhsTuple;
+}
+
+bool WeightMemoryStripeInfo::operator<(const WeightMemoryStripeInfo& rhs) const
+{
+    auto lhsTuple = std::make_tuple(static_cast<const MemoryStripeInfo&>(*this), m_NumLoads);
+    auto rhsTuple = std::make_tuple(static_cast<const MemoryStripeInfo&>(rhs), rhs.m_NumLoads);
+    return lhsTuple < rhsTuple;
+}
+
 bool MemoryStripesInfo::operator<(const MemoryStripesInfo& rhs) const
 {
     if (m_Input < rhs.m_Input)
@@ -1080,12 +1129,11 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
                        const TensorShape& tensorShape,
                        const TensorShape& pleInputMemoryShape,
                        const QuantizationInfo& quantInfo,
-                       TraversalOrder order,
                        Location location)
 {
     assert(location == Location::Sram || location == Location::PleInputSram);
 
-    opGraph.AddBuffer(std::make_unique<Buffer>(location, GetFormat(location), order));
+    opGraph.AddBuffer(std::make_unique<Buffer>(location, GetFormat(location), TraversalOrder::Xyz));
     auto buffer = opGraph.GetBuffers().back();
 
     buffer->m_TensorShape = tensorShape;
@@ -1094,7 +1142,8 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
 
     // number of stripes in tile is only relevant if the input buffer is in SRAM
     uint32_t numStripesInTile = location == Location::Sram ? numPleInputMemoryStripes : 1;
-    buffer->m_SizeInBytes     = impl::CalculateBufferSize(buffer->m_StripeShape, buffer->m_Format) * numStripesInTile;
+    buffer->m_SlotSizeInBytes = impl::CalculateBufferSize(buffer->m_StripeShape, buffer->m_Format);
+    buffer->m_SizeInBytes     = buffer->m_SlotSizeInBytes * numStripesInTile;
 
     buffer->m_QuantizationInfo = quantInfo;
     return buffer;
@@ -1102,7 +1151,6 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
 
 std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
                                         Lifetime lifetime,
-                                        TraversalOrder order,
                                         const TensorShape& memoryOutputShape,
                                         impl::NumMemoryStripes& numMemoryStripes,
                                         std::unique_ptr<Op> pleOp,
@@ -1115,14 +1163,15 @@ std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
     op->m_OperationIds = sourceOperationIds;
     op->m_Lifetime     = lifetime;
 
-    opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, GetFormat(Location::Sram), order));
+    opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, GetFormat(Location::Sram), TraversalOrder::Xyz));
     auto pleOutBuffer = buffers.back();
     opGraph.SetProducer(pleOutBuffer, op);
 
-    pleOutBuffer->m_TensorShape = outputShape;
-    pleOutBuffer->m_StripeShape = memoryOutputShape;
-    pleOutBuffer->m_NumStripes  = numMemoryStripes.m_Output;
-    pleOutBuffer->m_SizeInBytes = numMemoryStripes.m_Output * utils::TotalSizeBytesNHWCB(memoryOutputShape);
+    pleOutBuffer->m_TensorShape     = outputShape;
+    pleOutBuffer->m_StripeShape     = memoryOutputShape;
+    pleOutBuffer->m_NumStripes      = numMemoryStripes.m_Output;
+    pleOutBuffer->m_SizeInBytes     = numMemoryStripes.m_Output * utils::TotalSizeBytesNHWCB(memoryOutputShape);
+    pleOutBuffer->m_SlotSizeInBytes = utils::TotalSizeBytesNHWCB(memoryOutputShape);
 
     pleOutBuffer->m_QuantizationInfo = outputQuantInfo;
 

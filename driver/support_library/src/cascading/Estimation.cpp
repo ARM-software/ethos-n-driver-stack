@@ -273,9 +273,9 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         {
             throw NotSupportedException("Input buffer to PleOp/MceOp must be in Sram");
         }
-        Location inputLocation = Location::Sram;
-        bool isCompressed      = false;
-        DmaOp* dmaOp           = GetObjectAs<DmaOp>(opGraph.GetProducer(sramInputBuffer));
+        utils::Optional<CascadingBufferFormat> inputDramFormat;
+        bool isCompressed = false;
+        DmaOp* dmaOp      = GetObjectAs<DmaOp>(opGraph.GetProducer(sramInputBuffer));
         if (dmaOp != nullptr && unprocessed.count(dmaOp) > 0)
         {
             if (opGraph.GetInputs(dmaOp).size() != 1)
@@ -283,22 +283,13 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
                 throw NotSupportedException("DmaOp must have exactly one input");
             }
             Buffer* dramBuffer = opGraph.GetInputs(dmaOp)[0];
-            inputLocation      = dramBuffer->m_Location;
+            inputDramFormat    = dramBuffer->m_Format;
             isCompressed       = IsCompressed(dramBuffer->m_Format);
             includeOp(dmaOp);
         }
 
-        // Number of output stripes affects the number of input data reloads for some streaming strategies.
-        uint32_t numOutStripeC =
-            utils::DivRoundUp(sramOutputBuffer->m_TensorShape[3], sramOutputBuffer->m_StripeShape[3]);
-
-        // Round-up tensor Height and Width to Brick size, before calling GetInputStats() in order to properly estimate DramNonParallelBytes.
-        // GetInputStats() selects the min(stripeShape, shape), which resulted in incorrect estimation when stripeShape > shape.
-        const TensorShape& roundedUpInputShape =
-            utils::RoundUpHeightAndWidthToBrickGroup(sramInputBuffer->m_TensorShape);
         const InputStats uncompressedStats =
-            GetInputStats(capabilities, roundedUpInputShape, sramInputBuffer->m_StripeShape, inputLocation,
-                          sramInputBuffer->m_SizeInBytes, weightsTensorInfo, numOutStripeC);
+            GetInputStatsCascading(*sramInputBuffer, weightsTensorInfo.m_Dimensions, inputDramFormat);
         const InputStats inputStats =
             isCompressed
                 ? AccountForActivationCompression(uncompressedStats, estimationOpts.m_ActivationCompressionSaving)

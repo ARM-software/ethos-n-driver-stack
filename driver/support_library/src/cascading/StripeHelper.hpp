@@ -142,11 +142,39 @@ struct MemoryStripeInfo
     bool operator<(const MemoryStripeInfo& rhs) const;
 };
 
+struct InputMemoryStripeInfo : public MemoryStripeInfo
+{
+    InputMemoryStripeInfo() = default;
+    InputMemoryStripeInfo(const MemoryStripeInfo& m,
+                          const command_stream::cascading::PackedBoundaryThickness& t,
+                          uint32_t l)
+        : MemoryStripeInfo(m)
+        , m_PackedBoundaryThickness(t)
+        , m_NumLoads(l)
+    {}
+
+    command_stream::cascading::PackedBoundaryThickness m_PackedBoundaryThickness;
+    uint32_t m_NumLoads;
+    bool operator<(const InputMemoryStripeInfo& rhs) const;
+};
+
+struct WeightMemoryStripeInfo : public MemoryStripeInfo
+{
+    WeightMemoryStripeInfo() = default;
+    WeightMemoryStripeInfo(const MemoryStripeInfo& m, uint32_t l)
+        : MemoryStripeInfo(m)
+        , m_NumLoads(l)
+    {}
+
+    uint32_t m_NumLoads;
+    bool operator<(const WeightMemoryStripeInfo& rhs) const;
+};
+
 struct MemoryStripesInfo
 {
-    MemoryStripeInfo m_Input;
+    InputMemoryStripeInfo m_Input;
     MemoryStripeInfo m_Output;
-    MemoryStripeInfo m_Weight;
+    WeightMemoryStripeInfo m_Weight;
     MemoryStripeInfo m_PleInput;
     bool operator<(const MemoryStripesInfo& rhs) const;
 };
@@ -231,12 +259,10 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
                        const TensorShape& tensorShape,
                        const TensorShape& pleInputMemoryShape,
                        const QuantizationInfo& quantInfo,
-                       TraversalOrder order,
                        Location location);
 
 std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
                                         Lifetime lifetime,
-                                        TraversalOrder order,
                                         const TensorShape& memoryOutputShape,
                                         impl::NumMemoryStripes& numMemoryStripes,
                                         std::unique_ptr<Op> pleOp,
@@ -258,6 +284,8 @@ public:
                     const TensorShape& pleOutput,
                     uint32_t kernelHeight,
                     uint32_t kernelWidth,
+                    uint32_t padTop,
+                    uint32_t padLeft,
                     const Stride& stride,
                     uint32_t upscaleFactor,
                     command_stream::MceOperation op,
@@ -283,6 +311,8 @@ public:
     TensorShape m_PleOutputTensorShape;
     uint32_t m_KernelHeight;
     uint32_t m_KernelWidth;
+    uint32_t m_PadTop;
+    uint32_t m_PadLeft;
     Stride m_Stride;
     uint32_t m_UpscaleFactor;
     command_stream::MceOperation m_Operation;

@@ -29,21 +29,8 @@ inline void SetTileInfoForBuffer(const HardwareCapabilities& hwCap, Tile& tile, 
 
     tile.baseAddr = ethosn::utils::NumericCast<uint16_t>(buffer->m_Offset.value());
     tile.numSlots = ethosn::utils::NumericCast<uint16_t>(buffer->m_NumStripes);
-
-    switch (buffer->m_Format)
-    {
-        // Intentional fallthrough
-        case CascadingBufferFormat::NHWCB:
-            tile.slotSize = ethosn::utils::NumericCast<uint16_t>(
-                utils::DivRoundUp(utils::TotalSizeBytesNHWCB(buffer->m_StripeShape), hwCap.GetNumberOfSrams()));
-            break;
-        case CascadingBufferFormat::WEIGHT:
-            tile.slotSize = ethosn::utils::NumericCast<uint16_t>(
-                utils::DivRoundUp(buffer->m_SizeInBytes, (hwCap.GetNumberOfSrams() * buffer->m_NumStripes)));
-            break;
-        default:
-            assert(false);
-    }
+    tile.slotSize =
+        ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(buffer->m_SlotSizeInBytes, hwCap.GetNumberOfSrams()));
 }
 
 uint32_t CalculateBufferSize(const TensorShape& shape, CascadingBufferFormat dataFormat)
@@ -228,10 +215,23 @@ inline void SetStripeIdStrides(FmSData& streamerData, TraversalOrder traversalOr
 {
     if (traversalOrder == TraversalOrder::Xyz)
     {
+        // Width is one because we are traversing along X first.
+        streamerData.stripeIdStrides.width = 1;
+        // We get to the next row after we have done "width" number of stripes
+        streamerData.stripeIdStrides.height = streamerData.numStripes.width;
+        // We get to the next plane after we have done "width * height" number of stripes
+        streamerData.stripeIdStrides.channels =
+            ethosn::utils::NumericCast<uint16_t>(streamerData.numStripes.width * streamerData.numStripes.height);
+    }
+    else if (traversalOrder == TraversalOrder::Zxy)
+    {
+        // Channels is one because we are traversing along Z first.
+        streamerData.stripeIdStrides.channels = 1U;
+        // We get to the next column after we have done "channels" number of stripes
+        streamerData.stripeIdStrides.width = streamerData.numStripes.channels;
+        // We get to the next row after we have done "depth x width" number of stripes
         streamerData.stripeIdStrides.height =
             ethosn::utils::NumericCast<uint16_t>(streamerData.numStripes.width * streamerData.numStripes.channels);
-        streamerData.stripeIdStrides.width    = streamerData.numStripes.channels;
-        streamerData.stripeIdStrides.channels = 1U;
     }
     else
     {
@@ -322,7 +322,9 @@ inline void
     assert(ifmStripeChannels != 0);
 
     mceSchedulerData.numStripes.ifmChannels =
-        ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesC(ifmShape, ifmStripeShape));
+        mceSchedulerData.mceOpMode == MceOperation::DEPTHWISE_CONVOLUTION
+            ? 1
+            : ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesC(ifmShape, ifmStripeShape));
 
     mceSchedulerData.dfltStripeSize.ifmChannels = ifmStripeChannels;
 
@@ -338,15 +340,31 @@ inline void
 
 inline void SetStripeIdStrides(MceS& mceSchedulerData, TraversalOrder traversalOrder)
 {
+    // ifmChannels is one because we always go through the full IFM depth first (no matter the traversal order)
+    mceSchedulerData.stripeIdStrides.ifmChannels = 1U;
     if (traversalOrder == TraversalOrder::Xyz)
     {
+        // We move to the next column after we have done "ifmChannels" number of stripes
+        mceSchedulerData.stripeIdStrides.ofmWidth = mceSchedulerData.numStripes.ifmChannels;
+        // We move to the next row after we have done "ifmChannels * width" number of stripes
         mceSchedulerData.stripeIdStrides.ofmHeight = ethosn::utils::NumericCast<uint16_t>(
             mceSchedulerData.numStripes.ifmChannels * mceSchedulerData.numStripes.ofmWidth);
-        mceSchedulerData.stripeIdStrides.ofmWidth    = mceSchedulerData.numStripes.ifmChannels;
+        // Finally, we move to the next OFM depth after we have done "ifmChannels * width * height" number of stripes
         mceSchedulerData.stripeIdStrides.ofmChannels = ethosn::utils::NumericCast<uint16_t>(
             mceSchedulerData.numStripes.ifmChannels * mceSchedulerData.numStripes.ofmWidth *
             mceSchedulerData.numStripes.ofmHeight);
-        mceSchedulerData.stripeIdStrides.ifmChannels = 1U;
+    }
+    else if (traversalOrder == TraversalOrder::Zxy)
+    {
+        // We move to the next OFM depth after we have done "ifmChannels" number of stripes
+        mceSchedulerData.stripeIdStrides.ofmChannels = mceSchedulerData.numStripes.ifmChannels;
+        // We move to the next column after we have done "ifmChannels * ofmChannels" number of stripes
+        mceSchedulerData.stripeIdStrides.ofmWidth = ethosn::utils::NumericCast<uint16_t>(
+            mceSchedulerData.numStripes.ifmChannels * mceSchedulerData.numStripes.ofmChannels);
+        // Finally, we move to the row after we have done "ifmChannels * ofmChannels * width" number of stripes
+        mceSchedulerData.stripeIdStrides.ofmHeight = ethosn::utils::NumericCast<uint16_t>(
+            mceSchedulerData.numStripes.ifmChannels * mceSchedulerData.numStripes.ofmWidth *
+            mceSchedulerData.numStripes.ifmChannels * mceSchedulerData.numStripes.ofmChannels);
     }
     else
     {
@@ -395,6 +413,7 @@ inline void setMcesStridedConvolutionData(MceS& mceSchedulerData, const OpGraph&
 
     // Get the input buffers to the Mce Op
     OpGraph::BufferList inputBuffers = mergedOpGraph.GetInputs(ptrMceOp);
+    Buffer* inputBuffer              = inputBuffers[g_MceIfmBufferIndex];
     Buffer* weightBuffer             = inputBuffers[g_MceWeightBufferIndex];
 
     auto filters =
@@ -465,10 +484,10 @@ inline void setMcesStridedConvolutionData(MceS& mceSchedulerData, const OpGraph&
             static_cast<int32_t>(utils::GetHeight(ptrMceOp->m_OutputStripeShape));
 
         // Set the Ifm delta default
-        mceSchedulerData.ifmDeltaDefault[subMapIndex].height =
-            ethosn::utils::NumericCast<int8_t>(ifmStripeNeighboringDataBottom);
-        mceSchedulerData.ifmDeltaDefault[subMapIndex].width =
-            ethosn::utils::NumericCast<int8_t>(ifmStripeNeighboringDataRight);
+        mceSchedulerData.ifmDeltaDefault[subMapIndex].height = ethosn::utils::NumericCast<int8_t>(
+            ifmStripeNeighboringDataBottom + inputBuffer->m_PackedBoundaryThickness.bottom);
+        mceSchedulerData.ifmDeltaDefault[subMapIndex].width = ethosn::utils::NumericCast<int8_t>(
+            ifmStripeNeighboringDataRight + inputBuffer->m_PackedBoundaryThickness.right);
 
         // Set the Ifm delta edge
         mceSchedulerData.ifmDeltaEdge[subMapIndex].height =
@@ -541,13 +560,27 @@ inline void
 
 inline void SetStripeIdStrides(PleS& pleSchedulerData, Buffer* outputBuffer)
 {
+    // Note that this defines the order of stripes within the tensor, NOT the order of blocks within the stripe
+    // (which is always XYZ).
     if (outputBuffer->m_Order == TraversalOrder::Xyz)
     {
-        pleSchedulerData.stripeIdStrides.height =
-            ethosn::utils::NumericCast<uint16_t>(pleSchedulerData.numStripes.width);
-        pleSchedulerData.stripeIdStrides.width    = 1;
+        // Width is one because we are traversing along X first.
+        pleSchedulerData.stripeIdStrides.width = 1;
+        // We get to the next row after we have done "width" number of stripes
+        pleSchedulerData.stripeIdStrides.height = pleSchedulerData.numStripes.width;
+        // We get to the next plane after we have done "width x height" number of stripes
         pleSchedulerData.stripeIdStrides.channels = ethosn::utils::NumericCast<uint16_t>(
             pleSchedulerData.numStripes.width * pleSchedulerData.numStripes.height);
+    }
+    else if (outputBuffer->m_Order == TraversalOrder::Zxy)
+    {
+        // Channels is one because we are traversing along Z first.
+        pleSchedulerData.stripeIdStrides.channels = 1U;
+        // We get to the next column after we have done "channels" number of stripes
+        pleSchedulerData.stripeIdStrides.width = pleSchedulerData.numStripes.channels;
+        // We get to the next row after we have done "depth x width" number of stripes
+        pleSchedulerData.stripeIdStrides.height = ethosn::utils::NumericCast<uint16_t>(
+            pleSchedulerData.numStripes.width * pleSchedulerData.numStripes.channels);
     }
     else
     {
@@ -583,13 +616,19 @@ inline void CalculateInnerRatio(command_stream::cascading::Dependency& agentDepe
 {
     if (agentDependency.outerRatio.self > agentDependency.outerRatio.other)
     {
-        agentDependency.innerRatio.self =
-            ethosn::utils::NumericCast<uint16_t>(agentDependency.outerRatio.self / agentDependency.outerRatio.other);
+        if (agentDependency.innerRatio.self == 0)
+        {
+            agentDependency.innerRatio.self = ethosn::utils::NumericCast<uint16_t>(agentDependency.outerRatio.self /
+                                                                                   agentDependency.outerRatio.other);
+        }
     }
     else
     {
-        agentDependency.innerRatio.other =
-            ethosn::utils::NumericCast<uint16_t>(agentDependency.outerRatio.other / agentDependency.outerRatio.self);
+        if (agentDependency.innerRatio.other == 0)
+        {
+            agentDependency.innerRatio.other = ethosn::utils::NumericCast<uint16_t>(agentDependency.outerRatio.other /
+                                                                                    agentDependency.outerRatio.self);
+        }
     }
 }
 
@@ -619,29 +658,43 @@ inline uint8_t FindGreatestCommonDenominator(uint16_t a, uint16_t b, uint8_t c)
 inline void CalculateRemainingAgentDependencies(command_stream::cascading::Dependency& agentDependency)
 {
     uint8_t boundary = 0U;
+    bool simplify    = false;
     if (agentDependency.outerRatio.self > agentDependency.outerRatio.other)
     {
-        boundary = agentDependency.boundary = ethosn::utils::NumericCast<uint8_t>(
-            agentDependency.outerRatio.self - (agentDependency.innerRatio.self * agentDependency.outerRatio.other));
-        agentDependency.innerRatio.other = 1;
+        if (agentDependency.innerRatio.other == 0)
+        {
+            boundary = agentDependency.boundary = ethosn::utils::NumericCast<uint8_t>(
+                agentDependency.outerRatio.self - (agentDependency.innerRatio.self * agentDependency.outerRatio.other));
+            agentDependency.innerRatio.other = 1;
+            agentDependency.boundary         = boundary;
+            simplify                         = true;
+        }
     }
     else
     {
-        boundary = ethosn::utils::NumericCast<uint8_t>(
-            agentDependency.outerRatio.other - (agentDependency.innerRatio.other * agentDependency.outerRatio.self));
-        agentDependency.innerRatio.self = 1;
+        if (agentDependency.innerRatio.self == 0)
+        {
+            boundary = ethosn::utils::NumericCast<uint8_t>(
+                agentDependency.outerRatio.other -
+                (agentDependency.innerRatio.other * agentDependency.outerRatio.self));
+            agentDependency.innerRatio.self = 1;
+            agentDependency.boundary        = boundary;
+            simplify                        = true;
+        }
     }
 
-    agentDependency.boundary = boundary;
-    uint8_t commonFactor     = FindGreatestCommonDenominator(agentDependency.outerRatio.other,
-                                                         agentDependency.outerRatio.self, agentDependency.boundary);
+    if (simplify)
+    {
+        uint8_t commonFactor = FindGreatestCommonDenominator(agentDependency.outerRatio.other,
+                                                             agentDependency.outerRatio.self, agentDependency.boundary);
 
-    // Reduce dependency values by a common factor to produce equivalent but smaller outer ratios
-    agentDependency.outerRatio.other =
-        ethosn::utils::NumericCast<uint16_t>(agentDependency.outerRatio.other / commonFactor);
-    agentDependency.outerRatio.self =
-        ethosn::utils::NumericCast<uint16_t>(agentDependency.outerRatio.self / commonFactor);
-    agentDependency.boundary = ethosn::utils::NumericCast<uint8_t>(agentDependency.boundary / commonFactor);
+        // Reduce dependency values by a common factor to produce equivalent but smaller outer ratios
+        agentDependency.outerRatio.other =
+            ethosn::utils::NumericCast<uint16_t>(agentDependency.outerRatio.other / commonFactor);
+        agentDependency.outerRatio.self =
+            ethosn::utils::NumericCast<uint16_t>(agentDependency.outerRatio.self / commonFactor);
+        agentDependency.boundary = ethosn::utils::NumericCast<uint8_t>(agentDependency.boundary / commonFactor);
+    }
 }
 
 }    // namespace DependencyUtils
