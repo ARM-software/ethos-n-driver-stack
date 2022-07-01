@@ -482,6 +482,16 @@ inline void setMcesStridedConvolutionData(MceS& mceSchedulerData, const OpGraph&
 namespace PleSUtils
 {
 
+inline void SetPlesTileInfo(const HardwareCapabilities& hwCap, PleS& pleS, const Buffer* const outputBuffer)
+{
+    pleS.ofmTile.baseAddr = ethosn::utils::NumericCast<uint16_t>(outputBuffer->m_Offset.value());
+    pleS.ofmTile.numSlots = ethosn::utils::NumericCast<uint16_t>(
+        outputBuffer->m_NumStripes * utils::GetHeight(outputBuffer->m_StripeShape) / pleS.dfltStripeSize.height);
+    pleS.ofmTile.slotSize = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+        outputBuffer->m_SlotSizeInBytes * pleS.dfltStripeSize.height / utils::GetHeight(outputBuffer->m_StripeShape),
+        hwCap.GetNumberOfSrams()));
+}
+
 inline void
     SetPlesHeightStripeInfo(PleS& pleSchedulerData, const TensorShape& ofmShape, const TensorShape& ofmStripeShape)
 {

@@ -915,6 +915,10 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
 
     PleSUtils::SetStripeIdStrides(pleS, outputBuffer);
 
+    // Can't use CommonUtils::SetTileInfoForBuffe because PLE OFM tile might be different to OfmS tile
+    // (strategies where OfmS does the full height but PLE does partial height)
+    PleSUtils::SetPlesTileInfo(m_Capabilities, pleS, outputBuffer);
+
     // Calculate input mode of Ple OP dependent on input buffer producer.
     auto pleOpProducer = m_MergedOpGraph.GetProducer(inputBuffer0);
     if (inputBuffer0->m_Location == Location::Sram)
@@ -967,7 +971,7 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
 
     AgentDependencyInfo info = {};
     info.numStripesTotal     = ethosn::utils::NumericCast<uint16_t>(
-        utils::GetNumStripesTotal(outputBuffer->m_TensorShape, outputBuffer->m_StripeShape));
+        utils::GetNumStripesTotal(outputBuffer->m_TensorShape, ptrPleOp->m_OutputStripeShape));
 
     Agent pleSchedulerAgent{ agentData, info };
 
