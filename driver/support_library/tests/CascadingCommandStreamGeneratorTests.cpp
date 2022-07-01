@@ -2886,11 +2886,11 @@ TEST_CASE("MceScheduler-PleScheduler ReadAfterWriteDependency Test", "[Cascading
     const Dependency& readDependency = mceSAgent.info.readDependencies.at(0);
 
     CHECK(readDependency.relativeAgentId == 2);
-    CHECK(readDependency.outerRatio.other == 100);
-    CHECK(readDependency.outerRatio.self == 3);
-    CHECK(readDependency.innerRatio.other == 33);
+    CHECK(readDependency.outerRatio.other == 400);
+    CHECK(readDependency.outerRatio.self == 12);
+    CHECK(readDependency.innerRatio.other == 70);
     CHECK(readDependency.innerRatio.self == 1);
-    CHECK(readDependency.boundary == 1);
+    CHECK(readDependency.boundary == 0);
 }
 
 // PleScheduler Agent - Read After Write Dependency Test
@@ -3176,12 +3176,11 @@ TEST_CASE("PleScheduler-MceScheduler WriteAfterReadDependency Test", "[Cascading
                                   pleSAgent.data.pleS.numStripes.channels;
 
     CHECK(writeDependency.relativeAgentId == 2);
-    CHECK(writeDependency.outerRatio.other == numberOfMceStripes / 4);    // 4 is the common factor between
-    CHECK(writeDependency.outerRatio.self ==
-          numberOfPleStripes / 4);    // 400 (PleStripes), 12 (MceStripes), 4 (boundary)
+    CHECK(writeDependency.outerRatio.other == numberOfMceStripes);
+    CHECK(writeDependency.outerRatio.self == numberOfPleStripes);
     CHECK(writeDependency.innerRatio.other == 1);
-    CHECK(writeDependency.innerRatio.self == 33);
-    CHECK(writeDependency.boundary == 1);
+    CHECK(writeDependency.innerRatio.self == 70);
+    CHECK(writeDependency.boundary == 0);
 }
 
 // PleScheduler Agent - Write After Read Dependency Test
@@ -3408,12 +3407,11 @@ TEST_CASE("PleScheduler-MceScheduler ScheduleTimeDependency Test", "[CascadingCo
                                   pleSAgent.data.pleS.numStripes.channels;
 
     CHECK(scheduleDependency.relativeAgentId == 2);
-    CHECK(scheduleDependency.outerRatio.other == numberOfMceStripes / 4);    // 4 is the common factor between
-    CHECK(scheduleDependency.outerRatio.self ==
-          numberOfPleStripes / 4);    // 400 (PleStripes), 12 (MceStripes), 4 (boundary)
+    CHECK(scheduleDependency.outerRatio.other == numberOfMceStripes);
+    CHECK(scheduleDependency.outerRatio.self == numberOfPleStripes);
     CHECK(scheduleDependency.innerRatio.other == 1);
-    CHECK(scheduleDependency.innerRatio.self == 33);
-    CHECK(scheduleDependency.boundary == 1);
+    CHECK(scheduleDependency.innerRatio.self == 70);
+    CHECK(scheduleDependency.boundary == 0);
 }
 
 // PleLoader Agent - Schedule Time Dependency Test

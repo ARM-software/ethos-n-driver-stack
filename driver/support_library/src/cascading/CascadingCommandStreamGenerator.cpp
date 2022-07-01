@@ -1310,6 +1310,29 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                 consumerAgentDependency.outerRatio.self = ethosn::utils::NumericCast<uint16_t>(
                     consumerAgent.data.mce.numStripes.ofmHeight * consumerAgent.data.mce.numStripes.ofmWidth *
                     consumerAgent.data.mce.numStripes.ofmChannels);
+
+                // Calculate inner ratios using ratio of stripe size
+                uint16_t widthRatio   = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                    producerAgent.data.pleS.numStripes.width, consumerAgent.data.mce.numStripes.ofmWidth));
+                uint16_t heightRatio  = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                    producerAgent.data.pleS.numStripes.height, consumerAgent.data.mce.numStripes.ofmHeight));
+                uint16_t channelRatio = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                    producerAgent.data.pleS.numStripes.channels, consumerAgent.data.mce.numStripes.ofmChannels));
+
+                consumerAgentDependency.innerRatio.other =
+                    ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio * channelRatio);
+                consumerAgentDependency.innerRatio.self = 1;
+
+                if ((producerAgent.data.pleS.numStripes.height > 1 &&
+                     consumerAgent.data.mce.filterShape[0].height > 1) ||
+                    (producerAgent.data.pleS.numStripes.width > 1 && consumerAgent.data.mce.filterShape[0].width > 1))
+                {
+                    consumerAgentDependency.boundary = 1;
+                }
+                else
+                {
+                    consumerAgentDependency.boundary = 0;
+                }
             }
             else
             {
@@ -1592,6 +1615,29 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                 producerAgentDependency.outerRatio.self = ethosn::utils::NumericCast<uint16_t>(
                     producerAgent.data.pleS.numStripes.height * producerAgent.data.pleS.numStripes.width *
                     producerAgent.data.pleS.numStripes.channels);
+
+                // Calculate inner ratios using ratio of stripe size
+                uint16_t widthRatio   = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                    producerAgent.data.pleS.numStripes.width, consumerAgent.data.mce.numStripes.ofmWidth));
+                uint16_t heightRatio  = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                    producerAgent.data.pleS.numStripes.height, consumerAgent.data.mce.numStripes.ofmHeight));
+                uint16_t channelRatio = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                    producerAgent.data.pleS.numStripes.channels, consumerAgent.data.mce.numStripes.ofmChannels));
+
+                producerAgentDependency.innerRatio.self =
+                    ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio * channelRatio);
+                producerAgentDependency.innerRatio.other = 1;
+
+                if ((producerAgent.data.pleS.numStripes.height > 1 &&
+                     consumerAgent.data.mce.filterShape[0].height > 1) ||
+                    (producerAgent.data.pleS.numStripes.width > 1 && consumerAgent.data.mce.filterShape[0].width > 1))
+                {
+                    producerAgentDependency.boundary = 1;
+                }
+                else
+                {
+                    producerAgentDependency.boundary = 0;
+                }
             }
             else
             {
