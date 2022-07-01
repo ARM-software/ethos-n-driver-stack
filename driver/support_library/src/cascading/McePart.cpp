@@ -567,6 +567,11 @@ Plans McePart::GetLonelyPlans(uint32_t numWeightStripes) const
 {
     Plans ret;
 
+    if (!m_StripeConfig.planTypes.lonely)
+    {
+        return ret;
+    }
+
     // Try to generate plans as per Beginning of a section. This guarantees larger stripes
     // and helps to reduce overhead.
     // The estimation doesn't take into account overheads so we need to use this heuristic
@@ -601,6 +606,11 @@ Plans McePart::GetBeginningPlans(uint32_t numWeightStripes) const
 {
     Plans ret;
 
+    if (!m_StripeConfig.planTypes.beginning)
+    {
+        return ret;
+    }
+
     StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Beginning);
 
     // The plan will be "glued" to the end plan from the previous section.
@@ -629,6 +639,11 @@ Plans McePart::GetMiddlePlans(ethosn::command_stream::BlockConfig blockConfig,
 {
     assert(sramBuffer);
     Plans ret;
+
+    if (!m_StripeConfig.planTypes.middle)
+    {
+        return ret;
+    }
 
     uint32_t kernelHeight = m_WeightsInfo.m_Dimensions[0];
     uint32_t kernelWidth  = m_WeightsInfo.m_Dimensions[1];
@@ -673,9 +688,13 @@ Plans McePart::GetEndPlans(ethosn::command_stream::BlockConfig blockConfig,
                            Buffer* sramBuffer,
                            uint32_t numWeightStripes) const
 {
-
     assert(sramBuffer);
     Plans ret;
+
+    if (!m_StripeConfig.planTypes.end)
+    {
+        return ret;
+    }
 
     uint32_t kernelHeight = m_WeightsInfo.m_Dimensions[0];
     uint32_t kernelWidth  = m_WeightsInfo.m_Dimensions[1];

@@ -295,6 +295,11 @@ Plans FusedPlePart::GetLonelyPlans(uint32_t numWeightStripes) const
 {
     Plans ret;
 
+    if (!m_StripeConfig.planTypes.lonely)
+    {
+        return ret;
+    }
+
     // Try to generate plans as per Beginning of a section. This guarantees larger stripes
     // and helps to reduce overhead.
     // The estimation doesn't take into account overheads so we need to use this heuristic
@@ -326,6 +331,11 @@ Plans FusedPlePart::GetBeginningPlans(uint32_t numWeightStripes) const
 {
     Plans ret;
 
+    if (!m_StripeConfig.planTypes.beginning)
+    {
+        return ret;
+    }
+
     StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Beginning);
 
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
@@ -344,6 +354,15 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     assert(cascadeType == CascadeType::Middle || cascadeType == CascadeType::End);
     assert(prevBuffer);
     Plans ret;
+
+    if (cascadeType == CascadeType::Middle && !m_StripeConfig.planTypes.middle)
+    {
+        return ret;
+    }
+    if (cascadeType == CascadeType::End && !m_StripeConfig.planTypes.end)
+    {
+        return ret;
+    }
 
     if (!PleBlockConfigAllowed(m_KernelOperation, blockConfig))
     {

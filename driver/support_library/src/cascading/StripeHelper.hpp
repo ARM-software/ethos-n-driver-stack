@@ -19,6 +19,14 @@ namespace impl
 /// Settings to specify which stripe splitting strategies and block sizes can be used.
 struct StripeConfig
 {
+    struct
+    {
+        bool beginning = true;
+        bool middle    = true;
+        bool end       = true;
+        bool lonely    = true;
+    } planTypes;
+
     /// Set of flags to specify which dimensions can be split.
     /// Any dimensions not mentioned in a name are implicitly not split.
     struct

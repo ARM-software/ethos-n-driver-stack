@@ -203,6 +203,22 @@ StripeConfig GetDefaultStripeConfig(const char* identifier)
                         {
                             result.blockHeightMultiplier.max = valueUInt();
                         }
+                        else if (name == "PlanTypes.Beginning")
+                        {
+                            result.planTypes.beginning = valueBool();
+                        }
+                        else if (name == "PlanTypes.Middle")
+                        {
+                            result.planTypes.middle = valueBool();
+                        }
+                        else if (name == "PlanTypes.End")
+                        {
+                            result.planTypes.end = valueBool();
+                        }
+                        else if (name == "PlanTypes.Lonely")
+                        {
+                            result.planTypes.lonely = valueBool();
+                        }
                         else
                         {
                             reportError("Unknown name in assignment: " + name);
