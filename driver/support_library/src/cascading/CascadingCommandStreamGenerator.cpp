@@ -197,7 +197,7 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(Op* const ptrDmaOp)
             assert(inputBuffer->m_BufferType.value() == BufferType::Intermediate ||
                    inputBuffer->m_BufferType.value() == BufferType::Input);
 
-            DmaOp* const dmaOp = static_cast<DmaOp* const>(ptrDmaOp);
+            DmaOp* const dmaOp = static_cast<DmaOp*>(ptrDmaOp);
 
             uint16_t inputBufferId         = AddDramBufferAndCacheId(inputBuffer, ptrDmaOp);
             AgentIdType ifmStreamerAgentId = AddIfmStreamerToCommandStream(ptrDmaOp, inputBufferId, inputBuffer,
@@ -557,7 +557,7 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
         {
             inputBufferId = AddDramBufferAndCacheId(inputBuffer, ptrConcatOp);
 
-            ConcatOp* const concatOp = static_cast<ConcatOp* const>(ptrConcatOp);
+            ConcatOp* const concatOp = static_cast<ConcatOp*>(ptrConcatOp);
 
             // Ifm Streamer Agent
             AgentIdType ifmStreamerAgentId = AddIfmStreamerToCommandStream(ptrConcatOp, inputBufferId, inputBuffer,
