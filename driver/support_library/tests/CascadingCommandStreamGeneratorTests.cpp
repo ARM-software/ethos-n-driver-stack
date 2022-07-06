@@ -2003,7 +2003,7 @@ TEST_CASE("IfmStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
 
     CHECK(ifmSData.fmData.edgeStripeSize.height == 8);
     CHECK(ifmSData.fmData.edgeStripeSize.width == 8);
-    CHECK(ifmSData.fmData.edgeStripeSize.channels == 16);
+    CHECK(ifmSData.fmData.edgeStripeSize.channels == 3);
 
     CHECK(ifmSData.fmData.supertensorSizeInCells.width == 20);
     CHECK(ifmSData.fmData.supertensorSizeInCells.channels == 1);
@@ -2522,9 +2522,9 @@ TEST_CASE("OfmStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(ofmSData.fmData.dfltStripeSize.width == 4);
     CHECK(ofmSData.fmData.dfltStripeSize.channels == 32);
 
-    CHECK(ofmSData.fmData.edgeStripeSize.height == 4);
-    CHECK(ofmSData.fmData.edgeStripeSize.width == 4);
-    CHECK(ofmSData.fmData.edgeStripeSize.channels == 32);
+    CHECK(ofmSData.fmData.edgeStripeSize.height == 8);
+    CHECK(ofmSData.fmData.edgeStripeSize.width == 8);
+    CHECK(ofmSData.fmData.edgeStripeSize.channels == 24);
 
     CHECK(ofmSData.fmData.supertensorSizeInCells.width == 10);
     CHECK(ofmSData.fmData.supertensorSizeInCells.channels == 2);

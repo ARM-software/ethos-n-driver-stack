@@ -33,6 +33,12 @@ inline void SetTileInfoForBuffer(const HardwareCapabilities& hwCap, Tile& tile, 
         ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(buffer->m_SlotSizeInBytes, hwCap.GetNumberOfSrams()));
 }
 
+inline uint16_t CalculateEdgeSize(uint32_t tensorSize, uint32_t defaultStripeSize)
+{
+    uint16_t edge = ethosn::utils::NumericCast<uint16_t>(tensorSize % defaultStripeSize);
+    return edge != 0 ? edge : ethosn::utils::NumericCast<uint16_t>(defaultStripeSize);
+}
+
 }    // namespace CommonUtils
 
 namespace StreamersUtils
@@ -73,21 +79,11 @@ inline void SetStripeHeightInfo(const HardwareCapabilities& hwCap,
 
     streamerData.dfltStripeSize.height = stripeHeight;
 
-    streamerData.edgeStripeSize.height = stripeHeight;
-
-    uint32_t remainingHeight = tensorHeight % stripeHeight;
-
-    if (remainingHeight != 0)
+    streamerData.edgeStripeSize.height = CommonUtils::CalculateEdgeSize(tensorHeight, stripeHeight);
+    if (streamerData.dataType != FmsDataType::NHWC)
     {
-        if (streamerData.dataType == FmsDataType::NHWC)
-        {
-            streamerData.edgeStripeSize.height = ethosn::utils::NumericCast<uint16_t>(remainingHeight);
-        }
-        else
-        {
-            streamerData.edgeStripeSize.height = ethosn::utils::NumericCast<uint16_t>(
-                utils::RoundUpToNearestMultiple(remainingHeight, utils::GetHeight(hwCap.GetBrickGroupShape())));
-        }
+        streamerData.edgeStripeSize.height = ethosn::utils::NumericCast<uint16_t>(utils::RoundUpToNearestMultiple(
+            static_cast<uint32_t>(streamerData.edgeStripeSize.height), utils::GetHeight(hwCap.GetBrickGroupShape())));
     }
 }
 
@@ -106,28 +102,15 @@ inline void SetStripeWidthInfo(const HardwareCapabilities& hwCap,
 
     streamerData.dfltStripeSize.width = stripeWidth;
 
-    streamerData.edgeStripeSize.width = stripeWidth;
-
-    uint32_t remainingWidth = tensorWidth % stripeWidth;
-
-    if (remainingWidth != 0)
+    streamerData.edgeStripeSize.width = CommonUtils::CalculateEdgeSize(tensorWidth, stripeWidth);
+    if (streamerData.dataType != FmsDataType::NHWC)
     {
-        if (streamerData.dataType == FmsDataType::NHWC)
-        {
-            streamerData.edgeStripeSize.width = ethosn::utils::NumericCast<uint16_t>(remainingWidth);
-        }
-        else
-        {
-            streamerData.edgeStripeSize.width = ethosn::utils::NumericCast<uint16_t>(
-                utils::RoundUpToNearestMultiple(remainingWidth, utils::GetWidth(hwCap.GetBrickGroupShape())));
-        }
+        streamerData.edgeStripeSize.width = ethosn::utils::NumericCast<uint16_t>(utils::RoundUpToNearestMultiple(
+            static_cast<uint32_t>(streamerData.edgeStripeSize.width), utils::GetWidth(hwCap.GetBrickGroupShape())));
     }
 }
 
-inline void SetStripeChannelsInfo(const HardwareCapabilities& hwCap,
-                                  FmSData& streamerData,
-                                  const TensorShape& tensorShape,
-                                  const TensorShape& stripeShape)
+inline void SetStripeChannelsInfo(FmSData& streamerData, const TensorShape& tensorShape, const TensorShape& stripeShape)
 {
     uint16_t tensorChannels = ethosn::utils::NumericCast<uint16_t>(utils::GetChannels(tensorShape));
     uint16_t stripeChannels = ethosn::utils::NumericCast<uint16_t>(utils::GetChannels(stripeShape));
@@ -139,22 +122,7 @@ inline void SetStripeChannelsInfo(const HardwareCapabilities& hwCap,
 
     streamerData.dfltStripeSize.channels = stripeChannels;
 
-    streamerData.edgeStripeSize.channels = stripeChannels;
-
-    uint32_t remainingChannels = tensorChannels % stripeChannels;
-
-    if (remainingChannels != 0)
-    {
-        if (streamerData.dataType == FmsDataType::NHWC)
-        {
-            streamerData.edgeStripeSize.channels = ethosn::utils::NumericCast<uint16_t>(remainingChannels);
-        }
-        else
-        {
-            streamerData.edgeStripeSize.channels = ethosn::utils::NumericCast<uint16_t>(
-                utils::RoundUpToNearestMultiple(remainingChannels, utils::GetChannels(hwCap.GetBrickGroupShape())));
-        }
-    }
+    streamerData.edgeStripeSize.channels = CommonUtils::CalculateEdgeSize(tensorChannels, stripeChannels);
 }
 
 inline void SetSuperTensorSizeInCells(FmSData& streamerData,
@@ -238,14 +206,7 @@ inline void
 
     mceSchedulerData.dfltStripeSize.ofmHeight = ofmStripeHeight;
 
-    mceSchedulerData.edgeStripeSize.ofmHeight = ofmStripeHeight;
-
-    uint16_t remainingHeight = ofmHeight % ofmStripeHeight;
-
-    if (remainingHeight != 0)
-    {
-        mceSchedulerData.edgeStripeSize.ofmHeight = remainingHeight;
-    }
+    mceSchedulerData.edgeStripeSize.ofmHeight = CommonUtils::CalculateEdgeSize(ofmHeight, ofmStripeHeight);
 }
 
 inline void
@@ -261,14 +222,7 @@ inline void
 
     mceSchedulerData.dfltStripeSize.ofmWidth = ofmStripeWidth;
 
-    mceSchedulerData.edgeStripeSize.ofmWidth = ofmStripeWidth;
-
-    uint16_t remainingWidth = ofmWidth % ofmStripeWidth;
-
-    if (remainingWidth != 0)
-    {
-        mceSchedulerData.edgeStripeSize.ofmWidth = remainingWidth;
-    }
+    mceSchedulerData.edgeStripeSize.ofmWidth = CommonUtils::CalculateEdgeSize(ofmWidth, ofmStripeWidth);
 }
 
 inline void
@@ -284,14 +238,7 @@ inline void
 
     mceSchedulerData.dfltStripeSize.ofmChannels = ofmStripeChannels;
 
-    mceSchedulerData.edgeStripeSize.ofmChannels = ofmStripeChannels;
-
-    uint16_t remainingChannels = ofmChannels % ofmStripeChannels;
-
-    if (remainingChannels != 0)
-    {
-        mceSchedulerData.edgeStripeSize.ofmChannels = remainingChannels;
-    }
+    mceSchedulerData.edgeStripeSize.ofmChannels = CommonUtils::CalculateEdgeSize(ofmChannels, ofmStripeChannels);
 }
 
 inline void
@@ -309,14 +256,7 @@ inline void
 
     mceSchedulerData.dfltStripeSize.ifmChannels = ifmStripeChannels;
 
-    mceSchedulerData.edgeStripeSize.ifmChannels = ifmStripeChannels;
-
-    uint16_t remainingChannels = ifmChannels % ifmStripeChannels;
-
-    if (remainingChannels != 0)
-    {
-        mceSchedulerData.edgeStripeSize.ifmChannels = remainingChannels;
-    }
+    mceSchedulerData.edgeStripeSize.ifmChannels = CommonUtils::CalculateEdgeSize(ifmChannels, ifmStripeChannels);
 }
 
 inline void SetStripeIdStrides(MceS& mceSchedulerData, TraversalOrder traversalOrder)
@@ -502,13 +442,7 @@ inline void
     pleSchedulerData.numStripes.height =
         ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesH(ofmShape, ofmStripeShape));
 
-    pleSchedulerData.edgeStripeSize.height = ofmStripeHeight;
-
-    uint16_t remainingHeight = ofmHeight % ofmStripeHeight;
-    if (remainingHeight != 0)
-    {
-        pleSchedulerData.edgeStripeSize.height = remainingHeight;
-    }
+    pleSchedulerData.edgeStripeSize.height = CommonUtils::CalculateEdgeSize(ofmHeight, ofmStripeHeight);
 }
 
 inline void
@@ -521,13 +455,7 @@ inline void
     pleSchedulerData.numStripes.width =
         ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesW(ofmShape, ofmStripeShape));
 
-    pleSchedulerData.edgeStripeSize.width = ofmStripeWidth;
-
-    uint16_t remainingWidth = ofmWidth % ofmStripeWidth;
-    if (remainingWidth != 0)
-    {
-        pleSchedulerData.edgeStripeSize.width = remainingWidth;
-    }
+    pleSchedulerData.edgeStripeSize.width = CommonUtils::CalculateEdgeSize(ofmWidth, ofmStripeWidth);
 }
 
 inline void
@@ -540,13 +468,7 @@ inline void
     pleSchedulerData.numStripes.channels =
         ethosn::utils::NumericCast<uint16_t>(utils::GetNumStripesC(ofmShape, ofmStripeShape));
 
-    pleSchedulerData.edgeStripeSize.channels = ofmStripeChannels;
-
-    uint16_t remainingChannels = ofmChannels % ofmStripeChannels;
-    if (remainingChannels != 0)
-    {
-        pleSchedulerData.edgeStripeSize.channels = remainingChannels;
-    }
+    pleSchedulerData.edgeStripeSize.channels = CommonUtils::CalculateEdgeSize(ofmChannels, ofmStripeChannels);
 }
 
 inline void SetStripeIdStrides(PleS& pleSchedulerData, Buffer* outputBuffer)

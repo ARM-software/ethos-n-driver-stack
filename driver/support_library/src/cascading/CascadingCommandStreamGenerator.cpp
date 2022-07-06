@@ -715,7 +715,7 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(Op* c
                                         inputSramBuffer->m_StripeShape);
     StreamersUtils::SetStripeWidthInfo(m_Capabilities, ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
                                        inputSramBuffer->m_StripeShape);
-    StreamersUtils::SetStripeChannelsInfo(m_Capabilities, ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
+    StreamersUtils::SetStripeChannelsInfo(ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
                                           inputSramBuffer->m_StripeShape);
 
     StreamersUtils::SetSuperTensorSizeInCells(ifmStreamerData.fmData, inputDramBuffer->m_TensorShape, transferFormat);
@@ -865,12 +865,12 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
     mceSchedulerData.ifmStripeShapeDefault.width =
         static_cast<uint16_t>(inputBuffer->m_StripeShape[2] + inputBuffer->m_PackedBoundaryThickness.left +
                               inputBuffer->m_PackedBoundaryThickness.right);
-    mceSchedulerData.ifmStripeShapeEdge.height =
-        static_cast<uint16_t>(inputBuffer->m_StripeShape[1] + inputBuffer->m_PackedBoundaryThickness.top +
-                              inputBuffer->m_PackedBoundaryThickness.bottom);
-    mceSchedulerData.ifmStripeShapeEdge.width =
-        static_cast<uint16_t>(inputBuffer->m_StripeShape[2] + inputBuffer->m_PackedBoundaryThickness.left +
-                              inputBuffer->m_PackedBoundaryThickness.right);
+    // Note that the IFM edge stripe shape is not used when packed boundary data is used, so we don't need to account
+    // for that here.
+    mceSchedulerData.ifmStripeShapeEdge.height = CommonUtils::CalculateEdgeSize(
+        utils::GetHeight(inputBuffer->m_TensorShape), utils::GetHeight(inputBuffer->m_StripeShape));
+    mceSchedulerData.ifmStripeShapeEdge.width = CommonUtils::CalculateEdgeSize(
+        utils::GetWidth(inputBuffer->m_TensorShape), utils::GetWidth(inputBuffer->m_StripeShape));
 
     mceSchedulerData.reluActiv.min = ptrMceOp->m_LowerBound;
     mceSchedulerData.reluActiv.max = ptrMceOp->m_UpperBound;
@@ -1039,7 +1039,7 @@ AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(Op* c
                                         outputSramBuffer->m_StripeShape);
     StreamersUtils::SetStripeWidthInfo(m_Capabilities, ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
                                        outputSramBuffer->m_StripeShape);
-    StreamersUtils::SetStripeChannelsInfo(m_Capabilities, ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
+    StreamersUtils::SetStripeChannelsInfo(ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
                                           outputSramBuffer->m_StripeShape);
 
     StreamersUtils::SetSuperTensorSizeInCells(ofmStreamerData.fmData, outputDramBuffer->m_TensorShape,
