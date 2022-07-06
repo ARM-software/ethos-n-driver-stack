@@ -610,6 +610,24 @@ inline void CalculateRemainingAgentDependencies(command_stream::cascading::Depen
     }
 }
 
+// Adds a new dependency to the first free slot of the given array of dependencies.
+// A free slot is determined by the relativeAgentId being zero.
+// If no free slots are available, this asserts.
+template <size_t N>
+inline void AddDependency(std::array<command_stream::cascading::Dependency, N>& deps,
+                          const command_stream::cascading::Dependency& dep)
+{
+    for (uint32_t i = 0; i < deps.size(); ++i)
+    {
+        if (deps[i].relativeAgentId == 0)
+        {
+            deps[i] = dep;
+            return;
+        }
+    }
+    assert(false);
+}
+
 }    // namespace DependencyUtils
 }    // namespace cascading_compiler
 }    // namespace support_library

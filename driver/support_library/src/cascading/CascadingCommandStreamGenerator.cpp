@@ -389,7 +389,7 @@ void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
     // Read After Write Dependency for [MceScheduler][IfmStreamer] or
     // Read After Write Dependency for [MceScheduler][PleScheduler]
     AddReadAfterWriteDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, producerAgentType,
-                                m_OpToAgentIdMapping[m_MergedOpGraph.GetProducer(inputBuffers[g_MceIfmBufferIndex])]);
+                                m_OpToAgentIdMapping[producerOp]);
     // Read After Write Dependency for [MceScheduler][WeightStreamer]
     AddReadAfterWriteDependency(
         AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::WGT_STREAMER,
@@ -399,7 +399,7 @@ void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
     // Write After Read Dependency for [IfmStreamer][MceScheduler] or
     // Write After Read Dependency for [PleScheduler][MceScheduler]
     AddWriteAfterReadDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, producerAgentType,
-                                m_OpToAgentIdMapping[m_MergedOpGraph.GetProducer(inputBuffers[g_MceIfmBufferIndex])]);
+                                m_OpToAgentIdMapping[producerOp]);
     // Write After Read Dependency for [WeightStreamer][MceScheduler]
     AddWriteAfterReadDependency(
         AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::WGT_STREAMER,
@@ -409,7 +409,7 @@ void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
     // Schedule Time Dependency for [IfmStreamer][MceScheduler] or
     // Schedule Time Dependency for [PleScheduler][MceScheduler]
     AddScheduleTimeDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, producerAgentType,
-                              m_OpToAgentIdMapping[m_MergedOpGraph.GetProducer(inputBuffers[g_MceIfmBufferIndex])]);
+                              m_OpToAgentIdMapping[producerOp]);
     // Schedule Time Dependency for [WeightStreamer][MceScheduler]
     AddScheduleTimeDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::WGT_STREAMER,
                               m_OpToAgentIdMapping[m_MergedOpGraph.GetProducer(inputBuffers[g_MceWeightBufferIndex])]);
@@ -419,6 +419,18 @@ void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
     {
         AddScheduleTimeDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::PLE_LOADER,
                                   pleLoaderAgentId);
+    }
+
+    if (producerAgentType == AgentType::PLE_SCHEDULER)
+    {
+        Buffer* pleInputBuffer = m_MergedOpGraph.GetInputs(producerOp)[0];
+        Op* pleInputProducer   = m_MergedOpGraph.GetProducer(pleInputBuffer);
+        if (IsObjectOfType<MceOp>(pleInputProducer) && pleInputProducer->m_Lifetime == Lifetime::Cascade)
+        {
+            // Strategy 0 cascade - need schedule dependency from previous MceS
+            AddScheduleTimeDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::MCE_SCHEDULER,
+                                      m_OpToAgentIdMapping[pleInputProducer]);
+        }
     }
 }
 
@@ -1069,23 +1081,10 @@ inline void CascadingCommandStreamGenerator::AddReadAfterWriteDependency(const A
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
 
-    if (producerAgentType == AgentType::WGT_STREAMER || producerAgentType == AgentType::MCE_SCHEDULER ||
-        (producerAgentType == AgentType::IFM_STREAMER && consumerAgentType == AgentType::PLE_SCHEDULER))
-    {
-        Dependency& consumerAgentReadDependency1Ref =
-            m_CommandStreamAgents[consumerAgentId].info.readDependencies.at(1);
-        consumerAgentReadDependency1Ref.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
-        FillConsumerAgentDependency(consumerAgentReadDependency1Ref, consumerAgentType, consumerAgentId,
-                                    producerAgentType, producerAgentId);
-    }
-    else
-    {
-        Dependency& consumerAgentReadDependency0Ref =
-            m_CommandStreamAgents[consumerAgentId].info.readDependencies.at(0);
-        consumerAgentReadDependency0Ref.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
-        FillConsumerAgentDependency(consumerAgentReadDependency0Ref, consumerAgentType, consumerAgentId,
-                                    producerAgentType, producerAgentId);
-    }
+    Dependency newDependency      = {};
+    newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
+    FillConsumerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId);
+    DependencyUtils::AddDependency(m_CommandStreamAgents[consumerAgentId].info.readDependencies, newDependency);
 }
 
 // Private function to add SRAM Overlap Dependency
@@ -1099,22 +1098,10 @@ inline void CascadingCommandStreamGenerator::AddSramOverlapDependency(
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
 
-    if ((producerAgentType != AgentType::WGT_STREAMER))
-    {
-        Dependency& consumerAgentReadDependency0Ref =
-            m_CommandStreamAgents[consumerAgentId].info.readDependencies.at(0);
-        consumerAgentReadDependency0Ref.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
-        FillConsumerAgentDependency(consumerAgentReadDependency0Ref, consumerAgentType, consumerAgentId,
-                                    producerAgentType, producerAgentId);
-    }
-    else
-    {
-        Dependency& consumerAgentReadDependency1Ref =
-            m_CommandStreamAgents[consumerAgentId].info.readDependencies.at(1);
-        consumerAgentReadDependency1Ref.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
-        FillConsumerAgentDependency(consumerAgentReadDependency1Ref, consumerAgentType, consumerAgentId,
-                                    producerAgentType, producerAgentId);
-    }
+    Dependency newDependency      = {};
+    newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
+    FillConsumerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId);
+    DependencyUtils::AddDependency(m_CommandStreamAgents[consumerAgentId].info.readDependencies, newDependency);
 }
 
 // Private function to add WriteAfterRead Dependency
@@ -1127,10 +1114,10 @@ inline void CascadingCommandStreamGenerator::AddWriteAfterReadDependency(const A
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
 
-    Dependency& producerAgentWriteDependencyRef = m_CommandStreamAgents[producerAgentId].info.writeDependencies.at(0);
-    producerAgentWriteDependencyRef.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
-    FillProducerAgentDependency(producerAgentWriteDependencyRef, consumerAgentType, consumerAgentId, producerAgentType,
-                                producerAgentId);
+    Dependency newDependency      = {};
+    newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
+    FillProducerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId);
+    DependencyUtils::AddDependency(m_CommandStreamAgents[producerAgentId].info.writeDependencies, newDependency);
 }
 
 // Private function to add ScheduleTime Dependency
@@ -1143,16 +1130,10 @@ inline void CascadingCommandStreamGenerator::AddScheduleTimeDependency(const Age
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
 
-    Dependency& producerAgentScheduleDependencyRef =
-        m_CommandStreamAgents[producerAgentId].info.scheduleDependencies.at(0);
-
-    // Only the first consumer needs to update the relative agent id of the schedule dependency
-    if (producerAgentScheduleDependencyRef.relativeAgentId == 0)
-    {
-        producerAgentScheduleDependencyRef.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
-        FillProducerAgentDependency(producerAgentScheduleDependencyRef, consumerAgentType, consumerAgentId,
-                                    producerAgentType, producerAgentId);
-    }
+    Dependency newDependency      = {};
+    newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
+    FillProducerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId);
+    DependencyUtils::AddDependency(m_CommandStreamAgents[producerAgentId].info.scheduleDependencies, newDependency);
 }
 
 // Private function to fill the dependency data for Read After Write or SRAM Overlap dependencies
@@ -1635,6 +1616,49 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                 if ((producerAgent.data.pleS.numStripes.height > 1 &&
                      consumerAgent.data.mce.filterShape[0].height > 1) ||
                     (producerAgent.data.pleS.numStripes.width > 1 && consumerAgent.data.mce.filterShape[0].width > 1))
+                {
+                    producerAgentDependency.boundary = 1;
+                }
+                else
+                {
+                    producerAgentDependency.boundary = 0;
+                }
+            }
+            // Schedule Time Dependency for [MceScheduler][MceScheduler]
+            else if (producerAgentType == AgentType::MCE_SCHEDULER)
+            {
+                // We need to ensure that MCE stripes are scheduled in the same order as the PLE stripes, otherwise the firmware
+                // will deadlock. This can happen in a strategy 0 cascade if an MCE stripe is scheduled but the following PLE stripe
+                // is not, because it is not yet needed. An MCE and PLE stripe from the following layer can then get scheduled, and
+                // this means that we missed the PLE stripe from the first layer.
+                // To prevent this, we make sure that an MCE stripe is not scheduled unless the PLE stripe following it is needed,
+                // so that it will be scheduled before any other PLE stripes. This is done by adding a schedule dependency on the following
+                // Mce agent, so that the MCE stripe from the first layer will not be scheduled until the MCE stripe from the second layer
+                // is scheduled.
+
+                // Calculate outer ratios using number of stripes
+                producerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
+                    consumerAgent.data.mce.numStripes.ofmHeight * consumerAgent.data.mce.numStripes.ofmWidth *
+                    consumerAgent.data.mce.numStripes.ofmChannels);
+                producerAgentDependency.outerRatio.self = ethosn::utils::NumericCast<uint16_t>(
+                    producerAgent.data.mce.numStripes.ofmHeight * producerAgent.data.mce.numStripes.ofmWidth *
+                    producerAgent.data.mce.numStripes.ofmChannels);
+
+                // Calculate inner ratios using ratio of stripe size
+                uint16_t widthRatio   = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                    producerAgent.data.mce.numStripes.ofmWidth, consumerAgent.data.mce.numStripes.ofmWidth));
+                uint16_t heightRatio  = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                    producerAgent.data.mce.numStripes.ofmHeight, consumerAgent.data.mce.numStripes.ofmHeight));
+                uint16_t channelRatio = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+                    producerAgent.data.mce.numStripes.ofmChannels, consumerAgent.data.mce.numStripes.ofmChannels));
+
+                producerAgentDependency.innerRatio.self =
+                    ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio * channelRatio);
+                producerAgentDependency.innerRatio.other = 1;
+
+                if ((producerAgent.data.mce.numStripes.ofmHeight > 1 &&
+                     consumerAgent.data.mce.filterShape[0].height > 1) ||
+                    (producerAgent.data.mce.numStripes.ofmWidth > 1 && consumerAgent.data.mce.filterShape[0].width > 1))
                 {
                     producerAgentDependency.boundary = 1;
                 }

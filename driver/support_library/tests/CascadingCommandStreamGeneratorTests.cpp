@@ -2814,7 +2814,7 @@ TEST_CASE("PleScheduler-IfmStreamer ReadAfterWriteDependency Test", "[CascadingC
 
     const Agent& ifmSAgent           = commandStream[0];
     const Agent& pleSAgent           = commandStream[2];
-    const Dependency& readDependency = pleSAgent.info.readDependencies.at(1);
+    const Dependency& readDependency = pleSAgent.info.readDependencies.at(0);
 
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
@@ -2850,7 +2850,7 @@ TEST_CASE("PleScheduler-MceScheduler ReadAfterWriteDependency Test", "[Cascading
 
     const Agent& mceSAgent           = commandStream[3];
     const Agent& pleSAgent           = commandStream[4];
-    const Dependency& readDependency = pleSAgent.info.readDependencies.at(1);
+    const Dependency& readDependency = pleSAgent.info.readDependencies.at(0);
 
     uint32_t numberOfMceStripes = mceSAgent.data.mce.numStripes.ofmHeight * mceSAgent.data.mce.numStripes.ofmWidth *
                                   mceSAgent.data.mce.numStripes.ofmChannels;
@@ -2911,7 +2911,7 @@ TEST_CASE("PleScheduler-PleLoader ReadAfterWriteDependency Test", "[CascadingCom
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
     const Agent& pleSAgent           = commandStream[4];
-    const Dependency& readDependency = pleSAgent.info.readDependencies.at(0);
+    const Dependency& readDependency = pleSAgent.info.readDependencies.at(1);
 
     uint32_t numberOfPleStripes = pleSAgent.data.pleS.numStripes.height * pleSAgent.data.pleS.numStripes.width *
                                   pleSAgent.data.pleS.numStripes.channels;
