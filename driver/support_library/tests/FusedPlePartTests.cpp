@@ -1593,7 +1593,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
                        plan.m_Input->m_StripeShape == TensorShape{ 1, 56, 56, 32 } &&
                        plan.m_Input->m_NumStripes == 0 &&    // PleInputSram buffers have no num stripes
                        plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 56, 56, 32 } } &&
-                       plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 28, 28, 512 } &&    // Full output depth
+                       plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 32, 32, 512 } &&    // Full output depth
                        plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 32, 32, 512 } &&
                        plan.m_OutputSram->m_NumStripes == 1;
             });
@@ -1714,7 +1714,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
                        plan.m_Input->m_NumStripes == 0 &&    // PleInputSram buffers have no num stripes
                        plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 56, 56, 16 } } &&
                        plan.m_Ple->m_OutputStripeShape ==
-                           TensorShape{ 1, 28, 28, 64 } &&    // Channels multiplied by 4 for interleave
+                           TensorShape{ 1, 32, 32, 64 } &&    // Channels multiplied by 4 for interleave
                        plan.m_OutputSram->m_StripeShape ==
                            TensorShape{
                                1, 32, 32, 64

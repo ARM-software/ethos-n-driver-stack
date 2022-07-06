@@ -380,18 +380,18 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     const TensorShape& inputStripeShape = prevBuffer->m_StripeShape;
     TensorShape pleInputStripe          = inputStripeShape;
 
-    // Output stripe size = min (Tensor dimension * Multiplier for that dimension, Tensor dimension rounded up to multiple of block size).
-    //For Width: shapeW rounded up to multiple of brickWidth
-    //For Height: shapeH rounded up to multiple of brickHeight
-    //For Depth: shapeC rounded up to multiple of Number of Output Generators
-    utils::ShapeMultiplier shapeMult = m_ShapeMultiplier;
-    TensorShape pleOutputStripe      = TensorShape{
-        pleInputStripe[0],
-        std::min(pleInputStripe[1] * shapeMult.m_H, utils::RoundUpToNearestMultiple(m_OutputTensorShape[1], 8U)),
-        std::min(pleInputStripe[2] * shapeMult.m_W, utils::RoundUpToNearestMultiple(m_OutputTensorShape[2], 8U)),
-        std::min(pleInputStripe[3] * shapeMult.m_C,
-                 utils::RoundUpToNearestMultiple(m_OutputTensorShape[3], m_Capabilities.GetNumberOfOgs()))
-    };
+    // PLE shape multipliers can lead to the PLE having to accumulate multiple stripes, e.g. an 8-high stripe being reduced
+    // to a 4-high stripe and therefore needing to accumulate two. This can work, but makes the dependency generation
+    // and tile size decisions more complicated and therefore we disallow this for now.
+    if (!fullPlane &&
+        ((GetWidth(pleInputStripe) * m_ShapeMultiplier.m_W) % m_Capabilities.GetBrickGroupShape()[2] != 0 ||
+         (GetHeight(pleInputStripe) * m_ShapeMultiplier.m_H) % m_Capabilities.GetBrickGroupShape()[1] != 0))
+    {
+        return ret;
+    }
+
+    TensorShape pleOutputStripe =
+        CreateStripe(m_OutputTensorShape, pleInputStripe * m_ShapeMultiplier, m_Capabilities.GetNumberOfOgs());
 
     uint32_t memoryOutputChannelsEncoding = GetChannels(pleOutputStripe);
     bool isEndOfCascade                   = cascadeType == CascadeType::End;

@@ -400,25 +400,6 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     isDepthwise      = m_Operation == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
     mceOutputShape   = m_MceOutputTensorShape;
 
-    auto ApplyMceShapeMult = [&](TensorShape shape) {
-        return TensorShape{ shape[0], shape[1] * m_MceShapeMultiplier.m_H, shape[2] * m_MceShapeMultiplier.m_W,
-                            shape[3] * m_MceShapeMultiplier.m_C };
-    };
-    auto ApplyPleShapeMult = [&](TensorShape shape) {
-        // Output stripe size = min (Tensor dimension * Multiplier for that dimension, Tensor dimension rounded up to multiple of block size).
-        //For Width: shapeW rounded up to multiple of brickWidth
-        //For Height: shapeH rounded up to multiple of brickHeight
-        //For Depth: shapeC rounded up to multiple of Number of Output Generators
-        return TensorShape{ shape[0],
-                            std::min(shape[1] * m_PleShapeMultiplier.m_H,
-                                     utils::RoundUpToNearestMultiple(m_PleOutputTensorShape[1], 8U)),
-                            std::min(shape[2] * m_PleShapeMultiplier.m_W,
-                                     utils::RoundUpToNearestMultiple(m_PleOutputTensorShape[2], 8U)),
-                            std::min(shape[3] * m_PleShapeMultiplier.m_C,
-                                     utils::RoundUpToNearestMultiple(m_PleOutputTensorShape[3],
-                                                                     m_Capabilities.GetNumberOfOgs())) };
-    };
-
     auto AddStripeInfos = [&](const TensorShape& mceInputStripe, const TensorShape& mceOutputStripe,
                               const TensorShape& pleInputStripe, const TensorShape& pleOutputStripe,
                               const NumStripes& inputRange, const NumStripes& outputRange,
@@ -576,25 +557,40 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         }
     };
 
+    // Limit the minimum number of blocks per stripe to be such that the PLE outputs at least one brick group
+    const uint32_t minBlockWidthMultiplier =
+        std::max(m_Capabilities.GetBrickGroupShape()[2] / (blockConfig.m_BlockWidth() * m_PleShapeMultiplier.m_W),
+                 m_StripeConfig.blockWidthMultiplier.min);
+    const uint32_t maxBlockWidthMultiplier =
+        std::max(1U, std::min(GetWidth(m_MceInputTensorShape) / blockConfig.m_BlockWidth(),
+                              m_StripeConfig.blockWidthMultiplier.max));
+    const uint32_t minBlockHeightMultiplier =
+        std::max(m_Capabilities.GetBrickGroupShape()[1] / (blockConfig.m_BlockHeight() * m_PleShapeMultiplier.m_H),
+                 m_StripeConfig.blockHeightMultiplier.min);
+    const uint32_t maxBlockHeightMultiplier =
+        std::max(1U, std::min(GetHeight(m_MceInputTensorShape) / blockConfig.m_BlockHeight(),
+                              m_StripeConfig.blockHeightMultiplier.max));
+
+    const TensorShape& outputShape = m_PleOutputTensorShape;
+
     // Use the minimum stripe size possible to minimize the time before processing.
     // Try splitting height first.
     if (stripeConfig.splits.heightOnly)
     {
-        TensorShape mceInputEncoding  = { 0, blockConfig.m_BlockHeight(), 0, 0 };
+        TensorShape mceInputEncoding  = { 0, minBlockHeightMultiplier * blockConfig.m_BlockHeight(), 0, 0 };
         const TensorShape& inputShape = m_MceInputTensorShape;
         TensorShape mceInputStripe =
             CreateStripe(m_MceInputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
-        TensorShape mceOutputEncoding = ApplyMceShapeMult(mceInputEncoding);
+        TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
         TensorShape mceOutputStripe = CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-        TensorShape pleInputStripe  = mceOutputStripe;
-        TensorShape pleOutputStripe = ApplyPleShapeMult(pleInputStripe);
+        TensorShape pleInputStripe    = mceOutputStripe;
+        TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
+        TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-        TensorShape pleOutputEncoding = ApplyPleShapeMult(mceOutputEncoding);
         TensorShape memoryOutputStripe =
             CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
-        const TensorShape& outputShape   = m_PleOutputTensorShape;
         NumStripes numStripesWeightsCopy = numStripesWeights;
         numStripesWeightsCopy.m_Min      = std::min(numStripesWeights.m_Min, 1u);
         numStripesWeightsCopy.m_Max      = std::min(numStripesWeights.m_Max, 1u);
@@ -607,18 +603,18 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     // Split only input in height while the output is full tensor.
     if (stripeConfig.splits.heightOnly)
     {
-        TensorShape mceInputEncoding  = { 0, blockConfig.m_BlockHeight(), 0, 0 };
+        TensorShape mceInputEncoding  = { 0, minBlockHeightMultiplier * blockConfig.m_BlockHeight(), 0, 0 };
         const TensorShape& inputShape = m_MceInputTensorShape;
         TensorShape mceInputStripe =
             CreateStripe(m_MceInputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
-        TensorShape mceOutputEncoding = ApplyMceShapeMult(mceInputEncoding);
+        TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
         TensorShape mceOutputStripe = CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-        TensorShape pleInputStripe  = mceOutputStripe;
-        TensorShape pleOutputStripe = ApplyPleShapeMult(pleInputStripe);
+        TensorShape pleInputStripe    = mceOutputStripe;
+        TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
+        TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-        const TensorShape& outputShape   = m_PleOutputTensorShape;
         TensorShape memoryOutputEncoding = { 0, 0, 0, 0 };
         TensorShape memoryOutputStripe =
             CreateStripe(outputShape, memoryOutputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
@@ -637,21 +633,20 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     // Try splitting width.
     if (stripeConfig.splits.widthOnly)
     {
-        TensorShape mceInputEncoding  = { 0, 0, blockConfig.m_BlockWidth(), 0 };
+        TensorShape mceInputEncoding  = { 0, 0, minBlockWidthMultiplier * blockConfig.m_BlockWidth(), 0 };
         const TensorShape& inputShape = m_MceInputTensorShape;
         TensorShape mceInputStripe =
             CreateStripe(m_MceInputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
-        TensorShape mceOutputEncoding = ApplyMceShapeMult(mceInputEncoding);
+        TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
         TensorShape mceOutputStripe = CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-        TensorShape pleInputStripe  = mceOutputStripe;
-        TensorShape pleOutputStripe = ApplyPleShapeMult(pleInputStripe);
+        TensorShape pleInputStripe    = mceOutputStripe;
+        TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
+        TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-        TensorShape pleOutputEncoding = ApplyPleShapeMult(mceOutputEncoding);
         TensorShape memoryOutputStripe =
             CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
-        const TensorShape& outputShape = m_PleOutputTensorShape;
 
         NumStripes numStripesInputCopy = numStripesInput;
 
@@ -669,14 +664,6 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                        numStripesOutput, numStripesWeightCopy, numStripesPleInput, mceInputStripe, memoryOutputStripe,
                        mceOutputStripe, inputShape, outputShape);
     }
-    const uint32_t minBlockWidthMultiplier = m_StripeConfig.blockWidthMultiplier.min;
-    const uint32_t maxBlockWidthMultiplier =
-        std::max(1U, std::min(GetWidth(m_MceInputTensorShape) / blockConfig.m_BlockWidth(),
-                              m_StripeConfig.blockWidthMultiplier.max));
-    const uint32_t minBlockHeightMultiplier = m_StripeConfig.blockHeightMultiplier.min;
-    const uint32_t maxBlockHeightMultiplier =
-        std::max(1U, std::min(GetHeight(m_MceInputTensorShape) / blockConfig.m_BlockHeight(),
-                              m_StripeConfig.blockHeightMultiplier.max));
 
     if (cascadeType == CascadeType::Lonely)
     {
@@ -695,18 +682,18 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                     TensorShape mceInputStripe =
                         CreateStripe(m_MceInputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
-                    TensorShape mceOutputEncoding = ApplyMceShapeMult(mceInputEncoding);
+                    TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
                     TensorShape mceOutputStripe =
                         CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-                    TensorShape pleInputStripe  = mceOutputStripe;
-                    TensorShape pleOutputStripe = ApplyPleShapeMult(pleInputStripe);
+                    TensorShape pleInputStripe    = mceOutputStripe;
+                    TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
+                    TensorShape pleOutputStripe =
+                        CreateStripe(outputShape, pleOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-                    TensorShape pleOutputEncoding = ApplyPleShapeMult(mceOutputEncoding);
                     TensorShape memoryOutputStripe =
                         CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
-                    const TensorShape& outputShape = m_PleOutputTensorShape;
                     NumStripes numStripesInputCopy = numStripesInput;
 
                     if (m_KernelWidth == 1)
@@ -728,23 +715,24 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                 // Note we have to limit the height and width to the block size.
                 if (stripeConfig.splits.widthHeightOutputDepthInputDepth)
                 {
-                    TensorShape mceInputEncoding  = { 0, blockConfig.m_BlockHeight(), blockConfig.m_BlockWidth(),
+                    TensorShape mceInputEncoding  = { 0, minBlockWidthMultiplier * blockConfig.m_BlockHeight(),
+                                                     minBlockHeightMultiplier * blockConfig.m_BlockWidth(),
                                                      m_Capabilities.GetNumberOfOgs() * strideMultiplier };
                     const TensorShape& inputShape = m_MceInputTensorShape;
                     TensorShape mceInputStripe =
                         CreateStripe(m_MceInputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
-                    TensorShape mceOutputEncoding = ApplyMceShapeMult(mceInputEncoding);
+                    TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
                     TensorShape mceOutputStripe =
                         CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-                    TensorShape pleInputStripe  = mceOutputStripe;
-                    TensorShape pleOutputStripe = ApplyPleShapeMult(pleInputStripe);
+                    TensorShape pleInputStripe    = mceOutputStripe;
+                    TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
+                    TensorShape pleOutputStripe =
+                        CreateStripe(outputShape, pleOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-                    TensorShape pleOutputEncoding = ApplyPleShapeMult(mceOutputEncoding);
                     TensorShape memoryOutputStripe =
                         CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
-                    const TensorShape& outputShape = m_PleOutputTensorShape;
 
                     AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, numStripesInput,
                                    numStripesOutput, numStripesWeights, numStripesPleInput, mceInputStripe,
@@ -768,18 +756,18 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                 TensorShape mceInputStripe =
                     CreateStripe(m_MceInputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
-                TensorShape mceOutputEncoding = ApplyMceShapeMult({ 0, 0, 0, m_Capabilities.GetNumberOfOgs() });
+                TensorShape mceOutputEncoding =
+                    TensorShape{ 0, 0, 0, m_Capabilities.GetNumberOfOgs() } * m_MceShapeMultiplier;
                 TensorShape mceOutputStripe =
                     CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-                TensorShape pleInputStripe  = mceOutputStripe;
-                TensorShape pleOutputStripe = ApplyPleShapeMult(pleInputStripe);
+                TensorShape pleInputStripe    = mceOutputStripe;
+                TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
+                TensorShape pleOutputStripe =
+                    CreateStripe(outputShape, pleOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-                TensorShape pleOutputEncoding = ApplyPleShapeMult(mceOutputEncoding);
                 TensorShape memoryOutputStripe =
                     CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
-
-                const TensorShape& outputShape = m_PleOutputTensorShape;
 
                 AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, numStripesInput,
                                numStripesOutput, numStripesWeights, numStripesPleInput, mceInputStripe,
@@ -805,17 +793,17 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                                                                   m_Capabilities.GetBrickGroupShape()[3]);
 
                         TensorShape mceOutputEncoding =
-                            ApplyMceShapeMult({ 0, height, width, m_Capabilities.GetNumberOfOgs() });
+                            TensorShape{ 0, height, width, m_Capabilities.GetNumberOfOgs() } * m_MceShapeMultiplier;
                         TensorShape mceOutputStripe =
                             CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-                        TensorShape pleInputStripe  = mceOutputStripe;
-                        TensorShape pleOutputStripe = ApplyPleShapeMult(pleInputStripe);
+                        TensorShape pleInputStripe    = mceOutputStripe;
+                        TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
+                        TensorShape pleOutputStripe =
+                            CreateStripe(outputShape, pleOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-                        TensorShape pleOutputEncoding  = ApplyPleShapeMult(mceOutputEncoding);
                         TensorShape memoryOutputStripe = CreateStripe(m_PleOutputTensorShape, pleOutputEncoding,
                                                                       m_Capabilities.GetBrickGroupShape()[3]);
-                        const TensorShape& outputShape = m_PleOutputTensorShape;
 
                         AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe,
                                        numStripesInput, numStripesOutput, numStripesWeights, numStripesPleInput,
@@ -834,11 +822,11 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             TensorShape mceInputStripe =
                 CreateStripe(m_MceInputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
-            TensorShape mceOutputEncoding = ApplyMceShapeMult({ 0, 0, 0, m_Capabilities.GetNumberOfOgs() });
+            TensorShape mceOutputEncoding =
+                TensorShape{ 0, 0, 0, m_Capabilities.GetNumberOfOgs() } * m_MceShapeMultiplier;
             TensorShape mceOutputStripe =
                 CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-            const TensorShape& outputShape = m_PleOutputTensorShape;
             // PLE stripe is the full tensor, as it accumulates the full output depth
             TensorShape pleInputStripe =
                 CreateStripe(mceOutputShape, { 0, 0, 0, 0 }, m_Capabilities.GetBrickGroupShape()[3]);
@@ -866,21 +854,22 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                 TensorShape mceInputStripe =
                     CreateStripe(m_MceInputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
-                TensorShape mceOutputEncoding = ApplyMceShapeMult({ 0, 0, 0, m_Capabilities.GetNumberOfOgs() });
+                TensorShape mceOutputEncoding =
+                    TensorShape{ 0, 0, 0, m_Capabilities.GetNumberOfOgs() } * m_MceShapeMultiplier;
                 TensorShape mceOutputStripe =
                     CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-                TensorShape pleInputStripe  = mceOutputStripe;
-                TensorShape pleOutputStripe = ApplyPleShapeMult(pleInputStripe);
+                TensorShape pleInputStripe    = mceOutputStripe;
+                TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
+                TensorShape pleOutputStripe =
+                    CreateStripe(outputShape, pleOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-                TensorShape pleOutputEncoding = ApplyPleShapeMult(mceOutputEncoding);
                 TensorShape memoryOutputStripe =
                     CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
                 NumStripes numStripesInputCopy = numStripesInput;
                 numStripesInputCopy.m_Min      = std::min(numStripesInputCopy.m_Min, 1u);
                 numStripesInputCopy.m_Max      = std::min(numStripesInputCopy.m_Max, 1u);
-                const TensorShape& outputShape = m_PleOutputTensorShape;
 
                 AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, numStripesInputCopy,
                                numStripesOutput, numStripesWeights, numStripesPleInput, mceInputStripe,
@@ -905,17 +894,17 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                                                                   m_Capabilities.GetBrickGroupShape()[3]);
 
                         TensorShape mceOutputEncoding =
-                            ApplyMceShapeMult({ 0, height, width, m_Capabilities.GetNumberOfOgs() });
+                            TensorShape{ 0, height, width, m_Capabilities.GetNumberOfOgs() } * m_MceShapeMultiplier;
                         TensorShape mceOutputStripe =
                             CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-                        TensorShape pleInputStripe  = mceOutputStripe;
-                        TensorShape pleOutputStripe = ApplyPleShapeMult(pleInputStripe);
+                        TensorShape pleInputStripe    = mceOutputStripe;
+                        TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
+                        TensorShape pleOutputStripe =
+                            CreateStripe(outputShape, pleOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-                        TensorShape pleOutputEncoding  = ApplyPleShapeMult(mceOutputEncoding);
                         TensorShape memoryOutputStripe = CreateStripe(m_PleOutputTensorShape, pleOutputEncoding,
                                                                       m_Capabilities.GetBrickGroupShape()[3]);
-                        const TensorShape& outputShape = m_PleOutputTensorShape;
 
                         AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe,
                                        numStripesInput, numStripesOutput, numStripesWeights, numStripesPleInput,
@@ -933,11 +922,11 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             TensorShape mceInputStripe =
                 CreateStripe(m_MceInputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
-            TensorShape mceOutputEncoding = ApplyMceShapeMult({ 0, 0, 0, m_Capabilities.GetNumberOfOgs() });
+            TensorShape mceOutputEncoding =
+                TensorShape{ 0, 0, 0, m_Capabilities.GetNumberOfOgs() } * m_MceShapeMultiplier;
             TensorShape mceOutputStripe =
                 CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-            const TensorShape& outputShape = m_PleOutputTensorShape;
             // PLE stripe is the full tensor, as it accumulates the full output depth
             TensorShape pleInputStripe =
                 CreateStripe(mceOutputShape, { 0, 0, 0, 0 }, m_Capabilities.GetBrickGroupShape()[3]);
@@ -965,15 +954,14 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         TensorShape mceInputEncoding = { 0, 0, 0, 0 };
         TensorShape mceInputStripe =
             CreateStripe(m_MceInputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
-        const TensorShape& inputShape  = m_MceInputTensorShape;
-        const TensorShape& outputShape = m_PleOutputTensorShape;
+        const TensorShape& inputShape = m_MceInputTensorShape;
 
-        TensorShape mceOutputEncoding = ApplyMceShapeMult(mceInputEncoding);
+        TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
         TensorShape mceOutputStripe = CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
         TensorShape pleInputStripe = mceOutputStripe;
 
-        TensorShape pleOutputEncoding = ApplyPleShapeMult(mceOutputEncoding);
+        TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
         TensorShape pleOutputStripe =
             CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
         NumStripes numStripesInputCopy   = numStripesInput;

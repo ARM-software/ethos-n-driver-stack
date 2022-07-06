@@ -590,6 +590,11 @@ struct ShapeMultiplier
     static const ShapeMultiplier Identity;
 };
 
+inline TensorShape operator*(const TensorShape& lhs, const ShapeMultiplier& rhs)
+{
+    return { lhs[0], lhs[1] * rhs.m_H, lhs[2] * rhs.m_W, lhs[3] * rhs.m_C };
+}
+
 constexpr ShapeMultiplier g_IdentityShapeMultiplier = { Fraction{ 1, 1 }, Fraction{ 1, 1 }, Fraction{ 1, 1 } };
 
 command_stream::DataType GetCommandDataType(const DataType supportLibraryDataType);
