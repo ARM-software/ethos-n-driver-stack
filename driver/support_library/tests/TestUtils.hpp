@@ -18,12 +18,22 @@ namespace support_library
 {
 
 HardwareCapabilities GetEthosN78HwCapabilities();
-HardwareCapabilities GetEthosN78HwCapabilities(uint32_t ctrlAgentWindowSizeOverride);
+HardwareCapabilities
+    GetHwCapabilitiesWithFwOverrides(EthosNVariant variant,
+                                     utils::Optional<uint32_t> sramSizeOverride,
+                                     utils::Optional<uint32_t> ctrlAgentWindowSizeOverride,
+                                     utils::Optional<uint32_t> maxMceStripesPerPleStripeOverride,
+                                     utils::Optional<uint32_t> maxIfmAndWgtStripesPerPleStripeOverride);
 HardwareCapabilities GetEthosN78HwCapabilities(EthosNVariant variant, uint32_t sramSizeOverride = 0);
 
 std::vector<char> GetRawDefaultCapabilities();
 std::vector<char> GetRawDefaultEthosN78Capabilities();
 std::vector<char> GetRawEthosN78Capabilities(EthosNVariant variant, uint32_t sramSizeOverride = 0);
+std::vector<char> GetRawCapabilitiesWithFwOverrides(EthosNVariant variant,
+                                                    utils::Optional<uint32_t> sramSizeOverride,
+                                                    utils::Optional<uint32_t> ctrlAgentWindowSizeOverride,
+                                                    utils::Optional<uint32_t> maxMceStripesPerPleStripeOverride,
+                                                    utils::Optional<uint32_t> maxIfmAndWgtStripesPerPleStripeOverride);
 
 bool Contains(const char* string, const char* substring);
 

@@ -112,6 +112,16 @@ uint32_t HardwareCapabilities::GetAgentWindowSize() const
     return m_FirmwareAndHardwareCapabilities.m_AgentWindowSize;
 }
 
+uint32_t HardwareCapabilities::GetMaxMceStripesPerPleStripe() const
+{
+    return m_FirmwareAndHardwareCapabilities.m_MaxMceStripesPerPleStripe;
+}
+
+uint32_t HardwareCapabilities::GetMaxIfmAndWgtStripesPerPleStripe() const
+{
+    return m_FirmwareAndHardwareCapabilities.m_MaxIfmAndWgtStripesPerPleStripe;
+}
+
 namespace utils
 {
 

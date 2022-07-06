@@ -1007,13 +1007,9 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                 paramsOdd.m_OutputLocation = PlanOutputLocation::Sram;
                 paramsOdd.m_All            = [](const PlanDesc& desc) {
                     // No splits are performed, Ple's InputStripe should be equal to InputTensor dimension.
-                    TensorShape InputTensor       = { 1, 129, 129, 64 };
-                    uint32_t PleInputStripeHeight = desc.m_Ple->m_InputStripeShapes[0][1];
-                    uint32_t PleInputStripeWidth  = desc.m_Ple->m_InputStripeShapes[0][2];
-                    uint32_t PleInputStripeDepth  = desc.m_Ple->m_InputStripeShapes[0][3];
-                    CHECK(PleInputStripeHeight == InputTensor[1]);
-                    CHECK(PleInputStripeWidth == InputTensor[2]);
-                    CHECK(PleInputStripeDepth == InputTensor[3]);
+                    CHECK(desc.m_Ple->m_InputStripeShapes[0][1] == 136);
+                    CHECK(desc.m_Ple->m_InputStripeShapes[0][2] == 136);
+                    CHECK(desc.m_Ple->m_InputStripeShapes[0][3] == 64);
 
                     // No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
                     TensorShape OutputTensor       = { 1, 64, 64, 64 };
@@ -1095,13 +1091,9 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                 paramsOdd.m_OutputLocation = PlanOutputLocation::Sram;
                 paramsOdd.m_All            = [](const PlanDesc& desc) {
                     // No splits are performed, Ple's InputStripe should be equal to InputTensor dimension.
-                    TensorShape InputTensor       = { 1, 129, 129, 64 };
-                    uint32_t PleInputStripeHeight = desc.m_Ple->m_InputStripeShapes[0][1];
-                    uint32_t PleInputStripeWidth  = desc.m_Ple->m_InputStripeShapes[0][2];
-                    uint32_t PleInputStripeDepth  = desc.m_Ple->m_InputStripeShapes[0][3];
-                    CHECK(PleInputStripeHeight == InputTensor[1]);
-                    CHECK(PleInputStripeWidth == InputTensor[2]);
-                    CHECK(PleInputStripeDepth == InputTensor[3]);
+                    CHECK(desc.m_Ple->m_InputStripeShapes[0][1] == 136);
+                    CHECK(desc.m_Ple->m_InputStripeShapes[0][2] == 136);
+                    CHECK(desc.m_Ple->m_InputStripeShapes[0][3] == 64);
 
                     // No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
                     TensorShape OutputTensor       = { 1, 64, 64, 64 };
@@ -1183,13 +1175,9 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                 paramsOdd.m_OutputLocation = PlanOutputLocation::Sram;
                 paramsOdd.m_All            = [](const PlanDesc& desc) {
                     // No splits are performed, Ple's InputStripe should be equal to InputTensor dimension.
-                    TensorShape InputTensor       = { 1, 129, 129, 64 };
-                    uint32_t PleInputStripeHeight = desc.m_Ple->m_InputStripeShapes[0][1];
-                    uint32_t PleInputStripeWidth  = desc.m_Ple->m_InputStripeShapes[0][2];
-                    uint32_t PleInputStripeDepth  = desc.m_Ple->m_InputStripeShapes[0][3];
-                    CHECK(PleInputStripeHeight == InputTensor[1]);
-                    CHECK(PleInputStripeWidth == InputTensor[2]);
-                    CHECK(PleInputStripeDepth == InputTensor[3]);
+                    CHECK(desc.m_Ple->m_InputStripeShapes[0][1] == 136);
+                    CHECK(desc.m_Ple->m_InputStripeShapes[0][2] == 136);
+                    CHECK(desc.m_Ple->m_InputStripeShapes[0][3] == 64);
 
                     // No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
                     TensorShape OutputTensor       = { 1, 64, 64, 64 };
@@ -1271,13 +1259,9 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                 paramsOdd.m_OutputLocation = PlanOutputLocation::Sram;
                 paramsOdd.m_All            = [](const PlanDesc& desc) {
                     // No splits are performed, Ple's InputStripe should be equal to InputTensor dimension.
-                    TensorShape InputTensor       = { 1, 129, 129, 64 };
-                    uint32_t PleInputStripeHeight = desc.m_Ple->m_InputStripeShapes[0][1];
-                    uint32_t PleInputStripeWidth  = desc.m_Ple->m_InputStripeShapes[0][2];
-                    uint32_t PleInputStripeDepth  = desc.m_Ple->m_InputStripeShapes[0][3];
-                    CHECK(PleInputStripeHeight == InputTensor[1]);
-                    CHECK(PleInputStripeWidth == InputTensor[2]);
-                    CHECK(PleInputStripeDepth == InputTensor[3]);
+                    CHECK(desc.m_Ple->m_InputStripeShapes[0][1] == 136);
+                    CHECK(desc.m_Ple->m_InputStripeShapes[0][2] == 136);
+                    CHECK(desc.m_Ple->m_InputStripeShapes[0][3] == 64);
 
                     // No splits are performed, Ple's OutputStripe should be equal to OutputTensor dimension.
                     TensorShape OutputTensor       = { 1, 64, 64, 64 };
@@ -1657,7 +1641,7 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 16, 224, 16 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 16, 1 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 16, 224, 8 } &&
-                       plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 16, 224, 16 } } &&
+                       plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 16, 224, 8 } } &&
                        plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 8, 112, 32 } &&
                        // 2 stripes are accumulated in sram to make up a full brick-group
                        plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 8, 112, 32 } &&

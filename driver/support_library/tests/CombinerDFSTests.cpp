@@ -4364,7 +4364,8 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
     {
         WHEN("Window size is greater than the total number of agents")
         {
-            const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(totalAgentsRef + 1);
+            const HardwareCapabilities hwCaps = GetHwCapabilitiesWithFwOverrides(
+                EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef + 1, {}, {});
             Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::StartSection, plans[0], totalAgents) == true);
@@ -4373,7 +4374,8 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         }
         WHEN("Window size is equal to the total number of agents")
         {
-            const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(totalAgentsRef);
+            const HardwareCapabilities hwCaps =
+                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef, {}, {});
             Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::StartSection, plans[0], totalAgents) == true);
@@ -4383,7 +4385,8 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         }
         WHEN("Window size is smaller than the total number of agents if all Ops were Cascade")
         {
-            const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(totalAgentsRef - 1);
+            const HardwareCapabilities hwCaps = GetHwCapabilitiesWithFwOverrides(
+                EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef - 1, {}, {});
             Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::StartSection, plans[0], totalAgents) == true);
@@ -4420,7 +4423,8 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         }
         WHEN("Window size is smaller than the total number of agents so that no plan fits")
         {
-            const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(3);
+            const HardwareCapabilities hwCaps =
+                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 3, {}, {});
             Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::StartSection, plans[0], totalAgents) == false);
@@ -4432,21 +4436,24 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
     {
         WHEN("Window size can accomodate the plan")
         {
-            const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(16);
+            const HardwareCapabilities hwCaps =
+                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 16, {}, {});
             Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::SinglePartSection, plans[0], totalAgents) == true);
         }
         WHEN("Window size is smaller than the plan")
         {
-            const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(2);
+            const HardwareCapabilities hwCaps =
+                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 2, {}, {});
             Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::SinglePartSection, plans[0], totalAgents) == false);
         }
         WHEN("Window size is only 2 but all Ops are Atomic")
         {
-            const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(2);
+            const HardwareCapabilities hwCaps =
+                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 2, {}, {});
             Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
             plans[0].m_OpGraph.GetOp(static_cast<uint32_t>(mceOpIndex))->m_Lifetime = Lifetime::Atomic;
             plans[0].m_OpGraph.GetOp(static_cast<uint32_t>(pleOpIndex))->m_Lifetime = Lifetime::Atomic;
@@ -4483,7 +4490,8 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
             const EstimationOptions estOpt;
             const CompilationOptions compOpt;
 
-            const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(64);
+            const HardwareCapabilities hwCaps =
+                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 64, {}, {});
 
             ConcatPart concatPart(partId, inputTensorsInfo, concatInfo, compilerDataFormat, operationIds, estOpt,
                                   compOpt, hwCaps);

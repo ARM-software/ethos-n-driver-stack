@@ -16,7 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#define FW_AND_HW_CAPABILITIES_VERSION 4
+#define FW_AND_HW_CAPABILITIES_VERSION 5
 
 namespace ethosn
 {
@@ -81,6 +81,8 @@ struct FirmwareAndHardwareCapabilities
 
     // Firmware capabilities
     uint32_t m_AgentWindowSize;
+    uint32_t m_MaxMceStripesPerPleStripe;
+    uint32_t m_MaxIfmAndWgtStripesPerPleStripe;
 };
 
 // The FirmwareAndHardwareCapabilities struct is copied through the driver stack as a simple block of memory

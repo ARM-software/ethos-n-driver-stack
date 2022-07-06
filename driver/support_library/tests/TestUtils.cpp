@@ -51,11 +51,44 @@ HardwareCapabilities GetEthosN78HwCapabilities()
     return HardwareCapabilities(fwHwCapabilities);
 }
 
-HardwareCapabilities GetEthosN78HwCapabilities(uint32_t ctrlWindowSizeOverride)
+namespace
+{
+
+FirmwareAndHardwareCapabilities
+    GetFwHwCapabilitiesWithFwOverrides(EthosNVariant variant,
+                                       utils::Optional<uint32_t> sramSizeOverride,
+                                       utils::Optional<uint32_t> ctrlAgentWindowSizeOverride,
+                                       utils::Optional<uint32_t> maxMceStripesPerPleStripeOverride,
+                                       utils::Optional<uint32_t> maxIfmAndWgtStripesPerPleStripeOverride)
 {
     FirmwareAndHardwareCapabilities fwHwCapabilities =
-        GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, 0);
-    fwHwCapabilities.m_AgentWindowSize = ctrlWindowSizeOverride;
+        GetEthosN78FwHwCapabilities(variant, sramSizeOverride.has_value() ? sramSizeOverride.value() : 0);
+    if (ctrlAgentWindowSizeOverride.has_value())
+    {
+        fwHwCapabilities.m_AgentWindowSize = ctrlAgentWindowSizeOverride.value();
+    }
+    if (maxMceStripesPerPleStripeOverride.has_value())
+    {
+        fwHwCapabilities.m_MaxMceStripesPerPleStripe = maxMceStripesPerPleStripeOverride.value();
+    }
+    if (maxIfmAndWgtStripesPerPleStripeOverride.has_value())
+    {
+        fwHwCapabilities.m_MaxIfmAndWgtStripesPerPleStripe = maxIfmAndWgtStripesPerPleStripeOverride.value();
+    }
+    return fwHwCapabilities;
+}
+
+}    // namespace
+
+HardwareCapabilities GetHwCapabilitiesWithFwOverrides(EthosNVariant variant,
+                                                      utils::Optional<uint32_t> sramSizeOverride,
+                                                      utils::Optional<uint32_t> ctrlAgentWindowSizeOverride,
+                                                      utils::Optional<uint32_t> maxMceStripesPerPleStripeOverride,
+                                                      utils::Optional<uint32_t> maxIfmAndWgtStripesPerPleStripeOverride)
+{
+    FirmwareAndHardwareCapabilities fwHwCapabilities =
+        GetFwHwCapabilitiesWithFwOverrides(variant, sramSizeOverride, ctrlAgentWindowSizeOverride,
+                                           maxMceStripesPerPleStripeOverride, maxIfmAndWgtStripesPerPleStripeOverride);
     return HardwareCapabilities(fwHwCapabilities);
 }
 
@@ -93,6 +126,18 @@ std::vector<char> GetRawDefaultEthosN78Capabilities()
 std::vector<char> GetRawEthosN78Capabilities(EthosNVariant variant, uint32_t sramSizeOverride)
 {
     FirmwareAndHardwareCapabilities fwHwCapabilities = GetEthosN78FwHwCapabilities(variant, sramSizeOverride);
+    return GetRawCapabilities(fwHwCapabilities);
+}
+
+std::vector<char> GetRawCapabilitiesWithFwOverrides(EthosNVariant variant,
+                                                    utils::Optional<uint32_t> sramSizeOverride,
+                                                    utils::Optional<uint32_t> ctrlAgentWindowSizeOverride,
+                                                    utils::Optional<uint32_t> maxMceStripesPerPleStripeOverride,
+                                                    utils::Optional<uint32_t> maxIfmAndWgtStripesPerPleStripeOverride)
+{
+    FirmwareAndHardwareCapabilities fwHwCapabilities =
+        GetFwHwCapabilitiesWithFwOverrides(variant, sramSizeOverride, ctrlAgentWindowSizeOverride,
+                                           maxMceStripesPerPleStripeOverride, maxIfmAndWgtStripesPerPleStripeOverride);
     return GetRawCapabilities(fwHwCapabilities);
 }
 

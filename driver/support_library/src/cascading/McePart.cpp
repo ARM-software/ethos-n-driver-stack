@@ -134,13 +134,14 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     }
     TensorShape mceOutputStripe = impl::CreateStripe(outputTensorShape, mceOutputEncoding, caps.GetNumberOfOgs());
 
-    TensorShape pleOutputEncoding = mceOutputEncoding;
+    TensorShape pleInputEncoding = mceOutputEncoding;
     if (cascadeType == CascadeType::Middle)
     {
         // PLE accumulates the full depth for the middle of an s1 cascade
-        pleOutputEncoding[3] = 0;
+        pleInputEncoding[3] = 0;
     }
-    TensorShape pleOutputStripe = impl::CreateStripe(outputTensorShape, pleOutputEncoding, caps.GetNumberOfOgs());
+    TensorShape pleInputStripe  = impl::CreateStripe(outputTensorShape, pleInputEncoding, caps.GetNumberOfOgs());
+    TensorShape pleOutputStripe = pleInputStripe;    // PLE kernel is passthrough
 
     uint32_t mceWeightOutputStripe = mceOutputStripe[3];
     bool fullOutputDepth           = mceWeightOutputStripe >= GetChannels(outputTensorShape);
@@ -200,6 +201,22 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     const uint32_t numIfmLoads                                                 = 1;
     const uint32_t numWeightLoads                                              = 1;
 
+    // Prevent too many MCE stripes per PLE (a firmware limitation)
+    const uint32_t numMceStripesPerPle = utils::DivRoundUp(GetChannels(pleInputStripe), GetChannels(mceOutputStripe));
+    if (numMceStripesPerPle > caps.GetMaxMceStripesPerPleStripe())
+    {
+        return {};
+    }
+
+    // Prevent too many IFM and Weight stripes per PLE (a firmware limitation)
+    const uint32_t numIfmStripesPerMce       = 0;    // Continue section, so no IfmS
+    const uint32_t numWgtStripesPerMce       = 1;
+    const uint32_t numIfmAndWgtStripesPerPle = (numIfmStripesPerMce + numWgtStripesPerMce) * numMceStripesPerPle;
+    if (numIfmAndWgtStripesPerPle > caps.GetMaxIfmAndWgtStripesPerPleStripe())
+    {
+        return {};
+    }
+
     MceAndPleInfo mceAndPleInfo;
 
     mceAndPleInfo.m_Lifetime = fullTensor ? Lifetime::Atomic : Lifetime::Cascade;
@@ -208,7 +225,7 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     mceAndPleInfo.m_MceCompute.m_Output      = mceOutputStripe;
     mceAndPleInfo.m_MceCompute.m_Weight      = mceWeightStripe;
     mceAndPleInfo.m_MceCompute.m_BlockConfig = blockConfig;
-    mceAndPleInfo.m_PleCompute.m_Input       = mceOutputStripe;
+    mceAndPleInfo.m_PleCompute.m_Input       = pleInputStripe;
     mceAndPleInfo.m_PleCompute.m_Output      = pleOutputStripe;
     mceAndPleInfo.m_PleCompute.m_BlockConfig = blockConfig;
 

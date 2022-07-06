@@ -126,7 +126,11 @@ FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant varian
     fwHwCapabilities.m_ActivationCompressionVersion = 1;
     fwHwCapabilities.m_IsNchwSupported              = 1;
 
-    fwHwCapabilities.m_AgentWindowSize = 64;
+    // These values are derived from constants in the firmware, and so need to be kept in-sync. See the calculation
+    // of these values in the firmware for details.
+    fwHwCapabilities.m_AgentWindowSize                 = 64;
+    fwHwCapabilities.m_MaxMceStripesPerPleStripe       = 16;
+    fwHwCapabilities.m_MaxIfmAndWgtStripesPerPleStripe = 16;
 
     return fwHwCapabilities;
 }

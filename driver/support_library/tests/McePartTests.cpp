@@ -1547,7 +1547,9 @@ TEST_CASE("McePart GetPlans Split input in depth")
     GIVEN("An McePart for a convolution")
     {
         const CompilationOptions compOpt;
-        const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+        // Override the default firmware limitations so that we can generate the plans we need to test
+        const HardwareCapabilities caps =
+            GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, {}, 2048, 2048);
         const EstimationOptions estOpts;
 
         const command_stream::BlockConfig blockConfig = { 8u, 8u };
@@ -1959,7 +1961,9 @@ TEST_CASE("McePart GetPlans MobileNet V1")
     {
         // Choose the smallest variant in order to have the most cascades. In this case there is a combination of single
         // layer cascades (Lonely parts) as well as some longer cascades.
-        const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO);
+        // Override the default firmware limitations so that we can generate the plans we need to test
+        const HardwareCapabilities caps =
+            GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, {}, 2048, 2048);
 
         // Define common properties of the "prevBuffer", which will be the case for all Parts we're testing. This avoids
         // duplicating these lines for each Part being tested.

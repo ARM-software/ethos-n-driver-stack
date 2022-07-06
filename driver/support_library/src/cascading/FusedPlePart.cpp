@@ -378,6 +378,7 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     // At the end of a cascde we can double buffer
 
     const TensorShape& inputStripeShape = prevBuffer->m_StripeShape;
+    TensorShape pleInputStripe          = inputStripeShape;
 
     // Output stripe size = min (Tensor dimension * Multiplier for that dimension, Tensor dimension rounded up to multiple of block size).
     //For Width: shapeW rounded up to multiple of brickWidth
@@ -385,10 +386,10 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     //For Depth: shapeC rounded up to multiple of Number of Output Generators
     utils::ShapeMultiplier shapeMult = m_ShapeMultiplier;
     TensorShape pleOutputStripe      = TensorShape{
-        inputStripeShape[0],
-        std::min(inputStripeShape[1] * shapeMult.m_H, utils::RoundUpToNearestMultiple(m_OutputTensorShape[1], 8U)),
-        std::min(inputStripeShape[2] * shapeMult.m_W, utils::RoundUpToNearestMultiple(m_OutputTensorShape[2], 8U)),
-        std::min(inputStripeShape[3] * shapeMult.m_C,
+        pleInputStripe[0],
+        std::min(pleInputStripe[1] * shapeMult.m_H, utils::RoundUpToNearestMultiple(m_OutputTensorShape[1], 8U)),
+        std::min(pleInputStripe[2] * shapeMult.m_W, utils::RoundUpToNearestMultiple(m_OutputTensorShape[2], 8U)),
+        std::min(pleInputStripe[3] * shapeMult.m_C,
                  utils::RoundUpToNearestMultiple(m_OutputTensorShape[3], m_Capabilities.GetNumberOfOgs()))
     };
 
@@ -398,6 +399,7 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     {
         memoryOutputChannelsEncoding = 0;
         // PLE accumulates the full depth in the middle of a strategy 1 cascade
+        pleInputStripe[3]  = utils::RoundUpToNearestMultiple(inputStripeShape[3], m_Capabilities.GetNumberOfOgs());
         pleOutputStripe[3] = utils::RoundUpToNearestMultiple(m_OutputTensorShape[3], m_Capabilities.GetNumberOfOgs());
     }
     TensorShape memoryOutputStripeEncoding{ 0, fullHeight ? 0 : GetHeight(pleOutputStripe),
@@ -455,13 +457,14 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     }
 
     NumStripes numStripesOutput = { 1, maxOutputStripes };
-    const TensorShape mceInputStripe =
-        TensorShape{ inputStripeShape[0], std::min(inputStripeShape[1], m_InputTensorShape[1]),
-                     std::min(inputStripeShape[2], m_InputTensorShape[2]),
-                     std::min(inputStripeShape[3], m_InputTensorShape[3]) };
 
     if (prevBuffer->m_Location == Location::Sram)
     {
+        const TensorShape mceInputStripe =
+            TensorShape{ inputStripeShape[0], std::min(inputStripeShape[1], m_InputTensorShape[1]),
+                         std::min(inputStripeShape[2], m_InputTensorShape[2]),
+                         std::min(inputStripeShape[3], m_InputTensorShape[3]) };
+
         uint32_t kernelHeight = 1;
         uint32_t kernelWidth  = 1;
 
@@ -490,7 +493,7 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
         mceAndPleInfo.m_MceCompute.m_Output      = mceOutputStripe;
         mceAndPleInfo.m_MceCompute.m_Weight      = mceWeightStripe;
         mceAndPleInfo.m_MceCompute.m_BlockConfig = blockConfig;
-        mceAndPleInfo.m_PleCompute.m_Input       = mceInputStripe;
+        mceAndPleInfo.m_PleCompute.m_Input       = pleInputStripe;
         mceAndPleInfo.m_PleCompute.m_Output      = pleOutputStripe;
         mceAndPleInfo.m_PleCompute.m_BlockConfig = blockConfig;
 
@@ -505,11 +508,32 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     }
     else if (prevBuffer->m_Location == Location::PleInputSram)
     {
+        // Prevent too many MCE stripes per PLE (a firmware limitation)
+        const TensorShape mceOutputStripe = inputStripeShape;
+        const uint32_t numMceStripesPerPle =
+            utils::DivRoundUp(GetChannels(pleInputStripe), GetChannels(mceOutputStripe));
+        if (numMceStripesPerPle > m_Capabilities.GetMaxMceStripesPerPleStripe())
+        {
+            return ret;
+        }
+
+        // Prevent too many IFM and Weight stripes per PLE (a firmware limitation)
+        // The below constant might not be correct, if this is the second part in a section (McePart -> FusedPlePart),
+        // but in this case this limitation should have been checked in the StripeHelper for the Beginning plans. For other cases,
+        // there is no IfmS for us to be concerned about so zero is correct.
+        const uint32_t numIfmStripesPerMce       = 0;
+        const uint32_t numWgtStripesPerMce       = 1;
+        const uint32_t numIfmAndWgtStripesPerPle = (numIfmStripesPerMce + numWgtStripesPerMce) * numMceStripesPerPle;
+        if (numIfmAndWgtStripesPerPle > m_Capabilities.GetMaxIfmAndWgtStripesPerPleStripe())
+        {
+            return ret;
+        }
+
         PleOnlyInfo pleOnlyInfo;
 
         pleOnlyInfo.m_Lifetime = fullTensor ? Lifetime::Atomic : Lifetime::Cascade;
 
-        pleOnlyInfo.m_PleCompute.m_Input       = mceInputStripe;
+        pleOnlyInfo.m_PleCompute.m_Input       = pleInputStripe;
         pleOnlyInfo.m_PleCompute.m_Output      = pleOutputStripe;
         pleOnlyInfo.m_PleCompute.m_BlockConfig = blockConfig;
 

@@ -78,6 +78,8 @@ public:
     uint32_t GetMacUnitsPerOg() const;
     uint32_t GetNumberOfPleLanes() const;
     uint32_t GetAgentWindowSize() const;
+    uint32_t GetMaxMceStripesPerPleStripe() const;
+    uint32_t GetMaxIfmAndWgtStripesPerPleStripe() const;
 
     // It is always 16 MACs per wingorad output block either for 1D (1x3/3x1 filter) or 2D (3x3 filter).
     uint32_t GetMacsPerWinogradOutputBlock() const
