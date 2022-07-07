@@ -301,6 +301,20 @@ public:
     CascadingBufferFormat m_TransferFormat;
 };
 
+class SplitOp : public Op
+{
+public:
+    SplitOp(CascadingBufferFormat transferFormat);
+    virtual uint32_t GetNumberOfAgents(uint32_t numberOfOutputs) const override final
+    {
+        // Instead of one split op producing x outputs, instead we create x split ops, each with one output
+        return 2;
+        ETHOSN_UNUSED(numberOfOutputs);
+    }
+
+    CascadingBufferFormat m_TransferFormat;
+};
+
 class EstimateOnlyOp : public Op
 {
 public:

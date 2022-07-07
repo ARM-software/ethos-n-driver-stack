@@ -103,7 +103,7 @@ TEST_CASE("SplitSupported")
         };
         REQUIRE(queries.IsSplitSupported(
                     TensorInfo({ 1, 16, 16, 64 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(1, 2)),
-                    SplitInfo(3, { 32, 16, 16 }), &outputInfos) == SupportedLevel::EstimateOnly);
+                    SplitInfo(3, { 32, 16, 16 }), &outputInfos) == SupportedLevel::Supported);
     }
 
     // Successful case (output infos filled in)
@@ -111,7 +111,7 @@ TEST_CASE("SplitSupported")
         std::vector<TensorInfo> outputInfos(3);
         REQUIRE(queries.IsSplitSupported(
                     TensorInfo({ 1, 16, 16, 64 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(1, 2)),
-                    SplitInfo(3, { 32, 16, 16 }), &outputInfos) == SupportedLevel::EstimateOnly);
+                    SplitInfo(3, { 32, 16, 16 }), &outputInfos) == SupportedLevel::Supported);
         REQUIRE(outputInfos.size() == 3);
         REQUIRE(outputInfos[0] ==
                 TensorInfo({ 1, 16, 16, 32 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(1, 2)));

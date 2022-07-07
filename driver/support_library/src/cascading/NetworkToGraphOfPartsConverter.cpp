@@ -16,6 +16,7 @@
 #include "OutputPart.hpp"
 #include "Part.hpp"
 #include "ReshapePart.hpp"
+#include "SplitPart.hpp"
 #include "StandalonePlePart.hpp"
 #include "Utils.hpp"
 #include "cascading/MceEstimationUtils.hpp"
@@ -1170,23 +1171,77 @@ void NetworkToGraphOfPartsConverter::Visit(Split& split)
 
         parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
-    }
 
-    // Loop through all parts in the vector of BaseParts and connect them together.
-    for (uint32_t i = 0; i < static_cast<uint32_t>(parts.size()) - 1; i++)
+        // Check if current operation has outputs and if so mark them for connection with the subsequent operation.
+        for (auto&& outputOperand : split.GetOutputs())
+        {
+            m_OperandToPart[&outputOperand] = parts.back();
+        }
+    }
+    else
     {
-        m_GraphOfParts.AddConnection({ parts[i + 1]->GetPartId(), 0 }, { parts[i]->GetPartId(), 0 });
+        const SplitInfo& splitInfo = split.GetSplitInfo();
+
+        // Figure out if we need to use NHWC or if we can get away with NHWCB (which should be more efficient).
+        // We can use NHWCB if the dimensions along the split axis are all multiples of the brick group size, so
+        // that the DMA is capable of extracting the tensors correctly from DRAM.
+        CompilerDataFormat format = CompilerDataFormat::NHWCB;
+        for (uint32_t i = 0; i < split.GetOutputs().size(); ++i)
+        {
+            if (split.GetOutput(i).GetTensorInfo().m_Dimensions[splitInfo.m_Axis] %
+                    m_Capabilities.GetBrickGroupShape()[splitInfo.m_Axis] !=
+                0)
+            {
+                format = CompilerDataFormat::NHWC;
+                break;
+            }
+        }
+
+        auto splitPart = std::make_unique<SplitPart>(m_GraphOfParts.GeneratePartId(), inputInfo, split.GetSplitInfo(),
+                                                     format, std::set<uint32_t>{ split.GetId() },
+                                                     m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+        parts.push_back(splitPart.get());
+
+        size_t numOutputs   = split.GetOutputs().size();
+        auto inputQuantInfo = split.GetInput(0).GetTensorInfo().m_QuantizationInfo;
+        // The SplitPart assumes that all Inputs and the Output have the same quantization information.
+        // If that is not the case, a requantize McePart is generated for any Outputs that are different to the Input.
+        // Subsequently, all generated MceParts, as well as the SplitPart are connected to the GraphOfParts.
+        for (uint32_t i = 0; i < numOutputs; ++i)
+        {
+            Operand& outputOperand = split.GetOutput(i);
+            if (outputOperand.GetTensorInfo().m_QuantizationInfo != inputQuantInfo)
+            {
+                std::map<uint32_t, PartId> mcePartIds;
+
+                auto mcePart = CreateIdentityMcePart(
+                    outputOperand.GetTensorInfo().m_Dimensions, outputOperand.GetTensorInfo().m_QuantizationInfo,
+                    inputQuantInfo, split.GetId(), GetCommandDataType(split.GetOutput(0).GetTensorInfo().m_DataType),
+                    m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+                // Add the connection to the GraphOfParts, then store the new PartId in a temporary map and then add the McePart to the GraphOfParts.
+                m_GraphOfParts.AddConnection({ mcePart->GetPartId(), 0 },
+                                             { splitPart->GetPartId(), outputOperand.GetProducerOutputIndex() });
+                mcePartIds[i] = mcePart->GetPartId();
+
+                parts.push_back(mcePart.get());
+                m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+
+                m_OperandToPart[&outputOperand] = parts.back();
+            }
+            else
+            {
+                // If no mcePart required then simply connect outputParts to Split op
+                m_OperandToPart[&outputOperand] = parts.back();
+            }
+        }
+        m_GraphOfParts.m_Parts.push_back(std::move(splitPart));
     }
 
     Operand& operand = split.GetInput(0);
     m_GraphOfParts.AddConnection({ parts.front()->GetPartId(), 0 },
                                  { m_OperandToPart.at(&operand)->GetPartId(), operand.GetProducerOutputIndex() });
-
-    // Check if current operation has outputs and if so mark them for connection with the subsequent operation.
-    for (auto&& outputOperand : split.GetOutputs())
-    {
-        m_OperandToPart[&outputOperand] = parts.back();
-    }
 }
 
 void NetworkToGraphOfPartsConverter::Visit(Transpose& transpose)

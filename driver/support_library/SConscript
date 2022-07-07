@@ -72,6 +72,7 @@ srcs = [
     os.path.join("src", "cascading", "ReshapePart.cpp"),
     os.path.join("src", "cascading", "ConcatPart.cpp"),
     os.path.join("src", "cascading", "ConstantPart.cpp"),
+    os.path.join("src", "cascading", "SplitPart.cpp"),
     os.path.join("src", "cascading", "PleKernelDatabase.cpp"),
     os.path.join("src", "cascading", "EstimateOnlyPart.cpp"),
     os.path.join("src", "cascading", "StandalonePlePart.cpp"),

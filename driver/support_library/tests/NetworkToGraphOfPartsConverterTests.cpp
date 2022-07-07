@@ -18,6 +18,7 @@
 #include "../src/cascading/OutputPart.hpp"
 #include "../src/cascading/Part.hpp"
 #include "../src/cascading/ReshapePart.hpp"
+#include "../src/cascading/SplitPart.hpp"
 #include "../src/cascading/StandalonePlePart.hpp"
 #include "TestUtils.hpp"
 
@@ -2653,7 +2654,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Split")
     SplitInfo splitInfo{ 1, { 9, 7 } };
 
     const std::shared_ptr<Network> network =
-        CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+        CreateNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
     // Network topology:
     // Input -> Split -> Output
@@ -2677,13 +2678,13 @@ TEST_CASE("NetworkToGraphOfPartsConverter Split")
     if (dumpGraphOfPartsToFile)
     {
         std::ofstream stream("NetworkToGraphOfPartsConverterTests_SplitOutput.dot");
-        SaveGraphOfPartsToDot(graph, stream, DetailLevel::Low);
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
     }
 
-    // InputPart, EstimateOnlyPart, OutputPart, OutputPart
+    // InputPart, SplitPart, OutputPart, OutputPart
     REQUIRE(graph.GetNumParts() == 4);
 
-    REQUIRE(dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1)) != nullptr);
+    REQUIRE(dynamic_cast<const SplitPart*>(&graph.GetPart(1)) != nullptr);
     REQUIRE(graph.GetPartInputs(1).size() == 1);
     REQUIRE(graph.GetPartOutputs(1).size() == 2);
     REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);

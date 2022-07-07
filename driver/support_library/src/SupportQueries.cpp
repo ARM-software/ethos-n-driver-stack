@@ -1250,7 +1250,7 @@ SupportedLevel SupportQueries::IsSplitSupported(const TensorInfo& inputInfo,
             assert(false);
     }
 
-    return SupportedLevel::EstimateOnly;
+    return SupportedLevel::Supported;
 }
 
 SupportedLevel SupportQueries::IsAdditionSupported(const TensorInfo& inputInfo0,

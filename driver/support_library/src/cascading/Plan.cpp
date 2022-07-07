@@ -445,6 +445,11 @@ ConcatOp::ConcatOp(CascadingBufferFormat transferFormat)
     , m_TransferFormat(transferFormat)
 {}
 
+SplitOp::SplitOp(CascadingBufferFormat transferFormat)
+    : Op("SplitOp")
+    , m_TransferFormat(transferFormat)
+{}
+
 EstimateOnlyOp::EstimateOnlyOp(const std::string& reasonForEstimateOnly)
     : Op("EstimateOnlyOp")
     , m_ReasonForEstimateOnly(reasonForEstimateOnly)
