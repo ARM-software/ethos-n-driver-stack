@@ -601,8 +601,8 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
 
     // OutputPart
     auto outputPart = std::make_unique<OutputPart>(5, TensorShape{ 1, 2, 3, 4 }, CompilerDataFormat::NHWCB,
-                                                   QuantizationInfo(9, 10.0f), std::set<uint32_t>{ 13, 14, 15 }, estOpt,
-                                                   compOpt, caps);
+                                                   QuantizationInfo(9, 10.0f), std::set<uint32_t>{ 13, 14, 15 }, 0,
+                                                   estOpt, compOpt, caps);
     parts.m_Parts.push_back(std::move(outputPart));
 
     // ReshapePart

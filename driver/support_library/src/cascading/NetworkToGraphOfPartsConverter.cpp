@@ -95,10 +95,14 @@ void NetworkToGraphOfPartsConverter::Visit(Output& output)
 {
     std::vector<BasePart*> parts;
     CompilerDataFormat compilerDataFormat = ConvertExternalToCompilerDataFormat(output.GetTensorInfo().m_DataFormat);
-    auto outputPart = std::make_unique<OutputPart>(m_GraphOfParts.GeneratePartId(), output.GetTensorInfo().m_Dimensions,
-                                                   compilerDataFormat, output.GetTensorInfo().m_QuantizationInfo,
-                                                   std::set<uint32_t>{ output.GetId() }, m_EstimationOptions.value(),
-                                                   m_CompilationOptions, m_Capabilities);
+
+    // Note that we return the ID of the *producer* that feeds in to the output node, not the ID of the output
+    // node itself. This is for consistency when we start splitting the network and need to identify network outputs
+    // that do not have their own unique node. See documentation on InputBufferInfo struct in Support.hpp for details.
+    auto outputPart = std::make_unique<OutputPart>(
+        m_GraphOfParts.GeneratePartId(), output.GetTensorInfo().m_Dimensions, compilerDataFormat,
+        output.GetTensorInfo().m_QuantizationInfo, std::set<uint32_t>{ output.GetInput(0).GetProducer().GetId() },
+        output.GetInput(0).GetProducerOutputIndex(), m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
     parts.push_back(outputPart.get());
     m_GraphOfParts.m_Parts.push_back(std::move(outputPart));
     ConnectParts(output, parts);

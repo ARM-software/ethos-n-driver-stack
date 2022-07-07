@@ -121,7 +121,7 @@ TEST_CASE("OutputPart Plan Generation", "[OutputPartTests]")
         const CompilationOptions compOpt;
         HardwareCapabilities hwCapabilities(GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
-        OutputPart outputPart(partId, inputTensorShape, compilerDataFormat, quantizationInfo, operationIds, estOpt,
+        OutputPart outputPart(partId, inputTensorShape, compilerDataFormat, quantizationInfo, operationIds, 0, estOpt,
                               compOpt, hwCapabilities);
 
         CheckPlansParams params;

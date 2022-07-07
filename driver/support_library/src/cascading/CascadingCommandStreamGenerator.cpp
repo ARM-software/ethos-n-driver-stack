@@ -162,9 +162,9 @@ uint16_t CascadingCommandStreamGenerator::AddDramBufferAndCacheId(Buffer* inputB
     {
         if (inputBuffer->m_BufferType.value() == BufferType::Input)
         {
-            // Operation ID is hardcoded to zero temporarily - this needs to be set properly.
-            inputBufferId =
-                ethosn::utils::NumericCast<uint16_t>(m_BufferManager.AddDramInput(inputBuffer->m_SizeInBytes, 0));
+            assert(inputBuffer->m_OperationId.has_value());
+            inputBufferId = ethosn::utils::NumericCast<uint16_t>(
+                m_BufferManager.AddDramInput(inputBuffer->m_SizeInBytes, inputBuffer->m_OperationId.value()));
             m_DramBufToBufIdMapping[inputBuffer] = inputBufferId;
         }
         else if (inputBuffer->m_BufferType.value() == BufferType::Intermediate)
@@ -310,9 +310,10 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(Op* const ptrDmaOp)
         }
         else if (outputBuffer->m_BufferType.value() == BufferType::Output)
         {
-            // Operation ID is set with a hack here that will be wrong in some cases. This needs to be set properly.
-            m_BufferManager.ChangeToOutput(outputBufferId,
-                                           *std::max_element(m_OperationIds.begin(), m_OperationIds.end()) - 1, 0);
+            assert(outputBuffer->m_OperationId.has_value());
+            assert(outputBuffer->m_ProducerOutputIndx);
+            m_BufferManager.ChangeToOutput(outputBufferId, outputBuffer->m_OperationId.value(),
+                                           outputBuffer->m_ProducerOutputIndx.value());
         }
 
         // Ofm Streamer Agent

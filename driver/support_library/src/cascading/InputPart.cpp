@@ -60,6 +60,7 @@ void InputPart::CreatePlanForInputPart(TraversalOrder order, Plans& plans) const
     buffer->m_TensorShape        = m_OutputTensorShape;
     buffer->m_SizeInBytes        = utils::CalculateBufferSize(m_OutputTensorShape, format);
     buffer->m_QuantizationInfo   = m_OutputQuantizationInfo;
+    buffer->m_OperationId        = *m_CorrespondingOperationIds.begin();
     buffer->m_BufferType         = BufferType::Input;
     outputMappings[buffer.get()] = PartOutputSlot{ m_PartId, 0 };
     opGraph.AddBuffer(std::move(buffer));

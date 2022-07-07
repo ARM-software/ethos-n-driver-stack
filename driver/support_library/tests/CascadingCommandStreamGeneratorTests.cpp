@@ -35,8 +35,9 @@ public:
         m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                      TensorShape{ 1, 160, 160, 3 }, TensorShape{ 0, 0, 0, 0 },
                                                      TraversalOrder::Xyz, 0, QuantizationInfo()));
-        m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
-        m_OpGraph.GetBuffers().back()->m_DebugTag   = "InputDramBuffer";
+        m_OpGraph.GetBuffers().back()->m_OperationId = 0;
+        m_OpGraph.GetBuffers().back()->m_BufferType  = BufferType::Input;
+        m_OpGraph.GetBuffers().back()->m_DebugTag    = "InputDramBuffer";
 
         m_OpGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
         m_OpGraph.GetOps()[0]->m_DebugTag     = "InputDmaOp";
@@ -74,8 +75,10 @@ public:
         m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                      TensorShape{ 1, 80, 80, 24 }, TensorShape{ 0, 0, 0, 0 },
                                                      TraversalOrder::Xyz, 0, QuantizationInfo()));
-        m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
-        m_OpGraph.GetBuffers().back()->m_DebugTag   = "OutputDramBuffer";
+        m_OpGraph.GetBuffers().back()->m_OperationId        = 1;
+        m_OpGraph.GetBuffers().back()->m_ProducerOutputIndx = 0;
+        m_OpGraph.GetBuffers().back()->m_BufferType         = BufferType::Output;
+        m_OpGraph.GetBuffers().back()->m_DebugTag           = "OutputDramBuffer";
 
         m_OpGraph.SetProducer(buffers.back(), ops.back());
 
@@ -112,9 +115,10 @@ public:
         m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                      TensorShape{ 1, 160, 160, 3 }, TensorShape{ 0, 0, 0, 0 },
                                                      TraversalOrder::Xyz, 0, QuantizationInfo()));
-        m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
-        m_OpGraph.GetBuffers().back()->m_DebugTag   = "InputDramBuffer";
-        m_OpGraph.GetBuffers().back()->m_Offset     = 0x00000F0A;
+        m_OpGraph.GetBuffers().back()->m_OperationId = 0;
+        m_OpGraph.GetBuffers().back()->m_BufferType  = BufferType::Input;
+        m_OpGraph.GetBuffers().back()->m_DebugTag    = "InputDramBuffer";
+        m_OpGraph.GetBuffers().back()->m_Offset      = 0x00000F0A;
 
         m_OpGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
         m_OpGraph.GetOps()[0]->m_DebugTag     = "InputDmaOp";
@@ -212,8 +216,10 @@ public:
         m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                      TensorShape{ 1, 80, 80, 24 }, TensorShape{ 0, 0, 0, 0 },
                                                      TraversalOrder::Xyz, 0, QuantizationInfo()));
-        m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
-        m_OpGraph.GetBuffers().back()->m_DebugTag   = "OutputDramBuffer";
+        m_OpGraph.GetBuffers().back()->m_OperationId        = 2;
+        m_OpGraph.GetBuffers().back()->m_ProducerOutputIndx = 0;
+        m_OpGraph.GetBuffers().back()->m_BufferType         = BufferType::Output;
+        m_OpGraph.GetBuffers().back()->m_DebugTag           = "OutputDramBuffer";
         m_OpGraph.SetProducer(buffers.back(), ops.back());
 
         bool dumpOpGraphToFile = false;
@@ -319,8 +325,9 @@ public:
         m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                      TensorShape{ 1, 160, 160, 3 }, TensorShape{ 0, 0, 0, 0 },
                                                      TraversalOrder::Xyz, 0, QuantizationInfo()));
-        m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
-        m_OpGraph.GetBuffers().back()->m_DebugTag   = "InputDramBuffer";
+        m_OpGraph.GetBuffers().back()->m_OperationId = 0;
+        m_OpGraph.GetBuffers().back()->m_BufferType  = BufferType::Input;
+        m_OpGraph.GetBuffers().back()->m_DebugTag    = "InputDramBuffer";
 
         m_OpGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
         m_OpGraph.GetOps()[0]->m_DebugTag     = "InputDmaOp";
@@ -429,8 +436,10 @@ public:
         m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                      TensorShape{ 1, 80, 80, 24 }, TensorShape{ 0, 0, 0, 0 },
                                                      TraversalOrder::Xyz, 0, QuantizationInfo()));
-        m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
-        m_OpGraph.GetBuffers().back()->m_DebugTag   = "OutputDramBufferBranchA";
+        m_OpGraph.GetBuffers().back()->m_OperationId        = 2;
+        m_OpGraph.GetBuffers().back()->m_ProducerOutputIndx = 0;
+        m_OpGraph.GetBuffers().back()->m_BufferType         = BufferType::Output;
+        m_OpGraph.GetBuffers().back()->m_DebugTag           = "OutputDramBufferBranchA";
         m_OpGraph.SetProducer(buffers.back(), ops.back());
 
         m_OpGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
@@ -453,8 +462,10 @@ public:
         m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                      TensorShape{ 1, 80, 80, 24 }, TensorShape{ 0, 0, 0, 0 },
                                                      TraversalOrder::Xyz, 0, QuantizationInfo()));
-        m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
-        m_OpGraph.GetBuffers().back()->m_DebugTag   = "OutputDramBufferBranchB";
+        m_OpGraph.GetBuffers().back()->m_OperationId        = 2;
+        m_OpGraph.GetBuffers().back()->m_ProducerOutputIndx = 0;
+        m_OpGraph.GetBuffers().back()->m_BufferType         = BufferType::Output;
+        m_OpGraph.GetBuffers().back()->m_DebugTag           = "OutputDramBufferBranchB";
         m_OpGraph.SetProducer(buffers.back(), ops.back());
 
         bool dumpOutputGraphToFile = false;
@@ -494,21 +505,25 @@ public:
         m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                      TensorShape{ 1, 16, 16, 3 }, TensorShape{ 1, 8, 8, 16 },
                                                      TraversalOrder::Xyz, 4, QuantizationInfo()));
-        m_OpGraph.GetBuffers().back()->m_DebugTag   = "Input1DramBuffer";
-        m_OpGraph.GetBuffers().back()->m_Offset     = 0x00000FFF;
-        m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
+        m_OpGraph.GetBuffers().back()->m_DebugTag    = "Input1DramBuffer";
+        m_OpGraph.GetBuffers().back()->m_Offset      = 0x00000FFF;
+        m_OpGraph.GetBuffers().back()->m_OperationId = 0;
+        m_OpGraph.GetBuffers().back()->m_BufferType  = BufferType::Input;
         m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                      TensorShape{ 1, 16, 8, 3 }, TensorShape{ 1, 8, 8, 16 },
                                                      TraversalOrder::Xyz, 4, QuantizationInfo()));
-        m_OpGraph.GetBuffers().back()->m_DebugTag   = "Input2DramBuffer";
-        m_OpGraph.GetBuffers().back()->m_Offset     = 0x0000F000;
-        m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
+        m_OpGraph.GetBuffers().back()->m_DebugTag    = "Input2DramBuffer";
+        m_OpGraph.GetBuffers().back()->m_Offset      = 0x0000F000;
+        m_OpGraph.GetBuffers().back()->m_OperationId = 0;
+        m_OpGraph.GetBuffers().back()->m_BufferType  = BufferType::Input;
         m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                      TensorShape{ 1, 16, 24, 3 }, TensorShape{ 1, 16, 24, 3 },
                                                      TraversalOrder::Xyz, 0, QuantizationInfo()));
-        m_OpGraph.GetBuffers().back()->m_DebugTag   = "OutputDramBuffer";
-        m_OpGraph.GetBuffers().back()->m_Offset     = 0x0000F00F;
-        m_OpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
+        m_OpGraph.GetBuffers().back()->m_DebugTag           = "OutputDramBuffer";
+        m_OpGraph.GetBuffers().back()->m_Offset             = 0x0000F00F;
+        m_OpGraph.GetBuffers().back()->m_OperationId        = 2;
+        m_OpGraph.GetBuffers().back()->m_ProducerOutputIndx = 0;
+        m_OpGraph.GetBuffers().back()->m_BufferType         = BufferType::Output;
         m_OpGraph.AddOp(std::make_unique<ConcatOp>(CascadingBufferFormat::NHWCB));
         m_OpGraph.GetOps()[0]->m_DebugTag = "ConcatOp";
         m_OpGraph.AddConsumer(m_OpGraph.GetBuffers()[0], m_OpGraph.GetOps()[0], 0);
@@ -548,9 +563,10 @@ public:
         mergedOpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                          TensorShape{ 1, 160, 160, 3 }, TensorShape{ 0, 0, 0, 0 },
                                                          TraversalOrder::Xyz, 0, QuantizationInfo()));
-        mergedOpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
-        mergedOpGraph.GetBuffers().back()->m_DebugTag   = "InputDramBuffer";
-        mergedOpGraph.GetBuffers().back()->m_Offset     = 0x00000F0A;
+        mergedOpGraph.GetBuffers().back()->m_OperationId = 0;
+        mergedOpGraph.GetBuffers().back()->m_BufferType  = BufferType::Input;
+        mergedOpGraph.GetBuffers().back()->m_DebugTag    = "InputDramBuffer";
+        mergedOpGraph.GetBuffers().back()->m_Offset      = 0x00000F0A;
 
         mergedOpGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
         mergedOpGraph.GetOps()[0]->m_OperationIds = { 1 };
@@ -758,8 +774,10 @@ public:
         mergedOpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                          TensorShape{ 1, 80, 80, 24 }, TensorShape{ 0, 0, 0, 0 },
                                                          TraversalOrder::Xyz, 0, QuantizationInfo()));
-        mergedOpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
-        mergedOpGraph.GetBuffers().back()->m_DebugTag   = "outputDramBuffer";
+        mergedOpGraph.GetBuffers().back()->m_OperationId        = 2;
+        mergedOpGraph.GetBuffers().back()->m_ProducerOutputIndx = 0;
+        mergedOpGraph.GetBuffers().back()->m_BufferType         = BufferType::Output;
+        mergedOpGraph.GetBuffers().back()->m_DebugTag           = "outputDramBuffer";
 
         mergedOpGraph.SetProducer(mergedOpGraph.GetBuffers().back(), mergedOpGraph.GetOps().back());
 
@@ -876,9 +894,10 @@ public:
         mergedOpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                          TensorShape{ 1, 160, 160, 3 }, TensorShape{ 0, 0, 0, 0 },
                                                          TraversalOrder::Xyz, 0, QuantizationInfo()));
-        mergedOpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
-        mergedOpGraph.GetBuffers().back()->m_DebugTag   = "InputDramBuffer";
-        mergedOpGraph.GetBuffers().back()->m_Offset     = 0x00000F0A;
+        mergedOpGraph.GetBuffers().back()->m_OperationId = 0;
+        mergedOpGraph.GetBuffers().back()->m_BufferType  = BufferType::Input;
+        mergedOpGraph.GetBuffers().back()->m_DebugTag    = "InputDramBuffer";
+        mergedOpGraph.GetBuffers().back()->m_Offset      = 0x00000F0A;
 
         mergedOpGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
         mergedOpGraph.GetOps().back()->m_DebugTag = "InputDmaOp";
@@ -1051,8 +1070,10 @@ public:
         mergedOpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                          TensorShape{ 1, 80, 80, 24 }, TensorShape{ 0, 0, 0, 0 },
                                                          TraversalOrder::Xyz, 0, QuantizationInfo()));
-        mergedOpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
-        mergedOpGraph.GetBuffers().back()->m_DebugTag   = "outputDramBuffer";
+        mergedOpGraph.GetBuffers().back()->m_OperationId        = 2;
+        mergedOpGraph.GetBuffers().back()->m_ProducerOutputIndx = 0;
+        mergedOpGraph.GetBuffers().back()->m_BufferType         = BufferType::Output;
+        mergedOpGraph.GetBuffers().back()->m_DebugTag           = "outputDramBuffer";
 
         mergedOpGraph.SetProducer(mergedOpGraph.GetBuffers().back(), mergedOpGraph.GetOps().back());
 
@@ -1167,9 +1188,10 @@ public:
         mergedOpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                          TensorShape{ 1, 5, 5, 1 }, TensorShape{ 0, 0, 0, 0 },
                                                          TraversalOrder::Xyz, 0, QuantizationInfo()));
-        mergedOpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
-        mergedOpGraph.GetBuffers().back()->m_DebugTag   = "InputDramBuffer";
-        mergedOpGraph.GetBuffers().back()->m_Offset     = 0x00000F0A;
+        mergedOpGraph.GetBuffers().back()->m_OperationId = 0;
+        mergedOpGraph.GetBuffers().back()->m_BufferType  = BufferType::Input;
+        mergedOpGraph.GetBuffers().back()->m_DebugTag    = "InputDramBuffer";
+        mergedOpGraph.GetBuffers().back()->m_Offset      = 0x00000F0A;
 
         mergedOpGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
         mergedOpGraph.GetOps().back()->m_DebugTag = "InputDmaOp";
@@ -1340,8 +1362,10 @@ public:
         mergedOpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                          outputTensorShape, TensorShape{ 0, 0, 0, 0 },
                                                          TraversalOrder::Xyz, 0, QuantizationInfo()));
-        mergedOpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
-        mergedOpGraph.GetBuffers().back()->m_DebugTag   = "outputDramBuffer";
+        mergedOpGraph.GetBuffers().back()->m_OperationId        = 2;
+        mergedOpGraph.GetBuffers().back()->m_ProducerOutputIndx = 0;
+        mergedOpGraph.GetBuffers().back()->m_BufferType         = BufferType::Output;
+        mergedOpGraph.GetBuffers().back()->m_DebugTag           = "outputDramBuffer";
 
         mergedOpGraph.SetProducer(mergedOpGraph.GetBuffers().back(), mergedOpGraph.GetOps().back());
 
@@ -1447,9 +1471,10 @@ public:
         mergedOpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                          TensorShape{ 1, 160, 160, 3 }, TensorShape{ 0, 0, 0, 0 },
                                                          TraversalOrder::Xyz, 0, QuantizationInfo()));
-        mergedOpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
-        mergedOpGraph.GetBuffers().back()->m_DebugTag   = "InputDramBuffer";
-        mergedOpGraph.GetBuffers().back()->m_Offset     = 0x00000F0A;
+        mergedOpGraph.GetBuffers().back()->m_OperationId = 0;
+        mergedOpGraph.GetBuffers().back()->m_BufferType  = BufferType::Input;
+        mergedOpGraph.GetBuffers().back()->m_DebugTag    = "InputDramBuffer";
+        mergedOpGraph.GetBuffers().back()->m_Offset      = 0x00000F0A;
 
         // Glue glueInputDram_InputSram
         mergedOpGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
@@ -1580,8 +1605,9 @@ public:
         mergedOpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                          TensorShape{ 1, 1, 3, 1 }, TensorShape{ 0, 0, 0, 0 },
                                                          TraversalOrder::Xyz, 0, QuantizationInfo()));
-        mergedOpGraph.GetBuffers().back()->m_BufferType = BufferType::Input;
-        mergedOpGraph.GetBuffers().back()->m_DebugTag   = "Input2DramBuffer";
+        mergedOpGraph.GetBuffers().back()->m_OperationId = 0;
+        mergedOpGraph.GetBuffers().back()->m_BufferType  = BufferType::Input;
+        mergedOpGraph.GetBuffers().back()->m_DebugTag    = "Input2DramBuffer";
 
         // Glue glueInput2Dram_Input2Sram
         mergedOpGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
@@ -1625,8 +1651,10 @@ public:
         mergedOpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
                                                          TensorShape{ 1, 80, 80, 24 }, TensorShape{ 0, 0, 0, 0 },
                                                          TraversalOrder::Xyz, 0, QuantizationInfo()));
-        mergedOpGraph.GetBuffers().back()->m_BufferType = BufferType::Output;
-        mergedOpGraph.GetBuffers().back()->m_DebugTag   = "outputDramBuffer";
+        mergedOpGraph.GetBuffers().back()->m_OperationId        = 2;
+        mergedOpGraph.GetBuffers().back()->m_ProducerOutputIndx = 0;
+        mergedOpGraph.GetBuffers().back()->m_BufferType         = BufferType::Output;
+        mergedOpGraph.GetBuffers().back()->m_DebugTag           = "outputDramBuffer";
 
         mergedOpGraph.SetProducer(buffers.back(), ops.back());
 

@@ -360,6 +360,10 @@ public:
     /// This value is set by the Combiner for SRAM buffers
     utils::Optional<uint32_t> m_Offset;
 
+    /// This value is set by the NetworkToGraphOfPartsConverter for Input/Output buffers
+    utils::Optional<uint32_t> m_OperationId;
+    utils::Optional<uint32_t> m_ProducerOutputIndx;
+
     /// This value should be easily calculable from m_SizeInBytes and m_SlotSizeInBytes,
     /// but is useful to store by itself nonetheless.
     uint32_t m_NumStripes;

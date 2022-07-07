@@ -19,12 +19,14 @@ OutputPart::OutputPart(PartId id,
                        const CompilerDataFormat& compilerDataFormat,
                        const QuantizationInfo& quantizationInfo,
                        const std::set<uint32_t>& correspondingOperationIds,
+                       const uint32_t producerOutputIndx,
                        const EstimationOptions& estOpt,
                        const CompilationOptions& compOpt,
                        const HardwareCapabilities& capabilities)
     : BasePart(id, "OutputPart", compilerDataFormat, correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape{ inputTensorShape }
     , m_InputQuantizationInfo(quantizationInfo)
+    , m_ProducerOutputIndx{ producerOutputIndx }
 {}
 
 Plans OutputPart::GetPlans(CascadeType cascadeType,
@@ -60,6 +62,8 @@ void OutputPart::CreatePlanForOutputPart(TraversalOrder order, Plans& plans) con
     buffer->m_TensorShape          = m_InputTensorShape;
     buffer->m_SizeInBytes          = utils::CalculateBufferSize(m_InputTensorShape, format);
     buffer->m_QuantizationInfo     = m_InputQuantizationInfo;
+    buffer->m_OperationId          = *m_CorrespondingOperationIds.begin();
+    buffer->m_ProducerOutputIndx   = m_ProducerOutputIndx;
     buffer->m_BufferType           = BufferType::Output;
     inputMappings[buffer.get()]    = PartInputSlot{ m_PartId, 0 };
     opGraph.AddBuffer(std::move(buffer));
