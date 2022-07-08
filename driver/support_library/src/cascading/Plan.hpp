@@ -212,6 +212,7 @@ class DmaOp : public Op
 {
 public:
     DmaOp(CascadingBufferFormat transferFormat);
+    DmaOp(const char* debugType, CascadingBufferFormat transferFormat);
     virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 
     CascadingBufferFormat m_TransferFormat;
@@ -293,7 +294,7 @@ public:
     utils::Optional<uint32_t> m_Offset;
 };
 
-class ConcatOp : public Op
+class ConcatOp : public DmaOp
 {
 public:
     ConcatOp(CascadingBufferFormat transferFormat);
@@ -301,14 +302,12 @@ public:
     {
         return numberOfInputs * 2;
     }
-
-    CascadingBufferFormat m_TransferFormat;
 };
 
-class SplitOp : public Op
+class SplitOp : public DmaOp
 {
 public:
-    SplitOp(CascadingBufferFormat transferFormat);
+    SplitOp(CascadingBufferFormat transferFormat, TensorShape offset);
     virtual uint32_t GetNumberOfAgents(uint32_t numberOfOutputs) const override final
     {
         // Instead of one split op producing x outputs, instead we create x split ops, each with one output
@@ -316,7 +315,8 @@ public:
         ETHOSN_UNUSED(numberOfOutputs);
     }
 
-    CascadingBufferFormat m_TransferFormat;
+    // The offset within the source buffer which this split op starts at
+    TensorShape m_Offset;
 };
 
 class EstimateOnlyOp : public Op

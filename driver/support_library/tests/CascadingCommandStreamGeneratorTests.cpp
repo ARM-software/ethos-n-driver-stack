@@ -81,7 +81,7 @@ public:
 
         m_OpGraph.SetProducer(buffers.back(), ops.back());
 
-        bool dumpOpGraphToFile = true;
+        bool dumpOpGraphToFile = false;
         if (dumpOpGraphToFile)
         {
             std::ofstream stream("CascadingCommandStreamGenerator PleOnlySchedulerAgent Input.dot");
@@ -549,6 +549,71 @@ private:
     Plan input1DramPlan;
     Plan input2DramPlan;
     Plan concatPlan;
+    Plan outputDramPlan;
+    Combination comb;
+    OwnedOpGraph m_OpGraph;
+};
+
+class SplitOpGraph
+{
+public:
+    SplitOpGraph()
+    {
+        // Plan splitPlan
+        m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                     TensorShape{ 1, 16, 16, 3 }, TensorShape{ 1, 8, 8, 3 },
+                                                     TraversalOrder::Xyz, 4, QuantizationInfo()));
+        m_OpGraph.GetBuffers().back()->m_DebugTag    = "InputDramBuffer";
+        m_OpGraph.GetBuffers().back()->m_Offset      = 0x00000FFF;
+        m_OpGraph.GetBuffers().back()->m_BufferType  = BufferType::Input;
+        m_OpGraph.GetBuffers().back()->m_OperationId = 0;
+
+        m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                     TensorShape{ 1, 10, 16, 3 }, TensorShape{ 1, 16, 8, 3 },
+                                                     TraversalOrder::Xyz, 0, QuantizationInfo()));
+        m_OpGraph.GetBuffers().back()->m_DebugTag           = "Output1DramBuffer";
+        m_OpGraph.GetBuffers().back()->m_Offset             = 0x0000F000;
+        m_OpGraph.GetBuffers().back()->m_BufferType         = BufferType::Output;
+        m_OpGraph.GetBuffers().back()->m_OperationId        = 1;
+        m_OpGraph.GetBuffers().back()->m_ProducerOutputIndx = 0;
+
+        m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                     TensorShape{ 1, 6, 16, 3 }, TensorShape{ 1, 16, 8, 3 },
+                                                     TraversalOrder::Xyz, 0, QuantizationInfo()));
+        m_OpGraph.GetBuffers().back()->m_DebugTag           = "Output2DramBuffer";
+        m_OpGraph.GetBuffers().back()->m_Offset             = 0x0000FFFA;
+        m_OpGraph.GetBuffers().back()->m_BufferType         = BufferType::Output;
+        m_OpGraph.GetBuffers().back()->m_OperationId        = 2;
+        m_OpGraph.GetBuffers().back()->m_ProducerOutputIndx = 0;
+
+        m_OpGraph.AddOp(std::make_unique<SplitOp>(CascadingBufferFormat::NHWCB, TensorShape{ 0, 0, 0, 0 }));
+        m_OpGraph.AddOp(std::make_unique<SplitOp>(CascadingBufferFormat::NHWCB, TensorShape{ 1, 10, 16, 3 }));
+        m_OpGraph.GetOps()[0]->m_DebugTag = "Split1Op";
+        m_OpGraph.GetOps()[1]->m_DebugTag = "Split2Op";
+
+        m_OpGraph.AddConsumer(m_OpGraph.GetBuffers()[0], m_OpGraph.GetOps()[0], 0);
+        m_OpGraph.AddConsumer(m_OpGraph.GetBuffers()[0], m_OpGraph.GetOps()[1], 0);
+        m_OpGraph.SetProducer(m_OpGraph.GetBuffers()[1], m_OpGraph.GetOps()[0]);
+        m_OpGraph.SetProducer(m_OpGraph.GetBuffers()[2], m_OpGraph.GetOps()[1]);
+
+        bool dumpOutputGraphToFile = false;
+        if (dumpOutputGraphToFile)
+        {
+            std::ofstream stream("Split_Graph_Merged.dot");
+            SaveOpGraphToDot(m_OpGraph, stream, DetailLevel::High);
+        }
+    }
+
+    OpGraph GetMergedOpGraph()
+    {
+        return m_OpGraph;
+    }
+
+private:
+    GraphOfParts graph;
+    Plan input1DramPlan;
+    Plan input2DramPlan;
+    Plan splitPlan;
     Plan outputDramPlan;
     Combination comb;
     OwnedOpGraph m_OpGraph;
@@ -1959,6 +2024,29 @@ TEST_CASE("ConcatOpGraph Command Stream Agents Order Test", "[CascadingCommandSt
     CHECK(commandStream[3].data.type == AgentType::OFM_STREAMER);
 }
 
+TEST_CASE("SplitOpGraph Command Stream Agents Order Test", "[CascadingCommandStreamGenerator]")
+{
+    SplitOpGraph opGraph  = SplitOpGraph();
+    OpGraph mergedOpGraph = opGraph.GetMergedOpGraph();
+
+    const std::set<uint32_t> operationIds = { 0 };
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
+
+    DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
+    CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
+                                                           debuggingContext);
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
+
+    const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
+
+    CHECK(commandStream.size() == 4);
+    CHECK(commandStream[0].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[1].data.type == AgentType::OFM_STREAMER);
+    CHECK(commandStream[2].data.type == AgentType::IFM_STREAMER);
+    CHECK(commandStream[3].data.type == AgentType::OFM_STREAMER);
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////
 // Agent Data Tests
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -1983,7 +2071,7 @@ TEST_CASE("IfmStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
     const Agent& ifmSAgent = commandStream[0];
     const IfmS& ifmSData   = ifmSAgent.data.ifm;
 
-    CHECK(ifmSData.fmData.dramOffset == 0);
+    CHECK(ifmSData.fmData.dramOffset == 0xf0a);
     CHECK(ifmSData.fmData.bufferId == 1);
     CHECK(ifmSData.fmData.dataType == FmsDataType::NHWCB);
 
@@ -2572,7 +2660,7 @@ TEST_CASE("Concat Op Agent Data Test", "[CascadingCommandStreamGenerator]")
 
     // IfmSData1
     CHECK(ifmSData1.fmData.bufferId == 2);
-    CHECK(ifmSData1.fmData.dramOffset == 0);
+    CHECK(ifmSData1.fmData.dramOffset == 0xfff);
     CHECK(ifmSData1.fmData.dataType == FmsDataType::NHWCB);
 
     CHECK(ifmSData1.fmData.fcafInfo.zeroPoint == 0);
@@ -2634,7 +2722,7 @@ TEST_CASE("Concat Op Agent Data Test", "[CascadingCommandStreamGenerator]")
 
     // ifmsData2
     CHECK(ifmSData2.fmData.bufferId == 3);
-    CHECK(ifmSData2.fmData.dramOffset == 0);
+    CHECK(ifmSData2.fmData.dramOffset == 0xf000);
     CHECK(ifmSData2.fmData.dataType == FmsDataType::NHWCB);
 
     CHECK(ifmSData2.fmData.fcafInfo.zeroPoint == 0);
@@ -2695,6 +2783,157 @@ TEST_CASE("Concat Op Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(ofmSData2.fmData.stripeIdStrides.channels == 1);
 }
 
+// Split Op Agent Data Test
+TEST_CASE("Split Op Agent Data Test", "[CascadingCommandStreamGenerator]")
+{
+    SplitOpGraph inputOutputMergeGraph = SplitOpGraph();
+    OpGraph mergedOpGraph              = inputOutputMergeGraph.GetMergedOpGraph();
+
+    const CompilationOptions compOpt;
+    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
+    const std::set<uint32_t> operationIds = { 0 };
+
+    DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
+    CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
+                                                           debuggingContext);
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
+
+    const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
+
+    const Agent& ifmSAgent1 = commandStream[0];
+    const Agent& ofmSAgent1 = commandStream[1];
+    const Agent& ifmSAgent2 = commandStream[2];
+    const Agent& ofmSAgent2 = commandStream[3];
+
+    const IfmS& ifmSData1 = ifmSAgent1.data.ifm;
+    const OfmS& ofmSData1 = ofmSAgent1.data.ofm;
+    const IfmS& ifmSData2 = ifmSAgent2.data.ifm;
+    const OfmS& ofmSData2 = ofmSAgent2.data.ofm;
+
+    // IfmSData1
+    CHECK(ifmSData1.fmData.bufferId == 2);
+    CHECK(ifmSData1.fmData.dramOffset == 0);
+    CHECK(ifmSData1.fmData.dataType == FmsDataType::NHWCB);
+
+    CHECK(ifmSData1.fmData.fcafInfo.zeroPoint == 0);
+    CHECK(ifmSData1.fmData.fcafInfo.signedActivation == false);
+
+    CHECK(ifmSData1.fmData.tile.baseAddr == 0);
+    CHECK(ifmSData1.fmData.tile.numSlots == 1);
+    CHECK(ifmSData1.fmData.tile.slotSize == 128);
+
+    CHECK(ifmSData1.fmData.dfltStripeSize.height == 8);
+    CHECK(ifmSData1.fmData.dfltStripeSize.width == 8);
+    CHECK(ifmSData1.fmData.dfltStripeSize.channels == 3);
+
+    CHECK(ifmSData1.fmData.edgeStripeSize.height == 8);
+    CHECK(ifmSData1.fmData.edgeStripeSize.width == 8);
+    CHECK(ifmSData1.fmData.edgeStripeSize.channels == 3);
+
+    CHECK(ifmSData1.fmData.supertensorSizeInCells.width == 2);
+    CHECK(ifmSData1.fmData.supertensorSizeInCells.channels == 1);
+
+    CHECK(ifmSData1.fmData.numStripes.height == 2);
+    CHECK(ifmSData1.fmData.numStripes.width == 2);
+    CHECK(ifmSData1.fmData.numStripes.channels == 1);
+
+    CHECK(ifmSData1.fmData.stripeIdStrides.height == 2);
+    CHECK(ifmSData1.fmData.stripeIdStrides.width == 1);
+    CHECK(ifmSData1.fmData.stripeIdStrides.channels == 4);
+
+    // ofmSData1
+    CHECK(ofmSData1.fmData.bufferId == 1);
+    CHECK(ofmSData1.fmData.dramOffset == 0xf000);
+    CHECK(ofmSData1.fmData.dataType == FmsDataType::NHWCB);
+
+    CHECK(ofmSData1.fmData.fcafInfo.zeroPoint == 0);
+    CHECK(ofmSData1.fmData.fcafInfo.signedActivation == false);
+
+    CHECK(ofmSData1.fmData.tile.baseAddr == 0);
+    CHECK(ofmSData1.fmData.tile.numSlots == 1);
+    CHECK(ofmSData1.fmData.tile.slotSize == 128);
+
+    CHECK(ofmSData1.fmData.dfltStripeSize.height == 8);
+    CHECK(ofmSData1.fmData.dfltStripeSize.width == 8);
+    CHECK(ofmSData1.fmData.dfltStripeSize.channels == 3);
+
+    CHECK(ofmSData1.fmData.edgeStripeSize.height == 8);
+    CHECK(ofmSData1.fmData.edgeStripeSize.width == 8);
+    CHECK(ofmSData1.fmData.edgeStripeSize.channels == 3);
+
+    CHECK(ofmSData1.fmData.supertensorSizeInCells.width == 2);
+    CHECK(ofmSData1.fmData.supertensorSizeInCells.channels == 1);
+
+    CHECK(ofmSData1.fmData.numStripes.height == 2);
+    CHECK(ofmSData1.fmData.numStripes.width == 2);
+    CHECK(ofmSData1.fmData.numStripes.channels == 1);
+
+    CHECK(ofmSData1.fmData.stripeIdStrides.height == 2);
+    CHECK(ofmSData1.fmData.stripeIdStrides.width == 1);
+    CHECK(ofmSData1.fmData.stripeIdStrides.channels == 4);
+
+    // ifmsData2
+    CHECK(ifmSData2.fmData.bufferId == 2);
+    CHECK(ifmSData2.fmData.dramOffset == 0x1030);
+    CHECK(ifmSData2.fmData.dataType == FmsDataType::NHWCB);
+
+    CHECK(ifmSData2.fmData.fcafInfo.zeroPoint == 0);
+    CHECK(ifmSData2.fmData.fcafInfo.signedActivation == false);
+
+    CHECK(ifmSData2.fmData.tile.baseAddr == 0);
+    CHECK(ifmSData2.fmData.tile.numSlots == 1);
+    CHECK(ifmSData2.fmData.tile.slotSize == 128);
+
+    CHECK(ifmSData2.fmData.dfltStripeSize.height == 8);
+    CHECK(ifmSData2.fmData.dfltStripeSize.width == 8);
+    CHECK(ifmSData2.fmData.dfltStripeSize.channels == 3);
+
+    CHECK(ifmSData2.fmData.edgeStripeSize.height == 8);
+    CHECK(ifmSData2.fmData.edgeStripeSize.width == 8);
+    CHECK(ifmSData2.fmData.edgeStripeSize.channels == 3);
+
+    CHECK(ifmSData2.fmData.supertensorSizeInCells.width == 2);
+    CHECK(ifmSData2.fmData.supertensorSizeInCells.channels == 1);
+
+    CHECK(ifmSData2.fmData.numStripes.height == 1);
+    CHECK(ifmSData2.fmData.numStripes.width == 2);
+    CHECK(ifmSData2.fmData.numStripes.channels == 1);
+
+    CHECK(ifmSData2.fmData.stripeIdStrides.height == 2);
+    CHECK(ifmSData2.fmData.stripeIdStrides.width == 1);
+    CHECK(ifmSData2.fmData.stripeIdStrides.channels == 2);
+
+    // ofmsData2
+    CHECK(ofmSData2.fmData.bufferId == 3);
+    CHECK(ofmSData2.fmData.dramOffset == 0x0000fffa);
+    CHECK(ofmSData2.fmData.dataType == FmsDataType::NHWCB);
+
+    CHECK(ofmSData2.fmData.fcafInfo.zeroPoint == 0);
+    CHECK(ofmSData2.fmData.fcafInfo.signedActivation == false);
+
+    CHECK(ofmSData2.fmData.tile.baseAddr == 0);
+    CHECK(ofmSData2.fmData.tile.numSlots == 1);
+    CHECK(ofmSData2.fmData.tile.slotSize == 128);
+
+    CHECK(ofmSData2.fmData.dfltStripeSize.height == 8);
+    CHECK(ofmSData2.fmData.dfltStripeSize.width == 8);
+    CHECK(ofmSData2.fmData.dfltStripeSize.channels == 3);
+
+    CHECK(ofmSData2.fmData.edgeStripeSize.height == 8);
+    CHECK(ofmSData2.fmData.edgeStripeSize.width == 8);
+    CHECK(ofmSData2.fmData.edgeStripeSize.channels == 3);
+
+    CHECK(ofmSData2.fmData.supertensorSizeInCells.width == 2);
+    CHECK(ofmSData2.fmData.supertensorSizeInCells.channels == 1);
+
+    CHECK(ofmSData2.fmData.numStripes.height == 1);
+    CHECK(ofmSData2.fmData.numStripes.width == 2);
+    CHECK(ofmSData2.fmData.numStripes.channels == 1);
+
+    CHECK(ofmSData2.fmData.stripeIdStrides.height == 2);
+    CHECK(ofmSData2.fmData.stripeIdStrides.width == 1);
+    CHECK(ofmSData2.fmData.stripeIdStrides.channels == 2);
+}
 //////////////////////////////////////////////////////////////////////////////////////////////
 // Read After Write Dependency Tests
 //////////////////////////////////////////////////////////////////////////////////////////////

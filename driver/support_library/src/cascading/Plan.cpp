@@ -298,6 +298,11 @@ DmaOp::DmaOp(CascadingBufferFormat transferFormat)
     , m_TransferFormat(transferFormat)
 {}
 
+DmaOp::DmaOp(const char* debugType, CascadingBufferFormat transferFormat)
+    : Op(debugType)
+    , m_TransferFormat(transferFormat)
+{}
+
 DotAttributes DmaOp::GetDotAttributes(DetailLevel detail) const
 {
     DotAttributes result;
@@ -450,13 +455,12 @@ DotAttributes PleOp::GetDotAttributes(DetailLevel detail) const
 }
 
 ConcatOp::ConcatOp(CascadingBufferFormat transferFormat)
-    : Op("ConcatOp")
-    , m_TransferFormat(transferFormat)
+    : DmaOp("ConcatOp", transferFormat)
 {}
 
-SplitOp::SplitOp(CascadingBufferFormat transferFormat)
-    : Op("SplitOp")
-    , m_TransferFormat(transferFormat)
+SplitOp::SplitOp(CascadingBufferFormat transferFormat, TensorShape offset)
+    : DmaOp("SplitOp", transferFormat)
+    , m_Offset(offset)
 {}
 
 EstimateOnlyOp::EstimateOnlyOp(const std::string& reasonForEstimateOnly)

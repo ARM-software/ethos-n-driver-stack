@@ -917,52 +917,43 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
                                                       const std::vector<PartConnection>& destPartEdge)
 {
     assert(destPartEdge.size() != 0);
-    Combination result = comb;
+    Combination result;
 
+    result = comb;
     // Find an element belonging to source part in the combination
     auto elemIt = comb.m_Elems.find(sPart.GetPartId());
     assert(elemIt != comb.m_Elems.end());
     const Plan& sourcePlan = *elemIt->second.m_Plan;
-
     // Find the output buffer of the source node.
     // Note all destination nodes are branched off from
     // the same source node
     Buffer* outputBuffer = sourcePlan.GetOutputBuffer(destPartEdge.at(0).m_Source);
     assert(outputBuffer != nullptr);
-
     bool isSrcLocationSram = outputBuffer->m_Location == Location::Sram;
-
     std::vector<Buffer*> buffersSharingGlue;
     std::vector<std::pair<PartConnection, bool>> edgesSharingGlue;
     std::vector<bool> inputBufferSram;
     std::vector<std::pair<PartConnection, Buffer*>> buffersEdgesUseOwnGlue;
-
     auto canUseSharedGlue = [&](const BasePart& part, const Buffer* inputBuffer) -> bool {
         return ((!IsPartOutput(part) && inputBuffer->m_Format != CascadingBufferFormat::NHWC) ||
                 inputBuffer->m_Location == Location::Sram);
     };
-
     // Gets the number of branches that are not output or input buffer in SRAM
     uint32_t noOfBranchesToShareGlue = 0;
     for (const auto& partEdge : destPartEdge)
     {
-        const BasePart& part = m_GraphOfParts.GetPart(partEdge.m_Destination.m_PartId);
-        const Plan& plan     = GetPlanForPartFromCombination(part, comb);
-
+        const BasePart& part      = m_GraphOfParts.GetPart(partEdge.m_Destination.m_PartId);
+        const Plan& plan          = GetPlanForPartFromCombination(part, comb);
         const Buffer* inputBuffer = plan.GetInputBuffer(partEdge.m_Destination);
         assert(inputBuffer != nullptr);
-
         noOfBranchesToShareGlue += canUseSharedGlue(part, inputBuffer);
     }
-
     for (const auto& partEdge : destPartEdge)
     {
         const BasePart& part = m_GraphOfParts.GetPart(partEdge.m_Destination.m_PartId);
         const Plan& plan     = GetPlanForPartFromCombination(part, comb);
-
-        Buffer* inputBuffer = plan.GetInputBuffer(partEdge.m_Destination);
+        Buffer* inputBuffer  = plan.GetInputBuffer(partEdge.m_Destination);
         assert(inputBuffer != nullptr);
-
         // A branch is attached to a shared glue if the following conditions are met:
         // it is either not a output part and its input buffer format is not NHWC,
         // or its input buffer is SRAM
@@ -975,7 +966,6 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
         // A branch with input buffer formant in NHWC cannot use shared glue
         // because the format of the intermediate buffer of a shared glue is NHWCB.
         bool useSharedGlue = noOfBranchesToShareGlue > 1 && canUseSharedGlue(part, inputBuffer);
-
         if (isSrcLocationSram && useSharedGlue)
         {
             buffersSharingGlue.push_back(inputBuffer);
@@ -986,9 +976,7 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
             buffersEdgesUseOwnGlue.push_back(std::make_pair(partEdge, inputBuffer));
         }
     }
-
     assert(buffersSharingGlue.size() == edgesSharingGlue.size());
-
     StartingAndEndingGlues startingAndEndingGlues;
     for (auto branch : buffersEdgesUseOwnGlue)
     {
@@ -1010,18 +998,14 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
         startingAndEndingGlues.m_EndingGlue.m_ExternalConnections.m_ReplacementBuffers.insert(
             glueResult.second.m_EndingGlue.m_ExternalConnections.m_ReplacementBuffers.begin(),
             glueResult.second.m_EndingGlue.m_ExternalConnections.m_ReplacementBuffers.end());
-
         result.SetStartingGlue(std::move(glueResult.second.m_StartingGlues[0]), branch.first.m_Destination);
     }
-
     if (buffersSharingGlue.size() != 0)
     {
         std::pair<bool, StartingAndEndingGlues> glueResult = GetSharedGlue(outputBuffer, buffersSharingGlue);
-
         assert(glueResult.first == true);
         // The number of starting glues must be the same as the number of destinations
         assert(glueResult.second.m_StartingGlues.size() == edgesSharingGlue.size());
-
         startingAndEndingGlues.m_EndingGlue.m_Graph.MergeOpGraph(glueResult.second.m_EndingGlue.m_Graph);
         startingAndEndingGlues.m_EndingGlue.m_ExternalConnections.m_BuffersToOps.insert(
             glueResult.second.m_EndingGlue.m_ExternalConnections.m_BuffersToOps.begin(),
@@ -1032,15 +1016,16 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
         startingAndEndingGlues.m_EndingGlue.m_ExternalConnections.m_ReplacementBuffers.insert(
             glueResult.second.m_EndingGlue.m_ExternalConnections.m_ReplacementBuffers.begin(),
             glueResult.second.m_EndingGlue.m_ExternalConnections.m_ReplacementBuffers.end());
-
         for (uint32_t i = 0; i < edgesSharingGlue.size(); ++i)
         {
             result.SetStartingGlue(std::move(glueResult.second.m_StartingGlues[i]),
                                    edgesSharingGlue[i].first.m_Destination);
         }
     }
-    result.AddEndingGlue(std::move(startingAndEndingGlues.m_EndingGlue), destPartEdge.at(0).m_Source);
-
+    for (auto destEdge : destPartEdge)
+    {
+        result.AddEndingGlue(std::move(startingAndEndingGlues.m_EndingGlue), destEdge.m_Source);
+    }
     return result;
 }
 
@@ -1435,11 +1420,16 @@ Combination Combiner::SinglePartSection(const BasePart& part)
 
         // Each of it destination part will start its own new section.
         // Therefore they all need to be glued with their source.
-        std::vector<PartConnection> destPartEdge = m_GraphOfParts.GetDestinationConnections(part.GetPartId());
-
-        if (destPartEdge.empty() == false)
+        auto outputSlots = m_GraphOfParts.GetPartOutputs(part.GetPartId());
+        for (PartOutputSlot outputSlot : outputSlots)
         {
-            result = GluePartToCombinationSrcToDests(part, result, destPartEdge);
+            std::vector<PartConnection> conns;
+            std::vector<PartInputSlot> inputSlots = m_GraphOfParts.GetConnectedInputSlots(outputSlot);
+            for (auto inputSlot : inputSlots)
+            {
+                conns.push_back({ inputSlot, outputSlot });
+            }
+            result = GluePartToCombinationSrcToDests(part, result, conns);
         }
     }
 

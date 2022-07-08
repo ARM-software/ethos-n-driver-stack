@@ -83,7 +83,7 @@ void CheckMappings(const CheckPlansParams& params, const Plan& plan, std::vector
     for (uint32_t outputIndex = 1; outputIndex < buffers.size(); outputIndex++)
     {
         CHECK(plan.m_OutputMappings.at(buffers[outputIndex]).m_PartId == params.m_PartId);
-        CHECK(plan.m_OutputMappings.at(buffers[outputIndex]).m_OutputIndex == 0);
+        CHECK(plan.m_OutputMappings.at(buffers[outputIndex]).m_OutputIndex == outputIndex - 1);
     }
 
     ETHOSN_UNUSED(splitBuffers);

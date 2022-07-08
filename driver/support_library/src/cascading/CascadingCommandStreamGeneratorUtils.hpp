@@ -39,6 +39,116 @@ inline uint16_t CalculateEdgeSize(uint32_t tensorSize, uint32_t defaultStripeSiz
     return edge != 0 ? edge : ethosn::utils::NumericCast<uint16_t>(defaultStripeSize);
 }
 
+inline uint32_t CalculateDramOffsetNHWCB(const TensorShape& tensorShape,
+                                         uint32_t offsetY,
+                                         uint32_t offsetX,
+                                         uint32_t offsetC,
+                                         const HardwareCapabilities& caps)
+{
+    using namespace utils;
+    const TensorShape& brickGroupShape = caps.GetBrickGroupShape();
+    const TensorShape& patchShape      = caps.GetPatchShape();
+    const uint32_t brickGroupSize      = GetNumElements(brickGroupShape);
+    const uint32_t brickGroupHeight    = GetHeight(brickGroupShape);
+    const uint32_t brickGroupWidth     = GetWidth(brickGroupShape);
+    const uint32_t brickGroupChannels  = GetChannels(brickGroupShape);
+    const uint32_t patchSize           = GetNumElements(patchShape);
+    const uint32_t patchHeight         = GetHeight(patchShape);
+    const uint32_t patchWidth          = GetWidth(patchShape);
+
+    uint32_t numBrickGroupDepth = utils::DivRoundUp(GetChannels(tensorShape), brickGroupChannels);
+    uint32_t numBrickGroupWidth = utils::DivRoundUp(GetWidth(tensorShape), brickGroupWidth);
+
+    uint32_t offsetBrickGroupX = offsetX / brickGroupWidth;
+    uint32_t offsetBrickGroupY = offsetY / brickGroupHeight;
+    uint32_t offsetBrickGroupC = offsetC / brickGroupChannels;
+    uint32_t offsetChannels    = offsetC % brickGroupChannels;
+    uint32_t offsetBrickGroups = offsetBrickGroupC + offsetBrickGroupX * numBrickGroupDepth +
+                                 offsetBrickGroupY * numBrickGroupDepth * numBrickGroupWidth;
+    uint32_t offsetWithinBrickGroupX         = offsetX % brickGroupWidth;
+    uint32_t offsetWithinBrickGroupY         = offsetY % brickGroupHeight;
+    uint32_t patchWithinBrickGroupX          = offsetWithinBrickGroupX / patchWidth;
+    uint32_t patchWithinBrickGroupY          = offsetWithinBrickGroupY / patchHeight;
+    const uint32_t brickGroupHeightInPatches = brickGroupHeight / patchHeight;
+    uint32_t brickWithinBrickGroup  = patchWithinBrickGroupX * brickGroupHeightInPatches + patchWithinBrickGroupY;
+    uint32_t offsetWithinBrickGroup = (brickWithinBrickGroup * brickGroupChannels + offsetChannels) * patchSize;
+
+    uint32_t offsetBytes = brickGroupSize * offsetBrickGroups + offsetWithinBrickGroup;
+
+    return offsetBytes;
+}
+
+inline uint32_t
+    CalculateDramOffsetNHWC(const TensorShape& tensorShape, uint32_t offsetY, uint32_t offsetX, uint32_t offsetC)
+{
+    using namespace utils;
+    return offsetC + offsetX * GetChannels(tensorShape) + offsetY * GetChannels(tensorShape) * GetWidth(tensorShape);
+}
+
+inline uint32_t GetDramOffset(const CascadingBufferFormat dataFormat,
+                              const TensorShape& tensorSize,
+                              const TensorShape& offset,
+                              const HardwareCapabilities& caps)
+{
+    uint32_t offsetBytes = 0;
+
+    switch (dataFormat)
+    {
+        case CascadingBufferFormat::NHWCB:
+        {
+            offsetBytes = CalculateDramOffsetNHWCB(tensorSize, offset[1], offset[2], offset[3], caps);
+            break;
+        }
+        case CascadingBufferFormat::NHWC:
+        case CascadingBufferFormat::NCHW:
+        {
+            offsetBytes = CalculateDramOffsetNHWC(tensorSize, offset[1], offset[2], offset[3]);
+            break;
+        }
+        default:
+        {
+            assert(false);
+        }
+    };
+
+    return offsetBytes;
+}
+
+inline std::vector<Op*> GetSortedOps(const OpGraph& opGraph)
+{
+    std::vector<Op*> targets;
+    for (const auto& op : opGraph.GetOps())
+    {
+        auto outputBuf = opGraph.GetOutput(op);
+        if (outputBuf != nullptr)
+        {
+            const auto& consumers = opGraph.GetConsumers(outputBuf);
+            // If the op's output buffer doesn't have an output it is a leaf node
+            if (consumers.size() == 0)
+            {
+                targets.push_back(op);
+            }
+        }
+    }
+    std::vector<Op*> sorted;
+    // Define a function to get the incoming vertices for the topological sort
+    auto GetIncomingOps = [&](Op* op) {
+        std::vector<Op*> result;
+        const OpGraph::BufferList& inputBuffers = opGraph.GetInputs(op);
+        for (const auto& buf : inputBuffers)
+        {
+            Op* op = opGraph.GetProducer(buf);
+            if (op != nullptr)
+            {
+                result.push_back(op);
+            }
+        }
+        return result;
+    };
+    utils::GraphTopologicalSort<Op*, std::vector<Op*>>(targets, GetIncomingOps, sorted);
+
+    return sorted;
+}
 }    // namespace CommonUtils
 
 namespace StreamersUtils
@@ -549,12 +659,12 @@ inline uint16_t CalculateGCD(uint16_t a, uint16_t b)
 {
     if (a == 0)
     {
-        return ethosn::utils::NumericCast<uint16_t>(b);
+        return ethosn::utils::NumericCast<uint8_t>(b);
     }
     return CalculateGCD(b % a, a);
 }
 
-inline uint16_t FindGreatestCommonDenominator(uint16_t a, uint16_t b, uint16_t c)
+inline uint16_t FindGreatestCommonDenominator(uint16_t a, uint16_t b, uint8_t c)
 {
     uint16_t gcdAB = CalculateGCD(a, b);
     if (c == 0)

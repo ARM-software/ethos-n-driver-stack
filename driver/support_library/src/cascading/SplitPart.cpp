@@ -65,9 +65,10 @@ void SplitPart::CreateSplitDramPlan(Plans& plans) const
     inputMappings[inputBuffer] = PartInputSlot{ m_PartId, 0 };
 
     std::vector<TensorInfo> expectedOutputInfo = Split::CalculateOutputTensorInfos(m_InputTensorInfo, m_SplitInfo);
+    TensorShape offset                         = { 0, 0, 0, 0 };
     for (uint32_t outputIndex = 0; outputIndex < m_SplitInfo.m_Sizes.size(); ++outputIndex)
     {
-        auto splitOp       = std::make_unique<SplitOp>(format);
+        auto splitOp       = std::make_unique<SplitOp>(format, offset);
         Op* op             = opGraph.AddOp(std::move(splitOp));
         op->m_OperationIds = m_CorrespondingOperationIds;
 
@@ -80,7 +81,10 @@ void SplitPart::CreateSplitDramPlan(Plans& plans) const
         outputBuffer->m_QuantizationInfo = expectedOutputInfo[outputIndex].m_QuantizationInfo;
         outputBuffer->m_BufferType       = BufferType::Intermediate;
         opGraph.SetProducer(outputBuffer, op);
-        outputMappings[outputBuffer] = PartOutputSlot{ m_PartId, 0 };
+        outputMappings[outputBuffer] = PartOutputSlot{ m_PartId, outputIndex };
+
+        // Calculate the offset of each output index
+        offset[m_SplitInfo.m_Axis] = offset[m_SplitInfo.m_Axis] + m_SplitInfo.m_Sizes[outputIndex];
     }
 
     AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
