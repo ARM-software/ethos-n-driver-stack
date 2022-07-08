@@ -739,7 +739,20 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(Op* c
     StreamersUtils::SetStripeChannelsInfo(ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
                                           inputSramBuffer->m_StripeShape);
 
-    StreamersUtils::SetSuperTensorSizeInCells(ifmStreamerData.fmData, inputDramBuffer->m_TensorShape, transferFormat);
+    // The supertensor size is taken from either the SRAM buffer or the DRAM buffer, because these might be
+    // different if there was a reshape. In the case of reshape then we use the SRAM shape so that is consistent
+    // with the stripe shape which always comes from the SRAM buffer. If this is a concat/split though
+    // then we need to use the DRAM shape because it will be a supertensor.
+    if (utils::GetNumElements(inputSramBuffer->m_TensorShape) == utils::GetNumElements(inputDramBuffer->m_TensorShape))
+    {
+        StreamersUtils::SetSuperTensorSizeInCells(ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
+                                                  transferFormat);
+    }
+    else
+    {
+        StreamersUtils::SetSuperTensorSizeInCells(ifmStreamerData.fmData, inputDramBuffer->m_TensorShape,
+                                                  transferFormat);
+    }
 
     StreamersUtils::SetStripeIdStrides(ifmStreamerData.fmData, inputSramBuffer->m_Order);
     ifmStreamerData.packedBoundaryThickness = inputSramBuffer->m_PackedBoundaryThickness;
@@ -1061,8 +1074,21 @@ AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(Op* c
     StreamersUtils::SetStripeChannelsInfo(ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
                                           outputSramBuffer->m_StripeShape);
 
-    StreamersUtils::SetSuperTensorSizeInCells(ofmStreamerData.fmData, outputDramBuffer->m_TensorShape,
-                                              outputDramBuffer->m_Format);
+    // The supertensor size is taken from either the SRAM buffer or the DRAM buffer, because these might be
+    // different if there was a reshape. In the case of reshape then we use the SRAM shape so that is consistent
+    // with the stripe shape which always comes from the SRAM buffer. If this is a concat/split though
+    // then we need to use the DRAM shape because it will be a supertensor.
+    if (utils::GetNumElements(outputSramBuffer->m_TensorShape) ==
+        utils::GetNumElements(outputDramBuffer->m_TensorShape))
+    {
+        StreamersUtils::SetSuperTensorSizeInCells(ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
+                                                  outputDramBuffer->m_Format);
+    }
+    else
+    {
+        StreamersUtils::SetSuperTensorSizeInCells(ofmStreamerData.fmData, outputDramBuffer->m_TensorShape,
+                                                  outputDramBuffer->m_Format);
+    }
 
     StreamersUtils::SetStripeIdStrides(ofmStreamerData.fmData, outputSramBuffer->m_Order);
 

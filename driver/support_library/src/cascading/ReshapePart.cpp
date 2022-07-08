@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "ReshapePart.hpp"
+
 #include "PartUtils.hpp"
 #include "Plan.hpp"
-#include "ReshapePart.hpp"
 
 namespace ethosn
 {
