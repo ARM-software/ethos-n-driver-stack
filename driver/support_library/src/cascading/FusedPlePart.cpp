@@ -156,7 +156,8 @@ std::pair<Buffer*, Buffer*> FusedPlePart::AddIdentityMceOpForSubGraph(OwnedOpGra
     std::vector<int32_t> biasData(numIfm, 0);
 
     // Add input Buffer.
-    opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TraversalOrder::Zxy));
+    // Note traversal order is Xyz because it's depthwise
+    opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
     Buffer* idMceOpInBuff = buffers.back();
 
     // Add Weight buffers and DmaOp.

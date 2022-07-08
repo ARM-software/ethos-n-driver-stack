@@ -431,8 +431,10 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
         mceOpAlgo = CompilerMceAlgorithm::Direct;
     }
 
+    const TraversalOrder ifmTraversalOrder =
+        m_Operation == command_stream::MceOperation::DEPTHWISE_CONVOLUTION ? TraversalOrder::Xyz : TraversalOrder::Zxy;
     Buffer* sramInBuffer =
-        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TraversalOrder::Zxy));
+        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, ifmTraversalOrder));
     sramInBuffer->m_TensorShape                                            = inputShape;
     sramInBuffer->m_StripeShape                                            = memoryStripesInfo.m_Input.m_Shape;
     sramInBuffer->m_NumStripes                                             = numMemoryStripes.m_Input;

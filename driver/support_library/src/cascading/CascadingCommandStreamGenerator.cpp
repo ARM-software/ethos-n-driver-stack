@@ -1226,9 +1226,11 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                     producerAgent.data.ifm.fmData.numStripes.width > 1)
                 {
                     // Splitting width and height => outer ratio is for each row
-                    consumerAgentDependency.outerRatio.other =
-                        ethosn::utils::NumericCast<uint16_t>(producerAgent.data.ifm.fmData.numStripes.width *
-                                                             producerAgent.data.ifm.fmData.numStripes.channels);
+                    consumerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
+                        producerAgent.data.ifm.fmData.numStripes.width *
+                        // Note we use the ifmChannels from the MceS, not the IfmS, so that this is correct for depthwise
+                        // (where IfmS might have multiple IFM stripes but MceS won't)
+                        consumerAgent.data.mce.numStripes.ifmChannels);
                     consumerAgentDependency.outerRatio.self = ethosn::utils::NumericCast<uint16_t>(
                         consumerAgent.data.mce.numStripes.ofmWidth * consumerAgent.data.mce.numStripes.ifmChannels);
                 }
@@ -1515,9 +1517,11 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                     producerAgent.data.ifm.fmData.numStripes.width > 1)
                 {
                     // Splitting width and height => outer ratio is for each row
-                    producerAgentDependency.outerRatio.self =
-                        ethosn::utils::NumericCast<uint16_t>(producerAgent.data.ifm.fmData.numStripes.width *
-                                                             producerAgent.data.ifm.fmData.numStripes.channels);
+                    producerAgentDependency.outerRatio.self = ethosn::utils::NumericCast<uint16_t>(
+                        producerAgent.data.ifm.fmData.numStripes.width *
+                        // Note we use the ifmChannels from the MceS, not the IfmS, so that this is correct for depthwise
+                        // (where IfmS might have multiple IFM stripes but MceS won't)
+                        consumerAgent.data.mce.numStripes.ifmChannels);
                     producerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
                         consumerAgent.data.mce.numStripes.ofmWidth * consumerAgent.data.mce.numStripes.ifmChannels);
                 }

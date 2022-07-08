@@ -695,34 +695,6 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                                    mceInputStripe, memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
                 }
 
-                // Try split height width and output depth.
-                if (stripeConfig.splits.widthHeightOutputDepth)
-                {
-                    const uint32_t height = heightMultiplier * blockConfig.m_BlockHeight();
-                    const uint32_t width  = widthMultiplier * blockConfig.m_BlockWidth();
-
-                    TensorShape mceInputEncoding  = { 0, height, width, 0 };
-                    const TensorShape& inputShape = m_MceInputTensorShape;
-                    TensorShape mceInputStripe =
-                        CreateStripe(m_MceInputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
-
-                    TensorShape mceOutputEncoding =
-                        ApplyMceShapeMult({ 0, height, width, m_Capabilities.GetNumberOfOgs() });
-                    TensorShape mceOutputStripe =
-                        CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
-
-                    TensorShape pleOutputStripe = ApplyPleShapeMult(mceOutputStripe);
-
-                    TensorShape pleOutputEncoding = ApplyPleShapeMult(mceOutputEncoding);
-                    TensorShape memoryOutputStripe =
-                        CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
-                    const TensorShape& outputShape = m_PleOutputTensorShape;
-
-                    AddStripeInfos(mceInputStripe, mceOutputStripe, mceOutputStripe, pleOutputStripe, numStripesInput,
-                                   numStripesOutput, numStripesWeights, numStripesPleInput, mceInputStripe,
-                                   memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
-                }
-
                 // Try split input depth.
                 // Note we have to limit the height and width to the block size.
                 if (stripeConfig.splits.widthHeightOutputDepthInputDepth)
@@ -878,6 +850,43 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                 AddStripeInfos(mceInputStripe, mceOutputStripe, mceInputStripe, pleOutputStripe, numStripesInputCopy,
                                numStripesOutput, numStripesWeights, numStripesPleInput, mceInputStripe,
                                memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
+            }
+
+            // Try split height width and output depth.
+            if (stripeConfig.splits.widthHeightOutputDepth)
+            {
+                for (uint32_t heightMultiplier = minBlockHeightMultiplier; heightMultiplier <= maxBlockHeightMultiplier;
+                     ++heightMultiplier)
+                {
+                    for (uint32_t widthMultiplier = minBlockWidthMultiplier; widthMultiplier <= maxBlockWidthMultiplier;
+                         ++widthMultiplier)
+                    {
+                        const uint32_t height = heightMultiplier * blockConfig.m_BlockHeight();
+                        const uint32_t width  = widthMultiplier * blockConfig.m_BlockWidth();
+
+                        TensorShape mceInputEncoding  = { 0, height, width, 0 };
+                        const TensorShape& inputShape = m_MceInputTensorShape;
+                        TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding,
+                                                                  m_Capabilities.GetBrickGroupShape()[3]);
+
+                        TensorShape mceOutputEncoding =
+                            ApplyMceShapeMult({ 0, height, width, m_Capabilities.GetNumberOfOgs() });
+                        TensorShape mceOutputStripe =
+                            CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
+
+                        TensorShape pleInputStripe  = mceOutputStripe;
+                        TensorShape pleOutputStripe = ApplyPleShapeMult(pleInputStripe);
+
+                        TensorShape pleOutputEncoding  = ApplyPleShapeMult(mceOutputEncoding);
+                        TensorShape memoryOutputStripe = CreateStripe(m_PleOutputTensorShape, pleOutputEncoding,
+                                                                      m_Capabilities.GetBrickGroupShape()[3]);
+                        const TensorShape& outputShape = m_PleOutputTensorShape;
+
+                        AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe,
+                                       numStripesInput, numStripesOutput, numStripesWeights, numStripesPleInput,
+                                       mceInputStripe, memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
+                    }
+                }
             }
         }
         // Try split depth for compute but the memory buffer is the full tensor
