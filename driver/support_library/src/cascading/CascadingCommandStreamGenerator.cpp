@@ -1881,43 +1881,81 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
     }
 }
 
+namespace
+{
+
+/// Returns the index of the Op (in execution order) of the earliest Op
+/// which could write to the given buffer.
+size_t WalkGraphUp(const OpGraph& graph, Buffer* b)
+{
+    size_t result = std::numeric_limits<size_t>::max();
+
+    Op* producer = graph.GetProducer(b);
+    assert(producer != nullptr);
+
+    for (Buffer* input : graph.GetInputs(producer))
+    {
+        if (input->m_Location != Location::Dram)
+        {
+            result = std::min(result, WalkGraphUp(graph, input));
+        }
+    }
+
+    if (result == std::numeric_limits<size_t>::max())
+    {
+        // We didn't find any Ops with all inputs in DRAM further up the graph, so this one is the earliest
+        result = utils::FindIndex(graph.GetOps(), producer).second;
+    }
+    return result;
+}
+
+/// Returns the index of the Op (in execution order) of the latest Op
+/// which could read from the given buffer.
+size_t WalkGraphDown(const OpGraph& graph, Buffer* b)
+{
+    size_t result = 0;
+    for (std::pair<Op*, uint32_t> consumer : graph.GetConsumers(b))
+    {
+        Buffer* output = graph.GetOutput(consumer.first);
+        assert(output != nullptr);
+
+        size_t i;
+        if (output->m_Location == Location::Dram)
+        {
+            i = utils::FindIndex(graph.GetOps(), consumer.first).second;
+        }
+        else
+        {
+            i = WalkGraphDown(graph, output);
+        }
+        result = std::max(result, i);
+    }
+
+    return result;
+}
+
+}    // namespace
+
 // Private function to add the lifetime information of the intermediate DRAM buffers
+/// Determines the start and end of the lifetime of the given (intermediate DRAM) buffer.
+/// The approach is to walk the graph backwards from the buffer to find the previous time
+/// there was a DRAM buffer, at which point we know the target buffer would not be needed,
+/// and we do the same walking forwards, to know the point at which the target buffer
+/// will be finished with. When there are branches, we go along each to find the
+/// furthest away usage.
+/// This is somewhat conservative because in a strategy 1 or 3 cascade, we could
+/// shorten the lifetime, but we don't account for that here to keep it simple.
 void CascadingCommandStreamGenerator::AddLifetimeInfoForIntermediateDramBuffers()
 {
-    // Lifetime start of the buffer holds the producer agent Id
-    AgentIdType lifetimeStart;
-    // Lifetime end of the buffer holds the last consumer agent Id
-    AgentIdType lifetimeEnd;
-
-    // Add the lifetime information for each intermediate DRAM buffer
     for (Buffer* buffer : m_MergedOpGraph.GetBuffers())
     {
         if (buffer->m_Location == Location::Dram)
         {
             assert(buffer->m_BufferType.has_value());
-
-            // Check that the buffer type is intermediate
             if (buffer->m_BufferType.value() == BufferType::Intermediate)
             {
-                // Set the Lifetime start and end of the DRAM buffer
-                Op* producer = m_MergedOpGraph.GetProducer(buffer);
-                assert(producer != nullptr);
-
-                lifetimeStart = m_OpToAgentIdMapping.at(producer);
-                lifetimeEnd   = 0;
-
-                OpGraph::ConsumersList consumers = m_MergedOpGraph.GetConsumers(buffer);
-                assert(consumers.size() >= 1);
-                for (auto consumer : consumers)
-                {
-                    AgentIdType consumerAgentId = m_OpToAgentIdMapping.at(consumer.first);
-                    if (consumerAgentId > lifetimeEnd)
-                    {
-                        lifetimeEnd = consumerAgentId;
-                    }
-                }
-
-                // Add lifetime information of the corresponding buffer to the buffer manager
+                AgentIdType lifetimeStart = WalkGraphUp(m_MergedOpGraph, buffer);
+                AgentIdType lifetimeEnd   = WalkGraphDown(m_MergedOpGraph, buffer);
                 m_BufferManager.MarkBufferUsedAtTime(m_DramBufToBufIdMapping.at(buffer),
                                                      static_cast<uint32_t>(lifetimeStart),
                                                      static_cast<uint32_t>(lifetimeEnd + 1));

@@ -3573,7 +3573,7 @@ TEST_CASE("Producer-Consumer IntermediateDramBufferLifetime Test", "[CascadingCo
             const BufferManager& bufferManager = commandStreamGenerator.GetBufferManager();
 
             // Use Buffer Id to retrieve the appropriate Buffer's CompilerBufferInfo and use that to check the Lifetimes.
-            CHECK(bufferManager.GetBuffers().at(buffId).m_LifetimeStart == 5);
+            CHECK(bufferManager.GetBuffers().at(buffId).m_LifetimeStart == 0);
             CHECK(bufferManager.GetBuffers().at(buffId).m_LifetimeEnd == 9);
         }
     }
