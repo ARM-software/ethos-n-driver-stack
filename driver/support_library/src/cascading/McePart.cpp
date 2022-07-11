@@ -111,7 +111,7 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     else if (fullTensor)
     {
         // strategy 1
-        if (stripeConfig.splits.outputDepthOnly)
+        if (stripeConfig.splits.mceAndPleOutputDepth || stripeConfig.splits.mceOutputDepthOnly)
         {
             mceOutputEncoding = { 0, 0, 0, caps.GetNumberOfOgs() };
         }

@@ -443,7 +443,7 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     else if (!fullDepth)
     {
         assert(fullPlane && isEndOfCascade);
-        if (m_StripeConfig.splits.outputDepthOnly)
+        if (m_StripeConfig.splits.mceAndPleOutputDepth)
         {
             maxOutputStripes = 2;
         }

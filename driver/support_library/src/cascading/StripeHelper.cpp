@@ -154,9 +154,13 @@ StripeConfig GetDefaultStripeConfig(const char* identifier)
                         {
                             result.splits.outputDepthInputDepth = valueBool();
                         }
-                        else if (name == "Splits.OutputDepthOnly")
+                        else if (name == "Splits.MceOutputDepthOnly")
                         {
-                            result.splits.outputDepthOnly = valueBool();
+                            result.splits.mceOutputDepthOnly = valueBool();
+                        }
+                        else if (name == "Splits.MceAndPleOutputDepth")
+                        {
+                            result.splits.mceAndPleOutputDepth = valueBool();
                         }
                         else if (name == "Splits.InputDepthOnly")
                         {
@@ -849,7 +853,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         if (cascadeType == CascadeType::Lonely)
         {
             // Try split output depth.
-            if (stripeConfig.splits.outputDepthOnly)
+            if (stripeConfig.splits.mceAndPleOutputDepth)
             {
                 TensorShape mceInputEncoding  = { 0, 0, 0, 0 };
                 const TensorShape& inputShape = m_MceInputTensorShape;
@@ -878,7 +882,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         }
         // Try split depth for compute but the memory buffer is the full tensor
         // e.g. strategy 1 cascading.
-        if (stripeConfig.splits.outputDepthOnly)
+        if (stripeConfig.splits.mceOutputDepthOnly)
         {
             TensorShape mceInputEncoding  = { 0, 0, 0, 0 };
             const TensorShape& inputShape = m_MceInputTensorShape;

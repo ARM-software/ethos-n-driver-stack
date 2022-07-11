@@ -3440,18 +3440,18 @@ TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
     auto elemA              = combGlued.m_Elems.find(partAId);
     EndingGlue* endingGlueA = elemA->second.m_EndingGlues.find(partAOutputSlot)->second.get();
     OpGraph& opGraphA       = elemA->second.m_Plan->m_OpGraph;
-    REQUIRE(endingGlueA->m_Graph.GetOps().size() == 2);
-    REQUIRE(endingGlueA->m_Graph.GetBuffers().size() == 1);
+    REQUIRE(endingGlueA->m_Graph.GetOps().size() == 4);
+    REQUIRE(endingGlueA->m_Graph.GetBuffers().size() == 3);
     REQUIRE(endingGlueA->m_ExternalConnections.m_BuffersToOps ==
             std::multimap<Buffer*, Op*>{ { opGraphA.GetBuffers()[0], endingGlueA->m_Graph.GetOp(0) },
-                                         { opGraphA.GetBuffers()[0], endingGlueA->m_Graph.GetOp(1) } });
+                                         { opGraphA.GetBuffers()[0], endingGlueA->m_Graph.GetOps().back() } });
 
     auto elemB                  = combGlued.m_Elems.find(partBId);
     StartingGlue* startingGlueB = elemB->second.m_StartingGlues.find(partBInputSlot)->second.get();
     OpGraph& opGraphB           = elemB->second.m_Plan->m_OpGraph;
     REQUIRE(startingGlueB->m_Graph.GetOps().size() == 1);
     REQUIRE(startingGlueB->m_Graph.GetBuffers().size() == 0);
-    REQUIRE(startingGlueB->m_ExternalConnections.m_BuffersToOps.find(endingGlueA->m_Graph.GetBuffers()[0])->second ==
+    REQUIRE(startingGlueB->m_ExternalConnections.m_BuffersToOps.find(endingGlueA->m_Graph.GetBuffers()[2])->second ==
             startingGlueB->m_Graph.GetOp(0));
     REQUIRE(startingGlueB->m_ExternalConnections.m_OpsToBuffers.find(startingGlueB->m_Graph.GetOp(0))->second ==
             opGraphB.GetBuffers()[0]);
@@ -3461,7 +3461,7 @@ TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
     OpGraph& opGraphC           = elemC->second.m_Plan->m_OpGraph;
     REQUIRE(startingGlueC->m_Graph.GetOps().size() == 1);
     REQUIRE(startingGlueC->m_Graph.GetBuffers().size() == 0);
-    REQUIRE(startingGlueC->m_ExternalConnections.m_BuffersToOps.find(endingGlueA->m_Graph.GetBuffers()[0])->second ==
+    REQUIRE(startingGlueC->m_ExternalConnections.m_BuffersToOps.find(endingGlueA->m_Graph.GetBuffers()[2])->second ==
             startingGlueC->m_Graph.GetOp(0));
     REQUIRE(startingGlueC->m_ExternalConnections.m_OpsToBuffers.find(startingGlueC->m_Graph.GetOp(0))->second ==
             opGraphC.GetBuffers()[0]);
@@ -3471,7 +3471,7 @@ TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
     OpGraph& opGraphD           = elemD->second.m_Plan->m_OpGraph;
     REQUIRE(startingGlueD->m_Graph.GetOps().size() == 0);
     REQUIRE(startingGlueD->m_Graph.GetBuffers().size() == 0);
-    REQUIRE(startingGlueD->m_ExternalConnections.m_OpsToBuffers.find(endingGlueA->m_Graph.GetOp(0))->second ==
+    REQUIRE(startingGlueD->m_ExternalConnections.m_OpsToBuffers.find(endingGlueA->m_Graph.GetOp(2))->second ==
             opGraphD.GetBuffers()[0]);
 }
 

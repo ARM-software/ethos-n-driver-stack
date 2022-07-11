@@ -265,6 +265,7 @@ public:
                                                           const CascadingBufferFormat cascadingBufferFormat) const;
     StartingAndEndingGlues GenerateGlueBetweenDramAndSramWithConversion(Buffer* inputBuffer,
                                                                         Buffer* outputBuffer) const;
+    StartingAndEndingGlues GenerateGlueBetweenSramAndDramWithConversion(Buffer* sourceBuffer, Buffer* destBuffer) const;
     StartingAndEndingGlues GenerateGlueBetweenSramAndSram(Buffer* sourceBuffer,
                                                           Buffer* destBuffer,
                                                           const CascadingBufferFormat cascadingBufferFormat) const;

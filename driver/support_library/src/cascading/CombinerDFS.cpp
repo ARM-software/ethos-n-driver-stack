@@ -791,6 +791,75 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenDramAndSramWithConversion(Bu
     return result;
 }
 
+// Generate glue between SRAM and DRAM which includes a conversion to NHWCB with a compatible stripe shape.
+// SRAM --DmaOp-> DRAM NHWCB --DmaOp-> SRAM (NHWCB) --DmaOp-> DRAM (NHWC)
+StartingAndEndingGlues Combiner::GenerateGlueBetweenSramAndDramWithConversion(Buffer* sourceBuffer,
+                                                                              Buffer* destBuffer) const
+{
+    StartingAndEndingGlues result;
+
+    // First conversion needs to be to NHWCB in DRAM
+    assert(sourceBuffer->m_Format == CascadingBufferFormat::NHWCB);
+    auto dma1      = std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB);
+    DmaOp* dma1Raw = dma1.get();
+
+    auto intermediateDramBuffer = std::make_unique<Buffer>(
+        Location::Dram, CascadingBufferFormat::NHWCB, destBuffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
+        TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(destBuffer->m_TensorShape), destBuffer->m_QuantizationInfo);
+    intermediateDramBuffer->m_BufferType = BufferType::Intermediate;
+
+    Buffer* intermediateDramBufferRaw = intermediateDramBuffer.get();
+
+    auto dma2      = std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB);
+    DmaOp* dma2Raw = dma2.get();
+
+    TensorShape outputShapeNHWCB = utils::RoundUpHeightAndWidthToBrickGroup(destBuffer->m_TensorShape);
+    outputShapeNHWCB[3] =
+        utils::RoundUpToNearestMultiple(outputShapeNHWCB[3], utils::GetChannels(m_Caps.GetBrickGroupShape()));
+
+    // Set the SRAM buffer's stripe size to be the smallest height and width to be the most compatible.
+    // We can't split depth because if one of the buffers is NHWC that won't be compatible.
+    TensorShape intermediateSramStripeShape = { 1, utils::GetHeight(m_Caps.GetBrickGroupShape()),
+                                                utils::GetWidth(m_Caps.GetBrickGroupShape()),
+                                                utils::GetChannels(outputShapeNHWCB) };
+    auto intermediateSramBuffer             = std::make_unique<Buffer>(
+        Location::Sram, CascadingBufferFormat::NHWCB, destBuffer->m_TensorShape, intermediateSramStripeShape,
+        TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(intermediateSramStripeShape), destBuffer->m_QuantizationInfo);
+    intermediateSramBuffer->m_BufferType = BufferType::Intermediate;
+    intermediateSramBuffer->m_Offset =
+        0;    // Nothing else should be resident in SRAM at this point, so we can use any address
+    intermediateSramBuffer->m_NumStripes      = 1;
+    intermediateSramBuffer->m_SlotSizeInBytes = intermediateSramBuffer->m_SizeInBytes;
+
+    Buffer* intermediateSramBufferRaw = intermediateSramBuffer.get();
+
+    assert(destBuffer->m_Format == CascadingBufferFormat::NHWC);
+    auto dma3      = std::make_unique<DmaOp>(destBuffer->m_Format);
+    DmaOp* dma3Raw = dma3.get();
+
+    // Store all the ops and buffers in the ending glue so so we are forced to finish the glue before starting another operation
+    // We could split the glue so the ending glue has up to the first dram buffer and the starting glue does the second half of the conversion
+    // but it is simpler to do it all at once.
+    EndingGlue endingGlue;
+    endingGlue.m_Graph.AddOp(std::move(dma1));
+    endingGlue.m_Graph.AddOp(std::move(dma2));
+    endingGlue.m_Graph.AddOp(std::move(dma3));
+    endingGlue.m_Graph.AddBuffer(std::move(intermediateDramBuffer));
+    endingGlue.m_Graph.SetProducer(intermediateDramBufferRaw, dma1Raw);
+    endingGlue.m_Graph.AddConsumer(intermediateDramBufferRaw, dma2Raw, 0);
+    endingGlue.m_Graph.AddBuffer(std::move(intermediateSramBuffer));
+    endingGlue.m_Graph.SetProducer(intermediateSramBufferRaw, dma2Raw);
+    endingGlue.m_Graph.AddConsumer(intermediateSramBufferRaw, dma3Raw, 0);
+    endingGlue.m_ExternalConnections.m_BuffersToOps.insert({ sourceBuffer, dma1Raw });
+    result.m_EndingGlue = std::move(endingGlue);
+
+    StartingGlue startingGlue;
+    startingGlue.m_ExternalConnections.m_OpsToBuffers.insert({ dma3Raw, destBuffer });
+    result.m_StartingGlues.push_back(std::move(startingGlue));
+
+    return result;
+}
+
 // Generate glue between sram and sram, this should only be called if we need to generate a conversion back to dram
 // as the sram buffers aren't compatible.
 // For entry 3 (see table above) there are as many glues possible as the
@@ -932,6 +1001,14 @@ std::pair<bool, StartingAndEndingGlues> Combiner::GetGlue(Buffer* outputBuffer, 
 {
     if ((outputBuffer->m_Location == Location::Sram && inputBuffer->m_Location == Location::Dram))
     {
+        assert(!utils::AnyPackedBoundaryData(outputBuffer->m_PackedBoundaryThickness));
+        // Going from SRAM to DRAM with NHWC can't be done with splitting in channels so we must add a conversion to NHWCB through SRAM
+        if (inputBuffer->m_Format == CascadingBufferFormat::NHWC &&
+            utils::GetChannels(outputBuffer->m_StripeShape) < utils::GetChannels(outputBuffer->m_TensorShape))
+        {
+            StartingAndEndingGlues glues = GenerateGlueBetweenSramAndDramWithConversion(outputBuffer, inputBuffer);
+            return std::make_pair(true, std::move(glues));
+        }
         StartingAndEndingGlues glues = GenerateGlueBetweenSramAndDram(outputBuffer, inputBuffer, inputBuffer->m_Format);
         return std::make_pair(true, std::move(glues));
     }

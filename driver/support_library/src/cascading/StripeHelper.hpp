@@ -37,7 +37,8 @@ struct StripeConfig
         bool widthHeightOutputDepth           = true;
         bool widthHeightOutputDepthInputDepth = true;
         bool outputDepthInputDepth            = true;
-        bool outputDepthOnly                  = true;
+        bool mceAndPleOutputDepth             = true;
+        bool mceOutputDepthOnly               = true;
         bool inputDepthOnly                   = true;
         bool none                             = true;
     } splits;
@@ -74,7 +75,8 @@ struct StripeConfig
         splits.widthHeightOutputDepth           = false;
         splits.widthHeightOutputDepthInputDepth = false;
         splits.outputDepthInputDepth            = false;
-        splits.outputDepthOnly                  = false;
+        splits.mceAndPleOutputDepth             = false;
+        splits.mceOutputDepthOnly               = false;
         splits.inputDepthOnly                   = false;
         splits.none                             = false;
         blockConfigs.clear();
@@ -108,7 +110,8 @@ struct StripeConfig
         splits.widthHeightOutputDepth           = false;
         splits.widthHeightOutputDepthInputDepth = false;
         splits.outputDepthInputDepth            = false;
-        splits.outputDepthOnly                  = false;
+        splits.mceAndPleOutputDepth             = false;
+        splits.mceOutputDepthOnly               = false;
     }
     /// @}
 };
