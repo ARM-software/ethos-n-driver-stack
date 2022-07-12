@@ -129,8 +129,8 @@ FirmwareAndHardwareCapabilities GetEthosN78FwHwCapabilities(EthosNVariant varian
     // These values are derived from constants in the firmware, and so need to be kept in-sync. See the calculation
     // of these values in the firmware for details.
     fwHwCapabilities.m_AgentWindowSize                 = 64;
-    fwHwCapabilities.m_MaxMceStripesPerPleStripe       = 16;
-    fwHwCapabilities.m_MaxIfmAndWgtStripesPerPleStripe = 16;
+    fwHwCapabilities.m_MaxMceStripesPerPleStripe       = 128;
+    fwHwCapabilities.m_MaxIfmAndWgtStripesPerPleStripe = 128;
 
     return fwHwCapabilities;
 }
