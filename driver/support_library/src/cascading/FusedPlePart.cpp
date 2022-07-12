@@ -377,6 +377,8 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     if (fullPlane && !isEndOfCascade)
     {
         memoryOutputChannelsEncoding = 0;
+        // PLE accumulates the full depth in the middle of a strategy 1 cascade
+        pleOutputStripe[3] = utils::RoundUpToNearestMultiple(m_OutputTensorShape[3], m_Capabilities.GetNumberOfOgs());
     }
     TensorShape memoryOutputStripeEncoding{ 0, fullHeight ? 0 : GetHeight(pleOutputStripe),
                                             fullWidth ? 0 : GetWidth(pleOutputStripe), memoryOutputChannelsEncoding };
