@@ -378,35 +378,30 @@ InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRa
 
 double CalculateMetric(const NetworkPerformanceData& networkPerfData)
 {
-    uint64_t nonParallelBytes = 0;
+    double totalMetric = 0;
     for (PassPerformanceData passPerfData : networkPerfData.m_Stream)
     {
-        nonParallelBytes += passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel +
-                            passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel +
-                            passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel;
+        uint64_t nonParallelBytes = passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel +
+                                    passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel +
+                                    passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel;
+        double nonParallelBytesDouble = static_cast<double>(nonParallelBytes);
+
+        uint64_t parallelBytes = passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramParallel +
+                                 passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramParallel +
+                                 passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramParallel;
+        double parallelBytesDouble = static_cast<double>(parallelBytes);
+
+        uint64_t mceCycleCount     = passPerfData.m_Stats.m_Mce.m_CycleCount;
+        double mceCycleCountDouble = static_cast<double>(mceCycleCount);
+
+        constexpr double dramBandwidth  = 12000000000;    // bytes/second
+        constexpr double clockFrequency = 1250000000;     // cycles/second
+        constexpr double bytesPerCycle  = dramBandwidth / clockFrequency;
+        double metric                   = (nonParallelBytesDouble / bytesPerCycle) +
+                        std::max(parallelBytesDouble / bytesPerCycle, mceCycleCountDouble);
+        totalMetric += metric;
     }
-    double nonParallelBytesDouble = static_cast<double>(nonParallelBytes);
-
-    uint64_t parallelBytes = 0;
-    for (PassPerformanceData passPerfData : networkPerfData.m_Stream)
-    {
-        parallelBytes += passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramParallel +
-                         passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramParallel +
-                         passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramParallel;
-    }
-    double parallelBytesDouble = static_cast<double>(parallelBytes);
-
-    uint64_t mceCycleCount =
-        std::accumulate(networkPerfData.m_Stream.begin(), networkPerfData.m_Stream.end(), 0ULL,
-                        [](uint64_t a, const PassPerformanceData& p) { return a + p.m_Stats.m_Mce.m_CycleCount; });
-    double mceCycleCountDouble = static_cast<double>(mceCycleCount);
-
-    constexpr double dramBandwidth  = 12000000000;    // bytes/second
-    constexpr double clockFrequency = 1250000000;     // cycles/second
-    constexpr double bytesPerCycle  = dramBandwidth / clockFrequency;
-    double metric =
-        (nonParallelBytesDouble / bytesPerCycle) + std::max(parallelBytesDouble / bytesPerCycle, mceCycleCountDouble);
-    return metric;
+    return totalMetric;
 }
 
 PerformanceComparisonResult ComparePerformanceData(const NetworkPerformanceData& left,
