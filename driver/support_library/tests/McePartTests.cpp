@@ -1525,15 +1525,15 @@ TEST_CASE("McePart GetPlans Split input in height and width in the case of block
             THEN("The plans are valid, do have expected stripe configs")
             {
                 // Check that the expected stripe (used below) is smaller then input tensor
-                CHECK(72u < widthAndHeight);
+                CHECK(64u < widthAndHeight);
                 CHECK(8u < widthAndHeight);
                 CheckPlansParams params;
                 params.m_InputShape  = tsIn;
                 params.m_OutputShape = tsOut;
                 params.m_Lifetime    = Lifetime::Cascade;
                 params.m_Any.push_back([&](const PlanDesc& plan) {
-                    return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 72, 8, 256 } &&
-                           plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 72, 8, 64 } &&
+                    return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 64, 8, 256 } &&
+                           plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 64, 8, 64 } &&
                            (plan.m_InputSram->m_NumStripes == 1 || plan.m_InputSram->m_NumStripes == 2);
                 });
                 CheckPlans(plans, params);
