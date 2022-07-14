@@ -33,34 +33,14 @@ struct CheckPlansParams
     std::set<uint32_t> m_OperationIds;
 };
 
-void CheckReshapeDram(Buffer* reshapedBuffer, const CheckPlansParams& params)
-{
-    // Check properties of reshaped DRAM buffer
-    if (reshapedBuffer)
-    {
-        CHECK(reshapedBuffer->m_Location == Location::Dram);
-        CHECK(reshapedBuffer->m_Format == CascadingBufferFormat::NHWC);
-        CHECK(reshapedBuffer->m_QuantizationInfo == params.m_InputQuantInfo);
-        CHECK(reshapedBuffer->m_TensorShape == params.m_OutputShape);
-        CHECK(reshapedBuffer->m_StripeShape == TensorShape{ 0, 0, 0, 0 });
-        CHECK(reshapedBuffer->m_Order == TraversalOrder::Xyz);
-        CHECK(reshapedBuffer->m_SizeInBytes == utils::TotalSizeBytes(reshapedBuffer->m_TensorShape));
-        CHECK(reshapedBuffer->m_NumStripes == 0);
-        CHECK(reshapedBuffer->m_EncodedWeights == nullptr);
-    }
-}
-
-void CheckMappings(const CheckPlansParams& params, const Plan& plan, Buffer* reshapedBuffer)
+void CheckMappings(const CheckPlansParams& params, const Plan& plan)
 {
     // Check input/output mappings
     CHECK(plan.m_InputMappings.size() == 1);
     CHECK(plan.m_OutputMappings.size() == 1);
 
-    if (reshapedBuffer)
-    {
-        CHECK(plan.m_InputMappings.begin()->first == reshapedBuffer);
-        CHECK(plan.m_OutputMappings.begin()->first == reshapedBuffer);
-    }
+    CHECK(plan.m_InputMappings.begin()->first == plan.m_OpGraph.GetBuffers()[0]);
+    CHECK(plan.m_OutputMappings.begin()->first == plan.m_OpGraph.GetBuffers()[2]);
 
     CHECK(plan.m_InputMappings.begin()->second.m_PartId == params.m_PartId);
     CHECK(plan.m_OutputMappings.begin()->second.m_PartId == params.m_PartId);
@@ -79,11 +59,7 @@ void CheckPlans(const Plans& plans, const CheckPlansParams& params)
     {
         INFO("plan " << plan.m_DebugTag);
 
-        const OpGraph::BufferList& buffers = plan.m_OpGraph.GetBuffers();
-        Buffer* reshapedBuffer             = buffers.front();
-
-        CheckReshapeDram(reshapedBuffer, params);
-        CheckMappings(params, plan, reshapedBuffer);
+        CheckMappings(params, plan);
     }
 }
 

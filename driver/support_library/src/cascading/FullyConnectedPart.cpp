@@ -228,7 +228,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                     // The input buffer size of fully connected must be rounded up to the next 1024.
                     dramInput->m_SizeInBytes = utils::RoundUpToNearestMultiple(
                         utils::CalculateBufferSize(m_OriginalInputShape, CascadingBufferFormat::NHWC), 1024);
-                    dramInput->m_QuantizationInfo = m_OutputQuantizationInfo;
+                    dramInput->m_QuantizationInfo = m_InputQuantizationInfo;
                     dramInput->m_BufferType       = BufferType::Intermediate;
 
                     // Use NHWCB specifically for Fully connected as the format in SRAM needs to be copied from an NHWC buffer byte by byte

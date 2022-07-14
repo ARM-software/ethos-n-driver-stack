@@ -27,15 +27,38 @@ ethosn::support_library::Plans
 
     OwnedOpGraph opGraph;
 
-    opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
-    Buffer* buffer             = opGraph.GetBuffers()[0];
-    buffer->m_TensorShape      = { 1, 16, 16, 16 };
-    buffer->m_StripeShape      = { 1, 16, 16, 16 };
-    buffer->m_SizeInBytes      = 16 * 16 * 16;
-    buffer->m_QuantizationInfo = { 0, 1.f };
+    if (m_HasInput)
+    {
+        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
+        Buffer* buffer             = opGraph.GetBuffers().back();
+        buffer->m_TensorShape      = { 1, 16, 16, 16 };
+        buffer->m_StripeShape      = { 1, 16, 16, 16 };
+        buffer->m_SizeInBytes      = 16 * 16 * 16;
+        buffer->m_QuantizationInfo = { 0, 1.f };
 
-    inputMappings[buffer]  = PartInputSlot{ m_PartId, 0 };
-    outputMappings[buffer] = PartOutputSlot{ m_PartId, 0 };
+        inputMappings[buffer] = PartInputSlot{ m_PartId, 0 };
+    }
+    if (m_HasOutput)
+    {
+        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
+        Buffer* buffer             = opGraph.GetBuffers().back();
+        buffer->m_TensorShape      = { 1, 16, 16, 16 };
+        buffer->m_StripeShape      = { 1, 16, 16, 16 };
+        buffer->m_SizeInBytes      = 16 * 16 * 16;
+        buffer->m_QuantizationInfo = { 0, 1.f };
+
+        outputMappings[buffer] = PartOutputSlot{ m_PartId, 0 };
+    }
+    if (m_HasInput && m_HasOutput)
+    {
+        opGraph.AddOp(std::make_unique<PleOp>(
+            Lifetime::Atomic, ethosn::command_stream::PleOperation::PASSTHROUGH,
+            ethosn::command_stream::BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
+            TensorShape{ 1, 16, 16, 16 }, ethosn::command_stream::DataType::U8, true));
+
+        opGraph.AddConsumer(opGraph.GetBuffers().front(), opGraph.GetOps()[0], 0);
+        opGraph.SetProducer(opGraph.GetBuffers().back(), opGraph.GetOps()[0]);
+    }
 
     Plan plan(std::move(inputMappings), std::move(outputMappings));
     plan.m_OpGraph = std::move(opGraph);

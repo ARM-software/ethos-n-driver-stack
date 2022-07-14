@@ -22,6 +22,7 @@ struct GlueConnections
 {
     // Store a map of buffer replacements
     // e.g. used when merging output and input buffers when cascading plans in a section
+    // The key is a Buffer in the Plan, and the value is the Buffer that it should be replaced with.
     std::unordered_map<Buffer*, Buffer*> m_ReplacementBuffers;
     // Store the connection between ops and buffers.
     // This can point to ops and buffers which are not within the glue

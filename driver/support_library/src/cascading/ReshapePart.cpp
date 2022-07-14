@@ -41,7 +41,59 @@ Plans ReshapePart::GetPlans(CascadeType cascadeType,
 
     if (cascadeType == CascadeType::Lonely)
     {
-        CreateReinterpretDramPlan(plans);
+        auto inputBuffer = std::make_unique<Buffer>(
+            Location::Dram, CascadingBufferFormat::NHWC, m_InputTensorShape, TensorShape{ 0, 0, 0, 0 },
+            TraversalOrder::Xyz, utils::TotalSizeBytes(m_InputTensorShape), m_OutputQuantizationInfo);
+        inputBuffer->m_BufferType = BufferType::Intermediate;
+        Buffer* inputBufferRaw    = inputBuffer.get();
+
+        auto dma1            = std::make_unique<DmaOp>(CascadingBufferFormat::NHWC);
+        dma1->m_OperationIds = m_CorrespondingOperationIds;
+        DmaOp* dma1Raw       = dma1.get();
+
+        // Set the SRAM buffer's stripe size to be the smallest height and width to be the most compatible.
+        // We can't split depth because if one of the buffers is NHWC that won't be compatible.
+        TensorShape sramStripeShape = { 1, utils::GetHeight(m_Capabilities.GetBrickGroupShape()),
+                                        utils::GetWidth(m_Capabilities.GetBrickGroupShape()),
+                                        utils::RoundUpToNearestMultiple(
+                                            m_InputTensorShape[3],
+                                            utils::GetChannels(m_Capabilities.GetBrickGroupShape())) };
+        auto sramBuffer             = std::make_unique<Buffer>(
+            Location::Sram, CascadingBufferFormat::NHWCB, m_InputTensorShape, sramStripeShape, TraversalOrder::Xyz,
+            utils::TotalSizeBytesNHWCB(sramStripeShape), m_OutputQuantizationInfo);
+        sramBuffer->m_BufferType = BufferType::Intermediate;
+        sramBuffer->m_Offset = 0;    // Nothing else should be resident in SRAM at this point, so we can use any address
+        sramBuffer->m_NumStripes      = 1;
+        sramBuffer->m_SlotSizeInBytes = sramBuffer->m_SizeInBytes;
+
+        Buffer* sramBufferRaw = sramBuffer.get();
+        auto dma2             = std::make_unique<DmaOp>(CascadingBufferFormat::NHWC);
+        dma2->m_OperationIds  = m_CorrespondingOperationIds;
+        DmaOp* dma2Raw        = dma2.get();
+
+        auto outputBuffer = std::make_unique<Buffer>(
+            Location::Dram, CascadingBufferFormat::NHWC, m_OutputTensorShape, TensorShape{ 0, 0, 0, 0 },
+            TraversalOrder::Xyz, utils::TotalSizeBytes(m_OutputTensorShape), m_OutputQuantizationInfo);
+        outputBuffer->m_BufferType = BufferType::Intermediate;
+        Buffer* outputBufferRaw    = outputBuffer.get();
+
+        OwnedOpGraph graph;
+        graph.AddOp(std::move(dma1));
+        graph.AddOp(std::move(dma2));
+        graph.AddBuffer(std::move(inputBuffer));
+        graph.AddBuffer(std::move(sramBuffer));
+        graph.AddBuffer(std::move(outputBuffer));
+        graph.AddConsumer(inputBufferRaw, dma1Raw, 0);
+        graph.SetProducer(sramBufferRaw, dma1Raw);
+        graph.AddConsumer(sramBufferRaw, dma2Raw, 0);
+        graph.SetProducer(outputBufferRaw, dma2Raw);
+
+        PartInputMapping inputMappings;
+        PartOutputMapping outputMappings;
+
+        inputMappings[inputBufferRaw]   = PartInputSlot{ m_PartId, 0 };
+        outputMappings[outputBufferRaw] = PartOutputSlot{ m_PartId, 0 };
+        AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(graph), plans);
     }
 
     return plans;
@@ -49,26 +101,6 @@ Plans ReshapePart::GetPlans(CascadeType cascadeType,
 
 ReshapePart::~ReshapePart()
 {}
-
-/// Creates a plan which simply reinterprets the input tensor properties of the given node with its output tensor
-/// properties. No Ops are created - just a single Dram buffer which is tagged as both the input and output of the Plan.
-void ReshapePart::CreateReinterpretDramPlan(Plans& plans) const
-{
-    CascadingBufferFormat format = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
-    PartInputMapping inputMappings;
-    PartOutputMapping outputMappings;
-    OwnedOpGraph opGraph;
-    opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
-    Buffer* buffer             = opGraph.GetBuffers()[0];
-    buffer->m_TensorShape      = m_OutputTensorShape;
-    buffer->m_SizeInBytes      = utils::CalculateBufferSize(m_InputTensorShape, format);
-    buffer->m_QuantizationInfo = m_OutputQuantizationInfo;
-    buffer->m_BufferType       = BufferType::Intermediate;
-
-    inputMappings[buffer]  = PartInputSlot{ m_PartId, 0 };
-    outputMappings[buffer] = PartOutputSlot{ m_PartId, 0 };
-    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
-}
 
 ethosn::support_library::DotAttributes ReshapePart::GetDotAttributes(DetailLevel detail) const
 {

@@ -1453,11 +1453,13 @@ void SaveCombinationToDot(const Combination& combination, std::ostream& stream, 
             // Note the replacement buffers are represented in the glue
             // as the key being the buffer to be replaced and the value is the buffer which replaces it
             // In the visualisation both buffers should be shown
-            // but the buffer being replaced should be "on top" so the arrow needs to be swapped.
+            // but the buffer being replaced should be "on top" so the arrow of the connection needs to be swapped,
+            // so that GraphViz arranges top-to-bottom, but we want the arrow to visually point up (from the buffer
+            // in the plan to the replacement buffer), so we use dir=back.
             DumpMapInSortedOrder(startingGlue->m_ExternalConnections.m_BuffersToOps, stream, nodeIds);
             DumpMapInSortedOrder(startingGlue->m_ExternalConnections.m_OpsToBuffers, stream, nodeIds);
             DumpMapInSortedOrderReverse(startingGlue->m_ExternalConnections.m_ReplacementBuffers, stream, nodeIds,
-                                        "[style = dashed]");
+                                        "[style = dashed, label=\"Replaced by\", dir=\"back\"]");
         }
         const std::unordered_map<PartOutputSlot, std::shared_ptr<EndingGlue>>& endingGlues =
             elemIt->second.m_EndingGlues;
@@ -1475,11 +1477,10 @@ void SaveCombinationToDot(const Combination& combination, std::ostream& stream, 
                    << "\n";
 
             // Add the connections
-            // It is the same logic as in the starting glue above.
             DumpMapInSortedOrder(endingGlue->m_ExternalConnections.m_BuffersToOps, stream, nodeIds);
             DumpMapInSortedOrder(endingGlue->m_ExternalConnections.m_OpsToBuffers, stream, nodeIds);
-            DumpMapInSortedOrderReverse(endingGlue->m_ExternalConnections.m_ReplacementBuffers, stream, nodeIds,
-                                        "[style = dashed]");
+            DumpMapInSortedOrder(endingGlue->m_ExternalConnections.m_ReplacementBuffers, stream, nodeIds,
+                                 "[style = dashed, label=\"Replaced by\"]");
         }
     }
 

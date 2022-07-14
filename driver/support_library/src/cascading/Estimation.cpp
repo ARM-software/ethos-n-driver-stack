@@ -93,7 +93,8 @@ EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
     includeOp(secondDmaOp);
 
     ConversionData inputConversionData;
-    inputConversionData.tensorShape = inputBuffer->m_TensorShape;
+    // Use the SRAM tensor shape, which might be different from the DRAM tensor shape for reshapes
+    inputConversionData.tensorShape = sramBuffer->m_TensorShape;
     // The input and output buffers are in DRAM so don't have stripes, use the sram buffer to get the stripe information
     inputConversionData.stripeShape = sramBuffer->m_StripeShape;
     inputConversionData.isNhwc      = inputBuffer->m_Format == CascadingBufferFormat::NHWC;
@@ -105,7 +106,8 @@ EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
     }
 
     ConversionData outputConversionData;
-    outputConversionData.tensorShape = outputBuffer->m_TensorShape;
+    // Use the SRAM tensor shape, which might be different from the DRAM tensor shape for reshapes
+    outputConversionData.tensorShape = sramBuffer->m_TensorShape;
     outputConversionData.stripeShape = sramBuffer->m_StripeShape;
     outputConversionData.isNhwc      = outputBuffer->m_Format == CascadingBufferFormat::NHWC;
 

@@ -347,7 +347,9 @@ public:
     TensorShape m_TensorShape;
     TensorShape m_StripeShape;
     TraversalOrder m_Order;
-    /// The size of the entire buffer, in bytes.
+    /// The size of the entire buffer, in bytes. For DRAM buffers, this would be the size of the entire
+    /// tensor, but for SRAM buffers this would be a rolling buffer and likely be smaller than the entire
+    /// tensor.
     uint32_t m_SizeInBytes;
     /// Relevant only for SRAM buffers.
     /// The size of a single slot in the buffer, in bytes. This could be derived from m_StripeShape,

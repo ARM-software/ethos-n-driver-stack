@@ -43,13 +43,11 @@ ethosn::command_stream::CommandStream GetCommandStream(const CompiledNetwork* co
 
 class MockPart : public BasePart
 {
-private:
-    const EstimationOptions estOpt;
-    const CompilationOptions compOpt;
-
 public:
-    MockPart(PartId id)
+    MockPart(PartId id, bool hasInput = true, bool hasOutput = true)
         : BasePart(id, "MockPart", estOpt, compOpt, GetEthosN78HwCapabilities())
+        , m_HasInput(hasInput)
+        , m_HasOutput(hasOutput)
     {}
     virtual Plans GetPlans(CascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const override;
 
@@ -57,6 +55,14 @@ public:
     {
         return {};
     }
+
+protected:
+    bool m_HasInput;
+    bool m_HasOutput;
+
+private:
+    const EstimationOptions estOpt;
+    const CompilationOptions compOpt;
 };
 
 /// Simple Node type for tests.

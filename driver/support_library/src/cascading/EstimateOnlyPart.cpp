@@ -70,7 +70,7 @@ void EstimateOnlyPart::CreatePlanForEstimateOnlyPart(TraversalOrder order, Plans
         inputBuffer->m_TensorShape      = m_InputTensorsInfo[inputIndex].m_Dimensions;
         inputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(inputBuffer->m_TensorShape, format);
         inputBuffer->m_QuantizationInfo = m_InputTensorsInfo[inputIndex].m_QuantizationInfo;
-        inputBuffer->m_BufferType       = BufferType::Input;
+        inputBuffer->m_BufferType       = BufferType::Intermediate;
         opGraph.AddConsumer(inputBuffer, op, inputIndex);
         inputMappings[inputBuffer] = PartInputSlot{ m_PartId, inputIndex };
     }

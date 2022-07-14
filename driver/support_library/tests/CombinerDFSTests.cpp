@@ -27,8 +27,10 @@ public:
     WeightPart(PartId id,
                uint32_t* numPlansCounter,
                std::vector<uint32_t>* numWeightBuffers,
-               std::function<bool(CascadeType, PartId)> filter)
-        : MockPart(id)
+               std::function<bool(CascadeType, PartId)> filter,
+               bool hasInput,
+               bool hasOutput)
+        : MockPart(id, hasInput, hasOutput)
         , m_NumPlansCounter(numPlansCounter)
         , m_NumWeightBuffers(numWeightBuffers)
         , m_Filter(filter)
@@ -50,15 +52,42 @@ public:
 
         OwnedOpGraph opGraph;
 
-        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
-        Buffer* buffer             = opGraph.GetBuffers()[0];
-        buffer->m_TensorShape      = { 1, 16, 16, 16 };
-        buffer->m_StripeShape      = { 1, 16, 16, 16 };
-        buffer->m_SizeInBytes      = 16 * 16 * 16;
-        buffer->m_QuantizationInfo = { 0, 1.f };
+        if (m_HasInput)
+        {
+            opGraph.AddBuffer(
+                std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
+            Buffer* buffer             = opGraph.GetBuffers().back();
+            buffer->m_TensorShape      = { 1, 16, 16, 16 };
+            buffer->m_StripeShape      = { 1, 16, 16, 16 };
+            buffer->m_SizeInBytes      = 16 * 16 * 16;
+            buffer->m_QuantizationInfo = { 0, 1.f };
 
-        inputMappings[buffer]  = PartInputSlot{ m_PartId, 0 };
-        outputMappings[buffer] = PartOutputSlot{ m_PartId, 0 };
+            inputMappings[buffer] = PartInputSlot{ m_PartId, 0 };
+        }
+
+        if (m_HasOutput)
+        {
+            opGraph.AddBuffer(
+                std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
+            Buffer* buffer             = opGraph.GetBuffers().back();
+            buffer->m_TensorShape      = { 1, 16, 16, 16 };
+            buffer->m_StripeShape      = { 1, 16, 16, 16 };
+            buffer->m_SizeInBytes      = 16 * 16 * 16;
+            buffer->m_QuantizationInfo = { 0, 1.f };
+
+            outputMappings[buffer] = PartOutputSlot{ m_PartId, 0 };
+        }
+
+        if (m_HasInput && m_HasOutput)
+        {
+            opGraph.AddOp(std::make_unique<PleOp>(
+                Lifetime::Atomic, ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } }, TensorShape{ 1, 16, 16, 16 },
+                ethosn::command_stream::DataType::U8, true));
+
+            opGraph.AddConsumer(opGraph.GetBuffers().front(), opGraph.GetOps()[0], 0);
+            opGraph.SetProducer(opGraph.GetBuffers().back(), opGraph.GetOps()[0]);
+        }
 
         Plan plan(std::move(inputMappings), std::move(outputMappings));
         plan.m_OpGraph = std::move(opGraph);
@@ -92,8 +121,10 @@ public:
     NoWeightPart(PartId id,
                  uint32_t* numPlansCounter,
                  std::vector<uint32_t>* weightBuffers,
-                 std::function<bool(CascadeType, PartId)> filter)
-        : WeightPart(id, numPlansCounter, weightBuffers, filter)
+                 std::function<bool(CascadeType, PartId)> filter,
+                 bool hasInput,
+                 bool hasOutput)
+        : WeightPart(id, numPlansCounter, weightBuffers, filter, hasInput, hasOutput)
     {}
 
     bool CanDoubleBufferWeights() const override
@@ -558,9 +589,12 @@ TEST_CASE("DoubleBufferingTestVariant_PleKernelsOnly", "[CombinerDFS]")
                 (partId == 2 && cascadeType == CascadeType::End));
     };
 
-    auto pA = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[0], filter);
-    auto pB = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[1], filter);
-    auto pC = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[2], filter);
+    auto pA = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[0], filter,
+                                             false, true);
+    auto pB = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[1], filter,
+                                             true, true);
+    auto pC = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[2], filter,
+                                             true, false);
 
     BasePart& partA = *pA;
 
@@ -622,10 +656,13 @@ TEST_CASE("DoubleBufferingTestVariant_SinglePartSection", "[CombinerDFS]")
                 (partId == 3 && cascadeType == CascadeType::Lonely));
     };
 
-    auto pInput = std::make_unique<MockPart>(graph.GeneratePartId());
-    auto pA = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[0], filter);
-    auto pB = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[1], filter);
-    auto pC = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[2], filter);
+    auto pInput = std::make_unique<MockPart>(graph.GeneratePartId(), false, true);
+    auto pA = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[0], filter,
+                                             true, true);
+    auto pB = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[1], filter,
+                                           true, true);
+    auto pC = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[2], filter,
+                                             true, false);
 
     BasePart& partA = *pA;
 
@@ -695,11 +732,14 @@ TEST_CASE("DoubleBufferingTestVariant_McePleMce", "[CombinerDFS]")
                 (partId == 3 && cascadeType == CascadeType::End));
     };
 
-    auto pInput = std::make_unique<MockPart>(graph.GeneratePartId());
-    auto pA     = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[0], filter);
-    auto pB = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[1], filter);
-    auto pC = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[2], filter);
-    auto pOutput = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pInput = std::make_unique<MockPart>(graph.GeneratePartId(), false, true);
+    auto pA     = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[0], filter,
+                                           true, true);
+    auto pB = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[1], filter,
+                                             true, true);
+    auto pC = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[2], filter,
+                                           true, true);
+    auto pOutput = std::make_unique<MockPart>(graph.GeneratePartId(), true, false);
 
     BasePart& partA = *pA;
 
@@ -774,10 +814,13 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMce", "[CombinerDFS]")
     };
 
     auto pInput = std::make_unique<MockPart>(graph.GeneratePartId());
-    auto pA = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[0], filter);
-    auto pB = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[1], filter);
-    auto pC = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[2], filter);
-    auto pOutput = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pA = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[0], filter,
+                                             true, true);
+    auto pB = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[1], filter,
+                                           true, true);
+    auto pC = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[2], filter,
+                                           true, true);
+    auto pOutput = std::make_unique<MockPart>(graph.GeneratePartId(), true, false);
 
     BasePart& partA = *pA;
 
@@ -854,11 +897,15 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMcePle", "[CombinerDFS]")
     };
 
     auto pInput = std::make_unique<MockPart>(graph.GeneratePartId());
-    auto pA = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[0], filter);
-    auto pB = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[1], filter);
-    auto pC = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[2], filter);
-    auto pD = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[3], filter);
-    auto pOutput = std::make_unique<MockPart>(graph.GeneratePartId());
+    auto pA = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[0], filter,
+                                             true, true);
+    auto pB = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[1], filter,
+                                           true, true);
+    auto pC = std::make_unique<WeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[2], filter,
+                                           true, true);
+    auto pD = std::make_unique<NoWeightPart>(graph.GeneratePartId(), &numPlansCounter, &planWeightBuffers[3], filter,
+                                             true, true);
+    auto pOutput = std::make_unique<MockPart>(graph.GeneratePartId(), true, false);
 
     BasePart& partA = *pA;
 
@@ -1961,6 +2008,7 @@ TEST_CASE("GetOpGraphCombinationDramDramMerge", "[CombinerDFS]")
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "FinalDramBuffer";
     planB.m_InputMappings                           = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
+    Buffer* endingBuffer                            = planB.m_OpGraph.GetBuffers().back();
 
     // Create Combination with all the plans and glues
     Combination combA(partA, std::move(planA), 0);
@@ -2004,7 +2052,9 @@ TEST_CASE("GetOpGraphCombinationDramDramMerge", "[CombinerDFS]")
     }
 
     REQUIRE(combOpGraph.GetBuffers().size() == 1);
-    REQUIRE(combOpGraph.GetBuffers()[0] == startingBuffer);
+    // The buffer should be a new merged buffer
+    REQUIRE((combOpGraph.GetBuffers()[0] != startingBuffer && combOpGraph.GetBuffers()[0] != endingBuffer &&
+             combOpGraph.GetBuffers()[0]->m_DebugTag.find("Merged") != std::string::npos));
 
     REQUIRE(combOpGraph.GetOps().size() == 0);
 }
@@ -2129,17 +2179,17 @@ TEST_CASE("GetOpGraphForDfsCombinationMergedBuffer", "[CombinerDFS]")
 /// The topology of the Combination is chosen to test cases including:
 ///   * Plans without any inputs (A)
 ///   * Plans without any outputs (F, G)
-///   * Two plans being connected via a glue (A -> BC)
-///   * Two plans being connected without a glue (BC -> DE)
+///   * Two plans being connected via a glue (A -> B)
+///   * Two plans being connected without a glue (B -> DE)
 ///   * A part having two plans using its output, each with a different glue (DE -> F/G)
 ///   * Two plans being connected by two different glues (for two different connections) (DE -> G)
-///   * A chain of plans containing just a single buffer each, each of which "reinterprets" its input to output (B -> C)
+///   * A replacement buffer in the ending glue (A)
 ///
-///  ( A ) -> g -> ( B ) -> ( C ) -> ( D ) ---> g -> ( F )
-///                               \  (   ) \'
-///                                | (   )  \-> g -> (   )
-///                                | (   )           ( G )
-///                                \-( E ) -->  g -> (   )
+///  ( A ) -> g -> ( B ) -> ( D ) ---> g -> ( F )
+///                       \  (   ) \'
+///                        | (   )  \-> g -> (   )
+///                        | (   )           ( G )
+///                        \-( E ) -->  g -> (   )
 TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
 {
     GraphOfParts graph;
@@ -2154,7 +2204,6 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     auto pG         = std::make_unique<MockPart>(graph.GeneratePartId());
     PartId partAId  = pA->GetPartId();
     PartId partBId  = pB->GetPartId();
-    PartId partCId  = pC->GetPartId();
     PartId partDEId = pDE->GetPartId();
     PartId partFId  = pF->GetPartId();
     PartId partGId  = pG->GetPartId();
@@ -2170,9 +2219,6 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     PartInputSlot partBInputSlot0   = { partBId, 0 };
     PartOutputSlot partBOutputSlot0 = { partBId, 0 };
 
-    PartInputSlot partCInputSlot0   = { partCId, 0 };
-    PartOutputSlot partCOutputSlot0 = { partCId, 0 };
-
     PartInputSlot partDEInputSlot0   = { partDEId, 0 };
     PartInputSlot partDEInputSlot1   = { partDEId, 1 };
     PartOutputSlot partDEOutputSlot0 = { partDEId, 0 };
@@ -2184,9 +2230,8 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     PartInputSlot partGInputSlot1 = { partGId, 1 };
 
     connections[partBInputSlot0]  = partAOutputSlot0;
-    connections[partCInputSlot0]  = partBOutputSlot0;
-    connections[partDEInputSlot0] = partCOutputSlot0;
-    connections[partDEInputSlot1] = partCOutputSlot0;
+    connections[partDEInputSlot0] = partBOutputSlot0;
+    connections[partDEInputSlot1] = partBOutputSlot0;
     connections[partFInputSlot0]  = partDEOutputSlot0;
     connections[partGInputSlot0]  = partDEOutputSlot0;
     connections[partGInputSlot1]  = partDEOutputSlot1;
@@ -2207,15 +2252,6 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram1";
     planB.m_InputMappings                           = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
     planB.m_OutputMappings                          = { { planB.m_OpGraph.GetBuffers()[0], partBOutputSlot0 } };
-
-    // Part consisting of node C
-    Plan planC;
-    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram2";
-    planC.m_InputMappings                           = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot0 } };
-    planC.m_OutputMappings                          = { { planC.m_OpGraph.GetBuffers()[0], partCOutputSlot0 } };
 
     // Part consisting of nodes D and E
     Plan planDE;
@@ -2276,30 +2312,30 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     // The end glueing of A is empty. But the starting glue of B has the connections.
     auto startingGlueA = std::make_shared<StartingGlue>();
     auto endingGlueA   = std::make_shared<EndingGlue>();
+    endingGlueA->m_Graph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                            TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                            TraversalOrder::Xyz, 0, QuantizationInfo()));
+    endingGlueA->m_Graph.GetBuffers()[0]->m_DebugTag = "ReplacementBuffer";
+    endingGlueA->m_ExternalConnections.m_ReplacementBuffers.insert(
+        { planA.m_OpGraph.GetBuffers()[0], endingGlueA->m_Graph.GetBuffers()[0] });
 
     auto startingGlueB = std::make_shared<StartingGlue>();
     startingGlueB->m_Graph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
     startingGlueB->m_Graph.GetOps()[0]->m_DebugTag = "InputDma";
     startingGlueB->m_ExternalConnections.m_BuffersToOps.insert(
-        { planA.m_OpGraph.GetBuffers().back(), startingGlueB->m_Graph.GetOps()[0] });
+        { endingGlueA->m_Graph.GetBuffers().back(), startingGlueB->m_Graph.GetOps()[0] });
     startingGlueB->m_ExternalConnections.m_OpsToBuffers.insert(
         { startingGlueB->m_Graph.GetOps()[0], planB.m_OpGraph.GetBuffers()[0] });
 
     auto endingGlueB = std::make_shared<EndingGlue>();
 
-    auto startingGlueC = std::make_shared<StartingGlue>();
-    startingGlueC->m_ExternalConnections.m_ReplacementBuffers.insert(
-        { planC.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetBuffers()[0] });
-
-    auto endingGlueC = std::make_shared<EndingGlue>();
-
     auto startingGlueDE0 = std::make_shared<StartingGlue>();
     startingGlueDE0->m_ExternalConnections.m_ReplacementBuffers.insert(
-        { planDE.m_OpGraph.GetBuffers()[0], planC.m_OpGraph.GetBuffers()[0] });
+        { planDE.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetBuffers()[0] });
 
     auto startingGlueDE1 = std::make_shared<StartingGlue>();
     startingGlueDE1->m_ExternalConnections.m_ReplacementBuffers.insert(
-        { planDE.m_OpGraph.GetBuffers()[2], planC.m_OpGraph.GetBuffers()[0] });
+        { planDE.m_OpGraph.GetBuffers()[2], planB.m_OpGraph.GetBuffers()[0] });
 
     auto endingGlueD = std::make_shared<EndingGlue>();
     endingGlueD->m_Graph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
@@ -2342,11 +2378,6 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     elemB.m_StartingGlues = { { partBInputSlot0, startingGlueB } };
     elemB.m_EndingGlues   = { { partBOutputSlot0, endingGlueB } };
 
-    Elem elemC;
-    elemC.m_Plan          = std::make_shared<Plan>(std::move(planC));
-    elemC.m_StartingGlues = { { partCInputSlot0, startingGlueC } };
-    elemC.m_EndingGlues   = { { partCOutputSlot0, endingGlueC } };
-
     Elem elemDE;
     elemDE.m_Plan          = std::make_shared<Plan>(std::move(planDE));
     elemDE.m_StartingGlues = { { partDEInputSlot0, startingGlueDE0 }, { partDEInputSlot1, startingGlueDE1 } };
@@ -2360,20 +2391,18 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     elemG.m_Plan          = std::make_shared<Plan>(std::move(planG));
     elemG.m_StartingGlues = { { partGInputSlot0, startingGluefromDtoG }, { partGInputSlot1, startingGluefromEtoG } };
 
-    comb.m_Elems.insert(std::make_pair(0, elemA));
-    comb.m_PartIdsInOrder.push_back(0);
-    comb.m_Elems.insert(std::make_pair(1, elemB));
-    comb.m_PartIdsInOrder.push_back(1);
-    comb.m_Elems.insert(std::make_pair(2, elemC));
-    comb.m_PartIdsInOrder.push_back(2);
-    comb.m_Elems.insert(std::make_pair(3, elemDE));
-    comb.m_PartIdsInOrder.push_back(3);
-    comb.m_Elems.insert(std::make_pair(4, elemF));
-    comb.m_PartIdsInOrder.push_back(4);
-    comb.m_Elems.insert(std::make_pair(5, elemG));
-    comb.m_PartIdsInOrder.push_back(5);
+    comb.m_Elems.insert(std::make_pair(partAId, elemA));
+    comb.m_PartIdsInOrder.push_back(partAId);
+    comb.m_Elems.insert(std::make_pair(partBId, elemB));
+    comb.m_PartIdsInOrder.push_back(partBId);
+    comb.m_Elems.insert(std::make_pair(partDEId, elemDE));
+    comb.m_PartIdsInOrder.push_back(partDEId);
+    comb.m_Elems.insert(std::make_pair(partFId, elemF));
+    comb.m_PartIdsInOrder.push_back(partFId);
+    comb.m_Elems.insert(std::make_pair(partGId, elemG));
+    comb.m_PartIdsInOrder.push_back(partGId);
 
-    bool dumpToFile = false;
+    bool dumpToFile = true;
     if (dumpToFile)
     {
         std::ofstream stream("GetOpGraphForCombination Input.dot");
@@ -2392,7 +2421,7 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
 
     // Check the resulting OpGraph is correct
     REQUIRE(combOpGraph.GetBuffers().size() == 7);
-    REQUIRE(combOpGraph.GetBuffers()[0]->m_DebugTag == "InputDram");
+    REQUIRE(combOpGraph.GetBuffers()[0]->m_DebugTag == "ReplacementBuffer");
     REQUIRE(combOpGraph.GetBuffers()[1]->m_DebugTag == "InputSram1");
     REQUIRE(combOpGraph.GetBuffers()[2]->m_DebugTag == "OutputSram1");
     REQUIRE(combOpGraph.GetBuffers()[3]->m_DebugTag == "OutputSram2");

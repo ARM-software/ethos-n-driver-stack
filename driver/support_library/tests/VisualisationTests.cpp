@@ -740,8 +740,9 @@ Buffer_4 -> OutputLabelBuffer_4[dir = back, arrowtail = box]
 ///   * A part having two plans using its output, each with a different glue (DE -> F/G)
 ///   * Two plans being connected by two different glues (for two different connections) (DE -> G)
 ///   * A chain of plans containing just a single buffer each, each of which "reinterprets" its input to output (B -> C)
+///   * A replacement buffer in the ending glue (F)
 ///
-///  ( A ) -> g -> ( B ) -> ( C ) -> ( D ) ---> g -> ( F )
+///  ( A ) -> g -> ( B ) -> ( C ) -> ( D ) ---> g -> ( F ) -> g
 ///                               \  (   ) \'
 ///                                | (   )  \-> g -> (   )
 ///                                | (   )           ( G )
@@ -786,7 +787,8 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     PartOutputSlot partDEOutputSlot0 = { partDEId, 0 };
     PartOutputSlot partDEOutputSlot1 = { partDEId, 1 };
 
-    PartInputSlot partFInputSlot0 = { partFId, 0 };
+    PartInputSlot partFInputSlot0   = { partFId, 0 };
+    PartOutputSlot partFOutputSlot0 = { partFId, 0 };
 
     PartInputSlot partGInputSlot0 = { partGId, 0 };
     PartInputSlot partGInputSlot1 = { partGId, 1 };
@@ -928,6 +930,14 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     startingGluefromEtoG->m_ExternalConnections.m_OpsToBuffers.insert(
         { endingGlueE->m_Graph.GetOps()[0], planG.m_OpGraph.GetBuffers()[1] });
 
+    auto endingGlueF = std::make_shared<EndingGlue>();
+    endingGlueF->m_Graph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
+                                                            TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
+                                                            TraversalOrder::Xyz, 0, QuantizationInfo()));
+    endingGlueF->m_Graph.GetBuffers()[0]->m_DebugTag = "ReplacementBuffer";
+    endingGlueF->m_ExternalConnections.m_ReplacementBuffers.insert(
+        { planF.m_OpGraph.GetBuffers()[0], endingGlueF->m_Graph.GetBuffers()[0] });
+
     Combination comb;
 
     Elem elemA;
@@ -952,6 +962,7 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     Elem elemF;
     elemF.m_Plan          = std::make_shared<Plan>(std::move(planF));
     elemF.m_StartingGlues = { { partFInputSlot0, startingGlueF } };
+    elemF.m_EndingGlues   = { { partFOutputSlot0, endingGlueF } };
 
     Elem elemG;
     elemG.m_Plan          = std::make_shared<Plan>(std::move(planG));
@@ -1026,7 +1037,7 @@ subgraph clusterPlan_10_Starting_Glue
 label="Plan 10 Starting Glue"
 labeljust=l
 }
-InputSram1 -> InputSram2 [style = dashed]
+InputSram1 -> InputSram2 [style = dashed, label="Replaced by", dir="back"]
 subgraph clusterPlan_10_Ending_Glue
 {
 label="Plan 10 Ending Glue"
@@ -1051,8 +1062,8 @@ subgraph clusterPlan_12_Starting_Glue
 label="Plan 12 Starting Glue"
 labeljust=l
 }
-InputSram2 -> IntermediateSramInput1 [style = dashed]
-InputSram2 -> IntermediateSramInput2 [style = dashed]
+InputSram2 -> IntermediateSramInput1 [style = dashed, label="Replaced by", dir="back"]
+InputSram2 -> IntermediateSramInput2 [style = dashed, label="Replaced by", dir="back"]
 subgraph clusterPlan_12_Ending_Glue
 {
 label="Plan 12 Ending Glue"
@@ -1081,6 +1092,13 @@ label="Plan 18 Starting Glue"
 labeljust=l
 }
 OutputDma2 -> OutputDram1 
+subgraph clusterPlan_18_Ending_Glue
+{
+label="Plan 18 Ending Glue"
+labeljust=l
+ReplacementBuffer[label = "ReplacementBuffer", shape = box, color = brown]
+}
+OutputDram1 -> ReplacementBuffer [style = dashed, label="Replaced by"]
 subgraph clusterPlan_20
 {
 label="Plan 20"

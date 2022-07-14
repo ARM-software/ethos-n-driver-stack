@@ -240,19 +240,10 @@ bool Combiner::ArePlansCompatibleImpl(const Plan& sPlan, const Plan& dPlan, cons
     // quantisation of a buffer without having to insert any glue (i.e. it's a no-op). We will use this to implement the
     // ReinterpretQuantization Operation.
 
-    // The same goes for shape, but only in limited circumstances (e.g. you can't reinterpret a 1x1x1x1 as a 1x100x100x100
-    // because there wouldn't be enough data, and there are probably additional limitations for non-linear formats like
-    // NHWCB, FCAF). For now we are conservative and only allow this for simple NHWC cases where the full tensor is
-    // reinterpreted with a different shape, which we use to implement "DRAM Reshape" Operations as a no-op.
-    bool areShapesDifferent = sPlanOutputBuffer->m_TensorShape != planInputBuffer->m_TensorShape;
-    bool isValidNhwcReinterpret =
-        sPlanOutputBuffer->m_Format == CascadingBufferFormat::NHWC &&
-        planInputBuffer->m_Format == CascadingBufferFormat::NHWC &&
-        GetNumElements(sPlanOutputBuffer->m_TensorShape) == GetNumElements(planInputBuffer->m_TensorShape);
-
-    bool areBuffersIncompatible = areShapesDifferent && !isValidNhwcReinterpret;
-
-    if (areBuffersIncompatible)
+    // Some properties of the buffers must match, for example if the tensor shape is different then something has gone
+    // wrong and these plans can't even be glued
+    bool areBuffersCompatible = sPlanOutputBuffer->m_TensorShape == planInputBuffer->m_TensorShape;
+    if (!areBuffersCompatible)
     {
         return false;
     }
@@ -738,17 +729,14 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenDramAndSramWithConversion(Bu
     auto dma1      = std::make_unique<DmaOp>(outputBuffer->m_Format);
     DmaOp* dma1Raw = dma1.get();
 
-    TensorShape outputShapeNHWCB = utils::RoundUpHeightAndWidthToBrickGroup(inputBuffer->m_TensorShape);
-    outputShapeNHWCB[3] =
-        utils::RoundUpToNearestMultiple(outputShapeNHWCB[3], utils::GetChannels(m_Caps.GetBrickGroupShape()));
-
     // Set the SRAM buffer's stripe size to be the smallest height and width to be the most compatible.
     // We can't split depth because if one of the buffers is NHWC that won't be compatible.
-    TensorShape sramStripeShape = { 1, utils::GetHeight(m_Caps.GetBrickGroupShape()),
-                                    utils::GetWidth(m_Caps.GetBrickGroupShape()),
-                                    utils::GetChannels(outputShapeNHWCB) };
-    auto sramBuffer             = std::make_unique<Buffer>(
-        Location::Sram, CascadingBufferFormat::NHWCB, outputShapeNHWCB, sramStripeShape, TraversalOrder::Xyz,
+    TensorShape sramStripeShape = {
+        1, utils::GetHeight(m_Caps.GetBrickGroupShape()), utils::GetWidth(m_Caps.GetBrickGroupShape()),
+        utils::RoundUpToNearestMultiple(inputBuffer->m_TensorShape[3], utils::GetChannels(m_Caps.GetBrickGroupShape()))
+    };
+    auto sramBuffer = std::make_unique<Buffer>(
+        Location::Sram, CascadingBufferFormat::NHWCB, inputBuffer->m_TensorShape, sramStripeShape, TraversalOrder::Xyz,
         utils::TotalSizeBytesNHWCB(sramStripeShape), inputBuffer->m_QuantizationInfo);
     sramBuffer->m_BufferType = BufferType::Intermediate;
     sramBuffer->m_Offset     = 0;    // Nothing else should be resident in SRAM at this point, so we can use any address
@@ -760,8 +748,8 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenDramAndSramWithConversion(Bu
     DmaOp* dma2Raw = dma2.get();
 
     auto intermediateDramBuffer = std::make_unique<Buffer>(
-        Location::Dram, CascadingBufferFormat::NHWCB, outputShapeNHWCB, TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
-        utils::TotalSizeBytesNHWCB(m_Caps.GetBrickGroupShape()), inputBuffer->m_QuantizationInfo);
+        Location::Dram, CascadingBufferFormat::NHWCB, inputBuffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
+        TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(inputBuffer->m_TensorShape), inputBuffer->m_QuantizationInfo);
     intermediateDramBuffer->m_BufferType = BufferType::Intermediate;
     Buffer* intermediateDramBufferRaw    = intermediateDramBuffer.get();
 
@@ -798,14 +786,18 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenSramAndDramWithConversion(Bu
 {
     StartingAndEndingGlues result;
 
+    // Note that we use the SRAM tensor shape, not the DRAM tensor shape, in case there is a reshape and the
+    // shapes are different.
+    const TensorShape& tensorShape = sourceBuffer->m_TensorShape;
+
     // First conversion needs to be to NHWCB in DRAM
     assert(sourceBuffer->m_Format == CascadingBufferFormat::NHWCB);
     auto dma1      = std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB);
     DmaOp* dma1Raw = dma1.get();
 
     auto intermediateDramBuffer = std::make_unique<Buffer>(
-        Location::Dram, CascadingBufferFormat::NHWCB, destBuffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
-        TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(destBuffer->m_TensorShape), destBuffer->m_QuantizationInfo);
+        Location::Dram, CascadingBufferFormat::NHWCB, tensorShape, TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
+        utils::TotalSizeBytesNHWCB(tensorShape), destBuffer->m_QuantizationInfo);
     intermediateDramBuffer->m_BufferType = BufferType::Intermediate;
 
     Buffer* intermediateDramBufferRaw = intermediateDramBuffer.get();
@@ -813,18 +805,15 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenSramAndDramWithConversion(Bu
     auto dma2      = std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB);
     DmaOp* dma2Raw = dma2.get();
 
-    TensorShape outputShapeNHWCB = utils::RoundUpHeightAndWidthToBrickGroup(destBuffer->m_TensorShape);
-    outputShapeNHWCB[3] =
-        utils::RoundUpToNearestMultiple(outputShapeNHWCB[3], utils::GetChannels(m_Caps.GetBrickGroupShape()));
-
     // Set the SRAM buffer's stripe size to be the smallest height and width to be the most compatible.
     // We can't split depth because if one of the buffers is NHWC that won't be compatible.
-    TensorShape intermediateSramStripeShape = { 1, utils::GetHeight(m_Caps.GetBrickGroupShape()),
-                                                utils::GetWidth(m_Caps.GetBrickGroupShape()),
-                                                utils::GetChannels(outputShapeNHWCB) };
-    auto intermediateSramBuffer             = std::make_unique<Buffer>(
-        Location::Sram, CascadingBufferFormat::NHWCB, destBuffer->m_TensorShape, intermediateSramStripeShape,
-        TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(intermediateSramStripeShape), destBuffer->m_QuantizationInfo);
+    TensorShape intermediateSramStripeShape = {
+        1, utils::GetHeight(m_Caps.GetBrickGroupShape()), utils::GetWidth(m_Caps.GetBrickGroupShape()),
+        utils::RoundUpToNearestMultiple(tensorShape[3], utils::GetChannels(m_Caps.GetBrickGroupShape()))
+    };
+    auto intermediateSramBuffer = std::make_unique<Buffer>(
+        Location::Sram, CascadingBufferFormat::NHWCB, tensorShape, intermediateSramStripeShape, TraversalOrder::Xyz,
+        utils::TotalSizeBytesNHWCB(intermediateSramStripeShape), destBuffer->m_QuantizationInfo);
     intermediateSramBuffer->m_BufferType = BufferType::Intermediate;
     intermediateSramBuffer->m_Offset =
         0;    // Nothing else should be resident in SRAM at this point, so we can use any address
@@ -901,6 +890,53 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenSramAndSram(Buffer* sourceBu
     return result;
 }
 
+/// Creates a new buffer as a result of merging the two given buffers, if that is possible.
+/// The two buffers must be valid to merge, i.e. with mostly identical properties.
+/// If one buffer is an intermediate DRAM buffer and the other is an Input or Output DRAM buffer,
+/// then the merged buffer will be an Input/Output buffer.
+/// Note that this is not a general purpose buffer merging function - it can only work in some
+/// limited situations.
+std::unique_ptr<Buffer> CreateMergedBuffer(const Buffer& a, const Buffer& b)
+{
+    // Currently this function supports just DRAM buffers, but it could be extended
+    // to merge SRAM buffers if that is required.
+    if (a.m_Location == b.m_Location && a.m_Location == Location::Dram && a.m_Format == b.m_Format &&
+        a.m_QuantizationInfo == b.m_QuantizationInfo && a.m_TensorShape == b.m_TensorShape &&
+        a.m_SizeInBytes == b.m_SizeInBytes)
+    {
+        std::unique_ptr<Buffer> result =
+            std::make_unique<Buffer>(Location::Dram, a.m_Format, a.m_TensorShape, TensorShape{ 0, 0, 0, 0 },
+                                     TraversalOrder::Xyz, a.m_SizeInBytes, a.m_QuantizationInfo);
+        result->m_DebugTag = "Merged " + result->m_DebugTag;
+
+        // One buffer may be more "important" than the other (e.g. if it is an output buffer),
+        // Always keep an Input/Output buffer over any other kind, as we can't lose these.
+        bool isSpecialA = a.m_BufferType == BufferType::Input || a.m_BufferType == BufferType::Output;
+        bool isSpecialB = b.m_BufferType == BufferType::Input || b.m_BufferType == BufferType::Output;
+        if (isSpecialA && isSpecialB)
+        {
+            // Both buffers special - we can't get rid of either, so can't merge
+            return {};
+        }
+        else if (isSpecialA)
+        {
+            result->m_BufferType         = a.m_BufferType;
+            result->m_OperationId        = a.m_OperationId;
+            result->m_ProducerOutputIndx = a.m_ProducerOutputIndx;
+        }
+        else    // Only B is special, or neither is
+        {
+            result->m_BufferType         = b.m_BufferType;
+            result->m_OperationId        = b.m_OperationId;
+            result->m_ProducerOutputIndx = b.m_ProducerOutputIndx;
+        }
+
+        return result;
+    }
+
+    return {};
+}
+
 StartingAndEndingGlues Combiner::GenerateSharedGlue(Buffer* sourceBuffer,
                                                     std::vector<Buffer*>& destBuffers,
                                                     const CascadingBufferFormat cascadingBufferFormat) const
@@ -955,26 +991,29 @@ StartingAndEndingGlues Combiner::GenerateSharedGlue(Buffer* sourceBuffer,
 // DRAM --DmaOp--> SRAM --DmaOp--> DRAM
 StartingAndEndingGlues Combiner::GenerateGlueBetweenDramAndDram(Buffer* inputBuffer, Buffer* outputBuffer) const
 {
-    StartingAndEndingGlues result;
-    auto dma1      = std::make_unique<DmaOp>(inputBuffer->m_Format);
-    DmaOp* dma1Raw = dma1.get();
+    assert(outputBuffer->m_TensorShape == inputBuffer->m_TensorShape);
+    assert(outputBuffer->m_QuantizationInfo == inputBuffer->m_QuantizationInfo);
 
-    TensorShape outputShapeNHWCB = utils::RoundUpHeightAndWidthToBrickGroup(inputBuffer->m_TensorShape);
-    outputShapeNHWCB[3] =
-        utils::RoundUpToNearestMultiple(outputShapeNHWCB[3], utils::GetChannels(m_Caps.GetBrickGroupShape()));
+    StartingAndEndingGlues result;
+    auto dma1      = std::make_unique<DmaOp>(outputBuffer->m_Format);
+    DmaOp* dma1Raw = dma1.get();
 
     // Set the SRAM buffer's stripe size to be the smallest height and width to be the most compatible.
     // We can't split depth because if one of the buffers is NHWC that won't be compatible.
-    TensorShape sramStripeShape = { 1, utils::GetHeight(m_Caps.GetBrickGroupShape()),
-                                    utils::GetWidth(m_Caps.GetBrickGroupShape()),
-                                    utils::GetChannels(outputShapeNHWCB) };
-    auto sramBuffer             = std::make_unique<Buffer>(
-        Location::Sram, CascadingBufferFormat::NHWCB, outputShapeNHWCB, sramStripeShape, TraversalOrder::Xyz,
+    TensorShape sramStripeShape = {
+        1, utils::GetHeight(m_Caps.GetBrickGroupShape()), utils::GetWidth(m_Caps.GetBrickGroupShape()),
+        utils::RoundUpToNearestMultiple(inputBuffer->m_TensorShape[3], utils::GetChannels(m_Caps.GetBrickGroupShape()))
+    };
+    auto sramBuffer = std::make_unique<Buffer>(
+        Location::Sram, CascadingBufferFormat::NHWCB, inputBuffer->m_TensorShape, sramStripeShape, TraversalOrder::Xyz,
         utils::TotalSizeBytesNHWCB(sramStripeShape), inputBuffer->m_QuantizationInfo);
     sramBuffer->m_BufferType = BufferType::Intermediate;
+    sramBuffer->m_Offset     = 0;    // Nothing else should be resident in SRAM at this point, so we can use any address
+    sramBuffer->m_NumStripes = 1;
+    sramBuffer->m_SlotSizeInBytes = sramBuffer->m_SizeInBytes;
 
     Buffer* sramBufferRaw = sramBuffer.get();
-    auto dma2             = std::make_unique<DmaOp>(outputBuffer->m_Format);
+    auto dma2             = std::make_unique<DmaOp>(inputBuffer->m_Format);
     DmaOp* dma2Raw        = dma2.get();
 
     // We can choose to the dram buffer in the either in starting or ending
@@ -1036,17 +1075,20 @@ std::pair<bool, StartingAndEndingGlues> Combiner::GetGlue(Buffer* outputBuffer, 
     }
     else if (outputBuffer->m_Location == Location::Dram && inputBuffer->m_Location == Location::Dram)
     {
-
-        bool areBuffersEquivalent = outputBuffer->m_Format == inputBuffer->m_Format &&
-                                    outputBuffer->m_Order == inputBuffer->m_Order &&
-                                    outputBuffer->m_SizeInBytes == inputBuffer->m_SizeInBytes;
-        // Provide an empty Glue in this case, there is nothing to do
-        if (areBuffersEquivalent)
+        // Dram to Dram may require a glue if the buffers are in different formats.
+        // Otherwise if they are equivalent they can be merged into a single buffer.
+        std::unique_ptr<Buffer> mergedBuffer = CreateMergedBuffer(*inputBuffer, *outputBuffer);
+        if (mergedBuffer)
         {
             StartingAndEndingGlues glues;
-            EndingGlue endingGlue;
             StartingGlue startingGlue;
-            startingGlue.m_ExternalConnections.m_ReplacementBuffers.insert({ inputBuffer, outputBuffer });
+            EndingGlue endingGlue;
+            // Save the merged Buffer in the ending glue OpGraph
+            Buffer* mergedBufferRaw = mergedBuffer.get();
+            endingGlue.m_Graph.AddBuffer(std::move(mergedBuffer));
+            // Mark both buffers as being replaced by the new merged buffer
+            endingGlue.m_ExternalConnections.m_ReplacementBuffers.insert({ outputBuffer, mergedBufferRaw });
+            startingGlue.m_ExternalConnections.m_ReplacementBuffers.insert({ inputBuffer, mergedBufferRaw });
             glues.m_StartingGlues.push_back(std::move(startingGlue));
             glues.m_EndingGlue = std::move(endingGlue);
             return std::make_pair(true, std::move(glues));
@@ -2090,43 +2132,79 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
             const StartingGlue* glue = startingGlues.at(inputSlot).get();
             result.MergeOpGraph(glue->m_Graph);
         }
+
+        const std::unordered_map<PartOutputSlot, std::shared_ptr<EndingGlue>>& endingGlues =
+            elemIt->second.m_EndingGlues;
+
         // Add buffers from the plan
         for (Buffer* b : plan.m_OpGraph.GetBuffers())
         {
-            // Don't add a buffer if its an input to the plan, and the glue states it needs to be replaced with another buffer
-            // Instead, remap it to the one we already have
+            // Check if the buffer needs special treatment - if it is an input or output from this plan,
+            // and the glue states that it needs replacing with something else then we shouldn't add this buffer
+            // at all.
             auto inputSlotIt = plan.m_InputMappings.find(b);
             if (inputSlotIt != plan.m_InputMappings.end())
             {
-                // Get the glue for the input buffer
-                StartingGlue* glue = startingGlues.at(inputSlotIt->second).get();
-                // Look up the buffer replacement
+                // Get the glue for this input buffer
+                const StartingGlue* glue = startingGlues.at(inputSlotIt->second).get();
+                // Look up the buffer replacement, if there is one
                 auto bufferIt = glue->m_ExternalConnections.m_ReplacementBuffers.find(b);
-                // If the buffer replacement exists add it to the merged buffers
                 if (bufferIt != glue->m_ExternalConnections.m_ReplacementBuffers.end())
                 {
-                    mergedBuffers[b] = getEffectiveBuffer(bufferIt->second);
-                }
-                else
-                {
-                    result.AddBuffer(b);
+                    // Don't add the buffer, just record it as being merged with its replacement.
+                    mergedBuffers[b] = bufferIt->second;
+                    continue;
                 }
             }
-            else
+
+            auto outputSlotIt = plan.m_OutputMappings.find(b);
+            if (outputSlotIt != plan.m_OutputMappings.end())
             {
-                result.AddBuffer(b);
+                // Get the glue for this output buffer
+                const EndingGlue* glue = endingGlues.at(outputSlotIt->second).get();
+                // Look up the buffer replacement, if there is one
+                auto bufferIt = glue->m_ExternalConnections.m_ReplacementBuffers.find(b);
+                if (bufferIt != glue->m_ExternalConnections.m_ReplacementBuffers.end())
+                {
+                    // Don't add the buffer, just record it as being merged with its replacement.
+                    mergedBuffers[b] = bufferIt->second;
+                    continue;
+                }
             }
+
+            // Normal buffer (not replaced with anything), just add it
+            result.AddBuffer(b);
         }
         // Add Ops from the Plan
         for (Op* o : plan.m_OpGraph.GetOps())
         {
             result.AddOp(o);
         }
+
+        // Add any ending glues to the OpGraph.
+        // This must be done before we do any connections within the plan because we might need to connect
+        // to buffers that are contained in the EndingGlue (merged buffers)
+        // Note that the order of iteration here needs to be deterministic because we may add some Ops
+        // to the OpGraph (and these need to be added in a consistent order).
+        // Therefore we don't use plan.m_OutputMappings directly, as it does not have a deterministic order.
+        std::vector<PartOutputSlot> outputSlots = parts.GetPartOutputs(partId);
+        // GetPartOutputs will return duplicate values if the output slot has multiple connections.
+        // The below logic requires not to have duplicates, so we remove these first.
+        auto newEnd = std::unique(outputSlots.begin(), outputSlots.end());
+        outputSlots.resize(std::distance(outputSlots.begin(), newEnd));
+        for (auto outputSlot : outputSlots)
+        {
+            const EndingGlue* glue = endingGlues.at(outputSlot).get();
+            result.MergeOpGraph(glue->m_Graph);
+        }
+
+        // Connect the starting glue to the previous plan (and/or its ending glue),
+        // and the starting glue to the current plan.
         for (PartInputSlot& inputSlot : inputSlots)
         {
             // Get the glue for the input buffer
-            StartingGlue* glue = startingGlues.at(inputSlot).get();
-            // Connect the plan, the starting glue and the previous plans ending glue together.
+            const StartingGlue* glue = startingGlues.at(inputSlot).get();
+            // Connect the plan, the starting glue and the previous plan's ending glue together.
             for (std::pair<Buffer*, Op*> bufAndOp : glue->m_ExternalConnections.m_BuffersToOps)
             {
                 result.AddConsumer(getEffectiveBuffer(bufAndOp.first), bufAndOp.second, 0);
@@ -2153,22 +2231,10 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
             }
         }
 
-        // Connect the ending glue
-        // Note that the order of iteration here needs to be deterministic because we may add some Ops
-        // to the OpGraph (and these need to be added in a consistent order).
-        // Therefore we don't use plan.m_OutputMappings directly, as it does not have a deterministic order.
-        std::vector<PartOutputSlot> outputSlots = parts.GetPartOutputs(partId);
-        // GetPartOutputs will return duplicate values if the output slot has multiple connections.
-        // The below logic requires not to have duplicates, so we remove these first.
-        auto newEnd = std::unique(outputSlots.begin(), outputSlots.end());
-        outputSlots.resize(std::distance(outputSlots.begin(), newEnd));
+        // Connect the ending glues to the current plan
         for (auto outputSlot : outputSlots)
         {
-            const std::unordered_map<PartOutputSlot, std::shared_ptr<EndingGlue>>& endingGlues =
-                elemIt->second.m_EndingGlues;
-
             EndingGlue* glue = endingGlues.at(outputSlot).get();
-            result.MergeOpGraph(glue->m_Graph);
             // Connect the ending glue to the plan
             for (std::pair<Buffer*, Op*> bufAndOp : glue->m_ExternalConnections.m_BuffersToOps)
             {
