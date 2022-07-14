@@ -609,6 +609,12 @@ std::tuple<bool, bool, bool> IsSplitting(const TensorShape& tensorShape, const T
     return std::make_tuple(splitH, splitW, splitC);
 }
 
+bool IsFullTensor(const TensorShape& tensorShape, const TensorShape& stripeShape)
+{
+    return GetHeight(stripeShape) >= GetHeight(tensorShape) && GetWidth(stripeShape) >= GetWidth(tensorShape) &&
+           GetChannels(stripeShape) >= GetChannels(tensorShape);
+}
+
 /// Helper function to check if any packed boundary data is being used.
 /// We can't use the SmallVector Any(x > 0) function, because it requires C++ 17 :(
 bool AnyPackedBoundaryData(const command_stream::cascading::PackedBoundaryThickness& t)

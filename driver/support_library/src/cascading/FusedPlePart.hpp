@@ -65,7 +65,6 @@ private:
                                            uint32_t numWeightStripes) const;
 
     std::pair<Buffer*, Buffer*> AddIdentityMceOpForSubGraph(OwnedOpGraph& opGraph,
-                                                            Lifetime lifetime,
                                                             const impl::MceStripesInfo& mceComputeInfo,
                                                             const impl::NumMemoryStripes& numMemoryStripes,
                                                             const impl::MemoryStripesInfo& memoryStripes,

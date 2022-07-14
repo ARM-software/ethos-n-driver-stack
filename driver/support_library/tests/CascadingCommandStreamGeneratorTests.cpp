@@ -54,15 +54,14 @@ public:
         Buffer* sramBuffer                        = buffers.back();
         sramBuffer->m_SlotSizeInBytes             = 1 * 8 * 8 * 16;
         m_OpGraph.SetProducer(buffers.back(), ops.back());
-        auto pleOp =
-            std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::LEAKY_RELU,
-                                    BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                    TensorShape{ 1, 8, 8, 32 }, ethosn::command_stream::DataType::U8, true);
+        auto pleOp = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::LEAKY_RELU, BlockConfig{ 8u, 8u }, 1,
+                                             std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                             TensorShape{ 1, 8, 8, 32 }, ethosn::command_stream::DataType::U8, true);
         pleOp.get()->m_Offset     = 0x000000FF;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp =
-            AddPleToOpGraph(m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 8, 8, 32 }, numMemoryStripes,
-                            std::move(pleOp), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
+            AddPleToOpGraph(m_OpGraph, TensorShape{ 1, 8, 8, 32 }, numMemoryStripes, std::move(pleOp),
+                            TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
         m_OpGraph.GetBuffers().back()->m_Offset = 0x00000F00;
         m_OpGraph.AddConsumer(sramBuffer, ops.back(), 0);
 
@@ -172,10 +171,10 @@ public:
         kernelWidth             = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[1]);
 
         // Plan mcePlePlan
-        m_OpGraph.AddOp(std::make_unique<MceOp>(
-            Lifetime::Cascade, ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-            BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 },
-            TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        m_OpGraph.AddOp(
+            std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                    BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 },
+                                    TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
         m_OpGraph.GetOps().back()->m_DebugTag = "MceOp";
 
         m_OpGraph.AddConsumer(ptrInputBuffer, ops.back(), 0);    // connect input sram buffer
@@ -197,14 +196,14 @@ public:
 
         // Adding a passthrough PLE kernel to the plan
         // The PleKernelId is expected to be PASSTHROUGH_8x8_1
-        pleOp = std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                        BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+        pleOp = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                                        std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
                                         TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
         pleOp.get()->m_Offset     = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp =
-            AddPleToOpGraph(m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes,
-                            std::move(pleOp), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
+            AddPleToOpGraph(m_OpGraph, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp),
+                            TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
         m_OpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         m_OpGraph.AddConsumer(pleInBuffer, ops.back(), 0);
 
@@ -364,10 +363,10 @@ public:
         m_OpGraph.GetBuffers().back()->m_Offset   = 0x000000F0;
         m_OpGraph.SetProducer(buffers.back(), ops.back());
 
-        m_OpGraph.AddOp(std::make_unique<MceOp>(
-            Lifetime::Cascade, ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-            BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 },
-            TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        m_OpGraph.AddOp(
+            std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                    BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 },
+                                    TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
 
         m_OpGraph.AddConsumer(inputSramBuffer, ops.back(), 0);
         m_OpGraph.AddConsumer(buffers.back(), ops.back(), 1);
@@ -384,9 +383,9 @@ public:
         // Adding a passthrough PLE kernel to the plan
         // The PleKernelId is expected to be PASSTHROUGH_8x8_1
         m_OpGraph.AddOp(
-            std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                    BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                    TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true));
+            std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                                    std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } }, TensorShape{ 1, 4, 4, 32 },
+                                    ethosn::command_stream::DataType::U8, true));
         m_OpGraph.GetOps()[3]->m_DebugTag = "Ple";
         m_OpGraph.AddConsumer(buffers.back(), ops.back(), 0);
 
@@ -623,10 +622,10 @@ public:
         kernelHeight            = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[0]);
         kernelWidth             = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[1]);
 
-        mergedOpGraph.AddOp(std::make_unique<MceOp>(
-            Lifetime::Cascade, ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-            BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 },
-            TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        mergedOpGraph.AddOp(
+            std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                    BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 },
+                                    TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
         mergedOpGraph.GetOps().back()->m_DebugTag = "MceOp";
 
         mergedOpGraph.AddConsumer(inputSramBuffer, mergedOpGraph.GetOps().back(), 0);
@@ -648,15 +647,15 @@ public:
 
         // Adding a passthrough PLE kernel to the plan
         // The PleKernelId is expected to be PASSTHROUGH_8x8_1
-        pleOp = std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                        BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+        pleOp = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                                        std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
                                         TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
         pleOp.get()->m_Offset = 0x0000F0F0;
         ethosn::support_library::impl::NumMemoryStripes numMemoryStripes;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp =
-            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes,
-                            std::move(pleOp), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), { 0 });
+            AddPleToOpGraph(mergedOpGraph, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp),
+                            TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), { 0 });
         mergedOpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         mergedOpGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
 
@@ -724,10 +723,10 @@ public:
         kernelWidth2             = static_cast<uint8_t>(ptrWeightBuffer2->m_TensorShape[1]);
 
         // Plan mcePlePlan
-        mergedOpGraph.AddOp(std::make_unique<MceOp>(
-            Lifetime::Cascade, ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-            BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 },
-            TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        mergedOpGraph.AddOp(
+            std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                    BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 },
+                                    TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
         mergedOpGraph.GetOps().back()->m_DebugTag = "MceOp2";
 
         mergedOpGraph.AddConsumer(intermediateSramBuffer, mergedOpGraph.GetOps().back(), 0);
@@ -753,15 +752,14 @@ public:
 
         // Adding a passthrough PLE kernel to the plan
         // The PleKernelId is expected to be PASSTHROUGH_8x8_1
-        auto pleOp2 =
-            std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                    BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                    TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
+        auto pleOp2 = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u },
+                                              1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                              TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
         pleOp2.get()->m_Offset    = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp2 =
-            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes,
-                            std::move(pleOp2), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), { 1 });
+            AddPleToOpGraph(mergedOpGraph, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp2),
+                            TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), { 1 });
         mergedOpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         mergedOpGraph.AddConsumer(pleInBuffer2, outBufferAndPleOp2.second, 0);
 
@@ -954,10 +952,10 @@ public:
         kernelWidth             = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[1]);
 
         // Plan mcePlePlan
-        mergedOpGraph.AddOp(std::make_unique<MceOp>(
-            Lifetime::Cascade, ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-            BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 },
-            TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        mergedOpGraph.AddOp(
+            std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                    BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 },
+                                    TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
         mergedOpGraph.GetOps().back()->m_DebugTag = "MceOp";
 
         mergedOpGraph.AddConsumer(inputSramBuffer, mergedOpGraph.GetOps().back(), 0);
@@ -983,14 +981,14 @@ public:
 
         // Adding a passthrough PLE kernel to the plan
         // The PleKernelId is expected to be PASSTHROUGH_8x8_1
-        pleOp = std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                        BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+        pleOp = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                                        std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
                                         TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
         pleOp.get()->m_Offset     = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp =
-            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes,
-                            std::move(pleOp), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
+            AddPleToOpGraph(mergedOpGraph, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp),
+                            TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
         mergedOpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         mergedOpGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
 
@@ -1028,10 +1026,10 @@ public:
         kernelWidth2             = static_cast<uint8_t>(ptrWeightBuffer2->m_TensorShape[1]);
 
         // Plan mcePlePlan
-        mergedOpGraph.AddOp(std::make_unique<MceOp>(
-            Lifetime::Cascade, ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-            BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 },
-            TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        mergedOpGraph.AddOp(
+            std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                    BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 },
+                                    TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
         mergedOpGraph.GetOps().back()->m_DebugTag = "MceOp2";
 
         mergedOpGraph.AddConsumer(outBufferAndPleOp.first, mergedOpGraph.GetOps().back(), 0);
@@ -1048,16 +1046,15 @@ public:
 
         // Adding a passthrough PLE kernel to the plan
         // The PleKernelId is expected to be PASSTHROUGH_8x8_1
-        pleOp2 =
-            std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                    BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                    TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
+        pleOp2 = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                                         std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                         TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
         pleOp2.get()->m_Offset    = 0x0000F0F0;
         pleOp2->m_LoadKernel      = false;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp2 =
-            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes,
-                            std::move(pleOp2), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
+            AddPleToOpGraph(mergedOpGraph, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp2),
+                            TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
         mergedOpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         mergedOpGraph.AddConsumer(pleInBuffer2, outBufferAndPleOp2.second, 0);
 
@@ -1247,10 +1244,10 @@ public:
         kernelWidth             = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[2]);
 
         // Plan mcePlePlan
-        mergedOpGraph.AddOp(std::make_unique<MceOp>(
-            Lifetime::Cascade, ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-            BlockConfig{ 16u, 16u }, TensorShape{ 1, 5, 5, 1 }, TensorShape{ 1, 5, 5, 1 }, outputTensorShape,
-            TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        mergedOpGraph.AddOp(std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION,
+                                                    CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+                                                    TensorShape{ 1, 5, 5, 1 }, TensorShape{ 1, 5, 5, 1 },
+                                                    outputTensorShape, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
         mergedOpGraph.GetOps().back()->m_DebugTag = "MceOp Stride 1x1";
 
         mergedOpGraph.AddConsumer(ptrInputBuffer, mergedOpGraph.GetOps().back(), 0);    // connect input sram buffer
@@ -1274,14 +1271,14 @@ public:
 
         // Adding an Interleave PLE kernel to the plan
         pleOp =
-            std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::INTERLEAVE_2X2_2_2,
-                                    BlockConfig{ 16u, 16u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 5, 5, 1 } },
-                                    TensorShape{ 1, 5, 5, 1 }, ethosn::command_stream::DataType::U8, true);
+            std::make_unique<PleOp>(ethosn::command_stream::PleOperation::INTERLEAVE_2X2_2_2, BlockConfig{ 16u, 16u },
+                                    1, std::vector<TensorShape>{ TensorShape{ 1, 5, 5, 1 } }, TensorShape{ 1, 5, 5, 1 },
+                                    ethosn::command_stream::DataType::U8, true);
         pleOp.get()->m_Offset     = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp =
-            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TensorShape{ 1, 5, 5, 1 }, numMemoryStripes,
-                            std::move(pleOp), TensorShape{ 1, 5, 5, 1 }, QuantizationInfo(), operationIds);
+            AddPleToOpGraph(mergedOpGraph, TensorShape{ 1, 5, 5, 1 }, numMemoryStripes, std::move(pleOp),
+                            TensorShape{ 1, 5, 5, 1 }, QuantizationInfo(), operationIds);
         mergedOpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         mergedOpGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
 
@@ -1319,10 +1316,10 @@ public:
         kernelWidth2             = static_cast<uint8_t>(ptrWeightBuffer2->m_TensorShape[2]);
 
         // Plan mcePlePlan
-        mergedOpGraph.AddOp(std::make_unique<MceOp>(
-            Lifetime::Cascade, ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-            BlockConfig{ 16u, 16u }, TensorShape{ 1, 5, 5, 1 }, outputTensorShape, outputTensorShape,
-            TraversalOrder::Xyz, Stride(2, 2), padLeft, padTop, 0, 255));
+        mergedOpGraph.AddOp(std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION,
+                                                    CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+                                                    TensorShape{ 1, 5, 5, 1 }, outputTensorShape, outputTensorShape,
+                                                    TraversalOrder::Xyz, Stride(2, 2), padLeft, padTop, 0, 255));
         (static_cast<MceOp*>(mergedOpGraph.GetOps().back()))->m_uninterleavedInputShape = TensorShape{ 1, 5, 5, 1 };
         mergedOpGraph.GetOps().back()->m_DebugTag                                       = "MceOp Stride 2x2";
 
@@ -1343,14 +1340,13 @@ public:
 
         // Adding a passthrough PLE kernel to the plan
         // The PleKernelId is expected to be PASSTHROUGH_8x8_1
-        pleOp2 = std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                         BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ outputTensorShape },
-                                         outputTensorShape, ethosn::command_stream::DataType::U8, true);
+        pleOp2 = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                                         std::vector<TensorShape>{ outputTensorShape }, outputTensorShape,
+                                         ethosn::command_stream::DataType::U8, true);
         pleOp2.get()->m_Offset    = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
-        auto outBufferAndPleOp2 =
-            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, outputTensorShape, numMemoryStripes, std::move(pleOp2),
-                            outputTensorShape, QuantizationInfo(), operationIds);
+        auto outBufferAndPleOp2 = AddPleToOpGraph(mergedOpGraph, outputTensorShape, numMemoryStripes, std::move(pleOp2),
+                                                  outputTensorShape, QuantizationInfo(), operationIds);
         mergedOpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         mergedOpGraph.AddConsumer(pleInBuffer2, mergedOpGraph.GetOps().back(), 0);
 
@@ -1532,10 +1528,10 @@ public:
         kernelWidth             = static_cast<uint8_t>(ptrWeightBuffer->m_TensorShape[2]);
 
         // Plan mcePlePlan
-        mergedOpGraph.AddOp(std::make_unique<MceOp>(
-            Lifetime::Cascade, ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-            BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 1, 16, 1 },
-            TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        mergedOpGraph.AddOp(
+            std::make_unique<MceOp>(ethosn::command_stream::MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                    BlockConfig{ 16u, 16u }, TensorShape{ 1, 8, 8, 16 }, TensorShape{ 1, 8, 8, 8 },
+                                    TensorShape{ 1, 1, 16, 1 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
         mergedOpGraph.GetOps()[0]->m_DebugTag = "MceOp";
 
         mergedOpGraph.AddConsumer(ptrInputBuffer, ops.back(), 0);
@@ -1556,14 +1552,14 @@ public:
 
         // Adding a passthrough PLE kernel to the plan
         // The PleKernelId is expected to be PASSTHROUGH_8x8_1
-        pleOp = std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                        BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+        pleOp = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                                        std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
                                         TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
         pleOp.get()->m_Offset     = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp =
-            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes,
-                            std::move(pleOp), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
+            AddPleToOpGraph(mergedOpGraph, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp),
+                            TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
         buffers.back()->m_Offset = 0X0000F0FF;
 
         mergedOpGraph.AddConsumer(pleInputBuffer, outBufferAndPleOp.second, 0);
@@ -1627,15 +1623,14 @@ public:
 
         Buffer* pleInput1 = buffers.back();
 
-        pleOp2 =
-            std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::ADDITION_RESCALE,
-                                    BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                    TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
+        pleOp2 = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::ADDITION_RESCALE, BlockConfig{ 8u, 8u },
+                                         1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                         TensorShape{ 1, 4, 4, 32 }, ethosn::command_stream::DataType::U8, true);
         pleOp2.get()->m_Offset    = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp2 =
-            AddPleToOpGraph(mergedOpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes,
-                            std::move(pleOp2), TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
+            AddPleToOpGraph(mergedOpGraph, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp2),
+                            TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
         mergedOpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
 
         mergedOpGraph.AddConsumer(pleInput0, outBufferAndPleOp2.second, 0);

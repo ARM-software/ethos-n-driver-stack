@@ -680,6 +680,8 @@ std::pair<uint32_t, uint32_t>
 
 std::tuple<bool, bool, bool> IsSplitting(const TensorShape& tensorShape, const TensorShape& stripeShape);
 
+bool IsFullTensor(const TensorShape& tensorShape, const TensorShape& stripeShape);
+
 bool AnyPackedBoundaryData(const command_stream::cascading::PackedBoundaryThickness& t);
 bool EqualPackedBoundaryData(const command_stream::cascading::PackedBoundaryThickness& a,
                              const command_stream::cascading::PackedBoundaryThickness& b);

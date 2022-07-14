@@ -267,7 +267,7 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(Op* const ptrDmaOp)
                 if (IsObjectOfType<MceOp>(mce))
                 {
                     // Check if this is an s1 cascade
-                    if (mce->m_Lifetime == Lifetime::Atomic)
+                    if (mceInput->IsFullTensor())
                     {
                         AgentIdType mceStreamerAgentId = m_OpToAgentIdMapping[mce];
 
@@ -425,7 +425,7 @@ void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
     {
         Buffer* pleInputBuffer = m_MergedOpGraph.GetInputs(producerOp)[0];
         Op* pleInputProducer   = m_MergedOpGraph.GetProducer(pleInputBuffer);
-        if (IsObjectOfType<MceOp>(pleInputProducer) && pleInputProducer->m_Lifetime == Lifetime::Cascade)
+        if (IsObjectOfType<MceOp>(pleInputProducer) && !inputBuffers[g_MceIfmBufferIndex]->IsFullTensor())
         {
             // Strategy 0 cascade - need schedule dependency from previous MceS
             AddScheduleTimeDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::MCE_SCHEDULER,
@@ -532,7 +532,7 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
         {
             Buffer* mceInputBuffer = m_MergedOpGraph.GetInputs(input0Producer)[g_MceIfmBufferIndex];
             Op* mceInputProducer   = m_MergedOpGraph.GetProducer(mceInputBuffer);
-            if (IsObjectOfType<PleOp>(mceInputProducer) && mceInputProducer->m_Lifetime == Lifetime::Cascade)
+            if (IsObjectOfType<PleOp>(mceInputProducer) && !mceInputBuffer->IsFullTensor())
             {
                 // Strategy 0 cascade - need schedule dependency from previous PleS
                 AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::PLE_SCHEDULER,

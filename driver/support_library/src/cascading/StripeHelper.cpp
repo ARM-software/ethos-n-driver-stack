@@ -414,7 +414,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                               const NumStripes& weightRange, const NumStripes& pleInputRange,
                               const TensorShape& memoryInputStripe, const TensorShape& memoryOutputStripe,
                               const TensorShape& memoryPleInputStripe, const TensorShape& inputShape,
-                              const TensorShape& outputShape, const Lifetime lifetime = Lifetime::Cascade) {
+                              const TensorShape& outputShape) {
         // Limit the max number of stripes based on the size of the tensor - there is no point considering plans where
         // we can store more stripes in the tile than there are in the tensor!
         NumStripes inputCopy = inputRange;
@@ -509,8 +509,6 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         {
             MceAndPleInfo mceAndPleInfo;
 
-            mceAndPleInfo.m_Lifetime = lifetime;
-
             mceAndPleInfo.m_MceCompute.m_Input       = mceInputStripe;
             mceAndPleInfo.m_MceCompute.m_Output      = mceOutputStripe;
             mceAndPleInfo.m_MceCompute.m_Weight      = mceWeightStripe;
@@ -528,8 +526,6 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         {
             MceOnlyInfo mceOnlyInfo;
 
-            mceOnlyInfo.m_Lifetime = lifetime;
-
             mceOnlyInfo.m_MceCompute.m_Input       = mceInputStripe;
             mceOnlyInfo.m_MceCompute.m_Output      = mceOutputStripe;
             mceOnlyInfo.m_MceCompute.m_Weight      = mceWeightStripe;
@@ -544,8 +540,6 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         {
             PleOnlyInfo pleOnlyInfo;
 
-            pleOnlyInfo.m_Lifetime = lifetime;
-
             pleOnlyInfo.m_PleCompute.m_Input       = pleInputStripe;
             pleOnlyInfo.m_PleCompute.m_Output      = pleOutputStripe;
             pleOnlyInfo.m_PleCompute.m_BlockConfig = blockConfig;
@@ -558,9 +552,8 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         }
         {
             DmaOnlyInfo dmaOnlyInfo;
-            dmaOnlyInfo.m_Lifetime = lifetime;
-            dmaOnlyInfo.m_Input    = { inputCopy, memoryInputStripe };
-            dmaOnlyInfo.m_Output   = { outputCopy, memoryOutputStripe };
+            dmaOnlyInfo.m_Input  = { inputCopy, memoryInputStripe };
+            dmaOnlyInfo.m_Output = { outputCopy, memoryOutputStripe };
             outStripeInfos.m_DmaOnlyInfos.insert(dmaOnlyInfo);
         }
     };
@@ -833,7 +826,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                 CreateStripe(outputShape, memoryOutputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
             AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, numStripesInput,
                            numStripesOutput, numStripesWeights, numStripesPleInput, mceInputStripe, memoryOutputStripe,
-                           mceOutputStripe, inputShape, outputShape, Lifetime::Atomic);
+                           mceOutputStripe, inputShape, outputShape);
         }
     }
     else
@@ -969,7 +962,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                 CreateStripe(outputShape, memoryOutputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
             AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, numStripesInputCopy,
                            numStripesOutput, numStripesWeights, numStripesPleInput, mceInputStripe, memoryOutputStripe,
-                           mceOutputStripe, inputShape, outputShape, Lifetime::Atomic);
+                           mceOutputStripe, inputShape, outputShape);
         }
     }
 
@@ -1003,7 +996,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
 
         AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, numStripesInputCopy,
                        numStripesOutputCopy, numStripesWeightsCopy, numStripesPleInput, mceInputStripe, pleOutputStripe,
-                       mceOutputStripe, inputShape, outputShape, Lifetime::Atomic);
+                       mceOutputStripe, inputShape, outputShape);
     }
 }
 
@@ -1238,7 +1231,6 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
 }
 
 std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
-                                        Lifetime lifetime,
                                         const TensorShape& memoryOutputShape,
                                         impl::NumMemoryStripes& numMemoryStripes,
                                         std::unique_ptr<Op> pleOp,
@@ -1249,7 +1241,6 @@ std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
     auto& buffers      = opGraph.GetBuffers();
     Op* op             = opGraph.AddOp(std::move(pleOp));
     op->m_OperationIds = sourceOperationIds;
-    op->m_Lifetime     = lifetime;
 
     opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, GetFormat(Location::Sram), TraversalOrder::Xyz));
     auto pleOutBuffer = buffers.back();

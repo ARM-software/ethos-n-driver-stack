@@ -110,7 +110,6 @@ protected:
                       uint32_t numWeightStripes) const;
 
     std::pair<Buffer*, Op*> AddMceToOpGraph(OwnedOpGraph& opGraph,
-                                            Lifetime lifetime,
                                             const impl::MceStripesInfo& mceStripeInfo,
                                             const impl::MemoryStripesInfo& memoryStripesInfo,
                                             impl::NumMemoryStripes& numMemoryStripes,

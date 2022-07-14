@@ -214,7 +214,6 @@ struct MceAndPleInfo
     MceStripesInfo m_MceCompute;
     PleStripesInfo m_PleCompute;
     MemoryStripesInfo m_Memory;
-    Lifetime m_Lifetime = Lifetime::Cascade;
 
     bool operator<(const MceAndPleInfo& rhs) const;
 };
@@ -225,7 +224,6 @@ struct MceOnlyInfo
 {
     MceStripesInfo m_MceCompute;
     MemoryStripesInfo m_Memory;
-    Lifetime m_Lifetime = Lifetime::Cascade;
 
     bool operator<(const MceOnlyInfo& rhs) const;
 };
@@ -236,7 +234,6 @@ struct PleOnlyInfo
 {
     PleStripesInfo m_PleCompute;
     MemoryStripesInfo m_Memory;
-    Lifetime m_Lifetime = Lifetime::Cascade;
 
     bool operator<(const PleOnlyInfo& rhs) const;
 };
@@ -247,7 +244,6 @@ struct DmaOnlyInfo
 {
     MemoryStripeInfo m_Input;
     MemoryStripeInfo m_Output;
-    Lifetime m_Lifetime = Lifetime::Cascade;
 
     bool operator<(const DmaOnlyInfo& rhs) const;
 };
@@ -278,7 +274,6 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
                        Location location);
 
 std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
-                                        Lifetime lifetime,
                                         const TensorShape& memoryOutputShape,
                                         impl::NumMemoryStripes& numMemoryStripes,
                                         std::unique_ptr<Op> pleOp,

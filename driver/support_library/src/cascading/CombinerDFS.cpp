@@ -71,50 +71,6 @@ void DumpDebugInfo(const Combinations& combs,
     }
 }
 
-bool MatchingBlocks(const Plan& planProducer, const Plan& planConsumer, Buffer* produced, Buffer* consumed)
-{
-    size_t matching = 0;
-
-    Op* opProducer = planProducer.m_OpGraph.GetProducer(produced);
-    if (!opProducer)
-    {
-        // There is no producer for this buffer
-        return true;
-    }
-
-    const auto producerBlockConfig = opProducer->GetBlockConfig();
-
-    if (!producerBlockConfig.has_value())
-    {
-        // It's something else that does not have
-        // the concept of block config
-        return true;
-    }
-
-    auto consumers = planConsumer.m_OpGraph.GetConsumers(consumed);
-    for (auto& consumer : consumers)
-    {
-        Op* opConsumer                 = consumer.first;
-        const auto consumerBlockConfig = opConsumer->GetBlockConfig();
-
-        if (!consumerBlockConfig.has_value())
-        {
-            // It's something else that does not have
-            // the concept of block config
-            ++matching;
-        }
-        // If here producerBlockConfig is not empty, while
-        // consumerBlockConfig is empty if matching has been
-        // already incremented in the else above, there is
-        // no risk of incrementing matching twice
-        else if (producerBlockConfig.value() == consumerBlockConfig.value())
-        {
-            ++matching;
-        }
-    }
-    return matching == consumers.size();
-}
-
 }    // namespace
 
 void Combiner::UpdateStats(const StatsType type)
@@ -182,123 +138,11 @@ const Plan& Combiner::GetPlanForPartFromCombination(const BasePart& part, const 
     return *elemIt->second.m_Plan;
 }
 
-bool Combiner::AreMceOperationsCompatible(const Buffer* plan1OutputBuffer,
-                                          const Buffer* plan2InputBuffer,
-                                          const PartOutputSlot& outputSlot) const
-{
-    const auto& part = m_GraphOfParts.GetPart(outputSlot.m_PartId);
-    auto mceOp       = part.GetMceOperation();
-    if ((mceOp.has_value()) && (plan1OutputBuffer->m_Location != Location::Dram))
-    {
-        const TensorShape& inputBufferShape = plan2InputBuffer->m_TensorShape;
-        const TensorShape& inputStripeShape = plan2InputBuffer->m_StripeShape;
-
-        if ((mceOp == ethosn::command_stream::MceOperation::CONVOLUTION) ||
-            (mceOp == ethosn::command_stream::MceOperation::FULLY_CONNECTED))
-        {
-            if (GetChannels(inputStripeShape) < GetChannels(inputBufferShape))
-            {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-bool Combiner::AreBlockConfigsCompatible(const Plan& plan1, const Plan& plan2, const PartOutputSlot& outputSlot) const
-{
-    Buffer* bufferProduced = plan1.GetOutputBuffer(outputSlot);
-    auto inputSlots        = m_GraphOfParts.GetConnectedInputSlots(outputSlot);
-    assert(inputSlots.size() == 1);
-    const PartInputSlot& inputSlot = inputSlots[0];
-    Buffer* bufferConsumed         = plan2.GetInputBuffer(inputSlot);
-
-    const bool areBuffersInPleInputSram =
-        bufferProduced->m_Location == Location::PleInputSram && bufferConsumed->m_Location == Location::PleInputSram;
-
-    if (areBuffersInPleInputSram)
-    {
-        return MatchingBlocks(plan1, plan2, bufferProduced, bufferConsumed);
-    }
-    return true;
-}
-
-bool Combiner::ArePlansCompatibleImpl(const Plan& sPlan, const Plan& dPlan, const PartConnection& slots) const
-{
-    const PartInputSlot& inputSlot   = slots.m_Destination;
-    const PartOutputSlot& outputSlot = slots.m_Source;
-    const Buffer* planInputBuffer    = dPlan.GetInputBuffer(inputSlot);
-    const Buffer* sPlanOutputBuffer  = sPlan.GetOutputBuffer(outputSlot);
-
-    // two plans should be connected along the edge we were told about.
-    if (sPlanOutputBuffer == nullptr || planInputBuffer == nullptr)
-    {
-        return false;
-    }
-
-    // Note that m_QuantizationInfo does not need to match between the buffers, as it is possible to *reinterpret* the
-    // quantisation of a buffer without having to insert any glue (i.e. it's a no-op). We will use this to implement the
-    // ReinterpretQuantization Operation.
-
-    // Some properties of the buffers must match, for example if the tensor shape is different then something has gone
-    // wrong and these plans can't even be glued
-    bool areBuffersCompatible = sPlanOutputBuffer->m_TensorShape == planInputBuffer->m_TensorShape;
-    if (!areBuffersCompatible)
-    {
-        return false;
-    }
-
-    // Check if the buffers on the boundary are compatible, i.e. the same (or similar enough that they can be reinterpreted),
-    // such that the plans could be directly merged without any additional DMA ops required. Both locations must
-    // be on SRAM.
-    bool areOrdersEquivalent;
-    if (sPlanOutputBuffer->m_Location == Location::Sram && planInputBuffer->m_Location == Location::Sram)
-    {
-        const uint32_t numStripesOutputZ = utils::DivRoundUp(GetChannels(sPlanOutputBuffer->m_TensorShape),
-                                                             GetChannels(sPlanOutputBuffer->m_StripeShape));
-        const uint32_t numStripesInputZ =
-            utils::DivRoundUp(GetChannels(planInputBuffer->m_TensorShape), GetChannels(planInputBuffer->m_StripeShape));
-        areOrdersEquivalent =
-            (sPlanOutputBuffer->m_Order == planInputBuffer->m_Order) ||
-            (numStripesInputZ == 1 && numStripesOutputZ == 1 &&
-             (sPlanOutputBuffer->m_Order == TraversalOrder::Xyz || sPlanOutputBuffer->m_Order == TraversalOrder::Zxy) &&
-             (planInputBuffer->m_Order == TraversalOrder::Xyz || planInputBuffer->m_Order == TraversalOrder::Zxy));
-    }
-    else
-    {
-        areOrdersEquivalent = sPlanOutputBuffer->m_Order == planInputBuffer->m_Order;
-    }
-    bool areBuffersEquivalent =
-        sPlanOutputBuffer->m_Location == planInputBuffer->m_Location && planInputBuffer->m_Location != Location::Dram &&
-        sPlanOutputBuffer->m_Location != Location::Dram && sPlanOutputBuffer->m_Format == planInputBuffer->m_Format &&
-        sPlanOutputBuffer->m_StripeShape == planInputBuffer->m_StripeShape && areOrdersEquivalent &&
-        sPlanOutputBuffer->m_SizeInBytes == planInputBuffer->m_SizeInBytes &&
-        sPlanOutputBuffer->m_SlotSizeInBytes == planInputBuffer->m_SlotSizeInBytes &&
-        sPlanOutputBuffer->m_NumStripes == planInputBuffer->m_NumStripes &&
-        EqualPackedBoundaryData(sPlanOutputBuffer->m_PackedBoundaryThickness,
-                                planInputBuffer->m_PackedBoundaryThickness) &&
-        sPlanOutputBuffer->m_NumLoads == planInputBuffer->m_NumLoads;
-
-    if ((!areBuffersEquivalent) || !AreMceOperationsCompatible(sPlanOutputBuffer, planInputBuffer, outputSlot) ||
-        !AreBlockConfigsCompatible(sPlan, dPlan, outputSlot))
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool Combiner::ArePlansCompatible(const Plan& sPlan, const Plan& dPlan, const PartConnection& slots)
-{
-    return ArePlansCompatibleImpl(sPlan, dPlan, slots);
-}
-
 // Check if there is sufficient SRAM for plan to fit
 // into the SRAM allocation for the combination that
 // is compatible with the plan
-bool Combiner::IsPlanAllocated(SramAllocator& alloc,
+bool Combiner::IsPlanAllocated(SectionContext& context,
                                const Plan& plan,
-                               PleOperations& pleOps,
                                const Buffer* const outBufOfPrevPlanInSection,
                                const StatsType sectionType) const
 {
@@ -309,7 +153,7 @@ bool Combiner::IsPlanAllocated(SramAllocator& alloc,
 
     using Allocated = std::pair<bool, uint32_t>;
     Allocated bufferAllocated, pleKernelAllocated;
-    SramAllocator localAlloc = alloc;
+    SramAllocator localAlloc = context.alloc;
 
     // We are not yet sure what could be a good userId here so we are using zero
     SramAllocator::UserId userId = 0;
@@ -324,9 +168,9 @@ bool Combiner::IsPlanAllocated(SramAllocator& alloc,
                 return (pleKernelInfo.m_PleOp->m_PleKernelId == plePair.first);
             };
 
-        auto pleIterator = std::find_if(pleOps.begin(), pleOps.end(), CheckPleKernel);
+        auto pleIterator = std::find_if(context.pleOps.begin(), context.pleOps.end(), CheckPleKernel);
 
-        if (pleIterator == pleOps.end())
+        if (pleIterator == context.pleOps.end())
         {
             pleKernelSize                       = pleKernelInfo.m_Size;
             newPleKernel                        = true;
@@ -335,7 +179,8 @@ bool Combiner::IsPlanAllocated(SramAllocator& alloc,
             assert(pleKernelSize <= m_Caps.GetMaxPleSize());
 
             // Allocate the PleKernel
-            pleKernelAllocated = localAlloc.Allocate(userId, (pleKernelSize), AllocationPreference::Start);
+            pleKernelAllocated = localAlloc.Allocate(userId, (pleKernelSize), AllocationPreference::Start,
+                                                     pleKernelInfo.m_PleOp->m_DebugTag);
 
             isSramAllocated = pleKernelAllocated.first;
 
@@ -383,13 +228,14 @@ bool Combiner::IsPlanAllocated(SramAllocator& alloc,
                     assert(bufferSize != 0);
 
                     bufferAllocated = localAlloc.Allocate(userId, (bufferSize / m_Caps.GetNumberOfSrams()),
-                                                          AllocationPreference::Start);
+                                                          AllocationPreference::Start, buf->m_DebugTag);
 
                     isSramAllocated = bufferAllocated.first;
 
                     if (isSramAllocated == true)
                     {
                         buf->m_Offset = bufferAllocated.second;
+                        context.allocatedBuffers.push_back(buf);
                     }
                     else
                     {
@@ -410,103 +256,20 @@ bool Combiner::IsPlanAllocated(SramAllocator& alloc,
 
     if (isSramAllocated)
     {
-        alloc = localAlloc;
+        context.alloc = localAlloc;
 
         if (newPleKernel)
         {
-            pleOps.push_back(std::make_pair(pleKernelInfo.m_PleOp->m_PleKernelId, pleKernelAllocated.second));
+            context.pleOps.push_back(std::make_pair(pleKernelInfo.m_PleOp->m_PleKernelId, pleKernelAllocated.second));
         }
     }
 
     return isSramAllocated;
 }
 
-bool Combiner::IsPlanInputGlueable(const Plan& plan) const
+bool Combiner::ArePlansAllowedToMerge(const Plan& reference, const Plan& current) const
 {
-    for (auto inputMapping : plan.m_InputMappings)
-    {
-        const Buffer* buf = inputMapping.first;
-        switch (buf->m_Location)
-        {
-            case Location::Dram:
-            case Location::Sram:
-                continue;
-            default:
-                return false;
-        }
-    }
-    return true;
-}
-
-bool Combiner::IsPlanOutputGlueable(const Plan& plan) const
-{
-    for (auto outputMapping : plan.m_OutputMappings)
-    {
-        const Buffer* buf = outputMapping.first;
-        switch (buf->m_Location)
-        {
-            case Location::Dram:
-            case Location::Sram:
-                continue;
-            default:
-                return false;
-        }
-    }
-    return true;
-}
-
-bool Combiner::ArePlansAllowedToMerge(const Plan& reference, const Plan& current, const PartConnection& slots) const
-{
-    const PartOutputSlot& outputSlot = slots.m_Source;
-    Buffer* referenceOutBuffer       = reference.GetOutputBuffer(outputSlot);
-    const PartInputSlot& inputSlot   = slots.m_Destination;
-    Buffer* currentInBuffer          = current.GetInputBuffer(inputSlot);
-
-    // Plans in a section must use the same block configuration
-    if (!MatchingBlocks(reference, current, referenceOutBuffer, currentInBuffer))
-    {
-        return false;
-    }
-
-    if (reference.m_HasIdentityPle && current.m_HasIdentityMce)
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool Combiner::ArePlansStreamingStrategiesCompatible(const Plan& reference,
-                                                     const Plan& current,
-                                                     const PartConnection& slots) const
-{
-    const PartInputSlot& inputSlot = slots.m_Destination;
-    Buffer* currentInBuffer        = current.GetInputBuffer(inputSlot);
-
-    // Plans in a section must use the same streaming strategy
-    for (auto inputMapping : reference.m_InputMappings)
-    {
-        const Buffer* referenceInBuffer = inputMapping.first;
-        if (currentInBuffer->m_Location != Location::Sram)
-        {
-            continue;
-        }
-        const auto refSplit   = IsSplitting(referenceInBuffer->m_TensorShape, referenceInBuffer->m_StripeShape);
-        const bool refSplitH  = std::get<0>(refSplit);
-        const bool refSplitW  = std::get<1>(refSplit);
-        const bool refSplitC  = std::get<2>(refSplit);
-        const auto currSplit  = IsSplitting(currentInBuffer->m_TensorShape, currentInBuffer->m_StripeShape);
-        const bool currSplitH = std::get<0>(currSplit);
-        const bool currSplitW = std::get<1>(currSplit);
-        const bool currSplitC = std::get<2>(currSplit);
-
-        if ((refSplitH != currSplitH || refSplitW != currSplitW || refSplitC != currSplitC) &&
-            referenceInBuffer->m_Location != Location::Dram)
-        {
-            return false;
-        }
-    }
-    return true;
+    return !(reference.m_HasIdentityPle && current.m_HasIdentityMce);
 }
 
 Combination Combiner::AddTempGlues(const Combination& combination)
@@ -1281,30 +1044,20 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
     return result;
 }
 
-void Combiner::DeallocateUnusedBuffers(const Plan& sPlan, SramAllocator& allocator)
+void Combiner::DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionContext& context)
 {
-    for (auto&& buffer : sPlan.m_OpGraph.GetBuffers())
+    // If the output buffer from the previous plan contains the full tensor (either in SRAM like in
+    // a strategy 1/3 cascade or in DRAM), then we can safely free everything else in SRAM.
+    if (prevPlanBuffer.IsFullTensor())
     {
-        if (buffer->m_Location != Location::Sram)
+        for (size_t i = context.allocatedBuffers.size() - 1; i < context.allocatedBuffers.size(); --i)
         {
-            continue;
-        }
-
-        assert(buffer->m_Offset.has_value() == true);
-
-        bool allConsumersAreAtomic          = false;
-        OpGraph::ConsumersList consumerList = sPlan.m_OpGraph.GetConsumers(buffer);
-
-        if (!consumerList.empty())
-        {
-            allConsumersAreAtomic =
-                std::all_of(consumerList.begin(), consumerList.end(),
-                            [](std::pair<Op*, uint32_t> x) { return x.first->m_Lifetime == Lifetime::Atomic; });
-        }
-
-        if (allConsumersAreAtomic == true)
-        {
-            allocator.Free(0, buffer->m_Offset.value());
+            Buffer* b = context.allocatedBuffers[i];
+            if (b != &prevPlanBuffer)
+            {
+                context.alloc.Free(0, b->m_Offset.value());
+                context.allocatedBuffers.erase(context.allocatedBuffers.begin() + i);
+            }
         }
     }
 }
@@ -1317,10 +1070,9 @@ void Combiner::DeallocateUnusedBuffers(const Plan& sPlan, SramAllocator& allocat
 Combination Combiner::EndSection(const BasePart& part,
                                  const BasePart& sPart,
                                  const Combination& comb,
-                                 const SramAllocator& alloc,
+                                 const SectionContext& context,
                                  uint32_t prevNumWeightStripes,
                                  bool prevDoubleBuffered,
-                                 const PleOperations& pleOps,
                                  uint32_t totalAgents)
 {
     UpdateStats(StatsType::EndSection);
@@ -1343,8 +1095,8 @@ Combination Combiner::EndSection(const BasePart& part,
         ethosn::command_stream::BlockConfig blkConfig = sPlan.GetBlockConfigures(connection.m_Source);
         Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
 
-        SramAllocator allocCopy = alloc;
-        DeallocateUnusedBuffers(sPlan, allocCopy);
+        SectionContext contextCopy = context;
+        DeallocateUnusedBuffers(*sramBuffer, contextCopy);
 
         // Check if this Part can double buffer.
         // By default, no double buffering is performed.
@@ -1374,26 +1126,14 @@ Combination Combiner::EndSection(const BasePart& part,
             {
                 // Make a copy of the allocator since every plan needs to have its own,
                 // each potential section won't allocate from the same allocator.
-                SramAllocator tempAlloc = allocCopy;
+                SectionContext tempContext = contextCopy;
 
-                PleOperations tempPleOps = pleOps;
-
-                if (!IsPlanOutputGlueable(plan))
+                if (!ArePlansAllowedToMerge(sPlan, plan))
                 {
                     continue;
                 }
 
-                if (!ArePlansCompatible(sPlan, plan, connection))
-                {
-                    continue;
-                }
-
-                if (!ArePlansAllowedToMerge(sPlan, plan, connection))
-                {
-                    continue;
-                }
-
-                if (!IsPlanAllocated(tempAlloc, plan, tempPleOps, sramBuffer, StatsType::EndSection))
+                if (!IsPlanAllocated(tempContext, plan, sramBuffer, StatsType::EndSection))
                 {
                     continue;
                 }
@@ -1454,10 +1194,10 @@ bool Combiner::IsSectionSizeSupported(const StatsType sectionInfo, const Plan& p
                 // If any of the input buffer's consumers is Cascade, the buffer's producer Dma Op
                 // must also be cascade. Assume that the Dma Op would result in a single agent.
                 // Therefore, increment the agent count by one.
-                OpGraph::ConsumersList consumers = plan.m_OpGraph.GetConsumers(inputMapping.first);
-                bool aConsumerIsCascade          = std::any_of(consumers.begin(), consumers.end(),
-                                                      [](auto& p) { return p.first->m_Lifetime == Lifetime::Cascade; });
-                totalAgents += aConsumerIsCascade;
+                if (!inputMapping.first->IsFullTensor())
+                {
+                    totalAgents += 1;
+                }
             }
         }
     }
@@ -1477,7 +1217,7 @@ bool Combiner::IsSectionSizeSupported(const StatsType sectionInfo, const Plan& p
         // buffer's producer loads weights and hence it is not in the IFM to OFM path.
         if (plan.m_OpGraph.GetOutput(op)->m_Format != CascadingBufferFormat::WEIGHT)
         {
-            totalAgents = op->m_Lifetime == Lifetime::Atomic ? 0 : totalAgents;
+            totalAgents = plan.m_OpGraph.GetOutput(op)->IsFullTensor() ? 0 : totalAgents;
         }
     }
 
@@ -1492,11 +1232,9 @@ bool Combiner::IsSectionSizeSupported(const StatsType sectionInfo, const Plan& p
                 // If the output buffer's producer is cascade, the buffer's consumer Dma Op must also
                 // be cascade. Assume that the Dma Op would result in a single agent. Therefore,
                 // increment the agent count by one.
-                Op* producer = plan.m_OpGraph.GetProducer(outputMapping.first);
-                if (producer != nullptr)
+                if (!outputMapping.first->IsFullTensor())
                 {
-                    bool isCascade = producer->m_Lifetime == Lifetime::Cascade;
-                    totalAgents += isCascade;
+                    totalAgents += 1;
                 }
             }
         }
@@ -1523,7 +1261,7 @@ bool Combiner::IsSectionSizeSupported(const StatsType sectionInfo, const Plan& p
 //                                                                            |
 //                                                 Continue Section ----------
 //
-Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPart, const SramAllocator& alloc)
+Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPart)
 {
     UpdateStats(StatsType::StartSection);
 
@@ -1573,20 +1311,16 @@ Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPar
             {
                 // Make a copy of the allocator since every plan needs to have its own,
                 // each potential section won't allocate from the same allocator.
-                SramAllocator tempAlloc = alloc;
-                if (!IsPlanInputGlueable(plan))
-                {
-                    continue;
-                }
-
+                SramAllocator alloc(m_Caps.GetTotalSramSize() / m_Caps.GetNumberOfSrams());
                 // A list of PLE kernels that have been loaded into the SRAM
                 // for this section. Once loaded, a PLE kernel will remain
                 // in the SRAM as kernel reload is deemed to be costly.
                 // The list is updated whenever a new kernel is encountered.
                 PleOperations pleOps = {};
+                SectionContext context{ alloc, pleOps, {} };
 
                 // Allocation requirement are different for start of section
-                if (!IsPlanAllocated(tempAlloc, plan, pleOps, nullptr, StatsType::StartSection))
+                if (!IsPlanAllocated(context, plan, nullptr, StatsType::StartSection))
                 {
                     continue;
                 }
@@ -1602,10 +1336,10 @@ Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPar
 
                 // Options to be estimated: consider continuing and ending the current section
                 // in the next part
-                Combination ended     = EndSection(nextPart, part, head, tempAlloc, currNumWeightStripes,
-                                               hasSectionDoubleBuffered, pleOps, totalAgents);
-                Combination continued = ContinueSection(nextPart, part, head, tempAlloc, currNumWeightStripes,
-                                                        hasSectionDoubleBuffered, pleOps, totalAgents);
+                Combination ended     = EndSection(nextPart, part, head, context, currNumWeightStripes,
+                                               hasSectionDoubleBuffered, totalAgents);
+                Combination continued = ContinueSection(nextPart, part, head, context, currNumWeightStripes,
+                                                        hasSectionDoubleBuffered, totalAgents);
                 Combinations options  = { result, continued, ended };
                 result                = GetBestCombination(options);
             }
@@ -1659,16 +1393,9 @@ Combination Combiner::SinglePartSection(const BasePart& part)
         {
             SramAllocator alloc(m_Caps.GetTotalSramSize() / m_Caps.GetNumberOfSrams());
             PleOperations pleOps = {};
+            SectionContext context{ alloc, pleOps, {} };
 
-            if (!IsPlanInputGlueable(plan))
-            {
-                continue;
-            }
-            if (!IsPlanOutputGlueable(plan))
-            {
-                continue;
-            }
-            if (!IsPlanAllocated(alloc, plan, pleOps, nullptr, StatsType::SinglePartSection))
+            if (!IsPlanAllocated(context, plan, nullptr, StatsType::SinglePartSection))
             {
                 continue;
             }
@@ -1710,10 +1437,9 @@ Combination Combiner::SinglePartSection(const BasePart& part)
 Combination Combiner::ContinueSection(const BasePart& part,
                                       const BasePart& sPart,
                                       const Combination& comb,
-                                      const SramAllocator& alloc,
+                                      const SectionContext& context,
                                       uint32_t prevNumWeightStripes,
                                       bool prevDoubleBuffered,
-                                      const PleOperations& pleOps,
                                       uint32_t totalAgents)
 {
     UpdateStats(StatsType::ContinueSection);
@@ -1773,8 +1499,8 @@ Combination Combiner::ContinueSection(const BasePart& part,
         ethosn::command_stream::BlockConfig blkConfig = sPlan.GetBlockConfigures(connection.m_Source);
         Buffer* sramBuffer                            = sPlan.GetOutputBuffer(connection.m_Source);
 
-        SramAllocator allocCopy = alloc;
-        DeallocateUnusedBuffers(sPlan, allocCopy);
+        SectionContext contextCopy = context;
+        DeallocateUnusedBuffers(*sramBuffer, contextCopy);
 
         // Check if this Part can double buffer.
         // By default, no double buffering is performed.
@@ -1810,26 +1536,14 @@ Combination Combiner::ContinueSection(const BasePart& part,
             {
                 // Make a copy of the allocator since every plan needs to have its own,
                 // each potential section won't allocate from the same allocator.
-                SramAllocator tempAlloc = allocCopy;
+                SectionContext tempContext = contextCopy;
 
-                PleOperations tempPleOps = pleOps;
-
-                if (!ArePlansCompatible(sPlan, plan, connection))
+                if (!ArePlansAllowedToMerge(sPlan, plan))
                 {
                     continue;
                 }
 
-                if (!ArePlansAllowedToMerge(sPlan, plan, connection))
-                {
-                    continue;
-                }
-
-                if (!ArePlansStreamingStrategiesCompatible(sPlan, plan, connection))
-                {
-                    continue;
-                }
-
-                if (!IsPlanAllocated(tempAlloc, plan, tempPleOps, sramBuffer, StatsType::EndSection))
+                if (!IsPlanAllocated(tempContext, plan, sramBuffer, StatsType::EndSection))
                 {
                     continue;
                 }
@@ -1855,12 +1569,12 @@ Combination Combiner::ContinueSection(const BasePart& part,
                 Combinations options;
 
                 // Next one is the last part of the section
-                Combination ended = EndSection(*nextPartGraph, part, section, tempAlloc, numWeightStripes,
-                                               hasSectionDoubleBuffered, tempPleOps, totalAgents);
+                Combination ended = EndSection(*nextPartGraph, part, section, tempContext, numWeightStripes,
+                                               hasSectionDoubleBuffered, totalAgents);
 
                 // Next one is the middle part of the section
-                Combination continued = ContinueSection(*nextPartGraph, part, section, tempAlloc, numWeightStripes,
-                                                        hasSectionDoubleBuffered, tempPleOps, totalAgents);
+                Combination continued = ContinueSection(*nextPartGraph, part, section, tempContext, numWeightStripes,
+                                                        hasSectionDoubleBuffered, totalAgents);
                 options               = { result, continued, ended };
 
                 result = GetBestCombination(options);
@@ -1922,11 +1636,8 @@ Combination Combiner::FindBestCombinationForPartImpl(const BasePart& part)
         // is one
         assert(m_GraphOfParts.GetDestinationParts(partId).size() == 1);
 
-        // This is the start of a new section, reset the allocated Sram
-        SramAllocator alloc(m_Caps.GetTotalSramSize() / m_Caps.GetNumberOfSrams());
-
         // Start of a new section
-        start = StartSection(part, *nextPartGraph, alloc);
+        start = StartSection(part, *nextPartGraph);
     }
 
     // Lonely part

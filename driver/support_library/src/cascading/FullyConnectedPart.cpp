@@ -197,7 +197,6 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
 
     for (const MceAndPleInfo& info : stripeInfos.m_MceAndPleInfos)
     {
-        auto lifetime = info.m_Lifetime;
         for (auto numInputStripes = info.m_Memory.m_Input.m_Range.m_Min;
              numInputStripes <= info.m_Memory.m_Input.m_Range.m_Max; ++numInputStripes)
         {
@@ -235,9 +234,9 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                     Op* dmaOp             = opGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
                     dmaOp->m_OperationIds = m_CorrespondingOperationIds;
 
-                    auto sramInputAndMceOp = AddMceToOpGraph(
-                        opGraph, lifetime, info.m_MceCompute, info.m_Memory, numMemoryStripes, m_InputTensorShape,
-                        m_InputQuantizationInfo, convData, m_WeightEncoderCache, couldSourceBeFcaf);
+                    auto sramInputAndMceOp =
+                        AddMceToOpGraph(opGraph, info.m_MceCompute, info.m_Memory, numMemoryStripes, m_InputTensorShape,
+                                        m_InputQuantizationInfo, convData, m_WeightEncoderCache, couldSourceBeFcaf);
 
                     opGraph.AddConsumer(dramInput, dmaOp, 0);
                     opGraph.SetProducer(sramInputAndMceOp.first, dmaOp);
@@ -249,12 +248,12 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
 
                     // Create an identity ple Op
                     std::unique_ptr<PleOp> pleOp =
-                        std::make_unique<PleOp>(lifetime, PleOperation::PASSTHROUGH, info.m_MceCompute.m_BlockConfig, 1,
+                        std::make_unique<PleOp>(PleOperation::PASSTHROUGH, info.m_MceCompute.m_BlockConfig, 1,
                                                 std::vector<TensorShape>{ info.m_PleCompute.m_Input },
                                                 info.m_PleCompute.m_Output, m_DataType, true);
-                    auto outBufferAndPleOp = AddPleToOpGraph(opGraph, lifetime, info.m_Memory.m_Output.m_Shape,
-                                                             numMemoryStripes, std::move(pleOp), m_OutputTensorShape,
-                                                             m_OutputQuantizationInfo, m_CorrespondingOperationIds);
+                    auto outBufferAndPleOp =
+                        AddPleToOpGraph(opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(pleOp),
+                                        m_OutputTensorShape, m_OutputQuantizationInfo, m_CorrespondingOperationIds);
                     opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
                     inputMappings[dramInput]                = PartInputSlot{ m_PartId, 0 };
                     outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };

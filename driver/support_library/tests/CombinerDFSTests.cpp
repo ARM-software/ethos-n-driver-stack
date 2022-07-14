@@ -80,10 +80,10 @@ public:
 
         if (m_HasInput && m_HasOutput)
         {
-            opGraph.AddOp(std::make_unique<PleOp>(
-                Lifetime::Atomic, ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
-                std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } }, TensorShape{ 1, 16, 16, 16 },
-                ethosn::command_stream::DataType::U8, true));
+            opGraph.AddOp(
+                std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                                        std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
+                                        TensorShape{ 1, 16, 16, 16 }, ethosn::command_stream::DataType::U8, true));
 
             opGraph.AddConsumer(opGraph.GetBuffers().front(), opGraph.GetOps()[0], 0);
             opGraph.SetProducer(opGraph.GetBuffers().back(), opGraph.GetOps()[0]);
@@ -1013,16 +1013,15 @@ TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
     planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram";
     size_t outputBufferIndex                        = planA.m_OpGraph.GetBuffers().size() - 1;
 
-    planA.m_OpGraph.AddOp(
-        std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                BlockConfig{ 16u, 16u }, TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-                                TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+    planA.m_OpGraph.AddOp(std::make_unique<MceOp>(
+        MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u }, TensorShape{ 1, 16, 16, 16 },
+        TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
     planA.m_OpGraph.GetOps()[0]->m_DebugTag = "MceOp";
     size_t mceOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
     planA.m_OpGraph.AddOp(
-        std::make_unique<PleOp>(Lifetime::Atomic, ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
-                                TensorShape{ 1, 16, 16, 16 }, ethosn::command_stream::DataType::U8, true));
+        std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                                std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } }, TensorShape{ 1, 16, 16, 16 },
+                                ethosn::command_stream::DataType::U8, true));
     size_t pleOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
     planA.m_OpGraph.GetOps()[1]->m_DebugTag = "PleOp";
     planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[inputBufferIndex], planA.m_OpGraph.GetOps()[mceOpIndex],
@@ -1044,20 +1043,19 @@ TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
     combiner.TopologicalSortParts();
 
-    SramAllocator alloc(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams());
-    PleOperations pleOps = {};
+    SectionContext context = { SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {} };
 
     // Check that no buffers are allocated before calling IsPlanAllocated().
-    REQUIRE(alloc.GetAllocationSize() == 0);
-    REQUIRE(combiner.IsPlanAllocated(alloc, planA, pleOps, nullptr, StatsType::StartSection) == true);
+    REQUIRE(context.alloc.GetAllocationSize() == 0);
+    REQUIRE(combiner.IsPlanAllocated(context, planA, nullptr, StatsType::StartSection) == true);
     // Check that all 4 buffers (Input, Mce Weights, Ple Code, Output) have been allocated.
-    REQUIRE(alloc.GetAllocationSize() == 4);
+    REQUIRE(context.alloc.GetAllocationSize() == 4);
     // Check that 2 buffers (Mce Weights, Input) have been deallocated.
-    combiner.DeallocateUnusedBuffers(planA, alloc);
-    REQUIRE(alloc.GetAllocationSize() == 2);
+    combiner.DeallocateUnusedBuffers(*planA.m_OpGraph.GetBuffers()[outputBufferIndex], context);
+    REQUIRE(context.alloc.GetAllocationSize() == 2);
     // Check that it is only the Input and Mce Weights buffers that have been deallocated.
-    REQUIRE(alloc.TryFree(0, planA.m_OpGraph.GetBuffers()[inputBufferIndex]->m_Offset.value()) == false);
-    REQUIRE(alloc.TryFree(0, planA.m_OpGraph.GetBuffers()[mceWeightsBufferIndex]->m_Offset.value()) == false);
+    REQUIRE(context.alloc.TryFree(0, planA.m_OpGraph.GetBuffers()[inputBufferIndex]->m_Offset.value()) == false);
+    REQUIRE(context.alloc.TryFree(0, planA.m_OpGraph.GetBuffers()[mceWeightsBufferIndex]->m_Offset.value()) == false);
 }
 
 // Manually creates a plan using Ops with Atomic Lifetimes to test the SramAllocator logic.
@@ -1105,21 +1103,20 @@ TEST_CASE("BufferDeallocationTest_CascadeOps", "[CombinerDFS]")
     size_t mceWeightsBufferIndex                    = planA.m_OpGraph.GetBuffers().size() - 1;
 
     planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
+                                                       TensorShape{ 1, 32, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
                                                        TraversalOrder::Xyz, ofmSize, QuantizationInfo()));
     planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram";
     size_t outputBufferIndex                        = planA.m_OpGraph.GetBuffers().size() - 1;
 
-    planA.m_OpGraph.AddOp(
-        std::make_unique<MceOp>(Lifetime::Cascade, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                BlockConfig{ 16u, 16u }, TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-                                TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+    planA.m_OpGraph.AddOp(std::make_unique<MceOp>(
+        MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u }, TensorShape{ 1, 16, 16, 16 },
+        TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
     planA.m_OpGraph.GetOps()[0]->m_DebugTag = "MceOp";
     size_t mceOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
     planA.m_OpGraph.AddOp(
-        std::make_unique<PleOp>(Lifetime::Atomic, ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
-                                TensorShape{ 1, 16, 16, 16 }, ethosn::command_stream::DataType::U8, true));
+        std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                                std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } }, TensorShape{ 1, 16, 16, 16 },
+                                ethosn::command_stream::DataType::U8, true));
     size_t pleOpIndex                       = planA.m_OpGraph.GetOps().size() - 1;
     planA.m_OpGraph.GetOps()[1]->m_DebugTag = "PleOp";
     planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[inputBufferIndex], planA.m_OpGraph.GetOps()[mceOpIndex],
@@ -1141,17 +1138,16 @@ TEST_CASE("BufferDeallocationTest_CascadeOps", "[CombinerDFS]")
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
     combiner.TopologicalSortParts();
 
-    SramAllocator alloc(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams());
-    PleOperations pleOps = {};
+    SectionContext context = { SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {} };
 
     // Check that no buffers are allocated before calling IsPlanAllocated().
-    REQUIRE(alloc.GetAllocationSize() == 0);
-    REQUIRE(combiner.IsPlanAllocated(alloc, planA, pleOps, nullptr, StatsType::StartSection) == true);
+    REQUIRE(context.alloc.GetAllocationSize() == 0);
+    REQUIRE(combiner.IsPlanAllocated(context, planA, nullptr, StatsType::StartSection) == true);
     // Check that all 4 buffers (Input, Mce Weights, Ple Code, Output) have been allocated.
-    REQUIRE(alloc.GetAllocationSize() == 4);
+    REQUIRE(context.alloc.GetAllocationSize() == 4);
     // Check that none of the buffers have been deallocated.
-    combiner.DeallocateUnusedBuffers(planA, alloc);
-    REQUIRE(alloc.GetAllocationSize() == 4);
+    combiner.DeallocateUnusedBuffers(*planA.m_OpGraph.GetBuffers()[outputBufferIndex], context);
+    REQUIRE(context.alloc.GetAllocationSize() == 4);
 }
 
 // Manually creates a partial combination starting and ending in Sram and converts it to an OpGraph using the GetOpGraphForCombination.
@@ -1196,10 +1192,9 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
     planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramA";
     planA.m_OutputMappings                          = { { planA.m_OpGraph.GetBuffers()[1], partAOutputSlot0 } };
-    planA.m_OpGraph.AddOp(
-        std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                BlockConfig{ 16u, 16u }, TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+    planA.m_OpGraph.AddOp(std::make_unique<MceOp>(
+        MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u }, TensorShape{ 1, 17, 16, 16 },
+        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
     planA.m_OpGraph.GetOps()[0]->m_DebugTag = "MceA";
     planA.m_OpGraph.AddConsumer(planA.m_OpGraph.GetBuffers()[0], planA.m_OpGraph.GetOps()[0], 0);
     planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[1], planA.m_OpGraph.GetOps()[0]);
@@ -1216,10 +1211,9 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
     planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSramB";
     planB.m_InputMappings                           = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
     planB.m_OutputMappings                          = { { planB.m_OpGraph.GetBuffers()[1], partBOutputSlot0 } };
-    planB.m_OpGraph.AddOp(
-        std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                BlockConfig{ 16u, 16u }, TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+    planB.m_OpGraph.AddOp(std::make_unique<MceOp>(
+        MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u }, TensorShape{ 1, 17, 16, 16 },
+        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
     planB.m_OpGraph.GetOps()[0]->m_DebugTag = "MceB";
     planB.m_OpGraph.AddConsumer(planB.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetOps()[0], 0);
     planB.m_OpGraph.SetProducer(planB.m_OpGraph.GetBuffers()[1], planB.m_OpGraph.GetOps()[0]);
@@ -2275,10 +2269,9 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
                                { planDE.m_OpGraph.GetBuffers()[2], partDEInputSlot1 } };
     planDE.m_OutputMappings                          = { { planDE.m_OpGraph.GetBuffers()[1], partDEOutputSlot0 },
                                 { planDE.m_OpGraph.GetBuffers()[3], partDEOutputSlot1 } };
-    planDE.m_OpGraph.AddOp(
-        std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                BlockConfig{ 16u, 16u }, TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+    planDE.m_OpGraph.AddOp(std::make_unique<MceOp>(
+        MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u }, TensorShape{ 1, 17, 16, 16 },
+        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
     planDE.m_OpGraph.GetOps()[0]->m_DebugTag = "Mce2";
     planDE.m_OpGraph.AddConsumer(planDE.m_OpGraph.GetBuffers()[0], planDE.m_OpGraph.GetOps()[0], 0);
     planDE.m_OpGraph.AddConsumer(planDE.m_OpGraph.GetBuffers()[2], planDE.m_OpGraph.GetOps()[0], 1);
@@ -2622,52 +2615,6 @@ TEST_CASE("FindBestCombinationForPart cache", "[CombinerDFS]")
     comb = combiner.FindBestCombinationForPart(partC);
     // Map has still only partA, partB and partC
     REQUIRE(combiner.m_NumFindBestCombinationForPartImplCalled == 3);
-}
-
-TEST_CASE("ArePlansCompatible", "[CombinerDFS]")
-{
-    GraphOfParts gOfParts;
-    auto& parts       = gOfParts.m_Parts;
-    auto& connections = gOfParts.m_Connections;
-
-    auto pA               = std::make_unique<MockPart>(gOfParts.GeneratePartId());
-    auto pB               = std::make_unique<MockPart>(gOfParts.GeneratePartId());
-    const BasePart& partA = *pA;
-    const BasePart& partB = *pB;
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-
-    PartOutputSlot planAOutputSlot = { partA.GetPartId(), 0 };
-    PartInputSlot planBInputSlot   = { partB.GetPartId(), 0 };
-    PartOutputSlot planBOutputSlot = { partB.GetPartId(), 0 };
-
-    connections[planBInputSlot] = planAOutputSlot;
-
-    const EstimationOptions estOpt;
-    const CompilationOptions compOpt;
-    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
-    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
-
-    // Part consisting of node A
-    Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDram";
-    planA.m_OutputMappings                          = { { planA.m_OpGraph.GetBuffers()[0], planAOutputSlot } };
-
-    // Part consisting of node B
-    Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram1";
-    planB.m_InputMappings                           = { { planB.m_OpGraph.GetBuffers()[0], planBInputSlot } };
-    planB.m_OutputMappings                          = { { planB.m_OpGraph.GetBuffers()[0], planBOutputSlot } };
-
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
-
-    REQUIRE(combiner.ArePlansCompatible(planA, planB, PartConnection{ planBInputSlot, planAOutputSlot }) == true);
 }
 
 TEST_CASE("CombinerSortTest1", "[CombinerDFS]")
@@ -3504,164 +3451,6 @@ TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
             opGraphD.GetBuffers()[0]);
 }
 
-TEST_CASE("IsPlanInputGlueable", "[CombinerDFS]")
-{
-    GraphOfParts gOfParts;
-    const CompilationOptions compOpt;
-    const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
-    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
-
-    Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::VirtualSram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 48 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-
-    planA.m_InputMappings = { { planA.m_OpGraph.GetBuffers()[0], {} },
-                              { planA.m_OpGraph.GetBuffers()[1], {} },
-                              { planA.m_OpGraph.GetBuffers()[2], {} } };
-
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
-
-    REQUIRE(combiner.IsPlanInputGlueable(planA) == false);
-
-    Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 16, 16, 32 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 48 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 32, 16, 48 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-
-    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], {} },
-                              { planB.m_OpGraph.GetBuffers()[1], {} },
-                              { planB.m_OpGraph.GetBuffers()[2], {} } };
-
-    REQUIRE(combiner.IsPlanInputGlueable(planB) == true);
-}
-
-TEST_CASE("ArePlansAllowedToMerge", "[CombinerDFS]")
-{
-    // Create graph:
-    //
-    //  C --> A - - > B
-    //
-    GraphOfParts graph;
-
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
-    auto pA               = std::make_unique<MockPart>(graph.GeneratePartId());
-    auto pB               = std::make_unique<MockPart>(graph.GeneratePartId());
-    auto pC               = std::make_unique<MockPart>(graph.GeneratePartId());
-    const BasePart& partA = *pA;
-    const BasePart& partB = *pB;
-    const BasePart& partC = *pC;
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-
-    PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
-    PartOutputSlot partCOutputSlot = { partC.GetPartId(), 0 };
-    PartInputSlot partAInputSlot   = { partA.GetPartId(), 0 };
-    PartInputSlot partBInputSlot   = { partB.GetPartId(), 0 };
-
-    connections[partAInputSlot] = partCOutputSlot;
-    connections[partBInputSlot] = partAOutputSlot;
-
-    const CompilationOptions compOpt;
-    const EstimationOptions estOpt;
-    const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
-    const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
-
-    Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-
-    planA.m_OpGraph.AddOp(
-        std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                BlockConfig{ 16u, 16u }, TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 },
-                                TensorShape{ 1, 1, 1, 64 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
-
-    planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[1], planA.m_OpGraph.GetOps()[0]);
-    planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[0], partAInputSlot } };
-    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[1], partAOutputSlot } };
-
-    Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 16, 16 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB.m_OpGraph.AddOp(
-        std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                BlockConfig{ 16u, 16u }, TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 },
-                                TensorShape{ 1, 1, 1, 64 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
-
-    planB.m_OpGraph.AddOp(
-        std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                BlockConfig{ 16u, 16u }, TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 },
-                                TensorShape{ 1, 1, 1, 64 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
-
-    planB.m_OpGraph.AddConsumer(planB.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetOps()[0], 0);
-    planB.m_OpGraph.AddConsumer(planB.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetOps()[1], 0);
-    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
-
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
-
-    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planB, PartConnection{ partBInputSlot, partAOutputSlot }) == true);
-
-    // Create a new plan with a different Block Config i.e. 8x32
-    Plan planBdiffBlockConfig;
-    planBdiffBlockConfig.m_OpGraph.AddBuffer(
-        std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 64, 64, 64 },
-                                 TensorShape{ 1, 8, 16, 16 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planBdiffBlockConfig.m_OpGraph.AddOp(
-        std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                BlockConfig{ 16u, 16u }, TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 },
-                                TensorShape{ 1, 1, 1, 64 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
-
-    planBdiffBlockConfig.m_OpGraph.AddOp(
-        std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                BlockConfig{ 8u, 32u }, TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 },
-                                TensorShape{ 1, 1, 1, 64 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
-
-    planBdiffBlockConfig.m_OpGraph.AddConsumer(planBdiffBlockConfig.m_OpGraph.GetBuffers()[0],
-                                               planBdiffBlockConfig.m_OpGraph.GetOps()[0], 0);
-    planBdiffBlockConfig.m_OpGraph.AddConsumer(planBdiffBlockConfig.m_OpGraph.GetBuffers()[0],
-                                               planBdiffBlockConfig.m_OpGraph.GetOps()[1], 0);
-    planBdiffBlockConfig.m_InputMappings = { { planBdiffBlockConfig.m_OpGraph.GetBuffers()[0], partBInputSlot } };
-
-    // They cannot be merged
-    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planBdiffBlockConfig,
-                                            PartConnection{ partBInputSlot, partAOutputSlot }) == false);
-
-    // Create a new plan with a different streaming strategy
-    Plan planBdiffStrategy;
-    planBdiffStrategy.m_OpGraph.AddBuffer(
-        std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 64, 64, 64 },
-                                 TensorShape{ 1, 8, 16, 64 }, TraversalOrder::Xyz, 4, QuantizationInfo()));
-
-    planBdiffStrategy.m_InputMappings = { { planBdiffStrategy.m_OpGraph.GetBuffers()[0], partBInputSlot } };
-
-    // Consumer plan is streaming full depth while producer plan is not
-    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planBdiffStrategy,
-                                            PartConnection{ partBInputSlot, partAOutputSlot }) == true);
-    REQUIRE(combiner.ArePlansStreamingStrategiesCompatible(planA, planBdiffStrategy,
-                                                           PartConnection{ partBInputSlot, partAOutputSlot }) == false);
-}
-
 TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
 {
     GraphOfParts graph;
@@ -3692,10 +3481,9 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
                                                        TensorShape{ 1, 32, 16, 1024 }, TensorShape{ 1, 4, 16, 1024 },
                                                        TraversalOrder::Xyz, ofmSize, QuantizationInfo()));
 
-    planA.m_OpGraph.AddOp(
-        std::make_unique<MceOp>(Lifetime::Cascade, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                BlockConfig{ 8u, 8u }, TensorShape{ 1, 32, 16, 1024 }, TensorShape{ 1, 4, 16, 1024 },
-                                TensorShape{ 1, 32, 16, 1024 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+    planA.m_OpGraph.AddOp(std::make_unique<MceOp>(
+        MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 8u, 8u }, TensorShape{ 1, 32, 16, 1024 },
+        TensorShape{ 1, 4, 16, 1024 }, TensorShape{ 1, 32, 16, 1024 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
     planA.m_OpGraph.SetProducer(planA.m_OpGraph.GetBuffers()[1], planA.m_OpGraph.GetOps()[0]);
     planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[0], partAInputSlot } };
     planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[1], partAOutputSlot } };
@@ -3710,25 +3498,23 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
-    SramAllocator alloc(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams());
-    PleOperations pleOps = {};
+    SectionContext context = { SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {} };
 
     // SRAM has enough space for ofm and the plan does not have a PLE kernel
-    SramAllocator alloc1 = alloc;
-    REQUIRE(combiner.IsPlanAllocated(alloc1, planA, pleOps, mockBuffer.get(), StatsType::ContinueSection) == true);
-    REQUIRE(pleOps.size() == 0);
+    SectionContext context1 = context;
+    REQUIRE(combiner.IsPlanAllocated(context1, planA, mockBuffer.get(), StatsType::ContinueSection) == true);
+    REQUIRE(context1.pleOps.size() == 0);
 
     // Adding a passthrough PLE kernel to the plan
     // The PleKernelId is expected to be PASSTHROUGH_8x8_2
-    auto op =
-        std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 4, 16, 1024 } },
-                                TensorShape{ 1, 4, 16, 1024 }, ethosn::command_stream::DataType::U8, true);
+    auto op = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                                      std::vector<TensorShape>{ TensorShape{ 1, 4, 16, 1024 } },
+                                      TensorShape{ 1, 4, 16, 1024 }, ethosn::command_stream::DataType::U8, true);
 
     numMemoryStripes.m_Output = 1;
     auto outBufferAndPleOp =
-        AddPleToOpGraph(planA.m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 4, 16, 1024 }, numMemoryStripes,
-                        std::move(op), TensorShape{ 1, 4, 16, 1024 }, QuantizationInfo(), operationIds);
+        AddPleToOpGraph(planA.m_OpGraph, TensorShape{ 1, 4, 16, 1024 }, numMemoryStripes, std::move(op),
+                        TensorShape{ 1, 4, 16, 1024 }, QuantizationInfo(), operationIds);
 
     Op* maybePleOp   = planA.m_OpGraph.GetOp(1);
     const bool isPle = IsPleOp(maybePleOp);
@@ -3737,38 +3523,37 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
     PleOp* actualPleOp = static_cast<PleOp*>(maybePleOp);
 
     // With a PLE kernel, the plan can still fit into SRAM and there is a need to Load the Kernel
-    SramAllocator alloc2 = alloc;
-    REQUIRE(combiner.IsPlanAllocated(alloc2, planA, pleOps, mockBuffer.get(), StatsType::ContinueSection) == true);
-    REQUIRE(pleOps.size() == 1);
+    SectionContext context2 = context;
+    REQUIRE(combiner.IsPlanAllocated(context2, planA, mockBuffer.get(), StatsType::ContinueSection) == true);
+    REQUIRE(context2.pleOps.size() == 1);
     REQUIRE(actualPleOp->m_LoadKernel == true);
 
     // PLE kernel used previously has different block height
     // The plan is expected to be fit into SRAM and there is a need to Load the Kernel
-    SramAllocator alloc3   = alloc;
-    PleKernelId pleKernel1 = PleKernelId::PASSTHROUGH_8X16_1;
-    PleOperations pleOps1  = { { pleKernel1, 0 } };
-    REQUIRE(combiner.IsPlanAllocated(alloc3, planA, pleOps1, mockBuffer.get(), StatsType::ContinueSection) == true);
-    REQUIRE(pleOps1.size() == 2);
+    SectionContext context3 = context;
+    PleKernelId pleKernel1  = PleKernelId::PASSTHROUGH_8X16_1;
+    context3.pleOps         = { { pleKernel1, 0 } };
+    REQUIRE(combiner.IsPlanAllocated(context3, planA, mockBuffer.get(), StatsType::ContinueSection) == true);
+    REQUIRE(context3.pleOps.size() == 2);
     REQUIRE(actualPleOp->m_LoadKernel == true);
 
     // PLE kernel passthrough is already used previously in the same
     // section, the plan is expected to be fit into SRAM and no need to Load the Kernel
-    SramAllocator alloc4   = alloc;
-    PleKernelId pleKernel2 = PleKernelId::PASSTHROUGH_8X8_2;
-    PleOperations pleOps2  = { { pleKernel2, 0 } };
-    REQUIRE(combiner.IsPlanAllocated(alloc4, planA, pleOps2, mockBuffer.get(), StatsType::ContinueSection) == true);
-    REQUIRE(pleOps2.size() == 1);
+    SectionContext context4 = context;
+    PleKernelId pleKernel2  = PleKernelId::PASSTHROUGH_8X8_2;
+    context4.pleOps         = { { pleKernel2, 0 } };
+    REQUIRE(combiner.IsPlanAllocated(context4, planA, mockBuffer.get(), StatsType::ContinueSection) == true);
+    REQUIRE(context4.pleOps.size() == 1);
     REQUIRE(actualPleOp->m_LoadKernel == false);
 
-    SramAllocator alloc5 = alloc;
+    SectionContext context5 = context;
     // Allocate memory where the plan and the allocated memory exceeds the SRAM Size
     uint32_t planSize          = ofmSize + planA.m_OpGraph.GetBuffers()[2]->m_SizeInBytes + hwCaps.GetMaxPleSize();
     uint32_t remainingSramSize = hwCaps.GetTotalSramSize() - planSize;
-    alloc5.Allocate(0, ((remainingSramSize + hwCaps.GetNumberOfSrams()) / hwCaps.GetNumberOfSrams()),
-                    AllocationPreference::Start);
-    PleOperations pleOps3 = {};
-    REQUIRE(combiner.IsPlanAllocated(alloc5, planA, pleOps3, mockBuffer.get(), StatsType::ContinueSection) == false);
-    REQUIRE(pleOps3.size() == 0);
+    context5.alloc.Allocate(0, ((remainingSramSize + hwCaps.GetNumberOfSrams()) / hwCaps.GetNumberOfSrams()),
+                            AllocationPreference::Start);
+    REQUIRE(combiner.IsPlanAllocated(context5, planA, mockBuffer.get(), StatsType::ContinueSection) == false);
+    REQUIRE(context5.pleOps.size() == 0);
     REQUIRE(actualPleOp->m_LoadKernel == true);
 
     ETHOSN_UNUSED(outBufferAndPleOp);
@@ -3800,9 +3585,8 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
         const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
         Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
-        SramAllocator alloc(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams());
+        SectionContext context     = { SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {} };
         uint32_t currentSramOffset = 0;
-        PleOperations pleOps       = {};
 
         Plan planA;
 
@@ -3816,10 +3600,9 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
                                                            TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
                                                            TraversalOrder::Xyz, outputBufferSize, QuantizationInfo()));
 
-        planA.m_OpGraph.AddOp(
-            std::make_unique<MceOp>(Lifetime::Cascade, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                    BlockConfig{ 8u, 8u }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
-                                    TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        planA.m_OpGraph.AddOp(std::make_unique<MceOp>(
+            MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 8u, 8u }, TensorShape{ 1, 8, 8, 8 },
+            TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
 
         planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[0], partAInputSlot } };
         planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[1], partAOutputSlot } };
@@ -3828,26 +3611,25 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
         {
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == false);
             REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
-            REQUIRE(combiner.IsPlanAllocated(alloc, planA, pleOps, nullptr, StatsType::SinglePartSection) == true);
+            REQUIRE(combiner.IsPlanAllocated(context, planA, nullptr, StatsType::SinglePartSection) == true);
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == true);
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.value() == currentSramOffset);
             currentSramOffset = planA.m_OpGraph.GetBuffers()[0]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
             REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
-            REQUIRE(pleOps.size() == 0);
+            REQUIRE(context.pleOps.size() == 0);
         }
 
         WHEN("Lonely section with a plan that has Ple Op")
         {
             // Adding a passthrough PLE kernel to the plan
             // The PleKernelId is expected to be PASSTHROUGH_8x8_2
-            auto op =
-                std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                        BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                        TensorShape{ 1, 8, 8, 8 }, ethosn::command_stream::DataType::U8, true);
+            auto op = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u },
+                                              1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                              TensorShape{ 1, 8, 8, 8 }, ethosn::command_stream::DataType::U8, true);
             numMemoryStripes.m_Output = 1;
             auto outBufferAndPleOp =
-                AddPleToOpGraph(planA.m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes,
-                                std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
+                AddPleToOpGraph(planA.m_OpGraph, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
+                                TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
             Op* maybePleOp   = planA.m_OpGraph.GetOp(1);
             const bool isPle = IsPleOp(maybePleOp);
@@ -3860,7 +3642,7 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == false);
             REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
             REQUIRE(planA.m_OpGraph.GetBuffers()[2]->m_Offset.has_value() == false);
-            REQUIRE(combiner.IsPlanAllocated(alloc, planA, pleOps, nullptr, StatsType::SinglePartSection) == true);
+            REQUIRE(combiner.IsPlanAllocated(context, planA, nullptr, StatsType::SinglePartSection) == true);
 
             REQUIRE(actualPleOp->m_Offset.has_value() == true);
             REQUIRE(actualPleOp->m_Offset.value() == currentSramOffset);
@@ -3874,7 +3656,7 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
             REQUIRE(planA.m_OpGraph.GetBuffers()[2]->m_Offset.has_value() == true);
             REQUIRE(planA.m_OpGraph.GetBuffers()[2]->m_Offset.value() == currentSramOffset);
             currentSramOffset += planA.m_OpGraph.GetBuffers()[2]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
-            REQUIRE(pleOps.size() == 1);
+            REQUIRE(context.pleOps.size() == 1);
 
             ETHOSN_UNUSED(outBufferAndPleOp);
         }
@@ -3917,9 +3699,8 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
         const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
         Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
-        SramAllocator alloc(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams());
+        SectionContext context     = { SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {} };
         uint32_t currentSramOffset = 0;
-        PleOperations pleOps       = {};
 
         Plan planA;
 
@@ -3933,10 +3714,9 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                                                            TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
                                                            TraversalOrder::Xyz, outputBufferSize, QuantizationInfo()));
 
-        planA.m_OpGraph.AddOp(
-            std::make_unique<MceOp>(Lifetime::Cascade, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                    BlockConfig{ 8u, 8u }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
-                                    TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+        planA.m_OpGraph.AddOp(std::make_unique<MceOp>(
+            MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 8u, 8u }, TensorShape{ 1, 8, 8, 8 },
+            TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
 
         planA.m_InputMappings  = { { planA.m_OpGraph.GetBuffers()[0], partAInputSlot } };
         planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[1], partAOutputSlot } };
@@ -3945,26 +3725,25 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
         {
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == false);
             REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
-            REQUIRE(combiner.IsPlanAllocated(alloc, planA, pleOps, nullptr, StatsType::StartSection) == true);
+            REQUIRE(combiner.IsPlanAllocated(context, planA, nullptr, StatsType::StartSection) == true);
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == true);
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.value() == currentSramOffset);
             currentSramOffset = planA.m_OpGraph.GetBuffers()[0]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
             REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
-            REQUIRE(pleOps.size() == 0);
+            REQUIRE(context.pleOps.size() == 0);
         }
 
         WHEN("Starting the section with the first plan that has Ple Op")
         {
             // Adding a passthrough PLE kernel to the plan
             // The PleKernelId is expected to be PASSTHROUGH_8x8_2
-            auto op =
-                std::make_unique<PleOp>(Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH,
-                                        BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                        TensorShape{ 1, 8, 8, 8 }, ethosn::command_stream::DataType::U8, true);
+            auto op = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u },
+                                              1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                              TensorShape{ 1, 8, 8, 8 }, ethosn::command_stream::DataType::U8, true);
             numMemoryStripes.m_Output = 1;
             auto outBufferAndPleOp =
-                AddPleToOpGraph(planA.m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes,
-                                std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
+                AddPleToOpGraph(planA.m_OpGraph, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
+                                TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
             Op* maybePleOp   = planA.m_OpGraph.GetOp(1);
             const bool isPle = IsPleOp(maybePleOp);
@@ -3977,7 +3756,7 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
             REQUIRE(planA.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == false);
             REQUIRE(planA.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
             REQUIRE(planA.m_OpGraph.GetBuffers()[2]->m_Offset.has_value() == false);
-            REQUIRE(combiner.IsPlanAllocated(alloc, planA, pleOps, nullptr, StatsType::StartSection) == true);
+            REQUIRE(combiner.IsPlanAllocated(context, planA, nullptr, StatsType::StartSection) == true);
 
             REQUIRE(actualPleOp->m_Offset.has_value() == true);
             REQUIRE(actualPleOp->m_Offset.value() == currentSramOffset);
@@ -3991,7 +3770,7 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
             REQUIRE(planA.m_OpGraph.GetBuffers()[2]->m_Offset.has_value() == true);
             REQUIRE(planA.m_OpGraph.GetBuffers()[2]->m_Offset.value() == currentSramOffset);
             currentSramOffset += planA.m_OpGraph.GetBuffers()[2]->m_SizeInBytes / hwCaps.GetNumberOfSrams();
-            REQUIRE(pleOps.size() == 1);
+            REQUIRE(context.pleOps.size() == 1);
 
             Plan planB;
 
@@ -4006,10 +3785,10 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                 Location::PleInputSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 },
                 TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, OutputBufferSize, QuantizationInfo()));
 
-            planB.m_OpGraph.AddOp(
-                std::make_unique<MceOp>(Lifetime::Cascade, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                        BlockConfig{ 8u, 8u }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
-                                        TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+            planB.m_OpGraph.AddOp(std::make_unique<MceOp>(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                                          BlockConfig{ 8u, 8u }, TensorShape{ 1, 8, 8, 8 },
+                                                          TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
+                                                          TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
 
             planB.m_InputMappings  = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
             planB.m_OutputMappings = { { planB.m_OpGraph.GetBuffers()[1], partBOutputSlot } };
@@ -4018,7 +3797,7 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
             {
                 REQUIRE(planB.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == false);
                 REQUIRE(planB.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
-                REQUIRE(combiner.IsPlanAllocated(alloc, planB, pleOps, planA.m_OpGraph.GetBuffers()[2],
+                REQUIRE(combiner.IsPlanAllocated(context, planB, planA.m_OpGraph.GetBuffers()[2],
                                                  StatsType::ContinueSection) == true);
                 REQUIRE(planB.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == true);
                 REQUIRE(planB.m_OpGraph.GetBuffers()[0]->m_Offset.value() ==
@@ -4030,14 +3809,14 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
             {
                 // Adding a passthrough PLE kernel to the plan
                 // The PleKernelId is expected to be PASSTHROUGH_8x8_2
-                auto op = std::make_unique<PleOp>(
-                    Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
-                    std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } }, TensorShape{ 1, 8, 8, 8 },
-                    ethosn::command_stream::DataType::U8, true);
+                auto op =
+                    std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
+                                            std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                            TensorShape{ 1, 8, 8, 8 }, ethosn::command_stream::DataType::U8, true);
                 numMemoryStripes.m_Output = 1;
                 auto outBufferAndPleOp =
-                    AddPleToOpGraph(planB.m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes,
-                                    std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
+                    AddPleToOpGraph(planB.m_OpGraph, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
+                                    TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
                 Op* maybePleOpA   = planA.m_OpGraph.GetOp(1);
                 const bool isPleA = IsPleOp(maybePleOpA);
@@ -4052,9 +3831,9 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                 PleOp* actualPleOpB = static_cast<PleOp*>(maybePleOpB);
 
                 REQUIRE(actualPleOpB->m_LoadKernel == true);
-                REQUIRE(combiner.IsPlanAllocated(alloc, planB, pleOps, planA.m_OpGraph.GetBuffers()[2],
+                REQUIRE(combiner.IsPlanAllocated(context, planB, planA.m_OpGraph.GetBuffers()[2],
                                                  StatsType::ContinueSection) == true);
-                REQUIRE(pleOps.size() == 1);
+                REQUIRE(context.pleOps.size() == 1);
 
                 REQUIRE(actualPleOpB->m_LoadKernel == false);
                 REQUIRE(actualPleOpB->m_Offset == actualPleOpA->m_Offset);
@@ -4068,16 +3847,16 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
             WHEN("Continuing the section with the second plan that has Ple Op not already loaded")
             {
                 // Adding a passthrough PLE kernel to the plan
-                auto op = std::make_unique<PleOp>(
-                    Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 16u, 16u }, 1,
-                    std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } }, TensorShape{ 1, 8, 8, 8 },
-                    ethosn::command_stream::DataType::U8, true);
+                auto op =
+                    std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 16u, 16u },
+                                            1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
+                                            TensorShape{ 1, 8, 8, 8 }, ethosn::command_stream::DataType::U8, true);
 
                 numMemoryStripes.m_Output = 1;
 
                 auto outBufferAndPleOp =
-                    AddPleToOpGraph(planB.m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes,
-                                    std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
+                    AddPleToOpGraph(planB.m_OpGraph, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
+                                    TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
                 Op* maybePleOpA   = planA.m_OpGraph.GetOp(1);
                 const bool isPleA = IsPleOp(maybePleOpA);
@@ -4091,9 +3870,9 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
 
                 REQUIRE(actualPleOpB->m_LoadKernel == true);
 
-                REQUIRE(combiner.IsPlanAllocated(alloc, planB, pleOps, planA.m_OpGraph.GetBuffers()[2],
+                REQUIRE(combiner.IsPlanAllocated(context, planB, planA.m_OpGraph.GetBuffers()[2],
                                                  StatsType::ContinueSection) == true);
-                REQUIRE(pleOps.size() == 2);
+                REQUIRE(context.pleOps.size() == 2);
 
                 REQUIRE(actualPleOpB->m_LoadKernel == true);
                 REQUIRE(actualPleOpB->m_Offset == currentSramOffset);
@@ -4115,10 +3894,10 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                     Location::PleInputSram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 8, 8, 8 },
                     TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, OutputBufferSize, QuantizationInfo()));
 
-                planC.m_OpGraph.AddOp(
-                    std::make_unique<MceOp>(Lifetime::Cascade, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                            BlockConfig{ 8u, 8u }, TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
-                                            TensorShape{ 1, 8, 8, 8 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+                planC.m_OpGraph.AddOp(std::make_unique<MceOp>(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
+                                                              BlockConfig{ 8u, 8u }, TensorShape{ 1, 8, 8, 8 },
+                                                              TensorShape{ 1, 8, 8, 8 }, TensorShape{ 1, 8, 8, 8 },
+                                                              TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
 
                 planC.m_InputMappings  = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
                 planC.m_OutputMappings = { { planC.m_OpGraph.GetBuffers()[1], partCOutputSlot } };
@@ -4127,7 +3906,7 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                 {
                     REQUIRE(planC.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == false);
                     REQUIRE(planC.m_OpGraph.GetBuffers()[1]->m_Offset.has_value() == false);
-                    REQUIRE(combiner.IsPlanAllocated(alloc, planC, pleOps, planB.m_OpGraph.GetBuffers()[2],
+                    REQUIRE(combiner.IsPlanAllocated(context, planC, planB.m_OpGraph.GetBuffers()[2],
                                                      StatsType::EndSection) == true);
                     REQUIRE(planC.m_OpGraph.GetBuffers()[0]->m_Offset.has_value() == true);
                     REQUIRE(planC.m_OpGraph.GetBuffers()[0]->m_Offset.value() ==
@@ -4139,13 +3918,13 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                 {
                     // Adding a passthrough PLE kernel to the plan
                     auto op = std::make_unique<PleOp>(
-                        Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 16u, 16u },
-                        1, std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } }, TensorShape{ 1, 8, 8, 8 },
+                        ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 16u, 16u }, 1,
+                        std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } }, TensorShape{ 1, 8, 8, 8 },
                         ethosn::command_stream::DataType::U8, true);
                     numMemoryStripes.m_Output = 1;
                     auto outBufferAndPleOp =
-                        AddPleToOpGraph(planC.m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes,
-                                        std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
+                        AddPleToOpGraph(planC.m_OpGraph, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
+                                        TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
                     Op* maybePleOpA   = planA.m_OpGraph.GetOp(1);
                     const bool isPleA = IsPleOp(maybePleOpA);
@@ -4165,9 +3944,9 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
 
                     REQUIRE(actualPleOpC->m_LoadKernel == true);
 
-                    REQUIRE(combiner.IsPlanAllocated(alloc, planC, pleOps, planB.m_OpGraph.GetBuffers()[2],
+                    REQUIRE(combiner.IsPlanAllocated(context, planC, planB.m_OpGraph.GetBuffers()[2],
                                                      StatsType::EndSection) == true);
-                    REQUIRE(pleOps.size() == 2);
+                    REQUIRE(context.pleOps.size() == 2);
 
                     REQUIRE(actualPleOpC->m_LoadKernel == false);
 
@@ -4183,15 +3962,15 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
                 {
                     // Adding a passthrough PLE kernel to the plan
                     auto op = std::make_unique<PleOp>(
-                        Lifetime::Cascade, ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 32u }, 1,
+                        ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 32u }, 1,
                         std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } }, TensorShape{ 1, 8, 8, 8 },
                         ethosn::command_stream::DataType::U8, true);
 
                     numMemoryStripes.m_Output = 1;
 
                     auto outBufferAndPleOp =
-                        AddPleToOpGraph(planC.m_OpGraph, Lifetime::Cascade, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes,
-                                        std::move(op), TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
+                        AddPleToOpGraph(planC.m_OpGraph, TensorShape{ 1, 8, 8, 8 }, numMemoryStripes, std::move(op),
+                                        TensorShape{ 1, 8, 8, 8 }, QuantizationInfo(), operationIds);
 
                     Op* maybePleOpB   = planB.m_OpGraph.GetOp(1);
                     const bool isPleB = IsPleOp(maybePleOpB);
@@ -4207,9 +3986,9 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
 
                     REQUIRE(actualPleOpC->m_LoadKernel == true);
 
-                    REQUIRE(combiner.IsPlanAllocated(alloc, planC, pleOps, planB.m_OpGraph.GetBuffers()[2],
+                    REQUIRE(combiner.IsPlanAllocated(context, planC, planB.m_OpGraph.GetBuffers()[2],
                                                      StatsType::EndSection) == true);
-                    REQUIRE(pleOps.size() == 3);
+                    REQUIRE(context.pleOps.size() == 3);
 
                     REQUIRE(actualPleOpB->m_LoadKernel == true);
 
@@ -4264,7 +4043,7 @@ TEST_CASE("ArePlansAllowedToMerge IdentityParts", "[CombinerDFS]")
     planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
-    MceOp mceOp(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
+    MceOp mceOp(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u },
                 TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 1, 1, 64 },
                 TraversalOrder::Xyz, Stride(), 0, 0, 0, 255);
     planA.m_OpGraph.AddOp(std::make_unique<MceOp>(std::move(mceOp)));
@@ -4275,25 +4054,23 @@ TEST_CASE("ArePlansAllowedToMerge IdentityParts", "[CombinerDFS]")
     planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
                                                        TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    PleOp pleOp(Lifetime::Atomic, PleOperation::PASSTHROUGH, BlockConfig{ 16u, 16u }, 1U,
-                { TensorShape{ 1, 64, 64, 64 } }, TensorShape{ 1, 64, 64, 64 }, ethosn::command_stream::DataType::U8,
-                true);
+    PleOp pleOp(PleOperation::PASSTHROUGH, BlockConfig{ 16u, 16u }, 1U, { TensorShape{ 1, 64, 64, 64 } },
+                TensorShape{ 1, 64, 64, 64 }, ethosn::command_stream::DataType::U8, true);
     planB.m_OpGraph.AddOp(std::make_unique<PleOp>(std::move(pleOp)));
     planB.m_OpGraph.AddConsumer(planB.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetOps()[0], 0);
     planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
 
     Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
 
-    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planB, PartConnection{ partBInputSlot0, partAOutputSlot0 }) == true);
+    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planB) == true);
 
     planA.m_HasIdentityPle = true;
 
-    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planB, PartConnection{ partBInputSlot0, partAOutputSlot0 }) == true);
+    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planB) == true);
 
     planB.m_HasIdentityMce = true;
 
-    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planB, PartConnection{ partBInputSlot0, partAOutputSlot0 }) ==
-            false);
+    REQUIRE(combiner.ArePlansAllowedToMerge(planA, planB) == false);
 }
 
 TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
@@ -4324,23 +4101,27 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         partsInputSlot0[i]  = { partId, 0 };
         partsOutputSlot0[i] = { partId, 0 };
 
-        plan.m_OpGraph.AddBuffer(
-            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
+        plan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                          TensorShape{ 1, 32, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
+                                                          TraversalOrder::Xyz, 4, QuantizationInfo()));
         plan.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram";
         size_t inputBufferIndex                        = plan.m_OpGraph.GetBuffers().size() - 1;
 
-        plan.m_OpGraph.AddBuffer(
-            std::make_unique<Buffer>(Location::PleInputSram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
+        plan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::PleInputSram, CascadingBufferFormat::NHWCB,
+                                                          TensorShape{ 1, 32, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
+                                                          TraversalOrder::Xyz, 4, QuantizationInfo()));
         plan.m_OpGraph.GetBuffers().back()->m_DebugTag = "PleInputSram";
         size_t pleInputSramIndex                       = plan.m_OpGraph.GetBuffers().size() - 1;
 
-        plan.m_OpGraph.AddBuffer(
-            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::WEIGHT, TraversalOrder::Xyz));
+        plan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::WEIGHT,
+                                                          TensorShape{ 1, 32, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
+                                                          TraversalOrder::Xyz, 4, QuantizationInfo()));
         plan.m_OpGraph.GetBuffers().back()->m_DebugTag = "MceWeightsSram";
         size_t mceWeightsBufferIndex                   = plan.m_OpGraph.GetBuffers().size() - 1;
 
-        plan.m_OpGraph.AddBuffer(
-            std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
+        plan.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+                                                          TensorShape{ 1, 32, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
+                                                          TraversalOrder::Xyz, 4, QuantizationInfo()));
         plan.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram";
         size_t outputBufferIndex                       = plan.m_OpGraph.GetBuffers().size() - 1;
 
@@ -4431,21 +4212,21 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
                 REQUIRE(combiner.IsSectionSizeSupported(StatsType::EndSection, plans[1], totalAgentsComb2) == true);
                 REQUIRE(totalAgentsComb2 == 10);
             }
-            WHEN("The Ple Op in the second plan is Atomic")
+            WHEN("The Output of the Ple Op the full tensor")
             {
-                plans[1].m_OpGraph.GetOp(static_cast<uint32_t>(pleOpIndex))->m_Lifetime = Lifetime::Atomic;
+                plans[1].m_OpGraph.GetBuffers()[3]->m_StripeShape = plans[1].m_OpGraph.GetBuffers()[3]->m_TensorShape;
                 REQUIRE(combiner.IsSectionSizeSupported(StatsType::ContinueSection, plans[1], totalAgents) == true);
                 REQUIRE(combiner.IsSectionSizeSupported(StatsType::EndSection, plans[2], totalAgents) == true);
             }
             WHEN("The Mce Op in the third plan is Atomic")
             {
-                plans[2].m_OpGraph.GetOp(static_cast<uint32_t>(mceOpIndex))->m_Lifetime = Lifetime::Atomic;
+                plans[2].m_OpGraph.GetBuffers()[3]->m_StripeShape = plans[2].m_OpGraph.GetBuffers()[3]->m_TensorShape;
                 REQUIRE(combiner.IsSectionSizeSupported(StatsType::ContinueSection, plans[1], totalAgents) == true);
                 REQUIRE(combiner.IsSectionSizeSupported(StatsType::EndSection, plans[2], totalAgents) == true);
             }
             WHEN("The weight loader Dma Op in the second plan is Atomic")
             {
-                plans[1].m_OpGraph.GetOp(static_cast<uint32_t>(dmaOpIndex))->m_Lifetime = Lifetime::Atomic;
+                plans[1].m_OpGraph.GetBuffers()[2]->m_StripeShape = plans[1].m_OpGraph.GetBuffers()[2]->m_TensorShape;
                 REQUIRE(combiner.IsSectionSizeSupported(StatsType::ContinueSection, plans[1], totalAgents) == true);
                 REQUIRE(combiner.IsSectionSizeSupported(StatsType::EndSection, plans[2], totalAgents) == false);
             }
@@ -4479,15 +4260,15 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
 
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::SinglePartSection, plans[0], totalAgents) == false);
         }
-        WHEN("Window size is only 2 but all Ops are Atomic")
+        WHEN("Window size is only 4 but all Ops are Atomic")
         {
             const HardwareCapabilities hwCaps =
-                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 2, {}, {});
+                GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 4, {}, {});
             Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
-            plans[0].m_OpGraph.GetOp(static_cast<uint32_t>(mceOpIndex))->m_Lifetime = Lifetime::Atomic;
-            plans[0].m_OpGraph.GetOp(static_cast<uint32_t>(pleOpIndex))->m_Lifetime = Lifetime::Atomic;
-            plans[0].m_OpGraph.GetOp(static_cast<uint32_t>(dmaOpIndex))->m_Lifetime = Lifetime::Atomic;
-
+            for (Buffer* b : plans[0].m_OpGraph.GetBuffers())
+            {
+                b->m_StripeShape = b->m_TensorShape;
+            }
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::SinglePartSection, plans[0], totalAgents) == true);
         }
         WHEN("The plan contains a Concat Part")
@@ -4533,8 +4314,9 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::SinglePartSection, concatPlans[0], totalAgents) == true);
 
             // The number of agents in a Concat Part must be equal to twice the number of its inputs. As the number of
-            // inputs in this case is two, the number of agents must be 4.
-            REQUIRE(totalAgents == 4);
+            // inputs in this case is two, the number of agents must be 4. However by the end of the plan,
+            // the data is back in DRAM so the final tally is zero.
+            REQUIRE(totalAgents == 0);
         }
     }
 }

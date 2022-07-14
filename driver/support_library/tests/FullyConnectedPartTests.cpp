@@ -380,7 +380,6 @@ void CheckInputDma(const CheckPlansParams& params, PlanDesc& desc)
     // Check properties of Input DMA (if we have one)
     if (params.m_InputLocation == PlanInputLocation::Dram)
     {
-        CHECK(desc.m_InputDma->m_Lifetime == Lifetime::Cascade);
         if (params.m_OperationIds)
         {
             CHECK(desc.m_InputDma->m_OperationIds == params.m_OperationIds.value());
@@ -391,7 +390,6 @@ void CheckInputDma(const CheckPlansParams& params, PlanDesc& desc)
 void CheckWeightsDma(const CheckPlansParams& params, PlanDesc& desc)
 {
     // Check properties of Weights DMA
-    CHECK(desc.m_WeightsDma->m_Lifetime == Lifetime::Cascade);
     if (params.m_OperationIds)
     {
         CHECK(desc.m_WeightsDma->m_OperationIds == params.m_OperationIds.value());
@@ -401,7 +399,6 @@ void CheckWeightsDma(const CheckPlansParams& params, PlanDesc& desc)
 void CheckMce(const CheckPlansParams& params, PlanDesc& desc)
 {
     // Check properties of Mce Op
-    CHECK(desc.m_Mce->m_Lifetime == Lifetime::Cascade);
     if (params.m_OperationIds)
     {
         CHECK(desc.m_Mce->m_OperationIds == params.m_OperationIds.value());
@@ -431,7 +428,6 @@ void CheckPle(PlanDesc& desc, const CheckPlansParams& params)
     // Check properties of Ple Op (if we have one)
     if (desc.m_Ple)
     {
-        CHECK(desc.m_Ple->m_Lifetime == Lifetime::Cascade);
         if (params.m_OperationIds)
         {
             CHECK(desc.m_Ple->m_OperationIds == params.m_OperationIds.value());
@@ -450,7 +446,6 @@ void CheckOutputDma(PlanDesc& desc, const CheckPlansParams& params)
     // Check properties of Output DMA (if we have one)
     if (desc.m_OutputDma)
     {
-        CHECK(desc.m_OutputDma->m_Lifetime == Lifetime::Cascade);
         if (params.m_OperationIds)
         {
             CHECK(desc.m_OutputDma->m_OperationIds == params.m_OperationIds.value());

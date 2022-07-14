@@ -194,6 +194,7 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
 
         // A plan is returned since both input and output tensors is fit into SRAM
         Buffer prevBuffer;
+        prevBuffer.m_Location    = Location::Sram;
         prevBuffer.m_StripeShape = inputShape;
         Plans plans2             = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
         REQUIRE(plans2.size() == 1);
@@ -254,6 +255,7 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
         CheckPlans(plans1, params);
 
         Buffer prevBuffer;
+        prevBuffer.m_Location    = Location::Sram;
         prevBuffer.m_StripeShape = inputShape;
         Plans plans2             = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
         REQUIRE(plans2.size() == 0);
@@ -297,6 +299,9 @@ TEST_CASE("StandalonePlePart ADDITION")
 
         // Only the lonely part is expected to return a plan
 
+        Buffer prevBuffer;
+        prevBuffer.m_Location = Location::Sram;
+
         Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
         REQUIRE(plans0.size() == 0);
 
@@ -304,13 +309,13 @@ TEST_CASE("StandalonePlePart ADDITION")
         REQUIRE(plans1.size() == 1);
         CheckPlans(plans1, params);
 
-        Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, nullptr, 1);
+        Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
         REQUIRE(plans2.size() == 0);
 
-        Plans plans3 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, nullptr, 1);
+        Plans plans3 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
         REQUIRE(plans3.size() == 0);
 
-        Plans plans4 = part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, nullptr, 1);
+        Plans plans4 = part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, &prevBuffer, 1);
         REQUIRE(plans4.size() == 0);
     }
 
@@ -344,6 +349,9 @@ TEST_CASE("StandalonePlePart ADDITION")
 
         // Only the lonely part is expected to return a plan
 
+        Buffer prevBuffer;
+        prevBuffer.m_Location = Location::Sram;
+
         Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
         REQUIRE(plans0.size() == 0);
 
@@ -351,13 +359,13 @@ TEST_CASE("StandalonePlePart ADDITION")
         REQUIRE(plans1.size() == 1);
         CheckPlans(plans1, params);
 
-        Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, nullptr, 1);
+        Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
         REQUIRE(plans2.size() == 0);
 
-        Plans plans3 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, nullptr, 1);
+        Plans plans3 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
         REQUIRE(plans3.size() == 0);
 
-        Plans plans4 = part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, nullptr, 1);
+        Plans plans4 = part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, &prevBuffer, 1);
         REQUIRE(plans4.size() == 0);
     }
 }
@@ -395,6 +403,9 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
 
         // Only the lonely part is expected to return a plan
 
+        Buffer prevBuffer;
+        prevBuffer.m_Location = Location::Sram;
+
         Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
         REQUIRE(plans0.size() == 0);
 
@@ -402,13 +413,13 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
         REQUIRE(plans1.size() == 1);
         CheckPlans(plans1, params);
 
-        Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, nullptr, 1);
+        Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
         REQUIRE(plans2.size() == 0);
 
-        Plans plans3 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, nullptr, 1);
+        Plans plans3 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
         REQUIRE(plans3.size() == 0);
 
-        Plans plans4 = part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, nullptr, 1);
+        Plans plans4 = part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, &prevBuffer, 1);
         REQUIRE(plans4.size() == 0);
     }
 
@@ -443,6 +454,9 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
 
         // Only the lonely part is expected to return a plan
 
+        Buffer prevBuffer;
+        prevBuffer.m_Location = Location::Sram;
+
         Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
         REQUIRE(plans0.size() == 0);
 
@@ -450,13 +464,13 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
         REQUIRE(plans1.size() == 1);
         CheckPlans(plans1, params);
 
-        Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, nullptr, 1);
+        Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
         REQUIRE(plans2.size() == 0);
 
-        Plans plans3 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, nullptr, 1);
+        Plans plans3 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
         REQUIRE(plans3.size() == 0);
 
-        Plans plans4 = part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, nullptr, 1);
+        Plans plans4 = part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, &prevBuffer, 1);
         REQUIRE(plans4.size() == 0);
     }
 }

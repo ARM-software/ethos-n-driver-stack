@@ -52,9 +52,9 @@ ethosn::support_library::Plans
     if (m_HasInput && m_HasOutput)
     {
         opGraph.AddOp(std::make_unique<PleOp>(
-            Lifetime::Atomic, ethosn::command_stream::PleOperation::PASSTHROUGH,
-            ethosn::command_stream::BlockConfig{ 8u, 8u }, 1, std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } },
-            TensorShape{ 1, 16, 16, 16 }, ethosn::command_stream::DataType::U8, true));
+            ethosn::command_stream::PleOperation::PASSTHROUGH, ethosn::command_stream::BlockConfig{ 8u, 8u }, 1,
+            std::vector<TensorShape>{ TensorShape{ 1, 16, 16, 16 } }, TensorShape{ 1, 16, 16, 16 },
+            ethosn::command_stream::DataType::U8, true));
 
         opGraph.AddConsumer(opGraph.GetBuffers().front(), opGraph.GetOps()[0], 0);
         opGraph.SetProducer(opGraph.GetBuffers().back(), opGraph.GetOps()[0]);

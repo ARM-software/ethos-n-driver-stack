@@ -32,12 +32,6 @@ enum class OpType
     PleOp
 };
 
-enum class Lifetime
-{
-    Atomic,
-    Cascade
-};
-
 enum class TraversalOrder
 {
     Xyz,
@@ -197,7 +191,6 @@ class Op : public DebuggableObject
 {
 public:
     Op(const char* defaultTagPrefix);
-    Op(const char* defaultTagPrefix, Lifetime lifetime);
     virtual ~Op() = default;
 
     virtual utils::Optional<command_stream::BlockConfig> GetBlockConfig()
@@ -212,7 +205,6 @@ public:
 
     virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 
-    Lifetime m_Lifetime;
     std::set<uint32_t> m_OperationIds;
 };
 
@@ -220,7 +212,6 @@ class DmaOp : public Op
 {
 public:
     DmaOp(CascadingBufferFormat transferFormat);
-    DmaOp(CascadingBufferFormat transferFormat, Lifetime lifetime);
     virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 
     CascadingBufferFormat m_TransferFormat;
@@ -230,8 +221,7 @@ class MceOp : public Op
 {
 public:
     MceOp();
-    MceOp(Lifetime lifetime,
-          command_stream::MceOperation op,
+    MceOp(command_stream::MceOperation op,
           CompilerMceAlgorithm algo,
           command_stream::BlockConfig blockConfig,
           TensorShape inputStripeShape,
@@ -272,8 +262,7 @@ class PleOp : public Op
 {
 public:
     PleOp();
-    PleOp(Lifetime lifetime,
-          command_stream::PleOperation op,
+    PleOp(command_stream::PleOperation op,
           command_stream::BlockConfig blockConfig,
           uint32_t numInputs,
           std::vector<TensorShape> inputStripeShapes,
@@ -340,6 +329,12 @@ public:
            QuantizationInfo quantInfo);
     virtual ~Buffer()
     {}
+
+    bool IsFullTensor() const
+    {
+        return m_Location == Location::Dram ||
+               (m_Location == Location::Sram && utils::IsFullTensor(m_TensorShape, m_StripeShape));
+    }
 
     Location m_Location;
     CascadingBufferFormat m_Format;

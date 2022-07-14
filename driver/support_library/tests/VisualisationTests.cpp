@@ -289,17 +289,17 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
     buffer1.m_BufferType = BufferType::Intermediate;
     graph.AddBuffer(&buffer1);
 
-    MceOp mce(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, { 3u, 4u }, { 1, 2, 3, 4 },
-              { 5, 6, 7, 8 }, { 9, 10, 11, 12 }, TraversalOrder::Zxy, Stride(10, 20), 30, 40, 100, 200);
+    MceOp mce(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, { 3u, 4u }, { 1, 2, 3, 4 }, { 5, 6, 7, 8 },
+              { 9, 10, 11, 12 }, TraversalOrder::Zxy, Stride(10, 20), 30, 40, 100, 200);
     mce.m_DebugTag = "Mce";
     graph.AddOp(&mce);
 
-    DmaOp dma(CascadingBufferFormat::NHWCB, Lifetime::Cascade);
+    DmaOp dma(CascadingBufferFormat::NHWCB);
     dma.m_DebugTag = "Dma";
     graph.AddOp(&dma);
 
-    PleOp ple(Lifetime::Atomic, PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } },
-              { 9, 10, 11, 12 }, ethosn::command_stream::DataType::U8, true);
+    PleOp ple(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
+              ethosn::command_stream::DataType::U8, true);
     ple.m_DebugTag = "Ple";
     ple.m_Offset   = 0;
     graph.AddOp(&ple);
@@ -319,9 +319,9 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
     std::string expected =
         R"(digraph SupportLibraryGraph
 {
-Mce[label = "Mce\nIdx in OpGraph: 0\nLifetime = Atomic\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlock Config = 3x4\nInput Stripe Shape = [1, 2, 3, 4]\nOutput Stripe Shape = [5, 6, 7, 8]\nWeights Stripe Shape = [9, 10, 11, 12]\nOrder = Zxy\nStride = 10, 20\nPad L/T = 30, 40\nLower/Upper Bound = 100, 200\nOperation Ids = []\n", shape = oval]
-Dma[label = "Dma\nIdx in OpGraph: 1\nLifetime = Cascade\nDmaOp\nOperation Ids = []\nTransfer Format = NHWCB\n", shape = oval, color = darkgoldenrod]
-Ple[label = "Ple\nIdx in OpGraph: 2\nLifetime = Atomic\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nOutput Data type = U8\nPle kernel Id = ADDITION_16X16_1\nKernel Load = 1\nOffset = 0\nOperation Ids = []\n", shape = oval]
+Mce[label = "Mce\nIdx in OpGraph: 0\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlock Config = 3x4\nInput Stripe Shape = [1, 2, 3, 4]\nOutput Stripe Shape = [5, 6, 7, 8]\nWeights Stripe Shape = [9, 10, 11, 12]\nOrder = Zxy\nStride = 10, 20\nPad L/T = 30, 40\nLower/Upper Bound = 100, 200\nOperation Ids = []\n", shape = oval]
+Dma[label = "Dma\nIdx in OpGraph: 1\nDmaOp\nOperation Ids = []\nTransfer Format = NHWCB\n", shape = oval, color = darkgoldenrod]
+Ple[label = "Ple\nIdx in OpGraph: 2\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nOutput Data type = U8\nPle kernel Id = ADDITION_16X16_1\nKernel Load = 1\nOffset = 0\nOperation Ids = []\n", shape = oval]
 Buffer1[label = "Buffer1\nLocation = PleInputSram\nFormat = WEIGHT\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\nOrder = Zxy\nOffset = 0\nSize in bytes = 1234\nSlot size in bytes = 0\nType = Intermediate\nPacked boundary thickness = { L: 0, T: 0, R: 0, B: 0}\nNum loads = 1\n", shape = box]
 }
 )";
@@ -344,8 +344,8 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     inputBuffer.m_DebugTag = "InputBuffer";
     graph.AddBuffer(&inputBuffer);
 
-    PleOp ple1(Lifetime::Atomic, PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } },
-               { 9, 10, 11, 12 }, ethosn::command_stream::DataType::U8, true);
+    PleOp ple1(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
+               ethosn::command_stream::DataType::U8, true);
     ple1.m_DebugTag = "Ple1";
     graph.AddOp(&ple1);
 
@@ -354,8 +354,8 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     intermediateBuffer.m_DebugTag = "IntermediateBuffer";
     graph.AddBuffer(&intermediateBuffer);
 
-    PleOp ple2(Lifetime::Atomic, PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } },
-               { 9, 10, 11, 12 }, ethosn::command_stream::DataType::U8, true);
+    PleOp ple2(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
+               ethosn::command_stream::DataType::U8, true);
     ple2.m_DebugTag = "Ple2";
     graph.AddOp(&ple2);
 
@@ -848,10 +848,9 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
                                { planDE.m_OpGraph.GetBuffers()[2], partDEInputSlot1 } };
     planDE.m_OutputMappings                          = { { planDE.m_OpGraph.GetBuffers()[1], partDEOutputSlot0 },
                                 { planDE.m_OpGraph.GetBuffers()[3], partDEOutputSlot1 } };
-    planDE.m_OpGraph.AddOp(
-        std::make_unique<MceOp>(Lifetime::Atomic, MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                BlockConfig{ 16u, 16u }, TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
+    planDE.m_OpGraph.AddOp(std::make_unique<MceOp>(
+        MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u }, TensorShape{ 1, 17, 16, 16 },
+        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
     planDE.m_OpGraph.GetOps()[0]->m_DebugTag = "Mce2";
     planDE.m_OpGraph.AddConsumer(planDE.m_OpGraph.GetBuffers()[0], planDE.m_OpGraph.GetOps()[0], 0);
     planDE.m_OpGraph.AddConsumer(planDE.m_OpGraph.GetBuffers()[2], planDE.m_OpGraph.GetOps()[0], 1);

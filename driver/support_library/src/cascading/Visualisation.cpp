@@ -42,20 +42,6 @@ std::string ToString(Location l)
     }
 }
 
-std::string ToString(Lifetime l)
-{
-    switch (l)
-    {
-        case Lifetime::Atomic:
-            return "Atomic";
-        case Lifetime::Cascade:
-            return "Cascade";
-        default:
-            ETHOSN_FAIL_MSG("Unknown lifetime");
-            return "";
-    }
-}
-
 std::string ToString(CascadingBufferFormat f)
 {
     switch (f)
@@ -747,7 +733,6 @@ DotAttributes GetDotAttributes(Op* op, DetailLevel detailLevel, uint32_t idxInOp
     {
         preLabel << "\n";
         preLabel << "Idx in OpGraph: " << idxInOpGraph << "\n";
-        preLabel << "Lifetime = " << ToString(op->m_Lifetime) << "\n";
     }
     preLabel << result.m_Label;
     result.m_Label = preLabel.str();

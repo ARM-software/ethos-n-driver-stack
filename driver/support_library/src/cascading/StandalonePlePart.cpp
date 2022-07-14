@@ -3,10 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+#include "StandalonePlePart.hpp"
+
 #include "../nonCascading/PlePass.hpp"
 #include "PartUtils.hpp"
 #include "Plan.hpp"
-#include "StandalonePlePart.hpp"
 #include "StripeHelper.hpp"
 
 #include <ethosn_utils/Macros.hpp>
@@ -49,6 +50,15 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
 {
     ETHOSN_UNUSED(numWeightStripes);
     ETHOSN_UNUSED(blockConfig);
+
+    if (cascadeType == CascadeType::Middle || cascadeType == CascadeType::End)
+    {
+        assert(prevBuffer != nullptr);
+        if (prevBuffer->m_Location != Location::Sram)
+        {
+            return {};    // Can't continue section from e.g. PleInputSram
+        }
+    }
 
     Plans plans;
 
@@ -152,14 +162,9 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
 
     // Uses block configure (16, 16) which will be ignored
     // by a standalone PLE kernel.
-    // Standalone PLE Ops either have an Atomic Lifetime or
-    // form Lonely plans. In the latter case, Lifetime is
-    // irrelevant because SRAM eviction will not take place.
-    // Therefore, Lifetime::Atomic is used in all cases below.
     command_stream::BlockConfig blkConfig = { 16u, 16u };
-    auto op                               = std::make_unique<PleOp>(Lifetime::Atomic, m_KernelOperation, blkConfig,
-                                      static_cast<uint32_t>(m_InputTensorShapes.size()), m_InputTensorShapes,
-                                      m_OutputTensorShape, m_DataType, true);
+    auto op = std::make_unique<PleOp>(m_KernelOperation, blkConfig, static_cast<uint32_t>(m_InputTensorShapes.size()),
+                                      m_InputTensorShapes, m_OutputTensorShape, m_DataType, true);
 
     OwnedOpGraph opGraph;
     PartInputMapping inputMappings;
@@ -182,7 +187,7 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
 
     // Output buffer
     auto outBufferAndPleOp =
-        AddPleToOpGraph(opGraph, Lifetime::Atomic, rv.outputSramAllocation.stripeShape, numMemoryStripes, std::move(op),
+        AddPleToOpGraph(opGraph, rv.outputSramAllocation.stripeShape, numMemoryStripes, std::move(op),
                         m_OutputTensorShape, m_OutputQuantizationInfo, m_CorrespondingOperationIds);
 
     for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)

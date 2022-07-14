@@ -134,7 +134,6 @@ Buffer* FusedPlePart::AddIdentityWeights(OwnedOpGraph& opGraph,
 }
 
 std::pair<Buffer*, Buffer*> FusedPlePart::AddIdentityMceOpForSubGraph(OwnedOpGraph& opGraph,
-                                                                      Lifetime lifetime,
                                                                       const impl::MceStripesInfo& mceComputeInfo,
                                                                       const impl::NumMemoryStripes& numMemoryStripes,
                                                                       const impl::MemoryStripesInfo& memoryStripes,
@@ -173,7 +172,7 @@ std::pair<Buffer*, Buffer*> FusedPlePart::AddIdentityMceOpForSubGraph(OwnedOpGra
     int16_t upperBound = m_DataType == command_stream::DataType::U8 ? 255 : 127;
 
     // Add MceOp.
-    opGraph.AddOp(std::make_unique<MceOp>(lifetime, MceOperation::DEPTHWISE_CONVOLUTION, CompilerMceAlgorithm::Direct,
+    opGraph.AddOp(std::make_unique<MceOp>(MceOperation::DEPTHWISE_CONVOLUTION, CompilerMceAlgorithm::Direct,
                                           mceComputeInfo.m_BlockConfig, mceComputeInfo.m_Input, mceComputeInfo.m_Output,
                                           mceComputeInfo.m_Weight, TraversalOrder::Xyz, Stride(1, 1), 0, 0, lowerBound,
                                           upperBound));
@@ -215,7 +214,6 @@ void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
                                                      Plans& plans,
                                                      uint32_t numWeightStripes) const
 {
-    auto lifetime = info.m_Lifetime;
     // Create plan with identity mce op and ple op
     for (auto numInputStripes = info.m_Memory.m_Input.m_Range.m_Min;
          numInputStripes <= info.m_Memory.m_Input.m_Range.m_Max; ++numInputStripes)
@@ -235,16 +233,16 @@ void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
                 PartInputMapping inputMappings;
                 PartOutputMapping outputMappings;
                 auto mceInAndOutBuffer =
-                    AddIdentityMceOpForSubGraph(opGraph, lifetime, info.m_MceCompute, numMemoryStripes, info.m_Memory,
+                    AddIdentityMceOpForSubGraph(opGraph, info.m_MceCompute, numMemoryStripes, info.m_Memory,
                                                 m_InputTensorShape, m_InputQuantizationInfo, weightEncoderCache);
 
                 // A fuse only ple operation only has 1 input
-                auto op = std::make_unique<PleOp>(lifetime, m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
+                auto op = std::make_unique<PleOp>(m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
                                                   std::vector<TensorShape>{ info.m_PleCompute.m_Input },
                                                   info.m_PleCompute.m_Output, m_DataType, true);
 
                 auto outBufferAndPleOp =
-                    AddPleToOpGraph(opGraph, lifetime, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(op),
+                    AddPleToOpGraph(opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(op),
                                     m_OutputTensorShape, m_OutputQuantizationInfo, m_CorrespondingOperationIds);
                 opGraph.AddConsumer(mceInAndOutBuffer.second, outBufferAndPleOp.second, 0);
                 inputMappings[mceInAndOutBuffer.first]  = PartInputSlot{ m_PartId, 0 };
@@ -257,7 +255,6 @@ void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
 
 void FusedPlePart::CreateFuseOnlyPlans(const PleOnlyInfo& info, Plans& plans) const
 {
-    auto lifetime = info.m_Lifetime;
     for (auto numOutputStripes = info.m_Memory.m_Output.m_Range.m_Min;
          numOutputStripes <= info.m_Memory.m_Output.m_Range.m_Max; ++numOutputStripes)
     {
@@ -277,12 +274,12 @@ void FusedPlePart::CreateFuseOnlyPlans(const PleOnlyInfo& info, Plans& plans) co
                                m_InputQuantizationInfo, Location::PleInputSram);
 
             // A fuse only ple operation only has 1 input
-            auto op = std::make_unique<PleOp>(lifetime, m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
+            auto op = std::make_unique<PleOp>(m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,
                                               std::vector<TensorShape>{ info.m_PleCompute.m_Input },
                                               info.m_PleCompute.m_Output, m_DataType, true);
 
             auto outBufferAndPleOp =
-                AddPleToOpGraph(opGraph, lifetime, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(op),
+                AddPleToOpGraph(opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(op),
                                 m_OutputTensorShape, m_OutputQuantizationInfo, m_CorrespondingOperationIds);
             opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
             inputMappings[pleInBuffer]              = PartInputSlot{ m_PartId, 0 };
@@ -487,8 +484,6 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
 
         MceAndPleInfo mceAndPleInfo;
 
-        mceAndPleInfo.m_Lifetime = fullTensor ? Lifetime::Atomic : Lifetime::Cascade;
-
         mceAndPleInfo.m_MceCompute.m_Input       = mceInputStripe;
         mceAndPleInfo.m_MceCompute.m_Output      = mceOutputStripe;
         mceAndPleInfo.m_MceCompute.m_Weight      = mceWeightStripe;
@@ -530,8 +525,6 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
         }
 
         PleOnlyInfo pleOnlyInfo;
-
-        pleOnlyInfo.m_Lifetime = fullTensor ? Lifetime::Atomic : Lifetime::Cascade;
 
         pleOnlyInfo.m_PleCompute.m_Input       = pleInputStripe;
         pleOnlyInfo.m_PleCompute.m_Output      = pleOutputStripe;

@@ -285,13 +285,6 @@ void OwnedOpGraph::MergeOpGraph(OwnedOpGraph& other)
 
 Op::Op(const char* defaultTagPrefix)
     : DebuggableObject(defaultTagPrefix)
-    , m_Lifetime(Lifetime::Cascade)
-    , m_OperationIds()
-{}
-
-Op::Op(const char* defaultTagPrefix, Lifetime lifetime)
-    : DebuggableObject(defaultTagPrefix)
-    , m_Lifetime(lifetime)
     , m_OperationIds()
 {}
 
@@ -302,11 +295,6 @@ DotAttributes Op::GetDotAttributes(DetailLevel) const
 
 DmaOp::DmaOp(CascadingBufferFormat transferFormat)
     : Op("DmaOp")
-    , m_TransferFormat(transferFormat)
-{}
-
-DmaOp::DmaOp(CascadingBufferFormat transferFormat, Lifetime lifetime)
-    : Op("DmaOp", lifetime)
     , m_TransferFormat(transferFormat)
 {}
 
@@ -342,8 +330,7 @@ MceOp::MceOp()
     , m_UpperBound(255)
 {}
 
-MceOp::MceOp(Lifetime lifetime,
-             MceOperation op,
+MceOp::MceOp(MceOperation op,
              CompilerMceAlgorithm algo,
              BlockConfig blockConfig,
              TensorShape inputStripeShape,
@@ -355,7 +342,7 @@ MceOp::MceOp(Lifetime lifetime,
              uint32_t padTop,
              int16_t lowerBound,
              int16_t upperBound)
-    : Op("MceOp", lifetime)
+    : Op("MceOp")
     , m_Op(op)
     , m_Algo(algo)
     , m_BlockConfig(blockConfig)
@@ -406,15 +393,14 @@ PleOp::PleOp()
     , m_LoadKernel{ true }
 {}
 
-PleOp::PleOp(Lifetime lifetime,
-             PleOperation op,
+PleOp::PleOp(PleOperation op,
              BlockConfig blockConfig,
              uint32_t numInputs,
              std::vector<TensorShape> inputStripeShapes,
              TensorShape outputStripeShape,
              command_stream::DataType dataType,
              bool loadKernel)
-    : Op("PleOp", lifetime)
+    : Op("PleOp")
     , m_Op(op)
     , m_BlockConfig(blockConfig)
     , m_NumInputs(numInputs)

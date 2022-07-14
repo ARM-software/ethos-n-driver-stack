@@ -26,7 +26,6 @@ class Plan;
 struct EstimatedOpGraph;
 struct Combination;
 enum class Location;
-enum class Lifetime;
 enum class CascadingBufferFormat;
 enum class CompilerDataFormat;
 enum class CompilerDataCompressedFormat;

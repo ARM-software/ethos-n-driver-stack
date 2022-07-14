@@ -5,10 +5,10 @@
 
 #pragma once
 
+#include "DebuggingContext.hpp"
 #include "Part.hpp"
 #include "Plan.hpp"
-
-#include "DebuggingContext.hpp"
+#include "SramAllocator.hpp"
 
 namespace ethosn
 {
@@ -86,6 +86,14 @@ struct Elem
 constexpr size_t g_InvalidCombRank = std::numeric_limits<size_t>::max();
 
 using PleOperations = std::vector<std::pair<command_stream::cascading::PleKernelId, uint32_t>>;
+
+/// Information about a section, passed down from StartSection through Continue/EndSection.
+struct SectionContext
+{
+    SramAllocator alloc;
+    PleOperations pleOps;
+    std::vector<Buffer*> allocatedBuffers;
+};
 
 struct Combination
 {
@@ -202,27 +210,12 @@ public:
     bool IsPartMiso(const BasePart& part) const;
     bool IsPartMimo(const BasePart& part) const;
 
-    bool AreMceOperationsCompatible(const Buffer* plan1OutputBuffer,
-                                    const Buffer* plan2InputBuffer,
-                                    const PartOutputSlot& outputSlot) const;
-
-    bool AreBlockConfigsCompatible(const Plan& plan1, const Plan& plan2, const PartOutputSlot& outputSlot) const;
-
-    bool ArePlansCompatible(const Plan& sPlan, const Plan& dPlan, const PartConnection& outputSlot);
-    bool ArePlansCompatibleImpl(const Plan& sPlan, const Plan& dPlan, const PartConnection& outputSlot) const;
-
-    bool IsPlanAllocated(SramAllocator& alloc,
+    bool IsPlanAllocated(SectionContext& context,
                          const Plan& plan,
-                         PleOperations& pleOps,
                          const Buffer* const outBufOfPrevPlanInSection,
                          const StatsType sectionType) const;
-    bool IsPlanInputGlueable(const Plan& plan) const;
-    bool IsPlanOutputGlueable(const Plan& plan) const;
-    bool ArePlansAllowedToMerge(const Plan& reference, const Plan& current, const PartConnection& outputSlot) const;
-    bool ArePlansStreamingStrategiesCompatible(const Plan& reference,
-                                               const Plan& current,
-                                               const PartConnection& slots) const;
-    void DeallocateUnusedBuffers(const Plan& sPlan, SramAllocator& allocator);
+    bool ArePlansAllowedToMerge(const Plan& reference, const Plan& current) const;
+    void DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionContext& context);
 
     const Combination& GetBestCombination() const;
     Combination GetBestCombination(const Combinations& combs);
@@ -239,10 +232,9 @@ public:
     Combination ContinueSection(const BasePart& part,
                                 const BasePart& sPart,
                                 const Combination& comb,
-                                const SramAllocator& alloc,
+                                const SectionContext& context,
                                 uint32_t prevNumWeightStripes,
                                 bool prevDoubleBuffered,
-                                const PleOperations& pleOps,
                                 uint32_t totalAgents);
 
     Combination SinglePartSection(const BasePart& part);
@@ -250,13 +242,12 @@ public:
     Combination EndSection(const BasePart& part,
                            const BasePart& sPart,
                            const Combination& comb,
-                           const SramAllocator& alloc,
+                           const SectionContext& context,
                            uint32_t prevNumWeightStripes,
                            bool prevDoubleBuffered,
-                           const PleOperations& pleOps,
                            uint32_t totalAgents);
 
-    Combination StartSection(const BasePart& part, const BasePart& nextPart, const SramAllocator& alloc);
+    Combination StartSection(const BasePart& part, const BasePart& nextPart);
 
     StartingAndEndingGlues GenerateGlueBetweenSramAndDram(Buffer* sramBuffer,
                                                           Buffer* dramBuffer,

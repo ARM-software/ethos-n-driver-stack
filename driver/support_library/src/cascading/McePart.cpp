@@ -219,8 +219,6 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
 
     MceAndPleInfo mceAndPleInfo;
 
-    mceAndPleInfo.m_Lifetime = fullTensor ? Lifetime::Atomic : Lifetime::Cascade;
-
     mceAndPleInfo.m_MceCompute.m_Input       = sramBuffer->m_StripeShape;
     mceAndPleInfo.m_MceCompute.m_Output      = mceOutputStripe;
     mceAndPleInfo.m_MceCompute.m_Weight      = mceWeightStripe;
@@ -235,8 +233,6 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     mceAndPleInfo.m_Memory.m_PleInput = { numStripes.m_PleInput, mceOutputStripe };
 
     MceOnlyInfo mceOnlyInfo;
-
-    mceOnlyInfo.m_Lifetime = fullTensor ? Lifetime::Atomic : Lifetime::Cascade;
 
     mceOnlyInfo.m_MceCompute.m_Input       = mceInputStripe;
     mceOnlyInfo.m_MceCompute.m_Output      = mceOutputStripe;
@@ -414,7 +410,6 @@ Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
 }
 
 std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
-                                                 Lifetime lifetime,
                                                  const impl::MceStripesInfo& mceStripeInfo,
                                                  const impl::MemoryStripesInfo& memoryStripesInfo,
                                                  impl::NumMemoryStripes& numMemoryStripes,
@@ -467,7 +462,7 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
         memoryStripesInfo.m_Weight.m_NumLoads, convData, weightEncoderCache, mceOpAlgo);
 
     auto mceOp =
-        std::make_unique<MceOp>(lifetime, m_Operation, mceOpAlgo, mceStripeInfo.m_BlockConfig, mceStripeInfo.m_Input,
+        std::make_unique<MceOp>(m_Operation, mceOpAlgo, mceStripeInfo.m_BlockConfig, mceStripeInfo.m_Input,
                                 mceStripeInfo.m_Output, memoryStripesInfo.m_Weight.m_Shape, TraversalOrder::Xyz,
                                 m_Stride, m_PadLeft, m_PadTop, m_LowerBound, m_UpperBound);
     mceOp->m_UpscaleFactor = m_UpscaleFactor;
@@ -490,7 +485,6 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                                            uint32_t numWeightStripes,
                                            bool couldSourceBeFcaf) const
 {
-    auto lifetime = info.m_Lifetime;
     for (auto numInputStripes = info.m_Memory.m_Input.m_Range.m_Min;
          numInputStripes <= info.m_Memory.m_Input.m_Range.m_Max; ++numInputStripes)
     {
@@ -509,13 +503,13 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                 PartInputMapping inputMappings;
                 PartOutputMapping outputMappings;
                 impl::ConvData convData;
-                convData.weightInfo   = m_WeightsInfo;
-                convData.weightData   = m_WeightsData;
-                convData.biasInfo     = m_BiasInfo;
-                convData.biasData     = m_BiasData;
-                auto inBufferAndMceOp = AddMceToOpGraph(opGraph, lifetime, info.m_MceCompute, info.m_Memory,
-                                                        numMemoryStripes, m_InputTensorShape, m_InputQuantizationInfo,
-                                                        convData, weightEncoderCache, couldSourceBeFcaf);
+                convData.weightInfo = m_WeightsInfo;
+                convData.weightData = m_WeightsData;
+                convData.biasInfo   = m_BiasInfo;
+                convData.biasData   = m_BiasData;
+                auto inBufferAndMceOp =
+                    AddMceToOpGraph(opGraph, info.m_MceCompute, info.m_Memory, numMemoryStripes, m_InputTensorShape,
+                                    m_InputQuantizationInfo, convData, weightEncoderCache, couldSourceBeFcaf);
 
                 auto pleInBuffer = impl::AddPleInBuffer(opGraph, numPleInputStripes, m_OutputTensorShape,
                                                         info.m_Memory.m_PleInput.m_Shape, m_OutputQuantizationInfo,
@@ -524,12 +518,12 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
 
                 // Create an identity ple Op
                 std::unique_ptr<PleOp> pleOp =
-                    std::make_unique<PleOp>(lifetime, PleOperation::PASSTHROUGH, info.m_MceCompute.m_BlockConfig, 1,
+                    std::make_unique<PleOp>(PleOperation::PASSTHROUGH, info.m_MceCompute.m_BlockConfig, 1,
                                             std::vector<TensorShape>{ info.m_PleCompute.m_Input },
                                             info.m_PleCompute.m_Output, m_DataType, true);
-                auto outBufferAndPleOp = AddPleToOpGraph(opGraph, lifetime, info.m_Memory.m_Output.m_Shape,
-                                                         numMemoryStripes, std::move(pleOp), m_OutputTensorShape,
-                                                         m_OutputQuantizationInfo, m_CorrespondingOperationIds);
+                auto outBufferAndPleOp =
+                    AddPleToOpGraph(opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(pleOp),
+                                    m_OutputTensorShape, m_OutputQuantizationInfo, m_CorrespondingOperationIds);
                 opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
                 inputMappings[inBufferAndMceOp.first]   = PartInputSlot{ m_PartId, 0 };
                 outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
@@ -545,7 +539,6 @@ void McePart::CreateMceOnlyPlans(const impl::MceOnlyInfo& info,
                                  uint32_t numWeightStripes,
                                  bool couldSourceBeFcaf) const
 {
-    auto lifetime = info.m_Lifetime;
     for (auto numInputStripes = info.m_Memory.m_Input.m_Range.m_Min;
          numInputStripes <= info.m_Memory.m_Input.m_Range.m_Max; ++numInputStripes)
     {
@@ -561,13 +554,13 @@ void McePart::CreateMceOnlyPlans(const impl::MceOnlyInfo& info,
             PartInputMapping inputMappings;
             PartOutputMapping outputMappings;
             ConvData convData;
-            convData.weightInfo   = m_WeightsInfo;
-            convData.weightData   = m_WeightsData;
-            convData.biasInfo     = m_BiasInfo;
-            convData.biasData     = m_BiasData;
-            auto inBufferAndMceOp = AddMceToOpGraph(opGraph, lifetime, info.m_MceCompute, info.m_Memory,
-                                                    numMemoryStripes, m_InputTensorShape, m_InputQuantizationInfo,
-                                                    convData, weightEncoderCache, couldSourceBeFcaf);
+            convData.weightInfo = m_WeightsInfo;
+            convData.weightData = m_WeightsData;
+            convData.biasInfo   = m_BiasInfo;
+            convData.biasData   = m_BiasData;
+            auto inBufferAndMceOp =
+                AddMceToOpGraph(opGraph, info.m_MceCompute, info.m_Memory, numMemoryStripes, m_InputTensorShape,
+                                m_InputQuantizationInfo, convData, weightEncoderCache, couldSourceBeFcaf);
 
             // We need to add the output buffer first before adding mce to opgraph as it uses it.
 
