@@ -24,9 +24,9 @@ namespace cascading
 /// Slot info for data in SRAM
 struct Tile
 {
-    uint16_t baseAddr;
+    uint32_t baseAddr;
     uint16_t numSlots;
-    uint16_t slotSize;
+    uint32_t slotSize;
 };
 
 ETHOSN_DECL_SV_VECTOR_STRUCT(SupertensorSize, width, channels)
@@ -270,7 +270,7 @@ struct PleL
     /// ID of the kernel used
     PleKernelId pleKernelId;
     /// Destination SRAM address
-    uint16_t sramAddr;
+    uint32_t sramAddr;
 };
 
 struct PleIfmInfo
@@ -311,7 +311,7 @@ struct PleS
     /// ID of the PLE kernel used
     PleKernelId pleKernelId;
     /// PLE kernel location in SRAM
-    uint16_t pleKernelSramAddr;
+    uint32_t pleKernelSramAddr;
 
     // Additional fields to be used only if inputMode is SRAM
 

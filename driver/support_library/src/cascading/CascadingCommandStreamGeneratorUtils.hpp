@@ -27,10 +27,10 @@ inline void SetTileInfoForBuffer(const HardwareCapabilities& hwCap, Tile& tile, 
 {
     assert(buffer->m_Format == CascadingBufferFormat::NHWCB || buffer->m_Format == CascadingBufferFormat::WEIGHT);
 
-    tile.baseAddr = ethosn::utils::NumericCast<uint16_t>(buffer->m_Offset.value());
+    tile.baseAddr = ethosn::utils::NumericCast<uint32_t>(buffer->m_Offset.value());
     tile.numSlots = ethosn::utils::NumericCast<uint16_t>(buffer->m_NumStripes);
     tile.slotSize =
-        ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(buffer->m_SlotSizeInBytes, hwCap.GetNumberOfSrams()));
+        ethosn::utils::NumericCast<uint32_t>(utils::DivRoundUp(buffer->m_SlotSizeInBytes, hwCap.GetNumberOfSrams()));
 }
 
 inline uint16_t CalculateEdgeSize(uint32_t tensorSize, uint32_t defaultStripeSize)
@@ -424,10 +424,10 @@ namespace PleSUtils
 
 inline void SetPlesTileInfo(const HardwareCapabilities& hwCap, PleS& pleS, const Buffer* const outputBuffer)
 {
-    pleS.ofmTile.baseAddr = ethosn::utils::NumericCast<uint16_t>(outputBuffer->m_Offset.value());
+    pleS.ofmTile.baseAddr = ethosn::utils::NumericCast<uint32_t>(outputBuffer->m_Offset.value());
     pleS.ofmTile.numSlots = ethosn::utils::NumericCast<uint16_t>(
         outputBuffer->m_NumStripes * utils::GetHeight(outputBuffer->m_StripeShape) / pleS.dfltStripeSize.height);
-    pleS.ofmTile.slotSize = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
+    pleS.ofmTile.slotSize = ethosn::utils::NumericCast<uint32_t>(utils::DivRoundUp(
         outputBuffer->m_SlotSizeInBytes * pleS.dfltStripeSize.height / utils::GetHeight(outputBuffer->m_StripeShape),
         hwCap.GetNumberOfSrams()));
 }

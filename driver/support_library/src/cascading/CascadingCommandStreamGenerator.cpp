@@ -937,7 +937,7 @@ AgentIdType CascadingCommandStreamGenerator::AddPleLoaderToCommandStream(PleOp* 
     // Create a new Ple Loader agent
     PleL pleLoaderData        = {};
     pleLoaderData.pleKernelId = ptrPleOp->m_PleKernelId;
-    pleLoaderData.sramAddr    = ethosn::utils::NumericCast<uint16_t>(ptrPleOp->m_Offset.value());
+    pleLoaderData.sramAddr    = ethosn::utils::NumericCast<uint32_t>(ptrPleOp->m_Offset.value());
 
     AgentDependencyInfo dependencyInfo = {};
     dependencyInfo.numStripesTotal     = 1;
@@ -993,7 +993,7 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
         assert(false);
     }
 
-    pleS.pleKernelSramAddr = ethosn::utils::NumericCast<uint16_t>(ptrPleOp->m_Offset.value());
+    pleS.pleKernelSramAddr = ethosn::utils::NumericCast<uint32_t>(ptrPleOp->m_Offset.value());
 
     pleS.pleKernelId = ptrPleOp->m_PleKernelId;
 
