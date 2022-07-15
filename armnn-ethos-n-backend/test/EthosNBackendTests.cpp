@@ -273,6 +273,7 @@ TEST_SUITE("EthosNImportTensorHandle")
         armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
         armnn::OptimizerOptions optimizerOptions;
         optimizerOptions.m_ImportEnabled = true;
+        optimizerOptions.m_ExportEnabled = true;
         armnn::IOptimizedNetworkPtr optimizedNet =
             armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
         CHECK(optimizedNet);
@@ -392,15 +393,18 @@ TEST_SUITE("EthosNImportTensorHandle")
         armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
         armnn::OptimizerOptions optimizerOptions;
         optimizerOptions.m_ImportEnabled = false;
+        optimizerOptions.m_ExportEnabled = false;
         armnn::IOptimizedNetworkPtr optimizedNet =
             armnn::Optimize(*net, backends, runtime->GetDeviceSpec(), optimizerOptions);
         CHECK(optimizedNet);
 
         // Load graph into runtime
         armnn::NetworkId networkIdentifier;
-        INetworkProperties networkProperties(false, MemorySource::DmaBuf, MemorySource::DmaBuf);
+        INetworkProperties networkProperties(false, MemorySource::Undefined, MemorySource::Undefined);
         std::string errMsgs;
-        runtime->LoadNetwork(networkIdentifier, std::move(optimizedNet), errMsgs, networkProperties);
+        armnn::Status loadNetworkRes =
+            runtime->LoadNetwork(networkIdentifier, std::move(optimizedNet), errMsgs, networkProperties);
+        CHECK(loadNetworkRes == Status::Success);
 
         // Create some data and fill in the file descriptor
         unsigned int numElements = inputTensorInfo.GetNumElements();
@@ -429,9 +433,8 @@ TEST_SUITE("EthosNImportTensorHandle")
             runtime->ImportOutputs(networkIdentifier, outputTensors, MemorySource::DmaBuf);
 
         // Do the inference
-        auto ret =
-            runtime->EnqueueWorkload(networkIdentifier, inputTensors, outputTensors, importInputsIds, importOutputsIds);
-        CHECK(ret == Status::Success);
+        auto ret = runtime->EnqueueWorkload(networkIdentifier, {}, {}, importInputsIds, importOutputsIds);
+        REQUIRE(ret == Status::Success);
 
         lseek(fd, 0, SEEK_SET);
         runtime->ClearImportedInputs(networkIdentifier, importInputsIds);
@@ -517,7 +520,7 @@ TEST_SUITE("EthosNImportTensorHandle")
 
         // Load graph into runtime
         armnn::NetworkId networkIdentifier;
-        INetworkProperties networkProperties(false, MemorySource::DmaBuf, MemorySource::Undefined);
+        INetworkProperties networkProperties(false, MemorySource::Undefined, MemorySource::Undefined);
         std::string errMsgs;
         auto loadNetwork = runtime->LoadNetwork(networkIdentifier, std::move(optimizedNet), errMsgs, networkProperties);
         CHECK(loadNetwork == armnn::Status::Success);
@@ -542,7 +545,7 @@ TEST_SUITE("EthosNImportTensorHandle")
             runtime->ImportInputs(networkIdentifier, inputTensors, MemorySource::DmaBuf);
 
         // Do the inference
-        auto ret = runtime->EnqueueWorkload(networkIdentifier, inputTensors, outputTensors, importInputsIds);
+        auto ret = runtime->EnqueueWorkload(networkIdentifier, {}, outputTensors, importInputsIds);
         CHECK(ret == Status::Success);
 
         // We have no way of Unimporting manually without using the import API.

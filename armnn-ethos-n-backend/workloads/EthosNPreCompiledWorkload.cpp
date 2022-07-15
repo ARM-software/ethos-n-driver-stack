@@ -281,31 +281,15 @@ void EthosNPreCompiledWorkload::Execute() const
         // is the same from the Arm NN inputs slots to the Ethos-N inputs slots.
         for (uint32_t inputSlotIdx = 0; inputSlotIdx < numInputBuffers; ++inputSlotIdx)
         {
-            auto&& inputTensorHandle = m_Data.m_Inputs[inputSlotIdx];
-            if (static_cast<MemorySource>(inputTensorHandle->GetImportFlags()) == MemorySource::DmaBuf)
-            {
-                inputBuffers[inputSlotIdx] = &(static_cast<EthosNImportTensorHandle*>(inputTensorHandle)->GetBuffer());
-            }
-            else
-            {
-                inputBuffers[inputSlotIdx] = &(static_cast<EthosNTensorHandle*>(inputTensorHandle)->GetBuffer());
-            }
+            auto&& inputTensorHandle   = m_Data.m_Inputs[inputSlotIdx];
+            inputBuffers[inputSlotIdx] = &(static_cast<EthosNBaseTensorHandle*>(inputTensorHandle)->GetBuffer());
         }
         // Fill outputBuffers from the output tensor handles, assuming that the order
         // is the same from the Arm NN output slots to the Ethos-N output slots.
         for (uint32_t outputSlotIdx = 0; outputSlotIdx < numOutputBuffers; ++outputSlotIdx)
         {
-
-            auto&& outputTensorHandle = m_Data.m_Outputs[outputSlotIdx];
-            if (static_cast<MemorySource>(outputTensorHandle->GetImportFlags()) == MemorySource::DmaBuf)
-            {
-                outputBuffers[outputSlotIdx] =
-                    &(static_cast<EthosNImportTensorHandle*>(outputTensorHandle)->GetBuffer());
-            }
-            else
-            {
-                outputBuffers[outputSlotIdx] = &(static_cast<EthosNTensorHandle*>(outputTensorHandle)->GetBuffer());
-            }
+            auto&& outputTensorHandle    = m_Data.m_Outputs[outputSlotIdx];
+            outputBuffers[outputSlotIdx] = &(static_cast<EthosNBaseTensorHandle*>(outputTensorHandle)->GetBuffer());
         }
 
         const std::unique_ptr<ethosn::driver_library::Inference> inference(
