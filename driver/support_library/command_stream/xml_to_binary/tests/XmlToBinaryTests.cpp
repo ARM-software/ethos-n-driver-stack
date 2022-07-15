@@ -736,6 +736,7 @@ const std::string g_XmlStr =
                     <MIN>-3</MIN>
                     <MAX>2</MAX>
                 </RELU_ACTIV>
+                <PLE_KERNEL_ID>DOWNSAMPLE_2X2_16X16_1</PLE_KERNEL_ID>
             </MCE_SCHEDULER>
             <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
         </AGENT>

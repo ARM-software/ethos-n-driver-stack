@@ -907,6 +907,7 @@ void Parse(mxml_node_t& parent, const cascading::MceS& mces)
     Parse(*mxmlNewElement(agent_op, "IFM_STRIPE_SHAPE_DEFAULT"), mces.ifmStripeShapeDefault);
     Parse(*mxmlNewElement(agent_op, "IFM_STRIPE_SHAPE_EDGE"), mces.ifmStripeShapeEdge);
     Parse(*mxmlNewElement(agent_op, "RELU_ACTIV"), mces.reluActiv);
+    Parse(*mxmlNewElement(agent_op, "PLE_KERNEL_ID"), cascading::PleKernelId2String(mces.pleKernelId));
 }
 
 void Parse(mxml_node_t& parent, const cascading::PleL& plel)

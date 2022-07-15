@@ -393,6 +393,7 @@ void XmlParser::Pop(cascading::MceS& value)
     Pop("IFM_STRIPE_SHAPE_DEFAULT", value.ifmStripeShapeDefault);
     Pop("IFM_STRIPE_SHAPE_EDGE", value.ifmStripeShapeEdge);
     Pop("RELU_ACTIV", value.reluActiv);
+    Pop("MCE_SCHEDULER/PLE_KERNEL_ID", value.pleKernelId);
 }
 
 void XmlParser::Pop(cascading::PleL& value)
