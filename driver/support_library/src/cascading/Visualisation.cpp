@@ -280,6 +280,13 @@ std::string ToString(const uint32_t v)
     return std::to_string(v);
 }
 
+std::string ToStringHex(const uint32_t v)
+{
+    std::stringstream ss;
+    ss << std::hex << std::uppercase << "0x" << v;
+    return ss.str();
+}
+
 std::string ToString(DataType t)
 {
     switch (t)
@@ -707,10 +714,12 @@ std::string GetBufferString(Buffer* buffer)
     stream << "Order = " << ToString(buffer->m_Order) << "\n";
     if (buffer->m_Offset.has_value())
     {
-        stream << "Offset = " << ToString(buffer->m_Offset.value()) << "\n";
+        stream << "Offset = " << ToString(buffer->m_Offset.value()) << " (" << ToStringHex(buffer->m_Offset.value())
+               << ")\n";
     }
-    stream << "Size in bytes = " << buffer->m_SizeInBytes << "\n";
-    stream << "Slot size in bytes = " << buffer->m_SlotSizeInBytes << "\n";
+    stream << "Size in bytes = " << buffer->m_SizeInBytes << " (" << ToStringHex(buffer->m_SizeInBytes) << ")\n";
+    stream << "Slot size in bytes = " << buffer->m_SlotSizeInBytes << " (" << ToStringHex(buffer->m_SlotSizeInBytes)
+           << ")\n";
     if (buffer->m_BufferType.has_value())
     {
         stream << "Type = " << ToString(buffer->m_BufferType.value()) << "\n";
@@ -1361,7 +1370,7 @@ void DumpMapInSortedOrder(const T& map,
     std::vector<std::string> nodeIdsOrdered;
     for (auto&& srcAndDest : map)
     {
-        nodeIdsOrdered.push_back(nodeIds.at(srcAndDest.first) + " -> " + nodeIds.at(srcAndDest.second) + " " +
+        nodeIdsOrdered.push_back(nodeIds.at(srcAndDest.first) + " -> " + nodeIds.at(srcAndDest.second) +
                                  additionalOptions + "\n");
     }
     std::sort(nodeIdsOrdered.begin(), nodeIdsOrdered.end(),
@@ -1381,7 +1390,7 @@ void DumpMapInSortedOrderReverse(const T& map,
     std::vector<std::string> nodeIdsOrdered;
     for (auto&& srcAndDest : map)
     {
-        nodeIdsOrdered.push_back(nodeIds.at(srcAndDest.second) + " -> " + nodeIds.at(srcAndDest.first) + " " +
+        nodeIdsOrdered.push_back(nodeIds.at(srcAndDest.second) + " -> " + nodeIds.at(srcAndDest.first) +
                                  additionalOptions + "\n");
     }
     std::sort(nodeIdsOrdered.begin(), nodeIdsOrdered.end(),

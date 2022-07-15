@@ -433,7 +433,8 @@ DotAttributes PleOp::GetDotAttributes(DetailLevel detail) const
         result.m_Label += "Kernel Load = " + ToString(this->m_LoadKernel) + "\n";
         if (this->m_Offset.has_value())
         {
-            result.m_Label += "Offset = " + ToString(this->m_Offset.value()) + "\n";
+            result.m_Label +=
+                "Offset = " + ToString(this->m_Offset.value()) + " (" + ToStringHex(this->m_Offset.value()) + ")\n";
         }
         result.m_Label += "Operation Ids = " + ArrayToString(this->m_OperationIds) + "\n";
     }

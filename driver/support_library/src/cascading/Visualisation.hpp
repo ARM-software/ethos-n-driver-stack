@@ -53,6 +53,7 @@ std::string ToString(const QuantizationInfo& q);
 std::string ToString(const Stride& s);
 std::string ToString(command_stream::DataFormat f);
 std::string ToString(const uint32_t v);
+std::string ToStringHex(const uint32_t v);
 std::string ToString(DataType t);
 std::string ToString(const utils::ShapeMultiplier& m);
 std::string ToString(const utils::Fraction& f);

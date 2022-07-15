@@ -321,8 +321,8 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
 {
 Mce[label = "Mce\nIdx in OpGraph: 0\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlock Config = 3x4\nInput Stripe Shape = [1, 2, 3, 4]\nOutput Stripe Shape = [5, 6, 7, 8]\nWeights Stripe Shape = [9, 10, 11, 12]\nOrder = Zxy\nStride = 10, 20\nPad L/T = 30, 40\nLower/Upper Bound = 100, 200\nOperation Ids = []\n", shape = oval]
 Dma[label = "Dma\nIdx in OpGraph: 1\nDmaOp\nOperation Ids = []\nTransfer Format = NHWCB\n", shape = oval, color = darkgoldenrod]
-Ple[label = "Ple\nIdx in OpGraph: 2\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nOutput Data type = U8\nPle kernel Id = ADDITION_16X16_1\nKernel Load = 1\nOffset = 0\nOperation Ids = []\n", shape = oval]
-Buffer1[label = "Buffer1\nLocation = PleInputSram\nFormat = WEIGHT\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\nOrder = Zxy\nOffset = 0\nSize in bytes = 1234\nSlot size in bytes = 0\nType = Intermediate\nPacked boundary thickness = { L: 0, T: 0, R: 0, B: 0}\nNum loads = 1\n", shape = box]
+Ple[label = "Ple\nIdx in OpGraph: 2\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nOutput Data type = U8\nPle kernel Id = ADDITION_16X16_1\nKernel Load = 1\nOffset = 0 (0x0)\nOperation Ids = []\n", shape = oval]
+Buffer1[label = "Buffer1\nLocation = PleInputSram\nFormat = WEIGHT\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\nOrder = Zxy\nOffset = 0 (0x0)\nSize in bytes = 1234 (0x4D2)\nSlot size in bytes = 0 (0x0)\nType = Intermediate\nPacked boundary thickness = { L: 0, T: 0, R: 0, B: 0}\nNum loads = 1\n", shape = box]
 }
 )";
     REQUIRE(stream.str() == expected);
@@ -1018,8 +1018,8 @@ label="Plan 8 Starting Glue"
 labeljust=l
 InputDma[label = "InputDma", shape = oval, color = darkgoldenrod]
 }
-InputDram -> InputDma 
-InputDma -> InputSram1 
+InputDram -> InputDma
+InputDma -> InputSram1
 subgraph clusterPlan_8_Ending_Glue
 {
 label="Plan 8 Ending Glue"
@@ -1036,7 +1036,7 @@ subgraph clusterPlan_10_Starting_Glue
 label="Plan 10 Starting Glue"
 labeljust=l
 }
-InputSram1 -> InputSram2 [style = dashed, label="Replaced by", dir="back"]
+InputSram1 -> InputSram2[style = dashed, label="Replaced by", dir="back"]
 subgraph clusterPlan_10_Ending_Glue
 {
 label="Plan 10 Ending Glue"
@@ -1061,8 +1061,8 @@ subgraph clusterPlan_12_Starting_Glue
 label="Plan 12 Starting Glue"
 labeljust=l
 }
-InputSram2 -> IntermediateSramInput1 [style = dashed, label="Replaced by", dir="back"]
-InputSram2 -> IntermediateSramInput2 [style = dashed, label="Replaced by", dir="back"]
+InputSram2 -> IntermediateSramInput1[style = dashed, label="Replaced by", dir="back"]
+InputSram2 -> IntermediateSramInput2[style = dashed, label="Replaced by", dir="back"]
 subgraph clusterPlan_12_Ending_Glue
 {
 label="Plan 12 Ending Glue"
@@ -1070,15 +1070,15 @@ labeljust=l
 OutputDma2[label = "OutputDma2", shape = oval, color = darkgoldenrod]
 DmaOp_25[label = "DmaOp 25", shape = oval, color = darkgoldenrod]
 }
-OutputSram1 -> OutputDma2 
-OutputSram2 -> DmaOp_25 
+OutputSram1 -> OutputDma2
+OutputSram2 -> DmaOp_25
 subgraph clusterPlan_12_Ending_Glue
 {
 label="Plan 12 Ending Glue"
 labeljust=l
 OutputDma3[label = "OutputDma3", shape = oval, color = darkgoldenrod]
 }
-OutputSram1 -> OutputDma3 
+OutputSram1 -> OutputDma3
 subgraph clusterPlan_18
 {
 label="Plan 18"
@@ -1090,14 +1090,14 @@ subgraph clusterPlan_18_Starting_Glue
 label="Plan 18 Starting Glue"
 labeljust=l
 }
-OutputDma2 -> OutputDram1 
+OutputDma2 -> OutputDram1
 subgraph clusterPlan_18_Ending_Glue
 {
 label="Plan 18 Ending Glue"
 labeljust=l
 ReplacementBuffer[label = "ReplacementBuffer", shape = box, color = brown]
 }
-OutputDram1 -> ReplacementBuffer [style = dashed, label="Replaced by"]
+OutputDram1 -> ReplacementBuffer[style = dashed, label="Replaced by"]
 subgraph clusterPlan_20
 {
 label="Plan 20"
@@ -1110,13 +1110,13 @@ subgraph clusterPlan_20_Starting_Glue
 label="Plan 20 Starting Glue"
 labeljust=l
 }
-DmaOp_25 -> OutputDram2 
+DmaOp_25 -> OutputDram2
 subgraph clusterPlan_20_Starting_Glue
 {
 label="Plan 20 Starting Glue"
 labeljust=l
 }
-OutputDma3 -> OutputDram3 
+OutputDma3 -> OutputDram3
 }
 )";
 
@@ -1266,8 +1266,8 @@ DmaOp_14[label = "DmaOp 14", shape = oval, color = darkgoldenrod]
 Buffer_13[label = "Buffer 13", shape = box, color = brown]
 DmaOp_14 -> Buffer_13
 }
-Buffer_5 -> DmaOp_12 
-Buffer_5 -> DmaOp_14 
+Buffer_5 -> DmaOp_12
+Buffer_5 -> DmaOp_14
 subgraph clusterPlan_6
 {
 label="Plan 6"
@@ -1280,8 +1280,8 @@ label="Plan 6 Starting Glue"
 labeljust=l
 DmaOp_15[label = "DmaOp 15", shape = oval, color = darkgoldenrod]
 }
-Buffer_13 -> DmaOp_15 
-DmaOp_15 -> Buffer_7 
+Buffer_13 -> DmaOp_15
+DmaOp_15 -> Buffer_7
 subgraph clusterPlan_10
 {
 label="Plan 10"
@@ -1293,7 +1293,7 @@ subgraph clusterPlan_10_Starting_Glue
 label="Plan 10 Starting Glue"
 labeljust=l
 }
-DmaOp_12 -> Buffer_11 
+DmaOp_12 -> Buffer_11
 subgraph clusterPlan_8
 {
 label="Plan 8"
@@ -1306,8 +1306,8 @@ label="Plan 8 Starting Glue"
 labeljust=l
 DmaOp_16[label = "DmaOp 16", shape = oval, color = darkgoldenrod]
 }
-Buffer_13 -> DmaOp_16 
-DmaOp_16 -> Buffer_9 
+Buffer_13 -> DmaOp_16
+DmaOp_16 -> Buffer_9
 }
 )";
     std::string output = stream.str();
