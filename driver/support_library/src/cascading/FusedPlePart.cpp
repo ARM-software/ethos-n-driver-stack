@@ -41,7 +41,7 @@ FusedPlePart::FusedPlePart(PartId id,
     , m_OutputQuantizationInfo(outputQuantizationInfo)
     , m_KernelOperation(op)
     , m_ShapeMultiplier(shapeMultiplier)
-    , m_StripeConfig(GetDefaultStripeConfig(m_DebugTag.c_str()))
+    , m_StripeConfig(GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
     , m_StripeGenerator(m_InputTensorShape,
                         m_InputTensorShape,
                         m_OutputTensorShape,

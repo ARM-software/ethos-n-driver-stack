@@ -284,7 +284,7 @@ McePart::McePart(PartId id,
     , m_PadTop(padTop)
     , m_PadLeft(padLeft)
     , m_Operation(op)
-    , m_StripeConfig(GetDefaultStripeConfig(m_DebugTag.c_str()))
+    , m_StripeConfig(GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
     , m_StripeGenerator(m_InputTensorShape,
                         m_OutputTensorShape,
                         m_OutputTensorShape,
@@ -329,7 +329,7 @@ McePart::McePart(ConstructionParams&& params)
     , m_PadTop(params.m_PadTop)
     , m_PadLeft(params.m_PadLeft)
     , m_Operation(params.m_Op)
-    , m_StripeConfig(GetDefaultStripeConfig(m_DebugTag.c_str()))
+    , m_StripeConfig(GetDefaultStripeConfig(params.m_CompOpt, m_DebugTag.c_str()))
     , m_StripeGenerator(m_InputTensorShape,
                         m_OutputTensorShape,
                         m_OutputTensorShape,

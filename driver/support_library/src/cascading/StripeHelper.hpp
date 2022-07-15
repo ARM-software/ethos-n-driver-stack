@@ -74,6 +74,15 @@ struct StripeConfig
     /// plans will be generated!
     void DisableAll()
     {
+        DisableAllSplits();
+        blockConfigs.clear();
+    }
+
+    /// Disables all splitting strategies.
+    /// After calling this you will most likely want to re-enable some, otherwise no
+    /// plans will be generated!
+    void DisableAllSplits()
+    {
         splits.heightOnly                       = false;
         splits.widthOnly                        = false;
         splits.widthHeight                      = false;
@@ -84,7 +93,6 @@ struct StripeConfig
         splits.mceOutputDepthOnly               = false;
         splits.inputDepthOnly                   = false;
         splits.none                             = false;
-        blockConfigs.clear();
     }
 
     /// Helper functions to disable all splitting strategies which split tensors
@@ -123,7 +131,7 @@ struct StripeConfig
 
 /// Gets a StripeConfig with everything enabled, unless there is a debug config file provided
 /// which overrides this for the identifier given.
-StripeConfig GetDefaultStripeConfig(const char* identifier);
+StripeConfig GetDefaultStripeConfig(const CompilationOptions& compilationOptions, const char* identifier);
 
 using NumStripesType = uint32_t;
 struct NumStripes

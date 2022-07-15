@@ -19,10 +19,79 @@ namespace support_library
 namespace impl
 {
 
-StripeConfig GetDefaultStripeConfig(const char* identifier)
+StripeConfig GetDefaultStripeConfig(const CompilationOptions& compilationOptions, const char* identifier)
 {
     // Start with a defaultly constructed StripeConfig, which has everything enabled
     StripeConfig result;
+
+    // For backwards compatibility with legacy code, apply the strategy and block config filtering
+    // from the compilation options.
+    // The cascading strategies don't match up 1:1 with the legacy strategies and so there isn't
+    // a clear mapping. We assume that if the user disabled any strategies then all cascading strategies
+    // are disabled apart from a rough mapping of the ones that the user left enabled.
+    if (!compilationOptions.m_Strategy0 || !compilationOptions.m_Strategy1 || !compilationOptions.m_Strategy3 ||
+        !compilationOptions.m_Strategy4 || !compilationOptions.m_Strategy6 || !compilationOptions.m_Strategy7)
+    {
+        result.DisableAllSplits();
+        if (compilationOptions.m_Strategy0)
+        {
+            result.splits.heightOnly = true;
+        }
+        if (compilationOptions.m_Strategy1)
+        {
+            result.splits.mceAndPleOutputDepth  = true;
+            result.splits.outputDepthInputDepth = true;
+        }
+        if (compilationOptions.m_Strategy3)
+        {
+            result.splits.none = true;
+        }
+        if (compilationOptions.m_Strategy4)
+        {
+            // Legacy strategy 4 splitted width and output depth, but we don't have this in cascading.
+            // Pick something close instead.
+            result.splits.widthOnly = true;
+        }
+        if (compilationOptions.m_Strategy6)
+        {
+            result.splits.widthHeight            = true;
+            result.splits.widthHeightOutputDepth = true;
+        }
+        if (compilationOptions.m_Strategy7)
+        {
+            result.splits.widthHeightOutputDepthInputDepth = true;
+        }
+    }
+
+    auto removeBlockConfig = [&result](ethosn::command_stream::BlockConfig b) {
+        result.blockConfigs.erase(std::remove(result.blockConfigs.begin(), result.blockConfigs.end(), b),
+                                  result.blockConfigs.end());
+    };
+
+    if (!compilationOptions.m_BlockConfig8x8)
+    {
+        removeBlockConfig(ethosn::command_stream::BlockConfig{ 8u, 8u });
+    }
+    if (!compilationOptions.m_BlockConfig8x16)
+    {
+        removeBlockConfig(ethosn::command_stream::BlockConfig{ 8u, 16u });
+    }
+    if (!compilationOptions.m_BlockConfig16x8)
+    {
+        removeBlockConfig(ethosn::command_stream::BlockConfig{ 16u, 8u });
+    }
+    if (!compilationOptions.m_BlockConfig16x16)
+    {
+        removeBlockConfig(ethosn::command_stream::BlockConfig{ 16u, 16u });
+    }
+    if (!compilationOptions.m_BlockConfig32x8)
+    {
+        removeBlockConfig(ethosn::command_stream::BlockConfig{ 32u, 8u });
+    }
+    if (!compilationOptions.m_BlockConfig8x32)
+    {
+        removeBlockConfig(ethosn::command_stream::BlockConfig{ 8u, 832u });
+    }
 
     // Apply the rules from the config file, if one is set
     const char* env = std::getenv("ETHOSN_SUPPORT_LIBRARY_DEBUG_STRIPE_CONFIG");
@@ -95,6 +164,14 @@ StripeConfig GetDefaultStripeConfig(const char* identifier)
                     if (line == "DisableAll")
                     {
                         result.DisableAll();
+                    }
+                    else if (line == "DisableAllSplits")
+                    {
+                        result.DisableAllSplits();
+                    }
+                    else if (line == "DisableAllBlockConfigs")
+                    {
+                        result.blockConfigs.clear();
                     }
                     else if (parts.size() == 2)
                     {
@@ -175,9 +252,9 @@ StripeConfig GetDefaultStripeConfig(const char* identifier)
                             uint32_t w = std::atoi(match[1].str().c_str());
                             uint32_t h = std::atoi(match[2].str().c_str());
                             ethosn::command_stream::BlockConfig b{ w, h };
-                            auto it = std::find(result.blockConfigs.begin(), result.blockConfigs.end(), b);
                             if (valueBool())
                             {
+                                auto it = std::find(result.blockConfigs.begin(), result.blockConfigs.end(), b);
                                 if (it == result.blockConfigs.end())
                                 {
                                     result.blockConfigs.push_back(b);
@@ -185,10 +262,7 @@ StripeConfig GetDefaultStripeConfig(const char* identifier)
                             }
                             else
                             {
-                                if (it != result.blockConfigs.end())
-                                {
-                                    result.blockConfigs.erase(it);
-                                }
+                                removeBlockConfig(b);
                             }
                         }
                         else if (name == "BlockWidthMultiplier.Min")
