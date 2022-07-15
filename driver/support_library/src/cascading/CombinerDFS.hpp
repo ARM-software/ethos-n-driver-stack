@@ -196,6 +196,7 @@ class Combiner
 public:
     Combiner(const GraphOfParts& graphOfParts,
              const HardwareCapabilities& capabilities,
+             const CompilationOptions& compilationOptions,
              const EstimationOptions& estOpt,
              const DebuggingContext& debuggingContext);
 
@@ -302,6 +303,7 @@ private:
     Combination AddTempGlues(const Combination& combination);
     const GraphOfParts& m_GraphOfParts;
     const HardwareCapabilities& m_Caps;
+    const CompilationOptions& m_CompilationOptions;
     const EstimationOptions& m_EstOpt;
     const DebuggingContext& m_DebuggingContext;
 

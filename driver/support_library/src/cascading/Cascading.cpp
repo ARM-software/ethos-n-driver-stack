@@ -87,10 +87,8 @@ Cascading::Cascading(const EstimationOptions& estOpt,
     , m_CompilationOptions(compOpt)
     , m_Capabilities(hwCap)
     , m_DebuggingContext(debuggingContext)
-    , m_Combiner(m_GraphOfParts, hwCap, estOpt, m_DebuggingContext)
-{
-    // Constructor
-}
+    , m_Combiner(m_GraphOfParts, hwCap, compOpt, estOpt, m_DebuggingContext)
+{}
 
 NetworkPerformanceData Cascading::EstimateNetwork(const Network& network)
 {

@@ -193,7 +193,7 @@ TEST_CASE("IsPartSiso", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     REQUIRE(combiner.IsPartSiso(partA) == false);
     REQUIRE(combiner.IsPartSiso(partB) == true);
@@ -262,7 +262,7 @@ TEST_CASE("IsPartSimo", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     REQUIRE(combiner.IsPartSimo(partA) == false);
     REQUIRE(combiner.IsPartSimo(partB) == false);
@@ -323,7 +323,7 @@ TEST_CASE("IsPartMiso", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     REQUIRE(combiner.IsPartMiso(partA) == false);
     REQUIRE(combiner.IsPartMiso(partB) == false);
@@ -391,7 +391,7 @@ TEST_CASE("IsPartMimo", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     REQUIRE(combiner.IsPartMimo(partA) == false);
     REQUIRE(combiner.IsPartMimo(partB) == false);
@@ -460,7 +460,7 @@ TEST_CASE("IsPartInput and IsPartOutput", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     REQUIRE(combiner.IsPartInput(partA) == true);
     REQUIRE(combiner.IsPartOutput(partA) == false);
@@ -545,7 +545,7 @@ TEST_CASE("IsPartSo and IsPartMo", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     REQUIRE(combiner.IsPartSo(partA) == true);
     REQUIRE(combiner.IsPartMo(partA) == false);
@@ -620,7 +620,7 @@ TEST_CASE("DoubleBufferingTestVariant_PleKernelsOnly", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
     combiner.TopologicalSortParts();
     Combination comb = combiner.FindBestCombinationForPart(partA);
 
@@ -694,7 +694,7 @@ TEST_CASE("DoubleBufferingTestVariant_SinglePartSection", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
     combiner.TopologicalSortParts();
     Combination comb = combiner.FindBestCombinationForPart(partA);
 
@@ -777,7 +777,7 @@ TEST_CASE("DoubleBufferingTestVariant_McePleMce", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
     combiner.TopologicalSortParts();
     Combination comb = combiner.FindBestCombinationForPart(partA);
 
@@ -858,7 +858,7 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMce", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
     combiner.TopologicalSortParts();
     Combination comb = combiner.FindBestCombinationForPart(partA);
 
@@ -949,7 +949,7 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMcePle", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
     combiner.TopologicalSortParts();
     Combination comb = combiner.FindBestCombinationForPart(partA);
 
@@ -1040,7 +1040,7 @@ TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
     combiner.TopologicalSortParts();
 
     SectionContext context = { SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {} };
@@ -1135,7 +1135,7 @@ TEST_CASE("BufferDeallocationTest_CascadeOps", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
     combiner.TopologicalSortParts();
 
     SectionContext context = { SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {} };
@@ -1791,7 +1791,7 @@ TEST_CASE("Add shared glue between Dram and Sram", "[CombinerDFS]")
     REQUIRE(comb.m_PartIdsInOrder[0] == 0);
     REQUIRE(comb.m_HeadOrderRank == 0);
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     std::vector<PartConnection> destPartEdge;
 
@@ -1898,7 +1898,7 @@ TEST_CASE("GetOpGraphCombinationDramSramConversion", "[CombinerDFS]")
     REQUIRE(comb.m_PartIdsInOrder[0] == 0);
     REQUIRE(comb.m_HeadOrderRank == 0);
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     std::vector<PartConnection> destPartEdge;
 
@@ -2018,7 +2018,7 @@ TEST_CASE("GetOpGraphCombinationDramDramMerge", "[CombinerDFS]")
     REQUIRE(comb.m_PartIdsInOrder[0] == 0);
     REQUIRE(comb.m_HeadOrderRank == 0);
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     std::vector<PartConnection> destPartEdge;
 
@@ -2594,7 +2594,7 @@ TEST_CASE("FindBestCombinationForPart cache", "[CombinerDFS]")
         uint64_t m_NumFindBestCombinationForPartImplCalled = 0;
     };
 
-    MockCombiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    MockCombiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     // Map is empty
     Combination comb = combiner.FindBestCombinationForPart(partA);
@@ -2714,7 +2714,7 @@ TEST_CASE("CombinerSortTest1", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     bool isSorted = combiner.TopologicalSortParts();
 
@@ -2797,7 +2797,7 @@ TEST_CASE("CombinerSortTest2", "[CombinerDFS]")
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     bool isSorted = combiner.TopologicalSortParts();
 
@@ -2896,7 +2896,7 @@ TEST_CASE("GetCombPartsInOrder", "[CombinerDFS]")
                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
     planE.m_InputMappings = { { planD.m_OpGraph.GetBuffers()[0], partEInputSlot } };
 
-    Combiner combiner(gOfParts, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(gOfParts, hwCaps, compOpt, estOpt, debuggingContext);
 
     bool isSorted = combiner.TopologicalSortParts();
     REQUIRE(isSorted == true);
@@ -3029,7 +3029,7 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
         REQUIRE(comb.m_Elems.at(part.GetPartId()).m_StartingGlues.size() == 0);
     }
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     std::vector<PartConnection> destPartEdge;
 
@@ -3197,7 +3197,7 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
         REQUIRE(comb.m_Elems.at(part.GetPartId()).m_StartingGlues.size() == 0);
     }
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     std::vector<PartConnection> destPartEdge;
 
@@ -3383,7 +3383,7 @@ TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
         REQUIRE(comb.m_Elems.at(part.GetPartId()).m_StartingGlues.size() == 0);
     }
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     std::vector<PartConnection> destPartEdge;
 
@@ -3496,7 +3496,7 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
     ethosn::support_library::impl::NumMemoryStripes numMemoryStripes;
     const std::set<uint32_t> operationIds = { 0 };
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     SectionContext context = { SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {} };
 
@@ -3584,7 +3584,7 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
         const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
         const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-        Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+        Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
         SectionContext context     = { SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {} };
         uint32_t currentSramOffset = 0;
 
@@ -3698,7 +3698,7 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
         const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
         const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
-        Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+        Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
         SectionContext context     = { SramAllocator(hwCaps.GetTotalSramSize() / hwCaps.GetNumberOfSrams()), {}, {} };
         uint32_t currentSramOffset = 0;
 
@@ -4060,7 +4060,7 @@ TEST_CASE("ArePlansAllowedToMerge IdentityParts", "[CombinerDFS]")
     planB.m_OpGraph.AddConsumer(planB.m_OpGraph.GetBuffers()[0], planB.m_OpGraph.GetOps()[0], 0);
     planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     REQUIRE(combiner.ArePlansAllowedToMerge(planA, planB) == true);
 
@@ -4176,7 +4176,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         {
             const HardwareCapabilities hwCaps = GetHwCapabilitiesWithFwOverrides(
                 EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef + 1, {}, {});
-            Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+            Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::StartSection, plans[0], totalAgents) == true);
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::ContinueSection, plans[1], totalAgents) == true);
@@ -4186,7 +4186,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         {
             const HardwareCapabilities hwCaps =
                 GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef, {}, {});
-            Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+            Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::StartSection, plans[0], totalAgents) == true);
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::ContinueSection, plans[1], totalAgents) == true);
@@ -4197,7 +4197,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         {
             const HardwareCapabilities hwCaps = GetHwCapabilitiesWithFwOverrides(
                 EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, totalAgentsRef - 1, {}, {});
-            Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+            Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::StartSection, plans[0], totalAgents) == true);
             WHEN("All Ops are Cascade")
@@ -4235,7 +4235,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         {
             const HardwareCapabilities hwCaps =
                 GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 3, {}, {});
-            Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+            Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::StartSection, plans[0], totalAgents) == false);
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::ContinueSection, plans[1], totalAgents) == false);
@@ -4248,7 +4248,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         {
             const HardwareCapabilities hwCaps =
                 GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 16, {}, {});
-            Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+            Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::SinglePartSection, plans[0], totalAgents) == true);
         }
@@ -4256,7 +4256,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         {
             const HardwareCapabilities hwCaps =
                 GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 2, {}, {});
-            Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+            Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::SinglePartSection, plans[0], totalAgents) == false);
         }
@@ -4264,7 +4264,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
         {
             const HardwareCapabilities hwCaps =
                 GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 4, {}, {});
-            Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+            Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
             for (Buffer* b : plans[0].m_OpGraph.GetBuffers())
             {
                 b->m_StripeShape = b->m_TensorShape;
@@ -4309,7 +4309,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
             Plans concatPlans =
                 concatPart.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 0);
 
-            Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+            Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
             REQUIRE(combiner.IsSectionSizeSupported(StatsType::SinglePartSection, concatPlans[0], totalAgents) == true);
 

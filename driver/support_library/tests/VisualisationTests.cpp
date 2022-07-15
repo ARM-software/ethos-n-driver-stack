@@ -1216,7 +1216,7 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
     REQUIRE(comb.m_PartIdsInOrder[0] == 0);
     REQUIRE(comb.m_HeadOrderRank == 0);
 
-    Combiner combiner(graph, hwCaps, estOpt, debuggingContext);
+    Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
 
     std::vector<PartConnection> destPartEdge;
 

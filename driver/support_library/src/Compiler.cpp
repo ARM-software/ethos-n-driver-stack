@@ -189,7 +189,8 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
             m_DebuggingContext.SaveGraphOfPartsToDot(CompilationOptions::DebugLevel::Medium, m_GraphOfParts,
                                                      "Cascaded_GraphOfPartsDetailed.dot", DetailLevel::High);
 
-            Combiner combiner(m_GraphOfParts, m_Capabilities, m_EstimationOptions, m_DebuggingContext);
+            Combiner combiner(m_GraphOfParts, m_Capabilities, m_CompilationOptions, m_EstimationOptions,
+                              m_DebuggingContext);
             combiner.Run();
 
             if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)

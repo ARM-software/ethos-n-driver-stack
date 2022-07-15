@@ -406,6 +406,11 @@ OpGraph Combiner::GetMergedOpGraphForBestCombination() const
 
 CascadingBufferFormat Combiner::GetBestCascadingBufferDramFormat(const std::array<Buffer*, 2> sramBuffers) const
 {
+    if (!m_CompilationOptions.m_EnableIntermediateCompression)
+    {
+        return CascadingBufferFormat::NHWCB;
+    }
+
     using SupportedCompressedFormats = std::vector<CascadingBufferFormat>;
 
     constexpr size_t sramBuffersSize = sramBuffers.size();
@@ -1689,10 +1694,12 @@ Combination Combiner::FindBestCombinationForPart(const BasePart& part)
 
 Combiner::Combiner(const GraphOfParts& graphOfParts,
                    const HardwareCapabilities& caps,
+                   const CompilationOptions& compilationOptions,
                    const EstimationOptions& estOpt,
                    const DebuggingContext& debuggingContext)
     : m_GraphOfParts(graphOfParts)
     , m_Caps(caps)
+    , m_CompilationOptions(compilationOptions)
     , m_EstOpt(estOpt)
     , m_DebuggingContext(debuggingContext)
     , m_MergedOpGraphReady(false)
