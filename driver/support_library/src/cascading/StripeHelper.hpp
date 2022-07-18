@@ -58,6 +58,11 @@ struct StripeConfig
         uint32_t min = 1;
         uint32_t max = std::numeric_limits<uint32_t>::max();
     } ifmDepthMultiplier;
+    struct
+    {
+        uint32_t min = 1;
+        uint32_t max = std::numeric_limits<uint32_t>::max();
+    } ofmDepthMultiplier;
 
     std::vector<ethosn::command_stream::BlockConfig> blockConfigs = { { 16u, 16u },
                                                                       { 16u, 8u },
