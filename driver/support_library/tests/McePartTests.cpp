@@ -41,7 +41,7 @@ McePart BuildPart(TensorShape inputShape,
                   uint32_t padTop,
                   uint32_t padLeft,
                   uint32_t upscaleFactor,
-                  command_stream::UpsampleType upsampleType,
+                  command_stream::cascading::UpsampleType upsampleType,
                   const CompilationOptions& compOpt,
                   const HardwareCapabilities& caps,
                   const EstimationOptions& estOpts)
@@ -85,7 +85,7 @@ McePart BuildPart(TensorShape inputShape,
                   const EstimationOptions& estOpts)
 {
     return BuildPart(inputShape, outputShape, weightShape, op, stride, padTop, padLeft, 1,
-                     command_stream::UpsampleType::OFF, compOpt, caps, estOpts);
+                     command_stream::cascading::UpsampleType::OFF, compOpt, caps, estOpts);
 }
 
 McePart BuildPart(TensorShape inputShape,
@@ -166,7 +166,7 @@ struct CheckPlansParams
     utils::Optional<uint32_t> m_PadTop;
     utils::Optional<uint32_t> m_PadLeft;
     utils::Optional<uint32_t> m_UpscaleFactor;
-    utils::Optional<command_stream::UpsampleType> m_UpsampleType;
+    utils::Optional<command_stream::cascading::UpsampleType> m_UpsampleType;
     utils::Optional<std::set<uint32_t>> m_OperationIds;
     utils::Optional<bool> m_CouldFcafDecomp;
     /// @}
@@ -2173,8 +2173,9 @@ TEST_CASE("McePart GetPlans Upsampling")
 
         TensorShape tsIn  = { 1, 64, 64, 16 };
         TensorShape tsOut = { 1, 128, 128, 16 };
-        McePart part = BuildPart(tsIn, tsOut, { 1, 1, 16, 16 }, command_stream::MceOperation::CONVOLUTION, Stride{}, 0,
-                                 0, 2, command_stream::UpsampleType::NEAREST_NEIGHBOUR, compOpt, caps, estOpts);
+        McePart part =
+            BuildPart(tsIn, tsOut, { 1, 1, 16, 16 }, command_stream::MceOperation::CONVOLUTION, Stride{}, 0, 0, 2,
+                      command_stream::cascading::UpsampleType::NEAREST_NEIGHBOUR, compOpt, caps, estOpts);
 
         WHEN("Asked to generate Lonely plans")
         {
@@ -2188,7 +2189,7 @@ TEST_CASE("McePart GetPlans Upsampling")
                 params.m_InputShape    = tsIn;
                 params.m_OutputShape   = tsOut;
                 params.m_UpscaleFactor = 2;
-                params.m_UpsampleType  = command_stream::UpsampleType::NEAREST_NEIGHBOUR;
+                params.m_UpsampleType  = command_stream::cascading::UpsampleType::NEAREST_NEIGHBOUR;
                 params.m_All           = [&](const PlanDesc& plan) {
                     CHECK(plan.m_PleInputSram->m_StripeShape[1] == 2 * plan.m_InputSram->m_StripeShape[1]);
                     CHECK(plan.m_PleInputSram->m_StripeShape[2] == 2 * plan.m_InputSram->m_StripeShape[2]);
@@ -2226,7 +2227,7 @@ TEST_CASE("McePart GetPlans Upsampling")
                 params.m_InputShape    = tsIn;
                 params.m_OutputShape   = tsOut;
                 params.m_UpscaleFactor = 2;
-                params.m_UpsampleType  = command_stream::UpsampleType::NEAREST_NEIGHBOUR;
+                params.m_UpsampleType  = command_stream::cascading::UpsampleType::NEAREST_NEIGHBOUR;
                 params.m_All           = [&](const PlanDesc& plan) {
                     CHECK(plan.m_PleInputSram->m_StripeShape[1] == 2 * plan.m_InputSram->m_StripeShape[1]);
                     CHECK(plan.m_PleInputSram->m_StripeShape[2] == 2 * plan.m_InputSram->m_StripeShape[2]);

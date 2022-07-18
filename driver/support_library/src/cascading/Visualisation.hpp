@@ -63,7 +63,7 @@ std::string ToStringHex(const uint32_t v);
 std::string ToString(DataType t);
 std::string ToString(const utils::ShapeMultiplier& m);
 std::string ToString(const utils::Fraction& f);
-std::string ToString(command_stream::UpsampleType t);
+std::string ToString(command_stream::cascading::UpsampleType t);
 std::string ToString(command_stream::cascading::PackedBoundaryThickness t);
 
 /// Replaces any illegal characters to form a valid .dot file "ID".

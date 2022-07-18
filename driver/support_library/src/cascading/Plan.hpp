@@ -255,7 +255,7 @@ public:
     uint32_t m_PadLeft;
     uint32_t m_PadTop;
     uint32_t m_UpscaleFactor;
-    command_stream::UpsampleType m_UpsampleType;
+    command_stream::cascading::UpsampleType m_UpsampleType;
     int16_t m_LowerBound;
     int16_t m_UpperBound;
     bool m_IsIfmSigned;

@@ -56,7 +56,7 @@ std::unique_ptr<McePart> NetworkToGraphOfPartsConverter::CreateIdentityMcePart(c
     params.m_Op             = command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
     params.m_OperationIds   = std::set<uint32_t>{ operationId };
     params.m_UpscaleFactor  = 1;
-    params.m_UpsampleType   = command_stream::UpsampleType::OFF;
+    params.m_UpsampleType   = command_stream::cascading::UpsampleType::OFF;
     params.m_InputDataType  = inputDataType;
     params.m_OutputDataType = outputDataType;
     params.m_LowerBound     = outputDataType == command_stream::DataType::U8 ? 0 : -128;
@@ -919,7 +919,7 @@ void NetworkToGraphOfPartsConverter::Visit(Resize& resize)
     params.m_InputDataType  = GetCommandDataType(inputInfo.m_DataType);
     params.m_OutputDataType = GetCommandDataType(outputInfo.m_DataType);
     params.m_UpscaleFactor  = upscaleFactorHeight;
-    params.m_UpsampleType   = ConvertResizeAlgorithmToCommand(resizeInfo.m_Algo);
+    params.m_UpsampleType   = ConvertResizeAlgorithmToCascadingCommand(resizeInfo.m_Algo);
     auto mcePart            = std::make_unique<McePart>(std::move(params));
 
     std::vector<BasePart*> parts;
@@ -982,9 +982,10 @@ std::vector<BasePart*> NetworkToGraphOfPartsConverter::CreateTransposeConv(const
     // The stride of the convolution operation underneath is always 1.
     // The stride comes in as a vector {x, y} where x = y (validated by IsSupported checks)
     assert(stride.m_X == stride.m_Y);
-    uint32_t upscaleFactor                            = stride.m_X;
-    ethosn::command_stream::UpsampleType upsampleType = ethosn::command_stream::UpsampleType::TRANSPOSE;
-    const TensorShape& weightsShape                   = weightsInfo.m_Dimensions;
+    uint32_t upscaleFactor = stride.m_X;
+    ethosn::command_stream::cascading::UpsampleType upsampleType =
+        ethosn::command_stream::cascading::UpsampleType::TRANSPOSE;
+    const TensorShape& weightsShape = weightsInfo.m_Dimensions;
 
     // The padding of a TransposeConvolution affects the convolution operation underneath, but requires modification.
     // This means there is a restriction on the size of the padding such that our internal padding cannot be negative,
@@ -1073,7 +1074,7 @@ std::vector<BasePart*> NetworkToGraphOfPartsConverter::CreateTransposeConv(const
         m_GraphOfParts.m_Parts.push_back(std::move(identityDepthwisePart));
 
         upscaleFactor = 1;
-        upsampleType  = ethosn::command_stream::UpsampleType::OFF;
+        upsampleType  = ethosn::command_stream::cascading::UpsampleType::OFF;
         inputShape    = intermediateOutputShape;
     }
 

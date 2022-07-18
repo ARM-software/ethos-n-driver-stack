@@ -347,6 +347,23 @@ command_stream::UpsampleType ConvertResizeAlgorithmToCommand(const ResizeAlgorit
     }
 }
 
+command_stream::cascading::UpsampleType ConvertResizeAlgorithmToCascadingCommand(const ResizeAlgorithm algorithm)
+{
+    if (algorithm == ResizeAlgorithm::BILINEAR)
+    {
+        return command_stream::cascading::UpsampleType::BILINEAR;
+    }
+    else if (algorithm == ResizeAlgorithm::NEAREST_NEIGHBOUR)
+    {
+        return command_stream::cascading::UpsampleType::NEAREST_NEIGHBOUR;
+    }
+    else
+    {
+        assert(false);
+        return command_stream::cascading::UpsampleType::OFF;
+    }
+}
+
 bool IsCompressionFormatCompatibleWithStripeAndShape(const CompilerDataCompressedFormat& compressionFormat,
                                                      const TensorShape& stripeShape)
 {

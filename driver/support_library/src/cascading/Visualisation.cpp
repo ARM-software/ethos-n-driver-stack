@@ -315,17 +315,17 @@ std::string ToString(const utils::Fraction& f)
     return ToString(f.m_Numerator) + "/" + ToString(f.m_Denominator);
 }
 
-std::string ToString(command_stream::UpsampleType t)
+std::string ToString(command_stream::cascading::UpsampleType t)
 {
     switch (t)
     {
-        case command_stream::UpsampleType::OFF:
+        case command_stream::cascading::UpsampleType::OFF:
             return "OFF";
-        case command_stream::UpsampleType::BILINEAR:
+        case command_stream::cascading::UpsampleType::BILINEAR:
             return "BILINEAR";
-        case command_stream::UpsampleType::NEAREST_NEIGHBOUR:
+        case command_stream::cascading::UpsampleType::NEAREST_NEIGHBOUR:
             return "NEAREST_NEIGHBOUR";
-        case command_stream::UpsampleType::TRANSPOSE:
+        case command_stream::cascading::UpsampleType::TRANSPOSE:
             return "TRANSPOSE";
         default:
             ETHOSN_FAIL_MSG("Unknown UpsampleType");

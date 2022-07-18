@@ -44,12 +44,12 @@ public:
         const CompilationOptions& m_CompOpt;
         const HardwareCapabilities& m_Capabilities;
         std::set<uint32_t> m_OperationIds;
-        command_stream::DataType m_InputDataType    = command_stream::DataType::U8;
-        command_stream::DataType m_OutputDataType   = command_stream::DataType::U8;
-        uint32_t m_UpscaleFactor                    = 1;
-        command_stream::UpsampleType m_UpsampleType = command_stream::UpsampleType::OFF;
-        int16_t m_LowerBound                        = 0;
-        int16_t m_UpperBound                        = 255;
+        command_stream::DataType m_InputDataType               = command_stream::DataType::U8;
+        command_stream::DataType m_OutputDataType              = command_stream::DataType::U8;
+        uint32_t m_UpscaleFactor                               = 1;
+        command_stream::cascading::UpsampleType m_UpsampleType = command_stream::cascading::UpsampleType::OFF;
+        int16_t m_LowerBound                                   = 0;
+        int16_t m_UpperBound                                   = 255;
     };
 
     McePart(PartId id,
@@ -144,7 +144,7 @@ protected:
     std::vector<int32_t> m_BiasData;
     Stride m_Stride;
     uint32_t m_UpscaleFactor;
-    ethosn::command_stream::UpsampleType m_UpsampleType;
+    ethosn::command_stream::cascading::UpsampleType m_UpsampleType;
     uint32_t m_PadTop;
     uint32_t m_PadLeft;
     command_stream::MceOperation m_Operation;

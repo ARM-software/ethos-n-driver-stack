@@ -958,6 +958,31 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
 
     MceSUtils::setMcesAlgorithm(mceSchedulerData, ptrMceOp->m_Algo);
 
+    mceSchedulerData.upsampleType = ptrMceOp->m_UpsampleType;
+
+    const uint32_t outputBufferWidth  = utils::GetWidth(outputBuffer->m_TensorShape);
+    const uint32_t outputBufferHeight = utils::GetHeight(outputBuffer->m_TensorShape);
+
+    const bool isUpsample = mceSchedulerData.upsampleType != UpsampleType::OFF;
+    if (isUpsample)
+    {
+        mceSchedulerData.upsampleEdgeMode.col =
+            (outputBufferWidth & 1) ? UpsampleEdgeMode::DROP : UpsampleEdgeMode::GENERATE;
+        mceSchedulerData.upsampleEdgeMode.row =
+            (outputBufferHeight & 1) ? UpsampleEdgeMode::DROP : UpsampleEdgeMode::GENERATE;
+    }
+
+    // Calculate IFM Delta Edge
+    auto Upscale = [isUpsample](uint32_t dim, UpsampleEdgeMode mode) {
+        return isUpsample ? dim * 2 - (mode == UpsampleEdgeMode::DROP ? 1 : 0) : dim;
+    };
+    const uint32_t inputBufferWidth    = utils::GetWidth(inputBuffer->m_TensorShape);
+    const uint32_t inputBufferHeight   = utils::GetHeight(inputBuffer->m_TensorShape);
+    const uint32_t upscaledInputWidth  = Upscale(inputBufferWidth, mceSchedulerData.upsampleEdgeMode.col);
+    const uint32_t upscaledInputHeight = Upscale(inputBufferHeight, mceSchedulerData.upsampleEdgeMode.row);
+    const int8_t ifmDeltaEdgeWidth     = static_cast<int8_t>(upscaledInputWidth - outputBufferWidth);
+    const int8_t ifmDeltaEdgeHeight    = static_cast<int8_t>(upscaledInputHeight - outputBufferHeight);
+
     if (ptrMceOp->m_Stride.m_X == 1 && ptrMceOp->m_Stride.m_Y == 1)
     {
         for (int i = 0; i < 4; i++)
@@ -971,10 +996,8 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
             mceSchedulerData.ifmDeltaDefault[i].width = static_cast<int8_t>(
                 mceSchedulerData.filterShape[i].width / 2 + inputBuffer->m_PackedBoundaryThickness.right);
 
-            mceSchedulerData.ifmDeltaEdge[i].height =
-                static_cast<int8_t>(inputBuffer->m_TensorShape[1] - outputBuffer->m_TensorShape[1]);
-            mceSchedulerData.ifmDeltaEdge[i].width =
-                static_cast<int8_t>(inputBuffer->m_TensorShape[2] - outputBuffer->m_TensorShape[2]);
+            mceSchedulerData.ifmDeltaEdge[i].height = ifmDeltaEdgeHeight;
+            mceSchedulerData.ifmDeltaEdge[i].width  = ifmDeltaEdgeWidth;
 
             mceSchedulerData.padding[i].left = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_PadLeft);
             mceSchedulerData.padding[i].top  = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_PadTop);

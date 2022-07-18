@@ -642,7 +642,7 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     params.m_InputDataType          = command_stream::DataType::U8;
     params.m_OutputDataType         = command_stream::DataType::U8;
     params.m_UpscaleFactor          = 3;
-    params.m_UpsampleType           = command_stream::UpsampleType::NEAREST_NEIGHBOUR;
+    params.m_UpsampleType           = command_stream::cascading::UpsampleType::NEAREST_NEIGHBOUR;
     auto mcePart                    = std::make_unique<McePart>(std::move(params));
     parts.m_Parts.push_back(std::move(mcePart));
 

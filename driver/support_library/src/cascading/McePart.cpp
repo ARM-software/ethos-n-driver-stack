@@ -280,7 +280,7 @@ McePart::McePart(PartId id,
     , m_BiasData(std::move(biasData))
     , m_Stride(stride)
     , m_UpscaleFactor(1U)
-    , m_UpsampleType(command_stream::UpsampleType::OFF)
+    , m_UpsampleType(command_stream::cascading::UpsampleType::OFF)
     , m_PadTop(padTop)
     , m_PadLeft(padLeft)
     , m_Operation(op)
@@ -433,7 +433,7 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
     CompilerMceAlgorithm effectiveAlgo = CompilerMceAlgorithm::Direct;
     // Winograd and upscaling cannot be performed at the same time
     if (!m_CompilationOptions.m_DisableWinograd && m_Operation == command_stream::MceOperation::CONVOLUTION &&
-        m_Stride == Stride{ 1, 1 } && m_UpsampleType == command_stream::UpsampleType::OFF)
+        m_Stride == Stride{ 1, 1 } && m_UpsampleType == command_stream::cascading::UpsampleType::OFF)
     {
         effectiveAlgo =
             utils::FindBestConvAlgorithm(m_Capabilities, m_WeightsInfo.m_Dimensions[0], m_WeightsInfo.m_Dimensions[1]);
