@@ -53,9 +53,10 @@ private:
         size_t operator()(const Params& p) const;
     };
 
+    const HardwareCapabilities& m_Caps;
     WeightEncoder m_Encoder;
     std::unordered_map<Params, std::shared_ptr<EncodedWeights>, Hasher> m_Entries;
-    std::string m_PeristentFilename;
+    std::string m_PersistentFilename;
 };
 
 }    // namespace support_library

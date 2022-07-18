@@ -6,6 +6,7 @@
 #include "WeightEncoderCache.hpp"
 
 #include <fstream>
+#include <type_traits>
 
 namespace ethosn
 {
@@ -38,24 +39,26 @@ void WriteUInt32(std::ostream& s, uint32_t i)
     s.write(reinterpret_cast<const char*>(&i), sizeof(i));
 }
 
-std::vector<uint8_t> ReadVectorUInt8(std::istream& s)
+template <typename T, typename = typename std::enable_if<std::is_integral<T>::value>::type>
+std::vector<T> ReadVector(std::istream& s)
 {
-    std::vector<uint8_t> v;
+    std::vector<T> v;
     uint32_t c = ReadUInt32(s);
     v.resize(c);
     if (c > 0)
     {
-        s.read(reinterpret_cast<char*>(v.data()), c * sizeof(uint8_t));
+        s.read(reinterpret_cast<char*>(v.data()), c * sizeof(T));
     }
     return v;
 }
 
-void WriteVectorUInt8(std::ostream& s, const std::vector<uint8_t>& v)
+template <typename T, typename = typename std::enable_if<std::is_integral<T>::value>::type>
+void WriteVector(std::ostream& s, const std::vector<T>& v)
 {
     WriteUInt32(s, static_cast<uint32_t>(v.size()));
     if (v.size() > 0)
     {
-        s.write(reinterpret_cast<const char*>(v.data()), v.size() * sizeof(uint8_t));
+        s.write(reinterpret_cast<const char*>(v.data()), v.size() * sizeof(T));
     }
 }
 
@@ -143,7 +146,7 @@ WeightEncoderCache::Params ReadParams(std::istream& s)
 {
     WeightEncoderCache::Params p;
     p.weightsTensorInfo      = ReadTensorInfo(s);
-    p.weightsData            = std::make_shared<std::vector<uint8_t>>(ReadVectorUInt8(s));
+    p.weightsData            = std::make_shared<std::vector<uint8_t>>(ReadVector<uint8_t>(s));
     p.biasTensorInfo         = ReadTensorInfo(s);
     p.biasData               = ReadVectorInt32(s);
     p.inputQuantizationInfo  = ReadQuantizationInfo(s);
@@ -162,7 +165,7 @@ WeightEncoderCache::Params ReadParams(std::istream& s)
 void WriteParams(std::ostream& s, const WeightEncoderCache::Params& p)
 {
     WriteTensorInfo(s, p.weightsTensorInfo);
-    WriteVectorUInt8(s, *p.weightsData);
+    WriteVector<uint8_t>(s, *p.weightsData);
     WriteTensorInfo(s, p.biasTensorInfo);
     WriteVectorInt32(s, p.biasData);
     WriteQuantizationInfo(s, p.inputQuantizationInfo);
@@ -190,7 +193,7 @@ EncodedWeights ReadEncodedWeights(std::istream& s)
 
     w.m_MaxSize = ReadUInt32(s);
 
-    w.m_Data = ReadVectorUInt8(s);
+    w.m_Data = ReadVector<uint8_t>(s);
 
     return w;
 }
@@ -205,13 +208,14 @@ void WriteEncodedWeights(std::ostream& s, const EncodedWeights& w)
 
     WriteUInt32(s, w.m_MaxSize);
 
-    WriteVectorUInt8(s, w.m_Data);
+    WriteVector<uint8_t>(s, w.m_Data);
 }
 
 }    // namespace
 
 WeightEncoderCache::WeightEncoderCache(const HardwareCapabilities& caps, const char* id)
-    : m_Encoder(caps)
+    : m_Caps(caps)
+    , m_Encoder(caps)
 {
     // Load cache entries from file, if specified. This can make network compilation _much_ faster and
     // can very useful for debugging/development.
@@ -220,16 +224,23 @@ WeightEncoderCache::WeightEncoderCache(const HardwareCapabilities& caps, const c
     const char* env = std::getenv("ETHOSN_SUPPORT_LIBRARY_WEIGHT_ENCODER_CACHE");
     if (env && strlen(env) > 0)
     {
-        m_PeristentFilename = std::string(env) + id + ".bin";
+        m_PersistentFilename = std::string(env) + id + ".bin";
         g_Logger.Warning("Weight encoder cache is being loaded from %s. Beware this may be stale!",
-                         m_PeristentFilename.c_str());
+                         m_PersistentFilename.c_str());
 
-        std::ifstream f(m_PeristentFilename, std::ios::binary);
+        std::ifstream f(m_PersistentFilename, std::ios::binary);
+        std::vector<char> ourCaps = caps.GetData();
         while (f.good() && f.peek() != EOF)
         {
-            Params p         = ReadParams(f);
-            EncodedWeights w = ReadEncodedWeights(f);
-            m_Entries[p]     = std::make_shared<EncodedWeights>(std::move(w));
+            std::vector<char> caps = ReadVector<char>(f);
+            Params p               = ReadParams(f);
+            EncodedWeights w       = ReadEncodedWeights(f);
+            // Only store this entry if it's for the right config.
+            // Note that we still need to parse the full entry, as we can't skip.
+            if (caps == ourCaps)
+            {
+                m_Entries[p] = std::make_shared<EncodedWeights>(std::move(w));
+            }
         }
     }
 }
@@ -257,9 +268,10 @@ std::shared_ptr<ethosn::support_library::EncodedWeights> WeightEncoderCache::Enc
         it = m_Entries.insert({ params, std::make_shared<EncodedWeights>(w) }).first;
 
         // Save this entry to the persistent file if enabled.
-        if (!m_PeristentFilename.empty())
+        if (!m_PersistentFilename.empty())
         {
-            std::ofstream f(m_PeristentFilename, std::ios::app | std::ios::binary | std::ios::out);
+            std::ofstream f(m_PersistentFilename, std::ios::app | std::ios::binary | std::ios::out);
+            WriteVector<char>(f, m_Caps.GetData());
             WriteParams(f, params);
             WriteEncodedWeights(f, w);
         }
