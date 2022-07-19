@@ -9,6 +9,7 @@
 #include "SramAllocator.hpp"
 #include "cascading/Cascading.hpp"
 #include "cascading/CascadingCommandStreamGenerator.hpp"
+#include "cascading/Estimation.hpp"
 #include "cascading/EstimationUtils.hpp"
 #include "cascading/NetworkToGraphOfPartsConverter.hpp"
 #include "nonCascading/ConversionPass.hpp"
@@ -148,10 +149,11 @@ Compiler::Compiler(const Network& network,
 Compiler::~Compiler()
 {}
 
-void SaveDebugFilesForUnestimatedCombination(std::string folder,
-                                             const DebuggingContext& debuggingContext,
-                                             const Combination& comb,
-                                             const OpGraph& opGraph)
+void SaveDebugFilesForEstimatedCombination(std::string folder,
+                                           const DebuggingContext& debuggingContext,
+                                           const Combination& comb,
+                                           const OpGraph& opGraph,
+                                           const EstimatedOpGraph& estimationDetails)
 {
     MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
 
@@ -164,6 +166,11 @@ void SaveDebugFilesForUnestimatedCombination(std::string folder,
                                       DetailLevel::Low);
     debuggingContext.SaveOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, folder + "/MergedDetailed.dot",
                                       DetailLevel::High);
+
+    debuggingContext.SaveEstimatedOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, estimationDetails,
+                                               folder + "/EstimatedSimple.dot", DetailLevel::Low);
+    debuggingContext.SaveEstimatedOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, estimationDetails,
+                                               folder + "/EstimatedDetailed.dot", DetailLevel::High);
 }
 
 std::unique_ptr<CompiledNetwork> Compiler::Compile()
@@ -193,12 +200,13 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
                               m_DebuggingContext);
             combiner.Run();
 
-            if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+            if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
             {
                 MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("BestCombination").c_str());
-                OpGraph g = GetOpGraphForCombination(combiner.GetBestCombination(), m_GraphOfParts);
-                SaveDebugFilesForUnestimatedCombination("BestCombination", m_DebuggingContext,
-                                                        combiner.GetBestCombination(), g);
+                OpGraph g                         = combiner.GetMergedOpGraphForBestCombination();
+                EstimatedOpGraph estimatedOpGraph = EstimateOpGraph(g, m_Capabilities, m_EstimationOptions);
+                SaveDebugFilesForEstimatedCombination("BestCombination", m_DebuggingContext,
+                                                      combiner.GetBestCombination(), g, estimatedOpGraph);
             }
 
             OpGraph mergedOpGraph = combiner.GetMergedOpGraphForBestCombination();
