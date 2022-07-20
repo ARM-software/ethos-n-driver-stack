@@ -130,8 +130,8 @@ enum class EntryDataCategory: uint8_t {
 	Label,                  /* Custom use                        */
 	DmaSetup,               /*   Yes         No          Yes     */
 	GetCompleteCommand,     /*   Yes         No          No      */
-	ScheduleNextCommand,    /*   Yes         No          No      */
-	WfeChecking,            /*   Yes         No          No      */
+	ScheduleNextCommand,    /*   Yes         No          Yes     */
+	WfeChecking,            /*   Yes         No          Yes     */
 	TimeSync,               /*   Yes         Yes         Yes     */
 	Agent,                  /*   No          Yes         No      */
 	AgentStripe,            /*   No          Yes         No      */
