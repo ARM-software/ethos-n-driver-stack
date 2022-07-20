@@ -916,6 +916,9 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                         CreateStripe(m_MceInputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
                     TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
+                    // Because of the split in IFM depth, the MCE will have to hold and accumulate the MAC results
+                    // between iterations. It can only do so across the number of OGs.
+                    mceOutputEncoding[3] = m_Capabilities.GetNumberOfOgs();
                     TensorShape mceOutputStripe =
                         CreateStripe(mceOutputShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 

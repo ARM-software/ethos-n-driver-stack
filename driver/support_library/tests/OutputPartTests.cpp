@@ -116,7 +116,7 @@ TEST_CASE("OutputPart Plan Generation", "[OutputPartTests]")
         TensorShape inputTensorShape          = { 1, 32, 32, 3 };
         CompilerDataFormat compilerDataFormat = CompilerDataFormat::NHWCB;
         QuantizationInfo quantizationInfo(0, 1.0f);
-        const std::set<uint32_t> operationIds = {};
+        const std::set<uint32_t> operationIds = { 1 };
         const EstimationOptions estOpt;
         const CompilationOptions compOpt;
         HardwareCapabilities hwCapabilities(GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
