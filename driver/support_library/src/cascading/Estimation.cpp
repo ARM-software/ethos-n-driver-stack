@@ -709,6 +709,8 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
         throw NotSupportedException("Not all Ops could be estimated");
     }
 
+    result.m_Metric = CalculateMetric(result.m_PerfData);
+
     return result;
 }
 

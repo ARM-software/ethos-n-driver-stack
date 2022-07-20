@@ -219,8 +219,21 @@ public:
     void DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionContext& context);
 
     const Combination& GetBestCombination() const;
-    Combination GetBestCombination(const Combinations& combs);
     OpGraph GetMergedOpGraphForBestCombination() const;
+
+    struct BestCombinationResults
+    {
+        size_t m_BestIdx;
+        /// Only used for debugging
+        /// @{
+        std::vector<Combination> m_CompletedCombinations;
+        std::vector<OpGraph> m_OpGraphs;
+        std::vector<EstimatedOpGraph> m_EstimatedOpGraphs;
+        /// @}
+    };
+    BestCombinationResults GetBestCombination(const Combinations& combs);
+    Combination GetBestCombinationSafe(Combinations& combs);
+
     CascadingBufferFormat GetBestCascadingBufferDramFormat(const std::array<Buffer*, 2> sramBuffers) const;
 
     const Plan& GetPlanForPartFromCombination(const BasePart& part, const Combination& comb) const;

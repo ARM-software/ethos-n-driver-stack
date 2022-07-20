@@ -38,6 +38,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
 /// Result of estimating the performance of an OpGraph.
 struct EstimatedOpGraph
 {
+    double m_Metric;
     NetworkPerformanceData m_PerfData;
     /// For each Op in the OpGraph that was estimated, which Pass in the NetworkPerformanceData it was included in.
     std::unordered_map<Op*, uint32_t> m_OpToPass;

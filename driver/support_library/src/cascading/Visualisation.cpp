@@ -7,6 +7,7 @@
 
 #include "CombinerDFS.hpp"
 #include "Estimation.hpp"
+#include "EstimationUtils.hpp"
 #include "Part.hpp"
 #include "PerformanceData.hpp"
 #include "Plan.hpp"
@@ -1114,6 +1115,10 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
     stream << "{"
            << "\n";
 
+    // Add a title showing the total metric
+    stream << "labelloc=\"t\";\n";
+    stream << "label=\"Total metric = " << estimationDetails.m_Metric << "\";\n";
+
     std::map<Op*, uint32_t> opToOpGraphIdx;
     uint32_t idx = 0;
     for (Op* o : graph.GetOps())
@@ -1206,8 +1211,9 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
 
         ApplyOpGraphRankHeuristic(graph, ops, nodeIds, stream);
 
-        // Add a "dummy" node showing the perf data JSON
+        // Add a "dummy" node showing the perf data JSON and the metric for this pass
         std::stringstream perfJson;
+        perfJson << "Metric = " << CalculateMetric(estimationDetails.m_PerfData.m_Stream[passIdx]) << "\n\n";
         PrintPassPerformanceData(perfJson, ethosn::utils::Indent(0), estimationDetails.m_PerfData.m_Stream[passIdx]);
         DotAttributes perfAttr(passId + "_Perf", perfJson.str(), "");
         perfAttr.m_Shape              = "note";

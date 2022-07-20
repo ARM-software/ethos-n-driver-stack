@@ -31,7 +31,7 @@ constexpr uint32_t g_NumWeightStripesMin = 1;
 constexpr uint32_t g_NumWeightStripesMax = 2;
 
 void DumpDebugInfo(const Combinations& combs,
-                   std::vector<size_t> stats,
+                   const Combiner::BestCombinationResults& bestCombinationResults,
                    const DebuggingContext& debuggingContext,
                    const std::string folder)
 {
@@ -40,32 +40,20 @@ void DumpDebugInfo(const Combinations& combs,
     {
         MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
 
-        if (!stats.empty())
+        for (size_t i = 0; i < combs.size(); ++i)
         {
-            std::ofstream debugIterationStatsDumpFile(
-                debuggingContext.GetAbsolutePathOutputFileName(folder + "/Stats.txt"));
-            for (auto& val : stats)
-            {
-                debugIterationStatsDumpFile << "Val : " << val << std::endl;
-            }
-        }
-
-        size_t combinationNumber = 0;
-        for (const Combination& comb : combs)
-        {
-            std::string subfolder = folder + "/" + std::to_string(combinationNumber);
+            std::string prefix    = i == bestCombinationResults.m_BestIdx ? "(BEST) " : "";
+            std::string subfolder = folder + "/" + prefix + std::to_string(i);
             MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(subfolder).c_str());
 
-            if (!comb.m_Elems.empty())
+            if (!combs[i].m_Elems.empty())
             {
-                debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb,
+                debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, combs[i],
                                                       subfolder + "/Detailed.dot", DetailLevel::High);
-            }
-
-            ++combinationNumber;
-            if (combinationNumber > debuggingContext.GetMaxNumDumps())
-            {
-                break;
+                debuggingContext.SaveEstimatedOpGraphToDot(CompilationOptions::DebugLevel::None,
+                                                           bestCombinationResults.m_OpGraphs[i],
+                                                           bestCombinationResults.m_EstimatedOpGraphs[i],
+                                                           subfolder + "/EstimatedDetailed.dot", DetailLevel::High);
             }
         }
     }
@@ -346,51 +334,55 @@ Combination Combiner::AddTempGlues(const Combination& combination)
     return result;
 }
 
-Combination Combiner::GetBestCombination(const Combinations& combs)
+Combiner::BestCombinationResults Combiner::GetBestCombination(const Combinations& combs)
 {
-    utils::Optional<Combination> result;
-    utils::Optional<NetworkPerformanceData> refNetPerfData;
-
-    for (const Combination& combination : combs)
+    assert(combs.size() > 0);
+    // If there is only one combination to estimate, then there's nothing it to so don't bother estimating it.
+    // However when debugging it is useful to see the estimation, so we skip this optimisation
+    if (combs.size() == 1 && m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles < CompilationOptions::DebugLevel::High)
     {
-        if (!combination.m_Elems.empty())
+        return { 0, {}, {}, {} };
+    }
+
+    BestCombinationResults result;
+    utils::Optional<size_t> bestIdx;
+    utils::Optional<double> bestMetric;
+    for (size_t i = 0; i < combs.size(); ++i)
+    {
+        const Combination& combination = combs[i];
+        // Add temporary glues to partial combinations so we can estimate performance
+        Combination comb     = AddTempGlues(combination);
+        OpGraph combiOpGraph = GetOpGraphForCombination(comb, m_GraphOfParts);
+
+        // Estimate the combination we're considering
+        EstimatedOpGraph estimatedOpGraph = ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Caps, m_EstOpt);
+
+        if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
         {
-            // If there has been no valid result so far just use the first one
-            if (!result.has_value())
-            {
-                result = combination;
-            }
-            else
-            {
-                // Estimate the "result" if we haven't done it before
-                // Store it so we can compare to it later
-                if (!refNetPerfData.has_value())
-                {
-                    assert(result.has_value());
-                    Combination comb     = AddTempGlues(result.value());
-                    OpGraph combiOpGraph = GetOpGraphForCombination(comb, m_GraphOfParts);
-                    EstimatedOpGraph estimatedOpGraph =
-                        ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Caps, m_EstOpt);
-                    refNetPerfData = estimatedOpGraph.m_PerfData;
-                }
+            result.m_EstimatedOpGraphs.push_back(estimatedOpGraph);
+            result.m_OpGraphs.push_back(combiOpGraph);
+            result.m_CompletedCombinations.push_back(comb);
+        }
 
-                // Add temporary glues to partial combinations so we can estimate performance
-                Combination comb     = AddTempGlues(combination);
-                OpGraph combiOpGraph = GetOpGraphForCombination(comb, m_GraphOfParts);
-
-                // Estimate the combination we're considering
-                EstimatedOpGraph estimatedOpGraph =
-                    ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Caps, m_EstOpt);
-                if (ComparePerformanceData(estimatedOpGraph.m_PerfData, refNetPerfData.value()) ==
-                    PerformanceComparisonResult::LeftBetter)
-                {
-                    refNetPerfData = estimatedOpGraph.m_PerfData;
-                    result         = combination;
-                }
-            }
+        if (!bestIdx.has_value() || estimatedOpGraph.m_Metric < bestMetric.value())
+        {
+            bestIdx    = i;
+            bestMetric = estimatedOpGraph.m_Metric;
         }
     }
-    return result.has_value() ? result.value() : Combination();
+    result.m_BestIdx = bestIdx.value();
+    return result;
+}
+
+Combination Combiner::GetBestCombinationSafe(Combinations& combs)
+{
+    // Filter invalid combinations
+    Combinations filteredCombs = utils::Filter(combs, [](const Combination& c) { return c.GetNumElems() > 0; });
+    if (filteredCombs.size() == 0)
+    {
+        return Combination();
+    }
+    return std::move(filteredCombs[GetBestCombination(filteredCombs).m_BestIdx]);
 }
 
 const Combination& Combiner::GetBestCombination() const
@@ -1159,7 +1151,7 @@ Combination Combiner::EndSection(const BasePart& part,
                 section.AddEndingGlue(std::move(endingGlue), connection.m_Source);
 
                 Combinations options = { result, section };
-                result               = GetBestCombination(options);
+                result               = GetBestCombinationSafe(options);
             }
         }
 
@@ -1346,7 +1338,7 @@ Combination Combiner::StartSection(const BasePart& part, const BasePart& nextPar
                 Combination continued = ContinueSection(nextPart, part, head, context, currNumWeightStripes,
                                                         hasSectionDoubleBuffered, totalAgents);
                 Combinations options  = { result, continued, ended };
-                result                = GetBestCombination(options);
+                result                = GetBestCombinationSafe(options);
             }
         }
     }
@@ -1375,8 +1367,6 @@ Combination Combiner::SinglePartSection(const BasePart& part)
 {
     UpdateStats(StatsType::SinglePartSection);
 
-    Combination result = {};
-
     // Check if this Part can double buffer.
     // By default, no double buffering is performed.
     uint32_t currNumWeightStripesMax = g_NumWeightStripesMin;
@@ -1384,6 +1374,8 @@ Combination Combiner::SinglePartSection(const BasePart& part)
     {
         currNumWeightStripesMax = g_NumWeightStripesMax;
     }
+
+    Combinations options;
 
     // Double buffering is performed on a per Section basis, i.e. either the entire Section double buffers weights
     // (if the Parts allow it) or the Section single buffers weights. This double buffering is considered when the
@@ -1414,9 +1406,21 @@ Combination Combiner::SinglePartSection(const BasePart& part)
             // In this case local optimum = global optimum so
             // it can get the best plan for the part.
             Combination head(part, std::move(plan), m_PartOrderTable[part.GetPartId()].first);
-            Combinations options = { result, head };
-            result               = GetBestCombination(options);
+            options.push_back(std::move(head));
         }
+    }
+
+    Combination result;
+    // There should always be at least one valid plan, but for testability we support the case where
+    // no lonely plans are valid.
+    if (options.size() > 0)
+    {
+        BestCombinationResults bestCombinationResults = GetBestCombination(options);
+        // Include the part debug tag so that we know what type of part it is, but prepend the part ID so that
+        // the folders are displayed in the right order.
+        DumpDebugInfo(options, bestCombinationResults, m_DebuggingContext,
+                      std::string("Lonely/") + std::to_string(part.GetPartId()) + " - " + part.m_DebugTag);
+        result = options[bestCombinationResults.m_BestIdx];
     }
 
     //  Next part in the graph
@@ -1582,7 +1586,7 @@ Combination Combiner::ContinueSection(const BasePart& part,
                                                         hasSectionDoubleBuffered, totalAgents);
                 options               = { result, continued, ended };
 
-                result = GetBestCombination(options);
+                result = GetBestCombinationSafe(options);
             }
         }
     }
@@ -1650,7 +1654,7 @@ Combination Combiner::FindBestCombinationForPartImpl(const BasePart& part)
 
     Combinations options = { start, lonely };
 
-    result = GetBestCombination(options);
+    result = GetBestCombinationSafe(options);
 
     assert(result.m_Elems.count(part.GetPartId()) == 1);
 
@@ -1685,9 +1689,6 @@ Combination Combiner::FindBestCombinationForPart(const BasePart& part)
     {
         result = FindBestCombinationForPartImpl(part);
         m_CombinationPerPartMap.insert(std::make_pair(&part, result));
-
-        DumpDebugInfo({ result }, m_Stats, m_DebuggingContext,
-                      "FindBestCombinationForPart/Part" + std::to_string(part.GetPartId()));
     }
     return result;
 }
@@ -1799,7 +1800,7 @@ void Combiner::Run()
     using namespace ethosn::utils;
     if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
     {
-        MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("FindBestCombinationForPart").c_str());
+        MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("Lonely").c_str());
     }
 
     TopologicalSortParts();

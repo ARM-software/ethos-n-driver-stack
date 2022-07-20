@@ -381,45 +381,33 @@ double CalculateMetric(const NetworkPerformanceData& networkPerfData)
     double totalMetric = 0;
     for (PassPerformanceData passPerfData : networkPerfData.m_Stream)
     {
-        uint64_t nonParallelBytes = passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel +
-                                    passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel +
-                                    passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel;
-        double nonParallelBytesDouble = static_cast<double>(nonParallelBytes);
-
-        uint64_t parallelBytes = passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramParallel +
-                                 passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramParallel +
-                                 passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramParallel;
-        double parallelBytesDouble = static_cast<double>(parallelBytes);
-
-        uint64_t mceCycleCount     = passPerfData.m_Stats.m_Mce.m_CycleCount;
-        double mceCycleCountDouble = static_cast<double>(mceCycleCount);
-
-        constexpr double dramBandwidth  = 12000000000;    // bytes/second
-        constexpr double clockFrequency = 1250000000;     // cycles/second
-        constexpr double bytesPerCycle  = dramBandwidth / clockFrequency;
-        double metric                   = (nonParallelBytesDouble / bytesPerCycle) +
-                        std::max(parallelBytesDouble / bytesPerCycle, mceCycleCountDouble);
+        double metric = CalculateMetric(passPerfData);
         totalMetric += metric;
     }
     return totalMetric;
 }
 
-PerformanceComparisonResult ComparePerformanceData(const NetworkPerformanceData& left,
-                                                   const NetworkPerformanceData& right)
+double CalculateMetric(const PassPerformanceData& passPerfData)
 {
-    double metricLeft  = CalculateMetric(left);
-    double metricRight = CalculateMetric(right);
+    uint64_t nonParallelBytes = passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramNonParallel +
+                                passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramNonParallel +
+                                passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramNonParallel;
+    double nonParallelBytesDouble = static_cast<double>(nonParallelBytes);
 
-    if (metricLeft < metricRight)
-    {
-        return PerformanceComparisonResult::LeftBetter;
-    }
+    uint64_t parallelBytes = passPerfData.m_Stats.m_Input.m_MemoryStats.m_DramParallel +
+                             passPerfData.m_Stats.m_Output.m_MemoryStats.m_DramParallel +
+                             passPerfData.m_Stats.m_Weights.m_MemoryStats.m_DramParallel;
+    double parallelBytesDouble = static_cast<double>(parallelBytes);
 
-    if (metricLeft > metricRight)
-    {
-        return PerformanceComparisonResult::RightBetter;
-    }
-    return PerformanceComparisonResult::Equal;
+    uint64_t mceCycleCount     = passPerfData.m_Stats.m_Mce.m_CycleCount;
+    double mceCycleCountDouble = static_cast<double>(mceCycleCount);
+
+    constexpr double dramBandwidth  = 12000000000;    // bytes/second
+    constexpr double clockFrequency = 1250000000;     // cycles/second
+    constexpr double bytesPerCycle  = dramBandwidth / clockFrequency;
+    double metric =
+        (nonParallelBytesDouble / bytesPerCycle) + std::max(parallelBytesDouble / bytesPerCycle, mceCycleCountDouble);
+    return metric;
 }
 
 }    // namespace support_library

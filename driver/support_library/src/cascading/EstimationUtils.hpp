@@ -57,15 +57,7 @@ OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeSh
 InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRatio);
 
 double CalculateMetric(const NetworkPerformanceData& networkPerfData);
-
-enum class PerformanceComparisonResult
-{
-    Equal,
-    LeftBetter,
-    RightBetter
-};
-PerformanceComparisonResult ComparePerformanceData(const NetworkPerformanceData& left,
-                                                   const NetworkPerformanceData& right);
+double CalculateMetric(const PassPerformanceData& passPerfData);
 
 }    //namespace support_library
 }    //namespace ethosn
