@@ -19,8 +19,14 @@ namespace ethosn
 namespace support_library
 {
 
+namespace cascading_compiler
+{
+struct CompiledOpGraph;
+}
+
 class Graph;
 class OpGraph;
+class Op;
 class GraphOfParts;
 class Plan;
 struct EstimatedOpGraph;
@@ -116,7 +122,18 @@ void SaveOpGraphToDot(const OpGraph& graph, std::ostream& stream, DetailLevel de
 void SaveEstimatedOpGraphToDot(const OpGraph& graph,
                                const EstimatedOpGraph& estimationDetails,
                                std::ostream& stream,
-                               DetailLevel detailLevel);
+                               DetailLevel detailLevel,
+                               std::map<uint32_t, std::string> extraPassDetails,
+                               std::map<Op*, std::string> extraOpDetails);
+
+/// Saves a graph of Ops and Buffers to a dot file format to visualise the graph.
+/// Includes details of how the performance of the OpGraph was estimated
+/// and the agent IDs associated with each Op.
+/// detailLevel controls how much detail is shown on the visualisation.
+void SaveCompiledOpGraphToDot(const OpGraph& graph,
+                              const cascading_compiler::CompiledOpGraph& compilationDetails,
+                              std::ostream& stream,
+                              DetailLevel detailLevel);
 
 /// Saves a Graph of Parts to a dot file format to visualise the graph.
 /// detailLevel controls how much detail is shown on the visualisation.

@@ -289,8 +289,6 @@ public:
         return m_PartOrderTable[part->GetPartId()].second;
     }
 
-    void SavePartsPlans(const BasePart& part, const Plans& plans) const;
-
     void UpdateStats(const StatsType type);
 
     void Run();

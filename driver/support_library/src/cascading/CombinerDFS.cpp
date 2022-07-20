@@ -48,12 +48,15 @@ void DumpDebugInfo(const Combinations& combs,
 
             if (!combs[i].m_Elems.empty())
             {
-                debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, combs[i],
-                                                      subfolder + "/Detailed.dot", DetailLevel::High);
-                debuggingContext.SaveEstimatedOpGraphToDot(CompilationOptions::DebugLevel::None,
-                                                           bestCombinationResults.m_OpGraphs[i],
-                                                           bestCombinationResults.m_EstimatedOpGraphs[i],
-                                                           subfolder + "/EstimatedDetailed.dot", DetailLevel::High);
+                debuggingContext.Save(CompilationOptions::DebugLevel::None, subfolder + "/Detailed.dot",
+                                      [&](std::ofstream& s) { SaveCombinationToDot(combs[i], s, DetailLevel::High); });
+
+                debuggingContext.Save(CompilationOptions::DebugLevel::None, subfolder + "/EstimatedDetailed.dot",
+                                      [&](std::ofstream& s) {
+                                          SaveEstimatedOpGraphToDot(bestCombinationResults.m_OpGraphs[i],
+                                                                    bestCombinationResults.m_EstimatedOpGraphs[i], s,
+                                                                    DetailLevel::High, {}, {});
+                                      });
             }
         }
     }
@@ -1967,25 +1970,6 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
     }
 
     return result;
-}
-
-void Combiner::SavePartsPlans(const BasePart& part, const Plans& plans) const
-{
-    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
-    {
-        std::ofstream debugPlanCountsDumpFile(
-            m_DebuggingContext.GetAbsolutePathOutputFileName("Cascaded_PlanCounts.txt"));
-
-        std::string folder = "Parts/" + part.m_DebugTag;
-        ethosn::utils::MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
-
-        debugPlanCountsDumpFile << part.m_DebugTag << ": " << plans.size() << std::endl;
-
-        m_DebuggingContext.SavePlansToDot(CompilationOptions::DebugLevel::Medium, plans, folder + "/Plans.dot",
-                                          DetailLevel::Low);
-        m_DebuggingContext.SavePlansToDot(CompilationOptions::DebugLevel::Medium, plans, folder + "/PlansDetailed.dot",
-                                          DetailLevel::High);
-    }
 }
 
 }    // namespace support_library

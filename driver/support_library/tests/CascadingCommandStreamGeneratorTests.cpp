@@ -1753,7 +1753,7 @@ TEST_CASE("StandalonePleOpGraph Command Stream Agents Order Test", "[CascadingCo
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -1776,7 +1776,7 @@ TEST_CASE("MceOpGraph Command Stream Agents Order Test", "[CascadingCommandStrea
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -1801,7 +1801,7 @@ TEST_CASE("MceOpGraphIntermediateDramBuffers Command Stream Agents Order Test", 
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -1830,7 +1830,7 @@ TEST_CASE("TwoMceDramIntermediateOpGraph Command Stream Agents Order Test", "[Ca
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -1861,7 +1861,7 @@ TEST_CASE("MceOpGraphIntermediateSramBuffers Command Stream Agents Order Test", 
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -1889,7 +1889,7 @@ TEST_CASE("TwoInputsForPleOpGraph Command Stream Agents Order Test", "[Cascading
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -1919,7 +1919,7 @@ TEST_CASE("StridedConvOpGraph Command Stream Agents Order Test", "[CascadingComm
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -1948,7 +1948,7 @@ TEST_CASE("ConcatOpGraph Command Stream Agents Order Test", "[CascadingCommandSt
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -1976,7 +1976,7 @@ TEST_CASE("IfmStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2027,7 +2027,7 @@ TEST_CASE("WeightStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2066,7 +2066,7 @@ TEST_CASE("MceScheduler Agent Data Test", "[CascadingCommandStreamGenerator]")
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2143,7 +2143,7 @@ TEST_CASE("MceScheduler Agent Data Test - 1x1 Convolution - 2x2 Stride", "[Casca
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2188,7 +2188,7 @@ TEST_CASE("MceScheduler Agent Data Test - 2x2 Convolution - 2x2 Stride - Valid P
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2251,7 +2251,7 @@ TEST_CASE("MceScheduler Agent Data Test - 3x3 Convolution - 2x2 Stride - Valid P
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2314,7 +2314,7 @@ TEST_CASE("MceScheduler Agent Data Test - 3x3 Convolution - 2x2 Stride - Same Pa
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2377,7 +2377,7 @@ TEST_CASE("PleLoader Agent Data Test", "[CascadingCommandStreamGenerator]")
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2401,7 +2401,7 @@ TEST_CASE("PleScheduler Agent Data Test", "[CascadingCommandStreamGenerator]")
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2449,7 +2449,7 @@ TEST_CASE("PleScheduler Standalone Agent Data Test", "[CascadingCommandStreamGen
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2505,7 +2505,7 @@ TEST_CASE("OfmStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2556,7 +2556,7 @@ TEST_CASE("Concat Op Agent Data Test", "[CascadingCommandStreamGenerator]")
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2712,7 +2712,7 @@ TEST_CASE("IfmStreamer-OfmStreamer ReadAfterWriteDependency Test", "[CascadingCo
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2751,7 +2751,7 @@ TEST_CASE("MceScheduler-IfmStreamer ReadAfterWriteDependency Test", "[CascadingC
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2785,7 +2785,7 @@ TEST_CASE("MceScheduler-WeightStreamer ReadAfterWriteDependency Test", "[Cascadi
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2813,7 +2813,7 @@ TEST_CASE("PleScheduler-IfmStreamer ReadAfterWriteDependency Test", "[CascadingC
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2849,7 +2849,7 @@ TEST_CASE("PleScheduler-MceScheduler ReadAfterWriteDependency Test", "[Cascading
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2883,7 +2883,7 @@ TEST_CASE("MceScheduler-PleScheduler ReadAfterWriteDependency Test", "[Cascading
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2911,7 +2911,7 @@ TEST_CASE("PleScheduler-PleLoader ReadAfterWriteDependency Test", "[CascadingCom
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2942,7 +2942,7 @@ TEST_CASE("OfmStreamer-IfmStreamer ReadAfterWriteDependency Test", "[CascadingCo
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -2970,7 +2970,7 @@ TEST_CASE("OfmStreamer-PleScheduler ReadAfterWriteDependency Test", "[CascadingC
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3002,7 +3002,7 @@ TEST_CASE("WeightStreamer-OfmStreamer SramOverlapDependency Test", "[CascadingCo
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3036,7 +3036,7 @@ TEST_CASE("IfmStreamer-MceScheduler WriteAfterReadDependency Test", "[CascadingC
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3064,7 +3064,7 @@ TEST_CASE("IfmStreamer-PleScheduler WriteAfterReadDependency Test", "[CascadingC
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3100,7 +3100,7 @@ TEST_CASE("IfmStreamer-OfmStreamer WriteAfterReadDependency Test", "[CascadingCo
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3139,7 +3139,7 @@ TEST_CASE("WeightStreamer-MceScheduler WriteAfterReadDependency Test", "[Cascadi
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3167,7 +3167,7 @@ TEST_CASE("PleScheduler-MceScheduler WriteAfterReadDependency Test", "[Cascading
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3201,7 +3201,7 @@ TEST_CASE("PleScheduler-OfmStreamer WriteAfterReadDependency Test", "[CascadingC
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3233,7 +3233,7 @@ TEST_CASE("IfmStreamer-MceScheduler ScheduleTimeDependency Test", "[CascadingCom
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3261,7 +3261,7 @@ TEST_CASE("IfmStreamer-PleScheduler ScheduleTimeDependency Test", "[CascadingCom
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3297,7 +3297,7 @@ TEST_CASE("IfmStreamer-OfmStreamer ScheduleTimeDependency Test", "[CascadingComm
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3336,7 +3336,7 @@ TEST_CASE("WeightStreamer-MceScheduler ScheduleTimeDependency Test", "[Cascading
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3364,7 +3364,7 @@ TEST_CASE("MceScheduler-PleScheduler ScheduleTimeDependency Test", "[CascadingCo
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3398,7 +3398,7 @@ TEST_CASE("PleScheduler-MceScheduler ScheduleTimeDependency Test", "[CascadingCo
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3432,7 +3432,7 @@ TEST_CASE("PleLoader-MceScheduler ScheduleTimeDependency Test", "[CascadingComma
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3464,7 +3464,7 @@ TEST_CASE("PleLoader-PleScheduler ScheduleTimeDependency Test", "[CascadingComma
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3496,7 +3496,7 @@ TEST_CASE("PleScheduler-OfmStreamer ScheduleTimeDependency Test", "[CascadingCom
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3524,7 +3524,7 @@ TEST_CASE("OfmStreamer-IfmStreamer ScheduleTimeDependency Test", "[CascadingComm
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
 
@@ -3564,7 +3564,7 @@ TEST_CASE("Producer-Consumer IntermediateDramBufferLifetime Test", "[CascadingCo
     DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
     CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
                                                            debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate();
+    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
 
     // Use dedicated functions to retrieve private OpGraph, IntermdiateDramBufToBufIdMapping and BufferManager
     for (Buffer* buffer : commandStreamGenerator.GetMergedOpGraph().GetBuffers())

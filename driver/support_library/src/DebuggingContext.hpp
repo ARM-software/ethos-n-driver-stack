@@ -17,6 +17,11 @@ namespace ethosn
 namespace support_library
 {
 
+namespace cascading_compiler
+{
+struct CompiledOpGraph;
+}
+
 class Graph;
 class GraphOfParts;
 class Node;
@@ -30,32 +35,9 @@ public:
     };
     DebuggingContext(const CompilationOptions::DebugInfo& debugInfo);
 
-    void SaveNetworkToDot(CompilationOptions::DebugLevel level,
-                          const Network& network,
-                          const std::string& fileName,
-                          DetailLevel detailLevel) const;
-    void DumpGraph(CompilationOptions::DebugLevel level, const Graph& graph, const std::string& fileName) const;
-    void SaveGraphOfPartsToDot(CompilationOptions::DebugLevel level,
-                               const GraphOfParts& graphOfParts,
-                               const std::string& fileName,
-                               DetailLevel detailLevel) const;
-    void SavePlansToDot(CompilationOptions::DebugLevel level,
-                        const Plans& plans,
-                        const std::string& fileName,
-                        DetailLevel detailLevel) const;
-    void SaveOpGraphToDot(CompilationOptions::DebugLevel level,
-                          const OpGraph& opGraph,
-                          const std::string& fileName,
-                          DetailLevel detailLevel) const;
-    void SaveEstimatedOpGraphToDot(CompilationOptions::DebugLevel level,
-                                   const OpGraph& opGraph,
-                                   const EstimatedOpGraph& estimationDetails,
-                                   const std::string& fileName,
-                                   DetailLevel detailLevel) const;
-    void SaveCombinationToDot(CompilationOptions::DebugLevel level,
-                              const Combination& combination,
-                              const std::string& fileName,
-                              DetailLevel detailLevel) const;
+    void Save(CompilationOptions::DebugLevel level,
+              const std::string& fileName,
+              std::function<void(std::ofstream&)> savingFunc) const;
 
     CompilationOptions::DebugInfo m_DebugInfo;
 

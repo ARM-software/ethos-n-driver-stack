@@ -5,6 +5,7 @@
 
 #include "Visualisation.hpp"
 
+#include "CascadingCommandStreamGenerator.hpp"
 #include "CombinerDFS.hpp"
 #include "Estimation.hpp"
 #include "EstimationUtils.hpp"
@@ -731,7 +732,7 @@ std::string GetBufferString(Buffer* buffer)
     return stream.str();
 }
 
-DotAttributes GetDotAttributes(Op* op, DetailLevel detailLevel, uint32_t idxInOpGraph)
+DotAttributes GetDotAttributes(Op* op, DetailLevel detailLevel, uint32_t idxInOpGraph, std::string extra = "")
 {
     DotAttributes result = op->GetDotAttributes(detailLevel);
     result.m_Id          = SanitizeId(op->m_DebugTag);
@@ -743,6 +744,10 @@ DotAttributes GetDotAttributes(Op* op, DetailLevel detailLevel, uint32_t idxInOp
     {
         preLabel << "\n";
         preLabel << "Idx in OpGraph: " << idxInOpGraph << "\n";
+        if (!extra.empty())
+        {
+            preLabel << extra << "\n";
+        }
     }
     preLabel << result.m_Label;
     result.m_Label = preLabel.str();
@@ -888,7 +893,7 @@ void DumpNodeToDotFormat(DotAttributes attr, std::ostream& stream)
 template <typename T, typename... TArgs>
 std::string DumpToDotFormat(T* obj, std::ostream& stream, DetailLevel detailLevel, TArgs&&... additionalArgs)
 {
-    DotAttributes attr = GetDotAttributes(obj, detailLevel, std::forward<TArgs...>(additionalArgs)...);
+    DotAttributes attr = GetDotAttributes(obj, detailLevel, std::forward<TArgs>(additionalArgs)...);
     DumpNodeToDotFormat(attr, stream);
     return attr.m_Id;
 }
@@ -1108,7 +1113,9 @@ void SaveOpGraphToDot(const OpGraph& graph, std::ostream& stream, DetailLevel de
 void SaveEstimatedOpGraphToDot(const OpGraph& graph,
                                const EstimatedOpGraph& estimationDetails,
                                std::ostream& stream,
-                               DetailLevel detailLevel)
+                               DetailLevel detailLevel,
+                               std::map<uint32_t, std::string> extraPassDetails,
+                               std::map<Op*, std::string> extraOpDetails)
 {
     stream << "digraph SupportLibraryGraph"
            << "\n";
@@ -1186,6 +1193,13 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
         DotAttributes passAttr(passId, passId, "");
         // Passes tend to be large so it's nice to be able to see the names/indexes when zoomed far out
         passAttr.m_FontSize = "56";
+        {
+            const auto it = extraPassDetails.find(passIdx);
+            if (it != extraPassDetails.end())
+            {
+                passAttr.m_Label += "\n" + it->second;
+            }
+        }
         DumpSubgraphHeaderToDotFormat(passAttr, stream);
 
         // Ops
@@ -1197,9 +1211,19 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
                 continue;
             }
 
+            std::string extraDetails;
+            {
+                const auto it = extraOpDetails.find(kv.first);
+                if (it != extraOpDetails.end())
+                {
+                    extraDetails = it->second;
+                }
+            }
+
             ops.push_back(kv.first);
-            std::string nodeId = DumpToDotFormat(kv.first, stream, detailLevel, opToOpGraphIdx.at(kv.first));
-            nodeIds[kv.first]  = nodeId;
+            std::string nodeId =
+                DumpToDotFormat(kv.first, stream, detailLevel, opToOpGraphIdx.at(kv.first), extraDetails);
+            nodeIds[kv.first] = nodeId;
         }
 
         // Buffers
@@ -1253,6 +1277,42 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
 
     stream << "}"
            << "\n";
+}
+
+void SaveCompiledOpGraphToDot(const OpGraph& graph,
+                              const cascading_compiler::CompiledOpGraph& compilationDetails,
+                              std::ostream& stream,
+                              DetailLevel detailLevel)
+{
+    std::map<Op*, std::string> extraOpDetails;
+    for (const auto pair : compilationDetails.m_OpToAgentIdMapping)
+    {
+        extraOpDetails[pair.first] = "Agent ID: " + std::to_string(pair.second);
+    }
+
+    std::map<uint32_t, std::pair<size_t, size_t>> passAgentIdRanges;
+    for (const auto pair : compilationDetails.m_EstimatedOpGraph.m_OpToPass)
+    {
+        if (passAgentIdRanges.find(pair.second) == passAgentIdRanges.end())
+        {
+            passAgentIdRanges[pair.second] = { std::numeric_limits<uint32_t>::max(), 0 };
+        }
+
+        std::pair<size_t, size_t>& p = passAgentIdRanges.at(pair.second);
+        size_t agentId               = compilationDetails.m_OpToAgentIdMapping.at(pair.first);
+        p.first                      = std::min(p.first, agentId);
+        p.second                     = std::max(p.second, agentId);
+    }
+
+    std::map<uint32_t, std::string> extraPassDetails;
+    for (const auto pair : passAgentIdRanges)
+    {
+        extraPassDetails[pair.first] =
+            "Agent IDs: " + std::to_string(pair.second.first) + " - " + std::to_string(pair.second.second);
+    }
+
+    SaveEstimatedOpGraphToDot(graph, compilationDetails.m_EstimatedOpGraph, stream, detailLevel, extraPassDetails,
+                              extraOpDetails);
 }
 
 void SaveGraphOfPartsToDot(const GraphOfParts& graphOfParts, std::ostream& stream, DetailLevel detailLevel)

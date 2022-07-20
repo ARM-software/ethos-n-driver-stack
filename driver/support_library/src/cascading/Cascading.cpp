@@ -44,15 +44,15 @@ void SaveDebugFilesForUnestimatedCombination(std::string folder,
 {
     MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
 
-    debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, folder + "/Simple.dot",
-                                          DetailLevel::Low);
-    debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, folder + "/Detailed.dot",
-                                          DetailLevel::High);
+    debuggingContext.Save(CompilationOptions::DebugLevel::None, folder + "/Simple.dot",
+                          [&](std::ofstream& s) { SaveCombinationToDot(comb, s, DetailLevel::Low); });
+    debuggingContext.Save(CompilationOptions::DebugLevel::None, folder + "/Detailed.dot",
+                          [&](std::ofstream& s) { SaveCombinationToDot(comb, s, DetailLevel::High); });
 
-    debuggingContext.SaveOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, folder + "/MergedSimple.dot",
-                                      DetailLevel::Low);
-    debuggingContext.SaveOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, folder + "/MergedDetailed.dot",
-                                      DetailLevel::High);
+    debuggingContext.Save(CompilationOptions::DebugLevel::None, folder + "/MergedSimple.dot",
+                          [&](std::ofstream& s) { SaveOpGraphToDot(opGraph, s, DetailLevel::Low); });
+    debuggingContext.Save(CompilationOptions::DebugLevel::None, folder + "/MergedDetailed.dot",
+                          [&](std::ofstream& s) { SaveOpGraphToDot(opGraph, s, DetailLevel::High); });
 }
 
 void SaveDebugFilesForEstimatedCombination(std::string folder,
@@ -62,10 +62,12 @@ void SaveDebugFilesForEstimatedCombination(std::string folder,
 {
     MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
 
-    debuggingContext.SaveEstimatedOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, estimationDetails,
-                                               folder + "/EstimatedSimple.dot", DetailLevel::Low);
-    debuggingContext.SaveEstimatedOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, estimationDetails,
-                                               folder + "/EstimatedDetailed.dot", DetailLevel::High);
+    debuggingContext.Save(CompilationOptions::DebugLevel::None, folder + "/EstimatedSimple.dot", [&](std::ofstream& s) {
+        SaveEstimatedOpGraphToDot(opGraph, estimationDetails, s, DetailLevel::Low, {}, {});
+    });
+    debuggingContext.Save(
+        CompilationOptions::DebugLevel::None, folder + "/EstimatedDetailed.dot",
+        [&](std::ofstream& s) { SaveEstimatedOpGraphToDot(opGraph, estimationDetails, s, DetailLevel::High, {}, {}); });
 }
 
 }    // namespace
@@ -94,10 +96,10 @@ NetworkPerformanceData Cascading::EstimateNetwork(const Network& network)
 {
     m_GraphOfParts = CreateGraphOfParts(network, m_Capabilities, m_EstimationOptions, m_CompilationOptions);
 
-    m_DebuggingContext.SaveGraphOfPartsToDot(CompilationOptions::DebugLevel::Medium, m_GraphOfParts,
-                                             "Cascaded_GraphOfParts.dot", DetailLevel::Low);
-    m_DebuggingContext.SaveGraphOfPartsToDot(CompilationOptions::DebugLevel::Medium, m_GraphOfParts,
-                                             "Cascaded_GraphOfPartsDetailed.dot", DetailLevel::High);
+    m_DebuggingContext.Save(CompilationOptions::DebugLevel::Medium, "Cascaded_GraphOfParts.dot",
+                            [&](std::ofstream& s) { SaveGraphOfPartsToDot(m_GraphOfParts, s, DetailLevel::Low); });
+    m_DebuggingContext.Save(CompilationOptions::DebugLevel::Medium, "Cascaded_GraphOfPartsDetailed.dot",
+                            [&](std::ofstream& s) { SaveGraphOfPartsToDot(m_GraphOfParts, s, DetailLevel::High); });
 
     m_Combiner.Run();
 

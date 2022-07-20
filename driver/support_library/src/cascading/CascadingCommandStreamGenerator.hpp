@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "Estimation.hpp"
 #include "Plan.hpp"
 #include "ethosn_command_stream/CommandStreamBuffer.hpp"
 #include <unordered_map>
@@ -27,6 +28,13 @@ constexpr uint8_t g_MceWeightBufferIndex     = 1;
 constexpr uint8_t g_PleInputBuffer0Index     = 0;
 constexpr uint8_t g_PleInputBuffer1Index     = 1;
 
+struct CompiledOpGraph
+{
+    EstimatedOpGraph m_EstimatedOpGraph;
+    std::unordered_map<Op*, AgentIdType> m_OpToAgentIdMapping;
+    std::unique_ptr<CompiledNetworkImpl> m_CompiledNetwork;
+};
+
 class CascadingCommandStreamGenerator
 {
 public:
@@ -40,7 +48,7 @@ public:
     ~CascadingCommandStreamGenerator();
 
     // Compile a given network and return the compiled network
-    std::unique_ptr<CompiledNetworkImpl> Generate();
+    CompiledOpGraph Generate();
 
     // Functions used to retrieve private members
     const std::vector<command_stream::cascading::Agent>& GetCommandStreamOfAgents() const;

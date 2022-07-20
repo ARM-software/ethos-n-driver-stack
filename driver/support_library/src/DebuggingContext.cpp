@@ -18,87 +18,14 @@ DebuggingContext::DebuggingContext(const CompilationOptions::DebugInfo& debugInf
     : m_DebugInfo(debugInfo)
 {}
 
-void DebuggingContext::SaveNetworkToDot(CompilationOptions::DebugLevel level,
-                                        const Network& network,
-                                        const std::string& fileName,
-                                        DetailLevel detailLevel) const
+void DebuggingContext::Save(CompilationOptions::DebugLevel level,
+                            const std::string& fileName,
+                            std::function<void(std::ofstream&)> savingFunc) const
 {
     if (m_DebugInfo.m_DumpDebugFiles >= level)
     {
         std::ofstream dotStream(GetAbsolutePathOutputFileName(fileName));
-        ethosn::support_library::SaveNetworkToDot(network, dotStream, detailLevel);
-    }
-}
-
-void DebuggingContext::DumpGraph(CompilationOptions::DebugLevel level,
-                                 const Graph& graph,
-                                 const std::string& fileName) const
-{
-    if (m_DebugInfo.m_DumpDebugFiles >= level)
-    {
-        std::ofstream dotStream(GetAbsolutePathOutputFileName(fileName));
-        graph.DumpToDotFormat(dotStream);
-    }
-}
-
-void DebuggingContext::SaveGraphOfPartsToDot(CompilationOptions::DebugLevel level,
-                                             const GraphOfParts& graphOfParts,
-                                             const std::string& fileName,
-                                             DetailLevel detailLevel) const
-{
-    if (m_DebugInfo.m_DumpDebugFiles >= level)
-    {
-        std::ofstream stream(GetAbsolutePathOutputFileName(fileName));
-        ethosn::support_library::SaveGraphOfPartsToDot(graphOfParts, stream, detailLevel);
-    }
-}
-
-void DebuggingContext::SavePlansToDot(CompilationOptions::DebugLevel level,
-                                      const Plans& plans,
-                                      const std::string& fileName,
-                                      DetailLevel detailLevel) const
-{
-    if (m_DebugInfo.m_DumpDebugFiles >= level)
-    {
-        std::ofstream stream(GetAbsolutePathOutputFileName(fileName));
-        ethosn::support_library::SavePlansToDot(plans, stream, detailLevel);
-    }
-}
-
-void DebuggingContext::SaveOpGraphToDot(CompilationOptions::DebugLevel level,
-                                        const OpGraph& opGraph,
-                                        const std::string& fileName,
-                                        DetailLevel detailLevel) const
-{
-    if (m_DebugInfo.m_DumpDebugFiles >= level)
-    {
-        std::ofstream stream(GetAbsolutePathOutputFileName(fileName));
-        ethosn::support_library::SaveOpGraphToDot(opGraph, stream, detailLevel);
-    }
-}
-
-void DebuggingContext::SaveEstimatedOpGraphToDot(CompilationOptions::DebugLevel level,
-                                                 const OpGraph& opGraph,
-                                                 const EstimatedOpGraph& estimationDetails,
-                                                 const std::string& fileName,
-                                                 DetailLevel detailLevel) const
-{
-    if (m_DebugInfo.m_DumpDebugFiles >= level)
-    {
-        std::ofstream stream(GetAbsolutePathOutputFileName(fileName));
-        ethosn::support_library::SaveEstimatedOpGraphToDot(opGraph, estimationDetails, stream, detailLevel);
-    }
-}
-
-void DebuggingContext::SaveCombinationToDot(CompilationOptions::DebugLevel level,
-                                            const Combination& combination,
-                                            const std::string& fileName,
-                                            DetailLevel detailLevel) const
-{
-    if (m_DebugInfo.m_DumpDebugFiles >= level)
-    {
-        std::ofstream stream(GetAbsolutePathOutputFileName(fileName));
-        ethosn::support_library::SaveCombinationToDot(combination, stream, detailLevel);
+        savingFunc(dotStream);
     }
 }
 

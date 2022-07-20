@@ -37,7 +37,7 @@ CascadingCommandStreamGenerator::~CascadingCommandStreamGenerator()
 {}
 
 // Compile a given network and return the compiled network
-std::unique_ptr<CompiledNetworkImpl> CascadingCommandStreamGenerator::Generate()
+CompiledOpGraph CascadingCommandStreamGenerator::Generate()
 {
     OpGraph::OpList opsInExecutionOrder = m_MergedOpGraph.GetOps();
 
@@ -72,7 +72,7 @@ std::unique_ptr<CompiledNetworkImpl> CascadingCommandStreamGenerator::Generate()
     catch (const NotSupportedException& e)
     {
         g_Logger.Error("Error: %s", e.what());
-        return std::unique_ptr<CompiledNetworkImpl>(nullptr);
+        return {};
     }
 
     // Add the lifetime information of the intermediate DRAM buffers so the memory required to store these
@@ -122,12 +122,15 @@ std::unique_ptr<CompiledNetworkImpl> CascadingCommandStreamGenerator::Generate()
 
     m_BufferManager.Allocate(m_DebuggingContext);
 
-    // Create the compiled network using the updated BufferManager instance
-    std::unique_ptr<CompiledNetworkImpl> compiledNetwork = std::make_unique<CompiledNetworkImpl>(
-        m_BufferManager.GetConstantDmaData(), m_BufferManager.GetConstantControlUnitData(),
-        m_BufferManager.GetBuffers(), m_OperationIds);
+    CompiledOpGraph result = { EstimateOpGraph(m_MergedOpGraph, m_Capabilities, EstimationOptions()), {}, {} };
 
-    return compiledNetwork;
+    // Create the compiled network using the updated BufferManager instance
+    result.m_CompiledNetwork    = std::make_unique<CompiledNetworkImpl>(m_BufferManager.GetConstantDmaData(),
+                                                                     m_BufferManager.GetConstantControlUnitData(),
+                                                                     m_BufferManager.GetBuffers(), m_OperationIds);
+    result.m_OpToAgentIdMapping = m_OpToAgentIdMapping;
+
+    return result;
 }
 
 // Functions used to retrieve private members

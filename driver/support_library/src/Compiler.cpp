@@ -43,9 +43,10 @@ namespace
 
 void DumpNetwork(const DebuggingContext& debuggingContext, const Network& network)
 {
-    debuggingContext.SaveNetworkToDot(CompilationOptions::DebugLevel::Medium, network, "Network.dot", DetailLevel::Low);
-    debuggingContext.SaveNetworkToDot(CompilationOptions::DebugLevel::Medium, network, "NetworkDetailed.dot",
-                                      DetailLevel::High);
+    debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "Network.dot",
+                          [&](std::ofstream& s) { SaveNetworkToDot(network, s, DetailLevel::Low); });
+    debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "NetworkDetailed.dot",
+                          [&](std::ofstream& s) { SaveNetworkToDot(network, s, DetailLevel::High); });
 }
 
 }    // namespace
@@ -157,20 +158,22 @@ void SaveDebugFilesForEstimatedCombination(std::string folder,
 {
     MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
 
-    debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, folder + "/Simple.dot",
-                                          DetailLevel::Low);
-    debuggingContext.SaveCombinationToDot(CompilationOptions::DebugLevel::None, comb, folder + "/Detailed.dot",
-                                          DetailLevel::High);
+    debuggingContext.Save(CompilationOptions::DebugLevel::None, folder + "/Simple.dot",
+                          [&](std::ofstream& s) { SaveCombinationToDot(comb, s, DetailLevel::Low); });
+    debuggingContext.Save(CompilationOptions::DebugLevel::None, folder + "/Detailed.dot",
+                          [&](std::ofstream& s) { SaveCombinationToDot(comb, s, DetailLevel::High); });
 
-    debuggingContext.SaveOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, folder + "/MergedSimple.dot",
-                                      DetailLevel::Low);
-    debuggingContext.SaveOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, folder + "/MergedDetailed.dot",
-                                      DetailLevel::High);
+    debuggingContext.Save(CompilationOptions::DebugLevel::None, folder + "/MergedSimple.dot",
+                          [&](std::ofstream& s) { SaveOpGraphToDot(opGraph, s, DetailLevel::Low); });
+    debuggingContext.Save(CompilationOptions::DebugLevel::None, folder + "/MergedDetailed.dot",
+                          [&](std::ofstream& s) { SaveOpGraphToDot(opGraph, s, DetailLevel::High); });
 
-    debuggingContext.SaveEstimatedOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, estimationDetails,
-                                               folder + "/EstimatedSimple.dot", DetailLevel::Low);
-    debuggingContext.SaveEstimatedOpGraphToDot(CompilationOptions::DebugLevel::None, opGraph, estimationDetails,
-                                               folder + "/EstimatedDetailed.dot", DetailLevel::High);
+    debuggingContext.Save(CompilationOptions::DebugLevel::None, folder + "/EstimatedSimple.dot", [&](std::ofstream& s) {
+        SaveEstimatedOpGraphToDot(opGraph, estimationDetails, s, DetailLevel::Low, {}, {});
+    });
+    debuggingContext.Save(
+        CompilationOptions::DebugLevel::None, folder + "/EstimatedDetailed.dot",
+        [&](std::ofstream& s) { SaveEstimatedOpGraphToDot(opGraph, estimationDetails, s, DetailLevel::High, {}, {}); });
 }
 
 std::unique_ptr<CompiledNetwork> Compiler::Compile()
@@ -191,10 +194,12 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
             NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(m_Network, m_Capabilities,
                                                                             m_EstimationOptions, m_CompilationOptions);
             const GraphOfParts m_GraphOfParts = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
-            m_DebuggingContext.SaveGraphOfPartsToDot(CompilationOptions::DebugLevel::Medium, m_GraphOfParts,
-                                                     "Cascaded_GraphOfParts.dot", DetailLevel::Low);
-            m_DebuggingContext.SaveGraphOfPartsToDot(CompilationOptions::DebugLevel::Medium, m_GraphOfParts,
-                                                     "Cascaded_GraphOfPartsDetailed.dot", DetailLevel::High);
+            m_DebuggingContext.Save(
+                CompilationOptions::DebugLevel::Medium, "Cascaded_GraphOfParts.dot",
+                [&](std::ofstream& s) { SaveGraphOfPartsToDot(m_GraphOfParts, s, DetailLevel::Low); });
+            m_DebuggingContext.Save(
+                CompilationOptions::DebugLevel::Medium, "Cascaded_GraphOfPartsDetailed.dot",
+                [&](std::ofstream& s) { SaveGraphOfPartsToDot(m_GraphOfParts, s, DetailLevel::High); });
 
             Combiner combiner(m_GraphOfParts, m_Capabilities, m_CompilationOptions, m_EstimationOptions,
                               m_DebuggingContext);
@@ -212,8 +217,22 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
             OpGraph mergedOpGraph = combiner.GetMergedOpGraphForBestCombination();
             cascading_compiler::CascadingCommandStreamGenerator commandStreamGenerator(
                 mergedOpGraph, operationIds, m_Capabilities, m_CompilationOptions, m_DebuggingContext);
-            std::unique_ptr<CompiledNetworkImpl> compiledNetwork = commandStreamGenerator.Generate();
-            return compiledNetwork;
+            cascading_compiler::CompiledOpGraph compiledOpGraph = commandStreamGenerator.Generate();
+
+            if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
+            {
+                m_DebuggingContext.Save(
+                    CompilationOptions::DebugLevel::None, "BestCombination/CompiledSimple.dot", [&](std::ofstream& s) {
+                        SaveCompiledOpGraphToDot(mergedOpGraph, compiledOpGraph, s, DetailLevel::Low);
+                    });
+                m_DebuggingContext.Save(CompilationOptions::DebugLevel::None, "BestCombination/CompiledDetailed.dot",
+                                        [&](std::ofstream& s) {
+                                            SaveCompiledOpGraphToDot(mergedOpGraph, compiledOpGraph, s,
+                                                                     DetailLevel::High);
+                                        });
+            }
+
+            return std::move(compiledOpGraph.m_CompiledNetwork);
         }
         else
         {
@@ -498,7 +517,8 @@ void Compiler::DumpGraph(const std::string& filename)
     finalFileName += "NonCascaded_";
     finalFileName += filename;
     finalFileName += ".dot";
-    m_DebuggingContext.DumpGraph(CompilationOptions::DebugLevel::Medium, m_Graph, finalFileName);
+    m_DebuggingContext.Save(CompilationOptions::DebugLevel::Medium, finalFileName,
+                            [&](std::ofstream& s) { m_Graph.DumpToDotFormat(s); });
 }
 
 CompiledNetworkImpl::CompiledNetworkImpl(const std::vector<uint8_t>& constantDmaData,
