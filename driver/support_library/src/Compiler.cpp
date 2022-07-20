@@ -49,6 +49,13 @@ void DumpNetwork(const DebuggingContext& debuggingContext, const Network& networ
                           [&](std::ofstream& s) { SaveNetworkToDot(network, s, DetailLevel::High); });
 }
 
+bool IsExperimentalCompilerForced()
+{
+    const char* cascadingValue    = "1";
+    const char* cascadingRunValue = std::getenv("FORCE_EXPERIMENTAL_COMPILER");
+    return (cascadingRunValue != nullptr && std::strcmp(cascadingRunValue, cascadingValue) == 0);
+}
+
 }    // namespace
 
 uint32_t CalculateBufferSize(const TensorShape& shape, command_stream::DataFormat dataFormat)
@@ -187,10 +194,10 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
 
     try
     {
-        const char* cascadingValue    = "1";
-        const char* cascadingRunValue = std::getenv("CASCADING_RUN");
-        if (cascadingRunValue != nullptr && std::strcmp(cascadingRunValue, cascadingValue) == 0)
+        if (IsExperimentalCompilerForced())
         {
+            std::clog << "WARNING: Experimental Compiler in use.\n";
+
             NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(m_Network, m_Capabilities,
                                                                             m_EstimationOptions, m_CompilationOptions);
             const GraphOfParts m_GraphOfParts = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
@@ -261,7 +268,22 @@ NetworkPerformanceData Compiler::EstimatePerformance()
 
     NetworkPerformanceData performance;
 
-    if (m_EstimationOptions.m_Current == true)
+    if (!m_EstimationOptions.m_Current || IsExperimentalCompilerForced())
+    {
+        try
+        {
+            std::clog << "WARNING: Experimental Compiler in use.\n";
+
+            Cascading cascadingEstimate(m_EstimationOptions, m_CompilationOptions, m_Capabilities, m_DebuggingContext);
+            performance = cascadingEstimate.EstimateNetwork(m_Network);
+        }
+        catch (const std::exception& e)
+        {
+            g_Logger.Warning("Cascading estimation failed with: %s", e.what());
+            throw NotSupportedException("Estimation didn't find any valid performance data to return");
+        }
+    }
+    else
     {
         try
         {
@@ -280,19 +302,6 @@ NetworkPerformanceData Compiler::EstimatePerformance()
         catch (const std::exception& e)
         {
             g_Logger.Warning("Non-cascading estimation failed with: %s", e.what());
-            throw NotSupportedException("Estimation didn't find any valid performance data to return");
-        }
-    }
-    else
-    {
-        try
-        {
-            Cascading cascadingEstimate(m_EstimationOptions, m_CompilationOptions, m_Capabilities, m_DebuggingContext);
-            performance = cascadingEstimate.EstimateNetwork(m_Network);
-        }
-        catch (const std::exception& e)
-        {
-            g_Logger.Warning("Cascading estimation failed with: %s", e.what());
             throw NotSupportedException("Estimation didn't find any valid performance data to return");
         }
     }
