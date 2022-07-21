@@ -545,18 +545,18 @@ inline void CalculateInnerRatio(command_stream::cascading::Dependency& agentDepe
     }
 }
 
-inline uint8_t CalculateGCD(uint16_t a, uint16_t b)
+inline uint16_t CalculateGCD(uint16_t a, uint16_t b)
 {
     if (a == 0)
     {
-        return ethosn::utils::NumericCast<uint8_t>(b);
+        return ethosn::utils::NumericCast<uint16_t>(b);
     }
     return CalculateGCD(b % a, a);
 }
 
-inline uint8_t FindGreatestCommonDenominator(uint16_t a, uint16_t b, uint8_t c)
+inline uint16_t FindGreatestCommonDenominator(uint16_t a, uint16_t b, uint16_t c)
 {
-    uint8_t gcdAB = CalculateGCD(a, b);
+    uint16_t gcdAB = CalculateGCD(a, b);
     if (c == 0)
     {
         return gcdAB;
@@ -598,8 +598,8 @@ inline void CalculateRemainingAgentDependencies(command_stream::cascading::Depen
 
     if (simplify)
     {
-        uint8_t commonFactor = FindGreatestCommonDenominator(agentDependency.outerRatio.other,
-                                                             agentDependency.outerRatio.self, agentDependency.boundary);
+        uint16_t commonFactor = FindGreatestCommonDenominator(
+            agentDependency.outerRatio.other, agentDependency.outerRatio.self, agentDependency.boundary);
 
         // Reduce dependency values by a common factor to produce equivalent but smaller outer ratios
         agentDependency.outerRatio.other =
