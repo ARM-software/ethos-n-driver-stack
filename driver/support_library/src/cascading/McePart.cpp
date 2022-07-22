@@ -380,6 +380,10 @@ Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
     wp.operation              = m_Operation;
     wp.algorithm              = mceOpAlgo;
     auto encodedWeights       = weightEncoderCache.Encode(wp);
+    if (!encodedWeights)
+    {
+        return nullptr;    // Weight compression failed (too big for SRAM) - abandon this plan
+    }
 
     CascadingBufferFormat formatInDram = impl::GetCascadingBufferFormatFromCompilerDataFormat(
         ConvertExternalToCompilerDataFormat(convData.weightInfo.m_DataFormat));
@@ -463,6 +467,10 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
     Buffer* sramWeightBuffer = AddWeightBuffersAndDmaOpToMceOp(
         opGraph, mceStripeInfo, numMemoryStripes.m_Weight, memoryStripesInfo.m_Weight.m_Shape,
         memoryStripesInfo.m_Weight.m_NumLoads, convData, weightEncoderCache, mceOpAlgo);
+    if (!sramWeightBuffer)
+    {
+        return { nullptr, nullptr };    // Weight compression failed (too big for SRAM) - abandon this plan
+    }
 
     uint8_t isIfmSigned = m_InputDataType == command_stream::DataType::S8;
     uint8_t isOfmSigned = m_OutputDataType == command_stream::DataType::S8;
@@ -516,6 +524,10 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                 auto inBufferAndMceOp =
                     AddMceToOpGraph(opGraph, info.m_MceCompute, info.m_Memory, numMemoryStripes, m_InputTensorShape,
                                     m_InputQuantizationInfo, convData, weightEncoderCache, couldSourceBeFcaf);
+                if (!inBufferAndMceOp.first || !inBufferAndMceOp.second)
+                {
+                    continue;    // Weight compression failed (too big for SRAM) - abandon this plan
+                }
 
                 auto pleInBuffer = impl::AddPleInBuffer(opGraph, numPleInputStripes, m_OutputTensorShape,
                                                         info.m_Memory.m_PleInput.m_Shape, m_OutputQuantizationInfo,
@@ -567,6 +579,10 @@ void McePart::CreateMceOnlyPlans(const impl::MceOnlyInfo& info,
             auto inBufferAndMceOp =
                 AddMceToOpGraph(opGraph, info.m_MceCompute, info.m_Memory, numMemoryStripes, m_InputTensorShape,
                                 m_InputQuantizationInfo, convData, weightEncoderCache, couldSourceBeFcaf);
+            if (!inBufferAndMceOp.first || !inBufferAndMceOp.second)
+            {
+                continue;    // Weight compression failed (too big for SRAM) - abandon this plan
+            }
 
             // We need to add the output buffer first before adding mce to opgraph as it uses it.
 

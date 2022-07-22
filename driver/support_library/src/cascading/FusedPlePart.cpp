@@ -104,6 +104,10 @@ Buffer* FusedPlePart::AddIdentityWeights(OwnedOpGraph& opGraph,
     wp.operation              = MceOperation::DEPTHWISE_CONVOLUTION;
     wp.algorithm              = CompilerMceAlgorithm::Direct;
     auto encodedWeights       = weightEncoderCache.Encode(wp);
+    if (!encodedWeights)
+    {
+        return nullptr;    // Weight compression failed (too big for SRAM) - abandon this plan
+    }
 
     CascadingBufferFormat formatInDram = impl::GetCascadingBufferFormatFromCompilerDataFormat(
         ConvertExternalToCompilerDataFormat(convData.weightInfo.m_DataFormat));
@@ -169,6 +173,10 @@ std::pair<Buffer*, Buffer*> FusedPlePart::AddIdentityMceOpForSubGraph(OwnedOpGra
     convData.biasData        = std::move(biasData);
     Buffer* weightSramBuffer = AddIdentityWeights(opGraph, mceComputeInfo, numMemoryStripes.m_Weight,
                                                   memoryStripes.m_Weight.m_Shape, convData, weightEncoderCache);
+    if (!weightSramBuffer)
+    {
+        return { nullptr, nullptr };    // Weight compression failed (too big for SRAM) - abandon this plan
+    }
 
     int16_t lowerBound = m_OutputDataType == command_stream::DataType::U8 ? 0 : -128;
     int16_t upperBound = m_OutputDataType == command_stream::DataType::U8 ? 255 : 127;
@@ -240,6 +248,10 @@ void FusedPlePart::CreateIdentityMceAndFusedPlePlans(const MceAndPleInfo& info,
                 auto mceInAndOutBuffer =
                     AddIdentityMceOpForSubGraph(opGraph, info.m_MceCompute, numMemoryStripes, info.m_Memory,
                                                 m_InputTensorShape, m_InputQuantizationInfo, weightEncoderCache);
+                if (!mceInAndOutBuffer.first || !mceInAndOutBuffer.second)
+                {
+                    continue;    // Weight compression failed (too big for SRAM) - abandon this plan
+                }
 
                 // A fuse only ple operation only has 1 input
                 auto op = std::make_unique<PleOp>(m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,

@@ -239,6 +239,10 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                     auto sramInputAndMceOp =
                         AddMceToOpGraph(opGraph, info.m_MceCompute, info.m_Memory, numMemoryStripes, m_InputTensorShape,
                                         m_InputQuantizationInfo, convData, m_WeightEncoderCache, couldSourceBeFcaf);
+                    if (!sramInputAndMceOp.first || !sramInputAndMceOp.second)
+                    {
+                        continue;    // Weight compression failed (too big for SRAM) - abandon this plan
+                    }
 
                     opGraph.AddConsumer(dramInput, dmaOp, 0);
                     opGraph.SetProducer(sramInputAndMceOp.first, dmaOp);

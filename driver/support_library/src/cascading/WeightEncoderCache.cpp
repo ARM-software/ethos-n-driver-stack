@@ -216,6 +216,7 @@ void WriteEncodedWeights(std::ostream& s, const EncodedWeights& w)
 WeightEncoderCache::WeightEncoderCache(const HardwareCapabilities& caps, const char* id)
     : m_Caps(caps)
     , m_Encoder(caps)
+    , m_MaxUncompressedStripeSize(std::numeric_limits<uint64_t>::max())
 {
     // Load cache entries from file, if specified. This can make network compilation _much_ faster and
     // can very useful for debugging/development.
@@ -260,12 +261,35 @@ std::shared_ptr<ethosn::support_library::EncodedWeights> WeightEncoderCache::Enc
     auto it = m_Entries.find(params);
     if (it == m_Entries.end())
     {
+        // There is no point compressing weights with a stripe shape which will not fit into SRAM.
+        // For example if the weights are huge and we are trying to encode them all into a single stripe,
+        // then the plan that this is used for will never fit into SRAM and so it is a waste of time
+        // compressing with that stripe shape. We can't know for certain the size of the compressed
+        // stripe until we actually do the compression, but we make the (fairly safe) assumption that
+        // there is a correlation between the uncompressed and compressed stripe sizes. Therefore
+        // if we previously compressed a stripe of a smaller uncompresed size and that didn't fit,
+        // then we assume that this larger uncompressed stripe won't fit either, and so don't even try.
+        const uint64_t uncompressedSize = params.weightsTensorInfo.m_Dimensions[0] *
+                                          params.weightsTensorInfo.m_Dimensions[1] * params.iterationSize *
+                                          params.stripeDepth;
+        if (uncompressedSize >= m_MaxUncompressedStripeSize)
+        {
+            return {};
+        }
+
         EncodedWeights w =
             m_Encoder.Encode(params.weightsTensorInfo, params.weightsData->data(), params.biasTensorInfo,
                              params.biasData.data(), params.inputQuantizationInfo, params.outputQuantizationInfo,
                              params.stripeDepth, params.strideY, params.strideX, params.paddingTop, params.paddingLeft,
                              params.iterationSize, params.operation, params.algorithm);
         it = m_Entries.insert({ params, std::make_shared<EncodedWeights>(w) }).first;
+
+        // If the compressed stripe won't fit in SRAM, update our threshold
+        if (it->second->m_MaxSize > m_Caps.GetTotalSramSize())
+        {
+            m_MaxUncompressedStripeSize = std::min(m_MaxUncompressedStripeSize, uncompressedSize);
+            return {};
+        }
 
         // Save this entry to the persistent file if enabled.
         if (!m_PersistentFilename.empty())
@@ -276,6 +300,7 @@ std::shared_ptr<ethosn::support_library::EncodedWeights> WeightEncoderCache::Enc
             WriteEncodedWeights(f, w);
         }
     }
+
     return it->second;
 }
 

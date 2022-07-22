@@ -57,6 +57,7 @@ private:
     WeightEncoder m_Encoder;
     std::unordered_map<Params, std::shared_ptr<EncodedWeights>, Hasher> m_Entries;
     std::string m_PersistentFilename;
+    uint64_t m_MaxUncompressedStripeSize;
 };
 
 }    // namespace support_library
