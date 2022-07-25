@@ -35,7 +35,7 @@
 - The supported strides (the height and width stride have to match) are: { 1, 2 }.
 - For kernels with height or width >7, only a stride of 1 is supported.
 - SAME and VALID padding are supported.
-- I*W/O must be between 2.33e-10 and 1, where:
+- I*W/O must be between 2^-32 and 65536, where:
      - I is the input quantization scale.
      - W is the weight quantization scale.
      - O is the output quantization scale.
@@ -53,7 +53,7 @@
 - For kernels with height or width >7, only a stride of 1 is supported.
 - SAME and VALID padding are supported.
 - A channel multiplier of 1 is supported. A channel multiplier >1 is not supported.
-- I*W/O must be between 2.33e-10 and 1, where:
+- I*W/O must be between 2^-32 and 65536, where:
     - I is the input quantization scale.
     - W is the weight quantization scale.
     - O is the output quantization scale.
@@ -61,7 +61,7 @@
 
 ## Fully connected
 - HWIO format weights are supported, H and W must be 1.
-- I*W/O must be between 2.33e-10 and 1, where:
+- I*W/O must be between 2^-32 and 65536, where:
     - I is the input quantization scale.
     - W is the weight quantization scale.
     - O is the output quantization scale.
@@ -128,7 +128,7 @@
 - The supported kernel heights and widths (the kernel does not have to be square) are: { 1, 2, 3, 5, 7, 9 }.
 - The supported strides (the kernel does have to be square) are: { 1, 2 }.
 - SAME and VALID padding are supported.
-- I*W/O must be between 2.33e-10 and 1, where:
+- I*W/O must be between 2^-32 and 65536, where:
      - I is the input quantization scale.
      - W is the weight quantization scale.
      - O is the output quantization scale.
