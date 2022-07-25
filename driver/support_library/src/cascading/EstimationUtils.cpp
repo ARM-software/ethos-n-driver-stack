@@ -402,11 +402,24 @@ double CalculateMetric(const PassPerformanceData& passPerfData)
     uint64_t mceCycleCount     = passPerfData.m_Stats.m_Mce.m_CycleCount;
     double mceCycleCountDouble = static_cast<double>(mceCycleCount);
 
+    // Rough approximation for the number of stripes in a pass. This isn't measuring any exact number,
+    // as the number of stripes may be different for the MCE, PLE, DMA etc., just a rough idea.
+    uint32_t numStripes              = std::max({ passPerfData.m_Stats.m_Input.m_StripesStats.m_NumCentralStripes *
+                                         (passPerfData.m_Stats.m_Input.m_StripesStats.m_NumReloads + 1),
+                                     passPerfData.m_Stats.m_Weights.m_StripesStats.m_NumCentralStripes *
+                                         (passPerfData.m_Stats.m_Weights.m_StripesStats.m_NumReloads + 1),
+                                     passPerfData.m_Stats.m_Output.m_StripesStats.m_NumCentralStripes *
+                                         (passPerfData.m_Stats.m_Output.m_StripesStats.m_NumReloads + 1) });
+    double nonparallelOverheadCycles = 0 * numStripes;
+    // This overhead was measured approximately from some profiling traces.
+    double parallelOverheadCycles = 10000 * numStripes;
+
     constexpr double dramBandwidth  = 12000000000;    // bytes/second
     constexpr double clockFrequency = 1250000000;     // cycles/second
     constexpr double bytesPerCycle  = dramBandwidth / clockFrequency;
-    double metric =
-        (nonParallelBytesDouble / bytesPerCycle) + std::max(parallelBytesDouble / bytesPerCycle, mceCycleCountDouble);
+    double metric                   = (nonParallelBytesDouble / bytesPerCycle) +
+                    std::max({ parallelBytesDouble / bytesPerCycle, mceCycleCountDouble, parallelOverheadCycles }) +
+                    nonparallelOverheadCycles;
     return metric;
 }
 
