@@ -157,7 +157,7 @@ public:
     {
         // Note that the order of these categories matters for the python parser that
         // generates the json file.
-        FirmwareWfeSleeping,
+        FirmwareWfe,
         FirmwareInference,
         FirmwareCommand,
         FirmwareDma,
@@ -168,7 +168,6 @@ public:
         FirmwareDmaSetup,
         FirmwareGetCompleteCommand,
         FirmwareScheduleNextCommand,
-        FirmwareWfeChecking,
         FirmwareTimeSync,
         FirmwareAgent,
         FirmwareAgentStripe,

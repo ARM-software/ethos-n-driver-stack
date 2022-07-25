@@ -63,10 +63,10 @@ void DumpProfilingData(const std::vector<ProfilingEntry>& profilingData, std::os
         o << "\t\t{\n";
         switch (entry.m_MetadataCategory)
         {
-            case ProfilingEntry::MetadataCategory::FirmwareWfeSleeping:
+            case ProfilingEntry::MetadataCategory::FirmwareWfe:
             {
                 o << "\t\t\t"
-                  << R"("firmware_wfe_sleeping_value": )" << std::to_string(entry.m_MetadataValue) << "\n";
+                  << R"("firmware_wfe_value": )" << std::to_string(entry.m_MetadataValue) << "\n";
                 break;
             }
             case ProfilingEntry::MetadataCategory::FirmwareInference:
@@ -127,12 +127,6 @@ void DumpProfilingData(const std::vector<ProfilingEntry>& profilingData, std::os
             {
                 o << "\t\t\t"
                   << R"("firmware_schedule_next_command_value": )" << std::to_string(entry.m_MetadataValue) << "\n";
-                break;
-            }
-            case ProfilingEntry::MetadataCategory::FirmwareWfeChecking:
-            {
-                o << "\t\t\t"
-                  << R"("firmware_wfe_checking_value": )" << std::to_string(entry.m_MetadataValue) << "\n";
                 break;
             }
             case ProfilingEntry::MetadataCategory::FirmwareTimeSync:

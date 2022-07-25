@@ -249,8 +249,8 @@ const char* MetadataCategoryToCString(ProfilingEntry::MetadataCategory category)
 {
     switch (category)
     {
-        case ProfilingEntry::MetadataCategory::FirmwareWfeSleeping:
-            return "FirmwareWfeSleeping";
+        case ProfilingEntry::MetadataCategory::FirmwareWfe:
+            return "FirmwareWfe";
         case ProfilingEntry::MetadataCategory::FirmwareInference:
             return "FirmwareInference";
         case ProfilingEntry::MetadataCategory::FirmwareCommand:
@@ -271,8 +271,6 @@ const char* MetadataCategoryToCString(ProfilingEntry::MetadataCategory category)
             return "FirmwareGetCompleteCommand";
         case ProfilingEntry::MetadataCategory::FirmwareScheduleNextCommand:
             return "FirmwareScheduleNextCommand";
-        case ProfilingEntry::MetadataCategory::FirmwareWfeChecking:
-            return "FirmwareWfeChecking";
         case ProfilingEntry::MetadataCategory::FirmwareTimeSync:
             return "FirmwareTimeSync";
         case ProfilingEntry::MetadataCategory::InferenceLifetime:
@@ -453,7 +451,7 @@ EntryDataCategory GetFirmwareCategory(const EntryData data)
 {
     DataUnion temp = {};
     temp.m_Raw     = data;
-    return temp.m_Category;
+    return static_cast<EntryDataCategory>(temp.m_Category);
 }
 
 ProfilingEntry::MetadataCategory ConvertCategoryEntry(const EntryDataCategory category)
@@ -461,8 +459,8 @@ ProfilingEntry::MetadataCategory ConvertCategoryEntry(const EntryDataCategory ca
     ProfilingEntry::MetadataCategory retVal;
     switch (category)
     {
-        case EntryDataCategory::WfeSleeping:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareWfeSleeping;
+        case EntryDataCategory::Wfe:
+            retVal = ProfilingEntry::MetadataCategory::FirmwareWfe;
             break;
         case EntryDataCategory::Inference:
             retVal = ProfilingEntry::MetadataCategory::FirmwareInference;
@@ -494,9 +492,6 @@ ProfilingEntry::MetadataCategory ConvertCategoryEntry(const EntryDataCategory ca
         case EntryDataCategory::ScheduleNextCommand:
             retVal = ProfilingEntry::MetadataCategory::FirmwareScheduleNextCommand;
             break;
-        case EntryDataCategory::WfeChecking:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareWfeChecking;
-            break;
         case EntryDataCategory::TimeSync:
             retVal = ProfilingEntry::MetadataCategory::FirmwareTimeSync;
             break;
@@ -514,7 +509,7 @@ ProfilingEntry::MetadataCategory ConvertCategoryEntry(const EntryDataCategory ca
             break;
         default:
             // Set the return value so we don't get errors when asserts are disabled
-            retVal = ProfilingEntry::MetadataCategory::FirmwareWfeSleeping;
+            retVal = ProfilingEntry::MetadataCategory::FirmwareWfe;
             assert(false);
             break;
     }

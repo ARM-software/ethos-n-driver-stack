@@ -120,7 +120,7 @@ using EntryData = decltype(ethosn_profiling_entry::data);
  */
 enum class EntryDataCategory: uint8_t {
 	/*                          Legacy?   StrategyX?   Cascading? */
-	WfeSleeping,            /*   Yes         Yes         Yes     */
+	Wfe,                    /*   Yes         Yes         Yes     */
 	Inference,              /*   Yes         Yes         Yes     */
 	Command,                /*   Yes         Yes         Yes     */
 	Dma,                    /*   Yes         Yes         Yes     */
@@ -131,7 +131,6 @@ enum class EntryDataCategory: uint8_t {
 	DmaSetup,               /*   Yes         No          Yes     */
 	GetCompleteCommand,     /*   Yes         No          No      */
 	ScheduleNextCommand,    /*   Yes         No          Yes     */
-	WfeChecking,            /*   Yes         No          Yes     */
 	TimeSync,               /*   Yes         Yes         Yes     */
 	Agent,                  /*   No          Yes         No      */
 	AgentStripe,            /*   No          Yes         No      */
@@ -142,72 +141,88 @@ enum class EntryDataCategory: uint8_t {
 /* Describes the encoding of the "Data" field. */
 union DataUnion {
 	EntryData m_Raw; /* Raw access to the full Data value. */
+
+	/* The first 4 bits is always m_Category, which identifies the category
+	 * for this entry.
+	 * The layout of the rest of the data is category-specific.
+	 */
+	uint8_t m_Category : 4;
 	struct {
-		/* Identifies the category for this entry. The layout of the
-		 * rest of the data is category-specific.
-		 */
-		EntryDataCategory m_Category;
-		union {
-			struct {
-				uint8_t m_Chars[3];
-			} m_LabelFields;
-			struct {
-				uint8_t m_CommandIdx : 8;
-			} m_CommandFields;
-			struct {
-				uint8_t m_CommandIdx : 8;
-				uint8_t m_DmaCategory : 5;
-				uint8_t m_DmaHardwareId : 3;
-				uint8_t m_StripeIdx : 8;
-			} m_DmaFields;
-			struct {
-				uint8_t m_CommandIdx : 8;
-				uint8_t m_StripeIdx : 8;
-				uint8_t m_BankId : 1;
-			} m_TsuFields;
-			struct {
-				uint8_t m_CommandIdx : 8;
-				uint8_t m_StripeIdx : 8;
-			} m_MceStripeSetupFields;
-			struct {
-				uint8_t m_CommandIdx : 8;
-				uint8_t m_StripeIdx : 8;
-			} m_PleStripeSetupFields;
-			struct {
-				uint8_t m_CommandIdx : 8;
-				uint8_t m_StripeIdx : 8;
-				uint8_t m_DmaCategory : 3;
-			} m_DmaStripeSetupFields;
-			struct {
-				uint8_t m_CommandIdx : 8;
-			} m_CompleteCommandsFields;
-			struct {
-				uint8_t m_CommandIdx : 8;
-			} m_ScheduleCommandsFields;
-			struct {
-				uint8_t m_TimeSyncData[3];
-			} m_TimeSyncFields;
-			struct {
-				uint8_t m_Type : 4;
-				uint8_t m_Idx : 4;
-				uint8_t m_CommandIdx : 8;
-			} m_AgentFields;
-			struct {
-				uint8_t m_AgentStripeType : 4;
-				uint8_t m_AgentStripeIdx : 4;
-				uint8_t m_CommandIdx : 8;
-				uint8_t m_StripeIdx : 8;
-			} m_AgentStripeFields;
-			struct {
-				uint8_t m_CommandIdx : 8;
-				uint8_t m_StripeIdx : 8;
-			} m_PleFields;
-			struct {
-				uint8_t m_CommandIdx : 8;
-				uint8_t m_StripeIdx : 8;
-			} m_UdmaFields;
-		};
-	};
+		uint32_t m_Category : 4;
+		uint32_t m_Type : 1;
+	} m_WfeFields;
+	struct {
+		uint8_t m_Category : 4;
+		uint8_t m_Chars[3];
+	} m_LabelFields;
+	struct {
+		uint32_t m_Category : 4;
+		uint32_t m_CommandIdx : 10;
+	} m_CommandFields;
+	struct {
+		uint32_t m_Category : 4;
+		uint32_t m_CommandIdx : 10;
+		uint32_t m_DmaCategory : 5;
+		uint32_t m_DmaHardwareId : 3;
+		uint32_t m_StripeIdx : 10;
+	} m_DmaFields;
+	struct {
+		uint32_t m_Category : 4;
+		uint32_t m_CommandIdx : 10;
+		uint32_t m_StripeIdx : 10;
+		uint32_t m_BankId : 1;
+	} m_TsuFields;
+	struct {
+		uint32_t m_Category : 4;
+		uint32_t m_CommandIdx : 10;
+		uint32_t m_StripeIdx : 10;
+	} m_MceStripeSetupFields;
+	struct {
+		uint32_t m_Category : 4;
+		uint32_t m_CommandIdx : 10;
+		uint32_t m_StripeIdx : 10;
+	} m_PleStripeSetupFields;
+	struct {
+		uint32_t m_Category : 4;
+		uint32_t m_CommandIdx : 10;
+		uint32_t m_StripeIdx : 10;
+		uint32_t m_DmaCategory : 3;
+	} m_DmaStripeSetupFields;
+	struct {
+		uint32_t m_Category : 4;
+		uint32_t m_CommandIdx : 10;
+	} m_CompleteCommandsFields;
+	struct {
+		uint32_t m_Category : 4;
+		uint32_t m_CommandIdx : 10;
+	} m_ScheduleCommandsFields;
+	struct {
+		uint8_t m_Category : 4;
+		uint8_t m_TimeSyncData[3];
+	} m_TimeSyncFields;
+	struct {
+		uint32_t m_Category : 4;
+		uint32_t m_Type : 4;
+		uint32_t m_Idx : 4;
+		uint32_t m_CommandIdx : 10;
+	} m_AgentFields;
+	struct {
+		uint32_t m_Category : 4;
+		uint32_t m_AgentStripeType : 4;
+		uint32_t m_AgentStripeIdx : 4;
+		uint32_t m_CommandIdx : 10;
+		uint32_t m_StripeIdx : 10;
+	} m_AgentStripeFields;
+	struct {
+		uint32_t m_Category : 4;
+		uint32_t m_CommandIdx : 10;
+		uint32_t m_StripeIdx : 10;
+	} m_PleFields;
+	struct {
+		uint32_t m_Category : 4;
+		uint32_t m_CommandIdx : 10;
+		uint32_t m_StripeIdx : 10;
+	} m_UdmaFields;
 };
 
 static_assert(sizeof(DataUnion) == sizeof(EntryData),
