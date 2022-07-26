@@ -294,9 +294,9 @@ void KmodNetworkImpl::DumpIntermediateBuffers()
         std::vector<BufferInfo> buffers = m_CompiledNetwork->m_IntermediateDataBufferInfos;
         std::sort(buffers.begin(), buffers.end(),
                   [](const BufferInfo& a, const BufferInfo& b) { return a.m_Offset < b.m_Offset; });
-        for (uint32_t i = 0; i < buffers.size() - 1; ++i)
+        for (uint32_t i = 1; i < buffers.size(); ++i)
         {
-            if (buffers[i].m_Offset + buffers[i].m_Size > buffers[i + 1].m_Offset)
+            if (buffers[i - 1].m_Offset + buffers[i - 1].m_Size > buffers[i].m_Offset)
             {
                 g_Logger.Warning(
                     "Intermediate buffers are overlapping and so the data about to be dumped may "

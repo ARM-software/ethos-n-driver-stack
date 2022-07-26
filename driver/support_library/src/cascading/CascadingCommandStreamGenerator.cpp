@@ -9,6 +9,7 @@
 #include "Compiler.hpp"
 #include "Visualisation.hpp"
 
+#include <iomanip>
 #include <memory>
 
 namespace ethosn
@@ -98,7 +99,8 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
                 std::string dumpName;
                 {
                     std::stringstream ss;
-                    ss << "EthosNIntermediateBuffer_" << b.second;
+                    // Pad the buffer ID for easy sorting of dumped file names
+                    ss << "EthosNIntermediateBuffer_" << std::setfill('0') << std::setw(3) << b.second << std::setw(0);
                     // Currently all buffers are assumed to be UINT8. This will need changing once we support INT8 too.
                     ss << "_" << ToString(DataType::UINT8_QUANTIZED);
                     ss << "_" << ToString(b.first->m_Format);
