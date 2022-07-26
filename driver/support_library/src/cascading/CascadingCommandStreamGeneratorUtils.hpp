@@ -446,6 +446,7 @@ inline void setMcesStridedConvolutionData(MceS& mceSchedulerData, const OpGraph&
     OpGraph::BufferList inputBuffers = mergedOpGraph.GetInputs(ptrMceOp);
     Buffer* inputBuffer              = inputBuffers[g_MceIfmBufferIndex];
     Buffer* weightBuffer             = inputBuffers[g_MceWeightBufferIndex];
+    Buffer* outputBuffer             = mergedOpGraph.GetOutput(ptrMceOp);
 
     auto filters =
         GetSubmapFilters(weightBuffer->m_TensorShape[1], weightBuffer->m_TensorShape[0], ptrMceOp->m_Stride.m_X,
@@ -506,25 +507,37 @@ inline void setMcesStridedConvolutionData(MceS& mceSchedulerData, const OpGraph&
         /// that can be used to calculate the Ofm stripe. This is equal to the difference between the IFM and OFM
         /// width/height when at the edges of the whole IFM.
 
-        const int32_t ifmStripeNeighboringDataRight =
-            static_cast<int32_t>(currSubmapInputWidth) -
-            static_cast<int32_t>(utils::GetWidth(ptrMceOp->m_OutputStripeShape));
+        {
+            const int32_t ifmStripeNeighboringDataRight =
+                static_cast<int32_t>(currSubmapInputWidth) -
+                static_cast<int32_t>(utils::GetWidth(ptrMceOp->m_OutputStripeShape));
 
-        const int32_t ifmStripeNeighboringDataBottom =
-            static_cast<int32_t>(currSubmapInputHeight) -
-            static_cast<int32_t>(utils::GetHeight(ptrMceOp->m_OutputStripeShape));
+            const int32_t ifmStripeNeighboringDataBottom =
+                static_cast<int32_t>(currSubmapInputHeight) -
+                static_cast<int32_t>(utils::GetHeight(ptrMceOp->m_OutputStripeShape));
 
-        // Set the Ifm delta default
-        mceSchedulerData.ifmDeltaDefault[subMapIndex].height = ethosn::utils::NumericCast<int8_t>(
-            ifmStripeNeighboringDataBottom + inputBuffer->m_PackedBoundaryThickness.bottom);
-        mceSchedulerData.ifmDeltaDefault[subMapIndex].width = ethosn::utils::NumericCast<int8_t>(
-            ifmStripeNeighboringDataRight + inputBuffer->m_PackedBoundaryThickness.right);
+            // Set the Ifm delta default
+            mceSchedulerData.ifmDeltaDefault[subMapIndex].height = ethosn::utils::NumericCast<int8_t>(
+                ifmStripeNeighboringDataBottom + inputBuffer->m_PackedBoundaryThickness.bottom);
+            mceSchedulerData.ifmDeltaDefault[subMapIndex].width = ethosn::utils::NumericCast<int8_t>(
+                ifmStripeNeighboringDataRight + inputBuffer->m_PackedBoundaryThickness.right);
+        }
 
         // Set the Ifm delta edge
-        mceSchedulerData.ifmDeltaEdge[subMapIndex].height =
-            ethosn::utils::NumericCast<int8_t>(ifmStripeNeighboringDataBottom);
-        mceSchedulerData.ifmDeltaEdge[subMapIndex].width =
-            ethosn::utils::NumericCast<int8_t>(ifmStripeNeighboringDataRight);
+        {
+            const int32_t ifmStripeNeighboringDataRight =
+                static_cast<int32_t>(currSubmapInputWidth) -
+                static_cast<int32_t>(utils::GetWidth(outputBuffer->m_TensorShape));
+
+            const int32_t ifmStripeNeighboringDataBottom =
+                static_cast<int32_t>(currSubmapInputHeight) -
+                static_cast<int32_t>(utils::GetHeight(outputBuffer->m_TensorShape));
+
+            mceSchedulerData.ifmDeltaEdge[subMapIndex].height =
+                ethosn::utils::NumericCast<int8_t>(ifmStripeNeighboringDataBottom);
+            mceSchedulerData.ifmDeltaEdge[subMapIndex].width =
+                ethosn::utils::NumericCast<int8_t>(ifmStripeNeighboringDataRight);
+        }
     }
 }
 }    // namespace MceSUtils
