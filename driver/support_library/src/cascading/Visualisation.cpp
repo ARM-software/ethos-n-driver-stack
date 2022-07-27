@@ -375,62 +375,62 @@ std::string ToString(PleKernelId id)
         case PleKernelId::MAXPOOL_2X2_2_2_8X8_4:
             return "MAXPOOL_2X2_2_2_8X8_4";
             break;
-        case PleKernelId::MAXPOOL_2X2_2_2_8X16_2:
-            return "MAXPOOL_2X2_2_2_8X16_2";
+        case PleKernelId::MAXPOOL_2X2_2_2_16X8_2:
+            return "MAXPOOL_2X2_2_2_16X8_2";
             break;
         case PleKernelId::MAXPOOL_2X2_2_2_16X16_1:
             return "MAXPOOL_2X2_2_2_16X16_1";
             break;
-        case PleKernelId::MAXPOOL_2X2_2_2_8X32_1:
-            return "MAXPOOL_2X2_2_2_8X32_1";
+        case PleKernelId::MAXPOOL_2X2_2_2_32X8_1:
+            return "MAXPOOL_2X2_2_2_32X8_1";
             break;
         case PleKernelId::MAXPOOL_2X2_2_2_8X8_4_S:
             return "MAXPOOL_2X2_2_2_8X8_4_S";
             break;
-        case PleKernelId::MAXPOOL_2X2_2_2_8X16_2_S:
-            return "MAXPOOL_2X2_2_2_8X16_2_S";
+        case PleKernelId::MAXPOOL_2X2_2_2_16X8_2_S:
+            return "MAXPOOL_2X2_2_2_16X8_2_S";
             break;
         case PleKernelId::MAXPOOL_2X2_2_2_16X16_1_S:
             return "MAXPOOL_2X2_2_2_16X16_1_S";
             break;
-        case PleKernelId::MAXPOOL_2X2_2_2_8X32_1_S:
-            return "MAXPOOL_2X2_2_2_8X32_1_S";
+        case PleKernelId::MAXPOOL_2X2_2_2_32X8_1_S:
+            return "MAXPOOL_2X2_2_2_32X8_1_S";
             break;
         case PleKernelId::MAXPOOL_3X3_2_2_EVEN_8X8_4:
             return "MAXPOOL_3X3_2_2_EVEN_8X8_4";
             break;
-        case PleKernelId::MAXPOOL_3X3_2_2_EVEN_8X16_2:
-            return "MAXPOOL_3X3_2_2_EVEN_8X16_2";
+        case PleKernelId::MAXPOOL_3X3_2_2_EVEN_16X8_2:
+            return "MAXPOOL_3X3_2_2_EVEN_16X8_2";
             break;
-        case PleKernelId::MAXPOOL_3X3_2_2_EVEN_8X32_1:
-            return "MAXPOOL_3X3_2_2_EVEN_8X32_1";
+        case PleKernelId::MAXPOOL_3X3_2_2_EVEN_32X8_1:
+            return "MAXPOOL_3X3_2_2_EVEN_32X8_1";
             break;
         case PleKernelId::MAXPOOL_3X3_2_2_EVEN_8X8_4_S:
             return "MAXPOOL_3X3_2_2_EVEN_8X8_4_S";
             break;
-        case PleKernelId::MAXPOOL_3X3_2_2_EVEN_8X16_2_S:
-            return "MAXPOOL_3X3_2_2_EVEN_8X16_2_S";
+        case PleKernelId::MAXPOOL_3X3_2_2_EVEN_16X8_2_S:
+            return "MAXPOOL_3X3_2_2_EVEN_16X8_2_S";
             break;
-        case PleKernelId::MAXPOOL_3X3_2_2_EVEN_8X32_1_S:
-            return "MAXPOOL_3X3_2_2_EVEN_8X32_1_S";
+        case PleKernelId::MAXPOOL_3X3_2_2_EVEN_32X8_1_S:
+            return "MAXPOOL_3X3_2_2_EVEN_32X8_1_S";
             break;
         case PleKernelId::MAXPOOL_3X3_2_2_ODD_8X8_4:
             return "MAXPOOL_3X3_2_2_ODD_8X8_4";
             break;
-        case PleKernelId::MAXPOOL_3X3_2_2_ODD_8X16_2:
-            return "MAXPOOL_3X3_2_2_ODD_8X16_2";
+        case PleKernelId::MAXPOOL_3X3_2_2_ODD_16X8_2:
+            return "MAXPOOL_3X3_2_2_ODD_16X8_2";
             break;
-        case PleKernelId::MAXPOOL_3X3_2_2_ODD_8X32_1:
-            return "MAXPOOL_3X3_2_2_ODD_8X32_1";
+        case PleKernelId::MAXPOOL_3X3_2_2_ODD_32X8_1:
+            return "MAXPOOL_3X3_2_2_ODD_32X8_1";
             break;
         case PleKernelId::MAXPOOL_3X3_2_2_ODD_8X8_4_S:
             return "MAXPOOL_3X3_2_2_ODD_8X8_4_S";
             break;
-        case PleKernelId::MAXPOOL_3X3_2_2_ODD_8X16_2_S:
-            return "MAXPOOL_3X3_2_2_ODD_8X16_2_S";
+        case PleKernelId::MAXPOOL_3X3_2_2_ODD_16X8_2_S:
+            return "MAXPOOL_3X3_2_2_ODD_16X8_2_S";
             break;
-        case PleKernelId::MAXPOOL_3X3_2_2_ODD_8X32_1_S:
-            return "MAXPOOL_3X3_2_2_ODD_8X32_1_S";
+        case PleKernelId::MAXPOOL_3X3_2_2_ODD_32X8_1_S:
+            return "MAXPOOL_3X3_2_2_ODD_32X8_1_S";
             break;
         case PleKernelId::MEAN_XY_7X7_8X8_1:
             return "MEAN_XY_7X7_8X8_1";
@@ -462,8 +462,8 @@ std::string ToString(PleKernelId id)
         case PleKernelId::PASSTHROUGH_8X16_1:
             return "PASSTHROUGH_8X16_1";
             break;
-        case PleKernelId::PASSTHROUGH_8X16_2:
-            return "PASSTHROUGH_8X16_2";
+        case PleKernelId::PASSTHROUGH_16X8_2:
+            return "PASSTHROUGH_16X8_2";
             break;
         case PleKernelId::PASSTHROUGH_16X16_1:
             return "PASSTHROUGH_16X16_1";
@@ -489,8 +489,8 @@ std::string ToString(PleKernelId id)
         case PleKernelId::SIGMOID_8X16_1:
             return "SIGMOID_8X16_1";
             break;
-        case PleKernelId::SIGMOID_8X16_2:
-            return "SIGMOID_8X16_2";
+        case PleKernelId::SIGMOID_16X8_2:
+            return "SIGMOID_16X8_2";
             break;
         case PleKernelId::SIGMOID_16X16_1:
             return "SIGMOID_16X16_1";
@@ -516,8 +516,8 @@ std::string ToString(PleKernelId id)
         case PleKernelId::SIGMOID_8X16_1_S:
             return "SIGMOID_8X16_1_S";
             break;
-        case PleKernelId::SIGMOID_8X16_2_S:
-            return "SIGMOID_8X16_2_S";
+        case PleKernelId::SIGMOID_16X8_2_S:
+            return "SIGMOID_16X8_2_S";
             break;
         case PleKernelId::SIGMOID_16X16_1_S:
             return "SIGMOID_16X16_1_S";
@@ -543,8 +543,8 @@ std::string ToString(PleKernelId id)
         case PleKernelId::TRANSPOSE_XY_8X16_1:
             return "TRANSPOSE_XY_8X16_1";
             break;
-        case PleKernelId::TRANSPOSE_XY_8X16_2:
-            return "TRANSPOSE_XY_8X16_2";
+        case PleKernelId::TRANSPOSE_XY_16X8_2:
+            return "TRANSPOSE_XY_16X8_2";
             break;
         case PleKernelId::TRANSPOSE_XY_16X16_1:
             return "TRANSPOSE_XY_16X16_1";
@@ -570,8 +570,8 @@ std::string ToString(PleKernelId id)
         case PleKernelId::LEAKY_RELU_8X16_1:
             return "LEAKY_RELU_8X16_1";
             break;
-        case PleKernelId::LEAKY_RELU_8X16_2:
-            return "LEAKY_RELU_8X16_2";
+        case PleKernelId::LEAKY_RELU_16X8_2:
+            return "LEAKY_RELU_16X8_2";
             break;
         case PleKernelId::LEAKY_RELU_16X16_1:
             return "LEAKY_RELU_16X16_1";
@@ -597,8 +597,8 @@ std::string ToString(PleKernelId id)
         case PleKernelId::LEAKY_RELU_8X16_1_S:
             return "LEAKY_RELU_8X16_1_S";
             break;
-        case PleKernelId::LEAKY_RELU_8X16_2_S:
-            return "LEAKY_RELU_8X16_2_S";
+        case PleKernelId::LEAKY_RELU_16X8_2_S:
+            return "LEAKY_RELU_16X8_2_S";
             break;
         case PleKernelId::LEAKY_RELU_16X16_1_S:
             return "LEAKY_RELU_16X16_1_S";
@@ -621,8 +621,8 @@ std::string ToString(PleKernelId id)
         case PleKernelId::DOWNSAMPLE_2X2_8X16_1:
             return "DOWNSAMPLE_2X2_8X16_1";
             break;
-        case PleKernelId::DOWNSAMPLE_2X2_8X16_2:
-            return "DOWNSAMPLE_2X2_8X16_2";
+        case PleKernelId::DOWNSAMPLE_2X2_16X8_2:
+            return "DOWNSAMPLE_2X2_16X8_2";
             break;
         case PleKernelId::DOWNSAMPLE_2X2_16X16_1:
             return "DOWNSAMPLE_2X2_16X16_1";

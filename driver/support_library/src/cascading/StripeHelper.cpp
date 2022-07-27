@@ -504,11 +504,13 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             std::min(inputCopy.m_Max, DivRoundUp(GetHeight(inputShape), GetHeight(memoryInputStripe)) *
                                           DivRoundUp(GetWidth(inputShape), GetWidth(memoryInputStripe)) *
                                           DivRoundUp(GetChannels(inputShape), GetChannels(memoryInputStripe)));
+        inputCopy.m_Min       = std::min(inputCopy.m_Min, inputCopy.m_Max);
         NumStripes outputCopy = outputRange;
         outputCopy.m_Max =
             std::min(outputCopy.m_Max, DivRoundUp(GetHeight(outputShape), GetHeight(memoryOutputStripe)) *
                                            DivRoundUp(GetWidth(outputShape), GetWidth(memoryOutputStripe)) *
                                            DivRoundUp(GetChannels(outputShape), GetChannels(memoryOutputStripe)));
+        outputCopy.m_Min = std::min(outputCopy.m_Min, outputCopy.m_Max);
 
         // Prevent using stripes which have more elements than the entire tensor
         bool multipleStripes         = inputCopy.m_Max > 1 && outputCopy.m_Max > 1;

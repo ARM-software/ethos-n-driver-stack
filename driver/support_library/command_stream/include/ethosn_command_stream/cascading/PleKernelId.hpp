@@ -27,25 +27,25 @@ namespace cascading
     X(AVGPOOL_3X3_1_1_UDMA_16X16_1_S)                                                                                  \
     X(INTERLEAVE_2X2_2_2_16X16_1)                                                                                      \
     X(MAXPOOL_2X2_2_2_8X8_4)                                                                                           \
-    X(MAXPOOL_2X2_2_2_8X16_2)                                                                                          \
+    X(MAXPOOL_2X2_2_2_16X8_2)                                                                                          \
     X(MAXPOOL_2X2_2_2_16X16_1)                                                                                         \
-    X(MAXPOOL_2X2_2_2_8X32_1)                                                                                          \
+    X(MAXPOOL_2X2_2_2_32X8_1)                                                                                          \
     X(MAXPOOL_2X2_2_2_8X8_4_S)                                                                                         \
-    X(MAXPOOL_2X2_2_2_8X16_2_S)                                                                                        \
+    X(MAXPOOL_2X2_2_2_16X8_2_S)                                                                                        \
     X(MAXPOOL_2X2_2_2_16X16_1_S)                                                                                       \
-    X(MAXPOOL_2X2_2_2_8X32_1_S)                                                                                        \
+    X(MAXPOOL_2X2_2_2_32X8_1_S)                                                                                        \
     X(MAXPOOL_3X3_2_2_EVEN_8X8_4)                                                                                      \
-    X(MAXPOOL_3X3_2_2_EVEN_8X16_2)                                                                                     \
-    X(MAXPOOL_3X3_2_2_EVEN_8X32_1)                                                                                     \
+    X(MAXPOOL_3X3_2_2_EVEN_16X8_2)                                                                                     \
+    X(MAXPOOL_3X3_2_2_EVEN_32X8_1)                                                                                     \
     X(MAXPOOL_3X3_2_2_EVEN_8X8_4_S)                                                                                    \
-    X(MAXPOOL_3X3_2_2_EVEN_8X16_2_S)                                                                                   \
-    X(MAXPOOL_3X3_2_2_EVEN_8X32_1_S)                                                                                   \
+    X(MAXPOOL_3X3_2_2_EVEN_16X8_2_S)                                                                                   \
+    X(MAXPOOL_3X3_2_2_EVEN_32X8_1_S)                                                                                   \
     X(MAXPOOL_3X3_2_2_ODD_8X8_4)                                                                                       \
-    X(MAXPOOL_3X3_2_2_ODD_8X16_2)                                                                                      \
-    X(MAXPOOL_3X3_2_2_ODD_8X32_1)                                                                                      \
+    X(MAXPOOL_3X3_2_2_ODD_16X8_2)                                                                                      \
+    X(MAXPOOL_3X3_2_2_ODD_32X8_1)                                                                                      \
     X(MAXPOOL_3X3_2_2_ODD_8X8_4_S)                                                                                     \
-    X(MAXPOOL_3X3_2_2_ODD_8X16_2_S)                                                                                    \
-    X(MAXPOOL_3X3_2_2_ODD_8X32_1_S)                                                                                    \
+    X(MAXPOOL_3X3_2_2_ODD_16X8_2_S)                                                                                    \
+    X(MAXPOOL_3X3_2_2_ODD_32X8_1_S)                                                                                    \
     X(MEAN_XY_7X7_8X8_1)                                                                                               \
     X(MEAN_XY_7X7_8X8_1_S)                                                                                             \
     X(MEAN_XY_8X8_8X8_1)                                                                                               \
@@ -56,7 +56,7 @@ namespace cascading
     X(PASSTHROUGH_16X8_1)                                                                                              \
     X(PASSTHROUGH_32X8_1)                                                                                              \
     X(PASSTHROUGH_8X16_1)                                                                                              \
-    X(PASSTHROUGH_8X16_2)                                                                                              \
+    X(PASSTHROUGH_16X8_2)                                                                                              \
     X(PASSTHROUGH_16X16_1)                                                                                             \
     X(PASSTHROUGH_8X32_1)                                                                                              \
     X(SIGMOID_8X8_1)                                                                                                   \
@@ -65,7 +65,7 @@ namespace cascading
     X(SIGMOID_16X8_1)                                                                                                  \
     X(SIGMOID_32X8_1)                                                                                                  \
     X(SIGMOID_8X16_1)                                                                                                  \
-    X(SIGMOID_8X16_2)                                                                                                  \
+    X(SIGMOID_16X8_2)                                                                                                  \
     X(SIGMOID_16X16_1)                                                                                                 \
     X(SIGMOID_8X32_1)                                                                                                  \
     X(SIGMOID_8X8_1_S)                                                                                                 \
@@ -74,7 +74,7 @@ namespace cascading
     X(SIGMOID_16X8_1_S)                                                                                                \
     X(SIGMOID_32X8_1_S)                                                                                                \
     X(SIGMOID_8X16_1_S)                                                                                                \
-    X(SIGMOID_8X16_2_S)                                                                                                \
+    X(SIGMOID_16X8_2_S)                                                                                                \
     X(SIGMOID_16X16_1_S)                                                                                               \
     X(SIGMOID_8X32_1_S)                                                                                                \
     X(TRANSPOSE_XY_8X8_1)                                                                                              \
@@ -83,7 +83,7 @@ namespace cascading
     X(TRANSPOSE_XY_16X8_1)                                                                                             \
     X(TRANSPOSE_XY_32X8_1)                                                                                             \
     X(TRANSPOSE_XY_8X16_1)                                                                                             \
-    X(TRANSPOSE_XY_8X16_2)                                                                                             \
+    X(TRANSPOSE_XY_16X8_2)                                                                                             \
     X(TRANSPOSE_XY_16X16_1)                                                                                            \
     X(TRANSPOSE_XY_8X32_1)                                                                                             \
     X(LEAKY_RELU_8X8_1)                                                                                                \
@@ -92,7 +92,7 @@ namespace cascading
     X(LEAKY_RELU_16X8_1)                                                                                               \
     X(LEAKY_RELU_32X8_1)                                                                                               \
     X(LEAKY_RELU_8X16_1)                                                                                               \
-    X(LEAKY_RELU_8X16_2)                                                                                               \
+    X(LEAKY_RELU_16X8_2)                                                                                               \
     X(LEAKY_RELU_16X16_1)                                                                                              \
     X(LEAKY_RELU_8X32_1)                                                                                               \
     X(LEAKY_RELU_8X8_1_S)                                                                                              \
@@ -101,7 +101,7 @@ namespace cascading
     X(LEAKY_RELU_16X8_1_S)                                                                                             \
     X(LEAKY_RELU_32X8_1_S)                                                                                             \
     X(LEAKY_RELU_8X16_1_S)                                                                                             \
-    X(LEAKY_RELU_8X16_2_S)                                                                                             \
+    X(LEAKY_RELU_16X8_2_S)                                                                                             \
     X(LEAKY_RELU_16X16_1_S)                                                                                            \
     X(LEAKY_RELU_8X32_1_S)                                                                                             \
     X(DOWNSAMPLE_2X2_8X8_2)                                                                                            \
@@ -109,7 +109,7 @@ namespace cascading
     X(DOWNSAMPLE_2X2_16X8_1)                                                                                           \
     X(DOWNSAMPLE_2X2_32X8_1)                                                                                           \
     X(DOWNSAMPLE_2X2_8X16_1)                                                                                           \
-    X(DOWNSAMPLE_2X2_8X16_2)                                                                                           \
+    X(DOWNSAMPLE_2X2_16X8_2)                                                                                           \
     X(DOWNSAMPLE_2X2_16X16_1)                                                                                          \
     X(DOWNSAMPLE_2X2_8X32_1)
 

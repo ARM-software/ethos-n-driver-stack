@@ -48,22 +48,7 @@ constexpr uint32_t PleOpIndex(PleOperation op)
     return (static_cast<uint32_t>(op));
 }
 
-struct alignas(alignof(uint16_t)) PleBlkSizeKey
-{
-    // For performance reason, declare the field
-    // in the order they are used in operator uint16_t()
-    uint8_t blockHeight;
-    uint8_t blockWidth;
-
-    constexpr operator uint16_t() const
-    {
-        // Endian-independent code to convert this struct to a single uint16.
-        // The order of those field is important.
-        // See also the comment in the definition of 'class KernelId' in gen_plelib.py
-        return static_cast<uint16_t>((static_cast<uint32_t>(blockHeight) << 0) |
-                                     (static_cast<uint32_t>(blockWidth) << 8));
-    }
-};
+using PleBlkSizeKey = std::pair<uint8_t, uint8_t>;
 
 using PleBlkSizeMap = std::map<PleBlkSizeKey, PleKernelIdBlockSize>;
 
