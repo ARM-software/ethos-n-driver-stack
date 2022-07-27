@@ -125,76 +125,98 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
     // Full IFM and partial OFM
     if (m_StripeConfig.splits.mceAndPleOutputDepth)
     {
-        TensorShape mceInputEncoding = { 0, 0, 0, 0 };
-        TensorShape mceInputStripe =
-            CreateStripe(m_InputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
+        const uint32_t minOfmDepthMultiplier = std::max(1U, m_StripeConfig.ofmDepthMultiplier.min);
+        const uint32_t maxOfmDepthMultiplier =
+            std::max(1U, std::min(GetChannels(m_OutputTensorShape) / m_Capabilities.GetNumberOfOgs(),
+                                  m_StripeConfig.ofmDepthMultiplier.max));
+        for (uint32_t ofmDepthMultiplier = minOfmDepthMultiplier; ofmDepthMultiplier <= maxOfmDepthMultiplier;
+             ofmDepthMultiplier *= 2)
+        {
+            TensorShape mceInputEncoding = { 0, 0, 0, 0 };
+            TensorShape mceInputStripe =
+                CreateStripe(m_InputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
-        TensorShape mceOutputEncoding = { 0, 0, 0, m_Capabilities.GetNumberOfOgs() };
-        TensorShape mceOutputStripe =
-            CreateStripe(m_OutputTensorShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
+            TensorShape mceOutputEncoding = { 0, 0, 0, m_Capabilities.GetNumberOfOgs() * ofmDepthMultiplier };
+            TensorShape mceOutputStripe =
+                CreateStripe(m_OutputTensorShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-        TensorShape weightStripe = { 1, 1, GetNumElements(mceInputStripe), GetChannels(mceOutputStripe) };
+            TensorShape weightStripe = { 1, 1, GetNumElements(mceInputStripe), GetChannels(mceOutputStripe) };
 
-        NumStripes numStripesInput   = { 1, 1 };
-        NumStripes numStripesWeights = { 1, 2 };
+            NumStripes numStripesInput   = { 1, 1 };
+            NumStripes numStripesWeights = { 1, 2 };
 
-        uint32_t maxNumStripesOutput = GetChannels(m_OutputTensorShape) > GetChannels(mceOutputStripe) ? 2 : 1;
-        NumStripes numStripesOutput  = { 1, maxNumStripesOutput };
+            uint32_t maxNumStripesOutput = GetChannels(m_OutputTensorShape) > GetChannels(mceOutputStripe) ? 2 : 1;
+            NumStripes numStripesOutput  = { 1, maxNumStripesOutput };
 
-        MceAndPleInfo mceAndPleInfo;
+            MceAndPleInfo mceAndPleInfo;
 
-        mceAndPleInfo.m_MceCompute.m_Input       = mceInputStripe;
-        mceAndPleInfo.m_MceCompute.m_Output      = mceOutputStripe;
-        mceAndPleInfo.m_MceCompute.m_Weight      = weightStripe;
-        mceAndPleInfo.m_MceCompute.m_BlockConfig = blockConfig;
-        mceAndPleInfo.m_PleCompute.m_Input       = mceOutputStripe;
-        mceAndPleInfo.m_PleCompute.m_Output      = mceOutputStripe;
-        mceAndPleInfo.m_PleCompute.m_BlockConfig = blockConfig;
+            mceAndPleInfo.m_MceCompute.m_Input       = mceInputStripe;
+            mceAndPleInfo.m_MceCompute.m_Output      = mceOutputStripe;
+            mceAndPleInfo.m_MceCompute.m_Weight      = weightStripe;
+            mceAndPleInfo.m_MceCompute.m_BlockConfig = blockConfig;
+            mceAndPleInfo.m_PleCompute.m_Input       = mceOutputStripe;
+            mceAndPleInfo.m_PleCompute.m_Output      = mceOutputStripe;
+            mceAndPleInfo.m_PleCompute.m_BlockConfig = blockConfig;
 
-        mceAndPleInfo.m_Memory.m_Input  = { { numStripesInput, mceInputStripe }, packedBoundaryThickness, numIfmLoads };
-        mceAndPleInfo.m_Memory.m_Output = { numStripesOutput, mceOutputStripe };
-        mceAndPleInfo.m_Memory.m_Weight = { { numStripesWeights, weightStripe }, numWeightLoads };
-        mceAndPleInfo.m_Memory.m_PleInput = { { 0, 0 }, mceOutputStripe };
-        stripeInfos.m_MceAndPleInfos.emplace(mceAndPleInfo);
+            mceAndPleInfo.m_Memory.m_Input    = { { numStripesInput, mceInputStripe },
+                                               packedBoundaryThickness,
+                                               numIfmLoads };
+            mceAndPleInfo.m_Memory.m_Output   = { numStripesOutput, mceOutputStripe };
+            mceAndPleInfo.m_Memory.m_Weight   = { { numStripesWeights, weightStripe }, numWeightLoads };
+            mceAndPleInfo.m_Memory.m_PleInput = { { 0, 0 }, mceOutputStripe };
+            stripeInfos.m_MceAndPleInfos.emplace(mceAndPleInfo);
+        }
     }
 
     // Partial IFM and partial OFM
     if (m_StripeConfig.splits.outputDepthInputDepth)
     {
-        TensorShape mceInputEncoding = { 0, 0, 0,
-                                         m_Capabilities.GetIgsPerEngine() * m_Capabilities.GetNumberOfEngines() };
-        TensorShape mceInputStripe =
-            CreateStripe(m_InputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
+        const uint32_t minIfmDepthMultiplier = std::max(1U, m_StripeConfig.ifmDepthMultiplier.min);
+        const uint32_t maxIfmDepthMultiplier =
+            std::max(1U, std::min(GetChannels(m_InputTensorShape) /
+                                      (m_Capabilities.GetIgsPerEngine() * m_Capabilities.GetNumberOfEngines()),
+                                  m_StripeConfig.ifmDepthMultiplier.max));
+        for (uint32_t ifmDepthMultiplier = minIfmDepthMultiplier; ifmDepthMultiplier <= maxIfmDepthMultiplier;
+             ifmDepthMultiplier *= 2)
+        {
+            TensorShape mceInputEncoding = {
+                0, 0, 0, m_Capabilities.GetIgsPerEngine() * m_Capabilities.GetNumberOfEngines() * ifmDepthMultiplier
+            };
+            TensorShape mceInputStripe =
+                CreateStripe(m_InputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
-        TensorShape mceOutputEncoding = { 0, 0, 0, m_Capabilities.GetNumberOfOgs() };
-        TensorShape mceOutputStripe =
-            CreateStripe(m_OutputTensorShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
+            TensorShape mceOutputEncoding = { 0, 0, 0, m_Capabilities.GetNumberOfOgs() };
+            TensorShape mceOutputStripe =
+                CreateStripe(m_OutputTensorShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
-        TensorShape weightStripe = { 1, 1, GetNumElements(mceInputStripe), GetChannels(mceOutputStripe) };
+            TensorShape weightStripe = { 1, 1, GetNumElements(mceInputStripe), GetChannels(mceOutputStripe) };
 
-        uint32_t maxNumInputStripes = GetChannels(m_InputTensorShape) > GetChannels(mceInputStripe) ? 2 : 1;
-        NumStripes numStripesInput  = { 1, maxNumInputStripes };
+            uint32_t maxNumInputStripes = GetChannels(m_InputTensorShape) > GetChannels(mceInputStripe) ? 2 : 1;
+            NumStripes numStripesInput  = { 1, maxNumInputStripes };
 
-        uint32_t maxNumStripesOutput = GetChannels(m_OutputTensorShape) > GetChannels(mceOutputStripe) ? 2 : 1;
-        NumStripes numStripesOutput  = { 1, maxNumStripesOutput };
+            uint32_t maxNumStripesOutput = GetChannels(m_OutputTensorShape) > GetChannels(mceOutputStripe) ? 2 : 1;
+            NumStripes numStripesOutput  = { 1, maxNumStripesOutput };
 
-        NumStripes numStripesWeights = { 1, 1 };
+            NumStripes numStripesWeights = { 1, 1 };
 
-        MceAndPleInfo mceAndPleInfo;
+            MceAndPleInfo mceAndPleInfo;
 
-        mceAndPleInfo.m_MceCompute.m_Input       = mceInputStripe;
-        mceAndPleInfo.m_MceCompute.m_Output      = mceOutputStripe;
-        mceAndPleInfo.m_MceCompute.m_Weight      = weightStripe;
-        mceAndPleInfo.m_MceCompute.m_BlockConfig = blockConfig;
-        mceAndPleInfo.m_PleCompute.m_Input       = mceOutputStripe;
-        mceAndPleInfo.m_PleCompute.m_Output      = mceOutputStripe;
-        mceAndPleInfo.m_PleCompute.m_BlockConfig = blockConfig;
+            mceAndPleInfo.m_MceCompute.m_Input       = mceInputStripe;
+            mceAndPleInfo.m_MceCompute.m_Output      = mceOutputStripe;
+            mceAndPleInfo.m_MceCompute.m_Weight      = weightStripe;
+            mceAndPleInfo.m_MceCompute.m_BlockConfig = blockConfig;
+            mceAndPleInfo.m_PleCompute.m_Input       = mceOutputStripe;
+            mceAndPleInfo.m_PleCompute.m_Output      = mceOutputStripe;
+            mceAndPleInfo.m_PleCompute.m_BlockConfig = blockConfig;
 
-        mceAndPleInfo.m_Memory.m_Input  = { { numStripesInput, mceInputStripe }, packedBoundaryThickness, numIfmLoads };
-        mceAndPleInfo.m_Memory.m_Output = { numStripesOutput, mceOutputStripe };
-        mceAndPleInfo.m_Memory.m_Weight = { { numStripesWeights, weightStripe }, numWeightLoads };
-        mceAndPleInfo.m_Memory.m_PleInput = { { 0, 0 }, mceOutputStripe };
-        stripeInfos.m_MceAndPleInfos.emplace(mceAndPleInfo);
+            mceAndPleInfo.m_Memory.m_Input    = { { numStripesInput, mceInputStripe },
+                                               packedBoundaryThickness,
+                                               numIfmLoads };
+            mceAndPleInfo.m_Memory.m_Output   = { numStripesOutput, mceOutputStripe };
+            mceAndPleInfo.m_Memory.m_Weight   = { { numStripesWeights, weightStripe }, numWeightLoads };
+            mceAndPleInfo.m_Memory.m_PleInput = { { 0, 0 }, mceOutputStripe };
+            stripeInfos.m_MceAndPleInfos.emplace(mceAndPleInfo);
+        }
     }
 
     // Fully connected input cannot be de-compressed from FCAF
