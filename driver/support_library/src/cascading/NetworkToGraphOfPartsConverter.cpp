@@ -1227,8 +1227,9 @@ void NetworkToGraphOfPartsConverter::Visit(Split& split)
         for (uint32_t i = 0; i < split.GetOutputs().size(); ++i)
         {
             if (split.GetOutput(i).GetTensorInfo().m_Dimensions[splitInfo.m_Axis] %
-                    m_Capabilities.GetBrickGroupShape()[splitInfo.m_Axis] !=
-                0)
+                        m_Capabilities.GetBrickGroupShape()[splitInfo.m_Axis] !=
+                    0 &&
+                (splitInfo.m_Axis == 3U && split.GetOutput(i).GetTensorInfo().m_Dimensions[splitInfo.m_Axis] % 8U != 0))
             {
                 format = CompilerDataFormat::NHWC;
                 break;

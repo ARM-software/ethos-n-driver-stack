@@ -333,6 +333,13 @@ bool IsQuantizationScaleSupported(const QuantizationScales& overallScale,
     return true;
 }
 
+bool IsExperimentalCompilerForced()
+{
+    const char* cascadingValue    = "1";
+    const char* cascadingRunValue = std::getenv("FORCE_EXPERIMENTAL_COMPILER");
+    return (cascadingRunValue != nullptr && std::strcmp(cascadingRunValue, cascadingValue) == 0);
+}
+
 }    // namespace
 
 const SupportedLevel SupportedLevel::Unsupported  = SupportedLevel(InternalSupportedLevel::Unsupported);
@@ -1234,15 +1241,34 @@ SupportedLevel SupportQueries::IsSplitSupported(const TensorInfo& inputInfo,
         case 3:
             // Split along channels can only be performed by extracting subtensors from a tensor in DRAM using NHWCB
             // and therefore the channels dimensions of the output tensors must be suitable for DMAing.
-            // A conservative test is multiple of 16, although we could probably support other cases too.
+            // Please note that split can support following channel distribution:
+            //
+            //  1. For legacy compiler, all output channels are multiple of 16, e.g. 16, 48, 32
+            //  2. For experimental compiler, all output channels are multiple of 8, e.g. 8, 16, 24, 40. Multiples of
+            //     8 in channels are a special case for NHWCB as it is the half brickgroup depth.
             for (uint32_t i = 0; i < numOutputs; ++i)
             {
-                if (splitInfo.m_Sizes[i] % 16 != 0)
+                // Check if split output channels are supported by experimental compiler
+                if (IsExperimentalCompilerForced())
                 {
-                    SetReason("Split along the channels dimension (axis 3) requires all output sizes (specified in "
-                              "splitInfo.m_Sizes) to be multiples of 16",
-                              reason, reasonMaxLength);
-                    return SupportedLevel::EstimateOnly;
+                    if (splitInfo.m_Sizes[i] % 8 != 0)
+                    {
+                        SetReason("Split along the channels dimension (axis 3) requires all output sizes (specified in "
+                                  "splitInfo.m_Sizes) to be multiples of 8",
+                                  reason, reasonMaxLength);
+                        return SupportedLevel::EstimateOnly;
+                    }
+                }
+                // Check if split output channels are supported by legacy compiler
+                else
+                {
+                    if (splitInfo.m_Sizes[i] % 16 != 0)
+                    {
+                        SetReason("Split along the channels dimension (axis 3) requires all output sizes (specified in "
+                                  "splitInfo.m_Sizes) to be multiples of 16",
+                                  reason, reasonMaxLength);
+                        return SupportedLevel::EstimateOnly;
+                    }
                 }
             }
             break;
