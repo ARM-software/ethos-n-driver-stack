@@ -25,6 +25,8 @@
 #include "ethosn_backport.h"
 #include "ethosn_firmware.h"
 #include "ethosn_smc.h"
+#include "scylla_addr_fields_public.h"
+#include "scylla_regs_public.h"
 
 #include <linux/firmware.h>
 #include <linux/iommu.h>

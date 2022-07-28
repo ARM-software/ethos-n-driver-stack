@@ -20,9 +20,12 @@
  *
  */
 
-#include "ethosn_device.h"
 #include "ethosn_core.h"
+
+#include "ethosn_device.h"
 #include "ethosn_network.h"
+#include "scylla_addr_fields_public.h"
+#include "scylla_regs_public.h"
 
 #include <linux/kernel.h>
 #include <linux/device.h>

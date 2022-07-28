@@ -23,8 +23,6 @@
 #ifndef _ETHOSN_DEVICE_H_
 #define _ETHOSN_DEVICE_H_
 
-#include "scylla_addr_fields_public.h"
-#include "scylla_regs_public.h"
 #include "ethosn_dma.h"
 #include "ethosn_firmware.h"
 #include "uapi/ethosn.h"
