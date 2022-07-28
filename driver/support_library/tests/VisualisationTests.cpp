@@ -1058,54 +1058,54 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
 {
 subgraph clusterPlan_6
 {
-label="Plan 6"
+label="Part 0: Plan 6"
 labeljust=l
 InputDram[label = "InputDram", shape = box, color = brown]
 }
-subgraph clusterPlan_6_Ending_Glue
+subgraph clusterPart_0_Plan_6_Ending_Glue
 {
-label="Plan 6 Ending Glue"
+label="Part 0 Plan 6 Ending Glue"
 labeljust=l
 }
 subgraph clusterPlan_8
 {
-label="Plan 8"
+label="Part 1: Plan 8"
 labeljust=l
 InputSram1[label = "InputSram1", shape = box, color = blue]
 }
-subgraph clusterPlan_8_Starting_Glue
+subgraph clusterPart_1_Plan_8_Starting_Glue
 {
-label="Plan 8 Starting Glue"
+label="Part 1 Plan 8 Starting Glue"
 labeljust=l
 InputDma[label = "InputDma", shape = oval, color = darkgoldenrod]
 }
 InputDram -> InputDma
 InputDma -> InputSram1
-subgraph clusterPlan_8_Ending_Glue
+subgraph clusterPart_1_Plan_8_Ending_Glue
 {
-label="Plan 8 Ending Glue"
+label="Part 1 Plan 8 Ending Glue"
 labeljust=l
 }
 subgraph clusterPlan_10
 {
-label="Plan 10"
+label="Part 2: Plan 10"
 labeljust=l
 InputSram2[label = "InputSram2", shape = box, color = blue]
 }
-subgraph clusterPlan_10_Starting_Glue
+subgraph clusterPart_2_Plan_10_Starting_Glue
 {
-label="Plan 10 Starting Glue"
+label="Part 2 Plan 10 Starting Glue"
 labeljust=l
 }
 InputSram1 -> InputSram2[style = dashed, label="Replaced by", dir="back"]
-subgraph clusterPlan_10_Ending_Glue
+subgraph clusterPart_2_Plan_10_Ending_Glue
 {
-label="Plan 10 Ending Glue"
+label="Part 2 Plan 10 Ending Glue"
 labeljust=l
 }
 subgraph clusterPlan_12
 {
-label="Plan 12"
+label="Part 3: Plan 12"
 labeljust=l
 Mce2[label = "Mce2", shape = oval]
 IntermediateSramInput1[label = "IntermediateSramInput1", shape = box, color = blue]
@@ -1117,64 +1117,64 @@ Mce2 -> OutputSram1
 IntermediateSramInput2 -> Mce2[ label="Input 1"]
 Mce2 -> OutputSram2
 }
-subgraph clusterPlan_12_Starting_Glue
+subgraph clusterPart_3_Plan_12_Starting_Glue
 {
-label="Plan 12 Starting Glue"
+label="Part 3 Plan 12 Starting Glue"
 labeljust=l
 }
 InputSram2 -> IntermediateSramInput1[style = dashed, label="Replaced by", dir="back"]
 InputSram2 -> IntermediateSramInput2[style = dashed, label="Replaced by", dir="back"]
-subgraph clusterPlan_12_Ending_Glue
+subgraph clusterPart_3_Plan_12_Ending_Glue
 {
-label="Plan 12 Ending Glue"
+label="Part 3 Plan 12 Ending Glue"
 labeljust=l
 OutputDma2[label = "OutputDma2", shape = oval, color = darkgoldenrod]
 DmaOp_25[label = "DmaOp 25", shape = oval, color = darkgoldenrod]
 }
 OutputSram1 -> OutputDma2
 OutputSram2 -> DmaOp_25
-subgraph clusterPlan_12_Ending_Glue
+subgraph clusterPart_3_Plan_12_Ending_Glue
 {
-label="Plan 12 Ending Glue"
+label="Part 3 Plan 12 Ending Glue"
 labeljust=l
 OutputDma3[label = "OutputDma3", shape = oval, color = darkgoldenrod]
 }
 OutputSram1 -> OutputDma3
 subgraph clusterPlan_18
 {
-label="Plan 18"
+label="Part 4: Plan 18"
 labeljust=l
 OutputDram1[label = "OutputDram1", shape = box, color = brown]
 }
-subgraph clusterPlan_18_Starting_Glue
+subgraph clusterPart_4_Plan_18_Starting_Glue
 {
-label="Plan 18 Starting Glue"
+label="Part 4 Plan 18 Starting Glue"
 labeljust=l
 }
 OutputDma2 -> OutputDram1
-subgraph clusterPlan_18_Ending_Glue
+subgraph clusterPart_4_Plan_18_Ending_Glue
 {
-label="Plan 18 Ending Glue"
+label="Part 4 Plan 18 Ending Glue"
 labeljust=l
 ReplacementBuffer[label = "ReplacementBuffer", shape = box, color = brown]
 }
 OutputDram1 -> ReplacementBuffer[style = dashed, label="Replaced by"]
 subgraph clusterPlan_20
 {
-label="Plan 20"
+label="Part 5: Plan 20"
 labeljust=l
 OutputDram2[label = "OutputDram2", shape = box, color = brown]
 OutputDram3[label = "OutputDram3", shape = box, color = brown]
 }
-subgraph clusterPlan_20_Starting_Glue
+subgraph clusterPart_5_Plan_20_Starting_Glue
 {
-label="Plan 20 Starting Glue"
+label="Part 5 Plan 20 Starting Glue"
 labeljust=l
 }
 DmaOp_25 -> OutputDram2
-subgraph clusterPlan_20_Starting_Glue
+subgraph clusterPart_5_Plan_20_Starting_Glue
 {
-label="Plan 20 Starting Glue"
+label="Part 5 Plan 20 Starting Glue"
 labeljust=l
 }
 OutputDma3 -> OutputDram3
@@ -1314,13 +1314,13 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
 {
 subgraph clusterPlan_4
 {
-label="Plan 4"
+label="Part 0: Plan 4"
 labeljust=l
 Buffer_5[label = "Buffer 5", shape = box, color = blue]
 }
-subgraph clusterPlan_4_Ending_Glue
+subgraph clusterPart_0_Plan_4_Ending_Glue
 {
-label="Plan 4 Ending Glue"
+label="Part 0 Plan 4 Ending Glue"
 labeljust=l
 DmaOp_12[label = "DmaOp 12", shape = oval, color = darkgoldenrod]
 DmaOp_14[label = "DmaOp 14", shape = oval, color = darkgoldenrod]
@@ -1331,13 +1331,13 @@ Buffer_5 -> DmaOp_12
 Buffer_5 -> DmaOp_14
 subgraph clusterPlan_6
 {
-label="Plan 6"
+label="Part 1: Plan 6"
 labeljust=l
 Buffer_7[label = "Buffer 7", shape = box, color = blue]
 }
-subgraph clusterPlan_6_Starting_Glue
+subgraph clusterPart_1_Plan_6_Starting_Glue
 {
-label="Plan 6 Starting Glue"
+label="Part 1 Plan 6 Starting Glue"
 labeljust=l
 DmaOp_15[label = "DmaOp 15", shape = oval, color = darkgoldenrod]
 }
@@ -1345,25 +1345,25 @@ Buffer_13 -> DmaOp_15
 DmaOp_15 -> Buffer_7
 subgraph clusterPlan_10
 {
-label="Plan 10"
+label="Part 3: Plan 10"
 labeljust=l
 Buffer_11[label = "Buffer 11", shape = box, color = brown]
 }
-subgraph clusterPlan_10_Starting_Glue
+subgraph clusterPart_3_Plan_10_Starting_Glue
 {
-label="Plan 10 Starting Glue"
+label="Part 3 Plan 10 Starting Glue"
 labeljust=l
 }
 DmaOp_12 -> Buffer_11
 subgraph clusterPlan_8
 {
-label="Plan 8"
+label="Part 2: Plan 8"
 labeljust=l
 Buffer_9[label = "Buffer 9", shape = box, color = blue]
 }
-subgraph clusterPlan_8_Starting_Glue
+subgraph clusterPart_2_Plan_8_Starting_Glue
 {
-label="Plan 8 Starting Glue"
+label="Part 2 Plan 8 Starting Glue"
 labeljust=l
 DmaOp_16[label = "DmaOp 16", shape = oval, color = darkgoldenrod]
 }

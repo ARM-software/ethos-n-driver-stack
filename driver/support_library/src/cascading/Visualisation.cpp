@@ -1487,6 +1487,7 @@ void SaveCombinationToDot(const Combination& combination, std::ostream& stream, 
 
         // Save Plans as isolated subgraph
         DotAttributes attr = GetDotAttributes(&plan, detailLevel);
+        attr.m_Label       = "Part " + std::to_string(partId) + ": " + attr.m_Label;
         DumpSubgraphHeaderToDotFormat(attr, stream);
         NodeIds newNodeIds = SaveOpGraphAsBody(plan.m_OpGraph, stream, detailLevel);
         nodeIds.insert(newNodeIds.begin(), newNodeIds.end());
@@ -1501,7 +1502,7 @@ void SaveCombinationToDot(const Combination& combination, std::ostream& stream, 
         for (const std::pair<PartInputSlot, std::shared_ptr<StartingGlue>>& slotAndStartingGlue : startingGluesOrdered)
         {
             StartingGlue* startingGlue = slotAndStartingGlue.second.get();
-            std::string glueLabel      = plan.m_DebugTag + " Starting Glue";
+            std::string glueLabel      = "Part " + std::to_string(partId) + " " + plan.m_DebugTag + " Starting Glue";
             DotAttributes attr(SanitizeId(glueLabel), glueLabel, "");
             DumpSubgraphHeaderToDotFormat(attr, stream);
             NodeIds newNodeIds = SaveOpGraphAsBody(startingGlue->m_Graph, stream, detailLevel);
@@ -1528,7 +1529,7 @@ void SaveCombinationToDot(const Combination& combination, std::ostream& stream, 
         for (const std::pair<PartOutputSlot, std::shared_ptr<EndingGlue>>& slotAndEndingGlue : endingGluesOrdered)
         {
             EndingGlue* endingGlue = slotAndEndingGlue.second.get();
-            std::string glueLabel  = plan.m_DebugTag + " Ending Glue";
+            std::string glueLabel  = "Part " + std::to_string(partId) + " " + plan.m_DebugTag + " Ending Glue";
             DotAttributes attr(SanitizeId(glueLabel), glueLabel, "");
             DumpSubgraphHeaderToDotFormat(attr, stream);
             NodeIds newNodeIds = SaveOpGraphAsBody(endingGlue->m_Graph, stream, detailLevel);
