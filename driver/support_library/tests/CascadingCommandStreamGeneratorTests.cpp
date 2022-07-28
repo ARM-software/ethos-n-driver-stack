@@ -358,7 +358,7 @@ public:
         m_OpGraph.GetOps()[1]->m_DebugTag = "WeightsDmaOp";
         m_OpGraph.AddConsumer(buffers.back(), ops.back(), 0);
 
-        m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
+        m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::WEIGHT,
                                                      TensorShape{ 1, 1, 3, 1 }, TensorShape{ 1, 1, 16, 1 },
                                                      TraversalOrder::Xyz, 4, QuantizationInfo()));
         m_OpGraph.GetBuffers().back()->m_DebugTag = "WeightsSramBuffer";

@@ -425,18 +425,6 @@ void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
         AddScheduleTimeDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::PLE_LOADER,
                                   pleLoaderAgentId);
     }
-
-    if (producerAgentType == AgentType::PLE_SCHEDULER)
-    {
-        Buffer* pleInputBuffer = m_MergedOpGraph.GetInputs(producerOp)[0];
-        Op* pleInputProducer   = m_MergedOpGraph.GetProducer(pleInputBuffer);
-        if (IsObjectOfType<MceOp>(pleInputProducer) && !inputBuffers[g_MceIfmBufferIndex]->IsFullTensor())
-        {
-            // Strategy 0 cascade - need schedule dependency from previous MceS
-            AddScheduleTimeDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::MCE_SCHEDULER,
-                                      m_OpToAgentIdMapping[pleInputProducer]);
-        }
-    }
 }
 
 void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
@@ -532,18 +520,6 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
         // Schedule Time Dependency for [MceScheduler][PleScheduler]
         AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::MCE_SCHEDULER,
                                   m_OpToAgentIdMapping[input0Producer]);
-
-        if (IsObjectOfType<MceOp>(input0Producer))
-        {
-            Buffer* mceInputBuffer = m_MergedOpGraph.GetInputs(input0Producer)[g_MceIfmBufferIndex];
-            Op* mceInputProducer   = m_MergedOpGraph.GetProducer(mceInputBuffer);
-            if (IsObjectOfType<PleOp>(mceInputProducer) && !mceInputBuffer->IsFullTensor())
-            {
-                // Strategy 0 cascade - need schedule dependency from previous PleS
-                AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::PLE_SCHEDULER,
-                                          m_OpToAgentIdMapping[mceInputProducer]);
-            }
-        }
     }
     ETHOSN_UNUSED(outputBuffer);
 }
@@ -1665,49 +1641,6 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                     producerAgentDependency.boundary = 0;
                 }
             }
-            // Schedule Time Dependency for [MceScheduler][MceScheduler]
-            else if (producerAgentType == AgentType::MCE_SCHEDULER)
-            {
-                // We need to ensure that MCE stripes are scheduled in the same order as the PLE stripes, otherwise the firmware
-                // will deadlock. This can happen in a strategy 0 cascade if an MCE stripe is scheduled but the following PLE stripe
-                // is not, because it is not yet needed. An MCE and PLE stripe from the following layer can then get scheduled, and
-                // this means that we missed the PLE stripe from the first layer.
-                // To prevent this, we make sure that an MCE stripe is not scheduled unless the PLE stripe following it is needed,
-                // so that it will be scheduled before any other PLE stripes. This is done by adding a schedule dependency on the following
-                // Mce agent, so that the MCE stripe from the first layer will not be scheduled until the MCE stripe from the second layer
-                // is scheduled.
-
-                // Calculate outer ratios using number of stripes
-                producerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
-                    consumerAgent.data.mce.numStripes.ofmHeight * consumerAgent.data.mce.numStripes.ofmWidth *
-                    consumerAgent.data.mce.numStripes.ofmChannels);
-                producerAgentDependency.outerRatio.self = ethosn::utils::NumericCast<uint16_t>(
-                    producerAgent.data.mce.numStripes.ofmHeight * producerAgent.data.mce.numStripes.ofmWidth *
-                    producerAgent.data.mce.numStripes.ofmChannels);
-
-                // Calculate inner ratios using ratio of stripe size
-                uint16_t widthRatio   = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
-                    producerAgent.data.mce.numStripes.ofmWidth, consumerAgent.data.mce.numStripes.ofmWidth));
-                uint16_t heightRatio  = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
-                    producerAgent.data.mce.numStripes.ofmHeight, consumerAgent.data.mce.numStripes.ofmHeight));
-                uint16_t channelRatio = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
-                    producerAgent.data.mce.numStripes.ofmChannels, consumerAgent.data.mce.numStripes.ofmChannels));
-
-                producerAgentDependency.innerRatio.self =
-                    ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio * channelRatio);
-                producerAgentDependency.innerRatio.other = 1;
-
-                if ((producerAgent.data.mce.numStripes.ofmHeight > 1 &&
-                     consumerAgent.data.mce.filterShape[0].height > 1) ||
-                    (producerAgent.data.mce.numStripes.ofmWidth > 1 && consumerAgent.data.mce.filterShape[0].width > 1))
-                {
-                    producerAgentDependency.boundary = 1;
-                }
-                else
-                {
-                    producerAgentDependency.boundary = 0;
-                }
-            }
             else
             {
                 assert(false);
@@ -1782,49 +1715,6 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                     consumerAgent.data.pleS.numStripes.height * consumerAgent.data.pleS.numStripes.width *
                     consumerAgent.data.pleS.numStripes.channels);
                 producerAgentDependency.outerRatio.self = 1U;
-            }
-            // Schedule Time Dependency for [PleScheduler][PleScheduler]
-            else if (producerAgentType == AgentType::PLE_SCHEDULER)
-            {
-                // We need to ensure that PLE stripes are scheduled in the same order as the MCE stripes, otherwise the firmware
-                // will deadlock. This can happen in a strategy 0 cascade if an MCE stripe is scheduled but the following PLE stripe
-                // is not, because there is no space in the queue. An MCE and PLE stripe from the preceding layer can then get scheduled,
-                // and this means that we missed the PLE stripe from the second layer.
-                // To prevent this, we make sure that a PLE stripe is not scheduled until the next PLE stripe in the next layer is needed,
-                // so that the order is correct. This is done by adding a schedule dependency on the following
-                // PLE agent.
-
-                // Calculate outer ratios using number of stripes
-                producerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
-                    consumerAgent.data.pleS.numStripes.height * consumerAgent.data.pleS.numStripes.width *
-                    consumerAgent.data.pleS.numStripes.channels);
-                producerAgentDependency.outerRatio.self = ethosn::utils::NumericCast<uint16_t>(
-                    producerAgent.data.pleS.numStripes.height * producerAgent.data.pleS.numStripes.width *
-                    producerAgent.data.pleS.numStripes.channels);
-
-                // Calculate inner ratios using ratio of stripe size
-                uint16_t widthRatio   = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
-                    producerAgent.data.pleS.numStripes.width, consumerAgent.data.pleS.numStripes.width));
-                uint16_t heightRatio  = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
-                    producerAgent.data.pleS.numStripes.height, consumerAgent.data.pleS.numStripes.height));
-                uint16_t channelRatio = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
-                    producerAgent.data.pleS.numStripes.channels, consumerAgent.data.pleS.numStripes.channels));
-
-                producerAgentDependency.innerRatio.self =
-                    ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio * channelRatio);
-                producerAgentDependency.innerRatio.other = 1;
-
-                const Agent& secondMce = m_CommandStreamAgents[consumerAgentId - 1];
-                assert(secondMce.data.type == AgentType::MCE_SCHEDULER);
-                if ((producerAgent.data.pleS.numStripes.height > 1 && secondMce.data.mce.filterShape[0].height > 1) ||
-                    (producerAgent.data.pleS.numStripes.width > 1 && secondMce.data.mce.filterShape[0].width > 1))
-                {
-                    producerAgentDependency.boundary = 1;
-                }
-                else
-                {
-                    producerAgentDependency.boundary = 0;
-                }
             }
             else
             {
