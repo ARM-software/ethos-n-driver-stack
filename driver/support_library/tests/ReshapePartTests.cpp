@@ -118,11 +118,6 @@ TEST_CASE("ReshapePart Plan Generation", "[ReshapePartTests]")
             Plans plans = reshapePart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
             SavePlansToDot(plans, "ReshapePart GetPlans structure Lonely");
 
-            THEN("The number of generated plans = 1")
-            {
-                CHECK(plans.size() == 1);
-            }
-
             AND_THEN("The plan is valid and end in Dram")
             {
                 CheckPlans(plans, params);

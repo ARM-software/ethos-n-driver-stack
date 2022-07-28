@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Part.hpp"
+#include "StripeHelper.hpp"
 
 namespace ethosn
 {
@@ -35,6 +36,7 @@ private:
     const TensorShape m_InputTensorShape;
     const TensorShape m_OutputTensorShape;
     QuantizationInfo m_OutputQuantizationInfo;
+    impl::StripeConfig m_StripeConfig;
 };
 
 }    // namespace support_library
