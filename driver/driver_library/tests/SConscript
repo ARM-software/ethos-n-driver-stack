@@ -10,28 +10,32 @@ import common
 
 Import("env", "ethosn_driver_shared")
 
+# Using a separate environment for the tests so the environment changes doesn't
+# affect the driver library build (different kernel path etc).
+env_test = env.Clone()
+
 # Add RPATH entries so that the executable can be ran from any directory.
-env.Append(
+env_test.Append(
     RPATH=[
         ethosn_driver_shared[0].dir.abspath,
-        common.get_support_library_build_dir(env),
+        common.get_support_library_build_dir(env_test),
     ]
 )
 
 srcs = ["main.cpp", "DriverLibraryTests.cpp", "BufferTests.cpp", "ConfigTests.cpp"]
 
-if env["target"] == "kmod":
+if env_test["target"] == "kmod":
     # Generate the kernel headers in <kernel dir>/usr/include/linux
     # so that all the driver library tests can be properly built
-    env.Command(
-        os.path.join(env["unit_test_kernel_dir"], "usr", "include", "linux", "dma-heap.h"),
+    env_test.Command(
+        os.path.join(env_test["unit_test_kernel_dir"], "usr", "include", "linux", "dma-heap.h"),
         [],
-        "make -C " + env["unit_test_kernel_dir"] + " headers_install ARCH=arm64",
+        "make -C " + env_test["unit_test_kernel_dir"] + " headers_install ARCH=arm64",
     )
     srcs.extend(["DriverLibraryKmodTests.cpp", "ImportedBufferKmodTests.cpp"])
 
 internal_dir = os.path.join(
-    env["driver_library_dir"],
+    env_test["driver_library_dir"],
     "..",
     "..",
     "internal",
@@ -49,37 +53,39 @@ if os.path.isdir(internal_dir):
     # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on
     # the install target where the install target is also provided via CPATH.
     # (see Finding #include files in repositories in scons documentation).
-    env.PrependUnique(
+    env_test.PrependUnique(
         CPPPATH=[
             ".",
-            os.path.join(env["driver_library_dir"], "..", "..", "internal", "kernel-module"),
+            os.path.join(env_test["driver_library_dir"], "..", "..", "internal", "kernel-module"),
         ]
     )
-    env.Repository(os.path.join(env["driver_library_dir"], "..", "..", "internal", "driver"))
+    env_test.Repository(
+        os.path.join(env_test["driver_library_dir"], "..", "..", "internal", "driver")
+    )
     internal_srcs = [f for f in os.listdir(internal_dir) if f.endswith("cpp")]
-if env["platform"] != "android-ndk":
-    env.PrependUnique(
+if env_test["platform"] != "android-ndk":
+    env_test.PrependUnique(
         CPPPATH=[
             # Add the generated user space headers from the kernel source that the variable is pointed at
             # to the include search paths
-            os.path.join(env["unit_test_kernel_dir"], "usr", "include"),
+            os.path.join(env_test["unit_test_kernel_dir"], "usr", "include"),
         ]
     )
 # Add internal unit tests
 srcs.extend(internal_srcs)
-objs = env.Object(srcs)
+objs = env_test.Object(srcs)
 
 libs = [ethosn_driver_shared]
 # Catch2 uses android log APIs (could probably disable this in a catch config somewhere instead)
-if env["platform"] == "android-ndk":
+if env_test["platform"] == "android-ndk":
     libs.append("log")
 else:
     # Make the objects for the unit test binary depend on the Linux kernel user space header
     # directory so the headers are always generated before building the objects
     for o in objs:
-        env.Depends(o, os.path.join(env["unit_test_kernel_dir"], "usr", "include"))
+        env_test.Depends(o, os.path.join(env_test["unit_test_kernel_dir"], "usr", "include"))
 
-unitTests = env.Program("UnitTests", objs, LIBS=libs)
-testAlias = env.Alias("driver-unit-tests", [unitTests], unitTests[0].abspath)
-env.Alias("unit-tests", testAlias)
+unitTests = env_test.Program("UnitTests", objs, LIBS=libs)
+testAlias = env_test.Alias("driver-unit-tests", [unitTests], unitTests[0].abspath)
+env_test.Alias("unit-tests", testAlias)
 AlwaysBuild(testAlias)
