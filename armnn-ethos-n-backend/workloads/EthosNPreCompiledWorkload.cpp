@@ -292,6 +292,7 @@ void EthosNPreCompiledWorkload::Execute() const
             outputBuffers[outputSlotIdx] = &(static_cast<EthosNBaseTensorHandle*>(outputTensorHandle)->GetBuffer());
         }
 
+        ARMNN_LOG(debug) << "Ethos-N ScheduleInference";
         const std::unique_ptr<ethosn::driver_library::Inference> inference(
             m_Network->ScheduleInference(inputBuffers.data(), numInputBuffers, outputBuffers.data(), numOutputBuffers));
 

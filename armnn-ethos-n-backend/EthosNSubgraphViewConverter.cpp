@@ -852,6 +852,7 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Estimate()
     perfData.m_PerfSramSizeBytesOverride = m_EthosNConfig.m_PerfSramSizeBytesOverride;
     perfData.m_EstimationOptions         = ethosnEstimationOpts;
 
+    ARMNN_LOG(debug) << "Estimating Ethos-N network";
     perfData.m_Data = ethosn_lib::EstimatePerformance(*m_Network, m_CompilationOptions, ethosnEstimationOpts);
 
     auto preCompiledObj = std::make_unique<EthosNPreCompiledObject>(std::move(perfData), m_EthosNOperationNameMapping);
@@ -912,6 +913,7 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
     }
     else
     {
+        ARMNN_LOG(debug) << "Compiling Ethos-N network";
         std::vector<EthosNCompiledNetworkPtr> compiledNetworks =
             g_EthosNSupportLibraryInterface->Compile(*m_Network, m_CompilationOptions);
 
