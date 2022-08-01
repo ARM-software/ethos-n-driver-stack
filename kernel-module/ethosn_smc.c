@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2021 Arm Limited.
+ * (C) COPYRIGHT 2021-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -93,6 +93,9 @@ int ethosn_smc_is_secure(const struct device *dev,
 
 	return res.a0;
 }
+
+/* Exported for use by test module */
+EXPORT_SYMBOL(ethosn_smc_is_secure);
 
 int ethosn_smc_core_reset(const struct device *dev,
 			  phys_addr_t core_addr,

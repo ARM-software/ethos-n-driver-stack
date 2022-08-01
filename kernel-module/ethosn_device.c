@@ -1287,6 +1287,7 @@ struct ethosn_big_fw {
 		uint32_t arch_max;
 		uint32_t offset;
 		uint32_t size;
+		uint32_t ple_offset;
 	} desc[];
 } __packed;
 
@@ -1351,10 +1352,15 @@ static int verify_firmware(struct ethosn_core *core,
 static int firmware_load(struct ethosn_core *core,
 			 const char *firmware_name)
 {
+	const bool smmu_available = ethosn_smmu_available(core->dev);
 	const struct firmware *fw;
 	struct ethosn_big_fw *big_fw;
 	struct ethosn_big_fw_desc *big_fw_desc;
-	size_t size;
+	size_t code_size;
+	size_t ple_kernels_size;
+	size_t ple_kernels_offset;
+	size_t fw_size;
+	size_t fw_offset;
 	int ret = -ENOMEM;
 
 	/* Request firmware binary */
@@ -1375,32 +1381,74 @@ static int firmware_load(struct ethosn_core *core,
 		return ret;
 
 	dev_dbg(core->dev,
-		"Found FW. arch_min=0x%08x, arch_max=0x%08x, offset=0x%08x, size=0x%08x",
+		"Found FW. arch_min=0x%08x, arch_max=0x%08x, offset=0x%08x, ple_offset=0x%08x, size=0x%08x",
 		big_fw_desc->arch_min,
 		big_fw_desc->arch_max,
 		big_fw_desc->offset,
+		big_fw_desc->ple_offset,
 		big_fw_desc->size);
 	/* Make sure code size is at least 256 KB */
-	size = max_t(size_t, ETHOSN_CODE_SIZE, big_fw_desc->size);
+	code_size = max_t(size_t, ETHOSN_CODE_SIZE, big_fw_desc->size);
+
+	fw_size = smmu_available ? big_fw_desc->ple_offset : code_size;
+	fw_offset = big_fw_desc->offset;
 
 	/* Allocate memory for firmware code */
-	if (!core->firmware)
+	if (!core->firmware) {
 		core->firmware =
-			ethosn_dma_alloc_and_map(core->allocator, size,
-						 ETHOSN_PROT_READ |
-						 ETHOSN_PROT_WRITE,
-						 ETHOSN_STREAM_FIRMWARE,
-						 GFP_KERNEL,
-						 "firmware-code");
+			ethosn_dma_alloc(core->allocator, fw_size,
+					 GFP_KERNEL,
+					 "firmware-code");
 
-	if (IS_ERR_OR_NULL(core->firmware)) {
-		ret = -ENOMEM;
-		goto release_fw;
+		if (IS_ERR_OR_NULL(core->firmware)) {
+			ret = -ENOMEM;
+			goto release_fw;
+		}
+
+		ret = ethosn_dma_map(core->allocator, core->firmware,
+				     ETHOSN_PROT_READ |
+				     ETHOSN_PROT_WRITE,
+				     ETHOSN_STREAM_FIRMWARE);
+		if (ret) {
+			ret = -ENOMEM;
+			goto free_firmware;
+		}
 	}
 
-	memcpy(core->firmware->cpu_addr, fw->data + big_fw_desc->offset,
-	       big_fw_desc->size);
+	memcpy(core->firmware->cpu_addr, fw->data + fw_offset,
+	       fw_size);
 	ethosn_dma_sync_for_device(core->allocator, core->firmware);
+
+	if (smmu_available) {
+		ple_kernels_size = code_size - big_fw_desc->ple_offset;
+		ple_kernels_offset = fw_offset + big_fw_desc->ple_offset;
+
+		/* Allocate memory for PLE kernels code */
+		if (!core->ple_kernels) {
+			core->ple_kernels = ethosn_dma_alloc(core->allocator,
+							     ple_kernels_size,
+							     GFP_KERNEL,
+							     "ple-kernels");
+
+			if (IS_ERR_OR_NULL(core->ple_kernels)) {
+				ret = -ENOMEM;
+				goto unmap_firmware;
+			}
+
+			ret = ethosn_dma_map(core->allocator, core->ple_kernels,
+					     ETHOSN_PROT_READ,
+					     ETHOSN_STREAM_FIRMWARE);
+			if (ret) {
+				ret = -ENOMEM;
+				goto free_ple_kernels;
+			}
+		}
+
+		memcpy(core->ple_kernels->cpu_addr,
+		       fw->data + ple_kernels_offset,
+		       ple_kernels_size);
+		ethosn_dma_sync_for_device(core->allocator, core->ple_kernels);
+	}
 
 	/* Allocate task stack */
 	if (!core->firmware_stack_task)
@@ -1415,7 +1463,7 @@ static int firmware_load(struct ethosn_core *core,
 
 	if (IS_ERR_OR_NULL(core->firmware_stack_task)) {
 		ret = -ENOMEM;
-		goto free_firmware;
+		goto unmap_ple_kernels;
 	}
 
 	/* Allocate main stack */
@@ -1461,9 +1509,19 @@ free_stack_main:
 free_stack_task:
 	ethosn_dma_unmap_and_free(core->allocator, core->firmware_stack_task,
 				  ETHOSN_STREAM_WORKING_DATA);
+unmap_ple_kernels:
+	if (!core->ple_kernels)
+		goto unmap_firmware;
+
+	ethosn_dma_unmap(core->allocator, core->ple_kernels,
+			 ETHOSN_STREAM_FIRMWARE);
+free_ple_kernels:
+	ethosn_dma_free(core->allocator, core->ple_kernels);
+unmap_firmware:
+	ethosn_dma_unmap(core->allocator, core->firmware,
+			 ETHOSN_STREAM_FIRMWARE);
 free_firmware:
-	ethosn_dma_unmap_and_free(core->allocator, core->firmware,
-				  ETHOSN_STREAM_FIRMWARE);
+	ethosn_dma_free(core->allocator, core->firmware);
 release_fw:
 	release_firmware(fw);
 
@@ -1679,6 +1737,12 @@ static void ethosn_firmware_deinit(struct ethosn_core *core)
 	ethosn_dma_unmap_and_free(core->allocator, core->firmware,
 				  ETHOSN_STREAM_FIRMWARE);
 	core->firmware = NULL;
+
+	if (core->ple_kernels)
+		ethosn_dma_unmap_and_free(core->allocator, core->ple_kernels,
+					  ETHOSN_STREAM_FIRMWARE);
+
+	core->ple_kernels = NULL;
 
 	ethosn_dma_unmap_and_free(core->allocator, core->firmware_stack_main,
 				  ETHOSN_STREAM_WORKING_DATA);
