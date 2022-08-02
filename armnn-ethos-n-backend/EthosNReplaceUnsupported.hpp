@@ -4,7 +4,7 @@
 //
 #pragma once
 
-#include <armnn/backends/SubgraphView.hpp>
+#include <Graph.hpp>
 
 namespace armnn
 {
@@ -14,33 +14,28 @@ struct EthosNConfig;
 namespace ethosnbackend
 {
 
-bool ReplaceConstantMultiplicationWithDepthwise(SubgraphView& graph,
-                                                IConnectableLayer* layer,
+bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph,
+                                                Layer* layer,
                                                 const EthosNConfig& config,
                                                 const std::vector<char>& capabilities);
 
-bool ReplaceConstantAdditionWithDepthwise(SubgraphView& graph, IConnectableLayer* layer);
+bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer);
 
-bool ReplaceScalarMultiplicationWithReinterpretQuantization(SubgraphView& graph,
-                                                            IConnectableLayer* layer,
+bool ReplaceScalarMultiplicationWithReinterpretQuantization(Graph& graph,
+                                                            Layer* layer,
                                                             const EthosNConfig& config,
                                                             const std::vector<char>& capabilities,
                                                             std::string& outFailureReason);
 
-bool ReplaceMultiplication(SubgraphView& graph,
-                           IConnectableLayer* layer,
+bool ReplaceMultiplication(Graph& graph,
+                           Layer* layer,
                            const EthosNConfig& config,
                            const std::vector<char>& capabilities);
-bool ReplaceConstantAdditionWithReinterpretQuantization(SubgraphView& graph,
-                                                        IConnectableLayer* layer,
-                                                        std::string& outFailureReason);
+bool ReplaceConstantAdditionWithReinterpretQuantization(Graph& graph, Layer* layer, std::string& outFailureReason);
 
-bool ReplaceAddition(SubgraphView& graph,
-                     IConnectableLayer* layer,
-                     const EthosNConfig& config,
-                     const std::vector<char>& capabilities);
+bool ReplaceAddition(Graph& graph, Layer* layer, const EthosNConfig& config, const std::vector<char>& capabilities);
 
-void ReplaceUnsupportedLayers(SubgraphView& graph, const EthosNConfig& config, const std::vector<char>& capabilities);
+void ReplaceUnsupportedLayers(Graph& graph, const EthosNConfig& config, const std::vector<char>& capabilities);
 
 /// When replacing an addition-with-broadcasted-constant with a depthwise layer, there are various properties
 /// of the depthwise layer that need to be set correctly for the replacement to be valid.
