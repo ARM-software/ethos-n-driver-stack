@@ -90,6 +90,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
 
     StripeInfos stripeInfos;
     // Full IFM and Full OFM
+    if (m_StripeConfig.splits.none)
     {
         TensorShape mceInputEncoding = { 0, 0, 0, 0 };
         TensorShape mceInputStripe =
@@ -122,6 +123,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
         stripeInfos.m_MceAndPleInfos.emplace(mceAndPleInfo);
     }
     // Full IFM and partial OFM
+    if (m_StripeConfig.splits.mceAndPleOutputDepth)
     {
         TensorShape mceInputEncoding = { 0, 0, 0, 0 };
         TensorShape mceInputStripe =
@@ -157,6 +159,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
     }
 
     // Partial IFM and partial OFM
+    if (m_StripeConfig.splits.outputDepthInputDepth)
     {
         TensorShape mceInputEncoding = { 0, 0, 0,
                                          m_Capabilities.GetIgsPerEngine() * m_Capabilities.GetNumberOfEngines() };

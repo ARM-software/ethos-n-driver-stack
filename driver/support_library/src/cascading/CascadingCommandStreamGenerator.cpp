@@ -944,6 +944,18 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
 
     MceSUtils::SetMcesOfmHeightStripeInfo(mceSchedulerData, outputBuffer->m_TensorShape, ptrMceOp->m_OutputStripeShape);
     MceSUtils::SetMcesOfmWidthStripeInfo(mceSchedulerData, outputBuffer->m_TensorShape, ptrMceOp->m_OutputStripeShape);
+    if (ptrMceOp->m_Op == command_stream::MceOperation::FULLY_CONNECTED)
+    {
+        // Fully connected stripe shapes are always 8x8xC (for both default and edge stripes).
+        // This is due to the reinterpretation that the hardware requires.
+        const uint16_t w = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(m_Capabilities.GetBrickGroupShape()));
+        const uint16_t h = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(m_Capabilities.GetBrickGroupShape()));
+        mceSchedulerData.edgeStripeSize.ofmWidth  = w;
+        mceSchedulerData.edgeStripeSize.ofmHeight = h;
+        mceSchedulerData.dfltStripeSize.ofmWidth  = w;
+        mceSchedulerData.dfltStripeSize.ofmHeight = h;
+    }
+
     MceSUtils::SetMcesOfmChannelsStripeInfo(mceSchedulerData, outputBuffer->m_TensorShape,
                                             ptrMceOp->m_OutputStripeShape);
     MceSUtils::SetMcesIfmChannelsStripeInfo(mceSchedulerData, inputBuffer->m_TensorShape, inputBuffer->m_StripeShape);
@@ -991,16 +1003,19 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
                 ethosn::utils::NumericCast<uint8_t>(weightBuffer->m_TensorShape[0]);
             mceSchedulerData.filterShape[i].width = ethosn::utils::NumericCast<uint8_t>(weightBuffer->m_TensorShape[1]);
 
-            mceSchedulerData.ifmDeltaDefault[i].height = static_cast<int8_t>(
-                mceSchedulerData.filterShape[i].height / 2 + inputBuffer->m_PackedBoundaryThickness.bottom);
-            mceSchedulerData.ifmDeltaDefault[i].width = static_cast<int8_t>(
-                mceSchedulerData.filterShape[i].width / 2 + inputBuffer->m_PackedBoundaryThickness.right);
+            if (mceSchedulerData.mceOpMode != MceOperation::FULLY_CONNECTED)
+            {
+                mceSchedulerData.ifmDeltaDefault[i].height = ethosn::utils::NumericCast<int8_t>(
+                    (mceSchedulerData.filterShape[i].height / 2) + inputBuffer->m_PackedBoundaryThickness.bottom);
+                mceSchedulerData.ifmDeltaDefault[i].width = ethosn::utils::NumericCast<int8_t>(
+                    (mceSchedulerData.filterShape[i].width / 2) + inputBuffer->m_PackedBoundaryThickness.right);
 
-            mceSchedulerData.ifmDeltaEdge[i].height = ifmDeltaEdgeHeight;
-            mceSchedulerData.ifmDeltaEdge[i].width  = ifmDeltaEdgeWidth;
+                mceSchedulerData.ifmDeltaEdge[i].height = ifmDeltaEdgeHeight;
+                mceSchedulerData.ifmDeltaEdge[i].width  = ifmDeltaEdgeWidth;
 
-            mceSchedulerData.padding[i].left = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_PadLeft);
-            mceSchedulerData.padding[i].top  = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_PadTop);
+                mceSchedulerData.padding[i].left = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_PadLeft);
+                mceSchedulerData.padding[i].top  = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_PadTop);
+            }
         }
     }
     else if (ptrMceOp->m_Stride.m_X == 2 && ptrMceOp->m_Stride.m_Y == 2)
