@@ -438,7 +438,7 @@ struct AgentDependencyInfo
     // Total number of stripes for this Agent including reloads (if any)
     uint16_t numStripesTotal;
     /// Array of schedule dependencies. Size could be increased if we identify a use case for it.
-    std::array<Dependency, 2> scheduleDependencies;
+    std::array<Dependency, 1> scheduleDependencies;
     /// Array of read-after-write dependencies. Size 2 for mce and ple-only with two inputs,
     /// could change if we identify a use case for it.
     std::array<Dependency, 2> readDependencies;

@@ -1318,7 +1318,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
         cascading::AgentDependencyInfo{
             /* NumStripesTotal = */ uint16_t{ 64 },
             /* ScheduleDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
+            std::array<cascading::Dependency, 1>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
                                                                          /* OuterRatio = */
                                                                          cascading::Ratio{ /* Other = */ uint16_t{ 2 },
                                                                                            /* Self = */ uint16_t{ 1 } },
@@ -1386,7 +1386,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
         cascading::AgentDependencyInfo{
             /* NumStripesTotal = */ uint16_t{ 96 },
             /* ScheduleDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 2 },
+            std::array<cascading::Dependency, 1>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 2 },
                                                                          /* OuterRatio = */
                                                                          cascading::Ratio{ /* Other = */ uint16_t{ 1 },
                                                                                            /* Self = */ uint16_t{ 1 } },
@@ -1462,7 +1462,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
         cascading::AgentDependencyInfo{
             /* NumStripesTotal = */ uint16_t{ 64 },
             /* ScheduleDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
+            std::array<cascading::Dependency, 1>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
                                                                          /* OuterRatio = */
                                                                          cascading::Ratio{ /* Other = */ uint16_t{ 2 },
                                                                                            /* Self = */ uint16_t{ 1 } },
@@ -1616,7 +1616,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
         /* AgentDependencyInfo = */
         cascading::AgentDependencyInfo{ /* NumStripesTotal = */ uint16_t{ 64 },
                                         /* ScheduleDependencies = */
-                                        std::array<cascading::Dependency, 2>{
+                                        std::array<cascading::Dependency, 1>{
 
                                         },
                                         /* ReadDependencies = */
@@ -1639,7 +1639,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
         cascading::AgentDependencyInfo{
             /* NumStripesTotal = */ uint16_t{ 64 },
             /* ScheduleDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
+            std::array<cascading::Dependency, 1>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
                                                                          /* OuterRatio = */
                                                                          cascading::Ratio{
                                                                              /* Other = */ uint16_t{ 2 },
@@ -1721,7 +1721,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
         cascading::AgentDependencyInfo{
             /* NumStripesTotal = */ uint16_t{ 64 },
             /* ScheduleDependencies = */
-            std::array<cascading::Dependency, 2>{
+            std::array<cascading::Dependency, 1>{
 
             },
             /* ReadDependencies = */
