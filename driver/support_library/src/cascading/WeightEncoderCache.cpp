@@ -284,13 +284,6 @@ std::shared_ptr<ethosn::support_library::EncodedWeights> WeightEncoderCache::Enc
                              params.iterationSize, params.operation, params.algorithm);
         it = m_Entries.insert({ params, std::make_shared<EncodedWeights>(w) }).first;
 
-        // If the compressed stripe won't fit in SRAM, update our threshold
-        if (it->second->m_MaxSize > m_Caps.GetTotalSramSize())
-        {
-            m_MaxUncompressedStripeSize = std::min(m_MaxUncompressedStripeSize, uncompressedSize);
-            return {};
-        }
-
         // Save this entry to the persistent file if enabled.
         if (!m_PersistentFilename.empty())
         {
@@ -298,6 +291,16 @@ std::shared_ptr<ethosn::support_library::EncodedWeights> WeightEncoderCache::Enc
             WriteVector<char>(f, m_Caps.GetData());
             WriteParams(f, params);
             WriteEncodedWeights(f, w);
+        }
+
+        // If the compressed stripe won't fit in SRAM, update our threshold.
+        // Note that we do this after saving to the file cache, even though these weights won't be used,
+        // because otherwise future compilations would need to repeat this encoding only to figure out
+        // that it won't fit.
+        if (it->second->m_MaxSize > m_Caps.GetTotalSramSize())
+        {
+            m_MaxUncompressedStripeSize = std::min(m_MaxUncompressedStripeSize, uncompressedSize);
+            return {};
         }
     }
 
