@@ -45,9 +45,10 @@ class MockPart : public BasePart
 {
 public:
     MockPart(PartId id, bool hasInput = true, bool hasOutput = true)
-        : BasePart(id, "MockPart", estOpt, compOpt, GetEthosN78HwCapabilities())
+        : BasePart(id, "MockPart", estOpt, compOpt, m_Capabilities)
         , m_HasInput(hasInput)
         , m_HasOutput(hasOutput)
+        , m_Capabilities(GetEthosN78HwCapabilities())
     {}
     virtual Plans GetPlans(CascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const override;
 
@@ -63,6 +64,7 @@ protected:
 private:
     const EstimationOptions estOpt;
     const CompilationOptions compOpt;
+    const HardwareCapabilities m_Capabilities;
 };
 
 /// Simple Node type for tests.
