@@ -1022,10 +1022,7 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
                                    edgesSharingGlue[i].first.m_Destination);
         }
     }
-    for (auto destEdge : destPartEdge)
-    {
-        result.AddEndingGlue(std::move(startingAndEndingGlues.m_EndingGlue), destEdge.m_Source);
-    }
+    result.AddEndingGlue(std::move(startingAndEndingGlues.m_EndingGlue), destPartEdge.at(0).m_Source);
     return result;
 }
 
