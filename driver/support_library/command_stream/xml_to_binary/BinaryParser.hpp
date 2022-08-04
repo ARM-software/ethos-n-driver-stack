@@ -7,6 +7,7 @@
 #include "Common.hpp"
 
 #include <cstdio>
+#include <sstream>
 #include <vector>
 
 class BinaryParser
@@ -15,8 +16,8 @@ public:
     BinaryParser(std::istream& input);
     BinaryParser(const std::vector<uint32_t>& data);
 
-    void WriteXml(std::ostream& output, int wrapMargin = 120);
+    void WriteXml(std::ostream& output);
 
 private:
-    XmlHandle m_XmlDoc;
+    std::stringstream out;
 };

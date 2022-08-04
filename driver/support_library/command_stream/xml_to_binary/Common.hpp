@@ -1,11 +1,9 @@
 //
-// Copyright © 2018-2019,2021 Arm Limited.
+// Copyright © 2018-2019,2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
-
-#include <mxml.h>
 
 #include <memory>
 #include <stdexcept>
@@ -27,13 +25,3 @@ class IOException : public Exception
 {
     using Exception::Exception;
 };
-
-struct XmlHandleDeleter
-{
-    void operator()(mxml_node_t* raw) const
-    {
-        mxmlDelete(raw);
-    }
-};
-
-using XmlHandle = std::unique_ptr<mxml_node_t, XmlHandleDeleter>;

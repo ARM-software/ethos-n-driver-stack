@@ -1,22 +1,23 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #include "../BinaryParser.hpp"
 #include "../CMMParser.hpp"
-#include "../XmlParser.hpp"
 
 #include <ethosn_utils/Strings.hpp>
 
 #include <catch.hpp>
+#include <ethosn_command_stream/CommandStreamBuffer.hpp>
+#include <ethosn_command_stream/cascading/CommandStream.hpp>
 
 #include <cstdio>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
 #include <string>
-
+using namespace ethosn::command_stream;
 namespace
 {
 
@@ -905,6 +906,16 @@ const std::string g_XmlStr =
 </STREAM>
 )";
 
+std::array<char, 128> convertCharsToArray(int size, const char name[])
+{
+    std::array<char, 128> nameArr;
+    for (int i = 0; i < size; ++i)
+    {
+        nameArr[i] = name[i];
+    }
+    return nameArr;
+}
+
 std::string ReplaceVersionNumbers(const std::string& templateXml,
                                   uint32_t major = ETHOSN_COMMAND_STREAM_VERSION_MAJOR,
                                   uint32_t minor = ETHOSN_COMMAND_STREAM_VERSION_MINOR,
@@ -922,19 +933,852 @@ std::string ReplaceVersionNumbers(const std::string& templateXml,
 
 TEST_CASE("XmlToBinary-BinaryToXml")
 {
+    Section conv1x1comm0 = { /* SectionType = */ SectionType::SISO };
+    McePle conv1x1comm1  = { /* InputInfo = */
+                            TensorInfo{
+                                /* DataType = */ DataType::U8,
+                                /* DataFormat = */ DataFormat::NHWCB,
+                                /* TensorShape = */ TensorShape{ { 1U, 32U, 32U, 96U } },
+                                /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                /* StripeShape = */ TensorShape{ { 1U, 32U, 32U, 96U } },
+                                /* TileSize = */ uint32_t{ 1U },
+                                /* DramBufferId = */ 0U,
+                                /* SramOffset = */ 0U,
+                                /* ZeroPoint = */ int16_t{ 0 },
+                                /* DataLocation = */ DataLocation::DRAM,
+                            },
+                            /* WeightInfo = */
+                            TensorInfo{
+                                /* DataType = */ DataType::U8,
+                                /* DataFormat = */ DataFormat::WEIGHT_STREAM,
+                                /* TensorShape = */ TensorShape{ { 1U, 1U, 96U, 32U } },
+                                /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                /* StripeShape = */ TensorShape{ { 1U, 1U, 96U, 32U } },
+                                /* TileSize = */ uint32_t{ 1 },
+                                /* DramBufferId = */ 1U,
+                                /* SramOffset = */ 6144U,
+                                /* ZeroPoint = */ int16_t{ 0 },
+                                /* DataLocation = */ DataLocation::DRAM,
+                            },
+                            /* WeightMetadataBufferId = */ 10U,
+                            /* OutputInfo = */
+                            TensorInfo{
+                                /* DataType = */ DataType::U8,
+                                /* DataFormat = */ DataFormat::NHWCB,
+                                /* TensorShape = */ TensorShape{ { 1U, 32U, 32U, 32U } },
+                                /* SupertensorShape = */ TensorShape{ { 1U, 32U, 32U, 32U } },
+                                /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                /* StripeShape = */ TensorShape{ { 1U, 32U, 32U, 32U } },
+                                /* TileSize = */ uint32_t{ 1U },
+                                /* DramBufferId = */ 2U,
+                                /* SramOffset = */ 6400U,
+                                /* ZeroPoint = */ int16_t{ 0 },
+                                /* DataLocation = */ DataLocation::DRAM,
+                            },
+                            /* SramConfig = */
+                            SramConfig{
+                                /* AllocationStrategy = */ SramAllocationStrategy::STRATEGY_0,
+                            },
+                            /* BlockConfig = */
+                            BlockConfig{
+                                /* BlockWidth = */ 16U,
+                                /* BlockHeight = */ 16U,
+                            },
+                            /* MceData = */
+                            MceData{
+                                /* StrideX = */ MceStrideConfig{ 1U, 1U },
+                                /* PadTop = */ 0U,
+                                /* PadLeft = */ 0U,
+                                /* UninterleavedInputShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                /* OutputShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                /* OutputStripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                /* OutputZeroPoint = */ int16_t{ 0 },
+                                /* UpsampleType = */ UpsampleType::OFF,
+                                /* UpsampleEdgeModeRow = */ UpsampleEdgeMode::GENERATE,
+                                /* UpsampleEdgeModeCol = */ UpsampleEdgeMode::GENERATE,
+                                /* Operation = */ MceOperation::CONVOLUTION,
+                                /* Algo = */ MceAlgorithm::DIRECT,
+                                /* ActivationMin = */ uint8_t{ 118 },
+                                /* ActivationMax = */ uint8_t{ 255 },
+                            },
+                            /* PleData = */
+                            PleData{
+                                /* CeSram = */ uint32_t{ 0 },
+                                /* PleSram = */ uint32_t{ 0 },
+                                /* Operation = */ PleOperation::LEAKY_RELU,
+                                /* RescaleMultiplier0 = */ uint16_t{ 0 },
+                                /* RescaleShift0 = */ uint16_t{ 0 },
+                                /* RescaleMultiplier1 = */ uint16_t{ 0 },
+                                /* RescaleShift1 = */ uint16_t{ 0 },
+                            }
+    };
+
+    Delay conv1x1comm2 = { /* Value = */ uint32_t{ 3 } };
+
+    Fence conv1x1comm3 = {};
+
+    McePle conv1x1comm4 = { /* InputInfo = */
+                            TensorInfo{ /* DataType = */ DataType::U8,
+                                        /* DataFormat = */ DataFormat::NHWCB,
+                                        /* TensorShape = */ TensorShape{ { 1U, 8U, 8U, 512U } },
+                                        /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                        /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                        /* StripeShape = */ TensorShape{ { 1U, 8U, 8U, 128U } },
+                                        /* TileSize = */ uint32_t{ 1U },
+                                        /* DramBufferId = */ 2U,
+                                        /* SramOffset = */ 0U,
+                                        /* ZeroPoint = */ int16_t{ 0 },
+                                        /* DataLocation = */ DataLocation::DRAM },
+                            /* WeightInfo = */
+                            TensorInfo{ /* DataType = */ DataType::U8,
+                                        /* DataFormat = */ DataFormat::WEIGHT_STREAM,
+                                        /* TensorShape = */ TensorShape{ { 1U, 1U, 1U, 32768U } },
+                                        /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                        /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                        /* StripeShape = */ TensorShape{ { 1U, 1U, 1U, 1024U } },
+                                        /* TileSize = */ uint32_t{ 1000U },
+                                        /* DramBufferId = */ 3U,
+                                        /* SramOffset = */ 34816U,
+                                        /* ZeroPoint = */ int16_t{ 0 },
+                                        /* DataLocation = */ DataLocation::DRAM },
+                            /* WeightMetadataBufferId = */ 15U,
+                            /* OutputInfo = */
+                            TensorInfo{ /* DataType = */ DataType::U8,
+                                        /* DataFormat = */ DataFormat::NHWCB,
+                                        /* TensorShape = */ TensorShape{ { 1U, 8U, 8U, 32U } },
+                                        /* SupertensorShape = */ TensorShape{ { 1U, 8U, 8U, 32U } },
+                                        /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                        /* StripeSize = */ TensorShape{ { 1U, 8U, 8U, 8U } },
+                                        /* TileSize = */ uint32_t{ 1U },
+                                        /* DramBufferId = */ 4U,
+                                        /* SramOffset = */ 32768U,
+                                        /* ZeroPoint = */ int16_t{ 0 },
+                                        /* DataLocation = */ DataLocation::DRAM },
+                            /* SramConfig = */
+                            SramConfig{
+                                /* AllocationStrategy = */ SramAllocationStrategy::STRATEGY_1,
+                            },
+                            /* BlockConfig = */
+                            BlockConfig{
+                                /* BlockWidth = */ 8U,
+                                /* BlockHeight = */ 8U,
+                            },
+                            /* MceData = */
+                            MceData{
+                                /* StrideX = */ MceStrideConfig{ 1U, 1U },
+                                /* PadTop = */ 0U,
+                                /* PadLeft = */ 0U,
+                                /* UninterleavedInputShape = */ TensorShape{ { 1U, 32U, 32U, 2U } },
+                                /* OutputShape = */ TensorShape{ { 1U, 32U, 32U, 2U } },
+                                /* OutputStripeShape = */ TensorShape{ { 1U, 32U, 32U, 2U } },
+                                /* OutputZeroPoint = */ int16_t{ 0 },
+                                /* UpsampleType = */ UpsampleType::OFF,
+                                /* UpsampleEdgeModeRow = */ UpsampleEdgeMode::GENERATE,
+                                /* UpsampleEdgeModeCol = */ UpsampleEdgeMode::GENERATE,
+                                /* Operation = */ MceOperation::FULLY_CONNECTED,
+                                /* Algo = */ MceAlgorithm::DIRECT,
+                                /* ActivationMin = */ uint8_t{ 0 },
+                                /* ActivationMax = */ uint8_t{ 255 },
+                            },
+                            /* PleData = */
+                            PleData{ /* CeSram = */ uint32_t{ 0 },
+                                     /* PleSram = */ uint32_t{ 0 },
+                                     /* Operation = */ PleOperation::PASSTHROUGH,
+                                     /* RescaleMultiplier0 = */ uint16_t{ 0 },
+                                     /* RescaleShift0 = */ uint16_t{ 0 },
+                                     /* RescaleMultiplier1 = */ uint16_t{ 0 },
+                                     /* RescaleShift1 = */ uint16_t{ 0 } }
+    };
+
+    Fence conv1x1comm5 = {};
+
+    Softmax conv1x1comm6 = {
+        /* InputInfo = */
+        TensorInfo{ /* DataType = */ DataType::U8,
+                    /* DataFormat = */ DataFormat::NHWCB,
+                    /* TensorShape = */ TensorShape{ { 1U, 32U, 32U, 96U } },
+                    /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                    /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                    /* StripeShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                    /* TileSize = */ uint32_t{ 1 },
+                    /* DramBufferId = */ 0U,
+                    /* SramOffset = */ 0U,
+                    /* ZeroPoint = */ int16_t{ 0 },
+                    /* DataLocation = */ DataLocation::DRAM },
+        /* OutputInfo = */
+        TensorInfo{
+            /* DataType = */ DataType::U8,
+            /* DataFormat = */ DataFormat::NHWCB,
+            /* TensorShape = */ TensorShape{ { 1U, 32U, 32U, 96U } },
+            /* SupertensorShape = */ TensorShape{ { 1U, 32U, 32U, 96U } },
+            /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+            /* StripeShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+            /* TileSize = */ uint32_t{ 1 },
+            /* DramBufferId = */ 1U,
+            /* SramOffset = */ 0U,
+            /* ZeroPoint = */ int16_t{ 0 },
+            /* DataLocation = */ DataLocation::DRAM,
+        },
+        /* ScaledDiff = */ int32_t{ 0 },
+        /* ExpAccumulation = */ int32_t{ 1 },
+        /* InputBetaMultiplier = */ int32_t{ 2 },
+        /* InputBetaLeftShift = */ int32_t{ 3 },
+        /* DiffMin = */ int32_t{ -1 },
+    };
+
+    DumpDram conv1x1comm7 = { /* DramBufferId = */ uint32_t{ 2 },
+                              /* Filename = */ Filename(convertCharsToArray(22, "OutputModel_NHWCB.hex")) };
+
+    DumpSram conv1x1comm8 = { /* Prefix */ Filename(convertCharsToArray(10, "output_ce")) };
+
+    PleOnly conv1x1comm9 = { /* NumInputInfos */ int32_t{ 2 },
+                             /* InputInfo = */
+                             TensorInfo{ /* DataType = */ DataType::U8,
+                                         /* DataFormat = */ DataFormat::NHWCB,
+                                         /* TensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                         /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                         /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                         /* StripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                         /* TileSize = */ uint32_t{ 1000U },
+                                         /* DramBufferId = */ 0U,
+                                         /* SramOffset = */ 0U,
+                                         /* ZeroPoint = */ int16_t{ 0 },
+                                         /* DataLocation = */ DataLocation::DRAM },
+                             /* InputInfo2 = */
+                             TensorInfo{ /* DataType = */ DataType::U8,
+                                         /* DataFormat = */ DataFormat::NHWCB,
+                                         /* TensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                         /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                         /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                         /* StripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                         /* TileSize = */ uint32_t{ 1000U },
+                                         /* DramBufferId = */ uint32_t{ 1U },
+                                         /* SramOffset = */ uint32_t{ 4096U },
+                                         /* ZeroPoint = */ int16_t{ 0 },
+                                         /* DataLocation = */ DataLocation::DRAM },
+                             /* OutputInfo = */
+                             TensorInfo{ /* DataType = */ DataType::U8,
+                                         /* DataFormat = */ DataFormat::NHWCB,
+                                         /* TensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                         /* SupertensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                         /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                         /* StripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                         /* TileSize = */ uint32_t{ 1000U },
+                                         /* DramBufferId = */ 2U,
+                                         /* SramOffset = */ 8192U,
+                                         /* ZeroPoint = */ int16_t{ 0 },
+                                         /* DataLocation = */ DataLocation::DRAM
+
+                             },
+                             /* SramConfig = */
+                             SramConfig{
+                                 /* AllocationStrategy = */ SramAllocationStrategy::STRATEGY_0,
+                             },
+                             /* PleOpInfo = */
+                             PleData{
+                                 /* CeSram = */ uint32_t{ 512 },
+                                 /* PleSram = */ uint32_t{ 0 },
+                                 /* Operation = */ PleOperation::ADDITION,
+                                 /* RescaleMultiplier0 = */ uint16_t{ 0 },
+                                 /* RescaleShift0 = */ uint16_t{ 0 },
+                                 /* RescaleMultiplier1 = */ uint16_t{ 0 },
+                                 /* RescaleShift1 = */ uint16_t{ 0 },
+                             } };
+
+    PleOnly conv1x1comm10 = { /* NumInputInfos */ int32_t{ 1 },
+                              /* InputInfo = */
+                              TensorInfo{ /* DataType = */ DataType::U8,
+                                          /* DataFormat = */ DataFormat::NHWCB,
+                                          /* TensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                          /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                          /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                          /* StripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                          /* TileSize = */ uint32_t{ 1000U },
+                                          /* DramBufferId = */ 0U,
+                                          /* SramOffset = */ 0U,
+                                          /* ZeroPoint = */ int16_t{ 0 },
+                                          /* DataLocation = */ DataLocation::DRAM },
+                              /* InputInfo1 = */
+                              TensorInfo{ /* DataType = */ DataType::U8,
+                                          /* DataFormat = */ DataFormat::NHWCB,
+                                          /* TensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                          /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                          /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                          /* StripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                          /* TileSize = */ uint32_t{ 1000U },
+                                          /* DramBufferId = */ 0U,
+                                          /* SramOffset = */ 0U,
+                                          /* ZeroPoint = */ int16_t{ 0 },
+                                          /* DataLocation = */ DataLocation::DRAM },
+                              /* OutputInfo = */
+                              TensorInfo{ /* DataType = */ DataType::U8,
+                                          /* DataFormat = */ DataFormat::NHWCB,
+                                          /* TensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                          /* SupertensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                          /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                          /* StripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                                          /* TileSize = */ uint32_t{ 1000U },
+                                          /* DramBufferId = */ 1U,
+                                          /* SramOffset = */ 256U,
+                                          /* ZeroPoint = */ int16_t{ 0 },
+                                          /* DataLocation = */ DataLocation::DRAM },
+                              /* SramConfig = */
+                              SramConfig{
+                                  /* AllocationStrategy = */ SramAllocationStrategy::STRATEGY_0,
+                              },
+                              /* PleOpInfo = */
+                              PleData{
+                                  /* CeSram = */ uint32_t{ 512 },
+                                  /* PleSram = */ uint32_t{ 0 },
+                                  /* Operation = */ PleOperation::PASSTHROUGH,
+                                  /* RescaleMultiplier0 = */ uint16_t{ 0 },
+                                  /* RescaleShift0 = */ uint16_t{ 0 },
+                                  /* RescaleMultiplier1 = */ uint16_t{ 0 },
+                                  /* RescaleShift1 = */ uint16_t{ 0 },
+                              } };
+
+    Convert conv1x1comm11 = { /* InputInfo = */
+                              TensorInfo{ /* DataType = */ DataType::U8,
+                                          /* DataFormat = */ DataFormat::NHWCB,
+                                          /* TensorShape = */ TensorShape{ { 1U, 32U, 32U, 32U } },
+                                          /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                          /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                          /* StripeShape = */ TensorShape{ { 1U, 16U, 32U, 32U } },
+                                          /* TileSize = */ uint32_t{ 4000U },
+                                          /* DramBufferId = */ 0U,
+                                          /* SramOffset = */ 0U,
+                                          /* ZeroPoint = */ int16_t{ 0 },
+                                          /* DataLocation = */ DataLocation::DRAM },
+                              /* OutputInfo = */
+                              TensorInfo{ /* DataType = */ DataType::U8,
+                                          /* DataFormat = */ DataFormat::NHWC,
+                                          /* TensorShape = */ TensorShape{ { 1U, 32U, 32U, 32U } },
+                                          /* SupertensorShape = */ TensorShape{ { 1U, 32U, 32U, 32U } },
+                                          /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                          /* StripeShape = */ TensorShape{ { 1U, 16U, 32U, 32U } },
+                                          /* TileSize = */ uint32_t{ 4000U },
+                                          /* DramBufferId = */ 0U,
+                                          /* SramOffset = */ 0U,
+                                          /* ZeroPoint = */ int16_t{ 0 },
+                                          /* DataLocation = */ DataLocation::DRAM }
+    };
+
+    SpaceToDepth conv1x1comm13 = { /* InputInfo */
+                                   TensorInfo{ /* DataType = */ DataType::U8,
+                                               /* DataFormat = */ DataFormat::NHWC,
+                                               /* TensorShape = */ TensorShape{ { 1U, 32U, 32U, 16U } },
+                                               /* SupertensorShape = */ TensorShape{ { 1U, 32U, 32U, 16U } },
+                                               /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                               /* StripeShape = */ TensorShape{ { 1U, 16U, 32U, 32U } },
+                                               /* TileSize = */ uint32_t{ 4000U },
+                                               /* DramBufferId = */ 0U,
+                                               /* SramOffset = */ 0U,
+                                               /* ZeroPoint = */ int16_t{ 0 },
+                                               /* DataLocation = */ DataLocation::DRAM },
+                                   /* OutputInfo */
+                                   TensorInfo{
+                                       /* DataType = */ DataType::U8,
+                                       /* DataFormat = */ DataFormat::NHWC,
+                                       /* TensorShape = */ TensorShape{ { 1U, 16U, 16U, 64U } },
+                                       /* SupertensorShape = */ TensorShape{ { 1U, 16U, 16U, 64U } },
+                                       /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                                       /* StripeShape = */ TensorShape{ { 1U, 16U, 32U, 32U } },
+                                       /* TileSize = */ uint32_t{ 4000U },
+                                       /* DramBufferId = */ 0U,
+                                       /* SramOffset = */ 0U,
+                                       /* ZeroPoint = */ int16_t{ 0 },
+                                       /* DataLocation = */ DataLocation::DRAM,
+                                   },
+                                   /* UsedEmcs = */ uint32_t{ 8 },
+                                   /* Intermediate1Size = */ uint32_t{ 1024 },
+                                   /* Intermediate2Size = */ uint32_t{ 2048 }
+    };
+
+    Cascade conv1x1comm12 = { /* NumAgents = */ uint32_t{ 6 } };
+
+    /* Agent 0 = */
+    cascading::Agent agent0 = {
+        /* AgentData = */
+        cascading::AgentData{ cascading::WgtS{ /* BufferId = */ uint16_t{ 3 },
+                                               /* MetadataBufferId = */ uint16_t{ 128 },
+                                               /* Tile = */
+                                               cascading::Tile{ /* BaseAddress = */ uint32_t{ 32 },
+                                                                /* NumSlots = */ uint16_t{ 2 },
+                                                                /* SlotSize = */ uint32_t{ 1024 } },
+                                               /* NumStripes = */
+                                               cascading::WgtS::WorkSize{ /* OfmChannels = */ uint16_t{ 4 },
+                                                                          /* IfmChannels = */ uint16_t{ 2 } },
+                                               /* StripeIdStrides = */
+                                               cascading::WgtS::WorkSize{ /* OfmChannels = */ uint16_t{ 2 },
+                                                                          /* IfmChannels = */ uint16_t{ 1 } } } },
+        /* AgentDependencyInfo = */
+        cascading::AgentDependencyInfo{
+            /* NumStripesTotal = */ uint16_t{ 64 },
+            /* ScheduleDependencies = */
+            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
+                                                                         /* OuterRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                                                           /* Self = */ uint16_t{ 1 } },
+                                                                         /* InnerRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 1 },
+                                                                                           /* Self = */ uint16_t{ 2 } },
+                                                                         /* Boundary = */ int8_t{ 4 } } },
+            /* ReadDependencies = */
+            std::array<cascading::Dependency, 2>{
+
+            },
+            /* WriteDependencies = */
+            std::array<cascading::Dependency, 1>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 2 },
+                                                                         /* OuterRatio = */
+                                                                         cascading::Ratio{
+                                                                             /* Other = */ uint16_t{ 1 },
+                                                                             /* Self = */ uint16_t{ 1 },
+                                                                         },
+                                                                         /* InnerRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                                                           /* Self = */ uint16_t{ 1 } },
+                                                                         /* Boundary = */ int8_t{ 2 } } } }
+    };
+
+    /* Agent 1 = */
+    cascading::Agent agent1 = {
+        /* AgentData = */
+        cascading::AgentData{
+            cascading::IfmS{ /* FmsData = */
+                             cascading::FmSData{ /* DramOffset = */ uint32_t{ 512 },
+                                                 /* BufferId = */ uint16_t{ 3 },
+                                                 /* DataType = */ cascading::FmsDataType::NHWC,
+                                                 /* FcafInfo = */
+                                                 cascading::FcafInfo{ /* ZeroPoint = */ int16_t{ 0 },
+                                                                      /* SignedActivation = */ false },
+                                                 /* Tile = */
+                                                 cascading::Tile{ /* BaseAddr = */ uint32_t{ 512 },
+                                                                  /* NumSlots = */ uint16_t{ 2 },
+                                                                  /* SlotSize = */ uint32_t{ 512 } },
+                                                 /* DfltStripeSize = */
+                                                 cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
+                                                                                  /* Width = */ uint16_t{ 4 },
+                                                                                  /* Channels = */ uint16_t{ 1 } },
+                                                 /* EdgeStripeSize = */
+                                                 cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 4 },
+                                                                                  /* Width = */ uint16_t{ 4 },
+                                                                                  /* Channels = */ uint16_t{ 1 } },
+                                                 /* SupertensorSizeInCells = */
+                                                 cascading::SupertensorSize<uint16_t>{ /* Width = */ uint16_t{ 1 },
+                                                                                       /* Channels = */ uint16_t{ 2 } },
+                                                 /* NumStripes = */
+                                                 cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 512 },
+                                                                                  /* Width = */ uint16_t{ 128 },
+                                                                                  /* Channels = */ uint16_t{ 8 } },
+                                                 /* StripeIdStrides = */
+                                                 cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 4 },
+                                                                                  /* Width = */ uint16_t{ 1 },
+                                                                                  /* Channels = */ uint16_t{ 2 } } },
+                             /* PackedBoundaryThickness = */
+                             cascading::PackedBoundaryThickness{ /* Left = */ uint8_t{ 5 },
+                                                                 /* Top = */ uint8_t{ 6 },
+                                                                 /* Right = */ uint8_t{ 7 },
+                                                                 /* Bottom = */ uint8_t{ 8 } } } },
+        /* AgentDependencyInfo = */
+        cascading::AgentDependencyInfo{
+            /* NumStripesTotal = */ uint16_t{ 96 },
+            /* ScheduleDependencies = */
+            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 2 },
+                                                                         /* OuterRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 1 },
+                                                                                           /* Self = */ uint16_t{ 1 } },
+                                                                         /* InnerRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 1 },
+                                                                                           /* Self = */ uint16_t{ 1 } },
+                                                                         /* Boundary = */ int8_t{ 2 } } },
+            /* ReadDependencies = */
+            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
+                                                                         /* OuterRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                                                           /* Self = */ uint16_t{ 2 } },
+                                                                         /* InnerRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                                                           /* Self = */ uint16_t{ 2 } },
+                                                                         /* Boundary = */ int8_t{ 4 } },
+                                                  cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
+                                                                         /* OuterRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                                                           /* Self = */ uint16_t{ 1 } },
+                                                                         /* InnerRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                                                           /* Self = */ uint16_t{ 1 } },
+                                                                         /* Boundary = */ int8_t{ 4 } } },
+            /* WriteDependencies = */
+            std::array<cascading::Dependency, 1>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 3 },
+                                                                         /* OuterRatio = */
+                                                                         cascading::Ratio{
+                                                                             /* Other = */ uint16_t{ 2 },
+                                                                             /* Self = */ uint16_t{ 1 },
+                                                                         },
+                                                                         /* InnerRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                                                           /* Self = */ uint16_t{ 1 } },
+                                                                         /* Boundary = */ int8_t{ 4 } } } }
+    };
+
+    /* Agent 2 = */
+    cascading::Agent agent2 = {
+        /* AgentData = */
+        cascading::AgentData{ cascading::OfmS{
+            /* FmsData = */
+            cascading::FmSData{ /* DramOffset = */ uint32_t{ 512 },
+                                /* BufferId = */ uint16_t{ 0 },
+                                /* DataType = */ cascading::FmsDataType::NHWC,
+                                /* FcafInfo = */
+                                cascading::FcafInfo{ /* ZeroPoint = */ int16_t{ 0 },
+                                                     /* SignedActivation = */ false },
+                                /* Tile = */
+                                cascading::Tile{ /* BaseAddr = */ uint32_t{ 0 },
+                                                 /* NumSlots = */ uint16_t{ 0 },
+                                                 /* SlotSize = */ uint32_t{ 0 } },
+                                /* DfltStripeSize = */
+                                cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
+                                                                 /* Width = */ uint16_t{ 8 },
+                                                                 /* Channels = */ uint16_t{ 8 } },
+                                /* EdgeStripeSize = */
+                                cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
+                                                                 /* Width = */ uint16_t{ 8 },
+                                                                 /* Channels = */ uint16_t{ 8 } },
+                                /* SupertensorSizeInCells = */
+                                cascading::SupertensorSize<uint16_t>{ /* Width = */ uint16_t{ 8 },
+                                                                      /* Channels = */ uint16_t{ 8 } },
+                                /* NumStripes = */
+                                cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
+                                                                 /* Width = */ uint16_t{ 8 },
+                                                                 /* Channels = */ uint16_t{ 8 } },
+                                /* StripeIdStrides = */
+                                cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
+                                                                 /* Width = */ uint16_t{ 8 },
+                                                                 /* Channels = */ uint16_t{ 8 } } } } },
+        /* AgentDependencyInfo = */
+        cascading::AgentDependencyInfo{
+            /* NumStripesTotal = */ uint16_t{ 64 },
+            /* ScheduleDependencies = */
+            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
+                                                                         /* OuterRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                                                           /* Self = */ uint16_t{ 1 } },
+                                                                         /* InnerRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                                                           /* Self = */ uint16_t{ 1 } },
+                                                                         /* Boundary = */ int8_t{ 4 } } },
+            /* ReadDependencies = */
+            std::array<cascading::Dependency, 2>{
+                cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 2 },
+                                       /* OuterRatio = */
+                                       cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                         /* Self = */ uint16_t{ 1 } },
+                                       /* InnerRatio = */
+                                       cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                         /* Self = */ uint16_t{ 1 } },
+                                       /* Boundary = */ int8_t{ 4 } },
+                cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
+                                       /* OuterRatio = */
+                                       cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                         /* Self = */ uint16_t{ 1 } },
+                                       /* InnerRatio = */
+                                       cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                         /* Self = */ uint16_t{ 1 } },
+                                       /* Boundary = */ int8_t{ 4 } },
+            },
+            /* WriteDependencies = */
+            std::array<cascading::Dependency, 1>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 2 },
+                                                                         /* OuterRatio = */
+                                                                         cascading::Ratio{
+                                                                             /* Other = */ uint16_t{ 2 },
+                                                                             /* Self = */ uint16_t{ 1 },
+                                                                         },
+                                                                         /* InnerRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                                                           /* Self = */ uint16_t{ 1 } },
+                                                                         /* Boundary = */ int8_t{ 4 } } } }
+    };
+
+    /* Agent 3 = */
+    cascading::Agent agent3 = {
+        /* AgentData = */
+        cascading::AgentData{
+            /* MceScheduler = */
+            cascading::MceS{ /* IfmTile = */
+                             cascading::Tile{ /* BaseAddr = */ uint32_t{ 0 },
+                                              /* NumSlots = */ uint16_t{ 0 },
+                                              /* SlotSize = */ uint32_t{ 0 } },
+                             /* WgtTile = */
+                             cascading::Tile{ /* BaseAddr = */ uint32_t{ 0 },
+                                              /* NumSlots = */ uint16_t{ 0 },
+                                              /* SlotSize = */ uint32_t{ 0 } },
+                             /* BlockSize = */
+                             cascading::BlockSize{ /* Height = */ uint8_t{ 0 },
+                                                   /* Width = */ uint8_t{ 0 } },
+                             /* DfltStripeSize = */
+                             cascading::MceS::WorkSize{
+                                 /* OfmHeight = */ uint16_t{ 8 },
+                                 /* OfmWidth = */ uint16_t{ 8 },
+                                 /* OfmChannels = */ uint16_t{ 8 },
+                                 /* IfmChannels = */ uint16_t{ 8 },
+                             },
+                             /* EdgeStripeSize = */
+                             cascading::MceS::WorkSize{
+                                 /* OfmHeight = */ uint16_t{ 8 },
+                                 /* OfmWidth = */ uint16_t{ 8 },
+                                 /* OfmChannels = */ uint16_t{ 8 },
+                                 /* IfmChannels = */ uint16_t{ 8 },
+                             },
+                             /* NumStripes = */
+                             cascading::MceS::WorkSize{
+                                 /* OfmHeight = */ uint16_t{ 8 },
+                                 /* OfmWidth = */ uint16_t{ 8 },
+                                 /* OfmChannels = */ uint16_t{ 8 },
+                                 /* IfmChannels = */ uint16_t{ 8 },
+                             },
+                             /* StripeIdStrides = */
+                             cascading::MceS::WorkSize{
+                                 /* OfmHeight = */ uint16_t{ 8 },
+                                 /* OfmWidth = */ uint16_t{ 8 },
+                                 /* OfmChannels = */ uint16_t{ 8 },
+                                 /* IfmChannels = */ uint16_t{ 8 },
+                             },
+                             /* ConvStrideXy = */
+                             cascading::StrideXy<uint8_t>{ /* X = */ uint8_t{ 2 },
+                                                           /* Y= */ uint8_t{ 2 } },
+                             /* IfmZeroPoint = */ int16_t{ -2 },
+                             /* IsIfmSigned = */ uint8_t{ 1 },
+                             /* IsOfmSigned = */ uint8_t{ 0 },
+                             /* UpsampleType = */ cascading::UpsampleType::TRANSPOSE,
+                             /* UpsampleEdgeMode = */
+                             cascading::UpsampleEdgeModeType{ /* Row = */ cascading::UpsampleEdgeMode::DROP,
+                                                              /* Column = */ cascading::UpsampleEdgeMode::GENERATE },
+                             /* MceOpMode = */ cascading::MceOperation::DEPTHWISE_CONVOLUTION,
+                             /* Algo = */ cascading::MceAlgorithm::WINOGRAD,
+                             /* IsWideFilter = */ uint8_t{ 1 },
+                             /* IsExtraIfmStripeAtRightEdge = */ uint8_t{ 1 },
+                             /* IsExtraIfmStripeAtBottomEdge = */ uint8_t{ 1 },
+                             /* IsPackedBoundaryX = */ uint8_t{ 1 },
+                             /* IsPackedBoundaryY = */ uint8_t{ 1 },
+                             /* FilterShape = */
+                             std::array<cascading::FilterShape, static_cast<uint8_t>(4U)>{
+                                 cascading::FilterShape{ /* Width = */ uint8_t{ 2 },
+                                                         /* Height = */ uint8_t{ 2 } },
+                                 cascading::FilterShape{ /* Width = */ uint8_t{ 2 },
+                                                         /* Height = */ uint8_t{ 1 } },
+                                 cascading::FilterShape{ /* Width = */ uint8_t{ 1 },
+                                                         /* Height = */ uint8_t{ 2 } },
+                                 cascading::FilterShape{ /* Width = */ uint8_t{ 1 },
+                                                         /* Height = */ uint8_t{ 1 } } },
+                             /* Padding = */
+                             std::array<cascading::Padding, static_cast<uint8_t>(4U)>{
+                                 cascading::Padding{ /* Left= */ uint8_t{ 12 },
+                                                     /* Top = */ uint8_t{ 15 } },
+                                 cascading::Padding{ /* Left= */ uint8_t{ 15 },
+                                                     /* Top = */ uint8_t{ 12 } },
+                                 cascading::Padding{ /* Left= */ uint8_t{ 0 },
+                                                     /* Top = */ uint8_t{ 8 } },
+                                 cascading::Padding{ /* Left= */ uint8_t{ 8 },
+                                                     /* Top = */ uint8_t{ 0 } } },
+                             /* IfmDeltaDefault = */
+                             std::array<cascading::IfmDelta, static_cast<uint8_t>(4U)>{
+                                 cascading::IfmDelta{ /* Width = */ int8_t{ 3 },
+                                                      /*Height = */ int8_t{ -3 } },
+                                 cascading::IfmDelta{ /* Width = */ int8_t{ -3 },
+                                                      /*Height = */ int8_t{ 3 } },
+                                 cascading::IfmDelta{ /* Width = */ int8_t{ 2 },
+                                                      /*Height = */ int8_t{ -2 } },
+                                 cascading::IfmDelta{ /* Width = */ int8_t{ -2 },
+                                                      /*Height = */ int8_t{ 2 } } },
+                             /* IfmDeltaEdge = */
+                             std::array<cascading::IfmDelta, static_cast<uint8_t>(4U)>{
+                                 cascading::IfmDelta{ /* Width = */ int8_t{ 1 },
+                                                      /*Height = */ int8_t{ -2 } },
+                                 cascading::IfmDelta{ /* Width = */ int8_t{ -2 },
+                                                      /*Height = */ int8_t{ 1 } },
+                                 cascading::IfmDelta{ /* Width = */ int8_t{ 1 },
+                                                      /*Height = */ int8_t{ 1 } },
+                                 cascading::IfmDelta{ /* Width = */ int8_t{ -1 },
+                                                      /*Height = */ int8_t{ -1 } } },
+                             /* IfmStripeShapeDefault = */
+                             cascading::IfmStripeShape{ /* Width = */ uint16_t{ 10 },
+                                                        /* Height = */ uint16_t{ 11 } },
+                             /* IfmStripeShapeEdge = */
+                             cascading::IfmStripeShape{ /* Width = */ uint16_t{ 5 },
+                                                        /* Height = */ uint16_t{ 6 } },
+                             /* ReluActiv = */
+                             cascading::ReluActivation{ /* Min = */ int16_t{ -3 },
+                                                        /* Max = */ int16_t{ 2 } },
+                             /* PleKernelId = */ cascading::PleKernelId::DOWNSAMPLE_2X2_16X16_1 } },
+        /* AgentDependencyInfo = */
+        cascading::AgentDependencyInfo{ /* NumStripesTotal = */ uint16_t{ 64 },
+                                        /* ScheduleDependencies = */
+                                        std::array<cascading::Dependency, 2>{
+
+                                        },
+                                        /* ReadDependencies = */
+                                        std::array<cascading::Dependency, 2>{
+
+                                        },
+                                        /* WriteDependencies = */
+                                        std::array<cascading::Dependency, 1>{
+
+                                        } }
+    };
+
+    /* Agent 4 = */
+    cascading::Agent agent4 = {
+        /* AgentData = */
+        cascading::AgentData{ /* PleLoader = */
+                              cascading::PleL{ /* PleKernelId = */ cascading::PleKernelId::SIGMOID_16X8_1_S,
+                                               /* SramAddr = */ uint32_t{ 4096 } } },
+        /* AgentDependencyInfo = */
+        cascading::AgentDependencyInfo{
+            /* NumStripesTotal = */ uint16_t{ 64 },
+            /* ScheduleDependencies = */
+            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
+                                                                         /* OuterRatio = */
+                                                                         cascading::Ratio{
+                                                                             /* Other = */ uint16_t{ 2 },
+                                                                             /* Self = */ uint16_t{ 1 },
+                                                                         },
+                                                                         /* InnerRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                                                           /* Self = */ uint16_t{ 1 } },
+                                                                         /* Boundary = */ int8_t{ 4 } } },
+            /* ReadDependencies = */
+            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 3 },
+                                                                         /* OuterRatio = */
+                                                                         cascading::Ratio{
+                                                                             /* Other = */ uint16_t{ 2 },
+                                                                             /* Self = */ uint16_t{ 1 },
+                                                                         },
+                                                                         /* InnerRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                                                           /* Self = */ uint16_t{ 1 } },
+                                                                         /* Boundary = */ int8_t{ 4 } } },
+            /* WriteDependencies = */
+            std::array<cascading::Dependency, 1>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
+                                                                         /* OuterRatio = */
+                                                                         cascading::Ratio{
+                                                                             /* Other = */ uint16_t{ 2 },
+                                                                             /* Self = */ uint16_t{ 1 },
+                                                                         },
+                                                                         /* InnerRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                                                           /* Self = */ uint16_t{ 1 } },
+                                                                         /* Boundary = */ int8_t{ 4 } } } }
+    };
+
+    /* Agent 5 = */
+    cascading::Agent agent5 = {
+        /* AgentData = */
+        cascading::AgentData{                  /* PleScheduler = */
+                              cascading::PleS{ /* OfmTile = */
+                                               cascading::Tile{ /* BaseAddr = */ uint32_t{ 0 },
+                                                                /* NumSlots = */ uint16_t{ 0 },
+                                                                /* SlotSize = */ uint32_t{ 0 } },
+                                               /* OfmZeroPoint = */ int16_t{ 3 },
+                                               /* DfltStripeSize = */
+                                               cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
+                                                                                /* Width = */ uint16_t{ 8 },
+                                                                                /* Channels = */ uint16_t{ 8 } },
+                                               /* EdgeStripeSize = */
+                                               cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
+                                                                                /* Width = */ uint16_t{ 8 },
+                                                                                /* Channels = */ uint16_t{ 8 } },
+                                               /* NumStripes = */
+                                               cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
+                                                                                /* Width = */ uint16_t{ 8 },
+                                                                                /* Channels = */ uint16_t{ 8 } },
+                                               /* StripeIdStrides = */
+                                               cascading::TensorSize<uint16_t>{ /* Height = */ uint16_t{ 8 },
+                                                                                /* Width = */ uint16_t{ 8 },
+                                                                                /* Channels = */ uint16_t{ 8 } },
+                                               /* InputMode = */ cascading::PleInputMode::MCE_ONE_OG,
+                                               /* PleKernelId = */ cascading::PleKernelId::DOWNSAMPLE_2X2_16X16_1,
+                                               /* PleKernelSramAddress = */ uint32_t{ 4096 },
+                                               /* IfmTile0 = */
+                                               cascading::Tile{ /* BaseAddr = */ uint32_t{ 0 },
+                                                                /* NumSlots = */ uint16_t{ 0 },
+                                                                /* SlotSize = */ uint32_t{ 0 } },
+                                               /* IfmInfo0 = */
+                                               cascading::PleIfmInfo{ /* ZeroPoint = */ int16_t{ 0 },
+                                                                      /* Multiplier = */ uint16_t{ 1 },
+                                                                      /* Shift = */ uint16_t{ 2 } },
+                                               /* IfmTile1 = */
+                                               cascading::Tile{ /* BaseAddr = */ uint32_t{ 0 },
+                                                                /* NumSlots = */ uint16_t{ 0 },
+                                                                /* SlotSize = */ uint32_t{ 0 } },
+                                               /* IfmInfo1 = */
+                                               cascading::PleIfmInfo{ /* ZeroPoint = */ int16_t{ 0 },
+                                                                      /* Multiplier = */ uint16_t{ 1 },
+                                                                      /* Shift = */ uint16_t{ 2 } } } },
+        /* AgentDependencyInfo = */
+        cascading::AgentDependencyInfo{
+            /* NumStripesTotal = */ uint16_t{ 64 },
+            /* ScheduleDependencies = */
+            std::array<cascading::Dependency, 2>{
+
+            },
+            /* ReadDependencies = */
+            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 4 },
+                                                                         /* OuterRatio = */
+                                                                         cascading::Ratio{
+                                                                             /* Other = */ uint16_t{ 2 },
+                                                                             /* Self = */ uint16_t{ 1 },
+                                                                         },
+                                                                         /* InnerRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                                                           /* Self = */ uint16_t{ 1 } },
+                                                                         /* Boundary = */ int8_t{ 4 } },
+                                                  cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 3 },
+                                                                         /* OuterRatio = */
+                                                                         cascading::Ratio{
+                                                                             /* Other = */ uint16_t{ 2 },
+                                                                             /* Self = */ uint16_t{ 1 },
+                                                                         },
+                                                                         /* InnerRatio = */
+                                                                         cascading::Ratio{ /* Other = */ uint16_t{ 2 },
+                                                                                           /* Self = */ uint16_t{ 1 } },
+                                                                         /* Boundary = */ int8_t{ 4 } } },
+            /* WriteDependencies = */
+            std::array<cascading::Dependency, 1>{ cascading::Dependency{
+
+            } } }
+    };
+
     std::string xmlStr = ReplaceVersionNumbers(g_XmlStr);
-
     std::stringstream inputXml(xmlStr);
-    XmlParser xmlParser(inputXml);
 
-    std::stringstream intermediateBinary;
-    xmlParser.WriteBinary(intermediateBinary);
+    CommandStreamBuffer buffer;
+    buffer.EmplaceBack(conv1x1comm0);
+    buffer.EmplaceBack(conv1x1comm1);
+    buffer.EmplaceBack(conv1x1comm2);
+    buffer.EmplaceBack(conv1x1comm3);
+    buffer.EmplaceBack(conv1x1comm4);
+    buffer.EmplaceBack(conv1x1comm5);
+    buffer.EmplaceBack(conv1x1comm6);
+    buffer.EmplaceBack(conv1x1comm7);
+    buffer.EmplaceBack(conv1x1comm8);
+    buffer.EmplaceBack(conv1x1comm9);
+    buffer.EmplaceBack(conv1x1comm10);
+    buffer.EmplaceBack(conv1x1comm11);
+    buffer.EmplaceBack(conv1x1comm12);
+    buffer.EmplaceBack(agent0);
+    buffer.EmplaceBack(agent1);
+    buffer.EmplaceBack(agent2);
+    buffer.EmplaceBack(agent3);
+    buffer.EmplaceBack(agent4);
+    buffer.EmplaceBack(agent5);
+    buffer.EmplaceBack(conv1x1comm13);
+    const std::vector<uint32_t> commandStreamBinary = buffer.GetData();
 
-    intermediateBinary.seekg(0);
-
-    BinaryParser binaryParser(intermediateBinary);
+    BinaryParser binaryParser(commandStreamBinary);
     std::stringstream outputXml;
-    binaryParser.WriteXml(outputXml, 75);
+    binaryParser.WriteXml(outputXml);
 
     // Remove spaces since they can be different
     std::string inputString = inputXml.str();
@@ -1100,103 +1944,101 @@ TEST_CASE("ExtractBindingTableFromCMMBufferCountWord4")
 // Test that Command Stream is correctly extracted
 TEST_CASE("ExtractCommandStreamFromCMM")
 {
-    std::string commandStreamXml =
-        R"(<?xml version="1.0" encoding="utf-8"?>
-           <STREAM VERSION_MAJOR="%VERSION_MAJOR%" VERSION_MINOR="%VERSION_MINOR%" VERSION_PATCH="%VERSION_PATCH%"><!--Command0-->
-             <SECTION>
-               <TYPE>SISO</TYPE>
-             </SECTION>
-             <!--Command1-->
-             <OPERATION_MCE_PLE>
-               <INPUT_INFO>
-                 <DATA_TYPE>U8</DATA_TYPE>
-                 <DATA_FORMAT>NHWCB</DATA_FORMAT>
-                 <TENSOR_SHAPE>1 16 16 16</TENSOR_SHAPE>
-                 <SUPERTENSOR_SHAPE>0 0 0 0</SUPERTENSOR_SHAPE>
-                 <SUPERTENSOR_OFFSET>0 0 0 0</SUPERTENSOR_OFFSET>
-                 <STRIPE_SHAPE>1 16 16 16</STRIPE_SHAPE>
-                 <TILE_SHAPE>1000 1 1 1</TILE_SHAPE>
-                 <DRAM_BUFFER_ID>2</DRAM_BUFFER_ID>
-                 <SRAM_OFFSET>0x0</SRAM_OFFSET>
-                 <ZERO_POINT>0</ZERO_POINT>
-                 <DATA_LOCATION>DRAM</DATA_LOCATION>
-               </INPUT_INFO>
-               <WEIGHT_INFO>
-                 <DATA_TYPE>U8</DATA_TYPE>
-                 <DATA_FORMAT>WEIGHT_STREAM</DATA_FORMAT>
-                 <TENSOR_SHAPE>3 3 16 16</TENSOR_SHAPE>
-                 <SUPERTENSOR_SHAPE>0 0 0 0</SUPERTENSOR_SHAPE>
-                 <SUPERTENSOR_OFFSET>0 0 0 0</SUPERTENSOR_OFFSET>
-                 <STRIPE_SHAPE>3 3 16 16</STRIPE_SHAPE>
-                 <TILE_SHAPE>1 1 1 1</TILE_SHAPE>
-                 <DRAM_BUFFER_ID>0</DRAM_BUFFER_ID>
-                 <SRAM_OFFSET>0x200</SRAM_OFFSET>
-                 <ZERO_POINT>128</ZERO_POINT>
-                 <DATA_LOCATION>DRAM</DATA_LOCATION>
-               </WEIGHT_INFO>
-               <WEIGHTS_METADATA_BUFFER_ID>10</WEIGHTS_METADATA_BUFFER_ID>
-               <OUTPUT_INFO>
-                 <DATA_TYPE>U8</DATA_TYPE>
-                 <DATA_FORMAT>NHWCB</DATA_FORMAT>
-                 <TENSOR_SHAPE>1 16 16 16</TENSOR_SHAPE>
-                 <SUPERTENSOR_SHAPE>1 16 16 16</SUPERTENSOR_SHAPE>
-                 <SUPERTENSOR_OFFSET>0 0 0 0</SUPERTENSOR_OFFSET>
-                 <STRIPE_SHAPE>1 16 16 16</STRIPE_SHAPE>
-                 <TILE_SHAPE>1000 1 1 1</TILE_SHAPE>
-                 <DRAM_BUFFER_ID>3</DRAM_BUFFER_ID>
-                 <SRAM_OFFSET>0x100</SRAM_OFFSET>
-                 <ZERO_POINT>100</ZERO_POINT>
-                 <DATA_LOCATION>DRAM</DATA_LOCATION>
-               </OUTPUT_INFO>
-               <SRAM_CONFIG>
-                 <ALLOCATION_STRATEGY>STRATEGY_1</ALLOCATION_STRATEGY>
-               </SRAM_CONFIG>
-               <BLOCK_CONFIG>
-                 <BLOCK_WIDTH>16</BLOCK_WIDTH>
-                 <BLOCK_HEIGHT>16</BLOCK_HEIGHT>
-               </BLOCK_CONFIG>
-               <MCE_OP_INFO>
-                 <STRIDE_X>1</STRIDE_X>
-                 <STRIDE_Y>1</STRIDE_Y>
-                 <PAD_TOP>1</PAD_TOP>
-                 <PAD_LEFT>1</PAD_LEFT>
-                 <UNINTERLEAVED_INPUT_SHAPE>1 16 16 16</UNINTERLEAVED_INPUT_SHAPE>
-                 <OUTPUT_SHAPE>1 16 16 16</OUTPUT_SHAPE>
-                 <OUTPUT_STRIPE_SHAPE>1 16 16 16</OUTPUT_STRIPE_SHAPE>
-                 <OPERATION>CONVOLUTION</OPERATION>
-                 <ALGO>DIRECT</ALGO>
-                 <ACTIVATION_MIN>100</ACTIVATION_MIN>
-                 <ACTIVATION_MAX>255</ACTIVATION_MAX>
-                 <UPSAMPLE_TYPE>OFF</UPSAMPLE_TYPE>
-               </MCE_OP_INFO>
-               <PLE_OP_INFO>
-                 <CE_SRAM>0x0</CE_SRAM>
-                 <PLE_SRAM>0x0</PLE_SRAM>
-                 <OPERATION>PASSTHROUGH</OPERATION>
-                 <RESCALE_MULTIPLIER0>0</RESCALE_MULTIPLIER0>
-                 <RESCALE_SHIFT0>0</RESCALE_SHIFT0>
-                 <RESCALE_MULTIPLIER1>0</RESCALE_MULTIPLIER1>
-                 <RESCALE_SHIFT1>0</RESCALE_SHIFT1>
-               </PLE_OP_INFO>
-             </OPERATION_MCE_PLE>
-             <!--Command2-->
-             <FENCE />
-             <!--Command3-->
-             <DUMP_DRAM>
-               <DRAM_BUFFER_ID>3</DRAM_BUFFER_ID>
-               <FILENAME>1_16_16_16_CommandStream_Operation_0_OutputModel_NHWCB.hex</FILENAME>
-             </DUMP_DRAM>
-             <!--Command4-->
-             <DUMP_SRAM>
-               <PREFIX>output_ce</PREFIX>
-             </DUMP_SRAM>
-           </STREAM>
-           )";
-    commandStreamXml = ReplaceVersionNumbers(commandStreamXml);
+    McePle comm1 = { /* InputInfo = */
+                     TensorInfo{
+                         /* DataType = */ DataType::U8,
+                         /* DataFormat = */ DataFormat::NHWCB,
+                         /* TensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                         /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                         /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                         /* StripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                         /* TileSize = */ uint32_t{ 1000U },
+                         /* DramBufferId = */ 2U,
+                         /* SramOffset = */ 0U,
+                         /* ZeroPoint = */ int16_t{ 0 },
+                         /* DataLocation= */ DataLocation::DRAM,
+                     },
+                     /* WeightInfo = */
+                     TensorInfo{
+                         /* DataType = */ DataType::U8,
+                         /* DataFormat = */ DataFormat::WEIGHT_STREAM,
+                         /* TensorShape = */ TensorShape{ { 3U, 3U, 16U, 16U } },
+                         /* SupertensorShape = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                         /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                         /* StripeShape = */ TensorShape{ { 3U, 3U, 16U, 16U } },
+                         /* TileSize = */ uint32_t{ 1U },
+                         /* DramBufferId = */ 0U,
+                         /* SramOffset = */ 512U,
+                         /* ZeroPoint = */ int16_t{ 128 },
+                         /* DataLocation= */ DataLocation::DRAM,
+                     },
+                     /* WeightMetadataBufferId = */ 10U,
+                     /* OutputInfo = */
+                     TensorInfo{
+                         /* DataType = */ DataType::U8,
+                         /* DataFormat = */ DataFormat::NHWCB,
+                         /* TensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                         /* SupertensorShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                         /* SupertensorOffset = */ TensorShape{ { 0U, 0U, 0U, 0U } },
+                         /* StripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
+                         /* TileSize = */ uint32_t{ 1000U },
+                         /* DramBufferId = */ 3U,
+                         /* SramOffset = */ 512U,
+                         /* ZeroPoint = */ int16_t{ 100 },
+                         /* DataLocation= */ DataLocation::DRAM,
+                     },
+                     /* SramConfig = */
+                     SramConfig{
+                         /* AllocationStrategy = */ SramAllocationStrategy::STRATEGY_1,
+                     },
+                     /* BlockConfig = */
+                     BlockConfig{
+                         /* BlockWidth = */ 16U,
+                         /* BlockHeight = */ 16U,
+                     },
+                     /* MceData = */
+                     MceData{
+                         /* Stride = */ MceStrideConfig{ 1U, 1U },
+                         /* PadTop = */ 1U,
+                         /* PadLeft = */ 1U,
+                         /* UninterleavedInputShape = */ TensorShape{ 1U, 16U, 16U, 16U },
+                         /* OutputShape = */ TensorShape{ 1U, 16U, 16U, 16U },
+                         /* OutputStripeShape = */ TensorShape{ 1U, 16U, 16U, 16U },
+                         /* OutputZeroPoint = */ int16_t{ 0 },
+                         /* UpsampleType = */ UpsampleType::OFF,
+                         /* UpsampleEdgeModeRow = */ UpsampleEdgeMode::GENERATE,
+                         /* UpsampleEdgeModeCol = */ UpsampleEdgeMode::GENERATE,
+                         /* Operation = */ MceOperation::CONVOLUTION,
+                         /* Algorithm = */ MceAlgorithm::DIRECT,
+                         /* ActivationMin = */ uint8_t{ 100 },
+                         /* ActivationMax = */ uint8_t{ 255 },
+                     },
+                     /* PleData = */
+                     PleData{
+                         /* CeSram = */ uint32_t{ 0 },
+                         /* PleSram = */ uint32_t{ 0 },
+                         /* PleOperation = */ PleOperation::PASSTHROUGH,
+                         /* RescaleMultiplier0 = */ uint16_t{ 0 },
+                         /* RescaleShift0 = */ uint16_t{ 0 },
+                         /* RescaleMultiplier1 = */ uint16_t{ 0 },
+                         /* RescaleShift1 = */ uint16_t{ 0 },
+                     }
+    };
 
-    std::stringstream inputXml(commandStreamXml);
-    const XmlParser xmlParser(inputXml);
-    const std::vector<uint32_t>& commandStreamBinary = xmlParser.GetCommandStreamBuffer().GetData();
+    Fence comm2 = {};
+
+    DumpDram comm3 = { /* DramBufferId = */ uint32_t{ 0 },
+                       /* Filename = */ Filename(
+                           convertCharsToArray(59, "1_16_16_16_CommandStream_Operation_0_OutputModel_NHWCB.hex")) };
+
+    DumpSram comm4 = { /* Prefix = */ Filename(convertCharsToArray(10, "output_ce")) };
+
+    CommandStreamBuffer buffer;
+    buffer.EmplaceBack(comm1);
+    buffer.EmplaceBack(comm2);
+    buffer.EmplaceBack(comm3);
+    buffer.EmplaceBack(comm4);
+    const std::vector<uint32_t> commandStreamBinary = buffer.GetData();
 
     std::stringstream cmmSnippet;
 
@@ -1228,36 +2070,19 @@ TEST_CASE("ExtractCommandStreamFromCMM")
     std::stringstream output;
     CMMParser(cmmSnippet).ExtractCSFromCMM(output, false);
 
+    BinaryParser binaryParser(commandStreamBinary);
+    std::stringstream outputXml;
+    binaryParser.WriteXml(outputXml);
+
     // Remove spaces since they can be different
     std::string outputString = output.str();
     outputString.erase(std::remove(outputString.begin(), outputString.end(), ' '), outputString.end());
 
+    std::string commandStreamXml = outputXml.str();
     commandStreamXml.erase(std::remove(commandStreamXml.begin(), commandStreamXml.end(), ' '), commandStreamXml.end());
 
     // Compare the strings with no white spaces
     REQUIRE(commandStreamXml == outputString);
 }
 
-TEST_CASE("XmlParser incorrect version")
-{
-    using Catch::Matchers::Message;
-
-    GIVEN("An XML command stream with an unsupported version")
-    {
-        std::string commandStreamXml =
-            R"(<?xml version="1.0" encoding="utf-8"?>
-           <STREAM VERSION_MAJOR="%VERSION_MAJOR%" VERSION_MINOR="%VERSION_MINOR%" VERSION_PATCH="%VERSION_PATCH%">
-           </STREAM>
-           )";
-        commandStreamXml = ReplaceVersionNumbers(commandStreamXml, ETHOSN_COMMAND_STREAM_VERSION_MAJOR + 1, 0, 0);
-
-        WHEN("Attempting to parse the file")
-        {
-            THEN("An exception is thrown")
-            {
-                std::stringstream inputXml(commandStreamXml);
-                REQUIRE_THROWS_MATCHES(XmlParser(inputXml), ParseException, Message("Unsupported version"));
-            }
-        }
-    }
-}
+// END OF XMLTOBINARYTESTS

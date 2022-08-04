@@ -3,13 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "BinaryParser.hpp"
-
 #include <ethosn_command_stream/CommandStream.hpp>
 #include <ethosn_command_stream/cascading/CommandStream.hpp>
 
 #include <cassert>
 #include <iomanip>
-#include <sstream>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -24,57 +22,24 @@ std::vector<uint8_t> ReadBinaryData(std::istream& input)
     return std::vector<uint8_t>(std::istreambuf_iterator<char>{ input }, {});
 }
 
-const char* XmlSaveCallback(mxml_node_t* const node, const int where)
+void Parse(std::stringstream& parent, const char* const value, const int& tabs, const bool& newline)
 {
-    static size_t currentIndent = 0;
-
-    bool childIsNull         = mxmlGetFirstChild(node) == nullptr;
-    bool childChildIsNotNull = mxmlGetFirstChild(mxmlGetFirstChild(node)) != nullptr;
-
-    if (where == MXML_WS_BEFORE_OPEN)
+    for (int i = 0; i < tabs; ++i)
     {
-        ++currentIndent;
+        parent << "    ";
     }
 
-    if (where == MXML_WS_AFTER_CLOSE || ((where == MXML_WS_AFTER_OPEN) && childIsNull))
-    {
-        --currentIndent;
-    }
+    parent << value;
 
-    if ((mxmlGetParent(node) == nullptr) || (std::string(mxmlGetElement(node)) == g_XmlRootName))
+    if (newline)
     {
-        currentIndent = 0;
-    }
-
-    // Measure indent by taking distance from the _end_ of a whitespace string
-    // (stops weird valgrind error from previous constexpr return)
-    static const char indents[] = "                    ";
-    const char* indent          = indents + sizeof(indents) - 1 - (currentIndent * 2);
-    assert((indent >= &indents[0]) && "Insufficient indent space in string");
-
-    switch (where)
-    {
-        case MXML_WS_BEFORE_OPEN:
-            return indent;
-        case MXML_WS_AFTER_OPEN:
-            return (childIsNull || childChildIsNotNull) ? "\n" : nullptr;
-        case MXML_WS_BEFORE_CLOSE:
-            return childChildIsNotNull ? indent : nullptr;
-        case MXML_WS_AFTER_CLOSE:
-            return "\n";
-        default:
-            return nullptr;
+        parent << "\n";
     }
 }
 
-void Parse(mxml_node_t& parent, const char* const value)
+void Parse(std::stringstream& parent, const std::string& value, const int tabs, const bool newline)
 {
-    mxmlNewText(&parent, 0, value);
-}
-
-void Parse(mxml_node_t& parent, const std::string& value)
-{
-    Parse(parent, value.c_str());
+    Parse(parent, value.c_str(), tabs, newline);
 }
 
 std::string IntegersToString(std::ostringstream& oss)
@@ -106,28 +71,33 @@ std::string IntegersToString(const Is... ints)
 }
 
 template <typename IntType>
-std::enable_if_t<std::is_integral<IntType>::value> Parse(mxml_node_t& parent, const IntType value)
+std::enable_if_t<std::is_integral<IntType>::value> Parse(std::stringstream& parent, const IntType value)
 {
     Parse(parent, IntegersToString(value));
 }
 
-void ParseAsHex(mxml_node_t& parent, const uint32_t value)
+void ParseAsHex(std::stringstream& parent, const uint32_t value)
 {
-    Parse(parent, "0x" + IntegersToString<16>(value));
+    Parse(parent, "0x" + IntegersToString<16>(value), 0, false);
 }
 
-void Parse(mxml_node_t& parent, const DataType value)
+void ParseAsNum(std::stringstream& parent, const int32_t value)
+{
+    Parse(parent, IntegersToString<10>(value), 0, false);
+}
+
+void Parse(std::stringstream& parent, const DataType value)
 {
     switch (value)
     {
         case DataType::U8:
         {
-            Parse(parent, "U8");
+            Parse(parent, "U8", 0, false);
             break;
         }
         case DataType::S8:
         {
-            Parse(parent, "S8");
+            Parse(parent, "S8", 0, false);
             break;
         }
         default:
@@ -138,38 +108,38 @@ void Parse(mxml_node_t& parent, const DataType value)
     }
 }
 
-void Parse(mxml_node_t& parent, const DataFormat value)
+void Parse(std::stringstream& parent, const DataFormat value)
 {
     switch (value)
     {
         case DataFormat::NHWCB:
         {
-            Parse(parent, "NHWCB");
+            Parse(parent, "NHWCB", 0, false);
             break;
         }
         case DataFormat::NHWC:
         {
-            Parse(parent, "NHWC");
+            Parse(parent, "NHWC", 0, false);
             break;
         }
         case DataFormat::NCHW:
         {
-            Parse(parent, "NCHW");
+            Parse(parent, "NCHW", 0, false);
             break;
         }
         case DataFormat::WEIGHT_STREAM:
         {
-            Parse(parent, "WEIGHT_STREAM");
+            Parse(parent, "WEIGHT_STREAM", 0, false);
             break;
         }
         case DataFormat::FCAF_DEEP:
         {
-            Parse(parent, "FCAF_DEEP");
+            Parse(parent, "FCAF_DEEP", 0, false);
             break;
         }
         case DataFormat::FCAF_WIDE:
         {
-            Parse(parent, "FCAF_WIDE");
+            Parse(parent, "FCAF_WIDE", 0, false);
             break;
         }
         default:
@@ -180,43 +150,43 @@ void Parse(mxml_node_t& parent, const DataFormat value)
     }
 }
 
-void Parse(mxml_node_t& parent, const SramAllocationStrategy value)
+void Parse(std::stringstream& parent, const SramAllocationStrategy value)
 {
     switch (value)
     {
         case SramAllocationStrategy::STRATEGY_0:
         {
-            Parse(parent, "STRATEGY_0");
+            Parse(parent, "STRATEGY_0", 0, false);
             break;
         }
         case SramAllocationStrategy::STRATEGY_1:
         {
-            Parse(parent, "STRATEGY_1");
+            Parse(parent, "STRATEGY_1", 0, false);
             break;
         }
         case SramAllocationStrategy::STRATEGY_3:
         {
-            Parse(parent, "STRATEGY_3");
+            Parse(parent, "STRATEGY_3", 0, false);
             break;
         }
         case SramAllocationStrategy::STRATEGY_4:
         {
-            Parse(parent, "STRATEGY_4");
+            Parse(parent, "STRATEGY_4", 0, false);
             break;
         }
         case SramAllocationStrategy::STRATEGY_6:
         {
-            Parse(parent, "STRATEGY_6");
+            Parse(parent, "STRATEGY_6", 0, false);
             break;
         }
         case SramAllocationStrategy::STRATEGY_7:
         {
-            Parse(parent, "STRATEGY_7");
+            Parse(parent, "STRATEGY_7", 0, false);
             break;
         }
         case SramAllocationStrategy::STRATEGY_X:
         {
-            Parse(parent, "STRATEGY_X");
+            Parse(parent, "STRATEGY_X", 0, false);
             break;
         }
         default:
@@ -228,28 +198,28 @@ void Parse(mxml_node_t& parent, const SramAllocationStrategy value)
     }
 }
 
-void Parse(mxml_node_t& parent, const UpsampleType value)
+void Parse(std::stringstream& parent, const UpsampleType value)
 {
     switch (value)
     {
         case UpsampleType::OFF:
         {
-            Parse(parent, "OFF");
+            Parse(parent, "OFF", 0, false);
             break;
         }
         case UpsampleType::BILINEAR:
         {
-            Parse(parent, "BILINEAR");
+            Parse(parent, "BILINEAR", 0, false);
             break;
         }
         case UpsampleType::NEAREST_NEIGHBOUR:
         {
-            Parse(parent, "NEAREST_NEIGHBOUR");
+            Parse(parent, "NEAREST_NEIGHBOUR", 0, false);
             break;
         }
         case UpsampleType::TRANSPOSE:
         {
-            Parse(parent, "TRANSPOSE");
+            Parse(parent, "TRANSPOSE", 0, false);
             break;
         }
         default:
@@ -261,18 +231,18 @@ void Parse(mxml_node_t& parent, const UpsampleType value)
     }
 }
 
-void Parse(mxml_node_t& parent, const MceAlgorithm value)
+void Parse(std::stringstream& parent, const MceAlgorithm value)
 {
     switch (value)
     {
         case MceAlgorithm::DIRECT:
         {
-            Parse(parent, "DIRECT");
+            Parse(parent, "DIRECT", 0, false);
             break;
         }
         case MceAlgorithm::WINOGRAD:
         {
-            Parse(parent, "WINOGRAD");
+            Parse(parent, "WINOGRAD", 0, false);
             break;
         }
         default:
@@ -284,18 +254,18 @@ void Parse(mxml_node_t& parent, const MceAlgorithm value)
     }
 }
 
-void Parse(mxml_node_t& parent, const DataLocation value)
+void Parse(std::stringstream& parent, const DataLocation value)
 {
     switch (value)
     {
         case DataLocation::DRAM:
         {
-            Parse(parent, "DRAM");
+            Parse(parent, "DRAM", 0, false);
             break;
         }
         case DataLocation::SRAM:
         {
-            Parse(parent, "SRAM");
+            Parse(parent, "SRAM", 0, false);
             break;
         }
         default:
@@ -307,23 +277,23 @@ void Parse(mxml_node_t& parent, const DataLocation value)
     }
 }
 
-void Parse(mxml_node_t& parent, const MceOperation value)
+void Parse(std::stringstream& parent, const MceOperation value)
 {
     switch (value)
     {
         case MceOperation::CONVOLUTION:
         {
-            Parse(parent, "CONVOLUTION");
+            Parse(parent, "CONVOLUTION", 0, false);
             break;
         }
         case MceOperation::DEPTHWISE_CONVOLUTION:
         {
-            Parse(parent, "DEPTHWISE_CONVOLUTION");
+            Parse(parent, "DEPTHWISE_CONVOLUTION", 0, false);
             break;
         }
         case MceOperation::FULLY_CONNECTED:
         {
-            Parse(parent, "FULLY_CONNECTED");
+            Parse(parent, "FULLY_CONNECTED", 0, false);
             break;
         }
         default:
@@ -335,38 +305,38 @@ void Parse(mxml_node_t& parent, const MceOperation value)
     }
 }
 
-void Parse(mxml_node_t& parent, const SectionType value)
+void Parse(std::stringstream& parent, const SectionType value)
 {
     switch (value)
     {
         case SectionType::SISO:
         {
-            Parse(parent, "SISO");
+            Parse(parent, "SISO", 0, false);
             break;
         }
         case SectionType::SISO_CASCADED:
         {
-            Parse(parent, "SISO_CASCADED");
+            Parse(parent, "SISO_CASCADED", 0, false);
             break;
         }
         case SectionType::SIMO:
         {
-            Parse(parent, "SIMO");
+            Parse(parent, "SIMO", 0, false);
             break;
         }
         case SectionType::SIMO_CASCADED:
         {
-            Parse(parent, "SIMO_CASCADED");
+            Parse(parent, "SIMO_CASCADED", 0, false);
             break;
         }
         case SectionType::SISO_BRANCHED_CASCADED:
         {
-            Parse(parent, "SISO_BRANCHED_CASCADED");
+            Parse(parent, "SISO_BRANCHED_CASCADED", 0, false);
             break;
         }
         case SectionType::MISO:
         {
-            Parse(parent, "MISO");
+            Parse(parent, "MISO", 0, false);
             break;
         }
         default:
@@ -378,85 +348,208 @@ void Parse(mxml_node_t& parent, const SectionType value)
     }
 }
 
-void Parse(mxml_node_t& parent, const TensorShape& value)
+void Parse(std::stringstream& parent, const TensorShape& value)
 {
     const std::string text =
         IntegersToString(std::get<0>(value), std::get<1>(value), std::get<2>(value), std::get<3>(value));
-    Parse(parent, text);
+    Parse(parent, text, 0, false);
 }
 
-void Parse(mxml_node_t& parent, const TensorInfo& value)
+void Parse(std::stringstream& parent, const TensorInfo& value)
 {
-    Parse(*mxmlNewElement(&parent, "DATA_TYPE"), value.m_DataType());
-    Parse(*mxmlNewElement(&parent, "DATA_FORMAT"), value.m_DataFormat());
-    Parse(*mxmlNewElement(&parent, "TENSOR_SHAPE"), value.m_TensorShape());
-    Parse(*mxmlNewElement(&parent, "SUPERTENSOR_SHAPE"), value.m_SupertensorShape());
-    Parse(*mxmlNewElement(&parent, "SUPERTENSOR_OFFSET"), value.m_SupertensorOffset());
-    Parse(*mxmlNewElement(&parent, "STRIPE_SHAPE"), value.m_StripeShape());
+    Parse(parent, "<DATA_TYPE>", 3, false);
+    Parse(parent, value.m_DataType());
+    Parse(parent, "</DATA_TYPE>", 0, true);
+
+    Parse(parent, "<DATA_FORMAT>", 3, false);
+    Parse(parent, value.m_DataFormat());
+    Parse(parent, "</DATA_FORMAT>", 0, true);
+
+    Parse(parent, "<TENSOR_SHAPE>", 3, false);
+    Parse(parent, value.m_TensorShape());
+    Parse(parent, "</TENSOR_SHAPE>", 0, true);
+
+    Parse(parent, "<SUPERTENSOR_SHAPE>", 3, false);
+    Parse(parent, value.m_SupertensorShape());
+    Parse(parent, "</SUPERTENSOR_SHAPE>", 0, true);
+
+    Parse(parent, "<SUPERTENSOR_OFFSET>", 3, false);
+    Parse(parent, value.m_SupertensorOffset());
+    Parse(parent, "</SUPERTENSOR_OFFSET>", 0, true);
+
+    Parse(parent, "<STRIPE_SHAPE>", 3, false);
+    Parse(parent, value.m_StripeShape());
+    Parse(parent, "</STRIPE_SHAPE>", 0, true);
     // TileSize is represented as TILE_SHAPE in the XML, for compatibility with the prototype compiler and performance model.
     TensorShape tileShape{ value.m_TileSize(), 1, 1, 1 };
-    Parse(*mxmlNewElement(&parent, "TILE_SHAPE"), tileShape);
-    Parse(*mxmlNewElement(&parent, "DRAM_BUFFER_ID"), value.m_DramBufferId());
-    ParseAsHex(*mxmlNewElement(&parent, "SRAM_OFFSET"), value.m_SramOffset());
-    Parse(*mxmlNewElement(&parent, "ZERO_POINT"), value.m_ZeroPoint());
-    Parse(*mxmlNewElement(&parent, "DATA_LOCATION"), value.m_DataLocation());
+    Parse(parent, "<TILE_SHAPE>", 3, false);
+    Parse(parent, tileShape);
+    Parse(parent, "</TILE_SHAPE>", 0, true);
+
+    Parse(parent, "<DRAM_BUFFER_ID>", 3, false);
+    ParseAsNum(parent, value.m_DramBufferId());
+    Parse(parent, "</DRAM_BUFFER_ID>", 0, true);
+
+    Parse(parent, "<SRAM_OFFSET>", 3, false);
+    ParseAsHex(parent, value.m_SramOffset());
+    Parse(parent, "</SRAM_OFFSET>", 0, true);
+
+    Parse(parent, "<ZERO_POINT>", 3, false);
+    ParseAsNum(parent, value.m_ZeroPoint());
+    Parse(parent, "</ZERO_POINT>", 0, true);
+
+    Parse(parent, "<DATA_LOCATION>", 3, false);
+    Parse(parent, value.m_DataLocation());
+    Parse(parent, "</DATA_LOCATION>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const SramConfig& value)
+void Parse(std::stringstream& parent, const SramConfig& value)
 {
-    Parse(*mxmlNewElement(&parent, "ALLOCATION_STRATEGY"), value.m_AllocationStrategy());
+    Parse(parent, "<ALLOCATION_STRATEGY>", 3, false);
+    Parse(parent, value.m_AllocationStrategy());
+    Parse(parent, "</ALLOCATION_STRATEGY>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const BlockConfig& value)
+void Parse(std::stringstream& parent, const BlockConfig& value)
 {
-    Parse(*mxmlNewElement(&parent, "BLOCK_WIDTH"), value.m_BlockWidth());
-    Parse(*mxmlNewElement(&parent, "BLOCK_HEIGHT"), value.m_BlockHeight());
+    Parse(parent, "<BLOCK_WIDTH>", 3, false);
+    ParseAsNum(parent, value.m_BlockWidth());
+    Parse(parent, "</BLOCK_WIDTH>", 0, true);
+
+    Parse(parent, "<BLOCK_HEIGHT>", 3, false);
+    ParseAsNum(parent, value.m_BlockHeight());
+    Parse(parent, "</BLOCK_HEIGHT>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const MceData& value)
+void Parse(std::stringstream& parent, const MceData& value)
 {
-    mxml_node_t& mce = *mxmlNewElement(&parent, "MCE_OP_INFO");
+    Parse(parent, "<MCE_OP_INFO>", 2, true);
 
-    Parse(*mxmlNewElement(&mce, "STRIDE_X"), value.m_Stride().m_X());
-    Parse(*mxmlNewElement(&mce, "STRIDE_Y"), value.m_Stride().m_Y());
-    Parse(*mxmlNewElement(&mce, "PAD_TOP"), value.m_PadTop());
-    Parse(*mxmlNewElement(&mce, "PAD_LEFT"), value.m_PadLeft());
-    Parse(*mxmlNewElement(&mce, "UNINTERLEAVED_INPUT_SHAPE"), value.m_UninterleavedInputShape());
-    Parse(*mxmlNewElement(&mce, "OUTPUT_SHAPE"), value.m_OutputShape());
-    Parse(*mxmlNewElement(&mce, "OUTPUT_STRIPE_SHAPE"), value.m_OutputStripeShape());
-    Parse(*mxmlNewElement(&mce, "OPERATION"), value.m_Operation());
-    Parse(*mxmlNewElement(&mce, "ALGO"), value.m_Algorithm());
-    Parse(*mxmlNewElement(&mce, "ACTIVATION_MIN"), value.m_ActivationMin());
-    Parse(*mxmlNewElement(&mce, "ACTIVATION_MAX"), value.m_ActivationMax());
-    Parse(*mxmlNewElement(&mce, "UPSAMPLE_TYPE"), value.m_UpsampleType());
+    Parse(parent, "<STRIDE_X>", 3, false);
+    ParseAsNum(parent, value.m_Stride().m_X());
+    Parse(parent, "</STRIDE_X>", 0, true);
+
+    Parse(parent, "<STRIDE_Y>", 3, false);
+    ParseAsNum(parent, value.m_Stride().m_Y());
+    Parse(parent, "</STRIDE_Y>", 0, true);
+
+    Parse(parent, "<PAD_TOP>", 3, false);
+    ParseAsNum(parent, value.m_PadTop());
+    Parse(parent, "</PAD_TOP>", 0, true);
+
+    Parse(parent, "<PAD_LEFT>", 3, false);
+    ParseAsNum(parent, value.m_PadLeft());
+    Parse(parent, "</PAD_LEFT>", 0, true);
+
+    Parse(parent, "<UNINTERLEAVED_INPUT_SHAPE>", 3, false);
+    Parse(parent, value.m_UninterleavedInputShape());
+    Parse(parent, "</UNINTERLEAVED_INPUT_SHAPE>", 0, true);
+
+    Parse(parent, "<OUTPUT_SHAPE>", 3, false);
+    Parse(parent, value.m_OutputShape());
+    Parse(parent, "</OUTPUT_SHAPE>", 0, true);
+
+    Parse(parent, "<OUTPUT_STRIPE_SHAPE>", 3, false);
+    Parse(parent, value.m_OutputStripeShape());
+    Parse(parent, "</OUTPUT_STRIPE_SHAPE>", 0, true);
+
+    Parse(parent, "<OPERATION>", 3, false);
+    Parse(parent, value.m_Operation());
+    Parse(parent, "</OPERATION>", 0, true);
+
+    Parse(parent, "<ALGO>", 3, false);
+    Parse(parent, value.m_Algorithm());
+    Parse(parent, "</ALGO>", 0, true);
+
+    Parse(parent, "<ACTIVATION_MIN>", 3, false);
+    ParseAsNum(parent, value.m_ActivationMin());
+    Parse(parent, "</ACTIVATION_MIN>", 0, true);
+
+    Parse(parent, "<ACTIVATION_MAX>", 3, false);
+    ParseAsNum(parent, value.m_ActivationMax());
+    Parse(parent, "</ACTIVATION_MAX>", 0, true);
+
+    Parse(parent, "<UPSAMPLE_TYPE>", 3, false);
+    Parse(parent, value.m_UpsampleType());
+    Parse(parent, "</UPSAMPLE_TYPE>", 0, true);
+
+    Parse(parent, "</MCE_OP_INFO>", 2, true);
 }
 
-void Parse(mxml_node_t& parent, const PleOperation value)
+void Parse(std::stringstream& parent, const PleOperation value)
 {
     switch (value)
     {
-#define PARSE_PLE_OPERATION_CASE(op)                                                                                   \
-    case PleOperation::op:                                                                                             \
-    {                                                                                                                  \
-        Parse(parent, #op);                                                                                            \
-        break;                                                                                                         \
-    }
-
-        PARSE_PLE_OPERATION_CASE(ADDITION)
-        PARSE_PLE_OPERATION_CASE(ADDITION_RESCALE)
-        PARSE_PLE_OPERATION_CASE(AVGPOOL_3X3_1_1_UDMA)
-        PARSE_PLE_OPERATION_CASE(INTERLEAVE_2X2_2_2)
-        PARSE_PLE_OPERATION_CASE(MAXPOOL_2X2_2_2)
-        PARSE_PLE_OPERATION_CASE(MAXPOOL_3X3_2_2_EVEN)
-        PARSE_PLE_OPERATION_CASE(MAXPOOL_3X3_2_2_ODD)
-        PARSE_PLE_OPERATION_CASE(MEAN_XY_7X7)
-        PARSE_PLE_OPERATION_CASE(MEAN_XY_8X8)
-        PARSE_PLE_OPERATION_CASE(PASSTHROUGH)
-        PARSE_PLE_OPERATION_CASE(SIGMOID)
-        PARSE_PLE_OPERATION_CASE(TRANSPOSE_XY)
-        PARSE_PLE_OPERATION_CASE(LEAKY_RELU)
-        PARSE_PLE_OPERATION_CASE(DOWNSAMPLE_2X2)
-
+        case PleOperation::ADDITION:
+        {
+            Parse(parent, "ADDITION", 0, false);
+            break;
+        }
+        case PleOperation::ADDITION_RESCALE:
+        {
+            Parse(parent, "ADDITION_RESCALE", 0, false);
+            break;
+        }
+        case PleOperation::AVGPOOL_3X3_1_1_UDMA:
+        {
+            Parse(parent, "AVGPOOL_3X3_1_1_UDMA", 0, false);
+            break;
+        }
+        case PleOperation::INTERLEAVE_2X2_2_2:
+        {
+            Parse(parent, "INTERLEAVE_2X2_2_2", 0, false);
+            break;
+        }
+        case PleOperation::MAXPOOL_2X2_2_2:
+        {
+            Parse(parent, "MAXPOOL_2X2_2_2", 0, false);
+            break;
+        }
+        case PleOperation::MAXPOOL_3X3_2_2_EVEN:
+        {
+            Parse(parent, "MAXPOOL_3X3_2_2_EVEN", 0, false);
+            break;
+        }
+        case PleOperation::MAXPOOL_3X3_2_2_ODD:
+        {
+            Parse(parent, "MAXPOOL_3X3_2_2_ODD", 0, false);
+            break;
+        }
+        case PleOperation::MEAN_XY_7X7:
+        {
+            Parse(parent, "MEAN_XY_7X7", 0, false);
+            break;
+        }
+        case PleOperation::MEAN_XY_8X8:
+        {
+            Parse(parent, "MEAN_XY_8X8", 0, false);
+            break;
+        }
+        case PleOperation::PASSTHROUGH:
+        {
+            Parse(parent, "PASSTHROUGH", 0, false);
+            break;
+        }
+        case PleOperation::SIGMOID:
+        {
+            Parse(parent, "SIGMOID", 0, false);
+            break;
+        }
+        case PleOperation::TRANSPOSE_XY:
+        {
+            Parse(parent, "TRANSPOSE_XY", 0, false);
+            break;
+        }
+        case PleOperation::LEAKY_RELU:
+        {
+            Parse(parent, "LEAKY_RELU", 0, false);
+            break;
+        }
+        case PleOperation::DOWNSAMPLE_2X2:
+        {
+            Parse(parent, "DOWNSAMPLE_2X2", 0, false);
+            break;
+        }
         default:
         {
             // Bad binary
@@ -466,157 +559,306 @@ void Parse(mxml_node_t& parent, const PleOperation value)
     }
 }
 
-void Parse(mxml_node_t& parent, const PleData& value)
+void Parse(std::stringstream& parent, const PleData& value)
 {
-    mxml_node_t& compute = *mxmlNewElement(&parent, "PLE_OP_INFO");
+    Parse(parent, "<PLE_OP_INFO>", 2, true);
 
-    ParseAsHex(*mxmlNewElement(&compute, "CE_SRAM"), value.m_CeSram());
-    ParseAsHex(*mxmlNewElement(&compute, "PLE_SRAM"), value.m_PleSram());
-    Parse(*mxmlNewElement(&compute, "OPERATION"), value.m_Operation());
-    Parse(*mxmlNewElement(&compute, "RESCALE_MULTIPLIER0"), value.m_RescaleMultiplier0());
-    Parse(*mxmlNewElement(&compute, "RESCALE_SHIFT0"), value.m_RescaleShift0());
-    Parse(*mxmlNewElement(&compute, "RESCALE_MULTIPLIER1"), value.m_RescaleMultiplier1());
-    Parse(*mxmlNewElement(&compute, "RESCALE_SHIFT1"), value.m_RescaleShift1());
+    Parse(parent, "<CE_SRAM>", 3, false);
+    ParseAsHex(parent, value.m_CeSram());
+    Parse(parent, "</CE_SRAM>", 0, true);
+
+    Parse(parent, "<PLE_SRAM>", 3, false);
+    ParseAsHex(parent, value.m_PleSram());
+    Parse(parent, "</PLE_SRAM>", 0, true);
+
+    Parse(parent, "<OPERATION>", 3, false);
+    Parse(parent, value.m_Operation());
+    Parse(parent, "</OPERATION>", 0, true);
+
+    Parse(parent, "<RESCALE_MULTIPLIER0>", 3, false);
+    ParseAsNum(parent, value.m_RescaleMultiplier0());
+    Parse(parent, "</RESCALE_MULTIPLIER0>", 0, true);
+
+    Parse(parent, "<RESCALE_SHIFT0>", 3, false);
+    ParseAsNum(parent, value.m_RescaleShift0());
+    Parse(parent, "</RESCALE_SHIFT0>", 0, true);
+
+    Parse(parent, "<RESCALE_MULTIPLIER1>", 3, false);
+    ParseAsNum(parent, value.m_RescaleMultiplier1());
+    Parse(parent, "</RESCALE_MULTIPLIER1>", 0, true);
+
+    Parse(parent, "<RESCALE_SHIFT1>", 3, false);
+    ParseAsNum(parent, value.m_RescaleShift1());
+    Parse(parent, "</RESCALE_SHIFT1>", 0, true);
+
+    Parse(parent, "</PLE_OP_INFO>", 2, true);
 }
 
-void Parse(mxml_node_t& parent, const McePle& value)
+void Parse(std::stringstream& parent, const McePle& value)
 {
-    mxml_node_t& operation = *mxmlNewElement(&parent, "OPERATION_MCE_PLE");
-    Parse(*mxmlNewElement(&operation, "INPUT_INFO"), value.m_InputInfo());
-    Parse(*mxmlNewElement(&operation, "WEIGHT_INFO"), value.m_WeightInfo());
-    Parse(*mxmlNewElement(&operation, "WEIGHTS_METADATA_BUFFER_ID"), value.m_WeightMetadataBufferId());
-    Parse(*mxmlNewElement(&operation, "OUTPUT_INFO"), value.m_OutputInfo());
-    Parse(*mxmlNewElement(&operation, "SRAM_CONFIG"), value.m_SramConfig());
-    Parse(*mxmlNewElement(&operation, "BLOCK_CONFIG"), value.m_BlockConfig());
-    Parse(operation, value.m_MceData());
-    Parse(operation, value.m_PleData());
+    Parse(parent, "<OPERATION_MCE_PLE>", 1, true);
+
+    Parse(parent, "<INPUT_INFO>", 2, true);
+    Parse(parent, value.m_InputInfo());
+    Parse(parent, "</INPUT_INFO>", 2, true);
+
+    Parse(parent, "<WEIGHT_INFO>", 2, true);
+    Parse(parent, value.m_WeightInfo());
+    Parse(parent, "</WEIGHT_INFO>", 2, true);
+
+    Parse(parent, "<WEIGHTS_METADATA_BUFFER_ID>", 2, false);
+    ParseAsNum(parent, value.m_WeightMetadataBufferId());
+    Parse(parent, "</WEIGHTS_METADATA_BUFFER_ID>", 2, true);
+
+    Parse(parent, "<OUTPUT_INFO>", 2, true);
+    Parse(parent, value.m_OutputInfo());
+    Parse(parent, "</OUTPUT_INFO>", 2, true);
+
+    Parse(parent, "<SRAM_CONFIG>", 2, true);
+    Parse(parent, value.m_SramConfig());
+    Parse(parent, "</SRAM_CONFIG>", 2, true);
+
+    Parse(parent, "<BLOCK_CONFIG>", 2, true);
+    Parse(parent, value.m_BlockConfig());
+    Parse(parent, "</BLOCK_CONFIG>", 2, true);
+
+    Parse(parent, value.m_MceData());
+    Parse(parent, value.m_PleData());
+
+    Parse(parent, "</OPERATION_MCE_PLE>", 1, true);
 }
 
-void Parse(mxml_node_t& parent, const PleOnly& value)
+void Parse(std::stringstream& parent, const PleOnly& value)
 {
-    mxml_node_t& operation = *mxmlNewElement(&parent, "OPERATION_PLE");
+    Parse(parent, "<OPERATION_PLE>", 1, true);
 
-    Parse(*mxmlNewElement(&operation, "INPUT_INFO"), value.m_InputInfo());
+    Parse(parent, "<INPUT_INFO>", 2, true);
+    Parse(parent, value.m_InputInfo());
+    Parse(parent, "</INPUT_INFO>", 2, true);
     if (value.m_NumInputInfos() == 2)
     {
-        Parse(*mxmlNewElement(&operation, "INPUT_INFO"), value.m_InputInfo2());
+        Parse(parent, "<INPUT_INFO>", 2, true);
+        Parse(parent, value.m_InputInfo2());
+        Parse(parent, "</INPUT_INFO>", 2, true);
     }
-    Parse(*mxmlNewElement(&operation, "OUTPUT_INFO"), value.m_OutputInfo());
-    Parse(*mxmlNewElement(&operation, "SRAM_CONFIG"), value.m_SramConfig());
+    Parse(parent, "<OUTPUT_INFO>", 2, true);
+    Parse(parent, value.m_OutputInfo());
+    Parse(parent, "</OUTPUT_INFO>", 2, true);
 
-    Parse(operation, value.m_PleData());
+    Parse(parent, "<SRAM_CONFIG>", 2, true);
+    Parse(parent, value.m_SramConfig());
+    Parse(parent, "</SRAM_CONFIG>", 2, true);
+
+    Parse(parent, value.m_PleData());
+
+    Parse(parent, "</OPERATION_PLE>", 1, true);
 }
 
-void Parse(mxml_node_t& parent, const Softmax& value)
+void Parse(std::stringstream& parent, const Softmax& value)
 {
-    mxml_node_t& operation = *mxmlNewElement(&parent, "OPERATION_SOFTMAX");
+    Parse(parent, "<OPERATION_SOFTMAX>", 1, true);
 
-    Parse(*mxmlNewElement(&operation, "INPUT_INFO"), value.m_InputInfo());
-    Parse(*mxmlNewElement(&operation, "OUTPUT_INFO"), value.m_OutputInfo());
-    Parse(*mxmlNewElement(&operation, "SCALED_DIFF"), value.m_ScaledDiff());
-    Parse(*mxmlNewElement(&operation, "EXP_ACCUMULATION"), value.m_ExpAccumulation());
-    Parse(*mxmlNewElement(&operation, "INPUT_BETA_MULTIPLIER"), value.m_InputBetaMultiplier());
-    Parse(*mxmlNewElement(&operation, "INPUT_BETA_LEFT_SHIFT"), value.m_InputBetaLeftShift());
-    Parse(*mxmlNewElement(&operation, "DIFF_MIN"), value.m_DiffMin());
+    Parse(parent, "<INPUT_INFO>", 2, true);
+    Parse(parent, value.m_InputInfo());
+    Parse(parent, "</INPUT_INFO>", 2, true);
+
+    Parse(parent, "<OUTPUT_INFO>", 2, true);
+    Parse(parent, value.m_OutputInfo());
+    Parse(parent, "</OUTPUT_INFO>", 2, true);
+
+    Parse(parent, "<SCALED_DIFF>", 2, false);
+    ParseAsNum(parent, value.m_ScaledDiff());
+    Parse(parent, "</SCALED_DIFF>", 2, true);
+
+    Parse(parent, "<EXP_ACCUMULATION>", 2, false);
+    ParseAsNum(parent, value.m_ExpAccumulation());
+    Parse(parent, "</EXP_ACCUMULATION>", 2, true);
+
+    Parse(parent, "<INPUT_BETA_MULTIPLIER>", 2, false);
+    ParseAsNum(parent, value.m_InputBetaMultiplier());
+    Parse(parent, "</INPUT_BETA_MULTIPLIER>", 2, true);
+
+    Parse(parent, "<INPUT_BETA_LEFT_SHIFT>", 2, false);
+    ParseAsNum(parent, value.m_InputBetaLeftShift());
+    Parse(parent, "</INPUT_BETA_LEFT_SHIFT>", 2, true);
+
+    Parse(parent, "<DIFF_MIN>", 2, false);
+    ParseAsNum(parent, value.m_DiffMin());
+    Parse(parent, "</DIFF_MIN>", 2, true);
+
+    Parse(parent, "</OPERATION_SOFTMAX>", 1, true);
 }
 
-void Parse(mxml_node_t& parent, const Convert& value)
+void Parse(std::stringstream& parent, const Convert& value)
 {
-    mxml_node_t& operation = *mxmlNewElement(&parent, "OPERATION_CONVERT");
+    Parse(parent, "<OPERATION_CONVERT>", 1, true);
 
-    Parse(*mxmlNewElement(&operation, "INPUT_INFO"), value.m_InputInfo());
-    Parse(*mxmlNewElement(&operation, "OUTPUT_INFO"), value.m_OutputInfo());
+    Parse(parent, "<INPUT_INFO>", 2, true);
+    Parse(parent, value.m_InputInfo());
+    Parse(parent, "</INPUT_INFO>", 2, true);
+
+    Parse(parent, "<OUTPUT_INFO>", 2, true);
+    Parse(parent, value.m_OutputInfo());
+    Parse(parent, "</OUTPUT_INFO>", 2, true);
+
+    Parse(parent, "</OPERATION_CONVERT>", 1, true);
 }
 
-void Parse(mxml_node_t& parent, const SpaceToDepth& value)
+void Parse(std::stringstream& parent, const SpaceToDepth& value)
 {
-    mxml_node_t& operation = *mxmlNewElement(&parent, "OPERATION_SPACE_TO_DEPTH");
+    Parse(parent, "<OPERATION_SPACE_TO_DEPTH>", 1, true);
 
-    Parse(*mxmlNewElement(&operation, "INPUT_INFO"), value.m_InputInfo());
-    Parse(*mxmlNewElement(&operation, "OUTPUT_INFO"), value.m_OutputInfo());
-    Parse(*mxmlNewElement(&operation, "USED_EMCS"), value.m_UsedEmcs());
-    Parse(*mxmlNewElement(&operation, "INTERMEDIATE_1_SIZE"), value.m_Intermediate1Size());
-    Parse(*mxmlNewElement(&operation, "INTERMEDIATE_2_SIZE"), value.m_Intermediate2Size());
+    Parse(parent, "<INPUT_INFO>", 2, true);
+    Parse(parent, value.m_InputInfo());
+    Parse(parent, "</INPUT_INFO>", 2, true);
+
+    Parse(parent, "<OUTPUT_INFO>", 2, true);
+    Parse(parent, value.m_OutputInfo());
+    Parse(parent, "</OUTPUT_INFO>", 2, true);
+
+    Parse(parent, "<USED_EMCS>", 2, false);
+    ParseAsNum(parent, value.m_UsedEmcs());
+    Parse(parent, "</USED_EMCS>", 2, true);
+
+    Parse(parent, "<INTERMEDIATE_1_SIZE>", 2, false);
+    ParseAsNum(parent, value.m_Intermediate1Size());
+    Parse(parent, "</INTERMEDIATE_1_SIZE>", 2, true);
+
+    Parse(parent, "<INTERMEDIATE_2_SIZE>", 2, false);
+    ParseAsNum(parent, value.m_Intermediate2Size());
+    Parse(parent, "</INTERMEDIATE_2_SIZE>", 2, true);
+
+    Parse(parent, "</OPERATION_SPACE_TO_DEPTH>", 1, true);
 }
 
-void Parse(mxml_node_t& parent, const DumpDram& value)
+void Parse(std::stringstream& parent, const Filename& value)
 {
-    mxml_node_t& operation = *mxmlNewElement(&parent, "DUMP_DRAM");
-
-    Parse(*mxmlNewElement(&operation, "DRAM_BUFFER_ID"), value.m_DramBufferId());
-    Parse(*mxmlNewElement(&operation, "FILENAME"), value.m_Filename().data());
+    char output[128];
+    for (int i = 0; i < 128; ++i)
+    {
+        output[i] = value[i];
+    }
+    Parse(parent, output, 0, false);
 }
 
-void Parse(mxml_node_t& parent, const DumpSram& value)
+void Parse(std::stringstream& parent, const DumpDram& value)
 {
-    mxml_node_t& operation = *mxmlNewElement(&parent, "DUMP_SRAM");
+    Parse(parent, "<DUMP_DRAM>", 1, true);
 
-    Parse(*mxmlNewElement(&operation, "PREFIX"), value.m_Filename().data());
+    Parse(parent, "<DRAM_BUFFER_ID>", 2, false);
+    ParseAsNum(parent, value.m_DramBufferId());
+    Parse(parent, "</DRAM_BUFFER_ID>", 2, true);
+
+    Parse(parent, "<FILENAME>", 2, false);
+    Parse(parent, value.m_Filename());
+    Parse(parent, "</FILENAME>", 2, true);
+
+    Parse(parent, "</DUMP_DRAM>", 1, true);
 }
 
-void Parse(mxml_node_t& parent, const Section& value)
+void Parse(std::stringstream& parent, const DumpSram& value)
 {
-    mxml_node_t* operation = mxmlNewElement(&parent, "SECTION");
+    Parse(parent, "<DUMP_SRAM>", 1, true);
 
-    Parse(*mxmlNewElement(operation, "TYPE"), value.m_Type());
+    Parse(parent, "<PREFIX>", 2, false);
+    Parse(parent, value.m_Filename());
+    Parse(parent, "</PREFIX>", 2, true);
+
+    Parse(parent, "</DUMP_SRAM>", 1, true);
 }
 
-void Parse(mxml_node_t& parent, const Fence&)
+void Parse(std::stringstream& parent, const Section& value)
 {
-    mxmlNewElement(&parent, "FENCE");
+    Parse(parent, "<SECTION>", 1, true);
+
+    Parse(parent, "<TYPE>", 2, false);
+    Parse(parent, value.m_Type());
+    Parse(parent, "</TYPE>", 2, true);
+
+    Parse(parent, "</SECTION>", 1, true);
 }
 
-void Parse(mxml_node_t& parent, const Delay& value)
+void Parse(std::stringstream& parent, const Fence&)
 {
-    mxml_node_t* operation = mxmlNewElement(&parent, "DELAY");
+    parent << "<FENCE/>\n";
+}
 
-    Parse(*mxmlNewElement(operation, "VALUE"), value.m_Value());
+void Parse(std::stringstream& parent, const Delay& value)
+{
+    Parse(parent, "<DELAY>", 1, true);
+
+    Parse(parent, "<VALUE>", 2, false);
+    ParseAsNum(parent, value.m_Value());
+    Parse(parent, "</VALUE>", 2, true);
+
+    Parse(parent, "</DELAY>", 1, true);
 }
 
 template <typename T>
-void Parse(mxml_node_t& parent, const cascading::TensorSize<T>& size)
+void Parse(std::stringstream& parent, const cascading::TensorSize<T>& size)
 {
-    Parse(*mxmlNewElement(&parent, "HEIGHT"), size.height);
-    Parse(*mxmlNewElement(&parent, "WIDTH"), size.width);
-    Parse(*mxmlNewElement(&parent, "CHANNELS"), size.channels);
+    Parse(parent, "<HEIGHT>", 5, false);
+    ParseAsNum(parent, size.height);
+    Parse(parent, "</HEIGHT>", 0, true);
+
+    Parse(parent, "<WIDTH>", 5, false);
+    ParseAsNum(parent, size.width);
+    Parse(parent, "</WIDTH>", 0, true);
+
+    Parse(parent, "<CHANNELS>", 5, false);
+    ParseAsNum(parent, size.channels);
+    Parse(parent, "</CHANNELS>", 0, true);
 }
 
 template <typename T>
-void Parse(mxml_node_t& parent, const cascading::SupertensorSize<T>& size)
+void Parse(std::stringstream& parent, const cascading::SupertensorSize<T>& size)
 {
-    Parse(*mxmlNewElement(&parent, "WIDTH"), size.width);
-    Parse(*mxmlNewElement(&parent, "CHANNELS"), size.channels);
+    Parse(parent, "<WIDTH>", 5, false);
+    ParseAsNum(parent, size.width);
+    Parse(parent, "</WIDTH>", 0, true);
+
+    Parse(parent, "<CHANNELS>", 5, false);
+    ParseAsNum(parent, size.channels);
+    Parse(parent, "</CHANNELS>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::Tile& tile)
+void Parse(std::stringstream& parent, const cascading::Tile& tile)
 {
-    Parse(*mxmlNewElement(&parent, "BASE_ADDR"), tile.baseAddr);
-    Parse(*mxmlNewElement(&parent, "NUM_SLOTS"), tile.numSlots);
-    Parse(*mxmlNewElement(&parent, "SLOT_SIZE"), tile.slotSize);
+    Parse(parent, "<BASE_ADDR>", 5, false);
+    ParseAsNum(parent, tile.baseAddr);
+    Parse(parent, "</BASE_ADDR>", 0, true);
+
+    Parse(parent, "<NUM_SLOTS>", 5, false);
+    ParseAsNum(parent, tile.numSlots);
+    Parse(parent, "</NUM_SLOTS>", 0, true);
+
+    Parse(parent, "<SLOT_SIZE>", 5, false);
+    ParseAsNum(parent, tile.slotSize);
+    Parse(parent, "</SLOT_SIZE>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::FmsDataType& dataType)
+void Parse(std::stringstream& parent, const cascading::FmsDataType& dataType)
 {
     switch (dataType)
     {
         case cascading::FmsDataType::NHWC:
         {
-            Parse(parent, "NHWC");
+            Parse(parent, "NHWC", 0, false);
             break;
         }
         case cascading::FmsDataType::FCAF_WIDE:
         {
-            Parse(parent, "FCAF_WIDE");
+            Parse(parent, "FCAF_WIDE", 0, false);
             break;
         }
         case cascading::FmsDataType::FCAF_DEEP:
         {
-            Parse(parent, "FCAF_DEEP");
+            Parse(parent, "FCAF_DEEP", 0, false);
             break;
         }
         case cascading::FmsDataType::NHWCB:
         {
-            Parse(parent, "NHWCB");
+            Parse(parent, "NHWCB", 0, false);
             break;
         }
         default:
@@ -627,111 +869,210 @@ void Parse(mxml_node_t& parent, const cascading::FmsDataType& dataType)
     }
 }
 
-void Parse(mxml_node_t& parent, const cascading::FcafInfo& fcafInfo)
+void Parse(std::stringstream& parent, const cascading::FcafInfo& fcafInfo)
 {
-    Parse(*mxmlNewElement(&parent, "ZERO_POINT"), fcafInfo.zeroPoint);
-    Parse(*mxmlNewElement(&parent, "SIGNED_ACTIVATION"), fcafInfo.signedActivation);
+    Parse(parent, "<ZERO_POINT>", 5, false);
+    ParseAsNum(parent, fcafInfo.zeroPoint);
+    Parse(parent, "</ZERO_POINT>", 0, true);
+
+    Parse(parent, "<SIGNED_ACTIVATION>", 5, false);
+    ParseAsNum(parent, fcafInfo.signedActivation);
+    Parse(parent, "</SIGNED_ACTIVATION>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::FmSData& fmData)
+void Parse(std::stringstream& parent, const cascading::FmSData& fmData)
 {
-    Parse(*mxmlNewElement(&parent, "DRAM_OFFSET"), fmData.dramOffset);
-    Parse(*mxmlNewElement(&parent, "BUFFER_ID"), fmData.bufferId);
-    Parse(*mxmlNewElement(&parent, "DATA_TYPE"), fmData.dataType);
-    Parse(*mxmlNewElement(&parent, "FCAF_INFO"), fmData.fcafInfo);
-    Parse(*mxmlNewElement(&parent, "TILE"), fmData.tile);
-    Parse(*mxmlNewElement(&parent, "DFLT_STRIPE_SIZE"), fmData.dfltStripeSize);
-    Parse(*mxmlNewElement(&parent, "EDGE_STRIPE_SIZE"), fmData.edgeStripeSize);
-    Parse(*mxmlNewElement(&parent, "SUPERTENSOR_SIZE_IN_CELLS"), fmData.supertensorSizeInCells);
-    Parse(*mxmlNewElement(&parent, "NUM_STRIPES"), fmData.numStripes);
-    Parse(*mxmlNewElement(&parent, "STRIPE_ID_STRIDES"), fmData.stripeIdStrides);
+    Parse(parent, "<DRAM_OFFSET>", 4, false);
+    ParseAsNum(parent, fmData.dramOffset);
+    Parse(parent, "</DRAM_OFFSET>", 0, true);
+
+    Parse(parent, "<BUFFER_ID>", 4, false);
+    ParseAsNum(parent, fmData.bufferId);
+    Parse(parent, "</BUFFER_ID>", 0, true);
+
+    Parse(parent, "<DATA_TYPE>", 4, false);
+    Parse(parent, fmData.dataType);
+    Parse(parent, "</DATA_TYPE>", 0, true);
+
+    Parse(parent, "<FCAF_INFO>", 4, true);
+    Parse(parent, fmData.fcafInfo);
+    Parse(parent, "</FCAF_INFO>", 4, true);
+
+    Parse(parent, "<TILE>", 4, true);
+    Parse(parent, fmData.tile);
+    Parse(parent, "</TILE>", 4, true);
+
+    Parse(parent, "<DFLT_STRIPE_SIZE>", 4, true);
+    Parse(parent, fmData.dfltStripeSize);
+    Parse(parent, "</DFLT_STRIPE_SIZE>", 0, true);
+
+    Parse(parent, "<EDGE_STRIPE_SIZE>", 4, true);
+    Parse(parent, fmData.edgeStripeSize);
+    Parse(parent, "</EDGE_STRIPE_SIZE>", 0, true);
+
+    Parse(parent, "<SUPERTENSOR_SIZE_IN_CELLS>", 4, true);
+    Parse(parent, fmData.supertensorSizeInCells);
+    Parse(parent, "</SUPERTENSOR_SIZE_IN_CELLS>", 0, true);
+
+    Parse(parent, "<NUM_STRIPES>", 4, true);
+    Parse(parent, fmData.numStripes);
+    Parse(parent, "</NUM_STRIPES>", 0, true);
+
+    Parse(parent, "<STRIPE_ID_STRIDES>", 4, true);
+    Parse(parent, fmData.stripeIdStrides);
+    Parse(parent, "</STRIPE_ID_STRIDES>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::PackedBoundaryThickness& value)
+void Parse(std::stringstream& parent, const cascading::PackedBoundaryThickness& value)
 {
-    Parse(*mxmlNewElement(&parent, "LEFT"), value.left);
-    Parse(*mxmlNewElement(&parent, "TOP"), value.top);
-    Parse(*mxmlNewElement(&parent, "RIGHT"), value.right);
-    Parse(*mxmlNewElement(&parent, "BOTTOM"), value.bottom);
+    Parse(parent, "<LEFT>", 5, false);
+    ParseAsNum(parent, value.left);
+    Parse(parent, "</LEFT>", 0, true);
+
+    Parse(parent, "<TOP>", 5, false);
+    ParseAsNum(parent, value.top);
+    Parse(parent, "</TOP>", 0, true);
+
+    Parse(parent, "<RIGHT>", 5, false);
+    ParseAsNum(parent, value.right);
+    Parse(parent, "</RIGHT>", 0, true);
+
+    Parse(parent, "<BOTTOM>", 5, false);
+    ParseAsNum(parent, value.bottom);
+    Parse(parent, "</BOTTOM>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::IfmS& ifms)
+void Parse(std::stringstream& parent, const cascading::IfmS& ifms)
 {
-    mxml_node_t* n = mxmlNewElement(&parent, "IFM_STREAMER");
-    Parse(*n, ifms.fmData);
-    Parse(*mxmlNewElement(n, "PACKED_BOUNDARY_THICKNESS"), ifms.packedBoundaryThickness);
+    Parse(parent, "<IFM_STREAMER>", 3, true);
+    Parse(parent, ifms.fmData);
+
+    Parse(parent, "<PACKED_BOUNDARY_THICKNESS>", 4, true);
+    Parse(parent, ifms.packedBoundaryThickness);
+    Parse(parent, "</PACKED_BOUNDARY_THICKNESS>", 4, true);
+
+    Parse(parent, "</IFM_STREAMER>", 3, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::OfmS& ofms)
+void Parse(std::stringstream& parent, const cascading::OfmS& ofms)
 {
-    Parse(*mxmlNewElement(&parent, "OFM_STREAMER"), ofms.fmData);
+    Parse(parent, "<OFM_STREAMER>", 3, true);
+    Parse(parent, ofms.fmData);
+    Parse(parent, "</OFM_STREAMER>", 3, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::WgtSWorkSize<uint16_t>& size)
+void Parse(std::stringstream& parent, const cascading::WgtSWorkSize<uint16_t>& size)
 {
-    Parse(*mxmlNewElement(&parent, "OFM_CHANNELS"), size.ofmChannels);
-    Parse(*mxmlNewElement(&parent, "IFM_CHANNELS"), size.ifmChannels);
+    Parse(parent, "<OFM_CHANNELS>", 5, false);
+    ParseAsNum(parent, size.ofmChannels);
+    Parse(parent, "</OFM_CHANNELS>", 0, true);
+
+    Parse(parent, "<IFM_CHANNELS>", 5, false);
+    ParseAsNum(parent, size.ifmChannels);
+    Parse(parent, "</IFM_CHANNELS>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::WgtS& wgts)
+void Parse(std::stringstream& parent, const cascading::WgtS& wgts)
 {
-    mxml_node_t* agent_op = mxmlNewElement(&parent, "WGT_STREAMER");
+    Parse(parent, "<WGT_STREAMER>", 3, true);
 
-    Parse(*mxmlNewElement(agent_op, "BUFFER_ID"), wgts.bufferId);
-    Parse(*mxmlNewElement(agent_op, "METADATA_BUFFER_ID"), wgts.metadataBufferId);
-    Parse(*mxmlNewElement(agent_op, "TILE"), wgts.tile);
-    Parse(*mxmlNewElement(agent_op, "NUM_STRIPES"), wgts.numStripes);
-    Parse(*mxmlNewElement(agent_op, "STRIPE_ID_STRIDES"), wgts.stripeIdStrides);
+    Parse(parent, "<BUFFER_ID>", 4, false);
+    ParseAsNum(parent, wgts.bufferId);
+    Parse(parent, "</BUFFER_ID>", 0, true);
+
+    Parse(parent, "<METADATA_BUFFER_ID>", 4, false);
+    ParseAsNum(parent, wgts.metadataBufferId);
+    Parse(parent, "</METADATA_BUFFER_ID>", 0, true);
+
+    Parse(parent, "<TILE>", 4, true);
+    Parse(parent, wgts.tile);
+    Parse(parent, "</TILE>", 0, true);
+
+    Parse(parent, "<NUM_STRIPES>", 4, true);
+    Parse(parent, wgts.numStripes);
+    Parse(parent, "</NUM_STRIPES>", 0, true);
+
+    Parse(parent, "<STRIPE_ID_STRIDES>", 4, true);
+    Parse(parent, wgts.stripeIdStrides);
+    Parse(parent, "</STRIPE_ID_STRIDES>", 0, true);
+
+    Parse(parent, "</WGT_STREAMER>", 3, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::BlockSize& size)
+void Parse(std::stringstream& parent, const cascading::BlockSize& size)
 {
-    Parse(*mxmlNewElement(&parent, "HEIGHT"), size.height);
-    Parse(*mxmlNewElement(&parent, "WIDTH"), size.width);
+    Parse(parent, "<HEIGHT>", 5, false);
+    ParseAsNum(parent, size.height);
+    Parse(parent, "</HEIGHT>", 0, true);
+
+    Parse(parent, "<WIDTH>", 5, false);
+    ParseAsNum(parent, size.width);
+    Parse(parent, "</WIDTH>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::MceSWorkSize<uint16_t>& size)
+void Parse(std::stringstream& parent, const cascading::MceSWorkSize<uint16_t>& size)
 {
-    Parse(*mxmlNewElement(&parent, "OFM_HEIGHT"), size.ofmHeight);
-    Parse(*mxmlNewElement(&parent, "OFM_WIDTH"), size.ofmWidth);
-    Parse(*mxmlNewElement(&parent, "OFM_CHANNELS"), size.ofmChannels);
-    Parse(*mxmlNewElement(&parent, "IFM_CHANNELS"), size.ifmChannels);
+    Parse(parent, "<OFM_HEIGHT>", 5, false);
+    ParseAsNum(parent, size.ofmHeight);
+    Parse(parent, "</OFM_HEIGHT>", 0, true);
+
+    Parse(parent, "<OFM_WIDTH>", 5, false);
+    ParseAsNum(parent, size.ofmWidth);
+    Parse(parent, "</OFM_WIDTH>", 0, true);
+
+    Parse(parent, "<OFM_CHANNELS>", 5, false);
+    ParseAsNum(parent, size.ofmChannels);
+    Parse(parent, "</OFM_CHANNELS>", 0, true);
+
+    Parse(parent, "<IFM_CHANNELS>", 5, false);
+    ParseAsNum(parent, size.ifmChannels);
+    Parse(parent, "</IFM_CHANNELS>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::StrideXy<uint8_t>& size)
+void Parse(std::stringstream& parent, const cascading::StrideXy<uint8_t>& size)
 {
-    Parse(*mxmlNewElement(&parent, "X"), size.x);
-    Parse(*mxmlNewElement(&parent, "Y"), size.y);
+    Parse(parent, "<X>", 5, false);
+    ParseAsNum(parent, size.x);
+    Parse(parent, "</X>", 0, true);
+
+    Parse(parent, "<Y>", 5, false);
+    ParseAsNum(parent, size.y);
+    Parse(parent, "</Y>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::ReluActivation& relu)
+void Parse(std::stringstream& parent, const cascading::ReluActivation& relu)
 {
-    Parse(*mxmlNewElement(&parent, "MIN"), relu.min);
-    Parse(*mxmlNewElement(&parent, "MAX"), relu.max);
+    Parse(parent, "<MIN>", 5, false);
+    ParseAsNum(parent, relu.min);
+    Parse(parent, "</MIN>", 0, true);
+
+    Parse(parent, "<MAX>", 5, false);
+    ParseAsNum(parent, relu.max);
+    Parse(parent, "</MAX>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::UpsampleType& value)
+void Parse(std::stringstream& parent, const cascading::UpsampleType& value)
 {
     switch (value)
     {
         case cascading::UpsampleType::TRANSPOSE:
         {
-            Parse(parent, "TRANSPOSE");
+            Parse(parent, "TRANSPOSE", 0, false);
             break;
         }
         case cascading::UpsampleType::NEAREST_NEIGHBOUR:
         {
-            Parse(parent, "NEAREST NEIGHBOUR");
+            Parse(parent, "NEAREST NEIGHBOUR", 0, false);
             break;
         }
         case cascading::UpsampleType::BILINEAR:
         {
-            Parse(parent, "BILINEAR");
+            Parse(parent, "BILINEAR", 0, false);
             break;
         }
         case cascading::UpsampleType::OFF:
         {
-            Parse(parent, "OFF");
+            Parse(parent, "OFF", 0, false);
             break;
         }
         default:
@@ -743,18 +1084,18 @@ void Parse(mxml_node_t& parent, const cascading::UpsampleType& value)
     }
 }
 
-void Parse(mxml_node_t& parent, const cascading::UpsampleEdgeMode& value)
+void Parse(std::stringstream& parent, const cascading::UpsampleEdgeMode& value)
 {
     switch (value)
     {
         case cascading::UpsampleEdgeMode::DROP:
         {
-            Parse(parent, "DROP");
+            Parse(parent, "DROP", 0, false);
             break;
         }
         case cascading::UpsampleEdgeMode::GENERATE:
         {
-            Parse(parent, "GENERATE");
+            Parse(parent, "GENERATE", 0, false);
             break;
         }
         default:
@@ -766,29 +1107,34 @@ void Parse(mxml_node_t& parent, const cascading::UpsampleEdgeMode& value)
     }
 }
 
-void Parse(mxml_node_t& parent, const cascading::UpsampleEdgeModeType& value)
+void Parse(std::stringstream& parent, const cascading::UpsampleEdgeModeType& value)
 {
-    Parse(*mxmlNewElement(&parent, "ROW"), value.row);
-    Parse(*mxmlNewElement(&parent, "COL"), value.col);
+    Parse(parent, "<ROW>", 5, false);
+    Parse(parent, value.row);
+    Parse(parent, "</ROW>", 0, true);
+
+    Parse(parent, "<COL>", 5, false);
+    Parse(parent, value.col);
+    Parse(parent, "</COL>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::MceOperation value)
+void Parse(std::stringstream& parent, const cascading::MceOperation value)
 {
     switch (value)
     {
         case cascading::MceOperation::CONVOLUTION:
         {
-            Parse(parent, "CONVOLUTION");
+            Parse(parent, "CONVOLUTION", 0, false);
             break;
         }
         case cascading::MceOperation::DEPTHWISE_CONVOLUTION:
         {
-            Parse(parent, "DEPTHWISE_CONVOLUTION");
+            Parse(parent, "DEPTHWISE_CONVOLUTION", 0, false);
             break;
         }
         case cascading::MceOperation::FULLY_CONNECTED:
         {
-            Parse(parent, "FULLY_CONNECTED");
+            Parse(parent, "FULLY_CONNECTED", 0, false);
             break;
         }
         default:
@@ -800,18 +1146,18 @@ void Parse(mxml_node_t& parent, const cascading::MceOperation value)
     }
 }
 
-void Parse(mxml_node_t& parent, const cascading::MceAlgorithm value)
+void Parse(std::stringstream& parent, const cascading::MceAlgorithm value)
 {
     switch (value)
     {
         case cascading::MceAlgorithm::DIRECT:
         {
-            Parse(parent, "DIRECT");
+            Parse(parent, "DIRECT", 0, false);
             break;
         }
         case cascading::MceAlgorithm::WINOGRAD:
         {
-            Parse(parent, "WINOGRAD");
+            Parse(parent, "WINOGRAD", 0, false);
             break;
         }
         default:
@@ -822,126 +1168,252 @@ void Parse(mxml_node_t& parent, const cascading::MceAlgorithm value)
     }
 }
 
-void Parse(mxml_node_t& parent, const cascading::FilterShape& filterShape)
+void Parse(std::stringstream& parent, const cascading::FilterShape& filterShape)
 {
-    Parse(*mxmlNewElement(&parent, "WIDTH"), filterShape.width);
-    Parse(*mxmlNewElement(&parent, "HEIGHT"), filterShape.height);
+    Parse(parent, "<WIDTH>", 5, false);
+    ParseAsNum(parent, filterShape.width);
+    Parse(parent, "</WIDTH>", 0, true);
+
+    Parse(parent, "<HEIGHT>", 5, false);
+    ParseAsNum(parent, filterShape.height);
+    Parse(parent, "</HEIGHT>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const std::array<cascading::FilterShape, 4>(&filterShape))
+void Parse(std::stringstream& parent, const std::array<cascading::FilterShape, 4>(&filterShape))
 {
     int idx = 0;
     for (const auto& value : filterShape)
     {
-        Parse(*mxmlNewElement(&parent, ("VALUE_" + std::to_string(idx)).c_str()), value);
+        Parse(parent, ("<VALUE_" + std::to_string(idx) + ">").c_str(), 4, true);
+        Parse(parent, value);
+        Parse(parent, ("</VALUE_" + std::to_string(idx) + ">").c_str(), 4, true);
         idx++;
     }
 }
 
-void Parse(mxml_node_t& parent, const cascading::Padding& padding)
+void Parse(std::stringstream& parent, const cascading::Padding& padding)
 {
-    Parse(*mxmlNewElement(&parent, "LEFT"), padding.left);
-    Parse(*mxmlNewElement(&parent, "TOP"), padding.top);
+    Parse(parent, "<LEFT>", 5, false);
+    ParseAsNum(parent, padding.left);
+    Parse(parent, "</LEFT>", 0, true);
+
+    Parse(parent, "<TOP>", 5, false);
+    ParseAsNum(parent, padding.top);
+    Parse(parent, "</TOP>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const std::array<cascading::Padding, 4>(&padding))
+void Parse(std::stringstream& parent, const std::array<cascading::Padding, 4>(&padding))
 {
     int idx = 0;
     for (const auto& value : padding)
     {
-        Parse(*mxmlNewElement(&parent, ("VALUE_" + std::to_string(idx)).c_str()), value);
+        Parse(parent, ("<VALUE_" + std::to_string(idx) + ">").c_str(), 4, true);
+        Parse(parent, value);
+        Parse(parent, ("</VALUE_" + std::to_string(idx) + ">").c_str(), 4, true);
         idx++;
     }
 }
 
-void Parse(mxml_node_t& parent, const cascading::IfmDelta& ifmDelta)
+void Parse(std::stringstream& parent, const cascading::IfmDelta& ifmDelta)
 {
-    Parse(*mxmlNewElement(&parent, "WIDTH"), ifmDelta.width);
-    Parse(*mxmlNewElement(&parent, "HEIGHT"), ifmDelta.height);
+    Parse(parent, "<WIDTH>", 5, false);
+    ParseAsNum(parent, ifmDelta.width);
+    Parse(parent, "</WIDTH>", 0, true);
+
+    Parse(parent, "<HEIGHT>", 5, false);
+    ParseAsNum(parent, ifmDelta.height);
+    Parse(parent, "</HEIGHT>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const std::array<cascading::IfmDelta, 4>(&ifmDelta))
+void Parse(std::stringstream& parent, const std::array<cascading::IfmDelta, 4>(&ifmDelta))
 {
     int idx = 0;
     for (const auto& value : ifmDelta)
     {
-        Parse(*mxmlNewElement(&parent, ("VALUE_" + std::to_string(idx)).c_str()), value);
+        Parse(parent, ("<VALUE_" + std::to_string(idx) + ">").c_str(), 4, true);
+        Parse(parent, value);
+        Parse(parent, ("</VALUE_" + std::to_string(idx) + ">").c_str(), 4, true);
         idx++;
     }
 }
 
-void Parse(mxml_node_t& parent, const cascading::IfmStripeShape& ifmStripeShape)
+void Parse(std::stringstream& parent, const cascading::IfmStripeShape& ifmStripeShape)
 {
-    Parse(*mxmlNewElement(&parent, "WIDTH"), ifmStripeShape.width);
-    Parse(*mxmlNewElement(&parent, "HEIGHT"), ifmStripeShape.height);
+    Parse(parent, "<WIDTH>", 5, false);
+    ParseAsNum(parent, ifmStripeShape.width);
+    Parse(parent, "</WIDTH>", 0, true);
+
+    Parse(parent, "<HEIGHT>", 5, false);
+    ParseAsNum(parent, ifmStripeShape.height);
+    Parse(parent, "</HEIGHT>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::MceS& mces)
+void Parse(std::stringstream& parent, const cascading::MceS& mces)
 {
-    mxml_node_t* agent_op = mxmlNewElement(&parent, "MCE_SCHEDULER");
+    Parse(parent, "<MCE_SCHEDULER>", 3, true);
 
-    Parse(*mxmlNewElement(agent_op, "IFM_TILE"), mces.ifmTile);
-    Parse(*mxmlNewElement(agent_op, "WGT_TILE"), mces.wgtTile);
-    Parse(*mxmlNewElement(agent_op, "BLOCK_SIZE"), mces.blockSize);
-    Parse(*mxmlNewElement(agent_op, "DFLT_STRIPE_SIZE"), mces.dfltStripeSize);
-    Parse(*mxmlNewElement(agent_op, "EDGE_STRIPE_SIZE"), mces.edgeStripeSize);
-    Parse(*mxmlNewElement(agent_op, "NUM_STRIPES"), mces.numStripes);
-    Parse(*mxmlNewElement(agent_op, "STRIPE_ID_STRIDES"), mces.stripeIdStrides);
-    Parse(*mxmlNewElement(agent_op, "CONV_STRIDE_XY"), mces.convStrideXy);
-    Parse(*mxmlNewElement(agent_op, "IFM_ZERO_POINT"), mces.ifmZeroPoint);
-    Parse(*mxmlNewElement(agent_op, "IS_IFM_SIGNED"), mces.isIfmSigned);
-    Parse(*mxmlNewElement(agent_op, "IS_OFM_SIGNED"), mces.isOfmSigned);
-    Parse(*mxmlNewElement(agent_op, "UPSAMPLE_TYPE"), mces.upsampleType);
-    Parse(*mxmlNewElement(agent_op, "UPSAMPLE_EDGE_MODE"), mces.upsampleEdgeMode);
-    Parse(*mxmlNewElement(agent_op, "MCE_OP_MODE"), mces.mceOpMode);
-    Parse(*mxmlNewElement(agent_op, "ALGORITHM"), mces.algorithm);
-    Parse(*mxmlNewElement(agent_op, "IS_WIDE_FILTER"), mces.isWideFilter);
-    Parse(*mxmlNewElement(agent_op, "IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE"), mces.isExtraIfmStripeAtRightEdge);
-    Parse(*mxmlNewElement(agent_op, "IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE"), mces.isExtraIfmStripeAtBottomEdge);
-    Parse(*mxmlNewElement(agent_op, "IS_PACKED_BOUNDARY_X"), mces.isPackedBoundaryX);
-    Parse(*mxmlNewElement(agent_op, "IS_PACKED_BOUNDARY_Y"), mces.isPackedBoundaryY);
-    Parse(*mxmlNewElement(agent_op, "FILTER_SHAPE"), mces.filterShape);
-    Parse(*mxmlNewElement(agent_op, "PADDING"), mces.padding);
-    Parse(*mxmlNewElement(agent_op, "IFM_DELTA_DEFAULT"), mces.ifmDeltaDefault);
-    Parse(*mxmlNewElement(agent_op, "IFM_DELTA_EDGE"), mces.ifmDeltaEdge);
-    Parse(*mxmlNewElement(agent_op, "IFM_STRIPE_SHAPE_DEFAULT"), mces.ifmStripeShapeDefault);
-    Parse(*mxmlNewElement(agent_op, "IFM_STRIPE_SHAPE_EDGE"), mces.ifmStripeShapeEdge);
-    Parse(*mxmlNewElement(agent_op, "RELU_ACTIV"), mces.reluActiv);
-    Parse(*mxmlNewElement(agent_op, "PLE_KERNEL_ID"), cascading::PleKernelId2String(mces.pleKernelId));
+    Parse(parent, "<IFM_TILE>", 4, true);
+    Parse(parent, mces.ifmTile);
+    Parse(parent, "</IFM_TILE>", 4, true);
+
+    Parse(parent, "<WGT_TILE>", 4, true);
+    Parse(parent, mces.wgtTile);
+    Parse(parent, "</WGT_TILE>", 4, true);
+
+    Parse(parent, "<BLOCK_SIZE>", 4, true);
+    Parse(parent, mces.blockSize);
+    Parse(parent, "</BLOCK_SIZE>", 4, true);
+
+    Parse(parent, "<DFLT_STRIPE_SIZE>", 4, true);
+    Parse(parent, mces.dfltStripeSize);
+    Parse(parent, "</DFLT_STRIPE_SIZE>", 4, true);
+
+    Parse(parent, "<EDGE_STRIPE_SIZE>", 4, true);
+    Parse(parent, mces.edgeStripeSize);
+    Parse(parent, "</EDGE_STRIPE_SIZE>", 4, true);
+
+    Parse(parent, "<NUM_STRIPES>", 4, true);
+    Parse(parent, mces.numStripes);
+    Parse(parent, "</NUM_STRIPES>", 4, true);
+
+    Parse(parent, "<STRIPE_ID_STRIDES>", 4, true);
+    Parse(parent, mces.stripeIdStrides);
+    Parse(parent, "</STRIPE_ID_STRIDES>", 4, true);
+
+    Parse(parent, "<CONV_STRIDE_XY>", 4, true);
+    Parse(parent, mces.convStrideXy);
+    Parse(parent, "</CONV_STRIDE_XY>", 4, true);
+
+    Parse(parent, "<IFM_ZERO_POINT>", 4, false);
+    ParseAsNum(parent, mces.ifmZeroPoint);
+    Parse(parent, "</IFM_ZERO_POINT>", 0, true);
+
+    Parse(parent, "<IS_IFM_SIGNED>", 4, false);
+    ParseAsNum(parent, mces.isIfmSigned);
+    Parse(parent, "</IS_IFM_SIGNED>", 0, true);
+
+    Parse(parent, "<IS_OFM_SIGNED>", 4, false);
+    ParseAsNum(parent, mces.isOfmSigned);
+    Parse(parent, "</IS_OFM_SIGNED>", 0, true);
+
+    Parse(parent, "<UPSAMPLE_TYPE>", 4, false);
+    Parse(parent, mces.upsampleType);
+    Parse(parent, "</UPSAMPLE_TYPE>", 0, true);
+
+    Parse(parent, "<UPSAMPLE_EDGE_MODE>", 4, true);
+    Parse(parent, mces.upsampleEdgeMode);
+    Parse(parent, "</UPSAMPLE_EDGE_MODE>", 4, true);
+
+    Parse(parent, "<MCE_OP_MODE>", 4, false);
+    Parse(parent, mces.mceOpMode);
+    Parse(parent, "</MCE_OP_MODE>", 0, true);
+
+    Parse(parent, "<ALGORITHM>", 4, false);
+    Parse(parent, mces.algorithm);
+    Parse(parent, "</ALGORITHM>", 0, true);
+
+    Parse(parent, "<IS_WIDE_FILTER>", 4, false);
+    ParseAsNum(parent, mces.isWideFilter);
+    Parse(parent, "</IS_WIDE_FILTER>", 0, true);
+
+    Parse(parent, "<IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>", 4, false);
+    ParseAsNum(parent, mces.isExtraIfmStripeAtRightEdge);
+    Parse(parent, "</IS_EXTRA_IFM_STRIPE_AT_RIGHT_EDGE>", 0, true);
+
+    Parse(parent, "<IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>", 4, false);
+    ParseAsNum(parent, mces.isExtraIfmStripeAtBottomEdge);
+    Parse(parent, "</IS_EXTRA_IFM_STRIPE_AT_BOTTOM_EDGE>", 0, true);
+
+    Parse(parent, "<IS_PACKED_BOUNDARY_X>", 4, false);
+    ParseAsNum(parent, mces.isPackedBoundaryX);
+    Parse(parent, "</IS_PACKED_BOUNDARY_X>", 0, true);
+
+    Parse(parent, "<IS_PACKED_BOUNDARY_Y>", 4, false);
+    ParseAsNum(parent, mces.isPackedBoundaryY);
+    Parse(parent, "</IS_PACKED_BOUNDARY_Y>", 0, true);
+
+    Parse(parent, "<FILTER_SHAPE>", 4, true);
+    Parse(parent, mces.filterShape);
+    Parse(parent, "</FILTER_SHAPE>", 4, true);
+
+    Parse(parent, "<PADDING>", 4, true);
+    Parse(parent, mces.padding);
+    Parse(parent, "</PADDING>", 4, true);
+
+    Parse(parent, "<IFM_DELTA_DEFAULT>", 4, true);
+    Parse(parent, mces.ifmDeltaDefault);
+    Parse(parent, "</IFM_DELTA_DEFAULT>", 4, true);
+
+    Parse(parent, "<IFM_DELTA_EDGE>", 4, true);
+    Parse(parent, mces.ifmDeltaEdge);
+    Parse(parent, "</IFM_DELTA_EDGE>", 4, true);
+
+    Parse(parent, "<IFM_STRIPE_SHAPE_DEFAULT>", 4, true);
+    Parse(parent, mces.ifmStripeShapeDefault);
+    Parse(parent, "</IFM_STRIPE_SHAPE_DEFAULT>", 4, true);
+
+    Parse(parent, "<IFM_STRIPE_SHAPE_EDGE>", 4, true);
+    Parse(parent, mces.ifmStripeShapeEdge);
+    Parse(parent, "</IFM_STRIPE_SHAPE_EDGE>", 4, true);
+
+    Parse(parent, "<RELU_ACTIV>", 4, true);
+    Parse(parent, mces.reluActiv);
+    Parse(parent, "</RELU_ACTIV>", 4, true);
+
+    Parse(parent, "<PLE_KERNEL_ID>", 4, false);
+    Parse(parent, cascading::PleKernelId2String(mces.pleKernelId), 0, false);
+    Parse(parent, "</PLE_KERNEL_ID>", 0, true);
+
+    Parse(parent, "</MCE_SCHEDULER>", 3, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::PleL& plel)
+void Parse(std::stringstream& parent, const cascading::PleL& plel)
 {
-    mxml_node_t* agent_op = mxmlNewElement(&parent, "PLE_LOADER");
+    Parse(parent, "<PLE_LOADER>", 3, true);
 
-    Parse(*mxmlNewElement(agent_op, "PLE_KERNEL_ID"), cascading::PleKernelId2String(plel.pleKernelId));
-    Parse(*mxmlNewElement(agent_op, "SRAM_ADDR"), plel.sramAddr);
+    Parse(parent, "<PLE_KERNEL_ID>", 4, false);
+    Parse(parent, cascading::PleKernelId2String(plel.pleKernelId), 0, false);
+    Parse(parent, "</PLE_KERNEL_ID>", 0, true);
+
+    Parse(parent, "<SRAM_ADDR>", 4, false);
+    ParseAsNum(parent, plel.sramAddr);
+    Parse(parent, "</SRAM_ADDR>", 0, true);
+
+    Parse(parent, "</PLE_LOADER>", 3, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::PleIfmInfo& info)
+void Parse(std::stringstream& parent, const cascading::PleIfmInfo& info)
 {
-    Parse(*mxmlNewElement(&parent, "ZERO_POINT"), info.zeroPoint);
-    Parse(*mxmlNewElement(&parent, "MULTIPLIER"), info.multiplier);
-    Parse(*mxmlNewElement(&parent, "SHIFT"), info.shift);
+    Parse(parent, "<ZERO_POINT>", 5, false);
+    ParseAsNum(parent, info.zeroPoint);
+    Parse(parent, "</ZERO_POINT>", 0, true);
+
+    Parse(parent, "<MULTIPLIER>", 5, false);
+    ParseAsNum(parent, info.multiplier);
+    Parse(parent, "</MULTIPLIER>", 0, true);
+
+    Parse(parent, "<SHIFT>", 5, false);
+    ParseAsNum(parent, info.shift);
+    Parse(parent, "</SHIFT>", 0, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::PleInputMode value)
+void Parse(std::stringstream& parent, const cascading::PleInputMode value)
 {
     switch (value)
     {
         case cascading::PleInputMode::MCE_ALL_OGS:
         {
-            Parse(parent, "MCE_ALL_OGS");
+            Parse(parent, "MCE_ALL_OGS", 0, false);
             break;
         }
         case cascading::PleInputMode::MCE_ONE_OG:
         {
-            Parse(parent, "MCE_ONE_OG");
+            Parse(parent, "MCE_ONE_OG", 0, false);
             break;
         }
         case cascading::PleInputMode::SRAM:
         {
-            Parse(parent, "SRAM");
+            Parse(parent, "SRAM", 0, false);
             break;
         }
         default:
@@ -953,26 +1425,66 @@ void Parse(mxml_node_t& parent, const cascading::PleInputMode value)
     }
 }
 
-void Parse(mxml_node_t& parent, const cascading::PleS& ples)
+void Parse(std::stringstream& parent, const cascading::PleS& ples)
 {
-    mxml_node_t* agent_op = mxmlNewElement(&parent, "PLE_SCHEDULER");
+    Parse(parent, "<PLE_SCHEDULER>", 3, true);
 
-    Parse(*mxmlNewElement(agent_op, "OFM_TILE"), ples.ofmTile);
-    Parse(*mxmlNewElement(agent_op, "OFM_ZERO_POINT"), ples.ofmZeroPoint);
-    Parse(*mxmlNewElement(agent_op, "DFLT_STRIPE_SIZE"), ples.dfltStripeSize);
-    Parse(*mxmlNewElement(agent_op, "EDGE_STRIPE_SIZE"), ples.edgeStripeSize);
-    Parse(*mxmlNewElement(agent_op, "NUM_STRIPES"), ples.numStripes);
-    Parse(*mxmlNewElement(agent_op, "STRIPE_ID_STRIDES"), ples.stripeIdStrides);
-    Parse(*mxmlNewElement(agent_op, "INPUT_MODE"), ples.inputMode);
-    Parse(*mxmlNewElement(agent_op, "PLE_KERNEL_ID"), cascading::PleKernelId2String(ples.pleKernelId));
-    Parse(*mxmlNewElement(agent_op, "PLE_KERNEL_SRAM_ADDR"), ples.pleKernelSramAddr);
-    Parse(*mxmlNewElement(agent_op, "IFM_TILE_0"), ples.ifmTile0);
-    Parse(*mxmlNewElement(agent_op, "IFM_INFO_0"), ples.ifmInfo0);
-    Parse(*mxmlNewElement(agent_op, "IFM_TILE_1"), ples.ifmTile1);
-    Parse(*mxmlNewElement(agent_op, "IFM_INFO_1"), ples.ifmInfo1);
+    Parse(parent, "<OFM_TILE>", 4, true);
+    Parse(parent, ples.ofmTile);
+    Parse(parent, "</OFM_TILE>", 4, true);
+
+    Parse(parent, "<OFM_ZERO_POINT>", 4, false);
+    ParseAsNum(parent, ples.ofmZeroPoint);
+    Parse(parent, "</OFM_ZERO_POINT>", 0, true);
+
+    Parse(parent, "<DFLT_STRIPE_SIZE>", 4, true);
+    Parse(parent, ples.dfltStripeSize);
+    Parse(parent, "</DFLT_STRIPE_SIZE>", 4, true);
+
+    Parse(parent, "<EDGE_STRIPE_SIZE>", 4, true);
+    Parse(parent, ples.edgeStripeSize);
+    Parse(parent, "</EDGE_STRIPE_SIZE>", 4, true);
+
+    Parse(parent, "<NUM_STRIPES>", 4, true);
+    Parse(parent, ples.numStripes);
+    Parse(parent, "</NUM_STRIPES>", 4, true);
+
+    Parse(parent, "<STRIPE_ID_STRIDES>", 4, true);
+    Parse(parent, ples.stripeIdStrides);
+    Parse(parent, "</STRIPE_ID_STRIDES>", 4, true);
+
+    Parse(parent, "<INPUT_MODE>", 4, false);
+    Parse(parent, ples.inputMode);
+    Parse(parent, "</INPUT_MODE>", 0, true);
+
+    Parse(parent, "<PLE_KERNEL_ID>", 4, false);
+    Parse(parent, cascading::PleKernelId2String(ples.pleKernelId), 0, false);
+    Parse(parent, "</PLE_KERNEL_ID>", 4, true);
+
+    Parse(parent, "<PLE_KERNEL_SRAM_ADDR>", 4, false);
+    ParseAsNum(parent, ples.pleKernelSramAddr);
+    Parse(parent, "</PLE_KERNEL_SRAM_ADDR>", 0, true);
+
+    Parse(parent, "<IFM_TILE_0>", 4, true);
+    Parse(parent, ples.ifmTile0);
+    Parse(parent, "</IFM_TILE_0>", 4, true);
+
+    Parse(parent, "<IFM_INFO_0>", 4, true);
+    Parse(parent, ples.ifmInfo0);
+    Parse(parent, "</IFM_INFO_0>", 4, true);
+
+    Parse(parent, "<IFM_TILE_1>", 4, true);
+    Parse(parent, ples.ifmTile1);
+    Parse(parent, "</IFM_TILE_1>", 4, true);
+
+    Parse(parent, "<IFM_INFO_1>", 4, true);
+    Parse(parent, ples.ifmInfo1);
+    Parse(parent, "</IFM_INFO_1>", 4, true);
+
+    Parse(parent, "</PLE_SCHEDULER>", 3, true);
 }
 
-void Parse(mxml_node_t& parent, const cascading::AgentData& data)
+void Parse(std::stringstream& parent, const cascading::AgentData& data)
 {
     switch (data.type)
     {
@@ -1002,10 +1514,15 @@ void Parse(mxml_node_t& parent, const cascading::AgentData& data)
     };
 }
 
-void Parse(mxml_node_t& parent, const cascading::Ratio& ratio)
+void Parse(std::stringstream& parent, const cascading::Ratio& ratio)
 {
-    Parse(*mxmlNewElement(&parent, "OTHER"), ratio.other);
-    Parse(*mxmlNewElement(&parent, "SELF"), ratio.self);
+    Parse(parent, "<OTHER>", 5, false);
+    ParseAsNum(parent, ratio.other);
+    Parse(parent, "</OTHER>", 0, true);
+
+    Parse(parent, "<SELF>", 5, false);
+    ParseAsNum(parent, ratio.self);
+    Parse(parent, "</SELF>", 0, true);
 }
 
 const char* AgentTypeToString(cascading::AgentType t)
@@ -1029,7 +1546,7 @@ const char* AgentTypeToString(cascading::AgentType t)
     };
 }
 
-void Parse(mxml_node_t& parent,
+void Parse(std::stringstream& parent,
            const char* depName,
            const cascading::Dependency& dep,
            const cascading::CommandStream cascadeCmdStream,
@@ -1040,28 +1557,46 @@ void Parse(mxml_node_t& parent,
         return;
     }
 
-    mxml_node_t* child = mxmlNewElement(&parent, depName);
+    Parse(parent, "<" + static_cast<std::string>(depName) + ">", 3, true);
 
-    Parse(*mxmlNewElement(child, "RELATIVE_AGENT_ID"), dep.relativeAgentId);
+    Parse(parent, "<RELATIVE_AGENT_ID>", 4, false);
+    ParseAsNum(parent, dep.relativeAgentId);
+    Parse(parent, "</RELATIVE_AGENT_ID>", 0, true);
+
     // Add helpful comment to indicate the agent this one depends on
     const uint32_t otherAgentId =
         strcmp(depName, "READ_DEPENDENCY") == 0 ? agentId - dep.relativeAgentId : agentId + dep.relativeAgentId;
-    mxmlNewElement(child, dep.relativeAgentId == 0
-                              ? "!-- DISABLED --"
-                              : ("!-- Other agent ID is " + std::to_string(otherAgentId) + " (" +
-                                 AgentTypeToString(cascadeCmdStream[otherAgentId].data.type) + ") --")
-                                    .c_str());
-    Parse(*mxmlNewElement(child, "OUTER_RATIO"), dep.outerRatio);
-    Parse(*mxmlNewElement(child, "INNER_RATIO"), dep.innerRatio);
-    Parse(*mxmlNewElement(child, "BOUNDARY"), dep.boundary);
+    Parse(parent,
+          dep.relativeAgentId == 0 ? "<!-- DISABLED -->"
+                                   : ("<!-- Other agent ID is " + std::to_string(otherAgentId) + " (" +
+                                      AgentTypeToString(cascadeCmdStream[otherAgentId].data.type) + ") -->")
+                                         .c_str(),
+          4, true);
+
+    Parse(parent, "<OUTER_RATIO>", 4, true);
+    Parse(parent, dep.outerRatio);
+    Parse(parent, "</OUTER_RATIO>", 4, true);
+
+    Parse(parent, "<INNER_RATIO>", 4, true);
+    Parse(parent, dep.innerRatio);
+    Parse(parent, "</INNER_RATIO>", 4, true);
+
+    Parse(parent, "<BOUNDARY>", 4, false);
+    ParseAsNum(parent, dep.boundary);
+    Parse(parent, "</BOUNDARY>", 0, true);
+
+    Parse(parent, "</" + static_cast<std::string>(depName) + ">", 3, true);
 }
 
-void Parse(mxml_node_t& parent,
+void Parse(std::stringstream& parent,
            const cascading::AgentDependencyInfo& agentInfo,
            const cascading::CommandStream cascadeCmdStream,
            uint32_t agentId)
 {
-    Parse(*mxmlNewElement(&parent, "NUM_STRIPES_TOTAL"), agentInfo.numStripesTotal);
+    Parse(parent, "<NUM_STRIPES_TOTAL>", 3, false);
+    ParseAsNum(parent, agentInfo.numStripesTotal);
+    Parse(parent, "</NUM_STRIPES_TOTAL>", 0, true);
+
     for (auto& dep : agentInfo.scheduleDependencies)
     {
         Parse(parent, "SCHEDULE_DEPENDENCY", dep, cascadeCmdStream, agentId);
@@ -1076,11 +1611,13 @@ void Parse(mxml_node_t& parent,
     }
 }
 
-void Parse(mxml_node_t& parent, const Cascade& value)
+void Parse(std::stringstream& parent, const Cascade& value)
 {
-    mxml_node_t* operation = mxmlNewElement(&parent, "CASCADE");
+    Parse(parent, "<CASCADE>", 1, true);
 
-    Parse(*mxmlNewElement(operation, "NUM_AGENTS"), value.m_NumAgents());
+    Parse(parent, "<NUM_AGENTS>", 2, false);
+    ParseAsNum(parent, value.m_NumAgents());
+    Parse(parent, "</NUM_AGENTS>", 0, true);
 
     const void* const cascadeBegin = &value + 1U;
     const cascading::CommandStream cascade{ static_cast<const cascading::Agent*>(cascadeBegin), value.m_NumAgents() };
@@ -1089,81 +1626,88 @@ void Parse(mxml_node_t& parent, const Cascade& value)
     for (auto& agent : cascade)
     {
         // Add helpful comment to indicate the agent ID (very useful for long command streams)
-        mxmlNewElement(operation, ("!-- Agent " + std::to_string(agentId) + " --").c_str());
-        mxml_node_t* agent_op = mxmlNewElement(operation, "AGENT");
-        Parse(*agent_op, agent.data);
-        Parse(*agent_op, agent.info, cascade, agentId);
+        Parse(parent, "<!-- Agent " + std::to_string(agentId) + " -->", 2, true);
+        Parse(parent, "<AGENT>", 2, true);
+        Parse(parent, agent.data);
+        Parse(parent, agent.info, cascade, agentId);
+        Parse(parent, "</AGENT>", 2, true);
+
         ++agentId;
     }
+    Parse(parent, "</CASCADE>", 1, true);
 }
 }    // namespace
 
-void ParseBinary(CommandStream& cstream, mxml_node_t* xmlRoot)
+void ParseBinary(CommandStream& cstream, std::stringstream& output)
 {
-    mxmlElementSetAttr(xmlRoot, "VERSION_MAJOR", std::to_string(cstream.GetVersionMajor()).c_str());
-    mxmlElementSetAttr(xmlRoot, "VERSION_MINOR", std::to_string(cstream.GetVersionMinor()).c_str());
-    mxmlElementSetAttr(xmlRoot, "VERSION_PATCH", std::to_string(cstream.GetVersionPatch()).c_str());
+    output << "<?xmlversion=\"1.0\"encoding=\"utf-8\"?>\n";
+    output << "<STREAM VERSION_MAJOR="
+           << "\"" << std::to_string(cstream.GetVersionMajor()).c_str() << "\"";
+    output << " VERSION_MINOR="
+           << "\"" << std::to_string(cstream.GetVersionMinor()).c_str() << "\"";
+    output << " VERSION_PATCH="
+           << "\"" << std::to_string(cstream.GetVersionPatch()).c_str() << "\">";
 
     uint32_t commandCounter = 0;
     for (const CommandHeader& header : cstream)
     {
         Opcode command = header.m_Opcode();
-        mxmlNewElement(xmlRoot, ("!-- Command " + std::to_string(commandCounter) + " --").c_str());
+        output << ("<!-- Command " + std::to_string(commandCounter) + " -->\n").c_str();
         switch (command)
         {
             case Opcode::OPERATION_MCE_PLE:
             {
-                Parse(*xmlRoot, header.GetCommand<Opcode::OPERATION_MCE_PLE>()->m_Data());
+                Parse(output, header.GetCommand<Opcode::OPERATION_MCE_PLE>()->m_Data());
                 break;
             }
             case Opcode::OPERATION_PLE_ONLY:
             {
-                Parse(*xmlRoot, header.GetCommand<Opcode::OPERATION_PLE_ONLY>()->m_Data());
+                Parse(output, header.GetCommand<Opcode::OPERATION_PLE_ONLY>()->m_Data());
                 break;
             }
             case Opcode::OPERATION_SOFTMAX:
             {
-                Parse(*xmlRoot, header.GetCommand<Opcode::OPERATION_SOFTMAX>()->m_Data());
+                Parse(output, header.GetCommand<Opcode::OPERATION_SOFTMAX>()->m_Data());
                 break;
             }
             case Opcode::OPERATION_CONVERT:
             {
-                Parse(*xmlRoot, header.GetCommand<Opcode::OPERATION_CONVERT>()->m_Data());
+                Parse(output, header.GetCommand<Opcode::OPERATION_CONVERT>()->m_Data());
                 break;
             }
             case Opcode::OPERATION_SPACE_TO_DEPTH:
             {
-                Parse(*xmlRoot, header.GetCommand<Opcode::OPERATION_SPACE_TO_DEPTH>()->m_Data());
+                Parse(output, header.GetCommand<Opcode::OPERATION_SPACE_TO_DEPTH>()->m_Data());
                 break;
             }
             case Opcode::DUMP_DRAM:
             {
-                Parse(*xmlRoot, header.GetCommand<Opcode::DUMP_DRAM>()->m_Data());
+                Parse(output, header.GetCommand<Opcode::DUMP_DRAM>()->m_Data());
                 break;
             }
             case Opcode::DUMP_SRAM:
             {
-                Parse(*xmlRoot, header.GetCommand<Opcode::DUMP_SRAM>()->m_Data());
+                Parse(output, header.GetCommand<Opcode::DUMP_SRAM>()->m_Data());
                 break;
             }
             case Opcode::FENCE:
             {
-                Parse(*xmlRoot, Fence{});
+                Parse(output, Fence{});
                 break;
             }
             case Opcode::SECTION:
             {
-                Parse(*xmlRoot, header.GetCommand<Opcode::SECTION>()->m_Data());
+                Parse(output, header.GetCommand<Opcode::SECTION>()->m_Data());
                 break;
             }
             case Opcode::DELAY:
             {
-                Parse(*xmlRoot, header.GetCommand<Opcode::DELAY>()->m_Data());
+                Parse(output, header.GetCommand<Opcode::DELAY>()->m_Data());
                 break;
             }
             case Opcode::CASCADE:
             {
-                Parse(*xmlRoot, header.GetCommand<Opcode::CASCADE>()->m_Data());
+                Parse(output, header.GetCommand<Opcode::CASCADE>()->m_Data());
                 break;
             }
             default:
@@ -1175,49 +1719,27 @@ void ParseBinary(CommandStream& cstream, mxml_node_t* xmlRoot)
         }
         ++commandCounter;
     }
+    output << "</STREAM>\n";
 }
 
 BinaryParser::BinaryParser(std::istream& input)
-    : m_XmlDoc(mxmlNewXML("1.0"))
 {
-    mxml_node_t* xmlRoot = mxmlNewElement(m_XmlDoc.get(), g_XmlRootName);
-
     std::vector<uint8_t> data = ReadBinaryData(input);
 
     CommandStream cstream(data.data(), data.data() + data.size());
-
-    ParseBinary(cstream, xmlRoot);
+    ParseBinary(cstream, out);
 }
 
 BinaryParser::BinaryParser(const std::vector<uint32_t>& data)
-    : m_XmlDoc(mxmlNewXML("1.0"))
 {
-    mxml_node_t* xmlRoot = mxmlNewElement(m_XmlDoc.get(), g_XmlRootName);
-
     CommandStream cstream(data.data(), data.data() + data.size());
-
-    ParseBinary(cstream, xmlRoot);
+    ParseBinary(cstream, out);
 }
 
-void BinaryParser::WriteXml(std::ostream& output, int wrapMargin)
+void BinaryParser::WriteXml(std::ostream& output)
 {
-    mxmlSetWrapMargin(wrapMargin);
+    const std::string& temp = out.str();
+    const char* cstr        = temp.c_str();
 
-    char dummyBuffer[1];
-    const int bufferSize = mxmlSaveString(m_XmlDoc.get(), dummyBuffer, sizeof(dummyBuffer), &XmlSaveCallback);
-    std::unique_ptr<char[]> buffer(std::make_unique<char[]>(bufferSize));
-
-    const int bytesWritten = mxmlSaveString(m_XmlDoc.get(), buffer.get(), bufferSize, &XmlSaveCallback);
-
-    if (bytesWritten != bufferSize)
-    {
-        throw IOException("IO error on XML write");
-    }
-
-    buffer[bufferSize - 1] = '\n';    // Replace NUL-terminator with newline so that the XML file ends in a newline
-    output.write(buffer.get(), bufferSize);
-    if (!output.good())
-    {
-        throw IOException("IO error on XML write");
-    }
+    output.write(cstr, strlen(cstr));
 }
