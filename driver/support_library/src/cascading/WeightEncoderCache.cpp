@@ -269,7 +269,7 @@ std::shared_ptr<ethosn::support_library::EncodedWeights> WeightEncoderCache::Enc
         // there is a correlation between the uncompressed and compressed stripe sizes. Therefore
         // if we previously compressed a stripe of a smaller uncompresed size and that didn't fit,
         // then we assume that this larger uncompressed stripe won't fit either, and so don't even try.
-        const uint64_t uncompressedSize = params.weightsTensorInfo.m_Dimensions[0] *
+        const uint64_t uncompressedSize = static_cast<uint64_t>(params.weightsTensorInfo.m_Dimensions[0]) *
                                           params.weightsTensorInfo.m_Dimensions[1] * params.iterationSize *
                                           params.stripeDepth;
         if (uncompressedSize >= m_MaxUncompressedStripeSize)
