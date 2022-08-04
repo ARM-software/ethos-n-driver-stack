@@ -659,12 +659,12 @@ inline uint16_t CalculateGCD(uint16_t a, uint16_t b)
 {
     if (a == 0)
     {
-        return ethosn::utils::NumericCast<uint8_t>(b);
+        return ethosn::utils::NumericCast<uint16_t>(b);
     }
     return CalculateGCD(b % a, a);
 }
 
-inline uint16_t FindGreatestCommonDenominator(uint16_t a, uint16_t b, uint8_t c)
+inline uint16_t FindGreatestCommonDenominator(uint16_t a, uint16_t b, uint16_t c)
 {
     uint16_t gcdAB = CalculateGCD(a, b);
     if (c == 0)
