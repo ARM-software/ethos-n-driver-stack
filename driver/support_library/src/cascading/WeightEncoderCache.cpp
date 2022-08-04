@@ -233,12 +233,12 @@ WeightEncoderCache::WeightEncoderCache(const HardwareCapabilities& caps, const c
         std::vector<char> ourCaps = caps.GetData();
         while (f.good() && f.peek() != EOF)
         {
-            std::vector<char> caps = ReadVector<char>(f);
-            Params p               = ReadParams(f);
-            EncodedWeights w       = ReadEncodedWeights(f);
+            std::vector<char> cachedCaps = ReadVector<char>(f);
+            Params p                     = ReadParams(f);
+            EncodedWeights w             = ReadEncodedWeights(f);
             // Only store this entry if it's for the right config.
             // Note that we still need to parse the full entry, as we can't skip.
-            if (caps == ourCaps)
+            if (cachedCaps == ourCaps)
             {
                 m_Entries[p] = std::make_shared<EncodedWeights>(std::move(w));
             }
