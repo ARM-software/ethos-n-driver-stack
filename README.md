@@ -6,6 +6,24 @@ The Arm Ethos-N NPUs improve the inference performance of neural networks. The N
 
 For more information, see <https://www.arm.com/solutions/artificial-intelligence>.
 
+## Supported networks
+
+* We have tested this release with the following networks:
+
+    * VGG16
+    * MobileNet v1-1-224
+    * SSD MobileNet v1
+    * InceptionV3
+    * InceptionV4
+    * FSRCNN
+    * Yolo V3
+    * ResNet v2-50
+    * SRGAN
+    * U-Net
+    * EfficientNet Lite
+
+    _Note: Running other networks may result in parts of the network being run by the Arm NN CPU reference backend._
+
 ## About the Ethos-N driver stack
 
 The Ethos-N driver stack targets the Ethos-N78 NPU and consists of open-source and other software components.
@@ -434,24 +452,6 @@ adb shell /vendor/bin/hw/android.hardware.neuralnetworks@1.3-service-armnn -v -c
 ## Limitations
 
 The following features and feature combinations have known limitations in this Ethos-N driver stack release.
-
-### Functional limitations
-
-* We have tested this release with the following networks:
-
-    * VGG16
-    * MobileNet v1-1-224
-    * SSD MobileNet v1
-    * InceptionV3
-    * InceptionV4
-    * FSRCNN
-    * Yolo V3
-    * ResNet v2-50
-    * SRGAN
-    * U-Net
-    * EfficientNet Lite
-
-    _Note: Running other networks may result in parts of the network being run by the Arm NN CPU reference backend._
 
 ### Memory limitations
 
