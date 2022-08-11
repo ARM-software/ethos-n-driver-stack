@@ -119,6 +119,10 @@
 - The output for sigmoid always has a quantization zero point equal to the minimum value of the quantized data type and a quantization scale of 1 / 256.
 
 
+## Split
+- If concatenating along the channel dimension, the channel dimension of every input tensor must be a multiple of 16.
+
+
 ## Tanh
 - The output for tanh always has a quantization zero point equal to the middle value of the quantized data type and a quantization scale of 1 / 128.
 
@@ -136,7 +140,6 @@
 
 ## Temporarily Disabled Operations
 The following operations have been temporarily disabled and will be enabled in a future release. These operations are now only supported at the "EstimateOnly" level. They can be used in SPA and will contribute zero performance impact, but cannot be compiled for execution on the actual hardware.
-- Split
 - Transpose
 - SpaceToDepth
 
