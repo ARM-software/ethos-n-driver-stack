@@ -169,7 +169,7 @@ To download the components, enter the following commands:
 ```sh
 mkdir driver_stack
 cd driver_stack
-git clone https://github.com/Arm-software/armnn --branch v22.08
+git clone https://github.com/Arm-software/armnn --branch branches/armnn_22_08
 git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 22.08
 ```
 
@@ -278,7 +278,7 @@ You must follow specific steps to build the Ethos-N NPU driver. You must build t
 8. Build Arm NN for TensorFlow Lite. For instructions about building Arm NN, see <https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment>.
 
 
-    The following build options are required by the CMake call in the [**Build Arm NN**](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment/build-arm-nn) section of the guide:
+    The following build options are required by the CMake call in the [**Build Arm NN**](https://developer.arm.com/documentation/102644/2202/Build-Arm-NN) section of the guide:
 
     ```cmake
     -DBUILD_TESTS=1
@@ -291,7 +291,7 @@ You must follow specific steps to build the Ethos-N NPU driver. You must build t
 
     As part of the Arm NN build, the process automatically builds the Ethos-N NPU driver plug-in for Arm NN.
 
-    _Note: Arm uses TensorFlow Lite as an example. You can also build Arm NN for [ONNX](https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment/generate-the-build-dependencies-for-onnx)._
+    _Note: Arm uses TensorFlow Lite as an example. You can also build Arm NN for [ONNX](https://developer.arm.com/documentation/102644/2202/Generate-the-build-dependencies-for-ONNX)._
 
     _Note: Please make sure that all the requirements for Arm NN are met before building Arm NN._
 
@@ -366,11 +366,6 @@ There are multiple ways to exercise the Ethos-N NPU driver:
 
     The minimum set of required parameters are:
 
-   * `-f` The format of the provided model provided in, for example `tflite-binary`.
-   * `-i` A comma-separated list of input tensor names in the model provided.
-   * `-y` A comma-separated list of data types for the input tensors.
-   * `-o` A comma-separated list of output tensor names in the model provided.
-   * `-z` A comma-separated list of data types for the output tensors.
    * `-d` The path to a whitespace separated list of values for the input.
    * `-m` The path to the model to be run.
    * `-c` The device you wish to run this inference on.
