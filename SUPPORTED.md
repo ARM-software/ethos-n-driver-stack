@@ -120,7 +120,7 @@
 
 
 ## Split
-- If concatenating along the channel dimension, the channel dimension of every input tensor must be a multiple of 16.
+- If splitting along the channel dimension, the channel dimension of every output tensor must be a multiple of 16.
 
 
 ## Tanh
