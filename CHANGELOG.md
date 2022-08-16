@@ -1,5 +1,36 @@
 # Changelog for Arm® Ethos™-N Driver Stack
 
+## 22.08
+
+### New features
+
+- Split operation now supported (see SUPPORTED.md for more information)
+
+### Public API changes
+
+- Version number updates:
+  - Driver Library version 2.0.0 → 3.0.0
+  - Command Stream version 3.0.0 → 3.1.0
+  - Support Library version 3.0.1 → 3.1.0
+  - Kernel Module version 2.0.0 → 3.0.0
+  - Firmware version 4.0.0 → 5.0.0
+
+### Other changes
+
+- Bias quantization fixes
+- Input quantization documentation fixes
+- Fixed issues not using the correct data formats during cascading for the following:
+  - Fully connected
+  - Branching
+  - Concatenation
+- PLE kernels are now mapped as read-only when a SMMU is available
+- Fixed power surge issue when clearing SRAM at the beginning of each inference
+
+### Known issues
+
+- Some Resize Billinear configurations (align_corners=True, half_pixel_centres=True when heights and widths are not both even or both odd) produce inaccurate results
+- Warnings from Arm NN for using a deprecated 'ConstTensorsAsInputs' API call
+
 ## 22.05
 
 ### New features
