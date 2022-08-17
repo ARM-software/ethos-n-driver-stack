@@ -86,7 +86,8 @@ private:
     AgentIdType AddOfmStreamerToCommandStream(Op* const ptrOp,
                                               const Buffer* const outputSramBuffer,
                                               const uint16_t outputDramBufferId,
-                                              const Buffer* const outputDramBuffer);
+                                              const Buffer* const outputDramBuffer,
+                                              const uint32_t outputDramBufferOffset);
 
     // Private function to add ReadAfterWrite Dependency
     // Consumer agent creates and own the dependency

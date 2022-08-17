@@ -2667,7 +2667,7 @@ TEST_CASE("Concat Op Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(ifmSData1.fmData.fcafInfo.signedActivation == false);
 
     CHECK(ifmSData1.fmData.tile.baseAddr == 0);
-    CHECK(ifmSData1.fmData.tile.numSlots == 2);
+    CHECK(ifmSData1.fmData.tile.numSlots == 1);
     CHECK(ifmSData1.fmData.tile.slotSize == 128);
 
     CHECK(ifmSData1.fmData.dfltStripeSize.height == 8);
@@ -2681,13 +2681,13 @@ TEST_CASE("Concat Op Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(ifmSData1.fmData.supertensorSizeInCells.width == 2);
     CHECK(ifmSData1.fmData.supertensorSizeInCells.channels == 1);
 
-    CHECK(ifmSData1.fmData.numStripes.height == 1);
-    CHECK(ifmSData1.fmData.numStripes.width == 1);
+    CHECK(ifmSData1.fmData.numStripes.height == 2);
+    CHECK(ifmSData1.fmData.numStripes.width == 2);
     CHECK(ifmSData1.fmData.numStripes.channels == 1);
 
-    CHECK(ifmSData1.fmData.stripeIdStrides.height == 1);
+    CHECK(ifmSData1.fmData.stripeIdStrides.height == 2);
     CHECK(ifmSData1.fmData.stripeIdStrides.width == 1);
-    CHECK(ifmSData1.fmData.stripeIdStrides.channels == 1);
+    CHECK(ifmSData1.fmData.stripeIdStrides.channels == 4);
 
     // ofmSData1
     CHECK(ofmSData1.fmData.bufferId == 1);
@@ -2698,7 +2698,7 @@ TEST_CASE("Concat Op Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(ofmSData1.fmData.fcafInfo.signedActivation == false);
 
     CHECK(ofmSData1.fmData.tile.baseAddr == 0);
-    CHECK(ofmSData1.fmData.tile.numSlots == 2);
+    CHECK(ofmSData1.fmData.tile.numSlots == 1);
     CHECK(ofmSData1.fmData.tile.slotSize == 128);
 
     CHECK(ofmSData1.fmData.dfltStripeSize.height == 8);
@@ -2712,13 +2712,13 @@ TEST_CASE("Concat Op Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(ofmSData1.fmData.supertensorSizeInCells.width == 3);
     CHECK(ofmSData1.fmData.supertensorSizeInCells.channels == 1);
 
-    CHECK(ofmSData1.fmData.numStripes.height == 1);
-    CHECK(ofmSData1.fmData.numStripes.width == 1);
+    CHECK(ofmSData1.fmData.numStripes.height == 2);
+    CHECK(ofmSData1.fmData.numStripes.width == 2);
     CHECK(ofmSData1.fmData.numStripes.channels == 1);
 
-    CHECK(ofmSData1.fmData.stripeIdStrides.height == 1);
+    CHECK(ofmSData1.fmData.stripeIdStrides.height == 2);
     CHECK(ofmSData1.fmData.stripeIdStrides.width == 1);
-    CHECK(ofmSData1.fmData.stripeIdStrides.channels == 1);
+    CHECK(ofmSData1.fmData.stripeIdStrides.channels == 4);
 
     // ifmsData2
     CHECK(ifmSData2.fmData.bufferId == 3);
@@ -2728,8 +2728,8 @@ TEST_CASE("Concat Op Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(ifmSData2.fmData.fcafInfo.zeroPoint == 0);
     CHECK(ifmSData2.fmData.fcafInfo.signedActivation == false);
 
-    CHECK(ifmSData2.fmData.tile.baseAddr == 256);
-    CHECK(ifmSData2.fmData.tile.numSlots == 2);
+    CHECK(ifmSData2.fmData.tile.baseAddr == 128);
+    CHECK(ifmSData2.fmData.tile.numSlots == 1);
     CHECK(ifmSData2.fmData.tile.slotSize == 128);
 
     CHECK(ifmSData2.fmData.dfltStripeSize.height == 8);
@@ -2743,13 +2743,13 @@ TEST_CASE("Concat Op Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(ifmSData2.fmData.supertensorSizeInCells.width == 1);
     CHECK(ifmSData2.fmData.supertensorSizeInCells.channels == 1);
 
-    CHECK(ifmSData2.fmData.numStripes.height == 1);
+    CHECK(ifmSData2.fmData.numStripes.height == 2);
     CHECK(ifmSData2.fmData.numStripes.width == 1);
     CHECK(ifmSData2.fmData.numStripes.channels == 1);
 
     CHECK(ifmSData2.fmData.stripeIdStrides.height == 1);
     CHECK(ifmSData2.fmData.stripeIdStrides.width == 1);
-    CHECK(ifmSData2.fmData.stripeIdStrides.channels == 1);
+    CHECK(ifmSData2.fmData.stripeIdStrides.channels == 2);
 
     // ofmsData2
     CHECK(ofmSData2.fmData.bufferId == 1);
@@ -2759,8 +2759,8 @@ TEST_CASE("Concat Op Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(ofmSData2.fmData.fcafInfo.zeroPoint == 0);
     CHECK(ofmSData2.fmData.fcafInfo.signedActivation == false);
 
-    CHECK(ofmSData2.fmData.tile.baseAddr == 256);
-    CHECK(ofmSData2.fmData.tile.numSlots == 2);
+    CHECK(ofmSData2.fmData.tile.baseAddr == 128);
+    CHECK(ofmSData2.fmData.tile.numSlots == 1);
     CHECK(ofmSData2.fmData.tile.slotSize == 128);
 
     CHECK(ofmSData2.fmData.dfltStripeSize.height == 8);
@@ -2774,13 +2774,13 @@ TEST_CASE("Concat Op Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(ofmSData2.fmData.supertensorSizeInCells.width == 3);
     CHECK(ofmSData2.fmData.supertensorSizeInCells.channels == 1);
 
-    CHECK(ofmSData2.fmData.numStripes.height == 1);
+    CHECK(ofmSData2.fmData.numStripes.height == 2);
     CHECK(ofmSData2.fmData.numStripes.width == 1);
     CHECK(ofmSData2.fmData.numStripes.channels == 1);
 
     CHECK(ofmSData2.fmData.stripeIdStrides.height == 1);
     CHECK(ofmSData2.fmData.stripeIdStrides.width == 1);
-    CHECK(ofmSData2.fmData.stripeIdStrides.channels == 1);
+    CHECK(ofmSData2.fmData.stripeIdStrides.channels == 2);
 }
 
 // Split Op Agent Data Test
@@ -2843,7 +2843,7 @@ TEST_CASE("Split Op Agent Data Test", "[CascadingCommandStreamGenerator]")
 
     // ofmSData1
     CHECK(ofmSData1.fmData.bufferId == 1);
-    CHECK(ofmSData1.fmData.dramOffset == 0xf000);
+    CHECK(ofmSData1.fmData.dramOffset == 0);
     CHECK(ofmSData1.fmData.dataType == FmsDataType::NHWCB);
 
     CHECK(ofmSData1.fmData.fcafInfo.zeroPoint == 0);
@@ -2905,7 +2905,7 @@ TEST_CASE("Split Op Agent Data Test", "[CascadingCommandStreamGenerator]")
 
     // ofmsData2
     CHECK(ofmSData2.fmData.bufferId == 3);
-    CHECK(ofmSData2.fmData.dramOffset == 0x0000fffa);
+    CHECK(ofmSData2.fmData.dramOffset == 0);
     CHECK(ofmSData2.fmData.dataType == FmsDataType::NHWCB);
 
     CHECK(ofmSData2.fmData.fcafInfo.zeroPoint == 0);

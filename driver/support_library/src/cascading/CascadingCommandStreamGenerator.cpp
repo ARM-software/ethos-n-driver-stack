@@ -338,7 +338,7 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(Op* const ptrDmaOp)
 
         // Ofm Streamer Agent
         AgentIdType ofmStreamerAgentId =
-            AddOfmStreamerToCommandStream(ptrDmaOp, inputBuffer, outputBufferId, outputBuffer);
+            AddOfmStreamerToCommandStream(ptrDmaOp, inputBuffer, outputBufferId, outputBuffer, 0);
 
         // Add 'Read After Write' dependency information to the IfmStreamer and PleScheduler agents
         // Read After Write Dependency for [OfmStreamer][IfmStreamer] or
@@ -547,6 +547,7 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
 
     // Get the output buffer from the Concat Op
     Buffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrConcatOp);
+
     assert(outputBuffer != nullptr && outputBuffer->m_Location == Location::Dram &&
            outputBuffer->m_BufferType.has_value());
 
@@ -558,6 +559,11 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
     {
         assert(m_DramBufToBufIdMapping.find(outputBuffer) == m_DramBufToBufIdMapping.end());
         m_DramBufToBufIdMapping[outputBuffer] = outputBufferId;
+    }
+    else if (outputBuffer->m_BufferType.value() == BufferType::Output)
+    {
+        m_BufferManager.ChangeToOutput(outputBufferId, outputBuffer->m_OperationId.value(),
+                                       outputBuffer->m_ProducerOutputIndx.value());
     }
 
     uint32_t sramBufferOffset = 0U;
@@ -573,13 +579,12 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
         // Temporary SRAM buffer used between IFMStreamer and OFMStreamer
         TensorShape sramBufferShape = { 1, 8, 8, utils::GetChannels(inputBuffer->m_TensorShape) };
 
-        Buffer sramBuffer(Location::Sram, CascadingBufferFormat::NHWCB, sramBufferShape, sramBufferShape,
+        Buffer sramBuffer(Location::Sram, CascadingBufferFormat::NHWCB, inputBuffer->m_TensorShape, sramBufferShape,
                           TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(sramBufferShape),
                           inputBuffer->m_QuantizationInfo);
-        sramBuffer.m_NumStripes       = 2;
-        sramBuffer.m_QuantizationInfo = inputBuffer->m_QuantizationInfo;
-        sramBuffer.m_Offset           = sramBufferOffset;
-        sramBuffer.m_SlotSizeInBytes  = utils::CalculateBufferSize(sramBufferShape, CascadingBufferFormat::NHWCB);
+        sramBuffer.m_NumStripes      = 1;
+        sramBuffer.m_Offset          = sramBufferOffset;
+        sramBuffer.m_SlotSizeInBytes = utils::CalculateBufferSize(sramBufferShape, CascadingBufferFormat::NHWCB);
 
         sramBufferSlotSize = sramBuffer.m_SlotSizeInBytes / m_Capabilities.GetNumberOfSrams();
 
@@ -587,9 +592,6 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
                m_Capabilities.GetTotalSramSize());
         assert(sramBuffer.m_Offset.value() + (sramBuffer.m_NumStripes * sramBufferSlotSize) <
                m_Capabilities.GetTotalSramSize());
-
-        // Set output DRAM buffer offset
-        outputBuffer->m_Offset = dramBufferOffset;
 
         uint16_t inputBufferId;
         // If this is an Intermediate or Input Dram Buffer, add it to the DramBufToBufId map with the appropriate Id
@@ -606,7 +608,16 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
 
             // Ofm Streamer Agent
             AgentIdType ofmStreamerAgentId =
-                AddOfmStreamerToCommandStream(ptrConcatOp, &sramBuffer, outputBufferId, outputBuffer);
+                AddOfmStreamerToCommandStream(ptrConcatOp, &sramBuffer, outputBufferId, outputBuffer, dramBufferOffset);
+
+            // Add a dependency on the previous agent which has to be an OfmStreamer
+            // Add 'Read After Write' dependency to the OfmStreamer agent
+            // Sram Overlap Dependency for [IfmStreamer][OfmStreamer]
+            if (ifmStreamerAgentId > 0)
+            {
+                AddReadAfterWriteDependency(AgentType::IFM_STREAMER, ifmStreamerAgentId, AgentType::OFM_STREAMER,
+                                            ifmStreamerAgentId - 1);
+            }
 
             // Add 'Read After Write' dependency to the OfmStreamer agent
             // Read After Write Dependency for [OfmStreamer][IfmStreamer]
@@ -735,12 +746,10 @@ void CascadingCommandStreamGenerator::ProcessSplitOp(Op* const ptrSplitOp)
                       TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(sramStripeShape),
                       inputBuffer->m_QuantizationInfo);
 
-    sramBuffer.m_NumStripes       = 1;
-    sramBuffer.m_QuantizationInfo = inputBuffer->m_QuantizationInfo;
-    sramBuffer.m_SlotSizeInBytes  = utils::CalculateBufferSize(sramStripeShape, CascadingBufferFormat::NHWCB);
-    sramBuffer.m_SizeInBytes      = sramBuffer.m_NumStripes * sramBuffer.m_SlotSizeInBytes;
-
-    sramBuffer.m_Offset = 0;
+    sramBuffer.m_NumStripes      = 1;
+    sramBuffer.m_SlotSizeInBytes = utils::CalculateBufferSize(sramStripeShape, CascadingBufferFormat::NHWCB);
+    sramBuffer.m_SizeInBytes     = sramBuffer.m_NumStripes * sramBuffer.m_SlotSizeInBytes;
+    sramBuffer.m_Offset          = 0;
 
     assert(utils::DivRoundUp(utils::TotalSizeBytesNHWCB(sramStripeShape), m_Capabilities.GetNumberOfSrams()) <
            m_Capabilities.GetTotalSramSize());
@@ -761,7 +770,7 @@ void CascadingCommandStreamGenerator::ProcessSplitOp(Op* const ptrSplitOp)
 
         // Ofm Streamer Agent
         AgentIdType ofmStreamerAgentId =
-            AddOfmStreamerToCommandStream(ptrSplitOp, &sramBuffer, outputBufferId, outputBuffer);
+            AddOfmStreamerToCommandStream(ptrSplitOp, &sramBuffer, outputBufferId, outputBuffer, 0);
 
         // Add a dependency on the previous agent which has to be an OfmStreamer
         // Add 'Read After Write' dependency to the OfmStreamer agent
@@ -1181,17 +1190,15 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
 AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(Op* const ptrOp,
                                                                            const Buffer* const outputSramBuffer,
                                                                            const uint16_t outputDramBufferId,
-                                                                           const Buffer* const outputDramBuffer)
+                                                                           const Buffer* const outputDramBuffer,
+                                                                           const uint32_t outputDramBufferOffset)
 {
     assert(IsObjectOfType<DmaOp>(ptrOp) || IsObjectOfType<ConcatOp>(ptrOp) || IsObjectOfType<SplitOp>(ptrOp));
     assert(outputSramBuffer->m_Format == CascadingBufferFormat::NHWCB);
 
     OfmS ofmStreamerData = {};
 
-    if (outputDramBuffer->m_Offset.has_value())
-    {
-        ofmStreamerData.fmData.dramOffset = outputDramBuffer->m_Offset.value();
-    }
+    ofmStreamerData.fmData.dramOffset = outputDramBufferOffset;
 
     ofmStreamerData.fmData.bufferId = outputDramBufferId;
 
