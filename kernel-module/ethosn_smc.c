@@ -23,10 +23,10 @@
 #include "ethosn_smc.h"
 
 /* Compatible SiP service version */
-#define ETHOSN_SIP_MAJOR_VERSION        1
+#define ETHOSN_SIP_MAJOR_VERSION        2
 #define ETHOSN_SIP_MINOR_VERSION        0
 
-/* SMC reset calls */
+/* SMC functions */
 #define ETHOSN_SMC_VERSION              0xc2000050
 #define ETHOSN_SMC_IS_SECURE            0xc2000051
 #define ETHOSN_SMC_CORE_HARD_RESET      0xc2000052
@@ -34,9 +34,10 @@
 
 static inline int __must_check ethosn_smc_core_call(u32 cmd,
 						    phys_addr_t core_addr,
+						    uint32_t asset_alloc_idx,
 						    struct arm_smccc_res *res)
 {
-	arm_smccc_smc(cmd, core_addr, 0, 0, 0, 0, 0, 0, res);
+	arm_smccc_smc(cmd, core_addr, asset_alloc_idx, 0, 0, 0, 0, 0, res);
 
 	/*
 	 * Only use the first 32-bits of the response to handle an error from a
@@ -48,7 +49,7 @@ static inline int __must_check ethosn_smc_core_call(u32 cmd,
 static inline int __must_check ethosn_smc_call(u32 cmd,
 					       struct arm_smccc_res *res)
 {
-	return ethosn_smc_core_call(cmd, 0U, res);
+	return ethosn_smc_core_call(cmd, 0U, 0U, res);
 }
 
 int ethosn_smc_version_check(const struct device *dev)
@@ -77,7 +78,9 @@ int ethosn_smc_is_secure(const struct device *dev,
 			 phys_addr_t core_addr)
 {
 	struct arm_smccc_res res = { 0 };
-	int ret = ethosn_smc_core_call(ETHOSN_SMC_IS_SECURE, core_addr, &res);
+	/* Asset allocator index is not relevant for this call */
+	int ret = ethosn_smc_core_call(ETHOSN_SMC_IS_SECURE, core_addr, 0U,
+				       &res);
 
 	if (ret < 0) {
 		dev_err(dev, "Failed to get secure status: %d\n", ret);
@@ -99,12 +102,14 @@ EXPORT_SYMBOL(ethosn_smc_is_secure);
 
 int ethosn_smc_core_reset(const struct device *dev,
 			  phys_addr_t core_addr,
+			  uint32_t asset_alloc_idx,
 			  int hard_reset)
 {
 	struct arm_smccc_res res = { 0 };
 	const u32 smc_reset_call = hard_reset ? ETHOSN_SMC_CORE_HARD_RESET :
 				   ETHOSN_SMC_CORE_SOFT_RESET;
-	int ret = ethosn_smc_core_call(smc_reset_call, core_addr, &res);
+	int ret = ethosn_smc_core_call(smc_reset_call, core_addr,
+				       asset_alloc_idx, &res);
 
 	if (ret) {
 		dev_warn(dev, "Failed to %s reset the hardware: %d\n",

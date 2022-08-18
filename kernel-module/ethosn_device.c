@@ -616,8 +616,11 @@ static int ethosn_hard_reset(struct ethosn_core *core)
 	 * Access to DL1 registers is blocked in secure mode so reset is done
 	 * with a SMC call. The call will block until the reset is done or
 	 * timeout.
+	 *
+	 * Only the first asset allocator is being used right now so the
+	 * allocator index is hardcoded to 0.
 	 */
-	return ethosn_smc_core_reset(core->dev, core->phys_addr, 1);
+	return ethosn_smc_core_reset(core->dev, core->phys_addr, 0U, 1);
 #endif
 }
 
@@ -659,8 +662,11 @@ static int ethosn_soft_reset(struct ethosn_core *core)
 	 * Access to DL1 registers is blocked in secure mode so reset is done
 	 * with a SMC call. The call will block until the reset is done or
 	 * timeout.
+	 *
+	 * Only the first asset allocator is being used right now so the
+	 * allocator index is hardcoded to 0.
 	 */
-	if (ethosn_smc_core_reset(core->dev, core->phys_addr, 0))
+	if (ethosn_smc_core_reset(core->dev, core->phys_addr, 0U, 0))
 		return -ETIME;
 
 #endif
@@ -687,6 +693,8 @@ void ethosn_set_power_ctrl(struct ethosn_core *core,
 	pwrctlr.bits.active = clk_on;
 	ethosn_write_top_reg(core, DL1_RP, DL1_PWRCTLR, pwrctlr.word);
 }
+
+#ifdef ETHOSN_NS
 
 /**
  * ethosn_get_smmu_stream_id() - get SMMU stream id.
@@ -786,6 +794,8 @@ static int ethosn_set_smmu_stream_ids(struct ethosn_core *core)
 
 	return 0;
 }
+
+#endif
 
 /**
  * ethosn_set_addr_ext() - Configure address extension for stream
@@ -1674,12 +1684,16 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 	if (ret)
 		return ret;
 
+	/* In a secure build, TF-A will setup the stream IDs */
+#ifdef ETHOSN_NS
 	/* Setup the SMMU Stream IDs if iommu is present */
 	if (core->parent->smmu_available) {
 		ret = ethosn_set_smmu_stream_ids(core);
 		if (ret)
 			return ret;
 	}
+
+#endif
 
 	/* Configure address extension for stream 0, 1 and 2 */
 	ret = ethosn_set_addr_ext(
