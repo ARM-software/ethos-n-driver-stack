@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited.
+ * (C) COPYRIGHT 2018-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -262,7 +262,7 @@ enum ethosn_poll_counter_name {
 #define MB_ZERO   00000010
 
 /* Version information */
-#define ETHOSN_KERNEL_MODULE_VERSION_MAJOR 2
+#define ETHOSN_KERNEL_MODULE_VERSION_MAJOR 3
 #define ETHOSN_KERNEL_MODULE_VERSION_MINOR 0
 #define ETHOSN_KERNEL_MODULE_VERSION_PATCH 0
 

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -13,7 +13,7 @@
 #include <vector>
 
 // Version information
-#define ETHOSN_DRIVER_LIBRARY_VERSION_MAJOR 2
+#define ETHOSN_DRIVER_LIBRARY_VERSION_MAJOR 3
 #define ETHOSN_DRIVER_LIBRARY_VERSION_MINOR 0
 #define ETHOSN_DRIVER_LIBRARY_VERSION_PATCH 0
 

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -12,7 +12,7 @@
 #include <cstddef>
 
 #define ETHOSN_COMMAND_STREAM_VERSION_MAJOR 3
-#define ETHOSN_COMMAND_STREAM_VERSION_MINOR 0
+#define ETHOSN_COMMAND_STREAM_VERSION_MINOR 1
 #define ETHOSN_COMMAND_STREAM_VERSION_PATCH 0
 
 namespace ethosn
