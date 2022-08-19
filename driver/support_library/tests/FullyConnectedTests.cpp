@@ -362,7 +362,7 @@ TEST_CASE("Fully Connected")
 
     DumpDram cmdStrDumpDram;
     cmdStrDumpDram.m_DramBufferId() = 4;
-    cmdStrDumpDram.m_Filename()     = Filename{ "EthosNIntermediateBuffer_4_UINT8_QUANTIZED_NHWC_1_1_1_16.hex" };
+    cmdStrDumpDram.m_Filename()     = Filename{ "EthosNIntermediateBuffer_004_UINT8_QUANTIZED_NHWC_1_1_1_16.hex" };
     expectedCmdStream.EmplaceBack(cmdStrDumpDram);
 
     DumpSram cmdStrDumpSram;
