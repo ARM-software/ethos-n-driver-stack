@@ -1191,8 +1191,9 @@ void NetworkToGraphOfPartsConverter::Visit(Softmax& softmax)
 
 void NetworkToGraphOfPartsConverter::Visit(Split& split)
 {
+    const SplitInfo& splitInfo = split.GetSplitInfo();
+
     const TensorInfo& inputInfo           = split.GetInput(0).GetTensorInfo();
-    const TensorInfo& outputInfo          = split.GetOutput(0).GetTensorInfo();
     const std::set<uint32_t> operationIds = { split.GetId() };
 
     // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
@@ -1203,10 +1204,16 @@ void NetworkToGraphOfPartsConverter::Visit(Split& split)
     std::vector<BasePart*> parts;
     if (supportedLevel == SupportedLevel::EstimateOnly)
     {
+        std::vector<TensorInfo> outputInfos{};
+        for (auto output : split.GetOutputs())
+        {
+            outputInfos.push_back(output.GetTensorInfo());
+        }
+
         auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
-            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputInfo },
-            std::vector<TensorInfo>{ outputInfo }, ConvertExternalToCompilerDataFormat(outputInfo.m_DataFormat),
-            operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputInfo }, outputInfos,
+            ConvertExternalToCompilerDataFormat(outputInfos[0].m_DataFormat), operationIds, m_EstimationOptions.value(),
+            m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
@@ -1219,8 +1226,6 @@ void NetworkToGraphOfPartsConverter::Visit(Split& split)
     }
     else
     {
-        const SplitInfo& splitInfo = split.GetSplitInfo();
-
         // Figure out if we need to use NHWC or if we can get away with NHWCB (which should be more efficient).
         // We can use NHWCB if the dimensions along the split axis are all multiples of the brick group size, so
         // that the DMA is capable of extracting the tensors correctly from DRAM.
