@@ -35,7 +35,7 @@ StripeConfig GetDefaultStripeConfig(const CompilationOptions& compilationOptions
         result.DisableAllSplits();
         if (compilationOptions.m_Strategy0)
         {
-            result.splits.heightOnly = true;
+            result.splits.mceAndPleOutputHeight = true;
         }
         if (compilationOptions.m_Strategy1)
         {
@@ -207,9 +207,13 @@ StripeConfig GetDefaultStripeConfig(const CompilationOptions& compilationOptions
 
                         const std::regex blockConfigRegex(R"(BlockConfig\((\d+),(\d+)\))");
                         std::smatch match;
-                        if (name == "Splits.HeightOnly")
+                        if (name == "Splits.MceAndPleOutputHeight")
                         {
-                            result.splits.heightOnly = valueBool();
+                            result.splits.mceAndPleOutputHeight = valueBool();
+                        }
+                        else if (name == "Splits.MceOutputHeightOnly")
+                        {
+                            result.splits.mceOutputHeightOnly = valueBool();
                         }
                         else if (name == "Splits.WidthOnly")
                         {
@@ -668,7 +672,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
 
     // Use the minimum stripe size possible to minimize the time before processing.
     // Try splitting height first.
-    if (stripeConfig.splits.heightOnly)
+    if (stripeConfig.splits.mceAndPleOutputHeight)
     {
         TensorShape mceInputEncoding  = { 0, minBlockHeightMultiplier * blockConfig.m_BlockHeight(), 0, 0 };
         const TensorShape& inputShape = m_MceInputTensorShape;
@@ -694,7 +698,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     }
 
     // Split only input in height while the output is full tensor.
-    if (stripeConfig.splits.heightOnly)
+    if (stripeConfig.splits.mceOutputHeightOnly)
     {
         TensorShape mceInputEncoding  = { 0, minBlockHeightMultiplier * blockConfig.m_BlockHeight(), 0, 0 };
         const TensorShape& inputShape = m_MceInputTensorShape;

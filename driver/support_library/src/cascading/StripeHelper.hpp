@@ -31,7 +31,8 @@ struct StripeConfig
     /// Any dimensions not mentioned in a name are implicitly not split.
     struct
     {
-        bool heightOnly                       = true;
+        bool mceAndPleOutputHeight            = true;
+        bool mceOutputHeightOnly              = true;
         bool widthOnly                        = true;
         bool widthHeight                      = true;
         bool widthHeightOutputDepth           = true;
@@ -88,7 +89,8 @@ struct StripeConfig
     /// plans will be generated!
     void DisableAllSplits()
     {
-        splits.heightOnly                       = false;
+        splits.mceAndPleOutputHeight            = false;
+        splits.mceOutputHeightOnly              = false;
         splits.widthOnly                        = false;
         splits.widthHeight                      = false;
         splits.widthHeightOutputDepth           = false;
@@ -105,7 +107,8 @@ struct StripeConfig
     /// @{
     void DisableSplitHeight()
     {
-        splits.heightOnly                       = false;
+        splits.mceAndPleOutputHeight            = false;
+        splits.mceOutputHeightOnly              = false;
         splits.widthHeight                      = false;
         splits.widthHeightOutputDepth           = false;
         splits.widthHeightOutputDepthInputDepth = false;

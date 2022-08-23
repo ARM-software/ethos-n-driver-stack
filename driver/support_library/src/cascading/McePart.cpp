@@ -122,7 +122,8 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     }
     else
     {
-        if (stripeConfig.splits.heightOnly || stripeConfig.splits.widthOnly || stripeConfig.splits.widthHeight)
+        if (stripeConfig.splits.mceOutputHeightOnly || stripeConfig.splits.mceAndPleOutputHeight ||
+            stripeConfig.splits.widthOnly || stripeConfig.splits.widthHeight)
         {
             mceOutputEncoding = { 0, fullHeight ? 0 : (GetHeight(mceInputStripe) * shapeMultiplier.m_H),
                                   fullWidth ? 0 : (GetWidth(mceInputStripe) * shapeMultiplier.m_W), 0 };

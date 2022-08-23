@@ -436,7 +436,7 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     // strategy 0
     if (!fullPlane)
     {
-        if (m_StripeConfig.splits.heightOnly)
+        if (m_StripeConfig.splits.mceOutputHeightOnly || m_StripeConfig.splits.mceAndPleOutputHeight)
         {
             // if its the end of a cascade we can double buffer the output, if it's not we need to output up to 3 stripes for neighouring data.
             maxOutputStripes = isEndOfCascade ? 2 : 3;
