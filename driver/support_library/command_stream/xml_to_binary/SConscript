@@ -11,7 +11,7 @@ import common
 Import("env")
 common.setup_common_env(env)
 common.setup_toolchain(env, env["platform"])
-
+common.setup_sanitize(env)
 # Note we *prepend* so these take priority over CPATH command-line-arguments to avoid depending on the install target
 # where the install target is also provided via CPATH.
 env.PrependUnique(

@@ -177,6 +177,8 @@ def setup_common_env(env):
     # By enabling this flag, binary will use RUNPATH instead of RPATH
     env.AppendUnique(LINKFLAGS=["-Wl,--enable-new-dtags"])
 
+
+def setup_sanitize(env):
     # Add sanitization flags
     if env["sanitize"]:
         flags = (
@@ -184,10 +186,14 @@ def setup_common_env(env):
             "-fsanitize-address-use-after-scope",
             "-fsanitize=undefined",
             "-fsanitize=leak",
+            "-fsanitize-recover=address",
         )
         env.AppendUnique(CXXFLAGS=flags)
         env.AppendUnique(CPPFLAGS=flags)
         env.AppendUnique(LINKFLAGS=flags)
+        # if werror is enabled, the sanitizer throws an integer to uint16_t conversion
+        # error at compile time and doesn't detect the runtime address/undefined errors
+        env["CPPFLAGS"].remove("-Werror")
 
 
 def remove_flags(flags_list, environment):
