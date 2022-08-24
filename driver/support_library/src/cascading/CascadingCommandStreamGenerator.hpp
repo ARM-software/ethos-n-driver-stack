@@ -173,6 +173,16 @@ private:
 
     // BufferManager instance which maintains and builds up the set of buffers required by the compiled network
     BufferManager m_BufferManager;
+
+    /// The most recent Op that could block later Ops from loading data into SRAM, to prevent corruption.
+    /// The next occurence of an IfmS, PleL or WgtS may include a dependency on these to stall them until the
+    /// fence Op has finished.
+    /// Further fields may be needed if other/new agent types write to SRAM.
+    /// @{
+    Op* m_FenceOpForIfmS;
+    Op* m_FenceOpForPleL;
+    Op* m_FenceOpForWgtS;
+    /// @}
 };
 }    // namespace cascading_compiler
 }    // namespace support_library

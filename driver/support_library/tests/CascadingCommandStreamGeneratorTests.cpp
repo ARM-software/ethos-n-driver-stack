@@ -3754,42 +3754,6 @@ TEST_CASE("PleScheduler-OfmStreamer ScheduleTimeDependency Test", "[CascadingCom
     CHECK(scheduleDependency.boundary == 0);
 }
 
-// OfmStreamer Agent - Schedule Time Dependency Test
-TEST_CASE("OfmStreamer-IfmStreamer ScheduleTimeDependency Test", "[CascadingCommandStreamGenerator]")
-{
-    TwoMceDramIntermediateOpGraph twoMceOpMergeGraph = TwoMceDramIntermediateOpGraph();
-    OpGraph mergedOpGraph                            = twoMceOpMergeGraph.GetMergedOpGraph();
-
-    const CompilationOptions compOpt;
-    const HardwareCapabilities hwCaps     = GetEthosN78HwCapabilities();
-    const std::set<uint32_t> operationIds = { 0 };
-
-    DebuggingContext debuggingContext{ CompilationOptions::DebugInfo() };
-    CascadingCommandStreamGenerator commandStreamGenerator(mergedOpGraph, operationIds, hwCaps, compOpt,
-                                                           debuggingContext);
-    std::unique_ptr<CompiledNetwork> compiledNetwork = commandStreamGenerator.Generate().m_CompiledNetwork;
-
-    const std::vector<Agent>& commandStream = commandStreamGenerator.GetCommandStreamOfAgents();
-
-    const Agent& ofmSAgent               = commandStream[5];
-    const Agent& ifmSAgent               = commandStream[6];
-    const Dependency& scheduleDependency = ofmSAgent.info.scheduleDependencies.at(0);
-
-    uint32_t numOfOfmStripes = ofmSAgent.data.ofm.fmData.numStripes.height *
-                               ofmSAgent.data.ofm.fmData.numStripes.width *
-                               ofmSAgent.data.ofm.fmData.numStripes.channels;
-    uint32_t numOfIfmStripes = ifmSAgent.data.ifm.fmData.numStripes.height *
-                               ifmSAgent.data.ifm.fmData.numStripes.width *
-                               ifmSAgent.data.ifm.fmData.numStripes.channels;
-
-    CHECK(scheduleDependency.relativeAgentId == 1);
-    CHECK(scheduleDependency.outerRatio.other == numOfIfmStripes);
-    CHECK(scheduleDependency.outerRatio.self == numOfOfmStripes);
-    CHECK(scheduleDependency.innerRatio.other == 1);
-    CHECK(scheduleDependency.innerRatio.self == 400);
-    CHECK(scheduleDependency.boundary == 0);
-}
-
 // Producer-Consumer Agent - Intermediate Dram Buffer Lifetime Test
 // Manually creates a network consisting of a Glue with an Intermediate Dram Buffer, to test the lifetime logic of the CascadingCommandStreamGenerator.
 // The topology is chosen to test cases including:

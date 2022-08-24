@@ -28,6 +28,9 @@ CascadingCommandStreamGenerator::CascadingCommandStreamGenerator(const OpGraph& 
     , m_Capabilities{ capabilities }
     , m_CompilationOptions{ compilationOptions }
     , m_DebuggingContext(debuggingContext)
+    , m_FenceOpForIfmS(nullptr)
+    , m_FenceOpForPleL(nullptr)
+    , m_FenceOpForWgtS(nullptr)
 {
 
     m_CommandStreamAgents.reserve(m_MergedOpGraph.GetOps().size());
@@ -70,6 +73,15 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
             else
             {
                 throw NotSupportedException("Op is not currently supported by the Cascading Compiler");
+            }
+
+            Buffer* producedBuffer = m_MergedOpGraph.GetOutput(currentOp);
+            if (producedBuffer != nullptr && producedBuffer->IsFullTensor() &&
+                !(IsObjectOfType<DmaOp>(currentOp) && producedBuffer->m_Location == Location::Sram))
+            {
+                m_FenceOpForIfmS = currentOp;
+                m_FenceOpForPleL = currentOp;
+                m_FenceOpForWgtS = currentOp;
             }
         }
     }
@@ -215,27 +227,15 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(Op* const ptrDmaOp)
             AgentIdType ifmStreamerAgentId = AddIfmStreamerToCommandStream(ptrDmaOp, inputBufferId, inputBuffer,
                                                                            outputBuffer, dmaOp->m_TransferFormat);
 
-            // Add a dependency on the previous agent which has to be an OfmStreamer
-            // Add 'Read After Write' dependency to the OfmStreamer agent
-            // Sram Overlap Dependency for [IfmStreamer][OfmStreamer]
-            if (ifmStreamerAgentId > 0)
+            if (m_FenceOpForIfmS != nullptr)
             {
-                AddReadAfterWriteDependency(AgentType::IFM_STREAMER, ifmStreamerAgentId, AgentType::OFM_STREAMER,
-                                            ifmStreamerAgentId - 1);
-            }
-
-            // Only intermediate input buffers need the dependencies not inputs to the network
-            if (inputBuffer->m_BufferType == BufferType::Intermediate)
-            {
-                // Add 'Read After Write' dependency to the IfmStreamer agent
-                // Read After Write Dependency for [IfmStreamer][OfmStreamer]
-                AddReadAfterWriteDependency(AgentType::IFM_STREAMER, ifmStreamerAgentId, AgentType::OFM_STREAMER,
-                                            m_OpToAgentIdMapping[m_MergedOpGraph.GetProducer(inputBuffer)]);
-
-                // Add 'Schedule Time' dependency information to the OfmStreamer agent
-                // Schedule Time Dependency for [OfmStreamer][IfmStreamer]
-                AddScheduleTimeDependency(AgentType::IFM_STREAMER, ifmStreamerAgentId, AgentType::OFM_STREAMER,
-                                          m_OpToAgentIdMapping[m_MergedOpGraph.GetProducer(inputBuffer)]);
+                // Note that this is an overly pessimistic approach, as corruption would only happen in practice if the SRAM
+                // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
+                AddReadAfterWriteDependency(
+                    AgentType::IFM_STREAMER, ifmStreamerAgentId,
+                    m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForIfmS)].data.type,
+                    this->m_OpToAgentIdMapping.at(m_FenceOpForIfmS));
+                m_FenceOpForIfmS = nullptr;
             }
         }
         else
@@ -243,59 +243,15 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(Op* const ptrDmaOp)
             // Weight Streamer Agent
             AgentIdType weightStreamerAgentId = AddWeightStreamerToCommandStream(static_cast<DmaOp*>(ptrDmaOp));
 
-            // Get the agent ID of the OFM Streamer
-            // Get the Mce consumer of the weights buffer
-            auto weightBufferConsumer = m_MergedOpGraph.GetConsumer(outputBuffer, 0);
-            assert(weightBufferConsumer.first != nullptr && IsObjectOfType<MceOp>(weightBufferConsumer.first));
-
-            // Look further up in the graph, to see if there is an OfmS that we need to wait for.
-            // This is to prevent the weight streamer from the next section starting to load data before
-            // the OfmS from the previous section is done (sections can't overlap!).
-            Buffer* mceInput = m_MergedOpGraph.GetInputs(weightBufferConsumer.first)[g_MceIfmBufferIndex];
-            assert(mceInput != nullptr);
-
-            Op* ifmProducer = m_MergedOpGraph.GetProducer(mceInput);
-            if (IsObjectOfType<DmaOp>(ifmProducer))
+            if (m_FenceOpForWgtS != nullptr)
             {
-                Buffer* ifmDmaInput = m_MergedOpGraph.GetInputs(ifmProducer)[0];
-                assert(ifmDmaInput != nullptr);
-
-                Op* intermediateProducer = m_MergedOpGraph.GetProducer(ifmDmaInput);
-                if (intermediateProducer != nullptr && (dynamic_cast<DmaOp*>(intermediateProducer) !=
-                                                        nullptr))    // May be nullptr if ifmDmaInput is a network input
-                {
-                    AgentIdType ofmStreamerAgentId = m_OpToAgentIdMapping[intermediateProducer];
-
-                    // Add 'Sram Overlap' dependency to the WeightStreamer agent
-                    // Sram Overlap Dependency for [WeightStreamer][OfmStreamer]
-                    AddSramOverlapDependency(AgentType::WGT_STREAMER, weightStreamerAgentId, AgentType::OFM_STREAMER,
-                                             ofmStreamerAgentId);
-                }
-            }
-            // We also need to check and wait for an MceS in the same section if this is a strategy 1 cascade.
-            // Strategy 1 cascade means that each MCE finishes before the next starts, and our combiner does an
-            // sram eviction for each new layer --- hence a potential sram overlap hazard.
-            // Therefore we need to make sure that the firmware doesn't load the new weights until the weights
-            // from the previous layer are finished with.
-            else if (IsObjectOfType<PleOp>(ifmProducer))
-            {
-                Buffer* pleInput = m_MergedOpGraph.GetInputs(ifmProducer)[0];
-                assert(pleInput != nullptr);
-
-                Op* mce = m_MergedOpGraph.GetProducer(pleInput);
-                if (IsObjectOfType<MceOp>(mce))
-                {
-                    // Check if this is an s1 cascade
-                    if (mceInput->IsFullTensor())
-                    {
-                        AgentIdType mceStreamerAgentId = m_OpToAgentIdMapping[mce];
-
-                        // Add 'Sram Overlap' dependency to the WeightStreamer agent
-                        // Sram Overlap Dependency for [WeightStreamer][MceScheduler]
-                        AddSramOverlapDependency(AgentType::WGT_STREAMER, weightStreamerAgentId,
-                                                 AgentType::MCE_SCHEDULER, mceStreamerAgentId);
-                    }
-                }
+                // Note that this is an overly pessimistic approach, as corruption would only happen in practice if the SRAM
+                // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
+                AddReadAfterWriteDependency(
+                    AgentType::WGT_STREAMER, weightStreamerAgentId,
+                    m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForWgtS)].data.type,
+                    this->m_OpToAgentIdMapping.at(m_FenceOpForWgtS));
+                m_FenceOpForWgtS = nullptr;
             }
         }
     }
@@ -398,6 +354,17 @@ void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
     if (ptrPleOp->m_LoadKernel)
     {
         pleLoaderAgentId = AddPleLoaderToCommandStream(ptrPleOp);
+
+        if (m_FenceOpForPleL != nullptr)
+        {
+            // Note that this is an overly pessimistic approach, as corruption would only happen in practice if the SRAM
+            // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
+            AddReadAfterWriteDependency(
+                AgentType::PLE_LOADER, pleLoaderAgentId,
+                m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForPleL)].data.type,
+                this->m_OpToAgentIdMapping.at(m_FenceOpForPleL));
+            m_FenceOpForPleL = nullptr;
+        }
     }
 
     // MCE Scheduler Agent
@@ -499,6 +466,17 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
             AddReadAfterWriteDependency(
                 AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::PLE_LOADER,
                 m_PleKernelToPleLoaderAgentIdMapping[static_cast<PleOp*>(ptrPleOp)->m_PleKernelId]);
+
+            if (m_FenceOpForPleL != nullptr)
+            {
+                // Note that this is an overly pessimistic approach, as corruption would only happen in practice if the SRAM
+                // addresses used overlap, which we do not bother checking. A future improvement would be to check this first.
+                AddReadAfterWriteDependency(
+                    AgentType::PLE_LOADER, pleLoaderAgentId,
+                    m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForPleL)].data.type,
+                    this->m_OpToAgentIdMapping.at(m_FenceOpForPleL));
+                m_FenceOpForPleL = nullptr;
+            }
         }
 
         // Write After Read Dependency for [IfmStreamer][PleScheduler]
@@ -1371,12 +1349,12 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
 
                 consumerAgentDependency.boundary = 0;
             }
-            // Sram Overlap Dependency for [WeightStreamer][MceScheduler]
-            else if (producerAgentType == AgentType::MCE_SCHEDULER)
+            // Sram Overlap Dependency for [WeightStreamer][PleScheduler]
+            else if (producerAgentType == AgentType::PLE_SCHEDULER)
             {
-                // The WgtS needs to wait for an MceS in the same section if this is a strategy 1 cascade,
+                // The WgtS needs to wait for the prior PleS in the same section, for example in a strategy 1 cascade,
                 // because these weights shouldn't be loaded until the weights from the previous layer are finished with.
-                // The WgtS should wait until the MceS has completely finished.
+                // The WgtS should wait until the PleS has completely finished.
                 consumerAgentDependency.outerRatio.other = producerAgent.info.numStripesTotal;
                 consumerAgentDependency.outerRatio.self  = consumerAgent.info.numStripesTotal;
 
@@ -1516,7 +1494,32 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
 
         case AgentType::PLE_LOADER:
         {
-            assert(false);
+            // Sram Overlap Dependency for [PleLoader][PleScheduler]
+            if (producerAgentType == AgentType::PLE_SCHEDULER)
+            {
+                consumerAgentDependency.outerRatio.other = producerAgent.info.numStripesTotal;
+                consumerAgentDependency.outerRatio.self  = consumerAgent.info.numStripesTotal;
+
+                consumerAgentDependency.innerRatio.other = producerAgent.info.numStripesTotal;
+                consumerAgentDependency.innerRatio.self  = 1;
+
+                consumerAgentDependency.boundary = 0;
+            }
+            // Sram Overlap Dependency for [PleLoader][OfmStreamer]
+            else if (producerAgentType == AgentType::OFM_STREAMER)
+            {
+                consumerAgentDependency.outerRatio.other = producerAgent.info.numStripesTotal;
+                consumerAgentDependency.outerRatio.self  = consumerAgent.info.numStripesTotal;
+
+                consumerAgentDependency.innerRatio.other = producerAgent.info.numStripesTotal;
+                consumerAgentDependency.innerRatio.self  = 1;
+
+                consumerAgentDependency.boundary = 0;
+            }
+            else
+            {
+                assert(false);
+            }
             break;
         }
 
