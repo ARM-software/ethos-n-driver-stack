@@ -127,13 +127,15 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
 
     m_BufferManager.Allocate(m_DebuggingContext);
 
-    CompiledOpGraph result = { EstimateOpGraph(m_MergedOpGraph, m_Capabilities, EstimationOptions()), {}, {} };
+    CompiledOpGraph result;
+    result.m_EstimatedOpGraph = EstimateOpGraph(m_MergedOpGraph, m_Capabilities, EstimationOptions());
 
     // Create the compiled network using the updated BufferManager instance
     result.m_CompiledNetwork    = std::make_unique<CompiledNetworkImpl>(m_BufferManager.GetConstantDmaData(),
                                                                      m_BufferManager.GetConstantControlUnitData(),
                                                                      m_BufferManager.GetBuffers(), m_OperationIds);
     result.m_OpToAgentIdMapping = m_OpToAgentIdMapping;
+    result.m_BufferIds          = m_DramBufToBufIdMapping;
 
     return result;
 }

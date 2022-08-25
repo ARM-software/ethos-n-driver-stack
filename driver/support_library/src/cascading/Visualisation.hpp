@@ -27,6 +27,7 @@ struct CompiledOpGraph;
 class Graph;
 class OpGraph;
 class Op;
+class Buffer;
 class GraphOfParts;
 class Plan;
 struct EstimatedOpGraph;
@@ -124,7 +125,8 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
                                std::ostream& stream,
                                DetailLevel detailLevel,
                                std::map<uint32_t, std::string> extraPassDetails,
-                               std::map<Op*, std::string> extraOpDetails);
+                               std::map<Op*, std::string> extraOpDetails,
+                               std::map<Buffer*, std::string> extraBufferDetails);
 
 /// Saves a graph of Ops and Buffers to a dot file format to visualise the graph.
 /// Includes details of how the performance of the OpGraph was estimated

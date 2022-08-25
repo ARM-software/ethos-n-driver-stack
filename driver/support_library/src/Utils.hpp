@@ -158,6 +158,19 @@ constexpr std::pair<bool, T> Find(const Container& container, T value)
     return { true, *it };
 }
 
+/// Looks up a key in a std::map (or std::unordered_map), returning a given default value
+/// if the key is not present in the map.
+template <typename MapContainer, typename K, typename V>
+constexpr V GetWithDefault(const MapContainer& container, const K& key, const V& def)
+{
+    auto it = container.find(key);
+    if (it == container.end())
+    {
+        return def;
+    }
+    return it->second;
+}
+
 template <typename Container, typename Func>
 constexpr std::pair<bool, size_t> FindIndexIf(const Container& container, Func func)
 {

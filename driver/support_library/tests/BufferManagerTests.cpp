@@ -8,10 +8,12 @@
 
 #include <catch.hpp>
 
-using namespace ethosn::support_library;
+using namespace ethosn::support_library::first_fit_allocation;
 
 TEST_CASE("BufferManager alignment")
 {
+    using namespace ethosn::support_library;
+
     // Check that the BufferManager aligns buffers to 64-byte boundaries
     // Create several buffers of each different type for maximum coverage (each type of buffer is allocated in a
     // separate space). Each buffer is size 1.
@@ -45,8 +47,6 @@ TEST_CASE("BufferManager alignment")
         CHECK(bufferIt.second.m_Offset % 64 == 0);
     }
 }
-
-using namespace first_fit_allocation;
 
 TEST_CASE("FirstFitAllocation no overlap", "[implementation-unaware]")
 {

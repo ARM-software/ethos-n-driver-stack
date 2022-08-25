@@ -63,11 +63,12 @@ void SaveDebugFilesForEstimatedCombination(std::string folder,
     MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName(folder).c_str());
 
     debuggingContext.Save(CompilationOptions::DebugLevel::None, folder + "/EstimatedSimple.dot", [&](std::ofstream& s) {
-        SaveEstimatedOpGraphToDot(opGraph, estimationDetails, s, DetailLevel::Low, {}, {});
+        SaveEstimatedOpGraphToDot(opGraph, estimationDetails, s, DetailLevel::Low, {}, {}, {});
     });
-    debuggingContext.Save(
-        CompilationOptions::DebugLevel::None, folder + "/EstimatedDetailed.dot",
-        [&](std::ofstream& s) { SaveEstimatedOpGraphToDot(opGraph, estimationDetails, s, DetailLevel::High, {}, {}); });
+    debuggingContext.Save(CompilationOptions::DebugLevel::None, folder + "/EstimatedDetailed.dot",
+                          [&](std::ofstream& s) {
+                              SaveEstimatedOpGraphToDot(opGraph, estimationDetails, s, DetailLevel::High, {}, {}, {});
+                          });
 }
 
 }    // namespace

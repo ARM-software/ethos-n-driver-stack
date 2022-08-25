@@ -32,6 +32,7 @@ struct CompiledOpGraph
 {
     EstimatedOpGraph m_EstimatedOpGraph;
     std::unordered_map<Op*, AgentIdType> m_OpToAgentIdMapping;
+    std::unordered_map<Buffer*, uint32_t> m_BufferIds;
     std::unique_ptr<CompiledNetworkImpl> m_CompiledNetwork;
 };
 

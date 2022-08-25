@@ -55,7 +55,7 @@ void DumpDebugInfo(const Combinations& combs,
                                       [&](std::ofstream& s) {
                                           SaveEstimatedOpGraphToDot(bestCombinationResults.m_OpGraphs[i],
                                                                     bestCombinationResults.m_EstimatedOpGraphs[i], s,
-                                                                    DetailLevel::High, {}, {});
+                                                                    DetailLevel::High, {}, {}, {});
                                       });
             }
         }

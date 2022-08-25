@@ -706,7 +706,6 @@ std::string Escape(std::string s, char alignmentChar = 'n')
 std::string GetBufferString(Buffer* buffer)
 {
     std::stringstream stream;
-    stream << "\n";
     stream << "Location = " << ToString(buffer->m_Location) << "\n";
     stream << "Format = " << ToString(buffer->m_Format) << "\n";
     stream << "Quant. Info = " << ToString(buffer->m_QuantizationInfo) << "\n";
@@ -755,7 +754,7 @@ DotAttributes GetDotAttributes(Op* op, DetailLevel detailLevel, uint32_t idxInOp
     return result;
 }
 
-DotAttributes GetDotAttributes(Buffer* buffer, DetailLevel detailLevel)
+DotAttributes GetDotAttributes(Buffer* buffer, DetailLevel detailLevel, std::string extra = "")
 {
     DotAttributes result;
     result.m_Id    = SanitizeId(buffer->m_DebugTag);
@@ -768,6 +767,11 @@ DotAttributes GetDotAttributes(Buffer* buffer, DetailLevel detailLevel)
     label << buffer->m_DebugTag;
     if (detailLevel == DetailLevel::High)
     {
+        label << "\n";
+        if (!extra.empty())
+        {
+            label << extra << "\n";
+        }
         label << GetBufferString(buffer);
     }
     result.m_Label = label.str();
@@ -1115,7 +1119,8 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
                                std::ostream& stream,
                                DetailLevel detailLevel,
                                std::map<uint32_t, std::string> extraPassDetails,
-                               std::map<Op*, std::string> extraOpDetails)
+                               std::map<Op*, std::string> extraOpDetails,
+                               std::map<Buffer*, std::string> extraBufferDetails)
 {
     stream << "digraph SupportLibraryGraph"
            << "\n";
@@ -1211,14 +1216,7 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
                 continue;
             }
 
-            std::string extraDetails;
-            {
-                const auto it = extraOpDetails.find(kv.first);
-                if (it != extraOpDetails.end())
-                {
-                    extraDetails = it->second;
-                }
-            }
+            std::string extraDetails = utils::GetWithDefault(extraOpDetails, kv.first, std::string(""));
 
             ops.push_back(kv.first);
             std::string nodeId =
@@ -1229,8 +1227,9 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
         // Buffers
         for (Buffer* b : passToBuffers[passIdx])
         {
-            std::string nodeId = DumpToDotFormat(b, stream, detailLevel);
-            nodeIds[b]         = nodeId;
+            std::string extraDetails = utils::GetWithDefault(extraBufferDetails, b, std::string(""));
+            std::string nodeId       = DumpToDotFormat(b, stream, detailLevel, extraDetails);
+            nodeIds[b]               = nodeId;
         }
 
         ApplyOpGraphRankHeuristic(graph, ops, nodeIds, stream);
@@ -1268,8 +1267,9 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
     // Buffers that aren't in a Pass
     for (Buffer* b : unassignedBuffers)
     {
-        std::string nodeId = DumpToDotFormat(b, stream, detailLevel);
-        nodeIds[b]         = nodeId;
+        std::string extraDetails = utils::GetWithDefault(extraBufferDetails, b, std::string(""));
+        std::string nodeId       = DumpToDotFormat(b, stream, detailLevel, extraDetails);
+        nodeIds[b]               = nodeId;
     }
 
     // Edges
@@ -1288,6 +1288,12 @@ void SaveCompiledOpGraphToDot(const OpGraph& graph,
     for (const auto pair : compilationDetails.m_OpToAgentIdMapping)
     {
         extraOpDetails[pair.first] = "Agent ID: " + std::to_string(pair.second);
+    }
+
+    std::map<Buffer*, std::string> extraBufferDetails;
+    for (const auto pair : compilationDetails.m_BufferIds)
+    {
+        extraBufferDetails[pair.first] = "Buffer ID: " + std::to_string(pair.second);
     }
 
     std::map<uint32_t, std::pair<size_t, size_t>> passAgentIdRanges;
@@ -1312,7 +1318,7 @@ void SaveCompiledOpGraphToDot(const OpGraph& graph,
     }
 
     SaveEstimatedOpGraphToDot(graph, compilationDetails.m_EstimatedOpGraph, stream, detailLevel, extraPassDetails,
-                              extraOpDetails);
+                              extraOpDetails, extraBufferDetails);
 }
 
 void SaveGraphOfPartsToDot(const GraphOfParts& graphOfParts, std::ostream& stream, DetailLevel detailLevel)
@@ -1409,13 +1415,13 @@ void SaveOpGraphToTxtFile(const OpGraph& graph, std::ostream& stream)
     {
         stream << op->GetDotAttributes(DetailLevel::High).m_Label;
         stream << "\n";
-        stream << "\nInput Buffers: \n";
+        stream << "\nInput Buffers: \n\n";
         auto inputBufs = graph.GetInputs(op);
         for (auto inputBuf : inputBufs)
         {
             stream << GetBufferString(inputBuf);
         }
-        stream << "Output Buffers: \n";
+        stream << "Output Buffers: \n\n";
         auto outputBuf = graph.GetOutput(op);
         if (outputBuf)
         {

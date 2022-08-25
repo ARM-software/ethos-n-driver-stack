@@ -389,20 +389,23 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     estimatedOpGraph.m_OpToPass[&ple1] = 0;
     estimatedOpGraph.m_OpToPass[&ple2] = 1;
 
-    std::map<uint32_t, std::string> extraPassDetails = { { 0, "Extra details for pass 0!" } };
-    std::map<Op*, std::string> extraOpDetails        = { { &ple1, "Extra details for Ple1!" } };
+    std::map<uint32_t, std::string> extraPassDetails  = { { 0, "Extra details for pass 0!" } };
+    std::map<Op*, std::string> extraOpDetails         = { { &ple1, "Extra details for Ple1!" } };
+    std::map<Buffer*, std::string> extraBufferDetails = { { &inputBuffer, "Extra details for InputBuffer!" } };
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = false;
     if (dumpToFile)
     {
         std::ofstream stream("SaveEstimatedOpGraphToDot.dot");
-        SaveEstimatedOpGraphToDot(graph, estimatedOpGraph, stream, DetailLevel::Low, extraPassDetails, extraOpDetails);
+        SaveEstimatedOpGraphToDot(graph, estimatedOpGraph, stream, DetailLevel::Low, extraPassDetails, extraOpDetails,
+                                  extraBufferDetails);
     }
 
     // Save to a string and check against expected result
     std::stringstream stream;
-    SaveEstimatedOpGraphToDot(graph, estimatedOpGraph, stream, DetailLevel::Low, extraPassDetails, extraOpDetails);
+    SaveEstimatedOpGraphToDot(graph, estimatedOpGraph, stream, DetailLevel::Low, extraPassDetails, extraOpDetails,
+                              extraBufferDetails);
 
     std::string expected =
         R"(digraph SupportLibraryGraph
@@ -439,17 +442,19 @@ OutputBuffer -> EstimateOnly
 
     REQUIRE(stream.str() == expected);
 
-    // Because we only test with Low detail, we don't see the extra details added for the Op (extraOpDetails).
+    // Because we only test with Low detail, we don't see the extra details added for the Op/Buffer (extraOpDetails/extraBufferDetails).
     // Do a smaller follow-up test to check just this:
     std::stringstream stream2;
-    SaveEstimatedOpGraphToDot(graph, estimatedOpGraph, stream2, DetailLevel::High, extraPassDetails, extraOpDetails);
+    SaveEstimatedOpGraphToDot(graph, estimatedOpGraph, stream2, DetailLevel::High, extraPassDetails, extraOpDetails,
+                              extraBufferDetails);
     REQUIRE(stream2.str().find("Extra details for Ple1!") != std::string::npos);
+    REQUIRE(stream2.str().find("Extra details for InputBuffer!") != std::string::npos);
 }
 
 /// Checks SaveCompiledOpGraphToDot produces the expected output.
 /// We only test some small details of the output, because the implementation of SaveCompiledOpGraphToDot shares a lot of the
 /// same code that is tested above in SaveEstimatedOpGraphToDot, so we are only really interested in testing the
-/// agent IDs marked on each Pass and Op.
+/// agent IDs marked on each Pass and Op, and buffer IDs.
 TEST_CASE("SaveCompiledOpGraphToDot", "[Visualisation]")
 {
     // Build a very simple graph with two Ops in a Pass, which we then create a fake CompiledOpGraph struct to describe.
@@ -465,6 +470,10 @@ TEST_CASE("SaveCompiledOpGraphToDot", "[Visualisation]")
     ple2.m_DebugTag = "Ple2";
     graph.AddOp(&ple2);
 
+    Buffer buffer;
+    buffer.m_DebugTag = "Buffer";
+    graph.AddBuffer(&buffer);
+
     // Create CompiledOpGraph describing this graph
     cascading_compiler::CompiledOpGraph compiledOpGraph;
     PassPerformanceData pass1;
@@ -472,6 +481,7 @@ TEST_CASE("SaveCompiledOpGraphToDot", "[Visualisation]")
     compiledOpGraph.m_EstimatedOpGraph.m_OpToPass[&ple1] = 0;
     compiledOpGraph.m_EstimatedOpGraph.m_OpToPass[&ple2] = 0;
     compiledOpGraph.m_OpToAgentIdMapping                 = { { &ple1, 4 }, { &ple2, 5 } };
+    compiledOpGraph.m_BufferIds                          = { { &buffer, 9 } };
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = false;
@@ -488,6 +498,7 @@ TEST_CASE("SaveCompiledOpGraphToDot", "[Visualisation]")
     CHECK(stream.str().find("Agent IDs: 4 - 5") != std::string::npos);
     CHECK(stream.str().find("Agent ID: 4") != std::string::npos);
     CHECK(stream.str().find("Agent ID: 5") != std::string::npos);
+    CHECK(stream.str().find("Buffer ID: 9") != std::string::npos);
 }
 
 /// Checks SaveGraphOfPartsToDot produces the expected output, focusing on the overall graph topology (connections
