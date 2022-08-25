@@ -503,27 +503,20 @@ inline void setMcesStridedConvolutionData(MceS& mceSchedulerData, const OpGraph&
                 ptrMceOp->m_Stride.m_Y);
         }
 
-        /// Ifm stripe width/height delta is the amount of valid data outside the ifm stripe on the right/bottom edge
-        /// that can be used to calculate the Ofm stripe. This is equal to the difference between the IFM and OFM
-        /// width/height when at the edges of the whole IFM.
+        // Ifm stripe width/height delta is the amount of valid data outside the ifm stripe on the right/bottom edge
+        // that can be used to calculate the Ofm stripe.
 
+        // Set the Ifm delta default
         {
-            const int32_t ifmStripeNeighboringDataRight =
-                static_cast<int32_t>(currSubmapInputWidth) -
-                static_cast<int32_t>(utils::GetWidth(ptrMceOp->m_OutputStripeShape));
-
-            const int32_t ifmStripeNeighboringDataBottom =
-                static_cast<int32_t>(currSubmapInputHeight) -
-                static_cast<int32_t>(utils::GetHeight(ptrMceOp->m_OutputStripeShape));
-
-            // Set the Ifm delta default
             mceSchedulerData.ifmDeltaDefault[subMapIndex].height = ethosn::utils::NumericCast<int8_t>(
-                ifmStripeNeighboringDataBottom + inputBuffer->m_PackedBoundaryThickness.bottom);
+                (mceSchedulerData.filterShape[subMapIndex].height / 2) + inputBuffer->m_PackedBoundaryThickness.bottom);
             mceSchedulerData.ifmDeltaDefault[subMapIndex].width = ethosn::utils::NumericCast<int8_t>(
-                ifmStripeNeighboringDataRight + inputBuffer->m_PackedBoundaryThickness.right);
+                (mceSchedulerData.filterShape[subMapIndex].width / 2) + inputBuffer->m_PackedBoundaryThickness.right);
         }
 
         // Set the Ifm delta edge
+        // This is equal to the difference between the IFM and OFM
+        // width/height when at the edges of the whole IFM.
         {
             const int32_t ifmStripeNeighboringDataRight =
                 static_cast<int32_t>(currSubmapInputWidth) -

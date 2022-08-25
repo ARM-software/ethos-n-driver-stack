@@ -2243,8 +2243,8 @@ TEST_CASE("MceScheduler Agent Data Test - 1x1 Convolution - 2x2 Stride", "[Casca
     CHECK(mceSData.filterShape[0].width == 1);
     CHECK(mceSData.padding[0].left == 0);
     CHECK(mceSData.padding[0].top == 0);
-    CHECK(mceSData.ifmDeltaDefault[0].height == 1);
-    CHECK(mceSData.ifmDeltaDefault[0].width == 1);
+    CHECK(mceSData.ifmDeltaDefault[0].height == 0);
+    CHECK(mceSData.ifmDeltaDefault[0].width == 0);
     CHECK(mceSData.ifmDeltaEdge[0].height == 1);
     CHECK(mceSData.ifmDeltaEdge[0].width == 1);
 
@@ -2288,8 +2288,8 @@ TEST_CASE("MceScheduler Agent Data Test - 2x2 Convolution - 2x2 Stride - Valid P
     CHECK(mceSData.filterShape[0].width == 1);
     CHECK(mceSData.padding[0].left == 0);
     CHECK(mceSData.padding[0].top == 0);
-    CHECK(mceSData.ifmDeltaDefault[0].height == 1);
-    CHECK(mceSData.ifmDeltaDefault[0].width == 1);
+    CHECK(mceSData.ifmDeltaDefault[0].height == 0);
+    CHECK(mceSData.ifmDeltaDefault[0].width == 0);
     CHECK(mceSData.ifmDeltaEdge[0].height == 1);
     CHECK(mceSData.ifmDeltaEdge[0].width == 1);
 
@@ -2298,7 +2298,7 @@ TEST_CASE("MceScheduler Agent Data Test - 2x2 Convolution - 2x2 Stride - Valid P
     CHECK(mceSData.filterShape[1].width == 1);
     CHECK(mceSData.padding[1].left == 0);
     CHECK(mceSData.padding[1].top == 0);
-    CHECK(mceSData.ifmDeltaDefault[1].height == 1);
+    CHECK(mceSData.ifmDeltaDefault[1].height == 0);
     CHECK(mceSData.ifmDeltaDefault[1].width == 0);
     CHECK(mceSData.ifmDeltaEdge[1].height == 1);
     CHECK(mceSData.ifmDeltaEdge[1].width == 0);
@@ -2309,7 +2309,7 @@ TEST_CASE("MceScheduler Agent Data Test - 2x2 Convolution - 2x2 Stride - Valid P
     CHECK(mceSData.padding[2].left == 0);
     CHECK(mceSData.padding[2].top == 0);
     CHECK(mceSData.ifmDeltaDefault[2].height == 0);
-    CHECK(mceSData.ifmDeltaDefault[2].width == 1);
+    CHECK(mceSData.ifmDeltaDefault[2].width == 0);
     CHECK(mceSData.ifmDeltaEdge[2].height == 0);
     CHECK(mceSData.ifmDeltaEdge[2].width == 1);
 
@@ -2425,7 +2425,7 @@ TEST_CASE("MceScheduler Agent Data Test - 3x3 Convolution - 2x2 Stride - Same Pa
     CHECK(mceSData.padding[1].left == 1);
     CHECK(mceSData.padding[1].top == 0);
     CHECK(mceSData.ifmDeltaDefault[1].height == 0);
-    CHECK(mceSData.ifmDeltaDefault[1].width == -1);
+    CHECK(mceSData.ifmDeltaDefault[1].width == 1);
     CHECK(mceSData.ifmDeltaEdge[1].height == 0);
     CHECK(mceSData.ifmDeltaEdge[1].width == -1);
 
@@ -2434,7 +2434,7 @@ TEST_CASE("MceScheduler Agent Data Test - 3x3 Convolution - 2x2 Stride - Same Pa
     CHECK(mceSData.filterShape[2].width == 1);
     CHECK(mceSData.padding[2].left == 0);
     CHECK(mceSData.padding[2].top == 1);
-    CHECK(mceSData.ifmDeltaDefault[2].height == -1);
+    CHECK(mceSData.ifmDeltaDefault[2].height == 1);
     CHECK(mceSData.ifmDeltaDefault[2].width == 0);
     CHECK(mceSData.ifmDeltaEdge[2].height == -1);
     CHECK(mceSData.ifmDeltaEdge[2].width == 0);
@@ -2444,8 +2444,8 @@ TEST_CASE("MceScheduler Agent Data Test - 3x3 Convolution - 2x2 Stride - Same Pa
     CHECK(mceSData.filterShape[3].width == 2);
     CHECK(mceSData.padding[3].left == 1);
     CHECK(mceSData.padding[3].top == 1);
-    CHECK(mceSData.ifmDeltaDefault[3].height == -1);
-    CHECK(mceSData.ifmDeltaDefault[3].width == -1);
+    CHECK(mceSData.ifmDeltaDefault[3].height == 1);
+    CHECK(mceSData.ifmDeltaDefault[3].width == 1);
     CHECK(mceSData.ifmDeltaEdge[3].height == -1);
     CHECK(mceSData.ifmDeltaEdge[3].width == -1);
 
