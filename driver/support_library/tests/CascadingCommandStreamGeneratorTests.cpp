@@ -200,11 +200,11 @@ public:
         // The PleKernelId is expected to be PASSTHROUGH_8x8_1
         pleOp = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::PASSTHROUGH, BlockConfig{ 8u, 8u }, 1,
                                         std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
-                                        TensorShape{ 1, 4, 4, 32 }, mceOutputDataType, true);
+                                        TensorShape{ 1, 8, 8, 32 }, mceOutputDataType, true);
         pleOp.get()->m_Offset     = 0x0000F0F0;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp =
-            AddPleToOpGraph(m_OpGraph, TensorShape{ 1, 4, 4, 32 }, numMemoryStripes, std::move(pleOp),
+            AddPleToOpGraph(m_OpGraph, TensorShape{ 1, 8, 8, 32 }, numMemoryStripes, std::move(pleOp),
                             TensorShape{ 1, 80, 80, 24 }, QuantizationInfo(), operationIds);
         m_OpGraph.GetBuffers().back()->m_Offset = 0X0000F0FF;
         m_OpGraph.AddConsumer(pleInBuffer, ops.back(), 0);
@@ -2502,21 +2502,21 @@ TEST_CASE("PleScheduler Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(pleSchedulerAgent.data.pleS.ofmTile.slotSize == 256);
     CHECK(pleSchedulerAgent.data.pleS.ofmZeroPoint == 0);
 
-    CHECK(pleSchedulerAgent.data.pleS.dfltStripeSize.height == 4);
-    CHECK(pleSchedulerAgent.data.pleS.dfltStripeSize.width == 4);
+    CHECK(pleSchedulerAgent.data.pleS.dfltStripeSize.height == 8);
+    CHECK(pleSchedulerAgent.data.pleS.dfltStripeSize.width == 8);
     CHECK(pleSchedulerAgent.data.pleS.dfltStripeSize.channels == 32);
 
-    CHECK(pleSchedulerAgent.data.pleS.numStripes.height == 20);
-    CHECK(pleSchedulerAgent.data.pleS.numStripes.width == 20);
+    CHECK(pleSchedulerAgent.data.pleS.numStripes.height == 10);
+    CHECK(pleSchedulerAgent.data.pleS.numStripes.width == 10);
     CHECK(pleSchedulerAgent.data.pleS.numStripes.channels == 1);
 
-    CHECK(pleSchedulerAgent.data.pleS.edgeStripeSize.height == 4);
-    CHECK(pleSchedulerAgent.data.pleS.edgeStripeSize.width == 4);
+    CHECK(pleSchedulerAgent.data.pleS.edgeStripeSize.height == 8);
+    CHECK(pleSchedulerAgent.data.pleS.edgeStripeSize.width == 8);
     CHECK(pleSchedulerAgent.data.pleS.edgeStripeSize.channels == 24);
 
-    CHECK(pleSchedulerAgent.data.pleS.stripeIdStrides.height == 20);
+    CHECK(pleSchedulerAgent.data.pleS.stripeIdStrides.height == 10);
     CHECK(pleSchedulerAgent.data.pleS.stripeIdStrides.width == 1);
-    CHECK(pleSchedulerAgent.data.pleS.stripeIdStrides.channels == 400);
+    CHECK(pleSchedulerAgent.data.pleS.stripeIdStrides.channels == 100);
 
     CHECK(pleSchedulerAgent.data.pleS.inputMode == PleInputMode::MCE_ALL_OGS);
 
@@ -2611,8 +2611,8 @@ TEST_CASE("OfmStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(ofmSData.fmData.tile.numSlots == 1);
     CHECK(ofmSData.fmData.tile.slotSize == 256);
 
-    CHECK(ofmSData.fmData.dfltStripeSize.height == 4);
-    CHECK(ofmSData.fmData.dfltStripeSize.width == 4);
+    CHECK(ofmSData.fmData.dfltStripeSize.height == 8);
+    CHECK(ofmSData.fmData.dfltStripeSize.width == 8);
     CHECK(ofmSData.fmData.dfltStripeSize.channels == 32);
 
     CHECK(ofmSData.fmData.edgeStripeSize.height == 8);
@@ -2622,13 +2622,13 @@ TEST_CASE("OfmStreamer Agent Data Test", "[CascadingCommandStreamGenerator]")
     CHECK(ofmSData.fmData.supertensorSizeInCells.width == 10);
     CHECK(ofmSData.fmData.supertensorSizeInCells.channels == 2);
 
-    CHECK(ofmSData.fmData.numStripes.height == 20);
-    CHECK(ofmSData.fmData.numStripes.width == 20);
+    CHECK(ofmSData.fmData.numStripes.height == 10);
+    CHECK(ofmSData.fmData.numStripes.width == 10);
     CHECK(ofmSData.fmData.numStripes.channels == 1);
 
-    CHECK(ofmSData.fmData.stripeIdStrides.height == 20);
+    CHECK(ofmSData.fmData.stripeIdStrides.height == 10);
     CHECK(ofmSData.fmData.stripeIdStrides.width == 1);
-    CHECK(ofmSData.fmData.stripeIdStrides.channels == 400);
+    CHECK(ofmSData.fmData.stripeIdStrides.channels == 100);
 }
 
 // Concat Op Agent Data Test
@@ -3620,7 +3620,7 @@ TEST_CASE("MceScheduler-PleScheduler ScheduleTimeDependency Test", "[CascadingCo
     CHECK(scheduleDependency.outerRatio.other == numberOfPleStripes);
     CHECK(scheduleDependency.outerRatio.self == numberOfMceStripes);
     CHECK(scheduleDependency.innerRatio.other == 1);
-    CHECK(scheduleDependency.innerRatio.self == 70);
+    CHECK(scheduleDependency.innerRatio.self == 20);
     CHECK(scheduleDependency.boundary == 1);
 }
 

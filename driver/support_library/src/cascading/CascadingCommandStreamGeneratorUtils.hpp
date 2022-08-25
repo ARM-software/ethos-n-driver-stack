@@ -548,11 +548,11 @@ namespace PleSUtils
 inline void SetPlesTileInfo(const HardwareCapabilities& hwCap, PleS& pleS, const Buffer* const outputBuffer)
 {
     pleS.ofmTile.baseAddr = ethosn::utils::NumericCast<uint32_t>(outputBuffer->m_Offset.value());
-    pleS.ofmTile.numSlots = ethosn::utils::NumericCast<uint16_t>(
-        outputBuffer->m_NumStripes * utils::GetHeight(outputBuffer->m_StripeShape) / pleS.dfltStripeSize.height);
-    pleS.ofmTile.slotSize = ethosn::utils::NumericCast<uint32_t>(utils::DivRoundUp(
-        outputBuffer->m_SlotSizeInBytes * pleS.dfltStripeSize.height / utils::GetHeight(outputBuffer->m_StripeShape),
-        hwCap.GetNumberOfSrams()));
+    const uint32_t ratio = utils::DivRoundUp(utils::GetHeight(outputBuffer->m_StripeShape), pleS.dfltStripeSize.height);
+    pleS.ofmTile.numSlots = ethosn::utils::NumericCast<uint16_t>(outputBuffer->m_NumStripes * ratio);
+    pleS.ofmTile.slotSize = ethosn::utils::NumericCast<uint32_t>(
+        utils::DivRoundUp(pleS.dfltStripeSize.width * pleS.dfltStripeSize.height * pleS.dfltStripeSize.channels,
+                          hwCap.GetNumberOfSrams()));
 }
 
 inline void
@@ -740,6 +740,7 @@ template <size_t N>
 inline void AddDependency(std::array<command_stream::cascading::Dependency, N>& deps,
                           const command_stream::cascading::Dependency& dep)
 {
+    assert(dep.relativeAgentId != 0);
     for (uint32_t i = 0; i < deps.size(); ++i)
     {
         if (deps[i].relativeAgentId == 0)

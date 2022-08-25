@@ -58,6 +58,13 @@ public:
     const std::unordered_map<Buffer*, uint32_t>& GetDramBufToBufIdMapping() const;
 
 private:
+    enum class DependencyType
+    {
+        Read,
+        Write,
+        Schedule,
+    };
+
     // Private functions for processing OpGraph Ops
     void ProcessDmaOp(Op* const ptrDmaOp);
     void ProcessMceOp(Op* const ptrMceOp);
@@ -124,7 +131,8 @@ private:
                                      const command_stream::cascading::AgentType consumerAgentType,
                                      const AgentIdType consumerAgentId,
                                      const command_stream::cascading::AgentType producerAgentType,
-                                     const AgentIdType producerAgentId);
+                                     const AgentIdType producerAgentId,
+                                     DependencyType dependencyType);
 
     // Private function to add the lifetime information of the intermediate DRAM buffers
     void AddLifetimeInfoForIntermediateDramBuffers();

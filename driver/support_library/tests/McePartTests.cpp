@@ -1318,13 +1318,12 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
 
         WHEN("Asked to generate plans for the beginning, middle and end of a cascade")
         {
-
             const uint32_t numWeightStripes = 1;
 
-            Plans plans =
+            Plans plans0 =
                 part0.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, numWeightStripes);
 
-            SavePlansToDot(plans, "McePart GetPlans Filters Block Config");
+            SavePlansToDot(plans0, "McePart GetPlans Filters Block Config");
 
             THEN("The plans are valid")
             {
@@ -1376,7 +1375,7 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
                 params.m_Any.push_back([](const PlanDesc& plan) {
                     return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
                 });
-                CheckPlans(plans, params);
+                CheckPlans(plans0, params);
 
                 command_stream::BlockConfig requestedBlockConfig = { 16u, 8u };
 
@@ -1390,13 +1389,13 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
                 //   3 output stripes
                 // 1 for mce only
                 REQUIRE(plans1.size() == 4);
-                part1OutputBuffer = *plans[0].m_OpGraph.GetBuffers().back();
+                part1OutputBuffer = *plans1[0].m_OpGraph.GetBuffers().back();
 
                 Plans plans2 =
                     part2.GetPlans(CascadeType::End, requestedBlockConfig, &part1OutputBuffer, numWeightStripes);
 
-                // There is only 1 plan as we don't consider double buffering as the output stripe's is already >= output tensor due to rounding
-                REQUIRE(plans2.size() == 1);
+                // There are 2 plan as we consider double buffering as the output stripe height is < output tensor
+                REQUIRE(plans2.size() == 2);
             }
         }
     }

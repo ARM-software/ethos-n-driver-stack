@@ -1279,7 +1279,10 @@ inline void CascadingCommandStreamGenerator::AddSramOverlapDependency(
     Dependency newDependency      = {};
     newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
     FillConsumerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId);
-    DependencyUtils::AddDependency(m_CommandStreamAgents[consumerAgentId].info.readDependencies, newDependency);
+    if (newDependency.relativeAgentId != 0)
+    {
+        DependencyUtils::AddDependency(m_CommandStreamAgents[consumerAgentId].info.readDependencies, newDependency);
+    }
 }
 
 // Private function to add WriteAfterRead Dependency
@@ -1294,8 +1297,12 @@ inline void CascadingCommandStreamGenerator::AddWriteAfterReadDependency(const A
 
     Dependency newDependency      = {};
     newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
-    FillProducerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId);
-    DependencyUtils::AddDependency(m_CommandStreamAgents[producerAgentId].info.writeDependencies, newDependency);
+    FillProducerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId,
+                                DependencyType::Write);
+    if (newDependency.relativeAgentId != 0)
+    {
+        DependencyUtils::AddDependency(m_CommandStreamAgents[producerAgentId].info.writeDependencies, newDependency);
+    }
 }
 
 // Private function to add ScheduleTime Dependency
@@ -1310,8 +1317,12 @@ inline void CascadingCommandStreamGenerator::AddScheduleTimeDependency(const Age
 
     Dependency newDependency      = {};
     newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
-    FillProducerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId);
-    DependencyUtils::AddDependency(m_CommandStreamAgents[producerAgentId].info.scheduleDependencies, newDependency);
+    FillProducerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId,
+                                DependencyType::Schedule);
+    if (newDependency.relativeAgentId != 0)
+    {
+        DependencyUtils::AddDependency(m_CommandStreamAgents[producerAgentId].info.scheduleDependencies, newDependency);
+    }
 }
 
 // Private function to fill the dependency data for Read After Write or SRAM Overlap dependencies
@@ -1633,7 +1644,8 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
     const command_stream::cascading::AgentType consumerAgentType,
     const AgentIdType consumerAgentId,
     const command_stream::cascading::AgentType producerAgentType,
-    const AgentIdType producerAgentId)
+    const AgentIdType producerAgentId,
+    DependencyType dependencyType)
 {
     Agent& consumerAgent = m_CommandStreamAgents[consumerAgentId];
     Agent& producerAgent = m_CommandStreamAgents[producerAgentId];
@@ -1771,6 +1783,15 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
             // Schedule Time Dependency for [PleScheduler][MceScheduler]
             else if (producerAgentType == AgentType::PLE_SCHEDULER)
             {
+                if (dependencyType == DependencyType::Write && consumerAgent.info.numStripesTotal == 1)
+                {
+                    // For the case where we have the PLE stripes split in height but being written into an output buffer
+                    // which is the full tensor, we have only one stripe in the following MceS. We don't want a write dependency
+                    // from the PleS onto this MceS, otherwise it will stall.
+                    producerAgentDependency.relativeAgentId = 0;
+                    break;
+                }
+
                 // Calculate outer ratios using number of stripes
                 producerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
                     consumerAgent.data.mce.numStripes.ofmHeight * consumerAgent.data.mce.numStripes.ofmWidth *
