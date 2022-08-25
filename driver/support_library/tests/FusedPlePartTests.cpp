@@ -1482,8 +1482,8 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
                        plan.m_WeightsSram->m_NumStripes == 1 &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 224, 224, 16 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 16, 1 } &&
-                       plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 224, 224, 32 } &&
-                       plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 224, 224, 32 } } &&
+                       plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 224, 224, 16 } &&
+                       plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 224, 224, 16 } } &&
                        plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 112, 112, 64 } &&
                        plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 112, 112, 64 } &&
                        plan.m_OutputSram->m_NumStripes == 1;
@@ -1591,8 +1591,8 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
                        plan.m_WeightsSram->m_NumStripes == 1 &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 16, 224, 16 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 16, 1 } &&
-                       plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 16, 224, 8 } &&
-                       plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 16, 224, 8 } } &&
+                       plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 16, 224, 16 } &&
+                       plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 16, 224, 16 } } &&
                        plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 8, 112, 32 } &&
                        // 2 stripes are accumulated in sram to make up a full brick-group
                        plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 8, 112, 32 } &&
