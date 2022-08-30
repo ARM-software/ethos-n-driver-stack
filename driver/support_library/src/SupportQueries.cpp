@@ -1119,17 +1119,36 @@ SupportedLevel SupportQueries::IsConcatenationSupported(const std::vector<Tensor
             // using NHWC.
             break;
         case 3:
-            // Concatenation along channels can only be performed by building up the tensor in DRAM
-            // using NHWCB and therefore the channels dimensions of the input tensors must be suitable for DMAing.
-            // A conservative test is multiple of 16, although we could probably support other cases too.
+            // Concat along channels can only be performed by writing subtensors into a tensor in DRAM using NHWCB
+            // and therefore the channels dimensions of the input tensors must be suitable for DMAing.
+            // Please note that concat can support following channel distribution:
+            //
+            //  1. For legacy compiler, all input channels are multiple of 16, e.g. 16, 48, 32
+            //  2. For experimental compiler, all input channels are multiple of 8, e.g. 8, 16, 24, 40. Multiples of
+            //     8 in channels are a special case for NHWCB as it is the half brickgroup depth.
             for (uint32_t i = 0; i < numInputs; ++i)
             {
-                if (inputInfos[i].m_Dimensions[3] % 16 != 0)
+                // Check if concat input channels are supported by experimental compiler
+                if (IsExperimentalCompilerForced())
                 {
-                    SetReason("Concatenation along the channels dimension (axis 3) requires input tensors with a "
-                              "multiple of 16 channels",
-                              reason, reasonMaxLength);
-                    return SupportedLevel::EstimateOnly;
+                    if (inputInfos[i].m_Dimensions[3] % 8 != 0)
+                    {
+                        SetReason("Concatenation along the channels dimension (axis 3) requires input tensors with a "
+                                  "multiple of 8 channels",
+                                  reason, reasonMaxLength);
+                        return SupportedLevel::EstimateOnly;
+                    }
+                }
+                // Check if concat input channels are supported by legacy compiler
+                else
+                {
+                    if (inputInfos[i].m_Dimensions[3] % 16 != 0)
+                    {
+                        SetReason("Concatenation along the channels dimension (axis 3) requires input tensors with a "
+                                  "multiple of 16 channels",
+                                  reason, reasonMaxLength);
+                        return SupportedLevel::EstimateOnly;
+                    }
                 }
             }
             break;

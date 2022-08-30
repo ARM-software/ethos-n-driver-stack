@@ -547,6 +547,8 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
     uint32_t dramBufferOffset = 0U;
     uint32_t sramBufferSlotSize;
 
+    uint32_t cumulativeChannelProcessed = 0U;
+
     for (auto inputBuffer : inputBuffers)
     {
         assert(inputBuffer->m_Location == Location::Dram && inputBuffer->m_BufferType.has_value());
@@ -671,7 +673,19 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
                 uint32_t depthOffset =
                     channelsInBrickGroups *
                     utils::CalculateBufferSize(m_Capabilities.GetBrickGroupShape(), outputBuffer->m_Format);
-                dramBufferOffset = dramBufferOffset + depthOffset;
+
+                if (utils::GetChannels(inputBuffer->m_TensorShape) % 8U == 0U)
+                {
+                    cumulativeChannelProcessed += utils::GetChannels(inputBuffer->m_TensorShape);
+                    dramBufferOffset = ((cumulativeChannelProcessed / 8U) % 2 == 0U) ? 0U : 128U;
+                    dramBufferOffset +=
+                        ((cumulativeChannelProcessed / 8U) / 2U) *
+                        utils::CalculateBufferSize(m_Capabilities.GetBrickGroupShape(), outputBuffer->m_Format);
+                }
+                else
+                {
+                    dramBufferOffset = dramBufferOffset + depthOffset;
+                }
             }
         }
         else

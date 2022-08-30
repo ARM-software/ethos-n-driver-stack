@@ -661,8 +661,9 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
         for (uint32_t i = 0; i < numInputs; ++i)
         {
             if (concat.GetInput(i).GetTensorInfo().m_Dimensions[concatInfo.m_Axis] %
-                    m_Capabilities.GetBrickGroupShape()[concatInfo.m_Axis] !=
-                0)
+                        m_Capabilities.GetBrickGroupShape()[concatInfo.m_Axis] !=
+                    0 &&
+                (concatInfo.m_Axis != 3 || concat.GetInput(i).GetTensorInfo().m_Dimensions[concatInfo.m_Axis] % 8 != 0))
             {
                 format = CompilerDataFormat::NHWC;
                 break;
