@@ -945,6 +945,8 @@ public:
     /// Details of each output buffer.
     /// The array is in the same order as the user provided outputs via AddOutput()
     virtual const std::vector<OutputBufferInfo>& GetOutputBufferInfos() const = 0;
+    /// Size of the buffer needed for the network's intermediate data
+    virtual uint32_t GetIntermediateBufferSize() const = 0;
 
     /// Serializes this object to a binary data stream, for consumption by the Driver Library
     /// (see ethosn::driver_library::Network constructor).

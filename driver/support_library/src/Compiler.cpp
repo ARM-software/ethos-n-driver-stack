@@ -536,6 +536,7 @@ CompiledNetworkImpl::CompiledNetworkImpl(const std::vector<uint8_t>& constantDma
                                          const std::map<uint32_t, CompilerBufferInfo>& buffers,
                                          const std::set<uint32_t>& operationIds)
     : m_OperationIds(operationIds)
+    , m_IntermediateBufferSizePublic(0U)
     , m_ConstantDmaData(constantDmaData)
     , m_ConstantControlUnitData(constantControlUnitData)
 {
@@ -594,6 +595,8 @@ CompiledNetworkImpl::CompiledNetworkImpl(const std::vector<uint8_t>& constantDma
             case BufferType::Intermediate:
             {
                 m_IntermediateDataBufferInfos.push_back(buffer);
+                m_IntermediateBufferSizePublic =
+                    std::max(m_IntermediateBufferSizePublic, buffer.m_Offset + buffer.m_Size);
                 break;
             }
             case BufferType::ConstantControlUnit:

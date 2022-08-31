@@ -402,4 +402,5 @@ TEST_CASE("Fully Connected")
     REQUIRE(cnImpl->GetOutputBufferInfosInternal() ==
             std::vector<CompiledNetworkImpl::BufferInfoInternal>{ { 4, 0, 0x10, 3, 0 } });
     REQUIRE(cnImpl->GetIntermediateDataBufferInfos() == std::vector<CompiledNetworkImpl::BufferInfoInternal>{});
+    REQUIRE(cnImpl->GetIntermediateBufferSize() == 0U);
 }

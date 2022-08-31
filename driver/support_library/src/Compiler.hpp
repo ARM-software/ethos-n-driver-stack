@@ -183,6 +183,11 @@ public:
         return m_OutputBufferInfosPublic;
     }
 
+    uint32_t GetIntermediateBufferSize() const override
+    {
+        return m_IntermediateBufferSizePublic;
+    }
+
     void Serialize(std::ostream& out) const override;
     /// @}
 
@@ -227,6 +232,7 @@ private:
 
     std::vector<InputBufferInfo> m_InputBufferInfosPublic;
     std::vector<OutputBufferInfo> m_OutputBufferInfosPublic;
+    uint32_t m_IntermediateBufferSizePublic;
     /// @}
 
     /// Internal use only
