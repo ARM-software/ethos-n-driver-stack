@@ -93,7 +93,7 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
 
     // Add the lifetime information of the intermediate DRAM buffers so the memory required to store these
     // buffers is reduced
-    AddLifetimeInfoForIntermediateDramBuffers();
+    AddLifetimeInfoForIntermediateDramBuffers(opsInExecutionOrder);
 
     // Add the generated command stream to the buffer manager
     m_CommandStream.EmplaceBack(command_stream::Cascade{ static_cast<uint32_t>(m_CommandStreamAgents.size()) });
@@ -1982,7 +1982,7 @@ namespace
 
 /// Returns the index of the Op (in execution order) of the earliest Op
 /// which could write to the given buffer.
-size_t WalkGraphUp(const OpGraph& graph, Buffer* b)
+size_t WalkGraphUp(const OpGraph& graph, std::vector<Op*> sortedOps, Buffer* b)
 {
     size_t result = std::numeric_limits<size_t>::max();
 
@@ -1993,21 +1993,21 @@ size_t WalkGraphUp(const OpGraph& graph, Buffer* b)
     {
         if (input->m_Location != Location::Dram)
         {
-            result = std::min(result, WalkGraphUp(graph, input));
+            result = std::min(result, WalkGraphUp(graph, sortedOps, input));
         }
     }
 
     if (result == std::numeric_limits<size_t>::max())
     {
         // We didn't find any Ops with all inputs in DRAM further up the graph, so this one is the earliest
-        result = utils::FindIndex(graph.GetOps(), producer).second;
+        result = utils::FindIndex(sortedOps, producer).second;
     }
     return result;
 }
 
 /// Returns the index of the Op (in execution order) of the latest Op
 /// which could read from the given buffer.
-size_t WalkGraphDown(const OpGraph& graph, Buffer* b)
+size_t WalkGraphDown(const OpGraph& graph, std::vector<Op*> sortedOps, Buffer* b)
 {
     size_t result = 0;
     for (std::pair<Op*, uint32_t> consumer : graph.GetConsumers(b))
@@ -2018,11 +2018,11 @@ size_t WalkGraphDown(const OpGraph& graph, Buffer* b)
         size_t i;
         if (output->m_Location == Location::Dram)
         {
-            i = utils::FindIndex(graph.GetOps(), consumer.first).second;
+            i = utils::FindIndex(sortedOps, consumer.first).second;
         }
         else
         {
-            i = WalkGraphDown(graph, output);
+            i = WalkGraphDown(graph, sortedOps, output);
         }
         result = std::max(result, i);
     }
@@ -2041,7 +2041,7 @@ size_t WalkGraphDown(const OpGraph& graph, Buffer* b)
 /// furthest away usage.
 /// This is somewhat conservative because in a strategy 1 or 3 cascade, we could
 /// shorten the lifetime, but we don't account for that here to keep it simple.
-void CascadingCommandStreamGenerator::AddLifetimeInfoForIntermediateDramBuffers()
+void CascadingCommandStreamGenerator::AddLifetimeInfoForIntermediateDramBuffers(std::vector<Op*> sortedOps)
 {
     for (Buffer* buffer : m_MergedOpGraph.GetBuffers())
     {
@@ -2050,8 +2050,8 @@ void CascadingCommandStreamGenerator::AddLifetimeInfoForIntermediateDramBuffers(
             assert(buffer->m_BufferType.has_value());
             if (buffer->m_BufferType.value() == BufferType::Intermediate)
             {
-                AgentIdType lifetimeStart = WalkGraphUp(m_MergedOpGraph, buffer);
-                AgentIdType lifetimeEnd   = WalkGraphDown(m_MergedOpGraph, buffer);
+                AgentIdType lifetimeStart = WalkGraphUp(m_MergedOpGraph, sortedOps, buffer);
+                AgentIdType lifetimeEnd   = WalkGraphDown(m_MergedOpGraph, sortedOps, buffer);
                 m_BufferManager.MarkBufferUsedAtTime(m_DramBufToBufIdMapping.at(buffer),
                                                      static_cast<uint32_t>(lifetimeStart),
                                                      static_cast<uint32_t>(lifetimeEnd + 1));
