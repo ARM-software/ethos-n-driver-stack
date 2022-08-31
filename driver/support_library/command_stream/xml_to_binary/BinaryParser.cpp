@@ -608,7 +608,7 @@ void Parse(std::stringstream& parent, const McePle& value)
 
     Parse(parent, "<WEIGHTS_METADATA_BUFFER_ID>", 2, false);
     ParseAsNum(parent, value.m_WeightMetadataBufferId());
-    Parse(parent, "</WEIGHTS_METADATA_BUFFER_ID>", 2, true);
+    Parse(parent, "</WEIGHTS_METADATA_BUFFER_ID>", 0, true);
 
     Parse(parent, "<OUTPUT_INFO>", 2, true);
     Parse(parent, value.m_OutputInfo());
@@ -668,23 +668,23 @@ void Parse(std::stringstream& parent, const Softmax& value)
 
     Parse(parent, "<SCALED_DIFF>", 2, false);
     ParseAsNum(parent, value.m_ScaledDiff());
-    Parse(parent, "</SCALED_DIFF>", 2, true);
+    Parse(parent, "</SCALED_DIFF>", 0, true);
 
     Parse(parent, "<EXP_ACCUMULATION>", 2, false);
     ParseAsNum(parent, value.m_ExpAccumulation());
-    Parse(parent, "</EXP_ACCUMULATION>", 2, true);
+    Parse(parent, "</EXP_ACCUMULATION>", 0, true);
 
     Parse(parent, "<INPUT_BETA_MULTIPLIER>", 2, false);
     ParseAsNum(parent, value.m_InputBetaMultiplier());
-    Parse(parent, "</INPUT_BETA_MULTIPLIER>", 2, true);
+    Parse(parent, "</INPUT_BETA_MULTIPLIER>", 0, true);
 
     Parse(parent, "<INPUT_BETA_LEFT_SHIFT>", 2, false);
     ParseAsNum(parent, value.m_InputBetaLeftShift());
-    Parse(parent, "</INPUT_BETA_LEFT_SHIFT>", 2, true);
+    Parse(parent, "</INPUT_BETA_LEFT_SHIFT>", 0, true);
 
     Parse(parent, "<DIFF_MIN>", 2, false);
     ParseAsNum(parent, value.m_DiffMin());
-    Parse(parent, "</DIFF_MIN>", 2, true);
+    Parse(parent, "</DIFF_MIN>", 0, true);
 
     Parse(parent, "</OPERATION_SOFTMAX>", 1, true);
 }
@@ -718,15 +718,15 @@ void Parse(std::stringstream& parent, const SpaceToDepth& value)
 
     Parse(parent, "<USED_EMCS>", 2, false);
     ParseAsNum(parent, value.m_UsedEmcs());
-    Parse(parent, "</USED_EMCS>", 2, true);
+    Parse(parent, "</USED_EMCS>", 0, true);
 
     Parse(parent, "<INTERMEDIATE_1_SIZE>", 2, false);
     ParseAsNum(parent, value.m_Intermediate1Size());
-    Parse(parent, "</INTERMEDIATE_1_SIZE>", 2, true);
+    Parse(parent, "</INTERMEDIATE_1_SIZE>", 0, true);
 
     Parse(parent, "<INTERMEDIATE_2_SIZE>", 2, false);
     ParseAsNum(parent, value.m_Intermediate2Size());
-    Parse(parent, "</INTERMEDIATE_2_SIZE>", 2, true);
+    Parse(parent, "</INTERMEDIATE_2_SIZE>", 0, true);
 
     Parse(parent, "</OPERATION_SPACE_TO_DEPTH>", 1, true);
 }
@@ -747,11 +747,11 @@ void Parse(std::stringstream& parent, const DumpDram& value)
 
     Parse(parent, "<DRAM_BUFFER_ID>", 2, false);
     ParseAsNum(parent, value.m_DramBufferId());
-    Parse(parent, "</DRAM_BUFFER_ID>", 2, true);
+    Parse(parent, "</DRAM_BUFFER_ID>", 0, true);
 
     Parse(parent, "<FILENAME>", 2, false);
     Parse(parent, value.m_Filename());
-    Parse(parent, "</FILENAME>", 2, true);
+    Parse(parent, "</FILENAME>", 0, true);
 
     Parse(parent, "</DUMP_DRAM>", 1, true);
 }
@@ -762,7 +762,7 @@ void Parse(std::stringstream& parent, const DumpSram& value)
 
     Parse(parent, "<PREFIX>", 2, false);
     Parse(parent, value.m_Filename());
-    Parse(parent, "</PREFIX>", 2, true);
+    Parse(parent, "</PREFIX>", 0, true);
 
     Parse(parent, "</DUMP_SRAM>", 1, true);
 }
@@ -773,14 +773,14 @@ void Parse(std::stringstream& parent, const Section& value)
 
     Parse(parent, "<TYPE>", 2, false);
     Parse(parent, value.m_Type());
-    Parse(parent, "</TYPE>", 2, true);
+    Parse(parent, "</TYPE>", 0, true);
 
     Parse(parent, "</SECTION>", 1, true);
 }
 
 void Parse(std::stringstream& parent, const Fence&)
 {
-    parent << "<FENCE/>\n";
+    parent << "    <FENCE/>\n";
 }
 
 void Parse(std::stringstream& parent, const Delay& value)
@@ -789,7 +789,7 @@ void Parse(std::stringstream& parent, const Delay& value)
 
     Parse(parent, "<VALUE>", 2, false);
     ParseAsNum(parent, value.m_Value());
-    Parse(parent, "</VALUE>", 2, true);
+    Parse(parent, "</VALUE>", 0, true);
 
     Parse(parent, "</DELAY>", 1, true);
 }
@@ -904,23 +904,23 @@ void Parse(std::stringstream& parent, const cascading::FmSData& fmData)
 
     Parse(parent, "<DFLT_STRIPE_SIZE>", 4, true);
     Parse(parent, fmData.dfltStripeSize);
-    Parse(parent, "</DFLT_STRIPE_SIZE>", 0, true);
+    Parse(parent, "</DFLT_STRIPE_SIZE>", 4, true);
 
     Parse(parent, "<EDGE_STRIPE_SIZE>", 4, true);
     Parse(parent, fmData.edgeStripeSize);
-    Parse(parent, "</EDGE_STRIPE_SIZE>", 0, true);
+    Parse(parent, "</EDGE_STRIPE_SIZE>", 4, true);
 
     Parse(parent, "<SUPERTENSOR_SIZE_IN_CELLS>", 4, true);
     Parse(parent, fmData.supertensorSizeInCells);
-    Parse(parent, "</SUPERTENSOR_SIZE_IN_CELLS>", 0, true);
+    Parse(parent, "</SUPERTENSOR_SIZE_IN_CELLS>", 4, true);
 
     Parse(parent, "<NUM_STRIPES>", 4, true);
     Parse(parent, fmData.numStripes);
-    Parse(parent, "</NUM_STRIPES>", 0, true);
+    Parse(parent, "</NUM_STRIPES>", 4, true);
 
     Parse(parent, "<STRIPE_ID_STRIDES>", 4, true);
     Parse(parent, fmData.stripeIdStrides);
-    Parse(parent, "</STRIPE_ID_STRIDES>", 0, true);
+    Parse(parent, "</STRIPE_ID_STRIDES>", 4, true);
 }
 
 void Parse(std::stringstream& parent, const cascading::PackedBoundaryThickness& value)
@@ -986,15 +986,15 @@ void Parse(std::stringstream& parent, const cascading::WgtS& wgts)
 
     Parse(parent, "<TILE>", 4, true);
     Parse(parent, wgts.tile);
-    Parse(parent, "</TILE>", 0, true);
+    Parse(parent, "</TILE>", 4, true);
 
     Parse(parent, "<NUM_STRIPES>", 4, true);
     Parse(parent, wgts.numStripes);
-    Parse(parent, "</NUM_STRIPES>", 0, true);
+    Parse(parent, "</NUM_STRIPES>", 4, true);
 
     Parse(parent, "<STRIPE_ID_STRIDES>", 4, true);
     Parse(parent, wgts.stripeIdStrides);
-    Parse(parent, "</STRIPE_ID_STRIDES>", 0, true);
+    Parse(parent, "</STRIPE_ID_STRIDES>", 4, true);
 
     Parse(parent, "</WGT_STREAMER>", 3, true);
 }
@@ -1170,11 +1170,11 @@ void Parse(std::stringstream& parent, const cascading::MceAlgorithm value)
 
 void Parse(std::stringstream& parent, const cascading::FilterShape& filterShape)
 {
-    Parse(parent, "<WIDTH>", 5, false);
+    Parse(parent, "<WIDTH>", 6, false);
     ParseAsNum(parent, filterShape.width);
     Parse(parent, "</WIDTH>", 0, true);
 
-    Parse(parent, "<HEIGHT>", 5, false);
+    Parse(parent, "<HEIGHT>", 6, false);
     ParseAsNum(parent, filterShape.height);
     Parse(parent, "</HEIGHT>", 0, true);
 }
@@ -1184,20 +1184,20 @@ void Parse(std::stringstream& parent, const std::array<cascading::FilterShape, 4
     int idx = 0;
     for (const auto& value : filterShape)
     {
-        Parse(parent, ("<VALUE_" + std::to_string(idx) + ">").c_str(), 4, true);
+        Parse(parent, ("<VALUE_" + std::to_string(idx) + ">").c_str(), 5, true);
         Parse(parent, value);
-        Parse(parent, ("</VALUE_" + std::to_string(idx) + ">").c_str(), 4, true);
+        Parse(parent, ("</VALUE_" + std::to_string(idx) + ">").c_str(), 5, true);
         idx++;
     }
 }
 
 void Parse(std::stringstream& parent, const cascading::Padding& padding)
 {
-    Parse(parent, "<LEFT>", 5, false);
+    Parse(parent, "<LEFT>", 6, false);
     ParseAsNum(parent, padding.left);
     Parse(parent, "</LEFT>", 0, true);
 
-    Parse(parent, "<TOP>", 5, false);
+    Parse(parent, "<TOP>", 6, false);
     ParseAsNum(parent, padding.top);
     Parse(parent, "</TOP>", 0, true);
 }
@@ -1207,20 +1207,20 @@ void Parse(std::stringstream& parent, const std::array<cascading::Padding, 4>(&p
     int idx = 0;
     for (const auto& value : padding)
     {
-        Parse(parent, ("<VALUE_" + std::to_string(idx) + ">").c_str(), 4, true);
+        Parse(parent, ("<VALUE_" + std::to_string(idx) + ">").c_str(), 5, true);
         Parse(parent, value);
-        Parse(parent, ("</VALUE_" + std::to_string(idx) + ">").c_str(), 4, true);
+        Parse(parent, ("</VALUE_" + std::to_string(idx) + ">").c_str(), 5, true);
         idx++;
     }
 }
 
 void Parse(std::stringstream& parent, const cascading::IfmDelta& ifmDelta)
 {
-    Parse(parent, "<WIDTH>", 5, false);
+    Parse(parent, "<WIDTH>", 6, false);
     ParseAsNum(parent, ifmDelta.width);
     Parse(parent, "</WIDTH>", 0, true);
 
-    Parse(parent, "<HEIGHT>", 5, false);
+    Parse(parent, "<HEIGHT>", 6, false);
     ParseAsNum(parent, ifmDelta.height);
     Parse(parent, "</HEIGHT>", 0, true);
 }
@@ -1230,9 +1230,9 @@ void Parse(std::stringstream& parent, const std::array<cascading::IfmDelta, 4>(&
     int idx = 0;
     for (const auto& value : ifmDelta)
     {
-        Parse(parent, ("<VALUE_" + std::to_string(idx) + ">").c_str(), 4, true);
+        Parse(parent, ("<VALUE_" + std::to_string(idx) + ">").c_str(), 5, true);
         Parse(parent, value);
-        Parse(parent, ("</VALUE_" + std::to_string(idx) + ">").c_str(), 4, true);
+        Parse(parent, ("</VALUE_" + std::to_string(idx) + ">").c_str(), 5, true);
         idx++;
     }
 }
@@ -1459,7 +1459,7 @@ void Parse(std::stringstream& parent, const cascading::PleS& ples)
 
     Parse(parent, "<PLE_KERNEL_ID>", 4, false);
     Parse(parent, cascading::PleKernelId2String(ples.pleKernelId), 0, false);
-    Parse(parent, "</PLE_KERNEL_ID>", 4, true);
+    Parse(parent, "</PLE_KERNEL_ID>", 0, true);
 
     Parse(parent, "<PLE_KERNEL_SRAM_ADDR>", 4, false);
     ParseAsNum(parent, ples.pleKernelSramAddr);
@@ -1640,19 +1640,19 @@ void Parse(std::stringstream& parent, const Cascade& value)
 
 void ParseBinary(CommandStream& cstream, std::stringstream& output)
 {
-    output << "<?xmlversion=\"1.0\"encoding=\"utf-8\"?>\n";
+    output << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
     output << "<STREAM VERSION_MAJOR="
            << "\"" << std::to_string(cstream.GetVersionMajor()).c_str() << "\"";
     output << " VERSION_MINOR="
            << "\"" << std::to_string(cstream.GetVersionMinor()).c_str() << "\"";
     output << " VERSION_PATCH="
-           << "\"" << std::to_string(cstream.GetVersionPatch()).c_str() << "\">";
+           << "\"" << std::to_string(cstream.GetVersionPatch()).c_str() << "\">\n";
 
     uint32_t commandCounter = 0;
     for (const CommandHeader& header : cstream)
     {
         Opcode command = header.m_Opcode();
-        output << ("<!-- Command " + std::to_string(commandCounter) + " -->\n").c_str();
+        output << ("    <!-- Command " + std::to_string(commandCounter) + " -->\n").c_str();
         switch (command)
         {
             case Opcode::OPERATION_MCE_PLE:

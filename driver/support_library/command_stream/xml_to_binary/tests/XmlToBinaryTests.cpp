@@ -23,7 +23,8 @@ namespace
 
 const std::string g_XmlStr =
     R"(<?xml version="1.0" encoding="utf-8"?>
-<STREAM VERSION_MAJOR="%VERSION_MAJOR%" VERSION_MINOR="%VERSION_MINOR%" VERSION_PATCH="%VERSION_PATCH%"><!-- Command 0 -->
+<STREAM VERSION_MAJOR="%VERSION_MAJOR%" VERSION_MINOR="%VERSION_MINOR%" VERSION_PATCH="%VERSION_PATCH%">
+    <!-- Command 0 -->
     <SECTION>
         <TYPE>SISO</TYPE>
     </SECTION>
@@ -347,9 +348,9 @@ const std::string g_XmlStr =
             <ZERO_POINT>0</ZERO_POINT>
             <DATA_LOCATION>DRAM</DATA_LOCATION>
         </OUTPUT_INFO>
-    </OPERATION_CONVERT>
-)"
-    R"(<!-- Command 12 -->
+    </OPERATION_CONVERT>)"
+    R"(
+    <!-- Command 12 -->
     <CASCADE>
         <NUM_AGENTS>6</NUM_AGENTS>
         <!-- Agent 0 -->
@@ -740,9 +741,9 @@ const std::string g_XmlStr =
                 <PLE_KERNEL_ID>DOWNSAMPLE_2X2_16X16_1</PLE_KERNEL_ID>
             </MCE_SCHEDULER>
             <NUM_STRIPES_TOTAL>64</NUM_STRIPES_TOTAL>
-        </AGENT>
-)"
-    R"(<!-- Agent 4 -->
+        </AGENT>)"
+    R"(
+        <!-- Agent 4 -->
         <AGENT>
             <PLE_LOADER>
                 <PLE_KERNEL_ID>SIGMOID_16X8_1_S</PLE_KERNEL_ID>
@@ -1780,12 +1781,8 @@ TEST_CASE("XmlToBinary-BinaryToXml")
     std::stringstream outputXml;
     binaryParser.WriteXml(outputXml);
 
-    // Remove spaces since they can be different
-    std::string inputString = inputXml.str();
-    inputString.erase(std::remove(inputString.begin(), inputString.end(), ' '), inputString.end());
-
+    std::string inputString  = inputXml.str();
     std::string outputString = outputXml.str();
-    outputString.erase(std::remove(outputString.begin(), outputString.end(), ' '), outputString.end());
 
     // compare the strings with no white spaces
     REQUIRE(inputString == outputString);
