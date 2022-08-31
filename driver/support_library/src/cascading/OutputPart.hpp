@@ -19,6 +19,7 @@ public:
                const TensorShape& inputTensorShape,
                const CompilerDataFormat& compilerDataFormat,
                const QuantizationInfo& quantizationInfo,
+               DataType dataType,
                const std::set<uint32_t>& correspondingOperationIds,
                const uint32_t producerOutputIndx,
                const EstimationOptions& estOpt,
@@ -34,6 +35,7 @@ public:
 private:
     const TensorShape m_InputTensorShape;
     QuantizationInfo m_InputQuantizationInfo;
+    DataType m_InputDataType;
     const uint32_t m_ProducerOutputIndx;
 
     void CreatePlanForOutputPart(TraversalOrder order, Plans& plans) const;

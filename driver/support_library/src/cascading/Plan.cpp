@@ -333,8 +333,6 @@ MceOp::MceOp()
     , m_UpsampleType(command_stream::cascading::UpsampleType::OFF)
     , m_LowerBound(0)
     , m_UpperBound(255)
-    , m_IsIfmSigned(false)
-    , m_IsOfmSigned(false)
 {}
 
 MceOp::MceOp(MceOperation op,
@@ -348,9 +346,7 @@ MceOp::MceOp(MceOperation op,
              uint32_t padLeft,
              uint32_t padTop,
              int16_t lowerBound,
-             int16_t upperBound,
-             bool isIfmSigned,
-             bool isOfmSigned)
+             int16_t upperBound)
     : Op("MceOp")
     , m_Op(op)
     , m_Algo(algo)
@@ -366,8 +362,6 @@ MceOp::MceOp(MceOperation op,
     , m_UpsampleType(command_stream::cascading::UpsampleType::OFF)
     , m_LowerBound(lowerBound)
     , m_UpperBound(upperBound)
-    , m_IsIfmSigned(isIfmSigned)
-    , m_IsOfmSigned(isOfmSigned)
 {}
 
 DotAttributes MceOp::GetDotAttributes(DetailLevel detail) const
@@ -387,8 +381,6 @@ DotAttributes MceOp::GetDotAttributes(DetailLevel detail) const
         result.m_Label += "Pad L/T = " + to_string(this->m_PadLeft) + ", " + to_string(this->m_PadTop) + "\n";
         result.m_Label +=
             "Lower/Upper Bound = " + to_string(this->m_LowerBound) + ", " + to_string(this->m_UpperBound) + "\n";
-        result.m_Label += "IsIfmSigned = " + to_string(this->m_IsIfmSigned ? 1U : 0U) + "\n";
-        result.m_Label += "IsOfmSigned = " + to_string(this->m_IsOfmSigned ? 1U : 0U) + "\n";
         result.m_Label += "Operation Ids = " + ArrayToString(this->m_OperationIds) + "\n";
     }
     return result;
@@ -401,7 +393,6 @@ PleOp::PleOp()
     , m_NumInputs(0)
     , m_InputStripeShapes{}
     , m_OutputStripeShape{ 0, 0, 0, 0 }
-    , m_OutputDataType{ command_stream::DataType::U8 }
     , m_PleKernelId{ command_stream::cascading::PleKernelId::NOT_FOUND }
     , m_LoadKernel{ true }
 {}
@@ -411,7 +402,7 @@ PleOp::PleOp(PleOperation op,
              uint32_t numInputs,
              std::vector<TensorShape> inputStripeShapes,
              TensorShape outputStripeShape,
-             command_stream::DataType dataType,
+             DataType dataType,
              bool loadKernel)
     : Op("PleOp")
     , m_Op(op)
@@ -419,10 +410,10 @@ PleOp::PleOp(PleOperation op,
     , m_NumInputs(numInputs)
     , m_InputStripeShapes(inputStripeShapes)
     , m_OutputStripeShape(outputStripeShape)
-    , m_OutputDataType(dataType)
     , m_LoadKernel(loadKernel)
 {
-    m_PleKernelId = plelib::FindPleKernelIdFromDatabase(blockConfig, (inputStripeShapes.at(0))[2], dataType, op);
+    m_PleKernelId = plelib::FindPleKernelIdFromDatabase(blockConfig, (inputStripeShapes.at(0))[2],
+                                                        utils::GetCommandDataType(dataType), op);
 }
 
 uint32_t PleOp::GetNumberOfAgents(uint32_t) const
@@ -441,7 +432,6 @@ DotAttributes PleOp::GetDotAttributes(DetailLevel detail) const
         result.m_Label += "Num Inputs = " + to_string(this->m_NumInputs) + "\n";
         result.m_Label += "Input Stripe Shapes = " + ArrayToString(this->m_InputStripeShapes) + "\n";
         result.m_Label += "Output Stripe Shape = " + ToString(this->m_OutputStripeShape) + "\n";
-        result.m_Label += "Output Data type = " + ToString(this->m_OutputDataType) + "\n";
         result.m_Label += "Ple kernel Id = " + ToString(this->m_PleKernelId) + "\n";
         result.m_Label += "Kernel Load = " + ToString(this->m_LoadKernel) + "\n";
         if (this->m_Offset.has_value())
@@ -495,6 +485,7 @@ Buffer::Buffer(Location location,
                QuantizationInfo quantInfo)
     : DebuggableObject("Buffer")
     , m_Location(location)
+    , m_DataType(DataType::UINT8_QUANTIZED)
     , m_Format(format)
     , m_QuantizationInfo(quantInfo)
     , m_TensorShape(tensorShape)

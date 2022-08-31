@@ -18,6 +18,7 @@ OutputPart::OutputPart(PartId id,
                        const TensorShape& inputTensorShape,
                        const CompilerDataFormat& compilerDataFormat,
                        const QuantizationInfo& quantizationInfo,
+                       DataType dataType,
                        const std::set<uint32_t>& correspondingOperationIds,
                        const uint32_t producerOutputIndx,
                        const EstimationOptions& estOpt,
@@ -26,6 +27,7 @@ OutputPart::OutputPart(PartId id,
     : BasePart(id, "OutputPart", compilerDataFormat, correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape{ inputTensorShape }
     , m_InputQuantizationInfo(quantizationInfo)
+    , m_InputDataType(dataType)
     , m_ProducerOutputIndx{ producerOutputIndx }
 {}
 
@@ -59,6 +61,7 @@ void OutputPart::CreatePlanForOutputPart(TraversalOrder order, Plans& plans) con
 
     CascadingBufferFormat format   = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
     std::unique_ptr<Buffer> buffer = std::make_unique<Buffer>(Location::Dram, format, order);
+    buffer->m_DataType             = m_InputDataType;
     buffer->m_TensorShape          = m_InputTensorShape;
     buffer->m_SizeInBytes          = utils::CalculateBufferSize(m_InputTensorShape, format);
     buffer->m_QuantizationInfo     = m_InputQuantizationInfo;
@@ -78,6 +81,7 @@ ethosn::support_library::DotAttributes OutputPart::GetDotAttributes(DetailLevel 
     {
         result.m_Label += "InputTensorShape = " + ToString(m_InputTensorShape) + "\n";
         result.m_Label += "InputQuantizationInfo = " + ToString(m_InputQuantizationInfo) + "\n";
+        result.m_Label += "InputDataType = " + ToString(m_InputDataType) + "\n";
     }
     return result;
 }

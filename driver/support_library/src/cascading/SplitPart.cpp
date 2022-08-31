@@ -57,6 +57,7 @@ void SplitPart::CreateSplitDramPlan(Plans& plans) const
 
     opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
     Buffer* inputBuffer             = opGraph.GetBuffers()[0];
+    inputBuffer->m_DataType         = m_InputTensorInfo.m_DataType;
     inputBuffer->m_TensorShape      = m_InputTensorInfo.m_Dimensions;
     inputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(inputBuffer->m_TensorShape, format);
     inputBuffer->m_QuantizationInfo = m_InputTensorInfo.m_QuantizationInfo;
@@ -76,6 +77,7 @@ void SplitPart::CreateSplitDramPlan(Plans& plans) const
 
         opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
         Buffer* outputBuffer             = opGraph.GetBuffers().back();
+        outputBuffer->m_DataType         = expectedOutputInfo[outputIndex].m_DataType;
         outputBuffer->m_TensorShape      = expectedOutputInfo[outputIndex].m_Dimensions;
         outputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(outputBuffer->m_TensorShape, format);
         outputBuffer->m_QuantizationInfo = expectedOutputInfo[outputIndex].m_QuantizationInfo;

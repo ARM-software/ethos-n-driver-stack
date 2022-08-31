@@ -28,8 +28,8 @@ public:
                  const CompilationOptions& compOpt,
                  const HardwareCapabilities& capabilities,
                  std::set<uint32_t> correspondingOperationIds,
-                 command_stream::DataType m_InputDataType,
-                 command_stream::DataType m_OutputDataType);
+                 DataType m_InputDataType,
+                 DataType m_OutputDataType);
 
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,
@@ -85,8 +85,8 @@ private:
 
     mutable WeightEncoderCache m_WeightEncoderCache;
 
-    command_stream::DataType m_InputDataType;
-    command_stream::DataType m_OutputDataType;
+    DataType m_InputDataType;
+    DataType m_OutputDataType;
 };
 }    // namespace support_library
 }    // namespace ethosn

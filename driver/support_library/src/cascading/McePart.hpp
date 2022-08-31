@@ -44,8 +44,8 @@ public:
         const CompilationOptions& m_CompOpt;
         const HardwareCapabilities& m_Capabilities;
         std::set<uint32_t> m_OperationIds;
-        command_stream::DataType m_InputDataType               = command_stream::DataType::U8;
-        command_stream::DataType m_OutputDataType              = command_stream::DataType::U8;
+        DataType m_InputDataType                               = DataType::UINT8_QUANTIZED;
+        DataType m_OutputDataType                              = DataType::UINT8_QUANTIZED;
         uint32_t m_UpscaleFactor                               = 1;
         command_stream::cascading::UpsampleType m_UpsampleType = command_stream::cascading::UpsampleType::OFF;
         int16_t m_LowerBound                                   = 0;
@@ -69,8 +69,8 @@ public:
             const CompilationOptions& compOpt,
             const HardwareCapabilities& capabilities,
             std::set<uint32_t> operationIds,
-            command_stream::DataType inputDataType,
-            command_stream::DataType outputDataType);
+            DataType inputDataType,
+            DataType outputDataType);
     McePart(ConstructionParams&& params);
 
     Plans GetPlans(CascadeType cascadeType,
@@ -150,8 +150,8 @@ protected:
     command_stream::MceOperation m_Operation;
     impl::StripeConfig m_StripeConfig;
     impl::StripeGenerator m_StripeGenerator;
-    command_stream::DataType m_InputDataType;
-    command_stream::DataType m_OutputDataType;
+    DataType m_InputDataType;
+    DataType m_OutputDataType;
     int16_t m_LowerBound;
     int16_t m_UpperBound;
 };

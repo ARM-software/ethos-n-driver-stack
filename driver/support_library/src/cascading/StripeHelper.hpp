@@ -287,6 +287,7 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
                        const TensorShape& tensorShape,
                        const TensorShape& pleInputMemoryShape,
                        const QuantizationInfo& quantInfo,
+                       DataType dataType,
                        Location location);
 
 std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
@@ -295,6 +296,7 @@ std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
                                         std::unique_ptr<Op> pleOp,
                                         const TensorShape& outputShape,
                                         const QuantizationInfo& outputQuantInfo,
+                                        DataType outputDataType,
                                         const std::set<uint32_t>& sourceOperationIds);
 
 /// Generates a stripe shape given an encoding and an input tensor

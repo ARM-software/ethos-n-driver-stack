@@ -64,8 +64,8 @@ McePart BuildPart(TensorShape inputShape,
     params.m_PadLeft                        = padLeft;
     params.m_Op                             = op;
     params.m_OperationIds                   = { 1 };
-    params.m_InputDataType                  = ethosn::command_stream::DataType::U8;
-    params.m_OutputDataType                 = ethosn::command_stream::DataType::U8;
+    params.m_InputDataType                  = DataType::UINT8_QUANTIZED;
+    params.m_OutputDataType                 = DataType::UINT8_QUANTIZED;
     params.m_UpscaleFactor                  = upscaleFactor;
     params.m_UpsampleType                   = upsampleType;
     McePart part(std::move(params));
@@ -703,7 +703,7 @@ TEST_CASE("McePart GetPlans structure")
         const uint32_t padLeft                  = 0;
         McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, weights, biasTensorInfo,
                      bias, stride, padTop, padLeft, csOp, estOps, compOpt, caps, operationIds,
-                     ethosn::command_stream::DataType::U8, ethosn::command_stream::DataType::U8);
+                     DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED);
 
         CheckPlansParams params;
         params.m_PartId            = partId;
@@ -837,7 +837,7 @@ TEST_CASE("McePart End Cascade full tensor")
         const uint32_t padLeft                  = 0;
         McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, weights, biasTensorInfo,
                      bias, stride, padTop, padLeft, csOp, estOps, compOpt, caps, operationIds,
-                     ethosn::command_stream::DataType::U8, ethosn::command_stream::DataType::U8);
+                     DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED);
 
         CheckPlansParams params;
         params.m_PartId            = partId;
@@ -922,7 +922,7 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
         const uint32_t padLeft                  = 0;
         McePart part(partId, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo, weights, biasTensorInfo,
                      bias, stride, padTop, padLeft, csOp, estOps, compOpt, caps, operationIds,
-                     ethosn::command_stream::DataType::U8, ethosn::command_stream::DataType::U8);
+                     DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED);
 
         CheckPlansParams params;
         params.m_PartId            = partId;

@@ -32,7 +32,7 @@ StandalonePlePart::StandalonePlePart(PartId id,
                                      const CompilationOptions& compOpt,
                                      const HardwareCapabilities& capabilities,
                                      std::set<uint32_t> correspondingOperationIds,
-                                     command_stream::DataType dataType)
+                                     DataType dataType)
     : BasePart(
           id, "StandalonePlePart", CompilerDataFormat::NONE, correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShapes(inputTensorShapes)
@@ -180,15 +180,15 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
     // PLE input buffers
     for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)
     {
-        pleInputBuffers[i] =
-            AddPleInBuffer(opGraph, rv.inputSramAllocations.at(i).numStripesInTile, m_InputTensorShapes.at(i),
-                           rv.inputSramAllocations.at(i).stripeShape, m_InputQuantizationInfos.at(i), Location::Sram);
+        pleInputBuffers[i] = AddPleInBuffer(opGraph, rv.inputSramAllocations.at(i).numStripesInTile,
+                                            m_InputTensorShapes.at(i), rv.inputSramAllocations.at(i).stripeShape,
+                                            m_InputQuantizationInfos.at(i), m_DataType, Location::Sram);
     }
 
     // Output buffer
     auto outBufferAndPleOp =
         AddPleToOpGraph(opGraph, rv.outputSramAllocation.stripeShape, numMemoryStripes, std::move(op),
-                        m_OutputTensorShape, m_OutputQuantizationInfo, m_CorrespondingOperationIds);
+                        m_OutputTensorShape, m_OutputQuantizationInfo, m_DataType, m_CorrespondingOperationIds);
 
     for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)
     {

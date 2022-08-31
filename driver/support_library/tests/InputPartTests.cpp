@@ -121,8 +121,8 @@ TEST_CASE("InputPart Plan Generation", "[InputPartTests]")
         const CompilationOptions compOpt;
         HardwareCapabilities hwCapabilities(GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
-        InputPart inputPart(partId, outputTensorShape, compilerDataFormat, quantizationInfo, operationIds, estOpt,
-                            compOpt, hwCapabilities);
+        InputPart inputPart(partId, outputTensorShape, compilerDataFormat, quantizationInfo, DataType::UINT8_QUANTIZED,
+                            operationIds, estOpt, compOpt, hwCapabilities);
 
         CheckPlansParams params;
         params.m_PartId          = partId;

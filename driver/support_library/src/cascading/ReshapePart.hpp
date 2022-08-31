@@ -21,6 +21,7 @@ public:
                 const TensorShape& outputTensorShape,
                 const CompilerDataFormat& compilerDataFormat,
                 const QuantizationInfo& quantizationInfo,
+                DataType dataType,
                 const std::set<uint32_t>& correspondingOperationIds,
                 const EstimationOptions& estOpt,
                 const CompilationOptions& compOpt,
@@ -36,6 +37,7 @@ private:
     const TensorShape m_InputTensorShape;
     const TensorShape m_OutputTensorShape;
     QuantizationInfo m_OutputQuantizationInfo;
+    DataType m_DataType;
     impl::StripeConfig m_StripeConfig;
 };
 

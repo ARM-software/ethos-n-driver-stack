@@ -18,6 +18,7 @@ ConstantPart::ConstantPart(PartId id,
                            const TensorShape& outputTensorShape,
                            const CompilerDataFormat& compilerDataFormat,
                            const QuantizationInfo& quantizationInfo,
+                           DataType dataType,
                            const std::set<uint32_t>& correspondingOperationIds,
                            const EstimationOptions& estOpt,
                            const CompilationOptions& compOpt,
@@ -25,6 +26,7 @@ ConstantPart::ConstantPart(PartId id,
     : BasePart(id, "ConstantPart", compilerDataFormat, correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_OutputTensorShape{ outputTensorShape }
     , m_OutputQuantizationInfo(quantizationInfo)
+    , m_OutputDataType(dataType)
 {}
 
 Plans ConstantPart::GetPlans(CascadeType cascadeType,
@@ -57,6 +59,7 @@ void ConstantPart::CreatePlanForConstantPart(TraversalOrder order, Plans& plans)
 
     CascadingBufferFormat format = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
     auto buffer                  = std::make_unique<Buffer>(Location::Dram, format, order);
+    buffer->m_DataType           = m_OutputDataType;
     buffer->m_TensorShape        = m_OutputTensorShape;
     buffer->m_SizeInBytes        = utils::CalculateBufferSize(m_OutputTensorShape, format);
     buffer->m_QuantizationInfo   = m_OutputQuantizationInfo;
@@ -74,6 +77,7 @@ ethosn::support_library::DotAttributes ConstantPart::GetDotAttributes(DetailLeve
     {
         result.m_Label += "OutputTensorShape = " + ToString(m_OutputTensorShape) + "\n";
         result.m_Label += "OutputQuantizationInfo = " + ToString(m_OutputQuantizationInfo) + "\n";
+        result.m_Label += "OutputDataType = " + ToString(m_OutputDataType) + "\n";
     }
     return result;
 }

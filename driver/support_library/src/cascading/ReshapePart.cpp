@@ -18,6 +18,7 @@ ReshapePart::ReshapePart(PartId id,
                          const TensorShape& outputTensorShape,
                          const CompilerDataFormat& compilerDataFormat,
                          const QuantizationInfo& quantizationInfo,
+                         DataType dataType,
                          const std::set<uint32_t>& correspondingOperationIds,
                          const EstimationOptions& estOpt,
                          const CompilationOptions& compOpt,
@@ -26,6 +27,7 @@ ReshapePart::ReshapePart(PartId id,
     , m_InputTensorShape{ inputTensorShape }
     , m_OutputTensorShape{ outputTensorShape }
     , m_OutputQuantizationInfo(quantizationInfo)
+    , m_DataType(dataType)
     , m_StripeConfig(impl::GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
 {}
 
@@ -60,6 +62,7 @@ Plans ReshapePart::GetPlans(CascadeType cascadeType,
                     Location::Dram, CascadingBufferFormat::NHWC, m_InputTensorShape, TensorShape{ 0, 0, 0, 0 },
                     TraversalOrder::Xyz, utils::TotalSizeBytes(m_InputTensorShape), m_OutputQuantizationInfo);
                 inputBuffer->m_BufferType = BufferType::Intermediate;
+                inputBuffer->m_DataType   = m_DataType;
                 Buffer* inputBufferRaw    = inputBuffer.get();
 
                 auto dma1            = std::make_unique<DmaOp>(CascadingBufferFormat::NHWC);
@@ -91,6 +94,7 @@ Plans ReshapePart::GetPlans(CascadeType cascadeType,
                     Location::Dram, CascadingBufferFormat::NHWC, m_OutputTensorShape, TensorShape{ 0, 0, 0, 0 },
                     TraversalOrder::Xyz, utils::TotalSizeBytes(m_OutputTensorShape), m_OutputQuantizationInfo);
                 outputBuffer->m_BufferType = BufferType::Intermediate;
+                outputBuffer->m_DataType   = m_DataType;
                 Buffer* outputBufferRaw    = outputBuffer.get();
 
                 OwnedOpGraph graph;
@@ -128,6 +132,7 @@ ethosn::support_library::DotAttributes ReshapePart::GetDotAttributes(DetailLevel
         result.m_Label += "InputTensorShape = " + ToString(m_InputTensorShape) + "\n";
         result.m_Label += "OutputTensorShape = " + ToString(m_OutputTensorShape) + "\n";
         result.m_Label += "OutputQuantizationInfo = " + ToString(m_OutputQuantizationInfo) + "\n";
+        result.m_Label += "DataType = " + ToString(m_DataType) + "\n";
     }
     return result;
 }

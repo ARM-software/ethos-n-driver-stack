@@ -292,6 +292,7 @@ Combination Combiner::AddTempGlues(const Combination& combination)
                         Location::Dram, CascadingBufferFormat::NHWCB, buffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
                         TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(buffer->m_TensorShape),
                         buffer->m_QuantizationInfo);
+                    dramBuffer->m_DataType   = buffer->m_DataType;
                     dramBuffer->m_BufferType = BufferType::Intermediate;
                     Buffer* dramBufferRaw    = dramBuffer.get();
                     auto dma                 = std::make_unique<DmaOp>(buffer->m_Format);
@@ -321,6 +322,7 @@ Combination Combiner::AddTempGlues(const Combination& combination)
                         Location::Dram, CascadingBufferFormat::NHWCB, buffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
                         TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(buffer->m_TensorShape),
                         buffer->m_QuantizationInfo);
+                    dramBuffer->m_DataType   = buffer->m_DataType;
                     dramBuffer->m_BufferType = BufferType::Intermediate;
                     Buffer* dramBufferRaw    = dramBuffer.get();
                     auto dma                 = std::make_unique<DmaOp>(buffer->m_Format);
@@ -501,6 +503,7 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenDramAndSramWithConversion(Bu
     auto sramBuffer = std::make_unique<Buffer>(
         Location::Sram, CascadingBufferFormat::NHWCB, inputBuffer->m_TensorShape, sramStripeShape, TraversalOrder::Xyz,
         utils::TotalSizeBytesNHWCB(sramStripeShape), inputBuffer->m_QuantizationInfo);
+    sramBuffer->m_DataType   = inputBuffer->m_DataType;
     sramBuffer->m_BufferType = BufferType::Intermediate;
     sramBuffer->m_Offset     = 0;    // Nothing else should be resident in SRAM at this point, so we can use any address
     sramBuffer->m_NumStripes = 1;
@@ -513,6 +516,7 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenDramAndSramWithConversion(Bu
     auto intermediateDramBuffer = std::make_unique<Buffer>(
         Location::Dram, CascadingBufferFormat::NHWCB, inputBuffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
         TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(inputBuffer->m_TensorShape), inputBuffer->m_QuantizationInfo);
+    intermediateDramBuffer->m_DataType   = inputBuffer->m_DataType;
     intermediateDramBuffer->m_BufferType = BufferType::Intermediate;
     Buffer* intermediateDramBufferRaw    = intermediateDramBuffer.get();
 
@@ -561,6 +565,7 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenSramAndDramWithConversion(Bu
     auto intermediateDramBuffer = std::make_unique<Buffer>(
         Location::Dram, CascadingBufferFormat::NHWCB, tensorShape, TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
         utils::TotalSizeBytesNHWCB(tensorShape), destBuffer->m_QuantizationInfo);
+    intermediateDramBuffer->m_DataType   = destBuffer->m_DataType;
     intermediateDramBuffer->m_BufferType = BufferType::Intermediate;
 
     Buffer* intermediateDramBufferRaw = intermediateDramBuffer.get();
@@ -577,6 +582,7 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenSramAndDramWithConversion(Bu
     auto intermediateSramBuffer = std::make_unique<Buffer>(
         Location::Sram, CascadingBufferFormat::NHWCB, tensorShape, intermediateSramStripeShape, TraversalOrder::Xyz,
         utils::TotalSizeBytesNHWCB(intermediateSramStripeShape), destBuffer->m_QuantizationInfo);
+    intermediateSramBuffer->m_DataType   = destBuffer->m_DataType;
     intermediateSramBuffer->m_BufferType = BufferType::Intermediate;
     intermediateSramBuffer->m_Offset =
         0;    // Nothing else should be resident in SRAM at this point, so we can use any address
@@ -626,10 +632,11 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenSramAndSram(Buffer* sourceBu
 {
     StartingAndEndingGlues result;
 
-    auto dramBuffer = std::make_unique<Buffer>(Location::Dram, cascadingBufferFormat, destBuffer->m_TensorShape,
+    auto dramBuffer        = std::make_unique<Buffer>(Location::Dram, cascadingBufferFormat, destBuffer->m_TensorShape,
                                                TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
                                                CalculateBufferSize(destBuffer->m_TensorShape, cascadingBufferFormat),
                                                destBuffer->m_QuantizationInfo);
+    dramBuffer->m_DataType = destBuffer->m_DataType;
     dramBuffer->m_BufferType = BufferType::Intermediate;
 
     auto dma1             = std::make_unique<DmaOp>(cascadingBufferFormat);
@@ -686,12 +693,14 @@ std::unique_ptr<Buffer> CreateMergedBuffer(const Buffer& a, const Buffer& b)
             result->m_BufferType         = a.m_BufferType;
             result->m_OperationId        = a.m_OperationId;
             result->m_ProducerOutputIndx = a.m_ProducerOutputIndx;
+            result->m_DataType           = a.m_DataType;
         }
         else    // Only B is special, or neither is
         {
             result->m_BufferType         = b.m_BufferType;
             result->m_OperationId        = b.m_OperationId;
             result->m_ProducerOutputIndx = b.m_ProducerOutputIndx;
+            result->m_DataType           = b.m_DataType;
         }
 
         return result;
@@ -712,6 +721,7 @@ StartingAndEndingGlues Combiner::GenerateSharedGlue(Buffer* sourceBuffer,
                                                TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
                                                CalculateBufferSize(sourceBuffer->m_TensorShape, cascadingBufferFormat),
                                                sourceBuffer->m_QuantizationInfo);
+    dramBuffer->m_DataType   = sourceBuffer->m_DataType;
     dramBuffer->m_BufferType = BufferType::Intermediate;
 
     // A input DMA is shared to move data from source SRAM
@@ -770,6 +780,7 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenDramAndDram(Buffer* inputBuf
     auto sramBuffer = std::make_unique<Buffer>(
         Location::Sram, CascadingBufferFormat::NHWCB, inputBuffer->m_TensorShape, sramStripeShape, TraversalOrder::Xyz,
         utils::TotalSizeBytesNHWCB(sramStripeShape), inputBuffer->m_QuantizationInfo);
+    sramBuffer->m_DataType   = inputBuffer->m_DataType;
     sramBuffer->m_BufferType = BufferType::Intermediate;
     sramBuffer->m_Offset     = 0;    // Nothing else should be resident in SRAM at this point, so we can use any address
     sramBuffer->m_NumStripes = 1;

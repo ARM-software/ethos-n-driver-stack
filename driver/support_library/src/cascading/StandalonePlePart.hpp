@@ -26,7 +26,7 @@ public:
                       const CompilationOptions& compOpt,
                       const HardwareCapabilities& capabilities,
                       std::set<uint32_t> correspondingOperationIds,
-                      command_stream::DataType dataType);
+                      DataType dataType);
 
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,
@@ -41,7 +41,7 @@ private:
     std::vector<QuantizationInfo> m_InputQuantizationInfos;
     QuantizationInfo m_OutputQuantizationInfo;
     command_stream::PleOperation m_KernelOperation;
-    command_stream::DataType m_DataType;
+    DataType m_DataType;
 };
 }    // namespace support_library
 }    // namespace ethosn

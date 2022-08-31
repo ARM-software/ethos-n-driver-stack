@@ -1269,6 +1269,7 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
                        const TensorShape& tensorShape,
                        const TensorShape& pleInputMemoryShape,
                        const QuantizationInfo& quantInfo,
+                       DataType dataType,
                        Location location)
 {
     assert(location == Location::Sram || location == Location::PleInputSram);
@@ -1282,6 +1283,7 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
 
     // number of stripes in tile is only relevant if the input buffer is in SRAM
     uint32_t numStripesInTile = location == Location::Sram ? numPleInputMemoryStripes : 1;
+    buffer->m_DataType        = dataType;
     buffer->m_SlotSizeInBytes = utils::CalculateBufferSize(buffer->m_StripeShape, buffer->m_Format);
     buffer->m_SizeInBytes     = buffer->m_SlotSizeInBytes * numStripesInTile;
 
@@ -1295,6 +1297,7 @@ std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
                                         std::unique_ptr<Op> pleOp,
                                         const TensorShape& outputShape,
                                         const QuantizationInfo& outputQuantInfo,
+                                        DataType outputDataType,
                                         const std::set<uint32_t>& sourceOperationIds)
 {
     auto& buffers      = opGraph.GetBuffers();
@@ -1305,6 +1308,7 @@ std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
     auto pleOutBuffer = buffers.back();
     opGraph.SetProducer(pleOutBuffer, op);
 
+    pleOutBuffer->m_DataType        = outputDataType;
     pleOutBuffer->m_TensorShape     = outputShape;
     pleOutBuffer->m_StripeShape     = memoryOutputShape;
     pleOutBuffer->m_NumStripes      = numMemoryStripes.m_Output;

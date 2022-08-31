@@ -104,7 +104,7 @@ TEST_CASE("ReshapePart Plan Generation", "[ReshapePartTests]")
         HardwareCapabilities hwCapabilities(GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
         ReshapePart reshapePart(partId, inputTensorShape, outputTensorShape, compilerDataFormat, quantizationInfo,
-                                operationIds, estOpt, compOpt, hwCapabilities);
+                                DataType::UINT8_QUANTIZED, operationIds, estOpt, compOpt, hwCapabilities);
 
         CheckPlansParams params;
         params.m_PartId         = partId;

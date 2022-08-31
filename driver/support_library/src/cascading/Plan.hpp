@@ -233,9 +233,7 @@ public:
           uint32_t padLeft,
           uint32_t padTop,
           int16_t lowerBound,
-          int16_t upperBound,
-          bool isIfmSigned,
-          bool isOfmSigned);
+          int16_t upperBound);
 
     utils::Optional<command_stream::BlockConfig> GetBlockConfig() override
     {
@@ -258,8 +256,6 @@ public:
     command_stream::cascading::UpsampleType m_UpsampleType;
     int16_t m_LowerBound;
     int16_t m_UpperBound;
-    bool m_IsIfmSigned;
-    bool m_IsOfmSigned;
     utils::Optional<TensorShape> m_uninterleavedInputShape;
 };
 
@@ -272,7 +268,7 @@ public:
           uint32_t numInputs,
           std::vector<TensorShape> inputStripeShapes,
           TensorShape outputStripeShape,
-          command_stream::DataType dataType,
+          DataType dataType,
           bool loadKernel);
 
     utils::Optional<command_stream::BlockConfig> GetBlockConfig() override
@@ -288,7 +284,6 @@ public:
     uint32_t m_NumInputs;
     std::vector<TensorShape> m_InputStripeShapes;
     TensorShape m_OutputStripeShape;
-    command_stream::DataType m_OutputDataType;
     command_stream::cascading::PleKernelId m_PleKernelId;
     bool m_LoadKernel;
     utils::Optional<uint32_t> m_Offset;
@@ -355,6 +350,7 @@ public:
     }
 
     Location m_Location;
+    DataType m_DataType;
     CascadingBufferFormat m_Format;
     QuantizationInfo m_QuantizationInfo;
     TensorShape m_TensorShape;

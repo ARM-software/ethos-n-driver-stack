@@ -50,7 +50,7 @@ StandalonePlePart BuildPart(const std::vector<TensorShape>& inputShapes,
     const std::set<uint32_t> operationsIds = { 1 };
 
     StandalonePlePart part(partId, inputShapes, outputShape, inputQuantizationInfos, outputQuantInfo, op, estOpts,
-                           compOpts, caps, operationsIds, ethosn::command_stream::DataType::U8);
+                           compOpts, caps, operationsIds, DataType::UINT8_QUANTIZED);
 
     return part;
 }

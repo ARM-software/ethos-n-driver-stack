@@ -104,8 +104,7 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
                     std::stringstream ss;
                     // Pad the buffer ID for easy sorting of dumped file names
                     ss << "EthosNIntermediateBuffer_" << std::setfill('0') << std::setw(3) << b.second << std::setw(0);
-                    // Currently all buffers are assumed to be UINT8. This will need changing once we support INT8 too.
-                    ss << "_" << ToString(DataType::UINT8_QUANTIZED);
+                    ss << "_" << ToString(b.first->m_DataType);
                     ss << "_" << ToString(b.first->m_Format);
                     ss << "_" << shape[0] << "_" << shape[1] << "_" << shape[2] << "_" << shape[3];
                     ss << ".hex";
@@ -582,6 +581,7 @@ void CascadingCommandStreamGenerator::ProcessConcatOp(Op* const ptrConcatOp)
         Buffer sramBuffer(Location::Sram, CascadingBufferFormat::NHWCB, inputBuffer->m_TensorShape, sramBufferShape,
                           TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(sramBufferShape),
                           inputBuffer->m_QuantizationInfo);
+        sramBuffer.m_DataType        = inputBuffer->m_DataType;
         sramBuffer.m_NumStripes      = 1;
         sramBuffer.m_Offset          = sramBufferOffset;
         sramBuffer.m_SlotSizeInBytes = utils::CalculateBufferSize(sramBufferShape, CascadingBufferFormat::NHWCB);
@@ -746,6 +746,7 @@ void CascadingCommandStreamGenerator::ProcessSplitOp(Op* const ptrSplitOp)
                       TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(sramStripeShape),
                       inputBuffer->m_QuantizationInfo);
 
+    sramBuffer.m_DataType        = inputBuffer->m_DataType;
     sramBuffer.m_NumStripes      = 1;
     sramBuffer.m_SlotSizeInBytes = utils::CalculateBufferSize(sramStripeShape, CascadingBufferFormat::NHWCB);
     sramBuffer.m_SizeInBytes     = sramBuffer.m_NumStripes * sramBuffer.m_SlotSizeInBytes;
@@ -832,7 +833,7 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(Op* c
     ifmStreamerData.fmData.bufferId = inputDramBufferId;
 
     StreamersUtils::SetBufferDataType(ifmStreamerData.fmData, transferFormat);
-    ifmStreamerData.fmData.fcafInfo.signedActivation = false;
+    ifmStreamerData.fmData.fcafInfo.signedActivation = (inputDramBuffer->m_DataType == DataType::INT8_QUANTIZED);
     ifmStreamerData.fmData.fcafInfo.zeroPoint =
         ethosn::utils::NumericCast<int16_t>(inputDramBuffer->m_QuantizationInfo.GetZeroPoint());
 
@@ -976,8 +977,8 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
     mceSchedulerData.convStrideXy.x = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_Stride.m_X);
     mceSchedulerData.convStrideXy.y = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_Stride.m_Y);
     mceSchedulerData.ifmZeroPoint = ethosn::utils::NumericCast<int16_t>(inputBuffer->m_QuantizationInfo.GetZeroPoint());
-    mceSchedulerData.isIfmSigned  = static_cast<uint8_t>(ptrMceOp->m_IsIfmSigned);
-    mceSchedulerData.isOfmSigned  = static_cast<uint8_t>(ptrMceOp->m_IsOfmSigned);
+    mceSchedulerData.isIfmSigned  = static_cast<uint8_t>(inputBuffer->m_DataType == DataType::INT8_QUANTIZED);
+    mceSchedulerData.isOfmSigned  = static_cast<uint8_t>(outputBuffer->m_DataType == DataType::INT8_QUANTIZED);
 
     MceSUtils::setMcesAlgorithm(mceSchedulerData, ptrMceOp->m_Algo);
 
@@ -1204,7 +1205,7 @@ AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(Op* c
 
     StreamersUtils::SetBufferDataType(ofmStreamerData.fmData, outputDramBuffer->m_Format);
 
-    ofmStreamerData.fmData.fcafInfo.signedActivation = false;
+    ofmStreamerData.fmData.fcafInfo.signedActivation = (outputDramBuffer->m_DataType == DataType::INT8_QUANTIZED);
     ofmStreamerData.fmData.fcafInfo.zeroPoint =
         ethosn::utils::NumericCast<int16_t>(outputDramBuffer->m_QuantizationInfo.GetZeroPoint());
 

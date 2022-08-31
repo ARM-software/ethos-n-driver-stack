@@ -628,7 +628,7 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
         const std::set<uint32_t> operationIds = { 1, 2, 3 };
         FullyConnectedPart part(partId, tsInOrig, tsIn, tsOut, inputQuantInfo, outputQuantInfo, weightsTensorInfo,
                                 weights, biasTensorInfo, bias, estOps, compOpt, caps, operationIds,
-                                ethosn::command_stream::DataType::U8, ethosn::command_stream::DataType::U8);
+                                DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED);
 
         WHEN("Asked to generate plans")
         {

@@ -708,6 +708,7 @@ std::string GetBufferString(Buffer* buffer)
     std::stringstream stream;
     stream << "Location = " << ToString(buffer->m_Location) << "\n";
     stream << "Format = " << ToString(buffer->m_Format) << "\n";
+    stream << "Data Type = " << ToString(buffer->m_DataType) << "\n";
     stream << "Quant. Info = " << ToString(buffer->m_QuantizationInfo) << "\n";
     stream << "Tensor shape = " << ToString(buffer->m_TensorShape) << "\n";
     stream << "Stripe shape = " << ToString(buffer->m_StripeShape) << "\n";

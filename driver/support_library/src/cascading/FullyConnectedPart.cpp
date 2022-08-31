@@ -29,8 +29,8 @@ FullyConnectedPart::FullyConnectedPart(PartId id,
                                        const CompilationOptions& compOpt,
                                        const HardwareCapabilities& capabilities,
                                        std::set<uint32_t> operationIds,
-                                       command_stream::DataType inputDataType,
-                                       command_stream::DataType outputDataType)
+                                       DataType inputDataType,
+                                       DataType outputDataType)
     : McePart(id,
               reinterpretedInputShape,
               outputTensorShape,
@@ -250,6 +250,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                     opGraph.AddBuffer(
                         std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWC, TraversalOrder::Xyz));
                     Buffer* dramInput        = opGraph.GetBuffers().back();
+                    dramInput->m_DataType    = m_InputDataType;
                     dramInput->m_TensorShape = m_OriginalInputShape;
                     // The input buffer size of fully connected must be rounded up to the next 1024.
                     dramInput->m_SizeInBytes = utils::RoundUpToNearestMultiple(
@@ -274,7 +275,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
 
                     auto pleInBuffer = impl::AddPleInBuffer(opGraph, numPleInputStripes, m_OutputTensorShape,
                                                             info.m_Memory.m_PleInput.m_Shape, m_OutputQuantizationInfo,
-                                                            Location::PleInputSram);
+                                                            m_OutputDataType, Location::PleInputSram);
                     opGraph.SetProducer(pleInBuffer, sramInputAndMceOp.second);
 
                     // Create an identity ple Op
@@ -282,9 +283,9 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                         std::make_unique<PleOp>(PleOperation::PASSTHROUGH, info.m_MceCompute.m_BlockConfig, 1,
                                                 std::vector<TensorShape>{ info.m_PleCompute.m_Input },
                                                 info.m_PleCompute.m_Output, m_OutputDataType, true);
-                    auto outBufferAndPleOp =
-                        AddPleToOpGraph(opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(pleOp),
-                                        m_OutputTensorShape, m_OutputQuantizationInfo, m_CorrespondingOperationIds);
+                    auto outBufferAndPleOp = AddPleToOpGraph(
+                        opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(pleOp),
+                        m_OutputTensorShape, m_OutputQuantizationInfo, m_OutputDataType, m_CorrespondingOperationIds);
                     opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
                     inputMappings[dramInput]                = PartInputSlot{ m_PartId, 0 };
                     outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };

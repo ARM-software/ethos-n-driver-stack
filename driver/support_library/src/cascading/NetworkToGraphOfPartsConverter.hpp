@@ -70,8 +70,8 @@ private:
                                                    const QuantizationInfo& inputQuantInfo,
                                                    const QuantizationInfo& outputQuantInfo,
                                                    uint32_t operationId,
-                                                   command_stream::DataType inputDataType,
-                                                   command_stream::DataType outputDataType,
+                                                   DataType inputDataType,
+                                                   DataType outputDataType,
                                                    const EstimationOptions& estOpt,
                                                    const CompilationOptions& compOpt,
                                                    const HardwareCapabilities& capabilities);

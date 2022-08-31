@@ -267,8 +267,8 @@ McePart::McePart(PartId id,
                  const CompilationOptions& compOpt,
                  const HardwareCapabilities& capabilities,
                  std::set<uint32_t> operationIds,
-                 command_stream::DataType inputDataType,
-                 command_stream::DataType outputDataType)
+                 DataType inputDataType,
+                 DataType outputDataType)
     : BasePart(id, "McePart", CompilerDataFormat::NONE, operationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape(inputTensorShape)
     , m_OutputTensorShape(outputTensorShape)
@@ -303,8 +303,8 @@ McePart::McePart(PartId id,
                         m_StripeConfig)
     , m_InputDataType(inputDataType)
     , m_OutputDataType(outputDataType)
-    , m_LowerBound(outputDataType == command_stream::DataType::U8 ? 0 : -128)
-    , m_UpperBound(outputDataType == command_stream::DataType::U8 ? 255 : 127)
+    , m_LowerBound(outputDataType == DataType::UINT8_QUANTIZED ? 0 : -128)
+    , m_UpperBound(outputDataType == DataType::UINT8_QUANTIZED ? 255 : 127)
 {}
 
 McePart::McePart(ConstructionParams&& params)
@@ -390,6 +390,7 @@ Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
         ConvertExternalToCompilerDataFormat(convData.weightInfo.m_DataFormat));
     Buffer* dramWeightBuffer =
         opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, formatInDram, TraversalOrder::Xyz));
+    dramWeightBuffer->m_DataType         = convData.weightInfo.m_DataType;
     dramWeightBuffer->m_TensorShape      = convData.weightInfo.m_Dimensions;
     dramWeightBuffer->m_EncodedWeights   = std::move(encodedWeights);
     dramWeightBuffer->m_SizeInBytes      = static_cast<uint32_t>(dramWeightBuffer->m_EncodedWeights->m_Data.size());
@@ -399,6 +400,7 @@ Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
     CascadingBufferFormat formatInSram = GetCascadingBufferFormatFromCompilerDataFormat(CompilerDataFormat::WEIGHT);
     Buffer* sramWeightBuffer =
         opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, formatInSram, TraversalOrder::Xyz));
+    sramWeightBuffer->m_DataType         = convData.weightInfo.m_DataType;
     sramWeightBuffer->m_TensorShape      = dramWeightBuffer->m_TensorShape;
     sramWeightBuffer->m_StripeShape      = memoryWeightStripe;
     sramWeightBuffer->m_QuantizationInfo = convData.weightInfo.m_QuantizationInfo;
@@ -455,6 +457,7 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
         m_Operation == command_stream::MceOperation::DEPTHWISE_CONVOLUTION ? TraversalOrder::Xyz : TraversalOrder::Zxy;
     Buffer* sramInBuffer =
         opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, ifmTraversalOrder));
+    sramInBuffer->m_DataType                                               = m_InputDataType;
     sramInBuffer->m_TensorShape                                            = inputShape;
     sramInBuffer->m_StripeShape                                            = memoryStripesInfo.m_Input.m_Shape;
     sramInBuffer->m_NumStripes                                             = numMemoryStripes.m_Input;
@@ -473,13 +476,10 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
         return { nullptr, nullptr };    // Weight compression failed (too big for SRAM) - abandon this plan
     }
 
-    uint8_t isIfmSigned = m_InputDataType == command_stream::DataType::S8;
-    uint8_t isOfmSigned = m_OutputDataType == command_stream::DataType::S8;
-
     auto mceOp =
         std::make_unique<MceOp>(m_Operation, mceOpAlgo, mceStripeInfo.m_BlockConfig, mceStripeInfo.m_Input,
                                 mceStripeInfo.m_Output, memoryStripesInfo.m_Weight.m_Shape, TraversalOrder::Xyz,
-                                m_Stride, m_PadLeft, m_PadTop, m_LowerBound, m_UpperBound, isIfmSigned, isOfmSigned);
+                                m_Stride, m_PadLeft, m_PadTop, m_LowerBound, m_UpperBound);
     mceOp->m_UpscaleFactor = m_UpscaleFactor;
     mceOp->m_UpsampleType  = m_UpsampleType;
     if (m_UninterleavedInputShape.has_value())
@@ -532,7 +532,7 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
 
                 auto pleInBuffer = impl::AddPleInBuffer(opGraph, numPleInputStripes, m_OutputTensorShape,
                                                         info.m_Memory.m_PleInput.m_Shape, m_OutputQuantizationInfo,
-                                                        Location::PleInputSram);
+                                                        m_OutputDataType, Location::PleInputSram);
                 opGraph.SetProducer(pleInBuffer, inBufferAndMceOp.second);
 
                 // Create an identity ple Op
@@ -540,9 +540,9 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                     std::make_unique<PleOp>(PleOperation::PASSTHROUGH, info.m_MceCompute.m_BlockConfig, 1,
                                             std::vector<TensorShape>{ info.m_PleCompute.m_Input },
                                             info.m_PleCompute.m_Output, m_OutputDataType, true);
-                auto outBufferAndPleOp =
-                    AddPleToOpGraph(opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(pleOp),
-                                    m_OutputTensorShape, m_OutputQuantizationInfo, m_CorrespondingOperationIds);
+                auto outBufferAndPleOp = AddPleToOpGraph(
+                    opGraph, info.m_Memory.m_Output.m_Shape, numMemoryStripes, std::move(pleOp), m_OutputTensorShape,
+                    m_OutputQuantizationInfo, m_OutputDataType, m_CorrespondingOperationIds);
                 opGraph.AddConsumer(pleInBuffer, outBufferAndPleOp.second, 0);
                 inputMappings[inBufferAndMceOp.first]   = PartInputSlot{ m_PartId, 0 };
                 outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
@@ -589,7 +589,7 @@ void McePart::CreateMceOnlyPlans(const impl::MceOnlyInfo& info,
 
             auto outBuffer =
                 impl::AddPleInBuffer(opGraph, numPleInputStripes, m_OutputTensorShape, info.m_Memory.m_PleInput.m_Shape,
-                                     m_OutputQuantizationInfo, Location::PleInputSram);
+                                     m_OutputQuantizationInfo, m_OutputDataType, Location::PleInputSram);
             opGraph.SetProducer(outBuffer, inBufferAndMceOp.second);
             inputMappings[inBufferAndMceOp.first] = PartInputSlot{ m_PartId, 0 };
             outputMappings[outBuffer]             = PartOutputSlot{ m_PartId, 0 };
