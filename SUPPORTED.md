@@ -130,7 +130,7 @@
 ## Transpose convolution 2D
 - HWIO format weights are supported.
 - The supported kernel heights and widths (the kernel does not have to be square) are: { 1, 2, 3, 5, 7, 9 }.
-- The supported strides (the kernel does have to be square) are: { 1, 2 }.
+- Only a stride of 2 is supported.
 - SAME and VALID padding are supported.
 - I*W/O must be between 2^-32 and 65536, where:
      - I is the input quantization scale.
