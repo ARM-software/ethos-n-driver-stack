@@ -1042,6 +1042,11 @@ bool OutputNode::IsPrepared()
     {
         return false;
     }
+    // The input to an output node cannot be used as both an intermediate and output buffer.
+    if (GetInput(0)->GetSource()->GetOutputs().size() != 1)
+    {
+        return false;
+    }
     // Walk the graph to the inputs, a path with at least one pass in it is required
     // If there isn't one, it means an input goes straight to an output
     // which would make the input buffer the same as the output buffer, which is not supported by our API.
@@ -1070,15 +1075,23 @@ bool OutputNode::FixGraph(Graph& graph, FixGraphSeverity severity)
         GetInput(0)->GetSource()->SetCompressionHint(CompressionHint::RequiredUncompressed);
         changed = true;
     }
-    // Walk the graph to the inputs, a path with at least one pass in it is required
-    // If there isn't one, it means an input goes straight to an output
-    // which would make the input buffer the same as the output buffer, which is not supported by our API.
-    // This counts as a more severe change because adding an extra node to the graph may be suboptimal in the case
-    // that other fixes to the graph are possible. For example the preceding node may be able to fix the graph itself.
-    if (severity == FixGraphSeverity::High && !ContainsPass(this))
+    if (severity == FixGraphSeverity::High)
     {
-        InsertCopyNode(graph, GetInput(0));
-        changed = true;
+        // Walk the graph to the inputs, a path with at least one pass in it is required If there isn't one, it means an
+        // input goes straight to an output which would make the input buffer the same as the output buffer, which is
+        // not supported by our API.
+        // Another case that isn't supported is when the input to the output node is used by another node because a
+        // buffer cannot both be an intermediate and output buffer at the same time.
+        //
+        // Both these cases are handled by inserting a copy node so that the input and output uses different buffers.
+        //
+        // This counts as a more severe change because adding an extra node to the graph may be suboptimal in the case
+        // that other fixes to the graph are possible. For example the preceding node may be able to fix the graph itself.
+        if (!ContainsPass(this) || GetInput(0)->GetSource()->GetOutputs().size() != 1)
+        {
+            InsertCopyNode(graph, GetInput(0));
+            changed = true;
+        }
     }
     return changed;
 }
