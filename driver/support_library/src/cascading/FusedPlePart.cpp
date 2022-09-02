@@ -406,7 +406,7 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     }
 
     TensorShape pleOutputStripe =
-        CreateStripe(m_OutputTensorShape, pleInputStripe * m_ShapeMultiplier, m_Capabilities.GetNumberOfOgs());
+        CreateStripe(m_OutputTensorShape, pleInputStripe * m_ShapeMultiplier, m_Capabilities.GetBrickGroupShape()[3]);
 
     uint32_t memoryOutputChannelsEncoding = GetChannels(pleOutputStripe);
     bool isEndOfCascade                   = cascadeType == CascadeType::End;
@@ -414,8 +414,10 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     {
         memoryOutputChannelsEncoding = 0;
         // PLE accumulates the full depth in the middle of a strategy 1 cascade
-        pleInputStripe[3]  = utils::RoundUpToNearestMultiple(inputStripeShape[3], m_Capabilities.GetNumberOfOgs());
-        pleOutputStripe[3] = utils::RoundUpToNearestMultiple(m_OutputTensorShape[3], m_Capabilities.GetNumberOfOgs());
+        pleInputStripe[3] =
+            utils::RoundUpToNearestMultiple(inputStripeShape[3], m_Capabilities.GetBrickGroupShape()[3]);
+        pleOutputStripe[3] =
+            utils::RoundUpToNearestMultiple(m_OutputTensorShape[3], m_Capabilities.GetBrickGroupShape()[3]);
     }
     TensorShape memoryOutputStripeEncoding{ 0, fullHeight ? 0 : GetHeight(pleOutputStripe),
                                             fullWidth ? 0 : GetWidth(pleOutputStripe), memoryOutputChannelsEncoding };

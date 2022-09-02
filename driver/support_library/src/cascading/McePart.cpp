@@ -133,7 +133,8 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
             return {};
         }
     }
-    TensorShape mceOutputStripe = impl::CreateStripe(outputTensorShape, mceOutputEncoding, caps.GetNumberOfOgs());
+    TensorShape mceOutputStripe =
+        impl::CreateStripe(outputTensorShape, mceOutputEncoding, caps.GetBrickGroupShape()[3]);
 
     TensorShape pleInputEncoding = mceOutputEncoding;
     if (cascadeType == CascadeType::Middle)
@@ -141,7 +142,7 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
         // PLE accumulates the full depth for the middle of an s1 cascade
         pleInputEncoding[3] = 0;
     }
-    TensorShape pleInputStripe  = impl::CreateStripe(outputTensorShape, pleInputEncoding, caps.GetNumberOfOgs());
+    TensorShape pleInputStripe  = impl::CreateStripe(outputTensorShape, pleInputEncoding, caps.GetBrickGroupShape()[3]);
     TensorShape pleOutputStripe = pleInputStripe;    // PLE kernel is passthrough
 
     uint32_t mceWeightOutputStripe = mceOutputStripe[3];
