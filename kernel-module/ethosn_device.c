@@ -56,8 +56,8 @@
 #define REGSET32(r) { __stringify(r), \
 		      TOP_REG(DL1_RP, DL1_ ## r) - TOP_REG(0, 0) }
 
-static int severity = ETHOSN_LOG_INFO;
-module_param(severity, int, 0660);
+static int firmware_log_severity = ETHOSN_LOG_INFO;
+module_param(firmware_log_severity, int, 0660);
 
 static int ethosn_queue_size = 65536;
 module_param_named(queue_size, ethosn_queue_size, int, 0440);
@@ -162,7 +162,7 @@ static int ethosn_mailbox_init(struct ethosn_core *core)
 			     sizeof(struct ethosn_queue);
 
 	/* Set severity, and make sure it's in the range [PANIC, VERBOSE]. */
-	mailbox->severity = max(min(severity,
+	mailbox->severity = max(min(firmware_log_severity,
 				    ETHOSN_LOG_VERBOSE), ETHOSN_LOG_PANIC);
 
 	/* Set Ethos-N addresses from mailbox to queues */
