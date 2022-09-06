@@ -84,5 +84,14 @@ static inline std::vector<std::string> Split(const std::string& s, const std::st
     return result;
 }
 
+inline bool EndsWith(const std::string& s, const std::string& q)
+{
+    if (s.size() < q.size())
+    {
+        return false;
+    }
+    return std::equal(s.end() - q.size(), s.end(), q.begin());
+}
+
 }    // namespace utils
 }    // namespace ethosn
