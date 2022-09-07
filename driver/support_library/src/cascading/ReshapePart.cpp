@@ -31,15 +31,8 @@ ReshapePart::ReshapePart(PartId id,
     , m_StripeConfig(impl::GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
 {}
 
-Plans ReshapePart::GetPlans(CascadeType cascadeType,
-                            ethosn::command_stream::BlockConfig blockConfig,
-                            Buffer* sramBuffer,
-                            uint32_t numWeightStripes) const
+Plans ReshapePart::GetPlans(CascadeType cascadeType, ethosn::command_stream::BlockConfig, Buffer*, uint32_t) const
 {
-    ETHOSN_UNUSED(blockConfig);
-    ETHOSN_UNUSED(sramBuffer);
-    ETHOSN_UNUSED(numWeightStripes);
-
     Plans plans;
 
     if (cascadeType == CascadeType::Lonely)
