@@ -909,7 +909,7 @@ const std::string g_XmlStr =
 
 std::array<char, 128> convertCharsToArray(int size, const char name[])
 {
-    std::array<char, 128> nameArr;
+    std::array<char, 128> nameArr{};
     for (int i = 0; i < size; ++i)
     {
         nameArr[i] = name[i];
