@@ -1327,7 +1327,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                                                                                            /* Self = */ uint16_t{ 2 } },
                                                                          /* Boundary = */ int8_t{ 4 } } },
             /* ReadDependencies = */
-            std::array<cascading::Dependency, 2>{
+            std::array<cascading::Dependency, 3>{
 
             },
             /* WriteDependencies = */
@@ -1395,7 +1395,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                                                                                            /* Self = */ uint16_t{ 1 } },
                                                                          /* Boundary = */ int8_t{ 2 } } },
             /* ReadDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
+            std::array<cascading::Dependency, 3>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 1 },
                                                                          /* OuterRatio = */
                                                                          cascading::Ratio{ /* Other = */ uint16_t{ 2 },
                                                                                            /* Self = */ uint16_t{ 2 } },
@@ -1471,7 +1471,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                                                                                            /* Self = */ uint16_t{ 1 } },
                                                                          /* Boundary = */ int8_t{ 4 } } },
             /* ReadDependencies = */
-            std::array<cascading::Dependency, 2>{
+            std::array<cascading::Dependency, 3>{
                 cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 2 },
                                        /* OuterRatio = */
                                        cascading::Ratio{ /* Other = */ uint16_t{ 2 },
@@ -1620,7 +1620,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
 
                                         },
                                         /* ReadDependencies = */
-                                        std::array<cascading::Dependency, 2>{
+                                        std::array<cascading::Dependency, 3>{
 
                                         },
                                         /* WriteDependencies = */
@@ -1650,7 +1650,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                                                                                            /* Self = */ uint16_t{ 1 } },
                                                                          /* Boundary = */ int8_t{ 4 } } },
             /* ReadDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 3 },
+            std::array<cascading::Dependency, 3>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 3 },
                                                                          /* OuterRatio = */
                                                                          cascading::Ratio{
                                                                              /* Other = */ uint16_t{ 2 },
@@ -1725,7 +1725,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
 
             },
             /* ReadDependencies = */
-            std::array<cascading::Dependency, 2>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 4 },
+            std::array<cascading::Dependency, 3>{ cascading::Dependency{ /* RelativeAgentId = */ uint8_t{ 4 },
                                                                          /* OuterRatio = */
                                                                          cascading::Ratio{
                                                                              /* Other = */ uint16_t{ 2 },

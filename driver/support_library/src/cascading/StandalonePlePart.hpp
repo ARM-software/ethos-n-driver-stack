@@ -42,6 +42,7 @@ private:
     QuantizationInfo m_OutputQuantizationInfo;
     command_stream::PleOperation m_KernelOperation;
     DataType m_DataType;
+    impl::StripeConfig m_StripeConfig;
 };
 }    // namespace support_library
 }    // namespace ethosn

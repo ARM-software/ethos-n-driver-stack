@@ -283,7 +283,7 @@ struct ConvData
 };
 
 Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
-                       NumStripesType& numPleInputMemoryStripes,
+                       NumStripesType numPleInputMemoryStripes,
                        const TensorShape& tensorShape,
                        const TensorShape& pleInputMemoryShape,
                        const QuantizationInfo& quantInfo,

@@ -5,7 +5,7 @@
 
 #include "StandalonePlePart.hpp"
 
-#include "../nonCascading/PlePass.hpp"
+#include "../Utils.hpp"
 #include "PartUtils.hpp"
 #include "Plan.hpp"
 #include "StripeHelper.hpp"
@@ -15,6 +15,7 @@
 #include <memory>
 
 using namespace ethosn::command_stream;
+using namespace ethosn::support_library::utils;
 
 namespace ethosn
 {
@@ -41,7 +42,10 @@ StandalonePlePart::StandalonePlePart(PartId id,
     , m_OutputQuantizationInfo(outputQuantizationInfo)
     , m_KernelOperation(op)
     , m_DataType(dataType)
-{}
+    , m_StripeConfig(GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
+{
+    assert(m_InputQuantizationInfos.size() == m_InputTensorShapes.size());
+}
 
 Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
                                   ethosn::command_stream::BlockConfig blockConfig,
@@ -61,8 +65,8 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
     }
 
     Plans plans;
+    StripeConfig stripeConfig = m_StripeConfig;
 
-    TensorShape splittableDims = {};
     switch (m_KernelOperation)
     {
         case (command_stream::PleOperation::ADDITION):
@@ -74,7 +78,7 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
             // a section.
             if (cascadeType == CascadeType::Lonely)
             {
-                splittableDims = { 1, 1, 1, 1 };
+                // All splits are valid
             }
             else
             {
@@ -87,13 +91,15 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
             // AVGPOOL_3X3_1_1_UDMA: only split in D is allowed.
             // This makes it cascadalbe only if the whole input, output
             // tensors are fit into SRAM (in other words no split)
-            splittableDims = { 0, 0, 0, 0 };
+            stripeConfig.DisableSplitWidth();
+            stripeConfig.DisableSplitHeight();
 
-            if (cascadeType == CascadeType::Lonely)
+            if (cascadeType != CascadeType::Lonely)
             {
-                splittableDims = { 0, 0, 0, 1 };
+                stripeConfig.DisableSplitInputDepth();
+                stripeConfig.DisableSplitOutputDepth();
             }
-            else if (cascadeType == CascadeType::Middle || cascadeType == CascadeType::End)
+            if (cascadeType == CascadeType::Middle || cascadeType == CascadeType::End)
             {
                 assert(prevBuffer != nullptr);
 
@@ -116,88 +122,115 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
         }
     }
 
-    SramAllocator::UserId userId = 0;
-    SramAllocator alloc(m_Capabilities.GetTotalSramSize() / m_Capabilities.GetNumberOfSrams());
+    const uint32_t brickGroupHeight = m_Capabilities.GetBrickGroupShape()[1];
+    const uint32_t brickGroupWidth  = m_Capabilities.GetBrickGroupShape()[2];
+    const uint32_t brickGroupDepth  = m_Capabilities.GetBrickGroupShape()[3];
 
-    using Allocated = std::pair<bool, uint32_t>;
+    const uint32_t minWidthMultiplier = stripeConfig.blockWidthMultiplier.min;
+    const uint32_t maxWidthMultiplier =
+        std::max(1U, std::min(GetWidth(m_OutputTensorShape) / brickGroupWidth, stripeConfig.blockWidthMultiplier.max));
+    const uint32_t minHeightMultiplier = stripeConfig.blockHeightMultiplier.min;
+    const uint32_t maxHeightMultiplier = std::max(
+        1U, std::min(GetHeight(m_OutputTensorShape) / brickGroupHeight, stripeConfig.blockHeightMultiplier.max));
+    const uint32_t minDepthMultiplier = std::max(1U, stripeConfig.ofmDepthMultiplier.min);
+    const uint32_t maxDepthMultiplier =
+        std::max(1U, std::min(GetChannels(m_OutputTensorShape) / brickGroupDepth, stripeConfig.ofmDepthMultiplier.max));
 
-    // PLE kernel SRAM usage is considered before input/output buffers.
-    Allocated allocated = alloc.Allocate(userId, m_Capabilities.GetMaxPleSize() / m_Capabilities.GetNumberOfSrams(),
-                                         AllocationPreference::Start);
+    auto addPlan = [&](const TensorShape& outputStripeShape) {
+        // Uses block configure (16, 16) which will be ignored
+        // by a standalone PLE kernel.
+        command_stream::BlockConfig blkConfig = { 16u, 16u };
+        std::vector<TensorShape> inputStripes;
+        for (uint32_t i = 0; i < m_InputTensorShapes.size(); ++i)
+        {
+            inputStripes.push_back(outputStripeShape);
+        }
+        auto op =
+            std::make_unique<PleOp>(m_KernelOperation, blkConfig, static_cast<uint32_t>(m_InputTensorShapes.size()),
+                                    inputStripes, outputStripeShape, m_DataType, true);
 
-    if (!allocated.first)
+        OwnedOpGraph opGraph;
+        PartInputMapping inputMappings;
+        PartOutputMapping outputMappings;
+
+        // only m_Output is used by AddPleToOpGraph
+        NumMemoryStripes numMemoryStripes;
+        numMemoryStripes.m_Output = 2;
+
+        std::vector<Buffer*> pleInputBuffers;
+        pleInputBuffers.resize(m_InputTensorShapes.size());
+
+        // PLE input buffers
+        for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)
+        {
+            pleInputBuffers[i] = AddPleInBuffer(opGraph, 2u, m_InputTensorShapes.at(i), outputStripeShape,
+                                                m_InputQuantizationInfos.at(i), m_DataType, Location::Sram);
+        }
+
+        // Output buffer
+        auto outBufferAndPleOp =
+            AddPleToOpGraph(opGraph, outputStripeShape, numMemoryStripes, std::move(op), m_OutputTensorShape,
+                            m_OutputQuantizationInfo, m_DataType, m_CorrespondingOperationIds);
+
+        for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)
+        {
+            opGraph.AddConsumer(pleInputBuffers[i], outBufferAndPleOp.second, static_cast<uint32_t>(i));
+            inputMappings[pleInputBuffers[i]] = PartInputSlot{ m_PartId, static_cast<uint32_t>(i) };
+        }
+
+        outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
+        AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
+    };
+
+    if (stripeConfig.splits.none)
     {
-        return Plans{};
+        TensorShape outputStripeShappe = CreateStripe(m_OutputTensorShape, { 0, 0, 0, 0 }, brickGroupDepth);
+        addPlan(outputStripeShappe);
+    }
+    if (stripeConfig.splits.widthOnly)
+    {
+        TensorShape outputStripeShappe =
+            CreateStripe(m_OutputTensorShape, { 0, 0, brickGroupWidth, 0 }, brickGroupDepth);
+        addPlan(outputStripeShappe);
+    }
+    if (stripeConfig.splits.mceAndPleOutputHeight)
+    {
+        TensorShape outputStripeShappe =
+            CreateStripe(m_OutputTensorShape, { 0, brickGroupHeight, 0, 0 }, brickGroupDepth);
+        addPlan(outputStripeShappe);
     }
 
-    assert(m_InputQuantizationInfos.size() == m_InputTensorShapes.size());
-
-    std::vector<std::pair<bool, uint32_t>> inputsStaticAndOffset;
-    inputsStaticAndOffset.reserve(m_InputTensorShapes.size());
-
-    std::vector<SramTensorAllocation> inputSramAllocations;
-    inputSramAllocations.resize(m_InputTensorShapes.size());
-
-    for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)
+    if (cascadeType == CascadeType::Lonely)
     {
-        inputsStaticAndOffset.push_back({ false, 0 });
+        if (stripeConfig.splits.outputDepthInputDepth)
+        {
+            TensorShape outputStripeShappe =
+                CreateStripe(m_OutputTensorShape, { 0, 0, 0, brickGroupDepth }, brickGroupDepth);
+            addPlan(outputStripeShappe);
+        }
+
+        if (stripeConfig.splits.widthHeightOutputDepthInputDepth)
+        {
+            for (uint32_t heightMultiplier = minHeightMultiplier; heightMultiplier <= maxHeightMultiplier;
+                 heightMultiplier *= 2)
+            {
+                for (uint32_t widthMultiplier = minWidthMultiplier; widthMultiplier <= maxWidthMultiplier;
+                     widthMultiplier *= 2)
+                {
+                    for (uint32_t depthMultiplier = minDepthMultiplier; depthMultiplier <= maxDepthMultiplier;
+                         depthMultiplier *= 2)
+                    {
+                        TensorShape outputStripeShappe =
+                            CreateStripe(m_OutputTensorShape,
+                                         { 0, heightMultiplier * brickGroupHeight, widthMultiplier * brickGroupWidth,
+                                           depthMultiplier * brickGroupDepth },
+                                         brickGroupDepth);
+                        addPlan(outputStripeShappe);
+                    }
+                }
+            }
+        }
     }
-
-    PleStrategySelectionParameter pleStrategySelectionParameter{ userId,
-                                                                 m_Capabilities,
-                                                                 alloc,
-                                                                 inputSramAllocations,
-                                                                 m_InputTensorShapes,
-                                                                 m_OutputTensorShape,
-                                                                 inputsStaticAndOffset,
-                                                                 splittableDims };
-
-    // Lonely part: only needs to choose one best strategy
-    PleStrategySelectionReturnValue rv = PlePass::ChooseAndSetupStrategy(pleStrategySelectionParameter);
-
-    if (!rv.success)
-    {
-        return Plans{};
-    }
-
-    // Uses block configure (16, 16) which will be ignored
-    // by a standalone PLE kernel.
-    command_stream::BlockConfig blkConfig = { 16u, 16u };
-    auto op = std::make_unique<PleOp>(m_KernelOperation, blkConfig, static_cast<uint32_t>(m_InputTensorShapes.size()),
-                                      m_InputTensorShapes, m_OutputTensorShape, m_DataType, true);
-
-    OwnedOpGraph opGraph;
-    PartInputMapping inputMappings;
-    PartOutputMapping outputMappings;
-
-    // only m_Output is used by AddPleToOpGraph
-    NumMemoryStripes numMemoryStripes;
-    numMemoryStripes.m_Output = rv.outputSramAllocation.numStripesInTile;
-
-    std::vector<Buffer*> pleInputBuffers;
-    pleInputBuffers.resize(m_InputTensorShapes.size());
-
-    // PLE input buffers
-    for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)
-    {
-        pleInputBuffers[i] = AddPleInBuffer(opGraph, rv.inputSramAllocations.at(i).numStripesInTile,
-                                            m_InputTensorShapes.at(i), rv.inputSramAllocations.at(i).stripeShape,
-                                            m_InputQuantizationInfos.at(i), m_DataType, Location::Sram);
-    }
-
-    // Output buffer
-    auto outBufferAndPleOp =
-        AddPleToOpGraph(opGraph, rv.outputSramAllocation.stripeShape, numMemoryStripes, std::move(op),
-                        m_OutputTensorShape, m_OutputQuantizationInfo, m_DataType, m_CorrespondingOperationIds);
-
-    for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)
-    {
-        opGraph.AddConsumer(pleInputBuffers[i], outBufferAndPleOp.second, static_cast<uint32_t>(i));
-        inputMappings[pleInputBuffers[i]] = PartInputSlot{ m_PartId, static_cast<uint32_t>(i) };
-    }
-
-    outputMappings[outBufferAndPleOp.first] = PartOutputSlot{ m_PartId, 0 };
-    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
 
     return plans;
 }

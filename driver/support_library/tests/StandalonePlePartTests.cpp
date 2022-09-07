@@ -32,9 +32,6 @@ struct CheckPlansParams
     QuantizationInfo m_OutputQuantInfo;
     std::set<uint32_t> m_OperationIds;
     CascadingBufferFormat m_DataFormat;
-    uint32_t m_NumStripesInTile;
-    std::vector<TensorShape> m_InputStripeShapes;
-    TensorShape m_OutputStripeShape;
 };
 
 StandalonePlePart BuildPart(const std::vector<TensorShape>& inputShapes,
@@ -98,10 +95,9 @@ void CheckOutputBuffer(Buffer* buffer, const CheckPlansParams& params)
         CHECK(buffer->m_Location == Location::Sram);
         CHECK(buffer->m_Format == params.m_DataFormat);
         CHECK(buffer->m_TensorShape == params.m_OutputTensorInfo.m_Dimensions);
-        CHECK(buffer->m_StripeShape == params.m_OutputStripeShape);
         CHECK(buffer->m_Order == TraversalOrder::Xyz);
-        CHECK(buffer->m_SizeInBytes == (utils::TotalSizeBytes(params.m_OutputStripeShape)) * params.m_NumStripesInTile);
-        CHECK(buffer->m_NumStripes == params.m_NumStripesInTile);
+        CHECK(buffer->m_SizeInBytes == (utils::TotalSizeBytes(buffer->m_StripeShape)) * buffer->m_NumStripes);
+        CHECK(buffer->m_NumStripes > 0);
         CHECK(buffer->m_EncodedWeights == nullptr);
     }
 }
@@ -113,11 +109,9 @@ void CheckInputBuffer(Buffer* buffer, const CheckPlansParams& params, size_t buf
         CHECK(buffer->m_Location == Location::Sram);
         CHECK(buffer->m_Format == params.m_DataFormat);
         CHECK(buffer->m_TensorShape == params.m_InputTensorsInfo[bufIdx].m_Dimensions);
-        CHECK(buffer->m_StripeShape == params.m_InputStripeShapes[bufIdx]);
         CHECK(buffer->m_Order == TraversalOrder::Xyz);
-        CHECK(buffer->m_SizeInBytes ==
-              (utils::TotalSizeBytes(params.m_InputStripeShapes[bufIdx])) * params.m_NumStripesInTile);
-        CHECK(buffer->m_NumStripes == params.m_NumStripesInTile);
+        CHECK(buffer->m_SizeInBytes == (utils::TotalSizeBytes(buffer->m_StripeShape)) * buffer->m_NumStripes);
+        CHECK(buffer->m_NumStripes > 0);
         CHECK(buffer->m_EncodedWeights == nullptr);
     }
 }
@@ -169,13 +163,10 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
                                      QuantizationInfo(0, 1.0f));
 
         CheckPlansParams params;
-        params.m_PartId            = partId;
-        params.m_InputTensorsInfo  = { inputTensorsInfo };
-        params.m_OutputTensorInfo  = outputTensorsInfo;
-        params.m_DataFormat        = CascadingBufferFormat::NHWCB;
-        params.m_InputStripeShapes = { inputShape };
-        params.m_OutputStripeShape = outputShape;
-        params.m_NumStripesInTile  = 1;
+        params.m_PartId           = partId;
+        params.m_InputTensorsInfo = { inputTensorsInfo };
+        params.m_OutputTensorInfo = outputTensorsInfo;
+        params.m_DataFormat       = CascadingBufferFormat::NHWCB;
 
         EstimationOptions estOpts;
         CompilationOptions compOpts;
@@ -185,11 +176,9 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
 
         // A plan is returned since both input and output tensors is fit into SRAM
         Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
-        REQUIRE(plans0.size() == 1);
         CheckPlans(plans0, params);
 
         Plans plans1 = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
-        REQUIRE(plans1.size() == 1);
         CheckPlans(plans1, params);
 
         // A plan is returned since both input and output tensors is fit into SRAM
@@ -197,7 +186,6 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
         prevBuffer.m_Location    = Location::Sram;
         prevBuffer.m_StripeShape = inputShape;
         Plans plans2             = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
-        REQUIRE(plans2.size() == 1);
         CheckPlans(plans2, params);
 
         // No plan is returned since the input tensor and prev buffer's stripe shape does not match
@@ -208,7 +196,6 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
         // A plan is returned since both input and output tensors is fit into SRAM
         prevBuffer.m_StripeShape = inputShape;
         Plans plans4             = part.GetPlans(CascadeType::End, command_stream::BlockConfig{}, &prevBuffer, 1);
-        REQUIRE(plans4.size() == 1);
         CheckPlans(plans4, params);
     }
 
@@ -237,20 +224,16 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
         // Therefore only the "lonely" type is expected to return a plan.
 
         Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
-
         REQUIRE(plans0.size() == 0);
 
         Plans plans1 = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
         REQUIRE(plans1.size() == 1);
 
         CheckPlansParams params;
-        params.m_PartId            = partId;
-        params.m_InputTensorsInfo  = { inputTensorInfo };
-        params.m_OutputTensorInfo  = outputTensorInfo;
-        params.m_DataFormat        = CascadingBufferFormat::NHWCB;
-        params.m_InputStripeShapes = { { 1, 128, 32, 16 } };
-        params.m_OutputStripeShape = { 1, 128, 32, 16 };
-        params.m_NumStripesInTile  = 2;
+        params.m_PartId           = partId;
+        params.m_InputTensorsInfo = { inputTensorInfo };
+        params.m_OutputTensorInfo = outputTensorInfo;
+        params.m_DataFormat       = CascadingBufferFormat::NHWCB;
 
         CheckPlans(plans1, params);
 
@@ -283,13 +266,10 @@ TEST_CASE("StandalonePlePart ADDITION")
                                      QuantizationInfo(0, 1.0f));
 
         CheckPlansParams params;
-        params.m_PartId            = partId;
-        params.m_InputTensorsInfo  = { inputTensorsInfo, inputTensorsInfo };
-        params.m_OutputTensorInfo  = outputTensorsInfo;
-        params.m_DataFormat        = CascadingBufferFormat::NHWCB;
-        params.m_InputStripeShapes = { inputShape, inputShape };
-        params.m_OutputStripeShape = outputShape;
-        params.m_NumStripesInTile  = 1;
+        params.m_PartId           = partId;
+        params.m_InputTensorsInfo = { inputTensorsInfo, inputTensorsInfo };
+        params.m_OutputTensorInfo = outputTensorsInfo;
+        params.m_DataFormat       = CascadingBufferFormat::NHWCB;
 
         EstimationOptions estOpts;
         CompilationOptions compOpts;
@@ -306,7 +286,6 @@ TEST_CASE("StandalonePlePart ADDITION")
         REQUIRE(plans0.size() == 0);
 
         Plans plans1 = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
-        REQUIRE(plans1.size() == 1);
         CheckPlans(plans1, params);
 
         Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
@@ -334,13 +313,10 @@ TEST_CASE("StandalonePlePart ADDITION")
                                      QuantizationInfo(0, 1.0f));
 
         CheckPlansParams params;
-        params.m_PartId            = partId;
-        params.m_InputTensorsInfo  = { inputTensorsInfo, inputTensorsInfo };
-        params.m_OutputTensorInfo  = outputTensorsInfo;
-        params.m_DataFormat        = CascadingBufferFormat::NHWCB;
-        params.m_InputStripeShapes = { { 1, 8, 128, 64 }, { 1, 8, 128, 64 } };
-        params.m_OutputStripeShape = { 1, 8, 128, 64 };
-        params.m_NumStripesInTile  = 2;
+        params.m_PartId           = partId;
+        params.m_InputTensorsInfo = { inputTensorsInfo, inputTensorsInfo };
+        params.m_OutputTensorInfo = outputTensorsInfo;
+        params.m_DataFormat       = CascadingBufferFormat::NHWCB;
 
         EstimationOptions estOpts;
         CompilationOptions compOpts;
@@ -356,7 +332,6 @@ TEST_CASE("StandalonePlePart ADDITION")
         REQUIRE(plans0.size() == 0);
 
         Plans plans1 = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
-        REQUIRE(plans1.size() == 1);
         CheckPlans(plans1, params);
 
         Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
@@ -387,13 +362,10 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
                                      QuantizationInfo(0, 1.0f));
 
         CheckPlansParams params;
-        params.m_PartId            = partId;
-        params.m_InputTensorsInfo  = { inputTensorsInfo, inputTensorsInfo };
-        params.m_OutputTensorInfo  = outputTensorsInfo;
-        params.m_DataFormat        = CascadingBufferFormat::NHWCB;
-        params.m_InputStripeShapes = { { 1, 48, 32, 64 }, { 1, 48, 32, 64 } };
-        params.m_OutputStripeShape = { 1, 48, 32, 64 };
-        params.m_NumStripesInTile  = 2;
+        params.m_PartId           = partId;
+        params.m_InputTensorsInfo = { inputTensorsInfo, inputTensorsInfo };
+        params.m_OutputTensorInfo = outputTensorsInfo;
+        params.m_DataFormat       = CascadingBufferFormat::NHWCB;
 
         EstimationOptions estOpts;
         CompilationOptions compOpts;
@@ -410,7 +382,6 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
         REQUIRE(plans0.size() == 0);
 
         Plans plans1 = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
-        REQUIRE(plans1.size() == 1);
         CheckPlans(plans1, params);
 
         Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
@@ -438,13 +409,10 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
                                      QuantizationInfo(0, 2.0f));
 
         CheckPlansParams params;
-        params.m_PartId            = partId;
-        params.m_InputTensorsInfo  = { inputTensorsInfo, inputTensorsInfo };
-        params.m_OutputTensorInfo  = outputTensorsInfo;
-        params.m_DataFormat        = CascadingBufferFormat::NHWCB;
-        params.m_InputStripeShapes = { { 1, 8, 128, 64 }, { 1, 8, 128, 64 } };
-        params.m_OutputStripeShape = { 1, 8, 128, 64 };
-        params.m_NumStripesInTile  = 2;
+        params.m_PartId           = partId;
+        params.m_InputTensorsInfo = { inputTensorsInfo, inputTensorsInfo };
+        params.m_OutputTensorInfo = outputTensorsInfo;
+        params.m_DataFormat       = CascadingBufferFormat::NHWCB;
 
         EstimationOptions estOpts;
         CompilationOptions compOpts;
@@ -461,7 +429,6 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
         REQUIRE(plans0.size() == 0);
 
         Plans plans1 = part.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 1);
-        REQUIRE(plans1.size() == 1);
         CheckPlans(plans1, params);
 
         Plans plans2 = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);

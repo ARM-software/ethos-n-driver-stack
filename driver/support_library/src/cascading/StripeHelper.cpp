@@ -1265,7 +1265,7 @@ uint32_t GetWeightStripeDepth(const TensorInfo& weightInfo, const TensorShape& w
 }
 
 Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
-                       NumStripesType& numPleInputMemoryStripes,
+                       NumStripesType numPleInputMemoryStripes,
                        const TensorShape& tensorShape,
                        const TensorShape& pleInputMemoryShape,
                        const QuantizationInfo& quantInfo,

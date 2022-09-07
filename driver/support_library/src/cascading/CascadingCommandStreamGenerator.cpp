@@ -443,6 +443,11 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
     }
 
     Op* input0Producer = m_MergedOpGraph.GetProducer(inputBuffers[g_PleInputBuffer0Index]);
+    Op* input1Producer = nullptr;
+    if (inputBuffers.size() == 2)
+    {
+        input1Producer = m_MergedOpGraph.GetProducer(inputBuffers[g_PleInputBuffer1Index]);
+    }
 
     bool loadKernel = static_cast<PleOp*>(ptrPleOp)->m_LoadKernel;
     if (isStandAlonePle)
@@ -459,6 +464,12 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
         // Read After Write Dependency for [PleScheduler][IfmStreamer]
         AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
                                     m_OpToAgentIdMapping[input0Producer]);
+        if (input1Producer != nullptr)
+        {
+            // Read After Write Dependency for [PleScheduler][IfmStreamer]
+            AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
+                                        m_OpToAgentIdMapping[input1Producer]);
+        }
 
         if (loadKernel)
         {
@@ -486,6 +497,17 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
         // Schedule Time Dependency for [IfmStreamer][PleScheduler]
         AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
                                   m_OpToAgentIdMapping[input0Producer]);
+
+        if (input1Producer != nullptr)
+        {
+            // Write After Read Dependency for [IfmStreamer][PleScheduler]
+            AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
+                                        m_OpToAgentIdMapping[input1Producer]);
+
+            // Schedule Time Dependency for [IfmStreamer][PleScheduler]
+            AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
+                                      m_OpToAgentIdMapping[input1Producer]);
+        }
 
         if (loadKernel)
         {

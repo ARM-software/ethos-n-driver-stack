@@ -439,9 +439,9 @@ struct AgentDependencyInfo
     uint16_t numStripesTotal;
     /// Array of schedule dependencies. Size could be increased if we identify a use case for it.
     std::array<Dependency, 1> scheduleDependencies;
-    /// Array of read-after-write dependencies. Size 2 for mce and ple-only with two inputs,
+    /// Array of read-after-write dependencies. Size 3 for ple-only with two inputs (plus PleL),
     /// could change if we identify a use case for it.
-    std::array<Dependency, 2> readDependencies;
+    std::array<Dependency, 3> readDependencies;
     /// Array of write-after-read dependencies related to a tile size. The agent should pause progress before
     /// overwriting a slot in the tile until the existing data is no longer needed by any reader agent.
     /// Size 1 for now, could change if we identify a use case for it.
