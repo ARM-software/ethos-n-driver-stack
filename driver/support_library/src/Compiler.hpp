@@ -158,8 +158,7 @@ public:
         uint32_t m_SourceOperationOutputIndex;    ///< Only relevant for input and output buffer infos.
     };
 
-    CompiledNetworkImpl()
-    {}
+    CompiledNetworkImpl();
 
     CompiledNetworkImpl(const std::vector<uint8_t>& constantDmaData,
                         const std::vector<uint8_t>& constantControlUnitData,

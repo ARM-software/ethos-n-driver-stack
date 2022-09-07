@@ -531,6 +531,10 @@ void Compiler::DumpGraph(const std::string& filename)
                             [&](std::ofstream& s) { m_Graph.DumpToDotFormat(s); });
 }
 
+CompiledNetworkImpl::CompiledNetworkImpl()
+    : m_IntermediateBufferSizePublic(0U)
+{}
+
 CompiledNetworkImpl::CompiledNetworkImpl(const std::vector<uint8_t>& constantDmaData,
                                          const std::vector<uint8_t>& constantControlUnitData,
                                          const std::map<uint32_t, CompilerBufferInfo>& buffers,
