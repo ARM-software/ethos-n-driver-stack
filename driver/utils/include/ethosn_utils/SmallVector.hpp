@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 //
@@ -117,24 +117,24 @@
     ETHOSN_DEF_SV_VECTOR_UNARY_OPERATOR(Typename, -)                                                                   \
     ETHOSN_DEF_SV_VECTOR_UNARY_OPERATOR(Typename, !)                                                                   \
     ETHOSN_DEF_SV_VECTOR_UNARY_OPERATOR(Typename, ~)                                                                   \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, +)                                                               \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, -)                                                               \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, *)                                                               \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, /)                                                               \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, %)                                                               \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, ==)                                                              \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, !=)                                                              \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, >)                                                               \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, <)                                                               \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, >=)                                                              \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, <=)                                                              \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, &&)                                                              \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, ||)                                                              \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, &)                                                               \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, |)                                                               \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, <<)                                                              \
-    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, >>)                                                              \
-    /* clang-format off */ ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, ^) /* clang-format on */
+    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, T, +)                                                            \
+    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, T, -)                                                            \
+    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, T, *)                                                            \
+    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, T, /)                                                            \
+    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, T, %)                                                            \
+    ETHOSN_DEF_SV_VECTOR_BINARY_BOOL_OPERATOR(Typename, N, ==)                                                         \
+    ETHOSN_DEF_SV_VECTOR_BINARY_BOOL_OPERATOR(Typename, N, !=)                                                         \
+    ETHOSN_DEF_SV_VECTOR_BINARY_BOOL_OPERATOR(Typename, N, >)                                                          \
+    ETHOSN_DEF_SV_VECTOR_BINARY_BOOL_OPERATOR(Typename, N, <)                                                          \
+    ETHOSN_DEF_SV_VECTOR_BINARY_BOOL_OPERATOR(Typename, N, >=)                                                         \
+    ETHOSN_DEF_SV_VECTOR_BINARY_BOOL_OPERATOR(Typename, N, <=)                                                         \
+    ETHOSN_DEF_SV_VECTOR_BINARY_BOOL_OPERATOR(Typename, N, &&)                                                         \
+    ETHOSN_DEF_SV_VECTOR_BINARY_BOOL_OPERATOR(Typename, N, ||)                                                         \
+    ETHOSN_DEF_SV_VECTOR_BINARY_BOOL_OPERATOR(Typename, N, &)                                                          \
+    ETHOSN_DEF_SV_VECTOR_BINARY_BOOL_OPERATOR(Typename, N, |)                                                          \
+    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, T, <<)                                                           \
+    ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, T, >>)                                                           \
+    /* clang-format off */ ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, T, ^) /* clang-format on */
 
 #define ETHOSN_DEF_SV_VECTOR_UNARY_OPERATOR(Typename, op)                                                              \
     friend auto operator op(const Typename& t)                                                                         \
@@ -142,11 +142,22 @@
         return op t.AsVector();                                                                                        \
     }
 
-#define ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, op)                                                          \
+#define ETHOSN_DEF_SV_VECTOR_BINARY_OPERATOR(Typename, N, T, op)                                                       \
+    friend Typename operator op(const Typename& lhs, const Typename& rhs)                                              \
+    {                                                                                                                  \
+        ethosn::utils::sv::Vector<T, N> vec(lhs.AsVector() op rhs.AsVector());                                         \
+        return vec.template To<Typename>();                                                                            \
+    }                                                                                                                  \
+    ETHOSN_DEF_SV_VECTOR_COMMON_BINARY_OPERATOR(Typename, N, op)
+
+#define ETHOSN_DEF_SV_VECTOR_BINARY_BOOL_OPERATOR(Typename, N, op)                                                     \
     friend auto operator op(const Typename& lhs, const Typename& rhs)                                                  \
     {                                                                                                                  \
         return lhs.AsVector() op rhs.AsVector();                                                                       \
     }                                                                                                                  \
+    ETHOSN_DEF_SV_VECTOR_COMMON_BINARY_OPERATOR(Typename, N, op)
+
+#define ETHOSN_DEF_SV_VECTOR_COMMON_BINARY_OPERATOR(Typename, N, op)                                                   \
     template <typename U>                                                                                              \
     friend auto operator op(const Typename& lhs, const ethosn::utils::sv::Vector<U, N>& rhs)                           \
     {                                                                                                                  \
@@ -543,6 +554,100 @@ template <size_t N>
 constexpr bool None(const Vector<bool, N>& vec)
 {
     return !Any(vec);
+}
+
+////////////////////////////////////////
+// Other functions on named Structure //
+////////////////////////////////////////
+
+template <typename G, typename T, typename U, size_t N>
+constexpr auto CSel(const G& cond, const Vector<T, N>& vec1, const Vector<U, N>& vec2)
+    -> Vector<std::decay_t<decltype(cond.AsVector()[0] ? vec1[0] : vec2[0])>, N>
+{
+    Vector<std::decay_t<decltype(cond.AsVector()[0] ? vec1[0] : vec2[0])>, N> result;
+    for (size_t i = 0; i < N; ++i)
+    {
+        result[i] = cond.AsVector()[i] ? vec1[i] : vec2[i];
+    }
+    return result;
+}
+
+template <typename G, typename T, typename U, size_t N>
+constexpr auto CSel(const G& cond, const Vector<T, N>& vec, const U& scalar)
+    -> Vector<std::decay_t<decltype(cond.AsVector()[0] ? vec[0] : scalar)>, N>
+{
+    Vector<std::decay_t<decltype(cond.AsVector()[0] ? vec[0] : scalar)>, N> result;
+    for (size_t i = 0; i < N; ++i)
+    {
+        result[i] = cond.AsVector()[i] ? vec[i] : scalar;
+    }
+    return result;
+}
+
+template <typename G, typename T, typename U, size_t N>
+constexpr auto CSel(const G& cond, const T& scalar, const Vector<U, N>& vec)
+    -> Vector<std::decay_t<decltype(cond.AsVector()[0] ? scalar : vec[0])>, N>
+{
+    Vector<std::decay_t<decltype(cond.AsVector()[0] ? scalar : vec[0])>, N> result;
+    for (size_t i = 0; i < N; ++i)
+    {
+        result[i] = cond.AsVector()[i] ? scalar : vec[i];
+    }
+    return result;
+}
+
+template <typename T, typename Fn = std::plus<>, typename U = decltype(Fn{}(T{}.AsVector()[0], T{}.AsVector()[0]))>
+constexpr U Reduce(const T& name, Fn&& fn = Fn{}, U init = U{})
+{
+    return Reduce(name.AsVector(), fn, init);
+}
+
+template <typename T, typename U = decltype(T{}.AsVector()[0] + T{}.AsVector()[0])>
+constexpr auto Sum(const T& name, const U& init = U{})
+{
+    return Sum(name.AsVector(), init);
+}
+
+template <typename T, typename U = decltype(T{}.AsVector()[0] * T{}.AsVector()[0])>
+constexpr auto Prod(const T& name, const U& init)
+{
+    return Prod(name.AsVector(), init);
+}
+
+template <typename T>
+constexpr auto Prod(const T& name)
+{
+    return Prod(name.AsVector());
+}
+
+template <typename T>
+constexpr auto Min(const T& name) -> std::decay_t<decltype(std::min(name.AsVector()[0], name.AsVector()[0]))>
+{
+    return Min(name.AsVector());
+}
+
+template <typename T>
+constexpr auto Max(const T& name) -> std::decay_t<decltype(std::max(name.AsVector()[0], name.AsVector()[0]))>
+{
+    return Max(name.AsVector());
+}
+
+template <typename T>
+constexpr bool All(const T& name)
+{
+    return All(name.AsVector());
+}
+
+template <typename T>
+constexpr bool Any(const T& name)
+{
+    return Any(name.AsVector());
+}
+
+template <typename T>
+constexpr bool None(const T& name)
+{
+    return None(name.AsVector());
 }
 
 }    // namespace ethosn::utils::sv

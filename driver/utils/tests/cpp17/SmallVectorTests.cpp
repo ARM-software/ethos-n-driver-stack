@@ -1,11 +1,23 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #include "../../include/ethosn_utils/SmallVector.hpp"
 
 #include <catch.hpp>
+
+//The following macros are required to test ETHOSN_DECL_SV_VECTOR_STRUCT(...)
+
+#define EXPAND(x) x
+
+// Expands to the number of variadic arguments in the call. Add elements to the descending
+// integer sequence to increase the maximum number of variadic arguments supported
+#define N_ARGS(...) EXPAND(N_ARGS_IMPL(__VA_ARGS__, 4, 3, 2, 1))
+
+// Helper macro for N_ARGS(). Add placeholder arguments to increase the maximum
+// number of variadic arguments supported
+#define N_ARGS_IMPL(_1, _2, _3, _4, n, ...) n
 
 using namespace ethosn::utils;
 
@@ -22,6 +34,52 @@ struct Xyz
 
     ETHOSN_USE_AS_SV_VECTOR(Xyz, unsigned, 3)
 };
+
+ETHOSN_DECL_SV_VECTOR_STRUCT(TypeA, data1, data2, data3)
+ETHOSN_DECL_SV_VECTOR_STRUCT(TypeB, data1, data2, data3, data4)
+
+TEST_CASE("NamedStructureTests")
+{
+    TypeA<uint16_t> var1 = { .data1 = 1U, .data2 = 2U, .data3 = 5U };
+    TypeA<uint16_t> var2 = { .data1 = 2U, .data2 = 5U, .data3 = 6U };
+
+    TypeB<uint32_t> var3 = { .data1 = 1U, .data2 = 5U, .data3 = 2U, .data4 = 19U };
+    TypeB<uint32_t> var4 = { .data1 = 4U, .data2 = 9U, .data3 = 6U, .data4 = 49U };
+
+    SECTION("Operator+-%*/")
+    {
+        TypeA<uint16_t> expectedOutput1 = { .data1 = 3U, .data2 = 7U, .data3 = 11U };
+        TypeA<uint16_t> output1{ var1 + var2 };
+
+        TypeB<uint32_t> expectedOutput2 = { .data1 = 3U, .data2 = 4U, .data3 = 4U, .data4 = 30U };
+        TypeB<uint32_t> output2{ var4 - var3 };
+
+        TypeA<uint16_t> expectedOutput3 = { .data1 = 0U, .data2 = 1U, .data3 = 1U };
+        TypeA<uint16_t> output3{ var2 % var1 };
+
+        TypeB<uint32_t> expectedOutput4 = { .data1 = 3U, .data2 = 4U, .data3 = 4U, .data4 = 30U };
+        TypeB<uint32_t> output4{ var4 - var3 };
+
+        TypeA<uint16_t> expectedOutput5 = { .data1 = 2U, .data2 = 2U, .data3 = 1U };
+        TypeA<uint16_t> output5{ var2 / var1 };
+
+        CHECK(All(expectedOutput1 == output1));
+        CHECK(All(expectedOutput2 == output2));
+        CHECK(All(expectedOutput3 == output3));
+        CHECK(All(expectedOutput4 == output4));
+        CHECK(All(expectedOutput5 == output5));
+    }
+
+    SECTION("BoolOperator")
+    {
+        CHECK(All((var1 == var1) == true));
+        CHECK(All((var1 != var1) == false));
+        CHECK(All((var1 > (var1 + var2)) == false));
+        CHECK(All((var1 < (var1 + var2)) == true));
+        CHECK(All((var1 >= (var1 - TypeA<uint16_t>{ 0U, 0U, 1U })) == true));
+        CHECK(All((var1 <= (var1 + TypeA<uint16_t>{ 0U, 0U, 1U })) == true));
+    }
+}
 
 TEST_CASE("SmallVector")
 {
