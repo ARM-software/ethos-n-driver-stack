@@ -456,10 +456,13 @@ inline void setMcesStridedConvolutionData(MceS& mceSchedulerData, const OpGraph&
     for (uint8_t subMapIndex = 0; subMapIndex < 4; subMapIndex++)
     {
         // Set the filter shapes
+
+        // If stride is greater than filterSize in any dimension, some submaps don't participate in the computation.
+        // For those cases a kernel 1x1 with weights equal to zero is created in the support library.
         mceSchedulerData.filterShape[subMapIndex].height =
-            ethosn::utils::NumericCast<uint8_t>(filters[subMapIndex].GetFilterY());
+            ethosn::utils::NumericCast<uint8_t>(std::max(1u, filters[subMapIndex].GetFilterY()));
         mceSchedulerData.filterShape[subMapIndex].width =
-            ethosn::utils::NumericCast<uint8_t>(filters[subMapIndex].GetFilterX());
+            ethosn::utils::NumericCast<uint8_t>(std::max(1u, filters[subMapIndex].GetFilterX()));
 
         // Set the padding information for each sub map
         const uint32_t x        = subMapIndex % ptrMceOp->m_Stride.m_X;

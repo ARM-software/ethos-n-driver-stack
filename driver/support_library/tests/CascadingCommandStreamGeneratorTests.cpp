@@ -2254,15 +2254,15 @@ TEST_CASE("MceScheduler Agent Data Test - 1x1 Convolution - 2x2 Stride", "[Casca
 
     // Submap 1
     CHECK(mceSData.filterShape[1].height == 1);
-    CHECK(mceSData.filterShape[1].width == 0);
+    CHECK(mceSData.filterShape[1].width == 1);
 
     // Submap 2
-    CHECK(mceSData.filterShape[2].height == 0);
+    CHECK(mceSData.filterShape[2].height == 1);
     CHECK(mceSData.filterShape[2].width == 1);
 
     // Submap 3
-    CHECK(mceSData.filterShape[3].height == 0);
-    CHECK(mceSData.filterShape[3].width == 0);
+    CHECK(mceSData.filterShape[3].height == 1);
+    CHECK(mceSData.filterShape[3].width == 1);
 
     CHECK(mceSData.pleKernelId == PleKernelId::PASSTHROUGH_8X8_1);
 }
