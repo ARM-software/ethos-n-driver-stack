@@ -60,10 +60,6 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
             {
                 ProcessPleOp(currentOp);
             }
-            else if (IsObjectOfType<SplitOp>(currentOp))
-            {
-                ProcessSplitOp(currentOp);
-            }
             else
             {
                 throw NotSupportedException("Op is not currently supported by the Cascading Compiler");
@@ -218,8 +214,11 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
 
             uint16_t inputBufferId = AddDramBufferAndCacheId(inputBuffer, ptrDmaOp);
 
-            AgentIdType ifmStreamerAgentId = AddIfmStreamerToCommandStream(ptrDmaOp, inputBufferId, inputBuffer,
-                                                                           outputBuffer, dmaOp->m_TransferFormat);
+            uint32_t inputDramBufferOffset = CommonUtils::GetDramOffset(
+                inputBuffer->m_Format, inputBuffer->m_TensorShape, ptrDmaOp->m_Offset, m_Capabilities);
+
+            AgentIdType ifmStreamerAgentId = AddIfmStreamerToCommandStream(
+                ptrDmaOp, inputBufferId, inputBuffer, outputBuffer, dmaOp->m_TransferFormat, inputDramBufferOffset);
 
             if (m_FenceOpForIfmS != nullptr)
             {
@@ -540,106 +539,6 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
     ETHOSN_UNUSED(outputBuffer);
 }
 
-void CascadingCommandStreamGenerator::ProcessSplitOp(Op* const ptrSplitOp)
-{
-    // Get the input buffers to the Split Op
-    OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrSplitOp);
-    assert(inputBuffers.size() == 1);
-
-    // Get the output buffer from the Split Op
-    Buffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrSplitOp);
-    assert(outputBuffer != nullptr && outputBuffer->m_Location == Location::Dram &&
-           outputBuffer->m_BufferType.has_value());
-
-    uint16_t outputBufferId =
-        static_cast<uint16_t>(m_BufferManager.AddDram(outputBuffer->m_BufferType.value(), outputBuffer->m_SizeInBytes));
-
-    // If this is an Intermediate Dram Buffer, add it to the IntermdiateDramBufToBufId map with the appropriate Id
-    if (outputBuffer->m_BufferType.value() == BufferType::Intermediate)
-    {
-        assert(m_DramBufToBufIdMapping.find(outputBuffer) == m_DramBufToBufIdMapping.end());
-        m_DramBufToBufIdMapping[outputBuffer] = outputBufferId;
-    }
-    else if (outputBuffer->m_BufferType.value() == BufferType::Output)
-    {
-        assert(outputBuffer->m_OperationId.has_value());
-        assert(outputBuffer->m_ProducerOutputIndx.has_value());
-        m_BufferManager.ChangeToOutput(outputBufferId, outputBuffer->m_OperationId.value(),
-                                       outputBuffer->m_ProducerOutputIndx.value());
-    }
-
-    SplitOp* const splitOp = static_cast<SplitOp*>(ptrSplitOp);
-
-    Buffer* inputBuffer = inputBuffers[0];
-
-    assert(inputBuffer->m_Location == Location::Dram && inputBuffer->m_BufferType.has_value());
-    assert(inputBuffer->m_Format == CascadingBufferFormat::NHWCB ||
-           inputBuffer->m_Format == CascadingBufferFormat::NHWC);
-
-    // Temporary SRAM buffer used between IFMStreamer and OFMStreamer
-    TensorShape sramStripeShape = { 1, 8, 8, utils::GetChannels(outputBuffer->m_TensorShape) };
-
-    Buffer sramBuffer(Location::Sram, CascadingBufferFormat::NHWCB, outputBuffer->m_TensorShape, sramStripeShape,
-                      TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(sramStripeShape),
-                      inputBuffer->m_QuantizationInfo);
-
-    sramBuffer.m_DataType        = inputBuffer->m_DataType;
-    sramBuffer.m_NumStripes      = 1;
-    sramBuffer.m_SlotSizeInBytes = utils::CalculateBufferSize(sramStripeShape, CascadingBufferFormat::NHWCB);
-    sramBuffer.m_SizeInBytes     = sramBuffer.m_NumStripes * sramBuffer.m_SlotSizeInBytes;
-    sramBuffer.m_Offset          = 0;
-
-    assert(utils::DivRoundUp(utils::TotalSizeBytesNHWCB(sramStripeShape), m_Capabilities.GetNumberOfSrams()) <
-           m_Capabilities.GetTotalSramSize());
-
-    inputBuffer->m_Offset = CommonUtils::GetDramOffset(inputBuffer->m_Format, inputBuffer->m_TensorShape,
-                                                       splitOp->m_Offset, m_Capabilities);
-
-    uint16_t inputBufferId;
-    // If this is an Intermediate or Input Dram Buffer, add it to the DramBufToBufId map with the appropriate Id
-    if (inputBuffer->m_BufferType.value() == BufferType::Intermediate ||
-        inputBuffer->m_BufferType.value() == BufferType::Input)
-    {
-        inputBufferId = AddDramBufferAndCacheId(inputBuffer, ptrSplitOp);
-
-        // Ifm Streamer Agent
-        AgentIdType ifmStreamerAgentId = AddIfmStreamerToCommandStream(ptrSplitOp, inputBufferId, inputBuffer,
-                                                                       &sramBuffer, splitOp->m_TransferFormat);
-
-        // Ofm Streamer Agent
-        AgentIdType ofmStreamerAgentId =
-            AddOfmStreamerToCommandStream(ptrSplitOp, &sramBuffer, outputBufferId, outputBuffer, 0);
-
-        // Add a dependency on the previous agent which has to be an OfmStreamer
-        // Add 'Read After Write' dependency to the OfmStreamer agent
-        // Sram Overlap Dependency for [IfmStreamer][OfmStreamer]
-        if (ifmStreamerAgentId > 0)
-        {
-            AddReadAfterWriteDependency(AgentType::IFM_STREAMER, ifmStreamerAgentId, AgentType::OFM_STREAMER,
-                                        ifmStreamerAgentId - 1);
-        }
-
-        // Add 'Read After Write' dependency to the OfmStreamer agent
-        // Read After Write Dependency for [OfmStreamer][IfmStreamer]
-        AddReadAfterWriteDependency(AgentType::OFM_STREAMER, ofmStreamerAgentId, AgentType::IFM_STREAMER,
-                                    ifmStreamerAgentId);
-
-        // Add 'Write After Read' dependency information to the IfmStreamer agent
-        // Write After Read Dependency for [IfmStreamer][OfmStreamer]
-        AddWriteAfterReadDependency(AgentType::OFM_STREAMER, ofmStreamerAgentId, AgentType::IFM_STREAMER,
-                                    ifmStreamerAgentId);
-
-        // Add 'Schedule Time' dependency information to the OfmStreamer agent
-        // Schedule Time Dependency for [IfmStreamer][OfmStreamer]
-        AddScheduleTimeDependency(AgentType::OFM_STREAMER, ofmStreamerAgentId, AgentType::IFM_STREAMER,
-                                  ifmStreamerAgentId);
-    }
-    else
-    {
-        assert(false);
-    }
-}
-
 void CascadingCommandStreamGenerator::ProcessSpaceToDepthOp(Op* const ptrSpaceToDepthOp)
 {
     ETHOSN_UNUSED(ptrSpaceToDepthOp);
@@ -655,17 +554,15 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(Op* c
                                                                            const uint16_t inputDramBufferId,
                                                                            const Buffer* const inputDramBuffer,
                                                                            const Buffer* const inputSramBuffer,
-                                                                           const CascadingBufferFormat transferFormat)
+                                                                           const CascadingBufferFormat transferFormat,
+                                                                           const uint32_t inputDramBufferOffset)
 {
-    assert(IsObjectOfType<DmaOp>(ptrOp) || IsObjectOfType<SplitOp>(ptrOp));
+    assert(IsObjectOfType<DmaOp>(ptrOp));
     assert(inputSramBuffer->m_Format == CascadingBufferFormat::NHWCB);
 
     IfmS ifmStreamerData = {};
 
-    if (inputDramBuffer->m_Offset.has_value())
-    {
-        ifmStreamerData.fmData.dramOffset = inputDramBuffer->m_Offset.value();
-    }
+    ifmStreamerData.fmData.dramOffset = inputDramBufferOffset;
 
     ifmStreamerData.fmData.bufferId = inputDramBufferId;
 
@@ -1033,7 +930,7 @@ AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(Op* c
                                                                            const Buffer* const outputDramBuffer,
                                                                            const uint32_t outputDramBufferOffset)
 {
-    assert(IsObjectOfType<DmaOp>(ptrOp) || IsObjectOfType<SplitOp>(ptrOp));
+    assert(IsObjectOfType<DmaOp>(ptrOp));
     assert(outputSramBuffer->m_Format == CascadingBufferFormat::NHWCB);
 
     OfmS ofmStreamerData = {};

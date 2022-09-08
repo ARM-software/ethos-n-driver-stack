@@ -1198,8 +1198,7 @@ bool Combiner::IsSectionSizeSupported(const StatsType sectionInfo, const Plan& p
     // Count Agents for each Op in the graph. The Ops should be in execution order.
     for (Op* op : plan.m_OpGraph.GetOps())
     {
-        uint32_t numberOfInputs = static_cast<uint32_t>(plan.m_OpGraph.GetInputs(op).size());
-        totalAgents += op->GetNumberOfAgents(numberOfInputs);
+        totalAgents += op->GetNumberOfAgents();
         result &= totalAgents <= m_Caps.GetAgentWindowSize();
 
         // The total is to be reset when all preceding Agents have finished execution.

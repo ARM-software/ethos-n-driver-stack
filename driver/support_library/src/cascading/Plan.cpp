@@ -481,7 +481,7 @@ PleOp::PleOp(PleOperation op,
                                                         utils::GetCommandDataType(dataType), op);
 }
 
-uint32_t PleOp::GetNumberOfAgents(uint32_t) const
+uint32_t PleOp::GetNumberOfAgents() const
 {
     return m_LoadKernel ? 2 : 1;
 }
@@ -512,11 +512,6 @@ DotAttributes PleOp::GetDotAttributes(DetailLevel detail) const
     }
     return result;
 }
-
-SplitOp::SplitOp(CascadingBufferFormat transferFormat, TensorShape offset)
-    : DmaOp("SplitOp", transferFormat)
-    , m_Offset(offset)
-{}
 
 EstimateOnlyOp::EstimateOnlyOp(const std::string& reasonForEstimateOnly)
     : Op("EstimateOnlyOp")

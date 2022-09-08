@@ -341,70 +341,6 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
     return result;
 }
 
-// Estimates a pass that contains the given SplitOp.
-/// Removes Ops from the given unprocessed set that it has included in its estimation.
-EstimatedPass EstimateSplitOp(const OpGraph& opGraph,
-                              Op* op,
-                              const EstimationOptions& estimationOpts,
-                              std::unordered_set<Op*>& unprocessed)
-{
-    EstimatedPass result;
-    auto includeOp = [&](Op* op) {
-        unprocessed.erase(op);
-        result.m_Ops.push_back(op);
-    };
-    assert(unprocessed.count(op) > 0);
-    SplitOp* splitOp = GetObjectAs<SplitOp>(op);
-    assert(splitOp != nullptr);
-    Buffer* splitOutput = opGraph.GetOutput(splitOp);
-    // check SplitOp has at least one input
-    OpGraph::BufferList splitInputs = opGraph.GetInputs(splitOp);
-    if (splitInputs.size() < 1)
-    {
-        throw NotSupportedException("SplitOp must have at least one input");
-    }
-    // check SplitOp input is located in Dram
-    if (splitInputs[0] == nullptr || splitInputs[0]->m_Location != Location::Dram)
-    {
-        throw NotSupportedException("SplitOp input buffers must be in Dram");
-    }
-    // check SplitOp output is located in Dram
-    if (splitOutput == nullptr || splitOutput->m_Location != Location::Dram)
-    {
-        throw NotSupportedException("SplitOp must have an output buffer in Dram");
-    }
-    includeOp(splitOp);
-    // Calculate Input Statistics of the SplitOp
-    Buffer* dramInputBuffer      = opGraph.GetInputs(splitOp)[0];
-    Location inputLocation       = Location::Dram;
-    bool isInputBufferCompressed = IsCompressed(dramInputBuffer->m_Format);
-    // Round-up tensor Height and Width to Brick size, before calling GetInputStats() in order to properly estimate DramNonParallelBytes.
-    const TensorShape& roundedUpInputShape = utils::RoundUpHeightAndWidthToBrickGroup(dramInputBuffer->m_TensorShape);
-    // We assume that the full tensor is copied into multiple stripes when it doesn't fit in Sram and that
-    // overhead is not considered. i.e Program stripe --> DMA stripe --> Program stripe --> DMA stripe --> etc
-    InputStats inputStats = GetInputStats(roundedUpInputShape, dramInputBuffer->m_TensorShape, inputLocation);
-    if (isInputBufferCompressed)
-    {
-        inputStats = AccountForActivationCompression(inputStats, estimationOpts.m_ActivationCompressionSaving);
-    }
-    result.m_Stats.m_Input = inputStats;
-    // Calculate Output Statistics for SplitOp
-    Buffer* dramOutputBuffer                = opGraph.GetOutput(splitOp);
-    Location outputLocation                 = Location::Dram;
-    CascadingBufferFormat format            = dramOutputBuffer->m_Format;
-    const TensorShape& roundedUpOutputShape = format != CascadingBufferFormat::NHWC
-                                                  ? RoundUpHeightAndWidthToBrickGroup(dramOutputBuffer->m_TensorShape)
-                                                  : dramOutputBuffer->m_TensorShape;
-    bool isOutputBufferCompressed = IsCompressed(dramOutputBuffer->m_Format);
-    OutputStats outputStats       = GetOutputStats(roundedUpOutputShape, roundedUpOutputShape, outputLocation);
-    if (isOutputBufferCompressed)
-    {
-        outputStats = AccountForActivationCompression(outputStats, estimationOpts.m_ActivationCompressionSaving);
-    }
-    result.m_Stats.m_Output = outputStats;
-    return result;
-}
-
 namespace
 {
 
@@ -521,19 +457,6 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
                     continue;
                 }
 
-                unsortedPasses.push_back(estimatedPass);
-            }
-            else if (IsObjectOfType<SplitOp>(op))
-            {
-                try
-                {
-                    estimatedPass = EstimateSplitOp(opGraph, op, estimationOpts, unprocessedOps);
-                }
-                catch (const NotSupportedException&)
-                {
-                    // Some Ops will go unestimated, but this is fine. They will be reported in the result from this function
-                    continue;
-                }
                 unsortedPasses.push_back(estimatedPass);
             }
             else if (IsObjectOfType<EstimateOnlyOp>(op))

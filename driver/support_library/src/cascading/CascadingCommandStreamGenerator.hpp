@@ -69,7 +69,6 @@ private:
     void ProcessDmaOp(DmaOp* const ptrDmaOp);
     void ProcessMceOp(Op* const ptrMceOp);
     void ProcessPleOp(Op* const ptrPleOp);
-    void ProcessSplitOp(Op* const ptrSplitOp);
     void ProcessSpaceToDepthOp(Op* const ptrSpaceToDepthOp);
     void ProcessTransposeOp(Op* const ptrTransposeOp);
 
@@ -78,7 +77,8 @@ private:
                                               const uint16_t inputDramBufferId,
                                               const Buffer* const inputDramBuffer,
                                               const Buffer* const inputSramBuffer,
-                                              const CascadingBufferFormat transferFormat);
+                                              const CascadingBufferFormat transferFormat,
+                                              const uint32_t inputDramBufferOffset);
     // Private function to add WGT_STREAMER to the command stream
     AgentIdType AddWeightStreamerToCommandStream(DmaOp* const ptrDmaOp);
     // Private function to add MCE_SCHEDULER to the command stream

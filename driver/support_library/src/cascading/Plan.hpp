@@ -203,9 +203,8 @@ public:
     {
         return utils::Optional<command_stream::BlockConfig>{};
     }
-    virtual uint32_t GetNumberOfAgents(uint32_t numberOfInputs = 1) const
+    virtual uint32_t GetNumberOfAgents() const
     {
-        ETHOSN_UNUSED(numberOfInputs);
         return 1;
     }
 
@@ -283,7 +282,7 @@ public:
         return m_BlockConfig;
     }
 
-    virtual uint32_t GetNumberOfAgents(uint32_t) const override final;
+    virtual uint32_t GetNumberOfAgents() const override final;
     virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 
     command_stream::PleOperation m_Op;
@@ -298,21 +297,6 @@ public:
     uint16_t m_Input0Shift;
     uint16_t m_Input1Multiplier;
     uint16_t m_Input1Shift;
-};
-
-class SplitOp : public DmaOp
-{
-public:
-    SplitOp(CascadingBufferFormat transferFormat, TensorShape offset);
-    virtual uint32_t GetNumberOfAgents(uint32_t numberOfOutputs) const override final
-    {
-        // Instead of one split op producing x outputs, instead we create x split ops, each with one output
-        return 2;
-        ETHOSN_UNUSED(numberOfOutputs);
-    }
-
-    // The offset within the source buffer which this split op starts at
-    TensorShape m_Offset;
 };
 
 class EstimateOnlyOp : public Op

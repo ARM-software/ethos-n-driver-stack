@@ -34,24 +34,6 @@ struct CheckPlansParams
     CascadingBufferFormat m_DataFormat;
 };
 
-void CheckSplitOperation(const Plan& plan)
-{
-    // Check operation, consumers, and producers
-    CHECK(plan.m_OpGraph.GetOps().size() == 2);
-    Op* op = plan.m_OpGraph.GetOp(0);
-
-    const OpGraph::BufferList& buffers = plan.m_OpGraph.GetBuffers();
-
-    CHECK(plan.m_OpGraph.GetConsumers(buffers.front()).front().first != nullptr);
-    CHECK(plan.m_OpGraph.GetConsumers(buffers.front()).front().first == op);
-
-    for (uint32_t outputIndex = 1; outputIndex < buffers.size() - 1; outputIndex++)
-    {
-        CHECK(plan.m_OpGraph.GetSingleProducer(buffers[outputIndex]) != nullptr);
-        CHECK(plan.m_OpGraph.GetSingleProducer(buffers[outputIndex]) == op);
-    }
-}
-
 void CheckSplitDram(std::vector<Buffer*> splitBuffers, const CheckPlansParams& params)
 {
     // Check properties of split DRAM buffers
@@ -75,15 +57,15 @@ void CheckMappings(const CheckPlansParams& params, const Plan& plan, std::vector
     const OpGraph::BufferList& buffers = plan.m_OpGraph.GetBuffers();
 
     CHECK(plan.m_InputMappings.size() == 1);
-    CHECK(plan.m_OutputMappings.size() == buffers.size() - 1);
+    CHECK(plan.m_OutputMappings.size() == (buffers.size() - 1) / 2);
 
     CHECK(plan.m_InputMappings.begin()->second.m_PartId == params.m_PartId);
     CHECK(plan.m_InputMappings.begin()->second.m_InputIndex == 0);
 
-    for (uint32_t outputIndex = 1; outputIndex < buffers.size(); outputIndex++)
+    for (uint32_t outputIndex = 0; outputIndex < plan.m_OutputMappings.size(); outputIndex++)
     {
-        CHECK(plan.m_OutputMappings.at(buffers[outputIndex]).m_PartId == params.m_PartId);
-        CHECK(plan.m_OutputMappings.at(buffers[outputIndex]).m_OutputIndex == outputIndex - 1);
+        CHECK(plan.m_OutputMappings.at(buffers[outputIndex * 2 + 2]).m_PartId == params.m_PartId);
+        CHECK(plan.m_OutputMappings.at(buffers[outputIndex * 2 + 2]).m_OutputIndex == outputIndex);
     }
 
     ETHOSN_UNUSED(splitBuffers);
@@ -103,12 +85,12 @@ void CheckPlans(const Plans& plans, const CheckPlansParams& params, const SplitI
         const OpGraph::BufferList& buffers = plan.m_OpGraph.GetBuffers();
 
         std::vector<Buffer*> splitBuffers;
-        for (uint32_t bufferIndex = 1; bufferIndex < splitInfo.m_Sizes.size() + 1; ++bufferIndex)
+        for (uint32_t bufferIndex = 2; bufferIndex < buffers.size(); bufferIndex += 2)
         {
             splitBuffers.push_back(buffers[bufferIndex]);
         }
+        CHECK(splitBuffers.size() == splitInfo.m_Sizes.size());
 
-        CheckSplitOperation(plan);
         CheckSplitDram(splitBuffers, params);
         CheckMappings(params, plan, splitBuffers);
     }
@@ -199,9 +181,9 @@ TEST_CASE("SplitPart Plan Generation", "[SplitPartTests]")
             Plans plans = splitPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
             SavePlansToDot(plans, "SplitPart GetPlans structure Lonely");
 
-            THEN("The number of generated plans = 1")
+            THEN("The number of generated plans > 1")
             {
-                CHECK(plans.size() == 1);
+                CHECK(plans.size() > 1);
             }
 
             AND_THEN("The plan is valid and end in Dram")

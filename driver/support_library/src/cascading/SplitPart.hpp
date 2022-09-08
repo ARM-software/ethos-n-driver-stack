@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Part.hpp"
+#include "StripeHelper.hpp"
 
 namespace ethosn
 {
@@ -34,7 +35,9 @@ private:
     const TensorInfo& m_InputTensorInfo;
     const SplitInfo m_SplitInfo;
 
-    void CreateSplitDramPlan(Plans& plans) const;
+    void CreateSplitDramPlans(Plans& plans) const;
+
+    impl::StripeConfig m_StripeConfig;
 };
 
 }    // namespace support_library
