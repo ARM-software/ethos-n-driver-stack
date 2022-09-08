@@ -123,7 +123,7 @@ static int ethosn_nr_sg_objects(struct ethosn_dma_info_internal *dma_info)
 	int nr_pages = 0;
 
 	if (dma_info->dma_buf_internal)
-		nr_pages = sg_nents(dma_info->dma_buf_internal->sgt->sgl);
+		nr_pages = dma_info->dma_buf_internal->sgt->nents;
 	else
 		nr_pages = DIV_ROUND_UP(dma_info->info.size, PAGE_SIZE);
 
