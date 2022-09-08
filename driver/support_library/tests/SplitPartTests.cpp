@@ -47,8 +47,8 @@ void CheckSplitOperation(const Plan& plan)
 
     for (uint32_t outputIndex = 1; outputIndex < buffers.size() - 1; outputIndex++)
     {
-        CHECK(plan.m_OpGraph.GetProducer(buffers[outputIndex]) != nullptr);
-        CHECK(plan.m_OpGraph.GetProducer(buffers[outputIndex]) == op);
+        CHECK(plan.m_OpGraph.GetSingleProducer(buffers[outputIndex]) != nullptr);
+        CHECK(plan.m_OpGraph.GetSingleProducer(buffers[outputIndex]) == op);
     }
 }
 

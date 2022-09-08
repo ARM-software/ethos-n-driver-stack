@@ -96,7 +96,12 @@ public:
     bool Contains(Op* op) const;
     bool Contains(Buffer* buffer) const;
 
-    Op* GetProducer(Buffer* buffer) const;
+    /// If the buffer has a single producer, returns it.
+    /// If the buffer has no producer, returns nullptr.
+    /// Otherwise (multiple producers), throws an exception. If the buffer might have
+    /// multiple producers, use GetProducers instead.
+    Op* GetSingleProducer(Buffer* buffer) const;
+    OpList GetProducers(Buffer* buffer) const;
     ConsumersList GetConsumers(Buffer* buffer) const;
     std::pair<Op*, uint32_t> GetConsumer(Buffer* buffer, uint32_t index) const;
     BufferList GetInputs(Op* op) const;
@@ -109,7 +114,8 @@ public:
     void AddBuffer(Buffer* buffer);
 
     void SetProducer(Buffer* buffer, Op* producerOp);
-    void ClearProducer(Buffer* buffer);
+    void AddProducer(Buffer* buffer, Op* producerOp);
+    void ClearProducers(Buffer* buffer);
 
     void AddConsumer(Buffer* buffer, Op* consumerOp, uint32_t opInputIdx);
     /// @}
@@ -120,8 +126,8 @@ protected:
     /// All of the Buffers in the graph, in no particular order.
     BufferList m_Buffers;
 
-    /// For each Buffer in the graph, which Op produces it (if any).
-    std::unordered_map<Buffer*, Op*> m_BufferProducers;
+    /// For each Buffer in the graph, which Ops produce it (if any).
+    std::unordered_map<Buffer*, OpList> m_BufferProducers;
     /// For each Buffer in the graph, which Ops (and which input index of those Ops) consume it (if any).
     std::unordered_map<Buffer*, ConsumersList> m_BufferConsumers;
     /// For each Op in the graph, which Buffer does it produce (if any).
@@ -216,6 +222,7 @@ public:
     virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 
     CascadingBufferFormat m_TransferFormat;
+    TensorShape m_Offset;
 };
 
 class MceOp : public Op
@@ -291,16 +298,6 @@ public:
     uint16_t m_Input0Shift;
     uint16_t m_Input1Multiplier;
     uint16_t m_Input1Shift;
-};
-
-class ConcatOp : public DmaOp
-{
-public:
-    ConcatOp(CascadingBufferFormat transferFormat);
-    virtual uint32_t GetNumberOfAgents(uint32_t numberOfInputs) const override final
-    {
-        return numberOfInputs * 2;
-    }
 };
 
 class SplitOp : public DmaOp

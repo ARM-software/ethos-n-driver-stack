@@ -1939,10 +1939,9 @@ OpGraph GetOpGraphForCombination(const Combination& combination, const GraphOfPa
         // that we need to make the connection to the correct one.
         for (Buffer* b : plan.m_OpGraph.GetBuffers())
         {
-            Op* producer = plan.m_OpGraph.GetProducer(b);
-            if (producer)
+            for (auto producer : plan.m_OpGraph.GetProducers(b))
             {
-                result.SetProducer(getEffectiveBuffer(b), producer);
+                result.AddProducer(getEffectiveBuffer(b), producer);
             }
 
             for (auto consumer : plan.m_OpGraph.GetConsumers(b))

@@ -927,8 +927,7 @@ void SaveOpGraphEdges(const OpGraph& graph, const NodeIds& nodeIds, std::ostream
     // Define all the edges
     for (auto&& b : graph.GetBuffers())
     {
-        Op* producer = graph.GetProducer(b);
-        if (producer != nullptr)
+        for (Op* producer : graph.GetProducers(b))
         {
             stream << nodeIds.at(producer) << " -> " << nodeIds.at(b) << "\n";
         }
@@ -980,7 +979,7 @@ void ApplyOpGraphRankHeuristic(const OpGraph& graph,
             while (buf != nullptr)
             {
                 stream << nodeIds.at(buf) << "; ";
-                Op* op = graph.GetProducer(buf);
+                Op* op = graph.GetSingleProducer(buf);
                 if (op != nullptr)
                 {
                     stream << nodeIds.at(op) << "; ";
@@ -1149,9 +1148,9 @@ void SaveEstimatedOpGraphToDot(const OpGraph& graph,
         // If all the buffer's inputs and outputs are in the same Pass, then we assign the buffer to that pass too.
         // Otherwise leave it unassigned
         std::vector<Op*> neighbourOps;
-        if (graph.GetProducer(b) != nullptr)
+        for (auto producer : graph.GetProducers(b))
         {
-            neighbourOps.push_back(graph.GetProducer(b));
+            neighbourOps.push_back(producer);
         }
         for (auto consumer : graph.GetConsumers(b))
         {

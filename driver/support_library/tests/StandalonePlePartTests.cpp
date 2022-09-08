@@ -66,8 +66,8 @@ void CheckPleOperation(const Plan& plan)
         CHECK(plan.m_OpGraph.GetConsumers(buffers[inputIndex])[0].first == op);
     }
 
-    CHECK(plan.m_OpGraph.GetProducer(buffers.back()) != nullptr);
-    CHECK(plan.m_OpGraph.GetProducer(buffers.back()) == op);
+    CHECK(plan.m_OpGraph.GetSingleProducer(buffers.back()) != nullptr);
+    CHECK(plan.m_OpGraph.GetSingleProducer(buffers.back()) == op);
 }
 
 void CheckMappings(const CheckPlansParams& params, const Plan& plan)

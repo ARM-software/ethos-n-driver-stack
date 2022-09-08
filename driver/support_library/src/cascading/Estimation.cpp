@@ -171,7 +171,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         if (opGraph.GetInputs(pleOp).size() == 1)
         {
             Buffer* pleInput = opGraph.GetInputs(pleOp)[0];
-            mceOp            = GetObjectAs<MceOp>(opGraph.GetProducer(pleInput));
+            mceOp            = GetObjectAs<MceOp>(opGraph.GetSingleProducer(pleInput));
             if (mceOp != nullptr && unprocessed.count(mceOp) == 0)
             {
                 throw NotSupportedException(
@@ -207,7 +207,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         {
             throw NotSupportedException("Weights buffer must be in Sram");
         }
-        DmaOp* dmaOp = GetObjectAs<DmaOp>(opGraph.GetProducer(weightsSram));
+        DmaOp* dmaOp = GetObjectAs<DmaOp>(opGraph.GetSingleProducer(weightsSram));
         if (dmaOp == nullptr || unprocessed.count(dmaOp) == 0)
         {
             throw NotSupportedException("Weights buffer must be Dma'd");
@@ -221,7 +221,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         {
             throw NotSupportedException("Weights buffer must be Dma'd from Dram");
         }
-        if (opGraph.GetProducer(weightsDram) != nullptr)
+        if (opGraph.GetSingleProducer(weightsDram) != nullptr)
         {
             throw NotSupportedException("Weights Dram buffer must not have a producer");
         }
@@ -277,7 +277,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         }
         utils::Optional<CascadingBufferFormat> inputDramFormat;
         bool isCompressed = false;
-        DmaOp* dmaOp      = GetObjectAs<DmaOp>(opGraph.GetProducer(sramInputBuffer));
+        DmaOp* dmaOp      = GetObjectAs<DmaOp>(opGraph.GetSingleProducer(sramInputBuffer));
         if (dmaOp != nullptr && unprocessed.count(dmaOp) > 0)
         {
             if (opGraph.GetInputs(dmaOp).size() != 1)
@@ -337,97 +337,6 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
                 ? AccountForActivationCompression(uncompressedStats, estimationOpts.m_ActivationCompressionSaving)
                 : uncompressedStats;
     }
-
-    return result;
-}
-
-// Estimates a pass that contains the given ConcatOp.
-/// Removes Ops from the given unprocessed set that it has included in its estimation.
-EstimatedPass EstimateConcatOp(const OpGraph& opGraph,
-                               Op* op,
-                               const EstimationOptions& estimationOpts,
-                               std::unordered_set<Op*>& unprocessed)
-{
-    EstimatedPass result;
-
-    auto includeOp = [&](Op* op) {
-        unprocessed.erase(op);
-        result.m_Ops.push_back(op);
-    };
-
-    assert(unprocessed.count(op) > 0);
-
-    ConcatOp* concatOp = GetObjectAs<ConcatOp>(op);
-    assert(concatOp != nullptr);
-
-    Buffer* dramOutputBuffer = opGraph.GetOutput(concatOp);
-
-    // check ConcatOp has at least one input
-    OpGraph::BufferList concatInputs = opGraph.GetInputs(concatOp);
-
-    if (concatInputs.size() < 1)
-    {
-        throw NotSupportedException("ConcatOp must have at least one input");
-    }
-    // check ConcatOp inputs are located in Dram
-    for (uint32_t inputIndex = 0; inputIndex < concatInputs.size(); inputIndex++)
-    {
-        if (concatInputs[inputIndex] == nullptr || concatInputs[inputIndex]->m_Location != Location::Dram)
-        {
-            throw NotSupportedException("ConcatOp input buffers must be in Dram");
-        }
-    }
-    // check ConcatOp output is located in Dram
-    if (dramOutputBuffer == nullptr || dramOutputBuffer->m_Location != Location::Dram)
-    {
-        throw NotSupportedException("ConcatOp must have an output buffer in Dram");
-    }
-
-    includeOp(concatOp);
-
-    // Calculate Inputs Statistics of the ConcatOp
-    for (uint32_t inputIdx = 0; inputIdx < opGraph.GetInputs(concatOp).size(); ++inputIdx)
-    {
-        Buffer* dramInputBuffer = opGraph.GetInputs(concatOp)[inputIdx];
-
-        Location inputLocation = Location::Dram;
-
-        bool isInputBufferCompressed = IsCompressed(dramInputBuffer->m_Format);
-
-        // Round-up tensor Height and Width to Brick size, before calling GetInputStats() in order to properly estimate DramNonParallelBytes.
-        const TensorShape& roundedUpInputShape =
-            utils::RoundUpHeightAndWidthToBrickGroup(dramInputBuffer->m_TensorShape);
-
-        // We assume that the full tensor is copied into multiple stripes when it doesn't fit in Sram and that
-        // overhead is not considered. i.e Program stripe --> DMA stripe --> Program stripe --> DMA stripe --> etc
-        InputStats inputStats = GetInputStats(roundedUpInputShape, dramInputBuffer->m_TensorShape, inputLocation);
-
-        if (isInputBufferCompressed)
-        {
-            inputStats = AccountForActivationCompression(inputStats, estimationOpts.m_ActivationCompressionSaving);
-        }
-
-        result.m_Stats.m_Input += inputStats;
-    }
-
-    // Calculate Outputs Statistics
-    Location outputLocation      = Location::Dram;
-    CascadingBufferFormat format = dramOutputBuffer->m_Format;
-
-    const TensorShape& roundedUpOutputShape = format != CascadingBufferFormat::NHWC
-                                                  ? RoundUpHeightAndWidthToBrickGroup(dramOutputBuffer->m_TensorShape)
-                                                  : dramOutputBuffer->m_TensorShape;
-
-    bool isOutputBufferCompressed = IsCompressed(dramOutputBuffer->m_Format);
-
-    OutputStats outputStats = GetOutputStats(roundedUpOutputShape, roundedUpOutputShape, outputLocation);
-
-    if (isOutputBufferCompressed)
-    {
-        outputStats = AccountForActivationCompression(outputStats, estimationOpts.m_ActivationCompressionSaving);
-    }
-
-    result.m_Stats.m_Output = outputStats;
 
     return result;
 }
@@ -523,15 +432,17 @@ std::string GetParentIds(const std::vector<Op*>& ops, const EstimatedOpGraph& es
 
         for (auto&& input : inputs)
         {
-            Op* producer = opGraph.GetProducer(input);
-            // Don't traverse any further if the Buffer is not connected (e.g. network input) or
-            // it's connected to something else in the same Part.
-            if (producer == nullptr || opsSet.count(producer) > 0)
+            for (Op* producer : opGraph.GetProducers(input))
             {
-                continue;
-            }
+                // Don't traverse any further if the Buffer is not connected (e.g. network input) or
+                // it's connected to something else in the same Part.
+                if (opsSet.count(producer) > 0)
+                {
+                    continue;
+                }
 
-            parts.push_back(GetIdOfPass(producer, estimatedOpGraph, opGraph));
+                parts.push_back(GetIdOfPass(producer, estimatedOpGraph, opGraph));
+            }
         }
     }
 
@@ -610,19 +521,6 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
                     continue;
                 }
 
-                unsortedPasses.push_back(estimatedPass);
-            }
-            else if (IsObjectOfType<ConcatOp>(op))
-            {
-                try
-                {
-                    estimatedPass = EstimateConcatOp(opGraph, op, estimationOpts, unprocessedOps);
-                }
-                catch (const NotSupportedException&)
-                {
-                    // Some Ops will go unestimated, but this is fine. They will be reported in the result from this function
-                    continue;
-                }
                 unsortedPasses.push_back(estimatedPass);
             }
             else if (IsObjectOfType<SplitOp>(op))

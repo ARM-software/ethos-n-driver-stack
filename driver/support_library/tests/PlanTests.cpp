@@ -31,21 +31,31 @@ TEST_CASE("OpGraph Contains")
     REQUIRE(graph.Contains(&op));
 }
 
-/// Checks GetProducer correctly returns zero/one producers.
-TEST_CASE("OpGraph GetProducer")
+/// Checks GetSingleProducer correctly returns zero/one producers and
+/// GetProducers correctly returns zero/one/many producers.
+TEST_CASE("OpGraph GetSingleProducer and GetProducers")
 {
     OpGraph graph;
 
     // Start with just a single buffer and nothing that produces it
     Buffer buffer;
     graph.AddBuffer(&buffer);
-    REQUIRE(graph.GetProducer(&buffer) == nullptr);
+    REQUIRE(graph.GetSingleProducer(&buffer) == nullptr);
+    REQUIRE(graph.GetProducers(&buffer) == std::vector<Op*>{});
 
     // Add an Op as a producer
     MceOp op;
     graph.AddOp(&op);
     graph.SetProducer(&buffer, &op);
-    REQUIRE(graph.GetProducer(&buffer) == &op);
+    REQUIRE(graph.GetSingleProducer(&buffer) == &op);
+    REQUIRE(graph.GetProducers(&buffer) == std::vector<Op*>{ &op });
+
+    // Add a second Op as a producer
+    MceOp op2;
+    graph.AddOp(&op2);
+    graph.AddProducer(&buffer, &op2);
+    REQUIRE_THROWS(graph.GetSingleProducer(&buffer));
+    REQUIRE(graph.GetProducers(&buffer) == std::vector<Op*>{ &op, &op2 });
 }
 
 /// Checks GetConsumers correctly returns zero or many consumers, along with their input indices
@@ -177,6 +187,18 @@ TEST_CASE("OpGraph SetProducer")
         REQUIRE_THROWS(graph.SetProducer(&buffer, &op2));
     }
 
+    // Try adding a producer that is already a producer
+    {
+        OpGraph graph;
+        MceOp op1;
+        graph.AddOp(&op1);
+        Buffer buffer;
+        graph.AddBuffer(&buffer);
+        graph.SetProducer(&buffer, &op1);
+
+        REQUIRE_THROWS(graph.SetProducer(&buffer, &op1));
+    }
+
     // Successful case
     {
         OpGraph graph;
@@ -186,24 +208,85 @@ TEST_CASE("OpGraph SetProducer")
         graph.AddBuffer(&buffer);
         graph.SetProducer(&buffer, &op1);
 
-        REQUIRE(graph.GetProducer(&buffer) == &op1);
+        REQUIRE(graph.GetSingleProducer(&buffer) == &op1);
     }
 }
 
-/// Checks ClearProducer correctly validates and does the right thing
-TEST_CASE("OpGraph ClearProducer")
+/// Checks  AddProducer correctly validates
+TEST_CASE("OpGraph AddProducer")
+{
+    // Try calling with an Op that isn't part of the graph
+    {
+        OpGraph graph;
+        MceOp op;
+        Buffer buffer;
+        graph.AddBuffer(&buffer);
+        REQUIRE_THROWS(graph.AddProducer(&buffer, &op));
+    }
+
+    // Try calling with a Buffer that isn't part of the graph
+    {
+        OpGraph graph;
+        MceOp op;
+        graph.AddOp(&op);
+        Buffer buffer;
+        REQUIRE_THROWS(graph.AddProducer(&buffer, &op));
+    }
+
+    // Try adding a producer for a buffer that already has a producer
+    {
+        OpGraph graph;
+        MceOp op1;
+        graph.AddOp(&op1);
+        Buffer buffer;
+        graph.AddBuffer(&buffer);
+        graph.SetProducer(&buffer, &op1);
+
+        MceOp op2;
+        graph.AddOp(&op2);
+        graph.AddProducer(&buffer, &op2);
+        REQUIRE(graph.GetProducers(&buffer) == std::vector<Op*>{ &op1, &op2 });
+    }
+
+    // Try adding a producer that is already a producer
+    {
+        OpGraph graph;
+        MceOp op1;
+        graph.AddOp(&op1);
+        Buffer buffer;
+        graph.AddBuffer(&buffer);
+        graph.SetProducer(&buffer, &op1);
+
+        REQUIRE_THROWS(graph.AddProducer(&buffer, &op1));
+    }
+
+    // Successful case
+    {
+        OpGraph graph;
+        MceOp op1;
+        graph.AddOp(&op1);
+        Buffer buffer;
+        graph.AddBuffer(&buffer);
+        graph.AddProducer(&buffer, &op1);
+
+        REQUIRE(graph.GetSingleProducer(&buffer) == &op1);
+    }
+}
+
+/// Checks ClearProducers correctly validates and does the right thing
+TEST_CASE("OpGraph ClearProducers")
 {
     SECTION("Try calling with a nullptr")
     {
         OpGraph graph;
-        REQUIRE_THROWS(graph.ClearProducer(nullptr));
+        REQUIRE_THROWS(graph.ClearProducers(nullptr));
     }
 
     SECTION("Try calling with a Buffer that isn't part of the graph")
     {
         OpGraph graph;
         Buffer b;
-        REQUIRE_THROWS(graph.ClearProducer(&b));
+        REQUIRE_THROWS(graph.ClearProducers(&b));
     }
 
     SECTION("Clear the producer for a buffer that doesn't already have one. This should be a no-op")
@@ -211,8 +294,8 @@ TEST_CASE("OpGraph ClearProducer")
         OpGraph graph;
         Buffer buffer;
         graph.AddBuffer(&buffer);
-        REQUIRE_NOTHROW(graph.ClearProducer(&buffer));
-        REQUIRE(graph.GetProducer(&buffer) == nullptr);
+        REQUIRE_NOTHROW(graph.ClearProducers(&buffer));
+        REQUIRE(graph.GetSingleProducer(&buffer) == nullptr);
     }
 
     SECTION("Clear the producer for a buffer that already has one")
@@ -224,8 +307,25 @@ TEST_CASE("OpGraph ClearProducer")
         graph.AddBuffer(&buffer);
         graph.SetProducer(&buffer, &op1);
 
-        graph.ClearProducer(&buffer);
-        REQUIRE(graph.GetProducer(&buffer) == nullptr);
+        graph.ClearProducers(&buffer);
+        REQUIRE(graph.GetSingleProducer(&buffer) == nullptr);
+        REQUIRE(graph.GetOutput(&op1) == nullptr);
+    }
+
+    SECTION("Clear the producers for a buffer that has two")
+    {
+        OpGraph graph;
+        MceOp op1;
+        graph.AddOp(&op1);
+        MceOp op2;
+        graph.AddOp(&op2);
+        Buffer buffer;
+        graph.AddBuffer(&buffer);
+        graph.AddProducer(&buffer, &op1);
+        graph.AddProducer(&buffer, &op2);
+
+        graph.ClearProducers(&buffer);
+        REQUIRE(graph.GetSingleProducer(&buffer) == nullptr);
         REQUIRE(graph.GetOutput(&op1) == nullptr);
     }
 }

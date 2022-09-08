@@ -171,9 +171,11 @@ Operation9 -> Operand9_0
 TEST_CASE("SaveOpGraphToDot Graph Topology", "[Visualisation]")
 {
     // Build an arbitrary graph, making sure to demonstrate multiple inputs and multiple consumers.
-    // This is a rough approximation of what a Plan for convolution might look like:
-    //
-    //  Ifm (Dram)     -> Dma -> Ifm (Sram)     - \                                            /-> Consumer 1
+    // This is a rough approximation of what a Plan for convolution might look like, with some added
+    // bits to test multiple consumers and producers
+    //                                                                                Dma
+    //                                                                                 |
+    //  Ifm (Dram)     -> Dma -> Ifm (Sram)     - \                                    v       /-> Consumer 1
     //                                             ->  Mce -> Ofm (Sram) -> Dma -> Ofm (Dram)
     //  Weights (Dram) -> Dma -> Weights (Sram) - /                                            \-> Consumer 2
     //
@@ -201,6 +203,8 @@ TEST_CASE("SaveOpGraphToDot Graph Topology", "[Visualisation]")
     sramOfm.m_DebugTag = "Sram Ofm";
     DmaOp dmaOfm(CascadingBufferFormat::NHWCB);
     dmaOfm.m_DebugTag = "Dma Ofm";
+    DmaOp dmaExtra(CascadingBufferFormat::NHWCB);
+    dmaExtra.m_DebugTag = "Dma Extra";
     Buffer dramOfm;
     dramOfm.m_DebugTag = "Dram Ofm";
 
@@ -218,6 +222,7 @@ TEST_CASE("SaveOpGraphToDot Graph Topology", "[Visualisation]")
     graph.AddOp(&mce);
     graph.AddBuffer(&sramOfm);
     graph.AddOp(&dmaOfm);
+    graph.AddOp(&dmaExtra);
     graph.AddBuffer(&dramOfm);
     graph.AddOp(&consumer1);
     graph.AddOp(&consumer2);
@@ -231,6 +236,7 @@ TEST_CASE("SaveOpGraphToDot Graph Topology", "[Visualisation]")
     graph.SetProducer(&sramOfm, &mce);
     graph.AddConsumer(&sramOfm, &dmaOfm, 0);
     graph.SetProducer(&dramOfm, &dmaOfm);
+    graph.AddProducer(&dramOfm, &dmaExtra);
     graph.AddConsumer(&dramOfm, &consumer1, 0);
     graph.AddConsumer(&dramOfm, &consumer2, 0);
 
@@ -253,6 +259,7 @@ Dma_Ifm[label = "Dma Ifm", shape = oval, color = darkgoldenrod]
 Dma_Weights[label = "Dma Weights", shape = oval, color = darkgoldenrod]
 Mce[label = "Mce", shape = oval]
 Dma_Ofm[label = "Dma Ofm", shape = oval, color = darkgoldenrod]
+Dma_Extra[label = "Dma Extra", shape = oval, color = darkgoldenrod]
 Consumer_1[label = "Consumer 1", shape = oval]
 Consumer_2[label = "Consumer 2", shape = oval]
 Dram_Ifm[label = "Dram Ifm", shape = box, color = brown]
@@ -270,6 +277,7 @@ Sram_Weights -> Mce[ label="Input 1"]
 Mce -> Sram_Ofm
 Sram_Ofm -> Dma_Ofm
 Dma_Ofm -> Dram_Ofm
+Dma_Extra -> Dram_Ofm
 Dram_Ofm -> Consumer_1
 Dram_Ofm -> Consumer_2
 { rank = "same"; Mce; Sram_Weights; Dma_Weights; Dram_Weights; }
@@ -330,7 +338,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
         R"(digraph SupportLibraryGraph
 {
 Mce[label = "Mce\nIdx in OpGraph: 0\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlock Config = 3x4\nInput Stripe Shape = [1, 2, 3, 4]\nOutput Stripe Shape = [5, 6, 7, 8]\nWeights Stripe Shape = [9, 10, 11, 12]\nOrder = Zxy\nStride = 10, 20\nPad L/T = 30, 40\nLower/Upper Bound = 100, 200\nOperation Ids = []\n", shape = oval]
-Dma[label = "Dma\nIdx in OpGraph: 1\nDmaOp\nOperation Ids = []\nTransfer Format = NHWCB\n", shape = oval, color = darkgoldenrod]
+Dma[label = "Dma\nIdx in OpGraph: 1\nDmaOp\nOperation Ids = []\nTransfer Format = NHWCB\nOffset = [0, 0, 0, 0]\n", shape = oval, color = darkgoldenrod]
 Ple[label = "Ple\nIdx in OpGraph: 2\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nPle kernel Id = ADDITION_16X16_1\nKernel Load = 1\nOffset = 0 (0x0)\nOperation Ids = []\nInput0Multiplier = 10\nInput0Shift = 11\nInput1Multiplier = 12\nInput1Shift = 13\n", shape = oval]
 Buffer1[label = "Buffer1\nLocation = PleInputSram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\nOrder = Zxy\nOffset = 0 (0x0)\nSize in bytes = 1234 (0x4D2)\nSlot size in bytes = 0 (0x0)\nType = Intermediate\nPacked boundary thickness = { L: 0, T: 0, R: 0, B: 0}\nNum loads = 1\n", shape = box]
 }

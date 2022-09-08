@@ -1313,12 +1313,12 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
     REQUIRE(combOpGraph.GetOps()[3]->m_DebugTag == "MceB");
     REQUIRE(combOpGraph.GetOps()[4]->m_DebugTag == "InputDmaC");
 
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[0]) == nullptr);
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[1])->m_DebugTag == "MceA");
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[2])->m_DebugTag == "InputDma");
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[3])->m_DebugTag == "OutputDma");
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[4])->m_DebugTag == "MceB");
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[5])->m_DebugTag == "InputDmaC");
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[0]) == nullptr);
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[1])->m_DebugTag == "MceA");
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[2])->m_DebugTag == "InputDma");
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[3])->m_DebugTag == "OutputDma");
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[4])->m_DebugTag == "MceB");
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[5])->m_DebugTag == "InputDmaC");
 
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[0]).size() == 1);
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[0])[0].first->m_DebugTag == "MceA");
@@ -1504,8 +1504,8 @@ TEST_CASE("GetOpGraphForDfsMISOSramsToDrams", "[CombinerDFS]")
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[0])[0].first->m_DebugTag == "GlueAC_Dma");
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[1]).size() == 1);
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[1])[0].first->m_DebugTag == "GlueBC_Dma");
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[2])->m_DebugTag == "GlueAC_Dma");
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[3])->m_DebugTag == "GlueBC_Dma");
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[2])->m_DebugTag == "GlueAC_Dma");
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[3])->m_DebugTag == "GlueBC_Dma");
 }
 
 // Manually creating a MISO test case with three parts
@@ -1667,8 +1667,8 @@ TEST_CASE("GetOpGraphForDfsMISODramsToSrams", "[CombinerDFS]")
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[0])[0].first->m_DebugTag == "GlueAC_Dma");
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[1]).size() == 1);
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[1])[0].first->m_DebugTag == "GlueBC_Dma");
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[2])->m_DebugTag == "GlueAC_Dma");
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[3])->m_DebugTag == "GlueBC_Dma");
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[2])->m_DebugTag == "GlueAC_Dma");
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[3])->m_DebugTag == "GlueBC_Dma");
 }
 
 // Manually creates a partial combination starting and ending in Sram.
@@ -1947,10 +1947,10 @@ TEST_CASE("GetOpGraphCombinationDramSramConversion", "[CombinerDFS]")
     REQUIRE(combOpGraph.GetOps().size() == 3);
     REQUIRE(combOpGraph.GetOps() == startingGlueB->m_Graph.GetOps());
 
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[0]) == nullptr);
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[1]) == combOpGraph.GetOps()[0]);
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[2]) == combOpGraph.GetOps()[1]);
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[3]) == combOpGraph.GetOps()[2]);
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[0]) == nullptr);
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[1]) == combOpGraph.GetOps()[0]);
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[2]) == combOpGraph.GetOps()[1]);
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[3]) == combOpGraph.GetOps()[2]);
 
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[0]) ==
             OpGraph::ConsumersList{ { combOpGraph.GetOps()[0], 0 } });
@@ -2431,13 +2431,13 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     REQUIRE(combOpGraph.GetOps()[3]->m_DebugTag == "OutputDma2");
     REQUIRE(combOpGraph.GetOps()[4]->m_DebugTag == "OutputDma3");
 
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[0]) == nullptr);
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[1])->m_DebugTag == "InputDma");
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[2])->m_DebugTag == "Mce2");
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[3])->m_DebugTag == "Mce2");
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[4])->m_DebugTag == "OutputDma1");
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[5])->m_DebugTag == "OutputDma2");
-    REQUIRE(combOpGraph.GetProducer(combOpGraph.GetBuffers()[6])->m_DebugTag == "OutputDma3");
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[0]) == nullptr);
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[1])->m_DebugTag == "InputDma");
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[2])->m_DebugTag == "Mce2");
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[3])->m_DebugTag == "Mce2");
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[4])->m_DebugTag == "OutputDma1");
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[5])->m_DebugTag == "OutputDma2");
+    REQUIRE(combOpGraph.GetSingleProducer(combOpGraph.GetBuffers()[6])->m_DebugTag == "OutputDma3");
 
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[0]).size() == 1);
     REQUIRE(combOpGraph.GetConsumers(combOpGraph.GetBuffers()[0])[0].first->m_DebugTag == "InputDma");
@@ -3232,7 +3232,7 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     auto endingGlueA = elemA->second.m_EndingGlues[partAOutputSlot];
     REQUIRE(endingGlueA->m_Graph.GetBuffers().size() == 1);
     REQUIRE(endingGlueA->m_Graph.GetOps().size() == 2);
-    REQUIRE(endingGlueA->m_Graph.GetProducer(endingGlueA->m_Graph.GetBuffers().front()) ==
+    REQUIRE(endingGlueA->m_Graph.GetSingleProducer(endingGlueA->m_Graph.GetBuffers().front()) ==
             endingGlueA->m_Graph.GetOp(1));
     const auto& planABuffers = combGlued.m_Elems.find(partAId)->second.m_Plan->m_OpGraph.GetBuffers();
     REQUIRE(endingGlueA->m_ExternalConnections.m_BuffersToOps.find(planABuffers.back())->second ==

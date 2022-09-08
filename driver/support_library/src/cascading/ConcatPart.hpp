@@ -1,11 +1,12 @@
 //
-// Copyright © 2021 Arm Limited.
+// Copyright © 2021-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
 #include "Part.hpp"
+#include "StripeHelper.hpp"
 
 namespace ethosn
 {
@@ -33,8 +34,9 @@ public:
 private:
     const std::vector<TensorInfo> m_InputTensorsInfo;
     const ConcatenationInfo m_ConcatInfo;
+    impl::StripeConfig m_StripeConfig;
 
-    void CreateConcatDramPlan(Plans& plans) const;
+    void CreateConcatDramPlans(Plans& plans) const;
 };
 
 }    // namespace support_library

@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#include "../Utils.hpp"
 #include "ConcatPart.hpp"
+
+#include "../Utils.hpp"
 #include "ConcreteOperations.hpp"
 #include "GraphNodes.hpp"
 #include "PartUtils.hpp"
@@ -26,6 +27,7 @@ ConcatPart::ConcatPart(PartId id,
     : BasePart(id, "ConcatPart", compilerDataFormat, correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorsInfo{ inputTensorsInfo }
     , m_ConcatInfo{ concatInfo }
+    , m_StripeConfig(impl::GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
 {}
 
 Plans ConcatPart::GetPlans(CascadeType cascadeType,
@@ -41,7 +43,7 @@ Plans ConcatPart::GetPlans(CascadeType cascadeType,
 
     if (cascadeType == CascadeType::Lonely)
     {
-        CreateConcatDramPlan(plans);
+        CreateConcatDramPlans(plans);
     }
 
     return plans;
@@ -50,43 +52,109 @@ Plans ConcatPart::GetPlans(CascadeType cascadeType,
 ConcatPart::~ConcatPart()
 {}
 
-void ConcatPart::CreateConcatDramPlan(Plans& plans) const
+void ConcatPart::CreateConcatDramPlans(Plans& plans) const
 {
-    PartInputMapping inputMappings;
-    PartOutputMapping outputMappings;
-    OwnedOpGraph opGraph;
-
     CascadingBufferFormat format = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
 
-    auto concatOp      = std::make_unique<ConcatOp>(format);
-    Op* op             = opGraph.AddOp(std::move(concatOp));
-    op->m_OperationIds = m_CorrespondingOperationIds;
+    TensorInfo outputInfo = Concatenation::CalculateOutputTensorInfo(m_InputTensorsInfo, m_ConcatInfo);
 
-    for (uint32_t inputIndex = 0; inputIndex < m_InputTensorsInfo.size(); inputIndex++)
+    // Generate multiple plans with different stripe shapes, so we can pick the one with the best tradeoff
+    // between stripe overhead and startup time.
+    uint32_t minWidthMultiplier = m_StripeConfig.blockWidthMultiplier.min;
+    uint32_t maxWidthMultiplier = std::max(
+        1U, std::min(utils::GetWidth(outputInfo.m_Dimensions) / utils::GetWidth(m_Capabilities.GetBrickGroupShape()),
+                     m_StripeConfig.blockWidthMultiplier.max));
+    uint32_t minHeightMultiplier = m_StripeConfig.blockHeightMultiplier.min;
+    uint32_t maxHeightMultiplier = std::max(
+        1U, std::min(utils::GetHeight(outputInfo.m_Dimensions) / utils::GetHeight(m_Capabilities.GetBrickGroupShape()),
+                     m_StripeConfig.blockHeightMultiplier.max));
+    if (m_ConcatInfo.m_Axis == 3 &&
+        std::any_of(m_InputTensorsInfo.begin(), m_InputTensorsInfo.end(), [&](const TensorInfo& t) {
+            return t.m_Dimensions[3] % m_Capabilities.GetBrickGroupShape()[3] != 0;
+        }))
     {
-        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
-        Buffer* inputBuffer             = opGraph.GetBuffers()[inputIndex];
-        inputBuffer->m_DataType         = m_InputTensorsInfo[inputIndex].m_DataType;
-        inputBuffer->m_TensorShape      = m_InputTensorsInfo[inputIndex].m_Dimensions;
-        inputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(inputBuffer->m_TensorShape, format);
-        inputBuffer->m_QuantizationInfo = m_InputTensorsInfo[inputIndex].m_QuantizationInfo;
-        inputBuffer->m_BufferType       = BufferType::Intermediate;
-        opGraph.AddConsumer(inputBuffer, op, inputIndex);
-        inputMappings[inputBuffer] = PartInputSlot{ m_PartId, inputIndex };
+        // When splitting channels by multiples of less than 16, the firmware requires that the stripe shape is 8x8 (WxH)
+        minWidthMultiplier  = 1;
+        maxWidthMultiplier  = 1;
+        minHeightMultiplier = 1;
+        maxHeightMultiplier = 1;
     }
 
-    TensorInfo expectedOutputInfo = Concatenation::CalculateOutputTensorInfo(m_InputTensorsInfo, m_ConcatInfo);
-    opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
-    Buffer* outputBuffer             = opGraph.GetBuffers().back();
-    outputBuffer->m_DataType         = expectedOutputInfo.m_DataType;
-    outputBuffer->m_TensorShape      = expectedOutputInfo.m_Dimensions;
-    outputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(outputBuffer->m_TensorShape, format);
-    outputBuffer->m_QuantizationInfo = expectedOutputInfo.m_QuantizationInfo;
-    outputBuffer->m_BufferType       = BufferType::Intermediate;
-    opGraph.SetProducer(outputBuffer, op);
-    outputMappings[outputBuffer] = PartOutputSlot{ m_PartId, 0 };
+    for (uint32_t heightMultiplier = minHeightMultiplier; heightMultiplier <= maxHeightMultiplier;
+         heightMultiplier *= 2)
+    {
+        for (uint32_t widthMultiplier = minWidthMultiplier; widthMultiplier <= maxWidthMultiplier; widthMultiplier *= 2)
+        {
+            PartInputMapping inputMappings;
+            PartOutputMapping outputMappings;
+            OwnedOpGraph opGraph;
 
-    AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
+            opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
+            Buffer* outputBuffer             = opGraph.GetBuffers().back();
+            outputBuffer->m_DataType         = outputInfo.m_DataType;
+            outputBuffer->m_TensorShape      = outputInfo.m_Dimensions;
+            outputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(outputBuffer->m_TensorShape, format);
+            outputBuffer->m_QuantizationInfo = outputInfo.m_QuantizationInfo;
+            outputBuffer->m_BufferType       = BufferType::Intermediate;
+            outputMappings[outputBuffer]     = PartOutputSlot{ m_PartId, 0 };
+
+            TensorShape offset = { 0, 0, 0, 0 };
+            for (uint32_t inputIndex = 0; inputIndex < m_InputTensorsInfo.size(); inputIndex++)
+            {
+                opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
+                Buffer* inputBuffer             = opGraph.GetBuffers().back();
+                inputBuffer->m_DataType         = m_InputTensorsInfo[inputIndex].m_DataType;
+                inputBuffer->m_TensorShape      = m_InputTensorsInfo[inputIndex].m_Dimensions;
+                inputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(inputBuffer->m_TensorShape, format);
+                inputBuffer->m_QuantizationInfo = m_InputTensorsInfo[inputIndex].m_QuantizationInfo;
+                inputBuffer->m_BufferType       = BufferType::Intermediate;
+                inputMappings[inputBuffer]      = PartInputSlot{ m_PartId, inputIndex };
+
+                auto dma1            = std::make_unique<DmaOp>(format);
+                dma1->m_OperationIds = m_CorrespondingOperationIds;
+                DmaOp* dma1Raw       = dma1.get();
+                opGraph.AddOp(std::move(dma1));
+
+                const uint32_t stripeDepth =
+                    m_ConcatInfo.m_Axis == 3
+                        ? m_InputTensorsInfo[inputIndex].m_Dimensions[3]
+                        : utils::RoundUpToNearestMultiple(m_InputTensorsInfo[inputIndex].m_Dimensions[3],
+                                                          utils::GetChannels(m_Capabilities.GetBrickGroupShape()));
+                // We can't split depth because if one of the buffers is NHWC that won't be compatible.
+                TensorShape sramStripeShape = {
+                    1, utils::GetHeight(m_Capabilities.GetBrickGroupShape()) * heightMultiplier,
+                    utils::GetWidth(m_Capabilities.GetBrickGroupShape()) * widthMultiplier, stripeDepth
+                };
+                auto sramBuffer = std::make_unique<Buffer>(
+                    Location::Sram, CascadingBufferFormat::NHWCB, m_InputTensorsInfo[inputIndex].m_Dimensions,
+                    sramStripeShape, TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(sramStripeShape),
+                    outputInfo.m_QuantizationInfo);
+                sramBuffer->m_BufferType = BufferType::Intermediate;
+                sramBuffer->m_Offset =
+                    0;    // Nothing else should be resident in SRAM at this point, so we can use any address
+                sramBuffer->m_NumStripes      = 1;
+                sramBuffer->m_SlotSizeInBytes = sramBuffer->m_SizeInBytes;
+                Buffer* sramBufferRaw         = sramBuffer.get();
+                opGraph.AddBuffer(std::move(sramBuffer));
+
+                auto dma2            = std::make_unique<DmaOp>(format);
+                dma2->m_OperationIds = m_CorrespondingOperationIds;
+                dma2->m_Offset       = offset;
+                DmaOp* dma2Raw       = dma2.get();
+                opGraph.AddOp(std::move(dma2));
+
+                opGraph.AddConsumer(inputBuffer, dma1Raw, 0);
+                opGraph.SetProducer(sramBufferRaw, dma1Raw);
+                opGraph.AddConsumer(sramBufferRaw, dma2Raw, 0);
+                opGraph.AddProducer(outputBuffer, dma2Raw);
+
+                offset[m_ConcatInfo.m_Axis] =
+                    offset[m_ConcatInfo.m_Axis] + m_InputTensorsInfo[inputIndex].m_Dimensions[m_ConcatInfo.m_Axis];
+            }
+
+            AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);
+        }
+    }
 }
 
 ethosn::support_library::DotAttributes ConcatPart::GetDotAttributes(DetailLevel detail) const

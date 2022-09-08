@@ -66,10 +66,9 @@ private:
     };
 
     // Private functions for processing OpGraph Ops
-    void ProcessDmaOp(Op* const ptrDmaOp);
+    void ProcessDmaOp(DmaOp* const ptrDmaOp);
     void ProcessMceOp(Op* const ptrMceOp);
     void ProcessPleOp(Op* const ptrPleOp);
-    void ProcessConcatOp(Op* const ptrConcatOp);
     void ProcessSplitOp(Op* const ptrSplitOp);
     void ProcessSpaceToDepthOp(Op* const ptrSpaceToDepthOp);
     void ProcessTransposeOp(Op* const ptrTransposeOp);

@@ -55,10 +55,42 @@ bool OpGraph::Contains(Buffer* buffer) const
     return std::find(m_Buffers.begin(), m_Buffers.end(), buffer) != m_Buffers.end();
 }
 
-ethosn::support_library::Op* OpGraph::GetProducer(Buffer* buffer) const
+ethosn::support_library::Op* OpGraph::GetSingleProducer(Buffer* buffer) const
 {
     auto it = m_BufferProducers.find(buffer);
-    return it != m_BufferProducers.end() ? it->second : nullptr;
+    if (it == m_BufferProducers.end())
+    {
+        return nullptr;
+    }
+    else
+    {
+        if (it->second.size() == 0)
+        {
+            return nullptr;
+        }
+        else
+        {
+            if (it->second.size() > 1)
+            {
+                throw std::runtime_error(
+                    "This buffer has multiple producers, can't use GetSingleProducer. Use GetProducers instead");
+            }
+            return it->second[0];
+        }
+    }
+}
+
+OpGraph::OpList OpGraph::GetProducers(Buffer* buffer) const
+{
+    auto it = m_BufferProducers.find(buffer);
+    if (it == m_BufferProducers.end())
+    {
+        return {};
+    }
+    else
+    {
+        return it->second;
+    }
 }
 
 OpGraph::ConsumersList OpGraph::GetConsumers(Buffer* buffer) const
@@ -116,31 +148,53 @@ void OpGraph::SetProducer(Buffer* buffer, Op* producerOp)
 {
     if (!Contains(buffer))
     {
-        throw std::runtime_error("buffer is not part of this graph (or is nullptr)");
+        throw std::runtime_error("`buffer` is not part of this graph (or is nullptr)");
     }
     if (!Contains(producerOp))
     {
-        throw std::runtime_error("producerOp is not part of this graph (or is nullptr)");
+        throw std::runtime_error("`producerOp` is not part of this graph (or is nullptr)");
     }
     auto it = m_BufferProducers.find(buffer);
-    if (it != m_BufferProducers.end() && it->second != nullptr)
+    if (it != m_BufferProducers.end() && it->second.size() > 0)
     {
         throw std::runtime_error("Buffer is already produced by an Op. It must be disconnected first.");
     }
-    m_BufferProducers[buffer] = producerOp;
+    m_BufferProducers[buffer] = { producerOp };
     m_OpOutputs[producerOp]   = buffer;
 }
 
-void OpGraph::ClearProducer(Buffer* buffer)
+void OpGraph::AddProducer(Buffer* buffer, Op* producerOp)
 {
     if (!Contains(buffer))
     {
-        throw std::runtime_error("buffer is not part of this graph (or is nullptr)");
+        throw std::runtime_error("`buffer` is not part of this graph (or is nullptr)");
+    }
+    if (!Contains(producerOp))
+    {
+        throw std::runtime_error("`producerOp` is not part of this graph (or is nullptr)");
+    }
+    OpList& producerList = m_BufferProducers[buffer];
+    if (utils::Find(producerList, producerOp).first)
+    {
+        throw std::runtime_error("`producerOp` is already a producer");
+    }
+    producerList.push_back(producerOp);
+    m_OpOutputs[producerOp] = buffer;
+}
+
+void OpGraph::ClearProducers(Buffer* buffer)
+{
+    if (!Contains(buffer))
+    {
+        throw std::runtime_error("`buffer` is not part of this graph (or is nullptr)");
     }
     auto oldProducerIt = m_BufferProducers.find(buffer);
     if (oldProducerIt != m_BufferProducers.end())
     {
-        m_OpOutputs.erase(oldProducerIt->second);
+        for (Op* producer : oldProducerIt->second)
+        {
+            m_OpOutputs.erase(producer);
+        }
     }
     m_BufferProducers.erase(buffer);
 }
@@ -149,17 +203,17 @@ void OpGraph::AddConsumer(Buffer* buffer, Op* consumerOp, uint32_t opInputIdx)
 {
     if (!Contains(buffer))
     {
-        throw std::runtime_error("buffer is not part of this graph (or is nullptr)");
+        throw std::runtime_error("`buffer` is not part of this graph (or is nullptr)");
     }
     if (!Contains(consumerOp))
     {
-        throw std::runtime_error("consumerOp is not part of this graph (or is nullptr)");
+        throw std::runtime_error("`consumerOp` is not part of this graph (or is nullptr)");
     }
     auto it = m_OpInputs.find(consumerOp);
     if (it != m_OpInputs.end() && opInputIdx < it->second.size() && it->second[opInputIdx] != nullptr)
     {
         throw std::runtime_error(
-            "consumerOp is already consuming a buffer at opInputIdx. It must be disconnected first.");
+            "`consumerOp` is already consuming a buffer at `opInputIdx`. It must be disconnected first.");
     }
     m_BufferConsumers[buffer].push_back({ consumerOp, opInputIdx });
     auto& inputs = m_OpInputs[consumerOp];
@@ -217,7 +271,7 @@ ethosn::command_stream::BlockConfig Plan::GetBlockConfigures(const PartOutputSlo
 {
     Buffer* outputBuffer = GetOutputBuffer(partOutputSlot);
 
-    Op* opProducer = m_OpGraph.GetProducer(outputBuffer);
+    Op* opProducer = m_OpGraph.GetSingleProducer(outputBuffer);
 
     if (opProducer != nullptr && opProducer->GetBlockConfig().has_value())
     {
@@ -296,11 +350,13 @@ DotAttributes Op::GetDotAttributes(DetailLevel) const
 DmaOp::DmaOp(CascadingBufferFormat transferFormat)
     : Op("DmaOp")
     , m_TransferFormat(transferFormat)
+    , m_Offset({ 0, 0, 0, 0 })
 {}
 
 DmaOp::DmaOp(const char* debugType, CascadingBufferFormat transferFormat)
     : Op(debugType)
     , m_TransferFormat(transferFormat)
+    , m_Offset({ 0, 0, 0, 0 })
 {}
 
 DotAttributes DmaOp::GetDotAttributes(DetailLevel detail) const
@@ -311,6 +367,7 @@ DotAttributes DmaOp::GetDotAttributes(DetailLevel detail) const
         result.m_Label = "DmaOp\n";
         result.m_Label += "Operation Ids = " + ArrayToString(this->m_OperationIds) + "\n";
         result.m_Label += "Transfer Format = " + ToString(this->m_TransferFormat) + "\n";
+        result.m_Label += "Offset = " + ToString(this->m_Offset) + "\n";
     }
 
     result.m_Color = std::string("darkgoldenrod");
@@ -455,10 +512,6 @@ DotAttributes PleOp::GetDotAttributes(DetailLevel detail) const
     }
     return result;
 }
-
-ConcatOp::ConcatOp(CascadingBufferFormat transferFormat)
-    : DmaOp("ConcatOp", transferFormat)
-{}
 
 SplitOp::SplitOp(CascadingBufferFormat transferFormat, TensorShape offset)
     : DmaOp("SplitOp", transferFormat)

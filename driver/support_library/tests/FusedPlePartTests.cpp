@@ -432,38 +432,38 @@ void CheckConnections(const CheckPlansParams& params, const Plan& plan, PlanDesc
     // Check OpGraph connections
     if (params.m_InputLocation == PlanInputLocation::Dram)
     {
-        CHECK(plan.m_OpGraph.GetProducer(desc.m_InputDram) == nullptr);
+        CHECK(plan.m_OpGraph.GetSingleProducer(desc.m_InputDram) == nullptr);
         CHECK(plan.m_OpGraph.GetConsumers(desc.m_InputDram) ==
               std::vector<std::pair<Op*, uint32_t>>{ { desc.m_InputDma, 0 } });
     }
     if (params.m_InputLocation != PlanInputLocation::PleInputSram)
     {
-        CHECK(plan.m_OpGraph.GetProducer(desc.m_InputSram) ==
+        CHECK(plan.m_OpGraph.GetSingleProducer(desc.m_InputSram) ==
               (params.m_InputLocation == PlanInputLocation::Dram ? desc.m_InputDma : nullptr));
         CHECK(plan.m_OpGraph.GetConsumers(desc.m_InputSram) ==
               std::vector<std::pair<Op*, uint32_t>>{ { desc.m_Mce, 0 } });
 
-        CHECK(plan.m_OpGraph.GetProducer(desc.m_WeightsDram) == nullptr);
+        CHECK(plan.m_OpGraph.GetSingleProducer(desc.m_WeightsDram) == nullptr);
         CHECK(plan.m_OpGraph.GetConsumers(desc.m_WeightsDram) ==
               std::vector<std::pair<Op*, uint32_t>>{ { desc.m_WeightsDma, 0 } });
 
-        CHECK(plan.m_OpGraph.GetProducer(desc.m_WeightsSram) == desc.m_WeightsDma);
+        CHECK(plan.m_OpGraph.GetSingleProducer(desc.m_WeightsSram) == desc.m_WeightsDma);
         CHECK(plan.m_OpGraph.GetConsumers(desc.m_WeightsSram) ==
               std::vector<std::pair<Op*, uint32_t>>{ { desc.m_Mce, 1 } });
     }
 
-    CHECK(plan.m_OpGraph.GetProducer(desc.m_PleInputSram) ==
+    CHECK(plan.m_OpGraph.GetSingleProducer(desc.m_PleInputSram) ==
           (params.m_InputLocation == PlanInputLocation::PleInputSram ? nullptr : desc.m_Mce));
     CHECK(plan.m_OpGraph.GetConsumers(desc.m_PleInputSram) ==
           std::vector<std::pair<Op*, uint32_t>>{ { desc.m_Ple, 0 } });
 
-    CHECK(plan.m_OpGraph.GetProducer(desc.m_OutputSram) == desc.m_Ple);
+    CHECK(plan.m_OpGraph.GetSingleProducer(desc.m_OutputSram) == desc.m_Ple);
     CHECK(plan.m_OpGraph.GetConsumers(desc.m_OutputSram) ==
           (desc.m_OutputDma ? std::vector<std::pair<Op*, uint32_t>>{ { desc.m_OutputDma, 0 } }
                             : std::vector<std::pair<Op*, uint32_t>>{}));
     if (desc.m_OutputDram)
     {
-        CHECK(plan.m_OpGraph.GetProducer(desc.m_OutputDram) == desc.m_OutputDma);
+        CHECK(plan.m_OpGraph.GetSingleProducer(desc.m_OutputDram) == desc.m_OutputDma);
         CHECK(plan.m_OpGraph.GetConsumers(desc.m_OutputDram) == std::vector<std::pair<Op*, uint32_t>>{});
     }
 }
