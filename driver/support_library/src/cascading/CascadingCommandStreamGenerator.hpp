@@ -135,7 +135,7 @@ private:
                                      DependencyType dependencyType);
 
     // Private function to add the lifetime information of the intermediate DRAM buffers
-    void AddLifetimeInfoForIntermediateDramBuffers(std::vector<Op*> sortedOps);
+    void AddLifetimeInfoForIntermediateDramBuffers();
 
     // DRAM Buffer to Buffer Id mapping
     std::unordered_map<Buffer*, uint32_t> m_DramBufToBufIdMapping;
