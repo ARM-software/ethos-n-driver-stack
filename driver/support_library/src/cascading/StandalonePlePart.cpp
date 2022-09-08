@@ -45,6 +45,16 @@ StandalonePlePart::StandalonePlePart(PartId id,
     , m_StripeConfig(GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
 {
     assert(m_InputQuantizationInfos.size() == m_InputTensorShapes.size());
+
+    const double outputScale = outputQuantizationInfo.GetScale();
+    const double inputScale0 = inputQuantizationInfos[0].GetScale();
+    utils::CalculateRescaleMultiplierAndShift(inputScale0 / outputScale, m_Input0Multiplier, m_Input0Shift);
+
+    if (inputTensorShapes.size() == 2)
+    {
+        const double inputScale1 = inputQuantizationInfos[1].GetScale();
+        utils::CalculateRescaleMultiplierAndShift(inputScale1 / outputScale, m_Input1Multiplier, m_Input1Shift);
+    }
 }
 
 Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
@@ -148,6 +158,10 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
         auto op =
             std::make_unique<PleOp>(m_KernelOperation, blkConfig, static_cast<uint32_t>(m_InputTensorShapes.size()),
                                     inputStripes, outputStripeShape, m_DataType, true);
+        op->m_Input0Multiplier = m_Input0Multiplier;
+        op->m_Input0Shift      = m_Input0Shift;
+        op->m_Input1Multiplier = m_Input1Multiplier;
+        op->m_Input1Shift      = m_Input1Shift;
 
         OwnedOpGraph opGraph;
         PartInputMapping inputMappings;

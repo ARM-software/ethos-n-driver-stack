@@ -43,6 +43,10 @@ private:
     command_stream::PleOperation m_KernelOperation;
     DataType m_DataType;
     impl::StripeConfig m_StripeConfig;
+    uint16_t m_Input0Multiplier;
+    uint16_t m_Input0Shift;
+    uint16_t m_Input1Multiplier;
+    uint16_t m_Input1Shift;
 };
 }    // namespace support_library
 }    // namespace ethosn

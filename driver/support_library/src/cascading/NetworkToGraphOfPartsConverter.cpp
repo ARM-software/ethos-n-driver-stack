@@ -784,7 +784,8 @@ void NetworkToGraphOfPartsConverter::Visit(LeakyRelu& leakyRelu)
             leakyRelu.GetInput(0).GetTensorInfo().m_QuantizationInfo,
             leakyRelu.GetOutput(0).GetTensorInfo().m_QuantizationInfo, command_stream::PleOperation::LEAKY_RELU,
             g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
-            std::set<uint32_t>{ leakyRelu.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType);
+            std::set<uint32_t>{ leakyRelu.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType,
+            leakyRelu.GetLeakyReluInfo().m_Alpha);
         parts.push_back(leakyReluPart.get());
         m_GraphOfParts.m_Parts.push_back(std::move(leakyReluPart));
     }

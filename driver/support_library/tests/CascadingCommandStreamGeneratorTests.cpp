@@ -57,7 +57,9 @@ public:
         auto pleOp = std::make_unique<PleOp>(ethosn::command_stream::PleOperation::LEAKY_RELU, BlockConfig{ 8u, 8u }, 1,
                                              std::vector<TensorShape>{ TensorShape{ 1, 8, 8, 8 } },
                                              TensorShape{ 1, 8, 8, 32 }, DataType::UINT8_QUANTIZED, true);
-        pleOp.get()->m_Offset     = 0x000000FF;
+        pleOp->m_Offset           = 0x000000FF;
+        pleOp->m_Input0Multiplier = 32768;
+        pleOp->m_Input0Shift      = 15;
         numMemoryStripes.m_Output = 1;
         auto outBufferAndPleOp =
             AddPleToOpGraph(m_OpGraph, TensorShape{ 1, 8, 8, 32 }, numMemoryStripes, std::move(pleOp),

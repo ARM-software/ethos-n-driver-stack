@@ -1166,30 +1166,23 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
     if (pleS.inputMode == PleInputMode::SRAM)
     {
         CommonUtils::SetTileInfoForBuffer(m_Capabilities, pleS.ifmTile0, inputBuffer0);
+    }
 
-        const double outputScale = outputBuffer->m_QuantizationInfo.GetScale();
-        const double inputScale0 = inputBuffer0->m_QuantizationInfo.GetScale();
-        uint16_t multiplier0;
-        uint16_t shift0;
-        utils::CalculateRescaleMultiplierAndShift(inputScale0 / outputScale, multiplier0, shift0);
+    pleS.ifmInfo0.zeroPoint  = ethosn::utils::NumericCast<int16_t>(inputBuffer0->m_QuantizationInfo.GetZeroPoint());
+    pleS.ifmInfo0.multiplier = ptrPleOp->m_Input0Multiplier;
+    pleS.ifmInfo0.shift      = ptrPleOp->m_Input0Shift;
 
-        pleS.ifmInfo0 = { ethosn::utils::NumericCast<int16_t>(inputBuffer0->m_QuantizationInfo.GetZeroPoint()),
-                          multiplier0, shift0 };
+    // Note these are set even if there is only 1 input, because some PLE kernels (e.g. LeakyRelu)
+    // use these to pass extra information
+    pleS.ifmInfo1.multiplier = ptrPleOp->m_Input1Multiplier;
+    pleS.ifmInfo1.shift      = ptrPleOp->m_Input1Shift;
 
-        if (inputBuffers.size() == 2)
-        {
-            Buffer* inputBuffer1 = inputBuffers[g_PleInputBuffer1Index];
+    if (inputBuffers.size() == 2)
+    {
+        Buffer* inputBuffer1 = inputBuffers[g_PleInputBuffer1Index];
+        CommonUtils::SetTileInfoForBuffer(m_Capabilities, pleS.ifmTile1, inputBuffer1);
 
-            const double inputScale1 = inputBuffer1->m_QuantizationInfo.GetScale();
-            uint16_t multiplier1;
-            uint16_t shift1;
-            utils::CalculateRescaleMultiplierAndShift(inputScale1 / outputScale, multiplier1, shift1);
-
-            CommonUtils::SetTileInfoForBuffer(m_Capabilities, pleS.ifmTile1, inputBuffer1);
-
-            pleS.ifmInfo1 = { ethosn::utils::NumericCast<int16_t>(inputBuffer1->m_QuantizationInfo.GetZeroPoint()),
-                              multiplier1, shift1 };
-        }
+        pleS.ifmInfo1.zeroPoint = ethosn::utils::NumericCast<int16_t>(inputBuffer1->m_QuantizationInfo.GetZeroPoint());
     }
 
     AgentData agentData{ pleS };

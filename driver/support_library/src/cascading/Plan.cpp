@@ -395,6 +395,10 @@ PleOp::PleOp()
     , m_OutputStripeShape{ 0, 0, 0, 0 }
     , m_PleKernelId{ command_stream::cascading::PleKernelId::NOT_FOUND }
     , m_LoadKernel{ true }
+    , m_Input0Multiplier(0)
+    , m_Input0Shift(0)
+    , m_Input1Multiplier(0)
+    , m_Input1Shift(0)
 {}
 
 PleOp::PleOp(PleOperation op,
@@ -411,6 +415,10 @@ PleOp::PleOp(PleOperation op,
     , m_InputStripeShapes(inputStripeShapes)
     , m_OutputStripeShape(outputStripeShape)
     , m_LoadKernel(loadKernel)
+    , m_Input0Multiplier(0)
+    , m_Input0Shift(0)
+    , m_Input1Multiplier(0)
+    , m_Input1Shift(0)
 {
     m_PleKernelId = plelib::FindPleKernelIdFromDatabase(blockConfig, (inputStripeShapes.at(0))[2],
                                                         utils::GetCommandDataType(dataType), op);
@@ -440,6 +448,10 @@ DotAttributes PleOp::GetDotAttributes(DetailLevel detail) const
                 "Offset = " + ToString(this->m_Offset.value()) + " (" + ToStringHex(this->m_Offset.value()) + ")\n";
         }
         result.m_Label += "Operation Ids = " + ArrayToString(this->m_OperationIds) + "\n";
+        result.m_Label += "Input0Multiplier = " + ToString(m_Input0Multiplier) + "\n";
+        result.m_Label += "Input0Shift = " + ToString(m_Input0Shift) + "\n";
+        result.m_Label += "Input1Multiplier = " + ToString(m_Input1Multiplier) + "\n";
+        result.m_Label += "Input1Shift = " + ToString(m_Input1Shift) + "\n";
     }
     return result;
 }

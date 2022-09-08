@@ -306,8 +306,12 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
 
     PleOp ple(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
               DataType::UINT8_QUANTIZED, true);
-    ple.m_DebugTag = "Ple";
-    ple.m_Offset   = 0;
+    ple.m_DebugTag         = "Ple";
+    ple.m_Offset           = 0;
+    ple.m_Input0Multiplier = 10;
+    ple.m_Input0Shift      = 11;
+    ple.m_Input1Multiplier = 12;
+    ple.m_Input1Shift      = 13;
     graph.AddOp(&ple);
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
@@ -327,7 +331,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
 {
 Mce[label = "Mce\nIdx in OpGraph: 0\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlock Config = 3x4\nInput Stripe Shape = [1, 2, 3, 4]\nOutput Stripe Shape = [5, 6, 7, 8]\nWeights Stripe Shape = [9, 10, 11, 12]\nOrder = Zxy\nStride = 10, 20\nPad L/T = 30, 40\nLower/Upper Bound = 100, 200\nOperation Ids = []\n", shape = oval]
 Dma[label = "Dma\nIdx in OpGraph: 1\nDmaOp\nOperation Ids = []\nTransfer Format = NHWCB\n", shape = oval, color = darkgoldenrod]
-Ple[label = "Ple\nIdx in OpGraph: 2\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nPle kernel Id = ADDITION_16X16_1\nKernel Load = 1\nOffset = 0 (0x0)\nOperation Ids = []\n", shape = oval]
+Ple[label = "Ple\nIdx in OpGraph: 2\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nPle kernel Id = ADDITION_16X16_1\nKernel Load = 1\nOffset = 0 (0x0)\nOperation Ids = []\nInput0Multiplier = 10\nInput0Shift = 11\nInput1Multiplier = 12\nInput1Shift = 13\n", shape = oval]
 Buffer1[label = "Buffer1\nLocation = PleInputSram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\nOrder = Zxy\nOffset = 0 (0x0)\nSize in bytes = 1234 (0x4D2)\nSlot size in bytes = 0 (0x0)\nType = Intermediate\nPacked boundary thickness = { L: 0, T: 0, R: 0, B: 0}\nNum loads = 1\n", shape = box]
 }
 )";

@@ -29,7 +29,8 @@ public:
                  const HardwareCapabilities& capabilities,
                  std::set<uint32_t> correspondingOperationIds,
                  DataType m_InputDataType,
-                 DataType m_OutputDataType);
+                 DataType m_OutputDataType,
+                 float alpha = 0.0f);
 
     Plans GetPlans(CascadeType cascadeType,
                    ethosn::command_stream::BlockConfig blockConfig,
@@ -87,6 +88,11 @@ private:
 
     DataType m_InputDataType;
     DataType m_OutputDataType;
+
+    uint16_t m_Input0Multiplier;
+    uint16_t m_Input0Shift;
+    uint16_t m_Input1Multiplier;
+    uint16_t m_Input1Shift;
 };
 }    // namespace support_library
 }    // namespace ethosn

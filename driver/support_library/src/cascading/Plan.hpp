@@ -287,6 +287,10 @@ public:
     command_stream::cascading::PleKernelId m_PleKernelId;
     bool m_LoadKernel;
     utils::Optional<uint32_t> m_Offset;
+    uint16_t m_Input0Multiplier;
+    uint16_t m_Input0Shift;
+    uint16_t m_Input1Multiplier;
+    uint16_t m_Input1Shift;
 };
 
 class ConcatOp : public DmaOp
