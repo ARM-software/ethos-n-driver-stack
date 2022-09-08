@@ -327,7 +327,7 @@ public:
     StripeInfos GenerateStripes(CascadeType cascadeType) const;
 
     void CreateNumStripes(CascadeType cascadeType,
-                          uint32_t kernelHeight,
+                          bool requiresBoundaryData,
                           NumStripes& numStripesInput,
                           NumStripes& numStripesOutput,
                           NumStripes& numStripesWeights,

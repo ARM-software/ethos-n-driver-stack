@@ -916,6 +916,8 @@ void NetworkToGraphOfPartsConverter::Visit(Resize& resize)
     params.m_OutputDataType = outputInfo.m_DataType;
     params.m_UpscaleFactor  = upscaleFactorHeight;
     params.m_UpsampleType   = ConvertResizeAlgorithmToCascadingCommand(resizeInfo.m_Algo);
+    params.m_LowerBound     = outputInfo.m_DataType == DataType::UINT8_QUANTIZED ? 0 : -128;
+    params.m_UpperBound     = outputInfo.m_DataType == DataType::UINT8_QUANTIZED ? 255 : 127;
     auto mcePart            = std::make_unique<McePart>(std::move(params));
 
     std::vector<BasePart*> parts;

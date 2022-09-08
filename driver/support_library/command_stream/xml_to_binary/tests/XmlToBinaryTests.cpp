@@ -90,6 +90,8 @@ const std::string g_XmlStr =
             <ACTIVATION_MIN>118</ACTIVATION_MIN>
             <ACTIVATION_MAX>255</ACTIVATION_MAX>
             <UPSAMPLE_TYPE>OFF</UPSAMPLE_TYPE>
+            <UPSAMPLE_EDGE_MODE_ROW>DROP</UPSAMPLE_EDGE_MODE_ROW>
+            <UPSAMPLE_EDGE_MODE_COL>GENERATE</UPSAMPLE_EDGE_MODE_COL>
         </MCE_OP_INFO>
         <PLE_OP_INFO>
             <CE_SRAM>0x0</CE_SRAM>
@@ -169,6 +171,8 @@ const std::string g_XmlStr =
             <ACTIVATION_MIN>0</ACTIVATION_MIN>
             <ACTIVATION_MAX>255</ACTIVATION_MAX>
             <UPSAMPLE_TYPE>OFF</UPSAMPLE_TYPE>
+            <UPSAMPLE_EDGE_MODE_ROW>GENERATE</UPSAMPLE_EDGE_MODE_ROW>
+            <UPSAMPLE_EDGE_MODE_COL>GENERATE</UPSAMPLE_EDGE_MODE_COL>
         </MCE_OP_INFO>
         <PLE_OP_INFO>
             <CE_SRAM>0x0</CE_SRAM>
@@ -997,7 +1001,7 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                                 /* OutputStripeShape = */ TensorShape{ { 1U, 16U, 16U, 16U } },
                                 /* OutputZeroPoint = */ int16_t{ 0 },
                                 /* UpsampleType = */ UpsampleType::OFF,
-                                /* UpsampleEdgeModeRow = */ UpsampleEdgeMode::GENERATE,
+                                /* UpsampleEdgeModeRow = */ UpsampleEdgeMode::DROP,
                                 /* UpsampleEdgeModeCol = */ UpsampleEdgeMode::GENERATE,
                                 /* Operation = */ MceOperation::CONVOLUTION,
                                 /* Algo = */ MceAlgorithm::DIRECT,

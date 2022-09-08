@@ -2214,7 +2214,7 @@ TEST_CASE("McePart GetPlans Upsampling")
             prevBuffer.m_StripeShape      = TensorShape{ 1, 8, 64, 16 };
             prevBuffer.m_Order            = TraversalOrder::Xyz;
             prevBuffer.m_SizeInBytes      = 8 * 64 * 16 * 1;
-            prevBuffer.m_NumStripes       = 1;
+            prevBuffer.m_NumStripes       = 3;
 
             Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 32u, 8u }, &prevBuffer, 1);
             SavePlansToDot(plans, "McePart GetPlans Upsampling Middle");

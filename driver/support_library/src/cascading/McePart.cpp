@@ -23,7 +23,11 @@ using namespace utils;
 namespace
 {
 
-bool IsSramBufferValid(uint32_t kernelHeight, uint32_t kernelWidth, Buffer* sramBuffer)
+bool IsSramBufferValid(bool needsBoundaryBeforeX,
+                       bool needsBoundaryAfterX,
+                       bool needsBoundaryBeforeY,
+                       bool needsBoundaryAfterY,
+                       Buffer* sramBuffer)
 {
     uint32_t heightSplits = DivRoundUp(GetHeight(sramBuffer->m_TensorShape), GetHeight(sramBuffer->m_StripeShape));
     uint32_t widthSplits  = DivRoundUp(GetWidth(sramBuffer->m_TensorShape), GetWidth(sramBuffer->m_StripeShape));
@@ -36,19 +40,22 @@ bool IsSramBufferValid(uint32_t kernelHeight, uint32_t kernelWidth, Buffer* sram
         // Splitting both width and height is not supported in a cascade
         return false;
     }
-    uint32_t split  = 0;
-    uint32_t kernel = 0;
+    uint32_t split           = 0;
+    bool needsBoundaryBefore = false;
+    bool needsBoundaryAfter  = false;
     if (heightSplits > 1)
     {
-        split  = heightSplits;
-        kernel = kernelHeight;
+        split               = heightSplits;
+        needsBoundaryBefore = needsBoundaryBeforeY;
+        needsBoundaryAfter  = needsBoundaryAfterY;
     }
     else
     {
-        split  = widthSplits;
-        kernel = kernelWidth;
+        split               = widthSplits;
+        needsBoundaryBefore = needsBoundaryBeforeX;
+        needsBoundaryAfter  = needsBoundaryAfterX;
     }
-    if (kernel >= 3)
+    if (needsBoundaryBefore && needsBoundaryAfter)
     {
         // For 3 height splits the number of stripes needs to be the number of splits
         if (split <= 3)
@@ -60,7 +67,7 @@ bool IsSramBufferValid(uint32_t kernelHeight, uint32_t kernelWidth, Buffer* sram
             return false;
         }
     }
-    else if (kernel >= 2)
+    else if (needsBoundaryBefore || needsBoundaryAfter)
     {
         // For 2 height splits the number of stripes needs to be the number of splits
         if (split <= 2)
@@ -703,7 +710,13 @@ Plans McePart::GetMiddlePlans(ethosn::command_stream::BlockConfig blockConfig,
 
     uint32_t strideMultiplier = m_Stride.m_X * m_Stride.m_Y;
 
-    if (!IsSramBufferValid(kernelHeight, kernelWidth, sramBuffer))
+    bool needsBoundaryBeforeX = kernelWidth >= 2 || m_UpscaleFactor > 1;
+    bool needsBoundaryAfterX  = kernelWidth >= 3 || m_UpscaleFactor > 1;
+    bool needsBoundaryBeforeY = kernelHeight >= 2 || m_UpscaleFactor > 1;
+    bool needsBoundaryAfterY  = kernelHeight >= 3 || m_UpscaleFactor > 1;
+
+    if (!IsSramBufferValid(needsBoundaryBeforeX, needsBoundaryAfterX, needsBoundaryBeforeY, needsBoundaryAfterY,
+                           sramBuffer))
     {
         return ret;
     }
@@ -754,7 +767,13 @@ Plans McePart::GetEndPlans(ethosn::command_stream::BlockConfig blockConfig,
 
     uint32_t strideMultiplier = m_Stride.m_X * m_Stride.m_Y;
 
-    if (!IsSramBufferValid(kernelHeight, kernelWidth, sramBuffer))
+    bool needsBoundaryBeforeX = kernelWidth >= 2 || m_UpscaleFactor > 1;
+    bool needsBoundaryAfterX  = kernelWidth >= 3 || m_UpscaleFactor > 1;
+    bool needsBoundaryBeforeY = kernelHeight >= 2 || m_UpscaleFactor > 1;
+    bool needsBoundaryAfterY  = kernelHeight >= 3 || m_UpscaleFactor > 1;
+
+    if (!IsSramBufferValid(needsBoundaryBeforeX, needsBoundaryAfterX, needsBoundaryBeforeY, needsBoundaryAfterY,
+                           sramBuffer))
     {
         return ret;
     }

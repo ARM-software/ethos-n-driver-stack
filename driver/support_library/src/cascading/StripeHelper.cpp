@@ -382,7 +382,7 @@ StripeGenerator::StripeGenerator(const TensorShape& mceInput,
 {}
 
 void StripeGenerator::CreateNumStripes(CascadeType cascadeType,
-                                       uint32_t kernelHeight,
+                                       bool requiresBoundaryData,
                                        NumStripes& numStripesInput,
                                        NumStripes& numStripesOutput,
                                        NumStripes& numStripesWeights,
@@ -396,7 +396,7 @@ void StripeGenerator::CreateNumStripes(CascadeType cascadeType,
     {
         case CascadeType::Beginning:
         {
-            if (kernelHeight == 1)
+            if (!requiresBoundaryData)
             {
                 numStripesInput = { 1, 2 };
             }
@@ -413,7 +413,7 @@ void StripeGenerator::CreateNumStripes(CascadeType cascadeType,
         }
         case CascadeType::Lonely:
         {
-            if (kernelHeight == 1)
+            if (!requiresBoundaryData)
             {
                 numStripesInput = { 1, 2 };
             }
@@ -491,7 +491,8 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     NumStripes numStripesOutput;
     NumStripes numStripesWeights;
     NumStripes numStripesPleInput;
-    CreateNumStripes(cascadeType, m_KernelHeight, numStripesInput, numStripesOutput, numStripesWeights,
+    bool requiresBoundaryData = m_KernelHeight > 1 || m_KernelWidth > 1 || m_UpscaleFactor > 1;
+    CreateNumStripes(cascadeType, requiresBoundaryData, numStripesInput, numStripesOutput, numStripesWeights,
                      numStripesPleInput);
     strideMultiplier = m_Stride.m_X * m_Stride.m_Y;
     isDepthwise      = m_Operation == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION;

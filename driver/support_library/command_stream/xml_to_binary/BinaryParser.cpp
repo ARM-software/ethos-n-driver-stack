@@ -231,6 +231,29 @@ void Parse(std::stringstream& parent, const UpsampleType value)
     }
 }
 
+void Parse(std::stringstream& parent, const UpsampleEdgeMode& value)
+{
+    switch (value)
+    {
+        case UpsampleEdgeMode::DROP:
+        {
+            Parse(parent, "DROP", 0, false);
+            break;
+        }
+        case UpsampleEdgeMode::GENERATE:
+        {
+            Parse(parent, "GENERATE", 0, false);
+            break;
+        }
+        default:
+        {
+            // Bad binary
+            throw ParseException("Invalid upsampleEdgeMode in binary input: " +
+                                 std::to_string(static_cast<uint32_t>(value)));
+        }
+    }
+}
+
 void Parse(std::stringstream& parent, const MceAlgorithm value)
 {
     switch (value)
@@ -472,6 +495,14 @@ void Parse(std::stringstream& parent, const MceData& value)
     Parse(parent, "<UPSAMPLE_TYPE>", 3, false);
     Parse(parent, value.m_UpsampleType());
     Parse(parent, "</UPSAMPLE_TYPE>", 0, true);
+
+    Parse(parent, "<UPSAMPLE_EDGE_MODE_ROW>", 3, false);
+    Parse(parent, value.m_UpsampleEdgeModeRow());
+    Parse(parent, "</UPSAMPLE_EDGE_MODE_ROW>", 0, true);
+
+    Parse(parent, "<UPSAMPLE_EDGE_MODE_COL>", 3, false);
+    Parse(parent, value.m_UpsampleEdgeModeCol());
+    Parse(parent, "</UPSAMPLE_EDGE_MODE_COL>", 0, true);
 
     Parse(parent, "</MCE_OP_INFO>", 2, true);
 }

@@ -1004,6 +1004,7 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
     const bool isUpsample = mceSchedulerData.upsampleType != UpsampleType::OFF;
     if (isUpsample)
     {
+        // As only 2x resize is supported, drop mode is only possible for odd output width/height.
         mceSchedulerData.upsampleEdgeMode.col =
             (outputBufferWidth & 1) ? UpsampleEdgeMode::DROP : UpsampleEdgeMode::GENERATE;
         mceSchedulerData.upsampleEdgeMode.row =
@@ -1035,6 +1036,14 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
                     (mceSchedulerData.filterShape[i].height / 2) + inputBuffer->m_PackedBoundaryThickness.bottom);
                 mceSchedulerData.ifmDeltaDefault[i].width = ethosn::utils::NumericCast<int8_t>(
                     (mceSchedulerData.filterShape[i].width / 2) + inputBuffer->m_PackedBoundaryThickness.right);
+
+                if (isUpsample)
+                {
+                    mceSchedulerData.ifmDeltaDefault[i].height =
+                        std::max(static_cast<int8_t>(2), mceSchedulerData.ifmDeltaDefault[i].height);
+                    mceSchedulerData.ifmDeltaDefault[i].width =
+                        std::max(static_cast<int8_t>(2), mceSchedulerData.ifmDeltaDefault[i].width);
+                }
 
                 mceSchedulerData.ifmDeltaEdge[i].height = ifmDeltaEdgeHeight;
                 mceSchedulerData.ifmDeltaEdge[i].width  = ifmDeltaEdgeWidth;
@@ -1448,17 +1457,18 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
 
                 // MceS needs to wait for two IfmS stripes at the start of each outer ratio if neighbouring data
                 // is needed. This is not applicable if all the boundary data is packed though.
-                if (!(consumerAgent.data.mce.isPackedBoundaryX && consumerAgent.data.mce.isPackedBoundaryY) &&
-                    ((producerAgent.data.ifm.fmData.numStripes.height > 1 &&
-                      consumerAgent.data.mce.filterShape[0].height > 1) ||
-                     (producerAgent.data.ifm.fmData.numStripes.width > 1 &&
-                      consumerAgent.data.mce.filterShape[0].width > 1)))
+                if (!(consumerAgent.data.mce.isPackedBoundaryX && consumerAgent.data.mce.isPackedBoundaryY))
                 {
-                    consumerAgentDependency.boundary = 1;
-                }
-                else
-                {
-                    consumerAgentDependency.boundary = 0;
+                    bool needsBoundaryBeforeX = consumerAgent.data.mce.filterShape[0].width >= 2 ||
+                                                consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
+                    bool needsBoundaryAfterX = consumerAgent.data.mce.filterShape[0].width >= 3 ||
+                                               consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
+                    bool needsBoundaryBeforeY = consumerAgent.data.mce.filterShape[0].height >= 2 ||
+                                                consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
+                    bool needsBoundaryAfterY = consumerAgent.data.mce.filterShape[0].height >= 3 ||
+                                               consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
+                    consumerAgentDependency.boundary =
+                        needsBoundaryBeforeX || needsBoundaryAfterX || needsBoundaryBeforeY || needsBoundaryAfterY;
                 }
             }
             // Read After Write Dependency for [MceScheduler][WeightStreamer]
@@ -1510,16 +1520,20 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                     ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio * channelRatio);
                 consumerAgentDependency.innerRatio.self = 1;
 
-                if ((producerAgent.data.pleS.numStripes.height > 1 &&
-                     consumerAgent.data.mce.filterShape[0].height > 1) ||
-                    (producerAgent.data.pleS.numStripes.width > 1 && consumerAgent.data.mce.filterShape[0].width > 1))
-                {
-                    consumerAgentDependency.boundary = 1;
-                }
-                else
-                {
-                    consumerAgentDependency.boundary = 0;
-                }
+                bool needsBoundaryBeforeX = producerAgent.data.pleS.numStripes.width > 1 &&
+                                            (consumerAgent.data.mce.filterShape[0].width >= 2 ||
+                                             consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
+                bool needsBoundaryAfterX = producerAgent.data.pleS.numStripes.width > 1 &&
+                                           (consumerAgent.data.mce.filterShape[0].width >= 3 ||
+                                            consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
+                bool needsBoundaryBeforeY = producerAgent.data.pleS.numStripes.height > 1 &&
+                                            (consumerAgent.data.mce.filterShape[0].height >= 2 ||
+                                             consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
+                bool needsBoundaryAfterY = producerAgent.data.pleS.numStripes.height > 1 &&
+                                           (consumerAgent.data.mce.filterShape[0].height >= 3 ||
+                                            consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
+                consumerAgentDependency.boundary =
+                    needsBoundaryBeforeX || needsBoundaryAfterX || needsBoundaryBeforeY || needsBoundaryAfterY;
             }
             else
             {
@@ -1765,17 +1779,18 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
 
                 // MceS needs to wait for two IfmS stripes at the start of each outer ratio if neighbouring data
                 // is needed. This is not applicable if all the boundary data is packed though.
-                if (!(consumerAgent.data.mce.isPackedBoundaryX && consumerAgent.data.mce.isPackedBoundaryY) &&
-                    ((producerAgent.data.ifm.fmData.numStripes.height > 1 &&
-                      consumerAgent.data.mce.filterShape[0].height > 1) ||
-                     (producerAgent.data.ifm.fmData.numStripes.width > 1 &&
-                      consumerAgent.data.mce.filterShape[0].width > 1)))
+                if (!(consumerAgent.data.mce.isPackedBoundaryX && consumerAgent.data.mce.isPackedBoundaryY))
                 {
-                    producerAgentDependency.boundary = 1;
-                }
-                else
-                {
-                    producerAgentDependency.boundary = 0;
+                    bool needsBoundaryBeforeX = consumerAgent.data.mce.filterShape[0].width >= 2 ||
+                                                consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
+                    bool needsBoundaryAfterX = consumerAgent.data.mce.filterShape[0].width >= 3 ||
+                                               consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
+                    bool needsBoundaryBeforeY = consumerAgent.data.mce.filterShape[0].height >= 2 ||
+                                                consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
+                    bool needsBoundaryAfterY = consumerAgent.data.mce.filterShape[0].height >= 3 ||
+                                               consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
+                    producerAgentDependency.boundary =
+                        needsBoundaryBeforeX || needsBoundaryAfterX || needsBoundaryBeforeY || needsBoundaryAfterY;
                 }
             }
             // Write After Read Dependency for [WeightStreamer][MceScheduler] or
@@ -1852,16 +1867,20 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                     ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio * channelRatio);
                 producerAgentDependency.innerRatio.other = 1;
 
-                if ((producerAgent.data.pleS.numStripes.height > 1 &&
-                     consumerAgent.data.mce.filterShape[0].height > 1) ||
-                    (producerAgent.data.pleS.numStripes.width > 1 && consumerAgent.data.mce.filterShape[0].width > 1))
-                {
-                    producerAgentDependency.boundary = 1;
-                }
-                else
-                {
-                    producerAgentDependency.boundary = 0;
-                }
+                bool needsBoundaryBeforeX = producerAgent.data.pleS.numStripes.width > 1 &&
+                                            (consumerAgent.data.mce.filterShape[0].width >= 2 ||
+                                             consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
+                bool needsBoundaryAfterX = producerAgent.data.pleS.numStripes.width > 1 &&
+                                           (consumerAgent.data.mce.filterShape[0].width >= 3 ||
+                                            consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
+                bool needsBoundaryBeforeY = producerAgent.data.pleS.numStripes.height > 1 &&
+                                            (consumerAgent.data.mce.filterShape[0].height >= 2 ||
+                                             consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
+                bool needsBoundaryAfterY = producerAgent.data.pleS.numStripes.height > 1 &&
+                                           (consumerAgent.data.mce.filterShape[0].height >= 3 ||
+                                            consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
+                producerAgentDependency.boundary =
+                    needsBoundaryBeforeX || needsBoundaryAfterX || needsBoundaryBeforeY || needsBoundaryAfterY;
             }
             else
             {
