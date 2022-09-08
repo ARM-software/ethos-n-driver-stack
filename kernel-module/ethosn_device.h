@@ -36,6 +36,9 @@
 #include <linux/mutex.h>
 #include <linux/timer.h>
 #include <linux/wait.h>
+#include <linux/kfifo.h>
+
+extern bool firmware_log_to_kernel_log;
 
 struct ethosn_inference;
 
@@ -103,6 +106,18 @@ struct ethosn_core {
 	struct ethosn_dma_info      *mailbox_request;
 	struct ethosn_dma_info      *mailbox_response;
 	void                        *mailbox_message;
+
+	/*
+	 * Circular FIFO buffer to store firmware log messages. This is used as
+	 * a faster alternative to printing the firmware log messages directly
+	 * to the kernel log, and can be accessed through a file in debugfs.
+	 */
+	DECLARE_KFIFO_PTR(firmware_log, char);
+
+	/* Wait queue used to signal that there might be firmware log data
+	 * available for a reading userspace process.
+	 */
+	wait_queue_head_t firmware_log_read_poll_wqh;
 
 #if defined(ETHOSN_KERNEL_MODULE_DEBUG_MONITOR)
 

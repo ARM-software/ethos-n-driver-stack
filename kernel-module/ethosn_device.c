@@ -60,6 +60,9 @@
 static int firmware_log_severity = ETHOSN_LOG_INFO;
 module_param(firmware_log_severity, int, 0660);
 
+bool firmware_log_to_kernel_log = true;
+module_param(firmware_log_to_kernel_log, bool, 0660);
+
 static int ethosn_queue_size = 65536;
 module_param_named(queue_size, ethosn_queue_size, int, 0440);
 
@@ -325,6 +328,30 @@ err_exit:
 }
 
 /**
+ * firmware_log_alloc() - Allocate the firmware_log buffer.
+ * @core:	Pointer to Ethos-N core.
+ *
+ * Return: 0 on success, else error code.
+ */
+static int firmware_log_alloc(struct ethosn_core *core)
+{
+	/* Note that we use the same size for the buffer here as for the
+	 * mailbox queues. This is fairly arbitrary.
+	 */
+	if (kfifo_alloc(&core->firmware_log, core->queue_size, 0) != 0) {
+		dev_err(core->dev,
+			"Failed to allocate memory for firmware_log");
+
+		return -ENOMEM;
+	}
+
+	/* Initialize the firmware_log */
+	init_waitqueue_head(&core->firmware_log_read_poll_wqh);
+
+	return 0;
+}
+
+/**
  * debug_monitor_channel_alloc() - Allocate the debug_monitor_channel.
  * @core:	Pointer to Ethos-N core.
  *
@@ -419,6 +446,16 @@ static void ethosn_mailbox_free(struct ethosn_core *core)
 		devm_kfree(core->parent->dev, core->mailbox_message);
 		core->mailbox_message = NULL;
 	}
+}
+
+/**
+ * ethosn_firmware_log_free() - Free the firmware_log buffer.
+ * @core:	Pointer to Ethos-N core.
+ */
+static void ethosn_firmware_log_free(struct ethosn_core *core)
+{
+	if (kfifo_initialized(&core->firmware_log))
+		kfifo_free(&core->firmware_log);
 }
 
 /**
@@ -1851,6 +1888,69 @@ static ssize_t mailbox_fops_read(struct file *file,
 }
 
 /**
+ * firmware_log_fops_read - Firmware log read file operation.
+ * @file:		File handle.
+ * @buf_user:		User space buffer.
+ * @count:		Size of user space buffer.
+ * @position:		Current file position.
+ *
+ * Return: Number of bytes read, else error code.
+ */
+static ssize_t firmware_log_fops_read(struct file *file,
+				      char __user *buf_user,
+				      size_t count,
+				      loff_t *position)
+{
+	struct ethosn_core *core = file->f_inode->i_private;
+	ssize_t ret;
+	unsigned int copied;
+
+	/* If no data available, block until some arrives, unless the
+	 * non-blocking flag is set.
+	 */
+	if (kfifo_is_empty(&core->firmware_log)) {
+		if (file->f_flags & O_NONBLOCK)
+			return -EAGAIN;
+
+		if (wait_event_interruptible(
+			    core->firmware_log_read_poll_wqh,
+			    !kfifo_is_empty(&core->firmware_log)))
+			return -EINTR; /* In case of Ctrl-C, for example */
+	}
+
+	ret = kfifo_to_user(&core->firmware_log, buf_user, count,
+			    &copied);
+
+	if (ret != 0)
+		return ret;
+
+	return copied;
+}
+
+/**
+ * firmware_log_fops_poll - Called when a userspace process polls the
+ *			    firmware_log debugfs entry,
+ *                          to check if data can be read from it
+ */
+static __poll_t firmware_log_fops_poll(struct file *file,
+				       struct poll_table_struct *wait)
+{
+	struct ethosn_core *core = file->f_inode->i_private;
+
+	/* Register our wait queue. This will be signalled when new log
+	 * messages arrive
+	 */
+	poll_wait(file, &core->firmware_log_read_poll_wqh, wait);
+
+	/* Check if data is available for reading.
+	 */
+	if (!kfifo_is_empty(&core->firmware_log))
+		return (EPOLLIN | EPOLLRDNORM);
+
+	return 0;
+}
+
+/**
  * firmware_profiling_read - Called when a userspace process reads the
  *			     firmware_profiling debugfs entry,
  *                           to retrieve profiling entries.
@@ -2222,6 +2322,12 @@ static void dfs_init(struct ethosn_core *core)
 		.owner = THIS_MODULE,
 		.read  = &mailbox_fops_read
 	};
+	static const struct file_operations firmware_log_fops = {
+		.owner  = THIS_MODULE,
+		.llseek = noop_llseek,
+		.read   = &firmware_log_fops_read,
+		.poll   = &firmware_log_fops_poll,
+	};
 	static const struct file_operations firmware_profiling_fops = {
 		.owner = THIS_MODULE,
 		.read  = &firmware_profiling_read
@@ -2253,6 +2359,10 @@ static void dfs_init(struct ethosn_core *core)
 	/* Mailbox */
 	debugfs_create_file("mailbox", 0400, core->debug_dir, core,
 			    &mailbox_fops);
+
+	/* Firmware log */
+	debugfs_create_file("firmware_log", 0400, core->debug_dir, core,
+			    &firmware_log_fops);
 
 	/* Expose the firmware's profiling stream to user-space as a file. */
 	debugfs_create_file("firmware_profiling", 0400, core->debug_dir,
@@ -2290,6 +2400,11 @@ int ethosn_device_init(struct ethosn_core *core)
 
 	/* Allocate the mailbox structure */
 	ret = mailbox_alloc(core);
+	if (ret)
+		goto deinit_firmware;
+
+	/* Allocate the firmware log */
+	ret = firmware_log_alloc(core);
 	if (ret)
 		goto deinit_firmware;
 
@@ -2336,6 +2451,7 @@ void ethosn_device_deinit(struct ethosn_core *core)
 	ethosn_reset(core);
 	ethosn_firmware_deinit(core);
 	ethosn_mailbox_free(core);
+	ethosn_firmware_log_free(core);
 	ethosn_debug_monitor_channel_free(core);
 	dfs_deinit(core);
 	mutex_unlock(&core->mutex);

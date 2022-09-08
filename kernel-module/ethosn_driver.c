@@ -51,6 +51,7 @@
 #include <linux/version.h>
 #include <linux/iommu.h>
 #include <linux/pm_runtime.h>
+#include <linux/wait.h>
 
 #define ETHOSN_DRIVER_NAME    "ethosn"
 #define ETHOSN_STR(s) #s
@@ -272,6 +273,30 @@ static void update_busy_core(struct ethosn_core *core)
 	}
 }
 
+static void write_to_firmware_log(struct ethosn_core *core,
+				  const char *text,
+				  size_t len_exc_terminator)
+{
+	/* Plus one for the newline that we append */
+	size_t num_bytes_required = len_exc_terminator + 1U;
+
+	/* Copy to firmware log file. Overwrite old data if necessary */
+	if (kfifo_avail(&core->firmware_log) < num_bytes_required) {
+		/* Unfortunately there is no API to skip multiple bytes,
+		 * so we do it ourselves
+		 */
+		size_t num_bytes_to_skip = num_bytes_required -
+					   kfifo_avail(
+			&core->firmware_log);
+		core->firmware_log.kfifo.out += num_bytes_to_skip;
+	}
+
+	kfifo_in(&core->firmware_log, text, len_exc_terminator);
+	kfifo_put(&core->firmware_log, '\n');
+
+	wake_up_interruptible(&core->firmware_log_read_poll_wqh);
+}
+
 static int handle_message(struct ethosn_core *core)
 {
 	struct ethosn_message_header header;
@@ -353,14 +378,26 @@ static int handle_message(struct ethosn_core *core)
 	}
 	case ETHOSN_MESSAGE_TEXT: {
 		struct ethosn_message_text *text = core->mailbox_message;
-		char *eos = (char *)core->mailbox_message + header.length;
-
+		size_t msg_len_excluding_terminator = header.length - offsetof(
+			struct ethosn_message_text, text);
 		/* Null terminate str. One byte has been reserved for this. */
-		*eos = '\0';
+		text->text[msg_len_excluding_terminator] = '\0';
 
-		dev_printk(severity_to_kern_level(core->dev, text->severity),
-			   core->dev, "<- Text. text=\"%s\"\n",
-			   rtrim(text->text, "\n"));
+		/* Always write to the dedicated firmware log file. */
+		write_to_firmware_log(core, text->text,
+				      msg_len_excluding_terminator);
+
+		/* Optionally print to kernel log. This is very slow when there
+		 * are lots of log messages so it is optional.
+		 * The log messages can be viewed through the
+		 * above buffer using the debugfs entry instead in this case.
+		 */
+		if (firmware_log_to_kernel_log)
+			dev_printk(severity_to_kern_level(core->dev,
+							  text->severity),
+				   core->dev, "<- Text. text=\"%s\"\n",
+				   rtrim(text->text, "\n"));
+
 		break;
 	}
 	case ETHOSN_MESSAGE_CONFIGURE_PROFILING_ACK: {
