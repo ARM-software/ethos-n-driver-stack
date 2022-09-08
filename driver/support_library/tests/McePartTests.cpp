@@ -687,8 +687,8 @@ TEST_CASE("McePart GetPlans structure")
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
 
         const PartId partId = 0;
-        TensorShape tsIn    = { 1, 32, 32, 3 };
-        TensorShape tsOut   = { 1, 64, 64, 1 };
+        TensorShape tsIn    = { 1, 32, 16, 3 };
+        TensorShape tsOut   = { 1, 64, 32, 1 };
         const std::vector<uint8_t> weights(1 * 1 * utils::GetChannels(tsIn) * utils::GetChannels(tsOut), 1);
         const std::vector<int32_t> bias(utils::GetChannels(tsOut), 0);
         const QuantizationInfo inputQuantInfo(0, 1.0f);
@@ -906,8 +906,8 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_2TOPS_4PLE_RATIO);
 
         const PartId partId = 0;
-        TensorShape tsIn    = { 1, 24, 24, 16 };
-        TensorShape tsOut   = { 1, 64, 64, 1 };
+        TensorShape tsIn    = { 1, 24, 16, 16 };
+        TensorShape tsOut   = { 1, 64, 32, 1 };
         const std::vector<uint8_t> weights(1 * 1 * utils::GetChannels(tsIn) * utils::GetChannels(tsOut), 1);
         const std::vector<int32_t> bias(utils::GetChannels(tsOut), 0);
         const QuantizationInfo inputQuantInfo(0, 1.0f);

@@ -31,24 +31,41 @@ bool IsSramBufferValid(uint32_t kernelHeight, uint32_t kernelWidth, Buffer* sram
     // If the kernel height/width is 1 we require only 1 input buffer because we don't need boundary data
     // If the kernel height/width is 2 we require 2 because we only require the top / left boundary data
     // If the kernel height/width is 3 or more we require 3 as we need top/left and bottom/right boundary data.
-    if (kernelHeight >= 3 || kernelWidth >= 3)
+    if (heightSplits > 1 && widthSplits > 1)
+    {
+        // Splitting both width and height is not supported in a cascade
+        return false;
+    }
+    uint32_t split  = 0;
+    uint32_t kernel = 0;
+    if (heightSplits > 1)
+    {
+        split  = heightSplits;
+        kernel = kernelHeight;
+    }
+    else
+    {
+        split  = widthSplits;
+        kernel = kernelWidth;
+    }
+    if (kernel >= 3)
     {
         // For 3 height splits the number of stripes needs to be the number of splits
-        if (heightSplits <= 3 && widthSplits <= 3)
+        if (split <= 3)
         {
-            return sramBuffer->m_NumStripes == std::min(heightSplits, 3u);
+            return sramBuffer->m_NumStripes == std::min(split, 3u);
         }
         if (sramBuffer->m_NumStripes < 3)
         {
             return false;
         }
     }
-    else if (kernelHeight >= 2 || kernelWidth >= 2)
+    else if (kernel >= 2)
     {
         // For 2 height splits the number of stripes needs to be the number of splits
-        if (heightSplits <= 2 && widthSplits <= 2)
+        if (split <= 2)
         {
-            return sramBuffer->m_NumStripes == std::min(heightSplits, 2u);
+            return sramBuffer->m_NumStripes == std::min(split, 2u);
         }
         if (sramBuffer->m_NumStripes != 2)
         {
