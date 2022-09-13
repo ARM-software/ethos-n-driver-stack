@@ -239,7 +239,9 @@ void EthosNPreCompiledWorkload::Init(const EthosNPreCompiledObject::Network& net
             network.m_SerializedCompiledNetwork.data(), network.m_SerializedCompiledNetwork.size(), deviceId);
     }
 
-    m_Network->SetDebugName(std::to_string(m_Guid).c_str());
+    m_Network->SetDebugName(
+        ("Subgraph" + std::to_string(m_PreCompiledObject->GetSubgraphIndex()) + "Guid" + std::to_string(m_Guid))
+            .c_str());
 }
 
 EthosNPreCompiledWorkload::EthosNPreCompiledWorkload(const PreCompiledQueueDescriptor& descriptor,
@@ -292,7 +294,8 @@ void EthosNPreCompiledWorkload::Execute() const
             outputBuffers[outputSlotIdx] = &(static_cast<EthosNBaseTensorHandle*>(outputTensorHandle)->GetBuffer());
         }
 
-        ARMNN_LOG(debug) << "Ethos-N ScheduleInference";
+        ARMNN_LOG(debug) << "Ethos-N ScheduleInference Subgraph " << m_PreCompiledObject->GetSubgraphIndex()
+                         << ", Guid " << m_Guid;
         const std::unique_ptr<ethosn::driver_library::Inference> inference(
             m_Network->ScheduleInference(inputBuffers.data(), numInputBuffers, outputBuffers.data(), numOutputBuffers));
 

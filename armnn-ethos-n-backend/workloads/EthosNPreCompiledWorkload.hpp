@@ -51,18 +51,23 @@ public:
 
     EthosNPreCompiledObject(Network network,
                             std::map<uint32_t, std::string> ethosnOperationNameMapping,
-                            int inferenceTimeout)
+                            int inferenceTimeout,
+                            uint32_t subgraphIndex)
         : m_IsPerfEstimationOnly(false)
         , m_InferenceTimeout(inferenceTimeout)
         , m_Network(std::move(network))
         , m_EthosNOperationNameMapping(ethosnOperationNameMapping)
+        , m_SubgraphIndex(subgraphIndex)
     {}
 
-    EthosNPreCompiledObject(PerfData perfData, std::map<uint32_t, std::string> ethosnOperationNameMapping)
+    EthosNPreCompiledObject(PerfData perfData,
+                            std::map<uint32_t, std::string> ethosnOperationNameMapping,
+                            uint32_t subgraphIndex)
         : m_IsPerfEstimationOnly(true)
         , m_InferenceTimeout(0)    // Not relevant for estimation
         , m_PerfData(std::move(perfData))
         , m_EthosNOperationNameMapping(ethosnOperationNameMapping)
+        , m_SubgraphIndex(subgraphIndex)
     {}
 
     ~EthosNPreCompiledObject()
@@ -102,6 +107,11 @@ public:
         return m_EthosNOperationNameMapping;
     }
 
+    uint32_t GetSubgraphIndex() const
+    {
+        return m_SubgraphIndex;
+    }
+
 private:
     const bool m_IsPerfEstimationOnly;
     const int m_InferenceTimeout;
@@ -114,6 +124,8 @@ private:
 
     /// Map from Ethos-N operation ID to the corresponding Arm NN layer name.
     std::map<uint32_t, std::string> m_EthosNOperationNameMapping;
+
+    uint32_t m_SubgraphIndex;
 };
 
 class EthosNPreCompiledWorkload : public BaseWorkload<PreCompiledQueueDescriptor>
