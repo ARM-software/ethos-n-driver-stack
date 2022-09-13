@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2018-2021 Arm Limited.
+# Copyright © 2018-2022 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -167,6 +167,9 @@ def setup_common_env(env):
     # If asserts aren't explicitly set then enable asserts in debug and disable them in release.
     if env["asserts"] == "0" or (env["asserts"] == "debug" and not env["debug"]):
         env.AppendUnique(CPPDEFINES=["NDEBUG"])
+
+    if env["logging"] == "1" or (env["logging"] == "debug" and env["debug"]):
+        env.AppendUnique(CPPDEFINES=["ETHOSN_LOGGING"])
 
     if env.get("coverage", False):
         env.AppendUnique(CXXFLAGS=["--coverage", "-O0"])

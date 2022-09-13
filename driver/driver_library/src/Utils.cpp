@@ -9,7 +9,7 @@ namespace ethosn
 namespace driver_library
 {
 
-#if !defined(NDEBUG)
+#if defined(ETHOSN_LOGGING)
 constexpr const char DriverLibraryName[] = "driver_library";
 LoggerType g_Logger({ &ethosn::utils::log::sinks::StdOut<DriverLibraryName> });
 #else

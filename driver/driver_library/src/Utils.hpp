@@ -22,7 +22,7 @@ namespace ethosn
 namespace driver_library
 {
 
-#if !defined(NDEBUG)
+#if defined(ETHOSN_LOGGING)
 constexpr ethosn::utils::log::Severity g_LogCompileTimeMaxSeverity = ethosn::utils::log::Severity::Debug;
 #else
 constexpr ethosn::utils::log::Severity g_LogCompileTimeMaxSeverity = ethosn::utils::log::Severity::Info;

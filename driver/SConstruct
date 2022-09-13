@@ -35,6 +35,12 @@ var.AddVariables(
         "debug",
         allowed_values=("0", "1", "debug"),
     ),
+    EnumVariable(
+        "logging",
+        "Build with logging support. 'debug' means it is enabled if 'debug=1'",
+        "debug",
+        allowed_values=("0", "1", "debug"),
+    ),
     BoolVariable("sanitize", "Build with sanitizers for gcc", False),
     EnumVariable(
         "platform",

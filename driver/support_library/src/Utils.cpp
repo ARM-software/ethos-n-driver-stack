@@ -14,7 +14,7 @@ namespace ethosn
 namespace support_library
 {
 
-#if !defined(NDEBUG)
+#if defined(ETHOSN_LOGGING)
 constexpr const char SupportLibraryName[] = "support_library";
 LoggerType g_Logger({ &ethosn::utils::log::sinks::StdOut<SupportLibraryName> });
 #else
