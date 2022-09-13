@@ -199,7 +199,7 @@ static void carveout_allocator_destroy(
 
 	dev = allocator->dev;
 
-	memset(allocator, 0, sizeof(struct ethosn_dma_allocator));
+	memset(allocator, 0, sizeof(struct ethosn_dma_sub_allocator));
 	devm_kfree(dev, allocator);
 }
 
