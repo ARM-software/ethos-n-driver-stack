@@ -576,7 +576,8 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             m_PadTop, GetHeight(inputShape), GetHeight(mceInputStripe), GetHeight(mceOutputStripe), m_KernelHeight);
         const NeedBoundary needBoundaryX = utils::GetBoundaryRequirements(
             m_PadLeft, GetWidth(inputShape), GetWidth(mceInputStripe), GetWidth(mceOutputStripe), m_KernelWidth);
-        const bool packBoundaryVertical   = (GetWidth(mceInputStripe) < GetWidth(inputShape));
+        const bool packBoundaryVertical = (GetWidth(mceInputStripe) < GetWidth(inputShape)) ||
+                                          (GetChannels(mceInputStripe) < GetChannels(inputShape));
         const bool packBoundaryHorizontal = (GetChannels(mceInputStripe) < GetChannels(inputShape));
 
         command_stream::cascading::PackedBoundaryThickness packedBoundaryThickness;
