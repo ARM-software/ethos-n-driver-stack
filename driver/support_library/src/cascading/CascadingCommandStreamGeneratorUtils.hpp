@@ -635,7 +635,7 @@ inline uint16_t CalculateGCD(uint16_t a, uint16_t b)
     {
         return ethosn::utils::NumericCast<uint16_t>(b);
     }
-    return CalculateGCD(b % a, a);
+    return CalculateGCD(static_cast<uint16_t>(b % a), a);
 }
 
 inline uint16_t FindGreatestCommonDenominator(uint16_t a, uint16_t b, uint16_t c)
@@ -660,7 +660,7 @@ inline void CalculateRemainingAgentDependencies(command_stream::cascading::Depen
     {
         if (agentDependency.innerRatio.other == 0)
         {
-            boundary = agentDependency.boundary = ethosn::utils::NumericCast<uint8_t>(
+            boundary = agentDependency.boundary = ethosn::utils::NumericCast<int8_t>(
                 agentDependency.outerRatio.self - (agentDependency.innerRatio.self * agentDependency.outerRatio.other));
             agentDependency.innerRatio.other = 1;
             agentDependency.boundary         = boundary;
@@ -671,7 +671,7 @@ inline void CalculateRemainingAgentDependencies(command_stream::cascading::Depen
     {
         if (agentDependency.innerRatio.self == 0)
         {
-            boundary = ethosn::utils::NumericCast<uint8_t>(
+            boundary = ethosn::utils::NumericCast<int8_t>(
                 agentDependency.outerRatio.other -
                 (agentDependency.innerRatio.other * agentDependency.outerRatio.self));
             agentDependency.innerRatio.self = 1;
@@ -690,7 +690,7 @@ inline void CalculateRemainingAgentDependencies(command_stream::cascading::Depen
             ethosn::utils::NumericCast<uint16_t>(agentDependency.outerRatio.other / commonFactor);
         agentDependency.outerRatio.self =
             ethosn::utils::NumericCast<uint16_t>(agentDependency.outerRatio.self / commonFactor);
-        agentDependency.boundary = ethosn::utils::NumericCast<uint8_t>(agentDependency.boundary / commonFactor);
+        agentDependency.boundary = ethosn::utils::NumericCast<int8_t>(agentDependency.boundary / commonFactor);
     }
 }
 
