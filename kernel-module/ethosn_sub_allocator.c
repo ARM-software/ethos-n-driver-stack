@@ -135,7 +135,8 @@ static int ethosn_mem_stream_pdev_probe(struct platform_device *pdev)
 	dev_set_drvdata(&pdev->dev,
 			ethosn_get_sub_allocator(top_allocator, stream_type));
 
-	if (stream_type == ETHOSN_STREAM_IO_BUFFER)
+	if (stream_type == ETHOSN_STREAM_IO_BUFFER &&
+	    ethosn_global_buffer_data_pdev_for_testing == NULL)
 		ethosn_global_buffer_data_pdev_for_testing = pdev;
 
 	return 0;
