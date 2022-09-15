@@ -65,7 +65,7 @@ public:
     TestEthosNSubgraphViewConverter(const SubgraphView& subgraph,
                                     const EthosNConfig& config,
                                     const std::vector<char>& capabilities)
-        : EthosNSubgraphViewConverter(subgraph, {}, config, capabilities)
+        : EthosNSubgraphViewConverter(subgraph, 0, {}, config, capabilities)
     {}
 
     void TestCreateUncompiledNetwork()

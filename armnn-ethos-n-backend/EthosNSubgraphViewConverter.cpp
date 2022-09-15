@@ -29,20 +29,19 @@ using namespace ethosntensorutils;
 ARMNN_DLLEXPORT std::unique_ptr<EthosNSupportLibraryInterface> g_EthosNSupportLibraryInterface =
     std::make_unique<EthosNSupportLibraryInterface>();
 
-uint32_t EthosNSubgraphViewConverter::ms_NextInstanceId = 0;
-
 EthosNSubgraphViewConverter::EthosNSubgraphViewConverter(const SubgraphView& subgraph,
+                                                         uint32_t subgraphIdx,
                                                          ModelOptions modelOptions,
                                                          const EthosNConfig& config,
                                                          const std::vector<char>& capabilities)
-    : m_InstanceId(ms_NextInstanceId++)
+    : m_SubgraphIdx(subgraphIdx)
     , m_Subgraph(subgraph)
     , m_EthosNConfig(config)
     , m_Capabilities(capabilities)
 {
     try
     {
-        m_CompilationOptions = GetCompilationOptions(m_EthosNConfig, modelOptions, m_InstanceId);
+        m_CompilationOptions = GetCompilationOptions(m_EthosNConfig, modelOptions, m_SubgraphIdx);
     }
     catch (const InvalidArgumentException& e)
     {
@@ -798,11 +797,6 @@ void EthosNSubgraphViewConverter::InsertConvertedLayerMultipleOutput(const IConn
     m_EthosNOperationNameMapping[ethosnAddOperationResult.operationId] = layer->GetName();
 }
 
-void EthosNSubgraphViewConverter::ResetNextInstanceId()
-{
-    ms_NextInstanceId = 0;
-}
-
 void EthosNSubgraphViewConverter::CreateUncompiledNetwork()
 {
     if (m_Network)
@@ -857,7 +851,7 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Estimate()
     perfData.m_Data = ethosn_lib::EstimatePerformance(*m_Network, m_CompilationOptions, ethosnEstimationOpts);
 
     auto preCompiledObj =
-        std::make_unique<EthosNPreCompiledObject>(std::move(perfData), m_EthosNOperationNameMapping, m_InstanceId);
+        std::make_unique<EthosNPreCompiledObject>(std::move(perfData), m_EthosNOperationNameMapping, m_SubgraphIdx);
 
     std::vector<PreCompiledObjectPtr> compiledBlobs;
 
@@ -905,17 +899,16 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
         // Currently one compiled network is supported.
         auto cachedCompiledNetwork = caching->GetCompiledNetworks();
 
-        // m_InstanceId is incremented on each call so it works as the subgraph number.
         auto preCompiledObject = std::make_unique<EthosNPreCompiledObject>(
-            EthosNPreCompiledObject::Network(std::move(cachedCompiledNetwork[m_InstanceId])),
-            m_EthosNOperationNameMapping, m_EthosNConfig.m_InferenceTimeout, m_InstanceId);
+            EthosNPreCompiledObject::Network(std::move(cachedCompiledNetwork[m_SubgraphIdx])),
+            m_EthosNOperationNameMapping, m_EthosNConfig.m_InferenceTimeout, m_SubgraphIdx);
 
         // Convert the EthosNPreCompiledObject into a "blob" (void) object and attach the custom blob deleter
         compiledBlobs.emplace_back(preCompiledObject.release(), DeleteAsType<EthosNPreCompiledObject>);
     }
     else
     {
-        ARMNN_LOG(debug) << "Compiling Ethos-N network (subgraph " << m_InstanceId << ")";
+        ARMNN_LOG(debug) << "Compiling Ethos-N network (subgraph " << m_SubgraphIdx << ")";
         std::vector<EthosNCompiledNetworkPtr> compiledNetworks =
             g_EthosNSupportLibraryInterface->Compile(*m_Network, m_CompilationOptions);
 
@@ -972,7 +965,7 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
 
             auto preCompiledObject = std::make_unique<EthosNPreCompiledObject>(
                 EthosNPreCompiledObject::Network(std::move(compiledNetworkData)), m_EthosNOperationNameMapping,
-                m_EthosNConfig.m_InferenceTimeout, m_InstanceId);
+                m_EthosNConfig.m_InferenceTimeout, m_SubgraphIdx);
 
             // Convert the EthosNPreCompiledObject into a "blob" (void) object and attach the custom blob deleter
             compiledBlobs.emplace_back(preCompiledObject.release(), DeleteAsType<EthosNPreCompiledObject>);

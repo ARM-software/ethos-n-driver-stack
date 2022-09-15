@@ -61,14 +61,13 @@ class EthosNSubgraphViewConverter
 {
 public:
     EthosNSubgraphViewConverter(const SubgraphView& subgraph,
+                                uint32_t subgraphIdx,
                                 ModelOptions modelOptions,
                                 const EthosNConfig& config,
                                 const std::vector<char>& capabilities);
     ~EthosNSubgraphViewConverter() = default;
 
     std::vector<PreCompiledObjectPtr> CompileNetwork();
-
-    static void ResetNextInstanceId();
 
 protected:
     // This is protected so it can used in unit tests.
@@ -136,10 +135,7 @@ private:
                                             ethosn_lib::TensorsAndId ethosnAddOperationResult);
 
 private:
-    /// ID number for next constructed instance
-    static uint32_t ms_NextInstanceId;
-
-    const uint32_t m_InstanceId;
+    const uint32_t m_SubgraphIdx;
 
     /// Original Arm NN sub-graph
     const SubgraphView& m_Subgraph;

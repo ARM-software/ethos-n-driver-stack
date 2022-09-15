@@ -200,9 +200,6 @@ TEST_SUITE("EthosNCaching")
             runtimeSave->EnqueueWorkload(networkIdentifierSave, inputTensor, outputTensorSave);
         }
 
-        // Reset backend-internal subgraph converter instance id.
-        armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
-
         {
             // Load network run
             armnn::INetworkPtr networkLoad = CreateSimpleNetwork(inputTensorInfo, outputTensorInfo);
@@ -282,9 +279,6 @@ TEST_SUITE("EthosNCaching")
             std::string fileContents = testing_utils::ReadFile(filePath);
             CHECK(!fileContents.empty());
         }
-
-        // Reset backend-internal subgraph converter instance id
-        armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
 
         // Loading is a little harder to emulate two subgraphs due to how it's designed.
         // However, a simple call of the load function is enough to check if it's loaded correctly into the EthosNCaching object.

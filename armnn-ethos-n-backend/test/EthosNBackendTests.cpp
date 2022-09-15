@@ -225,8 +225,6 @@ TEST_SUITE("EthosNImportTensorHandle")
         const char* outputPath = "ExecutionWithImportOutput";
         int outputFd           = open(outputPath, O_RDWR | O_CREAT, S_IREAD | S_IWRITE);
         CHECK(outputFd > 0);
-        // Reset backend-internal subgraph converter instance id
-        armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
 
         using namespace testing_utils;
 
@@ -345,8 +343,6 @@ TEST_SUITE("EthosNImportTensorHandle")
         const char* outputPath = "ExecutionWithImportOutput";
         int outputFd           = open(outputPath, O_RDWR | O_CREAT, S_IREAD | S_IWRITE);
         CHECK(outputFd > 0);
-        // Reset backend-internal subgraph converter instance id
-        armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
 
         using namespace testing_utils;
 
@@ -466,8 +462,6 @@ TEST_SUITE("EthosNImportTensorHandle")
         const char* path = "ExecutionWithImportInput";
         int fd           = open(path, O_RDWR | O_CREAT, S_IREAD | S_IWRITE);
         CHECK(fd > 0);
-        // Reset backend-internal subgraph converter instance id
-        armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
 
         using namespace testing_utils;
 

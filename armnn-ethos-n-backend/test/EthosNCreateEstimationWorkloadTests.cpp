@@ -60,9 +60,6 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
     // it should return a proper estimate for the relu and all zeroes for the abs.
     TEST_CASE("EstimationOnlyWorkload")
     {
-        // Reset backend-internal subgraph converter instance id
-        armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
-
         using namespace testing_utils;
 
         const TempDir tmpDir;
@@ -219,9 +216,6 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
     // it should return a proper estimate for the relu and all zeroes for the pooling.
     TEST_CASE("EstimationOnlyExistingWorkload")
     {
-        // Reset backend-internal subgraph converter instance id
-        armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
-
         using namespace testing_utils;
 
         const TempDir tmpDir;
@@ -384,9 +378,6 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 
     TEST_CASE("CreateEstimationWorkload")
     {
-        // Reset backend-internal subgraph converter instance id
-        armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
-
         using namespace testing_utils;
 
         const TempDir tmpDir;
@@ -478,8 +469,6 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 
     TEST_CASE("EstimationCompressionOverride")
     {
-        armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
-
         using namespace testing_utils;
 
         const TempDir tmpDir;
@@ -607,9 +596,6 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 
     TEST_CASE("CreateEstimationWorkloadSplit")
     {
-        // Reset backend-internal subgraph converter instance id
-        armnn::EthosNSubgraphViewConverter::ResetNextInstanceId();
-
         using namespace testing_utils;
 
         const TempDir tmpDir;

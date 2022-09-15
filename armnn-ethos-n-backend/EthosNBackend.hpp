@@ -17,6 +17,7 @@ namespace armnn
 
 void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
                                    const SubgraphView& subgraph,
+                                   uint32_t subgraphIdx,
                                    const EthosNConfig& config,
                                    const std::vector<char>& capabilities,
                                    const ModelOptions& modelOptions);
@@ -86,6 +87,11 @@ private:
     EthosNConfig m_Config;
     std::vector<char> m_Capabilities;
     /// @}
+
+    /// Subgraph counter, used to number each subgraph that we receive from Arm NN for a network.
+    /// Because this backend object is re-constructed for each different network we compile, this counter
+    /// gets reset for each network, which is exactly what we want.
+    mutable uint32_t m_NextSubgraphIdx;
 
 protected:
     /// Cached source for the above fields - see comments in constructor for details.

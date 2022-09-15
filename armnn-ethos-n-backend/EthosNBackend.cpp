@@ -226,6 +226,7 @@ std::string GetDeviceOptionVal(const ModelOptions& modelOptions)
 
 void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
                                    const SubgraphView& subgraph,
+                                   uint32_t subgraphIdx,
                                    const EthosNConfig& config,
                                    const std::vector<char>& capabilities,
                                    const ModelOptions& modelOptions)
@@ -246,7 +247,8 @@ void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
     {
         // Attempt to convert and compile the sub-graph
         compiledNetworks =
-            EthosNSubgraphViewConverter(subgraphToCompile, modelOptions, config, capabilities).CompileNetwork();
+            EthosNSubgraphViewConverter(subgraphToCompile, subgraphIdx, modelOptions, config, capabilities)
+                .CompileNetwork();
     }
     catch (std::exception&)
     {
@@ -265,7 +267,8 @@ void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
     ARMNN_ASSERT(compiledNetworks.size() == 1);
     IConnectableLayer* preCompiledLayer = optimizationViews.GetINetwork()->AddPrecompiledLayer(
         PreCompiledDescriptor(subgraph.GetNumInputSlots(), subgraph.GetNumOutputSlots()),
-        std::move(compiledNetworks[0]), armnn::Optional<BackendId>(EthosNBackendId()), "pre-compiled");
+        std::move(compiledNetworks[0]), armnn::Optional<BackendId>(EthosNBackendId()),
+        ("EthosN Subgraph " + std::to_string(subgraphIdx)).c_str());
 
     // Copy the output tensor infos from sub-graph
     for (unsigned int i = 0; i < subgraph.GetNumOutputSlots(); i++)
@@ -280,6 +283,7 @@ ARMNN_DLLEXPORT armnn::EthosNConfig EthosNBackend::ms_Config;
 ARMNN_DLLEXPORT std::vector<char> EthosNBackend::ms_Capabilities;
 
 EthosNBackend::EthosNBackend()
+    : m_NextSubgraphIdx(0)
 {
     // Although this EthosNBackend object is the 'main' object representing our backend, it is actually an ephemeral
     // object which Arm NN instantiates and destroys many times during various operations. Therefore it is not wise
@@ -497,7 +501,9 @@ OptimizationViews EthosNBackend::OptimizeSubgraphView(const SubgraphView& subgra
 
     // Create a pre-compiled layer
     OptimizationViews optimizationViews;
-    armnn::CreatePreCompiledLayerInGraph(optimizationViews, subgraph, m_Config, m_Capabilities, modelOptions);
+    armnn::CreatePreCompiledLayerInGraph(optimizationViews, subgraph, m_NextSubgraphIdx, m_Config, m_Capabilities,
+                                         modelOptions);
+    ++m_NextSubgraphIdx;
 
     return optimizationViews;
 }
