@@ -23,7 +23,8 @@
 #ifndef _ETHOSN_ASSET_ALLOCATOR_H_
 #define _ETHOSN_ASSET_ALLOCATOR_H_
 
-#define ETHOSN_ASSET_ALLOCATOR_DRIVER_NAME  "ethosn-asset_allocator"
+#define ETHOSN_ASSET_ALLOC_DRIVER_NAME  "ethosn-asset_allocator"
+#define ETHOSN_ASSET_ALLOC_NUM_MAX 64
 
 int ethosn_asset_allocator_platform_driver_register(void);
 

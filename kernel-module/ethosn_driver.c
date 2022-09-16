@@ -1037,23 +1037,31 @@ static int ethosn_create_carveout_asset_allocator(struct ethosn_device *ethosn)
 	int ret;
 
 	ethosn->asset_allocator =
-		ethosn_dma_top_allocator_create(ethosn->dev,
-						ETHOSN_ALLOCATOR_CARVEOUT);
+		devm_kzalloc(ethosn->dev,
+			     sizeof(struct ethosn_dma_allocator *),
+			     GFP_KERNEL);
 
 	if (IS_ERR_OR_NULL(ethosn->asset_allocator))
 		return PTR_ERR(ethosn->asset_allocator);
+
+	ethosn->asset_allocator[0] =
+		ethosn_dma_top_allocator_create(ethosn->dev,
+						ETHOSN_ALLOCATOR_CARVEOUT);
+
+	if (IS_ERR_OR_NULL(ethosn->asset_allocator[0]))
+		return PTR_ERR(ethosn->asset_allocator[0]);
 
 	/* Carveout case doesn't distinguish between streams,
 	 * giving IO BUFFERS as a parameter is still required.
 	 */
 	ret = ethosn_dma_sub_allocator_create(ethosn->dev,
-					      ethosn->asset_allocator,
+					      ethosn->asset_allocator[0],
 					      ETHOSN_STREAM_IO_BUFFER,
 					      false);
 
 	if (ret) {
 		ethosn_dma_top_allocator_destroy(ethosn->dev,
-						 &ethosn->asset_allocator);
+						 &ethosn->asset_allocator[0]);
 
 		return ret;
 	}
@@ -1064,10 +1072,11 @@ static int ethosn_create_carveout_asset_allocator(struct ethosn_device *ethosn)
 static void ethosn_destroy_carveout_asset_allocators(
 	struct ethosn_device *ethosn)
 {
-	ethosn_dma_sub_allocator_destroy(ethosn->asset_allocator,
+	ethosn_dma_sub_allocator_destroy(ethosn->asset_allocator[0],
 					 ETHOSN_STREAM_IO_BUFFER);
 
-	ethosn_dma_top_allocator_destroy(ethosn->dev, &ethosn->asset_allocator);
+	ethosn_dma_top_allocator_destroy(ethosn->dev,
+					 &ethosn->asset_allocator[0]);
 }
 
 static int ethosn_create_carveout_main_allocator(struct ethosn_core *core)
@@ -1367,19 +1376,27 @@ static int ethosn_pdev_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static unsigned int ethosn_pdev_get_num_cores(struct platform_device *pdev)
+/**
+ * ethosn_pdev_num_compat() - Count number of compatible child nodes
+ * @pdev: Platform device
+ * @compatible: Compatible string to search for
+ * Return:
+ * * Number of nodes with that compatible string
+ */
+static unsigned int ethosn_pdev_num_compat(struct platform_device *pdev,
+					   const char *compatible)
 {
-	unsigned int num_cores = 0;
+	unsigned int num_compatible = 0;
 	struct device_node *node = NULL;
 
 	for_each_available_child_of_node(pdev->dev.of_node, node) {
-		if (of_device_is_compatible(node, ETHOSN_CORE_DRIVER_NAME))
-			num_cores++;
+		if (of_device_is_compatible(node, compatible))
+			num_compatible++;
 	}
 
-	dev_info(&pdev->dev, "num_cores = %u\n", num_cores);
+	dev_info(&pdev->dev, "num of %s = %u\n", compatible, num_compatible);
 
-	return num_cores;
+	return num_compatible;
 }
 
 static int ethosn_pdev_get_smmu_status_from_dts(struct device *dev,
@@ -1397,7 +1414,7 @@ static int ethosn_pdev_get_smmu_status_from_dts(struct device *dev,
 	 */
 	for_each_available_child_of_node(dev->of_node, child) {
 		if (of_device_is_compatible(child,
-					    ETHOSN_ASSET_ALLOCATOR_DRIVER_NAME))
+					    ETHOSN_ASSET_ALLOC_DRIVER_NAME))
 			break;
 	}
 
@@ -1439,6 +1456,7 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 	unsigned long irq_flags[ETHOSN_MAX_NUM_IRQS];
 	bool force_firmware_level_interrupts = false;
 	unsigned int num_of_npus = 0;
+	unsigned int num_of_asset_allocs = 0;
 	int resource_idx = 0;
 	struct ethosn_device *ethosn = NULL;
 	int platform_id = -1;
@@ -1456,7 +1474,8 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 	dma_set_mask_and_coherent(&pdev->dev,
 				  DMA_BIT_MASK(ETHOSN_SMMU_MAX_ADDR_BITS));
 
-	num_of_npus = ethosn_pdev_get_num_cores(pdev);
+	num_of_npus = ethosn_pdev_num_compat(pdev,
+					     ETHOSN_CORE_DRIVER_NAME);
 	if (num_of_npus == 0) {
 		dev_info(&pdev->dev, "Failed to probe any NPU\n");
 
@@ -1508,6 +1527,37 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 	if (!smmu_available) {
 		ret = ethosn_create_carveout_asset_allocator(ethosn);
 		if (ret)
+			goto err_free_ethosn;
+	} else {
+		num_of_asset_allocs =
+			ethosn_pdev_num_compat(pdev,
+					       ETHOSN_ASSET_ALLOC_DRIVER_NAME);
+
+		if (num_of_asset_allocs == 0) {
+			dev_info(&pdev->dev,
+				 "Failed to probe any asset allocators\n");
+
+			ret = -EINVAL;
+			goto err_free_ethosn;
+		}
+
+		if (num_of_npus > ETHOSN_ASSET_ALLOC_NUM_MAX) {
+			dev_err(&pdev->dev,
+				"Invalid number of asset allocators, max = %d\n",
+				ETHOSN_ASSET_ALLOC_NUM_MAX);
+
+			ret = -EINVAL;
+			goto err_free_ethosn;
+		}
+
+		/* Allocate space for num_of_asset_allocs asset allocators */
+		ethosn->asset_allocator =
+			devm_kzalloc(&pdev->dev,
+				     (sizeof(struct ethosn_dma_allocator *) *
+				      num_of_asset_allocs),
+				     GFP_KERNEL);
+
+		if (!ethosn->asset_allocator)
 			goto err_free_ethosn;
 	}
 
@@ -1624,6 +1674,8 @@ err_free_core_list:
 err_destroy_allocator:
 	if (!smmu_available)
 		ethosn_destroy_carveout_asset_allocators(ethosn);
+	else
+		devm_kfree(&pdev->dev, ethosn->asset_allocator);
 
 err_free_ethosn:
 	devm_kfree(&pdev->dev, ethosn);

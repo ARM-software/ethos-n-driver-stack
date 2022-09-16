@@ -55,7 +55,7 @@
 		};
 	};
 
-	asset_allocator {
+	asset_allocator0 {
 		compatible = "ethosn-asset_allocator";
 		status = "okay";
 
@@ -77,6 +77,31 @@
 		intermediate_data {
 			compatible = "ethosn-memory";
 			iommus = <&smmu_ethosn0 5>;
+		};
+	};
+
+	asset_allocator1 {
+		compatible = "ethosn-asset_allocator";
+		status = "okay";
+
+		command_stream {
+			compatible = "ethosn-memory";
+			iommus = <&smmu_ethosn0 6>;
+		};
+
+		weight_data {
+			compatible = "ethosn-memory";
+			iommus = <&smmu_ethosn0 7>;
+		};
+
+		buffer_data {
+			compatible = "ethosn-memory";
+			iommus = <&smmu_ethosn0 8>;
+		};
+
+		intermediate_data {
+			compatible = "ethosn-memory";
+			iommus = <&smmu_ethosn0 9>;
 		};
 	};
 };

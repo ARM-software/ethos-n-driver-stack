@@ -686,7 +686,7 @@ static int ethosn_set_smmu_stream_ids(struct ethosn_core *core)
 	struct ethosn_device *ethosn = core->parent;
 
 	struct ethosn_dma_allocator *main_alloc = core->main_allocator;
-	struct ethosn_dma_allocator *asset_alloc = ethosn->asset_allocator;
+	struct ethosn_dma_allocator *asset_alloc = ethosn->asset_allocator[0];
 
 	u32 smmu_stream_id;
 	int ret = -EINVAL;
@@ -1229,12 +1229,13 @@ static int ethosn_send_region_request(struct ethosn_core *core,
 		break;
 	case ETHOSN_REGION_COMMAND_STREAM:
 		request.addr = to_ethosn_addr(
-			ethosn_dma_get_addr_base(core->parent->asset_allocator,
+			ethosn_dma_get_addr_base(core->parent->
+						 asset_allocator[0],
 						 ETHOSN_STREAM_COMMAND_STREAM),
 			&core->dma_map);
 
 		request.size = ethosn_dma_get_addr_size(
-			core->parent->asset_allocator,
+			core->parent->asset_allocator[0],
 			ETHOSN_STREAM_COMMAND_STREAM);
 		break;
 	default:
@@ -1662,7 +1663,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 
 	ret = ethosn_set_addr_ext(
 		core, ETHOSN_STREAM_COMMAND_STREAM,
-		ethosn_dma_get_addr_base(core->parent->asset_allocator,
+		ethosn_dma_get_addr_base(core->parent->asset_allocator[0],
 					 ETHOSN_STREAM_COMMAND_STREAM),
 		&core->dma_map);
 	if (ret)

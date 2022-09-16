@@ -71,7 +71,8 @@ struct ethosn_device {
 	int                           parent_id;
 	int                           num_cores;
 	struct ethosn_inference_queue queue;
-	struct ethosn_dma_allocator   *asset_allocator;
+	struct ethosn_dma_allocator   **asset_allocator;
+	int                           num_asset_allocs;
 	uint32_t                      current_busy_cores;
 	uint32_t                      status_mask;
 	bool                          smmu_available;

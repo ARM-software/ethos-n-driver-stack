@@ -89,6 +89,7 @@ struct ethosn_dma_sub_allocator {
 
 struct ethosn_dma_allocator {
 	enum ethosn_alloc_type type;
+	uint32_t               alloc_id;
 };
 
 /**

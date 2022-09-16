@@ -32,6 +32,9 @@
 static int ethosn_asset_allocator_pdev_remove(struct platform_device *pdev)
 {
 	struct ethosn_device *ethosn = ethosn_driver(pdev);
+	struct ethosn_dma_allocator *asset_allocator =
+		dev_get_drvdata(&pdev->dev);
+	uint32_t alloc_id = asset_allocator->alloc_id;
 	int ret = 0;
 
 	dev_info(&pdev->dev, "Removing asset allocator");
@@ -42,7 +45,7 @@ static int ethosn_asset_allocator_pdev_remove(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	if (!ethosn->asset_allocator) {
+	if (!ethosn->asset_allocator[alloc_id]) {
 		dev_err(&pdev->dev, "asset_allocator NULL");
 
 		return -EINVAL;
@@ -51,7 +54,8 @@ static int ethosn_asset_allocator_pdev_remove(struct platform_device *pdev)
 	of_platform_depopulate(&pdev->dev);
 
 	ret = ethosn_dma_top_allocator_destroy(&pdev->dev,
-					       &ethosn->asset_allocator);
+					       &ethosn->
+					       asset_allocator[alloc_id]);
 
 	if (ret)
 		return ret;
@@ -84,7 +88,11 @@ static int ethosn_asset_allocator_pdev_probe(struct platform_device *pdev)
 	if (IS_ERR_OR_NULL(asset_allocator))
 		return -ENOMEM;
 
-	ethosn->asset_allocator = asset_allocator;
+	asset_allocator->alloc_id = ethosn->num_asset_allocs;
+
+	ethosn->asset_allocator[ethosn->num_asset_allocs] = asset_allocator;
+
+	ethosn->num_asset_allocs++;
 
 	dev_set_drvdata(&pdev->dev, asset_allocator);
 
@@ -96,7 +104,7 @@ static int ethosn_asset_allocator_pdev_probe(struct platform_device *pdev)
 }
 
 static const struct of_device_id ethosn_asset_allocator_child_pdev_match[] = {
-	{ .compatible = ETHOSN_ASSET_ALLOCATOR_DRIVER_NAME },
+	{ .compatible = ETHOSN_ASSET_ALLOC_DRIVER_NAME },
 	{ /* Sentinel */ },
 };
 
@@ -106,7 +114,7 @@ static struct platform_driver ethosn_asset_allocator_pdev_driver = {
 	.probe                  = &ethosn_asset_allocator_pdev_probe,
 	.remove                 = &ethosn_asset_allocator_pdev_remove,
 	.driver                 = {
-		.name           = ETHOSN_ASSET_ALLOCATOR_DRIVER_NAME,
+		.name           = ETHOSN_ASSET_ALLOC_DRIVER_NAME,
 		.owner          = THIS_MODULE,
 		.of_match_table = of_match_ptr(
 			ethosn_asset_allocator_child_pdev_match),
@@ -116,13 +124,13 @@ static struct platform_driver ethosn_asset_allocator_pdev_driver = {
 
 int ethosn_asset_allocator_platform_driver_register(void)
 {
-	pr_info("Registering %s", ETHOSN_ASSET_ALLOCATOR_DRIVER_NAME);
+	pr_info("Registering %s", ETHOSN_ASSET_ALLOC_DRIVER_NAME);
 
 	return platform_driver_register(&ethosn_asset_allocator_pdev_driver);
 }
 
 void ethosn_asset_allocator_platform_driver_unregister(void)
 {
-	pr_info("Unregistering %s", ETHOSN_ASSET_ALLOCATOR_DRIVER_NAME);
+	pr_info("Unregistering %s", ETHOSN_ASSET_ALLOC_DRIVER_NAME);
 	platform_driver_unregister(&ethosn_asset_allocator_pdev_driver);
 }

@@ -104,7 +104,7 @@ static void buffer_unmap_dma(struct ethosn_buffer *buf)
 	struct ethosn_device *ethosn = buf->ethosn;
 
 	ethosn_dma_unmap(
-		ethosn->asset_allocator,
+		ethosn->asset_allocator[0],
 		buf->dma_info);
 }
 
@@ -129,7 +129,7 @@ static int ethosn_buffer_release(struct inode *const inode,
 	/* only for input and output buffers. for other buffers net_fd ops is
 	 * used.
 	 */
-	ethosn_dma_free(ethosn->asset_allocator, buf->dma_info);
+	ethosn_dma_free(ethosn->asset_allocator[0], buf->dma_info);
 
 	put_device(buf->ethosn->dev);
 
@@ -167,7 +167,7 @@ static int ethosn_buffer_mmap(struct file *const file,
 		return -EBADF;
 
 	buf = file->private_data;
-	allocator = buf->ethosn->asset_allocator;
+	allocator = buf->ethosn->asset_allocator[0];
 
 	return ethosn_dma_mmap(allocator, vma, buf->dma_info);
 }
@@ -213,14 +213,15 @@ static long ethosn_buffer_ioctl(struct file *file,
 	case ETHOSN_IOCTL_SYNC_FOR_CPU: {
 		dev_dbg(ethosn->dev, "ETHOSN_IOCTL_SYNC_FOR_CPU\n");
 
-		ethosn_dma_sync_for_cpu(ethosn->asset_allocator, buf->dma_info);
+		ethosn_dma_sync_for_cpu(ethosn->asset_allocator[0],
+					buf->dma_info);
 
 		break;
 	}
 	case ETHOSN_IOCTL_SYNC_FOR_DEVICE: {
 		dev_dbg(ethosn->dev, "ETHOSN_IOCTL_SYNC_FOR_DEVICE\n");
 
-		ethosn_dma_sync_for_device(ethosn->asset_allocator,
+		ethosn_dma_sync_for_device(ethosn->asset_allocator[0],
 					   buf->dma_info);
 		break;
 	}
@@ -242,7 +243,7 @@ static int ethosn_buffer_map_and_get_fd(struct ethosn_buffer *buf,
 	int ret = -ENOMEM;
 
 	ret = ethosn_dma_map(
-		ethosn->asset_allocator,
+		ethosn->asset_allocator[0],
 		buf->dma_info,
 		ETHOSN_PROT_READ | ETHOSN_PROT_WRITE);
 
@@ -309,7 +310,7 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 	buf->ethosn = ethosn;
 
 	buf->dma_info =
-		ethosn_dma_alloc(ethosn->asset_allocator, buf_req->size,
+		ethosn_dma_alloc(ethosn->asset_allocator[0], buf_req->size,
 				 ETHOSN_STREAM_IO_BUFFER, GFP_KERNEL,
 				 "buffer");
 	if (IS_ERR_OR_NULL(buf->dma_info))
@@ -322,7 +323,7 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 
 	if (buf_req->flags & MB_ZERO) {
 		memset(buf->dma_info->cpu_addr, 0, buf->dma_info->size);
-		ethosn_dma_sync_for_device(ethosn->asset_allocator,
+		ethosn_dma_sync_for_device(ethosn->asset_allocator[0],
 					   buf->dma_info);
 		dev_dbg(ethosn->dev, "Zeroed device buffer 0x%pK\n", buf);
 	}
@@ -330,7 +331,7 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 	return fd;
 
 err_dma_free:
-	ethosn_dma_free(buf->ethosn->asset_allocator, buf->dma_info);
+	ethosn_dma_free(buf->ethosn->asset_allocator[0], buf->dma_info);
 err_kfree:
 	kfree(buf);
 
@@ -354,7 +355,7 @@ static int ethosn_dma_buffer_release(struct inode *const inode,
 	dev_dbg(buf->ethosn->dev, "Release buffer. handle=0x%pK\n", buf);
 
 	buffer_unmap_dma(buf);
-	ethosn_dma_release(ethosn->asset_allocator, buf->dma_info);
+	ethosn_dma_release(ethosn->asset_allocator[0], buf->dma_info);
 
 	put_device(buf->ethosn->dev);
 
@@ -398,7 +399,7 @@ int ethosn_buffer_import(struct ethosn_device *ethosn,
 	 */
 	buf->ethosn = ethosn;
 	buf->dma_info =
-		ethosn_dma_import(ethosn->asset_allocator, dma_buf_req->fd,
+		ethosn_dma_import(ethosn->asset_allocator[0], dma_buf_req->fd,
 				  dma_buf_req->size,
 				  ETHOSN_STREAM_IO_BUFFER);
 	if (IS_ERR_OR_NULL(buf->dma_info))
@@ -412,7 +413,7 @@ int ethosn_buffer_import(struct ethosn_device *ethosn,
 	return fd;
 
 err_dma_release:
-	ethosn_dma_release(ethosn->asset_allocator, buf->dma_info);
+	ethosn_dma_release(ethosn->asset_allocator[0], buf->dma_info);
 err_kfree:
 	kfree(buf);
 
