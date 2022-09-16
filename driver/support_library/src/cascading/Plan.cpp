@@ -365,9 +365,9 @@ DotAttributes DmaOp::GetDotAttributes(DetailLevel detail) const
     if (detail == DetailLevel::High)
     {
         result.m_Label = "DmaOp\n";
-        result.m_Label += "Operation Ids = " + ArrayToString(this->m_OperationIds) + "\n";
-        result.m_Label += "Transfer Format = " + ToString(this->m_TransferFormat) + "\n";
-        result.m_Label += "Offset = " + ToString(this->m_Offset) + "\n";
+        result.m_Label += "Operation Ids = " + ArrayToString(m_OperationIds) + "\n";
+        result.m_Label += "Transfer Format = " + ToString(m_TransferFormat) + "\n";
+        result.m_Label += "Offset = " + ToString(m_Offset) + "\n";
     }
 
     result.m_Color = std::string("darkgoldenrod");
@@ -427,18 +427,19 @@ DotAttributes MceOp::GetDotAttributes(DetailLevel detail) const
     if (detail == DetailLevel::High)
     {
         result.m_Label = "MceOp\n";
-        result.m_Label += "Op = " + ToString(this->m_Op) + "\n";
-        result.m_Label += "Algo = " + ToString(this->m_Algo) + "\n";
-        result.m_Label += "Block Config = " + ToString(this->m_BlockConfig) + "\n";
-        result.m_Label += "Input Stripe Shape = " + ToString(this->m_InputStripeShape) + "\n";
-        result.m_Label += "Output Stripe Shape = " + ToString(this->m_OutputStripeShape) + "\n";
-        result.m_Label += "Weights Stripe Shape = " + ToString(this->m_WeightsStripeShape) + "\n";
-        result.m_Label += "Order = " + ToString(this->m_Order) + "\n";
-        result.m_Label += "Stride = " + ToString(this->m_Stride) + "\n";
-        result.m_Label += "Pad L/T = " + to_string(this->m_PadLeft) + ", " + to_string(this->m_PadTop) + "\n";
-        result.m_Label +=
-            "Lower/Upper Bound = " + to_string(this->m_LowerBound) + ", " + to_string(this->m_UpperBound) + "\n";
-        result.m_Label += "Operation Ids = " + ArrayToString(this->m_OperationIds) + "\n";
+        result.m_Label += "Op = " + ToString(m_Op) + "\n";
+        result.m_Label += "Algo = " + ToString(m_Algo) + "\n";
+        result.m_Label += "Block Config = " + ToString(m_BlockConfig) + "\n";
+        result.m_Label += "Input Stripe Shape = " + ToString(m_InputStripeShape) + "\n";
+        result.m_Label += "Output Stripe Shape = " + ToString(m_OutputStripeShape) + "\n";
+        result.m_Label += "Weights Stripe Shape = " + ToString(m_WeightsStripeShape) + "\n";
+        result.m_Label += "Order = " + ToString(m_Order) + "\n";
+        result.m_Label += "Stride = " + ToString(m_Stride) + "\n";
+        result.m_Label += "Pad L/T = " + to_string(m_PadLeft) + ", " + to_string(m_PadTop) + "\n";
+        result.m_Label += "UpscaleFactor = " + ToString(m_UpscaleFactor) + "\n";
+        result.m_Label += "UpsampleType = " + ToString(m_UpsampleType) + "\n";
+        result.m_Label += "Lower/Upper Bound = " + to_string(m_LowerBound) + ", " + to_string(m_UpperBound) + "\n";
+        result.m_Label += "Operation Ids = " + ArrayToString(m_OperationIds) + "\n";
     }
     return result;
 }
@@ -492,19 +493,18 @@ DotAttributes PleOp::GetDotAttributes(DetailLevel detail) const
     if (detail == DetailLevel::High)
     {
         result.m_Label = "PleOp\n";
-        result.m_Label += "Op = " + ToString(this->m_Op) + "\n";
-        result.m_Label += "Block Config = " + ToString(this->m_BlockConfig) + "\n";
-        result.m_Label += "Num Inputs = " + to_string(this->m_NumInputs) + "\n";
-        result.m_Label += "Input Stripe Shapes = " + ArrayToString(this->m_InputStripeShapes) + "\n";
-        result.m_Label += "Output Stripe Shape = " + ToString(this->m_OutputStripeShape) + "\n";
-        result.m_Label += "Ple kernel Id = " + ToString(this->m_PleKernelId) + "\n";
-        result.m_Label += "Kernel Load = " + ToString(this->m_LoadKernel) + "\n";
-        if (this->m_Offset.has_value())
+        result.m_Label += "Op = " + ToString(m_Op) + "\n";
+        result.m_Label += "Block Config = " + ToString(m_BlockConfig) + "\n";
+        result.m_Label += "Num Inputs = " + to_string(m_NumInputs) + "\n";
+        result.m_Label += "Input Stripe Shapes = " + ArrayToString(m_InputStripeShapes) + "\n";
+        result.m_Label += "Output Stripe Shape = " + ToString(m_OutputStripeShape) + "\n";
+        result.m_Label += "Ple kernel Id = " + ToString(m_PleKernelId) + "\n";
+        result.m_Label += "Kernel Load = " + ToString(m_LoadKernel) + "\n";
+        if (m_Offset.has_value())
         {
-            result.m_Label +=
-                "Offset = " + ToString(this->m_Offset.value()) + " (" + ToStringHex(this->m_Offset.value()) + ")\n";
+            result.m_Label += "Offset = " + ToString(m_Offset.value()) + " (" + ToStringHex(m_Offset.value()) + ")\n";
         }
-        result.m_Label += "Operation Ids = " + ArrayToString(this->m_OperationIds) + "\n";
+        result.m_Label += "Operation Ids = " + ArrayToString(m_OperationIds) + "\n";
         result.m_Label += "Input0Multiplier = " + ToString(m_Input0Multiplier) + "\n";
         result.m_Label += "Input0Shift = " + ToString(m_Input0Shift) + "\n";
         result.m_Label += "Input1Multiplier = " + ToString(m_Input1Multiplier) + "\n";

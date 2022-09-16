@@ -305,7 +305,9 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
 
     MceOp mce(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, { 3u, 4u }, { 1, 2, 3, 4 }, { 5, 6, 7, 8 },
               { 9, 10, 11, 12 }, TraversalOrder::Zxy, Stride(10, 20), 30, 40, 100, 200);
-    mce.m_DebugTag = "Mce";
+    mce.m_DebugTag      = "Mce";
+    mce.m_UpscaleFactor = 2;
+    mce.m_UpsampleType  = command_stream::cascading::UpsampleType::NEAREST_NEIGHBOUR;
     graph.AddOp(&mce);
 
     DmaOp dma(CascadingBufferFormat::NHWCB);
@@ -337,7 +339,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
     std::string expected =
         R"(digraph SupportLibraryGraph
 {
-Mce[label = "Mce\nIdx in OpGraph: 0\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlock Config = 3x4\nInput Stripe Shape = [1, 2, 3, 4]\nOutput Stripe Shape = [5, 6, 7, 8]\nWeights Stripe Shape = [9, 10, 11, 12]\nOrder = Zxy\nStride = 10, 20\nPad L/T = 30, 40\nLower/Upper Bound = 100, 200\nOperation Ids = []\n", shape = oval]
+Mce[label = "Mce\nIdx in OpGraph: 0\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlock Config = 3x4\nInput Stripe Shape = [1, 2, 3, 4]\nOutput Stripe Shape = [5, 6, 7, 8]\nWeights Stripe Shape = [9, 10, 11, 12]\nOrder = Zxy\nStride = 10, 20\nPad L/T = 30, 40\nUpscaleFactor = 2\nUpsampleType = NEAREST_NEIGHBOUR\nLower/Upper Bound = 100, 200\nOperation Ids = []\n", shape = oval]
 Dma[label = "Dma\nIdx in OpGraph: 1\nDmaOp\nOperation Ids = []\nTransfer Format = NHWCB\nOffset = [0, 0, 0, 0]\n", shape = oval, color = darkgoldenrod]
 Ple[label = "Ple\nIdx in OpGraph: 2\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nPle kernel Id = ADDITION_16X16_1\nKernel Load = 1\nOffset = 0 (0x0)\nOperation Ids = []\nInput0Multiplier = 10\nInput0Shift = 11\nInput1Multiplier = 12\nInput1Shift = 13\n", shape = oval]
 Buffer1[label = "Buffer1\nLocation = PleInputSram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\nOrder = Zxy\nOffset = 0 (0x0)\nSize in bytes = 1234 (0x4D2)\nSlot size in bytes = 0 (0x0)\nType = Intermediate\nPacked boundary thickness = { L: 0, T: 0, R: 0, B: 0}\nNum loads = 1\n", shape = box]
