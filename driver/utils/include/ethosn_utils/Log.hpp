@@ -1,5 +1,5 @@
 //
-// Copyright © 2020 Arm Limited. All rights reserved.
+// Copyright © 2020,2022 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -106,7 +106,12 @@ public:
         , m_Sinks(sinks)
     {}
 
-    // Log function for runtime-determined severity
+    // Log functions for runtime-determined severity
+    void ETHOSN_PRINTF_LIKE(printf, 3, 0) Log(Severity severity, const char* formatStr, va_list formatArgs)
+    {
+        LogImpl(severity, formatStr, formatArgs);
+    }
+
     void ETHOSN_PRINTF_LIKE(printf, 3, 4) Log(Severity severity, const char* formatStr, ...)
     {
         va_list formatArgs;
@@ -115,7 +120,16 @@ public:
         va_end(formatArgs);
     }
 
-    // Log function for compile-time-determined severity
+    // Log functions for compile-time-determined severity
+    template <Severity severity>
+    void ETHOSN_PRINTF_LIKE(printf, 2, 0) Log(const char* formatStr, va_list formatArgs)
+    {
+        if (severity <= CompileTimeMaxSeverity)
+        {
+            LogImpl(severity, formatStr, formatArgs);
+        }
+    }
+
     template <Severity severity>
     void ETHOSN_PRINTF_LIKE(printf, 2, 3) Log(const char* formatStr, ...)
     {
@@ -133,6 +147,14 @@ public:
     /// va_start/va_end calls need to be in the outer function and then won't get optimised based on
     /// CompileTimeMaxSeverity.
     /// @{
+    void ETHOSN_PRINTF_LIKE(printf, 2, 0) Panic(const char* formatStr, va_list formatArgs)
+    {
+        if (Severity::Panic <= CompileTimeMaxSeverity)
+        {
+            LogImpl(Severity::Panic, formatStr, formatArgs);
+        }
+    }
+
     void ETHOSN_PRINTF_LIKE(printf, 2, 3) Panic(const char* formatStr, ...)
     {
         if (Severity::Panic <= CompileTimeMaxSeverity)
@@ -141,6 +163,14 @@ public:
             va_start(formatArgs, formatStr);
             LogImpl(Severity::Panic, formatStr, formatArgs);
             va_end(formatArgs);
+        }
+    }
+
+    void ETHOSN_PRINTF_LIKE(printf, 2, 0) Error(const char* formatStr, va_list formatArgs)
+    {
+        if (Severity::Error <= CompileTimeMaxSeverity)
+        {
+            LogImpl(Severity::Error, formatStr, formatArgs);
         }
     }
 
@@ -155,6 +185,14 @@ public:
         }
     }
 
+    void ETHOSN_PRINTF_LIKE(printf, 2, 0) Warning(const char* formatStr, va_list formatArgs)
+    {
+        if (Severity::Warning <= CompileTimeMaxSeverity)
+        {
+            LogImpl(Severity::Warning, formatStr, formatArgs);
+        }
+    }
+
     void ETHOSN_PRINTF_LIKE(printf, 2, 3) Warning(const char* formatStr, ...)
     {
         if (Severity::Warning <= CompileTimeMaxSeverity)
@@ -163,6 +201,14 @@ public:
             va_start(formatArgs, formatStr);
             LogImpl(Severity::Warning, formatStr, formatArgs);
             va_end(formatArgs);
+        }
+    }
+
+    void ETHOSN_PRINTF_LIKE(printf, 2, 0) Info(const char* formatStr, va_list formatArgs)
+    {
+        if (Severity::Info <= CompileTimeMaxSeverity)
+        {
+            LogImpl(Severity::Info, formatStr, formatArgs);
         }
     }
 
@@ -177,6 +223,14 @@ public:
         }
     }
 
+    void ETHOSN_PRINTF_LIKE(printf, 2, 0) Debug(const char* formatStr, va_list formatArgs)
+    {
+        if (Severity::Debug <= CompileTimeMaxSeverity)
+        {
+            LogImpl(Severity::Debug, formatStr, formatArgs);
+        }
+    }
+
     void ETHOSN_PRINTF_LIKE(printf, 2, 3) Debug(const char* formatStr, ...)
     {
         if (Severity::Debug <= CompileTimeMaxSeverity)
@@ -185,6 +239,14 @@ public:
             va_start(formatArgs, formatStr);
             LogImpl(Severity::Debug, formatStr, formatArgs);
             va_end(formatArgs);
+        }
+    }
+
+    void ETHOSN_PRINTF_LIKE(printf, 2, 0) Verbose(const char* formatStr, va_list formatArgs)
+    {
+        if (Severity::Verbose <= CompileTimeMaxSeverity)
+        {
+            LogImpl(Severity::Verbose, formatStr, formatArgs);
         }
     }
 
