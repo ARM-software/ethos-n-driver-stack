@@ -349,6 +349,75 @@ TensorShape CreateStripe(TensorShape input, TensorShape inputEncoding, uint32_t 
     return inputStripeShape;
 }
 
+/// Creates an SRAM buffer for use in a glue which DMAs stuff into and out of SRAM.
+/// The stripe shape is chosen (somewhat) optimally.
+std::unique_ptr<Buffer> MakeGlueIntermediateSramBuffer(const TensorShape& shape,
+                                                       const QuantizationInfo& quantInfo,
+                                                       DataType dataType,
+                                                       const HardwareCapabilities& caps,
+                                                       uint32_t stripeDepthOverride,
+                                                       uint32_t minWidthMultiplier,
+                                                       uint32_t maxWidthMultiplier,
+                                                       uint32_t minHeightMultiplier,
+                                                       uint32_t maxHeightMultiplier)
+{
+    const uint32_t brickGroupWidth  = utils::GetWidth(caps.GetBrickGroupShape());
+    const uint32_t brickGroupHeight = utils::GetHeight(caps.GetBrickGroupShape());
+    if (maxWidthMultiplier == 0)
+    {
+        maxWidthMultiplier = utils::DivRoundUp(utils::GetWidth(shape), brickGroupWidth);
+    }
+    if (maxHeightMultiplier == 0)
+    {
+        maxHeightMultiplier = utils::DivRoundUp(utils::GetHeight(shape), brickGroupHeight);
+    }
+    const uint32_t stripeDepth =
+        stripeDepthOverride != 0
+            ? stripeDepthOverride
+            : utils::RoundUpToNearestMultiple(shape[3], utils::GetChannels(caps.GetBrickGroupShape()));
+
+    // Set the SRAM buffer's stripe size to be the largest height and width that fits in SRAM,
+    // to minimise stripe processing overhead.
+    // We can't split depth because if one of the buffers is NHWC that won't be compatible.
+    TensorShape bestStripeShape;
+    uint32_t bestScore = 0;
+    for (uint32_t heightMultiplier = minHeightMultiplier; heightMultiplier <= maxHeightMultiplier;
+         heightMultiplier *= 2)
+    {
+        for (uint32_t widthMultiplier = minWidthMultiplier; widthMultiplier <= maxWidthMultiplier; widthMultiplier *= 2)
+        {
+            TensorShape candidateStripeShape = { 1, heightMultiplier * brickGroupHeight,
+                                                 widthMultiplier * brickGroupWidth, stripeDepth };
+            uint32_t score                   = utils::GetNumElements(candidateStripeShape);
+            // Prefer full-channel and full-width stripes, as these are more efficient to transfer.
+            if (utils::GetChannels(candidateStripeShape) >= utils::GetChannels(shape))
+            {
+                score *= 2;
+                if (utils::GetWidth(candidateStripeShape) >= utils::GetWidth(shape))
+                {
+                    score *= 2;
+                }
+            }
+            if (utils::TotalSizeBytesNHWCB(candidateStripeShape) <= caps.GetTotalSramSize() && score > bestScore)
+            {
+                bestScore       = score;
+                bestStripeShape = candidateStripeShape;
+            }
+        }
+    }
+
+    auto sramBuffer =
+        std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, shape, bestStripeShape,
+                                 TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(bestStripeShape), quantInfo);
+    sramBuffer->m_DataType   = dataType;
+    sramBuffer->m_BufferType = BufferType::Intermediate;
+    sramBuffer->m_Offset     = 0;    // Nothing else should be resident in SRAM at this point, so we can use any address
+    sramBuffer->m_NumStripes = 1;
+    sramBuffer->m_SlotSizeInBytes = sramBuffer->m_SizeInBytes;
+
+    return sramBuffer;
+}
+
 StripeGenerator::StripeGenerator(const TensorShape& mceInput,
                                  const TensorShape& mceOutput,
                                  const TensorShape& pleOutput,

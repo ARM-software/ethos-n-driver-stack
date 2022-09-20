@@ -12,6 +12,7 @@
 #include "EstimationUtils.hpp"
 #include "Part.hpp"
 #include "Plan.hpp"
+#include "StripeHelper.hpp"
 
 #include <ethosn_utils/Filesystem.hpp>
 
@@ -137,6 +138,13 @@ bool Combiner::IsPlanAllocated(SectionContext& context,
                                const Buffer* const outBufOfPrevPlanInSection,
                                const StatsType sectionType) const
 {
+    // Some plans (e.g. from ConcatPart) do their own SRAM allocation, as the algorithm here
+    // makes some assumptions which are sub-optimal
+    if (plan.m_IsPreallocated)
+    {
+        return true;
+    }
+
     PleKernelInfo pleKernelInfo = plan.GetPleKernelInfo(m_Caps);
     uint32_t pleKernelSize      = 0;
     bool newPleKernel           = false;
@@ -494,21 +502,9 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenDramAndSramWithConversion(Bu
     auto dma1      = std::make_unique<DmaOp>(outputBuffer->m_Format);
     DmaOp* dma1Raw = dma1.get();
 
-    // Set the SRAM buffer's stripe size to be the smallest height and width to be the most compatible.
-    // We can't split depth because if one of the buffers is NHWC that won't be compatible.
-    TensorShape sramStripeShape = {
-        1, utils::GetHeight(m_Caps.GetBrickGroupShape()), utils::GetWidth(m_Caps.GetBrickGroupShape()),
-        utils::RoundUpToNearestMultiple(inputBuffer->m_TensorShape[3], utils::GetChannels(m_Caps.GetBrickGroupShape()))
-    };
-    auto sramBuffer = std::make_unique<Buffer>(
-        Location::Sram, CascadingBufferFormat::NHWCB, inputBuffer->m_TensorShape, sramStripeShape, TraversalOrder::Xyz,
-        utils::TotalSizeBytesNHWCB(sramStripeShape), inputBuffer->m_QuantizationInfo);
-    sramBuffer->m_DataType   = inputBuffer->m_DataType;
-    sramBuffer->m_BufferType = BufferType::Intermediate;
-    sramBuffer->m_Offset     = 0;    // Nothing else should be resident in SRAM at this point, so we can use any address
-    sramBuffer->m_NumStripes = 1;
-    sramBuffer->m_SlotSizeInBytes = sramBuffer->m_SizeInBytes;
-    Buffer* sramBufferRaw         = sramBuffer.get();
+    std::unique_ptr<Buffer> sramBuffer = impl::MakeGlueIntermediateSramBuffer(
+        inputBuffer->m_TensorShape, inputBuffer->m_QuantizationInfo, inputBuffer->m_DataType, m_Caps);
+    Buffer* sramBufferRaw = sramBuffer.get();
 
     auto dma2      = std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB);
     DmaOp* dma2Raw = dma2.get();
@@ -573,22 +569,8 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenSramAndDramWithConversion(Bu
     auto dma2      = std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB);
     DmaOp* dma2Raw = dma2.get();
 
-    // Set the SRAM buffer's stripe size to be the smallest height and width to be the most compatible.
-    // We can't split depth because if one of the buffers is NHWC that won't be compatible.
-    TensorShape intermediateSramStripeShape = {
-        1, utils::GetHeight(m_Caps.GetBrickGroupShape()), utils::GetWidth(m_Caps.GetBrickGroupShape()),
-        utils::RoundUpToNearestMultiple(tensorShape[3], utils::GetChannels(m_Caps.GetBrickGroupShape()))
-    };
-    auto intermediateSramBuffer = std::make_unique<Buffer>(
-        Location::Sram, CascadingBufferFormat::NHWCB, tensorShape, intermediateSramStripeShape, TraversalOrder::Xyz,
-        utils::TotalSizeBytesNHWCB(intermediateSramStripeShape), destBuffer->m_QuantizationInfo);
-    intermediateSramBuffer->m_DataType   = destBuffer->m_DataType;
-    intermediateSramBuffer->m_BufferType = BufferType::Intermediate;
-    intermediateSramBuffer->m_Offset =
-        0;    // Nothing else should be resident in SRAM at this point, so we can use any address
-    intermediateSramBuffer->m_NumStripes      = 1;
-    intermediateSramBuffer->m_SlotSizeInBytes = intermediateSramBuffer->m_SizeInBytes;
-
+    std::unique_ptr<Buffer> intermediateSramBuffer = impl::MakeGlueIntermediateSramBuffer(
+        tensorShape, destBuffer->m_QuantizationInfo, destBuffer->m_DataType, m_Caps);
     Buffer* intermediateSramBufferRaw = intermediateSramBuffer.get();
 
     assert(destBuffer->m_Format == CascadingBufferFormat::NHWC);
@@ -771,21 +753,8 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenDramAndDram(Buffer* inputBuf
     auto dma1      = std::make_unique<DmaOp>(outputBuffer->m_Format);
     DmaOp* dma1Raw = dma1.get();
 
-    // Set the SRAM buffer's stripe size to be the smallest height and width to be the most compatible.
-    // We can't split depth because if one of the buffers is NHWC that won't be compatible.
-    TensorShape sramStripeShape = {
-        1, utils::GetHeight(m_Caps.GetBrickGroupShape()), utils::GetWidth(m_Caps.GetBrickGroupShape()),
-        utils::RoundUpToNearestMultiple(inputBuffer->m_TensorShape[3], utils::GetChannels(m_Caps.GetBrickGroupShape()))
-    };
-    auto sramBuffer = std::make_unique<Buffer>(
-        Location::Sram, CascadingBufferFormat::NHWCB, inputBuffer->m_TensorShape, sramStripeShape, TraversalOrder::Xyz,
-        utils::TotalSizeBytesNHWCB(sramStripeShape), inputBuffer->m_QuantizationInfo);
-    sramBuffer->m_DataType   = inputBuffer->m_DataType;
-    sramBuffer->m_BufferType = BufferType::Intermediate;
-    sramBuffer->m_Offset     = 0;    // Nothing else should be resident in SRAM at this point, so we can use any address
-    sramBuffer->m_NumStripes = 1;
-    sramBuffer->m_SlotSizeInBytes = sramBuffer->m_SizeInBytes;
-
+    std::unique_ptr<Buffer> sramBuffer = impl::MakeGlueIntermediateSramBuffer(
+        inputBuffer->m_TensorShape, inputBuffer->m_QuantizationInfo, inputBuffer->m_DataType, m_Caps);
     Buffer* sramBufferRaw = sramBuffer.get();
     auto dma2             = std::make_unique<DmaOp>(inputBuffer->m_Format);
     DmaOp* dma2Raw        = dma2.get();

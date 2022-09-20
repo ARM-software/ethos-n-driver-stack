@@ -181,9 +181,9 @@ TEST_CASE("SplitPart Plan Generation", "[SplitPartTests]")
             Plans plans = splitPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
             SavePlansToDot(plans, "SplitPart GetPlans structure Lonely");
 
-            THEN("The number of generated plans > 1")
+            THEN("The number of generated plans >= 1")
             {
-                CHECK(plans.size() > 1);
+                CHECK(plans.size() >= 1);
             }
 
             AND_THEN("The plan is valid and end in Dram")

@@ -359,6 +359,18 @@ private:
                          StripeInfos& outStripeInfos) const;
 };
 
+/// Creates an SRAM buffer for use in a glue which DMAs stuff into and out of SRAM.
+/// The stripe shape is chosen (somewhat) optimally.
+std::unique_ptr<Buffer> MakeGlueIntermediateSramBuffer(const TensorShape& shape,
+                                                       const QuantizationInfo& quantInfo,
+                                                       DataType dataType,
+                                                       const HardwareCapabilities& caps,
+                                                       uint32_t stripeDepthOverride = 0,
+                                                       uint32_t minWidthMultiplier  = 1,
+                                                       uint32_t maxWidthMultiplier  = 0,
+                                                       uint32_t minHeightMultiplier = 1,
+                                                       uint32_t maxHeightMultiplier = 0);
+
 };    // namespace impl
 }    // namespace support_library
 }    // namespace ethosn

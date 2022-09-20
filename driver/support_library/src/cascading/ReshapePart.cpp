@@ -38,77 +38,61 @@ Plans ReshapePart::GetPlans(CascadeType cascadeType, ethosn::command_stream::Blo
     if (cascadeType == CascadeType::Lonely)
     {
         const uint32_t minWidthMultiplier = m_StripeConfig.blockWidthMultiplier.min;
-        const uint32_t maxWidthMultiplier = std::max(
-            1U, std::min(utils::GetWidth(m_InputTensorShape) / utils::GetWidth(m_Capabilities.GetBrickGroupShape()),
-                         m_StripeConfig.blockWidthMultiplier.max));
+        const uint32_t maxWidthMultiplier =
+            std::max(1U, std::min(utils::DivRoundUp(utils::GetWidth(m_InputTensorShape),
+                                                    utils::GetWidth(m_Capabilities.GetBrickGroupShape())),
+                                  m_StripeConfig.blockWidthMultiplier.max));
         const uint32_t minHeightMultiplier = m_StripeConfig.blockHeightMultiplier.min;
-        const uint32_t maxHeightMultiplier = std::max(
-            1U, std::min(utils::GetHeight(m_InputTensorShape) / utils::GetHeight(m_Capabilities.GetBrickGroupShape()),
-                         m_StripeConfig.blockHeightMultiplier.max));
-        for (uint32_t heightMultiplier = minHeightMultiplier; heightMultiplier <= maxHeightMultiplier;
-             heightMultiplier *= 2)
-        {
-            for (uint32_t widthMultiplier = minWidthMultiplier; widthMultiplier <= maxWidthMultiplier;
-                 widthMultiplier *= 2)
-            {
-                auto inputBuffer = std::make_unique<Buffer>(
-                    Location::Dram, CascadingBufferFormat::NHWC, m_InputTensorShape, TensorShape{ 0, 0, 0, 0 },
-                    TraversalOrder::Xyz, utils::TotalSizeBytes(m_InputTensorShape), m_OutputQuantizationInfo);
-                inputBuffer->m_BufferType = BufferType::Intermediate;
-                inputBuffer->m_DataType   = m_DataType;
-                Buffer* inputBufferRaw    = inputBuffer.get();
+        const uint32_t maxHeightMultiplier =
+            std::max(1U, std::min(utils::DivRoundUp(utils::GetHeight(m_InputTensorShape),
+                                                    utils::GetHeight(m_Capabilities.GetBrickGroupShape())),
+                                  m_StripeConfig.blockHeightMultiplier.max));
 
-                auto dma1            = std::make_unique<DmaOp>(CascadingBufferFormat::NHWC);
-                dma1->m_OperationIds = m_CorrespondingOperationIds;
-                DmaOp* dma1Raw       = dma1.get();
+        auto inputBuffer = std::make_unique<Buffer>(
+            Location::Dram, CascadingBufferFormat::NHWC, m_InputTensorShape, TensorShape{ 0, 0, 0, 0 },
+            TraversalOrder::Xyz, utils::TotalSizeBytes(m_InputTensorShape), m_OutputQuantizationInfo);
+        inputBuffer->m_BufferType = BufferType::Intermediate;
+        inputBuffer->m_DataType   = m_DataType;
+        Buffer* inputBufferRaw    = inputBuffer.get();
 
-                // We can't split depth because if one of the buffers is NHWC that won't be compatible.
-                TensorShape sramStripeShape = {
-                    1, utils::GetHeight(m_Capabilities.GetBrickGroupShape()) * heightMultiplier,
-                    utils::GetWidth(m_Capabilities.GetBrickGroupShape()) * widthMultiplier,
-                    utils::RoundUpToNearestMultiple(m_InputTensorShape[3],
-                                                    utils::GetChannels(m_Capabilities.GetBrickGroupShape()))
-                };
-                auto sramBuffer = std::make_unique<Buffer>(
-                    Location::Sram, CascadingBufferFormat::NHWCB, m_InputTensorShape, sramStripeShape,
-                    TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(sramStripeShape), m_OutputQuantizationInfo);
-                sramBuffer->m_BufferType = BufferType::Intermediate;
-                sramBuffer->m_Offset =
-                    0;    // Nothing else should be resident in SRAM at this point, so we can use any address
-                sramBuffer->m_NumStripes      = 1;
-                sramBuffer->m_SlotSizeInBytes = sramBuffer->m_SizeInBytes;
+        auto dma1            = std::make_unique<DmaOp>(CascadingBufferFormat::NHWC);
+        dma1->m_OperationIds = m_CorrespondingOperationIds;
+        DmaOp* dma1Raw       = dma1.get();
 
-                Buffer* sramBufferRaw = sramBuffer.get();
-                auto dma2             = std::make_unique<DmaOp>(CascadingBufferFormat::NHWC);
-                dma2->m_OperationIds  = m_CorrespondingOperationIds;
-                DmaOp* dma2Raw        = dma2.get();
+        // Create a buffer with the best stripe shape
+        std::unique_ptr<Buffer> sramBuffer = impl::MakeGlueIntermediateSramBuffer(
+            m_InputTensorShape, m_OutputQuantizationInfo, m_DataType, m_Capabilities, 0, minWidthMultiplier,
+            maxWidthMultiplier, minHeightMultiplier, maxHeightMultiplier);
+        Buffer* sramBufferRaw = sramBuffer.get();
+        auto dma2             = std::make_unique<DmaOp>(CascadingBufferFormat::NHWC);
+        dma2->m_OperationIds  = m_CorrespondingOperationIds;
+        DmaOp* dma2Raw        = dma2.get();
 
-                auto outputBuffer = std::make_unique<Buffer>(
-                    Location::Dram, CascadingBufferFormat::NHWC, m_OutputTensorShape, TensorShape{ 0, 0, 0, 0 },
-                    TraversalOrder::Xyz, utils::TotalSizeBytes(m_OutputTensorShape), m_OutputQuantizationInfo);
-                outputBuffer->m_BufferType = BufferType::Intermediate;
-                outputBuffer->m_DataType   = m_DataType;
-                Buffer* outputBufferRaw    = outputBuffer.get();
+        auto outputBuffer = std::make_unique<Buffer>(
+            Location::Dram, CascadingBufferFormat::NHWC, m_OutputTensorShape, TensorShape{ 0, 0, 0, 0 },
+            TraversalOrder::Xyz, utils::TotalSizeBytes(m_OutputTensorShape), m_OutputQuantizationInfo);
+        outputBuffer->m_BufferType = BufferType::Intermediate;
+        outputBuffer->m_DataType   = m_DataType;
+        Buffer* outputBufferRaw    = outputBuffer.get();
 
-                OwnedOpGraph graph;
-                graph.AddOp(std::move(dma1));
-                graph.AddOp(std::move(dma2));
-                graph.AddBuffer(std::move(inputBuffer));
-                graph.AddBuffer(std::move(sramBuffer));
-                graph.AddBuffer(std::move(outputBuffer));
-                graph.AddConsumer(inputBufferRaw, dma1Raw, 0);
-                graph.SetProducer(sramBufferRaw, dma1Raw);
-                graph.AddConsumer(sramBufferRaw, dma2Raw, 0);
-                graph.SetProducer(outputBufferRaw, dma2Raw);
+        OwnedOpGraph graph;
+        graph.AddOp(std::move(dma1));
+        graph.AddOp(std::move(dma2));
+        graph.AddBuffer(std::move(inputBuffer));
+        graph.AddBuffer(std::move(sramBuffer));
+        graph.AddBuffer(std::move(outputBuffer));
+        graph.AddConsumer(inputBufferRaw, dma1Raw, 0);
+        graph.SetProducer(sramBufferRaw, dma1Raw);
+        graph.AddConsumer(sramBufferRaw, dma2Raw, 0);
+        graph.SetProducer(outputBufferRaw, dma2Raw);
 
-                PartInputMapping inputMappings;
-                PartOutputMapping outputMappings;
+        PartInputMapping inputMappings;
+        PartOutputMapping outputMappings;
 
-                inputMappings[inputBufferRaw]   = PartInputSlot{ m_PartId, 0 };
-                outputMappings[outputBufferRaw] = PartOutputSlot{ m_PartId, 0 };
-                AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(graph), plans);
-            }
-        }
+        inputMappings[inputBufferRaw]   = PartInputSlot{ m_PartId, 0 };
+        outputMappings[outputBufferRaw] = PartOutputSlot{ m_PartId, 0 };
+
+        AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(graph), plans);
     }
 
     return plans;

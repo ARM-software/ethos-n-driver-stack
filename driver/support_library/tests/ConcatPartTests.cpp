@@ -183,9 +183,9 @@ TEST_CASE("ConcatPart Plan Generation", "[ConcatPartTests]")
             Plans plans = concatPart.GetPlans(CascadeType::Lonely, command_stream::BlockConfig{}, nullptr, 0);
             SavePlansToDot(plans, "ConcatPart GetPlans structure Lonely");
 
-            THEN("The number of generated plans > 1")
+            THEN("The number of generated plans >= 1")
             {
-                CHECK(plans.size() > 1);
+                CHECK(plans.size() >= 1);
             }
 
             AND_THEN("The plan is valid and end in Dram")
