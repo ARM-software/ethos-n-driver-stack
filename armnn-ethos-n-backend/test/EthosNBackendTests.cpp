@@ -552,4 +552,168 @@ TEST_SUITE("EthosNImportTensorHandle")
             CHECK(outputData[i] == inputData[i]);
         }
     }
+
+    // Test using the Preimport and Arm NN custom allocator API for both importing inputs and outputs
+    TEST_CASE("CustomAllocatorTest")
+    {
+        class CustomAllocator : public armnn::ICustomAllocator
+        {
+        public:
+            CustomAllocator()
+                : m_NameCount(0)
+            {}
+
+            void* allocate(size_t size, size_t alignment)
+            {
+                IgnoreUnused(alignment);    // This function implementation does not support alignment
+                IgnoreUnused(size);
+                // Create a file to be used as the file descriptor passed in
+                // We don't create a dma_buf here but use a normal file descriptor for this test
+                std::string fineName = "/tmp/bufferFile" + std::to_string(m_NameCount++) + ".bin";
+                int fd               = open(fineName.c_str(), O_RDWR | O_CREAT, S_IREAD | S_IWRITE);
+                REQUIRE(fd >= 0);
+                m_Map[fd] = fd;
+                return static_cast<void*>(&m_Map[fd]);
+            }
+
+            void free(void* ptr)
+            {
+                int fd = *static_cast<int*>(ptr);
+                close(fd);
+                m_Map.erase(fd);
+            }
+
+            armnn::MemorySource GetMemorySourceType()
+            {
+                return armnn::MemorySource::DmaBuf;
+            }
+
+            void PopulateData(void* ptr, const uint8_t* inData, size_t len)
+            {
+                int fd = *static_cast<int*>(ptr);
+                lseek(fd, 0, SEEK_SET);
+                auto ret = write(fd, inData, len);
+                REQUIRE(ret == len);
+                lseek(fd, 0, SEEK_SET);
+            }
+
+            void RetrieveData(void* ptr, uint8_t* outData, size_t len)
+            {
+                int fd = *static_cast<int*>(ptr);
+                lseek(fd, 0, SEEK_SET);
+                auto ret = read(fd, outData, len);
+                REQUIRE(ret == len);
+                lseek(fd, 0, SEEK_SET);
+            }
+
+            ~CustomAllocator()
+            {
+                for (const auto& it : m_Map)
+                {
+                    close(it.second);
+                }
+            }
+
+        private:
+            int m_NameCount;
+            std::map<int, int> m_Map;
+        };
+
+        // Ensure to run this test on the model only
+        bool onHardware = IsOnHardware();
+        if (onHardware)
+        {
+            return;
+        }
+
+        // To create a PreCompiled layer, create a network and Optimize it.
+        armnn::INetworkPtr net = armnn::INetwork::Create();
+
+        armnn::IConnectableLayer* const inputLayer = net->AddInputLayer(0, "input layer");
+        CHECK(inputLayer);
+
+        ActivationDescriptor reluDesc;
+        reluDesc.m_A                              = 255;
+        reluDesc.m_B                              = 0;
+        reluDesc.m_Function                       = ActivationFunction::BoundedReLu;
+        armnn::IConnectableLayer* const reluLayer = net->AddActivationLayer(reluDesc, "relu layer");
+        CHECK(reluLayer);
+
+        armnn::IConnectableLayer* const outputLayer = net->AddOutputLayer(0, "output layer");
+        CHECK(outputLayer);
+
+        TensorInfo inputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
+        inputTensorInfo.SetQuantizationOffset(0);
+        inputTensorInfo.SetQuantizationScale(1.f);
+        inputTensorInfo.SetConstant(true);
+
+        TensorInfo outputTensorInfo(TensorShape({ 1, 16, 16, 16 }), armnn::DataType::QAsymmU8);
+        outputTensorInfo.SetQuantizationOffset(0);
+        outputTensorInfo.SetQuantizationScale(1.f);
+
+        inputLayer->GetOutputSlot(0).Connect(reluLayer->GetInputSlot(0));
+        inputLayer->GetOutputSlot(0).SetTensorInfo(inputTensorInfo);
+
+        reluLayer->GetOutputSlot(0).Connect(outputLayer->GetInputSlot(0));
+        reluLayer->GetOutputSlot(0).SetTensorInfo(outputTensorInfo);
+
+        std::string id = "EthosNAcc";
+        armnn::IRuntime::CreationOptions options;
+        auto customAllocator         = std::make_shared<CustomAllocator>();
+        options.m_CustomAllocatorMap = { { id, std::move(customAllocator) } };
+        auto customAllocatorRef      = static_cast<CustomAllocator*>(options.m_CustomAllocatorMap[id].get());
+        armnn::IRuntimePtr runtime(armnn::IRuntime::Create(options));
+        armnn::OptimizerOptions optimizerOptions;
+        optimizerOptions.m_ImportEnabled = true;
+        optimizerOptions.m_ExportEnabled = true;
+        armnn::IOptimizedNetworkPtr optimizedNet =
+            armnn::Optimize(*net, { id }, runtime->GetDeviceSpec(), optimizerOptions);
+        CHECK(optimizedNet);
+
+        // Load graph into runtime
+        armnn::NetworkId networkIdentifier;
+        INetworkProperties networkProperties(false, customAllocatorRef->GetMemorySourceType(),
+                                             customAllocatorRef->GetMemorySourceType());
+        std::string errMsgs;
+        armnn::Status loadNetworkRes =
+            runtime->LoadNetwork(networkIdentifier, std::move(optimizedNet), errMsgs, networkProperties);
+        CHECK(loadNetworkRes == Status::Success);
+
+        // Create some data and fill in the buffers
+        unsigned int numElements = inputTensorInfo.GetNumElements();
+        size_t totalBytes        = numElements * sizeof(uint8_t);
+
+        void* inputFd = customAllocatorRef->allocate(totalBytes, 0);
+        std::vector<uint8_t> inputBuffer(totalBytes, 127);
+        customAllocatorRef->PopulateData(inputFd, inputBuffer.data(), totalBytes);
+
+        // Explicitly initialize the output buffer to 0 to be different from the input
+        // so we don't assume that the input is correct.
+        void* outputFd = customAllocatorRef->allocate(totalBytes, 0);
+        std::vector<uint8_t> outputBuffer(totalBytes, 0);
+        customAllocatorRef->PopulateData(outputFd, outputBuffer.data(), totalBytes);
+
+        InputTensors inputTensors{
+            { 0, ConstTensor(runtime->GetInputTensorInfo(networkIdentifier, 0), inputFd) },
+        };
+        OutputTensors outputTensors{
+            { 0, Tensor(runtime->GetOutputTensorInfo(networkIdentifier, 0), outputFd) },
+        };
+
+        auto ret = runtime->EnqueueWorkload(networkIdentifier, inputTensors, outputTensors);
+        REQUIRE(ret == Status::Success);
+
+        // We have no way of Unimporting manually without using the import API.
+        // Execute another inference so the buffer is reset when we import it again.
+        lseek(*reinterpret_cast<int*>(inputFd), 0, SEEK_SET);
+        ret = runtime->EnqueueWorkload(networkIdentifier, inputTensors, outputTensors);
+        CHECK(ret == Status::Success);
+
+        customAllocatorRef->RetrieveData(inputFd, inputBuffer.data(), totalBytes);
+        customAllocatorRef->RetrieveData(outputFd, outputBuffer.data(), totalBytes);
+        for (unsigned int i = 0; i < numElements; i++)
+        {
+            CHECK(outputBuffer[i] == inputBuffer[i]);
+        }
+    }
 }
