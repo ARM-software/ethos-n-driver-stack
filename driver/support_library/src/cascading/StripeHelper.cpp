@@ -722,20 +722,22 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         std::max(m_Capabilities.GetBrickGroupShape()[2] / (blockConfig.m_BlockWidth() * m_PleShapeMultiplier.m_W),
                  m_StripeConfig.blockWidthMultiplier.min);
     const uint32_t maxBlockWidthMultiplier =
-        std::max(1U, std::min(GetWidth(m_MceInputTensorShape) / blockConfig.m_BlockWidth(),
+        std::max(1U, std::min(utils::DivRoundUp(GetWidth(m_MceInputTensorShape), blockConfig.m_BlockWidth()),
                               m_StripeConfig.blockWidthMultiplier.max));
     const uint32_t minBlockHeightMultiplier =
         std::max(m_Capabilities.GetBrickGroupShape()[1] / (blockConfig.m_BlockHeight() * m_PleShapeMultiplier.m_H),
                  m_StripeConfig.blockHeightMultiplier.min);
     const uint32_t maxBlockHeightMultiplier =
-        std::max(1U, std::min(GetHeight(m_MceInputTensorShape) / blockConfig.m_BlockHeight(),
+        std::max(1U, std::min(utils::DivRoundUp(GetHeight(m_MceInputTensorShape), blockConfig.m_BlockHeight()),
                               m_StripeConfig.blockHeightMultiplier.max));
     const uint32_t minIfmDepthMultiplier = std::max(1U, m_StripeConfig.ifmDepthMultiplier.min);
     const uint32_t maxIfmDepthMultiplier =
-        std::max(1U, std::min(GetChannels(m_MceInputTensorShape) / (numOgs), m_StripeConfig.ifmDepthMultiplier.max));
+        std::max(1U, std::min(utils::DivRoundUp(GetChannels(m_MceInputTensorShape), numOgs),
+                              m_StripeConfig.ifmDepthMultiplier.max));
     const uint32_t minOfmDepthMultiplier = std::max(1U, m_StripeConfig.ofmDepthMultiplier.min);
     const uint32_t maxOfmDepthMultiplier =
-        std::max(1U, std::min(GetChannels(m_MceOutputTensorShape) / numOgs, m_StripeConfig.ofmDepthMultiplier.max));
+        std::max(1U, std::min(utils::DivRoundUp(GetChannels(m_MceOutputTensorShape), numOgs),
+                              m_StripeConfig.ofmDepthMultiplier.max));
 
     const TensorShape& outputShape = m_PleOutputTensorShape;
 

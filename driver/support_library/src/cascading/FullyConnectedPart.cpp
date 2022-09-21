@@ -127,7 +127,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
     {
         const uint32_t minOfmDepthMultiplier = std::max(1U, m_StripeConfig.ofmDepthMultiplier.min);
         const uint32_t maxOfmDepthMultiplier =
-            std::max(1U, std::min(GetChannels(m_OutputTensorShape) / m_Capabilities.GetNumberOfOgs(),
+            std::max(1U, std::min(utils::DivRoundUp(GetChannels(m_OutputTensorShape), m_Capabilities.GetNumberOfOgs()),
                                   m_StripeConfig.ofmDepthMultiplier.max));
         for (uint32_t ofmDepthMultiplier = minOfmDepthMultiplier; ofmDepthMultiplier <= maxOfmDepthMultiplier;
              ofmDepthMultiplier *= 2)
@@ -172,10 +172,10 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
     if (m_StripeConfig.splits.outputDepthInputDepth)
     {
         const uint32_t minIfmDepthMultiplier = std::max(1U, m_StripeConfig.ifmDepthMultiplier.min);
-        const uint32_t maxIfmDepthMultiplier =
-            std::max(1U, std::min(GetChannels(m_InputTensorShape) /
-                                      (m_Capabilities.GetIgsPerEngine() * m_Capabilities.GetNumberOfEngines()),
-                                  m_StripeConfig.ifmDepthMultiplier.max));
+        const uint32_t maxIfmDepthMultiplier = std::max(
+            1U, std::min(utils::DivRoundUp(GetChannels(m_InputTensorShape),
+                                           (m_Capabilities.GetIgsPerEngine() * m_Capabilities.GetNumberOfEngines())),
+                         m_StripeConfig.ifmDepthMultiplier.max));
         for (uint32_t ifmDepthMultiplier = minIfmDepthMultiplier; ifmDepthMultiplier <= maxIfmDepthMultiplier;
              ifmDepthMultiplier *= 2)
         {

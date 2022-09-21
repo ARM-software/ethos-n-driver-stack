@@ -138,13 +138,16 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
 
     const uint32_t minWidthMultiplier = stripeConfig.blockWidthMultiplier.min;
     const uint32_t maxWidthMultiplier =
-        std::max(1U, std::min(GetWidth(m_OutputTensorShape) / brickGroupWidth, stripeConfig.blockWidthMultiplier.max));
+        std::max(1U, std::min(utils::DivRoundUp(GetWidth(m_OutputTensorShape), brickGroupWidth),
+                              stripeConfig.blockWidthMultiplier.max));
     const uint32_t minHeightMultiplier = stripeConfig.blockHeightMultiplier.min;
-    const uint32_t maxHeightMultiplier = std::max(
-        1U, std::min(GetHeight(m_OutputTensorShape) / brickGroupHeight, stripeConfig.blockHeightMultiplier.max));
+    const uint32_t maxHeightMultiplier =
+        std::max(1U, std::min(utils::DivRoundUp(GetHeight(m_OutputTensorShape), brickGroupHeight),
+                              stripeConfig.blockHeightMultiplier.max));
     const uint32_t minDepthMultiplier = std::max(1U, stripeConfig.ofmDepthMultiplier.min);
     const uint32_t maxDepthMultiplier =
-        std::max(1U, std::min(GetChannels(m_OutputTensorShape) / brickGroupDepth, stripeConfig.ofmDepthMultiplier.max));
+        std::max(1U, std::min(utils::DivRoundUp(GetChannels(m_OutputTensorShape), brickGroupDepth),
+                              stripeConfig.ofmDepthMultiplier.max));
 
     auto addPlan = [&](const TensorShape& outputStripeShape) {
         // Uses block configure (16, 16) which will be ignored
