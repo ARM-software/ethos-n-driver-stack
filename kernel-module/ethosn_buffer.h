@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2021 Arm Limited.
+ * (C) COPYRIGHT 2018-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -31,13 +31,15 @@
 #include <linux/types.h>
 
 struct ethosn_buffer {
-	struct ethosn_device   *ethosn;
-	struct ethosn_dma_info *dma_info;
+	struct ethosn_device        *ethosn;
+	struct ethosn_dma_allocator *asset_allocator;
+	struct ethosn_dma_info      *dma_info;
 	/* file pointer used for user-space mmap and for ref-counting */
-	struct file            *file;
+	struct file                 *file;
 };
 
 int ethosn_buffer_register(struct ethosn_device *ethosn,
+			   struct ethosn_dma_allocator *asset_allocator,
 			   struct ethosn_buffer_req *buf_req);
 struct ethosn_buffer *ethosn_buffer_get(int fd);
 void put_ethosn_buffer(struct ethosn_buffer *buf);
@@ -45,5 +47,6 @@ void put_ethosn_buffer(struct ethosn_buffer *buf);
 const struct file_operations *ethosn_get_dma_view_fops(void);
 
 int ethosn_buffer_import(struct ethosn_device *ethosn,
+			 struct ethosn_dma_allocator *asset_allocator,
 			 struct ethosn_dma_buf_req *buf_req);
 #endif /* _ETHOSN_BUFFER_H_ */

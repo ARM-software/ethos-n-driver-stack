@@ -20,14 +20,70 @@
  *
  */
 
+#include "ethosn_asset_allocator.h"
+
 #include "ethosn_device.h"
 #include "ethosn_core.h"
-#include "ethosn_asset_allocator.h"
 
 #include <linux/device.h>
 #include <linux/module.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
+
+static void ethosn_asset_allocator_unreserve(
+	struct ethosn_dma_allocator *asset_allocator)
+{
+	if (!asset_allocator)
+		return;
+
+	asset_allocator->pid = ETHOSN_INVALID_PID;
+}
+
+static void asset_allocator_kref_release(struct kref *kref)
+{
+	struct ethosn_dma_allocator *const asset_allocator =
+		container_of(kref, struct ethosn_dma_allocator, kref);
+
+	ethosn_asset_allocator_unreserve(asset_allocator);
+}
+
+void ethosn_asset_allocator_get(struct ethosn_dma_allocator *asset_allocator)
+{
+	kref_get(&asset_allocator->kref);
+}
+
+/**
+ * ethosn_asset_allocator_put() - Decrement reference count for asset_allocator.
+ * @asset_allocator: Pointer to asset_allocator object.
+ *
+ * Return:
+ * * -EINVAL: If asset_allocator is NULL.
+ * * 1 if the object was released and 0 otherwise.
+ */
+int ethosn_asset_allocator_put(struct ethosn_dma_allocator *asset_allocator)
+{
+	if (!asset_allocator || asset_allocator->pid <= 0)
+		return -EINVAL;
+
+	return kref_put(&asset_allocator->kref, &asset_allocator_kref_release);
+}
+
+bool ethosn_asset_allocator_pid_exist(const struct ethosn_device *ethosn,
+				      pid_t pid)
+{
+	/* For carve out case there is no restriction per process */
+	if (!ethosn->smmu_available)
+		return false;
+
+	if (ethosn->asset_allocator[ETHOSN_DEFAULT_ASSET_ALLOC_INDEX]->pid ==
+	    pid)
+		return true;
+
+	return false;
+}
+
+/* Exported for use by test module */
+EXPORT_SYMBOL(ethosn_asset_allocator_pid_exist);
 
 static int ethosn_asset_allocator_pdev_remove(struct platform_device *pdev)
 {
@@ -53,9 +109,9 @@ static int ethosn_asset_allocator_pdev_remove(struct platform_device *pdev)
 
 	of_platform_depopulate(&pdev->dev);
 
-	ret = ethosn_dma_top_allocator_destroy(&pdev->dev,
-					       &ethosn->
-					       asset_allocator[alloc_id]);
+	ret = ethosn_dma_top_allocator_destroy(
+		&pdev->dev,
+		&ethosn->asset_allocator[alloc_id]);
 
 	if (ret)
 		return ret;
@@ -63,6 +119,26 @@ static int ethosn_asset_allocator_pdev_remove(struct platform_device *pdev)
 	dev_set_drvdata(&pdev->dev, NULL);
 
 	return ret;
+}
+
+struct ethosn_dma_allocator *ethosn_asset_allocator_reserve(
+	struct ethosn_device *ethosn,
+	pid_t pid)
+{
+	struct ethosn_dma_allocator *asset_allocator = NULL;
+
+	/* For Carveout, default allocator is always returned. Since Only
+	 * one allocator is available for use, the default allocator is
+	 * always returned for smmu case as well.
+	 */
+	asset_allocator =
+		ethosn->asset_allocator[ETHOSN_DEFAULT_ASSET_ALLOC_INDEX];
+
+	asset_allocator->pid = pid;
+
+	kref_init(&asset_allocator->kref);
+
+	return asset_allocator;
 }
 
 static int ethosn_asset_allocator_pdev_probe(struct platform_device *pdev)
@@ -95,6 +171,9 @@ static int ethosn_asset_allocator_pdev_probe(struct platform_device *pdev)
 	ethosn->num_asset_allocs++;
 
 	dev_set_drvdata(&pdev->dev, asset_allocator);
+
+	asset_allocator->dev = &pdev->dev;
+	asset_allocator->pid = ETHOSN_INVALID_PID;
 
 	ret = of_platform_default_populate(pdev->dev.of_node, NULL, &pdev->dev);
 	if (ret)

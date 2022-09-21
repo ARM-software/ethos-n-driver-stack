@@ -22,6 +22,7 @@
 
 #include "ethosn_network.h"
 
+#include "ethosn_asset_allocator.h"
 #include "ethosn_backport.h"
 #include "ethosn_buffer.h"
 #include "ethosn_debug.h"
@@ -392,7 +393,7 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 	/* kick off execution */
 	dev_dbg(core_dev, "Starting execution of inference");
 	ethosn_dma_sync_for_device(
-		ethosn->asset_allocator[0],
+		network->asset_allocator,
 		network->inference_data[core_id]);
 	core->current_inference = inference;
 
@@ -761,9 +762,8 @@ static long network_ioctl(struct file *filep,
 					 network),
 				 "Intermediate buffer for multi-core system: core 0 will be returned.");
 
-		ethosn_dma_sync_for_cpu(
-			network->ethosn->asset_allocator[0],
-			network->intermediate_data[0]);
+		ethosn_dma_sync_for_cpu(network->asset_allocator,
+					network->intermediate_data[0]);
 
 		ret = ethosn_get_dma_view_fd(network->ethosn,
 					     network->intermediate_data[0]);
@@ -836,14 +836,13 @@ static int init_inference_data(struct ethosn_network *network,
 	int ret;
 	struct ethosn_buffer_array *buffers =
 		get_inference_header(network, core_id);
-	struct ethosn_device *ethosn = network->ethosn;
 
 	buffers->num_buffers = num_bindings;
 
 	for (i = 0; i < num_bindings; ++i)
 		memset(&buffers->buffers[i], 0, sizeof(buffers->buffers[i]));
 
-	ethosn_dma_sync_for_device(ethosn->asset_allocator[0],
+	ethosn_dma_sync_for_device(network->asset_allocator,
 				   network->constant_dma_data);
 	ret = init_bindings(network,
 			    core_id,
@@ -857,7 +856,7 @@ static int init_inference_data(struct ethosn_network *network,
 	if (ret)
 		return ret;
 
-	ethosn_dma_sync_for_device(ethosn->asset_allocator[0],
+	ethosn_dma_sync_for_device(network->asset_allocator,
 				   network->constant_cu_data);
 	ret = init_bindings(network,
 			    core_id,
@@ -953,8 +952,6 @@ static int alloc_init_inference_data(struct ethosn_network *network,
 	int num_cores = network->ethosn->num_cores;
 
 	struct ethosn_core *core = network->ethosn->core[0];
-	struct ethosn_dma_allocator *asset_allocator =
-		network->ethosn->asset_allocator[0];
 
 	num_bindings = req->cu_buffers.num;
 	num_bindings += req->dma_buffers.num;
@@ -993,7 +990,7 @@ static int alloc_init_inference_data(struct ethosn_network *network,
 
 		network->inference_data[i] =
 			ethosn_dma_alloc_and_map(
-				asset_allocator,
+				network->asset_allocator,
 				size, ETHOSN_PROT_READ,
 				ETHOSN_STREAM_COMMAND_STREAM,
 				GFP_KERNEL,
@@ -1003,7 +1000,7 @@ static int alloc_init_inference_data(struct ethosn_network *network,
 
 		network->intermediate_data[i] =
 			ethosn_dma_alloc_and_map(
-				asset_allocator,
+				network->asset_allocator,
 				req->intermediate_data_size,
 				ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
 				ETHOSN_STREAM_INTERMEDIATE_BUFFER,
@@ -1025,7 +1022,6 @@ static int alloc_init_inference_data(struct ethosn_network *network,
 static void free_network(struct ethosn_network *network)
 {
 	int i = 0;
-
 	struct ethosn_device *ethosn = network->ethosn;
 
 	dev_dbg(net_to_dev(network),
@@ -1033,9 +1029,9 @@ static void free_network(struct ethosn_network *network)
 
 	/* Unmap virtual addresses from core */
 	/* Constant data shared between cores */
-	ethosn_dma_unmap(ethosn->asset_allocator[0],
+	ethosn_dma_unmap(network->asset_allocator,
 			 network->constant_dma_data);
-	ethosn_dma_unmap(ethosn->asset_allocator[0],
+	ethosn_dma_unmap(network->asset_allocator,
 			 network->constant_cu_data);
 
 	for (i = 0; i < ethosn->num_cores; i++) {
@@ -1043,18 +1039,18 @@ static void free_network(struct ethosn_network *network)
 		/* Intermediate and inference data exist per core */
 		if (network->intermediate_data)
 			ethosn_dma_unmap_and_free(
-				ethosn->asset_allocator[0],
+				network->asset_allocator,
 				network->intermediate_data[i]);
 
 		if (network->inference_data)
 			ethosn_dma_unmap_and_free(
-				ethosn->asset_allocator[0],
+				network->asset_allocator,
 				network->inference_data[i]);
 	}
 
 	/* Free allocated dma from top level device */
-	ethosn_dma_free(ethosn->asset_allocator[0], network->constant_dma_data);
-	ethosn_dma_free(ethosn->asset_allocator[0], network->constant_cu_data);
+	ethosn_dma_free(network->asset_allocator, network->constant_dma_data);
+	ethosn_dma_free(network->asset_allocator, network->constant_cu_data);
 
 	kfree(network->intermediate_data);
 	kfree(network->inference_data);
@@ -1069,13 +1065,16 @@ static void free_network(struct ethosn_network *network)
 
 /**
  * create_network() - Create a new network
- * @ethosn:     Ethos-N device
- * @net_rq:     Network description
+ * @ethosn: Ethos-N device
+ * @net_req: Network description
+ * @asset_alloc: Pointer to asset_allocator object
  *
  * Return: Network pointer on success, else error code.
  */
-static struct ethosn_network *create_network(struct ethosn_device *ethosn,
-					     struct ethosn_network_req *net_req)
+static
+struct ethosn_network *create_network(struct ethosn_device *ethosn,
+				      struct ethosn_network_req *net_req,
+				      struct ethosn_dma_allocator *asset_alloc)
 {
 	/* Note:- We register network on ethosn.
 	 * For carveout :- We allocate constant data. inference data
@@ -1095,6 +1094,7 @@ static struct ethosn_network *create_network(struct ethosn_device *ethosn,
 		return ERR_PTR(-ENOMEM);
 
 	network->ethosn = ethosn;
+	network->asset_allocator = asset_alloc;
 
 	/* Increment ref-count on device. Not sure why this is necessary,
 	 * but it needs to be before any potential failures so that when we
@@ -1104,7 +1104,7 @@ static struct ethosn_network *create_network(struct ethosn_device *ethosn,
 	get_device(ethosn->dev);
 
 	network->constant_dma_data = ethosn_dma_alloc(
-		ethosn->asset_allocator[0],
+		asset_alloc,
 		net_req->dma_data.size,
 		ETHOSN_STREAM_WEIGHT_DATA,
 		GFP_KERNEL,
@@ -1114,7 +1114,7 @@ static struct ethosn_network *create_network(struct ethosn_device *ethosn,
 		goto err_free_network;
 
 	ret = ethosn_dma_map(
-		ethosn->asset_allocator[0],
+		asset_alloc,
 		network->constant_dma_data,
 		ETHOSN_PROT_READ);
 	if (ret)
@@ -1129,7 +1129,7 @@ static struct ethosn_network *create_network(struct ethosn_device *ethosn,
 	}
 
 	network->constant_cu_data =
-		ethosn_dma_alloc(ethosn->asset_allocator[0],
+		ethosn_dma_alloc(asset_alloc,
 				 net_req->cu_data.size,
 				 ETHOSN_STREAM_COMMAND_STREAM,
 				 GFP_KERNEL,
@@ -1137,7 +1137,7 @@ static struct ethosn_network *create_network(struct ethosn_device *ethosn,
 	if (IS_ERR_OR_NULL(network->constant_cu_data))
 		goto err_free_network;
 
-	ret = ethosn_dma_map(ethosn->asset_allocator[0],
+	ret = ethosn_dma_map(asset_alloc,
 			     network->constant_cu_data,
 			     ETHOSN_PROT_READ);
 	if (ret)
@@ -1168,6 +1168,7 @@ static int network_release(struct inode *inode,
 {
 	struct ethosn_network *network = filep->private_data;
 	struct ethosn_device *ethosn = network->ethosn;
+	struct ethosn_dma_allocator *asset_allocator;
 
 	/* Note we don't use mutex_lock_interruptible here as we need to make
 	 * sure we release the network so we don't leak resources.
@@ -1176,7 +1177,15 @@ static int network_release(struct inode *inode,
 	 */
 	mutex_lock(&ethosn->mutex);
 
+	asset_allocator = network->asset_allocator;
+
 	free_network(network);
+
+	dev_dbg(ethosn->dev,
+		"Release network asset_allocator->pid = %d",
+		asset_allocator->pid);
+
+	ethosn_asset_allocator_put(asset_allocator);
 
 	mutex_unlock(&ethosn->mutex);
 
@@ -1186,11 +1195,13 @@ static int network_release(struct inode *inode,
 /**
  * ethosn_network_register() - Create a network
  * @ethosn:	Ethos-N device
+ * @asset_allocator: Pointer to the asset_allocator object
  * @net_req:	Network description
  *
  * Return: FD on success, else error code
  */
 int ethosn_network_register(struct ethosn_device *ethosn,
+			    struct ethosn_dma_allocator *asset_allocator,
 			    struct ethosn_network_req *net_req)
 {
 	static const struct file_operations network_fops = {
@@ -1205,7 +1216,13 @@ int ethosn_network_register(struct ethosn_device *ethosn,
 	struct ethosn_network *network;
 	int fd;
 
-	network = create_network(ethosn, net_req);
+	if (!asset_allocator) {
+		dev_err(ethosn->dev, "Asset allocator NULL\n");
+
+		return -EINVAL;
+	}
+
+	network = create_network(ethosn, net_req, asset_allocator);
 	if (IS_ERR(network))
 		return PTR_ERR(network);
 
@@ -1221,6 +1238,8 @@ int ethosn_network_register(struct ethosn_device *ethosn,
 
 	network->file = fget(fd);
 	fput(network->file);
+
+	ethosn_asset_allocator_get(asset_allocator);
 
 	dev_dbg(ethosn->dev,
 		"Registered network. handle=0x%pK\n", network);

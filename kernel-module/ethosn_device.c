@@ -1276,10 +1276,9 @@ static int ethosn_send_region_request(struct ethosn_core *core,
 		break;
 	case ETHOSN_REGION_COMMAND_STREAM:
 		request.addr = to_ethosn_addr(
-			ethosn_dma_get_addr_base(core->parent->
-						 asset_allocator[0],
-						 ETHOSN_STREAM_COMMAND_STREAM),
-			&core->dma_map);
+			ethosn_dma_get_addr_base(
+				core->parent->asset_allocator[0],
+				ETHOSN_STREAM_COMMAND_STREAM), &core->dma_map);
 
 		request.size = ethosn_dma_get_addr_size(
 			core->parent->asset_allocator[0],

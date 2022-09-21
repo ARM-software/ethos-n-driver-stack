@@ -79,7 +79,7 @@ struct ethosn_dma_info {
  * memory
  * @ops                Allocator operations
  * @smmu_stream_id     SMMU stream id for the SMMU case, 0 in carveout
- * @dev                Device bound to the allocator
+ * @dev                Device bound to the sub allocator
  */
 struct ethosn_dma_sub_allocator {
 	const struct ethosn_dma_allocator_ops *ops;
@@ -87,9 +87,19 @@ struct ethosn_dma_sub_allocator {
 	struct device                         *dev;
 };
 
+/**
+ * struct ethosn_dma_allocator - Contains allocator type and device
+ * @type     Stream type of this allocator
+ * @dev      Device bound to the allocator
+ * @kref     Reference counter
+ * @pid      PID to enforce one allocator per process limit
+ */
 struct ethosn_dma_allocator {
 	enum ethosn_alloc_type type;
 	uint32_t               alloc_id;
+	struct device          *dev;
+	struct kref            kref;
+	pid_t                  pid;
 };
 
 /**

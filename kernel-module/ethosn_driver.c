@@ -25,6 +25,7 @@
 #include "ethosn_buffer.h"
 #include "ethosn_device.h"
 #include "ethosn_firmware.h"
+#include "ethosn_proc_mem_allocator.h"
 #include "ethosn_network.h"
 #include "ethosn_core.h"
 #include "ethosn_main_allocator.h"
@@ -38,6 +39,7 @@
 #include <linux/idr.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/sched.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -641,33 +643,6 @@ static int ethosn_open(struct inode *inode,
 	return nonseekable_open(inode, file);
 }
 
-static void print_buffer_info(struct ethosn_device *ethosn,
-			      const char *prefix,
-			      u32 ninfos,
-			      const struct ethosn_buffer_info __user *infos)
-{
-	char buf[200];
-	size_t n = 0;
-	u32 i;
-	const char *delim = "";
-
-	n += scnprintf(&buf[n], sizeof(buf) - n, "    %s: ", prefix);
-
-	for (i = 0; i < ninfos; ++i) {
-		struct ethosn_buffer_info info;
-
-		if (copy_from_user(&info, &infos[i], sizeof(info)))
-			break;
-
-		n += scnprintf(&buf[n], sizeof(buf) - n, "%s{%u, %u, %u}",
-			       delim, info.id, info.offset, info.size);
-
-		delim = ", ";
-	}
-
-	dev_dbg(ethosn->dev, "%s\n", buf);
-}
-
 /**
  * ethosn_ioctl() - Take commands from user space
  * @filep:	File struct.
@@ -699,6 +674,26 @@ static long ethosn_ioctl(struct file *const filep,
 
 		break;
 	}
+	case ETHOSN_IOCTL_CREATE_PROC_MEM_ALLOCATOR: {
+		pid_t pid = task_pid_vnr(current);
+
+		dev_dbg(ethosn->dev,
+			"IOCTL: Create process memory allocator\n");
+
+		ret = mutex_lock_interruptible(&ethosn->mutex);
+		if (ret)
+			break;
+
+		ret = ethosn_process_mem_allocator_create(ethosn, pid);
+
+		mutex_unlock(&ethosn->mutex);
+
+		dev_dbg(ethosn->dev,
+			"IOCTL: Created process mem allocator. fd=%d for pid = %d\n",
+			ret, pid);
+
+		break;
+	}
 	case ETHOSN_IOCTL_CREATE_BUFFER: {
 		struct ethosn_buffer_req buf_req;
 
@@ -715,7 +710,11 @@ static long ethosn_ioctl(struct file *const filep,
 			"IOCTL: Create buffer. size=%u, flags=0x%x\n",
 			buf_req.size, buf_req.flags);
 
-		ret = ethosn_buffer_register(ethosn, &buf_req);
+		ret = ethosn_buffer_register(
+			ethosn,
+			ethosn->asset_allocator[
+				ETHOSN_DEFAULT_ASSET_ALLOC_INDEX],
+			&buf_req);
 
 		dev_dbg(ethosn->dev,
 			"IOCTL: Created buffer. fd=%d\n", ret);
@@ -740,7 +739,11 @@ static long ethosn_ioctl(struct file *const filep,
 			"IOCTL: Import buffer. size=%zu, flags=0x%x\n",
 			dma_buf_req.size, dma_buf_req.flags);
 
-		ret = ethosn_buffer_import(ethosn, &dma_buf_req);
+		ret = ethosn_buffer_import(
+			ethosn,
+			ethosn->asset_allocator[
+				ETHOSN_DEFAULT_ASSET_ALLOC_INDEX],
+			&dma_buf_req);
 
 		dev_dbg(ethosn->dev,
 			"IOCTL: Imported buffer. fd=%d\n", ret);
@@ -781,7 +784,11 @@ static long ethosn_ioctl(struct file *const filep,
 		print_buffer_info(ethosn, "output", net_req.output_buffers.num,
 				  net_req.output_buffers.info);
 
-		ret = ethosn_network_register(ethosn, &net_req);
+		ret = ethosn_network_register(
+			ethosn,
+			ethosn->asset_allocator[
+				ETHOSN_DEFAULT_ASSET_ALLOC_INDEX],
+			&net_req);
 
 		dev_dbg(ethosn->dev,
 			"IOCTL: Registered network. fd=%d\n", ret);
@@ -1081,9 +1088,11 @@ static int ethosn_create_carveout_asset_allocator(struct ethosn_device *ethosn)
 	if (IS_ERR_OR_NULL(ethosn->asset_allocator))
 		return PTR_ERR(ethosn->asset_allocator);
 
+	ethosn->num_asset_allocs = 1;
 	ethosn->asset_allocator[0] =
 		ethosn_dma_top_allocator_create(ethosn->dev,
 						ETHOSN_ALLOCATOR_CARVEOUT);
+	ethosn->asset_allocator[0]->pid = ETHOSN_INVALID_PID;
 
 	if (IS_ERR_OR_NULL(ethosn->asset_allocator[0]))
 		return PTR_ERR(ethosn->asset_allocator[0]);

@@ -51,17 +51,26 @@
  *      struct ethosn_network_req network = {
  *          ...
  *      };
- *      int net_fd = ioctl(dev_fd, ETHOSN_IOCTL_REGISTER_NETWORK, &network);
+ *
+ *      int proc_mem_fd = ioctl(dev_fd, ETHOSN_IOCTL_CREATE_PROC_MEM_ALLOCATOR);
+ *      int net_fd = ioctl(proc_mem_fd, ETHOSN_IOCTL_REGISTER_NETWORK,
+ *                         &network);
  *
  *      struct ethosn_buffer_req buf_req;
  *
  *      buf_req.size  = 1024;
  *      buf_req.flags = MB_WRONLY | MB_ZERO;
- *      int input_fd = ioctl(dev_fd, ETHOSN_IOCTL_CREATE_BUFFER, &buf_req);
+ *      int input_fd = ioctl(proc_mem_fd, ETHOSN_IOCTL_CREATE_BUFFER, &buf_req);
  *
  *      buf_req.size  = 512;
  *      buf_req.flags = MB_RDONLY | MB_ZERO;
- *      int output_fd = ioctl(dev_fd, ETHOSN_IOCTL_CREATE_BUFFER, &buf_req);
+ *      int output_fd = ioctl(proc_mem_fd, ETHOSN_IOCTL_CREATE_BUFFER,
+ *                            &buf_req);
+ *
+ *      // proc_mem_fd can be closed and existing handles remain valid but a new
+ *      // process memory allocator can't be requested until all resources
+ *      // allocated with it are freed
+ *      close(proc_mem_fd);
  *
  *      // dev_fd can be closed and existing handles remain valid
  *      close(dev_fd);
@@ -246,6 +255,8 @@ enum ethosn_poll_counter_name {
 	ETHOSN_IO(0x0c)
 #define ETHOSN_IOCTL_IMPORT_BUFFER \
 	ETHOSN_IO(0x0d)
+#define ETHOSN_IOCTL_CREATE_PROC_MEM_ALLOCATOR \
+	ETHOSN_IO(0x0e)
 
 /*
  * Results from reading an inference file descriptor.

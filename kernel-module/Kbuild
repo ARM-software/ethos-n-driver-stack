@@ -35,4 +35,5 @@ ethosn-objs := ethosn_core.o \
              ethosn_smc.o \
 	     ethosn_asset_allocator.o \
 	     ethosn_sub_allocator.o \
-	     ethosn_main_allocator.o
+	     ethosn_main_allocator.o \
+	     ethosn_proc_mem_allocator.o

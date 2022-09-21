@@ -20,33 +20,28 @@
  *
  */
 
-#ifndef _ETHOSN_ASSET_ALLOCATOR_H_
-#define _ETHOSN_ASSET_ALLOCATOR_H_
+#ifndef _ETHOSN_PROC_MEM_ALLOCATOR_H_
+#define _ETHOSN_PROC_MEM_ALLOCATOR_H_
 
 #include "ethosn_dma.h"
 #include "ethosn_device.h"
 
 #include <linux/types.h>
 
-#define ETHOSN_ASSET_ALLOC_DRIVER_NAME  "ethosn-asset_allocator"
-#define ETHOSN_ASSET_ALLOC_NUM_MAX 64
+struct ethosn_allocator {
+	struct ethosn_device        *ethosn;
+	struct file                 *file;
+	struct ethosn_dma_allocator *asset_allocator;
+};
 
-#define ETHOSN_DEFAULT_ASSET_ALLOC_INDEX 0
-#define ETHOSN_INVALID_PID INT_MIN
+int ethosn_process_mem_allocator_create(struct ethosn_device *ethosn,
+					pid_t pid);
 
-void ethosn_asset_allocator_get(struct ethosn_dma_allocator *asset_allocator);
+int ethosn_put_asset_object(struct ethosn_dma_allocator *asset_allocator);
 
-int ethosn_asset_allocator_put(struct ethosn_dma_allocator *asset_allocator);
+void print_buffer_info(struct ethosn_device *ethosn,
+		       const char *prefix,
+		       u32 ninfos,
+		       const struct ethosn_buffer_info __user *infos);
 
-bool ethosn_asset_allocator_pid_exist(const struct ethosn_device *ethosn,
-				      pid_t pid);
-
-struct ethosn_dma_allocator *ethosn_asset_allocator_reserve(
-	struct ethosn_device *ethosn,
-	pid_t pid);
-
-int ethosn_asset_allocator_platform_driver_register(void);
-
-void ethosn_asset_allocator_platform_driver_unregister(void);
-
-#endif /* _ETHOSN_ASSET_ALLOCATOR_H_ */
+#endif /* _ETHOSN_PROC_MEM_ALLOCATOR_H_ */

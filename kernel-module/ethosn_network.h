@@ -23,6 +23,7 @@
 #ifndef _ETHOSN_NETWORK_H_
 #define _ETHOSN_NETWORK_H_
 
+#include "ethosn_dma.h"
 #include "ethosn_device.h"
 #include <linux/irqreturn.h>
 
@@ -33,24 +34,25 @@ struct ethosn_network {
 	 * members of the ethosn struct. Memory allocation and mapping is
 	 * performed using an asset allocator in the ethosn device.
 	 */
-	struct ethosn_device      *ethosn;
+	struct ethosn_device        *ethosn;
+	struct ethosn_dma_allocator *asset_allocator;
 
-	struct ethosn_dma_info    *constant_dma_data;
-	struct ethosn_dma_info    *constant_cu_data;
-	struct ethosn_dma_info    **inference_data;
-	struct ethosn_dma_info    **intermediate_data;
+	struct ethosn_dma_info      *constant_dma_data;
+	struct ethosn_dma_info      *constant_cu_data;
+	struct ethosn_dma_info      **inference_data;
+	struct ethosn_dma_info      **intermediate_data;
 
-	u32                       num_intermediates;
-	struct ethosn_buffer_info *intermediates;
+	u32                         num_intermediates;
+	struct ethosn_buffer_info   *intermediates;
 
-	u32                       num_inputs;
-	struct ethosn_buffer_info *inputs;
+	u32                         num_inputs;
+	struct ethosn_buffer_info   *inputs;
 
-	u32                       num_outputs;
-	struct ethosn_buffer_info *outputs;
+	u32                         num_outputs;
+	struct ethosn_buffer_info   *outputs;
 
 	/* file pointer used for ref-counting */
-	struct file               *file;
+	struct file                 *file;
 };
 
 struct ethosn_inference {
@@ -74,6 +76,7 @@ struct ethosn_network_req;
 struct ethosn_inference_req;
 
 int ethosn_network_register(struct ethosn_device *ethosn,
+			    struct ethosn_dma_allocator *asset_allocator,
 			    struct ethosn_network_req *net_req);
 
 void ethosn_network_poll(struct ethosn_core *core,
