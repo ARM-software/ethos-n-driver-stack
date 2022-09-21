@@ -87,6 +87,11 @@ bool BasePart::CanDoubleBufferWeights() const
     return false;
 }
 
+bool BasePart::IsOutputGuaranteedNhwc() const
+{
+    return false;
+}
+
 void BasePart::ModifyActivationBounds(int16_t, int16_t)
 {}
 

@@ -654,20 +654,47 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
 
         auto concatInfo = concat.GetConcatenationInfo();
 
-        // Figure out if we need to use NHWC or if we can get away with NHWCB (which should be more efficient).
-        // We can use NHWCB if the dimensions along the concat axis are all multiples of the brick group size, so
-        // that the DMA is capable of placing the tensors correctly in DRAM.
-        CompilerDataFormat format = CompilerDataFormat::NHWCB;
-        for (uint32_t i = 0; i < numInputs; ++i)
+        // Figure out which format to use (NHWC or NHWCB).
+        CompilerDataFormat format = CompilerDataFormat::NONE;
         {
-            if (concat.GetInput(i).GetTensorInfo().m_Dimensions[concatInfo.m_Axis] %
-                        m_Capabilities.GetBrickGroupShape()[concatInfo.m_Axis] !=
-                    0 &&
-                (concatInfo.m_Axis != 3 || concat.GetInput(i).GetTensorInfo().m_Dimensions[concatInfo.m_Axis] % 8 != 0))
+            // We can use NHWCB if the dimensions along the concat axis are all multiples of the brick group size, so
+            // that the DMA is capable of placing the tensors correctly in DRAM.
+            bool canUseNhwcb         = true;
+            bool allInputsPreferNhwc = true;
+            for (uint32_t i = 0; i < numInputs; ++i)
+            {
+                uint32_t requiredMultiple =
+                    concatInfo.m_Axis == 3 ? 8 : m_Capabilities.GetBrickGroupShape()[concatInfo.m_Axis];
+                if (concat.GetInput(i).GetTensorInfo().m_Dimensions[concatInfo.m_Axis] % requiredMultiple != 0)
+                {
+                    canUseNhwcb = false;
+                }
+
+                if (!m_OperandToPart.at(&concat.GetInput(i))->IsOutputGuaranteedNhwc())
+                {
+                    allInputsPreferNhwc = false;
+                }
+            }
+
+            bool canUseNhwc = (concatInfo.m_Axis != 3);
+
+            // Generally we prefer to use NHWCB if we can, as it should be the more efficient format.
+            // However, if all our inputs are likely to produce NHWC outputs, then it is probably better
+            // to use NHWC, as it avoids the need for conversion.
+            assert(canUseNhwc || canUseNhwcb);
+            if (allInputsPreferNhwc && canUseNhwc)
             {
                 format = CompilerDataFormat::NHWC;
-                break;
             }
+            else if (canUseNhwcb)
+            {
+                format = CompilerDataFormat::NHWCB;
+            }
+            else if (canUseNhwc)
+            {
+                format = CompilerDataFormat::NHWC;
+            }
+            assert(format != CompilerDataFormat::NONE);
         }
 
         auto concatPart = std::make_unique<ConcatPart>(

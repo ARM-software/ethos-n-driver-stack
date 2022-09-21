@@ -98,6 +98,12 @@ Plans ReshapePart::GetPlans(CascadeType cascadeType, ethosn::command_stream::Blo
     return plans;
 }
 
+bool ReshapePart::IsOutputGuaranteedNhwc() const
+{
+    // This allows ConcatPart to generate plans that should lead to a more efficient overall graph.
+    return true;
+}
+
 ReshapePart::~ReshapePart()
 {}
 
