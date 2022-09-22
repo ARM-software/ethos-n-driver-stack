@@ -294,13 +294,17 @@ Combination Combiner::AddTempGlues(const Combination& combination)
                 auto startingGlue = std::make_shared<StartingGlue>();
                 if (buffer->m_Location == Location::Sram)
                 {
-                    // Assume NHWCB for now, we could use try and use a more optimal format
-                    // NHWCB is most conservative in terms of performance and compatibility.
-                    auto dramBuffer = std::make_unique<Buffer>(
-                        Location::Dram, CascadingBufferFormat::NHWCB, buffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
-                        TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(buffer->m_TensorShape),
-                        buffer->m_QuantizationInfo);
-                    dramBuffer->m_DataType   = buffer->m_DataType;
+                    // Choose the best format for the DRAM buffer. Note that this format won't necessarily
+                    // be the same as the format used in the final compilation, because we don't know what other
+                    // users of this buffer will require. We could simply assume NHWCB which would be the most
+                    // conservative in terms of performance and compatibility, but this might lead to pessimistic
+                    // performance estimates due to chunking.
+                    CascadingBufferFormat dramFormat = GetBestCascadingBufferDramFormat({ buffer });
+                    auto dramBuffer        = std::make_unique<Buffer>(Location::Dram, dramFormat, buffer->m_TensorShape,
+                                                               TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
+                                                               utils::TotalSizeBytesNHWCB(buffer->m_TensorShape),
+                                                               buffer->m_QuantizationInfo);
+                    dramBuffer->m_DataType = buffer->m_DataType;
                     dramBuffer->m_BufferType = BufferType::Intermediate;
                     Buffer* dramBufferRaw    = dramBuffer.get();
                     auto dma                 = std::make_unique<DmaOp>(buffer->m_Format);
@@ -326,11 +330,17 @@ Combination Combiner::AddTempGlues(const Combination& combination)
                 auto endingGlue = std::make_shared<EndingGlue>();
                 if (buffer->m_Location == Location::Sram)
                 {
-                    auto dramBuffer = std::make_unique<Buffer>(
-                        Location::Dram, CascadingBufferFormat::NHWCB, buffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
-                        TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(buffer->m_TensorShape),
-                        buffer->m_QuantizationInfo);
-                    dramBuffer->m_DataType   = buffer->m_DataType;
+                    // Choose the best format for the DRAM buffer. Note that this format won't necessarily
+                    // be the same as the format used in the final compilation, because we don't know what other
+                    // users of this buffer will require. We could simply assume NHWCB which would be the most
+                    // conservative in terms of performance and compatibility, but this might lead to pessimistic
+                    // performance estimates due to chunking.
+                    CascadingBufferFormat dramFormat = GetBestCascadingBufferDramFormat({ buffer });
+                    auto dramBuffer        = std::make_unique<Buffer>(Location::Dram, dramFormat, buffer->m_TensorShape,
+                                                               TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
+                                                               utils::TotalSizeBytesNHWCB(buffer->m_TensorShape),
+                                                               buffer->m_QuantizationInfo);
+                    dramBuffer->m_DataType = buffer->m_DataType;
                     dramBuffer->m_BufferType = BufferType::Intermediate;
                     Buffer* dramBufferRaw    = dramBuffer.get();
                     auto dma                 = std::make_unique<DmaOp>(buffer->m_Format);
@@ -409,49 +419,40 @@ OpGraph Combiner::GetMergedOpGraphForBestCombination() const
     return m_MergedOpGraphForBestCombination;
 }
 
-CascadingBufferFormat Combiner::GetBestCascadingBufferDramFormat(const std::array<Buffer*, 2> sramBuffers) const
+CascadingBufferFormat Combiner::GetBestCascadingBufferDramFormat(const std::vector<Buffer*>& sramBuffers) const
 {
     if (!m_CompilationOptions.m_EnableIntermediateCompression)
     {
         return CascadingBufferFormat::NHWCB;
     }
 
-    using SupportedCompressedFormats = std::vector<CascadingBufferFormat>;
+    bool fcafDeep = true;
+    bool fcafWide = true;
 
-    constexpr size_t sramBuffersSize = sramBuffers.size();
-    SupportedCompressedFormats cascadingBufferSupportedTypePerStripe[sramBuffersSize];
-    for (size_t sramBufferIdx = 0; sramBufferIdx < sramBuffersSize; sramBufferIdx++)
+    for (Buffer* b : sramBuffers)
     {
-        const Buffer* currentBuffer = sramBuffers[sramBufferIdx];
-        SupportedCompressedFormats& currentCascadedSupportedTypeList =
-            cascadingBufferSupportedTypePerStripe[sramBufferIdx];
-
-        if (IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_DEEP,
-                                                            currentBuffer->m_StripeShape) &&
-            !AnyPackedBoundaryData(currentBuffer->m_PackedBoundaryThickness))
+        if (!IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_DEEP,
+                                                             b->m_StripeShape) ||
+            AnyPackedBoundaryData(b->m_PackedBoundaryThickness))
         {
-            currentCascadedSupportedTypeList.push_back(CascadingBufferFormat::FCAF_DEEP);
+            fcafDeep = false;
         }
-        if (IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_WIDE,
-                                                            currentBuffer->m_StripeShape) &&
-            !AnyPackedBoundaryData(currentBuffer->m_PackedBoundaryThickness))
+        if (!IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_WIDE,
+                                                             b->m_StripeShape) ||
+            AnyPackedBoundaryData(b->m_PackedBoundaryThickness))
         {
-            currentCascadedSupportedTypeList.push_back(CascadingBufferFormat::FCAF_WIDE);
+            fcafWide = false;
         }
     }
 
-    SupportedCompressedFormats supportedTypes;
-    static_assert(ETHOSN_ARRAY_SIZE(cascadingBufferSupportedTypePerStripe) == 2, "");
-    std::set_intersection(cascadingBufferSupportedTypePerStripe[0].begin(),
-                          cascadingBufferSupportedTypePerStripe[0].end(),
-                          cascadingBufferSupportedTypePerStripe[1].begin(),
-                          cascadingBufferSupportedTypePerStripe[1].end(), std::back_inserter(supportedTypes));
-
-    if (!supportedTypes.empty())
+    if (fcafDeep)
     {
-        return supportedTypes.front();
+        return CascadingBufferFormat::FCAF_DEEP;
     }
-
+    else if (fcafWide)
+    {
+        return CascadingBufferFormat::FCAF_WIDE;
+    }
     return CascadingBufferFormat::NHWCB;
 }
 

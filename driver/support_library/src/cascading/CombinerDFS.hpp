@@ -234,7 +234,7 @@ public:
     BestCombinationResults GetBestCombination(const Combinations& combs);
     Combination GetBestCombinationSafe(Combinations& combs);
 
-    CascadingBufferFormat GetBestCascadingBufferDramFormat(const std::array<Buffer*, 2> sramBuffers) const;
+    CascadingBufferFormat GetBestCascadingBufferDramFormat(const std::vector<Buffer*>& sramBuffers) const;
 
     const Plan& GetPlanForPartFromCombination(const BasePart& part, const Combination& comb) const;
     std::pair<bool, StartingAndEndingGlues> GetGlue(Buffer* outputBuffer, Buffer* inputBuffer);

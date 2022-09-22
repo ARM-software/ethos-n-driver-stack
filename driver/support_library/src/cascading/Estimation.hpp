@@ -26,6 +26,7 @@ struct EstimatedPass
 
 EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
                                               Op* op,
+                                              const HardwareCapabilities& capabilities,
                                               const EstimationOptions& estimationOpts,
                                               std::unordered_set<Op*>& unestimatedOps);
 

@@ -37,6 +37,7 @@ DataFormat GetWeightsFormat(const MceOp& mceOp)
 /// Removes Ops from the given unprocessed set that it has included in its estimation.
 EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
                                               Op* op,
+                                              const HardwareCapabilities& capabilities,
                                               const EstimationOptions& estimationOpts,
                                               std::unordered_set<Op*>& unprocessed)
 {
@@ -112,6 +113,11 @@ EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
     outputConversionData.isNhwc      = outputBuffer->m_Format == CascadingBufferFormat::NHWC;
 
     result.m_Stats = GetConversionStats(inputConversionData, outputConversionData, isDramToDram);
+
+    result.m_Stats.m_Input.m_StripesStats =
+        AccountForDmaChunking(result.m_Stats.m_Input.m_StripesStats, *sramBuffer, *inputBuffer, false, capabilities);
+    result.m_Stats.m_Output.m_StripesStats =
+        AccountForDmaChunking(result.m_Stats.m_Output.m_StripesStats, *sramBuffer, *outputBuffer, true, capabilities);
 
     if (isInputCompressed)
     {
@@ -275,28 +281,31 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         {
             throw NotSupportedException("Input buffer to PleOp/MceOp must be in Sram");
         }
-        utils::Optional<CascadingBufferFormat> inputDramFormat;
-        bool isCompressed = false;
-        DmaOp* dmaOp      = GetObjectAs<DmaOp>(opGraph.GetSingleProducer(sramInputBuffer));
+        Buffer* dramBuffer = nullptr;
+        DmaOp* dmaOp       = GetObjectAs<DmaOp>(opGraph.GetSingleProducer(sramInputBuffer));
         if (dmaOp != nullptr && unprocessed.count(dmaOp) > 0)
         {
             if (opGraph.GetInputs(dmaOp).size() != 1)
             {
                 throw NotSupportedException("DmaOp must have exactly one input");
             }
-            Buffer* dramBuffer = opGraph.GetInputs(dmaOp)[0];
-            inputDramFormat    = dramBuffer->m_Format;
-            isCompressed       = IsCompressed(dramBuffer->m_Format);
+            dramBuffer = opGraph.GetInputs(dmaOp)[0];
             includeOp(dmaOp);
         }
 
-        const InputStats uncompressedStats =
-            GetInputStatsCascading(*sramInputBuffer, weightsTensorInfo.m_Dimensions, inputDramFormat);
-        const InputStats inputStats =
-            isCompressed
-                ? AccountForActivationCompression(uncompressedStats, estimationOpts.m_ActivationCompressionSaving)
-                : uncompressedStats;
-        result.m_Stats.m_Input += inputStats;
+        InputStats stats = GetInputStatsCascading(*sramInputBuffer, weightsTensorInfo.m_Dimensions,
+                                                  dramBuffer != nullptr ? dramBuffer->m_Format
+                                                                        : utils::Optional<CascadingBufferFormat>{});
+        if (dramBuffer != nullptr)
+        {
+            stats.m_StripesStats =
+                AccountForDmaChunking(stats.m_StripesStats, *sramInputBuffer, *dramBuffer, false, capabilities);
+            if (IsCompressed(dramBuffer->m_Format))
+            {
+                stats = AccountForActivationCompression(stats, estimationOpts.m_ActivationCompressionSaving);
+            }
+        }
+        result.m_Stats.m_Input += stats;
     }
 
     // Check for a DmaOp afterwards, and use that to calculate output stats
@@ -307,21 +316,19 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         }
         Location outputLocation      = Location::Sram;
         CascadingBufferFormat format = sramOutputBuffer->m_Format;
-        bool isCompressed            = false;
-
+        Buffer* dramBuffer           = nullptr;
         for (uint32_t i = 0; i < uint32_t(opGraph.GetConsumers(sramOutputBuffer).size()); i++)
         {
             DmaOp* dmaOp = GetObjectAs<DmaOp>(opGraph.GetConsumers(sramOutputBuffer)[i].first);
             if (dmaOp != nullptr && unprocessed.count(dmaOp) > 0)
             {
-                Buffer* dmaOutput = opGraph.GetOutput(dmaOp);
-                if (dmaOutput == nullptr)
+                dramBuffer = opGraph.GetOutput(dmaOp);
+                if (dramBuffer == nullptr)
                 {
                     throw NotSupportedException("Output Dma op must have an output");
                 }
-                outputLocation = dmaOutput->m_Location;
-                format         = dmaOutput->m_Format;
-                isCompressed   = IsCompressed(format);
+                outputLocation = dramBuffer->m_Location;
+                format         = dramBuffer->m_Format;
                 includeOp(dmaOp);
             }
         }
@@ -330,12 +337,17 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
             format != CascadingBufferFormat::NHWC ? RoundUpHeightAndWidthToBrickGroup(sramOutputBuffer->m_TensorShape)
                                                   : sramOutputBuffer->m_TensorShape;
 
-        const OutputStats uncompressedStats =
-            GetOutputStats(roundedUpOutputShape, sramOutputBuffer->m_StripeShape, outputLocation);
-        result.m_Stats.m_Output =
-            isCompressed
-                ? AccountForActivationCompression(uncompressedStats, estimationOpts.m_ActivationCompressionSaving)
-                : uncompressedStats;
+        OutputStats stats = GetOutputStats(roundedUpOutputShape, sramOutputBuffer->m_StripeShape, outputLocation);
+        if (dramBuffer != nullptr)
+        {
+            stats.m_StripesStats =
+                AccountForDmaChunking(stats.m_StripesStats, *sramOutputBuffer, *dramBuffer, true, capabilities);
+            if (IsCompressed(dramBuffer->m_Format))
+            {
+                stats = AccountForActivationCompression(stats, estimationOpts.m_ActivationCompressionSaving);
+            }
+        }
+        result.m_Stats.m_Output = stats;
     }
 
     return result;
@@ -449,7 +461,8 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
             {
                 try
                 {
-                    estimatedPass = EstimateConversionPassGrownFrom(opGraph, op, estimationOpts, unprocessedOps);
+                    estimatedPass =
+                        EstimateConversionPassGrownFrom(opGraph, op, capabilities, estimationOpts, unprocessedOps);
                 }
                 catch (const NotSupportedException&)
                 {

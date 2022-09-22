@@ -56,6 +56,15 @@ OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeSh
 
 InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRatio);
 
+/// Increases the number of stripes in the given stats if the transfer between the two buffers provided
+/// would result in the DMA having to be split into multiple chunks. This is useful as the performance estimate
+/// will then take this into account, and prefer to choose strategies that don't require chunking.
+StripesStats AccountForDmaChunking(StripesStats stats,
+                                   const Buffer& sramBuffer,
+                                   const Buffer& dramBuffer,
+                                   bool dramStridingAllowed,
+                                   const HardwareCapabilities& caps);
+
 double CalculateMetric(const NetworkPerformanceData& networkPerfData);
 double CalculateMetric(const PassPerformanceData& passPerfData);
 

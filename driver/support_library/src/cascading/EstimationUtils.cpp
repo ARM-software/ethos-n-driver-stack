@@ -376,6 +376,68 @@ InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRa
     return ret;
 }
 
+StripesStats AccountForDmaChunking(StripesStats stats,
+                                   const Buffer& sramBuffer,
+                                   const Buffer& dramBuffer,
+                                   bool dramStridingAllowed,
+                                   const HardwareCapabilities& caps)
+{
+    using namespace utils;
+
+    StripesStats result = stats;
+
+    if (dramBuffer.m_Format == CascadingBufferFormat::NHWCB)
+    {
+        const uint32_t brickGroupWidth    = utils::GetWidth(caps.GetBrickGroupShape());
+        const uint32_t brickGroupHeight   = utils::GetHeight(caps.GetBrickGroupShape());
+        const uint32_t brickGroupChannels = utils::GetChannels(caps.GetBrickGroupShape());
+
+        const TensorShape& stripeSize             = sramBuffer.m_StripeShape;
+        const TensorShape& supertensorSizeInCells = {
+            1,
+            DivRoundUp(GetHeight(dramBuffer.m_TensorShape), brickGroupHeight),
+            DivRoundUp(GetWidth(dramBuffer.m_TensorShape), brickGroupWidth),
+            DivRoundUp(GetChannels(dramBuffer.m_TensorShape), brickGroupChannels),
+        };
+
+        // Consistent non-zero DRAM stride needed for output streaming to use DRAM striding
+        const bool canDramStride = dramStridingAllowed &&
+                                   utils::DivRoundUp(GetChannels(stripeSize), brickGroupChannels) == 1U &&
+                                   GetChannels(supertensorSizeInCells) > 1;
+
+        uint32_t numChunksH = 1;
+        uint32_t numChunksW = 1;
+        uint32_t numChunksC = 1;
+
+        const bool partialDepth =
+            utils::DivRoundUp(GetChannels(stripeSize), brickGroupChannels) < GetChannels(supertensorSizeInCells);
+        const bool partialWidth =
+            utils::DivRoundUp(GetWidth(stripeSize), brickGroupWidth) < GetWidth(supertensorSizeInCells);
+
+        // Input NHWCB cannot DRAM stride, output NHWCB can only dram stride with stripes
+        // one brick group in depth
+
+        // DRAM striding can be used for as much of the stripe that has a consistent stride
+        // i.e. can cover the full stripe if it is full width, or each row if it is partial
+
+        // Stride between X chunks if partial depth
+        if (partialDepth && !canDramStride)
+        {
+            numChunksW = utils::DivRoundUp(GetWidth(stripeSize), brickGroupWidth);
+        }
+
+        // Stride between Y chunks if partial width or partial depth
+        if ((partialDepth && !canDramStride) || partialWidth)
+        {
+            numChunksH = utils::DivRoundUp(GetHeight(stripeSize), brickGroupHeight);
+        }
+
+        result.m_NumCentralStripes *= (numChunksH * numChunksW * numChunksC);
+    }
+
+    return result;
+}
+
 double CalculateMetric(const NetworkPerformanceData& networkPerfData)
 {
     double totalMetric = 0;
