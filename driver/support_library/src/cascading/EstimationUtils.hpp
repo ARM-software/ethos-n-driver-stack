@@ -50,9 +50,9 @@ InputStats GetInputStatsCascading(const Buffer& ifmBuffer,
                                   const TensorShape& weightsShape,
                                   utils::Optional<CascadingBufferFormat> dramBufferFormat);
 
-InputStats GetInputStats(const TensorShape& shape, const TensorShape& stripeShape, const Location location);
-
-OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeShape, const Location location);
+OutputStats GetOutputStatsLegacy(const TensorShape& shape, const TensorShape& stripeShape, const Location location);
+OutputStats GetOutputStatsCascading(const Buffer& ofmSramBuffer,
+                                    utils::Optional<CascadingBufferFormat> dramBufferFormat);
 
 InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRatio);
 

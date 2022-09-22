@@ -1021,8 +1021,8 @@ PassStats McePlePass::GetStats(const EstimationOptions& estimationOptions)
 
     // Output data streaming statistics.
     OutputStats uncompressedOutput =
-        GetOutputStats(roundedUpOutputShape, outputStripeShape,
-                       outputLocation == BufferLocation::Dram ? Location::Dram : Location::Sram);
+        GetOutputStatsLegacy(roundedUpOutputShape, outputStripeShape,
+                             outputLocation == BufferLocation::Dram ? Location::Dram : Location::Sram);
 
     if (m_Nodes.back()->GetCompressed())
     {

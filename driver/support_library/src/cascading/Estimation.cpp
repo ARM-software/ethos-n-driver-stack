@@ -314,9 +314,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         {
             throw NotSupportedException("Output buffer from PleOp must be in Sram");
         }
-        Location outputLocation      = Location::Sram;
-        CascadingBufferFormat format = sramOutputBuffer->m_Format;
-        Buffer* dramBuffer           = nullptr;
+        Buffer* dramBuffer = nullptr;
         for (uint32_t i = 0; i < uint32_t(opGraph.GetConsumers(sramOutputBuffer).size()); i++)
         {
             DmaOp* dmaOp = GetObjectAs<DmaOp>(opGraph.GetConsumers(sramOutputBuffer)[i].first);
@@ -327,17 +325,12 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
                 {
                     throw NotSupportedException("Output Dma op must have an output");
                 }
-                outputLocation = dramBuffer->m_Location;
-                format         = dramBuffer->m_Format;
                 includeOp(dmaOp);
             }
         }
 
-        const TensorShape& roundedUpOutputShape =
-            format != CascadingBufferFormat::NHWC ? RoundUpHeightAndWidthToBrickGroup(sramOutputBuffer->m_TensorShape)
-                                                  : sramOutputBuffer->m_TensorShape;
-
-        OutputStats stats = GetOutputStats(roundedUpOutputShape, sramOutputBuffer->m_StripeShape, outputLocation);
+        OutputStats stats = GetOutputStatsCascading(
+            *sramOutputBuffer, dramBuffer != nullptr ? dramBuffer->m_Format : utils::Optional<CascadingBufferFormat>{});
         if (dramBuffer != nullptr)
         {
             stats.m_StripesStats =

@@ -259,26 +259,7 @@ InputStats GetInputStatsCascading(const Buffer& ifmBuffer,
     return data;
 }
 
-InputStats GetInputStats(const TensorShape& inputShape, const TensorShape& stripeShape, const Location location)
-{
-    InputStats data;
-
-    const uint32_t inputSize = inputShape[0] * inputShape[1] * inputShape[2] * inputShape[3];
-
-    if (location != Location::Sram)
-    {
-        data.m_MemoryStats.m_DramNonParallel    = inputSize;
-        data.m_StripesStats.m_NumCentralStripes = utils::GetNumStripesTotal(inputShape, stripeShape);
-    }
-    else
-    {
-        // This is for Sram To Sram conversions. We only handle Dram To Dram or Sram to Sram.
-        data.m_MemoryStats.m_Sram = inputSize;
-    }
-    return data;
-}
-
-OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeShape, const Location location)
+OutputStats GetOutputStatsLegacy(const TensorShape& shape, const TensorShape& stripeShape, const Location location)
 {
     OutputStats data;
 
@@ -295,6 +276,50 @@ OutputStats GetOutputStats(const TensorShape& shape, const TensorShape& stripeSh
         // Wait to the final stripe to be copied out if required.
         data.m_MemoryStats.m_DramNonParallel    = stripeSize;
         data.m_MemoryStats.m_DramParallel       = total - data.m_MemoryStats.m_DramNonParallel;
+        data.m_StripesStats.m_NumCentralStripes = utils::GetNumStripesTotal(shape, stripeShape);
+    }
+    else
+    {
+        data.m_MemoryStats.m_Sram = total;
+    }
+    return data;
+}
+
+OutputStats GetOutputStatsCascading(const Buffer& ofmSramBuffer,
+                                    utils::Optional<CascadingBufferFormat> dramBufferFormat)
+{
+    OutputStats data;
+
+    TensorShape shape              = ofmSramBuffer.m_TensorShape;
+    const TensorShape& stripeShape = ofmSramBuffer.m_StripeShape;
+
+    if (dramBufferFormat.has_value() && dramBufferFormat != CascadingBufferFormat::NHWC)
+    {
+        shape = utils::RoundUpHeightAndWidthToBrickGroup(shape);
+    }
+
+    const TensorShape& stripeShapeValid = { std::min(stripeShape[0], shape[0]), std::min(stripeShape[1], shape[1]),
+                                            std::min(stripeShape[2], shape[2]), std::min(stripeShape[3], shape[3]) };
+    const uint32_t stripeSize = stripeShapeValid[0] * stripeShapeValid[1] * stripeShapeValid[2] * stripeShapeValid[3];
+
+    // Total amount of data.
+    const uint32_t total = shape[0] * shape[1] * shape[2] * shape[3];
+
+    // Consider the output data transfer only if it is not already in Sram.
+    if (dramBufferFormat.has_value())
+    {
+        const bool buffering = ofmSramBuffer.m_NumStripes >= 2;
+        if (buffering)
+        {
+            data.m_MemoryStats.m_DramNonParallel = stripeSize;
+            data.m_MemoryStats.m_DramParallel    = total - data.m_MemoryStats.m_DramNonParallel;
+        }
+        else
+        {
+            data.m_MemoryStats.m_DramNonParallel = total;
+            data.m_MemoryStats.m_DramParallel    = 0;
+        }
+
         data.m_StripesStats.m_NumCentralStripes = utils::GetNumStripesTotal(shape, stripeShape);
     }
     else

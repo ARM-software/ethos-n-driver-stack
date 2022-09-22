@@ -642,8 +642,8 @@ PassStats PlePass::GetStats(const EstimationOptions& estimationOptions)
 
     // Output data streaming statistics
     OutputStats uncompressedOutputStats =
-        GetOutputStats(roundedUpOutputShape, outputStripeShape,
-                       outputLocation == BufferLocation::Dram ? Location::Dram : Location::Sram);
+        GetOutputStatsLegacy(roundedUpOutputShape, outputStripeShape,
+                             outputLocation == BufferLocation::Dram ? Location::Dram : Location::Sram);
 
     if (m_Nodes.back()->GetCompressed())
     {
