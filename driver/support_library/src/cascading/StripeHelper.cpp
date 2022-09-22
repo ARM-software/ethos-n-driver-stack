@@ -943,9 +943,8 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                     const TensorShape& inputShape = m_MceInputTensorShape;
                     TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
-                    TensorShape mceOutputEncoding =
-                        TensorShape{ 0, 0, 0, numOgs * ofmDepthMultiplier } * m_MceShapeMultiplier;
-                    TensorShape mceOutputStripe = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
+                    TensorShape mceOutputEncoding = TensorShape{ 0, 0, 0, numOgs * ofmDepthMultiplier };
+                    TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
 
                     TensorShape pleInputStripe    = mceOutputStripe;
                     TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
