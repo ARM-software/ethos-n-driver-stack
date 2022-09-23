@@ -382,6 +382,13 @@ int ethosn_buffer_import(struct ethosn_device *ethosn,
 	int fd;
 	int ret = -ENOMEM;
 
+	if (!ethosn->smmu_available) {
+		dev_err(ethosn->dev,
+			"Cannot import buffer. SMMU not available\n");
+
+		return -EINVAL;
+	}
+
 	buf = kzalloc(sizeof(*buf), GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
@@ -389,10 +396,9 @@ int ethosn_buffer_import(struct ethosn_device *ethosn,
 	dev_dbg(ethosn->dev, "Import buffer. handle=0x%pK, fd=%d\n",
 		buf, dma_buf_req->fd);
 
-	/* Note:- We create buffers using an asset allocator in ethosn.
-	 * For carveout :- Both the cores can access the same buffer as
-	 *                 the complete carveout memory is shared.
-	 * For smmu :- The buffer is allocated and then mapped using the
+	/* Note:- We import buffers using an asset allocator in ethosn.
+	 * For carveout :- Import does not work on carveout.
+	 * For smmu :- The buffer is imported and then mapped using the
 	 *             io_buffer sub-allocator. All cores are assumed to
 	 *             share the same SMMU so the buffer is accessible
 	 *             by all cores.
