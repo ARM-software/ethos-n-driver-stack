@@ -181,6 +181,7 @@ struct ethosn_dma_allocator_ops {
  * @dev: Device to create the top-level allocator against
  * @type: Top-level allocator type to create, determines what sub-allocators it
  * can store
+ *
  * Return:
  *  Pointer to ethosn_dma_allocator struct representing the DMA memory allocator
  *  Or NULL or negative error code on failure
@@ -196,6 +197,7 @@ struct ethosn_dma_allocator *ethosn_dma_top_allocator_create(struct device *dev,
  * @dev: Device that the top-level allocator was created with
  * @top_allocator: Pointer to the location of the top-level allocator to
  * destroy
+ *
  * Return:
  *   0 or negative error code on failure
  */
@@ -209,7 +211,8 @@ int ethosn_dma_top_allocator_destroy(struct device *dev,
  * @top_allocator: Pointer to the top-level allocator to make the sub-allocator
  * under
  * @stream_type: Stream type to select the sub-allocator to create
- * @is_smmu_available: Is SMMU availabe in this device.
+ * @is_smmu_available: Is SMMU available in this device.
+ *
  * Return:
  *  0 or negative error code on failure
  */
@@ -371,8 +374,8 @@ void ethosn_dma_sync_for_cpu(struct ethosn_dma_allocator *top_allocator,
  * @stream_type: Stream type to select the sub-allocator to use
  *
  * Return:
- * * 0 - Success
- * * Negative error code
+ * * Pointer to DMA allocation information on success
+ * * NULL or negative error code on failure
  */
 struct ethosn_dma_info *ethosn_dma_import(
 	struct ethosn_dma_allocator *top_allocator,
@@ -392,6 +395,10 @@ void ethosn_dma_release(struct ethosn_dma_allocator *top_allocator,
  * ethosn_get_sub_allocator
  * @top_allocator: Top-level allocator for sub-allocators
  * @stream_type: Stream type to select the sub-allocator to get
+ *
+ * Return:
+ * * Pointer to sub-allocator
+ * * NULL on error or when sub-allocator doesn't exist
  */
 struct ethosn_dma_sub_allocator *ethosn_get_sub_allocator(
 	struct ethosn_dma_allocator *top_allocator,
