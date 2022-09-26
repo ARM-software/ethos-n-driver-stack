@@ -222,6 +222,49 @@ KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compile
     }
 }
 
+KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compiledNetworkSize, int allocatorFd)
+    : NetworkImpl(compiledNetworkData, compiledNetworkSize, false)
+{
+    CompiledNetworkInfo compiledNetwork = DeserializeCompiledNetwork(compiledNetworkData, compiledNetworkSize);
+
+    std::vector<ethosn_buffer_info> constantCuInfos =
+        ToKmodBufInfos(compiledNetwork.m_ConstantControlUnitDataBufferInfos);
+    std::vector<ethosn_buffer_info> constantDmaInfos  = ToKmodBufInfos(compiledNetwork.m_ConstantDmaDataBufferInfos);
+    std::vector<ethosn_buffer_info> inputInfos        = ToKmodBufInfos(compiledNetwork.m_InputBufferInfos);
+    std::vector<ethosn_buffer_info> outputInfos       = ToKmodBufInfos(compiledNetwork.m_OutputBufferInfos);
+    std::vector<ethosn_buffer_info> intermediateInfos = ToKmodBufInfos(compiledNetwork.m_IntermediateDataBufferInfos);
+
+    ethosn_network_req netReq = {};
+
+    netReq.dma_buffers.num  = static_cast<uint32_t>(constantDmaInfos.size());
+    netReq.dma_buffers.info = constantDmaInfos.data();
+    netReq.dma_data.size    = static_cast<uint32_t>(compiledNetwork.m_ConstantDmaDataSize);
+    netReq.dma_data.data    = compiledNetwork.CalculateConstantDmaDataPtr(compiledNetworkData);
+
+    netReq.intermediate_buffers.num  = static_cast<uint32_t>(intermediateInfos.size());
+    netReq.intermediate_buffers.info = intermediateInfos.data();
+
+    netReq.intermediate_data_size = compiledNetwork.m_IntermediateDataSize;
+
+    netReq.input_buffers.num  = static_cast<uint32_t>(inputInfos.size());
+    netReq.input_buffers.info = inputInfos.data();
+
+    netReq.output_buffers.num  = static_cast<uint32_t>(outputInfos.size());
+    netReq.output_buffers.info = outputInfos.data();
+
+    netReq.cu_buffers.num  = static_cast<uint32_t>(constantCuInfos.size());
+    netReq.cu_buffers.info = constantCuInfos.data();
+    netReq.cu_data.size    = static_cast<uint32_t>(compiledNetwork.m_ConstantControlUnitDataSize);
+    netReq.cu_data.data    = compiledNetwork.CalculateConstantControlUnitDataPtr(compiledNetworkData);
+
+    m_NetworkFd = ioctl(allocatorFd, ETHOSN_IOCTL_REGISTER_NETWORK, &netReq);
+    int err     = errno;
+    if (m_NetworkFd < 0)
+    {
+        throw std::runtime_error(std::string("Unable to create network: ") + strerror(err));
+    }
+}
+
 KmodNetworkImpl::~KmodNetworkImpl()
 {
     try

@@ -30,6 +30,17 @@ Buffer::Buffer(Buffer&& otherBuffer)
     }
 }
 
+Buffer::Buffer(std::unique_ptr<BufferImpl> otherBufferImpl)
+    : bufferImpl(std::move(otherBufferImpl))
+{
+    if (profiling::g_CurrentConfiguration.m_EnableProfiling)
+    {
+        RecordLifetimeEvent(this, profiling::g_BufferToLifetimeEventId,
+                            profiling::ProfilingEntry::Type::TimelineEventStart,
+                            profiling::ProfilingEntry::MetadataCategory::BufferLifetime);
+    }
+}
+
 Buffer::Buffer(uint32_t size, DataFormat format, const std::string& device)
     : bufferImpl{ std::make_unique<BufferImpl>(size, format, device) }
 {
