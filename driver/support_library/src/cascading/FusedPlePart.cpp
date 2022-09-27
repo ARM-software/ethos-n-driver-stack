@@ -372,25 +372,7 @@ Plans FusedPlePart::GetLonelyPlans(uint32_t numWeightStripes) const
         return ret;
     }
 
-    // Try to generate plans as per Beginning of a section. This guarantees larger stripes
-    // and helps to reduce overhead.
-    // The estimation doesn't take into account overheads so we need to use this heuristic
-    StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Beginning);
-
-    for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
-    {
-        CreateIdentityMceAndFusedPlePlans(i, m_WeightEncoderCache, ret, numWeightStripes);
-    }
-
-    // Don't continue if at least a plan is valid
-    if (!ret.empty())
-    {
-        return ret;
-    }
-
-    // Generate all possible plans.
-    stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Lonely);
-
+    StripeInfos stripeInfos = m_StripeGenerator.GenerateStripes(CascadeType::Lonely);
     for (const MceAndPleInfo& i : stripeInfos.m_MceAndPleInfos)
     {
         CreateIdentityMceAndFusedPlePlans(i, m_WeightEncoderCache, ret, numWeightStripes);

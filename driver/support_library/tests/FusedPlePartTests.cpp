@@ -1328,44 +1328,6 @@ TEST_CASE("FusedPlePart GetPlans invalid previous buffer")
     }
 }
 
-/// Checks that FusedPlePart::GetPlans for lonely plans doesn't generate height / width splitting plans
-/// if other plans fit that don't incur as much firmware overhead
-TEST_CASE("FusedPlePart GetPlans lonely no height width splits")
-{
-    GIVEN("An FusedPlePart for a Leaky Relu")
-    {
-        const CompilationOptions compOpts;
-        const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
-        const EstimationOptions estOpts;
-
-        TensorShape inputShape{ 1, 224, 224, 16 };
-        TensorShape outputShape{ 1, 224, 224, 16 };
-        command_stream::PleOperation pleOp = command_stream::PleOperation::LEAKY_RELU;
-
-        FusedPlePart part = BuildPart(inputShape, outputShape, pleOp, compOpts, caps, estOpts);
-
-        WHEN("Asked to generate plans")
-        {
-            command_stream::BlockConfig blockConfig = { 8u, 8u };
-            Plans plans                             = part.GetPlans(CascadeType::Lonely, blockConfig, nullptr, 1);
-
-            SavePlansToDot(plans, "FusedPlePart GetPlans Filters Sram buffer");
-
-            THEN("There are zero plans with split height and width generated")
-            {
-                CheckPlansParams params;
-                params.m_All = [&](const PlanDesc& desc) {
-                    bool splitHeight = desc.m_Input->m_StripeShape[1] < inputShape[1];
-                    bool splitWidth  = desc.m_Input->m_StripeShape[2] < inputShape[2];
-                    bool splitBoth   = splitHeight && splitWidth;
-                    CHECK(!splitBoth);
-                };
-                CheckPlans(plans, params);
-            }
-        }
-    }
-}
-
 /// Checks that FusedPlePart::GetPlans for lonely plans does generate height / width splitting plans
 /// as other plans do not fit in sram
 TEST_CASE("FusedPlePart GetPlans lonely height and width splits")
