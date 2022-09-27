@@ -50,7 +50,6 @@ FusedPlePart::FusedPlePart(PartId id,
                         1,
                         0,
                         0,
-                        Stride{ 1, 1 },
                         1,
                         MceOperation::DEPTHWISE_CONVOLUTION,
                         op,
@@ -670,7 +669,6 @@ ethosn::support_library::DotAttributes FusedPlePart::GetDotAttributes(DetailLeve
             "StripeGenerator.PleOutputTensorShape = " + ToString(m_StripeGenerator.m_PleOutputTensorShape) + "\n";
         result.m_Label += "StripeGenerator.KernelHeight = " + ToString(m_StripeGenerator.m_KernelHeight) + "\n";
         result.m_Label += "StripeGenerator.KernelWidth = " + ToString(m_StripeGenerator.m_KernelWidth) + "\n";
-        result.m_Label += "StripeGenerator.Stride = " + ToString(m_StripeGenerator.m_Stride) + "\n";
         result.m_Label += "StripeGenerator.UpscaleFactor = " + ToString(m_StripeGenerator.m_UpscaleFactor) + "\n";
         result.m_Label += "StripeGenerator.Operation = " + ToString(m_StripeGenerator.m_Operation) + "\n";
         result.m_Label +=

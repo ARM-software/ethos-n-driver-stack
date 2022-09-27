@@ -315,7 +315,6 @@ public:
                     uint32_t kernelWidth,
                     uint32_t padTop,
                     uint32_t padLeft,
-                    const Stride& stride,
                     uint32_t upscaleFactor,
                     command_stream::MceOperation op,
                     command_stream::PleOperation pleOp,
@@ -342,7 +341,6 @@ public:
     uint32_t m_KernelWidth;
     uint32_t m_PadTop;
     uint32_t m_PadLeft;
-    Stride m_Stride;
     uint32_t m_UpscaleFactor;
     command_stream::MceOperation m_Operation;
     command_stream::PleOperation m_KernelOperation;

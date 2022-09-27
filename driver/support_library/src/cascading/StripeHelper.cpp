@@ -425,7 +425,6 @@ StripeGenerator::StripeGenerator(const TensorShape& mceInput,
                                  uint32_t kernelWidth,
                                  uint32_t padTop,
                                  uint32_t padLeft,
-                                 const Stride& stride,
                                  uint32_t upscaleFactor,
                                  command_stream::MceOperation op,
                                  command_stream::PleOperation pleOp,
@@ -440,7 +439,6 @@ StripeGenerator::StripeGenerator(const TensorShape& mceInput,
     , m_KernelWidth(kernelWidth)
     , m_PadTop(padTop)
     , m_PadLeft(padLeft)
-    , m_Stride(stride)
     , m_UpscaleFactor(upscaleFactor)
     , m_Operation(op)
     , m_KernelOperation(pleOp)
@@ -549,12 +547,8 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     // Set Stripe split restrictions, depending on the Ple kernel type.
     StripeConfig stripeConfig = ApplyPleKernelSplitRestrictions(cascadeType);
 
-    uint32_t strideMultiplier  = 1U;
-    bool isDepthwise           = false;
-    TensorShape mceOutputShape = {};
-    strideMultiplier           = m_Stride.m_X * m_Stride.m_Y;
-    isDepthwise                = m_Operation == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
-    mceOutputShape             = m_MceOutputTensorShape;
+    const bool isDepthwise           = m_Operation == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
+    const TensorShape mceOutputShape = m_MceOutputTensorShape;
 
     auto AddStripeInfos = [&](const TensorShape& mceInputStripe, const TensorShape& mceOutputStripe,
                               const TensorShape& pleInputStripe, const TensorShape& pleOutputStripe,
@@ -738,8 +732,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                               m_StripeConfig.blockHeightMultiplier.max));
     const uint32_t minIfmDepthMultiplier = std::max(1U, m_StripeConfig.ifmDepthMultiplier.min);
     const uint32_t maxIfmDepthMultiplier =
-        std::max(1U, std::min(GetChannels(m_MceInputTensorShape) / (numOgs * strideMultiplier),
-                              m_StripeConfig.ifmDepthMultiplier.max));
+        std::max(1U, std::min(GetChannels(m_MceInputTensorShape) / (numOgs), m_StripeConfig.ifmDepthMultiplier.max));
     const uint32_t minOfmDepthMultiplier = std::max(1U, m_StripeConfig.ofmDepthMultiplier.min);
     const uint32_t maxOfmDepthMultiplier =
         std::max(1U, std::min(GetChannels(m_MceOutputTensorShape) / numOgs, m_StripeConfig.ofmDepthMultiplier.max));
@@ -852,13 +845,12 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                      ifmDepthMultiplier *= 2)
                 {
                     // With depthwise each only OFM needs 1 IFM.
-                    TensorShape mceInputEncoding  = { 0, 0, 0, ifmDepthMultiplier * numOgs };
+                    TensorShape mceInputEncoding  = { 0, 0, 0, ifmDepthMultiplier * numOgs / m_MceShapeMultiplier.m_C };
                     const TensorShape& inputShape = m_MceInputTensorShape;
                     TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
-                    TensorShape mceOutputEncoding =
-                        TensorShape{ 0, 0, 0, ifmDepthMultiplier * numOgs } * m_MceShapeMultiplier;
-                    TensorShape mceOutputStripe = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
+                    TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
+                    TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
 
                     TensorShape pleInputStripe    = mceOutputStripe;
                     TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
@@ -888,13 +880,13 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                             const uint32_t width  = widthMultiplier * blockConfig.m_BlockWidth();
 
                             TensorShape mceInputEncoding  = { 0, height, width,
-                                                             ifmDepthMultiplier * numOgs * strideMultiplier };
+                                                             ifmDepthMultiplier * numOgs / m_MceShapeMultiplier.m_C };
                             const TensorShape& inputShape = m_MceInputTensorShape;
                             TensorShape mceInputStripe =
                                 CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
                             TensorShape mceOutputEncoding =
-                                TensorShape{ 0, height, width, ifmDepthMultiplier * numOgs } * m_MceShapeMultiplier;
+                                TensorShape{ 0, height, width, ifmDepthMultiplier * numOgs };
                             TensorShape mceOutputStripe = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
 
                             TensorShape pleInputStripe    = mceOutputStripe;
@@ -918,11 +910,11 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         // e.g. strategy 1 cascading.
         if (stripeConfig.splits.outputDepthInputDepth)
         {
-            TensorShape mceInputEncoding  = { 0, 0, 0, numOgs };
+            TensorShape mceInputEncoding  = { 0, 0, 0, numOgs / m_MceShapeMultiplier.m_C };
             const TensorShape& inputShape = m_MceInputTensorShape;
             TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
-            TensorShape mceOutputEncoding = TensorShape{ 0, 0, 0, numOgs } * m_MceShapeMultiplier;
+            TensorShape mceOutputEncoding = TensorShape{ 0, 0, 0, numOgs };
             TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
 
             // PLE stripe is the full tensor, as it accumulates the full output depth
@@ -981,7 +973,8 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                         const TensorShape& inputShape = m_MceInputTensorShape;
                         TensorShape mceInputStripe = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
-                        TensorShape mceOutputEncoding = TensorShape{ 0, height, width, numOgs } * m_MceShapeMultiplier;
+                        TensorShape mceOutputEncoding = TensorShape{ 0, height * m_MceShapeMultiplier.m_H,
+                                                                     width * m_MceShapeMultiplier.m_W, numOgs };
                         TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
 
                         TensorShape pleInputStripe    = mceOutputStripe;
@@ -1007,7 +1000,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                 {
                     TensorShape mceInputEncoding  = { 0, minBlockWidthMultiplier * blockConfig.m_BlockHeight(),
                                                      minBlockHeightMultiplier * blockConfig.m_BlockWidth(),
-                                                     ifmDepthMultiplier * numOgs * strideMultiplier };
+                                                     ifmDepthMultiplier * numOgs / m_MceShapeMultiplier.m_C };
                     const TensorShape& inputShape = m_MceInputTensorShape;
                     TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
@@ -1037,7 +1030,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             const TensorShape& inputShape = m_MceInputTensorShape;
             TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
-            TensorShape mceOutputEncoding = TensorShape{ 0, 0, 0, numOgs } * m_MceShapeMultiplier;
+            TensorShape mceOutputEncoding = TensorShape{ 0, 0, 0, numOgs };
             TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
 
             // PLE stripe is the full tensor, as it accumulates the full output depth

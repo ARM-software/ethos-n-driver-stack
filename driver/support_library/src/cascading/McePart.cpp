@@ -318,11 +318,10 @@ McePart::McePart(PartId id,
                         m_WeightsInfo.m_Dimensions[1],
                         m_PadTop,
                         m_PadLeft,
-                        m_Stride,
                         m_UpscaleFactor,
                         op,
                         PleOperation::PASSTHROUGH,
-                        ShapeMultiplier::Identity,
+                        ShapeMultiplier{ 1, 1, Fraction(1, stride.m_X * stride.m_Y) },
                         ShapeMultiplier::Identity,
                         capabilities,
                         m_StripeConfig)
@@ -363,7 +362,6 @@ McePart::McePart(ConstructionParams&& params)
                         m_WeightsInfo.m_Dimensions[1],
                         m_PadTop,
                         m_PadLeft,
-                        m_Stride,
                         m_UpscaleFactor,
                         params.m_Op,
                         PleOperation::PASSTHROUGH,
@@ -886,7 +884,6 @@ ethosn::support_library::DotAttributes McePart::GetDotAttributes(DetailLevel det
             "StripeGenerator.PleOutputTensorShape = " + ToString(m_StripeGenerator.m_PleOutputTensorShape) + "\n";
         result.m_Label += "StripeGenerator.KernelHeight = " + ToString(m_StripeGenerator.m_KernelHeight) + "\n";
         result.m_Label += "StripeGenerator.KernelWidth = " + ToString(m_StripeGenerator.m_KernelWidth) + "\n";
-        result.m_Label += "StripeGenerator.Stride = " + ToString(m_StripeGenerator.m_Stride) + "\n";
         result.m_Label += "StripeGenerator.UpscaleFactor = " + ToString(m_StripeGenerator.m_UpscaleFactor) + "\n";
         result.m_Label += "StripeGenerator.Operation = " + ToString(m_StripeGenerator.m_Operation) + "\n";
         result.m_Label +=
