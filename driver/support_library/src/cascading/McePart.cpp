@@ -413,9 +413,10 @@ Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
         ConvertExternalToCompilerDataFormat(convData.weightInfo.m_DataFormat));
     Buffer* dramWeightBuffer =
         opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, formatInDram, TraversalOrder::Xyz));
-    dramWeightBuffer->m_DataType         = convData.weightInfo.m_DataType;
-    dramWeightBuffer->m_TensorShape      = convData.weightInfo.m_Dimensions;
-    dramWeightBuffer->m_TensorShape[2]   = dramWeightBuffer->m_TensorShape[2] * wp.strideY * wp.strideX;
+    dramWeightBuffer->m_DataType    = convData.weightInfo.m_DataType;
+    dramWeightBuffer->m_TensorShape = convData.weightInfo.m_Dimensions;
+    dramWeightBuffer->m_TensorShape[2] =
+        GetNumSubmapChannels(dramWeightBuffer->m_TensorShape[2], wp.strideX, wp.strideY, m_Capabilities);
     dramWeightBuffer->m_EncodedWeights   = std::move(encodedWeights);
     dramWeightBuffer->m_SizeInBytes      = static_cast<uint32_t>(dramWeightBuffer->m_EncodedWeights->m_Data.size());
     dramWeightBuffer->m_QuantizationInfo = convData.weightInfo.m_QuantizationInfo;
