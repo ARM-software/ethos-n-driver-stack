@@ -1168,21 +1168,7 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                     ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio);
                 consumerAgentDependency.innerRatio.self = 1;
 
-                // MceS needs to wait for two IfmS stripes at the start of each outer ratio if neighbouring data
-                // is needed. This is not applicable if all the boundary data is packed though.
-                if (!(consumerAgent.data.mce.isPackedBoundaryX && consumerAgent.data.mce.isPackedBoundaryY))
-                {
-                    bool needsBoundaryBeforeX = consumerAgent.data.mce.filterShape[0].width >= 2 ||
-                                                consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
-                    bool needsBoundaryAfterX = consumerAgent.data.mce.filterShape[0].width >= 3 ||
-                                               consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
-                    bool needsBoundaryBeforeY = consumerAgent.data.mce.filterShape[0].height >= 2 ||
-                                                consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
-                    bool needsBoundaryAfterY = consumerAgent.data.mce.filterShape[0].height >= 3 ||
-                                               consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
-                    consumerAgentDependency.boundary =
-                        needsBoundaryBeforeX || needsBoundaryAfterX || needsBoundaryBeforeY || needsBoundaryAfterY;
-                }
+                consumerAgentDependency.boundary = DependencyUtils::CalculateIfmSMceSBoundary(consumerAgent.data.mce);
             }
             // Read After Write Dependency for [MceScheduler][WeightStreamer]
             else if (producerAgentType == AgentType::WGT_STREAMER)
@@ -1491,21 +1477,7 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                 producerAgentDependency.innerRatio.self =
                     ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio);
 
-                // MceS needs to wait for two IfmS stripes at the start of each outer ratio if neighbouring data
-                // is needed. This is not applicable if all the boundary data is packed though.
-                if (!(consumerAgent.data.mce.isPackedBoundaryX && consumerAgent.data.mce.isPackedBoundaryY))
-                {
-                    bool needsBoundaryBeforeX = consumerAgent.data.mce.filterShape[0].width >= 2 ||
-                                                consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
-                    bool needsBoundaryAfterX = consumerAgent.data.mce.filterShape[0].width >= 3 ||
-                                               consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
-                    bool needsBoundaryBeforeY = consumerAgent.data.mce.filterShape[0].height >= 2 ||
-                                                consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
-                    bool needsBoundaryAfterY = consumerAgent.data.mce.filterShape[0].height >= 3 ||
-                                               consumerAgent.data.mce.upsampleType != UpsampleType::OFF;
-                    producerAgentDependency.boundary =
-                        needsBoundaryBeforeX || needsBoundaryAfterX || needsBoundaryBeforeY || needsBoundaryAfterY;
-                }
+                producerAgentDependency.boundary = DependencyUtils::CalculateIfmSMceSBoundary(consumerAgent.data.mce);
             }
             // Write After Read Dependency for [WeightStreamer][MceScheduler] or
             // Schedule Time Dependency for [WeightStreamer][MceScheduler]

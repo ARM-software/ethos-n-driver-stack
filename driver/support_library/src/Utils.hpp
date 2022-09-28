@@ -199,6 +199,17 @@ Container Filter(Container col, Func func)
     return res;
 }
 
+/// Projects each element of the given container using the given map function, and returns the maximum
+/// of the projected elements (determined by operator<).
+/// Example: Max({1,3,2}, [](auto x){ return x * 2; }) == 6
+template <typename TElement, typename Container, typename MapFunc>
+TElement Max(Container container, MapFunc mapFunc)
+{
+    auto it = std::max_element(container.begin(), container.end(),
+                               [&](const auto& a, const auto& b) { return mapFunc(a) < mapFunc(b); });
+    return mapFunc(*it);
+}
+
 /// Calculates the quotient of numerator and denominator as an integer where the result is rounded up to the nearest
 /// integer. i.e. ceil(numerator/denominator).
 constexpr uint32_t DivRoundUp(uint32_t numerator, uint32_t denominator)

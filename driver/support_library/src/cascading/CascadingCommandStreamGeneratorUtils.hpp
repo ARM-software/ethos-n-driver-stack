@@ -713,6 +713,28 @@ inline void AddDependency(std::array<command_stream::cascading::Dependency, N>& 
     assert(false);
 }
 
+int8_t CalculateIfmSMceSBoundary(const command_stream::cascading::MceS& mce)
+{
+    // MceS needs to wait for two IfmS stripes at the start of each outer ratio if neighbouring data
+    // is needed. This is not applicable if all the boundary data is packed though.
+    if (!(mce.isPackedBoundaryX && mce.isPackedBoundaryY))
+    {
+        uint8_t maxFilterWidth  = utils::Max<uint8_t>(mce.filterShape, [](const FilterShape& s) { return s.width; });
+        uint8_t maxFilterHeight = utils::Max<uint8_t>(mce.filterShape, [](const FilterShape& s) { return s.height; });
+
+        bool needsBoundaryBeforeX =
+            mce.numStripes.ofmWidth > 1 && (maxFilterWidth >= 2 || mce.upsampleType != UpsampleType::OFF);
+        bool needsBoundaryAfterX =
+            mce.numStripes.ofmWidth > 1 && (maxFilterWidth >= 3 || mce.upsampleType != UpsampleType::OFF);
+        bool needsBoundaryBeforeY =
+            mce.numStripes.ofmHeight > 1 && (maxFilterHeight >= 2 || mce.upsampleType != UpsampleType::OFF);
+        bool needsBoundaryAfterY =
+            mce.numStripes.ofmHeight > 1 && (maxFilterHeight >= 3 || mce.upsampleType != UpsampleType::OFF);
+        return needsBoundaryBeforeX || needsBoundaryAfterX || needsBoundaryBeforeY || needsBoundaryAfterY;
+    }
+    return 0;
+}
+
 }    // namespace DependencyUtils
 }    // namespace cascading_compiler
 }    // namespace support_library
