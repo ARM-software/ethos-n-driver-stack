@@ -735,6 +735,51 @@ int8_t CalculateIfmSMceSBoundary(const command_stream::cascading::MceS& mce)
     return 0;
 }
 
+void CalculateIfmSMceSOuterRatio(const command_stream::cascading::Agent& mce,
+                                 const command_stream::cascading::Agent& ifm,
+                                 uint16_t& outMceRatio,
+                                 uint16_t& outIfmRatio)
+{
+    // Determine which dimension (if any) should correspond to the "outer ratio" in the dependency
+    if (ifm.data.ifm.fmData.numStripes.channels > 1 && mce.data.mce.mceOpMode != MceOperation::DEPTHWISE_CONVOLUTION)
+    {
+        // IFM splitting => this is the outer dim
+        outIfmRatio = ethosn::utils::NumericCast<uint16_t>(ifm.data.ifm.fmData.numStripes.channels);
+        outMceRatio = ethosn::utils::NumericCast<uint16_t>(mce.data.mce.numStripes.ifmChannels);
+    }
+    else if (mce.data.mce.mceOpMode == MceOperation::DEPTHWISE_CONVOLUTION &&
+             ifm.data.ifm.fmData.numStripes.height > 1 && ifm.data.ifm.fmData.numStripes.channels > 1)
+    {
+        // Depthwise with splitting height and channels => outer ratio is for each column
+        outIfmRatio = ethosn::utils::NumericCast<uint16_t>(ifm.data.ifm.fmData.numStripes.height);
+        outMceRatio = ethosn::utils::NumericCast<uint16_t>(mce.data.mce.numStripes.ofmHeight);
+    }
+    else if (mce.data.mce.mceOpMode == MceOperation::DEPTHWISE_CONVOLUTION &&
+             ifm.data.ifm.fmData.numStripes.width > 1 && ifm.data.ifm.fmData.numStripes.channels > 1)
+    {
+        // Depthwise with splitting width and channels => outer ratio is for each row
+        outIfmRatio = ethosn::utils::NumericCast<uint16_t>(ifm.data.ifm.fmData.numStripes.width);
+        outMceRatio = ethosn::utils::NumericCast<uint16_t>(mce.data.mce.numStripes.ofmWidth);
+    }
+    else if (ifm.data.ifm.fmData.numStripes.height > 1 && ifm.data.ifm.fmData.numStripes.width > 1)
+    {
+        // Splitting width and height => outer ratio is for each row
+        outIfmRatio = ethosn::utils::NumericCast<uint16_t>(
+            ifm.data.ifm.fmData.numStripes.width *
+            // Note we use the ifmChannels from the MceS, not the IfmS, so that this is correct for depthwise
+            // (where IfmS might have multiple IFM stripes but MceS won't)
+            mce.data.mce.numStripes.ifmChannels);
+        outMceRatio = ethosn::utils::NumericCast<uint16_t>(mce.data.mce.numStripes.ofmWidth *
+                                                           mce.data.mce.numStripes.ifmChannels);
+    }
+    else
+    {
+        // Outer ratio is not needed (set to max)
+        outIfmRatio = ifm.info.numStripesTotal;
+        outMceRatio = mce.info.numStripesTotal;
+    }
+}
+
 }    // namespace DependencyUtils
 }    // namespace cascading_compiler
 }    // namespace support_library

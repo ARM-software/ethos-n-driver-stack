@@ -1129,24 +1129,9 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
             // Read After Write Dependency for [MceScheduler][IfmStreamer]
             if (producerAgentType == AgentType::IFM_STREAMER)
             {
-                if (producerAgent.data.ifm.fmData.numStripes.height > 1 &&
-                    producerAgent.data.ifm.fmData.numStripes.width > 1)
-                {
-                    // Splitting width and height => outer ratio is for each row
-                    consumerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
-                        producerAgent.data.ifm.fmData.numStripes.width *
-                        // Note we use the ifmChannels from the MceS, not the IfmS, so that this is correct for depthwise
-                        // (where IfmS might have multiple IFM stripes but MceS won't)
-                        consumerAgent.data.mce.numStripes.ifmChannels);
-                    consumerAgentDependency.outerRatio.self = ethosn::utils::NumericCast<uint16_t>(
-                        consumerAgent.data.mce.numStripes.ofmWidth * consumerAgent.data.mce.numStripes.ifmChannels);
-                }
-                else
-                {
-                    // Not splitting width and height => outer ratio is not needed (set to max)
-                    consumerAgentDependency.outerRatio.other = producerAgent.info.numStripesTotal;
-                    consumerAgentDependency.outerRatio.self  = consumerAgent.info.numStripesTotal;
-                }
+                DependencyUtils::CalculateIfmSMceSOuterRatio(consumerAgent, producerAgent,
+                                                             consumerAgentDependency.outerRatio.self,
+                                                             consumerAgentDependency.outerRatio.other);
 
                 // The MceS can process more data than is loaded by the IfmS (e.g. two stripes at a time)
                 uint16_t widthRatio  = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
@@ -1438,24 +1423,9 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
             // Schedule Time Dependency for [IfmStreamer][MceScheduler]
             if (producerAgentType == AgentType::IFM_STREAMER)
             {
-                if (producerAgent.data.ifm.fmData.numStripes.height > 1 &&
-                    producerAgent.data.ifm.fmData.numStripes.width > 1)
-                {
-                    // Splitting width and height => outer ratio is for each row
-                    producerAgentDependency.outerRatio.self = ethosn::utils::NumericCast<uint16_t>(
-                        producerAgent.data.ifm.fmData.numStripes.width *
-                        // Note we use the ifmChannels from the MceS, not the IfmS, so that this is correct for depthwise
-                        // (where IfmS might have multiple IFM stripes but MceS won't)
-                        consumerAgent.data.mce.numStripes.ifmChannels);
-                    producerAgentDependency.outerRatio.other = ethosn::utils::NumericCast<uint16_t>(
-                        consumerAgent.data.mce.numStripes.ofmWidth * consumerAgent.data.mce.numStripes.ifmChannels);
-                }
-                else
-                {
-                    // Not splitting width and height => outer ratio is not needed (set to max)
-                    producerAgentDependency.outerRatio.self  = producerAgent.info.numStripesTotal;
-                    producerAgentDependency.outerRatio.other = consumerAgent.info.numStripesTotal;
-                }
+                DependencyUtils::CalculateIfmSMceSOuterRatio(consumerAgent, producerAgent,
+                                                             producerAgentDependency.outerRatio.other,
+                                                             producerAgentDependency.outerRatio.self);
 
                 // The MceS can process more data than is loaded by the IfmS (e.g. two stripes at a time)
                 uint16_t widthRatio  = ethosn::utils::NumericCast<uint16_t>(utils::DivRoundUp(
