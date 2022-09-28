@@ -135,14 +135,14 @@ Operation1 -> Operand1_0
 Operation2[label = "2: Constant\n", shape = oval]
 Operand2_0[label = "Operand\nShape = [3, 3, 32, 32]\nFormat = HWIO\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 0.500000\n", shape = box]
 Operation2 -> Operand2_0
-Operation3[label = "3: Convolution\nWeights: 2\nBias: 1\n", shape = oval]
+Operation3[label = "3: Convolution\nWeights: 2\nBias: 1\nNum MACs: 3612672\n", shape = oval]
 Operand0_0 -> Operation3
 Operand3_0[label = "Operand\nShape = [1, 14, 14, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
 Operation3 -> Operand3_0
 Operation4[label = "4: Constant\n", shape = oval]
 Operand4_0[label = "Operand\nShape = [3, 3, 32, 1]\nFormat = HWIM\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 0.500000\n", shape = box]
 Operation4 -> Operand4_0
-Operation5[label = "5: DepthwiseConvolution\nWeights: 4\nBias: 1\n", shape = oval]
+Operation5[label = "5: DepthwiseConvolution\nWeights: 4\nBias: 1\nNum MACs: 112896\n", shape = oval]
 Operand0_0 -> Operation5
 Operand5_0[label = "Operand\nShape = [1, 14, 14, 32]\nFormat = NHWC\nType = UINT8_QUANTIZED\nQuant. info = ZeroPoint = 0, Scale = 1.000000\n", shape = box]
 Operation5 -> Operand5_0

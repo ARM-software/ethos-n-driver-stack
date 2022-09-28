@@ -817,6 +817,18 @@ DotAttributes GetDotAttributes(Operation* operation, DetailLevel detailLevel)
             {
                 m_Label << "Weights: " << op.GetWeights().GetId() << "\n";
                 m_Label << "Bias: " << op.GetBias().GetId() << "\n";
+
+                const uint64_t numIfms           = utils::GetChannels(op.GetInput(0).GetTensorInfo().m_Dimensions);
+                const uint64_t numOfms           = utils::GetChannels(op.GetOutput(0).GetTensorInfo().m_Dimensions);
+                const uint64_t weightsWidth      = op.GetWeights().GetTensorInfo().m_Dimensions[1];
+                const uint64_t weightsHeight     = op.GetWeights().GetTensorInfo().m_Dimensions[0];
+                const uint64_t numKernelElements = weightsWidth * weightsHeight;
+                const uint64_t outputWidth       = utils::GetWidth(op.GetOutput(0).GetTensorInfo().m_Dimensions);
+                const uint64_t outputHeight      = utils::GetHeight(op.GetOutput(0).GetTensorInfo().m_Dimensions);
+                const uint64_t numOutputElementsPerOfm = outputWidth * outputHeight;
+                // We count multiplies and adds separately, hence the factor of 2x.
+                const uint64_t numOpsPerIfmPerOfm = numOutputElementsPerOfm * 2U * numKernelElements;
+                m_Label << "Num MACs: " << numIfms * numOpsPerIfmPerOfm * numOfms << "\n";
             }
         }
 
@@ -826,6 +838,17 @@ DotAttributes GetDotAttributes(Operation* operation, DetailLevel detailLevel)
             {
                 m_Label << "Weights: " << op.GetWeights().GetId() << "\n";
                 m_Label << "Bias: " << op.GetBias().GetId() << "\n";
+
+                const uint64_t numOfms           = utils::GetChannels(op.GetOutput(0).GetTensorInfo().m_Dimensions);
+                const uint64_t weightsWidth      = op.GetWeights().GetTensorInfo().m_Dimensions[1];
+                const uint64_t weightsHeight     = op.GetWeights().GetTensorInfo().m_Dimensions[0];
+                const uint64_t numKernelElements = weightsWidth * weightsHeight;
+                const uint64_t outputWidth       = utils::GetWidth(op.GetOutput(0).GetTensorInfo().m_Dimensions);
+                const uint64_t outputHeight      = utils::GetHeight(op.GetOutput(0).GetTensorInfo().m_Dimensions);
+                const uint64_t numOutputElementsPerOfm = outputWidth * outputHeight;
+                // We count multiplies and adds separately, hence the factor of 2x.
+                const uint64_t numOpsPerOfm = numOutputElementsPerOfm * 2U * numKernelElements;
+                m_Label << "Num MACs: " << numOpsPerOfm * numOfms << "\n";
             }
         }
 

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -20,24 +20,6 @@ namespace support_library
 
 namespace
 {
-
-size_t DepthOf(const Operation& operation)
-{
-    size_t depth = 0;
-
-    const std::vector<const Operand*> inputs = operation.GetInputs();
-
-    if (inputs.size() > 0)
-    {
-        const auto maxDepth = [](const size_t depth, const Operand* input) {
-            return std::max(depth, DepthOf(input->GetProducer()));
-        };
-
-        depth = 1 + std::accumulate(inputs.begin(), inputs.end(), size_t{ 0 }, maxDepth);
-    }
-
-    return depth;
-}
 
 template <bool IsTranspose>
 uint32_t
