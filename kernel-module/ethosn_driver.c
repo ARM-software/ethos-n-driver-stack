@@ -1578,7 +1578,7 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 			goto err_free_ethosn;
 		}
 
-		if (num_of_npus > ETHOSN_ASSET_ALLOC_NUM_MAX) {
+		if (num_of_asset_allocs > ETHOSN_ASSET_ALLOC_NUM_MAX) {
 			dev_err(&pdev->dev,
 				"Invalid number of asset allocators, max = %d\n",
 				ETHOSN_ASSET_ALLOC_NUM_MAX);
