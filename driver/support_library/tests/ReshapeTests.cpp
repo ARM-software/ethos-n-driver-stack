@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -55,7 +55,7 @@ TEST_CASE("Test Single Reshape layer SRAM")
         AddInput(network, TensorInfo({ 1, 16, 16, 16 }, inputDataType, DataFormat::NHWCB)).tensor;
 
     std::shared_ptr<Constant> biasConv1 =
-        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<uint8_t>(16, 0).data())
+        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<int32_t>(16, 0).data())
             .tensor;
     std::shared_ptr<Constant> weightsConv1 =
         AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
@@ -70,7 +70,7 @@ TEST_CASE("Test Single Reshape layer SRAM")
     std::shared_ptr<Constant> biasConv2 =
         AddConstant(network,
                     TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.1f)),
-                    std::vector<uint8_t>(16, 0).data())
+                    std::vector<int32_t>(16, 0).data())
             .tensor;
     std::shared_ptr<Constant> weightsConv2 =
         AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
@@ -139,7 +139,7 @@ TEST_CASE("Test Multiple Reshape layers SRAM")
         AddInput(network, TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB)).tensor;
 
     std::shared_ptr<Constant> biasConv1 =
-        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<uint8_t>(16, 0).data())
+        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<int32_t>(16, 0).data())
             .tensor;
     std::shared_ptr<Constant> weightsConv1 =
         AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
@@ -157,7 +157,7 @@ TEST_CASE("Test Multiple Reshape layers SRAM")
     std::shared_ptr<Constant> biasConv2 =
         AddConstant(network,
                     TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.1f)),
-                    std::vector<uint8_t>(16, 0).data())
+                    std::vector<int32_t>(16, 0).data())
             .tensor;
     std::shared_ptr<Constant> weightsConv2 =
         AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
@@ -222,7 +222,7 @@ TEST_CASE("Test Single Reshape layer DRAM")
         AddInput(network, TensorInfo({ 1, 256, 128, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB)).tensor;
 
     std::shared_ptr<Constant> biasConv1 =
-        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<uint8_t>(16, 0).data())
+        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<int32_t>(16, 0).data())
             .tensor;
     std::shared_ptr<Constant> weightsConv1 =
         AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
@@ -237,7 +237,7 @@ TEST_CASE("Test Single Reshape layer DRAM")
     std::shared_ptr<Constant> biasConv2 =
         AddConstant(network,
                     TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.1f)),
-                    std::vector<uint8_t>(16, 0).data())
+                    std::vector<int32_t>(16, 0).data())
             .tensor;
     std::shared_ptr<Constant> weightsConv2 =
         AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
@@ -292,7 +292,7 @@ TEST_CASE("Test Multiple Reshape layers DRAM")
         AddInput(network, TensorInfo({ 1, 256, 128, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB)).tensor;
 
     std::shared_ptr<Constant> biasConv1 =
-        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<uint8_t>(16, 0).data())
+        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<int32_t>(16, 0).data())
             .tensor;
     std::shared_ptr<Constant> weightsConv1 =
         AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
@@ -310,7 +310,7 @@ TEST_CASE("Test Multiple Reshape layers DRAM")
     std::shared_ptr<Constant> biasConv2 =
         AddConstant(network,
                     TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.1f)),
-                    std::vector<uint8_t>(16, 0).data())
+                    std::vector<int32_t>(16, 0).data())
             .tensor;
     std::shared_ptr<Constant> weightsConv2 =
         AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
@@ -365,7 +365,7 @@ TEST_CASE("Test Reshape as last layer NHWC Strategy 3")
         AddInput(network, TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC)).tensor;
 
     std::shared_ptr<Constant> biasConv1 =
-        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<uint8_t>(16, 0).data())
+        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<int32_t>(16, 0).data())
             .tensor;
     std::shared_ptr<Constant> weightsConv1 =
         AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
@@ -427,7 +427,7 @@ TEST_CASE("Test Reshape as last layer NHWCB")
         AddInput(network, TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWCB)).tensor;
 
     std::shared_ptr<Constant> biasConv1 =
-        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<uint8_t>(16, 0).data())
+        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<int32_t>(16, 0).data())
             .tensor;
     std::shared_ptr<Constant> weightsConv1 =
         AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
@@ -484,7 +484,7 @@ TEST_CASE("Test Reshape as last layer NHWCB DRAM with Strategy 0")
 
     std::shared_ptr<Constant> biasConv1 =
         AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, 1.0f }),
-                    std::vector<uint8_t>(16, 0).data())
+                    std::vector<int32_t>(16, 0).data())
             .tensor;
 
     std::shared_ptr<Constant> weightsConv1 =

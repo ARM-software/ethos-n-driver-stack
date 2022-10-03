@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -21,7 +21,7 @@ TEST_CASE("Test NHWC Input and NHWCB Output")
         AddInput(network, TensorInfo({ 1, 16, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC)).tensor;
 
     std::shared_ptr<Constant> biasConv1 =
-        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<uint8_t>(16, 0).data())
+        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<int32_t>(16, 0).data())
             .tensor;
     std::shared_ptr<Constant> weightsConv1 =
         AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
@@ -64,11 +64,11 @@ TEST_CASE("FcafDeepCompressed")
     auto input                       = AddInput(network, TensorInfo({ 1, 1024, 32, 32 }));
 
     auto bias1 = AddConstant(network, TensorInfo({ 1, 1, 1, 32 }, DataType::INT32_QUANTIZED),
-                             std::vector<uint8_t>(32, 0).data());
+                             std::vector<int32_t>(32, 0).data());
 
     auto bias2 = AddConstant(
         network, TensorInfo({ 1, 1, 1, 32 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.1f)),
-        std::vector<uint8_t>(32, 1).data());
+        std::vector<int32_t>(32, 1).data());
 
     auto weights1 = AddConstant(network, TensorInfo({ 1, 1, 32, 32 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
                                 std::vector<uint8_t>(1 * 1 * 32 * 32, 0).data());
@@ -119,11 +119,11 @@ TEST_CASE("FcafWideCompressed")
     auto input                       = AddInput(network, TensorInfo({ 1, 1024, 32, 16 }));
 
     auto bias1 = AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED),
-                             std::vector<uint8_t>(16, 0).data());
+                             std::vector<int32_t>(16, 0).data());
 
     auto bias2 = AddConstant(
         network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.1f)),
-        std::vector<uint8_t>(16, 1).data());
+        std::vector<int32_t>(16, 1).data());
 
     auto weights1 = AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
                                 std::vector<uint8_t>(1 * 1 * 16 * 16, 0).data());
@@ -173,11 +173,11 @@ TEST_CASE("FcafDeepPartialCompressed")
     auto input                       = AddInput(network, TensorInfo({ 1, 1035, 28, 32 }));
 
     auto bias1 = AddConstant(network, TensorInfo({ 1, 1, 1, 32 }, DataType::INT32_QUANTIZED),
-                             std::vector<uint8_t>(32, 0).data());
+                             std::vector<int32_t>(32, 0).data());
 
     auto bias2 = AddConstant(
         network, TensorInfo({ 1, 1, 1, 32 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.1f)),
-        std::vector<uint8_t>(32, 1).data());
+        std::vector<int32_t>(32, 1).data());
 
     auto weights1 = AddConstant(network, TensorInfo({ 1, 1, 32, 32 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
                                 std::vector<uint8_t>(1 * 1 * 32 * 32, 0).data());
@@ -227,11 +227,11 @@ TEST_CASE("FcafWidePartialCompressed")
     auto input                       = AddInput(network, TensorInfo({ 1, 1035, 28, 16 }));
 
     auto bias1 = AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED),
-                             std::vector<uint8_t>(16, 0).data());
+                             std::vector<int32_t>(16, 0).data());
 
     auto bias2 = AddConstant(
         network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.1f)),
-        std::vector<uint8_t>(16, 1).data());
+        std::vector<int32_t>(16, 1).data());
 
     auto weights1 = AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
                                 std::vector<uint8_t>(1 * 1 * 16 * 16, 0).data());

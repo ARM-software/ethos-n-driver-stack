@@ -146,7 +146,7 @@ void AddOperationsToNetwork(std::shared_ptr<Network>& network, bool addReinterpr
 
     std::shared_ptr<Constant> biasConv1 =
         AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, 1.f }),
-                    std::vector<uint8_t>(16, 0).data())
+                    std::vector<int32_t>(16, 0).data())
             .tensor;
     std::shared_ptr<Constant> weightsConv1 =
         AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),
@@ -174,7 +174,7 @@ void AddOperationsToNetwork(std::shared_ptr<Network>& network, bool addReinterpr
 
     std::shared_ptr<Constant> biasConv2 =
         AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, 2.f }),
-                    std::vector<uint8_t>(16, 0).data())
+                    std::vector<int32_t>(16, 0).data())
             .tensor;
     std::shared_ptr<Constant> weightsConv2 =
         AddConstant(network, TensorInfo({ 1, 1, 16, 16 }, DataType::UINT8_QUANTIZED, DataFormat::HWIO),

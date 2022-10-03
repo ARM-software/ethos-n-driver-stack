@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -20,7 +20,7 @@ TEST_CASE("StridedConvInputLayer")
     std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 32, 32, 3 })).tensor;
 
     std::shared_ptr<Constant> bias =
-        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<uint8_t>(16, 0).data())
+        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<int32_t>(16, 0).data())
             .tensor;
 
     std::shared_ptr<Constant> weights =
@@ -96,13 +96,13 @@ TEST_CASE("StridedConvNonInputLayer")
     std::shared_ptr<Operand> input   = AddInput(network, TensorInfo({ 1, 32, 32, 16 })).tensor;
 
     std::shared_ptr<Constant> bias1 =
-        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<uint8_t>(16, 0).data())
+        AddConstant(network, TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED), std::vector<int32_t>(16, 0).data())
             .tensor;
 
     std::shared_ptr<Constant> bias2 =
         AddConstant(network,
                     TensorInfo({ 1, 1, 1, 16 }, DataType::INT32_QUANTIZED, DataFormat::NHWC, QuantizationInfo(0, 1.1f)),
-                    std::vector<uint8_t>(16, 1).data())
+                    std::vector<int32_t>(16, 1).data())
             .tensor;
 
     std::shared_ptr<Constant> weights1 =
