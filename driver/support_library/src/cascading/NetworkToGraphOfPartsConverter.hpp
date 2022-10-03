@@ -116,5 +116,27 @@ std::unique_ptr<McePart>
                                                   const HardwareCapabilities& capabilities,
                                                   const std::vector<std::pair<uint32_t, uint32_t>>& padAmounts);
 
+/// Creates an McePart that passes through its input mostly unchanged, except it removes specified channels
+/// from the output tensor.
+/// The `removeAmounts` argument defines where and how many channels are removed. Each entry in the array
+/// describes one removal of channels, with .first defining the location in the _original_ channels
+/// to start adding removing, and the .second defining how many channels to remove.
+/// An example (ignoring XY):
+///     Input: a, b, c, d, e, f, g, h
+///     removeAmounts: { { 0, 2 }, { 4, 3 } }
+///     Output: c, d, h
+std::unique_ptr<McePart>
+    CreateIdentityMcePartWithRemovedInputChannels(PartId partId,
+                                                  const TensorShape& shape,
+                                                  const QuantizationInfo& inputQuantInfo,
+                                                  const QuantizationInfo& outputQuantInfo,
+                                                  uint32_t operationId,
+                                                  DataType inputDataType,
+                                                  DataType outputDataType,
+                                                  const EstimationOptions& estOpt,
+                                                  const CompilationOptions& compOpt,
+                                                  const HardwareCapabilities& capabilities,
+                                                  const std::vector<std::pair<uint32_t, uint32_t>>& removeAmounts);
+
 }    // namespace support_library
 }    // namespace ethosn

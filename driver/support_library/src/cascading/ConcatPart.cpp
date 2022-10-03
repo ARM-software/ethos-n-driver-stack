@@ -18,7 +18,9 @@ namespace support_library
 
 ConcatPart::ConcatPart(PartId id,
                        const std::vector<TensorInfo>& inputTensorsInfo,
-                       const ConcatenationInfo& concatInfo,
+                       const TensorInfo& outputTensorInfo,
+                       uint32_t axis,
+                       const std::vector<uint32_t>& offsets,
                        bool preferNhwc,
                        const std::set<uint32_t>& correspondingOperationIds,
                        const EstimationOptions& estOpt,
@@ -26,7 +28,9 @@ ConcatPart::ConcatPart(PartId id,
                        const HardwareCapabilities& capabilities)
     : BasePart(id, "ConcatPart", correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorsInfo{ inputTensorsInfo }
-    , m_ConcatInfo{ concatInfo }
+    , m_OutputTensorInfo{ outputTensorInfo }
+    , m_Axis(axis)
+    , m_Offsets(offsets)
     , m_StripeConfig(impl::GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
     , m_PreferNhwc(preferNhwc)
 {}
@@ -62,29 +66,27 @@ void ConcatPart::CreateConcatDramPlans(Plans& plans) const
     // We can use NHWCB/FCAF if the dimensions along the concat axis are all multiples of the brick group/cell size, so
     // that the DMA is capable of joining the tensors correctly from DRAM.
     bool canUseNhwcb      = true;
-    const bool canUseNhwc = m_ConcatInfo.m_Axis != 3;    // DMA can't split along channels for NHWC
+    const bool canUseNhwc = m_Axis != 3;    // DMA can't split along channels for NHWC
     bool canUseFcafDeep   = m_CompilationOptions.m_EnableIntermediateCompression;
     bool canUseFcafWide   = m_CompilationOptions.m_EnableIntermediateCompression;
-    const uint32_t requiredMultipleForNhwcb =
-        m_ConcatInfo.m_Axis == 3 ? 8 : m_Capabilities.GetBrickGroupShape()[m_ConcatInfo.m_Axis];
     for (uint32_t i = 0; i < numInputs; ++i)
     {
-        const uint32_t size = m_InputTensorsInfo[i].m_Dimensions[m_ConcatInfo.m_Axis];
+        const uint32_t offset = m_Offsets[i];
 
         // Check compatibility with NHWCB
-        if (size % requiredMultipleForNhwcb)
+        if (offset % m_Capabilities.GetBrickGroupShape()[m_Axis] != 0)
         {
             canUseNhwcb = false;
         }
 
         // Check compatibility with FCAF_DEEP
-        if (size % g_FcafDeepCellShape[m_ConcatInfo.m_Axis] != 0)
+        if (offset % g_FcafDeepCellShape[m_Axis] != 0)
         {
             canUseFcafDeep = false;
         }
 
         // Check compatibility with FCAF_WIDE
-        if (size % g_FcafWideCellShape[m_ConcatInfo.m_Axis] != 0)
+        if (offset % g_FcafWideCellShape[m_Axis] != 0)
         {
             canUseFcafWide = false;
         }
@@ -121,40 +123,24 @@ void ConcatPart::CreateConcatDramPlans(Plans& plans) const
         throw InternalErrorException("Unable to find a suitable format for Concat");
     }
 
-    TensorInfo outputInfo = Concatenation::CalculateOutputTensorInfo(m_InputTensorsInfo, m_ConcatInfo);
-
-    uint32_t minWidthMultiplier  = 1;
-    uint32_t maxWidthMultiplier  = std::numeric_limits<uint32_t>::max();
-    uint32_t minHeightMultiplier = 1;
-    uint32_t maxHeightMultiplier = std::numeric_limits<uint32_t>::max();
-    if (m_ConcatInfo.m_Axis == 3 &&
-        std::any_of(m_InputTensorsInfo.begin(), m_InputTensorsInfo.end(), [&](const TensorInfo& t) {
-            return t.m_Dimensions[3] % m_Capabilities.GetBrickGroupShape()[3] != 0;
-        }))
-    {
-        // When splitting channels by multiples of less than 16, the firmware requires that the stripe shape is 8x8 (WxH)
-        minWidthMultiplier  = 1;
-        maxWidthMultiplier  = 1;
-        minHeightMultiplier = 1;
-        maxHeightMultiplier = 1;
-    }
-
     PartInputMapping inputMappings;
     PartOutputMapping outputMappings;
     OwnedOpGraph opGraph;
 
     opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
     Buffer* outputBuffer             = opGraph.GetBuffers().back();
-    outputBuffer->m_DataType         = outputInfo.m_DataType;
-    outputBuffer->m_TensorShape      = outputInfo.m_Dimensions;
+    outputBuffer->m_DataType         = m_OutputTensorInfo.m_DataType;
+    outputBuffer->m_TensorShape      = m_OutputTensorInfo.m_Dimensions;
     outputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(outputBuffer->m_TensorShape, format);
-    outputBuffer->m_QuantizationInfo = outputInfo.m_QuantizationInfo;
+    outputBuffer->m_QuantizationInfo = m_OutputTensorInfo.m_QuantizationInfo;
     outputBuffer->m_BufferType       = BufferType::Intermediate;
     outputMappings[outputBuffer]     = PartOutputSlot{ m_PartId, 0 };
 
-    TensorShape offset = { 0, 0, 0, 0 };
     for (uint32_t inputIndex = 0; inputIndex < numInputs; inputIndex++)
     {
+        TensorShape offset = { 0, 0, 0, 0 };
+        offset[m_Axis]     = m_Offsets[inputIndex];
+
         opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
         Buffer* inputBuffer             = opGraph.GetBuffers().back();
         inputBuffer->m_DataType         = m_InputTensorsInfo[inputIndex].m_DataType;
@@ -171,9 +157,11 @@ void ConcatPart::CreateConcatDramPlans(Plans& plans) const
 
         // Create a buffer with the best stripe shape
         std::unique_ptr<Buffer> sramBuffer = impl::MakeGlueIntermediateSramBuffer(
-            m_InputTensorsInfo[inputIndex].m_Dimensions, outputInfo.m_QuantizationInfo, outputInfo.m_DataType,
-            { format }, m_Capabilities, minWidthMultiplier, maxWidthMultiplier, minHeightMultiplier,
-            maxHeightMultiplier, m_StripeConfig.ofmDepthMultiplier.min, m_StripeConfig.ofmDepthMultiplier.max);
+            m_InputTensorsInfo[inputIndex].m_Dimensions, m_OutputTensorInfo.m_QuantizationInfo,
+            m_OutputTensorInfo.m_DataType, { format }, m_Capabilities, m_StripeConfig.blockWidthMultiplier.min,
+            m_StripeConfig.blockWidthMultiplier.max, m_StripeConfig.blockHeightMultiplier.min,
+            m_StripeConfig.blockHeightMultiplier.max, m_StripeConfig.ofmDepthMultiplier.min,
+            m_StripeConfig.ofmDepthMultiplier.max);
         Buffer* sramBufferRaw = sramBuffer.get();
         opGraph.AddBuffer(std::move(sramBuffer));
 
@@ -187,9 +175,6 @@ void ConcatPart::CreateConcatDramPlans(Plans& plans) const
         opGraph.SetProducer(sramBufferRaw, dma1Raw);
         opGraph.AddConsumer(sramBufferRaw, dma2Raw, 0);
         opGraph.AddProducer(outputBuffer, dma2Raw);
-
-        offset[m_ConcatInfo.m_Axis] =
-            offset[m_ConcatInfo.m_Axis] + m_InputTensorsInfo[inputIndex].m_Dimensions[m_ConcatInfo.m_Axis];
     }
 
     // Note that we don't use AddNewPlan as the validation is wrong for SRAM (not all our buffers need to
@@ -209,10 +194,21 @@ ethosn::support_library::DotAttributes ConcatPart::GetDotAttributes(DetailLevel 
     {
         result.m_Label += "PreferNhwc = " + ToString(m_PreferNhwc) + "\n";
         result.m_Label += "InputTensorsInfo = " + ArrayToString(m_InputTensorsInfo) + "\n";
-        result.m_Label += "ConcatInfo.Axis = " + ToString(m_ConcatInfo.m_Axis) + "\n";
-        result.m_Label += "ConcatInfo.OutputQuantInfo = " + ToString(m_ConcatInfo.m_OutputQuantizationInfo) + "\n";
+        result.m_Label += "OutputTensorInfo = " + ToString(m_OutputTensorInfo) + "\n";
+        result.m_Label += "Axis = " + ToString(m_Axis) + "\n";
+        result.m_Label += "Offsets = " + ArrayToString(m_Offsets) + "\n";
     }
     return result;
+}
+
+const TensorShape& ConcatPart::GetOutputTensorShape() const
+{
+    return m_OutputTensorInfo.m_Dimensions;
+}
+
+const std::vector<uint32_t>& ConcatPart::GetOffsets() const
+{
+    return m_Offsets;
 }
 
 }    // namespace support_library

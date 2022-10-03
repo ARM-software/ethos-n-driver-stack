@@ -675,9 +675,11 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     parts.m_Parts.push_back(std::move(mcePart));
 
     // ConcatPart
-    auto concatPart = std::make_unique<ConcatPart>(2, std::vector<sl::TensorInfo>{ TensorShape{ 1, 2, 3, 4 } },
-                                                   ConcatenationInfo(3, QuantizationInfo(9, 10.0f)), true,
-                                                   std::set<uint32_t>{ 13, 14, 15 }, estOpt, compOpt, caps);
+    auto concatPart = std::make_unique<ConcatPart>(
+        2, std::vector<sl::TensorInfo>{ TensorShape{ 1, 2, 3, 4 } },
+        sl::TensorInfo{ TensorShape{ 5, 6, 7, 8 }, sl::DataType::UINT8_QUANTIZED, sl::DataFormat::NHWC,
+                        QuantizationInfo(9, 10.0f) },
+        3, std::vector<uint32_t>{ 0, 16 }, true, std::set<uint32_t>{ 13, 14, 15 }, estOpt, compOpt, caps);
     parts.m_Parts.push_back(std::move(concatPart));
 
     // InputPart
@@ -730,7 +732,7 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
 {
 FusedPlePart_1[label = "FusedPlePart 1\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nInputDataType = UINT8_QUANTIZED\nOutputDataType = UINT8_QUANTIZED\nKernelOperation = DOWNSAMPLE_2X2\nShapeMultiplier = [1/1, 2/1, 3/1]\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [1, 2, 3, 4]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 1\nStripeGenerator.KernelWidth = 1\nStripeGenerator.UpscaleFactor = 1\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceShapeMultiplier = [1/1, 1/1, 1/1]\nStripeGenerator.PleShapeMultiplier = [1/1, 2/1, 3/1]\n"]
 McePart_5[label = "McePart 5\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nInputDataType = UINT8_QUANTIZED\nOutputDataType = UINT8_QUANTIZED\nWeightsInfo = ([9, 10, 11, 12], UINT8_QUANTIZED, NHWC, ZeroPoint = 11, Scale = 12.000000)\nBiasInfo = ([19, 110, 111, 112], UINT8_QUANTIZED, NHWC, ZeroPoint = 111, Scale = 112.000000)\nStride = 2, 2\nUpscaleFactor = 3\nUpsampleType = NEAREST_NEIGHBOUR\nPadTop = 1\nPadLeft = 3\nOperation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 9\nStripeGenerator.KernelWidth = 10\nStripeGenerator.UpscaleFactor = 3\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceShapeMultiplier = [3/1, 3/1, 1/1]\nStripeGenerator.PleShapeMultiplier = [1/1, 1/1, 1/1]\n"]
-ConcatPart_2[label = "ConcatPart 2\nCorrespondingOperationIds = [13, 14, 15]\nPreferNhwc = 1\nInputTensorsInfo = [([1, 2, 3, 4], UINT8_QUANTIZED, NHWC, ZeroPoint = 0, Scale = 1.000000)]\nConcatInfo.Axis = 3\nConcatInfo.OutputQuantInfo = ZeroPoint = 9, Scale = 10.000000\n"]
+ConcatPart_2[label = "ConcatPart 2\nCorrespondingOperationIds = [13, 14, 15]\nPreferNhwc = 1\nInputTensorsInfo = [([1, 2, 3, 4], UINT8_QUANTIZED, NHWC, ZeroPoint = 0, Scale = 1.000000)]\nOutputTensorInfo = ([5, 6, 7, 8], UINT8_QUANTIZED, NHWC, ZeroPoint = 9, Scale = 10.000000)\nAxis = 3\nOffsets = [0, 16]\n"]
 InputPart_3[label = "InputPart 3\nCorrespondingOperationIds = [13, 14, 15]\nCompilerDataFormat = NHWCB\nOutputTensorShape = [1, 2, 3, 4]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputDataType = UINT8_QUANTIZED\n"]
 OutputPart_5[label = "OutputPart 5\nCorrespondingOperationIds = [13, 14, 15]\nCompilerDataFormat = NHWCB\nInputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nInputDataType = UINT8_QUANTIZED\n"]
 ReshapePart_8[label = "ReshapePart 8\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nDataType = UINT8_QUANTIZED\n"]

@@ -134,6 +134,71 @@ std::unique_ptr<McePart>
     return mcePart;
 }
 
+std::unique_ptr<McePart>
+    CreateIdentityMcePartWithRemovedInputChannels(PartId partId,
+                                                  const TensorShape& shape,
+                                                  const QuantizationInfo& inputQuantInfo,
+                                                  const QuantizationInfo& outputQuantInfo,
+                                                  uint32_t operationId,
+                                                  DataType inputDataType,
+                                                  DataType outputDataType,
+                                                  const EstimationOptions& estOpt,
+                                                  const CompilationOptions& compOpt,
+                                                  const HardwareCapabilities& capabilities,
+                                                  const std::vector<std::pair<uint32_t, uint32_t>>& removeAmounts)
+{
+    uint32_t numOfm = GetChannels(shape);
+    for (size_t i = 0; i < removeAmounts.size(); ++i)
+    {
+        numOfm -= removeAmounts[i].second;
+    }
+
+    McePart::ConstructionParams params(estOpt, compOpt, capabilities);
+    params.m_Id                     = partId;
+    params.m_InputTensorShape       = shape;
+    params.m_OutputTensorShape      = { shape[0], shape[1], shape[2], numOfm };
+    params.m_InputQuantizationInfo  = inputQuantInfo;
+    params.m_OutputQuantizationInfo = outputQuantInfo;
+    const uint32_t numIfm           = shape[3];
+    const float weightScale         = 0.5f;
+    params.m_WeightsInfo            = {
+        { 1, 1, numIfm, numOfm }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, { 0, weightScale }
+    };
+
+    params.m_WeightsData.reserve(GetNumElements(params.m_WeightsInfo.m_Dimensions));
+    for (uint32_t i = 0; i < numIfm; ++i)
+    {
+        uint32_t removeIdx = 0;
+        for (uint32_t o = 0; o < numIfm; ++o)
+        {
+            if (removeIdx < removeAmounts.size() && o == removeAmounts[removeIdx].first)
+            {
+                o += removeAmounts[removeIdx].second;
+                removeIdx++;
+            }
+            if (o >= numIfm)
+            {
+                break;
+            }
+            params.m_WeightsData.push_back(o == i ? 2 : 0);
+        }
+    }
+
+    const float biasScale   = weightScale * inputQuantInfo.GetScale();
+    params.m_BiasInfo       = { { 1, 1, 1, numOfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
+    params.m_BiasData       = std::vector<int32_t>(numOfm, 0);
+    params.m_Op             = command_stream::MceOperation::CONVOLUTION;
+    params.m_OperationIds   = std::set<uint32_t>{ operationId };
+    params.m_UpscaleFactor  = 1;
+    params.m_UpsampleType   = command_stream::cascading::UpsampleType::OFF;
+    params.m_InputDataType  = inputDataType;
+    params.m_OutputDataType = outputDataType;
+    params.m_LowerBound     = outputDataType == DataType::UINT8_QUANTIZED ? 0 : -128;
+    params.m_UpperBound     = outputDataType == DataType::UINT8_QUANTIZED ? 255 : 127;
+    auto mcePart            = std::make_unique<McePart>(std::move(params));
+    return mcePart;
+}
+
 NetworkToGraphOfPartsConverter::NetworkToGraphOfPartsConverter(const Network& network,
                                                                const HardwareCapabilities& capabilities,
                                                                const EstimationOptions& estimationOptions,
@@ -664,9 +729,10 @@ void NetworkToGraphOfPartsConverter::Visit(Addition& addition)
 
 void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
 {
-    size_t numInputs     = concat.GetInputs().size();
-    auto outputQuantInfo = concat.GetOutput(0).GetTensorInfo().m_QuantizationInfo;
-    std::map<uint32_t, PartId> mcePartIds;
+    const size_t numInputs                  = concat.GetInputs().size();
+    const QuantizationInfo& outputQuantInfo = concat.GetOutput(0).GetTensorInfo().m_QuantizationInfo;
+    const DataType outputDataType           = concat.GetOutput(0).GetTensorInfo().m_DataType;
+    const ConcatenationInfo& concatInfo     = concat.GetConcatenationInfo();
 
     // Create a ConcatPart for the GraphOfParts
     std::vector<TensorInfo> inputTensorsInfo;
@@ -700,9 +766,15 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
         // The ConcatPart assumes that all Inputs and the Output have the same quantization information.
         // If that is not the case, a requantize McePart is generated for any Inputs that are different to the Output.
         // Subsequently, all generated MceParts, as well as the ConcatPart are connected to the GraphOfParts.
+        std::map<uint32_t, PartId> mcePartIds;
+        std::vector<uint32_t> offsets;
+        uint32_t offset = 0;
         for (uint32_t i = 0; i < numInputs; i++)
         {
-            TensorInfo mceOperationInput  = concat.GetInput(0).GetTensorInfo();
+            offsets.push_back(offset);
+            offset += concat.GetInput(i).GetTensorInfo().m_Dimensions[concatInfo.m_Axis];
+
+            TensorInfo mceOperationInput  = concat.GetInput(i).GetTensorInfo();
             TensorInfo mceOperationOutput = mceOperationInput;
             Operand& inputOperand         = concat.GetInput(i);
             if (inputOperand.GetTensorInfo().m_QuantizationInfo != outputQuantInfo)
@@ -718,10 +790,35 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
                     { m_OperandToPart.at(&inputOperand)->GetPartId(), inputOperand.GetProducerOutputIndex() });
                 mcePartIds[i] = mcePart->GetPartId();
                 m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+
+                inputTensorsInfo[i].m_QuantizationInfo = outputQuantInfo;
             }
         }
 
-        auto concatInfo = concat.GetConcatenationInfo();
+        // Optimisation: if we are concating in channels with any non-multiples of the brick-group-depth (16),
+        // then this can be very slow for the firmware because it needs to split into lots of chunks. Instead,
+        // we pad the output tensor so that we can concat on multiples of 16 instead (i.e. aligning the join points)
+        // and then add a following conv layer that removes these padding channels for the next layer to consume
+        TensorInfo concatOutputTensorInfo = concat.GetOutput(0).GetTensorInfo();
+        std::vector<std::pair<uint32_t, uint32_t>> removeAmounts;
+        if (concatInfo.m_Axis == 3)
+        {
+            uint32_t offset = 0;
+            for (uint32_t i = 0; i < numInputs; ++i)
+            {
+                offsets[i] = offset;
+                offset += concat.GetInput(i).GetTensorInfo().m_Dimensions[3];
+                uint32_t rem =
+                    concat.GetInput(i).GetTensorInfo().m_Dimensions[3] % m_Capabilities.GetBrickGroupShape()[3];
+                if (rem != 0)
+                {
+                    uint32_t numPadChannels = m_Capabilities.GetBrickGroupShape()[3] - rem;
+                    removeAmounts.push_back(std::make_pair(offset, numPadChannels));
+                    offset += numPadChannels;
+                }
+            }
+            concatOutputTensorInfo.m_Dimensions[3] = offset;
+        }
 
         // Check whether we should prefer to use NHWC
         // Generally we prefer to use NHWCB if we can, as it should be the more efficient format.
@@ -736,12 +833,26 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
             }
         }
 
-        auto concatPart = std::make_unique<ConcatPart>(
-            m_GraphOfParts.GeneratePartId(), inputTensorsInfo, concat.GetConcatenationInfo(), allInputsPreferNhwc,
-            std::set<uint32_t>{ concat.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+        std::vector<BasePart*> parts;
 
-        // Mark the ConcatPart Output for connection with any subsequent Parts.
-        m_OperandToPart[&concat.GetOutput(0)] = concatPart.get();
+        auto concatPart = std::make_unique<ConcatPart>(
+            m_GraphOfParts.GeneratePartId(), inputTensorsInfo, concatOutputTensorInfo, concatInfo.m_Axis, offsets,
+            allInputsPreferNhwc, std::set<uint32_t>{ concat.GetId() }, m_EstimationOptions.value(),
+            m_CompilationOptions, m_Capabilities);
+        ConcatPart* concatPartRaw = concatPart.get();
+        parts.push_back(concatPartRaw);
+        m_GraphOfParts.m_Parts.push_back(std::move(concatPart));
+
+        if (!removeAmounts.empty())
+        {
+            std::unique_ptr<McePart> paddingPart = CreateIdentityMcePartWithRemovedInputChannels(
+                m_GraphOfParts.GeneratePartId(), concatOutputTensorInfo.m_Dimensions, outputQuantInfo, outputQuantInfo,
+                concat.GetId(), outputDataType, outputDataType, m_EstimationOptions.value(), m_CompilationOptions,
+                m_Capabilities, removeAmounts);
+            parts.push_back(paddingPart.get());
+            m_GraphOfParts.AddConnection({ paddingPart->GetPartId(), 0 }, { concatPartRaw->GetPartId(), 0 });
+            m_GraphOfParts.m_Parts.push_back(std::move(paddingPart));
+        }
 
         // Connect ConcatPart to the GraphOfParts. Loop through all Inputs of the ConcatPart and determine whether:
         // 1. There is a direct connection of ConcatPart with the preceding Part.
@@ -751,18 +862,18 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
             Operand& inputOperand = concat.GetInput(i);
             if (mcePartIds.find(i) != mcePartIds.end())
             {
-                m_GraphOfParts.AddConnection({ concatPart->GetPartId(), i }, { mcePartIds[i], 0 });
+                m_GraphOfParts.AddConnection({ concatPartRaw->GetPartId(), i }, { mcePartIds[i], 0 });
             }
             else
             {
                 m_GraphOfParts.AddConnection(
-                    { concatPart->GetPartId(), i },
+                    { concatPartRaw->GetPartId(), i },
                     { m_OperandToPart.at(&inputOperand)->GetPartId(), inputOperand.GetProducerOutputIndex() });
             }
         }
 
-        // Add the ConcatPart to the GraphOfParts
-        m_GraphOfParts.m_Parts.push_back(std::move(concatPart));
+        // Mark the ConcatPart Output for connection with any subsequent Parts.
+        m_OperandToPart[&concat.GetOutput(0)] = parts.back();
     }
 }
 

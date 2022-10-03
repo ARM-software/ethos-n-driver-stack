@@ -1128,23 +1128,11 @@ SupportedLevel SupportQueries::IsConcatenationSupported(const std::vector<Tensor
             // Please note that concat can support following channel distribution:
             //
             //  1. For legacy compiler, all input channels are multiple of 16, e.g. 16, 48, 32
-            //  2. For experimental compiler, all input channels are multiple of 8, e.g. 8, 16, 24, 40. Multiples of
-            //     8 in channels are a special case for NHWCB as it is the half brickgroup depth.
+            //  2. For experimental compiler, all cases are supported.
             for (uint32_t i = 0; i < numInputs; ++i)
             {
-                // Check if concat input channels are supported by experimental compiler
-                if (m_ForceExperimentalCompiler)
-                {
-                    if (inputInfos[i].m_Dimensions[3] % 8 != 0)
-                    {
-                        SetReason("Concatenation along the channels dimension (axis 3) requires input tensors with a "
-                                  "multiple of 8 channels",
-                                  reason, reasonMaxLength);
-                        return SupportedLevel::EstimateOnly;
-                    }
-                }
                 // Check if concat input channels are supported by legacy compiler
-                else
+                if (!m_ForceExperimentalCompiler)
                 {
                     if (inputInfos[i].m_Dimensions[3] % 16 != 0)
                     {

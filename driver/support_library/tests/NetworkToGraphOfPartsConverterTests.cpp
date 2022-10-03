@@ -63,6 +63,40 @@ TEST_CASE("CreateIdentityMcePartWithPaddedOutputChannels")
     // clang-format on
 }
 
+TEST_CASE("CreateIdentityMcePartWithRemovedInputChannels")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    auto compare = [&](const std::vector<std::pair<uint32_t, uint32_t>>& removeAmounts,
+                       const std::vector<uint8_t>& expectedWeights) {
+        std::unique_ptr<McePart> paddingPart = CreateIdentityMcePartWithRemovedInputChannels(
+            0, TensorShape{ 1, 1, 1, 5 }, QuantizationInfo(), QuantizationInfo(), 0, DataType::UINT8_QUANTIZED,
+            DataType::UINT8_QUANTIZED, estOpt, compOpt, caps, removeAmounts);
+
+        // Get the weights
+        CHECK(paddingPart->GetWeightsData() == expectedWeights);
+    };
+
+    // clang-format off
+    compare({}, { // No removing - identity matrix
+        2, 0, 0, 0, 0,
+        0, 2, 0, 0, 0,
+        0, 0, 2, 0, 0,
+        0, 0, 0, 2, 0,
+        0, 0, 0, 0, 2,
+        });
+    compare({ { 0, 1 }, { 3, 2 } }, {
+        0, 0,
+        2, 0,
+        0, 2,
+        0, 0,
+        0, 0,
+        });
+    // clang-format on
+}
+
 // Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the NetworkToGraphOfPartsConverter().
 // The topology is chosen to test Networks of supported Part types such as:
 //      * Input Part
@@ -582,6 +616,120 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat NHWC")
             REQUIRE(outputMapping.first->m_Format == CascadingBufferFormat::NHWC);
         }
     }
+}
+
+TEST_CASE("NetworkToGraphOfPartsConverter Concat Padding")
+{
+    // Confirms that padding channels are added as expected.
+
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    TensorInfo input1Info{
+        { { 1, 16, 16, 1 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.0f },
+    };
+
+    TensorInfo input2Info{
+        { { 1, 16, 16, 1 } },
+        DataType::UINT8_QUANTIZED,
+        DataFormat::NHWC,
+        { 0, 1.0f },
+    };
+
+    const std::shared_ptr<Network> network =
+        std::make_shared<Network>(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO), false, true);
+
+    // Network topology:
+    /*
+       { Input3 } \
+       { Input2 }  -> Concatenation -> Output
+       { Input  } /
+    */
+
+    std::vector<Operand*> layers;
+    std::shared_ptr<Operand> input = AddInput(network, input1Info).tensor;
+    layers.push_back(input.get());
+    std::shared_ptr<Operand> input2 = AddInput(network, input2Info).tensor;
+    layers.push_back(input2.get());
+
+    std::shared_ptr<Operand> concat = AddConcatenation(network, layers, ConcatenationInfo(3, { 0, 1.0f })).tensor;
+    std::shared_ptr<Output> output  = AddOutput(network, *concat).tensor;
+
+    bool dumpToFile = false;
+    if (dumpToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverter Concat Padding.dot");
+        SaveNetworkToDot(*network, stream, DetailLevel::High);
+    }
+
+    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(*network, caps, estOpt, compOpt);
+    GraphOfParts graph = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    bool dumpGraphOfPartsToFile = false;
+    if (dumpGraphOfPartsToFile)
+    {
+        std::ofstream stream("NetworkToGraphOfPartsConverter Concat Padding Output.dot");
+        SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
+    }
+
+    // InputPart, InputPart, ConcatPart, McePart (to remove padding channels), OutputPart
+    REQUIRE(graph.GetNumParts() == 5);
+
+    const ConcatPart* concatPart = dynamic_cast<const ConcatPart*>(&graph.GetPart(2));
+    REQUIRE(concatPart != nullptr);
+    CHECK(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 0);
+    CHECK(graph.GetConnectedOutputSlot({ 2, 1 }).value().m_PartId == 1);
+    CHECK(graph.GetConnectedInputSlots({ 2, 0 }) == std::vector<PartInputSlot>{ { 3, 0 } });
+    // Check the concat offsets
+    CHECK(utils::GetChannels(concatPart->GetOutputTensorShape()) == 32);
+    CHECK(concatPart->GetOffsets() == std::vector<uint32_t>{ 0, 16 });
+
+    const McePart* mcePart = dynamic_cast<const McePart*>(&graph.GetPart(3));
+    REQUIRE(mcePart != nullptr);
+    CHECK(graph.GetConnectedOutputSlot({ 3, 0 }).value().m_PartId == 2);
+    CHECK(graph.GetConnectedInputSlots({ 3, 0 }) == std::vector<PartInputSlot>{ { 4, 0 } });
+    // Check that padding channels have been added
+    CHECK(utils::GetChannels(mcePart->GetInputTensorShape()) == 32);
+    // clang-format off
+    CHECK(mcePart->GetWeightsData() == std::vector<uint8_t>{
+        2, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 2,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+        0, 0,
+    });
+    // clang-format on
 }
 
 TEST_CASE("NetworkToGraphOfPartsConverterTest Concat EstimateOnly")

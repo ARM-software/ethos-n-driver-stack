@@ -153,15 +153,16 @@ TEST_CASE("ConcatPart Plan Generation", "[ConcatPartTests]")
         const CompilationOptions compOpt;
         HardwareCapabilities hwCapabilities(GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
-        ConcatPart concatPart(partId, inputTensorsInfo, concatInfo, false, operationIds, estOpt, compOpt,
-                              hwCapabilities);
-
         CheckPlansParams params;
         params.m_PartId           = partId;
         params.m_InputTensorsInfo = inputTensorsInfo;
         params.m_OutputTensorInfo = Concatenation::CalculateOutputTensorInfo(params.m_InputTensorsInfo, concatInfo);
         params.m_OperationIds     = operationIds;
         params.m_DataFormat       = dataFormat;
+
+        ConcatPart concatPart(partId, inputTensorsInfo, params.m_OutputTensorInfo, concatInfo.m_Axis,
+                              { 0, utils::GetHeight(inputTensorInfo1.m_Dimensions) }, false, operationIds, estOpt,
+                              compOpt, hwCapabilities);
 
         WHEN("Asked to generate Lonely plans")
         {
