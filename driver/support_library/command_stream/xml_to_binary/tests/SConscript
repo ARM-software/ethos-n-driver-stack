@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2018,2020-2021 Arm Limited.
+# Copyright © 2018,2020-2022 Arm Limited.
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -9,7 +9,7 @@ Import("env", "xml_to_binary_lib")
 
 srcs = ["Main.cpp", "XmlToBinaryTests.cpp"]
 
-unitTests = env.Program("UnitTests", srcs, LIBS=["mxml", xml_to_binary_lib])
+unitTests = env.Program("UnitTests", srcs, LIBS=[xml_to_binary_lib])
 # Clean up artefacts produced from executing the unit test
 Clean(unitTests, ["#/input.xml"])
 testAlias = env.Alias("xml-to-binary-unit-tests", [unitTests], unitTests[0].abspath)

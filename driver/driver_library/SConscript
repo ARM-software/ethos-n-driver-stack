@@ -68,7 +68,7 @@ if env["target"] == "model":
 
 libs = []
 
-# Add dependency on libXmlToBinary and libmxml if we need to be able to dump command streams.
+# Add dependency on libXmlToBinary if we need to be able to dump command streams.
 # This is controlled by a build option as these extra dependencies will not be wanted in a production environment.
 if env["allow_command_stream_dump"]:
     env.AppendUnique(CPPDEFINES=["ETHOSN_ALLOW_COMMAND_STREAM_DUMP=1"])
@@ -76,7 +76,7 @@ if env["allow_command_stream_dump"]:
     lib_xml_to_binary = File(
         os.path.join(common.get_lib_xml_to_binary_build_dir(env), "libXmlToBinary.a")
     )
-    libs.extend([lib_xml_to_binary, "mxml"])
+    libs.extend([lib_xml_to_binary])
 
 # Build driver_library static and shared lib
 ethosn_driver_lib = env.StaticLibrary("libEthosNDriver", srcs)
