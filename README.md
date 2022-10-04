@@ -59,6 +59,7 @@ To use the NPU in Secure mode, the target platform must have a [Trusted Firmware
 
 The Arm Ethos-N NPU SiP service is available in the TF-A source tree, along with a reference implementation about how to use the Arm Ethos-N NPU SiP service on the Arm Juno platform.
 For instructions on how to get and build the TF-A source, see the [TF-A documentation](https://trustedfirmware-a.readthedocs.io/en/latest/index.html). TF-A version v2.7 or later must be used.
+The following [patch](https://git.trustedfirmware.org//TF-A%2Ftrusted-firmware-a.git/commit/?id=b139f1cf975f9968eb8bd1182a173b976ecf06f9) must be applied on top of TF-A version v2.7 to add support for SMMU streams.
 
 The build flag required to enable the Arm Ethos-N NPU SiP service for the Arm Juno platform is available at [TF-A Arm Platform Build Options](https://trustedfirmware-a.readthedocs.io/en/latest/plat/arm/arm-build-options.html).
 
@@ -173,12 +174,12 @@ git clone https://github.com/Arm-software/armnn --branch main
 cd armnn/
 git reset --hard 1b56b46fee47a44e0fd019e0a10e93612f1dba36
 cd ..
-git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 22.08
+git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 22.08dev1
 ```
 
     _Note: The default branch on GitHub has changed to main._
 
-## Build the Ethos-N NPU driver
+### Build the Ethos-N NPU driver
 
 You must follow specific steps to build the Ethos-N NPU driver. You must build the Ethos-N NPU driver, Ethos-N NPU kernel module, and Arm NN. Depending on your system, appropriate privileges are required to run some of the following commands:
 
