@@ -1,5 +1,28 @@
 # Changelog for Arm® Ethos™-N Driver Stack
 
+## 22.08dev1
+
+### New features
+
+- Estimation mode for split now supports multiple outputs
+- Support has been added to use separate SMMU streams for different memory assets e.g. firmware, input/output, command stream
+  - Device tree layout has been changed to support having multiple SMMU streams
+    - Multiple asset allocators may be defined in the device tree, however only the first one is currently used
+  - The Ethos-N NPU kernel module and Trusted Firmware-A driver have been updated to support the new device tree and the use of separate SMMU streams
+
+### Public API changes
+
+- The Support Library's CompiledNetwork class now has a function to get how much intermediate buffer memory a network requires
+
+### Other changes
+
+- Fixed the Support Library's compiler allowing an output buffer to be used as an intermediate buffer
+- Improvements to SmallVector constructor and operator support
+
+### Known issues
+
+- Refer to 22.08 changelog for more details
+
 ## 22.08
 
 ### New features
