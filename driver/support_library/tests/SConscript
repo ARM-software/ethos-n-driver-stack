@@ -72,6 +72,8 @@ srcs = [
     "StandalonePlePartTests.cpp",
     "SplitPartTests.cpp",
     "CascadingCommandStreamGeneratorTests.cpp",
+    "StripeHelperTests.cpp",
+    "UtilsTests.cpp",
 ]
 
 internal_dir = os.path.join(

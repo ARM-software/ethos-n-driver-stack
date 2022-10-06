@@ -125,18 +125,16 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
     // Full IFM and partial OFM
     if (m_StripeConfig.splits.mceAndPleOutputDepth)
     {
-        const uint32_t minOfmDepthMultiplier = std::max(1U, m_StripeConfig.ofmDepthMultiplier.min);
-        const uint32_t maxOfmDepthMultiplier =
-            std::max(1U, std::min(utils::DivRoundUp(GetChannels(m_OutputTensorShape), m_Capabilities.GetNumberOfOgs()),
-                                  m_StripeConfig.ofmDepthMultiplier.max));
-        for (uint32_t ofmDepthMultiplier = minOfmDepthMultiplier; ofmDepthMultiplier <= maxOfmDepthMultiplier;
-             ofmDepthMultiplier *= 2)
+        // Exclusive loop as we already have a no-split plan above
+        for (uint32_t ofmDepth :
+             StripeShapeLoop::Exclusive(GetChannels(m_OutputTensorShape), m_Capabilities.GetNumberOfOgs(),
+                                        m_StripeConfig.ofmDepthMultiplier.min, m_StripeConfig.ofmDepthMultiplier.max))
         {
             TensorShape mceInputEncoding = { 0, 0, 0, 0 };
             TensorShape mceInputStripe =
                 CreateStripe(m_InputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 
-            TensorShape mceOutputEncoding = { 0, 0, 0, m_Capabilities.GetNumberOfOgs() * ofmDepthMultiplier };
+            TensorShape mceOutputEncoding = { 0, 0, 0, ofmDepth };
             TensorShape mceOutputStripe =
                 CreateStripe(m_OutputTensorShape, mceOutputEncoding, m_Capabilities.GetNumberOfOgs());
 
@@ -171,17 +169,13 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
     // Partial IFM and partial OFM
     if (m_StripeConfig.splits.outputDepthInputDepth)
     {
-        const uint32_t minIfmDepthMultiplier = std::max(1U, m_StripeConfig.ifmDepthMultiplier.min);
-        const uint32_t maxIfmDepthMultiplier = std::max(
-            1U, std::min(utils::DivRoundUp(GetChannels(m_InputTensorShape),
-                                           (m_Capabilities.GetIgsPerEngine() * m_Capabilities.GetNumberOfEngines())),
-                         m_StripeConfig.ifmDepthMultiplier.max));
-        for (uint32_t ifmDepthMultiplier = minIfmDepthMultiplier; ifmDepthMultiplier <= maxIfmDepthMultiplier;
-             ifmDepthMultiplier *= 2)
+        // Exclusive loop as we already have a no-split plan above
+        for (uint32_t ifmDepth :
+             StripeShapeLoop::Exclusive(GetChannels(m_InputTensorShape),
+                                        m_Capabilities.GetIgsPerEngine() * m_Capabilities.GetNumberOfEngines(),
+                                        m_StripeConfig.ifmDepthMultiplier.min, m_StripeConfig.ifmDepthMultiplier.max))
         {
-            TensorShape mceInputEncoding = {
-                0, 0, 0, m_Capabilities.GetIgsPerEngine() * m_Capabilities.GetNumberOfEngines() * ifmDepthMultiplier
-            };
+            TensorShape mceInputEncoding = { 0, 0, 0, ifmDepth };
             TensorShape mceInputStripe =
                 CreateStripe(m_InputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
 

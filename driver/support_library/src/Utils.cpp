@@ -127,6 +127,25 @@ namespace utils
 
 const ShapeMultiplier ShapeMultiplier::Identity = g_IdentityShapeMultiplier;
 
+uint32_t RoundDownToPow2(uint32_t x)
+{
+    uint32_t candidate = 1;
+    while (true)
+    {
+        if (candidate == (1U << 31))
+        {
+            // This is the largest representable power of two so must be correct once we reach here.
+            // We can't continue anyway, as our calculations will overflow.
+            return candidate;
+        }
+        if (candidate * 2U > x)
+        {
+            return candidate;
+        }
+        candidate *= 2U;
+    }
+}
+
 uint32_t EstimateWeightSizeBytes(const TensorShape& shape, const HardwareCapabilities& capabilities, bool isHwim)
 {
     // Suppose we have 32 OFMs, we will have to assign 2 per CE. They have to be aligned

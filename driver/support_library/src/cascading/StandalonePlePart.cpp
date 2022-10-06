@@ -135,19 +135,6 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
     const uint32_t brickGroupWidth  = m_Capabilities.GetBrickGroupShape()[2];
     const uint32_t brickGroupDepth  = m_Capabilities.GetBrickGroupShape()[3];
 
-    const uint32_t minWidthMultiplier = stripeConfig.blockWidthMultiplier.min;
-    const uint32_t maxWidthMultiplier =
-        std::max(1U, std::min(utils::DivRoundUp(GetWidth(m_OutputTensorShape), brickGroupWidth),
-                              stripeConfig.blockWidthMultiplier.max));
-    const uint32_t minHeightMultiplier = stripeConfig.blockHeightMultiplier.min;
-    const uint32_t maxHeightMultiplier =
-        std::max(1U, std::min(utils::DivRoundUp(GetHeight(m_OutputTensorShape), brickGroupHeight),
-                              stripeConfig.blockHeightMultiplier.max));
-    const uint32_t minDepthMultiplier = std::max(1U, stripeConfig.ofmDepthMultiplier.min);
-    const uint32_t maxDepthMultiplier =
-        std::max(1U, std::min(utils::DivRoundUp(GetChannels(m_OutputTensorShape), brickGroupDepth),
-                              stripeConfig.ofmDepthMultiplier.max));
-
     auto addPlan = [&](const TensorShape& outputStripeShape) {
         // Uses block configure (16, 16) which will be ignored
         // by a standalone PLE kernel.
@@ -227,20 +214,22 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
 
         if (stripeConfig.splits.widthHeightOutputDepthInputDepth)
         {
-            for (uint32_t heightMultiplier = minHeightMultiplier; heightMultiplier <= maxHeightMultiplier;
-                 heightMultiplier *= 2)
+            // Inclusive loops so that we generate plans that split only one or two of the dimensions,
+            // but with larger stripe shapes than the non-lonely plans above.
+            for (uint32_t stripeHeight : StripeShapeLoop::Inclusive(
+                     utils::GetHeight(m_OutputTensorShape), brickGroupHeight, stripeConfig.blockHeightMultiplier.min,
+                     stripeConfig.blockHeightMultiplier.max))
             {
-                for (uint32_t widthMultiplier = minWidthMultiplier; widthMultiplier <= maxWidthMultiplier;
-                     widthMultiplier *= 2)
+                for (uint32_t stripeWidth : StripeShapeLoop::Inclusive(
+                         utils::GetWidth(m_OutputTensorShape), brickGroupWidth, stripeConfig.blockWidthMultiplier.min,
+                         stripeConfig.blockWidthMultiplier.max))
                 {
-                    for (uint32_t depthMultiplier = minDepthMultiplier; depthMultiplier <= maxDepthMultiplier;
-                         depthMultiplier *= 2)
+                    for (uint32_t stripeDepth : StripeShapeLoop::Inclusive(
+                             utils::GetChannels(m_OutputTensorShape), brickGroupDepth,
+                             stripeConfig.ofmDepthMultiplier.min, stripeConfig.ofmDepthMultiplier.max))
                     {
-                        TensorShape outputStripeShappe =
-                            CreateStripe(m_OutputTensorShape,
-                                         { 0, heightMultiplier * brickGroupHeight, widthMultiplier * brickGroupWidth,
-                                           depthMultiplier * brickGroupDepth },
-                                         brickGroupDepth);
+                        TensorShape outputStripeShappe = CreateStripe(
+                            m_OutputTensorShape, { 0, stripeHeight, stripeWidth, stripeDepth }, brickGroupDepth);
                         addPlan(outputStripeShappe);
                     }
                 }

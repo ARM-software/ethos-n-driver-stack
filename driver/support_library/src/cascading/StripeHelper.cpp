@@ -398,25 +398,21 @@ std::unique_ptr<Buffer>
         baseDepth  = std::max(baseDepth, utils::GetChannels(minStripeShape));
     }
 
-    // Clamp the upper bounds, to avoid investigating stripe shapes too large
-    maxWidthMultiplier  = std::min(maxWidthMultiplier, utils::DivRoundUp(utils::GetWidth(shape), baseWidth));
-    maxHeightMultiplier = std::min(maxHeightMultiplier, utils::DivRoundUp(utils::GetHeight(shape), baseHeight));
-    maxDepthMultiplier  = std::min(maxDepthMultiplier, utils::DivRoundUp(utils::GetChannels(shape), baseDepth));
-
     // Set the SRAM buffer's stripe size to be the largest shape that fits in SRAM,
     // to minimise stripe processing overhead.
     TensorShape bestStripeShape;
     uint32_t bestScore = 0;
-    for (uint32_t heightMultiplier = minHeightMultiplier; heightMultiplier <= maxHeightMultiplier;
-         heightMultiplier *= 2)
+    // Inclusive loops so that we generate candidates that split only one or two of the dimensions, or none of them.
+    for (uint32_t stripeHeight :
+         StripeShapeLoop::Inclusive(utils::GetHeight(shape), baseHeight, minHeightMultiplier, maxHeightMultiplier))
     {
-        for (uint32_t widthMultiplier = minWidthMultiplier; widthMultiplier <= maxWidthMultiplier; widthMultiplier *= 2)
+        for (uint32_t stripeWidth :
+             StripeShapeLoop::Inclusive(utils::GetWidth(shape), baseWidth, minWidthMultiplier, maxWidthMultiplier))
         {
-            for (uint32_t depthMultiplier = minDepthMultiplier; depthMultiplier <= maxDepthMultiplier;
-                 depthMultiplier *= 2)
+            for (uint32_t stripeDepth : StripeShapeLoop::Inclusive(utils::GetChannels(shape), baseDepth,
+                                                                   minDepthMultiplier, maxDepthMultiplier))
             {
-                TensorShape candidateStripeShape = { 1, heightMultiplier * baseHeight, widthMultiplier * baseWidth,
-                                                     depthMultiplier * baseDepth };
+                TensorShape candidateStripeShape = { 1, stripeHeight, stripeWidth, stripeDepth };
                 uint32_t score                   = utils::GetNumElements(candidateStripeShape);
                 // Prefer full-channel and full-width stripes, as these are more efficient to transfer.
                 if (utils::GetChannels(candidateStripeShape) >= utils::GetChannels(shape))
@@ -572,7 +568,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     using namespace utils;
 
     const uint32_t numOgs     = m_Capabilities.GetNumberOfOgs();
-    const uint32_t brickDepth = m_Capabilities.GetBrickGroupShape()[3];
+    const uint32_t brickDepth = GetChannels(m_Capabilities.GetBrickGroupShape());
 
     // Set Stripe split restrictions, depending on the Ple kernel type.
     StripeConfig stripeConfig = ApplyPleKernelSplitRestrictions(cascadeType);
@@ -748,26 +744,41 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     };
 
     // Limit the minimum number of blocks per stripe to be such that the PLE outputs at least one brick group
-    const uint32_t minBlockWidthMultiplier =
-        std::max(m_Capabilities.GetBrickGroupShape()[2] / (blockConfig.m_BlockWidth() * m_PleShapeMultiplier.m_W),
-                 m_StripeConfig.blockWidthMultiplier.min);
-    const uint32_t maxBlockWidthMultiplier =
-        std::max(1U, std::min(utils::DivRoundUp(GetWidth(m_MceInputTensorShape), blockConfig.m_BlockWidth()),
-                              m_StripeConfig.blockWidthMultiplier.max));
-    const uint32_t minBlockHeightMultiplier =
-        std::max(m_Capabilities.GetBrickGroupShape()[1] / (blockConfig.m_BlockHeight() * m_PleShapeMultiplier.m_H),
-                 m_StripeConfig.blockHeightMultiplier.min);
-    const uint32_t maxBlockHeightMultiplier =
-        std::max(1U, std::min(utils::DivRoundUp(GetHeight(m_MceInputTensorShape), blockConfig.m_BlockHeight()),
-                              m_StripeConfig.blockHeightMultiplier.max));
-    const uint32_t minIfmDepthMultiplier = std::max(1U, m_StripeConfig.ifmDepthMultiplier.min);
-    const uint32_t maxIfmDepthMultiplier =
-        std::max(1U, std::min(utils::DivRoundUp(GetChannels(m_MceInputTensorShape), numOgs),
-                              m_StripeConfig.ifmDepthMultiplier.max));
-    const uint32_t minOfmDepthMultiplier = std::max(1U, m_StripeConfig.ofmDepthMultiplier.min);
-    const uint32_t maxOfmDepthMultiplier =
-        std::max(1U, std::min(utils::DivRoundUp(GetChannels(m_MceOutputTensorShape), numOgs),
-                              m_StripeConfig.ofmDepthMultiplier.max));
+    const uint32_t baseMceInputHeight = std::max(
+        blockConfig.m_BlockHeight(), GetHeight(m_Capabilities.GetBrickGroupShape()) / m_PleShapeMultiplier.m_H);
+    const uint32_t baseMceInputWidth =
+        std::max(blockConfig.m_BlockWidth(), GetWidth(m_Capabilities.GetBrickGroupShape()) / m_PleShapeMultiplier.m_W);
+    const uint32_t baseMceIfm = numOgs / m_MceShapeMultiplier.m_C;
+
+    // Create some helpers to loop over potential stripe shapes. We create both 'inclusive' and 'exclusive' versions,
+    // as in some cases we want to include stripes that cover the full tensor, and in others we don't.
+    const StripeShapeLoop mceInputWidthLoopExcl =
+        StripeShapeLoop::Exclusive(GetWidth(m_MceInputTensorShape), baseMceInputWidth,
+                                   m_StripeConfig.blockWidthMultiplier.min, m_StripeConfig.blockWidthMultiplier.max);
+    const StripeShapeLoop mceInputHeightLoopExcl =
+        StripeShapeLoop::Exclusive(GetHeight(m_MceInputTensorShape), baseMceInputHeight,
+                                   m_StripeConfig.blockHeightMultiplier.min, m_StripeConfig.blockHeightMultiplier.max);
+    const StripeShapeLoop mceIfmLoopExcl =
+        StripeShapeLoop::Exclusive(GetChannels(m_MceInputTensorShape), baseMceIfm,
+                                   m_StripeConfig.ifmDepthMultiplier.min, m_StripeConfig.ifmDepthMultiplier.max);
+    const StripeShapeLoop mceOfmLoopExcl =
+        StripeShapeLoop::Exclusive(GetChannels(m_MceOutputTensorShape), baseMceIfm,
+                                   m_StripeConfig.ofmDepthMultiplier.min, m_StripeConfig.ofmDepthMultiplier.max);
+    const StripeShapeLoop mceInputWidthLoopIncl =
+        StripeShapeLoop::Inclusive(GetWidth(m_MceInputTensorShape), baseMceInputWidth,
+                                   m_StripeConfig.blockWidthMultiplier.min, m_StripeConfig.blockWidthMultiplier.max);
+    const StripeShapeLoop mceInputHeightLoopIncl =
+        StripeShapeLoop::Inclusive(GetHeight(m_MceInputTensorShape), baseMceInputHeight,
+                                   m_StripeConfig.blockHeightMultiplier.min, m_StripeConfig.blockHeightMultiplier.max);
+    const StripeShapeLoop mceIfmLoopIncl =
+        StripeShapeLoop::Inclusive(GetChannels(m_MceInputTensorShape), baseMceIfm,
+                                   m_StripeConfig.ifmDepthMultiplier.min, m_StripeConfig.ifmDepthMultiplier.max);
+    const StripeShapeLoop mceOfmLoopIncl =
+        StripeShapeLoop::Inclusive(GetChannels(m_MceOutputTensorShape), baseMceIfm,
+                                   m_StripeConfig.ofmDepthMultiplier.min, m_StripeConfig.ofmDepthMultiplier.max);
+    ETHOSN_UNUSED(mceInputWidthLoopExcl);    // Unused but kept above for consistency and potential future use.
+    ETHOSN_UNUSED(mceInputHeightLoopExcl);
+    ETHOSN_UNUSED(mceOfmLoopIncl);
 
     const TensorShape& outputShape = m_PleOutputTensorShape;
 
@@ -775,7 +786,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     // Try splitting height first.
     if (stripeConfig.splits.mceAndPleOutputHeight)
     {
-        TensorShape mceInputEncoding  = { 0, minBlockHeightMultiplier * blockConfig.m_BlockHeight(), 0, 0 };
+        TensorShape mceInputEncoding  = { 0, baseMceInputHeight, 0, 0 };
         const TensorShape& inputShape = m_MceInputTensorShape;
         TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
@@ -795,7 +806,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     // Split only input in height while the output is full tensor.
     if (stripeConfig.splits.mceOutputHeightOnly)
     {
-        TensorShape mceInputEncoding  = { 0, minBlockHeightMultiplier * blockConfig.m_BlockHeight(), 0, 0 };
+        TensorShape mceInputEncoding  = { 0, baseMceInputHeight, 0, 0 };
         const TensorShape& inputShape = m_MceInputTensorShape;
         TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
@@ -816,7 +827,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     // Try splitting width.
     if (stripeConfig.splits.widthOnly)
     {
-        TensorShape mceInputEncoding  = { 0, 0, minBlockWidthMultiplier * blockConfig.m_BlockWidth(), 0 };
+        TensorShape mceInputEncoding  = { 0, 0, baseMceInputWidth, 0 };
         const TensorShape& inputShape = m_MceInputTensorShape;
         TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
@@ -835,17 +846,16 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
 
     if (cascadeType == CascadeType::Lonely)
     {
-        for (uint32_t heightMultiplier = minBlockHeightMultiplier; heightMultiplier <= maxBlockHeightMultiplier;
-             heightMultiplier *= 2)
+        // Inclusive loops so that we generate plans that split only in width or height, but with larger stripe shapes
+        // than the non-lonely plans above.
+        for (uint32_t mceInputStripeHeight : mceInputHeightLoopIncl)
         {
-            for (uint32_t widthMultiplier = minBlockWidthMultiplier; widthMultiplier <= maxBlockWidthMultiplier;
-                 widthMultiplier *= 2)
+            for (uint32_t mceInputStripeWidth : mceInputWidthLoopIncl)
             {
                 // Try splitting width and height.
                 if (stripeConfig.splits.widthHeight)
                 {
-                    TensorShape mceInputEncoding  = { 0, heightMultiplier * blockConfig.m_BlockHeight(),
-                                                     widthMultiplier * blockConfig.m_BlockWidth(), 0 };
+                    TensorShape mceInputEncoding  = { 0, mceInputStripeHeight, mceInputStripeWidth, 0 };
                     const TensorShape& inputShape = m_MceInputTensorShape;
                     TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
@@ -873,11 +883,11 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             // Try split output depth and input depth.
             if (stripeConfig.splits.outputDepthInputDepth)
             {
-                for (uint32_t ifmDepthMultiplier = minIfmDepthMultiplier; ifmDepthMultiplier <= maxIfmDepthMultiplier;
-                     ifmDepthMultiplier *= 2)
+                // Exclusive loop as we already have a no-split plan further down
+                for (uint32_t mceIfmStripeDepth : mceIfmLoopExcl)
                 {
                     // With depthwise each only OFM needs 1 IFM.
-                    TensorShape mceInputEncoding  = { 0, 0, 0, ifmDepthMultiplier * numOgs / m_MceShapeMultiplier.m_C };
+                    TensorShape mceInputEncoding  = { 0, 0, 0, mceIfmStripeDepth };
                     const TensorShape& inputShape = m_MceInputTensorShape;
                     TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
@@ -899,27 +909,22 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             // Try split height width and output depth and input depth.
             if (stripeConfig.splits.widthHeightOutputDepthInputDepth)
             {
-                for (uint32_t heightMultiplier = minBlockHeightMultiplier; heightMultiplier <= maxBlockHeightMultiplier;
-                     heightMultiplier *= 2)
+                // Inclusive loops so that we generate plans that split only in one or two of the dimensions,
+                // but with larger stripe shapes than the non-lonely plans above.
+                for (uint32_t mceInputStripeHeight : mceInputHeightLoopIncl)
                 {
-                    for (uint32_t widthMultiplier = minBlockWidthMultiplier; widthMultiplier <= maxBlockWidthMultiplier;
-                         widthMultiplier *= 2)
+                    for (uint32_t mceInputStripeWidth : mceInputWidthLoopIncl)
                     {
-                        for (uint32_t ifmDepthMultiplier = minIfmDepthMultiplier;
-                             ifmDepthMultiplier <= maxIfmDepthMultiplier; ifmDepthMultiplier *= 2)
+                        for (uint32_t mceIfmStripeDepth : mceIfmLoopIncl)
                         {
-                            const uint32_t height = heightMultiplier * blockConfig.m_BlockHeight();
-                            const uint32_t width  = widthMultiplier * blockConfig.m_BlockWidth();
-
-                            TensorShape mceInputEncoding  = { 0, height, width,
-                                                             ifmDepthMultiplier * numOgs / m_MceShapeMultiplier.m_C };
+                            TensorShape mceInputEncoding  = { 0, mceInputStripeHeight, mceInputStripeWidth,
+                                                             mceIfmStripeDepth };
                             const TensorShape& inputShape = m_MceInputTensorShape;
                             TensorShape mceInputStripe =
                                 CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
-                            TensorShape mceOutputEncoding =
-                                TensorShape{ 0, height, width, ifmDepthMultiplier * numOgs };
-                            TensorShape mceOutputStripe = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
+                            TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
+                            TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
 
                             TensorShape pleInputStripe    = mceOutputStripe;
                             TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
@@ -942,7 +947,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         // e.g. strategy 1 cascading.
         if (stripeConfig.splits.outputDepthInputDepth)
         {
-            TensorShape mceInputEncoding  = { 0, 0, 0, numOgs / m_MceShapeMultiplier.m_C };
+            TensorShape mceInputEncoding  = { 0, 0, 0, baseMceIfm };
             const TensorShape& inputShape = m_MceInputTensorShape;
             TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
@@ -966,14 +971,14 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             // Try split output depth.
             if (stripeConfig.splits.mceAndPleOutputDepth)
             {
-                for (uint32_t ofmDepthMultiplier = minOfmDepthMultiplier; ofmDepthMultiplier <= maxOfmDepthMultiplier;
-                     ofmDepthMultiplier *= 2)
+                // Exclusive loop as we already have a no-split plan further down
+                for (uint32_t mceOfmStripeDepth : mceOfmLoopExcl)
                 {
                     TensorShape mceInputEncoding  = { 0, 0, 0, 0 };
                     const TensorShape& inputShape = m_MceInputTensorShape;
                     TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
-                    TensorShape mceOutputEncoding = TensorShape{ 0, 0, 0, numOgs * ofmDepthMultiplier };
+                    TensorShape mceOutputEncoding = TensorShape{ 0, 0, 0, mceOfmStripeDepth };
                     TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
 
                     TensorShape pleInputStripe    = mceOutputStripe;
@@ -991,22 +996,20 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             // Try split height width and output depth.
             if (stripeConfig.splits.widthHeightOutputDepth)
             {
-                for (uint32_t heightMultiplier = minBlockHeightMultiplier; heightMultiplier <= maxBlockHeightMultiplier;
-                     heightMultiplier *= 2)
+                // Inclusive loops so that we generate plans that split only in width or height, but with larger stripe shapes
+                // than the non-lonely plans above.
+                for (uint32_t mceInputStripeHeight : mceInputHeightLoopIncl)
                 {
-                    for (uint32_t widthMultiplier = minBlockWidthMultiplier; widthMultiplier <= maxBlockWidthMultiplier;
-                         widthMultiplier *= 2)
+                    for (uint32_t mceInputStripeWidth : mceInputWidthLoopIncl)
                     {
-                        const uint32_t height = heightMultiplier * blockConfig.m_BlockHeight();
-                        const uint32_t width  = widthMultiplier * blockConfig.m_BlockWidth();
-
-                        TensorShape mceInputEncoding  = { 0, height, width, 0 };
+                        TensorShape mceInputEncoding  = { 0, mceInputStripeHeight, mceInputStripeWidth, 0 };
                         const TensorShape& inputShape = m_MceInputTensorShape;
                         TensorShape mceInputStripe = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
-                        TensorShape mceOutputEncoding = TensorShape{ 0, height * m_MceShapeMultiplier.m_H,
-                                                                     width * m_MceShapeMultiplier.m_W, numOgs };
-                        TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
+                        TensorShape mceOutputEncoding =
+                            TensorShape{ 0, mceInputStripeHeight * m_MceShapeMultiplier.m_H,
+                                         mceInputStripeWidth * m_MceShapeMultiplier.m_W, numOgs };
+                        TensorShape mceOutputStripe = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
 
                         TensorShape pleInputStripe    = mceOutputStripe;
                         TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
@@ -1026,12 +1029,10 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             // Note we have to limit the height and width to the block size.
             if (stripeConfig.splits.widthHeightOutputDepthInputDepth)
             {
-                for (uint32_t ifmDepthMultiplier = minIfmDepthMultiplier; ifmDepthMultiplier <= maxIfmDepthMultiplier;
-                     ifmDepthMultiplier *= 2)
+                // Exclusive loop as we already have a no-split plan further down
+                for (uint32_t mceIfmStripeDepth : mceIfmLoopExcl)
                 {
-                    TensorShape mceInputEncoding  = { 0, minBlockWidthMultiplier * blockConfig.m_BlockHeight(),
-                                                     minBlockHeightMultiplier * blockConfig.m_BlockWidth(),
-                                                     ifmDepthMultiplier * numOgs / m_MceShapeMultiplier.m_C };
+                    TensorShape mceInputEncoding  = { 0, baseMceInputHeight, baseMceInputWidth, mceIfmStripeDepth };
                     const TensorShape& inputShape = m_MceInputTensorShape;
                     TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 

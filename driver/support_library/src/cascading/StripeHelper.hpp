@@ -305,6 +305,108 @@ std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
 /// Tries to create a stripe with the stripe shape in the encoding, if the dimension is 0 then it uses the full length of that dimension.
 TensorShape CreateStripe(TensorShape input, TensorShape inputEncoding, uint32_t channelRounding);
 
+/// Allows easy looping over a set of possible stripe shapes based on a tensor shape, with a few customisable options.
+/// Supports iterating so can be used in a range-based for loop, e.g. for (int x : StripeShapeLoop(...)) { ... }
+/// The stripe shapes returned are logarithmically spaced, to avoid producing too many options (e.g. 1, 2, 4, 8, ...).
+/// See StripeHelperTests.cpp for some examples.
+struct StripeShapeLoop
+{
+    /// Creates a StripeShapeLoop that includes a final stripe shape which is >= the tensor size.
+    static StripeShapeLoop Inclusive(uint32_t tensorSize,
+                                     uint32_t baseSize,
+                                     uint32_t minMultiplier = 1,
+                                     uint32_t maxMultiplier = std::numeric_limits<uint32_t>::max())
+    {
+        maxMultiplier = std::min(maxMultiplier, utils::DivRoundUp(tensorSize, baseSize));
+        return StripeShapeLoop(baseSize, minMultiplier, maxMultiplier);
+    }
+
+    /// Creates a StripeShapeLoop which yields stripe shapes which are always < the tensor size.
+    /// Note that this may result in an empty range (no valid stripe shapes)
+    static StripeShapeLoop Exclusive(uint32_t tensorSize,
+                                     uint32_t baseSize,
+                                     uint32_t minMultiplier = 1,
+                                     uint32_t maxMultiplier = std::numeric_limits<uint32_t>::max())
+    {
+        maxMultiplier = std::min(maxMultiplier, utils::DivRoundUp(tensorSize, baseSize));
+        // Reduce maxMultiplier so that it is the largest power of 2 that doesn't include the full stripe
+        maxMultiplier = utils::RoundDownToPow2(maxMultiplier);
+        if (maxMultiplier * baseSize >= tensorSize)
+        {
+            maxMultiplier /= 2U;
+        }
+        return StripeShapeLoop(baseSize, minMultiplier, maxMultiplier);
+    }
+
+    struct Iterator
+    {
+        Iterator(uint32_t multiplierValue, const StripeShapeLoop& parent)
+            : m_MultiplierValue(multiplierValue)
+            , m_Parent(parent)
+        {}
+
+        void operator++()
+        {
+            if (m_MultiplierValue == m_Parent.m_UpperMultiplier)
+            {
+                // This was the last value, so incrementing takes us to the end iterator (one-past-the-end)
+                ++m_MultiplierValue;
+            }
+            else
+            {
+                // Iterate with *= 2 to reduce the number of stripe shapes produced (for compiler performance)
+                // Note that the m_UpperMultiplier may not be a power of two. There is no point having a stripe
+                // shape far larger than the tensor.
+                m_MultiplierValue = std::min(m_MultiplierValue * 2, m_Parent.m_UpperMultiplier);
+            }
+        }
+
+        bool operator!=(const Iterator& rhs) const
+        {
+            return m_MultiplierValue != rhs.m_MultiplierValue;
+        }
+
+        /// Gets the value of the iterator (i.e. the current stripe shape).
+        uint32_t operator*() const
+        {
+            return m_MultiplierValue * m_Parent.m_BaseSize;
+        }
+
+        uint32_t m_MultiplierValue;
+        const StripeShapeLoop& m_Parent;
+    };
+
+    Iterator begin() const
+    {
+        return Iterator(m_LowerMultiplier, *this);
+    }
+    Iterator end() const
+    {
+        return Iterator(m_UpperMultiplier + 1, *this);    // Plus 1 because m_UpperMultiplier is inclusive.
+    }
+
+private:
+    /// Note that the lower and upper multipliers here are inclusive.
+    StripeShapeLoop(uint32_t baseSize, uint32_t lowerMultiplier, uint32_t upperMultiplier)
+        : m_BaseSize(baseSize)
+        , m_LowerMultiplier(lowerMultiplier)
+        , m_UpperMultiplier(upperMultiplier)
+    {
+        if (m_LowerMultiplier > m_UpperMultiplier)
+        {
+            // This is an empty-range, so we need to make sure begin() == end().
+            // Because of the way we handle the end iterator with the +1, we override the values to some which meet
+            // this criteria.
+            m_LowerMultiplier = 1;
+            m_UpperMultiplier = 0;
+        }
+    }
+
+    uint32_t m_BaseSize;
+    uint32_t m_LowerMultiplier;
+    uint32_t m_UpperMultiplier;
+};
+
 // Class used to generate stripes for the start of cascades. i.e. beginning and lonely cascades
 // Middle and end cascades don't need this as they their plan generation is limited by the inputs.
 class StripeGenerator

@@ -222,6 +222,8 @@ constexpr uint32_t DivRoundUp(uint32_t numerator, uint32_t denominator)
     return (numerator + denominator - 1) / denominator;
 }
 
+uint32_t RoundDownToPow2(uint32_t x);
+
 /// Returns the first argument rounded UP to the nearest multiple of the second argument
 template <typename T, typename S>
 constexpr T RoundUpToNearestMultiple(T num, S nearestMultiple)
