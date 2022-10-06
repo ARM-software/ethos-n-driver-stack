@@ -187,9 +187,9 @@ void DumpProfilingData(const std::vector<ProfilingEntry>& profilingData, std::os
                 o << "\t\t\t"
                   << R"("category": "FirmwareLabel",)"
                   << "\n";
-                char buffer[sizeof(kernelEntry.m_LabelFields.m_Chars) + 1];
-                strncat(buffer, reinterpret_cast<const char*>(kernelEntry.m_LabelFields.m_Chars),
-                        sizeof(kernelEntry.m_LabelFields.m_Chars));
+                const size_t size = sizeof(kernelEntry.m_LabelFields.m_Chars);
+                char buffer[size + 1];
+                strncat(buffer, reinterpret_cast<const char*>(kernelEntry.m_LabelFields.m_Chars), size);
                 o << "\t\t\t"
                   << R"("chars": )" << buffer << "\n";
                 break;
