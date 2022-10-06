@@ -142,18 +142,38 @@ struct ethosn_constant_data {
 	const void __user *data;
 };
 
+struct ethosn_dma_buf_req {
+	__u32  fd;
+	__u32  flags;
+	size_t size;
+};
+
+struct ethosn_intermediate_desc {
+	struct ethosn_memory {
+		enum {
+			ALLOCATE,
+			IMPORT
+		} type;
+		union {
+			__u32                     data_size;
+			struct ethosn_dma_buf_req dma_req;
+		};
+	}                          memory;
+
+	struct ethosn_buffer_infos buffers;
+};
+
 struct ethosn_network_req {
-	struct ethosn_buffer_infos  dma_buffers;
-	struct ethosn_constant_data dma_data;
+	struct ethosn_buffer_infos      dma_buffers;
+	struct ethosn_constant_data     dma_data;
 
-	struct ethosn_buffer_infos  cu_buffers;
-	struct ethosn_constant_data cu_data;
+	struct ethosn_buffer_infos      cu_buffers;
+	struct ethosn_constant_data     cu_data;
 
-	struct ethosn_buffer_infos  intermediate_buffers;
-	__u32                       intermediate_data_size;
+	struct ethosn_intermediate_desc intermediate_desc;
 
-	struct ethosn_buffer_infos  input_buffers;
-	struct ethosn_buffer_infos  output_buffers;
+	struct ethosn_buffer_infos      input_buffers;
+	struct ethosn_buffer_infos      output_buffers;
 };
 
 struct ethosn_inference_req {
@@ -167,12 +187,6 @@ struct ethosn_inference_req {
 struct ethosn_buffer_req {
 	__u32 size;
 	__u32 flags;
-};
-
-struct ethosn_dma_buf_req {
-	__u32  fd;
-	__u32  flags;
-	size_t size;
 };
 
 /*****************************************************************************

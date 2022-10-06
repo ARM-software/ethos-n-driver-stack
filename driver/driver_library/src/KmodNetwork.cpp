@@ -181,10 +181,12 @@ KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compile
     netReq.dma_data.size    = static_cast<uint32_t>(compiledNetwork.m_ConstantDmaDataSize);
     netReq.dma_data.data    = compiledNetwork.CalculateConstantDmaDataPtr(compiledNetworkData);
 
-    netReq.intermediate_buffers.num  = static_cast<uint32_t>(intermediateInfos.size());
-    netReq.intermediate_buffers.info = intermediateInfos.data();
+    netReq.intermediate_desc.buffers.num  = static_cast<uint32_t>(intermediateInfos.size());
+    netReq.intermediate_desc.buffers.info = intermediateInfos.data();
 
-    netReq.intermediate_data_size = compiledNetwork.m_IntermediateDataSize;
+    // The type should be taken from the compiledNetwork when this is supported.
+    netReq.intermediate_desc.memory.type      = ethosn_intermediate_desc::ethosn_memory::ALLOCATE;
+    netReq.intermediate_desc.memory.data_size = compiledNetwork.m_IntermediateDataSize;
 
     netReq.input_buffers.num  = static_cast<uint32_t>(inputInfos.size());
     netReq.input_buffers.info = inputInfos.data();
@@ -241,10 +243,12 @@ KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compile
     netReq.dma_data.size    = static_cast<uint32_t>(compiledNetwork.m_ConstantDmaDataSize);
     netReq.dma_data.data    = compiledNetwork.CalculateConstantDmaDataPtr(compiledNetworkData);
 
-    netReq.intermediate_buffers.num  = static_cast<uint32_t>(intermediateInfos.size());
-    netReq.intermediate_buffers.info = intermediateInfos.data();
+    netReq.intermediate_desc.buffers.num  = static_cast<uint32_t>(intermediateInfos.size());
+    netReq.intermediate_desc.buffers.info = intermediateInfos.data();
 
-    netReq.intermediate_data_size = compiledNetwork.m_IntermediateDataSize;
+    // The type should be taken from the compiledNetwork when this is supported.
+    netReq.intermediate_desc.memory.type      = ethosn_intermediate_desc::ethosn_memory::ALLOCATE;
+    netReq.intermediate_desc.memory.data_size = compiledNetwork.m_IntermediateDataSize;
 
     netReq.input_buffers.num  = static_cast<uint32_t>(inputInfos.size());
     netReq.input_buffers.info = inputInfos.data();

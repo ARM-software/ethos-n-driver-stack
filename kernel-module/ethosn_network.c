@@ -297,6 +297,61 @@ err_free_bufs:
 	return ERR_PTR(error);
 }
 
+/* ethosn_check_if_ok_to_schedule() - Check if `inference` can be scheduled or
+ * if it share imported intermediate buffers
+ * Return:
+ * * 1 - OK to schedule
+ * * 0 - Not ok
+ */
+
+static bool ethosn_check_if_ok_to_schedule(struct ethosn_device *ethosn,
+					   struct ethosn_inference *inference)
+{
+	int ii;
+
+	if (inference == NULL) {
+		dev_dbg(ethosn->dev, "Inference is NULL\n");
+
+		return false;
+	}
+
+	if (!inference->network->num_intermediates ||
+	    !inference->network->intermediate_data[0]->imported)
+
+		/* If the inference isn't using any imported intermediate
+		 * buffer(s) it's okay to schedule.
+		 *
+		 * Note: Since imported intermediate buffers are shared between
+		 * the cores, it is enough to check the intermediate data
+		 * assigned to core 0.
+		 */
+		return true;
+
+	for (ii = 0; ii < ethosn->num_cores; ++ii) {
+		struct ethosn_inference *core_inference =
+			ethosn->core[ii]->current_inference;
+		if (!core_inference)
+			continue;
+
+		/* If the inference to schedule is on a network using shared
+		 * intermediate buffers, we must check so the same network isn't
+		 * running on another core.
+		 */
+		if (core_inference->network == inference->network) {
+			dev_dbg(ethosn->dev,
+				"Network 0x%pK has already one running inference 0x%pK on core %d --> Do not schedule inference 0x%pK!\n",
+				core_inference->network,
+				core_inference,
+				ethosn->core[ii]->core_id,
+				inference);
+
+			return false;
+		}
+	}
+
+	return true;
+}
+
 /**
  * ethosn_schedule_inference() - Send an inference to Ethos-N
  *
@@ -434,6 +489,7 @@ void ethosn_schedule_queued_inference(struct ethosn_core *core)
 	struct ethosn_inference *inference = NULL;
 	struct ethosn_device *ethosn = core->parent;
 	int ret = 0;
+	bool schedule_inference = false;
 
 	/* This will be invoked from the irq handlers of multiple npus.
 	 * The inference queue needs to be protected against concurrent
@@ -444,23 +500,35 @@ void ethosn_schedule_queued_inference(struct ethosn_core *core)
 	if (ret)
 		return;
 
-	if (!list_empty(&ethosn->queue.inference_queue)) {
-		inference = list_first_entry(&ethosn->queue.inference_queue,
-					     typeof(*inference),
-					     queue_node);
-		if (inference != NULL)
-			list_del(&inference->queue_node);
-		else
-			dev_dbg(ethosn->dev,
-				"Inference is NULL\n");
-	}
+	/* A network using imported intermediate buffers cannot run concurrent
+	 * inferences, since the buffers are shared. The inference to be
+	 * scheduled must therefore be checked against running inferences on all
+	 * cores. If this is the case, then skip the inference and check next.
+	 * The first inference that meets the neccessary criteria is scheduled.
+	 * If none, then the inference queue is checked again after next request
+	 */
+	if (!list_empty(&ethosn->queue.inference_queue))
+		list_for_each_entry(inference,
+				    &ethosn->queue.inference_queue,
+				    queue_node) {
+			schedule_inference = ethosn_check_if_ok_to_schedule(
+				ethosn,
+				inference);
+			if (schedule_inference) {
+				list_del(&inference->queue_node);
+				break;
+			}
+		}
 
-	mutex_unlock(&ethosn->queue.inference_queue_mutex);
+		mutex_unlock(&ethosn->queue.inference_queue_mutex);
 
-	if (inference != NULL) {
+	if (schedule_inference) {
 		/* Schedule the inference on a particular core */
 		inference->core = core;
-
+		dev_dbg(ethosn->dev,
+			"Schedule inference 0x%pK, NW 0x%pK on Core #%d\n",
+			inference, inference->network,
+			inference->core->core_id);
 		(void)ethosn_schedule_inference(inference);
 	}
 }
@@ -868,8 +936,8 @@ static int init_inference_data(struct ethosn_network *network,
 
 	ret = init_bindings(network,
 			    core_id,
-			    net_req->intermediate_buffers.num,
-			    net_req->intermediate_buffers.info,
+			    net_req->intermediate_desc.buffers.num,
+			    net_req->intermediate_desc.buffers.info,
 			    0,
 			    0,
 			    false,
@@ -878,7 +946,8 @@ static int init_inference_data(struct ethosn_network *network,
 	if (ret)
 		return ret;
 
-	network->num_intermediates = net_req->intermediate_buffers.num;
+	network->num_intermediates =
+		net_req->intermediate_desc.buffers.num;
 
 	ret = init_bindings(network,
 			    core_id,
@@ -937,6 +1006,105 @@ static int init_inference_data(struct ethosn_network *network,
 	return 0;
 }
 
+static int import_intermediate_data(struct ethosn_network *network,
+				    struct ethosn_network_req *req,
+				    u32 num_bindings)
+{
+	int ret = -ENOMEM;
+	int i = 0;
+	int num_cores = network->ethosn->num_cores;
+
+	if (!network->ethosn->smmu_available) {
+		dev_dbg(network->ethosn->dev,
+			"Cannot import intermediate buffer. SMMU not available\n");
+
+		return -ENODEV;
+	}
+
+	/* The data size must be greater than zero */
+	if (!req->intermediate_desc.memory.dma_req.size) {
+		dev_dbg(network->ethosn->dev,
+			"Importing intermediate buffers with zero size isn't allowed!\n");
+
+		return -EINVAL;
+	}
+
+	/* When importing intermediate data the memory will be shared between
+	 * the cores. So import and map it for core 0, then assign the same
+	 * memory to all cores. This way the cleanup if something goes wrong
+	 * will still work.
+	 */
+	network->intermediate_data[0] =
+		ethosn_dma_import(
+			network->asset_allocator,
+			req->intermediate_desc.memory.dma_req.fd,
+			req->intermediate_desc.memory.dma_req.size,
+			ETHOSN_STREAM_INTERMEDIATE_BUFFER);
+	if (IS_ERR_OR_NULL(network->intermediate_data[0])) {
+		dev_dbg(network->ethosn->dev,
+			"DMA import of intermediate buffer failed\n");
+
+		return ret;
+	}
+
+	ret = ethosn_dma_map(
+		network->asset_allocator,
+		network->intermediate_data[0],
+		ETHOSN_PROT_READ |
+		ETHOSN_PROT_WRITE);
+
+	if (ret < 0) {
+		dev_dbg(network->ethosn->dev,
+			"DMA mapping of intermediate buffer failed\n");
+
+		return ret;
+	}
+
+	/* Assign the imported intermediate data from core 0 to all cores */
+	for (i = 1; i < num_cores; i++)
+
+		network->intermediate_data[i] =
+			network->intermediate_data[0];
+
+	return ret;
+}
+
+static int alloc_intermediate_data(struct ethosn_network *network,
+				   struct ethosn_network_req *req,
+				   u32 num_bindings)
+{
+	int i = 0;
+	int num_cores = network->ethosn->num_cores;
+
+	/* The data size must be greater than zero */
+	if (!req->intermediate_desc.memory.data_size) {
+		dev_dbg(network->ethosn->dev,
+			"Allocating intermediate buffers with zero size isn't allowed!\n");
+
+		return -EINVAL;
+	}
+
+	for (i = 0; i < num_cores; ++i) {
+		network->intermediate_data[i] =
+			ethosn_dma_alloc_and_map(
+				network->asset_allocator,
+				req->intermediate_desc.memory.data_size,
+				ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
+				ETHOSN_STREAM_INTERMEDIATE_BUFFER,
+				GFP_KERNEL,
+				"network-intermediate-data");
+
+		if (IS_ERR_OR_NULL(network->intermediate_data[i])) {
+			dev_dbg(network->ethosn->dev,
+				"DMA alloc and map of network-intermediate-data failed\n");
+
+			return -ENOMEM;
+		}
+	}
+
+	return 0;
+}
+
 static int alloc_init_inference_data(struct ethosn_network *network,
 				     struct ethosn_network_req *req)
 {
@@ -946,11 +1114,9 @@ static int alloc_init_inference_data(struct ethosn_network *network,
 	int i = 0;
 	int num_cores = network->ethosn->num_cores;
 
-	struct ethosn_core *core = network->ethosn->core[0];
-
 	num_bindings = req->cu_buffers.num;
 	num_bindings += req->dma_buffers.num;
-	num_bindings += req->intermediate_buffers.num;
+	num_bindings += req->intermediate_desc.buffers.num;
 	num_bindings += req->input_buffers.num;
 	num_bindings += req->output_buffers.num;
 
@@ -959,7 +1125,7 @@ static int alloc_init_inference_data(struct ethosn_network *network,
 
 	/*
 	 * The inference data (which is ethosn_buffer_array) needs to be
-	 * allocated per core. The reason being each core will have a
+	 * allocated per core. The reason being each core may have a
 	 * unique entry for the "intermediate data" inside the
 	 * ethosn_buffer_array.
 	 */
@@ -969,20 +1135,7 @@ static int alloc_init_inference_data(struct ethosn_network *network,
 	if (!network->inference_data)
 		return ret;
 
-	/*
-	 * Each core needs it own intermediate data. It reads/writes to this
-	 * data during the execution of an inference.
-	 */
-	network->intermediate_data = kzalloc(
-		(sizeof(*(network->intermediate_data)) * num_cores),
-		GFP_KERNEL);
-	if (!network->intermediate_data)
-		return ret;
-
 	for (i = 0; i < num_cores; i++) {
-		core = network->ethosn->core[i];
-		ret = -ENOMEM;
-
 		network->inference_data[i] =
 			ethosn_dma_alloc_and_map(
 				network->asset_allocator,
@@ -990,26 +1143,54 @@ static int alloc_init_inference_data(struct ethosn_network *network,
 				ETHOSN_STREAM_COMMAND_STREAM,
 				GFP_KERNEL,
 				"network-inference-data");
-		if (IS_ERR_OR_NULL(network->inference_data[i]))
+		if (IS_ERR_OR_NULL(network->inference_data[i])) {
+			dev_dbg(network->ethosn->dev,
+				"DMA alloc and map of network-inference-data failed\n");
+
 			return ret;
-
-		network->intermediate_data[i] =
-			ethosn_dma_alloc_and_map(
-				network->asset_allocator,
-				req->intermediate_data_size,
-				ETHOSN_PROT_READ | ETHOSN_PROT_WRITE,
-				ETHOSN_STREAM_INTERMEDIATE_BUFFER,
-				GFP_KERNEL,
-				"network-intermediate-data");
-
-		if (IS_ERR_OR_NULL(network->intermediate_data[i]))
-			return ret;
-
-		ret = init_inference_data(network, core, num_bindings, req, i);
-
-		if (ret)
-			return ret;
+		}
 	}
+
+	/*
+	 * Each core may need intermediate data. It reads/writes to
+	 * this data during the execution of an inference.
+	 */
+
+	network->intermediate_data = kzalloc(
+		(sizeof(*(network->intermediate_data)) * num_cores),
+		GFP_KERNEL);
+
+	if (!network->intermediate_data)
+		return ret;
+
+	if (req->intermediate_desc.buffers.num) {
+		/* If there are intermediate buffers, then allocate or import
+		 * memory for them.
+		 */
+		if (req->intermediate_desc.memory.type == IMPORT)
+			ret = import_intermediate_data(network, req,
+						       num_bindings);
+		else
+			ret = alloc_intermediate_data(network, req,
+						      num_bindings);
+	} else {
+		ret = 0;
+	}
+
+	if (!ret)
+		for (i = 0; i < num_cores; i++) {
+			ret = init_inference_data(network,
+						  network->ethosn->core[i],
+						  num_bindings,
+						  req, i);
+
+			if (ret) {
+				dev_dbg(network->ethosn->dev,
+					"Init inference data failed\n");
+
+				return ret;
+			}
+		}
 
 	return ret;
 }
