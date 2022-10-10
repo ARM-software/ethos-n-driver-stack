@@ -81,6 +81,15 @@ public:
                                                              EthosNImportTensorHandleFactory::GetIdStatic() };
     }
 
+    bool UseCustomMemoryAllocator(std::shared_ptr<ICustomAllocator> allocator,
+                                  armnn::Optional<std::string&> errMsg) override
+    {
+        IgnoreUnused(allocator);
+        IgnoreUnused(errMsg);
+        ARMNN_LOG(info) << "Using Custom Allocator for EthosNBackend";
+        return true;
+    }
+
 private:
     /// 'Global' settings for this backend, loaded from config file or queried from the HW.
     /// @{
