@@ -76,9 +76,8 @@ std::pair<uint32_t, uint32_t>
     // Note if the HW always writes to SRAM in full FCAF cell size if the source FCAF compressed.
     const bool inputTileClamp =
         (!couldSourceBeFcaf ||
-         (!IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_DEEP, inputStripeShape) &&
-          !IsCompressionFormatCompatibleWithStripeAndShape(CompilerDataCompressedFormat::FCAF_WIDE,
-                                                           inputStripeShape))) &&
+         (!IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_DEEP, inputStripeShape) &&
+          !IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_WIDE, inputStripeShape))) &&
         !AnyPackedBoundaryData(packedBoundaryThickness);
 
     if (inputTileClamp)

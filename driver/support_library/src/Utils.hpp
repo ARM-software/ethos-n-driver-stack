@@ -675,8 +675,8 @@ constexpr DataTypeRange GetTypeLimits()
 command_stream::UpsampleType ConvertResizeAlgorithmToCommand(const ResizeAlgorithm algorithm);
 command_stream::cascading::UpsampleType ConvertResizeAlgorithmToCascadingCommand(const ResizeAlgorithm algorithm);
 
-bool IsCompressionFormatCompatibleWithStripeAndShape(const CompilerDataCompressedFormat& compressionFormat,
-                                                     const TensorShape& stripeShape);
+bool IsCompressionFormatCompatibleWithStripeShape(const CompilerDataCompressedFormat& compressionFormat,
+                                                  const TensorShape& stripeShape);
 
 struct NeedBoundary
 {

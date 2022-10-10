@@ -234,11 +234,7 @@ public:
     BestCombinationResults GetBestCombination(const Combinations& combs);
     Combination GetBestCombinationSafe(Combinations& combs);
 
-    CascadingBufferFormat GetBestCascadingBufferDramFormat(const std::vector<Buffer*>& sramBuffers) const;
-
     const Plan& GetPlanForPartFromCombination(const BasePart& part, const Combination& comb) const;
-    std::pair<bool, StartingAndEndingGlues> GetGlue(Buffer* outputBuffer, Buffer* inputBuffer);
-    std::pair<bool, StartingAndEndingGlues> GetSharedGlue(Buffer* outputBuffer, std::vector<Buffer*>& inputBuffer);
 
     Combination FindBestCombinationForPart(const BasePart& part);
     virtual Combination FindBestCombinationForPartImpl(const BasePart& part);
@@ -262,23 +258,6 @@ public:
                            uint32_t totalAgents);
 
     Combination StartSection(const BasePart& part, const BasePart& nextPart);
-
-    StartingAndEndingGlues GenerateGlueBetweenSramAndDram(Buffer* sramBuffer,
-                                                          Buffer* dramBuffer,
-                                                          const CascadingBufferFormat cascadingBufferFormat) const;
-    StartingAndEndingGlues GenerateGlueBetweenDramAndSram(Buffer* dramBuffer,
-                                                          Buffer* sramBuffer,
-                                                          const CascadingBufferFormat cascadingBufferFormat) const;
-    StartingAndEndingGlues GenerateGlueBetweenDramAndSramWithConversion(Buffer* inputBuffer,
-                                                                        Buffer* outputBuffer) const;
-    StartingAndEndingGlues GenerateGlueBetweenSramAndDramWithConversion(Buffer* sourceBuffer, Buffer* destBuffer) const;
-    StartingAndEndingGlues GenerateGlueBetweenSramAndSram(Buffer* sourceBuffer,
-                                                          Buffer* destBuffer,
-                                                          const CascadingBufferFormat cascadingBufferFormat) const;
-    StartingAndEndingGlues GenerateSharedGlue(Buffer* sourceBuffer,
-                                              std::vector<Buffer*>& destBuffers,
-                                              const CascadingBufferFormat cascadingBufferFormat) const;
-    StartingAndEndingGlues GenerateGlueBetweenDramAndDram(Buffer* inputBuffer, Buffer* outputBuffer) const;
 
     Combination GluePartToCombinationSrcToDests(const BasePart& sPart,
                                                 const Combination& comb,

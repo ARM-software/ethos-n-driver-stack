@@ -265,9 +265,9 @@ void CheckInputSram(PlanDesc& desc, const CheckPlansParams& params)
     if (params.m_CouldFcafDecomp)
     {
         // data could be FCAF decompressed
-        const bool stripeCellAligned = utils::IsCompressionFormatCompatibleWithStripeAndShape(
+        const bool stripeCellAligned = utils::IsCompressionFormatCompatibleWithStripeShape(
                                            CompilerDataCompressedFormat::FCAF_DEEP, desc.m_InputSram->m_StripeShape) |
-                                       utils::IsCompressionFormatCompatibleWithStripeAndShape(
+                                       utils::IsCompressionFormatCompatibleWithStripeShape(
                                            CompilerDataCompressedFormat::FCAF_WIDE, desc.m_InputSram->m_StripeShape);
         if (params.m_CouldFcafDecomp.value() && stripeCellAligned)
         {

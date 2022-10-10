@@ -461,6 +461,16 @@ private:
                          StripeInfos& outStripeInfos) const;
 };
 
+/// Checks if a given SRAM buffer could be DMA'd to or from a DRAM buffer of the given format.
+/// For example, this checks that an SRAM buffer with a stripe shape that splits depth cannot be DMA'd
+/// to an NHWC DRAM buffer (as the firmware does not support this).
+bool IsSramBufferCompatibleWithDramFormat(const Buffer& sramBuffer, CascadingBufferFormat dramFormat);
+
+/// Returns the most efficient DRAM buffer format to use, that is compatible with being copied to/from
+/// the given set of SRAM buffers.
+CascadingBufferFormat GetBestDramBufferFormat(const std::vector<const Buffer*>& sramBuffers,
+                                              const CompilationOptions& compilationOptions);
+
 /// Creates an SRAM buffer for use in a glue (or similar) which DMAs stuff into and out of SRAM.
 /// The stripe shape is chosen (somewhat) optimally.
 /// The stripe shape is chosen so that it is compatible with the given set of DRAM buffer formats,

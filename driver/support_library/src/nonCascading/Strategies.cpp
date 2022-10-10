@@ -719,9 +719,9 @@ MceStrategySelectionReturnValue
         {
             const uint64_t ifmBandwidth = tryResult.m_InputStats.m_MemoryStats.m_DramParallel +
                                           tryResult.m_InputStats.m_MemoryStats.m_DramNonParallel;
-            const bool isOutputFcafCompatible = (IsCompressionFormatCompatibleWithStripeAndShape(
+            const bool isOutputFcafCompatible = (IsCompressionFormatCompatibleWithStripeShape(
                                                      CompilerDataCompressedFormat::FCAF_WIDE, outputStripeShape) ||
-                                                 IsCompressionFormatCompatibleWithStripeAndShape(
+                                                 IsCompressionFormatCompatibleWithStripeShape(
                                                      CompilerDataCompressedFormat::FCAF_DEEP, outputStripeShape));
 
             // Minimise IFM bandwidth, but also account for FCAF comatibility. FCAF is important not only for

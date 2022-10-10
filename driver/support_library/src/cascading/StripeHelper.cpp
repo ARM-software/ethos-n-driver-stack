@@ -12,6 +12,8 @@
 #include <fstream>
 #include <regex>
 
+using namespace ethosn::support_library::utils;
+
 namespace ethosn
 {
 namespace support_library
@@ -347,6 +349,72 @@ TensorShape CreateStripe(TensorShape input, TensorShape inputEncoding, uint32_t 
     inputStripeShape    = utils::RoundUpHeightAndWidthToBrickGroup(inputStripeShape);
     inputStripeShape[3] = utils::RoundUpToNearestMultiple(inputStripeShape[3], channelsRounding);
     return inputStripeShape;
+}
+
+/// Checks if a given SRAM buffer could be DMA'd to or from a DRAM buffer of the given format.
+/// For example, this checks that an SRAM buffer with a stripe shape that splits depth cannot be DMA'd
+/// to an NHWC DRAM buffer (as the firmware does not support this).
+bool IsSramBufferCompatibleWithDramFormat(const Buffer& sramBuffer, CascadingBufferFormat dramFormat)
+{
+    // NHWC can't split depth
+    if (dramFormat == CascadingBufferFormat::NHWC &&
+        utils::GetChannels(sramBuffer.m_StripeShape) < utils::GetChannels(sramBuffer.m_TensorShape))
+    {
+        return false;
+    }
+
+    // FCAF requires certain stripe shapes
+    if (dramFormat == CascadingBufferFormat::FCAF_DEEP &&
+        !IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_DEEP,
+                                                      sramBuffer.m_StripeShape))
+    {
+        return false;
+    }
+    // FCAF requires certain stripe shapes
+    if (dramFormat == CascadingBufferFormat::FCAF_WIDE &&
+        !IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_WIDE,
+                                                      sramBuffer.m_StripeShape))
+    {
+        return false;
+    }
+
+    // Packed boundary data only supported with NHWCB
+    if (dramFormat != CascadingBufferFormat::NHWCB &&
+        utils::AnyPackedBoundaryData(sramBuffer.m_PackedBoundaryThickness))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+CascadingBufferFormat GetBestDramBufferFormat(const std::vector<const Buffer*>& sramBuffers,
+                                              const CompilationOptions& compilationOptions)
+{
+    bool fcafDeep = compilationOptions.m_EnableIntermediateCompression;
+    bool fcafWide = compilationOptions.m_EnableIntermediateCompression;
+
+    for (const Buffer* b : sramBuffers)
+    {
+        if (!IsSramBufferCompatibleWithDramFormat(*b, CascadingBufferFormat::FCAF_DEEP))
+        {
+            fcafDeep = false;
+        }
+        if (!IsSramBufferCompatibleWithDramFormat(*b, CascadingBufferFormat::FCAF_WIDE))
+        {
+            fcafWide = false;
+        }
+    }
+
+    if (fcafDeep)
+    {
+        return CascadingBufferFormat::FCAF_DEEP;
+    }
+    else if (fcafWide)
+    {
+        return CascadingBufferFormat::FCAF_WIDE;
+    }
+    return CascadingBufferFormat::NHWCB;
 }
 
 /// Creates an SRAM buffer for use in a glue which DMAs stuff into and out of SRAM.

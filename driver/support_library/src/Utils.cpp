@@ -485,8 +485,8 @@ command_stream::cascading::UpsampleType ConvertResizeAlgorithmToCascadingCommand
     }
 }
 
-bool IsCompressionFormatCompatibleWithStripeAndShape(const CompilerDataCompressedFormat& compressionFormat,
-                                                     const TensorShape& stripeShape)
+bool IsCompressionFormatCompatibleWithStripeShape(const CompilerDataCompressedFormat& compressionFormat,
+                                                  const TensorShape& stripeShape)
 {
     switch (compressionFormat)
     {
