@@ -722,10 +722,7 @@ std::string GetBufferString(Buffer* buffer)
     stream << "Size in bytes = " << buffer->m_SizeInBytes << " (" << ToStringHex(buffer->m_SizeInBytes) << ")\n";
     stream << "Slot size in bytes = " << buffer->m_SlotSizeInBytes << " (" << ToStringHex(buffer->m_SlotSizeInBytes)
            << ")\n";
-    if (buffer->m_BufferType.has_value())
-    {
-        stream << "Type = " << ToString(buffer->m_BufferType.value()) << "\n";
-    }
+    stream << "Type = " << (buffer->m_BufferType.has_value() ? ToString(buffer->m_BufferType.value()) : "None") << "\n";
     stream << "Packed boundary thickness = " << ToString(buffer->m_PackedBoundaryThickness) << "\n";
     stream << "Num loads = " << buffer->m_NumLoads << "\n";
 
