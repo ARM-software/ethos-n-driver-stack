@@ -35,6 +35,7 @@ private:
     const TensorShape m_OutputTensorShape;
     QuantizationInfo m_OutputQuantizationInfo;
     DataType m_OutputDataType;
+    CompilerDataFormat m_CompilerDataFormat;
 
     void CreatePlanForConstantPart(TraversalOrder order, Plans& plans) const;
 };

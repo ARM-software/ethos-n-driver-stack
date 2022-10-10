@@ -34,8 +34,7 @@ StandalonePlePart::StandalonePlePart(PartId id,
                                      const HardwareCapabilities& capabilities,
                                      std::set<uint32_t> correspondingOperationIds,
                                      DataType dataType)
-    : BasePart(
-          id, "StandalonePlePart", CompilerDataFormat::NONE, correspondingOperationIds, estOpt, compOpt, capabilities)
+    : BasePart(id, "StandalonePlePart", correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShapes(inputTensorShapes)
     , m_OutputTensorShape(outputTensorShape)
     , m_InputQuantizationInfos(inputQuantizationInfos)

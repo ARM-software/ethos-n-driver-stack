@@ -23,10 +23,11 @@ InputPart::InputPart(PartId id,
                      const EstimationOptions& estOpt,
                      const CompilationOptions& compOpt,
                      const HardwareCapabilities& capabilities)
-    : BasePart(id, "InputPart", compilerDataFormat, correspondingOperationIds, estOpt, compOpt, capabilities)
+    : BasePart(id, "InputPart", correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_OutputTensorShape{ outputTensorShape }
     , m_OutputQuantizationInfo(quantizationInfo)
     , m_OutputDataType(dataType)
+    , m_CompilerDataFormat(compilerDataFormat)
 {}
 
 Plans InputPart::GetPlans(CascadeType cascadeType,
@@ -76,6 +77,7 @@ ethosn::support_library::DotAttributes InputPart::GetDotAttributes(DetailLevel d
     DotAttributes result = BasePart::GetDotAttributes(detail);
     if (detail >= DetailLevel::High)
     {
+        result.m_Label += "CompilerDataFormat = " + ToString(m_CompilerDataFormat) + "\n";
         result.m_Label += "OutputTensorShape = " + ToString(m_OutputTensorShape) + "\n";
         result.m_Label += "OutputQuantizationInfo = " + ToString(m_OutputQuantizationInfo) + "\n";
         result.m_Label += "OutputDataType = " + ToString(m_OutputDataType) + "\n";

@@ -37,6 +37,7 @@ private:
     QuantizationInfo m_InputQuantizationInfo;
     DataType m_InputDataType;
     const uint32_t m_ProducerOutputIndx;
+    CompilerDataFormat m_CompilerDataFormat;
 
     void CreatePlanForOutputPart(TraversalOrder order, Plans& plans) const;
 };

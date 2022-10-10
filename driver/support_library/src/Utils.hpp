@@ -118,6 +118,11 @@ private:
     FirmwareAndHardwareCapabilities m_FirmwareAndHardwareCapabilities;
 };
 
+constexpr TensorShape g_FcafDeepCellShape = TensorShape{ 1, 8, 8, 32 };
+constexpr TensorShape g_FcafWideCellShape = TensorShape{ 1, 8, 16, 16 };
+/// The number of bytes of a compressed FCAF cell in DRAM. This is the same for both FCAF_DEEP and FCAF_WIDE.
+constexpr uint32_t g_FcafCellSizeBytes = 2112U;
+
 namespace utils
 {
 
@@ -297,6 +302,24 @@ constexpr uint32_t GetElementSizeBytes(ethosn::support_library::DataType type)
     }
 }
 
+template <typename T>
+constexpr uint32_t GetHeight(const T& tensorShape)
+{
+    return tensorShape[1];
+}
+
+template <typename T>
+constexpr uint32_t GetWidth(const T& tensorShape)
+{
+    return tensorShape[2];
+}
+
+template <typename T>
+constexpr uint32_t GetChannels(const T& tensorShape)
+{
+    return tensorShape[3];
+}
+
 // Get the estimated size of the weights in bytes. This includes the size of the header as well as the data.
 uint32_t EstimateWeightSizeBytes(const ethosn::support_library::TensorShape& shape,
                                  const HardwareCapabilities& capabilities,
@@ -366,21 +389,19 @@ inline uint32_t TotalSizeBytesNHWCB(const ethosn::support_library::TensorInfo& i
 inline uint32_t TotalSizeBytesFCAF(const ethosn::support_library::TensorShape& tensorShape,
                                    const ethosn::support_library::TensorShape& cellShape)
 {
-    constexpr uint32_t slotSize = 2112;
-    return slotSize * DivRoundUp(tensorShape[1], cellShape[0]) * DivRoundUp(tensorShape[2], cellShape[1]) *
-           DivRoundUp(tensorShape[3], cellShape[2]);
+    return g_FcafCellSizeBytes * DivRoundUp(GetHeight(tensorShape), GetHeight(cellShape)) *
+           DivRoundUp(GetWidth(tensorShape), GetWidth(cellShape)) *
+           DivRoundUp(GetChannels(tensorShape), GetChannels(cellShape));
 }
 
 inline uint32_t TotalSizeBytesFCAFDeep(const ethosn::support_library::TensorInfo& tensorInfo)
 {
-    constexpr ethosn::support_library::TensorShape deepCellShape{ 8, 8, 32 };
-    return TotalSizeBytesFCAF(tensorInfo.m_Dimensions, deepCellShape);
+    return TotalSizeBytesFCAF(tensorInfo.m_Dimensions, g_FcafDeepCellShape);
 }
 
 inline uint32_t TotalSizeBytesFCAFWide(const ethosn::support_library::TensorInfo& tensorInfo)
 {
-    constexpr ethosn::support_library::TensorShape wideCellShape{ 8, 16, 16 };
-    return TotalSizeBytesFCAF(tensorInfo.m_Dimensions, wideCellShape);
+    return TotalSizeBytesFCAF(tensorInfo.m_Dimensions, g_FcafWideCellShape);
 }
 
 uint32_t CalculateBufferSize(const TensorShape& shape, CascadingBufferFormat dataFormat);
@@ -395,23 +416,23 @@ uint32_t GetNumSubmapChannels(uint32_t nChannels,
                               uint32_t strideY,
                               const HardwareCapabilities& capabilities);
 
-template <typename T>
-constexpr uint32_t GetHeight(const T& tensorShape)
-{
-    return tensorShape[1];
-}
+uint32_t CalculateDramOffset(const CascadingBufferFormat dataFormat,
+                             const TensorShape& tensorSize,
+                             const TensorShape& offset,
+                             const HardwareCapabilities& caps);
 
-template <typename T>
-constexpr uint32_t GetWidth(const T& tensorShape)
-{
-    return tensorShape[2];
-}
+uint32_t CalculateDramOffsetNHWCB(const TensorShape& tensorShape,
+                                  uint32_t offsetY,
+                                  uint32_t offsetX,
+                                  uint32_t offsetC,
+                                  const HardwareCapabilities& caps);
 
-template <typename T>
-constexpr uint32_t GetChannels(const T& tensorShape)
-{
-    return tensorShape[3];
-}
+uint32_t CalculateDramOffsetNHWC(const TensorShape& tensorShape, uint32_t offsetY, uint32_t offsetX, uint32_t offsetC);
+
+uint32_t
+    CalculateDramOffsetFcafDeep(const TensorShape& tensorShape, uint32_t offsetY, uint32_t offsetX, uint32_t offsetC);
+uint32_t
+    CalculateDramOffsetFcafWide(const TensorShape& tensorShape, uint32_t offsetY, uint32_t offsetX, uint32_t offsetC);
 
 inline uint32_t
     GetTensorIndex(const TensorShape& tensorShape, uint32_t dim0, uint32_t dim1, uint32_t dim2, uint32_t dim3)

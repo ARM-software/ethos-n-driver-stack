@@ -93,17 +93,16 @@ TEST_CASE("ReshapePart Plan Generation", "[ReshapePartTests]")
 {
     GIVEN("A simple ReshapePart")
     {
-        const PartId partId                   = 1;
-        TensorShape inputTensorShape          = { 1, 32, 32, 3 };
-        TensorShape outputTensorShape         = { 1, 16, 16, 12 };
-        CompilerDataFormat compilerDataFormat = CompilerDataFormat::NHWC;
+        const PartId partId           = 1;
+        TensorShape inputTensorShape  = { 1, 32, 32, 3 };
+        TensorShape outputTensorShape = { 1, 16, 16, 12 };
         QuantizationInfo quantizationInfo(0, 1.0f);
         const std::set<uint32_t> operationIds = { 1 };
         const EstimationOptions estOpt;
         const CompilationOptions compOpt;
         HardwareCapabilities hwCapabilities(GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
-        ReshapePart reshapePart(partId, inputTensorShape, outputTensorShape, compilerDataFormat, quantizationInfo,
+        ReshapePart reshapePart(partId, inputTensorShape, outputTensorShape, quantizationInfo,
                                 DataType::UINT8_QUANTIZED, operationIds, estOpt, compOpt, hwCapabilities);
 
         CheckPlansParams params;

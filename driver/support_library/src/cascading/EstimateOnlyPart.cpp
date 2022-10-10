@@ -23,10 +23,11 @@ EstimateOnlyPart::EstimateOnlyPart(PartId id,
                                    const EstimationOptions& estOpt,
                                    const CompilationOptions& compOpt,
                                    const HardwareCapabilities& capabilities)
-    : BasePart(id, "EstimateOnlyPart", compilerDataFormat, correspondingOperationIds, estOpt, compOpt, capabilities)
+    : BasePart(id, "EstimateOnlyPart", correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorsInfo{ inputTensorsInfo }
     , m_OutputTensorsInfo{ outputTensorsInfo }
     , m_ReasonForEstimateOnly{ reasonForEstimateOnly }
+    , m_CompilerDataFormat(compilerDataFormat)
 {}
 
 Plans EstimateOnlyPart::GetPlans(CascadeType cascadeType,
@@ -97,6 +98,7 @@ ethosn::support_library::DotAttributes EstimateOnlyPart::GetDotAttributes(Detail
     DotAttributes result = BasePart::GetDotAttributes(detail);
     if (detail >= DetailLevel::High)
     {
+        result.m_Label += "CompilerDataFormat = " + ToString(m_CompilerDataFormat) + "\n";
         result.m_Label += "InputTensorsInfo = " + ArrayToString(m_InputTensorsInfo) + "\n";
         result.m_Label += "OutputTensorsInfo = " + ArrayToString(m_OutputTensorsInfo) + "\n";
     }

@@ -214,7 +214,7 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
 
             uint16_t inputBufferId = AddDramBufferAndCacheId(inputBuffer, ptrDmaOp);
 
-            uint32_t inputDramBufferOffset = CommonUtils::GetDramOffset(
+            uint32_t inputDramBufferOffset = utils::CalculateDramOffset(
                 inputBuffer->m_Format, inputBuffer->m_TensorShape, ptrDmaOp->m_Offset, m_Capabilities);
 
             AgentIdType ifmStreamerAgentId = AddIfmStreamerToCommandStream(
@@ -288,7 +288,7 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
             outputBufferId = static_cast<uint16_t>(m_DramBufToBufIdMapping[outputBuffer]);
         }
 
-        uint32_t outputDramBufferOffset = CommonUtils::GetDramOffset(
+        uint32_t outputDramBufferOffset = utils::CalculateDramOffset(
             outputBuffer->m_Format, outputBuffer->m_TensorShape, ptrDmaOp->m_Offset, m_Capabilities);
 
         // Ofm Streamer Agent

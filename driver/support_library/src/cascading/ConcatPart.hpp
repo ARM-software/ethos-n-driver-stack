@@ -19,7 +19,7 @@ public:
     ConcatPart(PartId id,
                const std::vector<TensorInfo>& inputTensorsInfo,
                const ConcatenationInfo& concatInfo,
-               const CompilerDataFormat& compilerDataFormat,
+               bool preferNhwc,
                const std::set<uint32_t>& correspondingOperationIds,
                const EstimationOptions& estOpt,
                const CompilationOptions& compOpt,
@@ -35,6 +35,7 @@ private:
     const std::vector<TensorInfo> m_InputTensorsInfo;
     const ConcatenationInfo m_ConcatInfo;
     impl::StripeConfig m_StripeConfig;
+    bool m_PreferNhwc;
 
     void CreateConcatDramPlans(Plans& plans) const;
 };

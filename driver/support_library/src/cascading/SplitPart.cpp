@@ -16,12 +16,11 @@ namespace support_library
 SplitPart::SplitPart(PartId id,
                      const TensorInfo& inputTensorInfo,
                      const SplitInfo& splitInfo,
-                     const CompilerDataFormat& compilerDataFormat,
                      const std::set<uint32_t>& correspondingOperationIds,
                      const EstimationOptions& estOpt,
                      const CompilationOptions& compOpt,
                      const HardwareCapabilities& capabilities)
-    : BasePart(id, "SplitPart", compilerDataFormat, correspondingOperationIds, estOpt, compOpt, capabilities)
+    : BasePart(id, "SplitPart", correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorInfo{ inputTensorInfo }
     , m_SplitInfo{ splitInfo }
     , m_StripeConfig(impl::GetDefaultStripeConfig(compOpt, m_DebugTag.c_str()))
@@ -51,19 +50,72 @@ Plans SplitPart::GetPlans(CascadeType cascadeType,
 
 void SplitPart::CreateSplitDramPlans(Plans& plans) const
 {
-    CascadingBufferFormat format = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
+    const size_t numOutputs = m_SplitInfo.m_Sizes.size();
+
+    // Decide what format to use for the DRAM buffers.
+    // Figure out if we need to use NHWC or if we can get away with NHWCB or FCAF (which should be more efficient).
+    // We can use NHWCB/FCAF if the dimensions along the split axis are all multiples of the brick group/cell size, so
+    // that the DMA is capable of extracting the tensors correctly from DRAM.
+    bool canUseNhwcb      = true;
+    const bool canUseNhwc = m_SplitInfo.m_Axis != 3;    // DMA can't split along channels for NHWC
+    bool canUseFcafDeep   = m_CompilationOptions.m_EnableIntermediateCompression;
+    bool canUseFcafWide   = m_CompilationOptions.m_EnableIntermediateCompression;
+    const uint32_t requiredMultipleForNhwcb =
+        m_SplitInfo.m_Axis == 3 ? 8 : m_Capabilities.GetBrickGroupShape()[m_SplitInfo.m_Axis];
+    for (uint32_t i = 0; i < numOutputs; ++i)
+    {
+        const uint32_t size = m_SplitInfo.m_Sizes[i];
+
+        // Check compatibility with NHWCB
+        if (size % requiredMultipleForNhwcb != 0)
+        {
+            canUseNhwcb = false;
+        }
+
+        // Check compatibility with FCAF_DEEP
+        if (size % g_FcafDeepCellShape[m_SplitInfo.m_Axis] != 0)
+        {
+            canUseFcafDeep = false;
+        }
+
+        // Check compatibility with FCAF_WIDE
+        if (size % g_FcafWideCellShape[m_SplitInfo.m_Axis] != 0)
+        {
+            canUseFcafWide = false;
+        }
+    }
+
+    // We prefer to use FCAF if possible, as it doesn't require chunking by the firmware and saves bandwidth
+    CascadingBufferFormat format;
+    if (canUseFcafDeep)
+    {
+        format = CascadingBufferFormat::FCAF_DEEP;
+    }
+    else if (canUseFcafWide)
+    {
+        format = CascadingBufferFormat::FCAF_WIDE;
+    }
+    else if (canUseNhwcb)
+    {
+        format = CascadingBufferFormat::NHWCB;
+    }
+    else if (canUseNhwc)
+    {
+        format = CascadingBufferFormat::NHWC;
+    }
+    else
+    {
+        // This shouldn't be possible, as all supported cases should be covered. However the logic is a bit tricky to
+        // follow, so no harm in having this check.
+        throw InternalErrorException("Unable to find a suitable format for Split");
+    }
+
     std::vector<TensorInfo> expectedOutputInfo = Split::CalculateOutputTensorInfos(m_InputTensorInfo, m_SplitInfo);
 
-    uint32_t minWidthMultiplier = m_StripeConfig.blockWidthMultiplier.min;
-    uint32_t maxWidthMultiplier =
-        std::max(1U, std::min(utils::DivRoundUp(utils::GetWidth(m_InputTensorInfo.m_Dimensions),
-                                                utils::GetWidth(m_Capabilities.GetBrickGroupShape())),
-                              m_StripeConfig.blockWidthMultiplier.max));
-    uint32_t minHeightMultiplier = m_StripeConfig.blockHeightMultiplier.min;
-    uint32_t maxHeightMultiplier =
-        std::max(1U, std::min(utils::DivRoundUp(utils::GetHeight(m_InputTensorInfo.m_Dimensions),
-                                                utils::GetHeight(m_Capabilities.GetBrickGroupShape())),
-                              m_StripeConfig.blockHeightMultiplier.max));
+    uint32_t minWidthMultiplier  = 1;
+    uint32_t maxWidthMultiplier  = std::numeric_limits<uint32_t>::max();
+    uint32_t minHeightMultiplier = 1;
+    uint32_t maxHeightMultiplier = std::numeric_limits<uint32_t>::max();
     if (m_SplitInfo.m_Axis == 3 &&
         std::any_of(m_SplitInfo.m_Sizes.begin(), m_SplitInfo.m_Sizes.end(),
                     [&](const uint32_t& s) { return s % m_Capabilities.GetBrickGroupShape()[3] != 0; }))
@@ -90,7 +142,7 @@ void SplitPart::CreateSplitDramPlans(Plans& plans) const
     inputMappings[inputBuffer] = PartInputSlot{ m_PartId, 0 };
 
     TensorShape offset = { 0, 0, 0, 0 };
-    for (uint32_t outputIndex = 0; outputIndex < m_SplitInfo.m_Sizes.size(); outputIndex++)
+    for (uint32_t outputIndex = 0; outputIndex < numOutputs; outputIndex++)
     {
         auto dma1            = std::make_unique<DmaOp>(format);
         dma1->m_OperationIds = m_CorrespondingOperationIds;
@@ -98,16 +150,12 @@ void SplitPart::CreateSplitDramPlans(Plans& plans) const
         DmaOp* dma1Raw       = dma1.get();
         opGraph.AddOp(std::move(dma1));
 
-        const uint32_t stripeDepth =
-            m_SplitInfo.m_Axis == 3
-                ? expectedOutputInfo[outputIndex].m_Dimensions[3]
-                : utils::RoundUpToNearestMultiple(expectedOutputInfo[outputIndex].m_Dimensions[3],
-                                                  utils::GetChannels(m_Capabilities.GetBrickGroupShape()));
         // Create a buffer with the best stripe shape
         std::unique_ptr<Buffer> sramBuffer = impl::MakeGlueIntermediateSramBuffer(
             expectedOutputInfo[outputIndex].m_Dimensions, expectedOutputInfo[outputIndex].m_QuantizationInfo,
-            expectedOutputInfo[outputIndex].m_DataType, m_Capabilities, stripeDepth, minWidthMultiplier,
-            maxWidthMultiplier, minHeightMultiplier, maxHeightMultiplier);
+            expectedOutputInfo[outputIndex].m_DataType, { format }, m_Capabilities, minWidthMultiplier,
+            maxWidthMultiplier, minHeightMultiplier, maxHeightMultiplier, m_StripeConfig.ofmDepthMultiplier.min,
+            m_StripeConfig.ofmDepthMultiplier.max);
         Buffer* sramBufferRaw = sramBuffer.get();
         opGraph.AddBuffer(std::move(sramBuffer));
 

@@ -35,6 +35,7 @@ private:
     const std::vector<TensorInfo> m_InputTensorsInfo;
     const std::vector<TensorInfo> m_OutputTensorsInfo;
     const std::string m_ReasonForEstimateOnly;
+    CompilerDataFormat m_CompilerDataFormat;
 
     void CreatePlanForEstimateOnlyPart(TraversalOrder order, Plans& plans) const;
 };

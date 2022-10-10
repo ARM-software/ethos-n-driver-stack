@@ -9,6 +9,8 @@
 #include "Plan.hpp"
 #include "Utils.hpp"
 
+#include <vector>
+
 namespace ethosn
 {
 namespace support_library
@@ -357,17 +359,23 @@ private:
                          StripeInfos& outStripeInfos) const;
 };
 
-/// Creates an SRAM buffer for use in a glue which DMAs stuff into and out of SRAM.
+/// Creates an SRAM buffer for use in a glue (or similar) which DMAs stuff into and out of SRAM.
 /// The stripe shape is chosen (somewhat) optimally.
-std::unique_ptr<Buffer> MakeGlueIntermediateSramBuffer(const TensorShape& shape,
-                                                       const QuantizationInfo& quantInfo,
-                                                       DataType dataType,
-                                                       const HardwareCapabilities& caps,
-                                                       uint32_t stripeDepthOverride = 0,
-                                                       uint32_t minWidthMultiplier  = 1,
-                                                       uint32_t maxWidthMultiplier  = 0,
-                                                       uint32_t minHeightMultiplier = 1,
-                                                       uint32_t maxHeightMultiplier = 0);
+/// The stripe shape is chosen so that it is compatible with the given set of DRAM buffer formats,
+/// so that it can be DMA'd into and out of SRAM to those formats. For example, if you request that
+/// the buffer is compatible with FCAF, the stripe shape will be a multiple of the FCAF cell size.
+std::unique_ptr<Buffer>
+    MakeGlueIntermediateSramBuffer(const TensorShape& shape,
+                                   const QuantizationInfo& quantInfo,
+                                   DataType dataType,
+                                   const std::vector<CascadingBufferFormat>& compatibleDramBufferFormats,
+                                   const HardwareCapabilities& caps,
+                                   uint32_t minWidthMultiplier  = 1,
+                                   uint32_t maxWidthMultiplier  = std::numeric_limits<uint32_t>::max(),
+                                   uint32_t minHeightMultiplier = 1,
+                                   uint32_t maxHeightMultiplier = std::numeric_limits<uint32_t>::max(),
+                                   uint32_t minDepthMultiplier  = 1,
+                                   uint32_t maxDepthMultiplier  = std::numeric_limits<uint32_t>::max());
 
 };    // namespace impl
 }    // namespace support_library

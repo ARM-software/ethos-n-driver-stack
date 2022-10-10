@@ -19,7 +19,6 @@ public:
     SplitPart(PartId id,
               const TensorInfo& inputTensorInfo,
               const SplitInfo& splitInfo,
-              const CompilerDataFormat& compilerDataFormat,
               const std::set<uint32_t>& correspondingOperationIds,
               const EstimationOptions& estOpt,
               const CompilationOptions& compOpt,

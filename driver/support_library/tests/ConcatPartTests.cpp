@@ -43,7 +43,8 @@ void CheckConcatDram(Buffer* concatBuffer, const CheckPlansParams& params)
         CHECK(concatBuffer->m_Format == params.m_DataFormat);
         CHECK(concatBuffer->m_TensorShape == params.m_OutputTensorInfo.m_Dimensions);
         CHECK(concatBuffer->m_Order == TraversalOrder::Xyz);
-        CHECK(concatBuffer->m_SizeInBytes == utils::TotalSizeBytes(params.m_OutputTensorInfo.m_Dimensions));
+        CHECK(concatBuffer->m_SizeInBytes ==
+              utils::CalculateBufferSize(params.m_OutputTensorInfo.m_Dimensions, params.m_DataFormat));
         CHECK(concatBuffer->m_NumStripes == 0);
         CHECK(concatBuffer->m_EncodedWeights == nullptr);
     }
@@ -122,32 +123,23 @@ TEST_CASE("ConcatPart Plan Generation", "[ConcatPartTests]")
         std::vector<TensorInfo> inputTensorsInfo;
         TensorInfo inputTensorInfo1;
         TensorInfo inputTensorInfo2;
-        CompilerDataFormat compilerDataFormat;
-        DataFormat dataFormat = GENERATE(DataFormat::NHWC, DataFormat::NHWCB);
+        CascadingBufferFormat dataFormat = GENERATE(CascadingBufferFormat::NHWC, CascadingBufferFormat::FCAF_DEEP);
 
-        if (dataFormat == DataFormat::NHWC)
+        if (dataFormat == CascadingBufferFormat::NHWC)
         {
-            inputTensorInfo1.m_Dimensions = { 1, 16, 16, 16 };
+            inputTensorInfo1.m_Dimensions = { 1, 15, 16, 16 };
             inputTensorInfo1.m_DataType   = DataType::INT8_QUANTIZED;
-            inputTensorInfo1.m_DataFormat = DataFormat::NHWC;
 
-            inputTensorInfo2.m_Dimensions = { 1, 16, 16, 16 };
+            inputTensorInfo2.m_Dimensions = { 1, 17, 16, 16 };
             inputTensorInfo2.m_DataType   = DataType::INT8_QUANTIZED;
-            inputTensorInfo2.m_DataFormat = DataFormat::NHWC;
-
-            compilerDataFormat = CompilerDataFormat::NHWC;
         }
         else
         {
             inputTensorInfo1.m_Dimensions = { 1, 16, 16, 16 };
             inputTensorInfo1.m_DataType   = DataType::INT8_QUANTIZED;
-            inputTensorInfo1.m_DataFormat = DataFormat::NHWCB;
 
             inputTensorInfo2.m_Dimensions = { 1, 16, 16, 16 };
             inputTensorInfo2.m_DataType   = DataType::INT8_QUANTIZED;
-            inputTensorInfo2.m_DataFormat = DataFormat::NHWCB;
-
-            compilerDataFormat = CompilerDataFormat::NHWCB;
         }
 
         inputTensorsInfo.push_back(inputTensorInfo1);
@@ -161,7 +153,7 @@ TEST_CASE("ConcatPart Plan Generation", "[ConcatPartTests]")
         const CompilationOptions compOpt;
         HardwareCapabilities hwCapabilities(GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
-        ConcatPart concatPart(partId, inputTensorsInfo, concatInfo, compilerDataFormat, operationIds, estOpt, compOpt,
+        ConcatPart concatPart(partId, inputTensorsInfo, concatInfo, false, operationIds, estOpt, compOpt,
                               hwCapabilities);
 
         CheckPlansParams params;
@@ -169,14 +161,7 @@ TEST_CASE("ConcatPart Plan Generation", "[ConcatPartTests]")
         params.m_InputTensorsInfo = inputTensorsInfo;
         params.m_OutputTensorInfo = Concatenation::CalculateOutputTensorInfo(params.m_InputTensorsInfo, concatInfo);
         params.m_OperationIds     = operationIds;
-        if (dataFormat == DataFormat::NHWC)
-        {
-            params.m_DataFormat = CascadingBufferFormat::NHWC;
-        }
-        else
-        {
-            params.m_DataFormat = CascadingBufferFormat::NHWCB;
-        }
+        params.m_DataFormat       = dataFormat;
 
         WHEN("Asked to generate Lonely plans")
         {

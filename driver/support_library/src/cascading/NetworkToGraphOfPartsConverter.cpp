@@ -534,9 +534,9 @@ void NetworkToGraphOfPartsConverter::Visit(Reshape& reshape)
     std::vector<BasePart*> parts;
     auto reshapePart = std::make_unique<ReshapePart>(
         m_GraphOfParts.GeneratePartId(), reshape.GetInput(0).GetTensorInfo().m_Dimensions,
-        reshape.GetOutput(0).GetTensorInfo().m_Dimensions, CompilerDataFormat::NHWC,
-        reshape.GetOutput(0).GetTensorInfo().m_QuantizationInfo, reshape.GetOutput(0).GetTensorInfo().m_DataType,
-        std::set<uint32_t>{ reshape.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+        reshape.GetOutput(0).GetTensorInfo().m_Dimensions, reshape.GetOutput(0).GetTensorInfo().m_QuantizationInfo,
+        reshape.GetOutput(0).GetTensorInfo().m_DataType, std::set<uint32_t>{ reshape.GetId() },
+        m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
     parts.push_back(reshapePart.get());
     m_GraphOfParts.m_Parts.push_back(std::move(reshapePart));
     ConnectParts(reshape, parts);
@@ -654,51 +654,21 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
 
         auto concatInfo = concat.GetConcatenationInfo();
 
-        // Figure out which format to use (NHWC or NHWCB).
-        CompilerDataFormat format = CompilerDataFormat::NONE;
+        // Check whether we should prefer to use NHWC
+        // Generally we prefer to use NHWCB if we can, as it should be the more efficient format.
+        // However, if all our inputs are likely to produce NHWC outputs, then it is probably better
+        // to use NHWC, as it avoids the need for conversion.
+        bool allInputsPreferNhwc = true;
+        for (uint32_t i = 0; i < numInputs; ++i)
         {
-            // We can use NHWCB if the dimensions along the concat axis are all multiples of the brick group size, so
-            // that the DMA is capable of placing the tensors correctly in DRAM.
-            bool canUseNhwcb         = true;
-            bool allInputsPreferNhwc = true;
-            for (uint32_t i = 0; i < numInputs; ++i)
+            if (!m_OperandToPart.at(&concat.GetInput(i))->IsOutputGuaranteedNhwc())
             {
-                uint32_t requiredMultiple =
-                    concatInfo.m_Axis == 3 ? 8 : m_Capabilities.GetBrickGroupShape()[concatInfo.m_Axis];
-                if (concat.GetInput(i).GetTensorInfo().m_Dimensions[concatInfo.m_Axis] % requiredMultiple != 0)
-                {
-                    canUseNhwcb = false;
-                }
-
-                if (!m_OperandToPart.at(&concat.GetInput(i))->IsOutputGuaranteedNhwc())
-                {
-                    allInputsPreferNhwc = false;
-                }
+                allInputsPreferNhwc = false;
             }
-
-            bool canUseNhwc = (concatInfo.m_Axis != 3);
-
-            // Generally we prefer to use NHWCB if we can, as it should be the more efficient format.
-            // However, if all our inputs are likely to produce NHWC outputs, then it is probably better
-            // to use NHWC, as it avoids the need for conversion.
-            assert(canUseNhwc || canUseNhwcb);
-            if (allInputsPreferNhwc && canUseNhwc)
-            {
-                format = CompilerDataFormat::NHWC;
-            }
-            else if (canUseNhwcb)
-            {
-                format = CompilerDataFormat::NHWCB;
-            }
-            else if (canUseNhwc)
-            {
-                format = CompilerDataFormat::NHWC;
-            }
-            assert(format != CompilerDataFormat::NONE);
         }
 
         auto concatPart = std::make_unique<ConcatPart>(
-            m_GraphOfParts.GeneratePartId(), inputTensorsInfo, concat.GetConcatenationInfo(), format,
+            m_GraphOfParts.GeneratePartId(), inputTensorsInfo, concat.GetConcatenationInfo(), allInputsPreferNhwc,
             std::set<uint32_t>{ concat.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         // Mark the ConcatPart Output for connection with any subsequent Parts.
@@ -1251,25 +1221,9 @@ void NetworkToGraphOfPartsConverter::Visit(Split& split)
     }
     else
     {
-        // Figure out if we need to use NHWC or if we can get away with NHWCB (which should be more efficient).
-        // We can use NHWCB if the dimensions along the split axis are all multiples of the brick group size, so
-        // that the DMA is capable of extracting the tensors correctly from DRAM.
-        CompilerDataFormat format = CompilerDataFormat::NHWCB;
-        for (uint32_t i = 0; i < split.GetOutputs().size(); ++i)
-        {
-            if (split.GetOutput(i).GetTensorInfo().m_Dimensions[splitInfo.m_Axis] %
-                        m_Capabilities.GetBrickGroupShape()[splitInfo.m_Axis] !=
-                    0 &&
-                (splitInfo.m_Axis == 3U && split.GetOutput(i).GetTensorInfo().m_Dimensions[splitInfo.m_Axis] % 8U != 0))
-            {
-                format = CompilerDataFormat::NHWC;
-                break;
-            }
-        }
-
-        auto splitPart = std::make_unique<SplitPart>(m_GraphOfParts.GeneratePartId(), inputInfo, split.GetSplitInfo(),
-                                                     format, std::set<uint32_t>{ split.GetId() },
-                                                     m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+        auto splitPart = std::make_unique<SplitPart>(m_GraphOfParts.GeneratePartId(), inputInfo, splitInfo,
+                                                     std::set<uint32_t>{ split.GetId() }, m_EstimationOptions.value(),
+                                                     m_CompilationOptions, m_Capabilities);
 
         parts.push_back(splitPart.get());
 

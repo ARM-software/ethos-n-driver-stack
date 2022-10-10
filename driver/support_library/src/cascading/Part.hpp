@@ -159,14 +159,12 @@ public:
         : DebuggableObject(DebuggableObject::ExplicitDebugTag(),
                            (std::string(debugPartType) + " " + std::to_string(id)).c_str())
         , m_PartId{ id }
-        , m_CompilerDataFormat{ CompilerDataFormat::NONE }
         , m_EstimationOptions{ estOpt }
         , m_CompilationOptions{ compOpt }
         , m_Capabilities{ capabilities }
     {}
     BasePart(PartId id,
              const char* debugPartType,
-             const CompilerDataFormat compilerDataFormat,
              const std::set<uint32_t> correspondingOperationIds,
              const EstimationOptions& estOpt,
              const CompilationOptions& compOpt,
@@ -175,7 +173,6 @@ public:
         : DebuggableObject(DebuggableObject::ExplicitDebugTag(),
                            (std::string(debugPartType) + " " + std::to_string(id)).c_str())
         , m_PartId{ id }
-        , m_CompilerDataFormat{ compilerDataFormat }
         , m_CorrespondingOperationIds{ correspondingOperationIds }
         , m_EstimationOptions{ estOpt }
         , m_CompilationOptions{ compOpt }
@@ -202,7 +199,6 @@ public:
 
 protected:
     PartId m_PartId;
-    CompilerDataFormat m_CompilerDataFormat;
     std::set<uint32_t> m_CorrespondingOperationIds;
     const EstimationOptions& m_EstimationOptions;
     const CompilationOptions& m_CompilationOptions;

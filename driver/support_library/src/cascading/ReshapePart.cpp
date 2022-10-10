@@ -16,14 +16,13 @@ namespace support_library
 ReshapePart::ReshapePart(PartId id,
                          const TensorShape& inputTensorShape,
                          const TensorShape& outputTensorShape,
-                         const CompilerDataFormat& compilerDataFormat,
                          const QuantizationInfo& quantizationInfo,
                          DataType dataType,
                          const std::set<uint32_t>& correspondingOperationIds,
                          const EstimationOptions& estOpt,
                          const CompilationOptions& compOpt,
                          const HardwareCapabilities& capabilities)
-    : BasePart(id, "ReshapePart", compilerDataFormat, correspondingOperationIds, estOpt, compOpt, capabilities)
+    : BasePart(id, "ReshapePart", correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape{ inputTensorShape }
     , m_OutputTensorShape{ outputTensorShape }
     , m_OutputQuantizationInfo(quantizationInfo)
@@ -37,17 +36,6 @@ Plans ReshapePart::GetPlans(CascadeType cascadeType, ethosn::command_stream::Blo
 
     if (cascadeType == CascadeType::Lonely)
     {
-        const uint32_t minWidthMultiplier = m_StripeConfig.blockWidthMultiplier.min;
-        const uint32_t maxWidthMultiplier =
-            std::max(1U, std::min(utils::DivRoundUp(utils::GetWidth(m_InputTensorShape),
-                                                    utils::GetWidth(m_Capabilities.GetBrickGroupShape())),
-                                  m_StripeConfig.blockWidthMultiplier.max));
-        const uint32_t minHeightMultiplier = m_StripeConfig.blockHeightMultiplier.min;
-        const uint32_t maxHeightMultiplier =
-            std::max(1U, std::min(utils::DivRoundUp(utils::GetHeight(m_InputTensorShape),
-                                                    utils::GetHeight(m_Capabilities.GetBrickGroupShape())),
-                                  m_StripeConfig.blockHeightMultiplier.max));
-
         auto inputBuffer = std::make_unique<Buffer>(
             Location::Dram, CascadingBufferFormat::NHWC, m_InputTensorShape, TensorShape{ 0, 0, 0, 0 },
             TraversalOrder::Xyz, utils::TotalSizeBytes(m_InputTensorShape), m_OutputQuantizationInfo);
@@ -61,8 +49,10 @@ Plans ReshapePart::GetPlans(CascadeType cascadeType, ethosn::command_stream::Blo
 
         // Create a buffer with the best stripe shape
         std::unique_ptr<Buffer> sramBuffer = impl::MakeGlueIntermediateSramBuffer(
-            m_InputTensorShape, m_OutputQuantizationInfo, m_DataType, m_Capabilities, 0, minWidthMultiplier,
-            maxWidthMultiplier, minHeightMultiplier, maxHeightMultiplier);
+            m_InputTensorShape, m_OutputQuantizationInfo, m_DataType, { CascadingBufferFormat::NHWC }, m_Capabilities,
+            m_StripeConfig.blockWidthMultiplier.min, m_StripeConfig.blockWidthMultiplier.max,
+            m_StripeConfig.blockHeightMultiplier.min, m_StripeConfig.blockHeightMultiplier.max,
+            m_StripeConfig.ofmDepthMultiplier.min, m_StripeConfig.ofmDepthMultiplier.max);
         Buffer* sramBufferRaw = sramBuffer.get();
         auto dma2             = std::make_unique<DmaOp>(CascadingBufferFormat::NHWC);
         dma2->m_OperationIds  = m_CorrespondingOperationIds;

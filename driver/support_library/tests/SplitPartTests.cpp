@@ -44,8 +44,9 @@ void CheckSplitDram(std::vector<Buffer*> splitBuffers, const CheckPlansParams& p
             CHECK(splitBuffers[bufferIndex]->m_Format == params.m_DataFormat);
             CHECK(splitBuffers[bufferIndex]->m_TensorShape == params.m_OutputTensorInfos[bufferIndex].m_Dimensions);
             CHECK(splitBuffers[bufferIndex]->m_Order == TraversalOrder::Xyz);
-            CHECK(splitBuffers[bufferIndex]->m_SizeInBytes ==
-                  utils::TotalSizeBytes(params.m_OutputTensorInfos[bufferIndex].m_Dimensions));
+            CHECK(
+                splitBuffers[bufferIndex]->m_SizeInBytes ==
+                utils::CalculateBufferSize(params.m_OutputTensorInfos[bufferIndex].m_Dimensions, params.m_DataFormat));
             CHECK(splitBuffers[bufferIndex]->m_NumStripes == 0);
             CHECK(splitBuffers[bufferIndex]->m_EncodedWeights == nullptr);
         }
@@ -129,27 +130,22 @@ TEST_CASE("SplitPart Plan Generation", "[SplitPartTests]")
         const PartId partId = 1;
 
         TensorInfo inputTensorInfo;
-        CompilerDataFormat compilerDataFormat;
-        DataFormat dataFormat = GENERATE(DataFormat::NHWC, DataFormat::NHWCB);
+        CascadingBufferFormat dataFormat = GENERATE(CascadingBufferFormat::NHWC, CascadingBufferFormat::FCAF_DEEP);
+        std::vector<uint32_t> outputTensorShapes;
 
-        if (dataFormat == DataFormat::NHWC)
+        if (dataFormat == CascadingBufferFormat::NHWC)
         {
             inputTensorInfo.m_Dimensions = { 1, 16, 16, 16 };
             inputTensorInfo.m_DataType   = DataType::INT8_QUANTIZED;
-            inputTensorInfo.m_DataFormat = DataFormat::NHWC;
-
-            compilerDataFormat = CompilerDataFormat::NHWC;
+            outputTensorShapes           = { 7, 9 };
         }
         else
         {
             inputTensorInfo.m_Dimensions = { 1, 16, 16, 16 };
             inputTensorInfo.m_DataType   = DataType::INT8_QUANTIZED;
-            inputTensorInfo.m_DataFormat = DataFormat::NHWCB;
-
-            compilerDataFormat = CompilerDataFormat::NHWCB;
+            outputTensorShapes           = { 8, 8 };
         }
 
-        std::vector<uint32_t> outputTensorShapes{ 8, 8 };
         uint32_t splitAxis{ 1 };
         SplitInfo splitInfo(splitAxis, outputTensorShapes);
 
@@ -158,23 +154,14 @@ TEST_CASE("SplitPart Plan Generation", "[SplitPartTests]")
         const CompilationOptions compOpt;
         HardwareCapabilities hwCapabilities(GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
-        SplitPart splitPart(partId, inputTensorInfo, splitInfo, compilerDataFormat, operationIds, estOpt, compOpt,
-                            hwCapabilities);
+        SplitPart splitPart(partId, inputTensorInfo, splitInfo, operationIds, estOpt, compOpt, hwCapabilities);
 
         CheckPlansParams params;
         params.m_PartId            = partId;
         params.m_InputTensorInfo   = inputTensorInfo;
         params.m_OutputTensorInfos = Split::CalculateOutputTensorInfos(params.m_InputTensorInfo, splitInfo);
         params.m_OperationIds      = operationIds;
-
-        if (dataFormat == DataFormat::NHWC)
-        {
-            params.m_DataFormat = CascadingBufferFormat::NHWC;
-        }
-        else
-        {
-            params.m_DataFormat = CascadingBufferFormat::NHWCB;
-        }
+        params.m_DataFormat        = dataFormat;
 
         WHEN("Asked to generate Lonely plans")
         {

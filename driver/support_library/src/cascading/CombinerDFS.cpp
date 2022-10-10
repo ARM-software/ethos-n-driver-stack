@@ -504,7 +504,8 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenDramAndSramWithConversion(Bu
     DmaOp* dma1Raw = dma1.get();
 
     std::unique_ptr<Buffer> sramBuffer = impl::MakeGlueIntermediateSramBuffer(
-        inputBuffer->m_TensorShape, inputBuffer->m_QuantizationInfo, inputBuffer->m_DataType, m_Caps);
+        inputBuffer->m_TensorShape, inputBuffer->m_QuantizationInfo, inputBuffer->m_DataType,
+        { outputBuffer->m_Format, CascadingBufferFormat::NHWCB }, m_Caps);
     Buffer* sramBufferRaw = sramBuffer.get();
 
     auto dma2      = std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB);
@@ -570,8 +571,9 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenSramAndDramWithConversion(Bu
     auto dma2      = std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB);
     DmaOp* dma2Raw = dma2.get();
 
-    std::unique_ptr<Buffer> intermediateSramBuffer = impl::MakeGlueIntermediateSramBuffer(
-        tensorShape, destBuffer->m_QuantizationInfo, destBuffer->m_DataType, m_Caps);
+    std::unique_ptr<Buffer> intermediateSramBuffer =
+        impl::MakeGlueIntermediateSramBuffer(tensorShape, destBuffer->m_QuantizationInfo, destBuffer->m_DataType,
+                                             { destBuffer->m_Format, CascadingBufferFormat::NHWCB }, m_Caps);
     Buffer* intermediateSramBufferRaw = intermediateSramBuffer.get();
 
     assert(destBuffer->m_Format == CascadingBufferFormat::NHWC);
@@ -755,7 +757,8 @@ StartingAndEndingGlues Combiner::GenerateGlueBetweenDramAndDram(Buffer* inputBuf
     DmaOp* dma1Raw = dma1.get();
 
     std::unique_ptr<Buffer> sramBuffer = impl::MakeGlueIntermediateSramBuffer(
-        inputBuffer->m_TensorShape, inputBuffer->m_QuantizationInfo, inputBuffer->m_DataType, m_Caps);
+        inputBuffer->m_TensorShape, inputBuffer->m_QuantizationInfo, inputBuffer->m_DataType,
+        { inputBuffer->m_Format, outputBuffer->m_Format }, m_Caps);
     Buffer* sramBufferRaw = sramBuffer.get();
     auto dma2             = std::make_unique<DmaOp>(inputBuffer->m_Format);
     DmaOp* dma2Raw        = dma2.get();
@@ -875,7 +878,7 @@ std::pair<bool, StartingAndEndingGlues> Combiner::GetSharedGlue(Buffer* outputBu
         {
             CascadingBufferFormat cascadingBufferFormatLocal =
                 inputBuffer->m_Location == Location::Dram
-                    ? CascadingBufferFormat::NHWCB
+                    ? inputBuffer->m_Format
                     : GetBestCascadingBufferDramFormat({ outputBuffer, inputBuffer });
 
             // All input buffers must share the same format

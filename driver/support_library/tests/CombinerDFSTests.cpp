@@ -4280,7 +4280,6 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
             std::vector<ethosn::support_library::TensorInfo> inputTensorsInfo;
             ethosn::support_library::TensorInfo inputTensorInfo1;
             ethosn::support_library::TensorInfo inputTensorInfo2;
-            CompilerDataFormat compilerDataFormat;
 
             inputTensorInfo1.m_Dimensions = { 1, 16, 16, 16 };
             inputTensorInfo1.m_DataType   = ethosn::support_library::DataType::INT8_QUANTIZED;
@@ -4289,8 +4288,6 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
             inputTensorInfo2.m_Dimensions = { 1, 16, 16, 16 };
             inputTensorInfo2.m_DataType   = ethosn::support_library::DataType::INT8_QUANTIZED;
             inputTensorInfo2.m_DataFormat = ethosn::support_library::DataFormat::NHWC;
-
-            compilerDataFormat = CompilerDataFormat::NHWC;
 
             inputTensorsInfo.push_back(inputTensorInfo1);
             inputTensorsInfo.push_back(inputTensorInfo2);
@@ -4305,8 +4302,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
             const HardwareCapabilities hwCaps =
                 GetHwCapabilitiesWithFwOverrides(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO, {}, 64, {}, {});
 
-            ConcatPart concatPart(partId, inputTensorsInfo, concatInfo, compilerDataFormat, operationIds, estOpt,
-                                  compOpt, hwCaps);
+            ConcatPart concatPart(partId, inputTensorsInfo, concatInfo, false, operationIds, estOpt, compOpt, hwCaps);
 
             Plans concatPlans =
                 concatPart.GetPlans(CascadeType::Lonely, ethosn::command_stream::BlockConfig{}, nullptr, 0);

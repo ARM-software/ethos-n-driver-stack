@@ -275,6 +275,108 @@ uint32_t GetNumSubmapChannels(uint32_t nChannels,
     return result;
 }
 
+uint32_t CalculateDramOffset(const CascadingBufferFormat dataFormat,
+                             const TensorShape& tensorSize,
+                             const TensorShape& offset,
+                             const HardwareCapabilities& caps)
+{
+    switch (dataFormat)
+    {
+        case CascadingBufferFormat::NHWCB:
+            return utils::CalculateDramOffsetNHWCB(tensorSize, offset[1], offset[2], offset[3], caps);
+        case CascadingBufferFormat::NHWC:
+            // Deliberate fallthrough
+        case CascadingBufferFormat::NCHW:
+            return utils::CalculateDramOffsetNHWC(tensorSize, offset[1], offset[2], offset[3]);
+        case CascadingBufferFormat::FCAF_DEEP:
+            return utils::CalculateDramOffsetFcafDeep(tensorSize, offset[1], offset[2], offset[3]);
+        case CascadingBufferFormat::FCAF_WIDE:
+            return utils::CalculateDramOffsetFcafWide(tensorSize, offset[1], offset[2], offset[3]);
+        default:
+        {
+            assert(false);
+            return 0;
+        }
+    };
+}
+
+uint32_t CalculateDramOffsetNHWCB(const TensorShape& tensorShape,
+                                  uint32_t offsetY,
+                                  uint32_t offsetX,
+                                  uint32_t offsetC,
+                                  const HardwareCapabilities& caps)
+{
+    const TensorShape& brickGroupShape = caps.GetBrickGroupShape();
+    const TensorShape& patchShape      = caps.GetPatchShape();
+    const uint32_t brickGroupSize      = GetNumElements(brickGroupShape);
+    const uint32_t brickGroupHeight    = GetHeight(brickGroupShape);
+    const uint32_t brickGroupWidth     = GetWidth(brickGroupShape);
+    const uint32_t brickGroupChannels  = GetChannels(brickGroupShape);
+    const uint32_t patchSize           = GetNumElements(patchShape);
+    const uint32_t patchHeight         = GetHeight(patchShape);
+    const uint32_t patchWidth          = GetWidth(patchShape);
+
+    const uint32_t numBrickGroupDepth = utils::DivRoundUp(GetChannels(tensorShape), brickGroupChannels);
+    const uint32_t numBrickGroupWidth = utils::DivRoundUp(GetWidth(tensorShape), brickGroupWidth);
+
+    const uint32_t offsetBrickGroupX = offsetX / brickGroupWidth;
+    const uint32_t offsetBrickGroupY = offsetY / brickGroupHeight;
+    const uint32_t offsetBrickGroupC = offsetC / brickGroupChannels;
+    const uint32_t offsetChannels    = offsetC % brickGroupChannels;
+    const uint32_t offsetBrickGroups = offsetBrickGroupC + offsetBrickGroupX * numBrickGroupDepth +
+                                       offsetBrickGroupY * numBrickGroupDepth * numBrickGroupWidth;
+    const uint32_t offsetWithinBrickGroupX   = offsetX % brickGroupWidth;
+    const uint32_t offsetWithinBrickGroupY   = offsetY % brickGroupHeight;
+    const uint32_t patchWithinBrickGroupX    = offsetWithinBrickGroupX / patchWidth;
+    const uint32_t patchWithinBrickGroupY    = offsetWithinBrickGroupY / patchHeight;
+    const uint32_t brickGroupHeightInPatches = brickGroupHeight / patchHeight;
+    const uint32_t brickWithinBrickGroup  = patchWithinBrickGroupX * brickGroupHeightInPatches + patchWithinBrickGroupY;
+    const uint32_t offsetWithinBrickGroup = (brickWithinBrickGroup * brickGroupChannels + offsetChannels) * patchSize;
+
+    const uint32_t offsetBytes = brickGroupSize * offsetBrickGroups + offsetWithinBrickGroup;
+
+    return offsetBytes;
+}
+
+namespace
+{
+
+uint32_t CalculateCellIdx(const TensorShape& tensorShape, const TensorShape& offset, const TensorShape& cellShape)
+{
+    // It's not possible to have an offset partway through a cell
+    assert(GetWidth(offset) % GetWidth(cellShape) == 0);
+    assert(GetHeight(offset) % GetHeight(cellShape) == 0);
+    assert(GetChannels(offset) % GetChannels(cellShape) == 0);
+    const uint32_t totalCellsX = utils::DivRoundUp(GetWidth(tensorShape), GetWidth(cellShape));
+    const uint32_t totalCellsC = utils::DivRoundUp(GetChannels(tensorShape), GetChannels(cellShape));
+    const uint32_t cellX       = GetWidth(offset) / GetWidth(cellShape);
+    const uint32_t cellY       = GetHeight(offset) / GetHeight(cellShape);
+    const uint32_t cellC       = GetChannels(offset) / GetChannels(cellShape);
+
+    return cellC + cellX * totalCellsC + cellY * totalCellsC * totalCellsX;
+}
+
+}    // namespace
+
+uint32_t CalculateDramOffsetNHWC(const TensorShape& tensorShape, uint32_t offsetY, uint32_t offsetX, uint32_t offsetC)
+{
+    return offsetC + offsetX * GetChannels(tensorShape) + offsetY * GetChannels(tensorShape) * GetWidth(tensorShape);
+}
+
+inline uint32_t
+    CalculateDramOffsetFcafDeep(const TensorShape& tensorShape, uint32_t offsetY, uint32_t offsetX, uint32_t offsetC)
+{
+    return g_FcafCellSizeBytes *
+           CalculateCellIdx(tensorShape, TensorShape{ 1, offsetY, offsetX, offsetC }, g_FcafDeepCellShape);
+}
+
+inline uint32_t
+    CalculateDramOffsetFcafWide(const TensorShape& tensorShape, uint32_t offsetY, uint32_t offsetX, uint32_t offsetC)
+{
+    return g_FcafCellSizeBytes *
+           CalculateCellIdx(tensorShape, TensorShape{ 1, offsetY, offsetX, offsetC }, g_FcafWideCellShape);
+}
+
 command_stream::DataType GetCommandDataType(const DataType supportLibraryDataType)
 {
     switch (supportLibraryDataType)
@@ -371,10 +473,14 @@ bool IsCompressionFormatCompatibleWithStripeAndShape(const CompilerDataCompresse
     {
         case CompilerDataCompressedFormat::FCAF_DEEP:
             // The stripe shape must be a multiple of the cells height (8), width (8) and depth (32)
-            return (((stripeShape[1] % 8) == 0) && ((stripeShape[2] % 8) == 0) && ((stripeShape[3] % 32) == 0));
+            return ((GetHeight(stripeShape) % GetHeight(g_FcafDeepCellShape)) == 0) &&
+                   ((GetWidth(stripeShape) % GetWidth(g_FcafDeepCellShape)) == 0) &&
+                   ((GetChannels(stripeShape) % GetChannels(g_FcafDeepCellShape)) == 0);
         case CompilerDataCompressedFormat::FCAF_WIDE:
             // The stripe shape must be a multiple of the cells height (8), width (16) and depth (16)
-            return (((stripeShape[1] % 8) == 0) && ((stripeShape[2] % 16) == 0) && ((stripeShape[3] % 16) == 0));
+            return ((GetHeight(stripeShape) % GetHeight(g_FcafWideCellShape)) == 0) &&
+                   ((GetWidth(stripeShape) % GetWidth(g_FcafWideCellShape)) == 0) &&
+                   ((GetChannels(stripeShape) % GetChannels(g_FcafWideCellShape)) == 0);
         default:
             return false;
     }

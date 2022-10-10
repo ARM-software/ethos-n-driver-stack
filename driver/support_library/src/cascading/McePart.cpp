@@ -294,7 +294,7 @@ McePart::McePart(PartId id,
                  std::set<uint32_t> operationIds,
                  DataType inputDataType,
                  DataType outputDataType)
-    : BasePart(id, "McePart", CompilerDataFormat::NONE, operationIds, estOpt, compOpt, capabilities)
+    : BasePart(id, "McePart", operationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape(inputTensorShape)
     , m_OutputTensorShape(outputTensorShape)
     , m_WeightEncoderCache{ capabilities, m_DebugTag.c_str() }
@@ -332,13 +332,7 @@ McePart::McePart(PartId id,
 {}
 
 McePart::McePart(ConstructionParams&& params)
-    : BasePart(params.m_Id,
-               "McePart",
-               CompilerDataFormat::NONE,
-               params.m_OperationIds,
-               params.m_EstOpt,
-               params.m_CompOpt,
-               params.m_Capabilities)
+    : BasePart(params.m_Id, "McePart", params.m_OperationIds, params.m_EstOpt, params.m_CompOpt, params.m_Capabilities)
     , m_InputTensorShape(params.m_InputTensorShape)
     , m_OutputTensorShape(params.m_OutputTensorShape)
     , m_WeightEncoderCache{ params.m_Capabilities, m_DebugTag.c_str() }

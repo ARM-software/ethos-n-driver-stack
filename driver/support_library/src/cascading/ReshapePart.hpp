@@ -19,7 +19,6 @@ public:
     ReshapePart(PartId id,
                 const TensorShape& inputTensorShape,
                 const TensorShape& outputTensorShape,
-                const CompilerDataFormat& compilerDataFormat,
                 const QuantizationInfo& quantizationInfo,
                 DataType dataType,
                 const std::set<uint32_t>& correspondingOperationIds,

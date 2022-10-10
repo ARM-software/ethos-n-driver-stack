@@ -35,7 +35,7 @@ FusedPlePart::FusedPlePart(PartId id,
                            DataType m_InputDataType,
                            DataType m_OutputDataType,
                            float alpha)
-    : BasePart(id, "FusedPlePart", CompilerDataFormat::NONE, correspondingOperationIds, estOpt, compOpt, capabilities)
+    : BasePart(id, "FusedPlePart", correspondingOperationIds, estOpt, compOpt, capabilities)
     , m_InputTensorShape(inputTensorShape)
     , m_OutputTensorShape(outputTensorShape)
     , m_InputQuantizationInfo(inputQuantizationInfo)
