@@ -174,7 +174,7 @@ git clone https://github.com/Arm-software/armnn --branch main
 cd armnn/
 git reset --hard 1b56b46fee47a44e0fd019e0a10e93612f1dba36
 cd ..
-git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 22.08dev1
+git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 22.08.1
 ```
 
     _Note: The default branch on GitHub has changed to main._

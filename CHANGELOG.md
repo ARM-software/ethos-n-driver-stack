@@ -1,6 +1,6 @@
 # Changelog for Arm® Ethos™-N Driver Stack
 
-## 22.08dev1
+## 22.08.1
 
 ### New features
 
