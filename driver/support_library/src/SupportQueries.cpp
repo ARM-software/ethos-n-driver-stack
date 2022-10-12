@@ -333,13 +333,6 @@ bool IsQuantizationScaleSupported(const QuantizationScales& overallScale,
     return true;
 }
 
-bool IsExperimentalCompilerForced()
-{
-    const char* cascadingValue    = "1";
-    const char* cascadingRunValue = std::getenv("FORCE_EXPERIMENTAL_COMPILER");
-    return (cascadingRunValue != nullptr && std::strcmp(cascadingRunValue, cascadingValue) == 0);
-}
-
 }    // namespace
 
 const SupportedLevel SupportedLevel::Unsupported  = SupportedLevel(InternalSupportedLevel::Unsupported);
@@ -348,6 +341,18 @@ const SupportedLevel SupportedLevel::Supported    = SupportedLevel(InternalSuppo
 
 SupportQueries::SupportQueries(const std::vector<char>& caps)
     : m_Capabilities(caps)
+    , m_ForceExperimentalCompiler()
+{
+    ValidateCapabilities(m_Capabilities);
+
+    const char* cascadingValue    = "1";
+    const char* cascadingRunValue = std::getenv("FORCE_EXPERIMENTAL_COMPILER");
+    m_ForceExperimentalCompiler = (cascadingRunValue != nullptr && std::strcmp(cascadingRunValue, cascadingValue) == 0);
+}
+
+SupportQueries::SupportQueries(const std::vector<char>& caps, bool forceExperimentalCompiler)
+    : m_Capabilities(caps)
+    , m_ForceExperimentalCompiler(forceExperimentalCompiler)
 {
     ValidateCapabilities(m_Capabilities);
 }
@@ -1081,7 +1086,6 @@ SupportedLevel SupportQueries::IsConcatenationSupported(const std::vector<Tensor
     float outputScale = concatInfo.m_OutputQuantizationInfo.GetScale();
     for (const auto& info : inputInfos)
     {
-
         if (!IsQuantizationScaleSupported(info.m_QuantizationInfo.GetScale(), outputScale))
         {
             // We might be able to support this in the future if we add a generic requantize in the PLE
@@ -1129,7 +1133,7 @@ SupportedLevel SupportQueries::IsConcatenationSupported(const std::vector<Tensor
             for (uint32_t i = 0; i < numInputs; ++i)
             {
                 // Check if concat input channels are supported by experimental compiler
-                if (IsExperimentalCompilerForced())
+                if (m_ForceExperimentalCompiler)
                 {
                     if (inputInfos[i].m_Dimensions[3] % 8 != 0)
                     {
@@ -1251,7 +1255,7 @@ SupportedLevel SupportQueries::IsSplitSupported(const TensorInfo& inputInfo,
     {
         case 0:
             SetReason("Split cannot be performed along batch axis (axis 0)", reason, reasonMaxLength);
-            return SupportedLevel::EstimateOnly;
+            return SupportedLevel::Unsupported;
         case 1:
             // Deliberate fallthrough
         case 2:
@@ -1263,23 +1267,11 @@ SupportedLevel SupportQueries::IsSplitSupported(const TensorInfo& inputInfo,
             // Please note that split can support following channel distribution:
             //
             //  1. For legacy compiler, all output channels are multiple of 16, e.g. 16, 48, 32
-            //  2. For experimental compiler, all output channels are multiple of 8, e.g. 8, 16, 24, 40. Multiples of
-            //     8 in channels are a special case for NHWCB as it is the half brickgroup depth.
+            //  2. For experimental compiler, all cases are supported
             for (uint32_t i = 0; i < numOutputs; ++i)
             {
-                // Check if split output channels are supported by experimental compiler
-                if (IsExperimentalCompilerForced())
-                {
-                    if (splitInfo.m_Sizes[i] % 8 != 0)
-                    {
-                        SetReason("Split along the channels dimension (axis 3) requires all output sizes (specified in "
-                                  "splitInfo.m_Sizes) to be multiples of 8",
-                                  reason, reasonMaxLength);
-                        return SupportedLevel::EstimateOnly;
-                    }
-                }
                 // Check if split output channels are supported by legacy compiler
-                else
+                if (!m_ForceExperimentalCompiler)
                 {
                     if (splitInfo.m_Sizes[i] % 16 != 0)
                     {

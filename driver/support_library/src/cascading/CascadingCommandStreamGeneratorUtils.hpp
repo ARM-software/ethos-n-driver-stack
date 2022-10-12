@@ -110,7 +110,11 @@ inline void SetStripeWidthInfo(const HardwareCapabilities& hwCap,
     }
 }
 
-inline void SetStripeChannelsInfo(FmSData& streamerData, const TensorShape& tensorShape, const TensorShape& stripeShape)
+inline void SetStripeChannelsInfo(FmSData& streamerData,
+                                  const TensorShape& tensorShape,
+                                  const TensorShape& stripeShape,
+                                  const TensorShape& supertensorOffset,
+                                  const TensorShape& supertensorShape)
 {
     uint16_t tensorChannels = ethosn::utils::NumericCast<uint16_t>(utils::GetChannels(tensorShape));
     uint16_t stripeChannels = ethosn::utils::NumericCast<uint16_t>(utils::GetChannels(stripeShape));
@@ -123,6 +127,27 @@ inline void SetStripeChannelsInfo(FmSData& streamerData, const TensorShape& tens
     streamerData.dfltStripeSize.channels = stripeChannels;
 
     streamerData.edgeStripeSize.channels = CommonUtils::CalculateEdgeSize(tensorChannels, stripeChannels);
+
+    if (streamerData.dataType == FmsDataType::FCAF_DEEP || streamerData.dataType == FmsDataType::FCAF_WIDE)
+    {
+        // Because FCAF cells are compressed, they must be read and written with the DMA configured with the same
+        // number of channels. For example, writing a cell with full-depth and then attempting to read only one
+        // channel from it would be an error. Normally, partial depth cells would only occur at the edge of a tensor
+        // and this is fine because it will be both read and written with the same partial depth. However in some cases,
+        // for example Split or Concat with the padding channels optimisation, we will read or write partial depth cells
+        // partway through a (super)tensor, and this could cause problems. To avoid this, we always round up the stripe
+        // size to a full cell when we're partway through a (super)tensor.
+        const uint32_t channelEnd             = utils::GetChannels(supertensorOffset) + utils::GetChannels(tensorShape);
+        const bool isEndOfSupertensorChannels = channelEnd == utils::GetChannels(supertensorShape);
+        if (!isEndOfSupertensorChannels)
+        {
+            const uint32_t cellDepth = streamerData.dataType == FmsDataType::FCAF_DEEP
+                                           ? utils::GetChannels(g_FcafDeepCellShape)
+                                           : utils::GetChannels(g_FcafWideCellShape);
+            streamerData.edgeStripeSize.channels = ethosn::utils::NumericCast<uint16_t>(utils::RoundUpToNearestMultiple(
+                static_cast<uint32_t>(streamerData.edgeStripeSize.channels), cellDepth));
+        }
+    }
 }
 
 inline void SetSuperTensorSizeInCells(FmSData& streamerData,

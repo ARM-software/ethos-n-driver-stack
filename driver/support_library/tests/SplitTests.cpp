@@ -75,7 +75,7 @@ TEST_CASE("SplitSupported")
     // Unsupported axis
     REQUIRE(queries.IsSplitSupported(
                 TensorInfo({ 1, 16, 16, 64 }, DataType::UINT8_QUANTIZED, DataFormat::NHWC, QuantizationInfo(1, 2)),
-                SplitInfo(0, { 0, 1 }), nullptr, reason, sizeof(reason)) == SupportedLevel::EstimateOnly);
+                SplitInfo(0, { 0, 1 }), nullptr, reason, sizeof(reason)) == SupportedLevel::Unsupported);
     REQUIRE(Contains(reason, "Split cannot be performed along batch axis"));
 
     // Non-multiple of 16 along channels axis

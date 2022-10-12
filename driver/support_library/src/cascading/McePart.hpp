@@ -88,6 +88,10 @@ public:
 
     void setUninterleavedInputShape(TensorShape uninterleavedInputShape);
 
+    const std::vector<uint8_t>& GetWeightsData() const;
+    const TensorShape& GetInputTensorShape() const;
+    const TensorShape& GetOutputTensorShape() const;
+
 protected:
     void CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                                       WeightEncoderCache& weightEncoderCache,

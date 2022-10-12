@@ -39,7 +39,6 @@ std::unique_ptr<McePart> NetworkToGraphOfPartsConverter::CreateIdentityMcePart(c
                                                                                const CompilationOptions& compOpt,
                                                                                const HardwareCapabilities& capabilities)
 {
-
     McePart::ConstructionParams params(estOpt, compOpt, capabilities);
     params.m_Id                     = m_GraphOfParts.GeneratePartId();
     params.m_InputTensorShape       = shape;
@@ -65,6 +64,76 @@ std::unique_ptr<McePart> NetworkToGraphOfPartsConverter::CreateIdentityMcePart(c
     return mcePart;
 }
 
+std::unique_ptr<McePart>
+    CreateIdentityMcePartWithPaddedOutputChannels(PartId partId,
+                                                  const TensorShape& shape,
+                                                  const QuantizationInfo& inputQuantInfo,
+                                                  const QuantizationInfo& outputQuantInfo,
+                                                  uint32_t operationId,
+                                                  DataType inputDataType,
+                                                  DataType outputDataType,
+                                                  const EstimationOptions& estOpt,
+                                                  const CompilationOptions& compOpt,
+                                                  const HardwareCapabilities& capabilities,
+                                                  const std::vector<std::pair<uint32_t, uint32_t>>& padAmounts)
+{
+    uint32_t numOfm = GetChannels(shape);
+    for (size_t i = 0; i < padAmounts.size(); ++i)
+    {
+        numOfm += padAmounts[i].second;
+    }
+
+    McePart::ConstructionParams params(estOpt, compOpt, capabilities);
+    params.m_Id                     = partId;
+    params.m_InputTensorShape       = shape;
+    params.m_OutputTensorShape      = { shape[0], shape[1], shape[2], numOfm };
+    params.m_InputQuantizationInfo  = inputQuantInfo;
+    params.m_OutputQuantizationInfo = outputQuantInfo;
+    const uint32_t numIfm           = shape[3];
+    const float weightScale         = 0.5f;
+    params.m_WeightsInfo            = {
+        { 1, 1, numIfm, numOfm }, DataType::UINT8_QUANTIZED, DataFormat::HWIO, { 0, weightScale }
+    };
+
+    params.m_WeightsData.reserve(GetNumElements(params.m_WeightsInfo.m_Dimensions));
+    for (uint32_t i = 0; i < numIfm; ++i)
+    {
+        uint32_t padIdx  = 0;
+        uint32_t origIdx = 0;
+        while (true)
+        {
+            if (padIdx < padAmounts.size() && origIdx >= padAmounts[padIdx].first)
+            {
+                for (uint32_t p = 0; p < padAmounts[padIdx].second; ++p)
+                {
+                    params.m_WeightsData.push_back(0);
+                }
+                padIdx++;
+            }
+            if (origIdx >= shape[3])
+            {
+                break;
+            }
+            params.m_WeightsData.push_back(origIdx == i ? 2 : 0);
+            ++origIdx;
+        }
+    }
+
+    const float biasScale   = weightScale * inputQuantInfo.GetScale();
+    params.m_BiasInfo       = { { 1, 1, 1, numOfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
+    params.m_BiasData       = std::vector<int32_t>(numOfm, 0);
+    params.m_Op             = command_stream::MceOperation::CONVOLUTION;
+    params.m_OperationIds   = std::set<uint32_t>{ operationId };
+    params.m_UpscaleFactor  = 1;
+    params.m_UpsampleType   = command_stream::cascading::UpsampleType::OFF;
+    params.m_InputDataType  = inputDataType;
+    params.m_OutputDataType = outputDataType;
+    params.m_LowerBound     = outputDataType == DataType::UINT8_QUANTIZED ? 0 : -128;
+    params.m_UpperBound     = outputDataType == DataType::UINT8_QUANTIZED ? 255 : 127;
+    auto mcePart            = std::make_unique<McePart>(std::move(params));
+    return mcePart;
+}
+
 NetworkToGraphOfPartsConverter::NetworkToGraphOfPartsConverter(const Network& network,
                                                                const HardwareCapabilities& capabilities,
                                                                const EstimationOptions& estimationOptions,
@@ -72,7 +141,7 @@ NetworkToGraphOfPartsConverter::NetworkToGraphOfPartsConverter(const Network& ne
     : m_Capabilities(capabilities)
     , m_EstimationOptions(estimationOptions)
     , m_CompilationOptions(compilationOptions)
-    , m_Queries(capabilities.GetData())
+    , m_Queries(capabilities.GetData(), true)
 {
     network.Accept(*this);
 }
@@ -1187,82 +1256,110 @@ void NetworkToGraphOfPartsConverter::Visit(Softmax& softmax)
 void NetworkToGraphOfPartsConverter::Visit(Split& split)
 {
     const SplitInfo& splitInfo = split.GetSplitInfo();
+    const size_t numOutputs    = split.GetOutputs().size();
 
-    const TensorInfo& inputInfo           = split.GetInput(0).GetTensorInfo();
+    TensorInfo inputInfo                  = split.GetInput(0).GetTensorInfo();
     const std::set<uint32_t> operationIds = { split.GetId() };
 
-    // Check if this is supported only as an estimate-only, and if so use an EstimateOnlyPart
-    char reason[1024];
-    const SupportedLevel supportedLevel =
-        m_Queries.IsSplitSupported(inputInfo, split.GetSplitInfo(), nullptr, reason, sizeof(reason));
-
     std::vector<BasePart*> parts;
-    if (supportedLevel == SupportedLevel::EstimateOnly)
+    std::vector<uint32_t> offsets;
+    std::vector<TensorInfo> outputTensorInfos;
     {
-        std::vector<TensorInfo> outputInfos{};
-        for (auto output : split.GetOutputs())
+        uint32_t offset = 0;
+        for (uint32_t i = 0; i < numOutputs; ++i)
         {
-            outputInfos.push_back(output.GetTensorInfo());
+            outputTensorInfos.push_back(split.GetOutput(i).GetTensorInfo());
+
+            offsets.push_back(offset);
+            offset += splitInfo.m_Sizes[i];
         }
+    }
 
-        auto estimateOnlyPart = std::make_unique<EstimateOnlyPart>(
-            m_GraphOfParts.GeneratePartId(), reason, std::vector<TensorInfo>{ inputInfo }, outputInfos,
-            ConvertExternalToCompilerDataFormat(outputInfos[0].m_DataFormat), operationIds, m_EstimationOptions.value(),
-            m_CompilationOptions, m_Capabilities);
-
-        parts.push_back(estimateOnlyPart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
-
-        // Check if current operation has outputs and if so mark them for connection with the subsequent operation.
-        for (auto&& outputOperand : split.GetOutputs())
+    // Optimisation: if we are splitting in channels with any non-multiples of the brick-group-depth (16),
+    // then this can be very slow for the firmware because it needs to split into lots of chunks. Instead,
+    // we insert a conv layer that "pads" the output channels of the previous layer so that we can split on
+    // multiples of 16 instead (i.e. aligning the split points)
+    McePart* paddingPartRaw = nullptr;
+    if (splitInfo.m_Axis == 3)
+    {
+        std::vector<std::pair<uint32_t, uint32_t>> padAmounts;
+        uint32_t origOffset = 0;
+        uint32_t newOffset  = 0;
+        for (uint32_t i = 0; i < numOutputs; ++i)
         {
+            offsets[i] = newOffset;
+            origOffset += split.GetOutput(i).GetTensorInfo().m_Dimensions[3];
+            newOffset += split.GetOutput(i).GetTensorInfo().m_Dimensions[3];
+            uint32_t rem = split.GetOutput(i).GetTensorInfo().m_Dimensions[3] % m_Capabilities.GetBrickGroupShape()[3];
+            if (rem != 0)
+            {
+                uint32_t numPadChannels = m_Capabilities.GetBrickGroupShape()[3] - rem;
+                padAmounts.push_back(std::make_pair(origOffset, numPadChannels));
+                newOffset += numPadChannels;
+            }
+        }
+        const uint32_t newInputDepth = newOffset;
+
+        if (!padAmounts.empty())
+        {
+            std::unique_ptr<McePart> paddingPart = CreateIdentityMcePartWithPaddedOutputChannels(
+                m_GraphOfParts.GeneratePartId(), inputInfo.m_Dimensions, inputInfo.m_QuantizationInfo,
+                inputInfo.m_QuantizationInfo, split.GetId(), inputInfo.m_DataType, inputInfo.m_DataType,
+                m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, padAmounts);
+            paddingPartRaw = paddingPart.get();
+            parts.push_back(paddingPartRaw);
+            m_GraphOfParts.m_Parts.push_back(std::move(paddingPart));
+
+            inputInfo.m_Dimensions[3] = newInputDepth;
+        }
+    }
+
+    auto splitPart = std::make_unique<SplitPart>(m_GraphOfParts.GeneratePartId(), inputInfo, outputTensorInfos,
+                                                 splitInfo.m_Axis, offsets, std::set<uint32_t>{ split.GetId() },
+                                                 m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+    parts.push_back(splitPart.get());
+    if (paddingPartRaw)
+    {
+        m_GraphOfParts.AddConnection({ splitPart->GetPartId(), 0 }, { paddingPartRaw->GetPartId(), 0 });
+    }
+
+    auto inputQuantInfo = split.GetInput(0).GetTensorInfo().m_QuantizationInfo;
+    // The SplitPart assumes that all Inputs and the Output have the same quantization information.
+    // If that is not the case, a requantize McePart is generated for any Outputs that are different to the Input.
+    // Subsequently, all generated MceParts, as well as the SplitPart are connected to the GraphOfParts.
+    for (uint32_t i = 0; i < numOutputs; ++i)
+    {
+        Operand& outputOperand = split.GetOutput(i);
+        if (outputOperand.GetTensorInfo().m_QuantizationInfo != inputQuantInfo)
+        {
+            std::map<uint32_t, PartId> mcePartIds;
+
+            // Note the dimensions used here deliberately do not account for any padding channels, as they should be implicitly
+            // removed at this point.
+            auto mcePart = CreateIdentityMcePart(outputOperand.GetTensorInfo().m_Dimensions,
+                                                 outputOperand.GetTensorInfo().m_QuantizationInfo, inputQuantInfo,
+                                                 split.GetId(), split.GetOutput(0).GetTensorInfo().m_DataType,
+                                                 split.GetOutput(0).GetTensorInfo().m_DataType,
+                                                 m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
+
+            // Add the connection to the GraphOfParts, then store the new PartId in a temporary map and then add the McePart to the GraphOfParts.
+            m_GraphOfParts.AddConnection({ mcePart->GetPartId(), 0 },
+                                         { splitPart->GetPartId(), outputOperand.GetProducerOutputIndex() });
+            mcePartIds[i] = mcePart->GetPartId();
+
+            parts.push_back(mcePart.get());
+            m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+
+            m_OperandToPart[&outputOperand] = parts.back();
+        }
+        else
+        {
+            // If no mcePart required then simply connect outputParts to Split op
             m_OperandToPart[&outputOperand] = parts.back();
         }
     }
-    else
-    {
-        auto splitPart = std::make_unique<SplitPart>(m_GraphOfParts.GeneratePartId(), inputInfo, splitInfo,
-                                                     std::set<uint32_t>{ split.GetId() }, m_EstimationOptions.value(),
-                                                     m_CompilationOptions, m_Capabilities);
-
-        parts.push_back(splitPart.get());
-
-        size_t numOutputs   = split.GetOutputs().size();
-        auto inputQuantInfo = split.GetInput(0).GetTensorInfo().m_QuantizationInfo;
-        // The SplitPart assumes that all Inputs and the Output have the same quantization information.
-        // If that is not the case, a requantize McePart is generated for any Outputs that are different to the Input.
-        // Subsequently, all generated MceParts, as well as the SplitPart are connected to the GraphOfParts.
-        for (uint32_t i = 0; i < numOutputs; ++i)
-        {
-            Operand& outputOperand = split.GetOutput(i);
-            if (outputOperand.GetTensorInfo().m_QuantizationInfo != inputQuantInfo)
-            {
-                std::map<uint32_t, PartId> mcePartIds;
-
-                auto mcePart = CreateIdentityMcePart(outputOperand.GetTensorInfo().m_Dimensions,
-                                                     outputOperand.GetTensorInfo().m_QuantizationInfo, inputQuantInfo,
-                                                     split.GetId(), split.GetOutput(0).GetTensorInfo().m_DataType,
-                                                     split.GetOutput(0).GetTensorInfo().m_DataType,
-                                                     m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
-
-                // Add the connection to the GraphOfParts, then store the new PartId in a temporary map and then add the McePart to the GraphOfParts.
-                m_GraphOfParts.AddConnection({ mcePart->GetPartId(), 0 },
-                                             { splitPart->GetPartId(), outputOperand.GetProducerOutputIndex() });
-                mcePartIds[i] = mcePart->GetPartId();
-
-                parts.push_back(mcePart.get());
-                m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
-
-                m_OperandToPart[&outputOperand] = parts.back();
-            }
-            else
-            {
-                // If no mcePart required then simply connect outputParts to Split op
-                m_OperandToPart[&outputOperand] = parts.back();
-            }
-        }
-        m_GraphOfParts.m_Parts.push_back(std::move(splitPart));
-    }
+    m_GraphOfParts.m_Parts.push_back(std::move(splitPart));
 
     Operand& operand = split.GetInput(0);
     m_GraphOfParts.AddConnection({ parts.front()->GetPartId(), 0 },

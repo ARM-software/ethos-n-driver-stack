@@ -468,6 +468,11 @@ public:
         return GetElementRef(dim0, dim1, dim2, dim3);
     }
 
+    const TensorShape& GetShape() const
+    {
+        return m_TensorShape;
+    }
+
 private:
     const uint8_t* m_Data;
     TensorShape m_TensorShape;
@@ -490,6 +495,11 @@ public:
     void SetElement(uint32_t dim0, uint32_t dim1, uint32_t dim2, uint32_t dim3, uint8_t value) const
     {
         GetElementRef(dim0, dim1, dim2, dim3) = value;
+    }
+
+    const TensorShape& GetShape() const
+    {
+        return m_TensorShape;
     }
 
 private:

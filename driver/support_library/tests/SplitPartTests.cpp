@@ -154,7 +154,8 @@ TEST_CASE("SplitPart Plan Generation", "[SplitPartTests]")
         const CompilationOptions compOpt;
         HardwareCapabilities hwCapabilities(GetEthosN78FwHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
 
-        SplitPart splitPart(partId, inputTensorInfo, splitInfo, operationIds, estOpt, compOpt, hwCapabilities);
+        SplitPart splitPart(partId, inputTensorInfo, Split::CalculateOutputTensorInfos(inputTensorInfo, splitInfo),
+                            splitAxis, { 0, outputTensorShapes[0] }, operationIds, estOpt, compOpt, hwCapabilities);
 
         CheckPlansParams params;
         params.m_PartId            = partId;

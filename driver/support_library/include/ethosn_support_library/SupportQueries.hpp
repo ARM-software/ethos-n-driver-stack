@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -81,6 +81,7 @@ class SupportQueries
 private:
     // Hardware capabilities
     std::vector<char> m_Capabilities;
+    bool m_ForceExperimentalCompiler;
 
 public:
     /// Create an instance of SupportQueries for the given capabilities
@@ -88,6 +89,7 @@ public:
     /// @param caps The capabilities vector
     /// @exception Throws ethosn::ethosn_library::VersionMismatchException if capabilities are invalid.
     SupportQueries(const std::vector<char>& caps);
+    SupportQueries(const std::vector<char>& caps, bool forceExperimentalCompiler);
 
     /// Get capabilities vector
     const std::vector<char>& GetCapabilities() const

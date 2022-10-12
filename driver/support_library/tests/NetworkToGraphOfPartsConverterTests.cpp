@@ -30,6 +30,39 @@
 
 using namespace ethosn::support_library;
 
+TEST_CASE("CreateIdentityMcePartWithPaddedOutputChannels")
+{
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const CompilationOptions compOpt;
+    const EstimationOptions estOpt;
+
+    auto compare = [&](const std::vector<std::pair<uint32_t, uint32_t>>& padAmounts,
+                       const std::vector<uint8_t>& expectedWeights) {
+        std::unique_ptr<McePart> paddingPart = CreateIdentityMcePartWithPaddedOutputChannels(
+            0, TensorShape{ 1, 1, 1, 5 }, QuantizationInfo(), QuantizationInfo(), 0, DataType::UINT8_QUANTIZED,
+            DataType::UINT8_QUANTIZED, estOpt, compOpt, caps, padAmounts);
+
+        CHECK(paddingPart->GetWeightsData() == expectedWeights);
+    };
+
+    // clang-format off
+    compare({}, { // No padding - identity matrix
+        2, 0, 0, 0, 0,
+        0, 2, 0, 0, 0,
+        0, 0, 2, 0, 0,
+        0, 0, 0, 2, 0,
+        0, 0, 0, 0, 2,
+    });
+    compare({ { 0, 2 }, { 2, 3 } }, {
+        0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 2, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 2, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 2, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
+        });
+    // clang-format on
+}
+
 // Manually creates a Network of Operands and Operations and converts it to a GraphOfParts using the NetworkToGraphOfPartsConverter().
 // The topology is chosen to test Networks of supported Part types such as:
 //      * Input Part
@@ -557,23 +590,22 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat EstimateOnly")
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
 
-    // Concatenation along the channels dimension (axis 3) requires input tensors
-    // with a multiple of 16 channels, so this will return EstimateOnly.
+    // Concatenation with the output scale too small relative to the input scale is EstimateOnly
     TensorInfo input1Info{
         { 1, 16, 16, 24 },
         DataType::UINT8_QUANTIZED,
         DataFormat::NHWC,
-        { 0, 1.f },
+        { 0, 1.0f },
     };
 
     TensorInfo input2Info{
         { 1, 16, 16, 24 },
         DataType::UINT8_QUANTIZED,
         DataFormat::NHWC,
-        { 0, 1.f },
+        { 0, 1.0f },
     };
 
-    ConcatenationInfo concatenationInfo{ 3, { 0, 1.f } };
+    ConcatenationInfo concatenationInfo{ 3, { 0, 0.0001f } };
 
     const std::shared_ptr<Network> network =
         CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
@@ -627,8 +659,7 @@ TEST_CASE("NetworkToGraphOfPartsConverterTest Concat EstimateOnly")
     Op* maybeEstimateOnlyOp = plans[0].m_OpGraph.GetOp(0);
     REQUIRE(IsEstimateOnlyOp(maybeEstimateOnlyOp));
     EstimateOnlyOp* estimateOnlyOp = static_cast<EstimateOnlyOp*>(maybeEstimateOnlyOp);
-    CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Concatenation along the channels dimension (axis 3) requires "
-                                                       "input tensors with a multiple of 16 channels") !=
+    CHECK(estimateOnlyOp->m_ReasonForEstimateOnly.find("Output scales must be bigger than input scale / 128") !=
           std::string::npos);
 }
 
@@ -2704,25 +2735,25 @@ TEST_CASE("NetworkToGraphOfPartsConverter Split")
     REQUIRE(graph.GetConnectedInputSlots({ 3, 0 }).size() == 0);
 }
 
-TEST_CASE("NetworkToGraphOfPartsConverter Split EstimateOnly")
+TEST_CASE("NetworkToGraphOfPartsConverter Split Padding")
 {
+    // Confirms that padding channels are added as expected.
+
     const HardwareCapabilities caps = GetEthosN78HwCapabilities();
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
 
     TensorInfo inputInfo{
-        { { 1, 16, 16, 18 } },
+        { { 1, 16, 16, 2 } },
         DataType::UINT8_QUANTIZED,
         DataFormat::NHWC,
         { 0, 0.9f },
     };
 
-    // Splitting in channel dimension must produce multiples of 16
-    // Splitting to ( 9, 9 ) will be supported in EstimateOnly.
-    SplitInfo splitInfo{ 3, { 9, 9 } };
+    SplitInfo splitInfo{ 3, { 1, 1 } };
 
     const std::shared_ptr<Network> network =
-        CreateEstimationNetwork(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO));
+        std::make_shared<Network>(GetFwAndHwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO), false, true);
 
     // Network topology:
     // Input -> Split -> Output
@@ -2735,7 +2766,7 @@ TEST_CASE("NetworkToGraphOfPartsConverter Split EstimateOnly")
     bool dumpToFile = false;
     if (dumpToFile)
     {
-        std::ofstream stream("NetworkToGraphOfPartsConverterTestsSplitEstimate.dot");
+        std::ofstream stream("NetworkToGraphOfPartsConverter Split Padding.dot");
         SaveNetworkToDot(*network, stream, DetailLevel::High);
     }
 
@@ -2745,31 +2776,34 @@ TEST_CASE("NetworkToGraphOfPartsConverter Split EstimateOnly")
     bool dumpGraphOfPartsToFile = false;
     if (dumpGraphOfPartsToFile)
     {
-        std::ofstream stream("NetworkToGraphOfPartsConverterTests_SplitOutputEstimate.dot");
+        std::ofstream stream("NetworkToGraphOfPartsConverter Split Padding Output.dot");
         SaveGraphOfPartsToDot(graph, stream, DetailLevel::High);
     }
 
-    // InputPart, EstimateOnlyPart, OutputPart, OutputPart
-    REQUIRE(graph.GetNumParts() == 4);
+    // InputPart, McePart (to add padding channels), SplitPart, OutputPart, OutputPart
+    REQUIRE(graph.GetNumParts() == 5);
 
-    REQUIRE(dynamic_cast<const EstimateOnlyPart*>(&graph.GetPart(1)) != nullptr);
-    REQUIRE(graph.GetPartInputs(1).size() == 1);
-    REQUIRE(graph.GetPartOutputs(1).size() == 2);
-    REQUIRE(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
-    REQUIRE(graph.GetConnectedInputSlots({ 1, 0 }).size() == 1);
-    REQUIRE(graph.GetConnectedInputSlots({ 1, 1 }).size() == 1);
+    const McePart* mcePart = dynamic_cast<const McePart*>(&graph.GetPart(1));
+    REQUIRE(mcePart != nullptr);
+    CHECK(graph.GetConnectedOutputSlot({ 1, 0 }).value().m_PartId == 0);
+    CHECK(graph.GetConnectedInputSlots({ 1, 0 }) == std::vector<PartInputSlot>{ { 2, 0 } });
+    // Check that padding channels have been added
+    CHECK(utils::GetChannels(mcePart->GetOutputTensorShape()) == 32);
+    // clang-format off
+    CHECK(mcePart->GetWeightsData() == std::vector<uint8_t>{
+        2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    });
+    // clang-format on
 
-    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(2)) != nullptr);
-    REQUIRE(graph.GetPartInputs(2).size() == 1);
-    REQUIRE(graph.GetPartOutputs(2).size() == 0);
-    REQUIRE(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 1);
-    REQUIRE(graph.GetConnectedInputSlots({ 2, 0 }).size() == 0);
-
-    REQUIRE(dynamic_cast<const OutputPart*>(&graph.GetPart(3)) != nullptr);
-    REQUIRE(graph.GetPartInputs(3).size() == 1);
-    REQUIRE(graph.GetPartOutputs(3).size() == 0);
-    REQUIRE(graph.GetConnectedOutputSlot({ 3, 0 }).value().m_PartId == 1);
-    REQUIRE(graph.GetConnectedInputSlots({ 3, 0 }).size() == 0);
+    const SplitPart* splitPart = dynamic_cast<const SplitPart*>(&graph.GetPart(2));
+    REQUIRE(splitPart != nullptr);
+    CHECK(graph.GetConnectedOutputSlot({ 2, 0 }).value().m_PartId == 1);
+    CHECK(graph.GetConnectedInputSlots({ 2, 0 }) == std::vector<PartInputSlot>{ { 3, 0 } });
+    CHECK(graph.GetConnectedInputSlots({ 2, 1 }) == std::vector<PartInputSlot>{ { 4, 0 } });
+    // Check the split offsets
+    CHECK(utils::GetChannels(splitPart->GetInputTensorShape()) == 32);
+    CHECK(splitPart->GetOffsets() == std::vector<uint32_t>{ 0, 16 });
 }
 
 TEST_CASE("NetworkToGraphOfPartsConverter Transpose")

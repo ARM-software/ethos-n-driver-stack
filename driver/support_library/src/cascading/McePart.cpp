@@ -876,5 +876,20 @@ void McePart::setUninterleavedInputShape(TensorShape uninterleavedInputShape)
     m_UninterleavedInputShape = uninterleavedInputShape;
 }
 
+const std::vector<uint8_t>& McePart::GetWeightsData() const
+{
+    return *m_WeightsData;
+}
+
+const TensorShape& McePart::GetInputTensorShape() const
+{
+    return m_InputTensorShape;
+}
+
+const TensorShape& McePart::GetOutputTensorShape() const
+{
+    return m_OutputTensorShape;
+}
+
 }    // namespace support_library
 }    // namespace ethosn

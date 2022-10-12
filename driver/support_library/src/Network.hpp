@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -84,6 +84,13 @@ public:
         , m_OperationIds()
         , m_EstimatePerformanceMode(estimatePerformance)
         , m_Queries(caps)
+    {}
+    Network(const std::vector<char>& caps, bool estimatePerformance, bool forceExperimentalCompiler)
+        : m_Operations()
+        , m_NextOperationId(0)
+        , m_OperationIds()
+        , m_EstimatePerformanceMode(estimatePerformance)
+        , m_Queries(caps, forceExperimentalCompiler)
     {}
 
     Input& AddInput(const TensorInfo& info);

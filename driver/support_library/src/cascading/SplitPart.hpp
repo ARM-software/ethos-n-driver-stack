@@ -18,7 +18,9 @@ class SplitPart : public BasePart
 public:
     SplitPart(PartId id,
               const TensorInfo& inputTensorInfo,
-              const SplitInfo& splitInfo,
+              const std::vector<TensorInfo>& outputTensorInfos,
+              uint32_t axis,
+              const std::vector<uint32_t>& offsets,
               const std::set<uint32_t>& correspondingOperationIds,
               const EstimationOptions& estOpt,
               const CompilationOptions& compOpt,
@@ -30,9 +32,14 @@ public:
     DotAttributes GetDotAttributes(DetailLevel detail) const override;
     virtual ~SplitPart();
 
+    const TensorShape& GetInputTensorShape() const;
+    const std::vector<uint32_t>& GetOffsets() const;
+
 private:
-    const TensorInfo& m_InputTensorInfo;
-    const SplitInfo m_SplitInfo;
+    TensorInfo m_InputTensorInfo;
+    std::vector<TensorInfo> m_OutputTensorInfos;
+    uint32_t m_Axis;
+    std::vector<uint32_t> m_Offsets;
 
     void CreateSplitDramPlans(Plans& plans) const;
 

@@ -73,7 +73,7 @@ private:
     void ProcessTransposeOp(Op* const ptrTransposeOp);
 
     // Private function to add IFM_STREAMER to the command stream
-    AgentIdType AddIfmStreamerToCommandStream(Op* const ptrOp,
+    AgentIdType AddIfmStreamerToCommandStream(DmaOp* const ptrOp,
                                               const uint16_t inputDramBufferId,
                                               const Buffer* const inputDramBuffer,
                                               const Buffer* const inputSramBuffer,
@@ -89,7 +89,7 @@ private:
     // Private function to add PLE_SCHEDULER to the command stream
     AgentIdType AddPleSchedulerToCommandStream(PleOp* const ptrPleOp);
     // Private function to add OFM_STREAMER to the command stream
-    AgentIdType AddOfmStreamerToCommandStream(Op* const ptrOp,
+    AgentIdType AddOfmStreamerToCommandStream(DmaOp* const ptrOp,
                                               const Buffer* const outputSramBuffer,
                                               const uint16_t outputDramBufferId,
                                               const Buffer* const outputDramBuffer,

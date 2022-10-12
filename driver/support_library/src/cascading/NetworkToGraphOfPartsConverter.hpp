@@ -75,6 +75,7 @@ private:
                                                    const EstimationOptions& estOpt,
                                                    const CompilationOptions& compOpt,
                                                    const HardwareCapabilities& capabilities);
+
     std::vector<BasePart*> CreateTransposeConv(const Stride& stride,
                                                const TensorInfo& weightsInfo,
                                                const std::vector<uint8_t>& weightsData,
@@ -92,6 +93,28 @@ private:
     std::map<const Operand*, BasePart*> m_OperandToPart;
     GraphOfParts m_GraphOfParts;
 };
+
+/// Creates an McePart that passes through its input mostly unchanged, except it inserts "padding channels"
+/// into the output tensor. These channels will contain entirely zeroes.
+/// The `padAmounts` argument defines where and how many padding channels are added. Each entry in the array
+/// describes one insertion of padding channels, with .first defining the location in the _original_ channels
+/// to start adding padding channels, and the .second defining how many channels to add.
+/// An example (ignoring XY):
+///     Input: a, b, c, d
+///     padAmounts: { { 0, 2 }, { 2, 3 } }
+///     Output: 0, 0, a, b, 0, 0, 0, c, d
+std::unique_ptr<McePart>
+    CreateIdentityMcePartWithPaddedOutputChannels(PartId partId,
+                                                  const TensorShape& shape,
+                                                  const QuantizationInfo& inputQuantInfo,
+                                                  const QuantizationInfo& outputQuantInfo,
+                                                  uint32_t operationId,
+                                                  DataType inputDataType,
+                                                  DataType outputDataType,
+                                                  const EstimationOptions& estOpt,
+                                                  const CompilationOptions& compOpt,
+                                                  const HardwareCapabilities& capabilities,
+                                                  const std::vector<std::pair<uint32_t, uint32_t>>& padAmounts);
 
 }    // namespace support_library
 }    // namespace ethosn
