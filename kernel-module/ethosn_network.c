@@ -47,12 +47,6 @@
 #include <linux/version.h>
 #include <linux/wait.h>
 
-#define ETHOSN_INFERENCE_ABORTED   -1
-
-#define DEVICE_POLL_JIFFIES (1 * HZ / 1000)
-
-#define MAX_PENDING ((int)-1)
-
 static struct device *net_to_dev(const struct ethosn_network *const net)
 {
 	return net->ethosn->dev;
