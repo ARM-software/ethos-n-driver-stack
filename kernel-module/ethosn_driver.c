@@ -441,6 +441,7 @@ static void ethosn_irq_bottom(struct work_struct *work)
 	struct dl1_irq_status_r status;
 	bool error_status;
 	int ret;
+	size_t num_messages_handled = 0;
 
 	ret = mutex_lock_interruptible(&core->mutex);
 	if (ret)
@@ -449,13 +450,7 @@ static void ethosn_irq_bottom(struct work_struct *work)
 	if (atomic_read(&core->init_done) == 0)
 		goto end;
 
-	/* Read and clear the IRQ status bits. */
-	status.word = atomic_xchg(&core->irq_status, 0);
-
-	dev_dbg(core->dev,
-		"Irq bottom, word=0x%08x, err=%u, debug=%u, job=%u core_id=%u\n",
-		status.word, status.bits.setirq_err, status.bits.setirq_dbg,
-		status.bits.setirq_job, core->core_id);
+	dev_dbg(core->dev, "Irq bottom, handling messages");
 
 	/* Handle mailbox messages. Note we do this before checking for errors
 	 * so that we get as much debugging
@@ -463,7 +458,28 @@ static void ethosn_irq_bottom(struct work_struct *work)
 	 */
 	do {
 		ret = handle_message(core);
+
+		/* Limit the number of message we handle in one call to this
+		 * function, otherwise
+		 * it can lock-up the driver for too long.
+		 */
+		++num_messages_handled;
+		if (num_messages_handled > 10) {
+			/* Re-queue this handler so that we can process the
+			 * remaining messages later
+			 */
+			queue_work(core->irq_wq, &core->irq_work);
+			goto end;
+		}
 	} while (ret > 0);
+
+	/* Read and clear the IRQ status bits. */
+	status.word = atomic_xchg(&core->irq_status, 0);
+
+	dev_dbg(core->dev,
+		"Irq bottom, word=0x%08x, err=%u, debug=%u, job=%u core_id=%u\n",
+		status.word, status.bits.setirq_err, status.bits.setirq_dbg,
+		status.bits.setirq_job, core->core_id);
 
 	error_status = status.bits.setirq_err || status.bits.tol_err ||
 		       status.bits.func_err || status.bits.rec_err ||
