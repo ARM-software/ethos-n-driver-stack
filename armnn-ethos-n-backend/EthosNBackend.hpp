@@ -12,6 +12,8 @@
 #include <armnn/backends/IBackendInternal.hpp>
 #include <armnn/backends/OptimizationViews.hpp>
 
+#include <ethosn_driver_library/ProcMemAllocator.hpp>
+
 namespace armnn
 {
 
@@ -131,11 +133,48 @@ private:
     std::shared_ptr<profiling::EthosNBackendProfilingContext> m_SharedContext;
 };
 
+class EthosNBackendAllocatorService
+{
+public:
+    // Getter for the singleton instance
+    static EthosNBackendAllocatorService& GetInstance();
+
+    std::shared_ptr<ethosn::driver_library::ProcMemAllocator> GetProcMemAllocatorPtr()
+    {
+        return m_SharedEthosNProcMemAllocator;
+    }
+
+    void SetProcMemAllocatorPtr(const EthosNConfig& config, const std::string& deviceId)
+    {
+        using namespace ethosn::driver_library;
+
+        if (config.m_PerfOnly)
+        {
+            m_SharedEthosNProcMemAllocator.reset();
+            return;
+        }
+
+        if (!deviceId.empty())
+        {
+            m_SharedEthosNProcMemAllocator = std::make_shared<ProcMemAllocator>(deviceId);
+        }
+        else
+        {
+            m_SharedEthosNProcMemAllocator = std::make_shared<ProcMemAllocator>();
+        }
+
+        return;
+    }
+
+private:
+    std::shared_ptr<ethosn::driver_library::ProcMemAllocator> m_SharedEthosNProcMemAllocator;
+};
+
 namespace ethosnbackend
 {
 
 #define MAX_ETHOSN_DRIVER_LIBRARY_MAJOR_VERSION_SUPPORTED 4
-#define MIN_ETHOSN_DRIVER_LIBRARY_MAJOR_VERSION_SUPPORTED 1
+#define MIN_ETHOSN_DRIVER_LIBRARY_MAJOR_VERSION_SUPPORTED 4
 #define MAX_ETHOSN_SUPPORT_LIBRARY_MAJOR_VERSION_SUPPORTED 3
 #define MIN_ETHOSN_SUPPORT_LIBRARY_MAJOR_VERSION_SUPPORTED 1
 
