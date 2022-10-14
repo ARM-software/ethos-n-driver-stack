@@ -36,7 +36,7 @@ inline bool IsDeviceStatusOkay(const std::string& filePath)
 
 inline bool IsCore0IommuAvailable(const std::string& filePath)
 {
-    std::ifstream fileStream(filePath + "/core0/iommus");
+    std::ifstream fileStream(filePath + "/core0/main_allocator/firmware/iommus");
     return fileStream.is_open();
 }
 
