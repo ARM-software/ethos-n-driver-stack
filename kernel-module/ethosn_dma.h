@@ -161,12 +161,12 @@ struct ethosn_dma_allocator_ops {
 					  size_t size);
 	void (*release)(struct ethosn_dma_sub_allocator *
 			allocator,
-			struct ethosn_dma_info *const
+			struct ethosn_dma_info **
 			dma_info);
 	void (*unmap)(struct ethosn_dma_sub_allocator *allocator,
 		      struct ethosn_dma_info *dma_info);
 	void (*free)(struct ethosn_dma_sub_allocator *allocator,
-		     struct ethosn_dma_info *dma_info);
+		     struct ethosn_dma_info **dma_info);
 	void (*sync_for_device)(struct ethosn_dma_sub_allocator *
 				allocator,
 				struct ethosn_dma_info *
@@ -312,7 +312,7 @@ void ethosn_dma_unmap(struct ethosn_dma_allocator *top_allocator,
  * @dma_info: Allocation information
  */
 void ethosn_dma_unmap_and_free(struct ethosn_dma_allocator *top_allocator,
-			       struct ethosn_dma_info *const dma_info);
+			       struct ethosn_dma_info **dma_info);
 
 /**
  * ethosn_dma_free() - Free allocated DMA
@@ -320,7 +320,7 @@ void ethosn_dma_unmap_and_free(struct ethosn_dma_allocator *top_allocator,
  * @dma_info: Allocation information
  */
 void ethosn_dma_free(struct ethosn_dma_allocator *top_allocator,
-		     struct ethosn_dma_info *dma_info);
+		     struct ethosn_dma_info **dma_info);
 
 /**
  * ethosn_dma_get_addr_base() - Get base address of a given stream
@@ -400,7 +400,7 @@ struct ethosn_dma_info *ethosn_dma_import(
  * @dma_info: Allocation information
  */
 void ethosn_dma_release(struct ethosn_dma_allocator *top_allocator,
-			struct ethosn_dma_info *const dma_info);
+			struct ethosn_dma_info **dma_info);
 
 /**
  * ethosn_get_sub_allocator

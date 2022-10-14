@@ -130,7 +130,7 @@ static int ethosn_buffer_release(struct inode *const inode,
 	/* only for input and output buffers. for other buffers net_fd ops is
 	 * used.
 	 */
-	ethosn_dma_free(buf->asset_allocator, buf->dma_info);
+	ethosn_dma_free(buf->asset_allocator, &buf->dma_info);
 
 	put_device(buf->ethosn->dev);
 
@@ -338,7 +338,7 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 	return fd;
 
 err_dma_free:
-	ethosn_dma_free(asset_allocator, buf->dma_info);
+	ethosn_dma_free(asset_allocator, &buf->dma_info);
 err_kfree:
 	kfree(buf);
 
@@ -364,7 +364,7 @@ static int ethosn_dma_buffer_release(struct inode *const inode,
 
 	asset_allocator = buf->asset_allocator;
 	buffer_unmap_dma(buf);
-	ethosn_dma_release(buf->asset_allocator, buf->dma_info);
+	ethosn_dma_release(buf->asset_allocator, &buf->dma_info);
 
 	put_device(buf->ethosn->dev);
 
@@ -435,7 +435,7 @@ int ethosn_buffer_import(struct ethosn_device *ethosn,
 	return fd;
 
 err_dma_release:
-	ethosn_dma_release(asset_allocator, buf->dma_info);
+	ethosn_dma_release(asset_allocator, &buf->dma_info);
 err_kfree:
 	kfree(buf);
 

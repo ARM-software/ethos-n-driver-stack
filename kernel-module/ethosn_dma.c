@@ -345,7 +345,7 @@ void ethosn_dma_unmap(struct ethosn_dma_allocator *top_allocator,
 }
 
 void ethosn_dma_free(struct ethosn_dma_allocator *top_allocator,
-		     struct ethosn_dma_info *const dma_info)
+		     struct ethosn_dma_info **dma_info)
 {
 	struct ethosn_dma_sub_allocator *sub_allocator;
 	const struct ethosn_dma_allocator_ops *ops;
@@ -353,8 +353,11 @@ void ethosn_dma_free(struct ethosn_dma_allocator *top_allocator,
 	if (IS_ERR_OR_NULL(dma_info))
 		return;
 
+	if (IS_ERR_OR_NULL(*dma_info))
+		return;
+
 	sub_allocator = ethosn_get_sub_allocator(top_allocator,
-						 dma_info->stream_type);
+						 (*dma_info)->stream_type);
 
 	if (!sub_allocator)
 		return;
@@ -399,15 +402,15 @@ exit:
 	return dma_info;
 
 exit_free_dma_info:
-	ethosn_dma_free(top_allocator, dma_info);
+	ethosn_dma_free(top_allocator, &dma_info);
 
 	return NULL;
 }
 
 void ethosn_dma_unmap_and_free(struct ethosn_dma_allocator *top_allocator,
-			       struct ethosn_dma_info *const dma_info)
+			       struct ethosn_dma_info **dma_info)
 {
-	ethosn_dma_unmap(top_allocator, dma_info);
+	ethosn_dma_unmap(top_allocator, *dma_info);
 	ethosn_dma_free(top_allocator, dma_info);
 }
 
@@ -449,7 +452,7 @@ exit:
 }
 
 void ethosn_dma_release(struct ethosn_dma_allocator *top_allocator,
-			struct ethosn_dma_info *const dma_info)
+			struct ethosn_dma_info **dma_info)
 {
 	struct ethosn_dma_sub_allocator *sub_allocator;
 	const struct ethosn_dma_allocator_ops *ops;
@@ -457,8 +460,11 @@ void ethosn_dma_release(struct ethosn_dma_allocator *top_allocator,
 	if (IS_ERR_OR_NULL(dma_info))
 		return;
 
+	if (IS_ERR_OR_NULL(*dma_info))
+		return;
+
 	sub_allocator = ethosn_get_sub_allocator(top_allocator,
-						 dma_info->stream_type);
+						 (*dma_info)->stream_type);
 
 	if (!sub_allocator)
 		return;

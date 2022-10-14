@@ -635,10 +635,10 @@ early_exit:
 }
 
 static void iommu_release(struct ethosn_dma_sub_allocator *allocator,
-			  struct ethosn_dma_info *const _dma_info)
+			  struct ethosn_dma_info **_dma_info)
 {
 	struct ethosn_dma_info_internal *dma_info =
-		container_of(_dma_info, typeof(*dma_info), info);
+		container_of(*_dma_info, typeof(*dma_info), info);
 	struct dma_buf_internal *dma_buf_internal = dma_info->dma_buf_internal;
 
 	if (dma_info->info.size) {
@@ -657,6 +657,9 @@ static void iommu_release(struct ethosn_dma_sub_allocator *allocator,
 	devm_kfree(allocator->dev, dma_buf_internal);
 	memset(dma_info, 0, sizeof(*dma_info));
 	devm_kfree(allocator->dev, dma_info);
+
+	/* Clear the caller's pointer, so they aren't left with it dangling */
+	*_dma_info = (struct ethosn_dma_info *)NULL;
 }
 
 static void iommu_iova_unmap(struct ethosn_dma_sub_allocator *allocator,
@@ -686,11 +689,11 @@ static void iommu_iova_unmap(struct ethosn_dma_sub_allocator *allocator,
 }
 
 static void iommu_free(struct ethosn_dma_sub_allocator *allocator,
-		       struct ethosn_dma_info *const _dma_info)
+		       struct ethosn_dma_info **_dma_info)
 {
 	struct ethosn_dma_info_internal *dma_info =
-		container_of(_dma_info, typeof(*dma_info), info);
-	int nr_pages = DIV_ROUND_UP(_dma_info->size, PAGE_SIZE);
+		container_of(*_dma_info, typeof(*dma_info), info);
+	int nr_pages = DIV_ROUND_UP((*_dma_info)->size, PAGE_SIZE);
 
 	vunmap(dma_info->info.cpu_addr);
 
@@ -704,6 +707,9 @@ static void iommu_free(struct ethosn_dma_sub_allocator *allocator,
 
 	memset(dma_info, 0, sizeof(*dma_info));
 	devm_kfree(allocator->dev, dma_info);
+
+	/* Clear the caller's pointer, so they aren't left with it dangling */
+	*_dma_info = (struct ethosn_dma_info *)NULL;
 }
 
 static void iommu_sync_for_device(struct ethosn_dma_sub_allocator *allocator,

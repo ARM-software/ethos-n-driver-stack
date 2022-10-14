@@ -103,19 +103,21 @@ static void carveout_unmap(struct ethosn_dma_sub_allocator *allocator,
 {}
 
 static void carveout_free(struct ethosn_dma_sub_allocator *allocator,
-			  struct ethosn_dma_info *dma_info)
+			  struct ethosn_dma_info **dma_info)
 {
-	const dma_addr_t dma_addr = dma_info->iova_addr;
+	const dma_addr_t dma_addr = (*dma_info)->iova_addr;
 
 	/* FIXME:- We cannot allocate addresses at different 512MB offsets */
 	/* for the different streams. */
-	if (dma_info->size)
-		dma_free_wc(allocator->dev, dma_info->size,
-			    dma_info->cpu_addr,
+	if ((*dma_info)->size)
+		dma_free_wc(allocator->dev, (*dma_info)->size,
+			    (*dma_info)->cpu_addr,
 			    dma_addr);
 
-	memset(dma_info, 0, sizeof(struct ethosn_dma_info));
-	devm_kfree(allocator->dev, dma_info);
+	memset(*dma_info, 0, sizeof(struct ethosn_dma_info));
+	devm_kfree(allocator->dev, *dma_info);
+	/* Clear the caller's pointer, so they aren't left with it dangling */
+	*dma_info = (struct ethosn_dma_info *)NULL;
 }
 
 static void carveout_sync_for_device(struct ethosn_dma_sub_allocator *allocator,
