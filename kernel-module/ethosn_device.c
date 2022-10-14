@@ -1453,8 +1453,16 @@ static int firmware_load(struct ethosn_core *core,
 	fw_size = smmu_available ? big_fw_desc->ple_offset : code_size;
 	fw_offset = big_fw_desc->offset;
 
-	/* Allocate memory for firmware code */
-	if (!core->firmware) {
+	/* Allocate memory for firmware code. Note that the firmware binary size
+	 * may have changed since the memory was allocated (e.g. if a new
+	 * firmware binary was deployed while the kernel module is running,
+	 * so we may need to re-allocate.
+	 */
+	if (!core->firmware || core->firmware->size != fw_size) {
+		if (core->firmware)
+			ethosn_dma_unmap_and_free(core->main_allocator,
+						  &core->firmware);
+
 		core->firmware =
 			ethosn_dma_alloc(core->main_allocator, fw_size,
 					 ETHOSN_STREAM_FIRMWARE,
