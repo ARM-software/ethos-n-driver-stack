@@ -1670,13 +1670,18 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 			return ret;
 	}
 
-	/* Load the firmware */
-	ret = firmware_init(core);
+	/* Reset the Ethos-N core. Note that this doesn't run the NCU MCU,
+	 * so the firmware won't yet be executing code.
+	 */
+	ret = ethosn_reset(core);
 	if (ret)
 		return ret;
 
-	/* Reset the Ethos-N core */
-	ret = ethosn_reset(core);
+	/* Load the firmware. Note this must be done after resetting the device,
+	 * so that the firmware code isn't being run and we can safely
+	 * overwrite it
+	 */
+	ret = firmware_init(core);
 	if (ret)
 		return ret;
 
