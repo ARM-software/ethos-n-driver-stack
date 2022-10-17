@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2020,2022 Arm Limited.
+ * (C) COPYRIGHT 2018-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -27,6 +27,10 @@
     #include <linux/types.h>
 #else
     #include <stdint.h>
+#endif
+
+#ifdef __cplusplus
+    #include <cassert>
 #endif
 
 #if !defined(__cplusplus) || __cplusplus < 201402L
@@ -110,21 +114,21 @@ struct dl1_sysctlr0_r
 #ifdef __cplusplus
     CONSTEXPR dl1_sysctlr0_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_cpuwait() const { uint32_t value = static_cast<uint32_t>(bits.cpuwait); return value;}
-    CONSTEXPR void set_cpuwait(uint32_t value) { bits.cpuwait = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_cpuwait(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.cpuwait = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_lockup() const { uint32_t value = static_cast<uint32_t>(bits.lockup); return value;}
-    CONSTEXPR void set_lockup(uint32_t value) { bits.lockup = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_lockup(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.lockup = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_halted() const { uint32_t value = static_cast<uint32_t>(bits.halted); return value;}
-    CONSTEXPR void set_halted(uint32_t value) { bits.halted = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_halted(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.halted = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_rstreq() const { uint32_t value = static_cast<uint32_t>(bits.rstreq); return value;}
-    CONSTEXPR void set_rstreq(uint32_t value) { bits.rstreq = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_rstreq(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.rstreq = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_sleeping() const { uint32_t value = static_cast<uint32_t>(bits.sleeping); return value;}
-    CONSTEXPR void set_sleeping(uint32_t value) { bits.sleeping = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_sleeping(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.sleeping = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_initvtor() const { uint32_t value = static_cast<uint32_t>(bits.initvtor); return value;}
-    CONSTEXPR void set_initvtor(uint32_t value) { bits.initvtor = ((1u<<22)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_initvtor(uint32_t value) { assert(static_cast<uint32_t>(value) < 4194304u); bits.initvtor = static_cast<uint32_t>(value); }
     CONSTEXPR soft_reset_t get_soft_rstreq() const { soft_reset_t value = static_cast<soft_reset_t>(bits.soft_rstreq); return value;}
-    CONSTEXPR void set_soft_rstreq(soft_reset_t value) { bits.soft_rstreq = ((1u<<2)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_soft_rstreq(soft_reset_t value) { assert(static_cast<uint32_t>(value) < 4u); bits.soft_rstreq = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_hard_rstreq() const { uint32_t value = static_cast<uint32_t>(bits.hard_rstreq); return value;}
-    CONSTEXPR void set_hard_rstreq(uint32_t value) { bits.hard_rstreq = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_hard_rstreq(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.hard_rstreq = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -168,43 +172,43 @@ struct dl1_sysctlr1_r
 #ifdef __cplusplus
     CONSTEXPR dl1_sysctlr1_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_mcu_setevnt() const { uint32_t value = static_cast<uint32_t>(bits.mcu_setevnt); return value;}
-    CONSTEXPR void set_mcu_setevnt(uint32_t value) { bits.mcu_setevnt = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_mcu_setevnt(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.mcu_setevnt = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_mcu_setirq() const { uint32_t value = static_cast<uint32_t>(bits.mcu_setirq); return value;}
-    CONSTEXPR void set_mcu_setirq(uint32_t value) { bits.mcu_setirq = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_mcu_setirq(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.mcu_setirq = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_mcu_gpevnt() const { uint32_t value = static_cast<uint32_t>(bits.mcu_gpevnt); return value;}
-    CONSTEXPR void set_mcu_gpevnt(uint32_t value) { bits.mcu_gpevnt = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_mcu_gpevnt(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.mcu_gpevnt = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_tsu_evnt() const { uint32_t value = static_cast<uint32_t>(bits.tsu_evnt); return value;}
-    CONSTEXPR void set_tsu_evnt(uint32_t value) { bits.tsu_evnt = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_tsu_evnt(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.tsu_evnt = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_tsu_irq() const { uint32_t value = static_cast<uint32_t>(bits.tsu_irq); return value;}
-    CONSTEXPR void set_tsu_irq(uint32_t value) { bits.tsu_irq = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_tsu_irq(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.tsu_irq = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_tsu_dbg() const { uint32_t value = static_cast<uint32_t>(bits.tsu_dbg); return value;}
-    CONSTEXPR void set_tsu_dbg(uint32_t value) { bits.tsu_dbg = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_tsu_dbg(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.tsu_dbg = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_txev_ple() const { uint32_t value = static_cast<uint32_t>(bits.txev_ple); return value;}
-    CONSTEXPR void set_txev_ple(uint32_t value) { bits.txev_ple = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_txev_ple(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.txev_ple = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_txev_dbg() const { uint32_t value = static_cast<uint32_t>(bits.txev_dbg); return value;}
-    CONSTEXPR void set_txev_dbg(uint32_t value) { bits.txev_dbg = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_txev_dbg(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.txev_dbg = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_rxev_degroup() const { uint32_t value = static_cast<uint32_t>(bits.rxev_degroup); return value;}
-    CONSTEXPR void set_rxev_degroup(uint32_t value) { bits.rxev_degroup = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_rxev_degroup(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.rxev_degroup = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_rxev_evnt() const { uint32_t value = static_cast<uint32_t>(bits.rxev_evnt); return value;}
-    CONSTEXPR void set_rxev_evnt(uint32_t value) { bits.rxev_evnt = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_rxev_evnt(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.rxev_evnt = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_rxev_irq() const { uint32_t value = static_cast<uint32_t>(bits.rxev_irq); return value;}
-    CONSTEXPR void set_rxev_irq(uint32_t value) { bits.rxev_irq = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_rxev_irq(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.rxev_irq = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_pmu_evnt() const { uint32_t value = static_cast<uint32_t>(bits.pmu_evnt); return value;}
-    CONSTEXPR void set_pmu_evnt(uint32_t value) { bits.pmu_evnt = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_pmu_evnt(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.pmu_evnt = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_pmu_irq() const { uint32_t value = static_cast<uint32_t>(bits.pmu_irq); return value;}
-    CONSTEXPR void set_pmu_irq(uint32_t value) { bits.pmu_irq = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_pmu_irq(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.pmu_irq = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_pmu_dbg() const { uint32_t value = static_cast<uint32_t>(bits.pmu_dbg); return value;}
-    CONSTEXPR void set_pmu_dbg(uint32_t value) { bits.pmu_dbg = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_pmu_dbg(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.pmu_dbg = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_pmu_eng() const { uint32_t value = static_cast<uint32_t>(bits.pmu_eng); return value;}
-    CONSTEXPR void set_pmu_eng(uint32_t value) { bits.pmu_eng = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_pmu_eng(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.pmu_eng = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_err_tolr_evnt() const { uint32_t value = static_cast<uint32_t>(bits.err_tolr_evnt); return value;}
-    CONSTEXPR void set_err_tolr_evnt(uint32_t value) { bits.err_tolr_evnt = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_err_tolr_evnt(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.err_tolr_evnt = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_err_tolr_irq() const { uint32_t value = static_cast<uint32_t>(bits.err_tolr_irq); return value;}
-    CONSTEXPR void set_err_tolr_irq(uint32_t value) { bits.err_tolr_irq = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_err_tolr_irq(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.err_tolr_irq = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_err_func_irq() const { uint32_t value = static_cast<uint32_t>(bits.err_func_irq); return value;}
-    CONSTEXPR void set_err_func_irq(uint32_t value) { bits.err_func_irq = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_err_func_irq(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.err_func_irq = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_err_recv_irq() const { uint32_t value = static_cast<uint32_t>(bits.err_recv_irq); return value;}
-    CONSTEXPR void set_err_recv_irq(uint32_t value) { bits.err_recv_irq = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_err_recv_irq(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.err_recv_irq = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -227,9 +231,9 @@ struct dl1_pwrctlr_r
 #ifdef __cplusplus
     CONSTEXPR dl1_pwrctlr_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_active() const { uint32_t value = static_cast<uint32_t>(bits.active); return value;}
-    CONSTEXPR void set_active(uint32_t value) { bits.active = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_active(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.active = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_qreqn() const { uint32_t value = static_cast<uint32_t>(bits.qreqn); return value;}
-    CONSTEXPR void set_qreqn(uint32_t value) { bits.qreqn = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_qreqn(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.qreqn = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -253,11 +257,11 @@ struct dl1_clrirq_ext_r
 #ifdef __cplusplus
     CONSTEXPR dl1_clrirq_ext_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_err() const { uint32_t value = static_cast<uint32_t>(bits.err); return value;}
-    CONSTEXPR void set_err(uint32_t value) { bits.err = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_err(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.err = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_debug() const { uint32_t value = static_cast<uint32_t>(bits.debug); return value;}
-    CONSTEXPR void set_debug(uint32_t value) { bits.debug = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_debug(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.debug = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_job() const { uint32_t value = static_cast<uint32_t>(bits.job); return value;}
-    CONSTEXPR void set_job(uint32_t value) { bits.job = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_job(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.job = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -283,11 +287,11 @@ struct dl1_setirq_int_r
 #ifdef __cplusplus
     CONSTEXPR dl1_setirq_int_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_event() const { uint32_t value = static_cast<uint32_t>(bits.event); return value;}
-    CONSTEXPR void set_event(uint32_t value) { bits.event = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_event(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.event = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_interrupt() const { uint32_t value = static_cast<uint32_t>(bits.interrupt); return value;}
-    CONSTEXPR void set_interrupt(uint32_t value) { bits.interrupt = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_interrupt(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.interrupt = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_nmi() const { uint32_t value = static_cast<uint32_t>(bits.nmi); return value;}
-    CONSTEXPR void set_nmi(uint32_t value) { bits.nmi = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_nmi(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.nmi = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -319,25 +323,25 @@ struct dl1_irq_status_r
 #ifdef __cplusplus
     CONSTEXPR dl1_irq_status_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_setirq_err() const { uint32_t value = static_cast<uint32_t>(bits.setirq_err); return value;}
-    CONSTEXPR void set_setirq_err(uint32_t value) { bits.setirq_err = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_setirq_err(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.setirq_err = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_setirq_dbg() const { uint32_t value = static_cast<uint32_t>(bits.setirq_dbg); return value;}
-    CONSTEXPR void set_setirq_dbg(uint32_t value) { bits.setirq_dbg = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_setirq_dbg(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.setirq_dbg = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_setirq_job() const { uint32_t value = static_cast<uint32_t>(bits.setirq_job); return value;}
-    CONSTEXPR void set_setirq_job(uint32_t value) { bits.setirq_job = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_setirq_job(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.setirq_job = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_tsu_dbg() const { uint32_t value = static_cast<uint32_t>(bits.tsu_dbg); return value;}
-    CONSTEXPR void set_tsu_dbg(uint32_t value) { bits.tsu_dbg = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_tsu_dbg(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.tsu_dbg = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_pmu_dbg() const { uint32_t value = static_cast<uint32_t>(bits.pmu_dbg); return value;}
-    CONSTEXPR void set_pmu_dbg(uint32_t value) { bits.pmu_dbg = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_pmu_dbg(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.pmu_dbg = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_pmu_eng() const { uint32_t value = static_cast<uint32_t>(bits.pmu_eng); return value;}
-    CONSTEXPR void set_pmu_eng(uint32_t value) { bits.pmu_eng = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_pmu_eng(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.pmu_eng = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_tol_err() const { uint32_t value = static_cast<uint32_t>(bits.tol_err); return value;}
-    CONSTEXPR void set_tol_err(uint32_t value) { bits.tol_err = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_tol_err(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.tol_err = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_func_err() const { uint32_t value = static_cast<uint32_t>(bits.func_err); return value;}
-    CONSTEXPR void set_func_err(uint32_t value) { bits.func_err = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_func_err(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.func_err = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_rec_err() const { uint32_t value = static_cast<uint32_t>(bits.rec_err); return value;}
-    CONSTEXPR void set_rec_err(uint32_t value) { bits.rec_err = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_rec_err(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.rec_err = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_unrec_err() const { uint32_t value = static_cast<uint32_t>(bits.unrec_err); return value;}
-    CONSTEXPR void set_unrec_err(uint32_t value) { bits.unrec_err = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_unrec_err(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.unrec_err = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -528,9 +532,9 @@ struct dl1_stream0_stream_security_r
 #ifdef __cplusplus
     CONSTEXPR dl1_stream0_stream_security_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_mmusecsid() const { uint32_t value = static_cast<uint32_t>(bits.mmusecsid); return value;}
-    CONSTEXPR void set_mmusecsid(uint32_t value) { bits.mmusecsid = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_mmusecsid(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.mmusecsid = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_protns() const { uint32_t value = static_cast<uint32_t>(bits.protns); return value;}
-    CONSTEXPR void set_protns(uint32_t value) { bits.protns = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_protns(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.protns = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -552,7 +556,7 @@ struct dl1_stream0_nsaid_r
 #ifdef __cplusplus
     CONSTEXPR dl1_stream0_nsaid_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_nsaid() const { uint32_t value = static_cast<uint32_t>(bits.nsaid); return value;}
-    CONSTEXPR void set_nsaid(uint32_t value) { bits.nsaid = ((1u<<4)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_nsaid(uint32_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.nsaid = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -596,9 +600,9 @@ struct dl1_stream0_mmussid_r
 #ifdef __cplusplus
     CONSTEXPR dl1_stream0_mmussid_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_mmussid() const { uint32_t value = static_cast<uint32_t>(bits.mmussid); return value;}
-    CONSTEXPR void set_mmussid(uint32_t value) { bits.mmussid = ((1u<<20)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_mmussid(uint32_t value) { assert(static_cast<uint32_t>(value) < 1048576u); bits.mmussid = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_mmussidv() const { uint32_t value = static_cast<uint32_t>(bits.mmussidv); return value;}
-    CONSTEXPR void set_mmussidv(uint32_t value) { bits.mmussidv = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_mmussidv(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.mmussidv = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -620,7 +624,7 @@ struct dl1_stream0_attr_control_r
 #ifdef __cplusplus
     CONSTEXPR dl1_stream0_attr_control_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_attrlocked() const { uint32_t value = static_cast<uint32_t>(bits.attrlocked); return value;}
-    CONSTEXPR void set_attrlocked(uint32_t value) { bits.attrlocked = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_attrlocked(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.attrlocked = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -642,7 +646,7 @@ struct dl1_stream0_memattr_r
 #ifdef __cplusplus
     CONSTEXPR dl1_stream0_memattr_r(uint32_t init=0) : word(init) {}
     CONSTEXPR memory_attributes_t get_memattr() const { memory_attributes_t value = static_cast<memory_attributes_t>(bits.memattr); return value;}
-    CONSTEXPR void set_memattr(memory_attributes_t value) { bits.memattr = ((1u<<4)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_memattr(memory_attributes_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.memattr = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -665,7 +669,7 @@ struct dl1_stream0_address_extend_r
 #ifdef __cplusplus
     CONSTEXPR dl1_stream0_address_extend_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_addrextend() const { uint32_t value = static_cast<uint32_t>(bits.addrextend); return value;}
-    CONSTEXPR void set_addrextend(uint32_t value) { bits.addrextend = ((1u<<20)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_addrextend(uint32_t value) { assert(static_cast<uint32_t>(value) < 1048576u); bits.addrextend = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -692,19 +696,19 @@ struct dl1_npu_id_r
 #ifdef __cplusplus
     CONSTEXPR dl1_npu_id_r(uint32_t init=0) : word(init) {}
     CONSTEXPR npu_version_status_t get_version_status() const { npu_version_status_t value = static_cast<npu_version_status_t>(bits.version_status); return value;}
-    CONSTEXPR void set_version_status(npu_version_status_t value) { bits.version_status = ((1u<<4)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_version_status(npu_version_status_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.version_status = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_version_minor() const { uint32_t value = static_cast<uint32_t>(bits.version_minor); return value;}
-    CONSTEXPR void set_version_minor(uint32_t value) { bits.version_minor = ((1u<<4)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_version_minor(uint32_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.version_minor = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_version_major() const { uint32_t value = static_cast<uint32_t>(bits.version_major); return value;}
-    CONSTEXPR void set_version_major(uint32_t value) { bits.version_major = ((1u<<4)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_version_major(uint32_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.version_major = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_product_major() const { uint32_t value = static_cast<uint32_t>(bits.product_major); return value;}
-    CONSTEXPR void set_product_major(uint32_t value) { bits.product_major = ((1u<<4)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_product_major(uint32_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.product_major = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_arch_rev() const { uint32_t value = static_cast<uint32_t>(bits.arch_rev); return value;}
-    CONSTEXPR void set_arch_rev(uint32_t value) { bits.arch_rev = ((1u<<8)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_arch_rev(uint32_t value) { assert(static_cast<uint32_t>(value) < 256u); bits.arch_rev = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_arch_minor() const { uint32_t value = static_cast<uint32_t>(bits.arch_minor); return value;}
-    CONSTEXPR void set_arch_minor(uint32_t value) { bits.arch_minor = ((1u<<4)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_arch_minor(uint32_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.arch_minor = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_arch_major() const { uint32_t value = static_cast<uint32_t>(bits.arch_major); return value;}
-    CONSTEXPR void set_arch_major(uint32_t value) { bits.arch_major = ((1u<<4)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_arch_major(uint32_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.arch_major = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -728,11 +732,11 @@ struct dl1_unit_count_r
 #ifdef __cplusplus
     CONSTEXPR dl1_unit_count_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_quad_count() const { uint32_t value = static_cast<uint32_t>(bits.quad_count); return value;}
-    CONSTEXPR void set_quad_count(uint32_t value) { bits.quad_count = ((1u<<8)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_quad_count(uint32_t value) { assert(static_cast<uint32_t>(value) < 256u); bits.quad_count = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_engines_per_quad() const { uint32_t value = static_cast<uint32_t>(bits.engines_per_quad); return value;}
-    CONSTEXPR void set_engines_per_quad(uint32_t value) { bits.engines_per_quad = ((1u<<8)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_engines_per_quad(uint32_t value) { assert(static_cast<uint32_t>(value) < 256u); bits.engines_per_quad = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_dfc_emc_per_engine() const { uint32_t value = static_cast<uint32_t>(bits.dfc_emc_per_engine); return value;}
-    CONSTEXPR void set_dfc_emc_per_engine(uint32_t value) { bits.dfc_emc_per_engine = ((1u<<4)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_dfc_emc_per_engine(uint32_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.dfc_emc_per_engine = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -761,19 +765,19 @@ struct dl1_mce_features_r
 #ifdef __cplusplus
     CONSTEXPR dl1_mce_features_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_ifm_generated_per_engine() const { uint32_t value = static_cast<uint32_t>(bits.ifm_generated_per_engine); return value;}
-    CONSTEXPR void set_ifm_generated_per_engine(uint32_t value) { bits.ifm_generated_per_engine = ((1u<<4)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_ifm_generated_per_engine(uint32_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.ifm_generated_per_engine = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_ofm_generated_per_engine() const { uint32_t value = static_cast<uint32_t>(bits.ofm_generated_per_engine); return value;}
-    CONSTEXPR void set_ofm_generated_per_engine(uint32_t value) { bits.ofm_generated_per_engine = ((1u<<4)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_ofm_generated_per_engine(uint32_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.ofm_generated_per_engine = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_mce_num_macs() const { uint32_t value = static_cast<uint32_t>(bits.mce_num_macs); return value;}
-    CONSTEXPR void set_mce_num_macs(uint32_t value) { bits.mce_num_macs = ((1u<<8)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_mce_num_macs(uint32_t value) { assert(static_cast<uint32_t>(value) < 256u); bits.mce_num_macs = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_mce_num_acc() const { uint32_t value = static_cast<uint32_t>(bits.mce_num_acc); return value;}
-    CONSTEXPR void set_mce_num_acc(uint32_t value) { bits.mce_num_acc = ((1u<<8)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_mce_num_acc(uint32_t value) { assert(static_cast<uint32_t>(value) < 256u); bits.mce_num_acc = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_winograd_support() const { uint32_t value = static_cast<uint32_t>(bits.winograd_support); return value;}
-    CONSTEXPR void set_winograd_support(uint32_t value) { bits.winograd_support = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_winograd_support(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.winograd_support = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_tsu_16bit_sequence_support() const { uint32_t value = static_cast<uint32_t>(bits.tsu_16bit_sequence_support); return value;}
-    CONSTEXPR void set_tsu_16bit_sequence_support(uint32_t value) { bits.tsu_16bit_sequence_support = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_tsu_16bit_sequence_support(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.tsu_16bit_sequence_support = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_ofm_scaling_16bit_support() const { uint32_t value = static_cast<uint32_t>(bits.ofm_scaling_16bit_support); return value;}
-    CONSTEXPR void set_ofm_scaling_16bit_support(uint32_t value) { bits.ofm_scaling_16bit_support = ((1u<<1)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_ofm_scaling_16bit_support(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.ofm_scaling_16bit_support = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -797,11 +801,11 @@ struct dl1_dfc_features_r
 #ifdef __cplusplus
     CONSTEXPR dl1_dfc_features_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_dfc_mem_size_per_emc() const { uint32_t value = static_cast<uint32_t>(bits.dfc_mem_size_per_emc); return (value << 12);}
-    CONSTEXPR void set_dfc_mem_size_per_emc(uint32_t value) { bits.dfc_mem_size_per_emc = ((1u<<16)-1) & static_cast<uint32_t>((value >> 12)); }
+    CONSTEXPR void set_dfc_mem_size_per_emc(uint32_t value) { assert(static_cast<uint32_t>((value >> 12)) < 65536u); bits.dfc_mem_size_per_emc = static_cast<uint32_t>((value >> 12)); }
     CONSTEXPR uint32_t get_bank_count() const { uint32_t value = static_cast<uint32_t>(bits.bank_count); return value;}
-    CONSTEXPR void set_bank_count(uint32_t value) { bits.bank_count = ((1u<<6)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_bank_count(uint32_t value) { assert(static_cast<uint32_t>(value) < 64u); bits.bank_count = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_activation_compression() const { uint32_t value = static_cast<uint32_t>(bits.activation_compression); return value;}
-    CONSTEXPR void set_activation_compression(uint32_t value) { bits.activation_compression = ((1u<<4)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_activation_compression(uint32_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.activation_compression = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -825,13 +829,13 @@ struct dl1_ple_features_r
 #ifdef __cplusplus
     CONSTEXPR dl1_ple_features_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_ple_input_mem_size() const { uint32_t value = static_cast<uint32_t>(bits.ple_input_mem_size); return (value << 8);}
-    CONSTEXPR void set_ple_input_mem_size(uint32_t value) { bits.ple_input_mem_size = ((1u<<8)-1) & static_cast<uint32_t>((value >> 8)); }
+    CONSTEXPR void set_ple_input_mem_size(uint32_t value) { assert(static_cast<uint32_t>((value >> 8)) < 256u); bits.ple_input_mem_size = static_cast<uint32_t>((value >> 8)); }
     CONSTEXPR uint32_t get_ple_output_mem_size() const { uint32_t value = static_cast<uint32_t>(bits.ple_output_mem_size); return (value << 8);}
-    CONSTEXPR void set_ple_output_mem_size(uint32_t value) { bits.ple_output_mem_size = ((1u<<8)-1) & static_cast<uint32_t>((value >> 8)); }
+    CONSTEXPR void set_ple_output_mem_size(uint32_t value) { assert(static_cast<uint32_t>((value >> 8)) < 256u); bits.ple_output_mem_size = static_cast<uint32_t>((value >> 8)); }
     CONSTEXPR uint32_t get_ple_vrf_mem_size() const { uint32_t value = static_cast<uint32_t>(bits.ple_vrf_mem_size); return (value << 4);}
-    CONSTEXPR void set_ple_vrf_mem_size(uint32_t value) { bits.ple_vrf_mem_size = ((1u<<8)-1) & static_cast<uint32_t>((value >> 4)); }
+    CONSTEXPR void set_ple_vrf_mem_size(uint32_t value) { assert(static_cast<uint32_t>((value >> 4)) < 256u); bits.ple_vrf_mem_size = static_cast<uint32_t>((value >> 4)); }
     CONSTEXPR uint32_t get_ple_mem_size() const { uint32_t value = static_cast<uint32_t>(bits.ple_mem_size); return (value << 8);}
-    CONSTEXPR void set_ple_mem_size(uint32_t value) { bits.ple_mem_size = ((1u<<8)-1) & static_cast<uint32_t>((value >> 8)); }
+    CONSTEXPR void set_ple_mem_size(uint32_t value) { assert(static_cast<uint32_t>((value >> 8)) < 256u); bits.ple_mem_size = static_cast<uint32_t>((value >> 8)); }
 #endif
 };
 
@@ -855,11 +859,11 @@ struct dl1_wd_features_r
 #ifdef __cplusplus
     CONSTEXPR dl1_wd_features_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_buffer_size() const { uint32_t value = static_cast<uint32_t>(bits.buffer_size); return value;}
-    CONSTEXPR void set_buffer_size(uint32_t value) { bits.buffer_size = ((1u<<8)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_buffer_size(uint32_t value) { assert(static_cast<uint32_t>(value) < 256u); bits.buffer_size = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_max_dim() const { uint32_t value = static_cast<uint32_t>(bits.max_dim); return value;}
-    CONSTEXPR void set_max_dim(uint32_t value) { bits.max_dim = ((1u<<8)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_max_dim(uint32_t value) { assert(static_cast<uint32_t>(value) < 256u); bits.max_dim = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_compression_version() const { uint32_t value = static_cast<uint32_t>(bits.compression_version); return value;}
-    CONSTEXPR void set_compression_version(uint32_t value) { bits.compression_version = ((1u<<4)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_compression_version(uint32_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.compression_version = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -882,9 +886,9 @@ struct dl1_vector_engine_features_r
 #ifdef __cplusplus
     CONSTEXPR dl1_vector_engine_features_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_vector_engine_version() const { uint32_t value = static_cast<uint32_t>(bits.vector_engine_version); return value;}
-    CONSTEXPR void set_vector_engine_version(uint32_t value) { bits.vector_engine_version = ((1u<<4)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_vector_engine_version(uint32_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.vector_engine_version = static_cast<uint32_t>(value); }
     CONSTEXPR uint32_t get_ple_lanes() const { uint32_t value = static_cast<uint32_t>(bits.ple_lanes); return (value + 1);}
-    CONSTEXPR void set_ple_lanes(uint32_t value) { bits.ple_lanes = ((1u<<2)-1) & static_cast<uint32_t>((value - 1)); }
+    CONSTEXPR void set_ple_lanes(uint32_t value) { assert(static_cast<uint32_t>((value - 1)) < 4u); bits.ple_lanes = static_cast<uint32_t>((value - 1)); }
 #endif
 };
 
@@ -906,7 +910,7 @@ struct dl1_ecoid_r
 #ifdef __cplusplus
     CONSTEXPR dl1_ecoid_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_ecoid() const { uint32_t value = static_cast<uint32_t>(bits.ecoid); return value;}
-    CONSTEXPR void set_ecoid(uint32_t value) { bits.ecoid = ((1u<<12)-1) & static_cast<uint32_t>(value); }
+    CONSTEXPR void set_ecoid(uint32_t value) { assert(static_cast<uint32_t>(value) < 4096u); bits.ecoid = static_cast<uint32_t>(value); }
 #endif
 };
 
@@ -930,9 +934,9 @@ struct dl1_streamid_width_r
 #ifdef __cplusplus
     CONSTEXPR dl1_streamid_width_r(uint32_t init=0) : word(init) {}
     CONSTEXPR uint32_t get_mmusid_w() const { uint32_t value = static_cast<uint32_t>(bits.mmusid_w); return (value + 1);}
-    CONSTEXPR void set_mmusid_w(uint32_t value) { bits.mmusid_w = ((1u<<5)-1) & static_cast<uint32_t>((value - 1)); }
+    CONSTEXPR void set_mmusid_w(uint32_t value) { assert(static_cast<uint32_t>((value - 1)) < 32u); bits.mmusid_w = static_cast<uint32_t>((value - 1)); }
     CONSTEXPR uint32_t get_mmussid_w() const { uint32_t value = static_cast<uint32_t>(bits.mmussid_w); return (value + 1);}
-    CONSTEXPR void set_mmussid_w(uint32_t value) { bits.mmussid_w = ((1u<<5)-1) & static_cast<uint32_t>((value - 1)); }
+    CONSTEXPR void set_mmussid_w(uint32_t value) { assert(static_cast<uint32_t>((value - 1)) < 32u); bits.mmussid_w = static_cast<uint32_t>((value - 1)); }
 #endif
 };
 
