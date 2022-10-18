@@ -582,7 +582,7 @@ static int ethosn_hard_reset(struct ethosn_core *core)
 	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
 	unsigned int timeout;
 
-	dev_info(core->dev, "Hard reset the hardware.\n");
+	dev_info(core->dev, "Hard reset the hardware directly.\n");
 
 	/* Initiate hard reset */
 	sysctlr0.bits.hard_rstreq = 1;
@@ -610,6 +610,8 @@ static int ethosn_hard_reset(struct ethosn_core *core)
 
 #else
 
+	dev_info(core->dev, "Hard reset the hardware through SMC.\n");
+
 	/*
 	 * Access to DL1 registers is blocked in secure mode so reset is done
 	 * with a SMC call. The call will block until the reset is done or
@@ -628,7 +630,7 @@ static int ethosn_soft_reset(struct ethosn_core *core)
 	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
 	unsigned int timeout;
 
-	dev_info(core->dev, "Soft reset the hardware.\n");
+	dev_info(core->dev, "Soft reset the hardware directly.\n");
 
 	/* Soft reset, block new AXI requests */
 	sysctlr0.bits.soft_rstreq = 3;
@@ -655,6 +657,8 @@ static int ethosn_soft_reset(struct ethosn_core *core)
 	}
 
 #else
+
+	dev_info(core->dev, "Soft reset the hardware through SMC.\n");
 
 	/*
 	 * Access to DL1 registers is blocked in secure mode so reset is done
