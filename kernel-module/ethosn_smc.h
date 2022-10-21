@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2021 Arm Limited.
+ * (C) COPYRIGHT 2021-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -51,17 +51,18 @@ int ethosn_smc_is_secure(const struct device *dev,
 
 /**
  * ethosn_smc_core_reset() - Call SiP service to reset a NPU core
- * @device:		Pointer to the struct device on which to log the error
- *			if any.
- * @core_addr:		Address to Ethos-N core.
+ * @device:	Pointer to the struct device on which to log the error if any.
+ * @core_addr:	Address to Ethos-N core.
  * @asset_alloc_idx:	Index of the asset allocator to use.
- * @hard_reset:		Indicates if a hard or soft reset should be performed.
+ * @halt:	Indicates if a halt reset should be performed.
+ * @hard_reset:	Indicates if a hard or soft reset should be performed.
  *
  * Return: 0 on success, else error code.
  */
 int ethosn_smc_core_reset(const struct device *dev,
 			  phys_addr_t core_addr,
 			  uint32_t asset_alloc_idx,
-			  int hard_reset);
+			  bool halt,
+			  bool hard_reset);
 
 #endif /* _ETHOSN_SMC_H_ */

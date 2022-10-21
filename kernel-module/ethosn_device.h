@@ -329,10 +329,12 @@ void ethosn_notify_firmware(struct ethosn_core *core);
 /**
  * ethosn_reset() - Reset the Ethos-N .
  * @core:	Pointer to Ethos-N core.
+ * @halt:	Determines whether the reset is a halt or full reset
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_reset(struct ethosn_core *core);
+int ethosn_reset(struct ethosn_core *core,
+		 bool halt);
 
 /**
  * ethosn_set_power_ctrl() - Configure power control.

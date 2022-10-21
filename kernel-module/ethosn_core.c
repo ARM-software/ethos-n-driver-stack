@@ -353,7 +353,7 @@ static int ethosn_pm_common_suspend(struct device *dev)
 		core->current_inference = NULL;
 	}
 
-	ret = ethosn_reset(core);
+	ret = ethosn_reset(core, true);
 exit_pm_suspend:
 	if (!ret && core->profiling.config.enable_profiling)
 		++core->profiling.pm_suspend_count;

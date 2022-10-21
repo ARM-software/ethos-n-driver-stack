@@ -580,7 +580,8 @@ void ethosn_notify_firmware(struct ethosn_core *core)
 			     irq.word);
 }
 
-static int ethosn_hard_reset(struct ethosn_core *core)
+static int ethosn_hard_reset(struct ethosn_core *core,
+			     bool halt)
 {
 #ifdef ETHOSN_NS
 	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
@@ -624,11 +625,15 @@ static int ethosn_hard_reset(struct ethosn_core *core)
 	 * Only the first asset allocator is being used right now so the
 	 * allocator index is hardcoded to 0.
 	 */
-	return ethosn_smc_core_reset(core->dev, core->phys_addr, 0U, 1);
+	if (ethosn_smc_core_reset(core->dev, core->phys_addr, 0U, halt, true))
+		return -ETIME;
+
+	return 0;
 #endif
 }
 
-static int ethosn_soft_reset(struct ethosn_core *core)
+static int ethosn_soft_reset(struct ethosn_core *core,
+			     bool halt)
 {
 #ifdef ETHOSN_NS
 	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
@@ -672,7 +677,7 @@ static int ethosn_soft_reset(struct ethosn_core *core)
 	 * Only the first asset allocator is being used right now so the
 	 * allocator index is hardcoded to 0.
 	 */
-	if (ethosn_smc_core_reset(core->dev, core->phys_addr, 0U, 0))
+	if (ethosn_smc_core_reset(core->dev, core->phys_addr, 0U, halt, false))
 		return -ETIME;
 
 #endif
@@ -680,13 +685,14 @@ static int ethosn_soft_reset(struct ethosn_core *core)
 	return 0;
 }
 
-int ethosn_reset(struct ethosn_core *core)
+int ethosn_reset(struct ethosn_core *core,
+		 bool halt)
 {
 	int ret = -EINVAL;
 
-	ret = ethosn_soft_reset(core);
+	ret = ethosn_soft_reset(core, halt);
 	if (ret)
-		ret = ethosn_hard_reset(core);
+		ret = ethosn_hard_reset(core, halt);
 
 	return ret;
 }
@@ -1702,7 +1708,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 	/* Reset the Ethos-N core. Note that this doesn't run the NCU MCU,
 	 * so the firmware won't yet be executing code.
 	 */
-	ret = ethosn_reset(core);
+	ret = ethosn_reset(core, false);
 	if (ret)
 		return ret;
 
@@ -2486,7 +2492,7 @@ void ethosn_device_deinit(struct ethosn_core *core)
 
 	ethosn_global_core_for_testing = NULL;
 
-	ethosn_reset(core);
+	ethosn_reset(core, false);
 	ethosn_firmware_deinit(core);
 	ethosn_mailbox_free(core);
 	ethosn_firmware_log_free(core);
