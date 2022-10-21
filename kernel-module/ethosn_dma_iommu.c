@@ -557,7 +557,7 @@ static struct ethosn_dma_info *iommu_import(
 	sctrlst = (struct scatterlist **)
 		  devm_kzalloc(allocator->dev,
 			       sizeof(struct scatterlist *) *
-			       dma_buf_internal->sgt->orig_nents,
+			       dma_buf_internal->sgt->nents,
 			       GFP_KERNEL);
 	if (!sctrlst)
 		goto fail_unmap_attachment;
@@ -565,7 +565,7 @@ static struct ethosn_dma_info *iommu_import(
 	pages = (struct page **)
 		devm_kzalloc(allocator->dev,
 			     sizeof(struct page *) *
-			     dma_buf_internal->sgt->orig_nents,
+			     dma_buf_internal->sgt->nents,
 			     GFP_KERNEL);
 	if (!pages)
 		goto free_scatterlist;
@@ -573,7 +573,7 @@ static struct ethosn_dma_info *iommu_import(
 	dma_addr = (dma_addr_t *)
 		   devm_kzalloc(
 		allocator->dev,
-		sizeof(dma_addr_t) * dma_buf_internal->sgt->orig_nents,
+		sizeof(dma_addr_t) * dma_buf_internal->sgt->nents,
 		GFP_KERNEL);
 
 	if (!dma_addr)
