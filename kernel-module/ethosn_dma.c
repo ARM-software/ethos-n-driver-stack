@@ -436,7 +436,7 @@ struct ethosn_dma_info *ethosn_dma_import(
 
 	if (IS_ERR_OR_NULL(dma_info)) {
 		dev_err(sub_allocator->dev, "failed to dma_import %zu bytes\n",
-			dma_info->size);
+			size);
 		goto exit;
 	}
 
