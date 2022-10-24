@@ -711,8 +711,12 @@ static void iommu_free(struct ethosn_dma_sub_allocator *allocator,
 	vunmap(dma_info->info.cpu_addr);
 
 	if (dma_info->info.size) {
-		iommu_free_pages(allocator, dma_info->dma_addr, dma_info->pages,
-				 nr_pages);
+		/* Only free the pages if we allocated them,
+		 * not the case for dmabuf import?
+		 */
+		if (!dma_info->dma_buf_internal)
+			iommu_free_pages(allocator, dma_info->dma_addr,
+					 dma_info->pages, nr_pages);
 
 		devm_kfree(allocator->dev, dma_info->dma_addr);
 		devm_kfree(allocator->dev, dma_info->pages);
