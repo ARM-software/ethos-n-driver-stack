@@ -192,7 +192,8 @@ public:
             return m_MappedData;
         }
 
-        m_MappedData = reinterpret_cast<uint8_t*>(mmap(nullptr, m_Size, PROT_WRITE, MAP_SHARED, m_BufferFd, 0));
+        m_MappedData =
+            reinterpret_cast<uint8_t*>(mmap(nullptr, m_Size, PROT_WRITE | PROT_READ, MAP_SHARED, m_BufferFd, 0));
         if (m_MappedData == MAP_FAILED)
         {
             m_MappedData = nullptr;
