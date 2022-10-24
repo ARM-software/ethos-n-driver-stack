@@ -510,6 +510,7 @@ static struct ethosn_dma_info *iommu_import(
 	struct scatterlist **sctrlst = NULL;
 	struct scatterlist *scatterlist = NULL;
 	struct scatterlist *tmp_scatterlist = NULL;
+	struct device *parent_device;
 
 	dma_info =
 		devm_kzalloc(allocator->dev,
@@ -531,8 +532,20 @@ static struct ethosn_dma_info *iommu_import(
 	if (IS_ERR(dma_buf_internal->dmabuf))
 		goto free_buf_internal;
 
+	/* We can't pass the allocator device to dma_buf_attach, which leads to
+	 * the linux dma framework attempting to map the buffer using the iommu
+	 * mentioned in the dts for the allocator, which is not what we want
+	 * because we are handling the mapping ourselves. This was leading to
+	 * two mappings occurring which was leading to crashes and corrupted
+	 * data.
+	 *
+	 * Instead we pass the ethosn_core device, which does not have an
+	 * associated iommu, so the linux dma framework does a "direct" mapping,
+	 * which doesn't seem to cause any problems.
+	 */
+	parent_device = allocator->dev->parent->parent;
 	dma_buf_internal->attachment = dma_buf_attach(dma_buf_internal->dmabuf,
-						      allocator->dev);
+						      parent_device);
 	if (IS_ERR(dma_buf_internal->attachment))
 		goto fail_put;
 
