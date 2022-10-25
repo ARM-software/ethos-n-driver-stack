@@ -28,8 +28,9 @@
 		ranges;
 
 		/* 'ethosn_protected_reserved' must be page aligned (page size = 0x1000) */
-		 ethosn_protected_reserved: ethosn_protected_reserved@fac00000 {
-			reg = <0 0xfac00000 0 0x004400000>;
+		 ethosn_protected_reserved: ethosn_protected_reserved@880000000 {
+			/* Must be kept in sync with protected memory regions in TF-A */
+			reg = <0x8 0x80000000 0 0x004400000>;
 			status = "disabled";
 			no-map;
 		};
