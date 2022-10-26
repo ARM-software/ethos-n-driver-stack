@@ -401,7 +401,7 @@ static int iommu_iova_map(struct ethosn_dma_sub_allocator *allocator,
 		iommu_get_stream(domain, _dma_info->stream_type);
 	struct ethosn_dma_info_internal *dma_info =
 		container_of(_dma_info, typeof(*dma_info), info);
-	int nr_scatter_pages = ethosn_nr_sg_objects(dma_info);
+	int nr_scatter_entries = ethosn_nr_sg_objects(dma_info);
 	dma_addr_t start_addr = 0;
 	int i, err, iommu_prot = 0;
 
@@ -439,12 +439,24 @@ static int iommu_iova_map(struct ethosn_dma_sub_allocator *allocator,
 		"%s: mapping %lu bytes starting at 0x%llX prot 0x%x\n",
 		__func__, dma_info->info.size, start_addr, iommu_prot);
 
-	for (i = 0; i < nr_scatter_pages; ++i) {
+	for (i = 0; i < nr_scatter_entries; ++i) {
 		if (stream->page)
 			iommu_unmap(
 				domain->iommu_domain,
 				start_addr + ethosn_page_size(0, i, dma_info),
 				PAGE_SIZE);
+
+		/* Print some debug logs but only for the first few entries,
+		 * to avoid too much spam.
+		 */
+		if (i < 4)
+			dev_dbg(
+				allocator->dev,
+				"iommu_iova_map: mapping scatter-gather entry %d/%d iova 0x%llX, pa 0x%llX, size %lu\n",
+				i, nr_scatter_entries,
+				start_addr + ethosn_page_size(0, i, dma_info),
+				ethosn_page_to_phys(i, dma_info),
+				ethosn_page_size(i, i + 1, dma_info));
 
 		err = iommu_map(
 			domain->iommu_domain,
@@ -568,6 +580,11 @@ static struct ethosn_dma_info *iommu_import(
 		goto fail_detach;
 	}
 
+	dev_dbg(allocator->dev,
+		"iommu_import: sg table orig_nents = %d, nents = %d",
+		dma_buf_internal->sgt->orig_nents,
+		dma_buf_internal->sgt->nents);
+
 	sctrlst = (struct scatterlist **)
 		  devm_kzalloc(allocator->dev,
 			       sizeof(struct scatterlist *) *
@@ -623,6 +640,17 @@ static struct ethosn_dma_info *iommu_import(
 		dma_addr[i] = sg_dma_address(tmp_scatterlist);
 		scatterlist_size += sg_dma_len(tmp_scatterlist);
 		sctrlst[i] = tmp_scatterlist;
+
+		/* Print some debug logs but only for the first few entries,
+		 * to avoid too much spam.
+		 */
+		if (i < 4)
+			dev_dbg(allocator->dev,
+				"iommu_import: Imported scatter-gather entry %d/%d: pfn %lu, dma addr %pad, size %d",
+				i, dma_buf_internal->sgt->nents,
+				page_to_pfn(pages[i]),
+				&sg_dma_address(tmp_scatterlist),
+				sg_dma_len(tmp_scatterlist));
 	}
 
 	if (scatterlist_size < size) {
