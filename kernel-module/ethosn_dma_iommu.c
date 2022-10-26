@@ -833,6 +833,12 @@ static int iommu_mmap(struct ethosn_dma_sub_allocator *allocator,
 	int nr_scatter_pages = ethosn_nr_sg_objects(dma_info);
 	int i;
 
+	if (dma_info->dma_buf_internal)
+
+		/* If this is a dmabuf, let the exporter do the mmapping. */
+		return dma_buf_mmap(dma_info->dma_buf_internal->dmabuf, vma,
+				    vma->vm_pgoff);
+
 	for (i = 0; i < nr_scatter_pages; ++i) {
 		unsigned long addr = vma->vm_start + ethosn_page_size(0, i,
 								      dma_info);
