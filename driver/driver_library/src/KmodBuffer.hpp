@@ -181,12 +181,6 @@ public:
 
     uint8_t* Map()
     {
-        int ret = ioctl(m_BufferFd, ETHOSN_IOCTL_SYNC_FOR_CPU);
-        if (ret < 0)
-        {
-            throw std::runtime_error(std::string("Failed to sync for cpu: ") + strerror(errno));
-        }
-
         if (m_MappedData)
         {
             return m_MappedData;
@@ -200,6 +194,12 @@ public:
             throw std::runtime_error(std::string("Failed to map memory: ") + strerror(errno));
         }
 
+        int ret = ioctl(m_BufferFd, ETHOSN_IOCTL_SYNC_FOR_CPU);
+        if (ret < 0)
+        {
+            throw std::runtime_error(std::string("Failed to sync for cpu: ") + strerror(errno));
+        }
+
         return m_MappedData;
     }
 
@@ -210,13 +210,14 @@ public:
             return;
         }
 
-        munmap(m_MappedData, m_Size);
-        m_MappedData = nullptr;
-        int ret      = ioctl(m_BufferFd, ETHOSN_IOCTL_SYNC_FOR_DEVICE);
+        int ret = ioctl(m_BufferFd, ETHOSN_IOCTL_SYNC_FOR_DEVICE);
         if (ret < 0)
         {
             throw std::runtime_error(std::string("Failed to sync for device: ") + strerror(errno));
         }
+
+        munmap(m_MappedData, m_Size);
+        m_MappedData = nullptr;
     }
 
 private:
