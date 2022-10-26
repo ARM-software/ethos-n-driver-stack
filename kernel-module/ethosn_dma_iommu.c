@@ -516,21 +516,30 @@ static struct ethosn_dma_info *iommu_import(
 		devm_kzalloc(allocator->dev,
 			     sizeof(struct ethosn_dma_info_internal),
 			     GFP_KERNEL);
-	if (!dma_info)
+	if (!dma_info) {
+		dev_err(allocator->dev,
+			"iommu_import: devm_kzalloc for dma_info failed");
 		goto early_exit;
+	}
 
 	dma_buf_internal =
 		devm_kzalloc(allocator->dev,
 			     sizeof(struct dma_buf_internal),
 			     GFP_KERNEL);
-	if (!dma_buf_internal)
+	if (!dma_buf_internal) {
+		dev_err(allocator->dev,
+			"iommu_import: devm_kzalloc for dma_buf_internal failed");
+
 		goto free_dma_info;
+	}
 
 	dma_buf_internal->fd = fd;
 
 	dma_buf_internal->dmabuf = dma_buf_get(fd);
-	if (IS_ERR(dma_buf_internal->dmabuf))
+	if (IS_ERR(dma_buf_internal->dmabuf)) {
+		dev_err(allocator->dev, "iommu_import: dma_buf_get failed");
 		goto free_buf_internal;
+	}
 
 	/* We can't pass the allocator device to dma_buf_attach, which leads to
 	 * the linux dma framework attempting to map the buffer using the iommu
@@ -546,29 +555,40 @@ static struct ethosn_dma_info *iommu_import(
 	parent_device = allocator->dev->parent->parent;
 	dma_buf_internal->attachment = dma_buf_attach(dma_buf_internal->dmabuf,
 						      parent_device);
-	if (IS_ERR(dma_buf_internal->attachment))
+	if (IS_ERR(dma_buf_internal->attachment)) {
+		dev_err(allocator->dev, "iommu_import: dma_buf_attach failed");
 		goto fail_put;
+	}
 
 	dma_buf_internal->sgt = ethosn_dma_buf_map_attachment(
 		dma_buf_internal->attachment);
-	if (IS_ERR(dma_buf_internal->sgt))
+	if (IS_ERR(dma_buf_internal->sgt)) {
+		dev_err(allocator->dev,
+			"iommu_import: ethosn_dma_buf_map_attachment failed");
 		goto fail_detach;
+	}
 
 	sctrlst = (struct scatterlist **)
 		  devm_kzalloc(allocator->dev,
 			       sizeof(struct scatterlist *) *
 			       dma_buf_internal->sgt->nents,
 			       GFP_KERNEL);
-	if (!sctrlst)
+	if (!sctrlst) {
+		dev_err(allocator->dev,
+			"iommu_import: devm_kzalloc for sctrlst failed");
 		goto fail_unmap_attachment;
+	}
 
 	pages = (struct page **)
 		devm_kzalloc(allocator->dev,
 			     sizeof(struct page *) *
 			     dma_buf_internal->sgt->nents,
 			     GFP_KERNEL);
-	if (!pages)
+	if (!pages) {
+		dev_err(allocator->dev,
+			"iommu_import: devm_kzalloc for pages failed");
 		goto free_scatterlist;
+	}
 
 	dma_addr = (dma_addr_t *)
 		   devm_kzalloc(
@@ -576,8 +596,11 @@ static struct ethosn_dma_info *iommu_import(
 		sizeof(dma_addr_t) * dma_buf_internal->sgt->nents,
 		GFP_KERNEL);
 
-	if (!dma_addr)
+	if (!dma_addr) {
+		dev_err(allocator->dev,
+			"iommu_import: devm_kzalloc for dma_addr failed");
 		goto free_pages_list;
+	}
 
 	/* Note:
 	 * we copy the content of sg_table and scatterlist structs into the
@@ -592,7 +615,7 @@ static struct ethosn_dma_info *iommu_import(
 		if (tmp_scatterlist->offset != 0) {
 			dev_err(
 				allocator->dev,
-				"failed to iommu import scatterlist offset is not zero, we only support zero");
+				"iommu_import: failed to iommu import scatterlist offset is not zero, we only support zero");
 			goto free_dma_address;
 		}
 
@@ -602,10 +625,14 @@ static struct ethosn_dma_info *iommu_import(
 		sctrlst[i] = tmp_scatterlist;
 	}
 
-	if (scatterlist_size < size)
+	if (scatterlist_size < size) {
+		dev_err(allocator->dev,
+			"iommu_import: Provided buffer size does not match scatterlist");
 		goto free_dma_address;
+	}
 
-	dev_dbg(allocator->dev, "Imported shared DMA buffer. handle=%pK",
+	dev_dbg(allocator->dev,
+		"iommu_import: Imported shared DMA buffer. handle=%pK",
 		dma_info);
 
 	*dma_info = (struct ethosn_dma_info_internal) {
