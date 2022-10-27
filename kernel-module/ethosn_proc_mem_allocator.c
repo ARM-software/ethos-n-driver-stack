@@ -84,10 +84,10 @@ static int proc_mem_allocator_release(struct inode *inode,
 	return ret;
 }
 
-void print_buffer_info(struct ethosn_device *ethosn,
-		       const char *prefix,
-		       u32 ninfos,
-		       const struct ethosn_buffer_info __user *infos)
+static void print_buffer_info(struct ethosn_device *ethosn,
+			      const char *prefix,
+			      u32 ninfos,
+			      const struct ethosn_buffer_info __user *infos)
 {
 	char buf[200];
 	size_t n = 0;

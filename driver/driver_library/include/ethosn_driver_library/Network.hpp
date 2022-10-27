@@ -67,19 +67,6 @@ class Network
 public:
     Network(Network&& otherNetwork);
 
-    /// Loads a Network into the driver so that it is ready for inferences.
-    /// The Compiled Network data should be obtained from the Support Library, by serializing the
-    /// ethosn::support_library::CompiledNetwork object (by calling its Serialize() method).
-    /// This data is copied into the driver where necessary and does not need to kept alive by the caller.
-    /// @throws CompiledNetworkException if the given Compiled Network data is not valid.
-    Network(const char* compiledNetworkData,
-            size_t compiledNetworkSize,
-            const IntermediateBufferReq& desc = { MemType::ALLOCATE, 0, 0 });
-    Network(const char* compiledNetworkData,
-            size_t compiledNetworkSize,
-            const std::string& device,
-            const IntermediateBufferReq& desc = { MemType::ALLOCATE, 0, 0 });
-
     ~Network();
 
     // Schedule an inference with the network and the input & output buffers supplied.

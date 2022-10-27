@@ -18,18 +18,6 @@ TEST_CASE("SimpleBufferAllocation")
 {
     uint32_t bufSize = 1000;
 
-    // Create Simple buffer
-    Buffer test_buffer(bufSize, DataFormat::NHWC);
-
-    // Verify Buffer properties
-    REQUIRE(test_buffer.GetSize() == bufSize);
-    REQUIRE(test_buffer.GetDataFormat() == DataFormat::NHWC);
-}
-
-TEST_CASE("ProcMemSimpleBufferAllocation")
-{
-    uint32_t bufSize = 1000;
-
     ProcMemAllocator test_allocator;
 
     // Create Simple buffer
@@ -41,19 +29,6 @@ TEST_CASE("ProcMemSimpleBufferAllocation")
 }
 
 TEST_CASE("BufferSource")
-{
-    uint8_t test_src[] = "This is a test source data";
-
-    // Create a buffer with test source data
-    Buffer test_buffer(test_src, sizeof(test_src), DataFormat::NHWC);
-
-    // Verify Buffer properties
-    REQUIRE(test_buffer.GetSize() == sizeof(test_src));
-    REQUIRE(test_buffer.GetDataFormat() == DataFormat::NHWC);
-    REQUIRE(std::memcmp(test_buffer.Map(), test_src, sizeof(test_src)) == 0);
-}
-
-TEST_CASE("ProcMemBufferSource")
 {
     uint8_t test_src[] = "This is a test source data";
 
@@ -73,8 +48,10 @@ TEST_CASE("BufferDescriptor")
     uint8_t test_src[] = "This is a test source data";
     uint32_t buf_size  = sizeof(test_src);
 
+    ProcMemAllocator test_allocator;
+
     // Create a buffer with test source data
-    Buffer test_buffer(test_src, buf_size, DataFormat::NHWC);
+    Buffer test_buffer = test_allocator.CreateBuffer(test_src, buf_size, DataFormat::NHWC);
 
     // Verify Buffer properties
     REQUIRE(test_buffer.GetSize() == buf_size);
@@ -91,8 +68,10 @@ TEST_CASE("BufferMove")
 
     uint8_t test_src[] = "This is a test to check that data and buffer properties are moved";
 
+    ProcMemAllocator test_allocator;
+
     // Create the first buffer with test source data
-    Buffer test_buffer(test_src, sizeof(test_src), DataFormat::NHWC);
+    Buffer test_buffer = test_allocator.CreateBuffer(test_src, sizeof(test_src), DataFormat::NHWC);
 
     // Create a new buffer with a move from first buffer
     Buffer test_buffer2 = std::move(test_buffer);
@@ -120,8 +99,10 @@ TEST_CASE("BufferMap/Unmap")
 {
     uint8_t test_src[] = "This is a test source data";
 
+    ProcMemAllocator test_allocator;
+
     // Create a buffer with test source data
-    Buffer test_buffer(test_src, sizeof(test_src), DataFormat::NHWC);
+    Buffer test_buffer = test_allocator.CreateBuffer(test_src, sizeof(test_src), DataFormat::NHWC);
 
     // Verify Buffer properties
     REQUIRE(test_buffer.GetSize() == sizeof(test_src));

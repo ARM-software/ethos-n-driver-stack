@@ -62,31 +62,6 @@ class Buffer
 public:
     Buffer(Buffer&& otherBuffer);
 
-    // Device allocates the buffer.
-    Buffer(uint32_t size, DataFormat format);
-    Buffer(uint32_t size, DataFormat format, const std::string& device);
-
-    // Device imports the buffer.
-    Buffer(int fd, uint32_t size);
-    Buffer(int fd, uint32_t size, const std::string& device);
-
-    // Data is copied from src into the buffer. Any access after creation is via Map()/Unmap():
-    //
-    // Buffer input(mem, size, format);
-    //
-    // ... inference is executed ...
-    //
-    // uint8_t data = input.Map();
-    //
-    // ... fill in more data ...
-    //
-    // input.Unmap();
-    //
-    // ... another inference is executed ...
-    //
-    Buffer(const uint8_t* src, uint32_t size, DataFormat format);
-    Buffer(const uint8_t* src, uint32_t size, DataFormat format, const std::string& device);
-
     ~Buffer();
 
     explicit operator bool() const

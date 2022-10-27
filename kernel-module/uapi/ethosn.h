@@ -287,7 +287,7 @@ enum ethosn_poll_counter_name {
 #define MB_ZERO   00000010
 
 /* Version information */
-#define ETHOSN_KERNEL_MODULE_VERSION_MAJOR 4
+#define ETHOSN_KERNEL_MODULE_VERSION_MAJOR 5
 #define ETHOSN_KERNEL_MODULE_VERSION_MINOR 0
 #define ETHOSN_KERNEL_MODULE_VERSION_PATCH 0
 

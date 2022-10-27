@@ -12,16 +12,12 @@ namespace ethosn
 namespace driver_library
 {
 
-#define MAX_ETHOSN_KERNEL_MODULE_MAJOR_VERSION_SUPPORTED 4
-#define MIN_ETHOSN_KERNEL_MODULE_MAJOR_VERSION_SUPPORTED 4
+#define MAX_ETHOSN_KERNEL_MODULE_MAJOR_VERSION_SUPPORTED 5
+#define MIN_ETHOSN_KERNEL_MODULE_MAJOR_VERSION_SUPPORTED 5
 
 class KmodNetworkImpl : public NetworkImpl
 {
 public:
-    KmodNetworkImpl(const char* compiledNetworkData,
-                    size_t compiledNetworkSize,
-                    const std::string& device,
-                    const IntermediateBufferReq& desc);
     KmodNetworkImpl(const char* compiledNetworkData,
                     size_t compiledNetworkSize,
                     int allocatorFd,

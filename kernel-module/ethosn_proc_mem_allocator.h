@@ -37,9 +37,4 @@ struct ethosn_allocator {
 int ethosn_process_mem_allocator_create(struct ethosn_device *ethosn,
 					pid_t pid);
 
-void print_buffer_info(struct ethosn_device *ethosn,
-		       const char *prefix,
-		       u32 ninfos,
-		       const struct ethosn_buffer_info __user *infos);
-
 #endif /* _ETHOSN_PROC_MEM_ALLOCATOR_H_ */

@@ -41,51 +41,6 @@ Buffer::Buffer(std::unique_ptr<BufferImpl> otherBufferImpl)
     }
 }
 
-Buffer::Buffer(uint32_t size, DataFormat format, const std::string& device)
-    : bufferImpl{ std::make_unique<BufferImpl>(size, format, device) }
-{
-    if (profiling::g_CurrentConfiguration.m_EnableProfiling)
-    {
-        RecordLifetimeEvent(this, profiling::g_BufferToLifetimeEventId,
-                            profiling::ProfilingEntry::Type::TimelineEventStart,
-                            profiling::ProfilingEntry::MetadataCategory::BufferLifetime);
-    }
-}
-
-Buffer::Buffer(uint32_t size, DataFormat format)
-    : Buffer(size, format, DEVICE_NODE)
-{}
-
-Buffer::Buffer(int fd, uint32_t size, const std::string& device)
-    : bufferImpl{ std::make_unique<BufferImpl>(fd, size, device) }
-{
-    if (profiling::g_CurrentConfiguration.m_EnableProfiling)
-    {
-        RecordLifetimeEvent(this, profiling::g_BufferToLifetimeEventId,
-                            profiling::ProfilingEntry::Type::TimelineEventStart,
-                            profiling::ProfilingEntry::MetadataCategory::BufferLifetime);
-    }
-}
-
-Buffer::Buffer(int fd, uint32_t size)
-    : Buffer(fd, size, DEVICE_NODE)
-{}
-
-Buffer::Buffer(const uint8_t* src, uint32_t size, DataFormat format, const std::string& device)
-    : bufferImpl{ std::make_unique<BufferImpl>(src, size, format, device) }
-{
-    if (profiling::g_CurrentConfiguration.m_EnableProfiling)
-    {
-        RecordLifetimeEvent(this, profiling::g_BufferToLifetimeEventId,
-                            profiling::ProfilingEntry::Type::TimelineEventStart,
-                            profiling::ProfilingEntry::MetadataCategory::BufferLifetime);
-    }
-}
-
-Buffer::Buffer(const uint8_t* src, uint32_t size, DataFormat format)
-    : Buffer(src, size, format, DEVICE_NODE)
-{}
-
 Buffer::~Buffer()
 {
     if (profiling::g_CurrentConfiguration.m_EnableProfiling)

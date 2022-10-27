@@ -30,10 +30,33 @@ public:
 
     // Buffer Creation
     Buffer CreateBuffer(uint32_t size, DataFormat format);
+
+    /// Create buffer filled with the data from src. The buffer's data can later be accessed via the
+    /// buffer's Map() function
+    ///
+    /// ProcMemAllocator processMemAllocator;
+    /// Buffer input = processMemAllocator.CreateBuffer(mem, size, format);
+    ///
+    /// ... inference is executed ...
+    ///
+    /// uint8_t data = input.Map();
+    ///
+    /// ... fill in more data ...
+    ///
+    /// input.Unmap();
+    ///
+    /// ... another inference is executed ...
+    ///
     Buffer CreateBuffer(const uint8_t* src, uint32_t size, DataFormat format);
+
+    /// Import dma-buf based buffer to be used by the device
     Buffer ImportBuffer(int fd, uint32_t size);
 
-    // Network Creation
+    /// Loads a Network into the driver so that it is ready for inferences.
+    /// The Compiled Network data should be obtained from the Support Library, by serializing the
+    /// ethosn::support_library::CompiledNetwork object (by calling its Serialize() method).
+    /// This data is copied into the driver where necessary and does not need to kept alive by the caller.
+    /// @throws CompiledNetworkException if the given Compiled Network data is not valid.
     Network CreateNetwork(const char* compiledNetworkData,
                           size_t compiledNetworkSize,
                           const IntermediateBufferReq& desc = { MemType::ALLOCATE, 0, 0 });
