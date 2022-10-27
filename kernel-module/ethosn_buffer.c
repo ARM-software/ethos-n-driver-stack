@@ -136,7 +136,8 @@ static int ethosn_buffer_release(struct inode *const inode,
 
 	kfree(buf);
 
-	ethosn_asset_allocator_put(asset_allocator);
+	if (asset_allocator->pid != ETHOSN_INVALID_PID)
+		ethosn_asset_allocator_put(asset_allocator);
 
 	mutex_unlock(&ethosn->mutex);
 
@@ -333,7 +334,8 @@ int ethosn_buffer_register(struct ethosn_device *ethosn,
 		dev_dbg(ethosn->dev, "Zeroed device buffer 0x%pK\n", buf);
 	}
 
-	ethosn_asset_allocator_get(asset_allocator);
+	if (asset_allocator->pid != ETHOSN_INVALID_PID)
+		ethosn_asset_allocator_get(asset_allocator);
 
 	return fd;
 
@@ -370,7 +372,8 @@ static int ethosn_dma_buffer_release(struct inode *const inode,
 
 	kfree(buf);
 
-	ethosn_asset_allocator_put(asset_allocator);
+	if (asset_allocator->pid != ETHOSN_INVALID_PID)
+		ethosn_asset_allocator_put(asset_allocator);
 
 	mutex_unlock(&ethosn->mutex);
 
@@ -430,7 +433,8 @@ int ethosn_buffer_import(struct ethosn_device *ethosn,
 	if (fd < 0)
 		goto err_dma_release;
 
-	ethosn_asset_allocator_get(asset_allocator);
+	if (asset_allocator->pid != ETHOSN_INVALID_PID)
+		ethosn_asset_allocator_get(asset_allocator);
 
 	return fd;
 

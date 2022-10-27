@@ -1363,7 +1363,8 @@ static int network_release(struct inode *inode,
 		"Release network asset_allocator->pid = %d",
 		asset_allocator->pid);
 
-	ethosn_asset_allocator_put(asset_allocator);
+	if (asset_allocator->pid != ETHOSN_INVALID_PID)
+		ethosn_asset_allocator_put(asset_allocator);
 
 	mutex_unlock(&ethosn->mutex);
 
@@ -1417,7 +1418,8 @@ int ethosn_network_register(struct ethosn_device *ethosn,
 	network->file = fget(fd);
 	fput(network->file);
 
-	ethosn_asset_allocator_get(asset_allocator);
+	if (asset_allocator->pid != ETHOSN_INVALID_PID)
+		ethosn_asset_allocator_get(asset_allocator);
 
 	dev_dbg(ethosn->dev,
 		"Registered network. handle=0x%pK\n", network);
