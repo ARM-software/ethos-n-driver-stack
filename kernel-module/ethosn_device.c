@@ -2541,6 +2541,9 @@ int ethosn_clock_frequency(void)
 	return clock_frequency;
 }
 
+/* Exported for use by test module */
+EXPORT_SYMBOL(ethosn_clock_frequency);
+
 bool ethosn_stashing_enabled(void)
 {
 	return stashing_enabled;
