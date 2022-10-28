@@ -19,7 +19,6 @@ class KmodNetworkImpl : public NetworkImpl
 {
 public:
     KmodNetworkImpl(const char* compiledNetworkData, size_t compiledNetworkSize, const std::string& device);
-    KmodNetworkImpl(const char* compiledNetworkData, size_t compiledNetworkSize, int allocatorFd);
 
     ~KmodNetworkImpl() override;
 

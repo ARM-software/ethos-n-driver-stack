@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2021 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -32,10 +32,6 @@ Version::Version()
     , Patch(0)
 {}
 
-Network::Network(Network&& otherNetwork)
-    : m_NetworkImpl(std::move(otherNetwork.m_NetworkImpl))
-{}
-
 Network::Network(const char* compiledNetworkData, size_t compiledNetworkSize, const std::string& device)
     : m_NetworkImpl(
 #if defined(TARGET_MODEL)
@@ -51,10 +47,6 @@ Network::Network(const char* compiledNetworkData, size_t compiledNetworkSize, co
 {
     ETHOSN_UNUSED(device);
 }
-
-Network::Network(std::unique_ptr<NetworkImpl> otherNetworkImpl)
-    : m_NetworkImpl(std::move(otherNetworkImpl))
-{}
 
 Network::Network(const char* compiledNetworkData, size_t compiledNetworkSize)
     : Network(compiledNetworkData, compiledNetworkSize, DEVICE_NODE)

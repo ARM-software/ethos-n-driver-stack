@@ -14,8 +14,6 @@ namespace ethosn
 namespace driver_library
 {
 
-class ProcMemAllocator;
-
 // Buffer formats.
 // (N = batch, H = height, W = width, C = channel)
 enum class DataFormat
@@ -79,11 +77,7 @@ public:
     void Unmap();
 
 private:
-    friend ProcMemAllocator;
     class BufferImpl;
-
-    Buffer(std::unique_ptr<BufferImpl> otherBufferImpl);
-
     std::unique_ptr<BufferImpl> bufferImpl;
 };
 }    // namespace driver_library

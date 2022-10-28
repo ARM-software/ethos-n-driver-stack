@@ -64,34 +64,8 @@ public:
         }
     }
 
-    BufferImpl(uint32_t size, DataFormat format, int allocatorFd)
-        : m_MappedData(nullptr)
-        , m_Size(size)
-        , m_Format(format)
-    {
-        const ethosn_buffer_req bufferReq = {
-            size,
-            MB_RDWR,
-        };
-
-        m_BufferFd = ioctl(allocatorFd, ETHOSN_IOCTL_CREATE_BUFFER, &bufferReq);
-        int err    = errno;
-        if (m_BufferFd < 0)
-        {
-            throw std::runtime_error(std::string("Failed to create buffer: ") + strerror(err));
-        }
-    }
-
     BufferImpl(const uint8_t* src, uint32_t size, DataFormat format, const std::string& device)
         : BufferImpl(size, format, device)
-    {
-        uint8_t* data = Map();
-        std::copy_n(src, size, data);
-        Unmap();
-    }
-
-    BufferImpl(const uint8_t* src, uint32_t size, DataFormat format, int allocatorFd)
-        : BufferImpl(size, format, allocatorFd)
     {
         uint8_t* data = Map();
         std::copy_n(src, size, data);
@@ -125,25 +99,6 @@ public:
         m_BufferFd = ioctl(ethosnFd, ETHOSN_IOCTL_IMPORT_BUFFER, &importedBufferReq);
         int err    = errno;
         close(ethosnFd);
-        if (m_BufferFd < 0)
-        {
-            throw std::runtime_error(std::string("Failed to import  buffer: ") + strerror(err));
-        }
-    }
-
-    BufferImpl(int fd, uint32_t size, int allocatorFd)
-        : m_MappedData(nullptr)
-        , m_Size(size)
-        , m_Format(DataFormat::NHWC)
-    {
-        const ethosn_dma_buf_req importedBufferReq = {
-            static_cast<__u32>(fd),
-            O_RDWR | O_CLOEXEC,
-            size,
-        };
-
-        m_BufferFd = ioctl(allocatorFd, ETHOSN_IOCTL_IMPORT_BUFFER, &importedBufferReq);
-        int err    = errno;
         if (m_BufferFd < 0)
         {
             throw std::runtime_error(std::string("Failed to import  buffer: ") + strerror(err));
