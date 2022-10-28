@@ -15,13 +15,13 @@
 #endif
 
 #include <ethosn_utils/Macros.hpp>
+#if defined(__unix__)
 #include <uapi/ethosn.h>
 
 #include <errno.h>
 #include <fcntl.h>
 #include <stdexcept>
 #include <sys/ioctl.h>
-#if defined(__unix__)
 #include <unistd.h>
 #endif
 
