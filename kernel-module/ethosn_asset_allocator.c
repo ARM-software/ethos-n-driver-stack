@@ -71,14 +71,6 @@ int ethosn_asset_allocator_put(struct ethosn_dma_allocator *asset_allocator)
 bool ethosn_asset_allocator_pid_exist(const struct ethosn_device *ethosn,
 				      pid_t pid)
 {
-	/* For carve out case there is no restriction per process */
-	if (!ethosn->smmu_available)
-		return false;
-
-	if (ethosn->asset_allocator[ETHOSN_DEFAULT_ASSET_ALLOC_INDEX]->pid ==
-	    pid)
-		return true;
-
 	return false;
 }
 
