@@ -304,17 +304,9 @@ std::vector<LayerTestResult<uint8_t, NumDims>>
         outputIdxsToBindingId[i] = bindingId;
     }
 
-    // Create process memory allocator if it does not already exist
-    EthosNConfig config;
-    auto procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
-    if (procMemAllocator == nullptr)
-    {
-        EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(config, {});
-    }
-
     // Create the tensor handles
-    auto tensorHandleFactory = std::make_unique<EthosNTensorHandleFactory>(
-        config, EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr());
+    EthosNConfig config;
+    auto tensorHandleFactory = std::make_unique<EthosNTensorHandleFactory>(config);
     TensorHandleFactoryRegistry tmpRegistry;
     tmpRegistry.RegisterFactory(std::move(tensorHandleFactory));
     for (auto&& layer : optimisedGraph.TopologicalSort())

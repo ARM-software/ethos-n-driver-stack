@@ -159,19 +159,10 @@ TEST_SUITE("EthosNImportTensorHandle")
         const char* path = "ImportTensorHandleTestFile";
         int fd           = open(path, O_RDWR | O_CREAT, S_IREAD | S_IWRITE);
         CHECK(fd > 0);
-
-        // Create process memory allocator if it does not already exist
-        EthosNConfig config;
-        auto procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
-        if (procMemAllocator == nullptr)
-        {
-            EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(config, {});
-        }
-
         // Create an ethosn import tensor handle factory with dma buf
-        EthosNImportTensorHandleFactory handleFactory(
-            config, EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr(),
-            static_cast<MemorySourceFlags>(MemorySource::DmaBuf), static_cast<MemorySourceFlags>(MemorySource::DmaBuf));
+        EthosNConfig config;
+        EthosNImportTensorHandleFactory handleFactory(config, static_cast<MemorySourceFlags>(MemorySource::DmaBuf),
+                                                      static_cast<MemorySourceFlags>(MemorySource::DmaBuf));
 
         // Create a tensor info needed to create the tensor handle
         TensorInfo info({ 1, 16, 16, 16 }, DataType::QAsymmU8);
@@ -243,15 +234,7 @@ TEST_SUITE("EthosNImportTensorHandle")
 
         BackendGlobalConfigSetter configSetter(config, config.QueryCapabilities());
 
-        // Create process memory allocator if it does not already exist
-        auto procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
-        if (procMemAllocator == nullptr)
-        {
-            EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(config, {});
-        }
-
-        armnn::EthosNWorkloadFactory factory(config,
-                                             EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr());
+        armnn::EthosNWorkloadFactory factory(config);
         // To create a PreCompiled layer, create a network and Optimize it.
         armnn::INetworkPtr net = armnn::INetwork::Create();
 
@@ -369,15 +352,7 @@ TEST_SUITE("EthosNImportTensorHandle")
 
         BackendGlobalConfigSetter configSetter(config, config.QueryCapabilities());
 
-        // Create process memory allocator if it does not already exist
-        auto procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
-        if (procMemAllocator == nullptr)
-        {
-            EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(config, {});
-        }
-
-        armnn::EthosNWorkloadFactory factory(config,
-                                             EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr());
+        armnn::EthosNWorkloadFactory factory(config);
         // To create a PreCompiled layer, create a network and Optimize it.
         armnn::INetworkPtr net = armnn::INetwork::Create();
 
@@ -496,15 +471,7 @@ TEST_SUITE("EthosNImportTensorHandle")
 
         BackendGlobalConfigSetter configSetter(config, config.QueryCapabilities());
 
-        // Create process memory allocator if it does not already exist
-        auto procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
-        if (procMemAllocator == nullptr)
-        {
-            EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(config, {});
-        }
-
-        armnn::EthosNWorkloadFactory factory(config,
-                                             EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr());
+        armnn::EthosNWorkloadFactory factory(config);
         // To create a PreCompiled layer, create a network and Optimize it.
         armnn::INetworkPtr net = armnn::INetwork::Create();
 

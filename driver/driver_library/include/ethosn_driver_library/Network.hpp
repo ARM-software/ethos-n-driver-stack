@@ -8,12 +8,13 @@
 #include "Buffer.hpp"
 #include "Inference.hpp"
 
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 // Version information
-#define ETHOSN_DRIVER_LIBRARY_VERSION_MAJOR 3
+#define ETHOSN_DRIVER_LIBRARY_VERSION_MAJOR 4
 #define ETHOSN_DRIVER_LIBRARY_VERSION_MINOR 0
 #define ETHOSN_DRIVER_LIBRARY_VERSION_PATCH 0
 
@@ -23,6 +24,8 @@ namespace driver_library
 {
 
 class NetworkImpl;
+
+class ProcMemAllocator;
 
 struct Version
 {
@@ -62,6 +65,8 @@ class CompiledNetworkException : public std::runtime_error
 class Network
 {
 public:
+    Network(Network&& otherNetwork);
+
     /// Loads a Network into the driver so that it is ready for inferences.
     /// The Compiled Network data should be obtained from the Support Library, by serializing the
     /// ethosn::support_library::CompiledNetwork object (by calling its Serialize() method).
@@ -83,6 +88,9 @@ public:
     void SetDebugName(const char* name);
 
 private:
+    friend ProcMemAllocator;
+    Network(std::unique_ptr<NetworkImpl> otherNetworkImpl);
+
     std::unique_ptr<NetworkImpl> m_NetworkImpl;
 };
 

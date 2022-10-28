@@ -12,8 +12,6 @@
 #include <Layer.hpp>
 #include <armnn/backends/MemCopyWorkload.hpp>
 
-#include <ethosn_driver_library/ProcMemAllocator.hpp>
-
 namespace armnn
 {
 
@@ -56,7 +54,7 @@ std::unique_ptr<ITensorHandle> EthosNWorkloadFactory::CreateTensorHandle(const T
 std::unique_ptr<IWorkload> EthosNWorkloadFactory::CreatePreCompiled(const PreCompiledQueueDescriptor& descriptor,
                                                                     const WorkloadInfo& info) const
 {
-    return std::make_unique<EthosNPreCompiledWorkload>(descriptor, info, m_DeviceId, m_ProcMemAllocator);
+    return std::make_unique<EthosNPreCompiledWorkload>(descriptor, info, m_DeviceId);
 }
 
 std::unique_ptr<IWorkload> EthosNWorkloadFactory::CreateOutput(const OutputQueueDescriptor& descriptor,

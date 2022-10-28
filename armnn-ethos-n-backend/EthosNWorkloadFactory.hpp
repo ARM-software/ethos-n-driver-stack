@@ -6,7 +6,6 @@
 
 #include "EthosNConfig.hpp"
 #include <armnn/backends/WorkloadFactory.hpp>
-#include <ethosn_driver_library/ProcMemAllocator.hpp>
 
 namespace armnn
 {
@@ -15,18 +14,13 @@ namespace armnn
 class EthosNWorkloadFactory : public IWorkloadFactory
 {
 public:
-    EthosNWorkloadFactory(const EthosNConfig& config,
-                          const std::shared_ptr<ethosn::driver_library::ProcMemAllocator> procMemAllocator)
+    EthosNWorkloadFactory(const EthosNConfig& config)
         : m_EthosNConfig(config)
-        , m_ProcMemAllocator(procMemAllocator)
     {}
 
-    EthosNWorkloadFactory(const EthosNConfig& config,
-                          const std::string deviceId,
-                          const std::shared_ptr<ethosn::driver_library::ProcMemAllocator> procMemAllocator)
+    EthosNWorkloadFactory(const EthosNConfig& config, const std::string deviceId)
         : m_EthosNConfig(config)
         , m_DeviceId(deviceId)
-        , m_ProcMemAllocator(procMemAllocator)
     {}
 
     const BackendId& GetBackendId() const override;
@@ -71,7 +65,6 @@ private:
 
     EthosNConfig m_EthosNConfig;
     std::string m_DeviceId;
-    std::shared_ptr<ethosn::driver_library::ProcMemAllocator> m_ProcMemAllocator;
 };
 
 }    //namespace armnn

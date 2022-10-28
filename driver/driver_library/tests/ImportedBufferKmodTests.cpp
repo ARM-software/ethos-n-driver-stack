@@ -5,6 +5,7 @@
 
 #include "../include/ethosn_driver_library/Buffer.hpp"
 #include "../include/ethosn_driver_library/Network.hpp"
+#include "../include/ethosn_driver_library/ProcMemAllocator.hpp"
 #include "../src/Utils.hpp"
 
 #include <ethosn_utils/KernelUtils.hpp>
@@ -85,6 +86,39 @@ TEST_CASE("SimpleImportedBufferAllocation")
         {
             // Create Simple buffer
             Buffer test_buffer(dmaHeapData.GetRawFd(), bufSize);
+
+            // Verify Buffer properties
+            REQUIRE(test_buffer.GetSize() == bufSize);
+        }
+    }
+}
+
+TEST_CASE("ProcMemSimpleImportedBufferAllocation")
+{
+    // check the kernel version to be higher or equal to 5.6.
+    if (!ethosn::utils::IsKernelVersionHigherOrEqualTo(5, 6))
+    {
+        INFO("Kernel version lower than 5.6.");
+        INFO("No tests will be performed.");
+        return;
+    }
+
+    // check that NPU core is behind a IOMMU.
+    if (!ethosn::utils::IsNpuCoreBehindIommus())
+    {
+        INFO("No NPU core is behind a IOMMU or \"ethosn@xxxxxxx\" not found in the device tree.");
+        INFO("No tests will be performed.");
+        return;
+    }
+
+    {
+        constexpr uint32_t bufSize = 1024;
+        DmaHeapBuffer dmaHeapData(bufSize);
+        {
+            ProcMemAllocator test_allocator;
+
+            // Create Simple buffer
+            Buffer test_buffer = test_allocator.ImportBuffer(dmaHeapData.GetRawFd(), bufSize);
 
             // Verify Buffer properties
             REQUIRE(test_buffer.GetSize() == bufSize);

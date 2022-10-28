@@ -42,6 +42,7 @@ srcs = [
     os.path.join("src", "DumpProfiling.cpp"),
     os.path.join("src", "NetworkImpl.cpp"),
     os.path.join("src", "Utils.cpp"),
+    os.path.join("src", "ProcMemAllocator.cpp"),
 ]
 
 if env["target"] == "kmod":

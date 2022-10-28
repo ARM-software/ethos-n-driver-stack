@@ -1,9 +1,10 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #include "../include/ethosn_driver_library/Network.hpp"
+#include "../include/ethosn_driver_library/ProcMemAllocator.hpp"
 #include "../src/NetworkImpl.hpp"
 
 #include <catch.hpp>
@@ -251,4 +252,65 @@ TEST_CASE("DeserializeCompiledNetwork Errors")
             }
         }
     }
+}
+
+TEST_CASE("ProcMemAllocatorNetwork")
+{
+    // This is the same test serialized network as above, but modified to have valid buffer indexes
+    // and sizes/offsets for the constant data adjusted to be valid for the purposes of testing
+    // on hardware
+
+    // clang-format off
+    std::vector<uint8_t> serialized = {
+        // 0: FourCC
+        'E', 'N', 'C', 'N',
+
+        // 4: Version (Major)
+        1, 0, 0, 0,
+        // 8: Version (Minor)
+        0, 0, 0, 0,
+        // 12: Version (Patch)
+        0, 0, 0, 0,
+
+        // 16: Constant DMA data (size)
+        3, 0, 0, 0,
+        // 20: Constant DMA data (values)
+        1, 2, 3,
+
+        // 23: Constant control unit data (size)
+        2, 0, 0, 0,
+        // 27: Constant control unit data (values)
+        4, 5,
+
+        // Input buffer infos (size)
+        1, 0, 0, 0,
+        // Input buffer info 0
+        3, 0, 0, 0, 11, 0, 0, 0, 12, 0, 0, 0,
+
+        // Output buffer infos (size)
+        2, 0, 0, 0,
+        // Output buffer info 0
+        4, 0, 0, 0, 21, 0, 0, 0, 22, 0, 0, 0,
+        // Output buffer info 1
+        5, 0, 0, 0, 23, 0, 0, 0, 24, 0, 0, 0,
+
+        // Constant control unit data buffer infos (size)
+        1, 0, 0, 0,
+        // Constant control unit data buffer info 0 (buffer 1, offset 0, size 2)
+        1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0,
+
+        // Constant DMA data buffer infos (size)
+        1, 0, 0, 0,
+        // Constant DMA data buffer info 0 (buffer 0, offset 0, size 3)
+        0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0,
+
+        // Intermediate data buffer infos (size)
+        1, 0, 0, 0,
+        // Intermediate data buffer info 0
+        2, 0, 0, 0, 51, 0, 0, 0, 52, 0, 0, 0,
+    };
+    // clang-format on
+
+    ProcMemAllocator test_allocator;
+    REQUIRE_NOTHROW(test_allocator.CreateNetwork(reinterpret_cast<const char*>(serialized.data()), serialized.size()));
 }

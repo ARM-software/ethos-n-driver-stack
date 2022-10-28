@@ -39,7 +39,14 @@ std::unique_ptr<ITensorHandle> EthosNTensorHandleFactory::CreateTensorHandle(con
         return std::make_unique<ScopedTensorHandle>(tensorInfo);
     }
 
-    return std::make_unique<EthosNTensorHandle>(tensorInfo, m_ProcMemAllocator);
+    if (m_DeviceId.empty())
+    {
+        return std::make_unique<EthosNTensorHandle>(tensorInfo);
+    }
+    else
+    {
+        return std::make_unique<EthosNTensorHandle>(tensorInfo, m_DeviceId);
+    }
 }
 
 const ITensorHandleFactory::FactoryId& EthosNTensorHandleFactory::GetId() const
@@ -83,7 +90,14 @@ std::unique_ptr<ITensorHandle> EthosNImportTensorHandleFactory::CreateTensorHand
         return std::make_unique<ScopedTensorHandle>(tensorInfo);
     }
 
-    return std::make_unique<EthosNImportTensorHandle>(tensorInfo, m_ProcMemAllocator, GetImportFlags());
+    if (m_DeviceId.empty())
+    {
+        return std::make_unique<EthosNImportTensorHandle>(tensorInfo, GetImportFlags());
+    }
+    else
+    {
+        return std::make_unique<EthosNImportTensorHandle>(tensorInfo, m_DeviceId, GetImportFlags());
+    }
 }
 
 const ITensorHandleFactory::FactoryId& EthosNImportTensorHandleFactory::GetId() const
