@@ -36,7 +36,8 @@ utils::Optional<ethosn::command_stream::MceOperation> BasePart::GetMceOperation(
 
 bool IsPlanValid(const HardwareCapabilities& caps, const Plan& plan)
 {
-    const uint32_t sizeInBytes = GetTotSizeInBytes(plan).m_Tot + caps.GetMaxPleSize() * caps.GetNumberOfSrams();
+    const uint32_t pleSize     = plan.GetPleKernelInfo(caps).m_Size;
+    const uint32_t sizeInBytes = GetTotSizeInBytes(plan).m_Tot + pleSize * caps.GetNumberOfSrams();
 
     if (sizeInBytes > caps.GetTotalSramSize())
     {
