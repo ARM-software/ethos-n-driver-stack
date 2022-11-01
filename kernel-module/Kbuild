@@ -18,11 +18,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 #
 
-ifeq ($(ENABLE_SANITIZE) , 1)
-    UBSAN_SANITIZE := y
-    KASAN_SANITIZE := y
-endif
-
 ccflags-y += -Wall -Werror $(EXTRA_CCFLAGS)
 
 obj-m := ethosn.o
