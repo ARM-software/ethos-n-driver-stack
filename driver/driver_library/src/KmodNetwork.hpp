@@ -18,8 +18,14 @@ namespace driver_library
 class KmodNetworkImpl : public NetworkImpl
 {
 public:
-    KmodNetworkImpl(const char* compiledNetworkData, size_t compiledNetworkSize, const std::string& device);
-    KmodNetworkImpl(const char* compiledNetworkData, size_t compiledNetworkSize, int allocatorFd);
+    KmodNetworkImpl(const char* compiledNetworkData,
+                    size_t compiledNetworkSize,
+                    const std::string& device,
+                    const IntermediateBufferReq& desc);
+    KmodNetworkImpl(const char* compiledNetworkData,
+                    size_t compiledNetworkSize,
+                    int allocatorFd,
+                    const IntermediateBufferReq& desc);
 
     ~KmodNetworkImpl() override;
 

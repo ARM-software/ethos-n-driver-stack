@@ -92,13 +92,18 @@ Buffer ProcMemAllocator::ImportBuffer(int fd, uint32_t size)
     return Buffer(std::make_unique<Buffer::BufferImpl>(fd, size, m_AllocatorFd));
 }
 
-Network ProcMemAllocator::CreateNetwork(const char* compiledNetworkData, size_t compiledNetworkSize)
+Network ProcMemAllocator::CreateNetwork(const char* compiledNetworkData,
+                                        size_t compiledNetworkSize,
+                                        const IntermediateBufferReq& desc)
 {
+#if !defined(TARGET_KMOD)
+    ETHOSN_UNUSED(desc);
+#endif
     return Network(
 #if defined(TARGET_MODEL)
         std::make_unique<ModelNetworkImpl>(compiledNetworkData, compiledNetworkSize)
 #elif defined(TARGET_KMOD)
-        std::make_unique<KmodNetworkImpl>(compiledNetworkData, compiledNetworkSize, m_AllocatorFd)
+        std::make_unique<KmodNetworkImpl>(compiledNetworkData, compiledNetworkSize, m_AllocatorFd, desc)
 #elif defined(TARGET_DUMPONLY)
         std::make_unique<NetworkImpl>(compiledNetworkData, compiledNetworkSize, false)
 #else

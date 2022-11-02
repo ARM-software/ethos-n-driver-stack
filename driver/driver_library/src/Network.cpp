@@ -36,12 +36,15 @@ Network::Network(Network&& otherNetwork)
     : m_NetworkImpl(std::move(otherNetwork.m_NetworkImpl))
 {}
 
-Network::Network(const char* compiledNetworkData, size_t compiledNetworkSize, const std::string& device)
+Network::Network(const char* compiledNetworkData,
+                 size_t compiledNetworkSize,
+                 const std::string& device,
+                 const IntermediateBufferReq& desc)
     : m_NetworkImpl(
 #if defined(TARGET_MODEL)
           std::make_unique<ModelNetworkImpl>(compiledNetworkData, compiledNetworkSize)
 #elif defined(TARGET_KMOD)
-          std::make_unique<KmodNetworkImpl>(compiledNetworkData, compiledNetworkSize, device)
+          std::make_unique<KmodNetworkImpl>(compiledNetworkData, compiledNetworkSize, device, desc)
 #elif defined(TARGET_DUMPONLY)
           std::make_unique<NetworkImpl>(compiledNetworkData, compiledNetworkSize, false)
 #else
@@ -49,6 +52,7 @@ Network::Network(const char* compiledNetworkData, size_t compiledNetworkSize, co
 #endif
       )
 {
+    ETHOSN_UNUSED(desc);
     ETHOSN_UNUSED(device);
 }
 
@@ -56,8 +60,8 @@ Network::Network(std::unique_ptr<NetworkImpl> otherNetworkImpl)
     : m_NetworkImpl(std::move(otherNetworkImpl))
 {}
 
-Network::Network(const char* compiledNetworkData, size_t compiledNetworkSize)
-    : Network(compiledNetworkData, compiledNetworkSize, DEVICE_NODE)
+Network::Network(const char* compiledNetworkData, size_t compiledNetworkSize, const IntermediateBufferReq& desc)
+    : Network(compiledNetworkData, compiledNetworkSize, DEVICE_NODE, desc)
 {}
 
 Network::~Network() = default;

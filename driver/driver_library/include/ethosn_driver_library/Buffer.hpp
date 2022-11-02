@@ -24,6 +24,39 @@ enum class DataFormat
     NHWCB
 };
 
+enum class MemType
+{
+    ALLOCATE,
+    IMPORT,
+    NONE
+};
+
+struct IntermediateBufferReq
+{
+
+    IntermediateBufferReq()
+        : type(MemType::ALLOCATE)
+        , fd(0)
+        , flags(0)
+    {}
+
+    IntermediateBufferReq(const MemType type, const uint32_t fd, const uint32_t flags)
+        : type(type)
+        , fd(fd)
+        , flags(flags)
+    {}
+
+    IntermediateBufferReq(const MemType type)
+        : type(type)
+        , fd(0)
+        , flags(0)
+    {}
+
+    MemType type;
+    uint32_t fd;
+    uint32_t flags;
+};
+
 class Buffer
 {
 public:

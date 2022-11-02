@@ -34,7 +34,9 @@ public:
     Buffer ImportBuffer(int fd, uint32_t size);
 
     // Network Creation
-    Network CreateNetwork(const char* compiledNetworkData, size_t compiledNetworkSize);
+    Network CreateNetwork(const char* compiledNetworkData,
+                          size_t compiledNetworkSize,
+                          const IntermediateBufferReq& desc = { MemType::ALLOCATE, 0, 0 });
 
     std::string GetDeviceId();
 

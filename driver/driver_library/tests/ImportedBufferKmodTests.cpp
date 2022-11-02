@@ -47,6 +47,11 @@ public:
         return m_HeapData.fd;
     }
 
+    int GetFlags()
+    {
+        return m_HeapData.fd_flags;
+    }
+
     ~DmaHeapBuffer()
     {
         if (m_DmaHeapFd >= 0)
@@ -199,5 +204,156 @@ TEST_CASE("ImportedBufferMap/Unmap")
             REQUIRE_NOTHROW(test_buffer.Unmap());
         }
     }
+}
+
+TEST_CASE("Input/Output/IntermediateBuffers-Imported")
+{
+    // clang-format off
+    std::vector<uint8_t> serialized = {
+        // 0: FourCC
+        'E', 'N', 'C', 'N',
+
+        // 4: Version (Major)
+        1, 0, 0, 0,
+        // 8: Version (Minor)
+        0, 0, 0, 0,
+        // 12: Version (Patch)
+        0, 0, 0, 0,
+
+        // 16: Constant DMA data (size)
+        3, 0, 0, 0,
+        // 20: Constant DMA data (values)
+        1, 2, 3,
+
+        // 23: Constant control unit data (size)
+        2, 0, 0, 0,
+        // 27: Constant control unit data (values)
+        4, 5,
+
+        // Input buffer infos (size)
+        1, 0, 0, 0,
+        // Input buffer info 0
+        3, 0, 0, 0, 11, 0, 0, 0, 12, 0, 0, 0,
+
+        // Output buffer infos (size)
+        2, 0, 0, 0,
+        // Output buffer info 0
+        4, 0, 0, 0, 21, 0, 0, 0, 22, 0, 0, 0,
+        // Output buffer info 1
+        5, 0, 0, 0, 23, 0, 0, 0, 24, 0, 0, 0,
+
+        // Constant control unit data buffer infos (size)
+        1, 0, 0, 0,
+        // Constant control unit data buffer info 0 (buffer 1, offset 0, size 2)
+        1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0,
+
+        // Constant DMA data buffer infos (size)
+        1, 0, 0, 0,
+        // Constant DMA data buffer info 0 (buffer 0, offset 0, size 3)
+        0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0,
+
+        // Intermediate data buffer infos (size)
+        1, 0, 0, 0,
+        // Intermediate data buffer info 0
+        2, 0, 0, 0, 51, 0, 0, 0, 52, 0, 0, 0,
+    };
+    // clang-format on
+
+    // check the kernel version to be higher or equal to 5.6.
+    if (!ethosn::utils::IsKernelVersionHigherOrEqualTo(5, 6))
+    {
+        INFO("Kernel version lower than 5.6.");
+        INFO("No tests will be performed.");
+        return;
+    }
+
+    // check that NPU core is behind a IOMMU.
+    if (!ethosn::utils::IsNpuCoreBehindIommus())
+    {
+        INFO("No NPU core is behind a IOMMU or \"ethosn@xxxxxxx\" not found in the device tree.");
+        INFO("No tests will be performed.");
+        return;
+    }
+
+    constexpr uint32_t bufSize = 103;
+    DmaHeapBuffer dmaHeapData(bufSize);
+    IntermediateBufferReq req(MemType::IMPORT, dmaHeapData.GetRawFd(), dmaHeapData.GetFlags());
+    Network ntwrk(reinterpret_cast<const char*>(serialized.data()), serialized.size(), "/dev/ethosn0", req);
+}
+
+TEST_CASE("Input/Output/IntermediateBuffers-ProcMemAllocImport")
+{
+    // clang-format off
+    std::vector<uint8_t> serialized = {
+        // 0: FourCC
+        'E', 'N', 'C', 'N',
+
+        // 4: Version (Major)
+        1, 0, 0, 0,
+        // 8: Version (Minor)
+        0, 0, 0, 0,
+        // 12: Version (Patch)
+        0, 0, 0, 0,
+
+        // 16: Constant DMA data (size)
+        3, 0, 0, 0,
+        // 20: Constant DMA data (values)
+        1, 2, 3,
+
+        // 23: Constant control unit data (size)
+        2, 0, 0, 0,
+        // 27: Constant control unit data (values)
+        4, 5,
+
+        // Input buffer infos (size)
+        1, 0, 0, 0,
+        // Input buffer info 0
+        3, 0, 0, 0, 11, 0, 0, 0, 12, 0, 0, 0,
+
+        // Output buffer infos (size)
+        2, 0, 0, 0,
+        // Output buffer info 0
+        4, 0, 0, 0, 21, 0, 0, 0, 22, 0, 0, 0,
+        // Output buffer info 1
+        5, 0, 0, 0, 23, 0, 0, 0, 24, 0, 0, 0,
+
+        // Constant control unit data buffer infos (size)
+        1, 0, 0, 0,
+        // Constant control unit data buffer info 0 (buffer 1, offset 0, size 2)
+        1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0,
+
+        // Constant DMA data buffer infos (size)
+        1, 0, 0, 0,
+        // Constant DMA data buffer info 0 (buffer 0, offset 0, size 3)
+        0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0,
+
+        // Intermediate data buffer infos (size)
+        1, 0, 0, 0,
+        // Intermediate data buffer info 0
+        2, 0, 0, 0, 51, 0, 0, 0, 52, 0, 0, 0,
+    };
+    // clang-format on
+
+    // check the kernel version to be higher or equal to 5.6.
+    if (!ethosn::utils::IsKernelVersionHigherOrEqualTo(5, 6))
+    {
+        INFO("Kernel version lower than 5.6.");
+        INFO("No tests will be performed.");
+        return;
+    }
+
+    // check that NPU core is behind a IOMMU.
+    if (!ethosn::utils::IsNpuCoreBehindIommus())
+    {
+        INFO("No NPU core is behind a IOMMU or \"ethosn@xxxxxxx\" not found in the device tree.");
+        INFO("No tests will be performed.");
+        return;
+    }
+
+    constexpr uint32_t bufSize = 103;
+    DmaHeapBuffer dmaHeapData(bufSize);
+    IntermediateBufferReq req(MemType::IMPORT, dmaHeapData.GetRawFd(), dmaHeapData.GetFlags());
+    ProcMemAllocator procMemAlloc("/dev/ethosn0");
+    procMemAlloc.CreateNetwork(reinterpret_cast<const char*>(serialized.data()), serialized.size(), req);
 }
 #endif

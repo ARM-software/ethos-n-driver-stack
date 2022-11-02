@@ -162,7 +162,10 @@ bool VerifyKernel()
     return VerifyKernel(DEVICE_NODE);
 }
 
-KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compiledNetworkSize, const std::string& device)
+KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData,
+                                 size_t compiledNetworkSize,
+                                 const std::string& device,
+                                 const IntermediateBufferReq& desc)
     : NetworkImpl(compiledNetworkData, compiledNetworkSize, false)
 {
     CompiledNetworkInfo compiledNetwork = DeserializeCompiledNetwork(compiledNetworkData, compiledNetworkSize);
@@ -183,10 +186,24 @@ KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compile
 
     netReq.intermediate_desc.buffers.num  = static_cast<uint32_t>(intermediateInfos.size());
     netReq.intermediate_desc.buffers.info = intermediateInfos.data();
-
-    // The type should be taken from the compiledNetwork when this is supported.
-    netReq.intermediate_desc.memory.type      = ethosn_intermediate_desc::ethosn_memory::ALLOCATE;
-    netReq.intermediate_desc.memory.data_size = compiledNetwork.m_IntermediateDataSize;
+    switch (desc.type)
+    {
+        case MemType::ALLOCATE:
+            netReq.intermediate_desc.memory.type      = ethosn_intermediate_desc::ethosn_memory::ALLOCATE;
+            netReq.intermediate_desc.memory.data_size = static_cast<uint32_t>(compiledNetwork.m_IntermediateDataSize);
+            break;
+        case MemType::IMPORT:
+            netReq.intermediate_desc.memory.type    = ethosn_intermediate_desc::ethosn_memory::IMPORT;
+            netReq.intermediate_desc.memory.dma_req = { desc.fd, desc.flags,
+                                                        static_cast<uint32_t>(compiledNetwork.m_IntermediateDataSize) };
+            break;
+        case MemType::NONE:
+            netReq.intermediate_desc.memory = {};
+            break;
+        default:
+            throw std::runtime_error(std::string("Wrong value of memory type of Intermediate Buffers\n"));
+            break;
+    }
 
     netReq.input_buffers.num  = static_cast<uint32_t>(inputInfos.size());
     netReq.input_buffers.info = inputInfos.data();
@@ -224,7 +241,10 @@ KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compile
     }
 }
 
-KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compiledNetworkSize, int allocatorFd)
+KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData,
+                                 size_t compiledNetworkSize,
+                                 int allocatorFd,
+                                 const IntermediateBufferReq& desc)
     : NetworkImpl(compiledNetworkData, compiledNetworkSize, false)
 {
     CompiledNetworkInfo compiledNetwork = DeserializeCompiledNetwork(compiledNetworkData, compiledNetworkSize);
@@ -243,12 +263,27 @@ KmodNetworkImpl::KmodNetworkImpl(const char* compiledNetworkData, size_t compile
     netReq.dma_data.size    = static_cast<uint32_t>(compiledNetwork.m_ConstantDmaDataSize);
     netReq.dma_data.data    = compiledNetwork.CalculateConstantDmaDataPtr(compiledNetworkData);
 
+    switch (desc.type)
+    {
+        case MemType::ALLOCATE:
+            netReq.intermediate_desc.memory.type      = ethosn_intermediate_desc::ethosn_memory::ALLOCATE;
+            netReq.intermediate_desc.memory.data_size = static_cast<uint32_t>(compiledNetwork.m_IntermediateDataSize);
+            break;
+        case MemType::IMPORT:
+            netReq.intermediate_desc.memory.type    = ethosn_intermediate_desc::ethosn_memory::IMPORT;
+            netReq.intermediate_desc.memory.dma_req = { desc.fd, desc.flags,
+                                                        static_cast<uint32_t>(compiledNetwork.m_IntermediateDataSize) };
+            break;
+        case MemType::NONE:
+            netReq.intermediate_desc.memory = {};
+            break;
+        default:
+            throw std::runtime_error(std::string("Wrong value of memory type of Intermediate Buffers\n"));
+            break;
+    }
+
     netReq.intermediate_desc.buffers.num  = static_cast<uint32_t>(intermediateInfos.size());
     netReq.intermediate_desc.buffers.info = intermediateInfos.data();
-
-    // The type should be taken from the compiledNetwork when this is supported.
-    netReq.intermediate_desc.memory.type      = ethosn_intermediate_desc::ethosn_memory::ALLOCATE;
-    netReq.intermediate_desc.memory.data_size = compiledNetwork.m_IntermediateDataSize;
 
     netReq.input_buffers.num  = static_cast<uint32_t>(inputInfos.size());
     netReq.input_buffers.info = inputInfos.data();
