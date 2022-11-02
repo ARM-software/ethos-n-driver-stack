@@ -1436,13 +1436,15 @@ static int firmware_load(struct ethosn_core *core,
 
 	/* Find a FW binary for this NPU */
 	big_fw_desc = find_big_fw_desc(core, big_fw);
-	if (IS_ERR(big_fw_desc))
-		return -EINVAL;
+	if (IS_ERR(big_fw_desc)) {
+		ret = PTR_ERR(big_fw_desc);
+		goto release_fw;
+	}
 
 	/* Check FW binary version compatibility */
 	ret = verify_firmware(core, big_fw);
 	if (ret)
-		return ret;
+		goto release_fw;
 
 	dev_dbg(core->dev,
 		"Found FW. arch_min=0x%08x, arch_max=0x%08x, offset=0x%08x, ple_offset=0x%08x, size=0x%08x",
