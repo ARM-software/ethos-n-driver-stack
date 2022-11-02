@@ -40,6 +40,9 @@
 
 #define ETHOSN_NAME_PREFIX  "ethosn"
 
+/* Magic (FourCC) number to identify the big firmware binary */
+#define ETHOSN_BIG_FW_MAGIC ('E' | ('N' << 8) | ('F' << 16) | ('W' << 24))
+
 /* Number of bits the MCU Vector Table address is shifted. */
 #define SYSCTLR0_INITVTOR_SHIFT         7
 
@@ -1342,6 +1345,7 @@ int ethosn_send_stash_request(struct ethosn_core *core)
 
 /* Big FW binary structure */
 struct ethosn_big_fw {
+	uint32_t fw_magic;
 	uint32_t fw_ver_major;
 	uint32_t fw_ver_minor;
 	uint32_t fw_ver_patch;
@@ -1359,8 +1363,16 @@ static struct ethosn_big_fw_desc *find_big_fw_desc(struct ethosn_core *core,
 						   struct ethosn_big_fw *big_fw)
 {
 	struct dl1_npu_id_r npu_id;
-	int i = big_fw->fw_cnt;
+	int i;
 	uint32_t arch;
+
+	if (big_fw->fw_magic != ETHOSN_BIG_FW_MAGIC) {
+		dev_err(core->dev,
+			"Unable to identify BIG FW. Invalid magic number: 0x%04x\n",
+			big_fw->fw_magic);
+
+		return ERR_PTR(-EINVAL);
+	}
 
 	npu_id.word = ethosn_read_top_reg(core, DL1_RP, DL1_NPU_ID);
 	arch = npu_id.bits.arch_major << 24 |
@@ -1368,15 +1380,17 @@ static struct ethosn_big_fw_desc *find_big_fw_desc(struct ethosn_core *core,
 	       npu_id.bits.arch_rev;
 
 	dev_dbg(core->dev,
-		"NPU reported version %u.%u.%u. FWs in BIG FW: %u. FW version in BIG FW: %u.%u.%u\n",
+		"NPU reported version %u.%u.%u. BIG FW Magic: 0x%04x, FWs in BIG FW: %u. FW version in BIG FW: %u.%u.%u\n",
 		npu_id.bits.arch_major,
 		npu_id.bits.arch_minor,
 		npu_id.bits.arch_rev,
+		big_fw->fw_magic,
 		big_fw->fw_cnt,
 		big_fw->fw_ver_major,
 		big_fw->fw_ver_minor,
 		big_fw->fw_ver_patch);
 
+	i = big_fw->fw_cnt;
 	while (i--) {
 		if (big_fw->desc[i].arch_min <= arch &&
 		    arch <= big_fw->desc[i].arch_max)
