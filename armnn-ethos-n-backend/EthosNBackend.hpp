@@ -12,6 +12,7 @@
 #include <armnn/backends/IBackendInternal.hpp>
 #include <armnn/backends/OptimizationViews.hpp>
 
+#include <ethosn_driver_library/Device.hpp>
 #include <ethosn_driver_library/ProcMemAllocator.hpp>
 
 namespace armnn
@@ -148,9 +149,18 @@ public:
     // Getter for the singleton instance
     static EthosNBackendAllocatorService& GetInstance();
 
-    std::shared_ptr<ethosn::driver_library::ProcMemAllocator> GetProcMemAllocatorPtr()
+    std::shared_ptr<ethosn::driver_library::ProcMemAllocator> GetProcMemAllocatorPtr(const std::string& deviceId)
     {
-        return m_SharedEthosNProcMemAllocator;
+        using namespace ethosn::driver_library;
+
+        if (deviceId.empty())
+        {
+            return SearchAllocatorVector(GetDeviceNamePrefix() + std::to_string(GetDeviceBaseId()));
+        }
+        else
+        {
+            return SearchAllocatorVector(deviceId);
+        }
     }
 
     void SetProcMemAllocatorPtr(const EthosNConfig& config, const std::string& deviceId)
@@ -159,24 +169,38 @@ public:
 
         if (config.m_PerfOnly)
         {
-            m_SharedEthosNProcMemAllocator.reset();
             return;
         }
 
-        if (!deviceId.empty())
+        std::shared_ptr<ethosn::driver_library::ProcMemAllocator> allocator;
+
+        if (deviceId.empty())
         {
-            m_SharedEthosNProcMemAllocator = std::make_shared<ProcMemAllocator>(deviceId);
+            allocator = std::make_shared<ProcMemAllocator>();
         }
         else
         {
-            m_SharedEthosNProcMemAllocator = std::make_shared<ProcMemAllocator>();
+            allocator = std::make_shared<ProcMemAllocator>(deviceId);
         }
 
-        return;
+        m_SharedEthosNProcMemAllocators.emplace_back(std::move(allocator));
     }
 
 private:
-    std::shared_ptr<ethosn::driver_library::ProcMemAllocator> m_SharedEthosNProcMemAllocator;
+    std::shared_ptr<ethosn::driver_library::ProcMemAllocator> SearchAllocatorVector(const std::string& deviceId)
+    {
+        for (auto allocator : m_SharedEthosNProcMemAllocators)
+        {
+            if (deviceId == allocator->GetDeviceId())
+            {
+                return allocator;
+            }
+        }
+
+        return nullptr;
+    }
+
+    std::vector<std::shared_ptr<ethosn::driver_library::ProcMemAllocator>> m_SharedEthosNProcMemAllocators;
 };
 
 namespace ethosnbackend

@@ -36,10 +36,13 @@ public:
     // Network Creation
     Network CreateNetwork(const char* compiledNetworkData, size_t compiledNetworkSize);
 
+    std::string GetDeviceId();
+
     ~ProcMemAllocator();
 
 private:
     int m_AllocatorFd;
+    std::string m_deviceId;
 };
 
 }    // namespace driver_library

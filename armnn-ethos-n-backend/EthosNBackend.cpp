@@ -326,14 +326,14 @@ const BackendId& EthosNBackend::GetIdStatic()
 IBackendInternal::IWorkloadFactoryPtr
     EthosNBackend::CreateWorkloadFactory(const IBackendInternal::IMemoryManagerSharedPtr&) const
 {
-    auto procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
+    auto procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({});
     if (procMemAllocator == nullptr)
     {
         EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(m_Config, {});
     }
 
     return std::make_unique<EthosNWorkloadFactory>(
-        m_Config, EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr());
+        m_Config, EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({}));
 }
 
 IBackendInternal::IWorkloadFactoryPtr
@@ -347,13 +347,13 @@ IBackendInternal::IWorkloadFactoryPtr
 
     const std::string deviceId = ethosnbackend::GetDeviceOptionVal(modelOptions);
 
-    auto procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
+    auto procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr(deviceId);
     if (procMemAllocator == nullptr)
     {
         EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(m_Config, deviceId);
     }
 
-    procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
+    procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr(deviceId);
     if (!deviceId.empty())
     {
         return std::make_unique<EthosNWorkloadFactory>(m_Config, deviceId, procMemAllocator);
@@ -372,13 +372,13 @@ IBackendInternal::IWorkloadFactoryPtr
     std::unique_ptr<ITensorHandleFactory> importFactory;
 
     const std::string deviceId = ethosnbackend::GetDeviceOptionVal(modelOptions);
-    auto procMemAllocator      = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
+    auto procMemAllocator      = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr(deviceId);
     if (procMemAllocator == nullptr)
     {
         EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(m_Config, deviceId);
     }
 
-    procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
+    procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr(deviceId);
     factory          = std::make_unique<EthosNTensorHandleFactory>(m_Config, procMemAllocator);
     importFactory    = std::make_unique<EthosNImportTensorHandleFactory>(
         m_Config, procMemAllocator, static_cast<MemorySourceFlags>(MemorySource::DmaBuf),
@@ -402,13 +402,13 @@ IBackendInternal::IWorkloadFactoryPtr
     std::unique_ptr<ITensorHandleFactory> importFactory;
 
     const std::string deviceId = ethosnbackend::GetDeviceOptionVal(modelOptions);
-    auto procMemAllocator      = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
+    auto procMemAllocator      = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr(deviceId);
     if (procMemAllocator == nullptr)
     {
         EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(m_Config, deviceId);
     }
 
-    procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
+    procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr(deviceId);
     factory          = std::make_unique<EthosNTensorHandleFactory>(m_Config, procMemAllocator);
     importFactory =
         std::make_unique<EthosNImportTensorHandleFactory>(m_Config, procMemAllocator, importFlags, exportFlags);
@@ -527,13 +527,13 @@ void EthosNBackend::RegisterTensorHandleFactories(TensorHandleFactoryRegistry& r
                                                   MemorySourceFlags importFlags,
                                                   MemorySourceFlags exportFlags)
 {
-    auto procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
+    auto procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({});
     if (procMemAllocator == nullptr)
     {
         EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(m_Config, {});
     }
 
-    procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
+    procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({});
     std::unique_ptr<ITensorHandleFactory> factory =
         std::make_unique<EthosNTensorHandleFactory>(m_Config, procMemAllocator);
     std::unique_ptr<ITensorHandleFactory> importFactory =
@@ -547,13 +547,13 @@ void EthosNBackend::RegisterTensorHandleFactories(TensorHandleFactoryRegistry& r
 
 void EthosNBackend::RegisterTensorHandleFactories(TensorHandleFactoryRegistry& registry)
 {
-    auto procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
+    auto procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({});
     if (procMemAllocator == nullptr)
     {
         EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(m_Config, {});
     }
 
-    procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
+    procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({});
     std::unique_ptr<ITensorHandleFactory> factory =
         std::make_unique<EthosNTensorHandleFactory>(m_Config, procMemAllocator);
     std::unique_ptr<ITensorHandleFactory> importFactory = std::make_unique<EthosNImportTensorHandleFactory>(

@@ -27,14 +27,14 @@ struct WorkloadFactoryHelper<armnn::EthosNWorkloadFactory>
         armnn::EthosNConfig config{};
 
         // Create process memory allocator if it does not already exist
-        auto procMemAllocator = armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
+        auto procMemAllocator = armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({});
         if (procMemAllocator == nullptr)
         {
             armnn::EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(config, {});
         }
 
         return armnn::EthosNWorkloadFactory(
-            armnn::EthosNConfig(), armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr());
+            armnn::EthosNConfig(), armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({}));
     }
 };
 

@@ -61,9 +61,9 @@ ProcMemAllocator::ProcMemAllocator(const std::string& device)
         throw std::runtime_error(std::string("Failed to create process memory allocator: ") + strerror(err));
     }
 #else
-    ETHOSN_UNUSED(device);
     m_AllocatorFd = 0;
 #endif
+    m_deviceId = device;
 }
 
 ProcMemAllocator::ProcMemAllocator()
@@ -105,6 +105,11 @@ Network ProcMemAllocator::CreateNetwork(const char* compiledNetworkData, size_t 
 #error "Unknown target backend."
 #endif
     );
+}
+
+std::string ProcMemAllocator::GetDeviceId()
+{
+    return m_deviceId;
 }
 
 }    // namespace driver_library
