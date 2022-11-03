@@ -61,17 +61,19 @@ enum  ethosn_alloc_type {
 };
 
 /*
- * Used to save the result of dma_alloc calls for matching dma_free calls.
+ * Carries the information about the DMA allocation.
  * Also, iova_addr is used to set the buffer table for inferences.
  * stream_type is used to select the appropriate sub-allocator from the
  * main or asset allocator for additional dma operations such as mapping,
  * unmapping, and syncing for the device and cpu.
+ * imported is set if it represents a shared memory.
  */
 struct ethosn_dma_info {
 	size_t                  size;
 	void                    *cpu_addr;
 	dma_addr_t              iova_addr;
 	enum ethosn_stream_type stream_type;
+	bool                    imported;
 };
 
 /**

@@ -86,6 +86,7 @@ static struct ethosn_dma_info *carveout_alloc(
 		.size = size,
 		.cpu_addr = cpu_addr,
 		.iova_addr = dma_addr,
+		.imported = false
 	};
 
 	return dma_info;

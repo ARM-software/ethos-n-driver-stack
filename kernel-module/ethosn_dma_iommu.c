@@ -342,7 +342,8 @@ ret:
 		.info = (struct ethosn_dma_info) {
 			.size = size,
 			.cpu_addr = cpu_addr,
-			.iova_addr = 0
+			.iova_addr = 0,
+			.imported = false
 		},
 		.dma_addr = dma_addr,
 		.pages = pages
@@ -667,7 +668,8 @@ static struct ethosn_dma_info *iommu_import(
 		.info = (struct ethosn_dma_info) {
 			.size = scatterlist_size,
 			.cpu_addr = NULL,
-			.iova_addr = 0
+			.iova_addr = 0,
+			.imported = true
 		},
 		.dma_addr = dma_addr,
 		.pages = pages,
