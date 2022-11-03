@@ -72,7 +72,15 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 
         BackendGlobalConfigSetter configSetter(config, config.QueryCapabilities());
 
-        armnn::EthosNWorkloadFactory factory(config);
+        // Create process memory allocator if it does not already exist
+        auto procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
+        if (procMemAllocator == nullptr)
+        {
+            EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(config, {});
+        }
+
+        armnn::EthosNWorkloadFactory factory(config,
+                                             EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr());
         // To create a PreCompiled layer, create a network and Optimize it.
         armnn::INetworkPtr net = armnn::INetwork::Create();
 
@@ -228,7 +236,15 @@ TEST_SUITE("EthosNCreateEstimationWorkload")
 
         BackendGlobalConfigSetter configSetter(config, config.QueryCapabilities());
 
-        armnn::EthosNWorkloadFactory factory(config);
+        // Create process memory allocator if it does not already exist
+        auto procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
+        if (procMemAllocator == nullptr)
+        {
+            EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(config, {});
+        }
+
+        armnn::EthosNWorkloadFactory factory(config,
+                                             EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr());
         // To create a PreCompiled layer, create a network and Optimize it.
         armnn::INetworkPtr net = armnn::INetwork::Create();
 

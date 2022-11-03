@@ -6,6 +6,7 @@
 
 #include "EthosNConfig.hpp"
 #include "armnn/backends/ITensorHandleFactory.hpp"
+#include <ethosn_driver_library/ProcMemAllocator.hpp>
 
 namespace armnn
 {
@@ -16,13 +17,10 @@ public:
     virtual ~EthosNTensorHandleFactory()
     {}
 
-    EthosNTensorHandleFactory(const EthosNConfig& config)
+    EthosNTensorHandleFactory(const EthosNConfig& config,
+                              const std::shared_ptr<ethosn::driver_library::ProcMemAllocator> procMemAllocator)
         : m_EthosNConfig(config)
-    {}
-
-    EthosNTensorHandleFactory(const EthosNConfig& config, const std::string deviceId)
-        : m_EthosNConfig(config)
-        , m_DeviceId(deviceId)
+        , m_ProcMemAllocator(procMemAllocator)
     {}
 
     virtual std::unique_ptr<ITensorHandle> CreateSubTensorHandle(ITensorHandle& parent,
@@ -43,6 +41,7 @@ public:
 private:
     EthosNConfig m_EthosNConfig;
     std::string m_DeviceId;
+    std::shared_ptr<ethosn::driver_library::ProcMemAllocator> m_ProcMemAllocator;
 };
 
 /// The TensorHandleFactory for import tensors
@@ -53,19 +52,11 @@ public:
     {}
 
     EthosNImportTensorHandleFactory(const EthosNConfig& config,
+                                    const std::shared_ptr<ethosn::driver_library::ProcMemAllocator> procMemAllocator,
                                     MemorySourceFlags importFlags,
                                     MemorySourceFlags exportFlags)
         : m_EthosNConfig(config)
-        , m_ImportFlags(importFlags)
-        , m_ExportFlags(exportFlags)
-    {}
-
-    EthosNImportTensorHandleFactory(const EthosNConfig& config,
-                                    const std::string deviceId,
-                                    MemorySourceFlags importFlags,
-                                    MemorySourceFlags exportFlags)
-        : m_EthosNConfig(config)
-        , m_DeviceId(deviceId)
+        , m_ProcMemAllocator(procMemAllocator)
         , m_ImportFlags(importFlags)
         , m_ExportFlags(exportFlags)
     {}
@@ -96,7 +87,7 @@ public:
 
 private:
     EthosNConfig m_EthosNConfig;
-    std::string m_DeviceId;
+    std::shared_ptr<ethosn::driver_library::ProcMemAllocator> m_ProcMemAllocator;
     MemorySourceFlags m_ImportFlags;
     MemorySourceFlags m_ExportFlags;
 };

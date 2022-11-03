@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2022 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -24,7 +24,17 @@ struct WorkloadFactoryHelper<armnn::EthosNWorkloadFactory>
 
     static armnn::EthosNWorkloadFactory GetFactory(const armnn::IBackendInternal::IMemoryManagerSharedPtr& = nullptr)
     {
-        return armnn::EthosNWorkloadFactory(armnn::EthosNConfig());
+        armnn::EthosNConfig config{};
+
+        // Create process memory allocator if it does not already exist
+        auto procMemAllocator = armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr();
+        if (procMemAllocator == nullptr)
+        {
+            armnn::EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(config, {});
+        }
+
+        return armnn::EthosNWorkloadFactory(
+            armnn::EthosNConfig(), armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr());
     }
 };
 
