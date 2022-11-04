@@ -170,10 +170,7 @@ To download the components, enter the following commands:
 ```sh
 mkdir driver_stack
 cd driver_stack
-git clone https://github.com/Arm-software/armnn --branch main
-cd armnn/
-git reset --hard 3c2795ac70e3963069bf54ac9c3e4555c5154a85
-cd ..
+git clone https://github.com/Arm-software/armnn --branch armnn_22_11
 git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 22.08.1
 ```
 
@@ -272,17 +269,29 @@ You must follow specific steps to build the Ethos-N NPU driver. You must build t
 
     _Note: The `<install_directory>` directory is where files built from the Ethos-N NPU driver will be stored._
 
-7. To link the Ethos-N NPU backend to the Arm NN source tree, enter the following commands:
+7. Set up the Arm NN directory structure and link the Ethos-N NPU backend to the Arm NN source tree:
 
     ```sh
-    cd <path_to>/driver_stack/armnn/src/backends
+    cd <path_to>/driver_stack
+    mkdir armnn_build
+    cd armnn_build
+    mkdir source
+    mkdir build
+    cd ..
+    mv armnn armnn_build/source
+    cd <path_to>/driver_stack/armnn_build/source/armnn/src/backends
     ln -s <path_to>/driver_stack/ethos-n-driver-stack/armnn-ethos-n-backend ethos-n
     ```
 
-8. Build Arm NN for TensorFlow Lite. For instructions about building Arm NN, see <https://developer.arm.com/solutions/machine-learning-on-arm/developer-material/how-to-guides/configure-the-arm-nn-sdk-build-environment>.
+8. Build Arm NN for TensorFlow Lite. For instructions about building Arm NN, see the README.md file in the armnn/build-tool directory.
 
+    ```sh
+    cd <path_to>/driver_stack/armnn_build
+    sudo ./source/armnn/build-tool/scripts/install-packages.sh
+    ./source/armnn/build-tool/scripts/setup-armnn.sh --tflite-parser --target-arch=aarch64
+    ```
 
-    The following build options are required by the CMake call in the [**Build Arm NN**](https://developer.arm.com/documentation/102644/2202/Build-Arm-NN) section of the guide:
+    The following build options are required to use the Ethos-N backend:
 
     ```cmake
     -DBUILD_TESTS=1
@@ -291,13 +300,11 @@ You must follow specific steps to build the Ethos-N NPU driver. You must build t
     -DETHOSN_ROOT=<install_directory>
     ```
 
-    For cross compilation, see <https://github.com/ARM-software/armnn/blob/master/BuildGuideCrossCompilation.md>.
+    ```sh
+    ./source/armnn/build-tool/scripts/build-armnn.sh  --target-arch=aarch64 --tflite-parser --ref-backend --armnn-cmake-args="-DBUILD_TESTS=1 -DARMNNREF=1 -DETHOSN_SUPPORT=1 -DETHOSN_ROOT=../ethos-n-driver-stack"
+    ```
 
-    As part of the Arm NN build, the process automatically builds the Ethos-N NPU driver plug-in for Arm NN.
-
-    _Note: Arm uses TensorFlow Lite as an example. You can also build Arm NN for [ONNX](https://developer.arm.com/documentation/102644/2202/Generate-the-build-dependencies-for-ONNX)._
-
-    _Note: Please make sure that all the requirements for Arm NN are met before building Arm NN._
+    Running the above command will produce a compressed folder containing all the files required to use Arm NN.
 
 ## Exercise the Ethos-N NPU driver
 
