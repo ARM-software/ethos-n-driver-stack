@@ -320,11 +320,11 @@ static int mailbox_alloc(struct ethosn_core *core)
 	return 0;
 
 err_free_mailbox_response:
-	ethosn_dma_unmap_and_free(allocator, &core->mailbox_response);
+	ethosn_dma_unmap_and_release(allocator, &core->mailbox_response);
 err_free_mailbox_request:
-	ethosn_dma_unmap_and_free(allocator, &core->mailbox_request);
+	ethosn_dma_unmap_and_release(allocator, &core->mailbox_request);
 err_free_mailbox:
-	ethosn_dma_unmap_and_free(allocator, &core->mailbox);
+	ethosn_dma_unmap_and_release(allocator, &core->mailbox);
 err_exit:
 
 	return ret;
@@ -414,13 +414,13 @@ static int debug_monitor_channel_alloc(struct ethosn_core *core)
 
 	return 0;
 
-	ethosn_dma_unmap_and_free(allocator,
-				  core->debug_monitor_channel_response);
+	ethosn_dma_unmap_and_release(allocator,
+				     core->debug_monitor_channel_response);
 err_free_debug_monitor_channel_request:
-	ethosn_dma_unmap_and_free(allocator,
-				  core->debug_monitor_channel_request);
+	ethosn_dma_unmap_and_release(allocator,
+				     core->debug_monitor_channel_request);
 err_free_debug_monitor_channel:
-	ethosn_dma_unmap_and_free(allocator, core->debug_monitor_channel);
+	ethosn_dma_unmap_and_release(allocator, core->debug_monitor_channel);
 err_exit:
 
 	return ret;
@@ -436,12 +436,13 @@ err_exit:
  */
 static void ethosn_mailbox_free(struct ethosn_core *core)
 {
-	ethosn_dma_unmap_and_free(core->main_allocator, &core->mailbox);
+	ethosn_dma_unmap_and_release(core->main_allocator, &core->mailbox);
 
-	ethosn_dma_unmap_and_free(core->main_allocator, &core->mailbox_request);
+	ethosn_dma_unmap_and_release(core->main_allocator,
+				     &core->mailbox_request);
 
-	ethosn_dma_unmap_and_free(core->main_allocator,
-				  &core->mailbox_response);
+	ethosn_dma_unmap_and_release(core->main_allocator,
+				     &core->mailbox_response);
 
 	if (core->mailbox_message) {
 		devm_kfree(core->parent->dev, core->mailbox_message);
@@ -468,16 +469,16 @@ static void ethosn_debug_monitor_channel_free(struct ethosn_core *core)
 #if defined(ETHOSN_KERNEL_MODULE_DEBUG_MONITOR)
 	del_timer(&core->debug_monitor_channel_timer);
 
-	ethosn_dma_unmap_and_free(core->main_allocator,
-				  core->debug_monitor_channel);
+	ethosn_dma_unmap_and_release(core->main_allocator,
+				     core->debug_monitor_channel);
 	core->debug_monitor_channel = NULL;
 
-	ethosn_dma_unmap_and_free(core->main_allocator,
-				  core->debug_monitor_channel_request);
+	ethosn_dma_unmap_and_release(core->main_allocator,
+				     core->debug_monitor_channel_request);
 	core->debug_monitor_channel_request = NULL;
 
-	ethosn_dma_unmap_and_free(core->main_allocator,
-				  core->debug_monitor_channel_response);
+	ethosn_dma_unmap_and_release(core->main_allocator,
+				     core->debug_monitor_channel_response);
 	core->debug_monitor_channel_response = NULL;
 #endif
 }
@@ -1170,7 +1171,7 @@ int ethosn_configure_firmware_profiling(struct ethosn_core *core,
 	return 0;
 
 free_buf:
-	ethosn_dma_unmap_and_free(
+	ethosn_dma_unmap_and_release(
 		core->main_allocator,
 		&core->profiling.firmware_buffer_pending);
 ret:
@@ -1190,8 +1191,8 @@ int ethosn_configure_firmware_profiling_ack(struct ethosn_core *core)
 	/* We can now free the old buffer (if any), as we know the firmware is
 	 * no longer writing to it
 	 */
-	ethosn_dma_unmap_and_free(core->main_allocator,
-				  &core->profiling.firmware_buffer);
+	ethosn_dma_unmap_and_release(core->main_allocator,
+				     &core->profiling.firmware_buffer);
 
 	/* What used to be the pending buffer is now the proper one. */
 	core->profiling.firmware_buffer =
@@ -1480,8 +1481,8 @@ static int firmware_load(struct ethosn_core *core,
 	 */
 	if (!core->firmware || core->firmware->size != fw_size) {
 		if (core->firmware)
-			ethosn_dma_unmap_and_free(core->main_allocator,
-						  &core->firmware);
+			ethosn_dma_unmap_and_release(core->main_allocator,
+						     &core->firmware);
 
 		core->firmware =
 			ethosn_dma_alloc(core->main_allocator, fw_size,
@@ -1595,22 +1596,22 @@ static int firmware_load(struct ethosn_core *core,
 	return 0;
 
 free_stack_main:
-	ethosn_dma_unmap_and_free(core->main_allocator,
-				  &core->firmware_stack_main);
+	ethosn_dma_unmap_and_release(core->main_allocator,
+				     &core->firmware_stack_main);
 free_stack_task:
-	ethosn_dma_unmap_and_free(core->main_allocator,
-				  &core->firmware_stack_task);
+	ethosn_dma_unmap_and_release(core->main_allocator,
+				     &core->firmware_stack_task);
 unmap_ple_kernels:
 	if (!core->ple_kernels)
 		goto unmap_firmware;
 
 	ethosn_dma_unmap(core->main_allocator, core->ple_kernels);
 free_ple_kernels:
-	ethosn_dma_free(core->main_allocator, &core->ple_kernels);
+	ethosn_dma_release(core->main_allocator, &core->ple_kernels);
 unmap_firmware:
 	ethosn_dma_unmap(core->main_allocator, core->firmware);
 free_firmware:
-	ethosn_dma_free(core->main_allocator, &core->firmware);
+	ethosn_dma_release(core->main_allocator, &core->firmware);
 release_fw:
 	release_firmware(fw);
 
@@ -1833,19 +1834,20 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
  */
 static void ethosn_firmware_deinit(struct ethosn_core *core)
 {
-	ethosn_dma_unmap_and_free(core->main_allocator, &core->firmware);
+	ethosn_dma_unmap_and_release(core->main_allocator, &core->firmware);
 
 	if (core->ple_kernels)
-		ethosn_dma_unmap_and_free(core->main_allocator,
-					  &core->ple_kernels);
+		ethosn_dma_unmap_and_release(core->main_allocator,
+					     &core->ple_kernels);
 
-	ethosn_dma_unmap_and_free(core->main_allocator,
-				  &core->firmware_stack_main);
+	ethosn_dma_unmap_and_release(core->main_allocator,
+				     &core->firmware_stack_main);
 
-	ethosn_dma_unmap_and_free(core->main_allocator,
-				  &core->firmware_stack_task);
+	ethosn_dma_unmap_and_release(core->main_allocator,
+				     &core->firmware_stack_task);
 
-	ethosn_dma_unmap_and_free(core->main_allocator, &core->firmware_vtable);
+	ethosn_dma_unmap_and_release(core->main_allocator,
+				     &core->firmware_vtable);
 }
 
 /****************************************************************************
@@ -2497,12 +2499,12 @@ void ethosn_device_deinit(struct ethosn_core *core)
 	}
 
 	if (!IS_ERR_OR_NULL(core->profiling.firmware_buffer))
-		ethosn_dma_unmap_and_free(
+		ethosn_dma_unmap_and_release(
 			core->main_allocator,
 			&core->profiling.firmware_buffer);
 
 	if (!IS_ERR_OR_NULL(core->profiling.firmware_buffer_pending))
-		ethosn_dma_unmap_and_free(
+		ethosn_dma_unmap_and_release(
 			core->main_allocator,
 			&core->profiling.firmware_buffer_pending);
 }

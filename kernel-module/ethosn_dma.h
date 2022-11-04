@@ -309,20 +309,12 @@ void ethosn_dma_unmap(struct ethosn_dma_allocator *top_allocator,
 		      struct ethosn_dma_info *dma_info);
 
 /**
- * ethosn_dma_unmap_and_free() - Unmap and Free allocated DMA
+ * ethosn_dma_unmap_and_release() - Unmap and Release allocated DMA
  * @top_allocator: Top-level allocator for sub-allocators
  * @dma_info: Allocation information
  */
-void ethosn_dma_unmap_and_free(struct ethosn_dma_allocator *top_allocator,
-			       struct ethosn_dma_info **dma_info);
-
-/**
- * ethosn_dma_free() - Free allocated DMA
- * @top_allocator: Top-level allocator for sub-allocators
- * @dma_info: Allocation information
- */
-void ethosn_dma_free(struct ethosn_dma_allocator *top_allocator,
-		     struct ethosn_dma_info **dma_info);
+void ethosn_dma_unmap_and_release(struct ethosn_dma_allocator *top_allocator,
+				  struct ethosn_dma_info **dma_info);
 
 /**
  * ethosn_dma_get_addr_base() - Get base address of a given stream
@@ -397,7 +389,8 @@ struct ethosn_dma_info *ethosn_dma_import(
 	enum ethosn_stream_type stream_type);
 
 /**
- * ethosn_dma_release() - Release shared DMA buffer
+ * ethosn_dma_release() - Release a DMA buffer. If the buffer was allocated
+ * it'll be freed, else it'll be released.
  * @top_allocator: Top-level allocator for sub-allocators
  * @dma_info: Allocation information
  */

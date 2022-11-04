@@ -1032,19 +1032,21 @@ static void free_network(struct ethosn_network *network)
 		/* Free allocated DMA from core */
 		/* Intermediate and inference data exist per core */
 		if (network->intermediate_data)
-			ethosn_dma_unmap_and_free(
+			ethosn_dma_unmap_and_release(
 				network->asset_allocator,
 				&network->intermediate_data[i]);
 
 		if (network->inference_data)
-			ethosn_dma_unmap_and_free(
+			ethosn_dma_unmap_and_release(
 				network->asset_allocator,
 				&network->inference_data[i]);
 	}
 
 	/* Free allocated dma from top level device */
-	ethosn_dma_free(network->asset_allocator, &network->constant_dma_data);
-	ethosn_dma_free(network->asset_allocator, &network->constant_cu_data);
+	ethosn_dma_release(network->asset_allocator,
+			   &network->constant_dma_data);
+	ethosn_dma_release(network->asset_allocator,
+			   &network->constant_cu_data);
 
 	kfree(network->intermediate_data);
 	kfree(network->inference_data);
