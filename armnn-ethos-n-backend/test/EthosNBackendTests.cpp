@@ -325,12 +325,6 @@ TEST_SUITE("EthosNImportTensorHandle")
         auto ret = runtime->EnqueueWorkload(networkIdentifier, inputTensors, outputTensors);
         CHECK(ret == Status::Success);
 
-        // We have no way of Unimporting manually without using the import API.
-        // Execute another inference so the buffer is reset when we import it again.
-        lseek(fd, 0, SEEK_SET);
-        ret = runtime->EnqueueWorkload(networkIdentifier, inputTensors, outputTensors);
-        CHECK(ret == Status::Success);
-
         // reset the file descriptor to the beginning
         // and check the output is expected
         lseek(outputFd, 0, SEEK_SET);
@@ -577,9 +571,6 @@ TEST_SUITE("EthosNImportTensorHandle")
         auto ret = runtime->EnqueueWorkload(networkIdentifier, {}, outputTensors, importInputsIds);
         CHECK(ret == Status::Success);
 
-        // We have no way of Unimporting manually without using the import API.
-        // Execute another inference so the buffer is reset when we import it again.
-        lseek(fd, 0, SEEK_SET);
         runtime->ClearImportedInputs(networkIdentifier, importInputsIds);
 
         for (unsigned int i = 0; i < numElements; i++)
@@ -604,8 +595,8 @@ TEST_SUITE("EthosNImportTensorHandle")
                 IgnoreUnused(size);
                 // Create a file to be used as the file descriptor passed in
                 // We don't create a dma_buf here but use a normal file descriptor for this test
-                std::string fineName = "/tmp/bufferFile" + std::to_string(m_NameCount++) + ".bin";
-                int fd               = open(fineName.c_str(), O_RDWR | O_CREAT, S_IREAD | S_IWRITE);
+                std::string fileName = "/tmp/bufferFile" + std::to_string(m_NameCount++) + ".bin";
+                int fd               = open(fileName.c_str(), O_RDWR | O_CREAT, S_IREAD | S_IWRITE);
                 REQUIRE(fd >= 0);
                 m_Map[fd] = fd;
                 return static_cast<void*>(&m_Map[fd]);
@@ -737,12 +728,6 @@ TEST_SUITE("EthosNImportTensorHandle")
 
         auto ret = runtime->EnqueueWorkload(networkIdentifier, inputTensors, outputTensors);
         REQUIRE(ret == Status::Success);
-
-        // We have no way of Unimporting manually without using the import API.
-        // Execute another inference so the buffer is reset when we import it again.
-        lseek(*reinterpret_cast<int*>(inputFd), 0, SEEK_SET);
-        ret = runtime->EnqueueWorkload(networkIdentifier, inputTensors, outputTensors);
-        CHECK(ret == Status::Success);
 
         customAllocatorRef->RetrieveData(inputFd, inputBuffer.data(), totalBytes);
         customAllocatorRef->RetrieveData(outputFd, outputBuffer.data(), totalBytes);
