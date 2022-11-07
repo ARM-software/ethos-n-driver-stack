@@ -201,6 +201,8 @@ TEST_SUITE("EthosNImportTensorHandle")
             buf[i]++;
         }
 
+        handle->Unmap();
+
         handle->Unimport();
 
         lseek(fd, 0, SEEK_SET);
