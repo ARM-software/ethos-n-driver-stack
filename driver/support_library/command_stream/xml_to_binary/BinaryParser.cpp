@@ -1375,6 +1375,10 @@ void Parse(std::stringstream& parent, const cascading::MceS& mces)
     Parse(parent, mces.ifmDeltaDefault);
     Parse(parent, "</IFM_DELTA_DEFAULT>", 4, true);
 
+    Parse(parent, "<IFM_DELTA_ONE_FROM_EDGE>", 4, true);
+    Parse(parent, mces.ifmDeltaOneFromEdge);
+    Parse(parent, "</IFM_DELTA_ONE_FROM_EDGE>", 4, true);
+
     Parse(parent, "<IFM_DELTA_EDGE>", 4, true);
     Parse(parent, mces.ifmDeltaEdge);
     Parse(parent, "</IFM_DELTA_EDGE>", 4, true);

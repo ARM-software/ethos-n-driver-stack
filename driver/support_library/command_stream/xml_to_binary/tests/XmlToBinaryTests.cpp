@@ -712,6 +712,24 @@ const std::string g_XmlStr =
                         <HEIGHT>2</HEIGHT>
                     </VALUE_3>
                 </IFM_DELTA_DEFAULT>
+                <IFM_DELTA_ONE_FROM_EDGE>
+                    <VALUE_0>
+                        <WIDTH>4</WIDTH>
+                        <HEIGHT>-4</HEIGHT>
+                    </VALUE_0>
+                    <VALUE_1>
+                        <WIDTH>-4</WIDTH>
+                        <HEIGHT>4</HEIGHT>
+                    </VALUE_1>
+                    <VALUE_2>
+                        <WIDTH>5</WIDTH>
+                        <HEIGHT>-5</HEIGHT>
+                    </VALUE_2>
+                    <VALUE_3>
+                        <WIDTH>-5</WIDTH>
+                        <HEIGHT>5</HEIGHT>
+                    </VALUE_3>
+                </IFM_DELTA_ONE_FROM_EDGE>
                 <IFM_DELTA_EDGE>
                     <VALUE_0>
                         <WIDTH>1</WIDTH>
@@ -1597,6 +1615,16 @@ TEST_CASE("XmlToBinary-BinaryToXml")
                                                       /*Height = */ int8_t{ -2 } },
                                  cascading::IfmDelta{ /* Width = */ int8_t{ -2 },
                                                       /*Height = */ int8_t{ 2 } } },
+                             /* IfmDeltaOneFromEdge = */
+                             std::array<cascading::IfmDelta, static_cast<uint8_t>(4U)>{
+                                 cascading::IfmDelta{ /* Width = */ int8_t{ 4 },
+                                                      /*Height = */ int8_t{ -4 } },
+                                 cascading::IfmDelta{ /* Width = */ int8_t{ -4 },
+                                                      /*Height = */ int8_t{ 4 } },
+                                 cascading::IfmDelta{ /* Width = */ int8_t{ 5 },
+                                                      /*Height = */ int8_t{ -5 } },
+                                 cascading::IfmDelta{ /* Width = */ int8_t{ -5 },
+                                                      /*Height = */ int8_t{ 5 } } },
                              /* IfmDeltaEdge = */
                              std::array<cascading::IfmDelta, static_cast<uint8_t>(4U)>{
                                  cascading::IfmDelta{ /* Width = */ int8_t{ 1 },

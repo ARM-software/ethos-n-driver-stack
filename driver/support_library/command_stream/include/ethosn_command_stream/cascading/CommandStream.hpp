@@ -251,8 +251,14 @@ struct MceS
     uint8_t isPackedBoundaryY;
     std::array<FilterShape, static_cast<uint8_t>(4U)> filterShape;
     std::array<Padding, static_cast<uint8_t>(4U)> padding;
+    /// The amount of extra IFM valid (not padding) data available to the right/bottom of the central OFM stripe.
+    /// The values may differ across the OFM, so there are separate values for each possibility, based on how
+    /// close the OFM stripe is to the edge of the tensor.
+    /// @{
     std::array<IfmDelta, static_cast<uint8_t>(4U)> ifmDeltaDefault;
+    std::array<IfmDelta, static_cast<uint8_t>(4U)> ifmDeltaOneFromEdge;
     std::array<IfmDelta, static_cast<uint8_t>(4U)> ifmDeltaEdge;
+    /// @}
     /// The width/height (in elements) of IFM slots.
     /// This would typically be the same as dfltStripeSize, but may be different in cases of
     /// upsampling, VALID padding and/or packed boundary data.

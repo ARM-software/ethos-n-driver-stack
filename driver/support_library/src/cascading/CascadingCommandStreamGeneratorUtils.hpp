@@ -354,103 +354,151 @@ inline void setMcesAlgorithm(MceS& mceSchedulerData, CompilerMceAlgorithm algori
     }
 }
 
-inline void setMcesStridedConvolutionData(MceS& mceSchedulerData, const OpGraph& mergedOpGraph, MceOp* const ptrMceOp)
+/// Sets the following properties of the MceS data:
+///   * filterShape
+///   * ifmDelta[Default/Edge/OneFromEdge]
+///   * padding
+/// The calculations account for the various supported values of:
+///   * Filter shapes (e.g. 3x3)
+///   * Different padding types (e.g. SAME, VALID)
+///   * Striding (none or 2x2)
+///   * Upscaling (none or 2x, with odd or even output sizes)
+///   * Packed boundary data (none, either or both dimensions) - although this doesn't actually affect the result, thankfully
+inline void SetMcesConvolutionData(MceS& mceS, const OpGraph& opGraph, MceOp* const mceOp)
 {
+    using namespace ethosn::utils;
 
-    // Get the input buffers to the Mce Op
-    OpGraph::BufferList inputBuffers = mergedOpGraph.GetInputs(ptrMceOp);
-    Buffer* inputBuffer              = inputBuffers[g_MceIfmBufferIndex];
-    Buffer* weightBuffer             = inputBuffers[g_MceWeightBufferIndex];
-    Buffer* outputBuffer             = mergedOpGraph.GetOutput(ptrMceOp);
+    const OpGraph::BufferList inputBuffers = opGraph.GetInputs(mceOp);
+    const Buffer* inputBuffer              = inputBuffers[g_MceIfmBufferIndex];
+    const Buffer* weightBuffer             = inputBuffers[g_MceWeightBufferIndex];
+    const Buffer* outputBuffer             = opGraph.GetOutput(mceOp);
 
-    auto filters =
-        GetSubmapFilters(weightBuffer->m_TensorShape[1], weightBuffer->m_TensorShape[0], ptrMceOp->m_Stride.m_X,
-                         ptrMceOp->m_Stride.m_Y, ptrMceOp->m_PadLeft, ptrMceOp->m_PadTop, weightBuffer->m_TensorShape);
+    const uint32_t outputWidth  = utils::GetWidth(outputBuffer->m_TensorShape);
+    const uint32_t outputHeight = utils::GetHeight(outputBuffer->m_TensorShape);
 
-    // Set the filter shapes, padding information, and Ifm delta for each sub map
-    for (uint8_t subMapIndex = 0; subMapIndex < 4; subMapIndex++)
+    const uint32_t inputWidth  = utils::GetWidth(inputBuffer->m_TensorShape);
+    const uint32_t inputHeight = utils::GetHeight(inputBuffer->m_TensorShape);
+
+    const uint32_t filterWidth  = weightBuffer->m_TensorShape[1];
+    const uint32_t filterHeight = weightBuffer->m_TensorShape[0];
+
+    const uint32_t strideX = mceOp->m_Stride.m_X;
+    const uint32_t strideY = mceOp->m_Stride.m_Y;
+
+    const uint32_t padLeft = mceOp->m_PadLeft;
+    const uint32_t padTop  = mceOp->m_PadTop;
+
+    const bool isUpsample = mceS.upsampleType != UpsampleType::OFF;
+    auto Upscale          = [isUpsample](uint32_t dim, UpsampleEdgeMode mode) {
+        return isUpsample ? dim * 2 - (mode == UpsampleEdgeMode::DROP ? 1 : 0) : dim;
+    };
+    const uint32_t upscaledInputWidth  = Upscale(inputWidth, mceS.upsampleEdgeMode.col);
+    const uint32_t upscaledInputHeight = Upscale(inputHeight, mceS.upsampleEdgeMode.row);
+
+    // For strided convolution, previous agents have 'interleaved' the data to break it down into four submaps
+    // per original IFM channel, and this agent will combine them back again. Therefore we have up to 4 sets of
+    // filterShapes and ifmDeltas to calculate, one for each submap.
+    const std::vector<SubmapFilter> filters =
+        GetSubmapFilters(filterWidth, filterHeight, strideX, strideY, padLeft, padTop, weightBuffer->m_TensorShape);
+    for (size_t s = 0; s < filters.size(); s++)
     {
+        const SubmapFilter& subfilter = filters[s];
+
+        // Figure out the size the IFM for this subfilter, accounting for upscaling and striding
+        uint32_t submapIfmWidth  = 0;
+        uint32_t submapIfmHeight = 0;
+        if (isUpsample)
+        {
+            // Strided and upsampling aren't supported at the same time, so this logic deals only with one or the other, not both.
+            assert(strideX == 1 && strideY == 1);
+            submapIfmWidth  = upscaledInputWidth;
+            submapIfmHeight = upscaledInputHeight;
+        }
+        else
+        {
+            const TensorShape submapIfmShape = subfilter.GetIfmSubmapShape(
+                mceOp->m_uninterleavedInputShape.has_value() ? mceOp->m_uninterleavedInputShape.value()
+                                                             : inputBuffer->m_TensorShape);
+            submapIfmWidth  = utils::GetWidth(submapIfmShape);
+            submapIfmHeight = utils::GetHeight(submapIfmShape);
+        }
+
         // Set the filter shapes
-
-        // If stride is greater than filterSize in any dimension, some submaps don't participate in the computation.
-        // For those cases a kernel 1x1 with weights equal to zero is created in the support library.
-        mceSchedulerData.filterShape[subMapIndex].height =
-            ethosn::utils::NumericCast<uint8_t>(std::max(1u, filters[subMapIndex].GetFilterY()));
-        mceSchedulerData.filterShape[subMapIndex].width =
-            ethosn::utils::NumericCast<uint8_t>(std::max(1u, filters[subMapIndex].GetFilterX()));
-
-        // Set the padding information for each sub map
-        const uint32_t x        = subMapIndex % ptrMceOp->m_Stride.m_X;
-        const uint32_t y        = subMapIndex / ptrMceOp->m_Stride.m_X;
-        const uint32_t shiftedX = (x + ptrMceOp->m_PadLeft) % ptrMceOp->m_Stride.m_X;
-        const uint32_t shiftedY = (y + ptrMceOp->m_PadTop) % ptrMceOp->m_Stride.m_Y;
-
-        const uint32_t leftPad =
-            utils::DivRoundUp(static_cast<uint32_t>(std::max(
-                                  static_cast<int32_t>(ptrMceOp->m_PadLeft) - static_cast<int32_t>(shiftedX), 0)),
-                              ptrMceOp->m_Stride.m_X);
-        mceSchedulerData.padding[subMapIndex].left = ethosn::utils::NumericCast<uint8_t>(leftPad);
-
-        const uint32_t topPad =
-            utils::DivRoundUp(static_cast<uint32_t>(std::max(
-                                  static_cast<int32_t>(ptrMceOp->m_PadTop) - static_cast<int32_t>(shiftedY), 0)),
-                              ptrMceOp->m_Stride.m_Y);
-        mceSchedulerData.padding[subMapIndex].top = ethosn::utils::NumericCast<uint8_t>(topPad);
-
-        // Set the Ifm delta for each sub map
-        assert(ptrMceOp->m_uninterleavedInputShape.has_value());
-
-        uint32_t currSubmapInputWidth  = 0;
-        uint32_t currSubmapInputHeight = 0;
-
-        if (ptrMceOp->m_Stride.m_X > 1 || ptrMceOp->m_Stride.m_Y > 1)
         {
-            /// This represents the post interleave input width for the specific submap index.
-            currSubmapInputWidth = utils::DivRoundUp(
-                static_cast<uint32_t>(
-                    std::max(static_cast<int32_t>(utils::GetWidth(ptrMceOp->m_uninterleavedInputShape.value())) -
-                                 static_cast<int32_t>(x),
-                             0)),
-                ptrMceOp->m_Stride.m_X);
-            /// This represents the post interleave input height for the specific submap index.
-            currSubmapInputHeight = utils::DivRoundUp(
-                static_cast<uint32_t>(
-                    std::max(static_cast<int32_t>(utils::GetHeight(ptrMceOp->m_uninterleavedInputShape.value())) -
-                                 static_cast<int32_t>(y),
-                             0)),
-                ptrMceOp->m_Stride.m_Y);
+            // If stride is greater than the filter shape in any dimension, some submaps don't participate in the computation.
+            // For those cases a kernel 1x1 with weights equal to zero is created in the support library.
+            // For example, a 1x1 kernel with 2x2 stride: only one submap will actually be relevant.
+            mceS.filterShape[s].height = NumericCast<uint8_t>(std::max(1u, subfilter.GetFilterY()));
+            mceS.filterShape[s].width  = NumericCast<uint8_t>(std::max(1u, subfilter.GetFilterX()));
         }
 
-        // Ifm stripe width/height delta is the amount of valid data outside the ifm stripe on the right/bottom edge
-        // that can be used to calculate the Ofm stripe.
-
-        // Set the Ifm delta default
+        // Set the padding on the top/left side.
         {
-            mceSchedulerData.ifmDeltaDefault[subMapIndex].height = ethosn::utils::NumericCast<int8_t>(
-                (mceSchedulerData.filterShape[subMapIndex].height / 2) + inputBuffer->m_PackedBoundaryThickness.bottom);
-            mceSchedulerData.ifmDeltaDefault[subMapIndex].width = ethosn::utils::NumericCast<int8_t>(
-                (mceSchedulerData.filterShape[subMapIndex].width / 2) + inputBuffer->m_PackedBoundaryThickness.right);
+            // This is the offset between the OFM element being computed and the top-left corner of the window of IFM
+            // elements that are multiplied by the filter. This may include real IFM data or padding (i.e. zeroes).
+            // Coordinates are aligned with 0,0 being both the top left of the OFM stripe, and the top-left of the IFM centre slot.
+            // For non-strided cases, this is simply the top/left padding of the overall convolution, but for striding there
+            // is an additional offset as some submaps skip some IFM elements.
+            mceS.padding[s].left = NumericCast<uint8_t>(subfilter.GetPadLeft(padLeft));
+            mceS.padding[s].top  = NumericCast<uint8_t>(subfilter.GetPadTop(padTop));
         }
 
-        // Set the Ifm delta edge
-        // This is equal to the difference between the IFM and OFM
-        // width/height when at the edges of the whole IFM.
+        // Set the IFM deltas
         {
-            const int32_t ifmStripeNeighboringDataRight =
-                static_cast<int32_t>(currSubmapInputWidth) -
-                static_cast<int32_t>(utils::GetWidth(outputBuffer->m_TensorShape));
+            // The deltas are the amount of additional valid (not zero padding) IFM data outside the boundary of the OFM stripe
+            // on the right/bottom edge.
+            // Coordinates are aligned with 0,0 being both the top left of the OFM stripe, and the top-left of the IFM centre slot.
+            // Some general notes:
+            //    * For stripes that are towards the top-left of the tensor, there will be plenty of IFM data available to the
+            //      bottom/right, so these values will be large
+            //    * For stripes nearer the bottom-right, the amount of IFM data available will be less, as we are nearing the edge.
+            //    * We don't need to set this value to the exact amount of available data (and in fact can't, because of firmware
+            //      limitations); it only needs to be large enough to include the data that will actually be needed.
+            //      For example, a 3x3 convolution with SAME padding will only need 1 pixel of additional IFM data outside the OFM
+            //      boundary, so even if there is loads of IFM data available any value >= 1 will be correct.
+            //    * When the IFM is upscaled, the delta values need to account for this (i.e. the geometry uses the upscaled IFM,
+            //      not the original IFM).
+            //    * When we have multiple submaps for striding, each submap may have a different IFM and filter size, so the deltas
+            //      may be different.
+            // Because the deltas vary between stripes of the OFM, we can't provide a single value in the command stream.
+            // However we don't need a separate value for every stripe, because most of the deltas across the OFM will be the same,
+            // and it's only towards the bottom/right edge that the deltas are different. For the currently supported cases,
+            // we need three sets - one for the top-left OFM stripes ("default"), one for the second-to-last row/col of OFM stripes
+            // ("oneFromEdge"), and one for the final row/col of OFM stripes ("edge").
 
-            const int32_t ifmStripeNeighboringDataBottom =
-                static_cast<int32_t>(currSubmapInputHeight) -
-                static_cast<int32_t>(utils::GetHeight(outputBuffer->m_TensorShape));
+            constexpr int8_t maxDelta = 15;    // The maximum value the firmware supports
 
-            mceSchedulerData.ifmDeltaEdge[subMapIndex].height =
-                ethosn::utils::NumericCast<int8_t>(ifmStripeNeighboringDataBottom);
-            mceSchedulerData.ifmDeltaEdge[subMapIndex].width =
-                ethosn::utils::NumericCast<int8_t>(ifmStripeNeighboringDataRight);
+            // The stripes towards the top/left have plenty of IFM data available to the bottom/right, so set these
+            // deltas to a large enough value to cover all supported cases
+            mceS.ifmDeltaDefault[s].width  = maxDelta;
+            mceS.ifmDeltaDefault[s].height = maxDelta;
+
+            // Because the OFM and IFM coordinate spaces are aligned, the last column/row of OFM stripes has additional
+            // IFM data equal simply to the difference between the overall IFM and OFM tensor sizes
+            mceS.ifmDeltaEdge[s].width =
+                NumericCast<int8_t>(static_cast<int32_t>(submapIfmWidth) - static_cast<int32_t>(outputWidth));
+            mceS.ifmDeltaEdge[s].height =
+                NumericCast<int8_t>(static_cast<int32_t>(submapIfmHeight) - static_cast<int32_t>(outputHeight));
+
+            // The OFM stripe row/col just before the last one will have more IFM data available, as there is one more
+            // stripe of data there. That stripe will be an edge stripe. Note that depending on the streaming strategy,
+            // that final stripe of data may actually be packed into the same stripe (packed boundary data), but this doesn't
+            // affect the _amount_ of data available, and so this calculation is still correct.
+            // This value could be quite large, so limit it to the firmware max supported value.
+            mceS.ifmDeltaOneFromEdge[s].width = NumericCast<int8_t>(
+                std::min<int32_t>(mceS.ifmDeltaEdge[s].width + mceS.edgeStripeSize.ofmWidth, maxDelta));
+            mceS.ifmDeltaOneFromEdge[s].height = NumericCast<int8_t>(
+                std::min<int32_t>(mceS.ifmDeltaEdge[s].height + mceS.edgeStripeSize.ofmHeight, maxDelta));
         }
     }
+
+    // All four filterShapes must be set to the same even when there is only one that is used (firmware requirement)
+    for (size_t s = filters.size(); s < 4; s++)
+    {
+        mceS.filterShape[s] = mceS.filterShape[0];
+    }
 }
+
 }    // namespace MceSUtils
 
 namespace PleSUtils

@@ -71,7 +71,6 @@ srcs = [
     "BufferManagerTests.cpp",
     "StandalonePlePartTests.cpp",
     "SplitPartTests.cpp",
-    "CascadingCommandStreamGeneratorTests.cpp",
     "StripeHelperTests.cpp",
     "UtilsTests.cpp",
 ]

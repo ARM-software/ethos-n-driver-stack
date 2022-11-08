@@ -731,56 +731,7 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
             (outputBufferHeight & 1) ? UpsampleEdgeMode::DROP : UpsampleEdgeMode::GENERATE;
     }
 
-    // Calculate IFM Delta Edge
-    auto Upscale = [isUpsample](uint32_t dim, UpsampleEdgeMode mode) {
-        return isUpsample ? dim * 2 - (mode == UpsampleEdgeMode::DROP ? 1 : 0) : dim;
-    };
-    const uint32_t inputBufferWidth    = utils::GetWidth(inputBuffer->m_TensorShape);
-    const uint32_t inputBufferHeight   = utils::GetHeight(inputBuffer->m_TensorShape);
-    const uint32_t upscaledInputWidth  = Upscale(inputBufferWidth, mceSchedulerData.upsampleEdgeMode.col);
-    const uint32_t upscaledInputHeight = Upscale(inputBufferHeight, mceSchedulerData.upsampleEdgeMode.row);
-    const int8_t ifmDeltaEdgeWidth     = static_cast<int8_t>(upscaledInputWidth - outputBufferWidth);
-    const int8_t ifmDeltaEdgeHeight    = static_cast<int8_t>(upscaledInputHeight - outputBufferHeight);
-
-    if (ptrMceOp->m_Stride.m_X == 1 && ptrMceOp->m_Stride.m_Y == 1)
-    {
-        for (int i = 0; i < 4; i++)
-        {
-            mceSchedulerData.filterShape[i].height =
-                ethosn::utils::NumericCast<uint8_t>(weightBuffer->m_TensorShape[0]);
-            mceSchedulerData.filterShape[i].width = ethosn::utils::NumericCast<uint8_t>(weightBuffer->m_TensorShape[1]);
-
-            if (mceSchedulerData.mceOpMode != MceOperation::FULLY_CONNECTED)
-            {
-                mceSchedulerData.ifmDeltaDefault[i].height = ethosn::utils::NumericCast<int8_t>(
-                    (mceSchedulerData.filterShape[i].height / 2) + inputBuffer->m_PackedBoundaryThickness.bottom);
-                mceSchedulerData.ifmDeltaDefault[i].width = ethosn::utils::NumericCast<int8_t>(
-                    (mceSchedulerData.filterShape[i].width / 2) + inputBuffer->m_PackedBoundaryThickness.right);
-
-                if (isUpsample)
-                {
-                    mceSchedulerData.ifmDeltaDefault[i].height =
-                        std::max(static_cast<int8_t>(2), mceSchedulerData.ifmDeltaDefault[i].height);
-                    mceSchedulerData.ifmDeltaDefault[i].width =
-                        std::max(static_cast<int8_t>(2), mceSchedulerData.ifmDeltaDefault[i].width);
-                }
-
-                mceSchedulerData.ifmDeltaEdge[i].height = ifmDeltaEdgeHeight;
-                mceSchedulerData.ifmDeltaEdge[i].width  = ifmDeltaEdgeWidth;
-
-                mceSchedulerData.padding[i].left = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_PadLeft);
-                mceSchedulerData.padding[i].top  = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_PadTop);
-            }
-        }
-    }
-    else if (ptrMceOp->m_Stride.m_X == 2 && ptrMceOp->m_Stride.m_Y == 2)
-    {
-        MceSUtils::setMcesStridedConvolutionData(mceSchedulerData, m_MergedOpGraph, ptrMceOp);
-    }
-    else
-    {
-        assert(false);
-    }
+    MceSUtils::SetMcesConvolutionData(mceSchedulerData, m_MergedOpGraph, ptrMceOp);
 
     mceSchedulerData.ifmStripeShapeDefault.height =
         static_cast<uint16_t>(inputBuffer->m_StripeShape[1] + inputBuffer->m_PackedBoundaryThickness.top +
