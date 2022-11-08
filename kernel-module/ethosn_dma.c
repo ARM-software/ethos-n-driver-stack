@@ -484,21 +484,31 @@ int ethosn_dma_mmap(struct ethosn_dma_allocator *top_allocator,
 	const struct ethosn_dma_allocator_ops *ops;
 	int ret = -EINVAL;
 
-	if (IS_ERR_OR_NULL(dma_info))
+	if (IS_ERR_OR_NULL(dma_info)) {
+		dev_err(top_allocator->dev,
+			"%s: Invalid dma_info pointer\n", __func__);
 		goto exit;
+	}
 
 	sub_allocator = ethosn_get_sub_allocator(top_allocator,
 						 dma_info->stream_type);
 
-	if (!sub_allocator)
+	if (!sub_allocator) {
+		dev_err(top_allocator->dev,
+			"%s: Invalid sub_allocator\n", __func__);
 		goto exit;
+	}
 
 	ops = sub_allocator->ops;
-	if (!ops)
+	if (!ops) {
+		dev_err(top_allocator->dev, "%s: Invalid ops\n", __func__);
 		goto exit;
+	}
 
-	if (!ops->mmap)
+	if (!ops->mmap) {
+		dev_err(top_allocator->dev, "%s: Invalid mmap\n", __func__);
 		goto exit;
+	}
 
 	return ops->mmap(sub_allocator, vma, dma_info);
 
