@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2021 Arm Limited.
+ * (C) COPYRIGHT 2021-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -27,6 +27,7 @@
 #include "ethosn_dma.h"
 
 int ethosn_get_dma_view_fd(struct ethosn_device *ethosn,
+			   struct ethosn_dma_allocator *allocator,
 			   struct ethosn_dma_info *dma_info);
 
 #endif /* _ETHOSN_DEBUG_H_ */

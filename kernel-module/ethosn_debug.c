@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2021 Arm Limited.
+ * (C) COPYRIGHT 2021-2022 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -37,6 +37,7 @@
  * Return: File descriptor on success (positive), else error code (negative).
  */
 int ethosn_get_dma_view_fd(struct ethosn_device *ethosn,
+			   struct ethosn_dma_allocator *allocator,
 			   struct ethosn_dma_info *dma_info)
 {
 	struct ethosn_buffer *buf;
@@ -55,6 +56,7 @@ int ethosn_get_dma_view_fd(struct ethosn_device *ethosn,
 
 	buf->ethosn = ethosn;
 	buf->dma_info = dma_info;
+	buf->asset_allocator = allocator;
 
 	fd = anon_inode_getfd("ethosn-dma-view", fops, buf,
 			      O_RDONLY | O_CLOEXEC);
@@ -78,6 +80,7 @@ err_kfree:
 
 #else
 int ethosn_get_dma_view_fd(struct ethosn_device *ethosn,
+			   struct ethosn_dma_allocator *allocator,
 			   struct ethosn_dma_info *dma_info)
 {
 	dev_err(ethosn->dev, "Buffer view only available in debug mode\n");

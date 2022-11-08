@@ -760,6 +760,7 @@ static long network_ioctl(struct file *filep,
 					network->intermediate_data[0]);
 
 		ret = ethosn_get_dma_view_fd(network->ethosn,
+					     network->asset_allocator,
 					     network->intermediate_data[0]);
 		break;
 	}
