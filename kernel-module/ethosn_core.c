@@ -177,7 +177,7 @@ static ssize_t firmware_reset_store(struct device *dev,
 	struct ethosn_core *core = dev_get_drvdata(dev);
 	int ret;
 
-	ret = ethosn_reset_and_start_ethosn(core);
+	ret = ethosn_reset_and_start_ethosn(core, core->set_alloc_id);
 	if (ret != 0)
 		return ret;
 
@@ -264,7 +264,7 @@ static int ethosn_pm_common_resume(struct device *dev)
 		goto exit_pm_resume;
 	}
 
-	ret = ethosn_reset_and_start_ethosn(core);
+	ret = ethosn_reset_and_start_ethosn(core, core->set_alloc_id);
 	if (ret)
 		goto exit_pm_resume;
 
@@ -306,7 +306,7 @@ static int ethosn_rpm_resume(struct device *dev)
 		goto exit_rpm_resume;
 	}
 
-	ret = ethosn_reset_and_start_ethosn(core);
+	ret = ethosn_reset_and_start_ethosn(core, core->set_alloc_id);
 
 exit_rpm_resume:
 	if (!ret && core->profiling.config.enable_profiling)
@@ -353,7 +353,7 @@ static int ethosn_pm_common_suspend(struct device *dev)
 		core->current_inference = NULL;
 	}
 
-	ret = ethosn_reset(core, true);
+	ret = ethosn_reset(core, true, core->set_alloc_id);
 exit_pm_suspend:
 	if (!ret && core->profiling.config.enable_profiling)
 		++core->profiling.pm_suspend_count;

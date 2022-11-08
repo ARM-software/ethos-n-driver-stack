@@ -49,6 +49,12 @@ static void asset_allocator_kref_release(struct kref *kref)
 
 void ethosn_asset_allocator_get(struct ethosn_dma_allocator *asset_allocator)
 {
+	/* Only get kref for non-carveout allocators, as carveout allocators
+	 * are expected to be shared.
+	 */
+	if (asset_allocator->type == ETHOSN_ALLOCATOR_CARVEOUT)
+		return;
+
 	kref_get(&asset_allocator->kref);
 }
 
@@ -62,20 +68,35 @@ void ethosn_asset_allocator_get(struct ethosn_dma_allocator *asset_allocator)
  */
 int ethosn_asset_allocator_put(struct ethosn_dma_allocator *asset_allocator)
 {
+	/* Only put kref for non-carveout allocators, as carveout allocators
+	 * are expected to be shared.
+	 */
+	if (asset_allocator->type == ETHOSN_ALLOCATOR_CARVEOUT)
+		return 0;
+
 	if (!asset_allocator || asset_allocator->pid <= 0)
 		return -EINVAL;
 
 	return kref_put(&asset_allocator->kref, &asset_allocator_kref_release);
 }
 
-bool ethosn_asset_allocator_pid_exist(const struct ethosn_device *ethosn,
-				      pid_t pid)
+struct ethosn_dma_allocator *ethosn_asset_allocator_find(
+	const struct ethosn_device *ethosn,
+	pid_t pid)
 {
-	return false;
-}
+	unsigned int i;
 
-/* Exported for use by test module */
-EXPORT_SYMBOL(ethosn_asset_allocator_pid_exist);
+	/* For carve out case there is no pid assigned */
+	if (!ethosn->smmu_available)
+		return NULL;
+
+	for (i = 0; i < ethosn->num_asset_allocs; i++)
+		if (ethosn->asset_allocator[i]->pid ==
+		    pid)
+			return ethosn->asset_allocator[i];
+
+	return NULL;
+}
 
 static int ethosn_asset_allocator_pdev_remove(struct platform_device *pdev)
 {
@@ -118,17 +139,27 @@ struct ethosn_dma_allocator *ethosn_asset_allocator_reserve(
 	pid_t pid)
 {
 	struct ethosn_dma_allocator *asset_allocator = NULL;
+	unsigned int i;
 
-	/* For Carveout, default allocator is always returned. Since Only
-	 * one allocator is available for use, the default allocator is
-	 * always returned for smmu case as well.
-	 */
-	asset_allocator =
-		ethosn->asset_allocator[ETHOSN_DEFAULT_ASSET_ALLOC_INDEX];
-
-	asset_allocator->pid = pid;
-
-	kref_init(&asset_allocator->kref);
+	if (!ethosn->smmu_available)
+		/* For Carveout, default allocator is always returned. The kref
+		 * is not initalised as we expect multiple process memory
+		 * allocators to share the default asset allocator.
+		 */
+		asset_allocator =
+			ethosn->asset_allocator[ETHOSN_DEFAULT_ASSET_ALLOC];
+	else
+		/* For SMMU, reserve and return an unused allocator. The kref
+		 * is initalised as we only expect one process memory allocator
+		 * to make use of the asset allocator.
+		 */
+		for (i = 0; i < ethosn->num_asset_allocs; i++)
+			if (ethosn->asset_allocator[i]->pid < 0) {
+				asset_allocator = ethosn->asset_allocator[i];
+				asset_allocator->pid = pid;
+				kref_init(&asset_allocator->kref);
+				break;
+			}
 
 	return asset_allocator;
 }

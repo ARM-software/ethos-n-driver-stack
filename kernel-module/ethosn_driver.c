@@ -501,7 +501,8 @@ static void ethosn_irq_bottom(struct work_struct *work)
 		}
 
 		if (core->firmware_running) {
-			(void)ethosn_reset_and_start_ethosn(core);
+			(void)ethosn_reset_and_start_ethosn(core,
+							    core->set_alloc_id);
 			ethosn_network_poll(core, core->current_inference,
 					    ETHOSN_INFERENCE_ERROR);
 		}
@@ -1166,7 +1167,8 @@ static int ethosn_driver_probe(struct ethosn_core *core,
 	if (ret)
 		goto destroy_allocator;
 
-	ret = ethosn_reset_and_start_ethosn(core);
+	/* Default to first asset allocator */
+	ret = ethosn_reset_and_start_ethosn(core, 0);
 	if (ret)
 		goto device_deinit;
 

@@ -370,6 +370,12 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 	u32 i;
 	int ret;
 
+	if (!network->asset_allocator) {
+		dev_err(core_dev, "Inference has no asset allocator");
+		ret = -EINVAL;
+		goto out_inference_error;
+	}
+
 	if (inference->status == ETHOSN_INFERENCE_RUNNING) {
 		dev_err(core_dev, "Core %d got an inference while busy",
 			core_id);
@@ -381,6 +387,13 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 		return 0;
 
 	inference->status = ETHOSN_INFERENCE_RUNNING;
+
+	if (core->set_alloc_id != network->asset_allocator->alloc_id) {
+		ret = ethosn_reset_and_start_ethosn(core,
+						    network->asset_allocator->alloc_id);
+		if (ret)
+			goto out_inference_error;
+	}
 
 	for (i = 0; i < network->num_inputs; ++i) {
 		struct ethosn_dma_info *dma_info =
@@ -645,7 +658,8 @@ static int inference_release(struct inode *inode,
 				 "Reset Ethos-N due to error inference abort. handle=0x%pK\n",
 				 inference);
 
-			(void)ethosn_reset_and_start_ethosn(core);
+			(void)ethosn_reset_and_start_ethosn(core,
+							    core->set_alloc_id);
 			ethosn_network_poll(core, inference,
 					    ETHOSN_INFERENCE_STATUS_ERROR);
 		}

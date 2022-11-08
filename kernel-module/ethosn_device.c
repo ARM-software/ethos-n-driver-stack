@@ -581,7 +581,8 @@ void ethosn_notify_firmware(struct ethosn_core *core)
 }
 
 static int ethosn_hard_reset(struct ethosn_core *core,
-			     bool halt)
+			     bool halt,
+			     uint32_t alloc_id)
 {
 #ifdef ETHOSN_NS
 	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
@@ -625,7 +626,8 @@ static int ethosn_hard_reset(struct ethosn_core *core,
 	 * Only the first asset allocator is being used right now so the
 	 * allocator index is hardcoded to 0.
 	 */
-	if (ethosn_smc_core_reset(core->dev, core->phys_addr, 0U, halt, true))
+	if (ethosn_smc_core_reset(core->dev, core->phys_addr, alloc_id, halt,
+				  true))
 		return -ETIME;
 
 	return 0;
@@ -633,7 +635,8 @@ static int ethosn_hard_reset(struct ethosn_core *core,
 }
 
 static int ethosn_soft_reset(struct ethosn_core *core,
-			     bool halt)
+			     bool halt,
+			     uint32_t alloc_id)
 {
 #ifdef ETHOSN_NS
 	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
@@ -677,7 +680,8 @@ static int ethosn_soft_reset(struct ethosn_core *core,
 	 * Only the first asset allocator is being used right now so the
 	 * allocator index is hardcoded to 0.
 	 */
-	if (ethosn_smc_core_reset(core->dev, core->phys_addr, 0U, halt, false))
+	if (ethosn_smc_core_reset(core->dev, core->phys_addr, alloc_id, halt,
+				  false))
 		return -ETIME;
 
 #endif
@@ -686,13 +690,14 @@ static int ethosn_soft_reset(struct ethosn_core *core,
 }
 
 int ethosn_reset(struct ethosn_core *core,
-		 bool halt)
+		 bool halt,
+		 uint32_t alloc_id)
 {
 	int ret = -EINVAL;
 
-	ret = ethosn_soft_reset(core, halt);
+	ret = ethosn_soft_reset(core, halt, alloc_id);
 	if (ret)
-		ret = ethosn_hard_reset(core, halt);
+		ret = ethosn_hard_reset(core, halt, alloc_id);
 
 	return ret;
 }
@@ -738,15 +743,21 @@ static int ethosn_get_smmu_stream_id(struct ethosn_dma_allocator *top_allocator,
  *
  * Return: Negative error code on error, zero otherwise
  */
-static int ethosn_set_smmu_stream_ids(struct ethosn_core *core)
+int ethosn_set_smmu_stream_ids(struct ethosn_core *core,
+			       uint32_t alloc_id)
 {
 	struct ethosn_device *ethosn = core->parent;
 
 	struct ethosn_dma_allocator *main_alloc = core->main_allocator;
-	struct ethosn_dma_allocator *asset_alloc = ethosn->asset_allocator[0];
+	struct ethosn_dma_allocator *asset_alloc;
 
 	u32 smmu_stream_id;
 	int ret = -EINVAL;
+
+	if (alloc_id >= ethosn->num_asset_allocs)
+		return ret;
+
+	asset_alloc = ethosn->asset_allocator[alloc_id];
 
 	/* Main Allocator */
 
@@ -1254,9 +1265,13 @@ int ethosn_send_inference(struct ethosn_core *core,
  * Return: 0 on success, else error code.
  */
 static int ethosn_send_region_request(struct ethosn_core *core,
-				      enum ethosn_region_id region_id)
+				      enum ethosn_region_id region_id,
+				      uint32_t alloc_id)
 {
 	struct ethosn_message_region_request request = { 0 };
+
+	if (alloc_id >= core->parent->num_asset_allocs)
+		return -EINVAL;
 
 	switch (region_id) {
 	case ETHOSN_REGION_FIRMWARE:
@@ -1288,11 +1303,11 @@ static int ethosn_send_region_request(struct ethosn_core *core,
 	case ETHOSN_REGION_COMMAND_STREAM:
 		request.addr = to_ethosn_addr(
 			ethosn_dma_get_addr_base(
-				core->parent->asset_allocator[0],
+				core->parent->asset_allocator[alloc_id],
 				ETHOSN_STREAM_COMMAND_STREAM), &core->dma_map);
 
 		request.size = ethosn_dma_get_addr_size(
-			core->parent->asset_allocator[0],
+			core->parent->asset_allocator[alloc_id],
 			ETHOSN_STREAM_COMMAND_STREAM);
 		break;
 	default:
@@ -1306,8 +1321,8 @@ static int ethosn_send_region_request(struct ethosn_core *core,
 
 	request.id = region_id;
 
-	dev_dbg(core->dev, "-> Region=%u, addr=0x%x, size=0x%x\n",
-		request.id, request.addr, request.size);
+	dev_dbg(core->dev, "-> Region=%u, Allocator=%u, addr=0x%x, size=0x%x\n",
+		request.id, alloc_id, request.addr, request.size);
 
 	return ethosn_write_message(core, ETHOSN_MESSAGE_REGION_REQUEST,
 				    &request,
@@ -1669,23 +1684,29 @@ static int firmware_init(struct ethosn_core *core)
  *
  * Return: 0 on success, else error code.
  */
-static int ethosn_regions_init(struct ethosn_core *core)
+static int ethosn_regions_init(struct ethosn_core *core,
+			       uint32_t alloc_id)
 {
 	int ret;
 
-	ret = ethosn_send_region_request(core, ETHOSN_REGION_FIRMWARE);
+	ret =
+		ethosn_send_region_request(core, ETHOSN_REGION_FIRMWARE,
+					   alloc_id);
 	if (ret)
 		return ret;
 
-	ret = ethosn_send_region_request(core, ETHOSN_REGION_WORKING_DATA_MAIN);
+	ret = ethosn_send_region_request(core, ETHOSN_REGION_WORKING_DATA_MAIN,
+					 alloc_id);
 	if (ret)
 		return ret;
 
-	ret = ethosn_send_region_request(core, ETHOSN_REGION_WORKING_DATA_TASK);
+	ret = ethosn_send_region_request(core, ETHOSN_REGION_WORKING_DATA_TASK,
+					 alloc_id);
 	if (ret)
 		return ret;
 
-	ret = ethosn_send_region_request(core, ETHOSN_REGION_COMMAND_STREAM);
+	ret = ethosn_send_region_request(core, ETHOSN_REGION_COMMAND_STREAM,
+					 alloc_id);
 	if (ret)
 		return ret;
 
@@ -1696,7 +1717,8 @@ static int ethosn_regions_init(struct ethosn_core *core)
 	return 0;
 }
 
-int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
+int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
+				  uint32_t alloc_id)
 {
 	int timeout;
 	int ret;
@@ -1713,10 +1735,13 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 			return ret;
 	}
 
+	/* Record which asset allocator the core is being programmed for */
+	core->set_alloc_id = alloc_id;
+
 	/* Reset the Ethos-N core. Note that this doesn't run the NCU MCU,
 	 * so the firmware won't yet be executing code.
 	 */
-	ret = ethosn_reset(core, false);
+	ret = ethosn_reset(core, false, alloc_id);
 	if (ret)
 		return ret;
 
@@ -1732,7 +1757,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 #ifdef ETHOSN_NS
 	/* Setup the SMMU Stream IDs if iommu is present */
 	if (core->parent->smmu_available) {
-		ret = ethosn_set_smmu_stream_ids(core);
+		ret = ethosn_set_smmu_stream_ids(core, alloc_id);
 		if (ret)
 			return ret;
 	}
@@ -1758,7 +1783,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 
 	ret = ethosn_set_addr_ext(
 		core, ETHOSN_STREAM_COMMAND_STREAM,
-		ethosn_dma_get_addr_base(core->parent->asset_allocator[0],
+		ethosn_dma_get_addr_base(core->parent->asset_allocator[alloc_id],
 					 ETHOSN_STREAM_COMMAND_STREAM),
 		&core->dma_map);
 	if (ret)
@@ -1810,7 +1835,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core)
 	core->firmware_running = true;
 
 	/* Init memory regions */
-	ret = ethosn_regions_init(core);
+	ret = ethosn_regions_init(core, alloc_id);
 	if (ret != 0)
 		return ret;
 
@@ -2500,7 +2525,7 @@ void ethosn_device_deinit(struct ethosn_core *core)
 
 	ethosn_global_core_for_testing = NULL;
 
-	ethosn_reset(core, false);
+	ethosn_reset(core, false, core->set_alloc_id);
 	ethosn_firmware_deinit(core);
 	ethosn_mailbox_free(core);
 	ethosn_firmware_log_free(core);

@@ -31,15 +31,16 @@
 #define ETHOSN_ASSET_ALLOC_DRIVER_NAME  "ethosn-asset_allocator"
 #define ETHOSN_ASSET_ALLOC_NUM_MAX 64
 
-#define ETHOSN_DEFAULT_ASSET_ALLOC_INDEX 0
+#define ETHOSN_DEFAULT_ASSET_ALLOC 0
 #define ETHOSN_INVALID_PID INT_MIN
 
 void ethosn_asset_allocator_get(struct ethosn_dma_allocator *asset_allocator);
 
 int ethosn_asset_allocator_put(struct ethosn_dma_allocator *asset_allocator);
 
-bool ethosn_asset_allocator_pid_exist(const struct ethosn_device *ethosn,
-				      pid_t pid);
+struct ethosn_dma_allocator *ethosn_asset_allocator_find(
+	const struct ethosn_device *ethosn,
+	pid_t pid);
 
 struct ethosn_dma_allocator *ethosn_asset_allocator_reserve(
 	struct ethosn_device *ethosn,

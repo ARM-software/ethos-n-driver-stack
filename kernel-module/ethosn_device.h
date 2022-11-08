@@ -91,6 +91,7 @@ struct ethosn_core {
 	void __iomem                *top_regs;
 	uintptr_t                   phys_addr;
 	int                         queue_size;
+	uint32_t                    set_alloc_id;
 
 	struct ethosn_device        *parent;
 	struct ethosn_dma_allocator *main_allocator;
@@ -315,10 +316,12 @@ u32 ethosn_read_top_reg(struct ethosn_core *core,
 /**
  * ethosn_reset_and_start_ethosn() - Perform startup sequence for device
  * @core:	Pointer to Ethos-N core.
+ * @alloc_id:	Index of the asset allocator to use.
  *
  * Return: 0 on success, else error code.
  */
-int ethosn_reset_and_start_ethosn(struct ethosn_core *core);
+int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
+				  uint32_t alloc_id);
 
 /**
  * ethosn_notify_firmware() - Trigger IRQ on Ethos-N .
@@ -330,11 +333,13 @@ void ethosn_notify_firmware(struct ethosn_core *core);
  * ethosn_reset() - Reset the Ethos-N .
  * @core:	Pointer to Ethos-N core.
  * @halt:	Determines whether the reset is a halt or full reset
+ * @alloc_id:	Index of asset allocator to program the NPU for
  *
  * Return: 0 on success, else error code.
  */
 int ethosn_reset(struct ethosn_core *core,
-		 bool halt);
+		 bool halt,
+		 uint32_t alloc_id);
 
 /**
  * ethosn_set_power_ctrl() - Configure power control.
@@ -508,5 +513,12 @@ struct ethosn_core *ethosn_get_global_core_for_testing(void);
  *                                          purposes.
  */
 struct ethosn_device *ethosn_get_global_device_for_testing(void);
+
+/* ethosn_set_smmu_stream_ids()
+ * @core:		Pointer to Ethos-N core for main allocator
+ * @alloc_id:		Index to specifc asset allocator to use
+ */
+int ethosn_set_smmu_stream_ids(struct ethosn_core *core,
+			       uint32_t alloc_id);
 
 #endif /* _ETHOSN_DEVICE_H_ */

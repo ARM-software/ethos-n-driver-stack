@@ -290,15 +290,10 @@ int ethosn_process_mem_allocator_create(struct ethosn_device *ethosn,
 	int ret = 0;
 	int fd;
 	struct ethosn_allocator *proc_mem_allocator;
+	struct ethosn_dma_allocator *asset_allocator =
+		ethosn_asset_allocator_find(ethosn, pid);
 
 	dev_dbg(ethosn->dev, "Process %d requests an asset allocator", pid);
-
-	if (ethosn_asset_allocator_pid_exist(ethosn, pid)) {
-		dev_warn(ethosn->dev,
-			 "Process already has an asset allocator");
-
-		return -EBUSY;
-	}
 
 	proc_mem_allocator = devm_kzalloc(ethosn->dev,
 					  sizeof(*proc_mem_allocator),
@@ -309,11 +304,21 @@ int ethosn_process_mem_allocator_create(struct ethosn_device *ethosn,
 
 	proc_mem_allocator->ethosn = ethosn;
 
-	proc_mem_allocator->asset_allocator =
-		ethosn_asset_allocator_reserve(ethosn, pid);
-	if (!proc_mem_allocator->asset_allocator) {
-		ret = -EBUSY;
-		goto asset_allocator_reserve_fail;
+	if (IS_ERR_OR_NULL(asset_allocator)) {
+		/* No existing allocator for process */
+		proc_mem_allocator->asset_allocator =
+			ethosn_asset_allocator_reserve(ethosn, pid);
+
+		if (!proc_mem_allocator->asset_allocator) {
+			dev_warn(ethosn->dev,
+				 "No free asset allocators available");
+			ret = -EBUSY;
+			goto asset_allocator_reserve_fail;
+		}
+	} else {
+		/* Process already has an allocator */
+		proc_mem_allocator->asset_allocator = asset_allocator;
+		ethosn_asset_allocator_get(asset_allocator);
 	}
 
 	fd = anon_inode_getfd("ethosn-memory-allocator",
@@ -342,3 +347,6 @@ asset_allocator_reserve_fail:
 
 	return ret;
 }
+
+/* Exported for use by test module */
+EXPORT_SYMBOL(ethosn_process_mem_allocator_create);
