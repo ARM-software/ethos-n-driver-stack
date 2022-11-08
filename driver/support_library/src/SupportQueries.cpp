@@ -324,7 +324,7 @@ bool IsQuantizationScaleSupported(const QuantizationScales& overallScale,
                                   char* reason,
                                   size_t reasonMaxLength)
 {
-    if (overallScale.min() <= powf(2, -32) || overallScale.max() >= 65536.0f)
+    if (overallScale.min() < 0 || overallScale.max() >= 65536.0f)
     {
         SetReason("%s: Overall scale (of the input * weights / output) should be in the range (2^-32, 65536)", reason,
                   reasonMaxLength, what);
