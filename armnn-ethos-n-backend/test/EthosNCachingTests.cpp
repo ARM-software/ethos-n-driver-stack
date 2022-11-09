@@ -264,9 +264,9 @@ TEST_SUITE("EthosNCaching")
             CHECK_NOTHROW(backendObjPtr->OptimizeSubgraphView(*subgraphPtr1, { backendOptions }));
             CHECK_NOTHROW(backendObjPtr->OptimizeSubgraphView(*subgraphPtr2, { backendOptions }));
 
-            auto caching                = EthosNCachingService::GetInstance().GetEthosNCachingPtr();
-            auto cachedCompiledNetworks = caching->GetCompiledNetworks();
-            CHECK(cachedCompiledNetworks.size() == 2);
+            auto caching           = EthosNCachingService::GetInstance().GetEthosNCachingPtr();
+            auto numCachedNetworks = caching->GetNumCachedNetworked();
+            CHECK(numCachedNetworks == 2);
 
             // Cached file should be empty until save is invoked.
             CHECK(fs::is_empty(filePath));
@@ -306,8 +306,8 @@ TEST_SUITE("EthosNCaching")
             caching->Load();
 
             // The compiled networks should have been added to the vector from the file.
-            auto cachedCompiledNetworks = caching->GetCompiledNetworks();
-            CHECK(cachedCompiledNetworks.size() == 2);
+            auto numCachedNetworks = caching->GetNumCachedNetworked();
+            CHECK(numCachedNetworks == 2);
 
             // Optimize the subgraphs (Loading - Uses compiled networks from vector)
             CHECK_NOTHROW(backendObjPtr->OptimizeSubgraphView(*subgraphPtr1, { backendOptions }));

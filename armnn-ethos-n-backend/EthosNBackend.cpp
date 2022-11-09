@@ -282,6 +282,7 @@ void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
 
 ARMNN_DLLEXPORT armnn::EthosNConfig EthosNBackend::ms_Config;
 ARMNN_DLLEXPORT std::vector<char> EthosNBackend::ms_Capabilities;
+std::shared_ptr<armnn::ICustomAllocator> EthosNBackend::ms_InternalAllocator;
 
 EthosNBackend::EthosNBackend()
     : m_NextSubgraphIdx(0)
@@ -313,8 +314,9 @@ EthosNBackend::EthosNBackend()
     }
 
     // Copy the cached data into this object, for further use (passing to sub-objects etc.)
-    m_Config       = ms_Config;
-    m_Capabilities = ms_Capabilities;
+    m_Config            = ms_Config;
+    m_Capabilities      = ms_Capabilities;
+    m_InternalAllocator = ms_InternalAllocator;
 }
 
 const BackendId& EthosNBackend::GetIdStatic()
@@ -332,8 +334,16 @@ IBackendInternal::IWorkloadFactoryPtr
         EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(m_Config, {});
     }
 
-    return std::make_unique<EthosNWorkloadFactory>(
-        m_Config, EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({}));
+    if (m_InternalAllocator != nullptr)
+    {
+        return std::make_unique<EthosNWorkloadFactory>(
+            m_Config, EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({}), m_InternalAllocator);
+    }
+    else
+    {
+        return std::make_unique<EthosNWorkloadFactory>(
+            m_Config, EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({}));
+    }
 }
 
 IBackendInternal::IWorkloadFactoryPtr
@@ -356,11 +366,11 @@ IBackendInternal::IWorkloadFactoryPtr
     procMemAllocator = EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr(deviceId);
     if (!deviceId.empty())
     {
-        return std::make_unique<EthosNWorkloadFactory>(m_Config, deviceId, procMemAllocator);
+        return std::make_unique<EthosNWorkloadFactory>(m_Config, deviceId, procMemAllocator, m_InternalAllocator);
     }
     else
     {
-        return std::make_unique<EthosNWorkloadFactory>(m_Config, procMemAllocator);
+        return std::make_unique<EthosNWorkloadFactory>(m_Config, procMemAllocator, m_InternalAllocator);
     }
 }
 

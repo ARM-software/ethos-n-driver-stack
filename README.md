@@ -455,6 +455,10 @@ adb shell /vendor/bin/hw/android.hardware.neuralnetworks@1.3-service-armnn -v -c
 
 The following features and feature combinations have known limitations in this Ethos-N driver stack release.
 
+## Backend limitations
+
+Custom allocators can only be used for importing intermediate tensors, not inputs and outputs.
+
 ### Memory limitations
 
 For systems that do not implement an Arm SMMU, the driver expects a reserved memory area to be associated with the NPU device. There are several restrictions on the properties of the reserved memory area. If these restrictions are not met, then the kernel module will not load successfully or the NPU will behave unexpectedly. The restrictions are:

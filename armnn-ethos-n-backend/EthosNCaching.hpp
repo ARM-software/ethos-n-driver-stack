@@ -5,7 +5,9 @@
 #pragma once
 
 #include <armnn/BackendOptions.hpp>
+#include <armnn/utility/Assert.hpp>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -48,16 +50,28 @@ public:
 
     void SetEthosNCachingOptions(const armnn::ModelOptions& modelOptions);
 
-    std::vector<std::vector<char>> GetCompiledNetworks()
+    uint32_t GetNumCachedNetworked() const
     {
-        return m_CompiledNetworks;
-    };
-
-    void AddCompiledNetwork(std::vector<char> compiledSubgraph)
-    {
-        m_CompiledNetworks.push_back(compiledSubgraph);
+        return static_cast<uint32_t>(m_CompiledNetworks.size());
     }
 
+    std::pair<std::vector<char>, uint32_t> GetCompiledNetworkAndIntermediateSize(uint32_t id) const
+    {
+        std::vector<char> compiledNetwork = m_CompiledNetworks.at(id);
+        ARMNN_ASSERT(compiledNetwork.size() > sizeof(uint32_t));
+        uint32_t intermediateSize = 0;
+        std::copy_n(compiledNetwork.end() - sizeof(uint32_t), sizeof(uint32_t),
+                    reinterpret_cast<char*>(&intermediateSize));
+        compiledNetwork.resize(compiledNetwork.size() - sizeof(uint32_t));
+        return { compiledNetwork, intermediateSize };
+    };
+
+    void AddCompiledNetwork(std::vector<char> compiledSubgraph, uint32_t bufferSize)
+    {
+        std::copy_n(reinterpret_cast<const char*>(&bufferSize), sizeof(bufferSize),
+                    std::back_inserter(compiledSubgraph));
+        m_CompiledNetworks.push_back(compiledSubgraph);
+    }
     bool GetIsLoaded()
     {
         return m_IsLoaded;

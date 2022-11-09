@@ -56,7 +56,9 @@ std::unique_ptr<ITensorHandle> EthosNWorkloadFactory::CreateTensorHandle(const T
 std::unique_ptr<IWorkload> EthosNWorkloadFactory::CreatePreCompiled(const PreCompiledQueueDescriptor& descriptor,
                                                                     const WorkloadInfo& info) const
 {
-    return std::make_unique<EthosNPreCompiledWorkload>(descriptor, info, m_DeviceId, m_ProcMemAllocator);
+
+    return std::make_unique<EthosNPreCompiledWorkload>(descriptor, info, m_DeviceId, m_ProcMemAllocator,
+                                                       m_InternalAllocator);
 }
 
 std::unique_ptr<IWorkload> EthosNWorkloadFactory::CreateOutput(const OutputQueueDescriptor& descriptor,

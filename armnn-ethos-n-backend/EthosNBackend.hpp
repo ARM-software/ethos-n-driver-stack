@@ -84,11 +84,12 @@ public:
                                                              EthosNImportTensorHandleFactory::GetIdStatic() };
     }
 
-    bool UseCustomMemoryAllocator(std::shared_ptr<ICustomAllocator> allocator,
+    bool UseCustomMemoryAllocator(std::shared_ptr<armnn::ICustomAllocator> allocator,
                                   armnn::Optional<std::string&> errMsg) override
     {
-        IgnoreUnused(allocator);
         IgnoreUnused(errMsg);
+        ms_InternalAllocator = allocator;
+        m_InternalAllocator  = allocator;
         ARMNN_LOG(info) << "Using Custom Allocator for EthosNBackend";
         return true;
     }
@@ -98,6 +99,8 @@ private:
     /// @{
     EthosNConfig m_Config;
     std::vector<char> m_Capabilities;
+    std::shared_ptr<armnn::ICustomAllocator> m_InternalAllocator;
+
     /// @}
 
     /// Subgraph counter, used to number each subgraph that we receive from Arm NN for a network.
@@ -111,6 +114,7 @@ protected:
     /// @{
     ARMNN_DLLEXPORT static EthosNConfig ms_Config;
     ARMNN_DLLEXPORT static std::vector<char> ms_Capabilities;
+    static std::shared_ptr<armnn::ICustomAllocator> ms_InternalAllocator;
     /// @}
 };
 

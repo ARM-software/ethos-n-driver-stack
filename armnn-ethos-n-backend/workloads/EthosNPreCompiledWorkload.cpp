@@ -231,8 +231,31 @@ void EthosNPreCompiledWorkload::Init(const EthosNPreCompiledObject::Network& net
         throw RuntimeException("Kernel version is not supported");
     }
 
-    m_Network = std::make_unique<ethosn::driver_library::Network>(procMemAllocator->CreateNetwork(
-        network.m_SerializedCompiledNetwork.data(), network.m_SerializedCompiledNetwork.size()));
+    if (m_InternalAllocator != nullptr)
+    {
+        auto intermedaiteBufSize = m_PreCompiledObject->GetIntermediateBufferSize();
+        if (intermedaiteBufSize > 0)
+        {
+            auto fd = m_InternalAllocator->allocate(intermedaiteBufSize, 0);
+            ethosn::driver_library::IntermediateBufferReq req(ethosn::driver_library::MemType::IMPORT,
+                                                              *static_cast<uint32_t*>(fd), O_RDWR | O_CLOEXEC);
+
+            m_Network = std::make_unique<ethosn::driver_library::Network>(procMemAllocator->CreateNetwork(
+                network.m_SerializedCompiledNetwork.data(), network.m_SerializedCompiledNetwork.size(), req));
+        }
+        else
+        {
+            ethosn::driver_library::IntermediateBufferReq req(ethosn::driver_library::MemType::NONE);
+
+            m_Network = std::make_unique<ethosn::driver_library::Network>(procMemAllocator->CreateNetwork(
+                network.m_SerializedCompiledNetwork.data(), network.m_SerializedCompiledNetwork.size(), req));
+        }
+    }
+    else
+    {
+        m_Network = std::make_unique<ethosn::driver_library::Network>(procMemAllocator->CreateNetwork(
+            network.m_SerializedCompiledNetwork.data(), network.m_SerializedCompiledNetwork.size()));
+    }
 
     m_Network->SetDebugName(("Subgraph" + std::to_string(m_PreCompiledObject->GetSubgraphIndex())).c_str());
 }
@@ -241,9 +264,11 @@ EthosNPreCompiledWorkload::EthosNPreCompiledWorkload(
     const PreCompiledQueueDescriptor& descriptor,
     const WorkloadInfo& info,
     const std::string& deviceId,
-    const std::shared_ptr<ethosn::driver_library::ProcMemAllocator>& procMemAllocator)
+    const std::shared_ptr<ethosn::driver_library::ProcMemAllocator>& procMemAllocator,
+    const std::shared_ptr<armnn::ICustomAllocator> customAllocator)
     : BaseWorkload<PreCompiledQueueDescriptor>(descriptor, info)
     , m_PreCompiledObject(static_cast<const EthosNPreCompiledObject*>(descriptor.m_PreCompiledObject))
+    , m_InternalAllocator(customAllocator)
 {
     // Check that the workload is holding a pointer to a valid pre-compiled object
     if (m_PreCompiledObject == nullptr)

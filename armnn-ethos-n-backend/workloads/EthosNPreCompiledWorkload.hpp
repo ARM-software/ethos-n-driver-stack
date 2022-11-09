@@ -13,6 +13,8 @@
 #include <ethosn_driver_library/Network.hpp>
 #include <ethosn_support_library/Support.hpp>
 
+#include <armnn/ArmNN.hpp>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -52,12 +54,14 @@ public:
     EthosNPreCompiledObject(Network network,
                             std::map<uint32_t, std::string> ethosnOperationNameMapping,
                             int inferenceTimeout,
-                            uint32_t subgraphIndex)
+                            uint32_t subgraphIndex,
+                            uint32_t intermedaiteBufSize)
         : m_IsPerfEstimationOnly(false)
         , m_InferenceTimeout(inferenceTimeout)
         , m_Network(std::move(network))
         , m_EthosNOperationNameMapping(ethosnOperationNameMapping)
         , m_SubgraphIndex(subgraphIndex)
+        , m_IntermediateBufSize(intermedaiteBufSize)
     {}
 
     EthosNPreCompiledObject(PerfData perfData,
@@ -112,6 +116,11 @@ public:
         return m_SubgraphIndex;
     }
 
+    uint32_t GetIntermediateBufferSize() const
+    {
+        return m_IntermediateBufSize;
+    }
+
 private:
     const bool m_IsPerfEstimationOnly;
     const int m_InferenceTimeout;
@@ -126,6 +135,7 @@ private:
     std::map<uint32_t, std::string> m_EthosNOperationNameMapping;
 
     uint32_t m_SubgraphIndex;
+    uint32_t m_IntermediateBufSize;
 };
 
 class EthosNPreCompiledWorkload : public BaseWorkload<PreCompiledQueueDescriptor>
@@ -134,7 +144,8 @@ public:
     EthosNPreCompiledWorkload(const PreCompiledQueueDescriptor& descriptor,
                               const WorkloadInfo& info,
                               const std::string& deviceId,
-                              const std::shared_ptr<ethosn::driver_library::ProcMemAllocator>& procMemAllocator);
+                              const std::shared_ptr<ethosn::driver_library::ProcMemAllocator>& procMemAllocator,
+                              const std::shared_ptr<armnn::ICustomAllocator> customAllocator = nullptr);
     void Execute() const override;
 
 private:
@@ -163,6 +174,7 @@ private:
 
     // The workload does own the network and the inference instances
     mutable std::unique_ptr<ethosn::driver_library::Network> m_Network;
+    std::shared_ptr<armnn::ICustomAllocator> m_InternalAllocator;
 };
 
 }    //namespace armnn

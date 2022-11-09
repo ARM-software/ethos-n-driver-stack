@@ -897,11 +897,12 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
     if (caching->IsLoading())
     {
         // Currently one compiled network is supported.
-        auto cachedCompiledNetwork = caching->GetCompiledNetworks();
+        std::pair<std::vector<char>, uint32_t> networkAndIntermediate =
+            caching->GetCompiledNetworkAndIntermediateSize(m_SubgraphIdx);
 
         auto preCompiledObject = std::make_unique<EthosNPreCompiledObject>(
-            EthosNPreCompiledObject::Network(std::move(cachedCompiledNetwork[m_SubgraphIdx])),
-            m_EthosNOperationNameMapping, m_EthosNConfig.m_InferenceTimeout, m_SubgraphIdx);
+            EthosNPreCompiledObject::Network(std::move(networkAndIntermediate.first)), m_EthosNOperationNameMapping,
+            m_EthosNConfig.m_InferenceTimeout, m_SubgraphIdx, networkAndIntermediate.second);
 
         // Convert the EthosNPreCompiledObject into a "blob" (void) object and attach the custom blob deleter
         compiledBlobs.emplace_back(preCompiledObject.release(), DeleteAsType<EthosNPreCompiledObject>);
@@ -947,6 +948,8 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
                 }
             }
 
+            auto intermediateBufSize = compiledNetwork->GetIntermediateBufferSize();
+
             // Construct a EthosNPreCompiledObject containing the serialized ethosn_lib::CompiledNetwork along with
             // other data needed by the workload.
             std::vector<char> compiledNetworkData;
@@ -959,13 +962,13 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
             // If saving options are specified, add to stored map to save once complete.
             if (caching->IsSaving())
             {
-                caching->AddCompiledNetwork(compiledNetworkData);
+                caching->AddCompiledNetwork(compiledNetworkData, intermediateBufSize);
                 caching->IncrementSubgraphCount();
             }
 
             auto preCompiledObject = std::make_unique<EthosNPreCompiledObject>(
                 EthosNPreCompiledObject::Network(std::move(compiledNetworkData)), m_EthosNOperationNameMapping,
-                m_EthosNConfig.m_InferenceTimeout, m_SubgraphIdx);
+                m_EthosNConfig.m_InferenceTimeout, m_SubgraphIdx, intermediateBufSize);
 
             // Convert the EthosNPreCompiledObject into a "blob" (void) object and attach the custom blob deleter
             compiledBlobs.emplace_back(preCompiledObject.release(), DeleteAsType<EthosNPreCompiledObject>);
