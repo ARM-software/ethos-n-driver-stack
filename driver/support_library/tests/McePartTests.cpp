@@ -1567,7 +1567,7 @@ TEST_CASE("McePart GetPlans Split output in depth")
                     TensorShape inputStripe{ 1, 8, 8, 32 };
                     uint32_t numInputStripes = 1;
                     TensorShape pleOutputStripe{ 1, 8, 8, 8 };
-                    TensorShape outputStripe{ 1, 8, 8, 16 };
+                    TensorShape outputStripe{ 1, 8, 8, 8 };
                     uint32_t numOutputStripes = 2;
 
                     return plan.m_InputSram->m_StripeShape == inputStripe &&
