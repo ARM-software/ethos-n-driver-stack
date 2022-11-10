@@ -24,6 +24,7 @@
 
 #include "ethosn_device.h"
 #include "ethosn_network.h"
+#include "ethosn_smc.h"
 #include "scylla_addr_fields_public.h"
 #include "scylla_regs_public.h"
 
@@ -245,12 +246,23 @@ static const struct attribute *attrs[] = {
 #ifdef CONFIG_PM
 static bool ethosn_is_sleeping(struct ethosn_core *core)
 {
+#ifdef ETHOSN_NS
 	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
 
 	sysctlr0.word =
 		ethosn_read_top_reg(core, DL1_RP, DL1_SYSCTLR0);
 
 	return sysctlr0.bits.sleeping;
+#else
+	int ret = ethosn_smc_core_is_sleeping(core->dev, core->phys_addr);
+
+	if (ret < 0)
+		dev_err(core->dev,
+			"Failed to get core state, assuming it's active: %d\n",
+			ret);
+
+	return ret == 1;
+#endif
 }
 
 static int ethosn_pm_common_resume(struct device *dev)

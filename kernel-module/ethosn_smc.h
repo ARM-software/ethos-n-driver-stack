@@ -65,4 +65,15 @@ int ethosn_smc_core_reset(const struct device *dev,
 			  bool halt,
 			  bool hard_reset);
 
+/**
+ * ethosn_smc_core_is_sleeping() - Call SiP service to check if the NPU core is
+ * sleeping
+ * @device:	Pointer to the struct device on which to log the error if any.
+ * @core_addr:	Address to Ethos-N core.
+ *
+ * Return: 0 if active, 1 if sleeping or negative error code on failure.
+ */
+int ethosn_smc_core_is_sleeping(const struct device *dev,
+				phys_addr_t core_addr);
+
 #endif /* _ETHOSN_SMC_H_ */
