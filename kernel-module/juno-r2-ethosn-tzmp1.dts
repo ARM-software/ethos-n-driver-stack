@@ -23,6 +23,7 @@
 /include/ "juno-r2-ethosn.dtsi"
 /include/ "juno-r2-ethosn-tzmp1.dtsi"
 /include/ "juno-r2-smmu.dtsi"
+/include/ "juno-r2-asset-allocs.dtsi"
 
 /*
  * Note:- The smmu stream id defined in ethosn needs to be a unique value amongst
@@ -57,31 +58,6 @@
 				compatible = "ethosn-memory";
 				iommus = <&smmu_ethosn0 1>;
 			};
-		};
-	};
-
-	asset_allocator {
-		compatible = "ethosn-asset_allocator";
-		status = "okay";
-
-		command_stream {
-			compatible = "ethosn-memory";
-			iommus = <&smmu_ethosn0 2>;
-		};
-
-		weight_data {
-			compatible = "ethosn-memory";
-			iommus = <&smmu_ethosn0 3>;
-		};
-
-		buffer_data {
-			compatible = "ethosn-memory";
-			iommus = <&smmu_ethosn0 4>;
-		};
-
-		intermediate_data {
-			compatible = "ethosn-memory";
-			iommus = <&smmu_ethosn0 5>;
 		};
 	};
 };
