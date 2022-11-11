@@ -98,7 +98,8 @@ sudo apt install git \
     flex \
     libssl-dev \
     bc \
-    rsync
+    rsync \
+    python3.6
 ```
 
 You must build and install sparse. We recommend `v0.6.3`. To build and install sparse, enter the following commands:
@@ -170,7 +171,10 @@ To download the components, enter the following commands:
 ```sh
 mkdir driver_stack
 cd driver_stack
-git clone https://github.com/Arm-software/armnn --branch armnn_22_11
+git clone https://github.com/Arm-software/armnn --branch main
+cd armnn/
+git reset --hard ae16e55f0d75f3e79d789de6c5464078730d01bd
+cd ..
 git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 22.08.1
 ```
 
