@@ -6,6 +6,7 @@
 #pragma once
 
 #if defined(__unix__)
+#include <errno.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
