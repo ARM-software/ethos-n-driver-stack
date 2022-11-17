@@ -1465,7 +1465,11 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 	if (!ethosn)
 		goto err_early_exit;
 
-	ethosn_global_device_for_testing = ethosn;
+	/* Store the first device for testing. If there is more than one device,
+	 * just use the first one.
+	 */
+	if (!ethosn_global_device_for_testing)
+		ethosn_global_device_for_testing = ethosn;
 
 	ethosn->parent_id = platform_id;
 	ethosn->dev = &pdev->dev;
