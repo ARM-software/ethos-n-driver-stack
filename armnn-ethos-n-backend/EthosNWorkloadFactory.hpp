@@ -18,20 +18,16 @@ class EthosNWorkloadFactory : public IWorkloadFactory
 {
 public:
     EthosNWorkloadFactory(const EthosNConfig& config,
-                          const std::shared_ptr<ethosn::driver_library::ProcMemAllocator> procMemAllocator,
                           const std::shared_ptr<armnn::ICustomAllocator> customAllocator = nullptr)
         : m_EthosNConfig(config)
-        , m_ProcMemAllocator(procMemAllocator)
         , m_InternalAllocator(customAllocator)
     {}
 
     EthosNWorkloadFactory(const EthosNConfig& config,
                           const std::string deviceId,
-                          const std::shared_ptr<ethosn::driver_library::ProcMemAllocator> procMemAllocator,
                           const std::shared_ptr<armnn::ICustomAllocator> customAllocator = nullptr)
         : m_EthosNConfig(config)
         , m_DeviceId(deviceId)
-        , m_ProcMemAllocator(procMemAllocator)
         , m_InternalAllocator(customAllocator)
     {}
 
@@ -77,7 +73,6 @@ private:
 
     EthosNConfig m_EthosNConfig;
     std::string m_DeviceId;
-    std::shared_ptr<ethosn::driver_library::ProcMemAllocator> m_ProcMemAllocator;
     std::shared_ptr<armnn::ICustomAllocator> m_InternalAllocator;
 };
 

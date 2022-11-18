@@ -144,14 +144,11 @@ public:
     EthosNPreCompiledWorkload(const PreCompiledQueueDescriptor& descriptor,
                               const WorkloadInfo& info,
                               const std::string& deviceId,
-                              const std::shared_ptr<ethosn::driver_library::ProcMemAllocator>& procMemAllocator,
                               const std::shared_ptr<armnn::ICustomAllocator> customAllocator = nullptr);
     void Execute() const override;
 
 private:
-    void Init(const EthosNPreCompiledObject::Network& network,
-              const std::string& deviceId,
-              const std::shared_ptr<ethosn::driver_library::ProcMemAllocator>& procMemAllocator);
+    void Init(const EthosNPreCompiledObject::Network& network, const std::string& deviceId);
     void SavePerformanceJson() const;
 
     bool SupportsTensorHandleReplacement() const override

@@ -9,11 +9,14 @@
 #include "EthosNConfig.hpp"
 #include "EthosNTensorHandleFactory.hpp"
 
+#include <armnn/backends/IBackendContext.hpp>
 #include <armnn/backends/IBackendInternal.hpp>
 #include <armnn/backends/OptimizationViews.hpp>
 
 #include <ethosn_driver_library/Device.hpp>
 #include <ethosn_driver_library/ProcMemAllocator.hpp>
+
+#include <map>
 
 namespace armnn
 {
@@ -153,58 +156,99 @@ public:
     // Getter for the singleton instance
     static EthosNBackendAllocatorService& GetInstance();
 
-    std::shared_ptr<ethosn::driver_library::ProcMemAllocator> GetProcMemAllocatorPtr(const std::string& deviceId)
-    {
-        using namespace ethosn::driver_library;
-
-        if (deviceId.empty())
-        {
-            return SearchAllocatorVector(GetDeviceNamePrefix() + std::to_string(GetDeviceBaseId()));
-        }
-        else
-        {
-            return SearchAllocatorVector(deviceId);
-        }
-    }
-
-    void SetProcMemAllocatorPtr(const EthosNConfig& config, const std::string& deviceId)
+    void RegisterAllocator(const EthosNConfig& config, const std::string& deviceId)
     {
         using namespace ethosn::driver_library;
 
         if (config.m_PerfOnly)
         {
+            // Performance only, allocators not needed
             return;
         }
 
-        std::shared_ptr<ethosn::driver_library::ProcMemAllocator> allocator;
-
+        std::string allocString = deviceId;
         if (deviceId.empty())
         {
-            allocator = std::make_shared<ProcMemAllocator>();
+            allocString = GetDeviceNamePrefix() + std::to_string(GetDeviceBaseId());
+        }
+
+        m_RegisteredDeviceIds.emplace(allocString);
+
+        if (m_RefCount > 0)
+        {
+            m_Allocators.emplace(allocString, ProcMemAllocator(allocString));
+        }
+    }
+
+    ethosn::driver_library::ProcMemAllocator& GetProcMemAllocator(const std::string& deviceId)
+    {
+        using namespace ethosn::driver_library;
+
+        std::string searchString = deviceId;
+        if (deviceId.empty())
+        {
+            searchString = GetDeviceNamePrefix() + std::to_string(GetDeviceBaseId());
+        }
+
+        auto searchResult = m_Allocators.find(searchString);
+        if (searchResult != m_Allocators.end())
+        {
+            return searchResult->second;
         }
         else
         {
-            allocator = std::make_shared<ProcMemAllocator>(deviceId);
+            throw RuntimeException("Process memory allocator not found");
         }
-
-        m_SharedEthosNProcMemAllocators.emplace_back(std::move(allocator));
     }
 
-private:
-    std::shared_ptr<ethosn::driver_library::ProcMemAllocator> SearchAllocatorVector(const std::string& deviceId)
+    void GetAllocators()
     {
-        for (auto allocator : m_SharedEthosNProcMemAllocators)
+        using namespace ethosn::driver_library;
+
+        if (m_RefCount <= 0)
         {
-            if (deviceId == allocator->GetDeviceId())
+            for (auto& deviceId : m_RegisteredDeviceIds)
             {
-                return allocator;
+                m_Allocators.emplace(deviceId, ProcMemAllocator(deviceId));
             }
         }
 
-        return nullptr;
+        m_RefCount++;
     }
 
-    std::vector<std::shared_ptr<ethosn::driver_library::ProcMemAllocator>> m_SharedEthosNProcMemAllocators;
+    void PutAllocators()
+    {
+        using namespace ethosn::driver_library;
+
+        m_RefCount--;
+
+        if (m_RefCount <= 0)
+        {
+            m_Allocators.clear();
+        }
+    }
+
+private:
+    std::set<std::string> m_RegisteredDeviceIds;
+    std::map<std::string, ethosn::driver_library::ProcMemAllocator> m_Allocators;
+    uint32_t m_RefCount = 0;
+};
+
+class EthosNBackendContext : public IBackendContext
+{
+public:
+    EthosNBackendContext(const IRuntime::CreationOptions& options)
+        : IBackendContext(options)
+    {}
+    bool BeforeLoadNetwork(NetworkId networkId) override;
+
+    bool AfterLoadNetwork(NetworkId networkId) override;
+
+    bool BeforeUnloadNetwork(NetworkId networkId) override;
+
+    bool AfterUnloadNetwork(NetworkId networkId) override;
+
+    bool AfterEnqueueWorkload(NetworkId networkId) override;
 };
 
 namespace ethosnbackend

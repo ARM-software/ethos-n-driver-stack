@@ -61,7 +61,7 @@ ProcMemAllocator::ProcMemAllocator(const std::string& device)
         throw std::runtime_error(std::string("Failed to create process memory allocator: ") + strerror(err));
     }
 #else
-    m_AllocatorFd = 0;
+    m_AllocatorFd = -1;
 #endif
     m_deviceId = device;
 }
@@ -70,10 +70,21 @@ ProcMemAllocator::ProcMemAllocator()
     : ProcMemAllocator(DEVICE_NODE)
 {}
 
+ProcMemAllocator::ProcMemAllocator(ProcMemAllocator&& otherAllocator)
+    : m_AllocatorFd(otherAllocator.m_AllocatorFd)
+    , m_deviceId(otherAllocator.m_deviceId)
+{
+    // Invalidate fd of other allocator to prevent early closing
+    otherAllocator.m_AllocatorFd = -1;
+}
+
 ProcMemAllocator::~ProcMemAllocator()
 {
 #ifdef TARGET_KMOD
-    close(m_AllocatorFd);
+    if (m_AllocatorFd > 0)
+    {
+        close(m_AllocatorFd);
+    }
 #endif
 }
 

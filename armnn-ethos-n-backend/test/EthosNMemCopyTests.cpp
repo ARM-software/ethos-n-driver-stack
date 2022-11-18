@@ -31,14 +31,10 @@ struct MemCopyTestHelper<armnn::EthosNWorkloadFactory>
         armnn::EthosNConfig config{};
 
         // Create process memory allocator if it does not already exist
-        auto procMemAllocator = armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({});
-        if (procMemAllocator == nullptr)
-        {
-            armnn::EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(config, {});
-        }
+        // Register and get allocators as this test doesn't call LoadNetwork
+        armnn::EthosNBackendAllocatorService::GetInstance().RegisterAllocator(config, {});
 
-        return armnn::EthosNWorkloadFactory(
-            config, armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({}));
+        return armnn::EthosNWorkloadFactory(config);
     }
 };
 
@@ -59,19 +55,14 @@ LayerTestResult<T, 4> EthosNMemCopyTest(armnn::IWorkloadFactory& srcWorkloadFact
 
     std::vector<T> actualOutput(tensorInfo.GetNumElements());
 
-    // Create process memory allocator if it does not already exist
+    // Register and get allocators
     armnn::EthosNConfig config;
-    auto procMemAllocator = armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({});
-    if (procMemAllocator == nullptr)
-    {
-        armnn::EthosNBackendAllocatorService::GetInstance().SetProcMemAllocatorPtr(config, {});
-    }
+    armnn::EthosNBackendAllocatorService::GetInstance().RegisterAllocator(config, {});
+    armnn::EthosNBackendAllocatorService::GetInstance().GetAllocators();
 
-    armnn::EthosNWorkloadFactory factory(
-        config, armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({}));
+    armnn::EthosNWorkloadFactory factory(config);
 
-    auto tensorHandleFactory = std::make_unique<armnn::EthosNTensorHandleFactory>(
-        config, armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocatorPtr({}));
+    auto tensorHandleFactory = std::make_unique<armnn::EthosNTensorHandleFactory>(config);
 
     auto inputTensorHandle  = tensorHandleFactory->CreateTensorHandle(tensorInfo);
     auto outputTensorHandle = tensorHandleFactory->CreateTensorHandle(tensorInfo);
@@ -100,6 +91,8 @@ LayerTestResult<T, 4> EthosNMemCopyTest(armnn::IWorkloadFactory& srcWorkloadFact
 
     CopyDataFromITensorHandle(actualOutput.data(), workloadOutput.get());
     ret.m_ActualData = actualOutput;
+
+    armnn::EthosNBackendAllocatorService::GetInstance().PutAllocators();
 
     return ret;
 }

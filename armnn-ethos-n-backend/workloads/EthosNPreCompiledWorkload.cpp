@@ -220,9 +220,7 @@ void SendProfilingEvents()
 
 }    // anonymous namespace
 
-void EthosNPreCompiledWorkload::Init(const EthosNPreCompiledObject::Network& network,
-                                     const std::string& deviceId,
-                                     const std::shared_ptr<ethosn::driver_library::ProcMemAllocator>& procMemAllocator)
+void EthosNPreCompiledWorkload::Init(const EthosNPreCompiledObject::Network& network, const std::string& deviceId)
 {
     const bool kernelVerified =
         deviceId.empty() ? ethosn::driver_library::VerifyKernel() : ethosn::driver_library::VerifyKernel(deviceId);
@@ -230,6 +228,8 @@ void EthosNPreCompiledWorkload::Init(const EthosNPreCompiledObject::Network& net
     {
         throw RuntimeException("Kernel version is not supported");
     }
+
+    auto& procMemAllocator = armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocator(deviceId);
 
     if (m_InternalAllocator != nullptr)
     {
@@ -240,32 +240,30 @@ void EthosNPreCompiledWorkload::Init(const EthosNPreCompiledObject::Network& net
             ethosn::driver_library::IntermediateBufferReq req(ethosn::driver_library::MemType::IMPORT,
                                                               *static_cast<uint32_t*>(fd), O_RDWR | O_CLOEXEC);
 
-            m_Network = std::make_unique<ethosn::driver_library::Network>(procMemAllocator->CreateNetwork(
+            m_Network = std::make_unique<ethosn::driver_library::Network>(procMemAllocator.CreateNetwork(
                 network.m_SerializedCompiledNetwork.data(), network.m_SerializedCompiledNetwork.size(), req));
         }
         else
         {
             ethosn::driver_library::IntermediateBufferReq req(ethosn::driver_library::MemType::NONE);
 
-            m_Network = std::make_unique<ethosn::driver_library::Network>(procMemAllocator->CreateNetwork(
+            m_Network = std::make_unique<ethosn::driver_library::Network>(procMemAllocator.CreateNetwork(
                 network.m_SerializedCompiledNetwork.data(), network.m_SerializedCompiledNetwork.size(), req));
         }
     }
     else
     {
-        m_Network = std::make_unique<ethosn::driver_library::Network>(procMemAllocator->CreateNetwork(
+        m_Network = std::make_unique<ethosn::driver_library::Network>(procMemAllocator.CreateNetwork(
             network.m_SerializedCompiledNetwork.data(), network.m_SerializedCompiledNetwork.size()));
     }
 
     m_Network->SetDebugName(("Subgraph" + std::to_string(m_PreCompiledObject->GetSubgraphIndex())).c_str());
 }
 
-EthosNPreCompiledWorkload::EthosNPreCompiledWorkload(
-    const PreCompiledQueueDescriptor& descriptor,
-    const WorkloadInfo& info,
-    const std::string& deviceId,
-    const std::shared_ptr<ethosn::driver_library::ProcMemAllocator>& procMemAllocator,
-    const std::shared_ptr<armnn::ICustomAllocator> customAllocator)
+EthosNPreCompiledWorkload::EthosNPreCompiledWorkload(const PreCompiledQueueDescriptor& descriptor,
+                                                     const WorkloadInfo& info,
+                                                     const std::string& deviceId,
+                                                     const std::shared_ptr<armnn::ICustomAllocator> customAllocator)
     : BaseWorkload<PreCompiledQueueDescriptor>(descriptor, info)
     , m_PreCompiledObject(static_cast<const EthosNPreCompiledObject*>(descriptor.m_PreCompiledObject))
     , m_InternalAllocator(customAllocator)
@@ -278,7 +276,7 @@ EthosNPreCompiledWorkload::EthosNPreCompiledWorkload(
 
     if (!m_PreCompiledObject->IsPerfEstimationOnly())
     {
-        Init(*m_PreCompiledObject->GetNetwork(), deviceId, procMemAllocator);
+        Init(*m_PreCompiledObject->GetNetwork(), deviceId);
     }
 }
 

@@ -22,6 +22,7 @@ class ProcMemAllocator
 public:
     ProcMemAllocator();
     ProcMemAllocator(const std::string& device);
+    ProcMemAllocator(ProcMemAllocator&& otherAllocator);
 
     // Disable copy and assignment to prevent accidental duplication
     // as only one instance of this class should exist per process

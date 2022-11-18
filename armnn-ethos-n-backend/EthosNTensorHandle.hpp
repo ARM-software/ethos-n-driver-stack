@@ -4,6 +4,8 @@
 //
 #pragma once
 
+#include "EthosNBackend.hpp"
+
 #include "EthosNTensorUtils.hpp"
 #include "EthosNWorkloadUtils.hpp"
 
@@ -104,23 +106,22 @@ private:
 class EthosNTensorHandle : public EthosNBaseTensorHandle
 {
 public:
-    explicit EthosNTensorHandle(const TensorInfo& tensorInfo,
-                                const std::shared_ptr<ethosn::driver_library::ProcMemAllocator>& procMemAllocator)
+    explicit EthosNTensorHandle(const TensorInfo& tensorInfo, const std::string& deviceId)
         : EthosNBaseTensorHandle(tensorInfo)
-        , m_Buffer(CreateBuffer(tensorInfo, procMemAllocator))
+        , m_Buffer(CreateBuffer(tensorInfo, deviceId))
     {}
 
-    ethosn::driver_library::Buffer
-        CreateBuffer(const TensorInfo& tensorInfo,
-                     const std::shared_ptr<ethosn::driver_library::ProcMemAllocator>& procMemAllocator)
+    ethosn::driver_library::Buffer CreateBuffer(const TensorInfo& tensorInfo, const std::string& deviceId)
     {
+        auto& procMemAllocator = armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocator(deviceId);
+
         // The input buffer size of fully connected is rounded up to the next 1024
         // byte boundary by the support library. The backend needs to do
         // the same to avoid buffer size mismatch.
         uint32_t bufferSize =
             armnn::ethosnbackend::RoundUpToNearestMultiple(tensorInfo.GetNumElements(), static_cast<uint32_t>(1024));
 
-        return procMemAllocator->CreateBuffer(bufferSize, ethosn::driver_library::DataFormat::NHWC);
+        return procMemAllocator.CreateBuffer(bufferSize, ethosn::driver_library::DataFormat::NHWC);
     }
 
     virtual const void* Map(bool) const override
@@ -154,11 +155,11 @@ class EthosNImportTensorHandle : public EthosNBaseTensorHandle
 {
 public:
     explicit EthosNImportTensorHandle(const TensorInfo& tensorInfo,
-                                      const std::shared_ptr<ethosn::driver_library::ProcMemAllocator> procMemAllocator,
+                                      const std::string& deviceId,
                                       MemorySourceFlags importFlags)
         : EthosNBaseTensorHandle(tensorInfo)
         , m_ImportFlags(importFlags)
-        , m_ProcMemAllocator(procMemAllocator)
+        , m_DeviceId(deviceId)
         , m_Buffer(nullptr)
     {}
 
@@ -188,6 +189,8 @@ public:
 
     bool Import(void* memory, MemorySource source) override
     {
+        auto& procMemAllocator = armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocator(m_DeviceId);
+
         if (m_Buffer)
         {
             m_Buffer.reset();
@@ -207,7 +210,7 @@ public:
         uint32_t bufferSize = armnn::ethosnbackend::RoundUpToNearestMultiple(GetTensorInfo().GetNumElements(),
                                                                              static_cast<uint32_t>(1024));
 
-        m_Buffer = std::make_unique<ethosn::driver_library::Buffer>(m_ProcMemAllocator->ImportBuffer(fd, bufferSize));
+        m_Buffer = std::make_unique<ethosn::driver_library::Buffer>(procMemAllocator.ImportBuffer(fd, bufferSize));
         return true;
     };
 
@@ -228,7 +231,7 @@ private:
     EthosNImportTensorHandle& operator=(const EthosNImportTensorHandle& other) = delete;
 
     MemorySourceFlags m_ImportFlags;
-    std::shared_ptr<ethosn::driver_library::ProcMemAllocator> m_ProcMemAllocator;
+    std::string m_DeviceId;
     std::unique_ptr<ethosn::driver_library::Buffer> m_Buffer;
 };
 
