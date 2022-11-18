@@ -1,5 +1,35 @@
 # Changelog for Arm® Ethos™-N Driver Stack
 
+## 22.11
+
+### New features
+
+- None
+
+### Public API changes
+
+- Driver Library supports importing an intermediate buffer
+- Kernel supports importing intermediate buffers
+  - Inferences based on networks with imported intermediate buffers cannot run simultaneously on multiple cores, so they will be queued until the previous inference is completed
+- Driver library and kernel has new process memory allocator APIs to create buffers and register networks. Support for old APIs is removed. The new APIs are not backwards compatible
+- Version number updates:
+  - Driver Library version 3.0.0 → 4.0.0
+  - Kernel Module version 4.0.0 → 5.0.0
+  - Firmware version 5.0.0 → 6.0.0
+
+### Other changes
+
+- Public architecture header files make use of assert instead of truncation in set_XXX functions
+- Improvements to SmallVector type
+- Kernel module
+  - Fix a crash in the kernel module when the firmware binary changes
+  - Fix kernel module not picking up a new firmware binary after failing to load a previous one
+  - Kernel module will now only load firmware binaries that contain an identifying magic number
+
+### Known issues
+
+- None
+
 ## 22.08.1
 
 ### New features
