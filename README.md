@@ -119,13 +119,11 @@ git clone --depth 1 https://github.com/catchorg/Catch2.git --branch v2.13.8 <pat
 ## Install the Linux source tree
 
 The Ethos-N driver stack source code depends on the Linux source tree to build the kernel module. You must configure the kernel to build the kernel module.
-Arm has tested versions `4.14`, `4.19`, `5.4`, and `5.10` of the Linux source tree in System Memory Management Unit (SMMU) configurations and version `4.9` in non-SMMU configurations.
-
-_Note: Version 4.14 and 4.19 are deprecated in SMMU configurations and will be unsupported from the next release._
+Arm has tested versions `5.4`, and `5.10` of the Linux source tree in System Memory Management Unit (SMMU) configurations.
 
 To configure the kernel:
 
-1. Download version `4.9`, `4.14`, `4.19`, `5.4`, or `5.10` of the Linux source tree from [www.kernel.org](http://www.kernel.org).
+1. Download version `5.4`, or `5.10` of the Linux source tree from [www.kernel.org](http://www.kernel.org).
 2. Configure the memory system for the NPU:
 
     * If you run the NPU with an SMMU, because the SMMU driver cannot simultaneously enable the SMMU v1 or v2 and the SMMU v3, you must disable the CONFIG_ARM_SMMU configuration key and enable the CONFIG_ARM_SMMU_V3 configuration key:
