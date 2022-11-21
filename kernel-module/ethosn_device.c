@@ -1366,20 +1366,42 @@ struct ethosn_big_fw {
 	} desc[];
 } __packed;
 
+static bool validate_big_fw_header(struct ethosn_core *core,
+				   struct ethosn_big_fw *big_fw)
+{
+	if (big_fw->fw_magic != ETHOSN_BIG_FW_MAGIC) {
+		dev_err(core->dev,
+			"Unable to identify BIG FW. Invalid magic number: 0x%04x\n",
+			big_fw->fw_magic);
+
+		return false;
+	}
+
+	if (big_fw->fw_ver_major != ETHOSN_FIRMWARE_VERSION_MAJOR) {
+		dev_err(core->dev,
+			"Unsupported BIG FW version: %u.%u.%u. Version %u.x.x is required.\n",
+			big_fw->fw_ver_major, big_fw->fw_ver_minor,
+			big_fw->fw_ver_patch, ETHOSN_FIRMWARE_VERSION_MAJOR);
+
+		return false;
+	}
+
+	if (big_fw->fw_cnt == 0U) {
+		dev_err(core->dev,
+			"BIG FW doesn't contain any firmware binaries\n");
+
+		return false;
+	}
+
+	return true;
+}
+
 static struct ethosn_big_fw_desc *find_big_fw_desc(struct ethosn_core *core,
 						   struct ethosn_big_fw *big_fw)
 {
 	struct dl1_npu_id_r npu_id;
 	int i;
 	uint32_t arch;
-
-	if (big_fw->fw_magic != ETHOSN_BIG_FW_MAGIC) {
-		dev_err(core->dev,
-			"Unable to identify BIG FW. Invalid magic number: 0x%04x\n",
-			big_fw->fw_magic);
-
-		return ERR_PTR(-EINVAL);
-	}
 
 	npu_id.word = ethosn_read_top_reg(core, DL1_RP, DL1_NPU_ID);
 	arch = npu_id.bits.arch_major << 24 |
@@ -1413,20 +1435,6 @@ static struct ethosn_big_fw_desc *find_big_fw_desc(struct ethosn_core *core,
 	return ERR_PTR(-EINVAL);
 }
 
-static int verify_firmware(struct ethosn_core *core,
-			   struct ethosn_big_fw *big_fw)
-{
-	if (big_fw->fw_ver_major != ETHOSN_FIRMWARE_VERSION_MAJOR) {
-		dev_err(core->dev,
-			"Wrong firmware version. Version %u.x.x is required.\n",
-			ETHOSN_FIRMWARE_VERSION_MAJOR);
-
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 /**
  * firmware_load - Load firmware binary with given name.
  * @core:		Pointer to Ethos-N core.
@@ -1455,17 +1463,17 @@ static int firmware_load(struct ethosn_core *core,
 
 	big_fw = (struct ethosn_big_fw *)fw->data;
 
+	if (!validate_big_fw_header(core, big_fw)) {
+		ret = -EINVAL;
+		goto release_fw;
+	}
+
 	/* Find a FW binary for this NPU */
 	big_fw_desc = find_big_fw_desc(core, big_fw);
 	if (IS_ERR(big_fw_desc)) {
 		ret = PTR_ERR(big_fw_desc);
 		goto release_fw;
 	}
-
-	/* Check FW binary version compatibility */
-	ret = verify_firmware(core, big_fw);
-	if (ret)
-		goto release_fw;
 
 	dev_dbg(core->dev,
 		"Found FW. arch_min=0x%08x, arch_max=0x%08x, offset=0x%08x, ple_offset=0x%08x, size=0x%08x",
