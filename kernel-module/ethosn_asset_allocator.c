@@ -111,6 +111,9 @@ struct ethosn_dma_allocator *ethosn_asset_allocator_find(
 	return NULL;
 }
 
+/* Exported for use by test module */
+EXPORT_SYMBOL(ethosn_asset_allocator_find);
+
 static int ethosn_asset_allocator_pdev_remove(struct platform_device *pdev)
 {
 	struct ethosn_device *ethosn = ethosn_driver(pdev);

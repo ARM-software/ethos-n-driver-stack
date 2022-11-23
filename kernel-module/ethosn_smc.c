@@ -52,9 +52,11 @@ static inline int __must_check ethosn_smc_core_reset_call(u32 cmd,
 							  phys_addr_t core_addr,
 							  uint32_t asset_alloc_idx,
 							  bool halt,
+							  bool is_protected,
 							  struct arm_smccc_res *res)
 {
-	arm_smccc_smc(cmd, core_addr, asset_alloc_idx, halt, 0, 0, 0, 0, res);
+	arm_smccc_smc(cmd, core_addr, asset_alloc_idx, halt, is_protected, 0, 0,
+		      0, res);
 
 	/*
 	 * Only use the first 32-bits of the response to handle an error from a
@@ -120,17 +122,21 @@ int ethosn_smc_core_reset(const struct device *dev,
 			  phys_addr_t core_addr,
 			  uint32_t asset_alloc_idx,
 			  bool halt,
-			  bool hard_reset)
+			  bool hard_reset,
+			  bool is_protected)
 {
 	struct arm_smccc_res res = { 0 };
 	const u32 smc_reset_call = hard_reset ? ETHOSN_SMC_CORE_HARD_RESET :
 				   ETHOSN_SMC_CORE_SOFT_RESET;
 	int ret = ethosn_smc_core_reset_call(smc_reset_call, core_addr,
-					     asset_alloc_idx, halt, &res);
+					     asset_alloc_idx, halt,
+					     is_protected, &res);
 
 	if (ret) {
-		dev_warn(dev, "Failed to %s%s reset the hardware: %d\n",
+		dev_warn(dev,
+			 "Failed to %s%s reset the hardware in %scontext: %d\n",
 			 hard_reset ? "hard" : "soft", halt ? " halt" : "",
+			 is_protected ? "" : "non-",
 			 ret);
 
 		return -EFAULT;

@@ -21,6 +21,7 @@
  */
 
 #include "ethosn_device.h"
+#include "ethosn_network.h"
 
 #include "ethosn_backport.h"
 #include "ethosn_firmware.h"
@@ -564,6 +565,31 @@ void ethosn_notify_firmware(struct ethosn_core *core)
 			     irq.word);
 }
 
+#ifndef ETHOSN_NS
+
+/**
+ * ethosn_core_has_protected_network()
+ * @core:	Pointer to Ethos-N core
+ * Return:	True if current inference uses a network with a protected
+ *		asset_allocator
+ */
+static bool ethosn_core_has_protected_network(struct ethosn_core *core)
+{
+	struct ethosn_inference *inf = core->current_inference;
+
+	if (inf) {
+		struct ethosn_network *network = inf->network;
+
+		if (network)
+			if (network->asset_allocator)
+				return network->asset_allocator->is_protected;
+	}
+
+	return false;
+}
+
+#endif
+
 static int ethosn_hard_reset(struct ethosn_core *core,
 			     bool halt,
 			     uint32_t alloc_id)
@@ -611,7 +637,8 @@ static int ethosn_hard_reset(struct ethosn_core *core,
 	 * allocator index is hardcoded to 0.
 	 */
 	if (ethosn_smc_core_reset(core->dev, core->phys_addr, alloc_id, halt,
-				  true))
+				  true,
+				  ethosn_core_has_protected_network(core)))
 		return -ETIME;
 
 	return 0;
@@ -665,10 +692,11 @@ static int ethosn_soft_reset(struct ethosn_core *core,
 	 * Only the first asset allocator is being used right now so the
 	 * allocator index is hardcoded to 0.
 	 */
+
 	ret =
 		ethosn_smc_core_reset(core->dev, core->phys_addr, alloc_id,
-				      halt,
-				      false);
+				      halt, false,
+				      ethosn_core_has_protected_network(core));
 	if (ret != 0) {
 		dev_err(core->dev, "ethosn_smc_core_reset failed with: %i",
 			ret);

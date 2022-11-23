@@ -735,6 +735,55 @@ static int ethosn_inference_register(struct ethosn_network *network,
 	if (IS_ERR(inference))
 		return PTR_ERR(inference);
 
+	if (network->asset_allocator->is_protected) {
+		for (i = 0; i < req->num_inputs; ++i)
+			if (!inference->inputs[i]->dma_info->imported) {
+				dev_err(ifr_to_dev(
+						inference),
+					"Only imported input buffers are allowed in protected context\n");
+				ethosn_put_inference(inference);
+
+				return -EPERM;
+			}
+
+		for (i = 0; i < req->num_outputs; ++i)
+			if (!inference->outputs[i]->dma_info->imported) {
+				dev_err(ifr_to_dev(
+						inference),
+					"Only imported output buffers are allowed in protected context\n");
+				ethosn_put_inference(inference);
+
+				return -EPERM;
+			}
+	}
+
+	/* Verify that all buffers have the same asset allocator. Must be done
+	 * regardless of context
+	 */
+	for (i = 0; i < req->num_inputs; ++i)
+		if (inference->inputs[i]->asset_allocator !=
+		    network->asset_allocator) {
+			dev_err(ifr_to_dev(
+					inference),
+				"Input buffer %d doesn't have the same asset allocator as the network\n",
+				i);
+			ethosn_put_inference(inference);
+
+			return -EPERM;
+		}
+
+	for (i = 0; i < req->num_outputs; ++i)
+		if (inference->outputs[i]->asset_allocator !=
+		    network->asset_allocator) {
+			dev_err(ifr_to_dev(
+					inference),
+				"Output buffer %d doesn't have the same asset allocator as the network\n",
+				i);
+			ethosn_put_inference(inference);
+
+			return -EPERM;
+		}
+
 	ret_fd = anon_inode_getfd("ethosn-inference",
 				  &inference_fops,
 				  inference,
@@ -746,8 +795,10 @@ static int ethosn_inference_register(struct ethosn_network *network,
 		return ret_fd;
 	}
 
-	dev_dbg(ifr_to_dev(inference),
-		"Registered inference. handle=0x%pK\n", inference);
+	dev_dbg(ifr_to_dev(
+			inference),
+		"Registered %sprotected inference. handle=0x%pK\n", network->asset_allocator->is_protected ? "" : "non-",
+		inference);
 
 	ret = mutex_lock_interruptible(
 		&ethosn->queue.inference_queue_mutex);
@@ -833,6 +884,14 @@ static long network_ioctl(struct file *filep,
 		break;
 	}
 	case ETHOSN_IOCTL_GET_INTERMEDIATE_BUFFER: {
+		if (network->asset_allocator->is_protected) {
+			dev_dbg(net_to_dev(
+					network),
+				"Not allowed to get intermediate buffers while in protected context\n");
+			ret = -EPERM;
+			break;
+		}
+
 		if (network->ethosn->num_cores > 1)
 			dev_warn(net_to_dev(
 					 network),
@@ -1091,6 +1150,14 @@ static int alloc_intermediate_data(struct ethosn_network *network,
 {
 	int i = 0;
 	int num_cores = network->ethosn->num_cores;
+
+	if (network->asset_allocator->is_protected) {
+		dev_dbg(net_to_dev(
+				network),
+			"Not allowed to allocate intermediate buffers while in protected context\n");
+
+		return -EPERM;
+	}
 
 	/* The data size must be greater than zero */
 	if (!req->intermediate_desc.memory.data_size) {
@@ -1424,6 +1491,7 @@ int ethosn_network_register(struct ethosn_device *ethosn,
 	}
 
 	network = create_network(ethosn, net_req, asset_allocator);
+
 	if (IS_ERR(network))
 		return PTR_ERR(network);
 
@@ -1444,7 +1512,8 @@ int ethosn_network_register(struct ethosn_device *ethosn,
 		ethosn_asset_allocator_get(asset_allocator);
 
 	dev_dbg(ethosn->dev,
-		"Registered network. handle=0x%pK\n", network);
+		"Registered %sprotected network. handle=0x%pK\n",
+		network->asset_allocator->is_protected ? "" : "non-", network);
 
 	return fd;
 }

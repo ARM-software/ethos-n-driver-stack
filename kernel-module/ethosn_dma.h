@@ -103,6 +103,7 @@ struct ethosn_dma_allocator {
 	struct device          *dev;
 	struct kref            kref;
 	pid_t                  pid;
+	__u8                   is_protected;
 };
 
 /**

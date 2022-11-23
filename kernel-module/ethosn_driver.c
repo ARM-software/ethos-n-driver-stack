@@ -685,7 +685,8 @@ static long ethosn_ioctl(struct file *const filep,
 		if (ret)
 			break;
 
-		ret = ethosn_process_mem_allocator_create(ethosn, pid);
+		ret = ethosn_process_mem_allocator_create(ethosn, pid,
+							  alloc_req.is_protected);
 
 		mutex_unlock(&ethosn->mutex);
 

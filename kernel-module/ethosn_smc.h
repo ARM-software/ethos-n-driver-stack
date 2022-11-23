@@ -63,7 +63,8 @@ int ethosn_smc_core_reset(const struct device *dev,
 			  phys_addr_t core_addr,
 			  uint32_t asset_alloc_idx,
 			  bool halt,
-			  bool hard_reset);
+			  bool hard_reset,
+			  bool is_protected);
 
 /**
  * ethosn_smc_core_is_sleeping() - Call SiP service to check if the NPU core is

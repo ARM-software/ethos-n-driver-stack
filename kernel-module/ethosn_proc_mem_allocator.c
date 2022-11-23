@@ -168,6 +168,15 @@ static long proc_mem_allocator_ioctl(struct file *filep,
 		print_buffer_info(ethosn, "output", net_req.output_buffers.num,
 				  net_req.output_buffers.info);
 
+		if (net_req.intermediate_desc.buffers.num &&
+		    net_req.intermediate_desc.memory.type == ALLOCATE &&
+		    proc_mem_allocator->asset_allocator->is_protected) {
+			dev_dbg(ethosn->dev,
+				"IOCTL: Register Network requires imported intermediate buffers while in protected context\n");
+			ret = -EPERM;
+			break;
+		}
+
 		ret = mutex_lock_interruptible(&ethosn->mutex);
 		if (ret)
 			break;
@@ -189,6 +198,13 @@ static long proc_mem_allocator_ioctl(struct file *filep,
 
 		if (copy_from_user(&buf_req, udata, sizeof(buf_req))) {
 			ret = -EFAULT;
+			break;
+		}
+
+		if (proc_mem_allocator->asset_allocator->is_protected) {
+			dev_dbg(ethosn->dev,
+				"IOCTL: Create buffer not allowed when in protected context\n");
+			ret = -EPERM;
 			break;
 		}
 
@@ -290,7 +306,8 @@ static const struct file_operations allocator_fops = {
  * -ENOMEM - Failed to allocate memory or a free asset_allocator.
  */
 int ethosn_process_mem_allocator_create(struct ethosn_device *ethosn,
-					pid_t pid)
+					pid_t pid,
+					bool protected)
 {
 	int ret = 0;
 	int fd;
@@ -322,16 +339,28 @@ int ethosn_process_mem_allocator_create(struct ethosn_device *ethosn,
 			ethosn_asset_allocator_reserve(ethosn, pid);
 
 		if (!proc_mem_allocator->asset_allocator) {
-			dev_warn(ethosn->dev,
-				 "No free asset allocators available");
+			dev_err(ethosn->dev,
+				"No free asset allocators available");
 			ret = -EBUSY;
 			goto asset_allocator_reserve_fail;
 		}
 	} else {
 		/* Process already has an allocator */
-		proc_mem_allocator->asset_allocator = asset_allocator;
-		ethosn_asset_allocator_get(asset_allocator);
+		if (asset_allocator->is_protected == protected) {
+			proc_mem_allocator->asset_allocator = asset_allocator;
+			ethosn_asset_allocator_get(asset_allocator);
+		} else {
+			/* It is not allowed to mix protected/non-protected
+			 * context
+			 */
+			dev_err(ethosn->dev,
+				"Mixing protected context not allowed");
+			ret = -EINVAL;
+			goto asset_allocator_reserve_fail;
+		}
 	}
+
+	proc_mem_allocator->asset_allocator->is_protected = protected;
 
 	fd = anon_inode_getfd("ethosn-memory-allocator",
 			      &allocator_fops,
@@ -347,8 +376,8 @@ int ethosn_process_mem_allocator_create(struct ethosn_device *ethosn,
 	fput(proc_mem_allocator->file);
 
 	dev_dbg(ethosn->dev,
-		"Assigned asset_allocator. proc memory allocator handle=0x%pK\n",
-		proc_mem_allocator);
+		"Assigned %sprotected asset_allocator. proc memory allocator handle=0x%pK\n",
+		protected ? "" : "non-", proc_mem_allocator);
 
 	return fd;
 
