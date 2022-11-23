@@ -143,9 +143,9 @@ struct ethosn_constant_data {
 };
 
 struct ethosn_dma_buf_req {
-	__u32  fd;
-	__u32  flags;
-	size_t size;
+	__u32           fd;
+	__u32           flags;
+	__kernel_size_t size;
 };
 
 struct ethosn_intermediate_desc {
