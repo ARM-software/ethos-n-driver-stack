@@ -692,7 +692,13 @@ static long ethosn_ioctl(struct file *const filep,
 		break;
 	}
 	case ETHOSN_IOCTL_CREATE_PROC_MEM_ALLOCATOR: {
+		struct ethosn_proc_mem_allocator_req alloc_req;
 		pid_t pid = task_pid_vnr(current);
+
+		if (copy_from_user(&alloc_req, udata, sizeof(alloc_req))) {
+			ret = -EFAULT;
+			break;
+		}
 
 		dev_dbg(ethosn->dev,
 			"IOCTL: Create process memory allocator\n");

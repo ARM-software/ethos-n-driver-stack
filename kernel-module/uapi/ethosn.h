@@ -189,6 +189,15 @@ struct ethosn_buffer_req {
 	__u32 flags;
 };
 
+/**
+ * struct ethosn_proc_mem_allocator_req - Process memory allocator configuration
+ * @is_protected:	Specifies if the allocator will be used for protected or
+ *			non-protected inferences
+ */
+struct ethosn_proc_mem_allocator_req {
+	__u8 is_protected;
+};
+
 /*****************************************************************************
  * Capabilities
  *****************************************************************************/
@@ -270,7 +279,7 @@ enum ethosn_poll_counter_name {
 #define ETHOSN_IOCTL_IMPORT_BUFFER \
 	ETHOSN_IO(0x0d)
 #define ETHOSN_IOCTL_CREATE_PROC_MEM_ALLOCATOR \
-	ETHOSN_IO(0x0e)
+	ETHOSN_IOW(0x0e, struct ethosn_proc_mem_allocator_req)
 
 /*
  * Results from reading an inference file descriptor.

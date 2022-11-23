@@ -52,8 +52,8 @@ ProcMemAllocator::ProcMemAllocator(const std::string& device)
         close(ethosnFd);
         throw;
     }
-
-    m_AllocatorFd = ioctl(ethosnFd, ETHOSN_IOCTL_CREATE_PROC_MEM_ALLOCATOR);
+    struct ethosn_proc_mem_allocator_req proc_mem_req = { false };
+    m_AllocatorFd = ioctl(ethosnFd, ETHOSN_IOCTL_CREATE_PROC_MEM_ALLOCATOR, &proc_mem_req);
     int err       = errno;
     close(ethosnFd);
     if (m_AllocatorFd < 0)
