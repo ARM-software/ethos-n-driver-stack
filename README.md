@@ -169,10 +169,7 @@ To download the components, enter the following commands:
 ```sh
 mkdir driver_stack
 cd driver_stack
-git clone https://github.com/Arm-software/armnn --branch main
-cd armnn/
-git reset --hard b85b291dede9c6994c4a1aa4a0b595e17fa3fa77
-cd ..
+git clone https://github.com/Arm-software/armnn --branch v22.11
 git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 22.11
 ```
 
@@ -299,11 +296,11 @@ You must follow specific steps to build the Ethos-N NPU driver. You must build t
     -DBUILD_TESTS=1
     -DARMNNREF=1
     -DETHOSN_SUPPORT=1
-    -DETHOSN_ROOT=<install_directory>
+    -DETHOSN_ROOT=<ethosn_directory>
     ```
 
     ```sh
-    ./source/armnn/build-tool/scripts/build-armnn.sh  --target-arch=aarch64 --tflite-parser --ref-backend --armnn-cmake-args="-DBUILD_TESTS=1,-DARMNNREF=1,-DETHOSN_SUPPORT=1,-DETHOSN_ROOT=../ethos-n-driver-stack"
+    ./source/armnn/build-tool/scripts/build-armnn.sh  --target-arch=aarch64 --tflite-parser --ref-backend --armnn-cmake-args="-DBUILD_TESTS=1,-DARMNNREF=1,-DETHOSN_SUPPORT=1,-DETHOSN_ROOT=<ethosn_directory>"
     ```
 
     Running the above command will produce a compressed folder containing all the files required to use Arm NN.
