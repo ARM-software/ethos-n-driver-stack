@@ -1480,6 +1480,17 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 
 	snprintf(name, sizeof(name), "ethosn%u", ethosn->parent_id);
 	ethosn->debug_dir = debugfs_create_dir(name, NULL);
+	if (IS_ERR_OR_NULL(ethosn->debug_dir)) {
+		if (PTR_ERR(ethosn->debug_dir) == -ENODEV) {
+			dev_dbg(&pdev->dev,
+				"debugfs is not enabled in the kernel, so no ethosn debugfs nodes will be created");
+		} else {
+			dev_err(&pdev->dev,
+				"debugfs_create_dir failed with: %ld",
+				PTR_ERR(ethosn->debug_dir));
+			goto err_free_ethosn;
+		}
+	}
 
 	INIT_LIST_HEAD(&ethosn->queue.inference_queue);
 
@@ -1490,7 +1501,7 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 	if (!smmu_available) {
 		ret = ethosn_create_carveout_asset_allocator(ethosn);
 		if (ret)
-			goto err_free_ethosn;
+			goto err_remove_debugfs;
 	} else {
 		num_of_asset_allocs =
 			ethosn_pdev_num_compat(pdev,
@@ -1639,6 +1650,10 @@ err_destroy_allocator:
 		ethosn_destroy_carveout_asset_allocators(ethosn);
 	else
 		devm_kfree(&pdev->dev, ethosn->asset_allocator);
+
+err_remove_debugfs:
+	if (!IS_ERR_OR_NULL(ethosn->debug_dir))
+		debugfs_remove_recursive(ethosn->debug_dir);
 
 err_free_ethosn:
 	devm_kfree(&pdev->dev, ethosn);
