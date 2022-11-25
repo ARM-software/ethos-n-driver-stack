@@ -1329,7 +1329,10 @@ static int ethosn_pdev_remove(struct platform_device *pdev)
 	/* Force depopulating children */
 	of_platform_depopulate(&pdev->dev);
 
-	if (!ethosn->smmu_available)
+	/* Note that this function can get called if ethosn_pdev_probe fails
+	 * halfway through, so we can't rely on things having been fully set up
+	 */
+	if (ethosn && !ethosn->smmu_available)
 		ethosn_destroy_carveout_asset_allocators(ethosn);
 
 	return 0;
