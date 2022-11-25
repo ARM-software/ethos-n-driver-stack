@@ -296,11 +296,11 @@ You must follow specific steps to build the Ethos-N NPU driver. You must build t
     -DBUILD_TESTS=1
     -DARMNNREF=1
     -DETHOSN_SUPPORT=1
-    -DETHOSN_ROOT=<ethosn_directory>
+    -DETHOSN_ROOT=<install_directory>
     ```
 
     ```sh
-    ./source/armnn/build-tool/scripts/build-armnn.sh  --target-arch=aarch64 --tflite-parser --ref-backend --armnn-cmake-args="-DBUILD_TESTS=1,-DARMNNREF=1,-DETHOSN_SUPPORT=1,-DETHOSN_ROOT=<ethosn_directory>"
+    ./source/armnn/build-tool/scripts/build-armnn.sh  --target-arch=aarch64 --tflite-parser --ref-backend --armnn-cmake-args="-DBUILD_TESTS=1,-DARMNNREF=1,-DETHOSN_SUPPORT=1,-DETHOSN_ROOT=<install_directory>"
     ```
 
     Running the above command will produce a compressed folder containing all the files required to use Arm NN.
