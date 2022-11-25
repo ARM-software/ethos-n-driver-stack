@@ -905,19 +905,21 @@ static int init_inference_data(struct ethosn_network *network,
 	for (i = 0; i < num_bindings; ++i)
 		memset(&buffers->buffers[i], 0, sizeof(buffers->buffers[i]));
 
-	ethosn_dma_sync_for_device(network->asset_allocator,
-				   network->constant_dma_data);
-	ret = init_bindings(network,
-			    core_id,
-			    net_req->dma_buffers.num,
-			    net_req->dma_buffers.info,
-			    network->constant_dma_data->iova_addr,
-			    net_req->dma_data.size,
-			    true,
-			    NULL,
-			    ETHOSN_BUFFER_CONSTANT);
-	if (ret)
-		return ret;
+	if (network->constant_dma_data) {
+		ethosn_dma_sync_for_device(network->asset_allocator,
+					   network->constant_dma_data);
+		ret = init_bindings(network,
+				    core_id,
+				    net_req->dma_buffers.num,
+				    net_req->dma_buffers.info,
+				    network->constant_dma_data->iova_addr,
+				    net_req->dma_data.size,
+				    true,
+				    NULL,
+				    ETHOSN_BUFFER_CONSTANT);
+		if (ret)
+			return ret;
+	}
 
 	ethosn_dma_sync_for_device(network->asset_allocator,
 				   network->constant_cu_data);
@@ -1205,8 +1207,10 @@ static void free_network(struct ethosn_network *network)
 
 	/* Unmap virtual addresses from core */
 	/* Constant data shared between cores */
-	ethosn_dma_unmap(network->asset_allocator,
-			 network->constant_dma_data);
+	if (network->constant_dma_data)
+		ethosn_dma_unmap(network->asset_allocator,
+				 network->constant_dma_data);
+
 	ethosn_dma_unmap(network->asset_allocator,
 			 network->constant_cu_data);
 
@@ -1225,8 +1229,10 @@ static void free_network(struct ethosn_network *network)
 	}
 
 	/* Free allocated dma from top level device */
-	ethosn_dma_release(network->asset_allocator,
-			   &network->constant_dma_data);
+	if (network->constant_dma_data)
+		ethosn_dma_release(network->asset_allocator,
+				   &network->constant_dma_data);
+
 	ethosn_dma_release(network->asset_allocator,
 			   &network->constant_cu_data);
 
@@ -1281,29 +1287,31 @@ struct ethosn_network *create_network(struct ethosn_device *ethosn,
 	 */
 	get_device(ethosn->dev);
 
-	network->constant_dma_data = ethosn_dma_alloc(
-		asset_alloc,
-		net_req->dma_data.size,
-		ETHOSN_STREAM_WEIGHT_DATA,
-		GFP_KERNEL,
-		"network-constant-dma-data");
+	if (net_req->dma_data.size > 0) {
+		network->constant_dma_data = ethosn_dma_alloc(
+			asset_alloc,
+			net_req->dma_data.size,
+			ETHOSN_STREAM_WEIGHT_DATA,
+			GFP_KERNEL,
+			"network-constant-dma-data");
 
-	if (IS_ERR_OR_NULL(network->constant_dma_data))
-		goto err_free_network;
+		if (IS_ERR_OR_NULL(network->constant_dma_data))
+			goto err_free_network;
 
-	ret = ethosn_dma_map(
-		asset_alloc,
-		network->constant_dma_data,
-		ETHOSN_PROT_READ);
-	if (ret)
-		goto err_free_network;
+		ret = ethosn_dma_map(
+			asset_alloc,
+			network->constant_dma_data,
+			ETHOSN_PROT_READ);
+		if (ret)
+			goto err_free_network;
 
-	if (copy_from_user(network->constant_dma_data->cpu_addr,
-			   net_req->dma_data.data,
-			   net_req->dma_data.size)) {
-		dev_err(ethosn->dev,
-			"Error reading constant dma data\n");
-		goto err_free_network;
+		if (copy_from_user(network->constant_dma_data->cpu_addr,
+				   net_req->dma_data.data,
+				   net_req->dma_data.size)) {
+			dev_err(ethosn->dev,
+				"Error reading constant dma data\n");
+			goto err_free_network;
+		}
 	}
 
 	network->constant_cu_data =

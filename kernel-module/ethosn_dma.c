@@ -249,6 +249,13 @@ struct ethosn_dma_info *ethosn_dma_alloc(
 	if (!ops)
 		goto exit;
 
+	if (size == 0) {
+		dev_err(sub_allocator->dev,
+			"Cannot allocate zero bytes for %s\n",
+			debug_tag == NULL ? "(unknown)" : debug_tag);
+		goto exit;
+	}
+
 	dma_info = ops->alloc(sub_allocator, size, gfp);
 
 	if (IS_ERR_OR_NULL(dma_info)) {
