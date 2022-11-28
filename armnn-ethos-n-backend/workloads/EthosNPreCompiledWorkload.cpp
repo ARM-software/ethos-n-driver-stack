@@ -33,6 +33,7 @@
 #include <unistd.h>
 #elif defined(_MSC_VER)
 #include <io.h>
+#define O_CLOEXEC 0
 #endif
 
 using namespace arm::pipe;
