@@ -55,13 +55,13 @@ public:
                             std::map<uint32_t, std::string> ethosnOperationNameMapping,
                             int inferenceTimeout,
                             uint32_t subgraphIndex,
-                            uint32_t intermedaiteBufSize)
+                            uint32_t intermediateBufSize)
         : m_IsPerfEstimationOnly(false)
         , m_InferenceTimeout(inferenceTimeout)
         , m_Network(std::move(network))
         , m_EthosNOperationNameMapping(ethosnOperationNameMapping)
         , m_SubgraphIndex(subgraphIndex)
-        , m_IntermediateBufSize(intermedaiteBufSize)
+        , m_IntermediateBufSize(intermediateBufSize)
     {}
 
     EthosNPreCompiledObject(PerfData perfData,

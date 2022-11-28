@@ -233,10 +233,10 @@ void EthosNPreCompiledWorkload::Init(const EthosNPreCompiledObject::Network& net
 
     if (m_InternalAllocator != nullptr)
     {
-        auto intermedaiteBufSize = m_PreCompiledObject->GetIntermediateBufferSize();
-        if (intermedaiteBufSize > 0)
+        auto intermediateBufSize = m_PreCompiledObject->GetIntermediateBufferSize();
+        if (intermediateBufSize > 0)
         {
-            auto fd = m_InternalAllocator->allocate(intermedaiteBufSize, 0);
+            auto fd = m_InternalAllocator->allocate(intermediateBufSize, 0);
             ethosn::driver_library::IntermediateBufferReq req(ethosn::driver_library::MemType::IMPORT,
                                                               *static_cast<uint32_t*>(fd), O_RDWR | O_CLOEXEC);
 
