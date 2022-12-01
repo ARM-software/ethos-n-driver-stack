@@ -1879,6 +1879,9 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 	return 0;
 }
 
+/* Exported for use by test module */
+EXPORT_SYMBOL(ethosn_reset_and_start_ethosn);
+
 /**
  * ethosn_firmware_deinit - Free firmware resources.
  * @core:		Pointer to Ethos-N core.
