@@ -281,7 +281,7 @@ void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
 
 ARMNN_DLLEXPORT armnn::EthosNConfig EthosNBackend::ms_Config;
 ARMNN_DLLEXPORT std::vector<char> EthosNBackend::ms_Capabilities;
-std::shared_ptr<armnn::ICustomAllocator> EthosNBackend::ms_InternalAllocator;
+ARMNN_DLLEXPORT std::shared_ptr<armnn::ICustomAllocator> EthosNBackend::ms_InternalAllocator;
 
 EthosNBackend::EthosNBackend()
     : m_NextSubgraphIdx(0)

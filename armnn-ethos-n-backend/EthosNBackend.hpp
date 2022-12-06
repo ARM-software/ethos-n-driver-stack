@@ -117,7 +117,7 @@ protected:
     /// @{
     ARMNN_DLLEXPORT static EthosNConfig ms_Config;
     ARMNN_DLLEXPORT static std::vector<char> ms_Capabilities;
-    static std::shared_ptr<armnn::ICustomAllocator> ms_InternalAllocator;
+    ARMNN_DLLEXPORT static std::shared_ptr<armnn::ICustomAllocator> ms_InternalAllocator;
     /// @}
 };
 
