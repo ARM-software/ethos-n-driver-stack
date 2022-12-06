@@ -87,14 +87,14 @@ public:
 
     bool IsSaving();
 
-    void Load();
+    bool Load();
 
-    void Save();
+    bool Save();
 
 private:
-    void LoadCachedSubgraphs();
+    bool LoadCachedSubgraphs();
 
-    void SaveCachedSubgraphs();
+    bool SaveCachedSubgraphs();
 
     void Reset();
 

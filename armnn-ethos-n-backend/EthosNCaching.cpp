@@ -100,31 +100,37 @@ bool EthosNCaching::IsLoading()
     return isLoading;
 }
 
-void EthosNCaching::Load()
+bool EthosNCaching::Load()
 {
-    LoadCachedSubgraphs();
-    SetIsLoaded(true);
+    bool loaded = LoadCachedSubgraphs();
+    if (loaded)
+    {
+        SetIsLoaded(true);
+    }
+    return loaded;
 }
 
-void EthosNCaching::Save()
+bool EthosNCaching::Save()
 {
-    SaveCachedSubgraphs();
+    bool saved = SaveCachedSubgraphs();
     Reset();
+    return saved;
 }
 
 // Private function to save compiled subgraphs to file.
 // The file is laid out as follows.
 // <number of subgraphs><compiled network sizes><compiled networks binary>
-void EthosNCaching::SaveCachedSubgraphs()
+bool EthosNCaching::SaveCachedSubgraphs()
 {
     // If user options aren't set then do nothing.
     if (!IsSaving())
     {
-        return;
+        return true;
     }
 
     // Save map to a filepath provided in ModelOptions. This will be validated by now.
     std::string filePath = m_EthosNCachingOptions.m_CachedNetworkFilePath;
+    ARMNN_LOG(info) << "Saving cached network " << filePath;
     std::ofstream out(filePath, std::ios::binary);
 
     // Write the number of subgraphs, used for the loop limit.
@@ -144,28 +150,38 @@ void EthosNCaching::SaveCachedSubgraphs()
         auto bytesToWrite = static_cast<std::streamsize>(sizeof(char) * m_CompiledNetworks[i].size());
         out.write(reinterpret_cast<const char*>(&m_CompiledNetworks[i][0]), bytesToWrite);
     }
-
-    out.close();
+    if (!out)
+    {
+        ARMNN_LOG(error) << "Error trying to write to " << filePath << " cached network cannot be saved";
+        return false;
+    }
+    return true;
 }
 
 // Private function to load compiled subgraphs from a file.
 // The file is laid out as follows.
 // <number of subgraphs><compiled network sizes><compiled networks binary>
-void EthosNCaching::LoadCachedSubgraphs()
+bool EthosNCaching::LoadCachedSubgraphs()
 {
     // If user options aren't set then do nothing.
     if (!IsLoading())
     {
-        return;
+        return true;
     }
 
     // Save map to a filepath provided in ModelOptions. This will be validated by now.
     std::string filePath = m_EthosNCachingOptions.m_CachedNetworkFilePath;
+    ARMNN_LOG(info) << "Loading cached network " << filePath;
     std::ifstream in(filePath, std::ios::binary);
 
     // Read in the number of subgraphs, used for the loop limit.
     uint32_t numOfSubgraphs;
     in.read(reinterpret_cast<char*>(&numOfSubgraphs), sizeof(numOfSubgraphs));
+    if (!in)
+    {
+        ARMNN_LOG(error) << "Error trying to read the number of cached subgraphs";
+        return false;
+    }
 
     // Read in sizes of each of the compiled networks in order.
     std::vector<size_t> compiledNetworkSizes;
@@ -173,6 +189,11 @@ void EthosNCaching::LoadCachedSubgraphs()
     {
         size_t size;
         in.read(reinterpret_cast<char*>(&size), sizeof(size));
+        if (!in)
+        {
+            ARMNN_LOG(error) << "Error trying to read the size of subgraph " << i;
+            return false;
+        }
 
         compiledNetworkSizes.emplace_back(size);
     }
@@ -185,11 +206,16 @@ void EthosNCaching::LoadCachedSubgraphs()
 
         auto bytesToRead = static_cast<std::streamsize>(sizeof(char) * size);
         in.read(reinterpret_cast<char*>(&binaryContent[0]), bytesToRead);
+        if (!in)
+        {
+            ARMNN_LOG(error) << "Error trying to read subgraph " << i;
+            return false;
+        }
 
         m_CompiledNetworks.push_back(binaryContent);
     }
 
-    in.close();
+    return true;
 }
 
 void EthosNCaching::Reset()

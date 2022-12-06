@@ -317,4 +317,62 @@ TEST_SUITE("EthosNCaching")
         auto service = EthosNCachingService::GetInstance();
         service.GetEthosNCachingPtr()->Save();
     }
+
+    TEST_CASE("TestCachingSavingAndLoading")
+    {
+
+        const testing_utils::TempDir tmpDir;
+        std::string filePath               = tmpDir.Str() + "/EthosNTesting.bin";
+        std::vector<char> compiledSubgraph = { 10, 11, 12, 13, 14 };
+        uint32_t intermediateBufferSize    = 11;
+
+        {
+            EthosNCaching cache;
+            BackendOptions backendOptions(EthosNBackend::GetIdStatic(),
+                                          { { "SaveCachedNetwork", true }, { "CachedNetworkFilePath", filePath } });
+
+            {
+                std::ofstream file{ filePath };
+            }
+            cache.SetEthosNCachingOptions({ backendOptions });
+            cache.AddCompiledNetwork(compiledSubgraph, intermediateBufferSize);
+            cache.IncrementSubgraphCount();
+            std::pair<std::vector<char>, uint32_t> networkAndSize = cache.GetCompiledNetworkAndIntermediateSize(0);
+            CHECK(networkAndSize.first == compiledSubgraph);
+            CHECK(networkAndSize.second == intermediateBufferSize);
+            CHECK(cache.Save());
+        }
+        {
+            EthosNCaching cache;
+            BackendOptions backendOptions(EthosNBackend::GetIdStatic(),
+                                          { { "SaveCachedNetwork", false }, { "CachedNetworkFilePath", filePath } });
+            cache.SetEthosNCachingOptions({ backendOptions });
+            cache.Load();
+            std::pair<std::vector<char>, uint32_t> networkAndSize = cache.GetCompiledNetworkAndIntermediateSize(0);
+            CHECK(networkAndSize.first == compiledSubgraph);
+            CHECK(networkAndSize.second == intermediateBufferSize);
+        }
+        // Testing loading fails
+        {
+            {
+                // truncate the file so it is empty
+                std::ofstream file{ filePath };
+            }
+            EthosNCaching cache;
+            BackendOptions backendOptions(EthosNBackend::GetIdStatic(),
+                                          { { "SaveCachedNetwork", false }, { "CachedNetworkFilePath", filePath } });
+            cache.SetEthosNCachingOptions({ backendOptions });
+            CHECK(!cache.Load());
+            CHECK(!cache.GetIsLoaded());
+        }
+        // Testing Saving fails
+        {
+            std::string nonExistantPath = tmpDir.Str() + "/EthosNTesting-NonExistant.bin";
+            EthosNCaching cache;
+            BackendOptions backendOptions(
+                EthosNBackend::GetIdStatic(),
+                { { "SaveCachedNetwork", true }, { "CachedNetworkFilePath", nonExistantPath } });
+            CHECK_THROWS(cache.SetEthosNCachingOptions({ backendOptions }));
+        }
+    }
 }

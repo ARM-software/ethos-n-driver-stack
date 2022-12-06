@@ -21,7 +21,6 @@
 #include <ethosn_driver_library/Device.hpp>
 #include <ethosn_driver_library/Network.hpp>
 #include <ethosn_support_library/Support.hpp>
-
 namespace armnn
 {
 
