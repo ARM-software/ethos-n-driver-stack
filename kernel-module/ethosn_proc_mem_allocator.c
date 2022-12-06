@@ -59,6 +59,7 @@ static int proc_mem_allocator_release(struct inode *inode,
 {
 	struct ethosn_allocator *proc_mem_allocator = filep->private_data;
 	struct ethosn_device *ethosn;
+	struct ethosn_dma_allocator *asset_allocator;
 	int ret = 0;
 
 	if (WARN_ON(!is_ethosn_allocator_file(filep)))
@@ -68,12 +69,16 @@ static int proc_mem_allocator_release(struct inode *inode,
 		return -EINVAL;
 
 	ethosn = proc_mem_allocator->ethosn;
+	asset_allocator = proc_mem_allocator->asset_allocator;
 
 	ret = mutex_lock_interruptible(&ethosn->mutex);
 	if (ret)
 		return ret;
 
-	ethosn_asset_allocator_put(proc_mem_allocator->asset_allocator);
+	if (WARN_ON(ethosn_asset_allocator_put(asset_allocator) < 0))
+		dev_warn(ethosn->dev,
+			 "%s failed for proc_mem_allocator handle 0x%pK\n",
+			 __func__, proc_mem_allocator);
 
 	devm_kfree(ethosn->dev, proc_mem_allocator);
 
@@ -292,6 +297,13 @@ int ethosn_process_mem_allocator_create(struct ethosn_device *ethosn,
 	struct ethosn_allocator *proc_mem_allocator;
 	struct ethosn_dma_allocator *asset_allocator =
 		ethosn_asset_allocator_find(ethosn, pid);
+
+	if (pid <= 0) {
+		dev_err(ethosn->dev, "%s: Unsupported pid=%d, must be >0\n",
+			__func__, pid);
+
+		return -EINVAL;
+	}
 
 	dev_dbg(ethosn->dev, "Process %d requests an asset allocator", pid);
 

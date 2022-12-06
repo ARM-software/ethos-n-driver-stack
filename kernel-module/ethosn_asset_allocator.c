@@ -66,7 +66,8 @@ void ethosn_asset_allocator_get(struct ethosn_dma_allocator *asset_allocator)
  * * -EINVAL: If asset_allocator is NULL.
  * * 1 if the object was released and 0 otherwise.
  */
-int ethosn_asset_allocator_put(struct ethosn_dma_allocator *asset_allocator)
+int __must_check ethosn_asset_allocator_put(
+	struct ethosn_dma_allocator *asset_allocator)
 {
 	/* Only put kref for non-carveout allocators, as carveout allocators
 	 * are expected to be shared.
