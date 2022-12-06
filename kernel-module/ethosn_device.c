@@ -488,6 +488,16 @@ void ethosn_write_top_reg(struct ethosn_core *core,
 			  const u32 offset,
 			  const u32 value)
 {
+	/* This function is called in a lot of places and we don't have
+	 * a good way of reporting errors in some of them, so we
+	 * just warn and ignore the write.
+	 */
+	if (WARN_ON(!core))
+		return;
+
+	if (WARN_ON(!core->top_regs))
+		return;
+
 	iowrite32(value, ethosn_top_reg_addr(core->top_regs, page, offset));
 }
 
@@ -498,6 +508,17 @@ u32 ethosn_read_top_reg(struct ethosn_core *core,
 			const u32 page,
 			const u32 offset)
 {
+	/* This function is called in a lot of places and we don't have
+	 * a good way of reporting errors in some of them, so we warn
+	 * and return a hopefully "safe" value to avoid crashing the
+	 * whole kernel.
+	 */
+	if (WARN_ON(!core))
+		return 0;
+
+	if (WARN_ON(!core->top_regs))
+		return 0;
+
 	return ioread32(ethosn_top_reg_addr(core->top_regs, page, offset));
 }
 

@@ -602,7 +602,7 @@ static int ethosn_init_interrupt(struct ethosn_core *const core,
 		dev_dbg(core->dev, "Requesting IRQ %d with flags 0x%lx\n",
 			irq_num, this_irq_flags);
 
-		ret = devm_request_irq(core->parent->dev, irq_num,
+		ret = devm_request_irq(core->dev, irq_num,
 				       &ethosn_irq_top,
 				       this_irq_flags, ETHOSN_DRIVER_NAME,
 				       core);
