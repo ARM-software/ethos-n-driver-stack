@@ -131,6 +131,8 @@ static int ethosn_mailbox_init(struct ethosn_core *core)
 	struct ethosn_queue *response = core->mailbox_response->cpu_addr;
 	resource_size_t mailbox_addr;
 
+	dev_dbg(core->dev, "%s\n", __func__);
+
 	/* Clear memory */
 	memset(mailbox, 0, core->mailbox->size);
 	memset(request, 0, core->mailbox_request->size);
@@ -204,6 +206,8 @@ static int ethosn_debug_monitor_channel_init(struct ethosn_core *core)
 	struct ethosn_queue *response =
 		core->debug_monitor_channel_response->cpu_addr;
 	resource_size_t debug_monitor_channel_addr;
+
+	dev_dbg(core->dev, "%s\n", __func__);
 
 	/* Clear memory */
 	memset(debug_monitor_channel, 0, core->debug_monitor_channel->size);
@@ -690,6 +694,7 @@ static int ethosn_soft_reset(struct ethosn_core *core,
 	}
 
 #else
+	int ret;
 
 	dev_info(core->dev, "Soft reset the hardware through SMC.\n");
 
@@ -701,9 +706,16 @@ static int ethosn_soft_reset(struct ethosn_core *core,
 	 * Only the first asset allocator is being used right now so the
 	 * allocator index is hardcoded to 0.
 	 */
-	if (ethosn_smc_core_reset(core->dev, core->phys_addr, alloc_id, halt,
-				  false))
+	ret =
+		ethosn_smc_core_reset(core->dev, core->phys_addr, alloc_id,
+				      halt,
+				      false);
+	if (ret != 0) {
+		dev_err(core->dev, "ethosn_smc_core_reset failed with: %i",
+			ret);
+
 		return -ETIME;
+	}
 
 #endif
 
@@ -888,6 +900,9 @@ int ethosn_set_addr_ext(struct ethosn_core *core,
 
 	ext.bits.addrextend = offset >> REGION_SHIFT;
 
+	dev_dbg(core->dev,
+		"NPU stream %u address extension set to 0x%llx.\n",
+		stream, offset);
 	ethosn_write_top_reg(core, DL1_RP, stream_to_page[stream],
 			     ext.word);
 
@@ -1472,14 +1487,12 @@ static struct ethosn_big_fw_desc *find_big_fw_desc(struct ethosn_core *core,
 }
 
 /**
- * firmware_load - Load firmware binary with given name.
+ * firmware_load - Load firmware binary.
  * @core:		Pointer to Ethos-N core.
- * @firmware_name:	Name of firmware binary.
  *
  * Return: 0 on success, else error code.
  */
-static int firmware_load(struct ethosn_core *core,
-			 const char *firmware_name)
+static int firmware_load(struct ethosn_core *core)
 {
 	const bool smmu_available = core->parent->smmu_available;
 	const struct firmware *fw;
@@ -1493,9 +1506,13 @@ static int firmware_load(struct ethosn_core *core,
 	int ret = -ENOMEM;
 
 	/* Request firmware binary */
-	ret = request_firmware(&fw, firmware_name, core->parent->dev);
-	if (ret)
+	ret = request_firmware(&fw, "ethosn.bin", core->parent->dev);
+	if (ret) {
+		dev_err(core->dev,
+			"No firmware found. Was looking for ethosn.bin.\n");
+
 		return ret;
+	}
 
 	big_fw = (struct ethosn_big_fw *)fw->data;
 
@@ -1669,37 +1686,6 @@ release_fw:
 }
 
 /**
- * firmware_init - Allocate and initialize firmware.
- * @core:		Pointer to Ethos-N core.
- *
- * Try to load firmware binaries in given order.
- *
- * Return: 0 on success, else error code.
- */
-static int firmware_init(struct ethosn_core *core)
-{
-	static const char *const firmware_names[] = {
-		"ethosn.bin"
-	};
-	int i;
-	int ret;
-
-	for (i = 0; i < ARRAY_SIZE(firmware_names); ++i) {
-		ret = firmware_load(core, firmware_names[i]);
-		if (!ret)
-			break;
-	}
-
-	if (ret) {
-		dev_err(core->dev, "No firmware found.\n");
-
-		return ret;
-	}
-
-	return 0;
-}
-
-/**
  * ethosn_regions_init() - Initialize the memory regions.
  * @core:	Pointer to Ethos-N core.
  *
@@ -1770,9 +1756,14 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 	 * so that the firmware code isn't being run and we can safely
 	 * overwrite it
 	 */
-	ret = firmware_init(core);
-	if (ret)
+	ret = firmware_load(core);
+	if (ret) {
+		dev_err(core->dev,
+			"%s: firmware_load failed with %i\n",
+			__func__, ret);
+
 		return ret;
+	}
 
 	/* In a secure build, TF-A will setup the stream IDs */
 #ifdef ETHOSN_NS
@@ -2492,7 +2483,7 @@ int ethosn_device_init(struct ethosn_core *core)
 	dfs_init(core);
 
 	/* Load the firmware */
-	ret = firmware_init(core);
+	ret = firmware_load(core);
 	if (ret)
 		goto remove_debufs;
 

@@ -268,9 +268,9 @@ struct ethosn_dma_info *ethosn_dma_alloc(
 	dma_info->stream_type = stream_type;
 
 	dev_dbg(sub_allocator->dev,
-		"DMA alloc for %s. handle=0x%pK, cpu_addr=0x%pK, size=%zu\n",
+		"DMA alloc for %s. handle=0x%pK, cpu_addr=0x%pK, size=%zu (0x%zx)\n",
 		debug_tag == NULL ? "(unknown)" : debug_tag,
-		dma_info, dma_info->cpu_addr, size);
+		dma_info, dma_info->cpu_addr, size, size);
 
 	/* Zero the memory. This ensures the previous contents of the
 	 * memory doesn't affect us (if the same physical memory
