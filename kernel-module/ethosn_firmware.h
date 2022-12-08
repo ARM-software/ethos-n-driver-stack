@@ -47,15 +47,12 @@
  * This is common for the fat binary (ethosn.bin) and the individual
  * firmware binaries (sub-components of the fat binary).
  */
-#define ETHOSN_FIRMWARE_VERSION_MAJOR 6
+#define ETHOSN_FIRMWARE_VERSION_MAJOR 7
 #define ETHOSN_FIRMWARE_VERSION_MINOR 0
 #define ETHOSN_FIRMWARE_VERSION_PATCH 0
 
 /** Max length of a cache line. Used to separate host and Ethos-N data. */
 #define ETHOSN_CACHE_LINE_SIZE 128
-
-/* Stack size */
-#define ETHOSN_STACK_SIZE                  0x40000
 
 #pragma pack(push, 1)
 
@@ -297,12 +294,6 @@ enum ethosn_message_type {
 	/* void */
 	ETHOSN_MESSAGE_CONFIGURE_PROFILING_ACK,
 
-	/* ethosn_message_region_request */
-	ETHOSN_MESSAGE_REGION_REQUEST,
-
-	/* ethosn_message_region_response */
-	ETHOSN_MESSAGE_REGION_RESPONSE,
-
 	/* ethosn_message_time_sync_request */
 	ETHOSN_MESSAGE_TIME_SYNC,
 
@@ -310,9 +301,6 @@ enum ethosn_message_type {
 	ETHOSN_MESSAGE_DELAY,
 
 	/* void */
-	ETHOSN_MESSAGE_MPU_ENABLE_REQUEST,
-	ETHOSN_MESSAGE_MPU_ENABLE_RESPONSE,
-
 	ETHOSN_MESSAGE_PING,
 	ETHOSN_MESSAGE_PONG,
 
@@ -516,55 +504,6 @@ struct ethosn_message_time_sync_request {
 };
 
 /******************************************************************************
- * Memory regions management
- ******************************************************************************/
-
-/**
- * Region identifier
- */
-enum  ethosn_region_id {
-	ETHOSN_REGION_FIRMWARE          = 0,
-	ETHOSN_REGION_WORKING_DATA_MAIN = 1,
-	ETHOSN_REGION_WORKING_DATA_TASK = 2,
-	ETHOSN_REGION_COMMAND_STREAM    = 3,
-};
-
-/**
- * struct ethosn_message_region_request - Memory region message
- * @var id:	Region id
- * @var addr:	Region starting address
- * @var size:	Region size
- *
- * Following a ethosn_message_type.
- */
-struct ethosn_message_region_request {
-	uint32_t id;
-	uint32_t addr;
-	uint32_t size;
-};
-
-/**
- * Region setup status.
- */
-enum ethosn_region_status {
-	ETHOSN_REGION_STATUS_OK,
-	ETHOSN_REGION_STATUS_ERROR,
-	ETHOSN_REGION_STATUS_MAX
-};
-
-/**
- * struct ethosn_message_region_response - Memory region response message
- * @var id:	Region id
- * @var status:	Memory region setup status
- *
- * Following a ethosn_message_header.
- */
-struct ethosn_message_region_response {
-	uint32_t id;
-	uint32_t status;
-};
-
-/******************************************************************************
  * Error reporting
  ******************************************************************************/
 
@@ -595,11 +534,12 @@ struct ethosn_message_error_response {
  * between kernel driver and firmware
  */
 #define GP_IRQ                          DL1_GP0
-#define GP_MAILBOX                      DL1_GP2
-#define GP_STREAM1_ADDRESS_EXTEND       DL1_GP3
-#define GP_STREAM2_ADDRESS_EXTEND       DL1_GP4
-#define GP_TASK_STACK                   DL1_GP5
-#define GP_DEBUG_MONITOR_CHANNEL        DL1_GP6
+#define GP_MAILBOX                      DL1_GP1
+#define GP_STREAM1_ADDRESS_EXTEND       DL1_GP2
+#define GP_STREAM2_ADDRESS_EXTEND       DL1_GP3
+#define GP_DEBUG_MONITOR_CHANNEL        DL1_GP4
+#define GP_MAILBOX_SIZE                 DL1_GP5
+#define GP_COMMAND_STREAM_SIZE          DL1_GP6
 
 #pragma pack(pop)
 

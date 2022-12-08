@@ -46,12 +46,6 @@
 /* Number of bits the MCU Vector Table address is shifted. */
 #define SYSCTLR0_INITVTOR_SHIFT         7
 
-/* Init vector table size */
-#define ETHOSN_VTABLE_SIZE                 16
-
-/* Firmware code size */
-#define ETHOSN_CODE_SIZE                   0x40000
-
 /* Timeout in us when resetting the Ethos-N */
 #define ETHOSN_RESET_TIMEOUT_US         (10 * 1000 * 1000)
 #define ETHOSN_RESET_WAIT_US            1000
@@ -529,21 +523,6 @@ u32 ethosn_read_top_reg(struct ethosn_core *core,
 /* Exported for use by test module */
 EXPORT_SYMBOL(ethosn_read_top_reg);
 
-static int ethosn_task_stack_init(struct ethosn_core *core)
-{
-	u32 stack_addr = to_ethosn_addr(core->firmware_stack_task->iova_addr,
-					&core->work_data_map);
-
-	if (IS_ERR_VALUE((unsigned long)stack_addr))
-		return -EFAULT;
-
-	stack_addr += core->firmware_stack_task->size;
-
-	ethosn_write_top_reg(core, DL1_RP, GP_TASK_STACK, stack_addr);
-
-	return 0;
-}
-
 /**
  * ethosn_boot_firmware() - Boot firmware.
  * @core:	Pointer to Ethos-N core.
@@ -554,28 +533,8 @@ static int ethosn_boot_firmware(struct ethosn_core *core)
 {
 	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
 	struct dl1_sysctlr1_r sysctlr1 = { .word = 0 };
-	uint32_t *vtable = core->firmware_vtable->cpu_addr;
 
-	memset(vtable, 0, core->firmware_vtable->size);
-
-	/* Set vtable stack pointer */
-	vtable[0] = to_ethosn_addr(core->firmware_stack_main->iova_addr,
-				   &core->work_data_map);
-	if (vtable[0] >= (uint32_t)-MAX_ERRNO)
-		return (int)vtable[0];
-
-	vtable[0] += core->firmware_stack_main->size;
-	dev_dbg(core->dev, "vtable[0] (SP) = 0x%x\n", vtable[0]);
-
-	/* Set vtable reset program counter */
-	vtable[1] = to_ethosn_addr(core->firmware->iova_addr,
-				   &core->firmware_map) + 1;
-	if (vtable[1] >= (uint32_t)-MAX_ERRNO)
-		return (int)vtable[1];
-
-	dev_dbg(core->dev, "vtable[1] (PC) = 0x%x\n", vtable[1]);
-
-	ethosn_dma_sync_for_device(core->main_allocator, core->firmware_vtable);
+	dev_dbg(core->dev, "%s\n", __func__);
 
 	/* Enable events */
 	sysctlr1.bits.mcu_setevnt = 1;
@@ -585,7 +544,7 @@ static int ethosn_boot_firmware(struct ethosn_core *core)
 	/* Set firmware init address and release CPU wait */
 	sysctlr0.bits.cpuwait = 0;
 	sysctlr0.bits.initvtor =
-		to_ethosn_addr(core->firmware_vtable->iova_addr,
+		to_ethosn_addr(core->firmware_vtable_dma_addr,
 			       &core->firmware_map) >>
 		SYSCTLR0_INITVTOR_SHIFT;
 	ethosn_write_top_reg(core, DL1_RP, DL1_SYSCTLR0, sysctlr0.word);
@@ -1293,93 +1252,6 @@ int ethosn_send_inference(struct ethosn_core *core,
 				    sizeof(request));
 }
 
-/**
- * ethosn_send_region_request() - Send memory region request to device.
- * @core:	Pointer to core device.
- * @region_id:	Memory region identifier.
- *
- * Return: 0 on success, else error code.
- */
-static int ethosn_send_region_request(struct ethosn_core *core,
-				      enum ethosn_region_id region_id,
-				      uint32_t alloc_id)
-{
-	struct ethosn_message_region_request request = { 0 };
-
-	if (alloc_id >= core->parent->num_asset_allocs)
-		return -EINVAL;
-
-	switch (region_id) {
-	case ETHOSN_REGION_FIRMWARE:
-		request.addr = to_ethosn_addr(
-			ethosn_dma_get_addr_base(core->main_allocator,
-						 ETHOSN_STREAM_FIRMWARE),
-			&core->firmware_map);
-
-		request.size = ethosn_dma_get_addr_size(core->main_allocator,
-							ETHOSN_STREAM_FIRMWARE);
-		break;
-	case ETHOSN_REGION_WORKING_DATA_MAIN:
-		request.addr = to_ethosn_addr(
-			ethosn_dma_get_addr_base(core->main_allocator,
-						 ETHOSN_STREAM_WORKING_DATA),
-			&core->work_data_map);
-
-		request.size = ethosn_dma_get_addr_size(
-			core->main_allocator,
-			ETHOSN_STREAM_WORKING_DATA);
-		break;
-	case ETHOSN_REGION_WORKING_DATA_TASK:
-		request.addr = to_ethosn_addr(
-			core->firmware_stack_task->iova_addr,
-			&core->work_data_map);
-
-		request.size = core->firmware_stack_task->size;
-		break;
-	case ETHOSN_REGION_COMMAND_STREAM:
-		request.addr = to_ethosn_addr(
-			ethosn_dma_get_addr_base(
-				core->parent->asset_allocator[alloc_id],
-				ETHOSN_STREAM_COMMAND_STREAM), &core->dma_map);
-
-		request.size = ethosn_dma_get_addr_size(
-			core->parent->asset_allocator[alloc_id],
-			ETHOSN_STREAM_COMMAND_STREAM);
-		break;
-	default:
-		dev_err(core->dev, "Unknown memory region ID: %u", region_id);
-
-		return -EFAULT;
-	}
-
-	if (request.size == 0)
-		return -EFAULT;
-
-	request.id = region_id;
-
-	dev_dbg(core->dev, "-> Region=%u, Allocator=%u, addr=0x%x, size=0x%x\n",
-		request.id, alloc_id, request.addr, request.size);
-
-	return ethosn_write_message(core, ETHOSN_MESSAGE_REGION_REQUEST,
-				    &request,
-				    sizeof(request));
-}
-
-/**
- * ethosn_send_mpu_enable_request() - Send Mpu enable request to device.
- * @core:		Pointer to core device.
- *
- * Return: 0 on success, else error code.
- */
-static int ethosn_send_mpu_enable_request(struct ethosn_core *core)
-{
-	dev_dbg(core->dev,
-		"-> Mpu enable.");
-
-	return ethosn_write_message(core, ETHOSN_MESSAGE_MPU_ENABLE_REQUEST,
-				    NULL, 0);
-}
-
 int ethosn_send_stash_request(struct ethosn_core *core)
 {
 	if (!ethosn_stashing_enabled())
@@ -1401,7 +1273,7 @@ int ethosn_send_stash_request(struct ethosn_core *core)
  * Firmware
  ****************************************************************************/
 
-/* Big FW binary structure */
+/* Big FW binary structure. Must be kept in sync with firmware binary layout */
 struct ethosn_big_fw {
 	uint32_t fw_magic;
 	uint32_t fw_ver_major;
@@ -1413,7 +1285,21 @@ struct ethosn_big_fw {
 		uint32_t arch_max;
 		uint32_t offset;
 		uint32_t size;
+
+		uint32_t code_offset;
+		uint32_t code_size;
+
 		uint32_t ple_offset;
+		uint32_t ple_size;
+
+		uint32_t vector_table_offset;
+		uint32_t vector_table_size;
+
+		uint32_t unpriv_stack_offset;
+		uint32_t unpriv_stack_size;
+
+		uint32_t priv_stack_offset;
+		uint32_t priv_stack_size;
 	} desc[];
 } __packed;
 
@@ -1494,16 +1380,11 @@ static struct ethosn_big_fw_desc *find_big_fw_desc(struct ethosn_core *core,
  */
 static int firmware_load(struct ethosn_core *core)
 {
-	const bool smmu_available = core->parent->smmu_available;
 	const struct firmware *fw;
 	struct ethosn_big_fw *big_fw;
 	struct ethosn_big_fw_desc *big_fw_desc;
-	size_t code_size;
-	size_t ple_kernels_size;
-	size_t ple_kernels_offset;
-	size_t fw_size;
-	size_t fw_offset;
 	int ret = -ENOMEM;
+	struct ethosn_dma_prot_range prot_ranges[3];
 
 	/* Request firmware binary */
 	ret = request_firmware(&fw, "ethosn.bin", core->parent->dev);
@@ -1529,199 +1410,122 @@ static int firmware_load(struct ethosn_core *core)
 	}
 
 	dev_dbg(core->dev,
-		"Found FW. arch_min=0x%08x, arch_max=0x%08x, offset=0x%08x, ple_offset=0x%08x, size=0x%08x",
+		"Found FW. arch_min=0x%08x, arch_max=0x%08x, offset=0x%08x, size=0x%08x\n",
 		big_fw_desc->arch_min,
 		big_fw_desc->arch_max,
 		big_fw_desc->offset,
-		big_fw_desc->ple_offset,
 		big_fw_desc->size);
-	/* Make sure code size is at least 256 KB */
-	code_size = max_t(size_t, ETHOSN_CODE_SIZE, big_fw_desc->size);
+	dev_dbg(core->dev, "Firmware asset offsets+sizes:\n");
 
-	fw_size = smmu_available ? big_fw_desc->ple_offset : code_size;
-	fw_offset = big_fw_desc->offset;
+	dev_dbg(core->dev, "  Code: 0x%08x + 0x%08x\n",
+		big_fw_desc->code_offset, big_fw_desc->code_size);
+	dev_dbg(core->dev, "  PLE: 0x%08x + 0x%08x\n", big_fw_desc->ple_offset,
+		big_fw_desc->ple_size);
+	dev_dbg(core->dev, "  Vector table: 0x%08x + 0x%08x\n",
+		big_fw_desc->vector_table_offset,
+		big_fw_desc->vector_table_size);
+	dev_dbg(core->dev, "  Unpriv stack: 0x%08x + 0x%08x\n",
+		big_fw_desc->unpriv_stack_offset,
+		big_fw_desc->unpriv_stack_size);
+	dev_dbg(core->dev, "  Priv stack: 0x%08x + 0x%08x\n",
+		big_fw_desc->priv_stack_offset, big_fw_desc->priv_stack_size);
 
-	/* Allocate memory for firmware code. Note that the firmware binary size
-	 * may have changed since the memory was allocated (e.g. if a new
-	 * firmware binary was deployed while the kernel module is running,
-	 * so we may need to re-allocate.
+	/* Unmap, as the mappings may have changed (e.g. if a new
+	 * firmware binary was deployed while the kernel module is running)
 	 */
-	if (!core->firmware || core->firmware->size != fw_size) {
-		if (core->firmware)
-			ethosn_dma_unmap_and_release(core->main_allocator,
-						     &core->firmware);
+	if (core->firmware)
+		ethosn_dma_unmap(core->main_allocator, core->firmware);
 
-		core->firmware =
-			ethosn_dma_alloc(core->main_allocator, fw_size,
-					 ETHOSN_STREAM_FIRMWARE,
-					 GFP_KERNEL,
-					 "firmware-code");
+	/* If the firmware binary has changed size since the memory was
+	 * allocated, (e.g. if a new firmware binary was deployed while the
+	 * kernel module is running), then re-allocate it
+	 */
+	if (core->firmware && core->firmware->size != big_fw_desc->size)
+		ethosn_dma_release(core->main_allocator, &core->firmware);
+
+	/* Allocate space for the whole binary (if necessary).
+	 * No mapping yet - we do that later as each asset has different flags.
+	 * We still need to do the allocation in one go though, as the firmware
+	 * layout in memory needs to be identical to the layout of the binary,
+	 * as the firmware code makes assumptions about this.
+	 */
+	if (!core->firmware) {
+		core->firmware = ethosn_dma_alloc(core->main_allocator,
+						  big_fw_desc->size,
+						  ETHOSN_STREAM_FIRMWARE,
+						  GFP_KERNEL,
+						  "firmware");
 
 		if (IS_ERR_OR_NULL(core->firmware)) {
+			dev_err(core->dev, "%s: ethosn_dma_alloc failed: %ld\n",
+				__func__, PTR_ERR(core->firmware));
 			ret = -ENOMEM;
 			goto release_fw;
 		}
-
-		ret = ethosn_dma_map(core->main_allocator, core->firmware,
-				     ETHOSN_PROT_READ |
-				     ETHOSN_PROT_WRITE);
-		if (ret) {
-			ret = -ENOMEM;
-			goto free_firmware;
-		}
 	}
 
-	memcpy(core->firmware->cpu_addr, fw->data + fw_offset,
-	       fw_size);
+	/* Copy firmware binary into the allocation */
+	memcpy(core->firmware->cpu_addr, fw->data + big_fw_desc->offset,
+	       big_fw_desc->size);
 	ethosn_dma_sync_for_device(core->main_allocator, core->firmware);
 
-	if (smmu_available) {
-		ple_kernels_size = code_size - big_fw_desc->ple_offset;
-		ple_kernels_offset = fw_offset + big_fw_desc->ple_offset;
-
-		/* Allocate memory for PLE kernels code */
-		if (!core->ple_kernels) {
-			core->ple_kernels = ethosn_dma_alloc(
-				core->main_allocator,
-				ple_kernels_size,
-				ETHOSN_STREAM_FIRMWARE,
-				GFP_KERNEL,
-				"ple-kernels");
-
-			if (IS_ERR_OR_NULL(core->ple_kernels)) {
-				ret = -ENOMEM;
-				goto unmap_firmware;
-			}
-
-			ret = ethosn_dma_map(core->main_allocator,
-					     core->ple_kernels,
-					     ETHOSN_PROT_READ);
-			if (ret) {
-				ret = -ENOMEM;
-				goto free_ple_kernels;
-			}
-		}
-
-		memcpy(core->ple_kernels->cpu_addr,
-		       fw->data + ple_kernels_offset,
-		       ple_kernels_size);
-		ethosn_dma_sync_for_device(core->main_allocator,
-					   core->ple_kernels);
+	/* Map each asset (separately, as we need different protection
+	 * for some assets). First check that the assets are in the expected
+	 * order, otherwise the mappings might be wrong.
+	 */
+	if (big_fw_desc->code_offset >= big_fw_desc->ple_offset ||
+	    big_fw_desc->ple_offset >= big_fw_desc->vector_table_offset ||
+	    big_fw_desc->vector_table_offset >=
+	    big_fw_desc->unpriv_stack_offset ||
+	    big_fw_desc->unpriv_stack_offset >=
+	    big_fw_desc->priv_stack_offset) {
+		dev_err(core->dev, "%s: Firmware assets in wrong order\n",
+			__func__);
+		ret = -EINVAL;
+		goto release_fw;
 	}
 
-	/* Allocate task stack */
-	if (!core->firmware_stack_task)
-		core->firmware_stack_task =
-			ethosn_dma_alloc_and_map(core->main_allocator,
-						 ETHOSN_STACK_SIZE,
-						 ETHOSN_PROT_READ |
-						 ETHOSN_PROT_WRITE,
-						 ETHOSN_STREAM_WORKING_DATA,
-						 GFP_KERNEL,
-						 "firmware-stack-task");
+	/* Code need to be writable (e.g. global variables are stored here) */
+	prot_ranges[0].start = 0;
+	prot_ranges[0].end = big_fw_desc->ple_offset;
+	prot_ranges[0].prot = ETHOSN_PROT_READ | ETHOSN_PROT_WRITE;
+	/* PLE kernels and vector need to be read-only */
+	prot_ranges[1].start = big_fw_desc->ple_offset;
+	prot_ranges[1].end = big_fw_desc->unpriv_stack_offset;
+	prot_ranges[1].prot = ETHOSN_PROT_READ;
+	/* Stacks need to be writable */
+	prot_ranges[2].start = big_fw_desc->unpriv_stack_offset;
+	prot_ranges[2].end = big_fw_desc->size;
+	prot_ranges[2].prot = ETHOSN_PROT_READ | ETHOSN_PROT_WRITE;
 
-	if (IS_ERR_OR_NULL(core->firmware_stack_task)) {
-		ret = -ENOMEM;
-		goto unmap_ple_kernels;
+	ret = ethosn_dma_map_with_prot_ranges(core->main_allocator,
+					      core->firmware,
+					      prot_ranges,
+					      ARRAY_SIZE(prot_ranges));
+	if (ret < 0) {
+		dev_err(core->dev,
+			"%s: ethosn_dma_map_with_prot_ranges failed: %d\n",
+			__func__, ret);
+		goto free_firmware;
 	}
 
-	/* Allocate main stack */
-	if (!core->firmware_stack_main)
-		core->firmware_stack_main =
-			ethosn_dma_alloc_and_map(core->main_allocator,
-						 ETHOSN_STACK_SIZE,
-						 ETHOSN_PROT_READ |
-						 ETHOSN_PROT_WRITE,
-						 ETHOSN_STREAM_WORKING_DATA,
-						 GFP_KERNEL,
-						 "firmware-stack-main");
-
-	if (IS_ERR_OR_NULL(core->firmware_stack_main)) {
-		ret = -ENOMEM;
-		goto free_stack_task;
-	}
-
-	/* Allocate vtable */
-	if (!core->firmware_vtable)
-		core->firmware_vtable =
-			ethosn_dma_alloc_and_map(core->main_allocator,
-						 ETHOSN_VTABLE_SIZE *
-						 sizeof(uint32_t),
-						 ETHOSN_PROT_READ |
-						 ETHOSN_PROT_WRITE,
-						 ETHOSN_STREAM_FIRMWARE,
-						 GFP_KERNEL,
-						 "firmware-vtable");
-
-	if (IS_ERR_OR_NULL(core->firmware_vtable)) {
-		ret = -ENOMEM;
-		goto free_stack_main;
-	}
+	/* Remember the vector table address, as we'll need this to boot the
+	 * firmware.
+	 */
+	core->firmware_vtable_dma_addr = core->firmware->iova_addr +
+					 big_fw_desc->vector_table_offset;
 
 	release_firmware(fw);
 
 	return 0;
 
-free_stack_main:
-	ethosn_dma_unmap_and_release(core->main_allocator,
-				     &core->firmware_stack_main);
-free_stack_task:
-	ethosn_dma_unmap_and_release(core->main_allocator,
-				     &core->firmware_stack_task);
-unmap_ple_kernels:
-	if (!core->ple_kernels)
-		goto unmap_firmware;
-
-	ethosn_dma_unmap(core->main_allocator, core->ple_kernels);
-free_ple_kernels:
-	ethosn_dma_release(core->main_allocator, &core->ple_kernels);
-unmap_firmware:
-	ethosn_dma_unmap(core->main_allocator, core->firmware);
 free_firmware:
 	ethosn_dma_release(core->main_allocator, &core->firmware);
+
 release_fw:
 	release_firmware(fw);
 
 	return ret;
-}
-
-/**
- * ethosn_regions_init() - Initialize the memory regions.
- * @core:	Pointer to Ethos-N core.
- *
- * Return: 0 on success, else error code.
- */
-static int ethosn_regions_init(struct ethosn_core *core,
-			       uint32_t alloc_id)
-{
-	int ret;
-
-	ret =
-		ethosn_send_region_request(core, ETHOSN_REGION_FIRMWARE,
-					   alloc_id);
-	if (ret)
-		return ret;
-
-	ret = ethosn_send_region_request(core, ETHOSN_REGION_WORKING_DATA_MAIN,
-					 alloc_id);
-	if (ret)
-		return ret;
-
-	ret = ethosn_send_region_request(core, ETHOSN_REGION_WORKING_DATA_TASK,
-					 alloc_id);
-	if (ret)
-		return ret;
-
-	ret = ethosn_send_region_request(core, ETHOSN_REGION_COMMAND_STREAM,
-					 alloc_id);
-	if (ret)
-		return ret;
-
-	ret = ethosn_send_mpu_enable_request(core);
-	if (ret)
-		return ret;
-
-	return 0;
 }
 
 int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
@@ -1729,6 +1533,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 {
 	int timeout;
 	int ret;
+	struct ethosn_device *parent = core->parent;
 
 	dev_info(core->dev, "Reset core device\n");
 
@@ -1768,7 +1573,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 	/* In a secure build, TF-A will setup the stream IDs */
 #ifdef ETHOSN_NS
 	/* Setup the SMMU Stream IDs if iommu is present */
-	if (core->parent->smmu_available) {
+	if (parent->smmu_available) {
 		ret = ethosn_set_smmu_stream_ids(core, alloc_id);
 		if (ret)
 			return ret;
@@ -1795,7 +1600,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 
 	ret = ethosn_set_addr_ext(
 		core, ETHOSN_STREAM_COMMAND_STREAM,
-		ethosn_dma_get_addr_base(core->parent->asset_allocator[alloc_id],
+		ethosn_dma_get_addr_base(parent->asset_allocator[alloc_id],
 					 ETHOSN_STREAM_COMMAND_STREAM),
 		&core->dma_map);
 	if (ret)
@@ -1814,10 +1619,14 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 	if (ret)
 		return ret;
 
-	/* Initialize the firmware task stack */
-	ret = ethosn_task_stack_init(core);
-	if (ret)
-		return ret;
+	/* Init memory regions */
+	ethosn_write_top_reg(core, DL1_RP, GP_MAILBOX_SIZE,
+			     ethosn_dma_get_addr_size(core->main_allocator,
+						      ETHOSN_STREAM_WORKING_DATA));
+	ethosn_write_top_reg(core, DL1_RP, GP_COMMAND_STREAM_SIZE,
+			     ethosn_dma_get_addr_size(
+				     parent->asset_allocator[0],
+				     ETHOSN_STREAM_COMMAND_STREAM));
 
 	/* Boot the firmware */
 	ret = ethosn_boot_firmware(core);
@@ -1845,11 +1654,6 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 
 	/* Firmware is now up and running */
 	core->firmware_running = true;
-
-	/* Init memory regions */
-	ret = ethosn_regions_init(core, alloc_id);
-	if (ret != 0)
-		return ret;
 
 	/* Ping firmware */
 	ret = ethosn_send_ping(core);
@@ -1889,19 +1693,6 @@ EXPORT_SYMBOL(ethosn_reset_and_start_ethosn);
 static void ethosn_firmware_deinit(struct ethosn_core *core)
 {
 	ethosn_dma_unmap_and_release(core->main_allocator, &core->firmware);
-
-	if (core->ple_kernels)
-		ethosn_dma_unmap_and_release(core->main_allocator,
-					     &core->ple_kernels);
-
-	ethosn_dma_unmap_and_release(core->main_allocator,
-				     &core->firmware_stack_main);
-
-	ethosn_dma_unmap_and_release(core->main_allocator,
-				     &core->firmware_stack_task);
-
-	ethosn_dma_unmap_and_release(core->main_allocator,
-				     &core->firmware_vtable);
 }
 
 /****************************************************************************

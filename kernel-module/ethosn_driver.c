@@ -198,9 +198,6 @@ static const char *err_msg_type_to_str(uint32_t message_type)
 	case ETHOSN_MESSAGE_TIME_SYNC: {
 		return "Time sync request";
 	}
-	case ETHOSN_MESSAGE_MPU_ENABLE_REQUEST: {
-		return "Mpu enable request";
-	}
 	case ETHOSN_MESSAGE_FW_HW_CAPS_REQUEST: {
 		return "FW & HW capabilities request";
 	}
@@ -314,25 +311,6 @@ static int handle_message(struct ethosn_core *core)
 		header.type, header.length);
 
 	switch (header.type) {
-	case ETHOSN_MESSAGE_REGION_RESPONSE: {
-		struct ethosn_message_region_response *rsp =
-			core->mailbox_message;
-
-		if (rsp->status != ETHOSN_REGION_STATUS_OK) {
-			dev_err(core->dev,
-				"<- Region=%u request error. status=%u\n",
-				rsp->id, rsp->status);
-
-			return -EFAULT;
-		}
-
-		dev_dbg(core->dev, "<- Region=%u setup\n", rsp->id);
-		break;
-	}
-	case ETHOSN_MESSAGE_MPU_ENABLE_RESPONSE: {
-		dev_dbg(core->dev, "<- Mpu enabled\n");
-		break;
-	}
 	case ETHOSN_MESSAGE_FW_HW_CAPS_RESPONSE: {
 		dev_dbg(core->dev, "<- FW & HW capabilities\n");
 
