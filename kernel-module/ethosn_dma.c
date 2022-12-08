@@ -220,7 +220,7 @@ void ethosn_dma_sub_allocator_destroy(
 	sub_allocator =
 		ethosn_get_sub_allocator_ref(top_allocator, stream_type);
 
-	ops = *sub_allocator ? get_ops(*sub_allocator) : NULL;
+	ops = sub_allocator ? get_ops(*sub_allocator) : NULL;
 
 	if (!ops)
 		return;
