@@ -290,9 +290,32 @@ int ethosn_dma_map(struct ethosn_dma_allocator *top_allocator,
 		   struct ethosn_dma_info *dma_info,
 		   int prot)
 {
+	struct ethosn_dma_prot_range prot_range;
+
+	if (IS_ERR_OR_NULL(dma_info))
+		return -EINVAL;
+
+	/* Forward to ethosn_dma_map_with_prot_ranges, specifying a
+	 * single prot range that covers the whole allocation.
+	 */
+	prot_range.start = 0;
+	prot_range.end = dma_info->size;
+	prot_range.prot = prot;
+
+	return ethosn_dma_map_with_prot_ranges(top_allocator, dma_info,
+					       &prot_range, 1);
+}
+
+int ethosn_dma_map_with_prot_ranges(struct ethosn_dma_allocator *top_allocator,
+				    struct ethosn_dma_info *dma_info,
+				    struct ethosn_dma_prot_range *prot_ranges,
+				    size_t num_prot_ranges)
+{
 	struct ethosn_dma_sub_allocator *sub_allocator;
 	const struct ethosn_dma_allocator_ops *ops;
 	int ret = -EINVAL;
+	size_t end_of_prev_prot_range;
+	size_t i;
 
 	if (IS_ERR_OR_NULL(dma_info))
 		goto exit;
@@ -303,6 +326,56 @@ int ethosn_dma_map(struct ethosn_dma_allocator *top_allocator,
 	if (!sub_allocator)
 		goto exit;
 
+	/* Validate prot_ranges.
+	 *   - Must be contiguous and cover the whole allocation.
+	 *   - Must be aligned to page boundaries.
+	 *   - Must be non-zero size
+	 */
+	end_of_prev_prot_range = 0;
+	for (i = 0; i < num_prot_ranges; ++i) {
+		const struct ethosn_dma_prot_range *const prot_range =
+			&prot_ranges[i];
+
+		if (prot_range->start != end_of_prev_prot_range) {
+			dev_err(sub_allocator->dev,
+				"Prot range %zu is non-contiguous.\n", i);
+
+			return -EINVAL;
+		}
+
+		if (!PAGE_ALIGNED(prot_range->start)) {
+			dev_err(sub_allocator->dev,
+				"Prot range %zu is not aligned to PAGE_SIZE.\n",
+				i);
+
+			return -EINVAL;
+		}
+
+		if (prot_range->end - prot_range->start == 0) {
+			dev_err(sub_allocator->dev,
+				"Prot range %zu is zero size.\n", i);
+
+			return -EINVAL;
+		}
+
+		if (prot_range->prot <= 0) {
+			dev_err(sub_allocator->dev,
+				"Prot value %d in prot range %zu is invalid.\n",
+				prot_range->prot, i);
+
+			return -EINVAL;
+		}
+
+		end_of_prev_prot_range = prot_range->end;
+	}
+
+	if (end_of_prev_prot_range != dma_info->size) {
+		dev_err(sub_allocator->dev,
+			"Final prot range does not cover remaining allocation.\n");
+
+		return -EINVAL;
+	}
+
 	ops = sub_allocator->ops;
 	if (!ops)
 		goto exit;
@@ -310,15 +383,16 @@ int ethosn_dma_map(struct ethosn_dma_allocator *top_allocator,
 	if (!ops->map)
 		goto exit;
 
-	ret = ops->map(sub_allocator, dma_info, prot);
+	ret = ops->map(sub_allocator, dma_info, prot_ranges, num_prot_ranges);
 
 	if (ret)
 		dev_err(sub_allocator->dev, "failed mapping dma on stream %d\n",
 			dma_info->stream_type);
 	else
 		dev_dbg(sub_allocator->dev,
-			"DMA mapped. handle=0x%pK, iova=0x%llx, prot=0x%x, stream=%u\n",
-			dma_info, dma_info->iova_addr, prot,
+			"DMA mapped. handle=0x%pK, iova=0x%llx, prot=0x%x (+%zu others), stream=%u\n",
+			dma_info, dma_info->iova_addr, prot_ranges[0].prot,
+			num_prot_ranges - 1,
 			dma_info->stream_type);
 
 exit:

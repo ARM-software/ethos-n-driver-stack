@@ -94,7 +94,8 @@ static struct ethosn_dma_info *carveout_alloc(
 
 static int carveout_map(struct ethosn_dma_sub_allocator *allocator,
 			struct ethosn_dma_info *dma_info,
-			int prot)
+			struct ethosn_dma_prot_range *prot_ranges,
+			size_t num_prot_ranges)
 {
 	return 0;
 }

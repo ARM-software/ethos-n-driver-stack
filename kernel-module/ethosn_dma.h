@@ -92,6 +92,7 @@ struct ethosn_dma_sub_allocator {
 /**
  * struct ethosn_dma_allocator - Contains allocator type and device
  * @type     Stream type of this allocator
+ * @alloc_id For asset allocators, this identifies which allocator this is
  * @dev      Device bound to the allocator
  * @kref     Reference counter
  * @pid      PID to enforce one allocator per process limit
@@ -102,6 +103,16 @@ struct ethosn_dma_allocator {
 	struct device          *dev;
 	struct kref            kref;
 	pid_t                  pid;
+};
+
+/**
+ * struct ethosn_dma_prot_range - A range of addresses along with
+ *                            memory protection flags (read/write).
+ */
+struct ethosn_dma_prot_range {
+	size_t start;
+	size_t end;
+	int    prot;
 };
 
 /**
@@ -155,7 +166,8 @@ struct ethosn_dma_allocator_ops {
 					 gfp_t gfp);
 	int (*map)(struct ethosn_dma_sub_allocator *allocator,
 		   struct ethosn_dma_info *dma_info,
-		   int prot);
+		   struct ethosn_dma_prot_range *prot_ranges,
+		   size_t num_prot_ranges);
 
 	struct ethosn_dma_info *(*import)(struct ethosn_dma_sub_allocator *
 					  allocator,
@@ -299,6 +311,26 @@ struct ethosn_dma_info *ethosn_dma_alloc(
 int ethosn_dma_map(struct ethosn_dma_allocator *top_allocator,
 		   struct ethosn_dma_info *dma_info,
 		   int prot);
+
+/**
+ * ethosn_dma_map_with_prot_ranges() - Same as ethosn_dma_map,
+ *      except it supports mapping with different protection
+ *      flags (read/write) for different regions of the memory
+ *      being mapped.
+ *
+ * @top_allocator: Top-level allocator for sub-allocators
+ * @dma_info: Pointer to ethosn_dma_info struct representing the allocation
+ * @prot_ranges: Array specifying which read/write protection to use for which
+ *               ranges of addresses within the allocation.
+ * @num_prot_ranges: Length of the `prot_ranges` array.
+ *
+ * Return:
+ *  0 or negative on failure
+ */
+int ethosn_dma_map_with_prot_ranges(struct ethosn_dma_allocator *top_allocator,
+				    struct ethosn_dma_info *dma_info,
+				    struct ethosn_dma_prot_range *prot_ranges,
+				    size_t num_prot_ranges);
 
 /**
  * ethosn_dma_unmap() - Unmap DMA memory

@@ -392,7 +392,8 @@ static void iommu_unmap_iova_pages(struct ethosn_dma_info_internal *dma_info,
 
 static int iommu_iova_map(struct ethosn_dma_sub_allocator *allocator,
 			  struct ethosn_dma_info *_dma_info,
-			  int prot)
+			  struct ethosn_dma_prot_range *prot_ranges,
+			  size_t num_prot_ranges)
 {
 	struct ethosn_allocator_internal *allocator_private =
 		container_of(allocator, typeof(*allocator_private), allocator);
@@ -404,7 +405,10 @@ static int iommu_iova_map(struct ethosn_dma_sub_allocator *allocator,
 		container_of(_dma_info, typeof(*dma_info), info);
 	int nr_scatter_entries = ethosn_nr_sg_objects(dma_info);
 	dma_addr_t start_addr = 0;
-	int i, err, iommu_prot = 0;
+	int i, err, prot;
+	int iommu_prot = 0;
+	const struct ethosn_dma_prot_range *current_prot_range =
+		&prot_ranges[0];
 
 	if (!dma_info->info.size)
 		goto ret;
@@ -420,12 +424,6 @@ static int iommu_iova_map(struct ethosn_dma_sub_allocator *allocator,
 	if (!start_addr)
 		goto early_exit;
 
-	if ((prot & ETHOSN_PROT_READ) == ETHOSN_PROT_READ)
-		iommu_prot |= IOMMU_READ;
-
-	if ((prot & ETHOSN_PROT_WRITE) == ETHOSN_PROT_WRITE)
-		iommu_prot |= IOMMU_WRITE;
-
 	if ((dma_info->info.iova_addr) &&
 	    (dma_info->info.iova_addr != start_addr)) {
 		dev_err(allocator->dev,
@@ -437,14 +435,61 @@ static int iommu_iova_map(struct ethosn_dma_sub_allocator *allocator,
 	dma_info->info.iova_addr = start_addr;
 
 	dev_dbg(allocator->dev,
-		"%s: mapping %lu bytes starting at 0x%llX prot 0x%x\n",
-		__func__, dma_info->info.size, start_addr, iommu_prot);
+		"%s: mapping %lu bytes starting at 0x%llX prot 0x%x (+%zu others)\n",
+		__func__, dma_info->info.size, start_addr, prot_ranges[0].prot,
+		num_prot_ranges - 1);
 
 	for (i = 0; i < nr_scatter_entries; ++i) {
+		const size_t offset = ethosn_page_size(0, i, dma_info);
+		const dma_addr_t addr = start_addr + offset;
+		const size_t sg_entry_size =
+			ethosn_page_size(i, i + 1, dma_info);
+
+		/* Determine the prot for this sg entry, based on the
+		 * prot_ranges
+		 */
+		if (offset >= current_prot_range->end) {
+			++current_prot_range;
+			if (current_prot_range >=
+			    &prot_ranges[num_prot_ranges]) {
+				/* This should have been caught by the
+				 * validation in
+				 * ethosn_dma_map_with_prot_ranges.
+				 */
+				dev_err(allocator->dev,
+					"Invalid prot range.\n");
+				goto unmap_pages;
+			}
+
+			dev_dbg(allocator->dev,
+				"Prot is now %d starting from offset 0x%zx.\n",
+				current_prot_range->prot, offset);
+		}
+
+		/* Confirm that the prot doesn't need to change halfway through
+		 * this sg entry, which is not supported.
+		 */
+		if (current_prot_range->end < dma_info->info.size &&
+		    current_prot_range->end < offset + sg_entry_size) {
+			dev_err(allocator->dev,
+				"Can't have different prots within the same SG entry.\n");
+
+			goto unmap_pages;
+		}
+
+		prot = current_prot_range->prot;
+		iommu_prot = 0;
+		if ((prot & ETHOSN_PROT_READ) == ETHOSN_PROT_READ)
+			iommu_prot |= IOMMU_READ;
+
+		if ((prot & ETHOSN_PROT_WRITE) == ETHOSN_PROT_WRITE)
+			iommu_prot |= IOMMU_WRITE;
+
+		/* Unmap existing mapping from the dummy page. */
 		if (stream->page)
 			iommu_unmap(
 				domain->iommu_domain,
-				start_addr + ethosn_page_size(0, i, dma_info),
+				addr,
 				PAGE_SIZE);
 
 		/* Print some debug logs but only for the first few entries,
@@ -454,24 +499,24 @@ static int iommu_iova_map(struct ethosn_dma_sub_allocator *allocator,
 			dev_dbg(allocator->dev,
 				"%s: mapping scatter-gather entry %d/%d iova 0x%llX, pa 0x%llX, size %lu\n",
 				__func__, i, nr_scatter_entries,
-				start_addr + ethosn_page_size(0, i, dma_info),
+				addr,
 				ethosn_page_to_phys(i, dma_info),
-				ethosn_page_size(i, i + 1, dma_info));
+				sg_entry_size);
 
 		err = iommu_map(
 			domain->iommu_domain,
-			start_addr + ethosn_page_size(0, i, dma_info),
+			addr,
 			ethosn_page_to_phys(i, dma_info),
-			ethosn_page_size(i, i + 1, dma_info),
+			sg_entry_size,
 			iommu_prot);
 
 		if (err) {
 			dev_err(
 				allocator->dev,
 				"failed to iommu map iova 0x%llX pa 0x%llX size %lu\n",
-				start_addr + ethosn_page_size(0, i, dma_info),
+				addr,
 				ethosn_page_to_phys(i, dma_info),
-				ethosn_page_size(i, i + 1, dma_info));
+				sg_entry_size);
 			goto unmap_pages;
 		}
 	}
