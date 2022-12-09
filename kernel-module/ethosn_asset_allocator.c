@@ -26,6 +26,7 @@
 #include "ethosn_core.h"
 
 #include <linux/device.h>
+#include <linux/bug.h>
 #include <linux/module.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
@@ -49,10 +50,17 @@ static void asset_allocator_kref_release(struct kref *kref)
 
 void ethosn_asset_allocator_get(struct ethosn_dma_allocator *asset_allocator)
 {
+	if (WARN_ON_ONCE(!asset_allocator))
+		return;
+
 	/* Only get kref for non-carveout allocators, as carveout allocators
 	 * are expected to be shared.
 	 */
 	if (asset_allocator->type == ETHOSN_ALLOCATOR_CARVEOUT)
+		return;
+
+	/* PID is only used for non-carveout allocators */
+	if (WARN_ON_ONCE(asset_allocator->pid <= 0))
 		return;
 
 	kref_get(&asset_allocator->kref);
@@ -69,13 +77,17 @@ void ethosn_asset_allocator_get(struct ethosn_dma_allocator *asset_allocator)
 int __must_check ethosn_asset_allocator_put(
 	struct ethosn_dma_allocator *asset_allocator)
 {
+	if (WARN_ON_ONCE(!asset_allocator))
+		return -EINVAL;
+
 	/* Only put kref for non-carveout allocators, as carveout allocators
 	 * are expected to be shared.
 	 */
 	if (asset_allocator->type == ETHOSN_ALLOCATOR_CARVEOUT)
 		return 0;
 
-	if (!asset_allocator || asset_allocator->pid <= 0)
+	/* PID is only used for non-carveout allocators */
+	if (WARN_ON_ONCE(asset_allocator->pid <= 0))
 		return -EINVAL;
 
 	return kref_put(&asset_allocator->kref, &asset_allocator_kref_release);
