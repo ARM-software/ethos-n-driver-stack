@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -21,12 +21,14 @@
 namespace armnn
 {
 
-// Abstract tensor handles wrapping a Ethos-N readable region of memory, interpreting it as tensor data.
-class EthosNBaseTensorHandle : public ITensorHandle
+// Tensor handle wrapping a Ethos-N readable region of memory, interpreting it as tensor data.
+class EthosNTensorHandle : public ITensorHandle
 {
 public:
-    EthosNBaseTensorHandle(const TensorInfo& tensorInfo)
+    EthosNTensorHandle(const TensorInfo& tensorInfo, const std::string& deviceId)
         : m_TensorInfo(tensorInfo)
+        , m_DeviceId(deviceId)
+        , m_Buffer(CreateBuffer(tensorInfo, deviceId))
     {
         using namespace ethosntensorutils;
         // NOTE: The Ethos-N API is unclear on whether the size specified for a Buffer is the number of elements, or
@@ -41,7 +43,8 @@ public:
                                            CHECK_LOCATION());
         }
     }
-    virtual ~EthosNBaseTensorHandle()
+
+    virtual ~EthosNTensorHandle()
     {}
 
     virtual void Manage() override
@@ -77,89 +80,6 @@ public:
         return m_TensorInfo;
     }
 
-    virtual ethosn::driver_library::Buffer& GetBuffer() = 0;
-
-    virtual ethosn::driver_library::Buffer const& GetBuffer() const = 0;
-
-    void CopyOutTo(void* memory) const override
-    {
-        const void* data = Map(true);
-        memcpy(memory, data, GetTensorInfo().GetNumBytes());
-        Unmap();
-    }
-
-    void CopyInFrom(const void* memory) override
-    {
-        void* data = ITensorHandle::Map(true);
-        memcpy(data, memory, GetTensorInfo().GetNumBytes());
-        Unmap();
-    }
-
-private:
-    EthosNBaseTensorHandle(const EthosNBaseTensorHandle& other) = delete;
-    EthosNBaseTensorHandle& operator=(const EthosNBaseTensorHandle& other) = delete;
-
-    TensorInfo m_TensorInfo;
-};
-
-// Abstract tensor handles wrapping a Ethos-N readable region of memory, interpreting it as tensor data.
-class EthosNTensorHandle : public EthosNBaseTensorHandle
-{
-public:
-    explicit EthosNTensorHandle(const TensorInfo& tensorInfo, const std::string& deviceId)
-        : EthosNBaseTensorHandle(tensorInfo)
-        , m_Buffer(CreateBuffer(tensorInfo, deviceId))
-    {}
-
-    ethosn::driver_library::Buffer CreateBuffer(const TensorInfo& tensorInfo, const std::string& deviceId)
-    {
-        auto& procMemAllocator = armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocator(deviceId);
-
-        // The input buffer size of fully connected is rounded up to the next 1024
-        // byte boundary by the support library. The backend needs to do
-        // the same to avoid buffer size mismatch.
-        uint32_t bufferSize =
-            armnn::ethosnbackend::RoundUpToNearestMultiple(tensorInfo.GetNumElements(), static_cast<uint32_t>(1024));
-
-        return procMemAllocator.CreateBuffer(bufferSize, ethosn::driver_library::DataFormat::NHWC);
-    }
-
-    virtual const void* Map(bool) const override
-    {
-        return static_cast<const void*>(m_Buffer.Map());
-    }
-
-    virtual void Unmap() const override
-    {
-        m_Buffer.Unmap();
-    }
-
-    ethosn::driver_library::Buffer& GetBuffer() override
-    {
-        return m_Buffer;
-    }
-    ethosn::driver_library::Buffer const& GetBuffer() const override
-    {
-        return m_Buffer;
-    }
-
-private:
-    EthosNTensorHandle(const EthosNTensorHandle& other) = delete;
-    EthosNTensorHandle& operator=(const EthosNTensorHandle& other) = delete;
-
-    mutable ethosn::driver_library::Buffer m_Buffer;
-};
-
-// Abstract tensor handles wrapping a Ethos-N readable region of memory, interpreting it as tensor data.
-class EthosNImportTensorHandle : public EthosNBaseTensorHandle
-{
-public:
-    explicit EthosNImportTensorHandle(const TensorInfo& tensorInfo, const std::string& deviceId)
-        : EthosNBaseTensorHandle(tensorInfo)
-        , m_DeviceId(deviceId)
-        , m_Buffer(nullptr)
-    {}
-
     const void* Map(bool) const override
     {
         return static_cast<const void*>(m_Buffer->Map());
@@ -170,11 +90,12 @@ public:
         m_Buffer->Unmap();
     }
 
-    ethosn::driver_library::Buffer& GetBuffer() override
+    ethosn::driver_library::Buffer& GetBuffer()
     {
         return *m_Buffer;
     }
-    ethosn::driver_library::Buffer const& GetBuffer() const override
+
+    ethosn::driver_library::Buffer const& GetBuffer() const
     {
         return *m_Buffer;
     }
@@ -188,10 +109,6 @@ public:
     {
         auto& procMemAllocator = armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocator(m_DeviceId);
 
-        if (m_Buffer)
-        {
-            m_Buffer.reset();
-        }
         // The driver library only currently works with dma buf sources.
         if (source != MemorySource::DmaBuf)
         {
@@ -223,10 +140,42 @@ public:
         m_Buffer.reset();
     };
 
-private:
-    EthosNImportTensorHandle(const EthosNImportTensorHandle& other) = delete;
-    EthosNImportTensorHandle& operator=(const EthosNImportTensorHandle& other) = delete;
+    void CopyOutTo(void* memory) const override
+    {
+        const void* data = Map(true);
+        memcpy(memory, data, GetTensorInfo().GetNumBytes());
+        Unmap();
+    }
 
+    void CopyInFrom(const void* memory) override
+    {
+        void* data = ITensorHandle::Map(true);
+        memcpy(data, memory, GetTensorInfo().GetNumBytes());
+        Unmap();
+    }
+
+private:
+    EthosNTensorHandle(const EthosNTensorHandle& other) = delete;
+    EthosNTensorHandle& operator=(const EthosNTensorHandle& other) = delete;
+
+    std::unique_ptr<ethosn::driver_library::Buffer> CreateBuffer(const TensorInfo& tensorInfo,
+                                                                 const std::string& deviceId)
+    {
+        using ethosn::driver_library::Buffer;
+
+        auto& procMemAllocator = armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocator(deviceId);
+
+        // The input buffer size of fully connected is rounded up to the next 1024
+        // byte boundary by the support library. The backend needs to do
+        // the same to avoid buffer size mismatch.
+        uint32_t bufferSize =
+            armnn::ethosnbackend::RoundUpToNearestMultiple(tensorInfo.GetNumElements(), static_cast<uint32_t>(1024));
+
+        return std::make_unique<Buffer>(
+            procMemAllocator.CreateBuffer(bufferSize, ethosn::driver_library::DataFormat::NHWC));
+    }
+
+    TensorInfo m_TensorInfo;
     std::string m_DeviceId;
     std::unique_ptr<ethosn::driver_library::Buffer> m_Buffer;
 };

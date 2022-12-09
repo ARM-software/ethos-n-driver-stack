@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -370,12 +370,10 @@ IBackendInternal::IWorkloadFactoryPtr
     const std::string deviceId = ethosnbackend::GetDeviceOptionVal(modelOptions);
     EthosNBackendAllocatorService::GetInstance().RegisterAllocator(m_Config, deviceId);
 
-    factory       = std::make_unique<EthosNTensorHandleFactory>(m_Config, deviceId);
     importFactory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config, deviceId);
 
-    tensorHandleFactoryRegistry.RegisterCopyAndImportFactoryPair(factory->GetId(), importFactory->GetId());
+    tensorHandleFactoryRegistry.RegisterCopyAndImportFactoryPair(importFactory->GetId(), importFactory->GetId());
 
-    tensorHandleFactoryRegistry.RegisterFactory(std::move(factory));
     tensorHandleFactoryRegistry.RegisterFactory(std::move(importFactory));
 
     return CreateWorkloadFactory(nullptr, modelOptions);
@@ -393,12 +391,10 @@ IBackendInternal::IWorkloadFactoryPtr
     const std::string deviceId = ethosnbackend::GetDeviceOptionVal(modelOptions);
     EthosNBackendAllocatorService::GetInstance().RegisterAllocator(m_Config, deviceId);
 
-    factory       = std::make_unique<EthosNTensorHandleFactory>(m_Config, deviceId);
     importFactory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config, deviceId);
 
-    tensorHandleFactoryRegistry.RegisterCopyAndImportFactoryPair(factory->GetId(), importFactory->GetId());
+    tensorHandleFactoryRegistry.RegisterCopyAndImportFactoryPair(importFactory->GetId(), importFactory->GetId());
 
-    tensorHandleFactoryRegistry.RegisterFactory(std::move(factory));
     tensorHandleFactoryRegistry.RegisterFactory(std::move(importFactory));
     return CreateWorkloadFactory(nullptr, modelOptions);
 }
@@ -512,12 +508,10 @@ void EthosNBackend::RegisterTensorHandleFactories(TensorHandleFactoryRegistry& r
 {
     EthosNBackendAllocatorService::GetInstance().RegisterAllocator(m_Config, {});
 
-    std::unique_ptr<ITensorHandleFactory> factory       = std::make_unique<EthosNTensorHandleFactory>(m_Config);
     std::unique_ptr<ITensorHandleFactory> importFactory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config);
 
-    registry.RegisterCopyAndImportFactoryPair(factory->GetId(), importFactory->GetId());
+    registry.RegisterCopyAndImportFactoryPair(importFactory->GetId(), importFactory->GetId());
 
-    registry.RegisterFactory(std::move(factory));
     registry.RegisterFactory(std::move(importFactory));
 }
 
@@ -525,12 +519,10 @@ void EthosNBackend::RegisterTensorHandleFactories(TensorHandleFactoryRegistry& r
 {
     EthosNBackendAllocatorService::GetInstance().RegisterAllocator(m_Config, {});
 
-    std::unique_ptr<ITensorHandleFactory> factory       = std::make_unique<EthosNTensorHandleFactory>(m_Config);
     std::unique_ptr<ITensorHandleFactory> importFactory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config);
 
-    registry.RegisterCopyAndImportFactoryPair(factory->GetId(), importFactory->GetId());
+    registry.RegisterCopyAndImportFactoryPair(importFactory->GetId(), importFactory->GetId());
 
-    registry.RegisterFactory(std::move(factory));
     registry.RegisterFactory(std::move(importFactory));
 }
 

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -84,8 +84,7 @@ public:
 
     virtual std::vector<ITensorHandleFactory::FactoryId> GetHandleFactoryPreferences() const override
     {
-        return std::vector<ITensorHandleFactory::FactoryId>{ EthosNTensorHandleFactory::GetIdStatic(),
-                                                             EthosNImportTensorHandleFactory::GetIdStatic() };
+        return std::vector<ITensorHandleFactory::FactoryId>{ EthosNImportTensorHandleFactory::GetIdStatic() };
     }
 
     bool UseCustomMemoryAllocator(std::shared_ptr<armnn::ICustomAllocator> allocator,

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include <Graph.hpp>
@@ -310,7 +310,7 @@ std::vector<LayerTestResult<uint8_t, NumDims>>
     EthosNBackendAllocatorService::GetInstance().GetAllocators();
 
     // Create the tensor handles
-    auto tensorHandleFactory = std::make_unique<EthosNTensorHandleFactory>(config);
+    auto tensorHandleFactory = std::make_unique<EthosNImportTensorHandleFactory>(config);
     TensorHandleFactoryRegistry tmpRegistry;
     tmpRegistry.RegisterFactory(std::move(tensorHandleFactory));
     for (auto&& layer : optimisedGraph.TopologicalSort())

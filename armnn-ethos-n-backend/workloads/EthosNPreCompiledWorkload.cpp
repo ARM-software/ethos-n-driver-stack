@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -303,14 +303,14 @@ void EthosNPreCompiledWorkload::Execute() const
         for (uint32_t inputSlotIdx = 0; inputSlotIdx < numInputBuffers; ++inputSlotIdx)
         {
             auto&& inputTensorHandle   = m_Data.m_Inputs[inputSlotIdx];
-            inputBuffers[inputSlotIdx] = &(static_cast<EthosNBaseTensorHandle*>(inputTensorHandle)->GetBuffer());
+            inputBuffers[inputSlotIdx] = &(static_cast<EthosNTensorHandle*>(inputTensorHandle)->GetBuffer());
         }
         // Fill outputBuffers from the output tensor handles, assuming that the order
         // is the same from the Arm NN output slots to the Ethos-N output slots.
         for (uint32_t outputSlotIdx = 0; outputSlotIdx < numOutputBuffers; ++outputSlotIdx)
         {
             auto&& outputTensorHandle    = m_Data.m_Outputs[outputSlotIdx];
-            outputBuffers[outputSlotIdx] = &(static_cast<EthosNBaseTensorHandle*>(outputTensorHandle)->GetBuffer());
+            outputBuffers[outputSlotIdx] = &(static_cast<EthosNTensorHandle*>(outputTensorHandle)->GetBuffer());
         }
 
         ARMNN_LOG(debug) << "Ethos-N ScheduleInference Subgraph " << m_PreCompiledObject->GetSubgraphIndex();

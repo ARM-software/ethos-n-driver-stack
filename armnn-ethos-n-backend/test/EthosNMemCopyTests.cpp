@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -62,7 +62,7 @@ LayerTestResult<T, 4> EthosNMemCopyTest(armnn::IWorkloadFactory& srcWorkloadFact
 
     armnn::EthosNWorkloadFactory factory(config);
 
-    auto tensorHandleFactory = std::make_unique<armnn::EthosNTensorHandleFactory>(config);
+    auto tensorHandleFactory = std::make_unique<armnn::EthosNImportTensorHandleFactory>(config);
 
     auto inputTensorHandle  = tensorHandleFactory->CreateTensorHandle(tensorInfo);
     auto outputTensorHandle = tensorHandleFactory->CreateTensorHandle(tensorInfo);
