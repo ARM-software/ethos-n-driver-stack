@@ -166,8 +166,7 @@ TEST_SUITE("EthosNImportTensorHandle")
         EthosNBackendAllocatorService::GetInstance().GetAllocators();
 
         // Create an ethosn import tensor handle factory with dma buf
-        EthosNImportTensorHandleFactory handleFactory(config, static_cast<MemorySourceFlags>(MemorySource::DmaBuf),
-                                                      static_cast<MemorySourceFlags>(MemorySource::DmaBuf));
+        EthosNImportTensorHandleFactory handleFactory(config);
 
         // Create a tensor info needed to create the tensor handle
         TensorInfo info({ 1, 16, 16, 16 }, DataType::QAsymmU8);

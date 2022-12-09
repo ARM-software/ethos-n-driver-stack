@@ -371,9 +371,7 @@ IBackendInternal::IWorkloadFactoryPtr
     EthosNBackendAllocatorService::GetInstance().RegisterAllocator(m_Config, deviceId);
 
     factory       = std::make_unique<EthosNTensorHandleFactory>(m_Config, deviceId);
-    importFactory = std::make_unique<EthosNImportTensorHandleFactory>(
-        m_Config, deviceId, static_cast<MemorySourceFlags>(MemorySource::DmaBuf),
-        static_cast<MemorySourceFlags>(MemorySource::DmaBuf));
+    importFactory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config, deviceId);
 
     tensorHandleFactoryRegistry.RegisterCopyAndImportFactoryPair(factory->GetId(), importFactory->GetId());
 
@@ -386,8 +384,8 @@ IBackendInternal::IWorkloadFactoryPtr
 IBackendInternal::IWorkloadFactoryPtr
     EthosNBackend::CreateWorkloadFactory(class TensorHandleFactoryRegistry& tensorHandleFactoryRegistry,
                                          const ModelOptions& modelOptions,
-                                         MemorySourceFlags importFlags,
-                                         MemorySourceFlags exportFlags) const
+                                         MemorySourceFlags,
+                                         MemorySourceFlags) const
 {
     std::unique_ptr<ITensorHandleFactory> factory;
     std::unique_ptr<ITensorHandleFactory> importFactory;
@@ -396,7 +394,7 @@ IBackendInternal::IWorkloadFactoryPtr
     EthosNBackendAllocatorService::GetInstance().RegisterAllocator(m_Config, deviceId);
 
     factory       = std::make_unique<EthosNTensorHandleFactory>(m_Config, deviceId);
-    importFactory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config, deviceId, importFlags, exportFlags);
+    importFactory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config, deviceId);
 
     tensorHandleFactoryRegistry.RegisterCopyAndImportFactoryPair(factory->GetId(), importFactory->GetId());
 
@@ -509,14 +507,13 @@ OptimizationViews EthosNBackend::OptimizeSubgraphView(const SubgraphView& subgra
 }
 
 void EthosNBackend::RegisterTensorHandleFactories(TensorHandleFactoryRegistry& registry,
-                                                  MemorySourceFlags importFlags,
-                                                  MemorySourceFlags exportFlags)
+                                                  MemorySourceFlags,
+                                                  MemorySourceFlags)
 {
     EthosNBackendAllocatorService::GetInstance().RegisterAllocator(m_Config, {});
 
-    std::unique_ptr<ITensorHandleFactory> factory = std::make_unique<EthosNTensorHandleFactory>(m_Config);
-    std::unique_ptr<ITensorHandleFactory> importFactory =
-        std::make_unique<EthosNImportTensorHandleFactory>(m_Config, importFlags, exportFlags);
+    std::unique_ptr<ITensorHandleFactory> factory       = std::make_unique<EthosNTensorHandleFactory>(m_Config);
+    std::unique_ptr<ITensorHandleFactory> importFactory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config);
 
     registry.RegisterCopyAndImportFactoryPair(factory->GetId(), importFactory->GetId());
 
@@ -529,9 +526,7 @@ void EthosNBackend::RegisterTensorHandleFactories(TensorHandleFactoryRegistry& r
     EthosNBackendAllocatorService::GetInstance().RegisterAllocator(m_Config, {});
 
     std::unique_ptr<ITensorHandleFactory> factory       = std::make_unique<EthosNTensorHandleFactory>(m_Config);
-    std::unique_ptr<ITensorHandleFactory> importFactory = std::make_unique<EthosNImportTensorHandleFactory>(
-        m_Config, static_cast<MemorySourceFlags>(MemorySource::DmaBuf),
-        static_cast<MemorySourceFlags>(MemorySource::DmaBuf));
+    std::unique_ptr<ITensorHandleFactory> importFactory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config);
 
     registry.RegisterCopyAndImportFactoryPair(factory->GetId(), importFactory->GetId());
 

@@ -83,7 +83,7 @@ std::unique_ptr<ITensorHandle> EthosNImportTensorHandleFactory::CreateTensorHand
         return std::make_unique<ScopedTensorHandle>(tensorInfo);
     }
 
-    return std::make_unique<EthosNImportTensorHandle>(tensorInfo, m_DeviceId, GetImportFlags());
+    return std::make_unique<EthosNImportTensorHandle>(tensorInfo, m_DeviceId);
 }
 
 const ITensorHandleFactory::FactoryId& EthosNImportTensorHandleFactory::GetId() const

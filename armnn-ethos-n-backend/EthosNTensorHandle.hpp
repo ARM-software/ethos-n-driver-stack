@@ -154,11 +154,8 @@ private:
 class EthosNImportTensorHandle : public EthosNBaseTensorHandle
 {
 public:
-    explicit EthosNImportTensorHandle(const TensorInfo& tensorInfo,
-                                      const std::string& deviceId,
-                                      MemorySourceFlags importFlags)
+    explicit EthosNImportTensorHandle(const TensorInfo& tensorInfo, const std::string& deviceId)
         : EthosNBaseTensorHandle(tensorInfo)
-        , m_ImportFlags(importFlags)
         , m_DeviceId(deviceId)
         , m_Buffer(nullptr)
     {}
@@ -184,7 +181,7 @@ public:
 
     unsigned int GetImportFlags() const override
     {
-        return static_cast<unsigned int>(m_ImportFlags);
+        return static_cast<unsigned int>(armnn::MemorySource::DmaBuf);
     }
 
     bool Import(void* memory, MemorySource source) override
@@ -230,7 +227,6 @@ private:
     EthosNImportTensorHandle(const EthosNImportTensorHandle& other) = delete;
     EthosNImportTensorHandle& operator=(const EthosNImportTensorHandle& other) = delete;
 
-    MemorySourceFlags m_ImportFlags;
     std::string m_DeviceId;
     std::unique_ptr<ethosn::driver_library::Buffer> m_Buffer;
 };

@@ -53,22 +53,13 @@ public:
     virtual ~EthosNImportTensorHandleFactory()
     {}
 
-    EthosNImportTensorHandleFactory(const EthosNConfig& config,
-                                    MemorySourceFlags importFlags,
-                                    MemorySourceFlags exportFlags)
+    EthosNImportTensorHandleFactory(const EthosNConfig& config)
         : m_EthosNConfig(config)
-        , m_ImportFlags(importFlags)
-        , m_ExportFlags(exportFlags)
     {}
 
-    EthosNImportTensorHandleFactory(const EthosNConfig& config,
-                                    const std::string& deviceId,
-                                    MemorySourceFlags importFlags,
-                                    MemorySourceFlags exportFlags)
+    EthosNImportTensorHandleFactory(const EthosNConfig& config, const std::string& deviceId)
         : m_EthosNConfig(config)
         , m_DeviceId(deviceId)
-        , m_ImportFlags(importFlags)
-        , m_ExportFlags(exportFlags)
     {}
 
     virtual std::unique_ptr<ITensorHandle> CreateSubTensorHandle(ITensorHandle& parent,
