@@ -213,8 +213,8 @@ public:
 
     bool CanBeImported(void* memory, MemorySource source) override
     {
-        IgnoreUnused(memory, source);
-        return true;
+        IgnoreUnused(memory);
+        return source == MemorySource::DmaBuf;
     };
 
     /// Unimport externally allocated memory
