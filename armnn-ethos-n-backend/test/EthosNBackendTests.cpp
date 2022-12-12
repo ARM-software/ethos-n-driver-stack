@@ -167,6 +167,8 @@ TEST_SUITE("EthosNImportTensorHandle")
 
         // Create an ethosn import tensor handle factory with dma buf
         EthosNImportTensorHandleFactory handleFactory(config);
+        CHECK(handleFactory.GetImportFlags() == static_cast<MemorySourceFlags>(MemorySource::DmaBuf));
+        CHECK(handleFactory.GetExportFlags() == static_cast<MemorySourceFlags>(MemorySource::DmaBuf));
 
         // Create a tensor info needed to create the tensor handle
         TensorInfo info({ 1, 16, 16, 16 }, DataType::QAsymmU8);
@@ -179,6 +181,7 @@ TEST_SUITE("EthosNImportTensorHandle")
         lseek(fd, 0, SEEK_SET);
 
         auto handle = handleFactory.CreateTensorHandle(info);
+        CHECK(handle->GetImportFlags() == static_cast<MemorySourceFlags>(MemorySource::DmaBuf));
 
         bool imported = handle->Import(reinterpret_cast<void*>(&fd), MemorySource::DmaBuf);
         CHECK(imported);

@@ -79,17 +79,15 @@ public:
 
     MemorySourceFlags GetImportFlags() const override
     {
-        return m_ImportFlags;
+        return static_cast<MemorySourceFlags>(MemorySource::DmaBuf);
     }
     MemorySourceFlags GetExportFlags() const override
     {
-        return m_ExportFlags;
+        return static_cast<MemorySourceFlags>(MemorySource::DmaBuf);
     }
 
 private:
     EthosNConfig m_EthosNConfig;
     std::string m_DeviceId;
-    MemorySourceFlags m_ImportFlags;
-    MemorySourceFlags m_ExportFlags;
 };
 }    // namespace armnn
