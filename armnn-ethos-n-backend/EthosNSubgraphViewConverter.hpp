@@ -6,7 +6,10 @@
 
 #include "EthosNCaching.hpp"
 #include "EthosNConfig.hpp"
+#include <DllExport.hpp>
 #include <armnn/backends/SubgraphView.hpp>
+#include <layers/FullyConnectedLayer.hpp>
+#include <layers/PreCompiledLayer.hpp>
 
 #include <ethosn_support_library/Support.hpp>
 

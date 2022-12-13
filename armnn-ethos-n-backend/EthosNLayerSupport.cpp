@@ -1039,22 +1039,6 @@ bool EthosNLayerSupport::IsComparisonSupported(const TensorInfo& input0,
     return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsConvertBf16ToFp32Supported(const TensorInfo&,
-                                                      const TensorInfo&,
-                                                      Optional<std::string&>) const
-{
-    // The Support Library does not support floating point types, even in performance-only mode.
-    return false;
-}
-
-bool EthosNLayerSupport::IsConvertFp32ToBf16Supported(const TensorInfo&,
-                                                      const TensorInfo&,
-                                                      Optional<std::string&>) const
-{
-    // The Support Library does not support floating point types, even in performance-only mode.
-    return false;
-}
-
 bool EthosNLayerSupport::IsConvertFp16ToFp32Supported(const TensorInfo&,
                                                       const TensorInfo&,
                                                       Optional<std::string&>) const

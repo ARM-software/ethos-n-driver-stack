@@ -51,8 +51,6 @@ SubgraphView::SubgraphViewPtr BuildUnsupportedSubgraph(Graph& graph)
     Convolution2dLayer* const conv1Layer = graph.AddLayer<Convolution2dLayer>(convolutionDescriptor, "conv1 layer");
     CHECK(conv1Layer);
 
-    // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
-    // as separate layers with connections. For now, we need to do both.
     auto weights           = graph.AddLayer<ConstantLayer>("Weights");
     weights->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
     weights->m_LayerOutput->Allocate();
@@ -64,7 +62,6 @@ SubgraphView::SubgraphViewPtr BuildUnsupportedSubgraph(Graph& graph)
     bias->GetOutputSlot().SetTensorInfo(biasInfo);
     bias->GetOutputSlot().Connect(conv1Layer->GetInputSlot(2));
 
-    SetWeightAndBias(conv1Layer, weightInfo, biasInfo);
     conv1Layer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
     Pooling2dLayer* const pooling1Layer = graph.AddLayer<Pooling2dLayer>(poolingDescriptor, "pooling1 layer");
@@ -78,8 +75,6 @@ SubgraphView::SubgraphViewPtr BuildUnsupportedSubgraph(Graph& graph)
     Convolution2dLayer* const conv2Layer = graph.AddLayer<Convolution2dLayer>(convolutionDescriptor, "conv2 layer");
     CHECK(conv2Layer);
 
-    // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
-    // as separate layers with connections. For now, we need to do both.
     auto weights2           = graph.AddLayer<ConstantLayer>("Weights");
     weights2->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
     weights2->m_LayerOutput->Allocate();
@@ -91,7 +86,6 @@ SubgraphView::SubgraphViewPtr BuildUnsupportedSubgraph(Graph& graph)
     bias2->GetOutputSlot().SetTensorInfo(biasInfo);
     bias2->GetOutputSlot().Connect(conv2Layer->GetInputSlot(2));
 
-    SetWeightAndBias(conv2Layer, weightInfo, biasInfo);
     conv2Layer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
     Pooling2dLayer* const pooling3Layer = graph.AddLayer<Pooling2dLayer>(poolingDescriptor, "pooling3 layer");
@@ -138,8 +132,6 @@ SubgraphView::SubgraphViewPtr BuildFullyOptimizableSubgraph1(Graph& graph)
     Convolution2dLayer* const convLayer = graph.AddLayer<Convolution2dLayer>(convolutionDescriptor, "conv layer");
     CHECK(convLayer);
 
-    // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
-    // as separate layers with connections. For now, we need to do both.
     auto weights           = graph.AddLayer<ConstantLayer>("Weights");
     weights->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
     weights->m_LayerOutput->Allocate();
@@ -151,7 +143,6 @@ SubgraphView::SubgraphViewPtr BuildFullyOptimizableSubgraph1(Graph& graph)
     bias->GetOutputSlot().SetTensorInfo(biasInfo);
     bias->GetOutputSlot().Connect(convLayer->GetInputSlot(2));
 
-    SetWeightAndBias(convLayer, weightInfo, biasInfo);
     convLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
     Layer* const outputLayer = graph.AddLayer<OutputLayer>(0, "output layer");
@@ -189,8 +180,6 @@ SubgraphView::SubgraphViewPtr BuildFullyOptimizableSubgraph2(Graph& graph)
     Convolution2dLayer* const conv1Layer = graph.AddLayer<Convolution2dLayer>(convolutionDescriptor, "conv1 layer");
     CHECK(conv1Layer);
 
-    // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
-    // as separate layers with connections. For now, we need to do both.
     auto weights           = graph.AddLayer<ConstantLayer>("Weights");
     weights->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
     weights->m_LayerOutput->Allocate();
@@ -202,14 +191,11 @@ SubgraphView::SubgraphViewPtr BuildFullyOptimizableSubgraph2(Graph& graph)
     bias->GetOutputSlot().SetTensorInfo(biasInfo);
     bias->GetOutputSlot().Connect(conv1Layer->GetInputSlot(2));
 
-    SetWeightAndBias(conv1Layer, weightInfo, biasInfo);
     conv1Layer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
     Convolution2dLayer* const conv2Layer = graph.AddLayer<Convolution2dLayer>(convolutionDescriptor, "conv2 layer");
     CHECK(conv2Layer);
 
-    // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
-    // as separate layers with connections. For now, we need to do both.
     auto weights2           = graph.AddLayer<ConstantLayer>("Weights");
     weights2->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
     weights2->m_LayerOutput->Allocate();
@@ -221,14 +207,11 @@ SubgraphView::SubgraphViewPtr BuildFullyOptimizableSubgraph2(Graph& graph)
     bias2->GetOutputSlot().SetTensorInfo(biasInfo);
     bias2->GetOutputSlot().Connect(conv2Layer->GetInputSlot(2));
 
-    SetWeightAndBias(conv2Layer, weightInfo, biasInfo);
     conv2Layer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
     Convolution2dLayer* const conv3Layer = graph.AddLayer<Convolution2dLayer>(convolutionDescriptor, "conv3 layer");
     CHECK(conv3Layer);
 
-    // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
-    // as separate layers with connections. For now, we need to do both.
     auto weights3           = graph.AddLayer<ConstantLayer>("Weights");
     weights3->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
     weights3->m_LayerOutput->Allocate();
@@ -240,14 +223,11 @@ SubgraphView::SubgraphViewPtr BuildFullyOptimizableSubgraph2(Graph& graph)
     bias3->GetOutputSlot().SetTensorInfo(biasInfo);
     bias3->GetOutputSlot().Connect(conv3Layer->GetInputSlot(2));
 
-    SetWeightAndBias(conv3Layer, weightInfo, biasInfo);
     conv3Layer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
     Convolution2dLayer* const conv4Layer = graph.AddLayer<Convolution2dLayer>(convolutionDescriptor, "conv4 layer");
     CHECK(conv4Layer);
 
-    // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
-    // as separate layers with connections. For now, we need to do both.
     auto weights4           = graph.AddLayer<ConstantLayer>("Weights");
     weights4->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
     weights4->m_LayerOutput->Allocate();
@@ -259,14 +239,11 @@ SubgraphView::SubgraphViewPtr BuildFullyOptimizableSubgraph2(Graph& graph)
     bias4->GetOutputSlot().SetTensorInfo(biasInfo);
     bias4->GetOutputSlot().Connect(conv4Layer->GetInputSlot(2));
 
-    SetWeightAndBias(conv4Layer, weightInfo, biasInfo);
     conv4Layer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
     Convolution2dLayer* const conv5Layer = graph.AddLayer<Convolution2dLayer>(convolutionDescriptor, "conv5 layer");
     CHECK(conv5Layer);
 
-    // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
-    // as separate layers with connections. For now, we need to do both.
     auto weights5           = graph.AddLayer<ConstantLayer>("Weights");
     weights5->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
     weights5->m_LayerOutput->Allocate();
@@ -278,7 +255,6 @@ SubgraphView::SubgraphViewPtr BuildFullyOptimizableSubgraph2(Graph& graph)
     bias5->GetOutputSlot().SetTensorInfo(biasInfo);
     bias5->GetOutputSlot().Connect(conv5Layer->GetInputSlot(2));
 
-    SetWeightAndBias(conv5Layer, weightInfo, biasInfo);
     conv5Layer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
     Layer* const outputLayer = graph.AddLayer<OutputLayer>(0, "output layer");
@@ -323,8 +299,6 @@ SubgraphView::SubgraphViewPtr BuildNonOptimizableSubgraph(Graph& graph)
     Convolution2dLayer* const convLayer = graph.AddLayer<Convolution2dLayer>(convolutionDescriptor, "conv layer");
     CHECK(convLayer);
 
-    // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
-    // as separate layers with connections. For now, we need to do both.
     auto weights           = graph.AddLayer<ConstantLayer>("Weights");
     weights->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
     weights->m_LayerOutput->Allocate();
@@ -336,7 +310,6 @@ SubgraphView::SubgraphViewPtr BuildNonOptimizableSubgraph(Graph& graph)
     bias->GetOutputSlot().SetTensorInfo(biasInfo);
     bias->GetOutputSlot().Connect(convLayer->GetInputSlot(2));
 
-    SetWeightAndBias(convLayer, weightInfo, biasInfo);
     convLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
     Layer* const outputLayer = graph.AddLayer<OutputLayer>(0, "output layer");

@@ -289,8 +289,6 @@ TEST_SUITE("EthosNSupport")
             graph.AddLayer<FullyConnectedLayer>(fullyConnectedDescriptor, "fullyConn");
         fullyConnectedLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
-        // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
-        // as separate layers with connections. For now, we need to do both.
         auto weights           = graph.AddLayer<ConstantLayer>("Weights");
         weights->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
         weights->m_LayerOutput->Allocate();
@@ -302,8 +300,6 @@ TEST_SUITE("EthosNSupport")
         bias->m_LayerOutput->Allocate();
         bias->GetOutputSlot().SetTensorInfo(biasesInfo);
         bias->GetOutputSlot().Connect(fullyConnectedLayer->GetInputSlot(2));
-
-        SetWeightAndBias(fullyConnectedLayer, weightInfo, biasesInfo);
 
         // Add OutputLayer
         Layer* const outputLayer = graph.AddLayer<OutputLayer>(0, "output");
@@ -418,8 +414,6 @@ TEST_SUITE("EthosNSupport")
             graph.AddLayer<DepthwiseConvolution2dLayer>(depthwiseConvolutionDescriptor, "depthWiseConv");
         depthwiseConvolutionLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
-        // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
-        // as separate layers with connections. For now, we need to do both.
         auto weights           = graph.AddLayer<ConstantLayer>("Weights");
         weights->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
         weights->m_LayerOutput->Allocate();
@@ -431,8 +425,6 @@ TEST_SUITE("EthosNSupport")
         bias->m_LayerOutput->Allocate();
         bias->GetOutputSlot().SetTensorInfo(biasInfo);
         bias->GetOutputSlot().Connect(depthwiseConvolutionLayer->GetInputSlot(2));
-
-        SetWeightAndBias(depthwiseConvolutionLayer, weightInfo, biasInfo);
 
         Layer* const outputLayer = graph.AddLayer<OutputLayer>(0, "output");
 
@@ -476,8 +468,6 @@ TEST_SUITE("EthosNSupport")
 
         convLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
-        // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
-        // as separate layers with connections. For now, we need to do both.
         auto weights           = graph.AddLayer<ConstantLayer>("Weights");
         weights->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
         weights->m_LayerOutput->Allocate();
@@ -489,8 +479,6 @@ TEST_SUITE("EthosNSupport")
         bias->m_LayerOutput->Allocate();
         bias->GetOutputSlot().SetTensorInfo(biasInfo);
         bias->GetOutputSlot().Connect(convLayer->GetInputSlot(2));
-
-        SetWeightAndBias(convLayer, weightInfo, biasInfo);
 
         Layer* const outputLayer = graph.AddLayer<OutputLayer>(0, "output");
 
@@ -538,7 +526,14 @@ TEST_SUITE("EthosNSupport")
 
         convLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
-        SetWeightAndBias(convLayer, weightInfo, biasInfo);
+        // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
+        // as separate layers with connections. For now, TransposeConvolution2d is not converted and use the old
+        // way with m_Weight and m_Bias
+
+        convLayer->m_Weight = std::make_unique<armnn::ScopedTensorHandle>(weightInfo);
+        convLayer->m_Weight->Allocate();
+        convLayer->m_Bias = std::make_unique<armnn::ScopedTensorHandle>(biasInfo);
+        convLayer->m_Bias->Allocate();
 
         Layer* const outputLayer = graph.AddLayer<OutputLayer>(0, "output");
 
@@ -893,8 +888,6 @@ TEST_SUITE("EthosNSupport")
 
         convLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
 
-        // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
-        // as separate layers with connections. For now, we need to do both.
         auto weights           = graph.AddLayer<ConstantLayer>("Weights");
         weights->m_LayerOutput = std::make_unique<ScopedTensorHandle>(weightInfo);
         weights->m_LayerOutput->Allocate();
@@ -905,8 +898,6 @@ TEST_SUITE("EthosNSupport")
         bias->m_LayerOutput->Allocate();
         bias->GetOutputSlot().SetTensorInfo(biasInfo);
         bias->GetOutputSlot().Connect(convLayer->GetInputSlot(2));
-
-        SetWeightAndBias(convLayer, weightInfo, biasInfo);
 
         Layer* const outputLayer = graph.AddLayer<OutputLayer>(0, "output");
 

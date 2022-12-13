@@ -9,6 +9,7 @@
 #include "EthosNConfig.hpp"
 #include "EthosNTensorHandleFactory.hpp"
 
+#include <DllExport.hpp>
 #include <armnn/backends/IBackendContext.hpp>
 #include <armnn/backends/IBackendInternal.hpp>
 #include <armnn/backends/OptimizationViews.hpp>

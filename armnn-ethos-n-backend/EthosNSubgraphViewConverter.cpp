@@ -403,7 +403,12 @@ void EthosNSubgraphViewConverter::AddTransposeConvolution2dLayer(const IConnecta
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
+    // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
+    // as separate layers with connections. For now, TransposeConvolution2d is not converted and use the old
+    // way with m_Weight and m_Bias
+
     ARMNN_ASSERT(transposeConvolution2dLayer.m_Weight);
+    ARMNN_ASSERT(transposeConvolution2dLayer.m_Bias);
     auto biases  = AddBiases(transposeConvolution2dLayer, transposeConvolution2dLayer.m_Bias.get(),
                             transposeConvolution2dLayer.m_Weight->GetTensorInfo(), descriptor.m_BiasEnabled);
     auto weights = AddWeights(transposeConvolution2dLayer, transposeConvolution2dLayer.GetParameters().m_DataLayout,
