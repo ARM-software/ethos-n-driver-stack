@@ -511,11 +511,4 @@ struct ethosn_core *ethosn_get_global_core_for_testing(void);
  */
 struct ethosn_device *ethosn_get_global_device_for_testing(void);
 
-/* ethosn_set_smmu_stream_ids()
- * @core:		Pointer to Ethos-N core for main allocator
- * @alloc_id:		Index to specifc asset allocator to use
- */
-int ethosn_set_smmu_stream_ids(struct ethosn_core *core,
-			       uint32_t alloc_id);
-
 #endif /* _ETHOSN_DEVICE_H_ */

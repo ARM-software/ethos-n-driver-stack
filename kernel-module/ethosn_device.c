@@ -759,12 +759,13 @@ static int ethosn_get_smmu_stream_id(struct ethosn_dma_allocator *top_allocator,
 
 /**
  * ethosn_set_smmu_stream_ids() - Configure the mmu stream IDs.
- * @core:	Pointer to Ethos-N core
+ * @core:	Pointer to Ethos-N core for main allocator
+ * @alloc_id:	Index to specifc asset allocator to use
  *
  * Return: Negative error code on error, zero otherwise
  */
-int ethosn_set_smmu_stream_ids(struct ethosn_core *core,
-			       uint32_t alloc_id)
+static int ethosn_set_smmu_stream_ids(struct ethosn_core *core,
+				      uint32_t alloc_id)
 {
 	struct ethosn_device *ethosn = core->parent;
 
