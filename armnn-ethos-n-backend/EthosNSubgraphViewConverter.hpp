@@ -8,11 +8,11 @@
 #include "EthosNConfig.hpp"
 #include <DllExport.hpp>
 #include <armnn/backends/SubgraphView.hpp>
-#include <layers/FullyConnectedLayer.hpp>
-#include <layers/PreCompiledLayer.hpp>
+#include <armnn/backends/TensorHandle.hpp>
 
 #include <ethosn_support_library/Support.hpp>
 
+#include <functional>
 #include <memory>
 #include <unordered_map>
 
@@ -31,7 +31,9 @@ using EthosNOperationId        = uint32_t;
 /// The Ethos-N identifies inputs and outputs from its networks as a pair of:
 ///  * ID of the operation which produces the output
 ///  * Index of the specific output from that operation (for the case of an operation with multiple outputs).
-using EthosNInputOutputId = std::pair<EthosNOperationId, uint32_t>;
+using EthosNInputOutputId            = std::pair<EthosNOperationId, uint32_t>;
+using EthosNPreCompiledObjectDeleter = std::function<void(const void*)>;
+using EthosNPreCompiledObjectPtr     = std::unique_ptr<void, EthosNPreCompiledObjectDeleter>;
 
 /// Expanded definition of an Ethos-N Operand (which is the return type of adding an operation to the Ethos-N network).
 /// This adds the outputIndex field which is implicit as a result from the Ethos-N API but we prefer to store it explicitly.
@@ -70,15 +72,15 @@ public:
                                 const std::vector<char>& capabilities);
     ~EthosNSubgraphViewConverter() = default;
 
-    std::vector<PreCompiledObjectPtr> CompileNetwork();
+    std::vector<EthosNPreCompiledObjectPtr> CompileNetwork();
 
 protected:
     // This is protected so it can used in unit tests.
     void CreateUncompiledNetwork();
 
 private:
-    std::vector<PreCompiledObjectPtr> Estimate();
-    std::vector<PreCompiledObjectPtr> Compile();
+    std::vector<EthosNPreCompiledObjectPtr> Estimate();
+    std::vector<EthosNPreCompiledObjectPtr> Compile();
 
     /// Adds operation(s) to the Ethos-N network that correspond to the given Arm NN layer.
     /// This will update m_ConvertedOutputSlots.
@@ -123,12 +125,15 @@ private:
     // data layout in their respective descriptors. Currently Convolution2dLayer and
     // DepthwiseConvolution2dLayer have it, but we need to use this method with FullyConnectedLayer
     // as well.
-    EthosNConstantPtr
-        AddBiases(const Layer& layer, const ConstTensorHandle* bias, const TensorInfo& weightInfo, bool biasEnabled);
+    EthosNConstantPtr AddBiases(const IConnectableLayer& layer,
+                                const ConstTensorHandle* bias,
+                                const TensorInfo& weightInfo,
+                                bool biasEnabled);
 
     /// Converts weights
-    EthosNConstantPtr AddWeights(const Layer& layer, DataLayout dataLayout, const ConstTensorHandle& weights);
-    EthosNConstantPtr AddWeights(const FullyConnectedLayer& layer, const ConstTensorHandle& weights);
+    EthosNConstantPtr
+        AddWeights(const IConnectableLayer& layer, DataLayout dataLayout, const ConstTensorHandle& weights);
+    EthosNConstantPtr AddWeights(bool tranposeWeights, const ConstTensorHandle& weights);
 
     /// Helper function to insert a converted Arm NN layer in m_ConvertedOutputSlots, for layers with a single output.
     void InsertConvertedLayerSingleOutput(const IConnectableLayer* layer,

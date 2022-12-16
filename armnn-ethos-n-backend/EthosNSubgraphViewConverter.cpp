@@ -50,8 +50,7 @@ EthosNSubgraphViewConverter::EthosNSubgraphViewConverter(const SubgraphView& sub
     }
 }
 
-template <typename LayerType>
-std::pair<const ConstTensorHandle*, const ConstTensorHandle&> GetBiasAndWeightsHandle(LayerType& layer)
+std::pair<const ConstTensorHandle*, const ConstTensorHandle&> GetBiasAndWeightsHandle(const IConnectableLayer& layer)
 {
 
     // Get the weights tensor from the layer connected to input slot #1
@@ -59,12 +58,12 @@ std::pair<const ConstTensorHandle*, const ConstTensorHandle&> GetBiasAndWeightsH
     {
         throw armnn::Exception("Layer doesn't have a second input slot");
     }
-    const OutputSlot* weightsSlot = layer.GetInputSlot(1).GetConnectedOutputSlot();
+    const IOutputSlot* weightsSlot = layer.GetInputSlot(1).GetConnection();
     if (weightsSlot == nullptr)
     {
         throw armnn::Exception("Layer's weight slot not connected");
     }
-    const Layer& weightsLayer = weightsSlot->GetOwningLayer();
+    const IConnectableLayer& weightsLayer = weightsSlot->GetOwningIConnectableLayer();
     if (weightsLayer.GetType() != armnn::LayerType::Constant)
     {
         throw armnn::Exception("Layer's weight slot connected to non-constant layer");
@@ -76,12 +75,12 @@ std::pair<const ConstTensorHandle*, const ConstTensorHandle&> GetBiasAndWeightsH
     const ConstTensorHandle* biasHandle = nullptr;
     if (layer.GetNumInputSlots() >= 3)    // Bias input is optional
     {
-        const OutputSlot* biasSlot = layer.GetInputSlot(2).GetConnectedOutputSlot();
+        const IOutputSlot* biasSlot = layer.GetInputSlot(2).GetConnection();
         if (biasSlot == nullptr)
         {
             throw armnn::Exception("Layer's bias slot not connected");
         }
-        const Layer& biasLayer = biasSlot->GetOwningLayer();
+        const IConnectableLayer& biasLayer = biasSlot->GetOwningIConnectableLayer();
         if (biasLayer.GetType() != armnn::LayerType::Constant)
         {
             throw armnn::Exception("Layer's bias slot connected to non-constant layer");
@@ -92,7 +91,7 @@ std::pair<const ConstTensorHandle*, const ConstTensorHandle&> GetBiasAndWeightsH
     return { biasHandle, weightsHandle };
 }
 
-EthosNConstantPtr EthosNSubgraphViewConverter::AddBiases(const Layer& layer,
+EthosNConstantPtr EthosNSubgraphViewConverter::AddBiases(const IConnectableLayer& layer,
                                                          const ConstTensorHandle* bias,
                                                          const TensorInfo& weightInfo,
                                                          bool biasEnabled)
@@ -100,7 +99,7 @@ EthosNConstantPtr EthosNSubgraphViewConverter::AddBiases(const Layer& layer,
     const void* biasData = nullptr;
     ethosn_lib::TensorInfo ethosnBiasInfo;
 
-    auto inputInfo  = layer.GetInputSlot(0).GetConnectedOutputSlot()->GetTensorInfo();
+    auto inputInfo  = layer.GetInputSlot(0).GetConnection()->GetTensorInfo();
     auto outputInfo = layer.GetOutputSlot(0).GetTensorInfo();
 
     // use the actual bias, if provided by the layer
@@ -124,10 +123,11 @@ EthosNConstantPtr EthosNSubgraphViewConverter::AddBiases(const Layer& layer,
     return ethosn_lib::AddConstant(m_Network, ethosnBiasInfo, biasData).tensor;
 }
 
-EthosNConstantPtr
-    EthosNSubgraphViewConverter::AddWeights(const Layer& layer, DataLayout dataLayout, const ConstTensorHandle& weights)
+EthosNConstantPtr EthosNSubgraphViewConverter::AddWeights(const IConnectableLayer& layer,
+                                                          DataLayout dataLayout,
+                                                          const ConstTensorHandle& weights)
 {
-    const TensorInfo& inputInfo        = layer.GetInputSlot(0).GetConnectedOutputSlot()->GetTensorInfo();
+    const TensorInfo& inputInfo        = layer.GetInputSlot(0).GetConnection()->GetTensorInfo();
     const TensorInfo& tensorInfo       = weights.GetTensorInfo();
     ethosn_lib::TensorInfo weightsInfo = BuildEthosNConvolutionWeightsInfo(
         tensorInfo, inputInfo, dataLayout, layer.GetType() == LayerType::DepthwiseConvolution2d);
@@ -145,12 +145,10 @@ EthosNConstantPtr
     return ethosn_lib::AddConstant(m_Network, weightsInfo, swizzledWeightsData.data()).tensor;
 }
 
-EthosNConstantPtr EthosNSubgraphViewConverter::AddWeights(const FullyConnectedLayer& layer,
-                                                          const ConstTensorHandle& weights)
+EthosNConstantPtr EthosNSubgraphViewConverter::AddWeights(bool transposeWeights, const ConstTensorHandle& weights)
 {
     const TensorInfo& weightsInfo = weights.GetTensorInfo();
 
-    const bool transposeWeights              = layer.GetParameters().m_TransposeWeightMatrix;
     ethosn_lib::TensorInfo ethosnWeightsInfo = BuildEthosNFullyConnectedWeightsInfo(weightsInfo, transposeWeights);
 
     const void* weightsData = weights.GetConstTensor<void>();
@@ -439,14 +437,15 @@ void EthosNSubgraphViewConverter::AddFullyConnectedLayer(const IConnectableLayer
     EthosNAddOperationResult reshape = ethosn_lib::AddReshape(m_Network, *input.tensor, targetShape);
     input                            = { reshape.operationId, reshape.tensor, 0 };
 
-    const FullyConnectedLayer& fullyConnectedLayer = *PolymorphicPointerDowncast<const FullyConnectedLayer>(layer);
-    FullyConnectedDescriptor descriptor            = fullyConnectedLayer.GetParameters();
+    const BaseDescriptor& baseDescriptor       = layer->GetParameters();
+    const FullyConnectedDescriptor& descriptor = *PolymorphicDowncast<const FullyConnectedDescriptor*>(&baseDescriptor);
+    bool transposeWeights                      = descriptor.m_TransposeWeightMatrix;
 
-    auto biasAndWeightsHandle = GetBiasAndWeightsHandle(fullyConnectedLayer);
+    auto biasAndWeightsHandle = GetBiasAndWeightsHandle(*layer);
 
-    auto biases  = AddBiases(fullyConnectedLayer, biasAndWeightsHandle.first,
-                            biasAndWeightsHandle.second.GetTensorInfo(), descriptor.m_BiasEnabled);
-    auto weights = AddWeights(fullyConnectedLayer, biasAndWeightsHandle.second);
+    auto biases  = AddBiases(*layer, biasAndWeightsHandle.first, biasAndWeightsHandle.second.GetTensorInfo(),
+                            descriptor.m_BiasEnabled);
+    auto weights = AddWeights(transposeWeights, biasAndWeightsHandle.second);
 
     const TensorInfo& outputInfo                      = layer->GetOutputSlot(0).GetTensorInfo();
     ethosn_lib::FullyConnectedInfo fullyConnectedInfo = BuildEthosNFullyConnectedLayerInfo(
