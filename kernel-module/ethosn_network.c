@@ -1371,8 +1371,10 @@ struct ethosn_network *create_network(struct ethosn_device *ethosn,
 				 ETHOSN_STREAM_COMMAND_STREAM,
 				 GFP_KERNEL,
 				 "network-constant-cu-data");
-	if (IS_ERR_OR_NULL(network->constant_cu_data))
+	if (IS_ERR_OR_NULL(network->constant_cu_data)) {
+		ret = -ENOMEM;
 		goto err_free_network;
+	}
 
 	ret = ethosn_dma_map(asset_alloc,
 			     network->constant_cu_data,
