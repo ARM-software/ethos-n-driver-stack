@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -9,7 +9,6 @@
 #include "EthosNTensorHandle.hpp"
 #include "EthosNWorkloads.hpp"
 
-#include <Layer.hpp>
 #include <armnn/backends/MemCopyWorkload.hpp>
 
 namespace armnn

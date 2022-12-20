@@ -1,10 +1,12 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
 
 #include <Graph.hpp>
+#include <armnn/backends/OptimizationViews.hpp>
+#include <armnn/backends/SubgraphView.hpp>
 
 namespace armnn
 {
@@ -14,28 +16,42 @@ struct EthosNConfig;
 namespace ethosnbackend
 {
 
-bool ReplaceConstantMultiplicationWithDepthwise(Graph& graph,
-                                                Layer* layer,
+bool ReplaceConstantMultiplicationWithDepthwise(SubgraphView& graph,
+                                                IConnectableLayer* layer,
+                                                INetwork& network,
                                                 const EthosNConfig& config,
                                                 const std::vector<char>& capabilities);
 
-bool ReplaceConstantAdditionWithDepthwise(Graph& graph, Layer* layer);
+bool ReplaceConstantAdditionWithDepthwise(SubgraphView& graph, IConnectableLayer* layer, INetwork& network);
 
-bool ReplaceScalarMultiplicationWithReinterpretQuantization(Graph& graph,
-                                                            Layer* layer,
+bool ReplaceScalarMultiplicationWithReinterpretQuantization(SubgraphView& graph,
+                                                            IConnectableLayer* layer,
+                                                            INetwork& network,
                                                             const EthosNConfig& config,
                                                             const std::vector<char>& capabilities,
                                                             std::string& outFailureReason);
 
-bool ReplaceMultiplication(Graph& graph,
-                           Layer* layer,
+bool ReplaceMultiplication(SubgraphView& graph,
+                           IConnectableLayer* layer,
+                           INetwork& network,
                            const EthosNConfig& config,
                            const std::vector<char>& capabilities);
-bool ReplaceConstantAdditionWithReinterpretQuantization(Graph& graph, Layer* layer, std::string& outFailureReason);
 
-bool ReplaceAddition(Graph& graph, Layer* layer, const EthosNConfig& config, const std::vector<char>& capabilities);
+bool ReplaceConstantAdditionWithReinterpretQuantization(SubgraphView& graph,
+                                                        IConnectableLayer* layer,
+                                                        INetwork& network,
+                                                        std::string& outFailureReason);
 
-void ReplaceUnsupportedLayers(Graph& graph, const EthosNConfig& config, const std::vector<char>& capabilities);
+bool ReplaceAddition(SubgraphView& graph,
+                     IConnectableLayer* layer,
+                     INetwork& network,
+                     const EthosNConfig& config,
+                     const std::vector<char>& capabilities);
+
+void ReplaceUnsupportedLayers(SubgraphView& graph,
+                              INetwork& network,
+                              const EthosNConfig& config,
+                              const std::vector<char>& capabilities);
 
 /// When replacing an addition-with-broadcasted-constant with a depthwise layer, there are various properties
 /// of the depthwise layer that need to be set correctly for the replacement to be valid.

@@ -29,13 +29,13 @@ using namespace ethosntensorutils;
 ARMNN_DLLEXPORT std::unique_ptr<EthosNSupportLibraryInterface> g_EthosNSupportLibraryInterface =
     std::make_unique<EthosNSupportLibraryInterface>();
 
-EthosNSubgraphViewConverter::EthosNSubgraphViewConverter(const SubgraphView& subgraph,
+EthosNSubgraphViewConverter::EthosNSubgraphViewConverter(const SubgraphView& subgraphToCompile,
                                                          uint32_t subgraphIdx,
                                                          ModelOptions modelOptions,
                                                          const EthosNConfig& config,
                                                          const std::vector<char>& capabilities)
     : m_SubgraphIdx(subgraphIdx)
-    , m_Subgraph(subgraph)
+    , m_Subgraph(subgraphToCompile)
     , m_EthosNConfig(config)
     , m_Capabilities(capabilities)
 {

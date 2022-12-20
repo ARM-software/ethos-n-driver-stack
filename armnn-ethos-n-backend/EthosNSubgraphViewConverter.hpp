@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -65,7 +65,7 @@ ARMNN_DLLEXPORT extern std::unique_ptr<EthosNSupportLibraryInterface> g_EthosNSu
 class EthosNSubgraphViewConverter
 {
 public:
-    EthosNSubgraphViewConverter(const SubgraphView& subgraph,
+    EthosNSubgraphViewConverter(const SubgraphView& subgraphToCompile,
                                 uint32_t subgraphIdx,
                                 ModelOptions modelOptions,
                                 const EthosNConfig& config,
@@ -145,7 +145,7 @@ private:
 private:
     const uint32_t m_SubgraphIdx;
 
-    /// Original Arm NN sub-graph
+    /// Working-view subgraph after replacing unsupported layers
     const SubgraphView& m_Subgraph;
 
     /// Ethos-N network resulting after converting the sub-graph
