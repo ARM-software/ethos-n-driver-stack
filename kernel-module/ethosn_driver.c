@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2022 Arm Limited.
+ * (C) COPYRIGHT 2018-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -348,7 +348,7 @@ static int handle_message(struct ethosn_core *core)
 			 ETHOSN_INFERENCE_COMPLETED : ETHOSN_INFERENCE_ERROR;
 
 		update_busy_core(core);
-		ethosn_network_poll(core, inference, status);
+		ethosn_set_inference_done(core, inference, status);
 		break;
 	}
 	case ETHOSN_MESSAGE_PONG: {
@@ -481,8 +481,10 @@ static void ethosn_irq_bottom(struct work_struct *work)
 		if (core->firmware_running) {
 			(void)ethosn_reset_and_start_ethosn(core,
 							    core->set_alloc_id);
-			ethosn_network_poll(core, core->current_inference,
-					    ETHOSN_INFERENCE_ERROR);
+			if (core->current_inference)
+				ethosn_set_inference_done(core,
+							  core->current_inference,
+							  ETHOSN_INFERENCE_ERROR);
 		}
 	}
 

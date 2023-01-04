@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2020-2022 Arm Limited.
+ * (C) COPYRIGHT 2020-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -341,9 +341,21 @@ static int ethosn_pm_common_suspend(struct device *dev)
 		goto exit_pm_suspend;
 	}
 
+	/* We're querying/modifying the state of the core, so get exclusive
+	 * access
+	 */
+	mutex_lock(&core->mutex);
+
+	/* If there is an inference currently running on the core, we need to
+	 * cancel it so that the core can be put to sleep. We re-queue the
+	 * inference so that it will be executed again once the core comes
+	 * out of sleep.
+	 */
 	if (core->current_inference) {
+		WARN_ON(
+			core->current_inference->status !=
+			ETHOSN_INFERENCE_RUNNING);
 		core->current_inference->status = ETHOSN_INFERENCE_SCHEDULED;
-		ethosn_put_inference(core->current_inference);
 		pm_runtime_mark_last_busy(core->dev);
 		pm_runtime_put(core->dev);
 		ethosn = core->parent;
@@ -369,6 +381,9 @@ static int ethosn_pm_common_suspend(struct device *dev)
 exit_pm_suspend:
 	if (!ret && core->profiling.config.enable_profiling)
 		++core->profiling.pm_suspend_count;
+
+	if (core)
+		mutex_unlock(&core->mutex);
 
 	return ret;
 }

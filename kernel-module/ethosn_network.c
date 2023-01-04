@@ -196,32 +196,17 @@ static void free_buffers(const u32 n,
 	kfree(bufs);
 }
 
-static void inference_kref_release(struct kref *kref)
+static void free_inference(struct ethosn_inference *inference)
 {
-	struct ethosn_inference *const inference =
-		container_of(kref, struct ethosn_inference, kref);
-
-	struct ethosn_network *const network = inference->network;
-
 	dev_dbg(ifr_to_dev(inference),
-		"Released inference. handle=0x%pK\n", inference);
+		"Freeing inference. handle=0x%pK\n", inference);
 
-	free_buffers(network->num_inputs, inference->inputs);
-	free_buffers(network->num_outputs, inference->outputs);
+	free_buffers(inference->network->num_inputs, inference->inputs);
+	free_buffers(inference->network->num_outputs, inference->outputs);
 
-	put_network(network);
+	put_network(inference->network);
 
 	kfree(inference);
-}
-
-static void get_inference(struct ethosn_inference *inference)
-{
-	kref_get(&inference->kref);
-}
-
-int ethosn_put_inference(struct ethosn_inference *inference)
-{
-	return kref_put(&inference->kref, &inference_kref_release);
 }
 
 static struct ethosn_buffer **read_buffer_fds(struct ethosn_network *network,
@@ -477,7 +462,6 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 		goto out_inference_error;
 	}
 
-	get_inference(inference);
 	ethosn->current_busy_cores |= (1 << core_id);
 	dev_dbg(core_dev, "Scheduled inference 0x%pK on core_id = %u\n",
 		inference,
@@ -584,7 +568,6 @@ struct ethosn_inference *inference_create(struct ethosn_network *network,
 	inference->network = network;
 	inference->status = ETHOSN_INFERENCE_SCHEDULED;
 	init_waitqueue_head(&inference->poll_wqh);
-	kref_init(&inference->kref);
 
 	inference->inputs = read_buffer_fds(network,
 					    ifr_req->num_inputs,
@@ -592,7 +575,7 @@ struct ethosn_inference *inference_create(struct ethosn_network *network,
 					    network->inputs);
 	if (IS_ERR(inference->inputs)) {
 		ret = PTR_ERR(inference->inputs);
-		goto err_put_inference;
+		goto err_free_inference;
 	}
 
 	inference->outputs = read_buffer_fds(network,
@@ -601,13 +584,13 @@ struct ethosn_inference *inference_create(struct ethosn_network *network,
 					     network->outputs);
 	if (IS_ERR(inference->outputs)) {
 		ret = PTR_ERR(inference->outputs);
-		goto err_put_inference;
+		goto err_free_inference;
 	}
 
 	return inference;
 
-err_put_inference:
-	ethosn_put_inference(inference);
+err_free_inference:
+	free_inference(inference);
 
 	return ERR_PTR(ret);
 }
@@ -616,18 +599,20 @@ static int inference_release(struct inode *inode,
 			     struct file *filep)
 {
 	struct ethosn_inference *inference = filep->private_data;
+	struct ethosn_core *core = inference->core;
+
+	dev_dbg(core->dev, "%s handle = 0x%pK\n", __func__, inference);
 
 	/*
+	 * Prevent concurrency problems with the inference finishing
+	 * in parallel with this function.
 	 * Note we don't use mutex_lock_interruptible here as we need to make
 	 * sure we release the network so we don't leak resources.
 	 * This would prevent the kernel module from being unloaded
 	 * when requested.
 	 */
+	mutex_lock(&core->mutex);
 
-	/*
-	 * Check inference status before locking the mutex since it might not
-	 * be necessary.
-	 */
 	if (inference->status == ETHOSN_INFERENCE_SCHEDULED) {
 		/*
 		 * Use the same mutex that is used for adding
@@ -646,34 +631,23 @@ static int inference_release(struct inode *inode,
 			&ethosn->queue.inference_queue_mutex);
 	}
 
-	/*
-	 * Check inference status before locking the mutex since it might not
-	 * be necessary or even possible i.e. core is assigned only for running
-	 * inferences.
-	 */
 	if (inference->status == ETHOSN_INFERENCE_RUNNING) {
-		struct ethosn_core *core = inference->core;
-
-		mutex_lock(&core->mutex);
-
 		/* Inference might be completed by now */
-		if (inference->status == ETHOSN_INFERENCE_RUNNING) {
-			dev_warn(core->dev,
-				 "Reset Ethos-N due to error inference abort. handle=0x%pK\n",
-				 inference);
+		dev_warn(core->dev,
+			 "Reset Ethos-N due to error inference abort. handle=0x%pK\n",
+			 inference);
 
-			(void)ethosn_reset_and_start_ethosn(core,
-							    core->set_alloc_id);
-			ethosn_network_poll(core, inference,
-					    ETHOSN_INFERENCE_STATUS_ERROR);
-		}
-
-		mutex_unlock(&core->mutex);
+		(void)ethosn_reset_and_start_ethosn(core,
+						    core->set_alloc_id);
+		ethosn_set_inference_done(core, inference,
+					  ETHOSN_INFERENCE_STATUS_ERROR);
 	}
+
+	mutex_unlock(&core->mutex);
 
 	wake_up_poll(&inference->poll_wqh, EPOLLHUP);
 
-	ethosn_put_inference(inference);
+	free_inference(inference);
 
 	return 0;
 }
@@ -745,7 +719,7 @@ static int ethosn_inference_register(struct ethosn_network *network,
 				dev_err(ifr_to_dev(
 						inference),
 					"Only imported input buffers are allowed in protected context\n");
-				ethosn_put_inference(inference);
+				free_inference(inference);
 
 				return -EPERM;
 			}
@@ -755,7 +729,7 @@ static int ethosn_inference_register(struct ethosn_network *network,
 				dev_err(ifr_to_dev(
 						inference),
 					"Only imported output buffers are allowed in protected context\n");
-				ethosn_put_inference(inference);
+				free_inference(inference);
 
 				return -EPERM;
 			}
@@ -771,7 +745,7 @@ static int ethosn_inference_register(struct ethosn_network *network,
 					inference),
 				"Input buffer %d doesn't have the same asset allocator as the network\n",
 				i);
-			ethosn_put_inference(inference);
+			free_inference(inference);
 
 			return -EPERM;
 		}
@@ -783,7 +757,7 @@ static int ethosn_inference_register(struct ethosn_network *network,
 					inference),
 				"Output buffer %d doesn't have the same asset allocator as the network\n",
 				i);
-			ethosn_put_inference(inference);
+			free_inference(inference);
 
 			return -EPERM;
 		}
@@ -794,7 +768,7 @@ static int ethosn_inference_register(struct ethosn_network *network,
 				  O_RDONLY | O_CLOEXEC);
 
 	if (ret_fd < 0) {
-		ethosn_put_inference(inference);
+		free_inference(inference);
 
 		return ret_fd;
 	}
@@ -1522,23 +1496,40 @@ int ethosn_network_register(struct ethosn_device *ethosn,
 	return fd;
 }
 
-void ethosn_network_poll(struct ethosn_core *core,
-			 struct ethosn_inference *inference,
-			 int status)
+void ethosn_set_inference_done(struct ethosn_core *core,
+			       struct ethosn_inference *inference,
+			       int new_status)
 {
-	if (inference) {
-		inference->status = status;
+	WARN_ON(new_status != ETHOSN_INFERENCE_COMPLETED &&
+		new_status != ETHOSN_INFERENCE_ERROR);
 
-		wake_up_poll(&inference->poll_wqh, EPOLLIN);
-
+	/* The inference may have been cancelled (by the user, or by power
+	 * management),
+	 * but finishes anyway due to parallelism.
+	 * The ethosn_inference object may not even be valid at this point, so
+	 * we can't even dereference the pointer.
+	 * Therefore we ignore this call, as the inference will have already
+	 * been re-scheduled
+	 * if necessary, so there is nothing for us to do.
+	 */
+	if (core->current_inference != inference) {
 		dev_dbg(core->dev,
-			"END_INFERENCE: inference 0x%pK time %llu on core_id = %u",
-			inference, ktime_get_ns(), core->core_id);
+			"%s: inference 0x%pK ignored because it is no longer the current inference.\n",
+			__func__, inference);
 
-		ethosn_put_inference(inference);
-		pm_runtime_mark_last_busy(core->dev);
-		pm_runtime_put(core->dev);
+		return;
 	}
+
+	inference->status = new_status;
+
+	wake_up_poll(&inference->poll_wqh, EPOLLIN);
+
+	dev_dbg(core->dev,
+		"END_INFERENCE: inference 0x%pK time %llu on core_id = %u",
+		inference, ktime_get_ns(), core->core_id);
+
+	pm_runtime_mark_last_busy(core->dev);
+	pm_runtime_put(core->dev);
 
 	/* Reset current running inference. */
 	core->current_inference = NULL;

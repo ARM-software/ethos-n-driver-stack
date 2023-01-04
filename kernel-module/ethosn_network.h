@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2022 Arm Limited.
+ * (C) COPYRIGHT 2018-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -67,9 +67,6 @@ struct ethosn_inference {
 	u32                   status;
 
 	wait_queue_head_t     poll_wqh;
-
-	/* Reference counting */
-	struct kref           kref;
 };
 
 struct ethosn_network_req;
@@ -79,9 +76,9 @@ int ethosn_network_register(struct ethosn_device *ethosn,
 			    struct ethosn_dma_allocator *asset_allocator,
 			    struct ethosn_network_req *net_req);
 
-void ethosn_network_poll(struct ethosn_core *core,
-			 struct ethosn_inference *inference,
-			 int status);
+void ethosn_set_inference_done(struct ethosn_core *core,
+			       struct ethosn_inference *inference,
+			       int new_status);
 
 void ethosn_schedule_queued_inference(struct ethosn_core *core);
 
