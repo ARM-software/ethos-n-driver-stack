@@ -605,6 +605,8 @@ static int ethosn_hard_reset(struct ethosn_core *core,
 	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
 	unsigned int timeout;
 
+	core->set_is_protected = false;
+
 	dev_info(core->dev, "Hard reset the hardware directly.\n");
 
 	/* Initiate hard reset */
@@ -634,6 +636,7 @@ static int ethosn_hard_reset(struct ethosn_core *core,
 #else
 
 	dev_info(core->dev, "Hard reset the hardware through SMC.\n");
+	core->set_is_protected = ethosn_core_has_protected_network(core);
 
 	/*
 	 * Access to DL1 registers is blocked in secure mode so reset is done
@@ -645,7 +648,7 @@ static int ethosn_hard_reset(struct ethosn_core *core,
 	 */
 	if (ethosn_smc_core_reset(core->dev, core->phys_addr, alloc_id, halt,
 				  true,
-				  ethosn_core_has_protected_network(core)))
+				  core->set_is_protected))
 		return -ETIME;
 
 	return 0;
@@ -659,6 +662,8 @@ static int ethosn_soft_reset(struct ethosn_core *core,
 #ifdef ETHOSN_NS
 	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
 	unsigned int timeout;
+
+	core->set_is_protected = false;
 
 	dev_info(core->dev, "Soft reset the hardware directly.\n");
 
@@ -690,6 +695,7 @@ static int ethosn_soft_reset(struct ethosn_core *core,
 	int ret;
 
 	dev_info(core->dev, "Soft reset the hardware through SMC.\n");
+	core->set_is_protected = ethosn_core_has_protected_network(core);
 
 	/*
 	 * Access to DL1 registers is blocked in secure mode so reset is done
@@ -703,7 +709,7 @@ static int ethosn_soft_reset(struct ethosn_core *core,
 	ret =
 		ethosn_smc_core_reset(core->dev, core->phys_addr, alloc_id,
 				      halt, false,
-				      ethosn_core_has_protected_network(core));
+				      core->set_is_protected);
 	if (ret != 0) {
 		dev_err(core->dev, "ethosn_smc_core_reset failed with: %i",
 			ret);

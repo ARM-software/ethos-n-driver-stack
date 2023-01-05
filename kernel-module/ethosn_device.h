@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2022 Arm Limited.
+ * (C) COPYRIGHT 2018-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -216,7 +216,10 @@ struct ethosn_core {
 		 */
 		bool                   is_waiting_for_firmware_ack;
 		struct ethosn_dma_info *firmware_buffer_pending;
-	} profiling;
+	}    profiling;
+
+	/* Will tell if the core was set up for protected inferences or not*/
+	bool set_is_protected;
 };
 
 /**

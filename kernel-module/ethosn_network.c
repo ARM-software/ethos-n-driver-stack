@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2022 Arm Limited.
+ * (C) COPYRIGHT 2018-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -387,8 +387,12 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 		return 0;
 
 	inference->status = ETHOSN_INFERENCE_RUNNING;
-
-	if (core->set_alloc_id != network->asset_allocator->alloc_id) {
+	if (core->set_is_protected != network->asset_allocator->is_protected ||
+	    core->set_alloc_id != network->asset_allocator->alloc_id) {
+		dev_dbg(core_dev,
+			"Restarting core due to alloc_id changed (%d to %d) or protected context changed (%d to %d)",
+			core->set_alloc_id, network->asset_allocator->alloc_id, core->set_is_protected,
+			network->asset_allocator->is_protected);
 		ret = ethosn_reset_and_start_ethosn(core,
 						    network->asset_allocator->alloc_id);
 		if (ret)
