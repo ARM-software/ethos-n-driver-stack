@@ -169,8 +169,11 @@ To download the components, enter the following commands:
 ```sh
 mkdir driver_stack
 cd driver_stack
-git clone https://github.com/Arm-software/armnn --branch v22.11
-git clone https://github.com/Arm-software/ethos-n-driver-stack --branch 22.11
+git clone https://github.com/Arm-software/armnn --branch main
+cd armnn
+git checkout 69b67d89c018981e1d4654ba7adfa6d4d64a813c
+cd ..
+git clone https://github.com/Arm-software/ethos-n-driver-stack --branch main
 ```
 
     _Note: The default branch on GitHub has changed to main._
@@ -491,7 +494,7 @@ The Ethos-N driver stack is composed of multiple components, each with their own
 The Arm Ethos-N NPU driver and the Arm NN backend are provided under the [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html) license. For more information, see [LICENSE](driver/LICENSE) and [LICENSE](armnn-ethos-n-backend/LICENSE). Contributions to this project are accepted under the same license.
 
 ```less
-Copyright 2018-2022 Arm Limited
+Copyright 2018-2023 Arm Limited
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
