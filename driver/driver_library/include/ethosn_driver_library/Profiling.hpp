@@ -1,5 +1,5 @@
 //
-// Copyright © 2019-2022 Arm Limited.
+// Copyright © 2019-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -168,7 +168,6 @@ public:
         FirmwareDmaSetup,
         FirmwareGetCompleteCommand,
         FirmwareScheduleNextCommand,
-        FirmwareTimeSync,
         FirmwareAgent,
         FirmwareAgentStripe,
 

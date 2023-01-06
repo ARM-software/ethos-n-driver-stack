@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2020,2022 Arm Limited. All rights reserved.
+// Copyright © 2018-2020,2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -187,8 +187,8 @@ void DumpProfilingData(const std::vector<ProfilingEntry>& profilingData, std::os
                 o << "\t\t\t"
                   << R"("category": "FirmwareLabel",)"
                   << "\n";
-                const size_t size = sizeof(kernelEntry.m_LabelFields.m_Chars);
-                char buffer[size + 1];
+                const size_t size     = sizeof(kernelEntry.m_LabelFields.m_Chars);
+                char buffer[size + 1] = { 0 };
                 strncat(buffer, reinterpret_cast<const char*>(kernelEntry.m_LabelFields.m_Chars), size);
                 o << "\t\t\t"
                   << R"("chars": )" << buffer << "\n";
@@ -226,22 +226,6 @@ void DumpProfilingData(const std::vector<ProfilingEntry>& profilingData, std::os
                 o << "\t\t\t"
                   << R"("command_idx": )"
                   << std::to_string(fixCmdIdx(kernelEntry.m_ScheduleCommandsFields.m_CommandIdx)) << "\n";
-                break;
-            }
-            case ProfilingEntry::MetadataCategory::FirmwareTimeSync:
-            {
-                o << "\t\t\t"
-                  << R"("category": "FirmwareTimeSync",)"
-                  << "\n";
-                o << "\t\t\t"
-                  << R"("time_sync_data0": )"
-                  << std::to_string(static_cast<int>(kernelEntry.m_TimeSyncFields.m_TimeSyncData[0])) << ",\n";
-                o << "\t\t\t"
-                  << R"("time_sync_data1": )"
-                  << std::to_string(static_cast<int>(kernelEntry.m_TimeSyncFields.m_TimeSyncData[1])) << ",\n";
-                o << "\t\t\t"
-                  << R"("time_sync_data2": )"
-                  << std::to_string(static_cast<int>(kernelEntry.m_TimeSyncFields.m_TimeSyncData[2])) << "\n";
                 break;
             }
             case ProfilingEntry::MetadataCategory::FirmwareAgent:

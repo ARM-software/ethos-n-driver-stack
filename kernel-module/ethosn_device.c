@@ -1233,7 +1233,8 @@ ret:
 	return ret;
 }
 
-int ethosn_configure_firmware_profiling_ack(struct ethosn_core *core)
+int ethosn_configure_firmware_profiling_ack(struct ethosn_core *core,
+					    uint64_t firmware_timestamp)
 {
 	if (!core->profiling.is_waiting_for_firmware_ack) {
 		dev_err(core->dev,
@@ -1253,20 +1254,12 @@ int ethosn_configure_firmware_profiling_ack(struct ethosn_core *core)
 		core->profiling.firmware_buffer_pending;
 	core->profiling.firmware_buffer_pending = NULL;
 	core->profiling.is_waiting_for_firmware_ack = false;
+	core->profiling.wall_clock_time_at_firmware_zero =
+		(int64_t)ktime_get_real_ns() -
+		((int64_t)firmware_timestamp * 1000) /
+		clock_frequency;
 
 	return 0;
-}
-
-int ethosn_send_time_sync(struct ethosn_core *core)
-{
-	struct ethosn_message_time_sync_request request;
-
-	dev_dbg(core->dev, "-> Time sync\n");
-
-	request.timestamp = ktime_get_real_ns();
-
-	return ethosn_write_message(core, ETHOSN_MESSAGE_TIME_SYNC, &request,
-				    sizeof(request));
 }
 
 int ethosn_send_ping(struct ethosn_core *core)
@@ -1584,7 +1577,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 
 	/* Clear any outstanding configuration */
 	if (core->profiling.is_waiting_for_firmware_ack) {
-		ret = ethosn_configure_firmware_profiling_ack(core);
+		ret = ethosn_configure_firmware_profiling_ack(core, 0);
 		if (ret)
 			return ret;
 	}
@@ -1929,6 +1922,9 @@ static ssize_t firmware_profiling_read(struct file *file,
 		ret = -EINVAL;
 		goto cleanup;
 	}
+
+	ethosn_dma_sync_for_cpu(core->main_allocator,
+				core->profiling.firmware_buffer);
 
 	/* Calculate size etc. of the buffer. */
 	buffer =
@@ -2293,6 +2289,9 @@ static void dfs_init(struct ethosn_core *core)
 	debugfs_create_file("firmware_profiling", 0400, core->debug_dir,
 			    core,
 			    &firmware_profiling_fops);
+	debugfs_create_u64("wall_clock_time_at_firmware_zero", 0400,
+			   core->debug_dir,
+			   &core->profiling.wall_clock_time_at_firmware_zero);
 
 #if defined(ETHOSN_KERNEL_MODULE_DEBUG_MONITOR)
 

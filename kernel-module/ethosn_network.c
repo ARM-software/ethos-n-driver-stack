@@ -433,14 +433,6 @@ int ethosn_schedule_inference(struct ethosn_inference *inference)
 	if (ret)
 		goto out_inference_error;
 
-	if (ethosn_mailbox_empty(core->mailbox_request->cpu_addr) &&
-	    core->profiling.config.enable_profiling) {
-		/* Send sync message */
-		ret = ethosn_send_time_sync(core);
-		if (ret)
-			goto out_inference_error;
-	}
-
 	/* kick off execution */
 	dev_dbg(core_dev, "Starting execution of inference");
 	ethosn_dma_sync_for_device(

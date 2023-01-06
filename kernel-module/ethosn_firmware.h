@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2022 Arm Limited.
+ * (C) COPYRIGHT 2018-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -47,7 +47,7 @@
  * This is common for the fat binary (ethosn.bin) and the individual
  * firmware binaries (sub-components of the fat binary).
  */
-#define ETHOSN_FIRMWARE_VERSION_MAJOR 7
+#define ETHOSN_FIRMWARE_VERSION_MAJOR 8
 #define ETHOSN_FIRMWARE_VERSION_MINOR 0
 #define ETHOSN_FIRMWARE_VERSION_PATCH 0
 
@@ -291,11 +291,8 @@ enum ethosn_message_type {
 
 	/* ethosn_firmware_profiling_configuration */
 	ETHOSN_MESSAGE_CONFIGURE_PROFILING,
-	/* void */
+	/* ethosn_firmware_profiling_configuration_ack */
 	ETHOSN_MESSAGE_CONFIGURE_PROFILING_ACK,
-
-	/* ethosn_message_time_sync_request */
-	ETHOSN_MESSAGE_TIME_SYNC,
 
 	/* uint32_t */
 	ETHOSN_MESSAGE_DELAY,
@@ -452,6 +449,10 @@ struct ethosn_firmware_profiling_configuration {
 			 hw_counters[ETHOSN_PROFILING_MAX_HW_COUNTERS];
 };
 
+struct ethosn_firmware_profiling_configuration_ack {
+	uint64_t firmware_timestamp;
+};
+
 /**
  * struct ethosn_profiling_buffer - Layout of the firmware's profiling buffer.
  *	This is a circular buffer which the firmware writes into and the kernel
@@ -491,16 +492,6 @@ struct ethosn_profiling_buffer {
 struct ethosn_message_profiling_entries {
 	uint32_t                      num_entries;
 	struct ethosn_profiling_entry entries[];
-};
-
-/**
- * struct ethosn_message_time_sync_request - Message sync request
- * @var timestamp:	Application processor timestamp
- *
- * Following a ethosn_message_type.
- */
-struct ethosn_message_time_sync_request {
-	uint64_t timestamp;
 };
 
 /******************************************************************************

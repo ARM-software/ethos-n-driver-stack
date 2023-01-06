@@ -1,5 +1,5 @@
 //
-// Copyright © 2019-2022 Arm Limited.
+// Copyright © 2019-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -271,8 +271,6 @@ const char* MetadataCategoryToCString(ProfilingEntry::MetadataCategory category)
             return "FirmwareGetCompleteCommand";
         case ProfilingEntry::MetadataCategory::FirmwareScheduleNextCommand:
             return "FirmwareScheduleNextCommand";
-        case ProfilingEntry::MetadataCategory::FirmwareTimeSync:
-            return "FirmwareTimeSync";
         case ProfilingEntry::MetadataCategory::InferenceLifetime:
             return "InferenceLifetime";
         case ProfilingEntry::MetadataCategory::BufferLifetime:
@@ -491,9 +489,6 @@ ProfilingEntry::MetadataCategory ConvertCategoryEntry(const EntryDataCategory ca
             break;
         case EntryDataCategory::ScheduleNextCommand:
             retVal = ProfilingEntry::MetadataCategory::FirmwareScheduleNextCommand;
-            break;
-        case EntryDataCategory::TimeSync:
-            retVal = ProfilingEntry::MetadataCategory::FirmwareTimeSync;
             break;
         case EntryDataCategory::Agent:
             retVal = ProfilingEntry::MetadataCategory::FirmwareAgent;

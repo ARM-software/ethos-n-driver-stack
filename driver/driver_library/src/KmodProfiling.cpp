@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -11,7 +11,10 @@
 
 #include <uapi/ethosn.h>
 
+#include <ethosn_utils/Strings.hpp>
+
 #include <fcntl.h>
+#include <fstream>
 #include <iostream>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -24,28 +27,11 @@ namespace driver_library
 namespace profiling
 {
 
-namespace
-{
-
-struct TimeSync
-{
-    TimeSync()
-        : m_Valid(false)
-        , m_Delta(0)
-    {}
-
-    // True if the time delta is a valid value
-    bool m_Valid;
-    // Time delta between the host reference clock and the accelerator clock.
-    // We are disregarding any clock drift.
-    int64_t m_Delta;
-};
-
-}    // namespace
-
 int g_FirmwareBufferFd = 0;
 // Clock frequency expressed in MHz (it is provided by the kernel module).
-int g_ClockFrequencyMhz = 0;
+int g_ClockFrequencyMhz                       = 0;
+std::string g_FirmwareProfilingOffsetFilename = ethosn::utils::ReplaceAll(
+    std::string(FIRMWARE_PROFILING_NODE), "firmware_profiling", "wall_clock_time_at_firmware_zero");
 
 bool ConfigureKernelDriver(Configuration config, const std::string& device)
 {
@@ -146,98 +132,6 @@ uint64_t GetKernelDriverCounterValue(PollCounterName counter, const std::string&
     return result;
 }
 
-namespace
-{
-
-using EntryId = decltype(ethosn_profiling_entry::id);
-
-// Get time delta between firmware profiling and global profiling
-TimeSync GetTimeDelta(const std::vector<ProfilingEntry>& entries)
-{
-    using namespace std::chrono;
-    static_assert(sizeof(uint64_t) == sizeof(time_point<high_resolution_clock>), "Timestamp size does not match");
-
-    TimeSync retVal;
-    time_point<high_resolution_clock> timestamp = {};
-    uint64_t sync                               = 0;
-    uint8_t index                               = 0;
-    EntryId lastTimelineEventId                 = 0;
-
-    auto ResetSearchIndex = [&]() -> void {
-        sync                = 0;
-        index               = 0;
-        lastTimelineEventId = 0;
-    };
-
-    auto HandleTimelineEventInstant = [&](const ProfilingEntry& entry) -> void {
-        if (entry.m_MetadataCategory == ProfilingEntry::MetadataCategory::FirmwareTimeSync)
-        {
-            DataUnion temp = {};
-            temp.m_Raw     = static_cast<uint32_t>(entry.m_MetadataValue);
-            if (index == 0)
-            {
-                timestamp           = entry.m_Timestamp;
-                lastTimelineEventId = static_cast<EntryId>(entry.m_Id);
-            }
-            else
-            {
-                ++lastTimelineEventId;
-                if (entry.m_Id != lastTimelineEventId)
-                {
-                    // The Ids of the four events containing part of the host CPU timestamp must be consecutive.
-                    ResetSearchIndex();
-                    return;
-                }
-            }
-
-            for (uint8_t i = 0; i < 2; ++i)
-            {
-                // The ETHOSN_MESSAGE_TIME_SYNC message is sent by the host CPU to the accelerator CPU.
-                // It contains the timestamp taken by the host CPU using the reference monotonic clock.
-                // This value is 64 bits long and it does not fit in the current data field of the
-                // ethosn_profiling_entry which is 32 bits long (note that the firmware uses 8 bits of
-                // the data field for the category).
-                // This value is split in two bytes chunks and spread across four events of type
-                // TIMELINE_EVENT_INSTANT.
-                sync |= static_cast<uint64_t>(temp.m_TimeSyncFields.m_TimeSyncData[i])
-                        << (8 * (sizeof(uint64_t) - 1 - index));
-                ++index;
-            }
-
-            if (index == sizeof(uint64_t))
-            {
-                // Time sync fully retrieved from 4 consecutive messages
-                // The timestamp of the message (i.e. PMU cycle count) is stored as the number of nanoseconds since the
-                // high_resolution_clock epoch. Convert this to actual nanoseconds based on the clock frequency
-                // before calculating the difference with the host CPU (also measured in nanoseconds).
-                retVal.m_Delta = sync - (1000 / g_ClockFrequencyMhz) * timestamp.time_since_epoch().count();
-                retVal.m_Valid = true;
-                ResetSearchIndex();
-                return;
-            }
-        }
-    };
-
-    // Update the global profiling entries
-    for (const ProfilingEntry& entry : entries)
-    {
-        switch (entry.m_Type)
-        {
-            case ProfilingEntry::Type::TimelineEventInstant:
-                HandleTimelineEventInstant(entry);
-                break;
-            default:
-                break;
-        }
-    }
-
-    return retVal;
-}
-
-}    // namespace
-
-int64_t g_ProfilingDelta = 0;
-
 // Append all firmware profiling entry to the global profiling.
 bool AppendKernelDriverEntries()
 {
@@ -270,13 +164,16 @@ bool AppendKernelDriverEntries()
         }
     }
 
-    TimeSync timeDelta = GetTimeDelta(entries);
-    if (timeDelta.m_Valid)
+    int64_t profilingTimestampOffset = 0;
     {
-        g_ProfilingDelta = timeDelta.m_Delta;
+        std::ifstream f(g_FirmwareProfilingOffsetFilename);
+        uint64_t u;
+        f >> u;
+        // The offset is a signed value, but is exposed as an unsigned value by the kernel module.
+        memcpy(&profilingTimestampOffset, &u, sizeof(u));
     }
 
-    // Sync up firmware entries using g_ProfilingDelta and update global profiling entries with
+    // Sync up firmware entries using profilingTimestampOffset and update global profiling entries with
     // correct timestamps
     for (ProfilingEntry& entry : entries)
     {
@@ -284,7 +181,7 @@ bool AppendKernelDriverEntries()
         // high_resolution_clock epoch. Convert this to actual nanoseconds based on the clock frequency
         // before calculating the difference with the host CPU (also measured in nanoseconds).
         entry.m_Timestamp = std::chrono::time_point<std::chrono::high_resolution_clock>(std::chrono::nanoseconds(
-            (1000 / g_ClockFrequencyMhz) * entry.m_Timestamp.time_since_epoch().count() + g_ProfilingDelta));
+            (1000 / g_ClockFrequencyMhz) * entry.m_Timestamp.time_since_epoch().count() + profilingTimestampOffset));
 
         g_ProfilingEntries.push_back(entry);
     }
