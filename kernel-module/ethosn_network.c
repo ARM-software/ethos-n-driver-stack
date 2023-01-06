@@ -632,7 +632,7 @@ static int inference_release(struct inode *inode,
 		(void)ethosn_reset_and_start_ethosn(core,
 						    core->set_alloc_id);
 		ethosn_set_inference_done(core, inference,
-					  ETHOSN_INFERENCE_STATUS_ERROR);
+					  ETHOSN_INFERENCE_ERROR);
 	}
 
 	mutex_unlock(&core->mutex);
