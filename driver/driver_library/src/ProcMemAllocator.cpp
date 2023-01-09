@@ -1,5 +1,5 @@
 //
-// Copyright © 2022 Arm Limited.
+// Copyright © 2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -30,7 +30,7 @@ namespace ethosn
 namespace driver_library
 {
 
-ProcMemAllocator::ProcMemAllocator(const std::string& device)
+ProcMemAllocator::ProcMemAllocator(const std::string& device, bool is_protected)
 {
 #ifdef TARGET_KMOD
     int ethosnFd = open(device.c_str(), O_RDONLY);
@@ -52,7 +52,10 @@ ProcMemAllocator::ProcMemAllocator(const std::string& device)
         close(ethosnFd);
         throw;
     }
-    struct ethosn_proc_mem_allocator_req proc_mem_req = { false };
+
+    struct ethosn_proc_mem_allocator_req proc_mem_req;
+    proc_mem_req.is_protected = is_protected;
+
     m_AllocatorFd = ioctl(ethosnFd, ETHOSN_IOCTL_CREATE_PROC_MEM_ALLOCATOR, &proc_mem_req);
     int err       = errno;
     close(ethosnFd);
@@ -61,13 +64,21 @@ ProcMemAllocator::ProcMemAllocator(const std::string& device)
         throw std::runtime_error(std::string("Failed to create process memory allocator: ") + strerror(err));
     }
 #else
+    ETHOSN_UNUSED(is_protected);
     m_AllocatorFd = -1;
 #endif
     m_deviceId = device;
 }
+ProcMemAllocator::ProcMemAllocator(const std::string& device)
+    : ProcMemAllocator(device, false)
+{}
 
 ProcMemAllocator::ProcMemAllocator()
-    : ProcMemAllocator(DEVICE_NODE)
+    : ProcMemAllocator(DEVICE_NODE, false)
+{}
+
+ProcMemAllocator::ProcMemAllocator(bool is_protected)
+    : ProcMemAllocator(DEVICE_NODE, is_protected)
 {}
 
 ProcMemAllocator::ProcMemAllocator(ProcMemAllocator&& otherAllocator)

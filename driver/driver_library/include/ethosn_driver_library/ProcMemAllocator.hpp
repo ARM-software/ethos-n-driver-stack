@@ -1,5 +1,5 @@
 //
-// Copyright © 2022 Arm Limited.
+// Copyright © 2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -22,6 +22,10 @@ class ProcMemAllocator
 public:
     ProcMemAllocator();
     ProcMemAllocator(const std::string& device);
+
+    ProcMemAllocator(bool is_protected);
+    ProcMemAllocator(const std::string& device, bool is_protected);
+
     ProcMemAllocator(ProcMemAllocator&& otherAllocator);
 
     // Disable copy and assignment to prevent accidental duplication
