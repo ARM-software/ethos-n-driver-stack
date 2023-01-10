@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -199,17 +199,10 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
         {
             std::clog << "WARNING: Experimental Compiler in use.\n";
 
-            NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(m_Network, m_Capabilities,
-                                                                            m_EstimationOptions, m_CompilationOptions);
-            const GraphOfParts m_GraphOfParts = m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
-            m_DebuggingContext.Save(
-                CompilationOptions::DebugLevel::Medium, "Cascaded_GraphOfParts.dot",
-                [&](std::ofstream& s) { SaveGraphOfPartsToDot(m_GraphOfParts, s, DetailLevel::Low); });
-            m_DebuggingContext.Save(
-                CompilationOptions::DebugLevel::Medium, "Cascaded_GraphOfPartsDetailed.dot",
-                [&](std::ofstream& s) { SaveGraphOfPartsToDot(m_GraphOfParts, s, DetailLevel::High); });
+            const GraphOfParts graphOfParts = CreateGraphOfParts(m_Network, m_Capabilities, m_EstimationOptions,
+                                                                 m_CompilationOptions, m_DebuggingContext);
 
-            Combiner combiner(m_GraphOfParts, m_Capabilities, m_CompilationOptions, m_EstimationOptions,
+            Combiner combiner(graphOfParts, m_Capabilities, m_CompilationOptions, m_EstimationOptions,
                               m_DebuggingContext);
             combiner.Run();
 

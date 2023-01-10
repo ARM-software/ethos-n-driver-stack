@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -76,10 +76,18 @@ void SaveDebugFilesForEstimatedCombination(std::string folder,
 GraphOfParts CreateGraphOfParts(const Network& network,
                                 const HardwareCapabilities& capabilities,
                                 const EstimationOptions& estOpt,
-                                const CompilationOptions& compOpt)
+                                const CompilationOptions& compOpt,
+                                const DebuggingContext& debuggingContext)
 {
-    NetworkToGraphOfPartsConverter m_NetworkToGraphOfPartsConverter(network, capabilities, estOpt, compOpt);
-    return m_NetworkToGraphOfPartsConverter.ReleaseGraphOfParts();
+    NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(network, capabilities, estOpt, compOpt);
+    GraphOfParts g = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
+
+    debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "Cascaded_GraphOfParts.dot",
+                          [&](std::ofstream& s) { SaveGraphOfPartsToDot(g, s, DetailLevel::Low); });
+    debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "Cascaded_GraphOfPartsDetailed.dot",
+                          [&](std::ofstream& s) { SaveGraphOfPartsToDot(g, s, DetailLevel::High); });
+
+    return g;
 }
 
 Cascading::Cascading(const EstimationOptions& estOpt,
@@ -95,12 +103,8 @@ Cascading::Cascading(const EstimationOptions& estOpt,
 
 NetworkPerformanceData Cascading::EstimateNetwork(const Network& network)
 {
-    m_GraphOfParts = CreateGraphOfParts(network, m_Capabilities, m_EstimationOptions, m_CompilationOptions);
-
-    m_DebuggingContext.Save(CompilationOptions::DebugLevel::Medium, "Cascaded_GraphOfParts.dot",
-                            [&](std::ofstream& s) { SaveGraphOfPartsToDot(m_GraphOfParts, s, DetailLevel::Low); });
-    m_DebuggingContext.Save(CompilationOptions::DebugLevel::Medium, "Cascaded_GraphOfPartsDetailed.dot",
-                            [&](std::ofstream& s) { SaveGraphOfPartsToDot(m_GraphOfParts, s, DetailLevel::High); });
+    m_GraphOfParts =
+        CreateGraphOfParts(network, m_Capabilities, m_EstimationOptions, m_CompilationOptions, m_DebuggingContext);
 
     m_Combiner.Run();
 
