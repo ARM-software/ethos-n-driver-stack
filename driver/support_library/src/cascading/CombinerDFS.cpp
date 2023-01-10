@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1419,7 +1419,7 @@ bool Combiner::TopologicalSortParts()
 {
     // sort the parts in topological order
 
-    if (m_GraphOfParts.m_Parts.size() == 0)
+    if (m_GraphOfParts.GetParts().size() == 0)
     {
         return true;
     }
@@ -1427,11 +1427,11 @@ bool Combiner::TopologicalSortParts()
     std::vector<const BasePart*> targets;
 
     // Sort starts from the output parts
-    for (auto&& part : m_GraphOfParts.m_Parts)
+    for (auto&& kv : m_GraphOfParts.GetParts())
     {
-        if (m_GraphOfParts.GetDestinationParts(part->GetPartId()).size() == 0)
+        if (m_GraphOfParts.GetDestinationParts(kv.first).size() == 0)
         {
-            targets.push_back(part.get());
+            targets.push_back(kv.second.get());
         }
     }
 
@@ -1446,12 +1446,10 @@ bool Combiner::TopologicalSortParts()
         }
     }
 
-    assert(sortedParts.size() == m_GraphOfParts.m_Parts.size());
+    assert(sortedParts.size() == m_GraphOfParts.GetParts().size());
 
     m_FirstPartAfterSort = sortedParts.at(0);
     assert(m_FirstPartAfterSort != nullptr);
-
-    m_PartOrderTable.resize(sortedParts.size());
 
     // Sanity check although impossible
     assert(sortedParts.size() < g_InvalidCombRank);

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1351,27 +1351,27 @@ void SaveGraphOfPartsToDot(const GraphOfParts& graphOfParts, std::ostream& strea
     std::unordered_map<PartId, std::string> partIds;
 
     // Process all parts that we were given (if any)
-    const Parts& parts = graphOfParts.m_Parts;
-    for (const std::unique_ptr<BasePart>& part : parts)
+    const Parts& parts = graphOfParts.GetParts();
+    for (const std::pair<const PartId, std::unique_ptr<BasePart>>& idAndPart : parts)
     {
-        DotAttributes attr = GetDotAttributes(*part, detailLevel);
+        DotAttributes attr = GetDotAttributes(*idAndPart.second, detailLevel);
         DumpNodeToDotFormat(attr, stream);
-        partIds[part->GetPartId()] = attr.m_Id;
+        partIds[idAndPart.first] = attr.m_Id;
     }
     // Precompute the number of input and output parts for each part
-    std::vector<bool> partsMultipleOutputs;
-    std::vector<bool> partsMultipleInputs;
-    for (const std::unique_ptr<BasePart>& part : parts)
+    std::map<PartId, bool> partsMultipleOutputs;
+    std::map<PartId, bool> partsMultipleInputs;
+    for (const std::pair<const PartId, std::unique_ptr<BasePart>>& idAndPart : parts)
     {
-        bool multipleOutputs = graphOfParts.GetPartOutputs(part->GetPartId()).size() > 1 ? true : false;
-        bool multipleInputs  = graphOfParts.GetPartInputs(part->GetPartId()).size() > 1 ? true : false;
-        partsMultipleOutputs.push_back(multipleOutputs);
-        partsMultipleInputs.push_back(multipleInputs);
+        bool multipleOutputs = graphOfParts.GetPartOutputs(idAndPart.first).size() > 1 ? true : false;
+        bool multipleInputs  = graphOfParts.GetPartInputs(idAndPart.first).size() > 1 ? true : false;
+        partsMultipleOutputs.insert({ idAndPart.first, multipleOutputs });
+        partsMultipleInputs.insert({ idAndPart.first, multipleInputs });
     }
     // Copy edges into a vector and sort so there are deterministic results.
     using InOutSlots = std::pair<PartInputSlot, PartOutputSlot>;
     std::vector<InOutSlots> edges;
-    for (auto&& edge : graphOfParts.m_Connections)
+    for (auto&& edge : graphOfParts.GetAllConnections())
     {
         edges.emplace_back(edge.first, edge.second);
     }

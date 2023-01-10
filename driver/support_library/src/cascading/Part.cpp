@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -199,8 +199,7 @@ size_t GraphOfParts::GetNumParts() const
 
 const BasePart& GraphOfParts::GetPart(const PartId id) const
 {
-    assert(id < m_Parts.size());
-    const auto& part = *m_Parts.at(id);
+    const BasePart& part = *m_Parts.at(id);
     assert(part.GetPartId() == id);
     return part;
 }
@@ -208,6 +207,19 @@ const BasePart& GraphOfParts::GetPart(const PartId id) const
 const Parts& GraphOfParts::GetParts() const
 {
     return m_Parts;
+}
+
+void GraphOfParts::AddPart(std::unique_ptr<BasePart> p)
+{
+    PartId id                               = p->GetPartId();
+    std::pair<Parts::iterator, bool> result = m_Parts.insert(std::make_pair(id, std::move(p)));
+    assert(result.second);
+    ETHOSN_UNUSED(result);
+}
+
+const std::unordered_map<PartInputSlot, PartOutputSlot>& GraphOfParts::GetAllConnections() const
+{
+    return m_Connections;
 }
 
 std::vector<PartInputSlot> GraphOfParts::GetConnectedInputSlots(const PartOutputSlot& outputSlot) const

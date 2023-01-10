@@ -1,4 +1,4 @@
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -147,9 +147,6 @@ TEST_CASE("IsPartSiso", "[CombinerDFS]")
     //
 
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -167,11 +164,11 @@ TEST_CASE("IsPartSiso", "[CombinerDFS]")
     PartId partCId = pC->GetPartId();
     PartId partDId = pD->GetPartId();
     PartId partEId = pE->GetPartId();
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pD));
-    parts.push_back(std::move(pE));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pD));
+    graph.AddPart(std::move(pE));
 
     PartOutputSlot partAOutputSlot0 = { partAId, 0 };
 
@@ -185,10 +182,10 @@ TEST_CASE("IsPartSiso", "[CombinerDFS]")
 
     PartInputSlot partEInputSlot0 = { partEId, 0 };
 
-    connections[partBInputSlot0] = partAOutputSlot0;
-    connections[partCInputSlot0] = partBOutputSlot0;
-    connections[partDInputSlot0] = partCOutputSlot0;
-    connections[partEInputSlot0] = partCOutputSlot0;
+    graph.AddConnection(partBInputSlot0, partAOutputSlot0);
+    graph.AddConnection(partCInputSlot0, partBOutputSlot0);
+    graph.AddConnection(partDInputSlot0, partCOutputSlot0);
+    graph.AddConnection(partEInputSlot0, partCOutputSlot0);
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -216,9 +213,6 @@ TEST_CASE("IsPartSimo", "[CombinerDFS]")
     //
 
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -236,11 +230,11 @@ TEST_CASE("IsPartSimo", "[CombinerDFS]")
     PartId partCId = pC->GetPartId();
     PartId partDId = pD->GetPartId();
     PartId partEId = pE->GetPartId();
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pD));
-    parts.push_back(std::move(pE));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pD));
+    graph.AddPart(std::move(pE));
 
     PartOutputSlot partAOutputSlot0 = { partAId, 0 };
 
@@ -254,10 +248,10 @@ TEST_CASE("IsPartSimo", "[CombinerDFS]")
 
     PartInputSlot partEInputSlot0 = { partEId, 0 };
 
-    connections[partBInputSlot0] = partAOutputSlot0;
-    connections[partCInputSlot0] = partBOutputSlot0;
-    connections[partDInputSlot0] = partCOutputSlot0;
-    connections[partEInputSlot0] = partCOutputSlot0;
+    graph.AddConnection(partBInputSlot0, partAOutputSlot0);
+    graph.AddConnection(partCInputSlot0, partBOutputSlot0);
+    graph.AddConnection(partDInputSlot0, partCOutputSlot0);
+    graph.AddConnection(partEInputSlot0, partCOutputSlot0);
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -284,9 +278,6 @@ TEST_CASE("IsPartMiso", "[CombinerDFS]")
     //  B
     //
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -301,10 +292,10 @@ TEST_CASE("IsPartMiso", "[CombinerDFS]")
     PartId partBId = pB->GetPartId();
     PartId partCId = pC->GetPartId();
     PartId partDId = pD->GetPartId();
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pD));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pD));
 
     PartOutputSlot partAOutputSlot0 = { partAId, 0 };
 
@@ -316,9 +307,9 @@ TEST_CASE("IsPartMiso", "[CombinerDFS]")
 
     PartInputSlot partDInputSlot0 = { partDId, 0 };
 
-    connections[partCInputSlot0] = partAOutputSlot0;
-    connections[partCInputSlot1] = partBOutputSlot0;
-    connections[partDInputSlot0] = partCOutputSlot0;
+    graph.AddConnection(partCInputSlot0, partAOutputSlot0);
+    graph.AddConnection(partCInputSlot1, partBOutputSlot0);
+    graph.AddConnection(partDInputSlot0, partCOutputSlot0);
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -344,9 +335,6 @@ TEST_CASE("IsPartMimo", "[CombinerDFS]")
     //       B
     //
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -364,11 +352,11 @@ TEST_CASE("IsPartMimo", "[CombinerDFS]")
     PartId partCId = pC->GetPartId();
     PartId partDId = pD->GetPartId();
     PartId partEId = pE->GetPartId();
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pD));
-    parts.push_back(std::move(pE));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pD));
+    graph.AddPart(std::move(pE));
 
     PartOutputSlot partAOutputSlot0 = { partAId, 0 };
 
@@ -383,10 +371,10 @@ TEST_CASE("IsPartMimo", "[CombinerDFS]")
 
     PartInputSlot partEInputSlot0 = { partEId, 0 };
 
-    connections[partCInputSlot0] = partAOutputSlot0;
-    connections[partCInputSlot1] = partBOutputSlot0;
-    connections[partDInputSlot0] = partCOutputSlot0;
-    connections[partEInputSlot0] = partCOutputSlot1;
+    graph.AddConnection(partCInputSlot0, partAOutputSlot0);
+    graph.AddConnection(partCInputSlot1, partBOutputSlot0);
+    graph.AddConnection(partDInputSlot0, partCOutputSlot0);
+    graph.AddConnection(partEInputSlot0, partCOutputSlot1);
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -413,9 +401,6 @@ TEST_CASE("IsPartInput and IsPartOutput", "[CombinerDFS]")
     //       B
     //
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -433,11 +418,11 @@ TEST_CASE("IsPartInput and IsPartOutput", "[CombinerDFS]")
     PartId partCId = pC->GetPartId();
     PartId partDId = pD->GetPartId();
     PartId partEId = pE->GetPartId();
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pD));
-    parts.push_back(std::move(pE));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pD));
+    graph.AddPart(std::move(pE));
 
     PartOutputSlot partAOutputSlot0 = { partAId, 0 };
 
@@ -452,10 +437,10 @@ TEST_CASE("IsPartInput and IsPartOutput", "[CombinerDFS]")
 
     PartInputSlot partEInputSlot0 = { partEId, 0 };
 
-    connections[partCInputSlot0] = partAOutputSlot0;
-    connections[partCInputSlot1] = partBOutputSlot0;
-    connections[partDInputSlot0] = partCOutputSlot0;
-    connections[partEInputSlot0] = partCOutputSlot1;
+    graph.AddConnection(partCInputSlot0, partAOutputSlot0);
+    graph.AddConnection(partCInputSlot1, partBOutputSlot0);
+    graph.AddConnection(partDInputSlot0, partCOutputSlot0);
+    graph.AddConnection(partEInputSlot0, partCOutputSlot1);
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -491,9 +476,6 @@ TEST_CASE("IsPartSo and IsPartMo", "[CombinerDFS]")
     //       B - F
     //
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -514,12 +496,12 @@ TEST_CASE("IsPartSo and IsPartMo", "[CombinerDFS]")
     PartId partDId = pD->GetPartId();
     PartId partEId = pE->GetPartId();
     PartId partFId = pF->GetPartId();
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pD));
-    parts.push_back(std::move(pE));
-    parts.push_back(std::move(pF));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pD));
+    graph.AddPart(std::move(pE));
+    graph.AddPart(std::move(pF));
 
     PartOutputSlot partAOutputSlot0 = { partAId, 0 };
 
@@ -536,11 +518,11 @@ TEST_CASE("IsPartSo and IsPartMo", "[CombinerDFS]")
 
     PartInputSlot partFInputSlot0 = { partFId, 0 };
 
-    connections[partCInputSlot0] = partAOutputSlot0;
-    connections[partCInputSlot1] = partBOutputSlot0;
-    connections[partDInputSlot0] = partCOutputSlot0;
-    connections[partEInputSlot0] = partCOutputSlot1;
-    connections[partFInputSlot0] = partBOutputSlot0;
+    graph.AddConnection(partCInputSlot0, partAOutputSlot0);
+    graph.AddConnection(partCInputSlot1, partBOutputSlot0);
+    graph.AddConnection(partDInputSlot0, partCOutputSlot0);
+    graph.AddConnection(partEInputSlot0, partCOutputSlot1);
+    graph.AddConnection(partFInputSlot0, partBOutputSlot0);
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -580,8 +562,6 @@ TEST_CASE("DoubleBufferingTestVariant_PleKernelsOnly", "[CombinerDFS]")
     //
 
     GraphOfParts graph;
-    auto& parts              = graph.m_Parts;
-    auto& connections        = graph.m_Connections;
     uint32_t numPlansCounter = 0;
     std::array<std::vector<uint32_t>, 3> planWeightBuffers;
     // Filter lambda function used to force the Combiner in generating specific Plans for specific Parts.
@@ -603,9 +583,9 @@ TEST_CASE("DoubleBufferingTestVariant_PleKernelsOnly", "[CombinerDFS]")
     PartId partAId = pA->GetPartId();
     PartId partBId = pB->GetPartId();
     PartId partCId = pC->GetPartId();
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
 
     PartOutputSlot partAOutputSlot0 = { partAId, 0 };
 
@@ -614,8 +594,8 @@ TEST_CASE("DoubleBufferingTestVariant_PleKernelsOnly", "[CombinerDFS]")
 
     PartInputSlot partCInputSlot0 = { partCId, 0 };
 
-    connections[partBInputSlot0] = partAOutputSlot0;
-    connections[partCInputSlot0] = partBOutputSlot0;
+    graph.AddConnection(partBInputSlot0, partAOutputSlot0);
+    graph.AddConnection(partCInputSlot0, partBOutputSlot0);
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -647,8 +627,6 @@ TEST_CASE("DoubleBufferingTestVariant_SinglePartSection", "[CombinerDFS]")
     //
 
     GraphOfParts graph;
-    auto& parts              = graph.m_Parts;
-    auto& connections        = graph.m_Connections;
     uint32_t numPlansCounter = 0;
     std::array<std::vector<uint32_t>, 3> planWeightBuffers;
     // Filter lambda function used to force the Combiner in generating specific Plans for specific Parts.
@@ -672,10 +650,10 @@ TEST_CASE("DoubleBufferingTestVariant_SinglePartSection", "[CombinerDFS]")
     PartId partAId     = pA->GetPartId();
     PartId partBId     = pB->GetPartId();
     PartId partCId     = pC->GetPartId();
-    parts.push_back(std::move(pInput));
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
+    graph.AddPart(std::move(pInput));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
 
     PartOutputSlot partInputOutputSlot0 = { partInputId, 0 };
 
@@ -687,9 +665,9 @@ TEST_CASE("DoubleBufferingTestVariant_SinglePartSection", "[CombinerDFS]")
 
     PartInputSlot partCInputSlot0 = { partCId, 0 };
 
-    connections[partAInputSlot0] = partInputOutputSlot0;
-    connections[partBInputSlot0] = partAOutputSlot0;
-    connections[partCInputSlot0] = partBOutputSlot0;
+    graph.AddConnection(partAInputSlot0, partInputOutputSlot0);
+    graph.AddConnection(partBInputSlot0, partAOutputSlot0);
+    graph.AddConnection(partCInputSlot0, partBOutputSlot0);
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -723,8 +701,6 @@ TEST_CASE("DoubleBufferingTestVariant_McePleMce", "[CombinerDFS]")
     //
 
     GraphOfParts graph;
-    auto& parts              = graph.m_Parts;
-    auto& connections        = graph.m_Connections;
     uint32_t numPlansCounter = 0;
     std::array<std::vector<uint32_t>, 3> planWeightBuffers;
     // Filter lambda function used to force the Combiner in generating specific Plans for specific Parts.
@@ -750,11 +726,11 @@ TEST_CASE("DoubleBufferingTestVariant_McePleMce", "[CombinerDFS]")
     PartId partBId      = pB->GetPartId();
     PartId partCId      = pC->GetPartId();
     PartId partOutputId = pOutput->GetPartId();
-    parts.push_back(std::move(pInput));
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pOutput));
+    graph.AddPart(std::move(pInput));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pOutput));
 
     PartOutputSlot partInputOutputSlot0 = { partInputId, 0 };
 
@@ -769,10 +745,10 @@ TEST_CASE("DoubleBufferingTestVariant_McePleMce", "[CombinerDFS]")
 
     PartInputSlot partOutputInputSlot0 = { partOutputId, 0 };
 
-    connections[partAInputSlot0]      = partInputOutputSlot0;
-    connections[partBInputSlot0]      = partAOutputSlot0;
-    connections[partCInputSlot0]      = partBOutputSlot0;
-    connections[partOutputInputSlot0] = partCOutputSlot0;
+    graph.AddConnection(partAInputSlot0, partInputOutputSlot0);
+    graph.AddConnection(partBInputSlot0, partAOutputSlot0);
+    graph.AddConnection(partCInputSlot0, partBOutputSlot0);
+    graph.AddConnection(partOutputInputSlot0, partCOutputSlot0);
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -804,8 +780,6 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMce", "[CombinerDFS]")
     //
 
     GraphOfParts graph;
-    auto& parts              = graph.m_Parts;
-    auto& connections        = graph.m_Connections;
     uint32_t numPlansCounter = 0;
     std::array<std::vector<uint32_t>, 3> planWeightBuffers;
     // Filter lambda function used to force the Combiner in generating specific Plans for specific Parts.
@@ -831,11 +805,11 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMce", "[CombinerDFS]")
     PartId partBId      = pB->GetPartId();
     PartId partCId      = pC->GetPartId();
     PartId partOutputId = pOutput->GetPartId();
-    parts.push_back(std::move(pInput));
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pOutput));
+    graph.AddPart(std::move(pInput));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pOutput));
 
     PartOutputSlot partInputOutputSlot0 = { partInputId, 0 };
 
@@ -850,10 +824,10 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMce", "[CombinerDFS]")
 
     PartInputSlot partOutputInputSlot0 = { partOutputId, 0 };
 
-    connections[partAInputSlot0]      = partInputOutputSlot0;
-    connections[partBInputSlot0]      = partAOutputSlot0;
-    connections[partCInputSlot0]      = partBOutputSlot0;
-    connections[partOutputInputSlot0] = partCOutputSlot0;
+    graph.AddConnection(partAInputSlot0, partInputOutputSlot0);
+    graph.AddConnection(partBInputSlot0, partAOutputSlot0);
+    graph.AddConnection(partCInputSlot0, partBOutputSlot0);
+    graph.AddConnection(partOutputInputSlot0, partCOutputSlot0);
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -886,8 +860,6 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMcePle", "[CombinerDFS]")
     //
 
     GraphOfParts graph;
-    auto& parts              = graph.m_Parts;
-    auto& connections        = graph.m_Connections;
     uint32_t numPlansCounter = 0;
     std::array<std::vector<uint32_t>, 4> planWeightBuffers;
     // Filter lambda function used to force the Combiner in generating specific Plans for specific Parts.
@@ -917,12 +889,12 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMcePle", "[CombinerDFS]")
     PartId partCId      = pC->GetPartId();
     PartId partDId      = pD->GetPartId();
     PartId partOutputId = pOutput->GetPartId();
-    parts.push_back(std::move(pInput));
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pD));
-    parts.push_back(std::move(pOutput));
+    graph.AddPart(std::move(pInput));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pD));
+    graph.AddPart(std::move(pOutput));
 
     PartOutputSlot partInputOutputSlot0 = { partInputId, 0 };
 
@@ -940,11 +912,11 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMcePle", "[CombinerDFS]")
 
     PartInputSlot partOutputInputSlot0 = { partOutputId, 0 };
 
-    connections[partAInputSlot0]      = partInputOutputSlot0;
-    connections[partBInputSlot0]      = partAOutputSlot0;
-    connections[partCInputSlot0]      = partBOutputSlot0;
-    connections[partDInputSlot0]      = partCOutputSlot0;
-    connections[partOutputInputSlot0] = partDOutputSlot0;
+    graph.AddConnection(partAInputSlot0, partInputOutputSlot0);
+    graph.AddConnection(partBInputSlot0, partAOutputSlot0);
+    graph.AddConnection(partCInputSlot0, partBOutputSlot0);
+    graph.AddConnection(partDInputSlot0, partCOutputSlot0);
+    graph.AddConnection(partOutputInputSlot0, partDOutputSlot0);
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -976,12 +948,11 @@ TEST_CASE("DoubleBufferingTestVariant_PleMceMcePle", "[CombinerDFS]")
 TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
 {
     GraphOfParts graph;
-    auto& parts = graph.m_Parts;
 
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
 
     PartId partAId = pA->GetPartId();
-    parts.push_back(std::move(pA));
+    graph.AddPart(std::move(pA));
 
     PartInputSlot partAInputSlot0   = { partAId, 0 };
     PartOutputSlot partAOutputSlot0 = { partAId, 0 };
@@ -1071,12 +1042,11 @@ TEST_CASE("BufferDeallocationTest_AtomicOps", "[CombinerDFS]")
 TEST_CASE("BufferDeallocationTest_CascadeOps", "[CombinerDFS]")
 {
     GraphOfParts graph;
-    auto& parts = graph.m_Parts;
 
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
 
     PartId partAId = pA->GetPartId();
-    parts.push_back(std::move(pA));
+    graph.AddPart(std::move(pA));
 
     PartInputSlot partAInputSlot0   = { partAId, 0 };
     PartOutputSlot partAOutputSlot0 = { partAId, 0 };
@@ -1160,18 +1130,15 @@ TEST_CASE("BufferDeallocationTest_CascadeOps", "[CombinerDFS]")
 TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
 {
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA        = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB        = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC        = std::make_unique<MockPart>(graph.GeneratePartId());
     PartId partAId = pA->GetPartId();
     PartId partBId = pB->GetPartId();
     PartId partCId = pC->GetPartId();
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
 
     PartOutputSlot partAOutputSlot0 = { partAId, 0 };
 
@@ -1180,8 +1147,8 @@ TEST_CASE("GetOpGraphForDfsCombinationPartialSram", "[CombinerDFS]")
 
     PartInputSlot partCInputSlot0 = { partCId, 0 };
 
-    connections[partBInputSlot0] = partAOutputSlot0;
-    connections[partCInputSlot0] = partBOutputSlot0;
+    graph.AddConnection(partBInputSlot0, partAOutputSlot0);
+    graph.AddConnection(partCInputSlot0, partBOutputSlot0);
 
     // Plan A
     Plan planA;
@@ -1356,9 +1323,6 @@ TEST_CASE("GetOpGraphForDfsMISOSramsToDrams", "[CombinerDFS]")
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
 
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -1367,9 +1331,9 @@ TEST_CASE("GetOpGraphForDfsMISOSramsToDrams", "[CombinerDFS]")
     BasePart& partB = *pB;
     BasePart& partC = *pC;
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
     PartOutputSlot partBOutputSlot = { partB.GetPartId(), 0 };
@@ -1377,8 +1341,8 @@ TEST_CASE("GetOpGraphForDfsMISOSramsToDrams", "[CombinerDFS]")
     PartInputSlot partCInputSlot0 = { partC.GetPartId(), 0 };
     PartInputSlot partCInputSlot1 = { partC.GetPartId(), 1 };
 
-    connections[partCInputSlot0] = { partAOutputSlot };
-    connections[partCInputSlot1] = { partBOutputSlot };
+    graph.AddConnection(partCInputSlot0, { partAOutputSlot });
+    graph.AddConnection(partCInputSlot1, { partBOutputSlot });
 
     const CompilationOptions compOpt;
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
@@ -1521,9 +1485,6 @@ TEST_CASE("GetOpGraphForDfsMISODramsToSrams", "[CombinerDFS]")
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
 
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -1532,9 +1493,9 @@ TEST_CASE("GetOpGraphForDfsMISODramsToSrams", "[CombinerDFS]")
     BasePart& partB = *pB;
     BasePart& partC = *pC;
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
     PartOutputSlot partBOutputSlot = { partB.GetPartId(), 0 };
@@ -1542,8 +1503,8 @@ TEST_CASE("GetOpGraphForDfsMISODramsToSrams", "[CombinerDFS]")
     PartInputSlot partCInputSlot0 = { partC.GetPartId(), 0 };
     PartInputSlot partCInputSlot1 = { partC.GetPartId(), 1 };
 
-    connections[partCInputSlot0] = { partAOutputSlot };
-    connections[partCInputSlot1] = { partBOutputSlot };
+    graph.AddConnection(partCInputSlot0, { partAOutputSlot });
+    graph.AddConnection(partCInputSlot1, { partBOutputSlot });
 
     const CompilationOptions compOpt;
     const DebuggingContext debuggingContext(compOpt.m_DebugInfo);
@@ -1688,9 +1649,6 @@ TEST_CASE("Add shared glue between Dram and Sram", "[CombinerDFS]")
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
 
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -1708,11 +1666,11 @@ TEST_CASE("Add shared glue between Dram and Sram", "[CombinerDFS]")
     BasePart& partD = *pD;
     BasePart& partE = *pE;
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pD));
-    parts.push_back(std::move(pE));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pD));
+    graph.AddPart(std::move(pE));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
     PartOutputSlot partDOutputSlot = { partD.GetPartId(), 0 };
@@ -1722,10 +1680,10 @@ TEST_CASE("Add shared glue between Dram and Sram", "[CombinerDFS]")
     PartInputSlot partDInputSlot = { partD.GetPartId(), 0 };
     PartInputSlot partEInputSlot = { partE.GetPartId(), 0 };
 
-    connections[partBInputSlot] = { partAOutputSlot };
-    connections[partCInputSlot] = { partAOutputSlot };
-    connections[partDInputSlot] = { partAOutputSlot };
-    connections[partEInputSlot] = { partDOutputSlot };
+    graph.AddConnection(partBInputSlot, { partAOutputSlot });
+    graph.AddConnection(partCInputSlot, { partAOutputSlot });
+    graph.AddConnection(partDInputSlot, { partAOutputSlot });
+    graph.AddConnection(partEInputSlot, { partDOutputSlot });
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -1847,22 +1805,19 @@ TEST_CASE("GetOpGraphCombinationDramSramConversion", "[CombinerDFS]")
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
 
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
 
     BasePart& partA = *pA;
     BasePart& partB = *pB;
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
     PartInputSlot partBInputSlot   = { partB.GetPartId(), 0 };
 
-    connections[partBInputSlot] = { partAOutputSlot };
+    graph.AddConnection(partBInputSlot, { partAOutputSlot });
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -1969,22 +1924,19 @@ TEST_CASE("GetOpGraphCombinationDramDramMerge", "[CombinerDFS]")
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
 
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
 
     BasePart& partA = *pA;
     BasePart& partB = *pB;
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
     PartInputSlot partBInputSlot   = { partB.GetPartId(), 0 };
 
-    connections[partBInputSlot] = { partAOutputSlot };
+    graph.AddConnection(partBInputSlot, { partAOutputSlot });
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -2058,18 +2010,15 @@ TEST_CASE("GetOpGraphCombinationDramDramMerge", "[CombinerDFS]")
 TEST_CASE("GetOpGraphForDfsCombinationMergedBuffer", "[CombinerDFS]")
 {
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA        = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB        = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC        = std::make_unique<MockPart>(graph.GeneratePartId());
     PartId partAId = pA->GetPartId();
     PartId partBId = pB->GetPartId();
     PartId partCId = pC->GetPartId();
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
 
     PartOutputSlot partAOutputSlot0 = { partAId, 0 };
     PartInputSlot partBInputSlot0   = { partBId, 0 };
@@ -2077,8 +2026,8 @@ TEST_CASE("GetOpGraphForDfsCombinationMergedBuffer", "[CombinerDFS]")
 
     PartInputSlot partCInputSlot0 = { partCId, 0 };
 
-    connections[partBInputSlot0] = partAOutputSlot0;
-    connections[partCInputSlot0] = partBOutputSlot0;
+    graph.AddConnection(partBInputSlot0, partAOutputSlot0);
+    graph.AddConnection(partCInputSlot0, partBOutputSlot0);
 
     // Plan A
     Plan planA;
@@ -2189,9 +2138,6 @@ TEST_CASE("GetOpGraphForDfsCombinationMergedBuffer", "[CombinerDFS]")
 TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
 {
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA         = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB         = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC         = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -2203,12 +2149,12 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     PartId partDEId = pDE->GetPartId();
     PartId partFId  = pF->GetPartId();
     PartId partGId  = pG->GetPartId();
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pDE));
-    parts.push_back(std::move(pF));
-    parts.push_back(std::move(pG));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pDE));
+    graph.AddPart(std::move(pF));
+    graph.AddPart(std::move(pG));
 
     PartOutputSlot partAOutputSlot0 = { partAId, 0 };
 
@@ -2225,12 +2171,12 @@ TEST_CASE("GetOpGraphForDfsCombination", "[CombinerDFS]")
     PartInputSlot partGInputSlot0 = { partGId, 0 };
     PartInputSlot partGInputSlot1 = { partGId, 1 };
 
-    connections[partBInputSlot0]  = partAOutputSlot0;
-    connections[partDEInputSlot0] = partBOutputSlot0;
-    connections[partDEInputSlot1] = partBOutputSlot0;
-    connections[partFInputSlot0]  = partDEOutputSlot0;
-    connections[partGInputSlot0]  = partDEOutputSlot0;
-    connections[partGInputSlot1]  = partDEOutputSlot1;
+    graph.AddConnection(partBInputSlot0, partAOutputSlot0);
+    graph.AddConnection(partDEInputSlot0, partBOutputSlot0);
+    graph.AddConnection(partDEInputSlot1, partBOutputSlot0);
+    graph.AddConnection(partFInputSlot0, partDEOutputSlot0);
+    graph.AddConnection(partGInputSlot0, partDEOutputSlot0);
+    graph.AddConnection(partGInputSlot1, partDEOutputSlot1);
 
     Plan planA;
     planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
@@ -2474,17 +2420,15 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
     //
     GraphOfParts graph;
 
-    auto& parts = graph.m_Parts;
-
     auto pA               = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB               = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC               = std::make_unique<MockPart>(graph.GeneratePartId());
     const BasePart& partA = *pA;
     const BasePart& partB = *pB;
     const BasePart& partC = *pC;
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
 
     Plan planA;
     Plan planB;
@@ -2504,10 +2448,9 @@ TEST_CASE("Combination operator+", "[CombinerDFS]")
     comb = combA + combB + combC;
     REQUIRE(comb.m_Elems.size() == 3);
     // All parts are in the final combination
-    for (size_t i = 0; i < graph.m_Parts.size(); ++i)
+    for (const std::pair<const PartId, std::unique_ptr<BasePart>>& idAndPart : graph.GetParts())
     {
-        BasePart& part = *graph.m_Parts[i];
-        REQUIRE(comb.m_Elems.find(part.GetPartId()) != comb.m_Elems.end());
+        REQUIRE(comb.m_Elems.find(idAndPart.first) != comb.m_Elems.end());
     }
 }
 
@@ -2519,16 +2462,14 @@ TEST_CASE("Combination AddGlue", "[CombinerDFS]")
     //
     GraphOfParts graph;
 
-    auto& parts = graph.m_Parts;
-
     auto pA               = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB               = std::make_unique<MockPart>(graph.GeneratePartId());
     const BasePart& partA = *pA;
     const BasePart& partB = *pB;
     PartId partAId        = partA.GetPartId();
     PartId partBId        = partB.GetPartId();
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
 
     PartOutputSlot partAOutputSlot0 = { partAId, 0 };
 
@@ -2565,17 +2506,15 @@ TEST_CASE("FindBestCombinationForPart cache", "[CombinerDFS]")
     //
     GraphOfParts graph;
 
-    auto& parts = graph.m_Parts;
-
     auto pA               = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB               = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC               = std::make_unique<MockPart>(graph.GeneratePartId());
     const BasePart& partA = *pA;
     const BasePart& partB = *pB;
     const BasePart& partC = *pC;
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -2634,9 +2573,6 @@ TEST_CASE("CombinerSortTest1", "[CombinerDFS]")
     //             J
 
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -2661,17 +2597,17 @@ TEST_CASE("CombinerSortTest1", "[CombinerDFS]")
     BasePart& partJ = *pJ;
     BasePart& partK = *pK;
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pD));
-    parts.push_back(std::move(pE));
-    parts.push_back(std::move(pF));
-    parts.push_back(std::move(pG));
-    parts.push_back(std::move(pH));
-    parts.push_back(std::move(pI));
-    parts.push_back(std::move(pJ));
-    parts.push_back(std::move(pK));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pD));
+    graph.AddPart(std::move(pE));
+    graph.AddPart(std::move(pF));
+    graph.AddPart(std::move(pG));
+    graph.AddPart(std::move(pH));
+    graph.AddPart(std::move(pI));
+    graph.AddPart(std::move(pJ));
+    graph.AddPart(std::move(pK));
 
     PartOutputSlot partAOutputSlot0 = { partA.GetPartId(), 0 };
     PartOutputSlot partAOutputSlot1 = { partA.GetPartId(), 1 };
@@ -2698,18 +2634,18 @@ TEST_CASE("CombinerSortTest1", "[CombinerDFS]")
     PartInputSlot partIInputSlot  = { partI.GetPartId(), 0 };
     PartInputSlot partKInputSlot  = { partK.GetPartId(), 0 };
 
-    connections[partBInputSlot]  = { partAOutputSlot0 };
-    connections[partCInputSlot]  = { partBOutputSlot0 };
-    connections[partDInputSlot]  = { partCOutputSlot };
-    connections[partFInputSlot0] = { partBOutputSlot0 };
-    connections[partEInputSlot]  = { partAOutputSlot1 };
-    connections[partFInputSlot1] = { partEOutputSlot };
-    connections[partGInputSlot]  = { partFOutputSlot };
-    connections[partFInputSlot2] = { partJOutputSlot };
-    connections[partHInputSlot0] = { partDOutputSlot };
-    connections[partHInputSlot1] = { partGOutputSlot };
-    connections[partIInputSlot]  = { partHOutputSlot0 };
-    connections[partKInputSlot]  = { partHOutputSlot1 };
+    graph.AddConnection(partBInputSlot, { partAOutputSlot0 });
+    graph.AddConnection(partCInputSlot, { partBOutputSlot0 });
+    graph.AddConnection(partDInputSlot, { partCOutputSlot });
+    graph.AddConnection(partFInputSlot0, { partBOutputSlot0 });
+    graph.AddConnection(partEInputSlot, { partAOutputSlot1 });
+    graph.AddConnection(partFInputSlot1, { partEOutputSlot });
+    graph.AddConnection(partGInputSlot, { partFOutputSlot });
+    graph.AddConnection(partFInputSlot2, { partJOutputSlot });
+    graph.AddConnection(partHInputSlot0, { partDOutputSlot });
+    graph.AddConnection(partHInputSlot1, { partGOutputSlot });
+    graph.AddConnection(partIInputSlot, { partHOutputSlot0 });
+    graph.AddConnection(partKInputSlot, { partHOutputSlot1 });
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -2746,9 +2682,6 @@ TEST_CASE("CombinerSortTest2", "[CombinerDFS]")
     //                     |
     //   D- -> E - -> F ---
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -2765,13 +2698,13 @@ TEST_CASE("CombinerSortTest2", "[CombinerDFS]")
     BasePart& partF = *pF;
     BasePart& partG = *pG;
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pD));
-    parts.push_back(std::move(pE));
-    parts.push_back(std::move(pF));
-    parts.push_back(std::move(pG));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pD));
+    graph.AddPart(std::move(pE));
+    graph.AddPart(std::move(pF));
+    graph.AddPart(std::move(pG));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
     PartOutputSlot partBOutputSlot = { partB.GetPartId(), 0 };
@@ -2787,12 +2720,12 @@ TEST_CASE("CombinerSortTest2", "[CombinerDFS]")
     PartInputSlot partGInputSlot0 = { partG.GetPartId(), 0 };
     PartInputSlot partGInputSlot1 = { partG.GetPartId(), 1 };
 
-    connections[partBInputSlot]  = { partAOutputSlot };
-    connections[partCInputSlot]  = { partBOutputSlot };
-    connections[partEInputSlot]  = { partDOutputSlot };
-    connections[partFInputSlot]  = { partEOutputSlot };
-    connections[partGInputSlot0] = { partCOutputSlot };
-    connections[partGInputSlot1] = { partFOutputSlot };
+    graph.AddConnection(partBInputSlot, { partAOutputSlot });
+    graph.AddConnection(partCInputSlot, { partBOutputSlot });
+    graph.AddConnection(partEInputSlot, { partDOutputSlot });
+    graph.AddConnection(partFInputSlot, { partEOutputSlot });
+    graph.AddConnection(partGInputSlot0, { partCOutputSlot });
+    graph.AddConnection(partGInputSlot1, { partFOutputSlot });
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -2822,9 +2755,6 @@ TEST_CASE("GetCombPartsInOrder", "[CombinerDFS]")
     //
     //
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -2837,11 +2767,11 @@ TEST_CASE("GetCombPartsInOrder", "[CombinerDFS]")
     BasePart& partD = *pD;
     BasePart& partE = *pE;
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pD));
-    parts.push_back(std::move(pE));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pD));
+    graph.AddPart(std::move(pE));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
     PartOutputSlot partBOutputSlot = { partB.GetPartId(), 0 };
@@ -2853,10 +2783,10 @@ TEST_CASE("GetCombPartsInOrder", "[CombinerDFS]")
     PartInputSlot partDInputSlot = { partD.GetPartId(), 0 };
     PartInputSlot partEInputSlot = { partE.GetPartId(), 0 };
 
-    connections[partBInputSlot] = { partAOutputSlot };
-    connections[partCInputSlot] = { partBOutputSlot };
-    connections[partDInputSlot] = { partCOutputSlot };
-    connections[partEInputSlot] = { partDOutputSlot };
+    graph.AddConnection(partBInputSlot, { partAOutputSlot });
+    graph.AddConnection(partCInputSlot, { partBOutputSlot });
+    graph.AddConnection(partDInputSlot, { partCOutputSlot });
+    graph.AddConnection(partEInputSlot, { partDOutputSlot });
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -2957,9 +2887,6 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
     //
 
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -2972,17 +2899,17 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
     PartId partBId = pB->GetPartId();
     PartId partCId = pC->GetPartId();
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
 
     PartInputSlot partBInputSlot = { partB.GetPartId(), 0 };
     PartInputSlot partCInputSlot = { partC.GetPartId(), 0 };
 
-    connections[partBInputSlot] = { partAOutputSlot };
-    connections[partCInputSlot] = { partAOutputSlot };
+    graph.AddConnection(partBInputSlot, { partAOutputSlot });
+    graph.AddConnection(partCInputSlot, { partAOutputSlot });
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -3024,11 +2951,10 @@ TEST_CASE("GluePartToCombinationBranch0", "[CombinerDFS]")
     REQUIRE(comb.m_HeadOrderRank == 0);
 
     // There is no glue
-    for (PartId i = 0; i < graph.m_Parts.size(); ++i)
+    for (const std::pair<const PartId, std::unique_ptr<BasePart>>& idAndPart : graph.GetParts())
     {
-        const BasePart& part = graph.GetPart(i);
-        REQUIRE(comb.m_Elems.at(part.GetPartId()).m_EndingGlues.size() == 0);
-        REQUIRE(comb.m_Elems.at(part.GetPartId()).m_StartingGlues.size() == 0);
+        REQUIRE(comb.m_Elems.at(idAndPart.first).m_EndingGlues.size() == 0);
+        REQUIRE(comb.m_Elems.at(idAndPart.first).m_StartingGlues.size() == 0);
     }
 
     Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
@@ -3106,9 +3032,6 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     //  D is an output node on DRAM and cannot share
     //  glue with B, C
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -3124,10 +3047,10 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     PartId partCId = pC->GetPartId();
     PartId partDId = pD->GetPartId();
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pD));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pD));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
 
@@ -3135,9 +3058,9 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     PartInputSlot partCInputSlot = { partC.GetPartId(), 0 };
     PartInputSlot partDInputSlot = { partD.GetPartId(), 0 };
 
-    connections[partBInputSlot] = { partAOutputSlot };
-    connections[partCInputSlot] = { partAOutputSlot };
-    connections[partDInputSlot] = { partAOutputSlot };
+    graph.AddConnection(partBInputSlot, { partAOutputSlot });
+    graph.AddConnection(partCInputSlot, { partAOutputSlot });
+    graph.AddConnection(partDInputSlot, { partAOutputSlot });
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -3192,11 +3115,10 @@ TEST_CASE("GluePartToCombinationBranch1", "[CombinerDFS]")
     REQUIRE(comb.m_HeadOrderRank == 0);
 
     // There is no glue
-    for (PartId i = 0; i < graph.m_Parts.size(); ++i)
+    for (const std::pair<const PartId, std::unique_ptr<BasePart>>& idAndPart : graph.GetParts())
     {
-        const BasePart& part = graph.GetPart(i);
-        REQUIRE(comb.m_Elems.at(part.GetPartId()).m_EndingGlues.size() == 0);
-        REQUIRE(comb.m_Elems.at(part.GetPartId()).m_StartingGlues.size() == 0);
+        REQUIRE(comb.m_Elems.at(idAndPart.first).m_EndingGlues.size() == 0);
+        REQUIRE(comb.m_Elems.at(idAndPart.first).m_StartingGlues.size() == 0);
     }
 
     Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
@@ -3290,9 +3212,6 @@ TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
     //  Note that E is merely a "dummy" part to make D an non-output
     //  part.
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -3310,11 +3229,11 @@ TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
     PartId partCId = pC->GetPartId();
     PartId partDId = pD->GetPartId();
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pD));
-    parts.push_back(std::move(pE));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pD));
+    graph.AddPart(std::move(pE));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
     PartOutputSlot partDOutputSlot = { partD.GetPartId(), 0 };
@@ -3324,10 +3243,10 @@ TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
     PartInputSlot partDInputSlot = { partD.GetPartId(), 0 };
     PartInputSlot partEInputSlot = { partE.GetPartId(), 0 };
 
-    connections[partBInputSlot] = { partAOutputSlot };
-    connections[partCInputSlot] = { partAOutputSlot };
-    connections[partDInputSlot] = { partAOutputSlot };
-    connections[partEInputSlot] = { partDOutputSlot };
+    graph.AddConnection(partBInputSlot, { partAOutputSlot });
+    graph.AddConnection(partCInputSlot, { partAOutputSlot });
+    graph.AddConnection(partDInputSlot, { partAOutputSlot });
+    graph.AddConnection(partEInputSlot, { partDOutputSlot });
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -3385,11 +3304,10 @@ TEST_CASE("GluePartToCombinationBranch2", "[CombinerDFS]")
     REQUIRE(comb.m_HeadOrderRank == 0);
 
     // There is no glue
-    for (PartId i = 0; i < graph.m_Parts.size(); ++i)
+    for (const std::pair<const PartId, std::unique_ptr<BasePart>>& idAndPart : graph.GetParts())
     {
-        const BasePart& part = graph.GetPart(i);
-        REQUIRE(comb.m_Elems.at(part.GetPartId()).m_EndingGlues.size() == 0);
-        REQUIRE(comb.m_Elems.at(part.GetPartId()).m_StartingGlues.size() == 0);
+        REQUIRE(comb.m_Elems.at(idAndPart.first).m_EndingGlues.size() == 0);
+        REQUIRE(comb.m_Elems.at(idAndPart.first).m_StartingGlues.size() == 0);
     }
 
     Combiner combiner(graph, hwCaps, compOpt, estOpt, debuggingContext);
@@ -3476,9 +3394,6 @@ TEST_CASE("GluePartToCombinationDramToDramAndSramShare", "[CombinerDFS]")
     //  C is SRAM, and cannot be copied directly from A because it splits in depth. It can however use the DRAM buffer B
     //  and copy straight from there.
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -3491,17 +3406,17 @@ TEST_CASE("GluePartToCombinationDramToDramAndSramShare", "[CombinerDFS]")
     PartId partBId = pB->GetPartId();
     PartId partCId = pC->GetPartId();
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
 
     PartInputSlot partBInputSlot = { partB.GetPartId(), 0 };
     PartInputSlot partCInputSlot = { partC.GetPartId(), 0 };
 
-    connections[partBInputSlot] = { partAOutputSlot };
-    connections[partCInputSlot] = { partAOutputSlot };
+    graph.AddConnection(partBInputSlot, { partAOutputSlot });
+    graph.AddConnection(partCInputSlot, { partAOutputSlot });
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -3601,9 +3516,6 @@ TEST_CASE("GluePartToCombinationDramToDramAndSramMergeShare", "[CombinerDFS]")
     //  B is DRAM NHWCB, and can be a simple replacement of A
     //  C is SRAM, and can be DMA'd from A
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -3616,17 +3528,17 @@ TEST_CASE("GluePartToCombinationDramToDramAndSramMergeShare", "[CombinerDFS]")
     PartId partBId = pB->GetPartId();
     PartId partCId = pC->GetPartId();
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
 
     PartInputSlot partBInputSlot = { partB.GetPartId(), 0 };
     PartInputSlot partCInputSlot = { partC.GetPartId(), 0 };
 
-    connections[partBInputSlot] = { partAOutputSlot };
-    connections[partCInputSlot] = { partAOutputSlot };
+    graph.AddConnection(partBInputSlot, { partAOutputSlot });
+    graph.AddConnection(partCInputSlot, { partAOutputSlot });
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -3743,9 +3655,6 @@ TEST_CASE("GluePartToCombinationDramToDramsMerge", "[CombinerDFS]")
     CAPTURE(isCOutput);
 
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -3758,17 +3667,17 @@ TEST_CASE("GluePartToCombinationDramToDramsMerge", "[CombinerDFS]")
     PartId partBId = pB->GetPartId();
     PartId partCId = pC->GetPartId();
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
 
     PartInputSlot partBInputSlot = { partB.GetPartId(), 0 };
     PartInputSlot partCInputSlot = { partC.GetPartId(), 0 };
 
-    connections[partBInputSlot] = { partAOutputSlot };
-    connections[partCInputSlot] = { partAOutputSlot };
+    graph.AddConnection(partBInputSlot, { partAOutputSlot });
+    graph.AddConnection(partCInputSlot, { partAOutputSlot });
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -3893,9 +3802,6 @@ TEST_CASE("GluePartToCombinationSramToDramsMerge", "[CombinerDFS]")
     CAPTURE(isCOutput);
 
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -3908,17 +3814,17 @@ TEST_CASE("GluePartToCombinationSramToDramsMerge", "[CombinerDFS]")
     PartId partBId = pB->GetPartId();
     PartId partCId = pC->GetPartId();
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
 
     PartInputSlot partBInputSlot = { partB.GetPartId(), 0 };
     PartInputSlot partCInputSlot = { partC.GetPartId(), 0 };
 
-    connections[partBInputSlot] = { partAOutputSlot };
-    connections[partCInputSlot] = { partAOutputSlot };
+    graph.AddConnection(partBInputSlot, { partAOutputSlot });
+    graph.AddConnection(partCInputSlot, { partAOutputSlot });
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -4032,9 +3938,6 @@ TEST_CASE("GluePartToCombinationSramToDramConversion", "[CombinerDFS]")
     //  A is SRAM
     //  B is DRAM NHWC, and cannot be copied directly from A because it splits in depth. It gets converted via another DRAM buffer.
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
 
@@ -4044,13 +3947,13 @@ TEST_CASE("GluePartToCombinationSramToDramConversion", "[CombinerDFS]")
     PartId partAId = pA->GetPartId();
     PartId partBId = pB->GetPartId();
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
     PartInputSlot partBInputSlot   = { partB.GetPartId(), 0 };
 
-    connections[partBInputSlot] = { partAOutputSlot };
+    graph.AddConnection(partBInputSlot, { partAOutputSlot });
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -4122,12 +4025,10 @@ TEST_CASE("IsPlanAllocated", "[CombinerDFS]")
 {
     GraphOfParts graph;
 
-    auto& parts = graph.m_Parts;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
 
     const BasePart& partA = *pA;
-    parts.push_back(std::move(pA));
+    graph.AddPart(std::move(pA));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
     PartInputSlot partAInputSlot   = { partA.GetPartId(), 0 };
@@ -4232,13 +4133,11 @@ TEST_CASE("SramAllocationForSinglePartSection", "[CombinerDFS]")
     {
         GraphOfParts graph;
 
-        auto& parts = graph.m_Parts;
-
         auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
 
         const BasePart& partA = *pA;
 
-        parts.push_back(std::move(pA));
+        graph.AddPart(std::move(pA));
 
         PartInputSlot partAInputSlot   = { partA.GetPartId(), 0 };
         PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
@@ -4336,8 +4235,6 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
     {
         GraphOfParts graph;
 
-        auto& parts = graph.m_Parts;
-
         auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
         auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
         auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -4346,9 +4243,9 @@ TEST_CASE("SramAllocationForMultiplePartSection", "[CombinerDFS]")
         const BasePart& partB = *pB;
         const BasePart& partC = *pC;
 
-        parts.push_back(std::move(pA));
-        parts.push_back(std::move(pB));
-        parts.push_back(std::move(pC));
+        graph.AddPart(std::move(pA));
+        graph.AddPart(std::move(pB));
+        graph.AddPart(std::move(pC));
 
         PartInputSlot partAInputSlot   = { partA.GetPartId(), 0 };
         PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
@@ -4683,23 +4580,20 @@ TEST_CASE("ArePlansAllowedToMerge IdentityParts", "[CombinerDFS]")
     //  --> A - - > B
     //
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
 
     PartId partAId = pA->GetPartId();
     PartId partBId = pB->GetPartId();
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
 
     PartOutputSlot partAOutputSlot0 = { partAId, 0 };
 
     PartInputSlot partBInputSlot0 = { partBId, 0 };
 
-    connections[partBInputSlot0] = partAOutputSlot0;
+    graph.AddConnection(partBInputSlot0, partAOutputSlot0);
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;
@@ -4745,7 +4639,6 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
     uint32_t totalAgentsRef = 0;
 
     GraphOfParts graph;
-    auto& parts = graph.m_Parts;
 
     size_t mceOpIndex;
     size_t pleOpIndex;
@@ -4763,7 +4656,7 @@ TEST_CASE("IsSectionSizeSupported", "[CombinerDFS]")
     {
         auto part     = std::make_unique<MockPart>(graph.GeneratePartId());
         PartId partId = part->GetPartId();
-        parts.push_back(std::move(part));
+        graph.AddPart(std::move(part));
 
         partsInputSlot0[i]  = { partId, 0 };
         partsOutputSlot0[i] = { partId, 0 };

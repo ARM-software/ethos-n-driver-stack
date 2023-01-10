@@ -1,5 +1,5 @@
 //
-// Copyright © 2020-2022 Arm Limited.
+// Copyright © 2020-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -16,21 +16,19 @@ using namespace ethosn::support_library;
 TEST_CASE("GraphOfParts simple linear")
 {
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
 
     // p1 -> p2 -> p3
 
     auto p1 = std::make_unique<MockPart>(1);
     auto p2 = std::make_unique<MockPart>(2);
     auto p3 = std::make_unique<MockPart>(3);
-    parts.push_back(std::move(p1));
-    parts.push_back(std::move(p2));
-    parts.push_back(std::move(p3));
+    graph.AddPart(std::move(p1));
+    graph.AddPart(std::move(p2));
+    graph.AddPart(std::move(p3));
 
     // connect up the parts
-    connections.insert({ PartInputSlot{ 2, 0 }, PartOutputSlot{ 1, 0 } });
-    connections.insert({ PartInputSlot{ 3, 0 }, PartOutputSlot{ 2, 0 } });
+    graph.AddConnection(PartInputSlot{ 2, 0 }, PartOutputSlot{ 1, 0 });
+    graph.AddConnection(PartInputSlot{ 3, 0 }, PartOutputSlot{ 2, 0 });
 
     auto sourcep1 = graph.GetSourceParts(1);
     REQUIRE(sourcep1.size() == 0);
@@ -54,8 +52,6 @@ TEST_CASE("GraphOfParts simple linear")
 TEST_CASE("GraphOfParts multiple input slots for one output slot")
 {
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
 
     // p1 "0th" output connects to p2 and p3.
     //
@@ -68,17 +64,17 @@ TEST_CASE("GraphOfParts multiple input slots for one output slot")
     auto p1Id = p1->GetPartId();
     auto p2Id = p2->GetPartId();
     auto p3Id = p3->GetPartId();
-    parts.push_back(std::move(p1));
-    parts.push_back(std::move(p2));
-    parts.push_back(std::move(p3));
+    graph.AddPart(std::move(p1));
+    graph.AddPart(std::move(p2));
+    graph.AddPart(std::move(p3));
 
     PartOutputSlot p1OutputSlot = PartOutputSlot{ p1Id, 0 };
     PartInputSlot p2InputSlot   = PartInputSlot{ p2Id, 0 };
     PartInputSlot p3InputSlot   = PartInputSlot{ p3Id, 0 };
 
     // connect up the parts
-    connections.insert({ p2InputSlot, p1OutputSlot });
-    connections.insert({ p3InputSlot, p1OutputSlot });
+    graph.AddConnection(p2InputSlot, p1OutputSlot);
+    graph.AddConnection(p3InputSlot, p1OutputSlot);
 
     auto inputSlots = graph.GetConnectedInputSlots(p1OutputSlot);
     REQUIRE(inputSlots.size() == 2);
@@ -100,8 +96,6 @@ TEST_CASE("GraphOfParts multiple input slots for one output slot")
 TEST_CASE("GraphOfParts GetPartInputs/Outputs")
 {
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
 
     // p1 "0th" output connects to p2 and p3
     // p1 "1st" output connects to p3's 0th and 1st input
@@ -116,9 +110,9 @@ TEST_CASE("GraphOfParts GetPartInputs/Outputs")
     auto p1Id = p1->GetPartId();
     auto p2Id = p2->GetPartId();
     auto p3Id = p3->GetPartId();
-    parts.push_back(std::move(p1));
-    parts.push_back(std::move(p2));
-    parts.push_back(std::move(p3));
+    graph.AddPart(std::move(p1));
+    graph.AddPart(std::move(p2));
+    graph.AddPart(std::move(p3));
 
     PartOutputSlot p1OutputSlot0 = PartOutputSlot{ p1Id, 0 };
     PartOutputSlot p1OutputSlot1 = PartOutputSlot{ p1Id, 1 };
@@ -127,9 +121,9 @@ TEST_CASE("GraphOfParts GetPartInputs/Outputs")
     PartInputSlot p3InputSlot1   = PartInputSlot{ p3Id, 1 };
 
     // connect up the parts
-    connections.insert({ p2InputSlot, p1OutputSlot0 });
-    connections.insert({ p3InputSlot0, p1OutputSlot0 });
-    connections.insert({ p3InputSlot1, p1OutputSlot1 });
+    graph.AddConnection(p2InputSlot, p1OutputSlot0);
+    graph.AddConnection(p3InputSlot0, p1OutputSlot0);
+    graph.AddConnection(p3InputSlot1, p1OutputSlot1);
 
     {
         auto inputSlots = graph.GetPartInputs(p1Id);

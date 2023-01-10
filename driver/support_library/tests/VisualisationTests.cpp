@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -535,8 +535,6 @@ TEST_CASE("SaveGraphOfPartsToDot Graph Topology", "[Visualisation]")
 
     GraphOfParts graph;
 
-    auto& parts = graph.m_Parts;
-
     auto i1             = std::make_unique<MockPart>(graph.GeneratePartId());
     auto i2             = std::make_unique<MockPart>(graph.GeneratePartId());
     auto s              = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -553,14 +551,14 @@ TEST_CASE("SaveGraphOfPartsToDot Graph Topology", "[Visualisation]")
     const BasePart& po1 = *o1;
     const BasePart& po2 = *o2;
     const BasePart& pi3 = *i3;
-    parts.push_back(std::move(i1));
-    parts.push_back(std::move(i2));
-    parts.push_back(std::move(s));
-    parts.push_back(std::move(m));
-    parts.push_back(std::move(d));
-    parts.push_back(std::move(o1));
-    parts.push_back(std::move(o2));
-    parts.push_back(std::move(i3));
+    graph.AddPart(std::move(i1));
+    graph.AddPart(std::move(i2));
+    graph.AddPart(std::move(s));
+    graph.AddPart(std::move(m));
+    graph.AddPart(std::move(d));
+    graph.AddPart(std::move(o1));
+    graph.AddPart(std::move(o2));
+    graph.AddPart(std::move(i3));
 
     PartOutputSlot i1Output  = { pi1.GetPartId(), 0 };
     PartOutputSlot i2Output  = { pi2.GetPartId(), 0 };
@@ -579,14 +577,14 @@ TEST_CASE("SaveGraphOfPartsToDot Graph Topology", "[Visualisation]")
     PartInputSlot o2Input1   = { po2.GetPartId(), 1 };
     PartOutputSlot i3Output0 = { pi3.GetPartId(), 0 };
 
-    graph.m_Connections[sInput0]  = i1Output;
-    graph.m_Connections[sInput1]  = i2Output;
-    graph.m_Connections[dInput0]  = sOutput0;
-    graph.m_Connections[mInput0]  = sOutput1;
-    graph.m_Connections[o1Input0] = mOutput0;
-    graph.m_Connections[o1Input1] = dOutput0;
-    graph.m_Connections[o2Input0] = dOutput1;
-    graph.m_Connections[o2Input1] = i3Output0;
+    graph.AddConnection(sInput0, i1Output);
+    graph.AddConnection(sInput1, i2Output);
+    graph.AddConnection(dInput0, sOutput0);
+    graph.AddConnection(mInput0, sOutput1);
+    graph.AddConnection(o1Input0, mOutput0);
+    graph.AddConnection(o1Input1, dOutput0);
+    graph.AddConnection(o2Input0, dOutput1);
+    graph.AddConnection(o2Input1, i3Output0);
 
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
 
@@ -647,7 +645,7 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
         1, TensorShape{ 1, 2, 3, 4 }, TensorShape{ 5, 6, 7, 8 }, QuantizationInfo(9, 10.0f),
         QuantizationInfo(11, 12.0f), PleOperation::DOWNSAMPLE_2X2, support_library::utils::ShapeMultiplier{ 1, 2, 3 },
         estOpt, compOpt, caps, std::set<uint32_t>{ 13, 14, 15 }, DataType::UINT8_QUANTIZED, DataType::UINT8_QUANTIZED);
-    parts.m_Parts.push_back(std::move(fusedPlePart));
+    parts.AddPart(std::move(fusedPlePart));
 
     // McePart
     McePart::ConstructionParams params(estOpt, compOpt, caps);
@@ -672,7 +670,7 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
     params.m_UpscaleFactor          = 3;
     params.m_UpsampleType           = command_stream::cascading::UpsampleType::NEAREST_NEIGHBOUR;
     auto mcePart                    = std::make_unique<McePart>(std::move(params));
-    parts.m_Parts.push_back(std::move(mcePart));
+    parts.AddPart(std::move(mcePart));
 
     // ConcatPart
     auto concatPart = std::make_unique<ConcatPart>(
@@ -680,26 +678,26 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
         sl::TensorInfo{ TensorShape{ 5, 6, 7, 8 }, sl::DataType::UINT8_QUANTIZED, sl::DataFormat::NHWC,
                         QuantizationInfo(9, 10.0f) },
         3, std::vector<uint32_t>{ 0, 16 }, true, std::set<uint32_t>{ 13, 14, 15 }, estOpt, compOpt, caps);
-    parts.m_Parts.push_back(std::move(concatPart));
+    parts.AddPart(std::move(concatPart));
 
     // InputPart
     auto inputPart =
         std::make_unique<InputPart>(3, TensorShape{ 1, 2, 3, 4 }, CompilerDataFormat::NHWCB, QuantizationInfo(9, 10.0f),
                                     DataType::UINT8_QUANTIZED, std::set<uint32_t>{ 13, 14, 15 }, estOpt, compOpt, caps);
 
-    parts.m_Parts.push_back(std::move(inputPart));
+    parts.AddPart(std::move(inputPart));
 
     // OutputPart
-    auto outputPart = std::make_unique<OutputPart>(5, TensorShape{ 1, 2, 3, 4 }, CompilerDataFormat::NHWCB,
+    auto outputPart = std::make_unique<OutputPart>(6, TensorShape{ 1, 2, 3, 4 }, CompilerDataFormat::NHWCB,
                                                    QuantizationInfo(9, 10.0f), DataType::UINT8_QUANTIZED,
                                                    std::set<uint32_t>{ 13, 14, 15 }, 0, estOpt, compOpt, caps);
-    parts.m_Parts.push_back(std::move(outputPart));
+    parts.AddPart(std::move(outputPart));
 
     // ReshapePart
     auto reshapePart = std::make_unique<ReshapePart>(8, TensorShape{ 1, 2, 3, 4 }, TensorShape{ 5, 6, 7, 8 },
                                                      QuantizationInfo(9, 10.0f), DataType::UINT8_QUANTIZED,
                                                      std::set<uint32_t>{ 13, 14, 15 }, estOpt, compOpt, caps);
-    parts.m_Parts.push_back(std::move(reshapePart));
+    parts.AddPart(std::move(reshapePart));
 
     // Standalone PLE part
     auto standalonePlePart = std::make_unique<StandalonePlePart>(
@@ -707,13 +705,13 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
         std::vector<QuantizationInfo>{ QuantizationInfo(9, 10.0f), QuantizationInfo(9, 10.0f) },
         QuantizationInfo(9, 10.0f), ethosn::command_stream::PleOperation::ADDITION, estOpt, compOpt, caps,
         std::set<uint32_t>{ 1 }, DataType::UINT8_QUANTIZED);
-    parts.m_Parts.push_back(std::move(standalonePlePart));
+    parts.AddPart(std::move(standalonePlePart));
 
     // ConstantPart
     auto constantPart = std::make_unique<ConstantPart>(10, TensorShape{ 1, 2, 3, 4 }, CompilerDataFormat::NHWCB,
                                                        QuantizationInfo(9, 10.0f), DataType::UINT8_QUANTIZED,
                                                        std::set<uint32_t>{ 7 }, estOpt, compOpt, caps);
-    parts.m_Parts.push_back(std::move(constantPart));
+    parts.AddPart(std::move(constantPart));
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
     bool dumpToFile = false;
@@ -731,10 +729,10 @@ TEST_CASE("SaveGraphOfPartsToDot Part Details", "[Visualisation]")
         R"(digraph SupportLibraryGraph
 {
 FusedPlePart_1[label = "FusedPlePart 1\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nInputDataType = UINT8_QUANTIZED\nOutputDataType = UINT8_QUANTIZED\nKernelOperation = DOWNSAMPLE_2X2\nShapeMultiplier = [1/1, 2/1, 3/1]\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [1, 2, 3, 4]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 1\nStripeGenerator.KernelWidth = 1\nStripeGenerator.UpscaleFactor = 1\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceShapeMultiplier = [1/1, 1/1, 1/1]\nStripeGenerator.PleShapeMultiplier = [1/1, 2/1, 3/1]\n"]
-McePart_5[label = "McePart 5\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nInputDataType = UINT8_QUANTIZED\nOutputDataType = UINT8_QUANTIZED\nWeightsInfo = ([9, 10, 11, 12], UINT8_QUANTIZED, NHWC, ZeroPoint = 11, Scale = 12.000000)\nBiasInfo = ([19, 110, 111, 112], UINT8_QUANTIZED, NHWC, ZeroPoint = 111, Scale = 112.000000)\nStride = 2, 2\nUpscaleFactor = 3\nUpsampleType = NEAREST_NEIGHBOUR\nPadTop = 1\nPadLeft = 3\nOperation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 9\nStripeGenerator.KernelWidth = 10\nStripeGenerator.UpscaleFactor = 3\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceShapeMultiplier = [3/1, 3/1, 1/1]\nStripeGenerator.PleShapeMultiplier = [1/1, 1/1, 1/1]\n"]
 ConcatPart_2[label = "ConcatPart 2\nCorrespondingOperationIds = [13, 14, 15]\nPreferNhwc = 1\nInputTensorsInfo = [([1, 2, 3, 4], UINT8_QUANTIZED, NHWC, ZeroPoint = 0, Scale = 1.000000)]\nOutputTensorInfo = ([5, 6, 7, 8], UINT8_QUANTIZED, NHWC, ZeroPoint = 9, Scale = 10.000000)\nAxis = 3\nOffsets = [0, 16]\n"]
 InputPart_3[label = "InputPart 3\nCorrespondingOperationIds = [13, 14, 15]\nCompilerDataFormat = NHWCB\nOutputTensorShape = [1, 2, 3, 4]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputDataType = UINT8_QUANTIZED\n"]
-OutputPart_5[label = "OutputPart 5\nCorrespondingOperationIds = [13, 14, 15]\nCompilerDataFormat = NHWCB\nInputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nInputDataType = UINT8_QUANTIZED\n"]
+McePart_5[label = "McePart 5\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputQuantizationInfo = ZeroPoint = 11, Scale = 12.000000\nInputDataType = UINT8_QUANTIZED\nOutputDataType = UINT8_QUANTIZED\nWeightsInfo = ([9, 10, 11, 12], UINT8_QUANTIZED, NHWC, ZeroPoint = 11, Scale = 12.000000)\nBiasInfo = ([19, 110, 111, 112], UINT8_QUANTIZED, NHWC, ZeroPoint = 111, Scale = 112.000000)\nStride = 2, 2\nUpscaleFactor = 3\nUpsampleType = NEAREST_NEIGHBOUR\nPadTop = 1\nPadLeft = 3\nOperation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceInputTensorShape = [1, 2, 3, 4]\nStripeGenerator.MceOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.PleOutputTensorShape = [5, 6, 7, 8]\nStripeGenerator.KernelHeight = 9\nStripeGenerator.KernelWidth = 10\nStripeGenerator.UpscaleFactor = 3\nStripeGenerator.Operation = DEPTHWISE_CONVOLUTION\nStripeGenerator.MceShapeMultiplier = [3/1, 3/1, 1/1]\nStripeGenerator.PleShapeMultiplier = [1/1, 1/1, 1/1]\n"]
+OutputPart_6[label = "OutputPart 6\nCorrespondingOperationIds = [13, 14, 15]\nCompilerDataFormat = NHWCB\nInputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nInputDataType = UINT8_QUANTIZED\n"]
 ReshapePart_8[label = "ReshapePart 8\nCorrespondingOperationIds = [13, 14, 15]\nInputTensorShape = [1, 2, 3, 4]\nOutputTensorShape = [5, 6, 7, 8]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nDataType = UINT8_QUANTIZED\n"]
 StandalonePlePart_9[label = "StandalonePlePart 9\nCorrespondingOperationIds = [1]\nInputTensorShape = [[1, 2, 3, 4], [1, 2, 3, 4]]\nOutputTensorShape = [1, 2, 3, 4]\nInputQuantizationInfo = [ZeroPoint = 9, Scale = 10.000000, ZeroPoint = 9, Scale = 10.000000]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\n"]
 ConstantPart_10[label = "ConstantPart 10\nCorrespondingOperationIds = [7]\nCompilerDataFormat = NHWCB\nOutputTensorShape = [1, 2, 3, 4]\nOutputQuantizationInfo = ZeroPoint = 9, Scale = 10.000000\nOutputDataType = UINT8_QUANTIZED\n"]
@@ -849,9 +847,6 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
 
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA         = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB         = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC         = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -864,12 +859,12 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     PartId partDEId = pDE->GetPartId();
     PartId partFId  = pF->GetPartId();
     PartId partGId  = pG->GetPartId();
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pDE));
-    parts.push_back(std::move(pF));
-    parts.push_back(std::move(pG));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pDE));
+    graph.AddPart(std::move(pF));
+    graph.AddPart(std::move(pG));
 
     PartOutputSlot partAOutputSlot0 = { partAId, 0 };
 
@@ -890,13 +885,13 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     PartInputSlot partGInputSlot0 = { partGId, 0 };
     PartInputSlot partGInputSlot1 = { partGId, 1 };
 
-    connections[partBInputSlot0]  = partAOutputSlot0;
-    connections[partCInputSlot0]  = partBOutputSlot0;
-    connections[partDEInputSlot0] = partCOutputSlot0;
-    connections[partDEInputSlot1] = partCOutputSlot0;
-    connections[partFInputSlot0]  = partDEOutputSlot0;
-    connections[partGInputSlot0]  = partDEOutputSlot0;
-    connections[partGInputSlot1]  = partDEOutputSlot1;
+    graph.AddConnection(partBInputSlot0, partAOutputSlot0);
+    graph.AddConnection(partCInputSlot0, partBOutputSlot0);
+    graph.AddConnection(partDEInputSlot0, partCOutputSlot0);
+    graph.AddConnection(partDEInputSlot1, partCOutputSlot0);
+    graph.AddConnection(partFInputSlot0, partDEOutputSlot0);
+    graph.AddConnection(partGInputSlot0, partDEOutputSlot0);
+    graph.AddConnection(partGInputSlot1, partDEOutputSlot1);
 
     Plan planA;
     planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
@@ -1237,9 +1232,6 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
     DebuggableObject::ms_IdCounter = 0;    // Reset counter so we get deterministic results
 
     GraphOfParts graph;
-    auto& parts       = graph.m_Parts;
-    auto& connections = graph.m_Connections;
-
     auto pA = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pB = std::make_unique<MockPart>(graph.GeneratePartId());
     auto pC = std::make_unique<MockPart>(graph.GeneratePartId());
@@ -1250,10 +1242,10 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
     BasePart& partC = *pC;
     BasePart& partD = *pD;
 
-    parts.push_back(std::move(pA));
-    parts.push_back(std::move(pB));
-    parts.push_back(std::move(pC));
-    parts.push_back(std::move(pD));
+    graph.AddPart(std::move(pA));
+    graph.AddPart(std::move(pB));
+    graph.AddPart(std::move(pC));
+    graph.AddPart(std::move(pD));
 
     PartOutputSlot partAOutputSlot = { partA.GetPartId(), 0 };
 
@@ -1261,9 +1253,9 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
     PartInputSlot partCInputSlot = { partC.GetPartId(), 0 };
     PartInputSlot partDInputSlot = { partD.GetPartId(), 0 };
 
-    connections[partBInputSlot] = { partAOutputSlot };
-    connections[partCInputSlot] = { partAOutputSlot };
-    connections[partDInputSlot] = { partAOutputSlot };
+    graph.AddConnection(partBInputSlot, { partAOutputSlot });
+    graph.AddConnection(partCInputSlot, { partAOutputSlot });
+    graph.AddConnection(partDInputSlot, { partAOutputSlot });
 
     const CompilationOptions compOpt;
     const EstimationOptions estOpt;

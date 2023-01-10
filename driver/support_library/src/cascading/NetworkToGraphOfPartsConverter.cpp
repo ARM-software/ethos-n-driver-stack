@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -224,7 +224,7 @@ void NetworkToGraphOfPartsConverter::Visit(Input& input)
                                                  input.GetTensorInfo().m_DataType, std::set<uint32_t>{ input.GetId() },
                                                  m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
     parts.push_back(inputPart.get());
-    m_GraphOfParts.m_Parts.push_back(std::move(inputPart));
+    m_GraphOfParts.AddPart(std::move(inputPart));
     ConnectParts(input, parts);
 }
 
@@ -242,7 +242,7 @@ void NetworkToGraphOfPartsConverter::Visit(Output& output)
         std::set<uint32_t>{ output.GetInput(0).GetProducer().GetId() }, output.GetInput(0).GetProducerOutputIndex(),
         m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
     parts.push_back(outputPart.get());
-    m_GraphOfParts.m_Parts.push_back(std::move(outputPart));
+    m_GraphOfParts.AddPart(std::move(outputPart));
     ConnectParts(output, parts);
 }
 
@@ -264,7 +264,7 @@ void NetworkToGraphOfPartsConverter::Visit(Constant& constant)
         constant.GetTensorInfo().m_QuantizationInfo, constant.GetTensorInfo().m_DataType,
         std::set<uint32_t>{ constant.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
     parts.push_back(constPart.get());
-    m_GraphOfParts.m_Parts.push_back(std::move(constPart));
+    m_GraphOfParts.AddPart(std::move(constPart));
     ConnectParts(constant, parts);
 }
 
@@ -291,7 +291,7 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
             operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+        m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
     }
     else
     {
@@ -328,7 +328,7 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
                 mceOperationInput.m_DataType, mceOperationOutput.m_DataType);
 
             parts.push_back(fusedPlePart.get());
-            m_GraphOfParts.m_Parts.push_back(std::move(fusedPlePart));
+            m_GraphOfParts.AddPart(std::move(fusedPlePart));
         }
 
         command_stream::MceOperation operation                = command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
@@ -362,7 +362,7 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
         }
 
         parts.push_back(mcePart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+        m_GraphOfParts.AddPart(std::move(mcePart));
     }
 
     ConnectParts(depthwise, parts);
@@ -392,7 +392,7 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
             operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+        m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
     }
     else
     {
@@ -429,7 +429,7 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
                                     convolution.GetWeights().GetId() },
                 mceOperationInput.m_DataType, mceOperationOutput.m_DataType);
             parts.push_back(fusedPlePart.get());
-            m_GraphOfParts.m_Parts.push_back(std::move(fusedPlePart));
+            m_GraphOfParts.AddPart(std::move(fusedPlePart));
 
             // Pass interleaved Output as Input Tensor to subsequent McePart
             mcePartInputTensor = interleaveOutput;
@@ -459,7 +459,7 @@ void NetworkToGraphOfPartsConverter::Visit(Convolution& convolution)
         }
 
         parts.push_back(mcePart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+        m_GraphOfParts.AddPart(std::move(mcePart));
     }
 
     ConnectParts(convolution, parts);
@@ -490,7 +490,7 @@ void NetworkToGraphOfPartsConverter::Visit(FullyConnected& fullyConnected)
             m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+        m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
     }
     else
     {
@@ -550,7 +550,7 @@ void NetworkToGraphOfPartsConverter::Visit(FullyConnected& fullyConnected)
             m_CompilationOptions, m_Capabilities, operationIds, mceOperationInput.m_DataType,
             mceOperationOutput.m_DataType);
         parts.push_back(fcPart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(fcPart));
+        m_GraphOfParts.AddPart(std::move(fcPart));
     }
 
     ConnectParts(fullyConnected, parts);
@@ -591,7 +591,7 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
             std::set<uint32_t>{ pooling.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+        m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
     }
     else
     {
@@ -608,7 +608,7 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
                 m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
                 std::set<uint32_t>{ pooling.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType);
             parts.push_back(poolingFusedPlePart.get());
-            m_GraphOfParts.m_Parts.push_back(std::move(poolingFusedPlePart));
+            m_GraphOfParts.AddPart(std::move(poolingFusedPlePart));
         };
 
         // Pooling Visitor decoder, creating appropriate FusedPle Parts for supported Operations.
@@ -650,7 +650,7 @@ void NetworkToGraphOfPartsConverter::Visit(Pooling& pooling)
                 command_stream::PleOperation::AVGPOOL_3X3_1_1_UDMA, m_EstimationOptions.value(), m_CompilationOptions,
                 m_Capabilities, std::set<uint32_t>{ pooling.GetId() }, pooling.GetOutput(0).GetTensorInfo().m_DataType);
             parts.push_back(poolingStandalonePlePart.get());
-            m_GraphOfParts.m_Parts.push_back(std::move(poolingStandalonePlePart));
+            m_GraphOfParts.AddPart(std::move(poolingStandalonePlePart));
         }
         else
         {
@@ -672,7 +672,7 @@ void NetworkToGraphOfPartsConverter::Visit(Reshape& reshape)
         reshape.GetOutput(0).GetTensorInfo().m_DataType, std::set<uint32_t>{ reshape.GetId() },
         m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
     parts.push_back(reshapePart.get());
-    m_GraphOfParts.m_Parts.push_back(std::move(reshapePart));
+    m_GraphOfParts.AddPart(std::move(reshapePart));
     ConnectParts(reshape, parts);
 }
 
@@ -702,7 +702,7 @@ void NetworkToGraphOfPartsConverter::Visit(Addition& addition)
             std::set<uint32_t>{ addition.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+        m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
     }
     else
     {
@@ -721,7 +721,7 @@ void NetworkToGraphOfPartsConverter::Visit(Addition& addition)
             m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ addition.GetId() },
             addition.GetOutput(0).GetTensorInfo().m_DataType);
         parts.push_back(additionStandalonePlePart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(additionStandalonePlePart));
+        m_GraphOfParts.AddPart(std::move(additionStandalonePlePart));
     }
 
     ConnectParts(addition, parts);
@@ -758,7 +758,7 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
             m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+        m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
         ConnectParts(concat, parts);
     }
     else
@@ -789,7 +789,7 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
                     { mcePart->GetPartId(), 0 },
                     { m_OperandToPart.at(&inputOperand)->GetPartId(), inputOperand.GetProducerOutputIndex() });
                 mcePartIds[i] = mcePart->GetPartId();
-                m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+                m_GraphOfParts.AddPart(std::move(mcePart));
 
                 inputTensorsInfo[i].m_QuantizationInfo = outputQuantInfo;
             }
@@ -841,7 +841,7 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
             m_CompilationOptions, m_Capabilities);
         ConcatPart* concatPartRaw = concatPart.get();
         parts.push_back(concatPartRaw);
-        m_GraphOfParts.m_Parts.push_back(std::move(concatPart));
+        m_GraphOfParts.AddPart(std::move(concatPart));
 
         if (!removeAmounts.empty())
         {
@@ -851,7 +851,7 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
                 m_Capabilities, removeAmounts);
             parts.push_back(paddingPart.get());
             m_GraphOfParts.AddConnection({ paddingPart->GetPartId(), 0 }, { concatPartRaw->GetPartId(), 0 });
-            m_GraphOfParts.m_Parts.push_back(std::move(paddingPart));
+            m_GraphOfParts.AddPart(std::move(paddingPart));
         }
 
         // Connect ConcatPart to the GraphOfParts. Loop through all Inputs of the ConcatPart and determine whether:
@@ -897,7 +897,7 @@ void NetworkToGraphOfPartsConverter::Visit(Requantize& requantize)
             m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+        m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
         ConnectParts(requantize, parts);
     }
     else
@@ -919,7 +919,7 @@ void NetworkToGraphOfPartsConverter::Visit(Requantize& requantize)
                                       m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
             parts.push_back(mcePart.get());
-            m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+            m_GraphOfParts.AddPart(std::move(mcePart));
             ConnectParts(requantize, parts);
         }
         else
@@ -948,7 +948,7 @@ void NetworkToGraphOfPartsConverter::Visit(LeakyRelu& leakyRelu)
             std::set<uint32_t>{ leakyRelu.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+        m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
     }
     else
     {
@@ -964,7 +964,7 @@ void NetworkToGraphOfPartsConverter::Visit(LeakyRelu& leakyRelu)
             std::set<uint32_t>{ leakyRelu.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType,
             leakyRelu.GetLeakyReluInfo().m_Alpha);
         parts.push_back(leakyReluPart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(leakyReluPart));
+        m_GraphOfParts.AddPart(std::move(leakyReluPart));
     }
 
     ConnectParts(leakyRelu, parts);
@@ -984,7 +984,7 @@ void NetworkToGraphOfPartsConverter::Visit(Sigmoid& sigmoid)
         g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
         std::set<uint32_t>{ sigmoid.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType);
     parts.push_back(sigmoidPart.get());
-    m_GraphOfParts.m_Parts.push_back(std::move(sigmoidPart));
+    m_GraphOfParts.AddPart(std::move(sigmoidPart));
     ConnectParts(sigmoid, parts);
 }
 
@@ -1007,7 +1007,7 @@ void NetworkToGraphOfPartsConverter::Visit(Tanh& tanh)
         g_IdentityShapeMultiplier, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities,
         std::set<uint32_t>{ tanh.GetId() }, inputInfo.m_DataType, outputInfo.m_DataType);
     parts.push_back(tanhPart.get());
-    m_GraphOfParts.m_Parts.push_back(std::move(tanhPart));
+    m_GraphOfParts.AddPart(std::move(tanhPart));
     ConnectParts(tanh, parts);
 }
 
@@ -1035,7 +1035,7 @@ void NetworkToGraphOfPartsConverter::Visit(MeanXy& meanxy)
         m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, std::set<uint32_t>{ meanxy.GetId() },
         inputInfo.m_DataType, outputInfo.m_DataType);
     parts.push_back(meanxyPart.get());
-    m_GraphOfParts.m_Parts.push_back(std::move(meanxyPart));
+    m_GraphOfParts.AddPart(std::move(meanxyPart));
     ConnectParts(meanxy, parts);
 }
 
@@ -1057,7 +1057,7 @@ void NetworkToGraphOfPartsConverter::Visit(EstimateOnly& estimateOnly)
         std::set<uint32_t>{ estimateOnly.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
     parts.push_back(estimateOnlyPart.get());
-    m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+    m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
     ConnectParts(estimateOnly, parts);
 }
 
@@ -1100,7 +1100,7 @@ void NetworkToGraphOfPartsConverter::Visit(Resize& resize)
 
     std::vector<BasePart*> parts;
     parts.push_back(mcePart.get());
-    m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+    m_GraphOfParts.AddPart(std::move(mcePart));
     ConnectParts(resize, parts);
 }
 
@@ -1130,7 +1130,7 @@ void NetworkToGraphOfPartsConverter::Visit(Relu& relu)
 
         inputPart = mcePart.get();
         parts.push_back(mcePart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+        m_GraphOfParts.AddPart(std::move(mcePart));
         ConnectParts(relu, parts);
     }
 
@@ -1246,7 +1246,7 @@ std::vector<BasePart*> NetworkToGraphOfPartsConverter::CreateTransposeConv(const
 
         auto identityDepthwisePart = std::make_unique<McePart>(std::move(params));
         parts.push_back(identityDepthwisePart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(identityDepthwisePart));
+        m_GraphOfParts.AddPart(std::move(identityDepthwisePart));
 
         upscaleFactor = 1;
         upsampleType  = ethosn::command_stream::cascading::UpsampleType::OFF;
@@ -1292,7 +1292,7 @@ std::vector<BasePart*> NetworkToGraphOfPartsConverter::CreateTransposeConv(const
     auto mcePart                    = std::make_unique<McePart>(std::move(params));
 
     parts.push_back(mcePart.get());
-    m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+    m_GraphOfParts.AddPart(std::move(mcePart));
 
     return parts;
 }
@@ -1336,7 +1336,7 @@ void NetworkToGraphOfPartsConverter::Visit(TransposeConvolution& transposeConvol
             operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+        m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
     }
     else
     {
@@ -1360,7 +1360,7 @@ void NetworkToGraphOfPartsConverter::Visit(Softmax& softmax)
         std::set<uint32_t>{ softmax.GetId() }, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
     parts.push_back(estimateOnlyPart.get());
-    m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+    m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
     ConnectParts(softmax, parts);
 }
 
@@ -1419,7 +1419,7 @@ void NetworkToGraphOfPartsConverter::Visit(Split& split)
                 m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities, padAmounts);
             paddingPartRaw = paddingPart.get();
             parts.push_back(paddingPartRaw);
-            m_GraphOfParts.m_Parts.push_back(std::move(paddingPart));
+            m_GraphOfParts.AddPart(std::move(paddingPart));
 
             inputInfo.m_Dimensions[3] = newInputDepth;
         }
@@ -1460,7 +1460,7 @@ void NetworkToGraphOfPartsConverter::Visit(Split& split)
             mcePartIds[i] = mcePart->GetPartId();
 
             parts.push_back(mcePart.get());
-            m_GraphOfParts.m_Parts.push_back(std::move(mcePart));
+            m_GraphOfParts.AddPart(std::move(mcePart));
 
             m_OperandToPart[&outputOperand] = parts.back();
         }
@@ -1470,7 +1470,7 @@ void NetworkToGraphOfPartsConverter::Visit(Split& split)
             m_OperandToPart[&outputOperand] = parts.back();
         }
     }
-    m_GraphOfParts.m_Parts.push_back(std::move(splitPart));
+    m_GraphOfParts.AddPart(std::move(splitPart));
 
     Operand& operand = split.GetInput(0);
     m_GraphOfParts.AddConnection({ parts.front()->GetPartId(), 0 },
@@ -1496,7 +1496,7 @@ void NetworkToGraphOfPartsConverter::Visit(Transpose& transpose)
             operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+        m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
     }
     ConnectParts(transpose, parts);
 }
@@ -1523,7 +1523,7 @@ void NetworkToGraphOfPartsConverter::Visit(DepthToSpace& depthToSpace)
                                                m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+        m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
         ConnectParts(depthToSpace, parts);
     }
     else
@@ -1632,7 +1632,7 @@ void NetworkToGraphOfPartsConverter::Visit(SpaceToDepth& spaceToDepth)
             operationIds, m_EstimationOptions.value(), m_CompilationOptions, m_Capabilities);
 
         parts.push_back(estimateOnlyPart.get());
-        m_GraphOfParts.m_Parts.push_back(std::move(estimateOnlyPart));
+        m_GraphOfParts.AddPart(std::move(estimateOnlyPart));
     }
 
     ConnectParts(spaceToDepth, parts);

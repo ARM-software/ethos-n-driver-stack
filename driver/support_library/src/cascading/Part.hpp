@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -9,6 +9,7 @@
 #include "DebuggableObject.hpp"
 
 #include <functional>
+#include <map>
 #include <typeinfo>
 #include <utility>
 #include <vector>
@@ -211,7 +212,7 @@ protected:
                     bool hasIdentityPle = false) const;
 };
 
-using Parts = std::vector<std::unique_ptr<BasePart>>;
+using Parts = std::map<PartId, std::unique_ptr<BasePart>>;
 
 class WeightEncoderCache;
 
@@ -290,6 +291,10 @@ public:
     const BasePart& GetPart(const PartId id) const;
     const Parts& GetParts() const;
 
+    void AddPart(std::unique_ptr<BasePart> p);
+
+    const std::unordered_map<PartInputSlot, PartOutputSlot>& GetAllConnections() const;
+
     /// Methods to retrieve the input / output slots for a part
     std::vector<PartInputSlot> GetPartInputs(PartId p) const;
     std::vector<PartOutputSlot> GetPartOutputs(PartId p) const;
@@ -322,6 +327,7 @@ public:
         return currId;
     }
 
+private:
     Parts m_Parts;
     std::unordered_map<PartInputSlot, PartOutputSlot> m_Connections;
     PartId m_NextPartId = 0;

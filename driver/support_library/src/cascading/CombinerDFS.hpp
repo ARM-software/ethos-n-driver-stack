@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -298,7 +298,7 @@ private:
     const DebuggingContext& m_DebuggingContext;
 
     const BasePart* m_FirstPartAfterSort = nullptr;
-    std::vector<std::pair<size_t, const BasePart*>> m_PartOrderTable;
+    std::unordered_map<size_t, std::pair<size_t, const BasePart*>> m_PartOrderTable;
 
     Combination m_BestCombination;
     OpGraph m_MergedOpGraphForBestCombination;
