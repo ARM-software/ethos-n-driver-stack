@@ -104,6 +104,7 @@ struct ethosn_core {
 	struct ethosn_dma_info      *mailbox_request;
 	struct ethosn_dma_info      *mailbox_response;
 	void                        *mailbox_message;
+	size_t                      mailbox_size;
 
 	/*
 	 * Circular FIFO buffer to store firmware log messages. This is used as

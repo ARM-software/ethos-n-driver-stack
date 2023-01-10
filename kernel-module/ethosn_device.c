@@ -263,6 +263,9 @@ static int ethosn_debug_monitor_channel_init(struct ethosn_core *core)
 static int mailbox_alloc(struct ethosn_core *core)
 {
 	struct ethosn_dma_allocator *allocator = core->main_allocator;
+	resource_size_t mailbox_end;
+	resource_size_t request_end;
+	resource_size_t response_end;
 	int ret = -ENOMEM;
 
 	core->mailbox =
@@ -307,6 +310,21 @@ static int mailbox_alloc(struct ethosn_core *core)
 			 "Failed to allocate memory for mailbox response queue");
 		goto err_free_mailbox_request;
 	}
+
+	mailbox_end = core->mailbox->iova_addr + core->mailbox->size;
+	request_end = core->mailbox_request->iova_addr +
+		      core->mailbox_request->size;
+	response_end = core->mailbox_response->iova_addr +
+		       core->mailbox_response->size;
+
+	core->mailbox_size =
+		roundup_pow_of_two(max3(mailbox_end, request_end,
+					response_end) -
+				   ethosn_dma_get_addr_base(
+					   core->main_allocator,
+					   ETHOSN_STREAM_WORKING_DATA));
+
+	dev_dbg(core->dev, "Mailbox size: %zu bytes\n", core->mailbox_size);
 
 	core->mailbox_message =
 		devm_kzalloc(core->parent->dev, core->queue_size,
@@ -1663,8 +1681,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 
 	/* Init memory regions */
 	ethosn_write_top_reg(core, DL1_RP, GP_MAILBOX_SIZE,
-			     ethosn_dma_get_addr_size(core->main_allocator,
-						      ETHOSN_STREAM_WORKING_DATA));
+			     core->mailbox_size);
 	ethosn_write_top_reg(core, DL1_RP, GP_COMMAND_STREAM_SIZE,
 			     ethosn_dma_get_addr_size(
 				     parent->asset_allocator[0],
