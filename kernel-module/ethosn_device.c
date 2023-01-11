@@ -74,9 +74,6 @@ module_param_named(clock_frequency, clock_frequency, int, 0440);
 static bool stashing_enabled = true;
 module_param_named(stashing, stashing_enabled, bool, 0440);
 
-static bool dual_irq = true;
-module_param_named(dual_irq, dual_irq, bool, 0440);
-
 /* Exposes global access to the most-recently created Ethos-N core for testing
  * purposes.
  */
@@ -580,10 +577,6 @@ void ethosn_notify_firmware(struct ethosn_core *core)
 
 	ethosn_write_top_reg(core, DL1_RP, DL1_SETIRQ_INT,
 			     irq.word);
-
-	if (dual_irq)
-		ethosn_write_top_reg(core, DL1_RP, DL1_SETIRQ_INT,
-				     irq.word);
 }
 
 #ifndef ETHOSN_NS
