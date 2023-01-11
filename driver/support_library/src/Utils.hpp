@@ -370,13 +370,14 @@ inline ethosn::support_library::TensorShape
     return roundUp;
 }
 
-inline uint32_t MaxTileSize(const ethosn::support_library::TensorShape& shape, const HardwareCapabilities& capabilities)
+inline uint32_t MaxTileSize(const ethosn::support_library::TensorShape& shape,
+                            const HardwareCapabilities& capabilities,
+                            uint32_t widthMultiple,
+                            uint32_t heightMultiple)
 {
-    const uint32_t brickGroupHeight = capabilities.GetBrickGroupShape()[1];
-    const uint32_t brickGroupWidth  = capabilities.GetBrickGroupShape()[2];
-    const uint32_t numSrams         = capabilities.GetNumberOfSrams();
-    return TotalSizeBytes(TensorShape{ 1, RoundUpToNearestMultiple(shape[1], brickGroupHeight),
-                                       RoundUpToNearestMultiple(shape[2], brickGroupWidth),
+    const uint32_t numSrams = capabilities.GetNumberOfSrams();
+    return TotalSizeBytes(TensorShape{ 1, RoundUpToNearestMultiple(shape[1], heightMultiple),
+                                       RoundUpToNearestMultiple(shape[2], widthMultiple),
                                        RoundUpToNearestMultiple(shape[3], numSrams) });
 }
 
