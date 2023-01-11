@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -75,9 +75,10 @@ std::pair<uint32_t, uint32_t>
     // or the stripe shape is not multiple of any type of FCAF cell.
     // Note if the HW always writes to SRAM in full FCAF cell size if the source FCAF compressed.
     const bool inputTileClamp =
-        (!couldSourceBeFcaf ||
-         (!IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_DEEP, inputStripeShape) &&
-          !IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_WIDE, inputStripeShape))) &&
+        (!couldSourceBeFcaf || (!IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_DEEP,
+                                                                              inputStripeShape, inputTensorShape) &&
+                                !IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_WIDE,
+                                                                              inputStripeShape, inputTensorShape))) &&
         !AnyPackedBoundaryData(packedBoundaryThickness);
 
     if (inputTileClamp)

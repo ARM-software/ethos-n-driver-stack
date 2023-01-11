@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -365,15 +365,15 @@ bool IsSramBufferCompatibleWithDramFormat(const Buffer& sramBuffer, CascadingBuf
 
     // FCAF requires certain stripe shapes
     if (dramFormat == CascadingBufferFormat::FCAF_DEEP &&
-        !IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_DEEP,
-                                                      sramBuffer.m_StripeShape))
+        !IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_DEEP, sramBuffer.m_StripeShape,
+                                                      sramBuffer.m_TensorShape))
     {
         return false;
     }
     // FCAF requires certain stripe shapes
     if (dramFormat == CascadingBufferFormat::FCAF_WIDE &&
-        !IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_WIDE,
-                                                      sramBuffer.m_StripeShape))
+        !IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_WIDE, sramBuffer.m_StripeShape,
+                                                      sramBuffer.m_TensorShape))
     {
         return false;
     }

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -719,9 +719,9 @@ MceStrategySelectionReturnValue
         {
             const uint64_t ifmBandwidth = tryResult.m_InputStats.m_MemoryStats.m_DramParallel +
                                           tryResult.m_InputStats.m_MemoryStats.m_DramNonParallel;
-            const bool isOutputFcafCompatible = (IsCompressionFormatCompatibleWithStripeShape(
+            const bool isOutputFcafCompatible = (IsCompressionFormatCompatibleWithStripeShapeLegacy(
                                                      CompilerDataCompressedFormat::FCAF_WIDE, outputStripeShape) ||
-                                                 IsCompressionFormatCompatibleWithStripeShape(
+                                                 IsCompressionFormatCompatibleWithStripeShapeLegacy(
                                                      CompilerDataCompressedFormat::FCAF_DEEP, outputStripeShape));
 
             // Minimise IFM bandwidth, but also account for FCAF comatibility. FCAF is important not only for

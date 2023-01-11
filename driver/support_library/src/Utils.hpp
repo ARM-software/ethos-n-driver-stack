@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -675,8 +675,11 @@ constexpr DataTypeRange GetTypeLimits()
 command_stream::UpsampleType ConvertResizeAlgorithmToCommand(const ResizeAlgorithm algorithm);
 command_stream::cascading::UpsampleType ConvertResizeAlgorithmToCascadingCommand(const ResizeAlgorithm algorithm);
 
-bool IsCompressionFormatCompatibleWithStripeShape(const CompilerDataCompressedFormat& compressionFormat,
-                                                  const TensorShape& stripeShape);
+bool IsCompressionFormatCompatibleWithStripeShapeLegacy(CompilerDataCompressedFormat compressionFormat,
+                                                        const TensorShape& stripeShape);
+bool IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat compressionFormat,
+                                                  const TensorShape& stripeShape,
+                                                  const TensorShape& tensorShape);
 
 struct NeedBoundary
 {

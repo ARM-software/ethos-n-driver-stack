@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -485,8 +485,8 @@ command_stream::cascading::UpsampleType ConvertResizeAlgorithmToCascadingCommand
     }
 }
 
-bool IsCompressionFormatCompatibleWithStripeShape(const CompilerDataCompressedFormat& compressionFormat,
-                                                  const TensorShape& stripeShape)
+bool IsCompressionFormatCompatibleWithStripeShapeLegacy(CompilerDataCompressedFormat compressionFormat,
+                                                        const TensorShape& stripeShape)
 {
     switch (compressionFormat)
     {
@@ -503,6 +503,35 @@ bool IsCompressionFormatCompatibleWithStripeShape(const CompilerDataCompressedFo
         default:
             return false;
     }
+}
+
+bool IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat compressionFormat,
+                                                  const TensorShape& stripeShape,
+                                                  const TensorShape& tensorShape)
+{
+    TensorShape cellShape;
+    switch (compressionFormat)
+    {
+        case CompilerDataCompressedFormat::FCAF_DEEP:
+            cellShape = g_FcafDeepCellShape;
+            break;
+        case CompilerDataCompressedFormat::FCAF_WIDE:
+            cellShape = g_FcafWideCellShape;
+            break;
+        default:
+            return false;
+    }
+    // The stripe shape must be a multiple of the cell shape for all dimensions in which there are multiple
+    // stripes. If there is only a single stripe in that dimension, then it doesn't matter.
+    for (uint32_t dim = 0; dim < 4; ++dim)
+    {
+        uint32_t numStripes = DivRoundUp(tensorShape[dim], stripeShape[dim]);
+        if (numStripes > 1 && (stripeShape[dim] % cellShape[dim]) != 0)
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 CompilerMceAlgorithm FindBestConvAlgorithm(const HardwareCapabilities& caps, uint32_t w, uint32_t h)

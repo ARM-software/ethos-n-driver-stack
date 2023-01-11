@@ -169,7 +169,6 @@ struct CheckPlansParams
     utils::Optional<uint32_t> m_UpscaleFactor;
     utils::Optional<command_stream::cascading::UpsampleType> m_UpsampleType;
     utils::Optional<std::set<uint32_t>> m_OperationIds;
-    utils::Optional<bool> m_CouldFcafDecomp;
     /// @}
 
     std::vector<PlanDescPredicate>
@@ -262,30 +261,6 @@ void CheckInputSram(PlanDesc& desc, const CheckPlansParams& params)
     }
     // m_StripeShape, m_Order, m_SizeInBytes and m_NumStripes will depend on the streaming strategy, and so cannot be checked generically
     CHECK(desc.m_InputSram->m_EncodedWeights == nullptr);
-
-    if (params.m_CouldFcafDecomp)
-    {
-        // data could be FCAF decompressed
-        const bool stripeCellAligned = utils::IsCompressionFormatCompatibleWithStripeShape(
-                                           CompilerDataCompressedFormat::FCAF_DEEP, desc.m_InputSram->m_StripeShape) |
-                                       utils::IsCompressionFormatCompatibleWithStripeShape(
-                                           CompilerDataCompressedFormat::FCAF_WIDE, desc.m_InputSram->m_StripeShape);
-        if (params.m_CouldFcafDecomp.value() && stripeCellAligned)
-        {
-            // check the tile size is multiple of cell size.
-            const uint32_t fcafCellSize = 8 * 8 * 32;
-            CHECK((desc.m_InputSram->m_SizeInBytes % fcafCellSize) == 0);
-            CHECK(desc.m_InputSram->m_SizeInBytes >=
-                  (utils::TotalSizeBytes(desc.m_InputSram->m_StripeShape) * desc.m_InputSram->m_NumStripes));
-        }
-        else
-        {
-            CHECK(params.m_Caps != nullptr);
-
-            uint32_t maxTileSize = utils::MaxTileSize(desc.m_InputSram->m_TensorShape, *params.m_Caps);
-            CHECK(desc.m_InputSram->m_SizeInBytes <= maxTileSize);
-        }
-    }
 }
 
 void CheckWeightsDram(PlanDesc& desc, const CheckPlansParams& params)
@@ -775,7 +750,6 @@ TEST_CASE("McePart GetPlans structure")
             {
                 params.m_InputLocation   = PlanInputLocation::Sram;
                 params.m_OutputLocations = PlanOutputLocation::Sram | PlanOutputLocation::PleInputSram;
-                params.m_CouldFcafDecomp = false;
                 params.m_Caps            = &caps;
                 // Confirm that we have at least one plan that ends in Sram and at least one that ends in PleInputSram
                 params.m_Any.push_back(
@@ -872,7 +846,6 @@ TEST_CASE("McePart End Cascade full tensor")
             {
                 params.m_InputLocation   = PlanInputLocation::Sram;
                 params.m_OutputLocations = PlanOutputLocation::Sram;
-                params.m_CouldFcafDecomp = false;
                 params.m_Caps            = &caps;
                 // Confirm that we have at least one plan that ends in Sram and at least one that ends in PleInputSram
                 params.m_Any.push_back(
@@ -947,7 +920,6 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
             {
                 params.m_InputLocation   = PlanInputLocation::Sram;
                 params.m_OutputLocations = PlanOutputLocation::Sram;
-                params.m_CouldFcafDecomp = true;
                 params.m_Caps            = &caps;
                 params.m_Any.push_back([](const PlanDesc& plan) {
                     return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
@@ -965,7 +937,6 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
             {
                 params.m_InputLocation   = PlanInputLocation::Sram;
                 params.m_OutputLocations = PlanOutputLocation::Sram | PlanOutputLocation::PleInputSram;
-                params.m_CouldFcafDecomp = true;
                 params.m_Caps            = &caps;
                 // Confirm that we have at least one plan that ends in Sram and at least one that ends in PleInputSram
                 params.m_Any.push_back(
@@ -990,7 +961,6 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
             prevBuffer.m_Order            = TraversalOrder::Xyz;
             prevBuffer.m_SizeInBytes      = 8 * 16 * 16 * 1;
             prevBuffer.m_NumStripes       = 1;
-            params.m_CouldFcafDecomp      = false;
             params.m_Caps                 = &caps;
 
             Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, &prevBuffer, 1);
@@ -1000,7 +970,6 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
             {
                 params.m_InputLocation   = PlanInputLocation::Sram;
                 params.m_OutputLocations = PlanOutputLocation::Sram | PlanOutputLocation::PleInputSram;
-                params.m_CouldFcafDecomp = false;
                 params.m_Caps            = &caps;
                 // Confirm that we have at least one plan that ends in Sram and at least one that ends in PleInputSram
                 params.m_Any.push_back(
@@ -1022,7 +991,6 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
             prevBuffer.m_Order            = TraversalOrder::Xyz;
             prevBuffer.m_SizeInBytes      = 8 * 16 * 16 * 1;
             prevBuffer.m_NumStripes       = 1;
-            params.m_CouldFcafDecomp      = false;
             params.m_Caps                 = &caps;
 
             Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, &prevBuffer, 1);

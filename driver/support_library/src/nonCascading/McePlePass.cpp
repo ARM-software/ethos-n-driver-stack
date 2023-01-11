@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -40,7 +40,7 @@ bool IsCompressionFormatCompatible(const CompilerDataCompressedFormat& compressi
     // If SPA "forward-looking" estimate is configured, activation compression for Ethos-N78 will be
     // allowed for arbitrary tensor shapes except for Strategy 7, which are not supported by FCAF.
     bool estimateOverride   = forwardEst && (strategy != Strategy::STRATEGY_7);
-    bool tensorCompressible = IsCompressionFormatCompatibleWithStripeShape(compressionFormat, stripeShape);
+    bool tensorCompressible = IsCompressionFormatCompatibleWithStripeShapeLegacy(compressionFormat, stripeShape);
 
     switch (compressionFormat)
     {

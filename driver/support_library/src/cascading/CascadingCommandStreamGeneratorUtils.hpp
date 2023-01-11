@@ -1,5 +1,5 @@
 //
-// Copyright © 2022 Arm Limited.
+// Copyright © 2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -80,11 +80,27 @@ inline void SetStripeHeightInfo(const HardwareCapabilities& hwCap,
     streamerData.dfltStripeSize.height = stripeHeight;
 
     streamerData.edgeStripeSize.height = CommonUtils::CalculateEdgeSize(tensorHeight, stripeHeight);
-    if (streamerData.dataType != FmsDataType::NHWC)
+    uint32_t multiple                  = 0;
+    switch (streamerData.dataType)
     {
-        streamerData.edgeStripeSize.height = ethosn::utils::NumericCast<uint16_t>(utils::RoundUpToNearestMultiple(
-            static_cast<uint32_t>(streamerData.edgeStripeSize.height), utils::GetHeight(hwCap.GetBrickGroupShape())));
+        case FmsDataType::NHWCB:
+            multiple = utils::GetHeight(hwCap.GetBrickGroupShape());
+            break;
+        case FmsDataType::FCAF_WIDE:
+            multiple = utils::GetHeight(g_FcafWideCellShape);
+            break;
+        case FmsDataType::FCAF_DEEP:
+            multiple = utils::GetHeight(g_FcafDeepCellShape);
+            break;
+        case FmsDataType::NHWC:
+            multiple = 1;
+            break;
+        default:
+            assert(false);
+            break;
     }
+    streamerData.edgeStripeSize.height = ethosn::utils::NumericCast<uint16_t>(
+        utils::RoundUpToNearestMultiple(static_cast<uint32_t>(streamerData.edgeStripeSize.height), multiple));
 }
 
 inline void SetStripeWidthInfo(const HardwareCapabilities& hwCap,
@@ -103,11 +119,27 @@ inline void SetStripeWidthInfo(const HardwareCapabilities& hwCap,
     streamerData.dfltStripeSize.width = stripeWidth;
 
     streamerData.edgeStripeSize.width = CommonUtils::CalculateEdgeSize(tensorWidth, stripeWidth);
-    if (streamerData.dataType != FmsDataType::NHWC)
+    uint32_t multiple                 = 0;
+    switch (streamerData.dataType)
     {
-        streamerData.edgeStripeSize.width = ethosn::utils::NumericCast<uint16_t>(utils::RoundUpToNearestMultiple(
-            static_cast<uint32_t>(streamerData.edgeStripeSize.width), utils::GetWidth(hwCap.GetBrickGroupShape())));
+        case FmsDataType::NHWCB:
+            multiple = utils::GetWidth(hwCap.GetBrickGroupShape());
+            break;
+        case FmsDataType::FCAF_WIDE:
+            multiple = utils::GetWidth(g_FcafWideCellShape);
+            break;
+        case FmsDataType::FCAF_DEEP:
+            multiple = utils::GetWidth(g_FcafDeepCellShape);
+            break;
+        case FmsDataType::NHWC:
+            multiple = 1;
+            break;
+        default:
+            assert(false);
+            break;
     }
+    streamerData.edgeStripeSize.width = ethosn::utils::NumericCast<uint16_t>(
+        utils::RoundUpToNearestMultiple(static_cast<uint32_t>(streamerData.edgeStripeSize.width), multiple));
 }
 
 inline void SetStripeChannelsInfo(FmSData& streamerData,
