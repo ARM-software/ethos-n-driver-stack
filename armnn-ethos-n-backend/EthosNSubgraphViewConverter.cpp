@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -406,7 +406,6 @@ void EthosNSubgraphViewConverter::AddTransposeConvolution2dLayer(const IConnecta
     // way with m_Weight and m_Bias
 
     ARMNN_ASSERT(transposeConvolution2dLayer.m_Weight);
-    ARMNN_ASSERT(transposeConvolution2dLayer.m_Bias);
     auto biases  = AddBiases(transposeConvolution2dLayer, transposeConvolution2dLayer.m_Bias.get(),
                             transposeConvolution2dLayer.m_Weight->GetTensorInfo(), descriptor.m_BiasEnabled);
     auto weights = AddWeights(transposeConvolution2dLayer, transposeConvolution2dLayer.GetParameters().m_DataLayout,
