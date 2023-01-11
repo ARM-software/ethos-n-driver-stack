@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2022 Arm Limited.
+ * (C) COPYRIGHT 2018-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -33,6 +33,15 @@
 #include <linux/slab.h>
 #include <linux/version.h>
 #include <linux/vmalloc.h>
+
+/*
+ * The iommu_tlb_sync function was renamed to iommu_iotbl_sync in 5.10 so a
+ * macro is defined for the older versions to be able to use the same function
+ * name.
+ */
+#if (KERNEL_VERSION(5, 10, 0) > LINUX_VERSION_CODE)
+#define iommu_iotlb_sync iommu_tlb_sync
+#endif
 
 struct ethosn_iommu_stream {
 	void        *bitmap;
@@ -243,6 +252,26 @@ ret:
 	spin_unlock_irqrestore(&stream->lock, flags);
 
 	return iova;
+}
+
+static void iommu_unmap_pages(struct iommu_domain *iommu_domain,
+			      dma_addr_t start_addr,
+			      size_t nr_pages)
+{
+	struct iommu_iotlb_gather iotlb_gather;
+	size_t i;
+
+	/*
+	 * Fast unmapping won't flush the TLB so it is done manually after all
+	 * the pages have been unmapped.
+	 */
+	iommu_iotlb_gather_init(&iotlb_gather);
+	for (i = 0; i < nr_pages; ++i)
+		iommu_unmap_fast(iommu_domain,
+				 start_addr + (i * PAGE_SIZE), PAGE_SIZE,
+				 &iotlb_gather);
+
+	iommu_iotlb_sync(iommu_domain, &iotlb_gather);
 }
 
 static void iommu_free_iova(dma_addr_t start,
@@ -906,8 +935,9 @@ static int iommu_stream_init(struct ethosn_allocator_internal *allocator,
 	struct ethosn_iommu_domain *domain = &allocator->ethosn_iommu_domain;
 	struct ethosn_iommu_stream *stream =
 		iommu_get_stream(domain, stream_type);
-	int nr_pages = DIV_ROUND_UP(IOMMU_ADDR_SIZE, PAGE_SIZE);
-	int i, k, err;
+	size_t nr_pages = DIV_ROUND_UP(IOMMU_ADDR_SIZE, PAGE_SIZE);
+	size_t i;
+	int err;
 
 	dev_dbg(allocator->allocator.dev,
 		"%s: stream_type %u\n", __func__, stream_type);
@@ -953,9 +983,7 @@ static int iommu_stream_init(struct ethosn_allocator_internal *allocator,
 
 	return 0;
 unmap_page:
-	for (k = 0; k < i; ++k)
-		iommu_unmap(domain->iommu_domain,
-			    stream->addr_base + k * PAGE_SIZE, PAGE_SIZE);
+	iommu_unmap_pages(domain->iommu_domain, stream->addr_base, i);
 
 	__free_page(stream->page);
 free_bitmap:
@@ -970,8 +998,7 @@ static void iommu_stream_deinit(struct ethosn_allocator_internal *allocator,
 	struct ethosn_iommu_domain *domain = &allocator->ethosn_iommu_domain;
 	struct ethosn_iommu_stream *stream =
 		iommu_get_stream(domain, stream_type);
-	int nr_pages = DIV_ROUND_UP(IOMMU_ADDR_SIZE, PAGE_SIZE);
-	int i;
+	size_t nr_pages = DIV_ROUND_UP(IOMMU_ADDR_SIZE, PAGE_SIZE);
 
 	dev_dbg(allocator->allocator.dev,
 		"%s: stream_type %u\n", __func__, stream_type);
@@ -992,10 +1019,7 @@ static void iommu_stream_deinit(struct ethosn_allocator_internal *allocator,
 		return;
 
 	/* Unmap all the virtual space (see iommu_stream_init). */
-	for (i = 0; i < nr_pages; ++i)
-		iommu_unmap(domain->iommu_domain,
-			    stream->addr_base + i * PAGE_SIZE,
-			    PAGE_SIZE);
+	iommu_unmap_pages(domain->iommu_domain, stream->addr_base, nr_pages);
 
 	__free_page(stream->page);
 	stream->page = NULL;
