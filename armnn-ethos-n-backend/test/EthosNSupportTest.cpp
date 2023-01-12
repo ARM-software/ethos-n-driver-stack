@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1087,7 +1087,8 @@ TEST_SUITE("EthosNSupport")
         TensorInfo input  = TensorInfo({ 1, 1, 1, 1, 4 }, DataType::QAsymmU8, 1.f, 0);
         TensorInfo output = TensorInfo({ 1, 1, 1, 1, 4 }, DataType::QAsymmU8, 1.f, 0);
         std::string reasonIfUnsupported;
-        CHECK(!layerSupport.IsFloorSupported(input, output, reasonIfUnsupported));
+        CHECK(!layerSupport.IsLayerSupported(LayerType::Floor, { input, output }, {}, EmptyOptional(), EmptyOptional(),
+                                             reasonIfUnsupported));
         CHECK(reasonIfUnsupported == "The ethosn can only support up to 4D tensors");
     }
 
@@ -1109,7 +1110,8 @@ TEST_SUITE("EthosNSupport")
                                                 "checking for Depthwise support: Weight "
                                                 "for conv must be UINT8_QUANTIZED or INT8_QUANTIZED";
 
-        CHECK(!layerSupport.IsMultiplicationSupported(input0, input1, output, reasonIfUnsupported));
+        CHECK(!layerSupport.IsLayerSupported(LayerType::Multiplication, { input0, input1, output }, {}, EmptyOptional(),
+                                             EmptyOptional(), reasonIfUnsupported));
         CHECK(reasonIfUnsupported == expectedReasonIfSupported);
     }
 
@@ -1120,7 +1122,8 @@ TEST_SUITE("EthosNSupport")
         auto ExpectFail = [&layerSupport](const TensorInfo& input0, const TensorInfo& input1, const TensorInfo& output,
                                           const char* expectedFailureReason) {
             std::string failureReason;
-            CHECK(!layerSupport.IsMultiplicationSupported(input0, input1, output, failureReason));
+            CHECK(!layerSupport.IsLayerSupported(LayerType::Multiplication, { input0, input1, output }, {},
+                                                 EmptyOptional(), EmptyOptional(), failureReason));
             CHECK(failureReason.find(expectedFailureReason) != std::string::npos);
         };
 
@@ -1238,7 +1241,8 @@ TEST_SUITE("EthosNSupport")
         auto ExpectFail = [&layerSupport](const TensorInfo& input0, const TensorInfo& input1, const TensorInfo& output,
                                           const char* expectedFailureReason) {
             std::string failureReason;
-            CHECK(!layerSupport.IsAdditionSupported(input0, input1, output, failureReason));
+            CHECK(!layerSupport.IsLayerSupported(LayerType::Addition, { input0, input1, output }, {}, EmptyOptional(),
+                                                 EmptyOptional(), failureReason));
             CHECK(failureReason.find(expectedFailureReason) != std::string::npos);
         };
 
@@ -1360,11 +1364,11 @@ TEST_SUITE("EthosNSupport")
     {
         EthosNLayerSupport layerSupport(EthosNConfig(), EthosNConfig().QueryCapabilities());
         auto ExpectFail = [&layerSupport](const TensorInfo& input, const TensorInfo& output,
-                                          const DepthwiseConvolution2dDescriptor& descriptor, const TensorInfo& weights,
-                                          const Optional<TensorInfo>& biases, const char* expectedFailureReason) {
+                                          const BaseDescriptor& descriptor, const TensorInfo& weights,
+                                          const TensorInfo& biases, const char* expectedFailureReason) {
             std::string failureReason;
-            CHECK(!layerSupport.IsDepthwiseConvolutionSupported(input, output, descriptor, weights, biases,
-                                                                failureReason));
+            CHECK(!layerSupport.IsLayerSupported(LayerType::DepthwiseConvolution2d, { input, output, weights, biases },
+                                                 descriptor, EmptyOptional(), EmptyOptional(), failureReason));
             CHECK(failureReason.find(expectedFailureReason) != std::string::npos);
         };
 
@@ -1383,8 +1387,9 @@ TEST_SUITE("EthosNSupport")
         {
             // Check a good case
             std::string failureReason;
-            CHECK(layerSupport.IsDepthwiseConvolutionSupported(inputInfo, outputInfo, depthwiseConvolutionDescriptor,
-                                                               weightInfo, biasInfo, failureReason));
+            CHECK(layerSupport.IsLayerSupported(
+                LayerType::DepthwiseConvolution2d, { inputInfo, outputInfo, weightInfo, biasInfo },
+                depthwiseConvolutionDescriptor, EmptyOptional(), EmptyOptional(), failureReason));
         }
 
         SUBCASE("IsDepthwiseConvolutionSupported() Don't handle 16 bit")
@@ -1455,10 +1460,11 @@ TEST_SUITE("EthosNSupport")
     {
         EthosNLayerSupport layerSupport(EthosNConfig(), EthosNConfig().QueryCapabilities());
         auto ExpectFail = [&layerSupport](const TensorInfo& input, const TensorInfo& output,
-                                          const Convolution2dDescriptor& descriptor, const TensorInfo& weights,
-                                          const Optional<TensorInfo>& biases, const char* expectedFailureReason) {
+                                          const BaseDescriptor& descriptor, const TensorInfo& weights,
+                                          const TensorInfo& biases, const char* expectedFailureReason) {
             std::string failureReason;
-            CHECK(!layerSupport.IsConvolution2dSupported(input, output, descriptor, weights, biases, failureReason));
+            CHECK(!layerSupport.IsLayerSupported(LayerType::Convolution2d, { input, output, weights, biases },
+                                                 descriptor, EmptyOptional(), EmptyOptional(), failureReason));
             CHECK(failureReason.find(expectedFailureReason) != std::string::npos);
         };
 
@@ -1495,11 +1501,11 @@ TEST_SUITE("EthosNSupport")
     {
         EthosNLayerSupport layerSupport(EthosNConfig(), EthosNConfig().QueryCapabilities());
         auto ExpectFail = [&layerSupport](const TensorInfo& input, const TensorInfo& output,
-                                          const TransposeConvolution2dDescriptor& descriptor, const TensorInfo& weights,
-                                          const Optional<TensorInfo>& biases, const char* expectedFailureReason) {
+                                          const BaseDescriptor& descriptor, const TensorInfo& weights,
+                                          const TensorInfo& biases, const char* expectedFailureReason) {
             std::string failureReason;
-            CHECK(!layerSupport.IsTransposeConvolution2dSupported(input, output, descriptor, weights, biases,
-                                                                  failureReason));
+            CHECK(!layerSupport.IsLayerSupported(LayerType::TransposeConvolution2d, { input, output, weights, biases },
+                                                 descriptor, EmptyOptional(), EmptyOptional(), failureReason));
             CHECK(failureReason.find(expectedFailureReason) != std::string::npos);
         };
 
@@ -1538,10 +1544,11 @@ TEST_SUITE("EthosNSupport")
     {
         EthosNLayerSupport layerSupport(EthosNConfig(), EthosNConfig().QueryCapabilities());
         auto ExpectFail = [&layerSupport](const TensorInfo& input, const TensorInfo& output,
-                                          const FullyConnectedDescriptor& descriptor, const TensorInfo& weights,
+                                          const BaseDescriptor& descriptor, const TensorInfo& weights,
                                           const TensorInfo& biases, const char* expectedFailureReason) {
             std::string failureReason;
-            CHECK(!layerSupport.IsFullyConnectedSupported(input, output, weights, biases, descriptor, failureReason));
+            CHECK(!layerSupport.IsLayerSupported(LayerType::FullyConnected, { input, output, weights, biases },
+                                                 descriptor, EmptyOptional(), EmptyOptional(), failureReason));
             CHECK(failureReason.find(expectedFailureReason) != std::string::npos);
         };
 
