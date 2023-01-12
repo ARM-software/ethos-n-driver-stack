@@ -510,6 +510,8 @@ u32 ethosn_read_top_reg(struct ethosn_core *core,
 			const u32 page,
 			const u32 offset)
 {
+	void __iomem *addr;
+
 	/* This function is called in a lot of places and we don't have
 	 * a good way of reporting errors in some of them, so we warn
 	 * and return a hopefully "safe" value to avoid crashing the
@@ -521,7 +523,19 @@ u32 ethosn_read_top_reg(struct ethosn_core *core,
 	if (WARN_ON(!core->top_regs))
 		return 0;
 
-	return ioread32(ethosn_top_reg_addr(core->top_regs, page, offset));
+	addr = ethosn_top_reg_addr(core->top_regs, page, offset);
+
+	/* Temporary debugging instrumentation to investigate an intermittent
+	 * bug:
+	 * Store the address about to be read into a register so that it can be
+	 * inspected in the crash dump, should the read cause a crash.
+	 * By default, the compiler overwrites the address with the read value,
+	 * which means we can't inspect the address after the crash happens
+	 * (the crash seems to occur immediately _after_ the value is read).
+	 */
+	asm volatile ("mov x7, %0" : : "r" (addr) : "x7");
+
+	return ioread32(addr);
 }
 
 /* Exported for use by test module */
