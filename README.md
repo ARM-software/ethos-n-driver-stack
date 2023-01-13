@@ -69,14 +69,14 @@ For information about how to port TF-A to another platform, see the [TF-A Portin
 
 ## Build tools
 
-To build the Ethos-N NPU software, some tools must be installed on the platform used for the compilation. The platform can be either your target platform or the host platform when cross compiling. We have only tested building the driver stack on the `Ubuntu 18.04 LTS x86 64-bit` Linux distribution. The required tools are:
+To build the Ethos-N NPU software, some tools must be installed on the platform used for the compilation. The platform can be either your target platform or the host platform when cross compiling. We have only tested building the driver stack on the `Ubuntu 20.04 LTS x86 64-bit` Linux distribution. The required tools are:
 
 * A Linux distribution. An open-source operating system.
-* [Git](https://git-scm.com/) A version control system that software developers use for source code management. We recommend version `2.17.1`.
-* [SCons](https://scons.org/) An open-source software construction tool. We recommend `v3.0.1`.
-* [Make](https://www.gnu.org/software/make/) A build automation tool. We recommend version `4.1`.
+* [Git](https://git-scm.com/) A version control system that software developers use for source code management. We recommend version `2.25.1`.
+* [SCons](https://scons.org/) An open-source software construction tool. We recommend `v3.1.2`.
+* [Make](https://www.gnu.org/software/make/) A build automation tool. We recommend version `4.2.1`.
 * [Sparse](https://git.kernel.org/pub/scm/devel/sparse/sparse.git) A semantic parser for C. We recommend `v0.6.3`.
-* [GNU C and C++ and compilers](https://gcc.gnu.org/) Open-source tools for Arm processors. We recommend version `7.5.0`.
+* [GNU C and C++ and compilers](https://gcc.gnu.org/) Open-source tools for Arm processors. We recommend version `9.4.0`.
 
 The build platform must have at least:
 * 8GB of RAM
@@ -84,7 +84,7 @@ The build platform must have at least:
 
 ### Install the build tools
 
-You must use specific tools to build the Ethos-N NPU driver. To install these build tools, you can use a package manager. For example, to install the build tools on `Ubuntu 18.04` to cross compile, enter the following commands:
+You must use specific tools to build the Ethos-N NPU driver. To install these build tools, you can use a package manager. For example, to install the build tools on `Ubuntu 20.04` to cross compile, enter the following commands:
 
 ```sh
 sudo apt install git \
@@ -99,7 +99,7 @@ sudo apt install git \
     libssl-dev \
     bc \
     rsync \
-    python3.6
+    python3
 ```
 
 You must build and install sparse. We recommend `v0.6.3`. To build and install sparse, enter the following commands:
