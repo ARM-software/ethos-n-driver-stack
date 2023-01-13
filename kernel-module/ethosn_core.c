@@ -276,6 +276,7 @@ static int ethosn_pm_common_resume(struct device *dev)
 		goto exit_pm_resume;
 	}
 
+	dev_dbg(dev, "%s: Restarting core\n", __func__);
 	ret = ethosn_reset_and_start_ethosn(core, core->set_alloc_id);
 	if (ret)
 		goto exit_pm_resume;
@@ -318,6 +319,7 @@ static int ethosn_rpm_resume(struct device *dev)
 		goto exit_rpm_resume;
 	}
 
+	dev_dbg(dev, "%s: Restarting core\n", __func__);
 	ret = ethosn_reset_and_start_ethosn(core, core->set_alloc_id);
 
 exit_rpm_resume:
