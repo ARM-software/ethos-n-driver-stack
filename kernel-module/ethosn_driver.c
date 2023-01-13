@@ -510,6 +510,9 @@ static irqreturn_t ethosn_irq_top(const int irq,
 	struct dl1_irq_status_r status;
 	struct dl1_clrirq_ext_r clear = { .word = 0 };
 
+	if (atomic_read(&core->is_configured) == 0)
+		return IRQ_NONE;
+
 	status.word = ethosn_read_top_reg(core, DL1_RP, DL1_IRQ_STATUS);
 
 	/* Save the IRQ status for the bottom half. */

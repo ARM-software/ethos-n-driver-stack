@@ -753,12 +753,21 @@ int ethosn_reset(struct ethosn_core *core,
 {
 	int ret = -EINVAL;
 
+	atomic_set(&core->is_configured, 0);
+
 	ret = ethosn_soft_reset(core, halt, alloc_id);
 	if (ret)
 		ret = ethosn_hard_reset(core, halt, alloc_id);
 
+	/* Halt reset will not configure the NPU */
+	if (!ret && !halt)
+		atomic_set(&core->is_configured, 1);
+
 	return ret;
 }
+
+/* Exported for use by test module */
+EXPORT_SYMBOL(ethosn_reset);
 
 void ethosn_set_power_ctrl(struct ethosn_core *core,
 			   bool clk_on)

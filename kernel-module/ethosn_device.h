@@ -150,6 +150,8 @@ struct ethosn_core {
 
 	uint32_t          num_pongs_received;
 	bool              firmware_running;
+	/* Indicates if the NPU is configured and ready to be used */
+	atomic_t          is_configured;
 
 	/* Stores the response from the firmware containing capabilities data.
 	 * This is allocated when the data is received from the firmware and
