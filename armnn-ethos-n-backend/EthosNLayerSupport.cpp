@@ -163,28 +163,28 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
     switch (type)
     {
         case LayerType::Activation:
-            return IsActivationSupported(infos[0], infos[1],
-                                         *(PolymorphicDowncast<const ActivationDescriptor*>(&descriptor)),
-                                         reasonIfUnsupported);
+            return IsActivationSupportedImpl(infos[0], infos[1],
+                                             *(PolymorphicDowncast<const ActivationDescriptor*>(&descriptor)),
+                                             reasonIfUnsupported);
         case LayerType::Addition:
-            return IsAdditionSupported(infos[0], infos[1], infos[2], reasonIfUnsupported);
+            return IsAdditionSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
         case LayerType::ArgMinMax:
-            return IsArgMinMaxSupported(infos[0], infos[1],
-                                        *(PolymorphicDowncast<const ArgMinMaxDescriptor*>(&descriptor)),
-                                        reasonIfUnsupported);
+            return IsArgMinMaxSupportedImpl(infos[0], infos[1],
+                                            *(PolymorphicDowncast<const ArgMinMaxDescriptor*>(&descriptor)),
+                                            reasonIfUnsupported);
         case LayerType::BatchNormalization:
-            return IsBatchNormalizationSupported(
+            return IsBatchNormalizationSupportedImpl(
                 infos[0], infos[1], infos[2], infos[3], infos[4], infos[5],
                 *(PolymorphicDowncast<const BatchNormalizationDescriptor*>(&descriptor)), reasonIfUnsupported);
         case LayerType::BatchToSpaceNd:
-            return IsBatchToSpaceNdSupported(infos[0], infos[1],
-                                             *(PolymorphicDowncast<const BatchToSpaceNdDescriptor*>(&descriptor)),
-                                             reasonIfUnsupported);
+            return IsBatchToSpaceNdSupportedImpl(infos[0], infos[1],
+                                                 *(PolymorphicDowncast<const BatchToSpaceNdDescriptor*>(&descriptor)),
+                                                 reasonIfUnsupported);
         case LayerType::Comparison:
         {
-            return IsComparisonSupported(infos[0], infos[1], infos[2],
-                                         *(PolymorphicDowncast<const ComparisonDescriptor*>(&descriptor)),
-                                         reasonIfUnsupported);
+            return IsComparisonSupportedImpl(infos[0], infos[1], infos[2],
+                                             *(PolymorphicDowncast<const ComparisonDescriptor*>(&descriptor)),
+                                             reasonIfUnsupported);
         }
         case LayerType::Concat:
         {
@@ -193,16 +193,16 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
             {
                 inputInfos.push_back(&infos[i]);
             }
-            return IsConcatSupported(inputInfos, infos[infos.size() - 1],
-                                     *(PolymorphicDowncast<const OriginsDescriptor*>(&descriptor)),
-                                     reasonIfUnsupported);
+            return IsConcatSupportedImpl(inputInfos, infos[infos.size() - 1],
+                                         *(PolymorphicDowncast<const OriginsDescriptor*>(&descriptor)),
+                                         reasonIfUnsupported);
         }
         case LayerType::Constant:
-            return IsConstantSupported(infos[0], reasonIfUnsupported);
+            return IsConstantSupportedImpl(infos[0], reasonIfUnsupported);
         case LayerType::ConvertFp16ToFp32:
-            return IsConvertFp16ToFp32Supported(infos[0], infos[1], reasonIfUnsupported);
+            return IsConvertFp16ToFp32SupportedImpl(infos[0], infos[1], reasonIfUnsupported);
         case LayerType::ConvertFp32ToFp16:
-            return IsConvertFp32ToFp16Supported(infos[0], infos[1], reasonIfUnsupported);
+            return IsConvertFp32ToFp16SupportedImpl(infos[0], infos[1], reasonIfUnsupported);
         case LayerType::Convolution2d:
         {
             if (infos.size() != 4)
@@ -215,20 +215,20 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
             auto desc = *(PolymorphicDowncast<const Convolution2dDescriptor*>(&descriptor));
             if (infos[3] == TensorInfo())
             {
-                return IsConvolution2dSupported(infos[0], infos[1], desc, infos[2], EmptyOptional(),
-                                                reasonIfUnsupported);
+                return IsConvolution2dSupportedImpl(infos[0], infos[1], desc, infos[2], EmptyOptional(),
+                                                    reasonIfUnsupported);
             }
             else
             {
-                return IsConvolution2dSupported(infos[0], infos[1], desc, infos[2], infos[3], reasonIfUnsupported);
+                return IsConvolution2dSupportedImpl(infos[0], infos[1], desc, infos[2], infos[3], reasonIfUnsupported);
             }
         }
         case LayerType::Debug:
-            return IsDebugSupported(infos[0], infos[1], reasonIfUnsupported);
+            return IsDebugSupportedImpl(infos[0], infos[1], reasonIfUnsupported);
         case LayerType::DepthToSpace:
-            return IsDepthToSpaceSupported(infos[0], infos[1],
-                                           *(PolymorphicDowncast<const DepthToSpaceDescriptor*>(&descriptor)),
-                                           reasonIfUnsupported);
+            return IsDepthToSpaceSupportedImpl(infos[0], infos[1],
+                                               *(PolymorphicDowncast<const DepthToSpaceDescriptor*>(&descriptor)),
+                                               reasonIfUnsupported);
         case LayerType::DepthwiseConvolution2d:
         {
             if (infos.size() != 4)
@@ -241,136 +241,137 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
             auto desc = *(PolymorphicDowncast<const DepthwiseConvolution2dDescriptor*>(&descriptor));
             if (infos[3] == TensorInfo())
             {
-                return IsDepthwiseConvolutionSupported(infos[0], infos[1], desc, infos[2], EmptyOptional(),
-                                                       reasonIfUnsupported);
+                return IsDepthwiseConvolutionSupportedImpl(infos[0], infos[1], desc, infos[2], EmptyOptional(),
+                                                           reasonIfUnsupported);
             }
             else
             {
-                return IsDepthwiseConvolutionSupported(infos[0], infos[1], desc, infos[2], infos[3],
-                                                       reasonIfUnsupported);
+                return IsDepthwiseConvolutionSupportedImpl(infos[0], infos[1], desc, infos[2], infos[3],
+                                                           reasonIfUnsupported);
             }
         }
         case LayerType::Dequantize:
-            return IsDequantizeSupported(infos[0], infos[1], reasonIfUnsupported);
+            return IsDequantizeSupportedImpl(infos[0], infos[1], reasonIfUnsupported);
         case LayerType::DetectionPostProcess:
-            return IsDetectionPostProcessSupported(
+            return IsDetectionPostProcessSupportedImpl(
                 infos[0], infos[1], infos[2], infos[3], infos[4], infos[5], infos[6],
                 *(PolymorphicDowncast<const DetectionPostProcessDescriptor*>(&descriptor)), reasonIfUnsupported);
         case LayerType::Division:
-            return IsDivisionSupported(infos[0], infos[1], infos[2], reasonIfUnsupported);
+            return IsDivisionSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
         case LayerType::ElementwiseUnary:
-            return IsElementwiseUnarySupported(infos[0], infos[1],
-                                               *(PolymorphicDowncast<const ElementwiseUnaryDescriptor*>(&descriptor)),
-                                               reasonIfUnsupported);
+            return IsElementwiseUnarySupportedImpl(
+                infos[0], infos[1], *(PolymorphicDowncast<const ElementwiseUnaryDescriptor*>(&descriptor)),
+                reasonIfUnsupported);
         case LayerType::FakeQuantization:
-            return IsFakeQuantizationSupported(
+            return IsFakeQuantizationSupportedImpl(
                 infos[0], *(PolymorphicDowncast<const FakeQuantizationDescriptor*>(&descriptor)), reasonIfUnsupported);
         case LayerType::Fill:
-            return IsFillSupported(infos[0], infos[1], *(PolymorphicDowncast<const FillDescriptor*>(&descriptor)),
-                                   reasonIfUnsupported);
+            return IsFillSupportedImpl(infos[0], infos[1], *(PolymorphicDowncast<const FillDescriptor*>(&descriptor)),
+                                       reasonIfUnsupported);
         case LayerType::Floor:
-            return IsFloorSupported(infos[0], infos[1], reasonIfUnsupported);
+            return IsFloorSupportedImpl(infos[0], infos[1], reasonIfUnsupported);
         case LayerType::FullyConnected:
-            return IsFullyConnectedSupported(infos[0], infos[1], infos[2], infos[3],
-                                             *(PolymorphicDowncast<const FullyConnectedDescriptor*>(&descriptor)),
-                                             reasonIfUnsupported);
+            return IsFullyConnectedSupportedImpl(infos[0], infos[1], infos[2], infos[3],
+                                                 *(PolymorphicDowncast<const FullyConnectedDescriptor*>(&descriptor)),
+                                                 reasonIfUnsupported);
         case LayerType::Gather:
-            return IsGatherSupported(infos[0], infos[1], infos[2],
-                                     *(PolymorphicDowncast<const GatherDescriptor*>(&descriptor)), reasonIfUnsupported);
+            return IsGatherSupportedImpl(infos[0], infos[1], infos[2],
+                                         *(PolymorphicDowncast<const GatherDescriptor*>(&descriptor)),
+                                         reasonIfUnsupported);
         case LayerType::Input:
-            return IsInputSupported(infos[0], reasonIfUnsupported);
+            return IsInputSupportedImpl(infos[0], reasonIfUnsupported);
         case LayerType::InstanceNormalization:
-            return IsInstanceNormalizationSupported(
+            return IsInstanceNormalizationSupportedImpl(
                 infos[0], infos[1], *(PolymorphicDowncast<const InstanceNormalizationDescriptor*>(&descriptor)),
                 reasonIfUnsupported);
         case LayerType::L2Normalization:
-            return IsL2NormalizationSupported(infos[0], infos[1],
-                                              *(PolymorphicDowncast<const L2NormalizationDescriptor*>(&descriptor)),
-                                              reasonIfUnsupported);
+            return IsL2NormalizationSupportedImpl(infos[0], infos[1],
+                                                  *(PolymorphicDowncast<const L2NormalizationDescriptor*>(&descriptor)),
+                                                  reasonIfUnsupported);
         case LayerType::LogicalBinary:
-            return IsLogicalBinarySupported(infos[0], infos[1], infos[2],
-                                            *(PolymorphicDowncast<const LogicalBinaryDescriptor*>(&descriptor)),
-                                            reasonIfUnsupported);
+            return IsLogicalBinarySupportedImpl(infos[0], infos[1], infos[2],
+                                                *(PolymorphicDowncast<const LogicalBinaryDescriptor*>(&descriptor)),
+                                                reasonIfUnsupported);
         case LayerType::LogSoftmax:
-            return IsLogSoftmaxSupported(infos[0], infos[1],
-                                         *(PolymorphicDowncast<const LogSoftmaxDescriptor*>(&descriptor)),
-                                         reasonIfUnsupported);
+            return IsLogSoftmaxSupportedImpl(infos[0], infos[1],
+                                             *(PolymorphicDowncast<const LogSoftmaxDescriptor*>(&descriptor)),
+                                             reasonIfUnsupported);
         case LayerType::Lstm:
-            return IsLstmSupported(infos[0], infos[1], infos[2], infos[3], infos[4], infos[5], infos[6],
-                                   *(PolymorphicDowncast<const LstmDescriptor*>(&descriptor)), lstmParamsInfo.value(),
-                                   reasonIfUnsupported);
+            return IsLstmSupportedImpl(infos[0], infos[1], infos[2], infos[3], infos[4], infos[5], infos[6],
+                                       *(PolymorphicDowncast<const LstmDescriptor*>(&descriptor)),
+                                       lstmParamsInfo.value(), reasonIfUnsupported);
         case LayerType::QLstm:
-            return IsQLstmSupported(infos[0], infos[1], infos[2], infos[3], infos[4], infos[5],
-                                    *(PolymorphicDowncast<const QLstmDescriptor*>(&descriptor)), lstmParamsInfo.value(),
-                                    reasonIfUnsupported);
+            return IsQLstmSupportedImpl(infos[0], infos[1], infos[2], infos[3], infos[4], infos[5],
+                                        *(PolymorphicDowncast<const QLstmDescriptor*>(&descriptor)),
+                                        lstmParamsInfo.value(), reasonIfUnsupported);
         case LayerType::Map:
             return true;
         case LayerType::Maximum:
-            return IsMaximumSupported(infos[0], infos[1], infos[2], reasonIfUnsupported);
+            return IsMaximumSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
         case LayerType::Mean:
-            return IsMeanSupported(infos[0], infos[1], *(PolymorphicDowncast<const MeanDescriptor*>(&descriptor)),
-                                   reasonIfUnsupported);
+            return IsMeanSupportedImpl(infos[0], infos[1], *(PolymorphicDowncast<const MeanDescriptor*>(&descriptor)),
+                                       reasonIfUnsupported);
         case LayerType::MemCopy:
-            return IsMemCopySupported(std::move(infos[0]), std::move(infos[1]), reasonIfUnsupported);
+            return IsMemCopySupportedImpl(std::move(infos[0]), std::move(infos[1]), reasonIfUnsupported);
         case LayerType::MemImport:
-            return IsMemImportSupported(infos[0], infos[1], reasonIfUnsupported);
+            return IsMemImportSupportedImpl(infos[0], infos[1], reasonIfUnsupported);
         case LayerType::Merge:
-            return IsMergeSupported(infos[0], infos[1], infos[2], reasonIfUnsupported);
+            return IsMergeSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
         case LayerType::Minimum:
-            return IsMinimumSupported(infos[0], infos[1], infos[2], reasonIfUnsupported);
+            return IsMinimumSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
         case LayerType::Multiplication:
-            return IsMultiplicationSupported(infos[0], infos[1], infos[2], reasonIfUnsupported);
+            return IsMultiplicationSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
         case LayerType::Normalization:
-            return IsNormalizationSupported(infos[0], infos[1],
-                                            *(PolymorphicDowncast<const NormalizationDescriptor*>(&descriptor)),
-                                            reasonIfUnsupported);
+            return IsNormalizationSupportedImpl(infos[0], infos[1],
+                                                *(PolymorphicDowncast<const NormalizationDescriptor*>(&descriptor)),
+                                                reasonIfUnsupported);
         case LayerType::Output:
-            return IsOutputSupported(infos[0], reasonIfUnsupported);
+            return IsOutputSupportedImpl(infos[0], reasonIfUnsupported);
         case LayerType::Pad:
-            return IsPadSupported(infos[0], infos[1], *(PolymorphicDowncast<const PadDescriptor*>(&descriptor)),
-                                  reasonIfUnsupported);
+            return IsPadSupportedImpl(infos[0], infos[1], *(PolymorphicDowncast<const PadDescriptor*>(&descriptor)),
+                                      reasonIfUnsupported);
         case LayerType::Permute:
-            return IsPermuteSupported(infos[0], infos[1], *(PolymorphicDowncast<const PermuteDescriptor*>(&descriptor)),
-                                      reasonIfUnsupported);
+            return IsPermuteSupportedImpl(
+                infos[0], infos[1], *(PolymorphicDowncast<const PermuteDescriptor*>(&descriptor)), reasonIfUnsupported);
         case LayerType::Pooling2d:
-            return IsPooling2dSupported(infos[0], infos[1],
-                                        *(PolymorphicDowncast<const Pooling2dDescriptor*>(&descriptor)),
-                                        reasonIfUnsupported);
+            return IsPooling2dSupportedImpl(infos[0], infos[1],
+                                            *(PolymorphicDowncast<const Pooling2dDescriptor*>(&descriptor)),
+                                            reasonIfUnsupported);
         case LayerType::PreCompiled:
-            return IsPreCompiledSupported(infos[0], *(PolymorphicDowncast<const PreCompiledDescriptor*>(&descriptor)),
-                                          reasonIfUnsupported);
+            return IsPreCompiledSupportedImpl(
+                infos[0], *(PolymorphicDowncast<const PreCompiledDescriptor*>(&descriptor)), reasonIfUnsupported);
         case LayerType::Prelu:
-            return IsPreluSupported(infos[0], infos[1], infos[2], reasonIfUnsupported);
+            return IsPreluSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
         case LayerType::Quantize:
-            return IsQuantizeSupported(infos[0], infos[1], reasonIfUnsupported);
+            return IsQuantizeSupportedImpl(infos[0], infos[1], reasonIfUnsupported);
         case LayerType::QuantizedLstm:
-            return IsQuantizedLstmSupported(infos[0], infos[1], infos[2], infos[3], infos[4],
-                                            quantizedLstmParamsInfo.value(), reasonIfUnsupported);
+            return IsQuantizedLstmSupportedImpl(infos[0], infos[1], infos[2], infos[3], infos[4],
+                                                quantizedLstmParamsInfo.value(), reasonIfUnsupported);
         case LayerType::Reshape:
-            return IsReshapeSupported(infos[0], infos[1], *(PolymorphicDowncast<const ReshapeDescriptor*>(&descriptor)),
-                                      reasonIfUnsupported);
+            return IsReshapeSupportedImpl(
+                infos[0], infos[1], *(PolymorphicDowncast<const ReshapeDescriptor*>(&descriptor)), reasonIfUnsupported);
         case LayerType::Rank:
-            return IsRankSupported(infos[0], infos[1], reasonIfUnsupported);
+            return IsRankSupportedImpl(infos[0], infos[1], reasonIfUnsupported);
         case LayerType::Resize:
-            return IsResizeSupported(infos[0], infos[1], *(PolymorphicDowncast<const ResizeDescriptor*>(&descriptor)),
-                                     reasonIfUnsupported);
+            return IsResizeSupportedImpl(
+                infos[0], infos[1], *(PolymorphicDowncast<const ResizeDescriptor*>(&descriptor)), reasonIfUnsupported);
         case LayerType::Reduce:
-            return IsReduceSupported(infos[0], infos[1], *(PolymorphicDowncast<const ReduceDescriptor*>(&descriptor)),
-                                     reasonIfUnsupported);
+            return IsReduceSupportedImpl(
+                infos[0], infos[1], *(PolymorphicDowncast<const ReduceDescriptor*>(&descriptor)), reasonIfUnsupported);
         case LayerType::Slice:
-            return IsSliceSupported(infos[0], infos[1], *(PolymorphicDowncast<const SliceDescriptor*>(&descriptor)),
-                                    reasonIfUnsupported);
+            return IsSliceSupportedImpl(infos[0], infos[1], *(PolymorphicDowncast<const SliceDescriptor*>(&descriptor)),
+                                        reasonIfUnsupported);
         case LayerType::Softmax:
-            return IsSoftmaxSupported(infos[0], infos[1], *(PolymorphicDowncast<const SoftmaxDescriptor*>(&descriptor)),
-                                      reasonIfUnsupported);
+            return IsSoftmaxSupportedImpl(
+                infos[0], infos[1], *(PolymorphicDowncast<const SoftmaxDescriptor*>(&descriptor)), reasonIfUnsupported);
         case LayerType::SpaceToBatchNd:
-            return IsSpaceToBatchNdSupported(infos[0], infos[1],
-                                             *(PolymorphicDowncast<const SpaceToBatchNdDescriptor*>(&descriptor)),
-                                             reasonIfUnsupported);
+            return IsSpaceToBatchNdSupportedImpl(infos[0], infos[1],
+                                                 *(PolymorphicDowncast<const SpaceToBatchNdDescriptor*>(&descriptor)),
+                                                 reasonIfUnsupported);
         case LayerType::SpaceToDepth:
-            return IsSpaceToDepthSupported(infos[0], infos[1],
-                                           *(PolymorphicDowncast<const SpaceToDepthDescriptor*>(&descriptor)),
-                                           reasonIfUnsupported);
+            return IsSpaceToDepthSupportedImpl(infos[0], infos[1],
+                                               *(PolymorphicDowncast<const SpaceToDepthDescriptor*>(&descriptor)),
+                                               reasonIfUnsupported);
         case LayerType::Splitter:
         {
             std::vector<TensorInfo> outputInfos;
@@ -378,9 +379,9 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
             {
                 outputInfos.push_back(infos[i]);
             }
-            return IsSplitterSupported(infos[0], { outputInfos.begin(), outputInfos.end() },
-                                       *(PolymorphicDowncast<const ViewsDescriptor*>(&descriptor)),
-                                       reasonIfUnsupported);
+            return IsSplitterSupportedImpl(infos[0], { outputInfos.begin(), outputInfos.end() },
+                                           *(PolymorphicDowncast<const ViewsDescriptor*>(&descriptor)),
+                                           reasonIfUnsupported);
         }
         case LayerType::Stack:
         {
@@ -389,8 +390,9 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
             {
                 inputInfos.push_back(&infos[i]);
             }
-            return IsStackSupported(inputInfos, infos[infos.size() - 1],
-                                    *(PolymorphicDowncast<const StackDescriptor*>(&descriptor)), reasonIfUnsupported);
+            return IsStackSupportedImpl(inputInfos, infos[infos.size() - 1],
+                                        *(PolymorphicDowncast<const StackDescriptor*>(&descriptor)),
+                                        reasonIfUnsupported);
         }
         case LayerType::StandIn:
         {
@@ -414,20 +416,20 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
                 outputInfos.push_back(&infos[i]);
             }
 
-            return IsStandInSupported(inputInfos, outputInfos, desc, reasonIfUnsupported);
+            return IsStandInSupportedImpl(inputInfos, outputInfos, desc, reasonIfUnsupported);
         }
         case LayerType::StridedSlice:
-            return IsStridedSliceSupported(infos[0], infos[1],
-                                           *(PolymorphicDowncast<const StridedSliceDescriptor*>(&descriptor)),
-                                           reasonIfUnsupported);
+            return IsStridedSliceSupportedImpl(infos[0], infos[1],
+                                               *(PolymorphicDowncast<const StridedSliceDescriptor*>(&descriptor)),
+                                               reasonIfUnsupported);
         case LayerType::Subtraction:
-            return IsSubtractionSupported(infos[0], infos[1], infos[2], reasonIfUnsupported);
+            return IsSubtractionSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
         case LayerType::Switch:
-            return IsSwitchSupported(infos[0], infos[1], infos[2], infos[3], reasonIfUnsupported);
+            return IsSwitchSupportedImpl(infos[0], infos[1], infos[2], infos[3], reasonIfUnsupported);
         case LayerType::Transpose:
-            return IsTransposeSupported(infos[0], infos[1],
-                                        *(PolymorphicDowncast<const TransposeDescriptor*>(&descriptor)),
-                                        reasonIfUnsupported);
+            return IsTransposeSupportedImpl(infos[0], infos[1],
+                                            *(PolymorphicDowncast<const TransposeDescriptor*>(&descriptor)),
+                                            reasonIfUnsupported);
         case LayerType::TransposeConvolution2d:
         {
             if (infos.size() != 4)
@@ -440,25 +442,25 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
             auto desc = *(PolymorphicDowncast<const TransposeConvolution2dDescriptor*>(&descriptor));
             if (infos[3] == TensorInfo())
             {
-                return IsTransposeConvolution2dSupported(infos[0], infos[1], desc, infos[2], EmptyOptional(),
-                                                         reasonIfUnsupported);
+                return IsTransposeConvolution2dSupportedImpl(infos[0], infos[1], desc, infos[2], EmptyOptional(),
+                                                             reasonIfUnsupported);
             }
             else
             {
-                return IsTransposeConvolution2dSupported(infos[0], infos[1], desc, infos[2], infos[3],
-                                                         reasonIfUnsupported);
+                return IsTransposeConvolution2dSupportedImpl(infos[0], infos[1], desc, infos[2], infos[3],
+                                                             reasonIfUnsupported);
             }
         }
         case LayerType::Unmap:
             return true;
         case LayerType::Cast:
-            return IsCastSupported(infos[0], infos[1], reasonIfUnsupported);
+            return IsCastSupportedImpl(infos[0], infos[1], reasonIfUnsupported);
         case LayerType::Shape:
-            return IsShapeSupported(infos[0], infos[1], reasonIfUnsupported);
+            return IsShapeSupportedImpl(infos[0], infos[1], reasonIfUnsupported);
         case LayerType::ChannelShuffle:
-            return IsChannelShuffleSupported(infos[0], infos[1],
-                                             *(PolymorphicDowncast<const ChannelShuffleDescriptor*>(&descriptor)),
-                                             reasonIfUnsupported);
+            return IsChannelShuffleSupportedImpl(infos[0], infos[1],
+                                                 *(PolymorphicDowncast<const ChannelShuffleDescriptor*>(&descriptor)),
+                                                 reasonIfUnsupported);
         case LayerType::Convolution3d:
         {
             if (infos.size() != 4)
@@ -471,27 +473,27 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
             auto desc = *(PolymorphicDowncast<const Convolution3dDescriptor*>(&descriptor));
             if (infos[3] == TensorInfo())
             {
-                return IsConvolution3dSupported(infos[0], infos[1], desc, infos[2], EmptyOptional(),
-                                                reasonIfUnsupported);
+                return IsConvolution3dSupportedImpl(infos[0], infos[1], desc, infos[2], EmptyOptional(),
+                                                    reasonIfUnsupported);
             }
             else
             {
-                return IsConvolution3dSupported(infos[0], infos[1], desc, infos[2], infos[3], reasonIfUnsupported);
+                return IsConvolution3dSupportedImpl(infos[0], infos[1], desc, infos[2], infos[3], reasonIfUnsupported);
             }
         }
         case LayerType::Pooling3d:
-            return IsPooling3dSupported(infos[0], infos[1],
-                                        *(PolymorphicDowncast<const Pooling3dDescriptor*>(&descriptor)),
-                                        reasonIfUnsupported);
+            return IsPooling3dSupportedImpl(infos[0], infos[1],
+                                            *(PolymorphicDowncast<const Pooling3dDescriptor*>(&descriptor)),
+                                            reasonIfUnsupported);
         default:
             return false;
     }
 }
 
-bool EthosNLayerSupport::IsActivationSupported(const TensorInfo& input,
-                                               const TensorInfo& output,
-                                               const ActivationDescriptor& descriptor,
-                                               Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsActivationSupportedImpl(const TensorInfo& input,
+                                                   const TensorInfo& output,
+                                                   const ActivationDescriptor& descriptor,
+                                                   Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
@@ -557,10 +559,10 @@ bool EthosNLayerSupport::IsActivationSupported(const TensorInfo& input,
     return supported;
 }
 
-bool EthosNLayerSupport::IsAdditionSupported(const TensorInfo& input0,
-                                             const TensorInfo& input1,
-                                             const TensorInfo& output,
-                                             Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsAdditionSupportedImpl(const TensorInfo& input0,
+                                                 const TensorInfo& input1,
+                                                 const TensorInfo& output,
+                                                 Optional<std::string&> reasonIfUnsupported) const
 {
     return GetAdditionSupportedMode(input0, input1, output, reasonIfUnsupported) != AdditionSupportedMode::None;
 }
@@ -607,7 +609,7 @@ bool EthosNLayerSupport::IsAdditionSupportedByDepthwiseReplacement(const TensorI
     const ConstantAddToDepthwiseReplacementConfig& config = configOpt.value();
 
     std::string depthwiseReasonIfUnsupported;
-    bool supported = EthosNLayerSupport::IsDepthwiseConvolutionSupported(
+    bool supported = EthosNLayerSupport::IsDepthwiseConvolutionSupportedImpl(
         inputInfo, output, config.m_Desc, config.m_WeightsInfo, config.m_BiasInfo, depthwiseReasonIfUnsupported);
 
     ReasonMessageHelper messageHelper;
@@ -716,10 +718,10 @@ armnn::EthosNLayerSupport::AdditionSupportedMode
     }
 }
 
-bool EthosNLayerSupport::IsConcatSupported(const std::vector<const TensorInfo*> inputs,
-                                           const TensorInfo& output,
-                                           const OriginsDescriptor& descriptor,
-                                           Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsConcatSupportedImpl(const std::vector<const TensorInfo*> inputs,
+                                               const TensorInfo& output,
+                                               const OriginsDescriptor& descriptor,
+                                               Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
     if (!IsTensorSupportedOnEthosN(output, reasonIfUnsupported))
@@ -761,7 +763,8 @@ bool EthosNLayerSupport::IsConcatSupported(const std::vector<const TensorInfo*> 
     return supported;
 }
 
-bool EthosNLayerSupport::IsConstantSupported(const TensorInfo& info, Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsConstantSupportedImpl(const TensorInfo& info,
+                                                 Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(info, reasonIfUnsupported)))
@@ -780,12 +783,12 @@ bool EthosNLayerSupport::IsConstantSupported(const TensorInfo& info, Optional<st
     return supported;
 }
 
-bool EthosNLayerSupport::IsConvolution2dSupported(const TensorInfo& input,
-                                                  const TensorInfo& output,
-                                                  const Convolution2dDescriptor& descriptor,
-                                                  const TensorInfo& weights,
-                                                  const Optional<TensorInfo>& biases,
-                                                  Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsConvolution2dSupportedImpl(const TensorInfo& input,
+                                                      const TensorInfo& output,
+                                                      const Convolution2dDescriptor& descriptor,
+                                                      const TensorInfo& weights,
+                                                      const Optional<TensorInfo>& biases,
+                                                      Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
@@ -848,12 +851,12 @@ bool EthosNLayerSupport::IsConvolution2dSupported(const TensorInfo& input,
     return supported;
 }
 
-bool EthosNLayerSupport::IsDepthwiseConvolutionSupported(const TensorInfo& input,
-                                                         const TensorInfo& output,
-                                                         const DepthwiseConvolution2dDescriptor& descriptor,
-                                                         const TensorInfo& weights,
-                                                         const Optional<TensorInfo>& biases,
-                                                         Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsDepthwiseConvolutionSupportedImpl(const TensorInfo& input,
+                                                             const TensorInfo& output,
+                                                             const DepthwiseConvolution2dDescriptor& descriptor,
+                                                             const TensorInfo& weights,
+                                                             const Optional<TensorInfo>& biases,
+                                                             Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
@@ -917,12 +920,12 @@ bool EthosNLayerSupport::IsDepthwiseConvolutionSupported(const TensorInfo& input
     return supported;
 }
 
-bool EthosNLayerSupport::IsTransposeConvolution2dSupported(const TensorInfo& input,
-                                                           const TensorInfo& output,
-                                                           const TransposeConvolution2dDescriptor& descriptor,
-                                                           const TensorInfo& weights,
-                                                           const Optional<TensorInfo>& biases,
-                                                           Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsTransposeConvolution2dSupportedImpl(const TensorInfo& input,
+                                                               const TensorInfo& output,
+                                                               const TransposeConvolution2dDescriptor& descriptor,
+                                                               const TensorInfo& weights,
+                                                               const Optional<TensorInfo>& biases,
+                                                               Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
@@ -981,12 +984,12 @@ bool EthosNLayerSupport::IsTransposeConvolution2dSupported(const TensorInfo& inp
     return supported;
 }
 
-bool EthosNLayerSupport::IsFullyConnectedSupported(const TensorInfo& input,
-                                                   const TensorInfo& output,
-                                                   const TensorInfo& weights,
-                                                   const TensorInfo& biases,
-                                                   const FullyConnectedDescriptor& descriptor,
-                                                   Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsFullyConnectedSupportedImpl(const TensorInfo& input,
+                                                       const TensorInfo& output,
+                                                       const TensorInfo& weights,
+                                                       const TensorInfo& biases,
+                                                       const FullyConnectedDescriptor& descriptor,
+                                                       Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
@@ -1047,7 +1050,7 @@ bool EthosNLayerSupport::IsFullyConnectedSupported(const TensorInfo& input,
     return supported;
 }
 
-bool EthosNLayerSupport::IsInputSupported(const TensorInfo& input, Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsInputSupportedImpl(const TensorInfo& input, Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported)))
@@ -1065,9 +1068,9 @@ bool EthosNLayerSupport::IsInputSupported(const TensorInfo& input, Optional<std:
     return supported;
 }
 
-bool EthosNLayerSupport::IsMemCopySupported(const TensorInfo& input,
-                                            const TensorInfo& output,
-                                            Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsMemCopySupportedImpl(const TensorInfo& input,
+                                                const TensorInfo& output,
+                                                Optional<std::string&> reasonIfUnsupported) const
 {
     IgnoreUnused(input);
     IgnoreUnused(output);
@@ -1075,7 +1078,8 @@ bool EthosNLayerSupport::IsMemCopySupported(const TensorInfo& input,
     return true;
 }
 
-bool EthosNLayerSupport::IsOutputSupported(const TensorInfo& output, Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsOutputSupportedImpl(const TensorInfo& output,
+                                               Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(output, reasonIfUnsupported)))
@@ -1094,10 +1098,10 @@ bool EthosNLayerSupport::IsOutputSupported(const TensorInfo& output, Optional<st
     return supported;
 }
 
-bool EthosNLayerSupport::IsPooling2dSupported(const TensorInfo& input,
-                                              const TensorInfo& output,
-                                              const Pooling2dDescriptor& descriptor,
-                                              Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsPooling2dSupportedImpl(const TensorInfo& input,
+                                                  const TensorInfo& output,
+                                                  const Pooling2dDescriptor& descriptor,
+                                                  Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
@@ -1127,34 +1131,34 @@ bool EthosNLayerSupport::IsPooling2dSupported(const TensorInfo& input,
     return supported;
 }
 
-bool EthosNLayerSupport::IsPreCompiledSupported(const TensorInfo& input,
-                                                const PreCompiledDescriptor& descriptor,
-                                                Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsPreCompiledSupportedImpl(const TensorInfo& input,
+                                                    const PreCompiledDescriptor& descriptor,
+                                                    Optional<std::string&> reasonIfUnsupported) const
 {
     IgnoreUnused(descriptor);
 
     return IsTensorSupportedOnEthosN(input, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsRankSupported(const TensorInfo& input,
-                                         const TensorInfo& output,
-                                         Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsRankSupportedImpl(const TensorInfo& input,
+                                             const TensorInfo& output,
+                                             Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsReduceSupported(const TensorInfo& input,
-                                           const TensorInfo& output,
-                                           const ReduceDescriptor&,
-                                           Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsReduceSupportedImpl(const TensorInfo& input,
+                                               const TensorInfo& output,
+                                               const ReduceDescriptor&,
+                                               Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsReshapeSupported(const TensorInfo& input,
-                                            const TensorInfo& output,
-                                            const ReshapeDescriptor& descriptor,
-                                            Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsReshapeSupportedImpl(const TensorInfo& input,
+                                                const TensorInfo& output,
+                                                const ReshapeDescriptor& descriptor,
+                                                Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
@@ -1174,10 +1178,10 @@ bool EthosNLayerSupport::IsReshapeSupported(const TensorInfo& input,
     return supported;
 }
 
-bool EthosNLayerSupport::IsSoftmaxSupported(const TensorInfo& input,
-                                            const TensorInfo& output,
-                                            const SoftmaxDescriptor& descriptor,
-                                            Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsSoftmaxSupportedImpl(const TensorInfo& input,
+                                                const TensorInfo& output,
+                                                const SoftmaxDescriptor& descriptor,
+                                                Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
@@ -1203,10 +1207,10 @@ bool EthosNLayerSupport::IsSoftmaxSupported(const TensorInfo& input,
     return supported;
 }
 
-bool EthosNLayerSupport::IsSplitterSupported(const TensorInfo& input,
-                                             const std::vector<std::reference_wrapper<TensorInfo>>& outputs,
-                                             const ViewsDescriptor& descriptor,
-                                             Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsSplitterSupportedImpl(const TensorInfo& input,
+                                                 const std::vector<std::reference_wrapper<TensorInfo>>& outputs,
+                                                 const ViewsDescriptor& descriptor,
+                                                 Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
     ARMNN_ASSERT(outputs.size() == descriptor.GetNumViews());
@@ -1247,10 +1251,10 @@ bool EthosNLayerSupport::IsSplitterSupported(const TensorInfo& input,
     return supported;
 }
 
-bool EthosNLayerSupport::IsDepthToSpaceSupported(const TensorInfo& input,
-                                                 const TensorInfo& output,
-                                                 const DepthToSpaceDescriptor& descriptor,
-                                                 Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsDepthToSpaceSupportedImpl(const TensorInfo& input,
+                                                     const TensorInfo& output,
+                                                     const DepthToSpaceDescriptor& descriptor,
+                                                     Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
@@ -1330,221 +1334,221 @@ bool EthosNLayerSupport::CheckEstimateOnlySupported(const std::vector<TensorInfo
     return supported;
 }
 
-bool EthosNLayerSupport::IsArgMinMaxSupported(const armnn::TensorInfo& input,
-                                              const armnn::TensorInfo& output,
-                                              const armnn::ArgMinMaxDescriptor&,
-                                              armnn::Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsArgMinMaxSupportedImpl(const armnn::TensorInfo& input,
+                                                  const armnn::TensorInfo& output,
+                                                  const armnn::ArgMinMaxDescriptor&,
+                                                  armnn::Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsBatchNormalizationSupported(const TensorInfo& input,
+bool EthosNLayerSupport::IsBatchNormalizationSupportedImpl(const TensorInfo& input,
+                                                           const TensorInfo& output,
+                                                           const TensorInfo&,
+                                                           const TensorInfo&,
+                                                           const TensorInfo&,
+                                                           const TensorInfo&,
+                                                           const BatchNormalizationDescriptor&,
+                                                           Optional<std::string&> reasonIfUnsupported) const
+{
+    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
+}
+
+bool EthosNLayerSupport::IsBatchToSpaceNdSupportedImpl(const TensorInfo& input,
                                                        const TensorInfo& output,
-                                                       const TensorInfo&,
-                                                       const TensorInfo&,
-                                                       const TensorInfo&,
-                                                       const TensorInfo&,
-                                                       const BatchNormalizationDescriptor&,
+                                                       const BatchToSpaceNdDescriptor&,
                                                        Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsBatchToSpaceNdSupported(const TensorInfo& input,
-                                                   const TensorInfo& output,
-                                                   const BatchToSpaceNdDescriptor&,
-                                                   Optional<std::string&> reasonIfUnsupported) const
-{
-    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
-}
-
-bool EthosNLayerSupport::IsCastSupported(const TensorInfo& input,
-                                         const TensorInfo& output,
-                                         Optional<std::string&> reasonIfUnsupported) const
-{
-    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
-}
-
-bool EthosNLayerSupport::IsComparisonSupported(const TensorInfo& input0,
-                                               const TensorInfo& input1,
-                                               const TensorInfo& output,
-                                               const ComparisonDescriptor&,
-                                               Optional<std::string&> reasonIfUnsupported) const
-{
-    return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
-}
-
-bool EthosNLayerSupport::IsConvertFp16ToFp32Supported(const TensorInfo&,
-                                                      const TensorInfo&,
-                                                      Optional<std::string&>) const
-{
-    // The Support Library does not support floating point types, even in performance-only mode.
-    return false;
-}
-
-bool EthosNLayerSupport::IsConvertFp32ToFp16Supported(const TensorInfo&,
-                                                      const TensorInfo&,
-                                                      Optional<std::string&>) const
-{
-    // The Support Library does not support floating point types, even in performance-only mode.
-    return false;
-}
-
-bool EthosNLayerSupport::IsDebugSupported(const TensorInfo&, const TensorInfo&, Optional<std::string&>) const
-{
-    // The Support Library does not support floating point types, even in performance-only mode.
-    return false;
-}
-
-bool EthosNLayerSupport::IsDequantizeSupported(const TensorInfo&, const TensorInfo&, Optional<std::string&>) const
-{
-    // The Support Library does not support floating point types, even in performance-only mode.
-    return false;
-}
-
-bool EthosNLayerSupport::IsDetectionPostProcessSupported(const TensorInfo&,
-                                                         const TensorInfo&,
-                                                         const TensorInfo&,
-                                                         const TensorInfo&,
-                                                         const TensorInfo&,
-                                                         const TensorInfo&,
-                                                         const TensorInfo&,
-                                                         const DetectionPostProcessDescriptor&,
-                                                         Optional<std::string&>) const
-{
-    return false;
-}
-
-bool EthosNLayerSupport::IsDilatedDepthwiseConvolutionSupported(const TensorInfo& input,
-                                                                const TensorInfo& output,
-                                                                const DepthwiseConvolution2dDescriptor&,
-                                                                const TensorInfo&,
-                                                                const Optional<TensorInfo>&,
-                                                                Optional<std::string&> reasonIfUnsupported) const
-{
-    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
-}
-
-bool EthosNLayerSupport::IsDivisionSupported(const TensorInfo& input0,
-                                             const TensorInfo& input1,
+bool EthosNLayerSupport::IsCastSupportedImpl(const TensorInfo& input,
                                              const TensorInfo& output,
                                              Optional<std::string&> reasonIfUnsupported) const
 {
+    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
+}
+
+bool EthosNLayerSupport::IsComparisonSupportedImpl(const TensorInfo& input0,
+                                                   const TensorInfo& input1,
+                                                   const TensorInfo& output,
+                                                   const ComparisonDescriptor&,
+                                                   Optional<std::string&> reasonIfUnsupported) const
+{
     return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsElementwiseUnarySupported(const TensorInfo& input,
-                                                     const TensorInfo& output,
-                                                     const ElementwiseUnaryDescriptor&,
-                                                     Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsConvertFp16ToFp32SupportedImpl(const TensorInfo&,
+                                                          const TensorInfo&,
+                                                          Optional<std::string&>) const
+{
+    // The Support Library does not support floating point types, even in performance-only mode.
+    return false;
+}
+
+bool EthosNLayerSupport::IsConvertFp32ToFp16SupportedImpl(const TensorInfo&,
+                                                          const TensorInfo&,
+                                                          Optional<std::string&>) const
+{
+    // The Support Library does not support floating point types, even in performance-only mode.
+    return false;
+}
+
+bool EthosNLayerSupport::IsDebugSupportedImpl(const TensorInfo&, const TensorInfo&, Optional<std::string&>) const
+{
+    // The Support Library does not support floating point types, even in performance-only mode.
+    return false;
+}
+
+bool EthosNLayerSupport::IsDequantizeSupportedImpl(const TensorInfo&, const TensorInfo&, Optional<std::string&>) const
+{
+    // The Support Library does not support floating point types, even in performance-only mode.
+    return false;
+}
+
+bool EthosNLayerSupport::IsDetectionPostProcessSupportedImpl(const TensorInfo&,
+                                                             const TensorInfo&,
+                                                             const TensorInfo&,
+                                                             const TensorInfo&,
+                                                             const TensorInfo&,
+                                                             const TensorInfo&,
+                                                             const TensorInfo&,
+                                                             const DetectionPostProcessDescriptor&,
+                                                             Optional<std::string&>) const
+{
+    return false;
+}
+
+bool EthosNLayerSupport::IsDilatedDepthwiseConvolutionSupportedImpl(const TensorInfo& input,
+                                                                    const TensorInfo& output,
+                                                                    const DepthwiseConvolution2dDescriptor&,
+                                                                    const TensorInfo&,
+                                                                    const Optional<TensorInfo>&,
+                                                                    Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsFakeQuantizationSupported(const TensorInfo& input,
-                                                     const FakeQuantizationDescriptor&,
-                                                     Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsDivisionSupportedImpl(const TensorInfo& input0,
+                                                 const TensorInfo& input1,
+                                                 const TensorInfo& output,
+                                                 Optional<std::string&> reasonIfUnsupported) const
+{
+    return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
+}
+
+bool EthosNLayerSupport::IsElementwiseUnarySupportedImpl(const TensorInfo& input,
+                                                         const TensorInfo& output,
+                                                         const ElementwiseUnaryDescriptor&,
+                                                         Optional<std::string&> reasonIfUnsupported) const
+{
+    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
+}
+
+bool EthosNLayerSupport::IsFakeQuantizationSupportedImpl(const TensorInfo& input,
+                                                         const FakeQuantizationDescriptor&,
+                                                         Optional<std::string&> reasonIfUnsupported) const
 {
     // Even though this layer probably has minimal usefulness in an already-quantized context, the Ethos-N
     // could support it.
     return CheckEstimateOnlySupported({ input }, {}, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsFillSupported(const TensorInfo& input,
-                                         const TensorInfo& output,
-                                         const FillDescriptor& descriptor,
-                                         Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsFillSupportedImpl(const TensorInfo& input,
+                                             const TensorInfo& output,
+                                             const FillDescriptor& descriptor,
+                                             Optional<std::string&> reasonIfUnsupported) const
 {
     IgnoreUnused(descriptor);
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsFloorSupported(const TensorInfo& input,
-                                          const TensorInfo& output,
-                                          Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsFloorSupportedImpl(const TensorInfo& input,
+                                              const TensorInfo& output,
+                                              Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsGatherSupported(const armnn::TensorInfo& input0,
-                                           const armnn::TensorInfo& input1,
-                                           const armnn::TensorInfo& output,
-                                           const GatherDescriptor& descriptor,
-                                           armnn::Optional<std::string&> reasonIfUnsupported) const
-{
-    IgnoreUnused(descriptor);
-    return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
-}
-
-bool EthosNLayerSupport::IsInstanceNormalizationSupported(const TensorInfo& input,
-                                                          const TensorInfo& output,
-                                                          const InstanceNormalizationDescriptor&,
-                                                          Optional<std::string&> reasonIfUnsupported) const
-{
-    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
-}
-
-bool EthosNLayerSupport::IsL2NormalizationSupported(const TensorInfo& input,
-                                                    const TensorInfo& output,
-                                                    const L2NormalizationDescriptor&,
-                                                    Optional<std::string&> reasonIfUnsupported) const
-{
-    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
-}
-
-bool EthosNLayerSupport::IsLogicalBinarySupported(const TensorInfo& input0,
-                                                  const TensorInfo& input1,
-                                                  const TensorInfo& output,
-                                                  const LogicalBinaryDescriptor& descriptor,
-                                                  Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsGatherSupportedImpl(const armnn::TensorInfo& input0,
+                                               const armnn::TensorInfo& input1,
+                                               const armnn::TensorInfo& output,
+                                               const GatherDescriptor& descriptor,
+                                               armnn::Optional<std::string&> reasonIfUnsupported) const
 {
     IgnoreUnused(descriptor);
     return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsLogicalUnarySupported(const TensorInfo& input,
-                                                 const TensorInfo& output,
-                                                 const ElementwiseUnaryDescriptor& descriptor,
-                                                 Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsInstanceNormalizationSupportedImpl(const TensorInfo& input,
+                                                              const TensorInfo& output,
+                                                              const InstanceNormalizationDescriptor&,
+                                                              Optional<std::string&> reasonIfUnsupported) const
+{
+    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
+}
+
+bool EthosNLayerSupport::IsL2NormalizationSupportedImpl(const TensorInfo& input,
+                                                        const TensorInfo& output,
+                                                        const L2NormalizationDescriptor&,
+                                                        Optional<std::string&> reasonIfUnsupported) const
+{
+    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
+}
+
+bool EthosNLayerSupport::IsLogicalBinarySupportedImpl(const TensorInfo& input0,
+                                                      const TensorInfo& input1,
+                                                      const TensorInfo& output,
+                                                      const LogicalBinaryDescriptor& descriptor,
+                                                      Optional<std::string&> reasonIfUnsupported) const
+{
+    IgnoreUnused(descriptor);
+    return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
+}
+
+bool EthosNLayerSupport::IsLogicalUnarySupportedImpl(const TensorInfo& input,
+                                                     const TensorInfo& output,
+                                                     const ElementwiseUnaryDescriptor& descriptor,
+                                                     Optional<std::string&> reasonIfUnsupported) const
 {
     IgnoreUnused(descriptor);
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsLogSoftmaxSupported(const TensorInfo& input,
-                                               const TensorInfo& output,
-                                               const LogSoftmaxDescriptor&,
-                                               Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsLogSoftmaxSupportedImpl(const TensorInfo& input,
+                                                   const TensorInfo& output,
+                                                   const LogSoftmaxDescriptor&,
+                                                   Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsLstmSupported(const TensorInfo& input,
-                                         const TensorInfo& output,
-                                         const TensorInfo&,
-                                         const TensorInfo&,
-                                         const TensorInfo&,
-                                         const TensorInfo&,
-                                         const TensorInfo&,
-                                         const LstmDescriptor&,
-                                         const LstmInputParamsInfo&,
-                                         Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsLstmSupportedImpl(const TensorInfo& input,
+                                             const TensorInfo& output,
+                                             const TensorInfo&,
+                                             const TensorInfo&,
+                                             const TensorInfo&,
+                                             const TensorInfo&,
+                                             const TensorInfo&,
+                                             const LstmDescriptor&,
+                                             const LstmInputParamsInfo&,
+                                             Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsMaximumSupported(const TensorInfo& input0,
-                                            const TensorInfo& input1,
-                                            const TensorInfo& output,
-                                            Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsMaximumSupportedImpl(const TensorInfo& input0,
+                                                const TensorInfo& input1,
+                                                const TensorInfo& output,
+                                                Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsMeanSupported(const TensorInfo& input,
-                                         const TensorInfo& output,
-                                         const MeanDescriptor& descriptor,
-                                         Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsMeanSupportedImpl(const TensorInfo& input,
+                                             const TensorInfo& output,
+                                             const MeanDescriptor& descriptor,
+                                             Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
 
@@ -1582,35 +1586,35 @@ bool EthosNLayerSupport::IsMeanSupported(const TensorInfo& input,
     return supported;
 }
 
-bool EthosNLayerSupport::IsMemImportSupported(const armnn::TensorInfo&,
-                                              const armnn::TensorInfo&,
-                                              armnn::Optional<std::string&>) const
+bool EthosNLayerSupport::IsMemImportSupportedImpl(const armnn::TensorInfo&,
+                                                  const armnn::TensorInfo&,
+                                                  armnn::Optional<std::string&>) const
 {
     // This is a 'meta' layer type related to avoiding tensor copies between backends.
     // We should never receive this layer because we don't advertise support for this feature.
     return false;
 }
 
-bool EthosNLayerSupport::IsMergeSupported(const TensorInfo& input0,
-                                          const TensorInfo& input1,
-                                          const TensorInfo& output,
-                                          Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsMergeSupportedImpl(const TensorInfo& input0,
+                                              const TensorInfo& input1,
+                                              const TensorInfo& output,
+                                              Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsMinimumSupported(const TensorInfo& input0,
-                                            const TensorInfo& input1,
-                                            const TensorInfo& output,
-                                            Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsMinimumSupportedImpl(const TensorInfo& input0,
+                                                const TensorInfo& input1,
+                                                const TensorInfo& output,
+                                                Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsMultiplicationSupported(const TensorInfo& input0,
-                                                   const TensorInfo& input1,
-                                                   const TensorInfo& output,
-                                                   Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsMultiplicationSupportedImpl(const TensorInfo& input0,
+                                                       const TensorInfo& input1,
+                                                       const TensorInfo& output,
+                                                       Optional<std::string&> reasonIfUnsupported) const
 {
     return GetMultiplicationSupportedMode(input0, input1, output, reasonIfUnsupported) !=
            MultiplicationSupportedMode::None;
@@ -1689,7 +1693,7 @@ bool EthosNLayerSupport::IsMultiplicationSupportedByDepthwiseReplacement(
         weightsInfo.SetShape({ 1, 1, 1, constantInfo.GetShape()[3] * M });    //1HW(I*M)
 
         std::string depthwiseReasonIfUnsupported;
-        bool supported = EthosNLayerSupport::IsDepthwiseConvolutionSupported(
+        bool supported = EthosNLayerSupport::IsDepthwiseConvolutionSupportedImpl(
             inputInfo, output, desc, weightsInfo, EmptyOptional(), depthwiseReasonIfUnsupported);
 
         ReasonMessageHelper messageHelper;
@@ -1763,41 +1767,41 @@ bool EthosNLayerSupport::IsMultiplicationSupportedByReinterpretQuantizationRepla
     return false;
 }
 
-bool EthosNLayerSupport::IsNormalizationSupported(const TensorInfo& input,
-                                                  const TensorInfo& output,
-                                                  const NormalizationDescriptor&,
-                                                  Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsNormalizationSupportedImpl(const TensorInfo& input,
+                                                      const TensorInfo& output,
+                                                      const NormalizationDescriptor&,
+                                                      Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsPadSupported(const TensorInfo& input,
-                                        const TensorInfo& output,
-                                        const PadDescriptor&,
-                                        Optional<std::string&> reasonIfUnsupported) const
-{
-    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
-}
-
-bool EthosNLayerSupport::IsPermuteSupported(const TensorInfo& input,
+bool EthosNLayerSupport::IsPadSupportedImpl(const TensorInfo& input,
                                             const TensorInfo& output,
-                                            const PermuteDescriptor&,
+                                            const PadDescriptor&,
                                             Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsPreluSupported(const TensorInfo& input,
-                                          const TensorInfo&,
-                                          const TensorInfo& output,
-                                          Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsPermuteSupportedImpl(const TensorInfo& input,
+                                                const TensorInfo& output,
+                                                const PermuteDescriptor&,
+                                                Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsQuantizeSupported(const armnn::TensorInfo& input,
-                                             const armnn::TensorInfo& output,
-                                             armnn::Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsPreluSupportedImpl(const TensorInfo& input,
+                                              const TensorInfo&,
+                                              const TensorInfo& output,
+                                              Optional<std::string&> reasonIfUnsupported) const
+{
+    return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
+}
+
+bool EthosNLayerSupport::IsQuantizeSupportedImpl(const armnn::TensorInfo& input,
+                                                 const armnn::TensorInfo& output,
+                                                 armnn::Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
     if (!(IsTensorSupportedOnEthosN(input, reasonIfUnsupported) &&
@@ -1820,34 +1824,34 @@ bool EthosNLayerSupport::IsQuantizeSupported(const armnn::TensorInfo& input,
     return supported;
 }
 
-bool EthosNLayerSupport::IsQLstmSupported(const TensorInfo& input,
-                                          const TensorInfo&,
-                                          const TensorInfo&,
-                                          const TensorInfo&,
-                                          const TensorInfo&,
-                                          const TensorInfo& output,
-                                          const QLstmDescriptor&,
-                                          const LstmInputParamsInfo&,
-                                          Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsQLstmSupportedImpl(const TensorInfo& input,
+                                              const TensorInfo&,
+                                              const TensorInfo&,
+                                              const TensorInfo&,
+                                              const TensorInfo&,
+                                              const TensorInfo& output,
+                                              const QLstmDescriptor&,
+                                              const LstmInputParamsInfo&,
+                                              Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsQuantizedLstmSupported(const TensorInfo& input,
-                                                  const TensorInfo& output,
-                                                  const TensorInfo&,
-                                                  const TensorInfo&,
-                                                  const TensorInfo&,
-                                                  const QuantizedLstmInputParamsInfo&,
-                                                  Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsQuantizedLstmSupportedImpl(const TensorInfo& input,
+                                                      const TensorInfo& output,
+                                                      const TensorInfo&,
+                                                      const TensorInfo&,
+                                                      const TensorInfo&,
+                                                      const QuantizedLstmInputParamsInfo&,
+                                                      Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsResizeSupported(const TensorInfo& input,
-                                           const TensorInfo& output,
-                                           const ResizeDescriptor& descriptor,
-                                           Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsResizeSupportedImpl(const TensorInfo& input,
+                                               const TensorInfo& output,
+                                               const ResizeDescriptor& descriptor,
+                                               Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
 
@@ -1876,33 +1880,33 @@ bool EthosNLayerSupport::IsResizeSupported(const TensorInfo& input,
     return supported;
 }
 
-bool EthosNLayerSupport::IsShapeSupported(const TensorInfo& input,
-                                          const TensorInfo& output,
-                                          Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsShapeSupportedImpl(const TensorInfo& input,
+                                              const TensorInfo& output,
+                                              Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsSliceSupported(const TensorInfo& input,
-                                          const TensorInfo& output,
-                                          const SliceDescriptor&,
-                                          Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsSliceSupportedImpl(const TensorInfo& input,
+                                              const TensorInfo& output,
+                                              const SliceDescriptor&,
+                                              Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsSpaceToBatchNdSupported(const TensorInfo& input,
-                                                   const TensorInfo& output,
-                                                   const SpaceToBatchNdDescriptor&,
-                                                   Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsSpaceToBatchNdSupportedImpl(const TensorInfo& input,
+                                                       const TensorInfo& output,
+                                                       const SpaceToBatchNdDescriptor&,
+                                                       Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsSpaceToDepthSupported(const TensorInfo& input,
-                                                 const TensorInfo& output,
-                                                 const SpaceToDepthDescriptor& descriptor,
-                                                 Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsSpaceToDepthSupportedImpl(const TensorInfo& input,
+                                                     const TensorInfo& output,
+                                                     const SpaceToDepthDescriptor& descriptor,
+                                                     Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
 
@@ -1931,10 +1935,10 @@ bool EthosNLayerSupport::IsSpaceToDepthSupported(const TensorInfo& input,
     return supported;
 }
 
-bool EthosNLayerSupport::IsStackSupported(const std::vector<const TensorInfo*>& inputs,
-                                          const TensorInfo& output,
-                                          const StackDescriptor&,
-                                          Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsStackSupportedImpl(const std::vector<const TensorInfo*>& inputs,
+                                              const TensorInfo& output,
+                                              const StackDescriptor&,
+                                              Optional<std::string&> reasonIfUnsupported) const
 {
     std::vector<TensorInfo> inputTensorInfos;
     inputTensorInfos.reserve(inputs.size());
@@ -1945,10 +1949,10 @@ bool EthosNLayerSupport::IsStackSupported(const std::vector<const TensorInfo*>& 
     return CheckEstimateOnlySupported(inputTensorInfos, { output }, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsStandInSupported(const std::vector<const TensorInfo*>& inputs,
-                                            const std::vector<const TensorInfo*>& outputs,
-                                            const StandInDescriptor&,
-                                            Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsStandInSupportedImpl(const std::vector<const TensorInfo*>& inputs,
+                                                const std::vector<const TensorInfo*>& outputs,
+                                                const StandInDescriptor&,
+                                                Optional<std::string&> reasonIfUnsupported) const
 {
     std::vector<TensorInfo> inputTensorInfos;
     inputTensorInfos.reserve(inputs.size());
@@ -1965,35 +1969,35 @@ bool EthosNLayerSupport::IsStandInSupported(const std::vector<const TensorInfo*>
     return CheckEstimateOnlySupported(inputTensorInfos, outputTensorInfos, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsStridedSliceSupported(const TensorInfo& input,
-                                                 const TensorInfo& output,
-                                                 const StridedSliceDescriptor&,
-                                                 Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsStridedSliceSupportedImpl(const TensorInfo& input,
+                                                     const TensorInfo& output,
+                                                     const StridedSliceDescriptor&,
+                                                     Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported(input, output, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsSubtractionSupported(const TensorInfo& input0,
-                                                const TensorInfo& input1,
-                                                const TensorInfo& output,
-                                                Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsSubtractionSupportedImpl(const TensorInfo& input0,
+                                                    const TensorInfo& input1,
+                                                    const TensorInfo& output,
+                                                    Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsSwitchSupported(const TensorInfo& input0,
-                                           const TensorInfo& input1,
-                                           const TensorInfo& output0,
-                                           const TensorInfo& output1,
-                                           Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsSwitchSupportedImpl(const TensorInfo& input0,
+                                               const TensorInfo& input1,
+                                               const TensorInfo& output0,
+                                               const TensorInfo& output1,
+                                               Optional<std::string&> reasonIfUnsupported) const
 {
     return CheckEstimateOnlySupported({ input0, input1 }, { output0, output1 }, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsTransposeSupported(const TensorInfo& input,
-                                              const TensorInfo& output,
-                                              const TransposeDescriptor& descriptor,
-                                              Optional<std::string&> reasonIfUnsupported) const
+bool EthosNLayerSupport::IsTransposeSupportedImpl(const TensorInfo& input,
+                                                  const TensorInfo& output,
+                                                  const TransposeDescriptor& descriptor,
+                                                  Optional<std::string&> reasonIfUnsupported) const
 {
     using ethosn_lib::SupportedLevel;
 
@@ -2023,28 +2027,28 @@ bool EthosNLayerSupport::IsTransposeSupported(const TensorInfo& input,
     return supported;
 }
 
-bool EthosNLayerSupport::IsChannelShuffleSupported(const TensorInfo&,
-                                                   const TensorInfo&,
-                                                   const ChannelShuffleDescriptor&,
-                                                   Optional<std::string&>) const
+bool EthosNLayerSupport::IsChannelShuffleSupportedImpl(const TensorInfo&,
+                                                       const TensorInfo&,
+                                                       const ChannelShuffleDescriptor&,
+                                                       Optional<std::string&>) const
 {
     return false;
 }
 
-bool EthosNLayerSupport::IsConvolution3dSupported(const TensorInfo&,
-                                                  const TensorInfo&,
-                                                  const Convolution3dDescriptor&,
-                                                  const TensorInfo&,
-                                                  const Optional<TensorInfo>&,
+bool EthosNLayerSupport::IsConvolution3dSupportedImpl(const TensorInfo&,
+                                                      const TensorInfo&,
+                                                      const Convolution3dDescriptor&,
+                                                      const TensorInfo&,
+                                                      const Optional<TensorInfo>&,
+                                                      Optional<std::string&>) const
+{
+    return false;
+}
+
+bool EthosNLayerSupport::IsPooling3dSupportedImpl(const armnn::TensorInfo&,
+                                                  const armnn::TensorInfo&,
+                                                  const armnn::Pooling3dDescriptor&,
                                                   Optional<std::string&>) const
-{
-    return false;
-}
-
-bool EthosNLayerSupport::IsPooling3dSupported(const armnn::TensorInfo&,
-                                              const armnn::TensorInfo&,
-                                              const armnn::Pooling3dDescriptor&,
-                                              Optional<std::string&>) const
 {
     return false;
 }
