@@ -181,32 +181,6 @@ private:
                                    const ComparisonDescriptor& descriptor,
                                    Optional<std::string&> reasonIfUnsupported) const;
 
-    bool IsConvertFp16ToFp32SupportedImpl(const TensorInfo& input,
-                                          const TensorInfo& output,
-                                          Optional<std::string&> reasonIfUnsupported) const;
-
-    bool IsConvertFp32ToFp16SupportedImpl(const TensorInfo& input,
-                                          const TensorInfo& output,
-                                          Optional<std::string&> reasonIfUnsupported) const;
-
-    bool IsDebugSupportedImpl(const TensorInfo& input,
-                              const TensorInfo& output,
-                              Optional<std::string&> reasonIfUnsupported) const;
-
-    bool IsDequantizeSupportedImpl(const TensorInfo& input,
-                                   const TensorInfo& output,
-                                   Optional<std::string&> reasonIfUnsupported) const;
-
-    bool IsDetectionPostProcessSupportedImpl(const TensorInfo& boxEncodings,
-                                             const TensorInfo& scores,
-                                             const TensorInfo& anchors,
-                                             const TensorInfo& detectionBoxes,
-                                             const TensorInfo& detectionClasses,
-                                             const TensorInfo& detectionScores,
-                                             const TensorInfo& numDetections,
-                                             const DetectionPostProcessDescriptor& descriptor,
-                                             Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const;
-
     bool IsDilatedDepthwiseConvolutionSupportedImpl(const TensorInfo& input,
                                                     const TensorInfo& output,
                                                     const DepthwiseConvolution2dDescriptor& descriptor,
@@ -289,10 +263,6 @@ private:
                              const TensorInfo& output,
                              const MeanDescriptor& descriptor,
                              Optional<std::string&> reasonIfUnsupported) const;
-
-    bool IsMemImportSupportedImpl(const armnn::TensorInfo& input,
-                                  const armnn::TensorInfo& output,
-                                  armnn::Optional<std::string&> reasonIfUnsupported) const;
 
     bool IsMergeSupportedImpl(const TensorInfo& input0,
                               const TensorInfo& input1,
@@ -405,23 +375,6 @@ private:
                                   const TensorInfo& output,
                                   const TransposeDescriptor& descriptor,
                                   Optional<std::string&> reasonIfUnsupported) const;
-
-    bool IsChannelShuffleSupportedImpl(const TensorInfo& input,
-                                       const TensorInfo& output,
-                                       const ChannelShuffleDescriptor& descriptor,
-                                       Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const;
-
-    bool IsConvolution3dSupportedImpl(const TensorInfo& input,
-                                      const TensorInfo& output,
-                                      const Convolution3dDescriptor& descriptor,
-                                      const TensorInfo& weights,
-                                      const Optional<TensorInfo>& biases,
-                                      Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const;
-
-    bool IsPooling3dSupportedImpl(const armnn::TensorInfo& input,
-                                  const armnn::TensorInfo& output,
-                                  const armnn::Pooling3dDescriptor& descriptor,
-                                  armnn::Optional<std::string&> reasonIfUnsupported = EmptyOptional()) const;
 
     bool CheckEstimateOnlySupported(const TensorInfo& input,
                                     const TensorInfo& output,

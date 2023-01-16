@@ -199,10 +199,6 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
         }
         case LayerType::Constant:
             return IsConstantSupportedImpl(infos[0], reasonIfUnsupported);
-        case LayerType::ConvertFp16ToFp32:
-            return IsConvertFp16ToFp32SupportedImpl(infos[0], infos[1], reasonIfUnsupported);
-        case LayerType::ConvertFp32ToFp16:
-            return IsConvertFp32ToFp16SupportedImpl(infos[0], infos[1], reasonIfUnsupported);
         case LayerType::Convolution2d:
         {
             if (infos.size() != 4)
@@ -223,8 +219,6 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
                 return IsConvolution2dSupportedImpl(infos[0], infos[1], desc, infos[2], infos[3], reasonIfUnsupported);
             }
         }
-        case LayerType::Debug:
-            return IsDebugSupportedImpl(infos[0], infos[1], reasonIfUnsupported);
         case LayerType::DepthToSpace:
             return IsDepthToSpaceSupportedImpl(infos[0], infos[1],
                                                *(PolymorphicDowncast<const DepthToSpaceDescriptor*>(&descriptor)),
@@ -250,12 +244,6 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
                                                            reasonIfUnsupported);
             }
         }
-        case LayerType::Dequantize:
-            return IsDequantizeSupportedImpl(infos[0], infos[1], reasonIfUnsupported);
-        case LayerType::DetectionPostProcess:
-            return IsDetectionPostProcessSupportedImpl(
-                infos[0], infos[1], infos[2], infos[3], infos[4], infos[5], infos[6],
-                *(PolymorphicDowncast<const DetectionPostProcessDescriptor*>(&descriptor)), reasonIfUnsupported);
         case LayerType::Division:
             return IsDivisionSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
         case LayerType::ElementwiseUnary:
@@ -313,8 +301,6 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
                                        reasonIfUnsupported);
         case LayerType::MemCopy:
             return IsMemCopySupportedImpl(std::move(infos[0]), std::move(infos[1]), reasonIfUnsupported);
-        case LayerType::MemImport:
-            return IsMemImportSupportedImpl(infos[0], infos[1], reasonIfUnsupported);
         case LayerType::Merge:
             return IsMergeSupportedImpl(infos[0], infos[1], infos[2], reasonIfUnsupported);
         case LayerType::Minimum:
@@ -457,34 +443,18 @@ bool EthosNLayerSupport::IsLayerSupported(const LayerType& type,
             return IsCastSupportedImpl(infos[0], infos[1], reasonIfUnsupported);
         case LayerType::Shape:
             return IsShapeSupportedImpl(infos[0], infos[1], reasonIfUnsupported);
-        case LayerType::ChannelShuffle:
-            return IsChannelShuffleSupportedImpl(infos[0], infos[1],
-                                                 *(PolymorphicDowncast<const ChannelShuffleDescriptor*>(&descriptor)),
-                                                 reasonIfUnsupported);
-        case LayerType::Convolution3d:
-        {
-            if (infos.size() != 4)
-            {
-                throw InvalidArgumentException("Invalid number of Convolution3d "
-                                               "TensorInfos. TensorInfos should be of format: "
-                                               "{input, output, weights, biases}.");
-            }
-
-            auto desc = *(PolymorphicDowncast<const Convolution3dDescriptor*>(&descriptor));
-            if (infos[3] == TensorInfo())
-            {
-                return IsConvolution3dSupportedImpl(infos[0], infos[1], desc, infos[2], EmptyOptional(),
-                                                    reasonIfUnsupported);
-            }
-            else
-            {
-                return IsConvolution3dSupportedImpl(infos[0], infos[1], desc, infos[2], infos[3], reasonIfUnsupported);
-            }
-        }
-        case LayerType::Pooling3d:
-            return IsPooling3dSupportedImpl(infos[0], infos[1],
-                                            *(PolymorphicDowncast<const Pooling3dDescriptor*>(&descriptor)),
-                                            reasonIfUnsupported);
+        case LayerType::ConvertFp16ToFp32:
+            // Fall-through: The Support Library does not support floating point types, even in performance-only mode.
+        case LayerType::ConvertFp32ToFp16:
+            // Fall-through: The Support Library does not support floating point types, even in performance-only mode.
+        case LayerType::Debug:
+            // Fall-through: The Support Library does not support floating point types, even in performance-only mode.
+        case LayerType::Dequantize:
+            // Fall-through: The Support Library does not support floating point types, even in performance-only mode.
+        case LayerType::MemImport:
+            // Fall-through:
+            // This is a 'meta' layer type related to avoiding tensor copies between backends.
+            // We should never receive this layer because we don't advertise support for this feature.
         default:
             return false;
     }
@@ -1378,47 +1348,6 @@ bool EthosNLayerSupport::IsComparisonSupportedImpl(const TensorInfo& input0,
     return CheckEstimateOnlySupported({ input0, input1 }, { output }, reasonIfUnsupported);
 }
 
-bool EthosNLayerSupport::IsConvertFp16ToFp32SupportedImpl(const TensorInfo&,
-                                                          const TensorInfo&,
-                                                          Optional<std::string&>) const
-{
-    // The Support Library does not support floating point types, even in performance-only mode.
-    return false;
-}
-
-bool EthosNLayerSupport::IsConvertFp32ToFp16SupportedImpl(const TensorInfo&,
-                                                          const TensorInfo&,
-                                                          Optional<std::string&>) const
-{
-    // The Support Library does not support floating point types, even in performance-only mode.
-    return false;
-}
-
-bool EthosNLayerSupport::IsDebugSupportedImpl(const TensorInfo&, const TensorInfo&, Optional<std::string&>) const
-{
-    // The Support Library does not support floating point types, even in performance-only mode.
-    return false;
-}
-
-bool EthosNLayerSupport::IsDequantizeSupportedImpl(const TensorInfo&, const TensorInfo&, Optional<std::string&>) const
-{
-    // The Support Library does not support floating point types, even in performance-only mode.
-    return false;
-}
-
-bool EthosNLayerSupport::IsDetectionPostProcessSupportedImpl(const TensorInfo&,
-                                                             const TensorInfo&,
-                                                             const TensorInfo&,
-                                                             const TensorInfo&,
-                                                             const TensorInfo&,
-                                                             const TensorInfo&,
-                                                             const TensorInfo&,
-                                                             const DetectionPostProcessDescriptor&,
-                                                             Optional<std::string&>) const
-{
-    return false;
-}
-
 bool EthosNLayerSupport::IsDilatedDepthwiseConvolutionSupportedImpl(const TensorInfo& input,
                                                                     const TensorInfo& output,
                                                                     const DepthwiseConvolution2dDescriptor&,
@@ -1584,15 +1513,6 @@ bool EthosNLayerSupport::IsMeanSupportedImpl(const TensorInfo& input,
     bool supported = CheckSupportedLevel(supportedLevel, m_Config.m_PerfOnly);
     SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
     return supported;
-}
-
-bool EthosNLayerSupport::IsMemImportSupportedImpl(const armnn::TensorInfo&,
-                                                  const armnn::TensorInfo&,
-                                                  armnn::Optional<std::string&>) const
-{
-    // This is a 'meta' layer type related to avoiding tensor copies between backends.
-    // We should never receive this layer because we don't advertise support for this feature.
-    return false;
 }
 
 bool EthosNLayerSupport::IsMergeSupportedImpl(const TensorInfo& input0,
@@ -2025,32 +1945,6 @@ bool EthosNLayerSupport::IsTransposeSupportedImpl(const TensorInfo& input,
     bool supported = CheckSupportedLevel(supportedLevel, m_Config.m_PerfOnly);
     SetReasonIfUnsupported(supported, messageHelper, reasonIfUnsupported);
     return supported;
-}
-
-bool EthosNLayerSupport::IsChannelShuffleSupportedImpl(const TensorInfo&,
-                                                       const TensorInfo&,
-                                                       const ChannelShuffleDescriptor&,
-                                                       Optional<std::string&>) const
-{
-    return false;
-}
-
-bool EthosNLayerSupport::IsConvolution3dSupportedImpl(const TensorInfo&,
-                                                      const TensorInfo&,
-                                                      const Convolution3dDescriptor&,
-                                                      const TensorInfo&,
-                                                      const Optional<TensorInfo>&,
-                                                      Optional<std::string&>) const
-{
-    return false;
-}
-
-bool EthosNLayerSupport::IsPooling3dSupportedImpl(const armnn::TensorInfo&,
-                                                  const armnn::TensorInfo&,
-                                                  const armnn::Pooling3dDescriptor&,
-                                                  Optional<std::string&>) const
-{
-    return false;
 }
 
 }    // namespace armnn
