@@ -60,7 +60,8 @@ std::unique_ptr<McePart> NetworkToGraphOfPartsConverter::CreateIdentityMcePart(c
     params.m_OutputDataType = outputDataType;
     params.m_LowerBound     = outputDataType == DataType::UINT8_QUANTIZED ? 0 : -128;
     params.m_UpperBound     = outputDataType == DataType::UINT8_QUANTIZED ? 255 : 127;
-    auto mcePart            = std::make_unique<McePart>(std::move(params));
+    params.m_IsChannelSelector = (inputQuantInfo == outputQuantInfo);
+    auto mcePart               = std::make_unique<McePart>(std::move(params));
     return mcePart;
 }
 
@@ -119,18 +120,19 @@ std::unique_ptr<McePart>
         }
     }
 
-    const float biasScale   = weightScale * inputQuantInfo.GetScale();
-    params.m_BiasInfo       = { { 1, 1, 1, numOfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
-    params.m_BiasData       = std::vector<int32_t>(numOfm, 0);
-    params.m_Op             = command_stream::MceOperation::CONVOLUTION;
-    params.m_OperationIds   = std::set<uint32_t>{ operationId };
-    params.m_UpscaleFactor  = 1;
-    params.m_UpsampleType   = command_stream::cascading::UpsampleType::OFF;
-    params.m_InputDataType  = inputDataType;
-    params.m_OutputDataType = outputDataType;
-    params.m_LowerBound     = outputDataType == DataType::UINT8_QUANTIZED ? 0 : -128;
-    params.m_UpperBound     = outputDataType == DataType::UINT8_QUANTIZED ? 255 : 127;
-    auto mcePart            = std::make_unique<McePart>(std::move(params));
+    const float biasScale      = weightScale * inputQuantInfo.GetScale();
+    params.m_BiasInfo          = { { 1, 1, 1, numOfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
+    params.m_BiasData          = std::vector<int32_t>(numOfm, 0);
+    params.m_Op                = command_stream::MceOperation::CONVOLUTION;
+    params.m_OperationIds      = std::set<uint32_t>{ operationId };
+    params.m_UpscaleFactor     = 1;
+    params.m_UpsampleType      = command_stream::cascading::UpsampleType::OFF;
+    params.m_InputDataType     = inputDataType;
+    params.m_OutputDataType    = outputDataType;
+    params.m_LowerBound        = outputDataType == DataType::UINT8_QUANTIZED ? 0 : -128;
+    params.m_UpperBound        = outputDataType == DataType::UINT8_QUANTIZED ? 255 : 127;
+    params.m_IsChannelSelector = (inputQuantInfo == outputQuantInfo);
+    auto mcePart               = std::make_unique<McePart>(std::move(params));
     return mcePart;
 }
 
@@ -184,18 +186,19 @@ std::unique_ptr<McePart>
         }
     }
 
-    const float biasScale   = weightScale * inputQuantInfo.GetScale();
-    params.m_BiasInfo       = { { 1, 1, 1, numOfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
-    params.m_BiasData       = std::vector<int32_t>(numOfm, 0);
-    params.m_Op             = command_stream::MceOperation::CONVOLUTION;
-    params.m_OperationIds   = std::set<uint32_t>{ operationId };
-    params.m_UpscaleFactor  = 1;
-    params.m_UpsampleType   = command_stream::cascading::UpsampleType::OFF;
-    params.m_InputDataType  = inputDataType;
-    params.m_OutputDataType = outputDataType;
-    params.m_LowerBound     = outputDataType == DataType::UINT8_QUANTIZED ? 0 : -128;
-    params.m_UpperBound     = outputDataType == DataType::UINT8_QUANTIZED ? 255 : 127;
-    auto mcePart            = std::make_unique<McePart>(std::move(params));
+    const float biasScale      = weightScale * inputQuantInfo.GetScale();
+    params.m_BiasInfo          = { { 1, 1, 1, numOfm }, DataType::INT32_QUANTIZED, DataFormat::NHWC, { 0, biasScale } };
+    params.m_BiasData          = std::vector<int32_t>(numOfm, 0);
+    params.m_Op                = command_stream::MceOperation::CONVOLUTION;
+    params.m_OperationIds      = std::set<uint32_t>{ operationId };
+    params.m_UpscaleFactor     = 1;
+    params.m_UpsampleType      = command_stream::cascading::UpsampleType::OFF;
+    params.m_InputDataType     = inputDataType;
+    params.m_OutputDataType    = outputDataType;
+    params.m_LowerBound        = outputDataType == DataType::UINT8_QUANTIZED ? 0 : -128;
+    params.m_UpperBound        = outputDataType == DataType::UINT8_QUANTIZED ? 255 : 127;
+    params.m_IsChannelSelector = (inputQuantInfo == outputQuantInfo);
+    auto mcePart               = std::make_unique<McePart>(std::move(params));
     return mcePart;
 }
 

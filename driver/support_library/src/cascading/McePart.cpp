@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -329,6 +329,7 @@ McePart::McePart(PartId id,
     , m_OutputDataType(outputDataType)
     , m_LowerBound(outputDataType == DataType::UINT8_QUANTIZED ? 0 : -128)
     , m_UpperBound(outputDataType == DataType::UINT8_QUANTIZED ? 255 : 127)
+    , m_IsChannelSelector(false)
 {}
 
 McePart::McePart(ConstructionParams&& params)
@@ -367,6 +368,7 @@ McePart::McePart(ConstructionParams&& params)
     , m_OutputDataType(params.m_OutputDataType)
     , m_LowerBound(params.m_LowerBound)
     , m_UpperBound(params.m_UpperBound)
+    , m_IsChannelSelector(params.m_IsChannelSelector)
 {}
 
 Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
@@ -867,6 +869,10 @@ ethosn::support_library::DotAttributes McePart::GetDotAttributes(DetailLevel det
             "StripeGenerator.MceShapeMultiplier = " + ToString(m_StripeGenerator.m_MceShapeMultiplier) + "\n";
         result.m_Label +=
             "StripeGenerator.PleShapeMultiplier = " + ToString(m_StripeGenerator.m_PleShapeMultiplier) + "\n";
+
+        result.m_Label += "LowerBound = " + ToString(m_LowerBound) + "\n";
+        result.m_Label += "UpperBound = " + ToString(m_UpperBound) + "\n";
+        result.m_Label += "IsChannelSelector = " + ToString(m_IsChannelSelector) + "\n";
     }
     return result;
 }
@@ -881,6 +887,21 @@ const std::vector<uint8_t>& McePart::GetWeightsData() const
     return *m_WeightsData;
 }
 
+const TensorInfo& McePart::GetWeightsInfo() const
+{
+    return m_WeightsInfo;
+}
+
+const std::vector<int32_t>& McePart::GetBiasData() const
+{
+    return m_BiasData;
+}
+
+const TensorInfo& McePart::GetBiasInfo() const
+{
+    return m_BiasInfo;
+}
+
 const TensorShape& McePart::GetInputTensorShape() const
 {
     return m_InputTensorShape;
@@ -889,6 +910,194 @@ const TensorShape& McePart::GetInputTensorShape() const
 const TensorShape& McePart::GetOutputTensorShape() const
 {
     return m_OutputTensorShape;
+}
+
+utils::Optional<utils::ConstTensorData> McePart::GetChannelSelectorWeights() const
+{
+    if (m_IsChannelSelector)
+    {
+        // Run some checks that this part fulfils the criteria of a channel-selector part,
+        // to catch cases where it was incorrectly tagged.
+        assert(GetWidth(m_InputTensorShape) == GetWidth(m_OutputTensorShape));
+        assert(GetHeight(m_InputTensorShape) == GetHeight(m_OutputTensorShape));
+        assert(m_InputQuantizationInfo == m_OutputQuantizationInfo);
+        assert(m_InputQuantizationInfo.GetZeroPoint() == 0);
+        return ConstTensorData(m_WeightsData->data(), m_WeightsInfo.m_Dimensions);
+    }
+    return {};
+}
+
+// Note this function is quite similar to MergeWithChannelSelectorAfter, but has some differences
+// with input and output channels being swapped, and not needing to update the biases or quant info.
+bool McePart::MergeWithChannelSelectorBefore(const utils::ConstTensorData& channelSelectorWeights)
+{
+    if (m_Operation == command_stream::MceOperation::DEPTHWISE_CONVOLUTION)
+    {
+        // We need to be able to change which input channels go to which output channels, which depthwise can't do
+        return false;
+    }
+
+    // Check if the merged layer would actually be computationally cheaper than two separatelayers.
+    // If not, then merging may make performance worse!
+    uint64_t separateMacsPerPixel =
+        GetNumElements(channelSelectorWeights.GetShape()) + GetNumElements(m_WeightsInfo.m_Dimensions);
+    uint64_t mergedMacsPerPixel = m_WeightsInfo.m_Dimensions[0] * m_WeightsInfo.m_Dimensions[1] *
+                                  channelSelectorWeights.GetShape()[2] * m_WeightsInfo.m_Dimensions[3];
+    if (separateMacsPerPixel < mergedMacsPerPixel)
+    {
+        return false;
+    }
+
+    uint32_t oldInputDepth = GetChannels(m_InputTensorShape);
+    uint32_t newInputDepth = channelSelectorWeights.GetShape()[2];
+    assert(channelSelectorWeights.GetShape()[3] == oldInputDepth);
+    m_InputTensorShape[3] = newInputDepth;
+
+    // Update weights matrix to account for the channel selector
+    ConstTensorData oldWeightsData(m_WeightsData->data(), m_WeightsInfo.m_Dimensions);
+    m_WeightsInfo.m_Dimensions[2] = newInputDepth;
+    int32_t weightZeroPoint       = m_WeightsInfo.m_QuantizationInfo.GetZeroPoint();
+    std::vector<uint8_t> newWeightsDataRaw(GetNumElements(m_WeightsInfo.m_Dimensions),
+                                           static_cast<uint8_t>(weightZeroPoint));
+    TensorData newWeightsData(newWeightsDataRaw.data(), m_WeightsInfo.m_Dimensions);
+    for (uint32_t newI = 0; newI < newInputDepth; ++newI)
+    {
+        // Find which old input channel (if any) this new input channel should select
+        int32_t selectedOldInputChannel = -1;
+        for (uint32_t oldI = 0; oldI < oldInputDepth; ++oldI)
+        {
+            if (channelSelectorWeights.GetElement(0, 0, newI, oldI) > 0)
+            {
+                selectedOldInputChannel = oldI;
+                break;
+            }
+        }
+
+        if (selectedOldInputChannel == -1)
+        {
+            // Not selected, so leave the weights for this new input channel as the default (zero point)
+            continue;
+        }
+
+        for (uint32_t h = 0; h < m_WeightsInfo.m_Dimensions[0]; ++h)
+        {
+            for (uint32_t w = 0; w < m_WeightsInfo.m_Dimensions[1]; ++w)
+            {
+                for (uint32_t o = 0; o < m_WeightsInfo.m_Dimensions[3]; ++o)
+                {
+                    uint8_t v = oldWeightsData.GetElement(h, w, selectedOldInputChannel, o);
+                    newWeightsData.SetElement(h, w, newI, o, v);
+                }
+            }
+        }
+    }
+    m_WeightsData = std::make_shared<std::vector<uint8_t>>(std::move(newWeightsDataRaw));
+
+    m_StripeGenerator.m_MceInputTensorShape[3] = newInputDepth;
+    return true;
+}
+
+// Note this function is quite similar to MergeWithChannelSelectorBefore, but has some differences
+// with input and output channels being swapped, and needing to update the biases and quant info as well.
+bool McePart::MergeWithChannelSelectorAfter(const utils::ConstTensorData& channelSelectorWeights)
+{
+    if (m_Operation == command_stream::MceOperation::DEPTHWISE_CONVOLUTION)
+    {
+        // We need to be able to change which input channels go to which output channels, which depthwise can't do
+        return false;
+    }
+
+    // Check if the merged layer would actually be computationally cheaper than two separated layers.
+    // If not, then merging may make performance worse!
+    uint64_t separateMacsPerPixel =
+        GetNumElements(m_WeightsInfo.m_Dimensions) + GetNumElements(channelSelectorWeights.GetShape());
+    uint64_t mergedMacsPerPixel = m_WeightsInfo.m_Dimensions[0] * m_WeightsInfo.m_Dimensions[1] *
+                                  m_WeightsInfo.m_Dimensions[2] * channelSelectorWeights.GetShape()[3];
+    if (separateMacsPerPixel < mergedMacsPerPixel)
+    {
+        return false;
+    }
+
+    assert(channelSelectorWeights.GetShape()[2] == GetChannels(m_OutputTensorShape));
+    uint32_t newOutputDepth = channelSelectorWeights.GetShape()[3];
+    m_OutputTensorShape[3]  = newOutputDepth;
+
+    // Update weights matrix, bias and quant infos to account for the channel selector
+    ConstTensorData oldWeightsData(m_WeightsData->data(), m_WeightsInfo.m_Dimensions);
+    m_WeightsInfo.m_Dimensions[3] = newOutputDepth;
+    int32_t weightZeroPoint       = m_WeightsInfo.m_QuantizationInfo.GetZeroPoint();
+    std::vector<uint8_t> newWeightsDataRaw(GetNumElements(m_WeightsInfo.m_Dimensions),
+                                           static_cast<uint8_t>(weightZeroPoint));
+    TensorData newWeightsData(newWeightsDataRaw.data(), m_WeightsInfo.m_Dimensions);
+
+    m_BiasInfo.m_Dimensions[3] = newOutputDepth;
+    std::vector<int32_t> newBiasData(GetNumElements(m_BiasInfo.m_Dimensions), 0);
+
+    bool isPerChannelQuant = m_WeightsInfo.m_QuantizationInfo.GetQuantizationDim() == 3;
+    utils::Optional<QuantizationScales> weightsPerChannelQuantScales;
+    utils::Optional<QuantizationScales> biasPerChannelQuantScales;
+    if (isPerChannelQuant)
+    {
+        weightsPerChannelQuantScales = QuantizationScales(0.0f, newOutputDepth);
+        biasPerChannelQuantScales    = QuantizationScales(0.0f, newOutputDepth);
+    }
+
+    for (uint32_t newO = 0; newO < newOutputDepth; ++newO)
+    {
+        // Find which (if any) old output channel this new output channel is selecting
+        int32_t selectedOldOutputChannel = -1;
+        for (uint32_t i = 0; i < channelSelectorWeights.GetShape()[2]; ++i)
+        {
+            if (channelSelectorWeights.GetElement(0, 0, i, newO) > 0)
+            {
+                selectedOldOutputChannel = i;
+                break;
+            }
+        }
+
+        if (selectedOldOutputChannel == -1)
+        {
+            // Not selected, so leave the weights for this new output channel as the default (zero point)
+            continue;
+        }
+
+        // Update weights
+        for (uint32_t h = 0; h < m_WeightsInfo.m_Dimensions[0]; ++h)
+        {
+            for (uint32_t w = 0; w < m_WeightsInfo.m_Dimensions[1]; ++w)
+            {
+                for (uint32_t i = 0; i < m_WeightsInfo.m_Dimensions[2]; ++i)
+                {
+                    uint8_t v = oldWeightsData.GetElement(h, w, i, selectedOldOutputChannel);
+                    newWeightsData.SetElement(h, w, i, newO, v);
+                }
+            }
+        }
+
+        // Update bias
+        newBiasData[newO] = m_BiasData[selectedOldOutputChannel];
+
+        // Update weights and bias per-channel quant (if used)
+        if (isPerChannelQuant)
+        {
+            weightsPerChannelQuantScales.value()[newO] =
+                m_WeightsInfo.m_QuantizationInfo.GetScales()[selectedOldOutputChannel];
+            biasPerChannelQuantScales.value()[newO] =
+                m_BiasInfo.m_QuantizationInfo.GetScales()[selectedOldOutputChannel];
+        }
+    }
+
+    m_WeightsData = std::make_shared<std::vector<uint8_t>>(std::move(newWeightsDataRaw));
+    m_BiasData    = std::move(newBiasData);
+    if (isPerChannelQuant)
+    {
+        m_WeightsInfo.m_QuantizationInfo.SetScales(weightsPerChannelQuantScales.value());
+        m_BiasInfo.m_QuantizationInfo.SetScales(biasPerChannelQuantScales.value());
+    }
+
+    m_StripeGenerator.m_MceOutputTensorShape[3] = newOutputDepth;
+    m_StripeGenerator.m_PleOutputTensorShape[3] = newOutputDepth;
+    return true;
 }
 
 }    // namespace support_library

@@ -82,6 +82,15 @@ GraphOfParts CreateGraphOfParts(const Network& network,
     NetworkToGraphOfPartsConverter networkToGraphOfPartsConverter(network, capabilities, estOpt, compOpt);
     GraphOfParts g = networkToGraphOfPartsConverter.ReleaseGraphOfParts();
 
+    // Dump the GraphOfParts both before and after we optimize it.
+    debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "Cascaded_PreOptimizeGraphOfParts.dot",
+                          [&](std::ofstream& s) { SaveGraphOfPartsToDot(g, s, DetailLevel::Low); });
+    debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "Cascaded_PreOptimizeGraphOfPartsDetailed.dot",
+                          [&](std::ofstream& s) { SaveGraphOfPartsToDot(g, s, DetailLevel::High); });
+
+    // Perform some optimizations on the GraphOfParts, to simplify it before generating any plans
+    g.MergeChannelSelectors();
+
     debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "Cascaded_GraphOfParts.dot",
                           [&](std::ofstream& s) { SaveGraphOfPartsToDot(g, s, DetailLevel::Low); });
     debuggingContext.Save(CompilationOptions::DebugLevel::Medium, "Cascaded_GraphOfPartsDetailed.dot",

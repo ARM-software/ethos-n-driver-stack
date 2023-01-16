@@ -5,6 +5,7 @@
 
 #include "../src/Graph.hpp"
 #include "../src/GraphNodes.hpp"
+#include "../src/Utils.hpp"
 #include "../src/cascading/Cascading.hpp"
 #include "../src/cascading/PartUtils.hpp"
 #include "TestUtils.hpp"
@@ -12,6 +13,7 @@
 #include <catch.hpp>
 
 using namespace ethosn::support_library;
+using namespace ethosn::support_library::utils;
 
 TEST_CASE("GraphOfParts simple linear")
 {
@@ -148,4 +150,136 @@ TEST_CASE("GraphOfParts GetPartInputs/Outputs")
         auto outputSlots = graph.GetPartOutputs(p3Id);
         REQUIRE(outputSlots.size() == 0);
     }
+}
+
+TEST_CASE("GraphOfParts/MergeChannelSelectors/CantMergeSharedOutput")
+{
+    GraphOfParts g;
+
+    // 1 -> 2 (cs) -> 3
+    //   \       \_
+    //    4         5
+
+    auto part1                                = std::make_unique<MockPart>(1);
+    part1->m_CanMergeWithChannelSelectorAfter = true;
+    g.AddPart(std::move(part1));
+
+    auto part2                      = std::make_unique<MockPart>(2);
+    part2->m_ChannelSelectorWeights = ConstTensorData(nullptr, TensorShape());
+    g.AddPart(std::move(part2));
+
+    auto part3                                 = std::make_unique<MockPart>(3);
+    part3->m_CanMergeWithChannelSelectorBefore = true;
+    g.AddPart(std::move(part3));
+
+    auto part4 = std::make_unique<MockPart>(4);
+    g.AddPart(std::move(part4));
+
+    auto part5 = std::make_unique<MockPart>(5);
+    g.AddPart(std::move(part5));
+
+    g.AddConnection(PartInputSlot{ 2, 0 }, PartOutputSlot{ 1, 0 });
+    g.AddConnection(PartInputSlot{ 4, 0 }, PartOutputSlot{ 1, 0 });
+    g.AddConnection(PartInputSlot{ 3, 0 }, PartOutputSlot{ 2, 0 });
+    g.AddConnection(PartInputSlot{ 5, 0 }, PartOutputSlot{ 2, 0 });
+
+    g.MergeChannelSelectors();
+
+    // No optimisation possible on either side, due to shared outputs
+    CHECK(g.GetParts().size() == 5);
+}
+
+TEST_CASE("GraphOfParts/MergeChannelSelectors/CantMergeWithUnsupportedParts")
+{
+    GraphOfParts g;
+
+    // 1 -> 2 (cs) -> 3
+
+    auto part1                                = std::make_unique<MockPart>(1);
+    part1->m_CanMergeWithChannelSelectorAfter = false;
+    g.AddPart(std::move(part1));
+
+    auto part2                      = std::make_unique<MockPart>(2);
+    part2->m_ChannelSelectorWeights = ConstTensorData(nullptr, TensorShape());
+    g.AddPart(std::move(part2));
+
+    auto part3                                 = std::make_unique<MockPart>(3);
+    part3->m_CanMergeWithChannelSelectorBefore = false;
+    g.AddPart(std::move(part3));
+
+    g.AddConnection(PartInputSlot{ 2, 0 }, PartOutputSlot{ 1, 0 });
+    g.AddConnection(PartInputSlot{ 3, 0 }, PartOutputSlot{ 2, 0 });
+
+    g.MergeChannelSelectors();
+
+    // No optimisation possible on either side, as neither neighbouring part supports merging
+    CHECK(g.GetParts().size() == 3);
+}
+
+TEST_CASE("GraphOfParts/MergeChannelSelectors/MergeBefore")
+{
+    GraphOfParts g;
+
+    // 1 -> 2 (cs) -> 3
+
+    auto part1 = std::make_unique<MockPart>(1);
+    part1->AddOperationId(1);
+    part1->m_CanMergeWithChannelSelectorAfter = true;
+    g.AddPart(std::move(part1));
+
+    auto part2 = std::make_unique<MockPart>(2);
+    part2->AddOperationId(2);
+    part2->m_ChannelSelectorWeights = ConstTensorData(nullptr, TensorShape());
+    g.AddPart(std::move(part2));
+
+    auto part3 = std::make_unique<MockPart>(3);
+    part3->AddOperationId(3);
+    part3->m_CanMergeWithChannelSelectorBefore = false;
+    g.AddPart(std::move(part3));
+
+    g.AddConnection(PartInputSlot{ 2, 0 }, PartOutputSlot{ 1, 0 });
+    g.AddConnection(PartInputSlot{ 3, 0 }, PartOutputSlot{ 2, 0 });
+
+    g.MergeChannelSelectors();
+
+    // 2 should have been merged with 1
+    CHECK(g.GetParts().size() == 2);
+    CHECK(static_cast<MockPart*>(g.GetParts().at(1).get())->GetOperationIds() == std::set<uint32_t>{ 1, 2 });
+
+    CHECK(g.GetAllConnections().size() == 1);
+    CHECK(g.GetAllConnections().at(PartInputSlot{ 3, 0 }) == PartOutputSlot{ 1, 0 });
+}
+
+TEST_CASE("GraphOfParts/MergeChannelSelectors/MergeAfter")
+{
+    GraphOfParts g;
+
+    // 1 -> 2 (cs) -> 3
+
+    auto part1 = std::make_unique<MockPart>(1);
+    part1->AddOperationId(1);
+    part1->m_CanMergeWithChannelSelectorAfter = false;
+    g.AddPart(std::move(part1));
+
+    auto part2 = std::make_unique<MockPart>(2);
+    part2->AddOperationId(2);
+    part2->m_ChannelSelectorWeights = ConstTensorData(nullptr, TensorShape());
+    g.AddPart(std::move(part2));
+
+    auto part3 = std::make_unique<MockPart>(3);
+    part3->AddOperationId(3);
+    part3->m_CanMergeWithChannelSelectorBefore = true;
+    g.AddPart(std::move(part3));
+
+    g.AddConnection(PartInputSlot{ 2, 0 }, PartOutputSlot{ 1, 0 });
+    g.AddConnection(PartInputSlot{ 3, 0 }, PartOutputSlot{ 2, 0 });
+
+    g.MergeChannelSelectors();
+
+    // 2 should have been merged with 3
+    CHECK(g.GetParts().size() == 2);
+    CHECK(static_cast<MockPart*>(g.GetParts().at(3).get())->GetOperationIds() == std::set<uint32_t>{ 2, 3 });
+
+    CHECK(g.GetAllConnections().size() == 1);
+    CHECK(g.GetAllConnections().at(PartInputSlot{ 3, 0 }) == PartOutputSlot{ 1, 0 });
 }

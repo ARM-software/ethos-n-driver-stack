@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -46,6 +46,8 @@ class MockPart : public BasePart
 public:
     MockPart(PartId id, bool hasInput = true, bool hasOutput = true)
         : BasePart(id, "MockPart", estOpt, compOpt, m_Capabilities)
+        , m_CanMergeWithChannelSelectorBefore(false)
+        , m_CanMergeWithChannelSelectorAfter(false)
         , m_HasInput(hasInput)
         , m_HasOutput(hasOutput)
         , m_Capabilities(GetEthosN78HwCapabilities())
@@ -56,6 +58,23 @@ public:
     {
         return {};
     }
+
+    utils::Optional<utils::ConstTensorData> GetChannelSelectorWeights() const override
+    {
+        return m_ChannelSelectorWeights;
+    }
+    bool MergeWithChannelSelectorBefore(const utils::ConstTensorData&) override
+    {
+        return m_CanMergeWithChannelSelectorBefore;
+    }
+    bool MergeWithChannelSelectorAfter(const utils::ConstTensorData&) override
+    {
+        return m_CanMergeWithChannelSelectorAfter;
+    }
+
+    utils::Optional<utils::ConstTensorData> m_ChannelSelectorWeights;
+    bool m_CanMergeWithChannelSelectorBefore;
+    bool m_CanMergeWithChannelSelectorAfter;
 
 protected:
     bool m_HasInput;

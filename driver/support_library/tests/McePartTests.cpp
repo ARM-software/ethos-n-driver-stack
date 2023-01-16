@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -17,6 +17,7 @@
 #include <regex>
 
 using namespace ethosn::support_library;
+using namespace ethosn::support_library::utils;
 namespace command_stream = ethosn::command_stream;
 
 namespace
@@ -2239,4 +2240,190 @@ TEST_CASE("McePart GetPlans Upsampling")
             }
         }
     }
+}
+
+TEST_CASE("McePart/MergeWithChannelSelectorBefore/Fail")
+{
+    const CompilationOptions compOpt;
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const EstimationOptions estOpts;
+    TensorShape tsIn  = { 1, 64, 64, 16 };
+    TensorShape tsOut = { 1, 128, 128, 16 };
+    {
+        McePart part =
+            BuildPart(tsIn, tsOut, { 1, 1, 16, 16 }, command_stream::MceOperation::DEPTHWISE_CONVOLUTION, Stride{}, 0,
+                      0, 1, command_stream::cascading::UpsampleType::OFF, compOpt, caps, estOpts);
+        // Can't be merged because it's depthwise
+        CHECK(part.MergeWithChannelSelectorBefore(ConstTensorData(nullptr, TensorShape())) == false);
+    }
+
+    {
+        McePart part = BuildPart(tsIn, tsOut, { 3, 3, 16, 16 }, command_stream::MceOperation::CONVOLUTION, Stride{}, 0,
+                                 0, 1, command_stream::cascading::UpsampleType::OFF, compOpt, caps, estOpts);
+        // Can't be merged because it would be worse performance
+        CHECK(part.MergeWithChannelSelectorBefore(ConstTensorData(nullptr, TensorShape{ 1, 1, 100, 16 })) == false);
+    }
+}
+
+TEST_CASE("McePart/MergeWithChannelSelectorBefore/Success")
+{
+    const CompilationOptions compOpt;
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const EstimationOptions estOpts;
+    TensorShape tsIn  = { 1, 16, 16, 3 };
+    TensorShape tsOut = { 1, 16, 16, 5 };
+
+    McePart::ConstructionParams params(estOpts, compOpt, caps);
+    params.m_Id                             = 0;
+    params.m_InputTensorShape               = tsIn;
+    params.m_OutputTensorShape              = tsOut;
+    params.m_InputQuantizationInfo          = QuantizationInfo(0, 1.0f);
+    params.m_OutputQuantizationInfo         = QuantizationInfo(0, 1.0f);
+    params.m_WeightsInfo                    = TensorShape{ 1, 1, 3, 5 };
+    params.m_WeightsInfo.m_DataFormat       = DataFormat::HWIO;
+    params.m_WeightsInfo.m_QuantizationInfo = { 0, 0.9f };
+    params.m_WeightsData                    = std::vector<uint8_t>{
+        // clang-format off
+        1,  2,   3,  4,  5,
+        6,  7,   8,  9, 10,
+        11, 12, 13, 14, 15,
+        // clang-format on
+    };
+    params.m_BiasInfo       = TensorShape{ 1, 1, 1, 5 };
+    params.m_BiasData       = std::vector<int32_t>(5, 0);
+    params.m_Stride         = { 1, 1 };
+    params.m_PadTop         = 0;
+    params.m_PadLeft        = 0;
+    params.m_Op             = command_stream::MceOperation::CONVOLUTION;
+    params.m_InputDataType  = DataType::UINT8_QUANTIZED;
+    params.m_OutputDataType = DataType::UINT8_QUANTIZED;
+    params.m_UpscaleFactor  = 1;
+    params.m_UpsampleType   = command_stream::cascading::UpsampleType::OFF;
+    McePart part(std::move(params));
+
+    // Channel selector goes from 4 input channels down to 3.
+    // The first output channel selects the first input channel (first column of this matrix)
+    // The second output channel doesn't select any input channel (second column of this matrix)
+    // The third output channel selects the fourth input channel (third column of this matrix)
+    std::vector<uint8_t> channelSelectorWeightsRaw = {
+        // clang-format off
+        1, 0, 0,
+        0, 0, 0,
+        0, 0, 0,
+        0, 0, 1,
+        // clang-format on
+    };
+    ConstTensorData channelSelectorWeights(channelSelectorWeightsRaw.data(), TensorShape{ 1, 1, 4, 3 });
+
+    CHECK(part.MergeWithChannelSelectorBefore(channelSelectorWeights) == true);
+    CHECK(part.GetInputTensorShape() == TensorShape{ 1, 16, 16, 4 });    // Input channels have been increased to 4
+    CHECK(part.GetWeightsInfo().m_Dimensions == TensorShape{ 1, 1, 4, 5 });    // Weight input channels increased to 4
+    // Weights have been resized and rearranged
+    // clang-format off
+    CHECK(part.GetWeightsData() == std::vector<uint8_t>{
+        1,  2,   3,  4,  5,
+        0,  0,   0,  0,  0,
+        0,  0,   0,  0,  0,
+        11, 12, 13, 14, 15,
+    });
+    // clang-format on
+}
+
+TEST_CASE("McePart/MergeWithChannelSelectorAfter/Fail")
+{
+    const CompilationOptions compOpt;
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const EstimationOptions estOpts;
+    TensorShape tsIn  = { 1, 64, 64, 16 };
+    TensorShape tsOut = { 1, 128, 128, 16 };
+    {
+        McePart part =
+            BuildPart(tsIn, tsOut, { 1, 1, 16, 16 }, command_stream::MceOperation::DEPTHWISE_CONVOLUTION, Stride{}, 0,
+                      0, 1, command_stream::cascading::UpsampleType::OFF, compOpt, caps, estOpts);
+        // Can't be merged because it's depthwise
+        CHECK(part.MergeWithChannelSelectorAfter(ConstTensorData(nullptr, TensorShape())) == false);
+    }
+
+    {
+        McePart part = BuildPart(tsIn, tsOut, { 3, 3, 16, 16 }, command_stream::MceOperation::CONVOLUTION, Stride{}, 0,
+                                 0, 1, command_stream::cascading::UpsampleType::OFF, compOpt, caps, estOpts);
+        // Can't be merged because it would be worse performance
+        CHECK(part.MergeWithChannelSelectorAfter(ConstTensorData(nullptr, TensorShape{ 1, 1, 16, 100 })) == false);
+    }
+}
+
+TEST_CASE("McePart/MergeWithChannelSelectorAfter/Success")
+{
+    const CompilationOptions compOpt;
+    const HardwareCapabilities caps = GetEthosN78HwCapabilities();
+    const EstimationOptions estOpts;
+    TensorShape tsIn  = { 1, 16, 16, 3 };
+    TensorShape tsOut = { 1, 16, 16, 4 };
+
+    McePart::ConstructionParams params(estOpts, compOpt, caps);
+    params.m_Id                             = 0;
+    params.m_InputTensorShape               = tsIn;
+    params.m_OutputTensorShape              = tsOut;
+    params.m_InputQuantizationInfo          = QuantizationInfo(0, 1.0f);
+    params.m_OutputQuantizationInfo         = QuantizationInfo(0, 1.0f);
+    params.m_WeightsInfo                    = TensorShape{ 1, 1, 3, 4 };
+    params.m_WeightsInfo.m_DataFormat       = DataFormat::HWIO;
+    params.m_WeightsInfo.m_QuantizationInfo = { 0, QuantizationScales{ 1.0f, 2.0f, 3.0f, 4.0f }, 3 };
+    params.m_WeightsData                    = std::vector<uint8_t>{
+        // clang-format off
+        1,  2,  3,  4,
+        5,  6,  7,  8,
+        9, 10, 11, 12,
+        // clang-format on
+    };
+    params.m_BiasInfo                    = TensorShape{ 1, 1, 1, 4 };
+    params.m_BiasInfo.m_QuantizationInfo = { 0, QuantizationScales{ 1.0f, 2.0f, 3.0f, 4.0f }, 3 };
+    params.m_BiasData                    = { 1, 2, 3, 4 };
+    params.m_Stride                      = { 1, 1 };
+    params.m_PadTop                      = 0;
+    params.m_PadLeft                     = 0;
+    params.m_Op                          = command_stream::MceOperation::CONVOLUTION;
+    params.m_InputDataType               = DataType::UINT8_QUANTIZED;
+    params.m_OutputDataType              = DataType::UINT8_QUANTIZED;
+    params.m_UpscaleFactor               = 1;
+    params.m_UpsampleType                = command_stream::cascading::UpsampleType::OFF;
+    McePart part(std::move(params));
+
+    // Channel selector goes from 4 input channels up to 5.
+    // The first output channel selects the second input channel (first column of this matrix)
+    // The second output channel doesn't select any input channel (second column of this matrix)
+    // The third output channel selects the fourth input channel (third column of this matrix)
+    // etc.
+    std::vector<uint8_t> channelSelectorWeightsRaw = {
+        // clang-format off
+        0, 0, 0, 0, 0,
+        1, 0, 0, 0, 1,
+        0, 0, 0, 1, 0,
+        0, 0, 1, 0, 0,
+        // clang-format on
+    };
+    ConstTensorData channelSelectorWeights(channelSelectorWeightsRaw.data(), TensorShape{ 1, 1, 4, 5 });
+
+    CHECK(part.MergeWithChannelSelectorAfter(channelSelectorWeights) == true);
+    CHECK(part.GetOutputTensorShape() == TensorShape{ 1, 16, 16, 5 });    // Output channels have been increased to 5
+    CHECK(part.GetWeightsInfo().m_Dimensions == TensorShape{ 1, 1, 3, 5 });    // Weight output channels increased to 5
+    CHECK(part.GetBiasInfo().m_Dimensions == TensorShape{ 1, 1, 1, 5 });       // Bias channels increased to 5
+
+    // Weights per-channel quant has been resized and rearranged
+    CHECK(part.GetWeightsInfo().m_QuantizationInfo.GetScales() == QuantizationScales{ 2.0f, 0.0f, 4.0f, 3.0f, 2.0f });
+
+    // Bias per-channel quant has been resized and rearranged
+    CHECK(part.GetBiasInfo().m_QuantizationInfo.GetScales() == QuantizationScales{ 2.0f, 0.0f, 4.0f, 3.0f, 2.0f });
+
+    // Weights have been resized and rearranged
+    // clang-format off
+    CHECK(part.GetWeightsData() == std::vector<uint8_t>{
+        2,  0,  4,  3,  2,
+        6,  0,  8,  7,  6,
+        10, 0, 12, 11, 10,
+    });
+    // clang-format on
+
+    // Bias data has been resized and rearranged
+    CHECK(part.GetBiasData() == std::vector<int32_t>{ 2, 0, 4, 3, 2 });
 }

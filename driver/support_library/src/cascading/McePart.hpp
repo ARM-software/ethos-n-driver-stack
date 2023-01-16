@@ -1,10 +1,11 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
+#include "../Utils.hpp"
 #include "Part.hpp"
 #include "StripeHelper.hpp"
 #include "WeightEncoderCache.hpp"
@@ -50,6 +51,7 @@ public:
         command_stream::cascading::UpsampleType m_UpsampleType = command_stream::cascading::UpsampleType::OFF;
         int16_t m_LowerBound                                   = 0;
         int16_t m_UpperBound                                   = 255;
+        bool m_IsChannelSelector                               = false;
     };
 
     McePart(PartId id,
@@ -89,8 +91,15 @@ public:
     void setUninterleavedInputShape(TensorShape uninterleavedInputShape);
 
     const std::vector<uint8_t>& GetWeightsData() const;
+    const TensorInfo& GetWeightsInfo() const;
+    const std::vector<int32_t>& GetBiasData() const;
+    const TensorInfo& GetBiasInfo() const;
     const TensorShape& GetInputTensorShape() const;
     const TensorShape& GetOutputTensorShape() const;
+
+    utils::Optional<utils::ConstTensorData> GetChannelSelectorWeights() const override;
+    bool MergeWithChannelSelectorBefore(const utils::ConstTensorData& channelSelectorWeights) override;
+    bool MergeWithChannelSelectorAfter(const utils::ConstTensorData& channelSelectorWeights) override;
 
 protected:
     void CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
@@ -158,6 +167,7 @@ protected:
     DataType m_OutputDataType;
     int16_t m_LowerBound;
     int16_t m_UpperBound;
+    bool m_IsChannelSelector;
 };
 }    // namespace support_library
 }    // namespace ethosn

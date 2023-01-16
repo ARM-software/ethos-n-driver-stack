@@ -6,6 +6,7 @@
 #pragma once
 
 #include "../Graph.hpp"
+#include "../Utils.hpp"
 #include "DebuggableObject.hpp"
 
 #include <functional>
@@ -196,7 +197,54 @@ public:
     virtual ~BasePart()
     {}
 
+    std::set<uint32_t> GetOperationIds() const
+    {
+        return m_CorrespondingOperationIds;
+    }
     void AddOperationId(uint32_t operationId);
+
+    /// Gets the weights matrix for this part if it is a 'channel selector', otherwise an empty optional.
+    ///
+    /// A channel selector part is one which fulfils the following conditions:
+    ///  * Single single, single output
+    ///  * The output width and height are the same as the input width and height
+    ///  * The input and output quantization info are the same, and have a zero point of 0.
+    ///  * Each channel of the output is either
+    ///     - A copy of one of the input channels (i.e. each output channel 'selects' an input channel)
+    ///     - or, entirely zero (in real space, so may be non-zero in quant space depending on zero point)
+    ///  * Note that an input channel may not necessarily be selected by any output channel(s), and so would be lost.
+    ///  * Note that multiple output channels could select the same input channel.
+    ///
+    /// With these conditions met, the weights matrix returned is guaranteed to be mostly zero, with each
+    /// output channel having at most one non-zero value, corresponding to the input channel which it selects.
+    ///
+    /// These properties enable an optimization where we can merge channel selector parts with the preceding
+    /// or following MceParts, by merging the weights of the two layers.
+    virtual utils::Optional<utils::ConstTensorData> GetChannelSelectorWeights() const
+    {
+        // By default, assume that this part is not a channel selector. Derived part types must override this as necessary.
+        return {};
+    }
+
+    /// If it is possible and efficient to do so, modifies this Part so that it includes the effect
+    /// of a preceding channel selector part (see GetChannelSelectorWeights above), allowing that
+    /// channel selector part to be removed from the graph.
+    virtual bool MergeWithChannelSelectorBefore(const utils::ConstTensorData& channelSelectorWeights)
+    {
+        // By default, assume that this part cannot be merged with a channel selector. Derived part types must override this as necessary.
+        ETHOSN_UNUSED(channelSelectorWeights);
+        return false;
+    }
+
+    /// If it is possible and efficient to do so, modifies this Part so that it includes the effect
+    /// of a following channel selector part (see GetChannelSelectorWeights above), allowing that
+    /// channel selector part to be removed from the graph.
+    virtual bool MergeWithChannelSelectorAfter(const utils::ConstTensorData& channelSelectorWeights)
+    {
+        // By default, assume that this part cannot be merged with a channel selector. Derived part types must override this as necessary.
+        ETHOSN_UNUSED(channelSelectorWeights);
+        return false;
+    }
 
 protected:
     PartId m_PartId;
@@ -319,6 +367,12 @@ public:
     /// Adds a connection between input slot and output slot to the graph of parts
     /// asserts if the input slot is already connected to an output slot.
     void AddConnection(PartInputSlot inputSlot, PartOutputSlot outputSlot);
+
+    void RemoveConnection(PartInputSlot inputSlot);
+
+    /// Where possible, merge parts which are tagged as channel selectors with neighbouring
+    /// parts, to simplify and speed up the graph. See BasePart::IsChannelSelector() for details.
+    void MergeChannelSelectors();
 
     PartId GeneratePartId()
     {

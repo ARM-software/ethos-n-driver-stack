@@ -268,5 +268,100 @@ void GraphOfParts::AddConnection(PartInputSlot inputSlot, PartOutputSlot outputS
     m_Connections[inputSlot] = outputSlot;
 }
 
+void GraphOfParts::RemoveConnection(PartInputSlot inputSlot)
+{
+    auto it = m_Connections.find(inputSlot);
+    if (it != m_Connections.end())
+    {
+        m_Connections.erase(it);
+    }
+}
+
+void GraphOfParts::MergeChannelSelectors()
+{
+    auto partIt = m_Parts.begin();
+    while (partIt != m_Parts.end())
+    {
+        const std::unique_ptr<BasePart>& channelSelectorPart = partIt->second;
+        utils::Optional<ConstTensorData> o                   = channelSelectorPart->GetChannelSelectorWeights();
+        if (!o.has_value())
+        {
+            // Not a channel selector, check the next instead
+            ++partIt;
+            continue;
+        }
+        ConstTensorData channelSelectorWeights = o.value();
+
+        // Check if can be merged with the part afterwards
+        {
+            std::vector<PartConnection> connections = GetDestinationConnections(channelSelectorPart->GetPartId());
+            // The channel selector part's output must only be consumed by the part we are going to merge it with,
+            if (connections.size() == 1)
+            {
+                PartId destPartId = connections[0].m_Destination.m_PartId;
+                if (m_Parts[destPartId]->MergeWithChannelSelectorBefore(channelSelectorWeights))
+                {
+                    // Merge successful
+
+                    // Merge operation IDs
+                    for (uint32_t operationId : channelSelectorPart->GetOperationIds())
+                    {
+                        m_Parts[destPartId]->AddOperationId(operationId);
+                    }
+
+                    // Remove the channel selector part and reroute its input connections to the modified layer.
+                    std::vector<PartConnection> channelSelectorInputConnections =
+                        GetSourceConnections(channelSelectorPart->GetPartId());
+                    // Channel selectors are single-input single-output
+                    assert(channelSelectorInputConnections.size() == 1);
+                    RemoveConnection(channelSelectorInputConnections[0].m_Destination);
+                    RemoveConnection(PartInputSlot{ destPartId, 0 });
+
+                    AddConnection(PartInputSlot{ destPartId, 0 }, channelSelectorInputConnections[0].m_Source);
+
+                    partIt = m_Parts.erase(partIt);
+                    continue;
+                }
+            }
+        }
+
+        // Check if can be merged with the part beforehand
+        {
+            std::vector<PartConnection> connections = GetSourceConnections(channelSelectorPart->GetPartId());
+            assert(connections.size() == 1);    // Channel selectors are single-input single-output
+            PartId srcPartId = connections[0].m_Source.m_PartId;
+            // The part we are going to merge it with can't have a shared output - it must only be connected with the channel selector part
+            if (GetDestinationConnections(srcPartId).size() == 1)
+            {
+                if (m_Parts[srcPartId]->MergeWithChannelSelectorAfter(channelSelectorWeights))
+                {
+                    // Merge successful
+
+                    // Merge operation IDs
+                    for (uint32_t operationId : channelSelectorPart->GetOperationIds())
+                    {
+                        m_Parts[srcPartId]->AddOperationId(operationId);
+                    }
+
+                    // Remove the channel selector part and reroute its output connections to the modified layer.
+                    std::vector<PartConnection> channelSelectorOutputConnections =
+                        GetDestinationConnections(channelSelectorPart->GetPartId());
+                    // Channel selectors are single-input single-output
+                    assert(channelSelectorOutputConnections.size() == 1);
+                    RemoveConnection(channelSelectorOutputConnections[0].m_Destination);
+                    RemoveConnection(PartInputSlot{ channelSelectorPart->GetPartId(), 0 });
+
+                    AddConnection(channelSelectorOutputConnections[0].m_Destination, PartOutputSlot{ srcPartId, 0 });
+
+                    partIt = m_Parts.erase(partIt);
+                    continue;
+                }
+            }
+        }
+
+        ++partIt;
+    }
+}
+
 }    // namespace support_library
 }    // namespace ethosn
