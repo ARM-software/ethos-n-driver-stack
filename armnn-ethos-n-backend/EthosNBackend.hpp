@@ -172,9 +172,8 @@ public:
             allocString = GetDeviceNamePrefix() + std::to_string(GetDeviceBaseId());
         }
 
-        m_RegisteredDeviceIds.emplace(allocString);
-
-        if (m_RefCount > 0)
+        bool deviceIdRegistered = m_RegisteredDeviceIds.emplace(allocString).second;
+        if (m_RefCount > 0 && deviceIdRegistered)
         {
             m_Allocators.emplace(allocString, ProcMemAllocator(allocString));
         }
