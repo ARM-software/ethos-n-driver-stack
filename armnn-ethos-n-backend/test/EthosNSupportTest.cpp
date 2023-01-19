@@ -322,7 +322,7 @@ TEST_SUITE("EthosNSupport")
     {
         Graph graph;
 
-        SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::Sigmoid);
+        SubgraphView::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::Sigmoid);
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
         // Check that we are able to convert the sub-graph
@@ -333,7 +333,7 @@ TEST_SUITE("EthosNSupport")
     {
         Graph graph;
 
-        SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::TanH);
+        SubgraphView::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::TanH);
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
         // Check that we are able to convert the sub-graph
@@ -344,7 +344,7 @@ TEST_SUITE("EthosNSupport")
     {
         Graph graph;
 
-        SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::ReLu);
+        SubgraphView::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::ReLu);
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
         // Check that we are able to convert the sub-graph
@@ -355,8 +355,7 @@ TEST_SUITE("EthosNSupport")
     {
         Graph graph;
 
-        SubgraphViewSelector::SubgraphViewPtr subgraphPtr =
-            BuildActivationSubgraph(graph, ActivationFunction::BoundedReLu);
+        SubgraphView::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::BoundedReLu);
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
         // Check that we are able to convert the sub-graph
@@ -373,8 +372,7 @@ TEST_SUITE("EthosNSupport")
         config.m_PerfOnly    = true;
         config.m_PerfCurrent = true;
 
-        SubgraphViewSelector::SubgraphViewPtr subgraphPtr =
-            BuildActivationSubgraph(graph, ActivationFunction::LeakyReLu);
+        SubgraphView::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::LeakyReLu);
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, config, config.QueryCapabilities());
 
         // Check that we are able to convert the sub-graph when performance only mode.
@@ -385,8 +383,7 @@ TEST_SUITE("EthosNSupport")
     {
         Graph graph;
 
-        SubgraphViewSelector::SubgraphViewPtr subgraphPtr =
-            BuildActivationSubgraph(graph, ActivationFunction::LeakyReLu);
+        SubgraphView::SubgraphViewPtr subgraphPtr = BuildActivationSubgraph(graph, ActivationFunction::LeakyReLu);
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
 
         CHECK_NOTHROW(converter.TestCreateUncompiledNetwork());
@@ -584,8 +581,8 @@ TEST_SUITE("EthosNSupport")
         CHECK_THROWS_AS(converter.TestCreateUncompiledNetwork(), ethosn_lib::NotSupportedException);
     }
 
-    SubgraphViewSelector::SubgraphViewPtr CreatePooling2dLayerSubgraph(
-        Graph & graph, const TensorShape& inputTensorShape, const Pooling2dDescriptor& descriptor)
+    SubgraphView::SubgraphViewPtr CreatePooling2dLayerSubgraph(Graph & graph, const TensorShape& inputTensorShape,
+                                                               const Pooling2dDescriptor& descriptor)
     {
         // Create the input tensor info
         const TensorInfo inputTensorInfo(inputTensorShape, DataType::QAsymmU8, 1.0f, 0);
@@ -630,8 +627,7 @@ TEST_SUITE("EthosNSupport")
         Graph graph;
 
         // Construct the sub-graph
-        SubgraphViewSelector::SubgraphViewPtr subgraphPtr =
-            CreatePooling2dLayerSubgraph(graph, inputTensorShape, descriptor);
+        SubgraphView::SubgraphViewPtr subgraphPtr = CreatePooling2dLayerSubgraph(graph, inputTensorShape, descriptor);
 
         // Get up the Ethos-N sub-graph converter
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
@@ -661,8 +657,7 @@ TEST_SUITE("EthosNSupport")
         Graph graph;
 
         // Construct the sub-graph
-        SubgraphViewSelector::SubgraphViewPtr subgraphPtr =
-            CreatePooling2dLayerSubgraph(graph, inputTensorShape, descriptor);
+        SubgraphView::SubgraphViewPtr subgraphPtr = CreatePooling2dLayerSubgraph(graph, inputTensorShape, descriptor);
 
         // Set up Ethos-N sub-graph converter
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());
@@ -695,8 +690,7 @@ TEST_SUITE("EthosNSupport")
         Graph graph;
 
         // Construct the sub-graph
-        SubgraphViewSelector::SubgraphViewPtr subgraphPtr =
-            CreatePooling2dLayerSubgraph(graph, inputTensorShape, descriptor);
+        SubgraphView::SubgraphViewPtr subgraphPtr = CreatePooling2dLayerSubgraph(graph, inputTensorShape, descriptor);
 
         // Set up Ethos-N sub-graph converter
         TestEthosNSubgraphViewConverter converter(*subgraphPtr, EthosNConfig(), EthosNConfig().QueryCapabilities());

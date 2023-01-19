@@ -1,5 +1,5 @@
 //
-// Copyright © 2022 Arm Limited.
+// Copyright © 2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -244,10 +244,10 @@ TEST_SUITE("EthosNCaching")
             Graph graph2;
 
             // Create a fully optimizable subgraph
-            SubgraphViewSelector::SubgraphViewPtr subgraphPtr1 = CreateSimpleSubgraph(graph1);
+            SubgraphView::SubgraphViewPtr subgraphPtr1 = CreateSimpleSubgraph(graph1);
             CHECK((subgraphPtr1 != nullptr));
 
-            SubgraphViewSelector::SubgraphViewPtr subgraphPtr2 = CreateSimpleSubgraph(graph2);
+            SubgraphView::SubgraphViewPtr subgraphPtr2 = CreateSimpleSubgraph(graph2);
             CHECK((subgraphPtr2 != nullptr));
 
             // Create a backend object
@@ -284,10 +284,10 @@ TEST_SUITE("EthosNCaching")
             Graph graph2;
 
             // Create a fully optimizable subgraph
-            SubgraphViewSelector::SubgraphViewPtr subgraphPtr1 = CreateSimpleSubgraph(graph1);
+            SubgraphView::SubgraphViewPtr subgraphPtr1 = CreateSimpleSubgraph(graph1);
             CHECK((subgraphPtr1 != nullptr));
 
-            SubgraphViewSelector::SubgraphViewPtr subgraphPtr2 = CreateSimpleSubgraph(graph2);
+            SubgraphView::SubgraphViewPtr subgraphPtr2 = CreateSimpleSubgraph(graph2);
             CHECK((subgraphPtr2 != nullptr));
 
             // Create a backend object

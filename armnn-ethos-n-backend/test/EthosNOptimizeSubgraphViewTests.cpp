@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -388,7 +388,7 @@ void FullyOptimizableSubgraphTestImpl1()
     Graph graph;
 
     // Create a fully optimizable subgraph
-    SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildFullyOptimizableSubgraph1(graph);
+    SubgraphView::SubgraphViewPtr subgraphPtr = BuildFullyOptimizableSubgraph1(graph);
     CHECK((subgraphPtr != nullptr));
 
     const SubgraphView::IInputSlots& subgraphInputSlots    = subgraphPtr->GetIInputSlots();
@@ -456,7 +456,7 @@ void FullyOptimizableSubgraphTestImpl2()
     Graph graph;
 
     // Create a fully optimizable subgraph
-    SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildFullyOptimizableSubgraph2(graph);
+    SubgraphView::SubgraphViewPtr subgraphPtr = BuildFullyOptimizableSubgraph2(graph);
     CHECK((subgraphPtr != nullptr));
 
     const SubgraphView::IInputSlots& subgraphInputSlots    = subgraphPtr->GetIInputSlots();
@@ -525,7 +525,7 @@ void NonOptimizableSubgraphTestImpl()
     Graph graph;
 
     // Create a non-optimizable subgraph
-    SubgraphViewSelector::SubgraphViewPtr subgraphPtr = BuildNonOptimizableSubgraph(graph);
+    SubgraphView::SubgraphViewPtr subgraphPtr = BuildNonOptimizableSubgraph(graph);
     CHECK((subgraphPtr != nullptr));
 
     const SubgraphView::IInputSlots& subgraphInputSlots    = subgraphPtr->GetIInputSlots();
