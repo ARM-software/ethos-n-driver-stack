@@ -1135,7 +1135,7 @@ static int ethosn_send_configure_profiling(struct ethosn_core *core,
 					   hw_counters,
 					   struct ethosn_dma_info *buffer)
 {
-	struct ethosn_firmware_profiling_configuration fw_new_config;
+	struct ethosn_firmware_profiling_configuration fw_new_config = { 0 };
 	int i;
 
 	if (num_hw_counters > ETHOSN_PROFILING_MAX_HW_COUNTERS) {
@@ -1144,8 +1144,6 @@ static int ethosn_send_configure_profiling(struct ethosn_core *core,
 
 		return -EINVAL;
 	}
-
-	fw_new_config.enable_profiling = enable;
 
 	if (!IS_ERR_OR_NULL(buffer)) {
 		fw_new_config.buffer_size = buffer->size;
@@ -1171,6 +1169,11 @@ static int ethosn_send_configure_profiling(struct ethosn_core *core,
 		"-> Configure profiling, enable_profiling=%d, buffer_address=0x%08llx, buffer_size=%d\n",
 		fw_new_config.enable_profiling, fw_new_config.buffer_address,
 		fw_new_config.buffer_size);
+
+	/* Enable profiling only after all the configs have been checked
+	 * and set
+	 */
+	fw_new_config.enable_profiling = enable;
 
 	return ethosn_write_message(core, ETHOSN_MESSAGE_CONFIGURE_PROFILING,
 				    &fw_new_config, sizeof(fw_new_config));
