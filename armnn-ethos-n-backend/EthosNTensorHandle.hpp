@@ -100,9 +100,9 @@ public:
         return *m_Buffer;
     }
 
-    unsigned int GetImportFlags() const override
+    MemorySourceFlags GetImportFlags() const override
     {
-        return static_cast<unsigned int>(armnn::MemorySource::DmaBuf);
+        return static_cast<MemorySourceFlags>(armnn::MemorySource::DmaBuf);
     }
 
     bool Import(void* memory, MemorySource source) override
