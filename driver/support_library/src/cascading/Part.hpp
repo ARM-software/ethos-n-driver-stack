@@ -208,7 +208,8 @@ public:
     /// A channel selector part is one which fulfils the following conditions:
     ///  * Single single, single output
     ///  * The output width and height are the same as the input width and height
-    ///  * The input and output quantization info are the same, and have a zero point of 0.
+    ///  * The input and output quantization info are the same
+    ///  * The weights quantization zero point must be 0
     ///  * Each channel of the output is either
     ///     - A copy of one of the input channels (i.e. each output channel 'selects' an input channel)
     ///     - or, entirely zero (in real space, so may be non-zero in quant space depending on zero point)

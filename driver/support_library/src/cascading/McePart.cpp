@@ -921,7 +921,7 @@ utils::Optional<utils::ConstTensorData> McePart::GetChannelSelectorWeights() con
         assert(GetWidth(m_InputTensorShape) == GetWidth(m_OutputTensorShape));
         assert(GetHeight(m_InputTensorShape) == GetHeight(m_OutputTensorShape));
         assert(m_InputQuantizationInfo == m_OutputQuantizationInfo);
-        assert(m_InputQuantizationInfo.GetZeroPoint() == 0);
+        assert(m_WeightsInfo.m_QuantizationInfo.GetZeroPoint() == 0);
         return ConstTensorData(m_WeightsData->data(), m_WeightsInfo.m_Dimensions);
     }
     return {};
