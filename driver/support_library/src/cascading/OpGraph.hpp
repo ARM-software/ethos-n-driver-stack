@@ -115,7 +115,18 @@ public:
     /// @}
     /// @}
 
+    /// Optimization step which removes sequences of Ops and Buffers which copy data into and out of SRAM
+    /// multiple times and can be shortened to just a single copy.
+    /// Such sequences can arise as a result of combining multiple plans together
+    /// (in particular Reshape, Concat and Split) and lead to worse performance.
+    /// By eliminating/simplifying these sequences, the NPU will have less work to do
+    /// and so performance will be better.
+    void RemoveRedundantCopies();
+
 protected:
+    void RemoveRedundantCopiesSramToDram();
+    void RemoveRedundantCopiesDramToSram();
+
     /// All of the Ops in the graph, in no particular order.
     OpList m_Ops;
     /// All of the Buffers in the graph, in no particular order.
@@ -179,6 +190,9 @@ public:
     DmaOp(const char* debugType, CascadingBufferFormat transferFormat);
     virtual DotAttributes GetDotAttributes(DetailLevel) const override;
 
+    /// The *DRAM* format that this DmaOp converts to/from. SRAM format is always NHWCB.
+    /// Normally this will match the actual format of the connected DRAM buffer, but in some
+    /// cases we want to *reinterpret* the data (e.g. Fully Connected), in which case this might not match.
     CascadingBufferFormat m_TransferFormat;
     TensorShape m_Offset;
 };

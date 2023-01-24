@@ -749,3 +749,13 @@ bool EqualPackedBoundaryData(const command_stream::cascading::PackedBoundaryThic
 }    // namespace support_library
 
 }    // namespace ethosn
+
+inline ethosn::support_library::TensorShape& operator+=(ethosn::support_library::TensorShape& l,
+                                                        const ethosn::support_library::TensorShape& r)
+{
+    l[0] += r[0];
+    l[1] += r[1];
+    l[2] += r[2];
+    l[3] += r[3];
+    return l;
+}
