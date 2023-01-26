@@ -45,9 +45,10 @@ bool IsCompressed(CascadingBufferFormat format);
 /// Each Op takes as input zero or more Buffers, with each input associated with an index (i.e. 0th input,
 /// 1st input etc), and produces zero or one Buffers. This can be used for example to represent an MceOp which takes an
 /// IFM (0th input) and weights (1st input) and produces an OFM (output).
-/// Each Buffer is produced by zero or one Ops and consumed by zero or more Ops. This can be used for example to
-/// represent a tensor in Sram which is produced as the output of one MceOp and consumed as the IFM input by two
-/// subsequent MceOps.
+/// Each Buffer is produced by zero or more Ops and consumed by zero or more Ops. This can be used for example to
+/// represent a tensor in Dram which is produced by two different DmaOps (both writing data into this same buffer)
+/// and consumed as the input by two different subsequent DmaOps. Note that the producers of a buffer are _not_
+/// ordered/numbered as they are for Op inputs.
 ///
 /// We do not currently need to support an Op producing multiple output Buffers, but this class could be extended to
 /// support that if needed.
@@ -95,9 +96,23 @@ public:
 
     void SetProducer(Buffer* buffer, Op* producerOp);
     void AddProducer(Buffer* buffer, Op* producerOp);
+    void RemoveProducer(Buffer* buffer, Op* producerOp);
     void ClearProducers(Buffer* buffer);
 
     void AddConsumer(Buffer* buffer, Op* consumerOp, uint32_t opInputIdx);
+    void RemoveConsumer(Buffer* buffer, Op* consumerOp, uint32_t opInputIdx);
+
+    /// Removes the given Op or Buffer from this OpGraph, and then if that leaves
+    /// any previously-connected Ops or Buffers without any input connections or
+    /// without any output connections, then they will be removed too.
+    /// This repeats recursively until encountering an Op or Buffer which has other connections.
+    /// This means that calling this method on a linear graph (with no branching)
+    /// will result in the OpGraph being completely emptied.
+    /// For graphs with branching, this will result in an entire 'branch' being removed.
+    /// @{
+    void RemoveAndPrune(Op* op);
+    void RemoveAndPrune(Buffer* b);
+    /// @}
     /// @}
 
 protected:

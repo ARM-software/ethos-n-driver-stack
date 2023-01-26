@@ -182,6 +182,32 @@ void OpGraph::AddProducer(Buffer* buffer, Op* producerOp)
     m_OpOutputs[producerOp] = buffer;
 }
 
+void OpGraph::RemoveProducer(Buffer* buffer, Op* producerOp)
+{
+    if (!Contains(buffer))
+    {
+        throw std::runtime_error("`buffer` is not part of this graph (or is nullptr)");
+    }
+    if (!Contains(producerOp))
+    {
+        throw std::runtime_error("`producerOp` is not part of this graph (or is nullptr)");
+    }
+
+    auto oldProducerIt = m_BufferProducers.find(buffer);
+    if (oldProducerIt == m_BufferProducers.end())
+    {
+        throw std::runtime_error("`producerOp` is not a producer of `buffer`");
+    }
+    OpList& producers             = oldProducerIt->second;
+    std::pair<bool, size_t> found = utils::FindIndex(producers, producerOp);
+    if (!found.first)
+    {
+        throw std::runtime_error("`producerOp` is not a producer of `buffer`");
+    }
+    producers.erase(producers.begin() + found.second);
+    m_OpOutputs.erase(producerOp);
+}
+
 void OpGraph::ClearProducers(Buffer* buffer)
 {
     if (!Contains(buffer))
@@ -231,6 +257,137 @@ void OpGraph::AddConsumer(Buffer* buffer, Op* consumerOp, uint32_t opInputIdx)
         // This means other code can be sure that input buffers are not set to null and so don't need to check.
         throw std::runtime_error("Cannot connect to this input index without connecting earlier inputs first.");
     }
+}
+
+void OpGraph::RemoveConsumer(Buffer* buffer, Op* consumerOp, uint32_t opInputIdx)
+{
+    if (!Contains(buffer))
+    {
+        throw std::runtime_error("`buffer` is not part of this graph (or is nullptr)");
+    }
+    if (!Contains(consumerOp))
+    {
+        throw std::runtime_error("`consumerOp` is not part of this graph (or is nullptr)");
+    }
+
+    auto consumerIt = m_BufferConsumers.find(buffer);
+    if (consumerIt == m_BufferConsumers.end())
+    {
+        throw std::runtime_error("`consumerOp` is not a consumer of `buffer`");
+    }
+
+    ConsumersList& consumers      = consumerIt->second;
+    std::pair<bool, size_t> found = utils::FindIndex(consumers, std::pair<Op*, uint32_t>{ consumerOp, opInputIdx });
+    if (!found.first)
+    {
+        throw std::runtime_error("`consumerOp` is not a consumer of `buffer`");
+    }
+    consumers.erase(consumers.begin() + found.second);
+
+    auto& inputs = m_OpInputs[consumerOp];
+    assert(opInputIdx < inputs.size());
+    if (opInputIdx == inputs.size() - 1)
+    {
+        inputs.pop_back();
+    }
+    else
+    {
+        // Prevent disconnecting anything other than the non-last input, as this would shuffle
+        // the other inputs up and cause unintentional semantic changes to the graph
+        throw std::runtime_error("Cannot disconnect from this input index without disconnecting later inputs first.");
+    }
+}
+
+void OpGraph::RemoveAndPrune(Op* op)
+{
+    // Input side - disconnect from input buffers, and prune the input buffers
+    // if this was their last consumer
+    {
+        // Take a copy of the input buffers array, as we will be disconnecting these as we loop.
+        std::vector<Buffer*> inputs = GetInputs(op);
+
+        // Loop in reverse order as inputs can only be disconnected in this order
+        for (int inputIdx = static_cast<int>(inputs.size() - 1); inputIdx >= 0; --inputIdx)
+        {
+            RemoveConsumer(inputs[inputIdx], op, inputIdx);
+        }
+
+        for (Buffer* b : inputs)
+        {
+            if (GetConsumers(b).size() == 0)
+            {
+                RemoveAndPrune(b);
+            }
+        }
+    }
+
+    // Output side - disconnect from any output buffer, and prune the output buffers
+    // if this was their last producer
+    {
+        Buffer* b = GetOutput(op);
+        if (b != nullptr)
+        {
+            RemoveProducer(b, op);
+
+            if (GetProducers(b).size() == 0)
+            {
+                RemoveAndPrune(b);
+            }
+        }
+    }
+
+    // Finally, remove the op itself
+    std::pair<bool, size_t> found = utils::FindIndex(m_Ops, op);
+    if (!found.first)
+    {
+        throw std::runtime_error("`op` is not part of this graph");
+    }
+    m_Ops.erase(m_Ops.begin() + found.second);
+}
+
+void OpGraph::RemoveAndPrune(Buffer* buffer)
+{
+    // Input side - disconnect from producers and prune them too
+    {
+        // Take a copy of the producers array, as we will be disconnecting these as we loop.
+        std::vector<Op*> producers = GetProducers(buffer);
+        for (Op* p : producers)
+        {
+            RemoveProducer(buffer, p);
+        }
+
+        for (Op* p : producers)
+        {
+            RemoveAndPrune(p);
+        }
+    }
+
+    // Output side - disconnect from consumers, and prune the consumers too if this was their last
+    // input buffer
+    {
+        // Take a copy of the consumers array, as we will be disconnecting these as we loop.
+        ConsumersList consumers = GetConsumers(buffer);
+        for (std::pair<Op*, uint32_t> c : consumers)
+        {
+            RemoveConsumer(buffer, c.first, c.second);
+        }
+
+        for (std::pair<Op*, uint32_t> c : consumers)
+        {
+            if (GetInputs(c.first).size() == 0)
+            {
+                RemoveAndPrune(c.first);
+            }
+        }
+    }
+
+    // Finally, remove the buffer itself
+    std::pair<bool, size_t> found = utils::FindIndex(m_Buffers, buffer);
+    if (!found.first)
+    {
+        throw std::runtime_error("`buffer` is not part of this graph");
+    }
+    m_Buffers.erase(m_Buffers.begin() + found.second);
 }
 
 Op* OwnedOpGraph::AddOp(std::unique_ptr<Op> op)
