@@ -1337,33 +1337,28 @@ struct ethosn_big_fw {
 	uint32_t fw_ver_major;
 	uint32_t fw_ver_minor;
 	uint32_t fw_ver_patch;
-	uint32_t fw_cnt;
-	struct ethosn_big_fw_desc {
-		uint32_t arch_min;
-		uint32_t arch_max;
-		uint32_t offset;
-		uint32_t size;
-
-		uint32_t code_offset;
-		uint32_t code_size;
-
-		uint32_t ple_offset;
-		uint32_t ple_size;
-
-		uint32_t vector_table_offset;
-		uint32_t vector_table_size;
-
-		uint32_t unpriv_stack_offset;
-		uint32_t unpriv_stack_size;
-
-		uint32_t priv_stack_offset;
-		uint32_t priv_stack_size;
-	} desc[];
+	uint32_t arch_min;
+	uint32_t arch_max;
+	uint32_t offset;
+	uint32_t size;
+	uint32_t code_offset;
+	uint32_t code_size;
+	uint32_t ple_offset;
+	uint32_t ple_size;
+	uint32_t vector_table_offset;
+	uint32_t vector_table_size;
+	uint32_t unpriv_stack_offset;
+	uint32_t unpriv_stack_size;
+	uint32_t priv_stack_offset;
+	uint32_t priv_stack_size;
 } __packed;
 
 static bool validate_big_fw_header(struct ethosn_core *core,
 				   struct ethosn_big_fw *big_fw)
 {
+	struct dl1_npu_id_r npu_id;
+	uint32_t arch;
+
 	if (big_fw->fw_magic != ETHOSN_BIG_FW_MAGIC) {
 		dev_err(core->dev,
 			"Unable to identify BIG FW. Invalid magic number: 0x%04x\n",
@@ -1381,53 +1376,28 @@ static bool validate_big_fw_header(struct ethosn_core *core,
 		return false;
 	}
 
-	if (big_fw->fw_cnt == 0U) {
-		dev_err(core->dev,
-			"BIG FW doesn't contain any firmware binaries\n");
-
-		return false;
-	}
-
-	return true;
-}
-
-static struct ethosn_big_fw_desc *find_big_fw_desc(struct ethosn_core *core,
-						   struct ethosn_big_fw *big_fw)
-{
-	struct dl1_npu_id_r npu_id;
-	int i;
-	uint32_t arch;
-
 	npu_id.word = ethosn_read_top_reg(core, DL1_RP, DL1_NPU_ID);
 	arch = npu_id.bits.arch_major << 24 |
 	       npu_id.bits.arch_minor << 16 |
 	       npu_id.bits.arch_rev;
 
 	dev_dbg(core->dev,
-		"NPU reported version %u.%u.%u. BIG FW Magic: 0x%04x, FWs in BIG FW: %u. FW version in BIG FW: %u.%u.%u\n",
+		"NPU reported arch version %u.%u.%u. BIG FW Magic: 0x%04x, version: %u.%u.%u\n",
 		npu_id.bits.arch_major,
 		npu_id.bits.arch_minor,
 		npu_id.bits.arch_rev,
 		big_fw->fw_magic,
-		big_fw->fw_cnt,
 		big_fw->fw_ver_major,
 		big_fw->fw_ver_minor,
 		big_fw->fw_ver_patch);
 
-	i = big_fw->fw_cnt;
-	while (i--) {
-		if (big_fw->desc[i].arch_min <= arch &&
-		    arch <= big_fw->desc[i].arch_max)
-			return &big_fw->desc[i];
+	if (big_fw->arch_min > arch || arch > big_fw->arch_max) {
+		dev_err(core->dev, "BIG FW is not compatible.\n");
 
-		dev_dbg(core->dev, "Skip FW min=0x%08x, max=0x%08x\n",
-			big_fw->desc[i].arch_min,
-			big_fw->desc[i].arch_max);
+		return false;
 	}
 
-	dev_err(core->dev, "Cannot find compatible FW in BIG FW.\n");
-
-	return ERR_PTR(-EINVAL);
+	return true;
 }
 
 /**
@@ -1440,7 +1410,6 @@ static int firmware_load(struct ethosn_core *core)
 {
 	const struct firmware *fw;
 	struct ethosn_big_fw *big_fw;
-	struct ethosn_big_fw_desc *big_fw_desc;
 	int ret = -ENOMEM;
 	struct ethosn_dma_prot_range prot_ranges[3];
 
@@ -1460,33 +1429,29 @@ static int firmware_load(struct ethosn_core *core)
 		goto release_fw;
 	}
 
-	/* Find a FW binary for this NPU */
-	big_fw_desc = find_big_fw_desc(core, big_fw);
-	if (IS_ERR(big_fw_desc)) {
-		ret = PTR_ERR(big_fw_desc);
-		goto release_fw;
-	}
-
 	dev_dbg(core->dev,
 		"Found FW. arch_min=0x%08x, arch_max=0x%08x, offset=0x%08x, size=0x%08x\n",
-		big_fw_desc->arch_min,
-		big_fw_desc->arch_max,
-		big_fw_desc->offset,
-		big_fw_desc->size);
+		big_fw->arch_min,
+		big_fw->arch_max,
+		big_fw->offset,
+		big_fw->size);
 	dev_dbg(core->dev, "Firmware asset offsets+sizes:\n");
 
 	dev_dbg(core->dev, "  Code: 0x%08x + 0x%08x\n",
-		big_fw_desc->code_offset, big_fw_desc->code_size);
-	dev_dbg(core->dev, "  PLE: 0x%08x + 0x%08x\n", big_fw_desc->ple_offset,
-		big_fw_desc->ple_size);
+		big_fw->code_offset,
+		big_fw->code_size);
+	dev_dbg(core->dev, "  PLE: 0x%08x + 0x%08x\n",
+		big_fw->ple_offset,
+		big_fw->ple_size);
 	dev_dbg(core->dev, "  Vector table: 0x%08x + 0x%08x\n",
-		big_fw_desc->vector_table_offset,
-		big_fw_desc->vector_table_size);
+		big_fw->vector_table_offset,
+		big_fw->vector_table_size);
 	dev_dbg(core->dev, "  Unpriv stack: 0x%08x + 0x%08x\n",
-		big_fw_desc->unpriv_stack_offset,
-		big_fw_desc->unpriv_stack_size);
+		big_fw->unpriv_stack_offset,
+		big_fw->unpriv_stack_size);
 	dev_dbg(core->dev, "  Priv stack: 0x%08x + 0x%08x\n",
-		big_fw_desc->priv_stack_offset, big_fw_desc->priv_stack_size);
+		big_fw->priv_stack_offset,
+		big_fw->priv_stack_size);
 
 	/* Unmap, as the mappings may have changed (e.g. if a new
 	 * firmware binary was deployed while the kernel module is running)
@@ -1498,7 +1463,7 @@ static int firmware_load(struct ethosn_core *core)
 	 * allocated, (e.g. if a new firmware binary was deployed while the
 	 * kernel module is running), then re-allocate it
 	 */
-	if (core->firmware && core->firmware->size != big_fw_desc->size)
+	if (core->firmware && core->firmware->size != big_fw->size)
 		ethosn_dma_release(core->main_allocator, &core->firmware);
 
 	/* Allocate space for the whole binary (if necessary).
@@ -1509,7 +1474,7 @@ static int firmware_load(struct ethosn_core *core)
 	 */
 	if (!core->firmware) {
 		core->firmware = ethosn_dma_alloc(core->main_allocator,
-						  big_fw_desc->size,
+						  big_fw->size,
 						  ETHOSN_STREAM_FIRMWARE,
 						  GFP_KERNEL,
 						  "firmware");
@@ -1523,20 +1488,18 @@ static int firmware_load(struct ethosn_core *core)
 	}
 
 	/* Copy firmware binary into the allocation */
-	memcpy(core->firmware->cpu_addr, fw->data + big_fw_desc->offset,
-	       big_fw_desc->size);
+	memcpy(core->firmware->cpu_addr, fw->data + big_fw->offset,
+	       big_fw->size);
 	ethosn_dma_sync_for_device(core->main_allocator, core->firmware);
 
 	/* Map each asset (separately, as we need different protection
 	 * for some assets). First check that the assets are in the expected
 	 * order, otherwise the mappings might be wrong.
 	 */
-	if (big_fw_desc->code_offset >= big_fw_desc->ple_offset ||
-	    big_fw_desc->ple_offset >= big_fw_desc->vector_table_offset ||
-	    big_fw_desc->vector_table_offset >=
-	    big_fw_desc->unpriv_stack_offset ||
-	    big_fw_desc->unpriv_stack_offset >=
-	    big_fw_desc->priv_stack_offset) {
+	if (big_fw->code_offset >= big_fw->ple_offset ||
+	    big_fw->ple_offset >= big_fw->vector_table_offset ||
+	    big_fw->vector_table_offset >= big_fw->unpriv_stack_offset ||
+	    big_fw->unpriv_stack_offset >= big_fw->priv_stack_offset) {
 		dev_err(core->dev, "%s: Firmware assets in wrong order\n",
 			__func__);
 		ret = -EINVAL;
@@ -1545,15 +1508,15 @@ static int firmware_load(struct ethosn_core *core)
 
 	/* Code need to be writable (e.g. global variables are stored here) */
 	prot_ranges[0].start = 0;
-	prot_ranges[0].end = big_fw_desc->ple_offset;
+	prot_ranges[0].end = big_fw->ple_offset;
 	prot_ranges[0].prot = ETHOSN_PROT_READ | ETHOSN_PROT_WRITE;
 	/* PLE kernels and vector need to be read-only */
-	prot_ranges[1].start = big_fw_desc->ple_offset;
-	prot_ranges[1].end = big_fw_desc->unpriv_stack_offset;
+	prot_ranges[1].start = big_fw->ple_offset;
+	prot_ranges[1].end = big_fw->unpriv_stack_offset;
 	prot_ranges[1].prot = ETHOSN_PROT_READ;
 	/* Stacks need to be writable */
-	prot_ranges[2].start = big_fw_desc->unpriv_stack_offset;
-	prot_ranges[2].end = big_fw_desc->size;
+	prot_ranges[2].start = big_fw->unpriv_stack_offset;
+	prot_ranges[2].end = big_fw->size;
 	prot_ranges[2].prot = ETHOSN_PROT_READ | ETHOSN_PROT_WRITE;
 
 	ret = ethosn_dma_map_with_prot_ranges(core->main_allocator,
@@ -1571,7 +1534,7 @@ static int firmware_load(struct ethosn_core *core)
 	 * firmware.
 	 */
 	core->firmware_vtable_dma_addr = core->firmware->iova_addr +
-					 big_fw_desc->vector_table_offset;
+					 big_fw->vector_table_offset;
 
 	release_firmware(fw);
 
