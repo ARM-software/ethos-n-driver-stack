@@ -99,6 +99,7 @@ cc_library {
         "driver/support_library/src/cascading/Part.cpp",
         "driver/support_library/src/cascading/GraphOfParts.cpp",
         "driver/support_library/src/cascading/Plan.cpp",
+        "driver/support_library/src/cascading/OpGraph.cpp",
         "driver/support_library/src/cascading/CombinerDFS.cpp",
         "driver/support_library/src/cascading/Visualisation.cpp",
         "driver/support_library/src/nonCascading/NonCascading.cpp",

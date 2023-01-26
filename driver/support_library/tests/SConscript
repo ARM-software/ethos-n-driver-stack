@@ -49,6 +49,8 @@ srcs = [
     "GraphTests.cpp",
     "CombinerDFSTests.cpp",
     "PlanTests.cpp",
+    "OpGraphTests.cpp",
+    "PleKernelDatabaseTests.cpp",
     "GraphOfPartsTests.cpp",
     "TestUtils.cpp",
     "VisualisationTests.cpp",

@@ -57,6 +57,7 @@ srcs = [
     os.path.join("src", "cascading", "Part.cpp"),
     os.path.join("src", "cascading", "GraphOfParts.cpp"),
     os.path.join("src", "cascading", "Plan.cpp"),
+    os.path.join("src", "cascading", "OpGraph.cpp"),
     os.path.join("src", "cascading", "CombinerDFS.cpp"),
     os.path.join("src", "cascading", "Visualisation.cpp"),
     os.path.join("src", "nonCascading", "NonCascading.cpp"),
