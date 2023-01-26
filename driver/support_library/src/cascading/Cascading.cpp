@@ -99,56 +99,53 @@ GraphOfParts CreateGraphOfParts(const Network& network,
     return g;
 }
 
-Cascading::Cascading(const EstimationOptions& estOpt,
-                     const CompilationOptions& compOpt,
-                     const HardwareCapabilities& hwCap,
-                     const DebuggingContext& debuggingContext)
-    : m_EstimationOptions(estOpt)
-    , m_CompilationOptions(compOpt)
-    , m_Capabilities(hwCap)
-    , m_DebuggingContext(debuggingContext)
-    , m_Combiner(m_GraphOfParts, hwCap, compOpt, estOpt, m_DebuggingContext)
-{}
-
-NetworkPerformanceData Cascading::EstimateNetwork(const Network& network)
+RunCascadingResult RunCascading(const Network& network,
+                                utils::Optional<const EstimationOptions&> estOpt,
+                                const CompilationOptions& compOpt,
+                                const HardwareCapabilities& caps,
+                                const DebuggingContext& debuggingContext)
 {
-    m_GraphOfParts =
-        CreateGraphOfParts(network, m_Capabilities, m_EstimationOptions, m_CompilationOptions, m_DebuggingContext);
+    // Use default estimation options for compilation
+    EstimationOptions estimationOptions = estOpt.has_value() ? estOpt.value() : EstimationOptions();
 
-    m_Combiner.Run();
+    GraphOfParts graphOfParts = CreateGraphOfParts(network, caps, estimationOptions, compOpt, debuggingContext);
+    Combiner combiner(graphOfParts, caps, compOpt, estimationOptions, debuggingContext);
+    combiner.Run();
+    OpGraph opGraph = combiner.GetMergedOpGraphForBestCombination();
 
-    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::High)
+    if (debuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
     {
-        MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("BestCombination").c_str());
-        OpGraph g = GetOpGraphForCombination(m_Combiner.GetBestCombination(), m_GraphOfParts);
-        SaveDebugFilesForUnestimatedCombination("BestCombination", m_DebuggingContext, m_Combiner.GetBestCombination(),
-                                                g);
+        MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName("BestCombination").c_str());
+        SaveDebugFilesForUnestimatedCombination("BestCombination", debuggingContext, combiner.GetBestCombination(),
+                                                opGraph);
     }
 
-    EstimatePerformance();
-    return m_PerformanceStream;
-}
-
-const GraphOfParts& Cascading::GetGraphOfParts() const
-{
-    return m_GraphOfParts;
-}
-
-const ethosn::support_library::Combination& Cascading::GetBestCombination()
-{
-    return m_Combiner.GetBestCombination();
-}
-
-void Cascading::EstimatePerformance()
-{
-    OpGraph combiOpGraph = GetOpGraphForCombination(m_Combiner.GetBestCombination(), m_GraphOfParts);
-    EstimatedOpGraph estimatedOpGraph =
-        ethosn::support_library::EstimateOpGraph(combiOpGraph, m_Capabilities, m_EstimationOptions);
-    m_PerformanceStream = estimatedOpGraph.m_PerfData;
-    if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
+    EstimatedOpGraph estimatedOpGraph = ethosn::support_library::EstimateOpGraph(opGraph, caps, estimationOptions);
+    if (debuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
     {
-        SaveDebugFilesForEstimatedCombination("BestCombination", m_DebuggingContext, combiOpGraph, estimatedOpGraph);
+        SaveDebugFilesForEstimatedCombination("BestCombination", debuggingContext, opGraph, estimatedOpGraph);
     }
+
+    if (estOpt.has_value())
+    {
+        // Not requesting compilation, so stop here.
+        return { opGraph, combiner.GetBestCombination(), { estimatedOpGraph, {}, {}, {} } };
+    }
+
+    std::set<uint32_t> operationIds = network.GetOperationIds();
+
+    cascading_compiler::CascadingCommandStreamGenerator commandStreamGenerator(opGraph, operationIds, caps, compOpt,
+                                                                               debuggingContext);
+    cascading_compiler::CompiledOpGraph compiledOpGraph = commandStreamGenerator.Generate();
+
+    debuggingContext.Save(
+        CompilationOptions::DebugLevel::Medium, "BestCombination/CompiledSimple.dot",
+        [&](std::ofstream& s) { SaveCompiledOpGraphToDot(opGraph, compiledOpGraph, s, DetailLevel::Low); });
+    debuggingContext.Save(
+        CompilationOptions::DebugLevel::Medium, "BestCombination/CompiledDetailed.dot",
+        [&](std::ofstream& s) { SaveCompiledOpGraphToDot(opGraph, compiledOpGraph, s, DetailLevel::High); });
+
+    return { std::move(opGraph), combiner.GetBestCombination(), std::move(compiledOpGraph) };
 }
 
 }    // namespace support_library

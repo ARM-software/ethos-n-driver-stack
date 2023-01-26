@@ -8,10 +8,6 @@
 #include "Optimization.hpp"
 #include "SramAllocator.hpp"
 #include "cascading/Cascading.hpp"
-#include "cascading/CascadingCommandStreamGenerator.hpp"
-#include "cascading/Estimation.hpp"
-#include "cascading/EstimationUtils.hpp"
-#include "cascading/NetworkToGraphOfPartsConverter.hpp"
 #include "nonCascading/ConversionPass.hpp"
 #include "nonCascading/McePlePass.hpp"
 #include "nonCascading/NonCascading.hpp"
@@ -188,52 +184,14 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
 {
     DumpNetwork(m_DebuggingContext, m_Network);
 
-    // The compiler will need to split the network into supported subgraphs and have the appropriate ids for each.
-    // See the Support Library public interface design note for more details.
-    // For now we're just passing the full network ids through.
-    std::set<uint32_t> operationIds = m_Network.GetOperationIds();
-
     try
     {
         if (IsExperimentalCompilerForced())
         {
             std::clog << "WARNING: Experimental Compiler in use.\n";
-
-            const GraphOfParts graphOfParts = CreateGraphOfParts(m_Network, m_Capabilities, m_EstimationOptions,
-                                                                 m_CompilationOptions, m_DebuggingContext);
-
-            Combiner combiner(graphOfParts, m_Capabilities, m_CompilationOptions, m_EstimationOptions,
-                              m_DebuggingContext);
-            combiner.Run();
-
-            if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
-            {
-                MakeDirectory(m_DebuggingContext.GetAbsolutePathOutputFileName("BestCombination").c_str());
-                OpGraph g                         = combiner.GetMergedOpGraphForBestCombination();
-                EstimatedOpGraph estimatedOpGraph = EstimateOpGraph(g, m_Capabilities, m_EstimationOptions);
-                SaveDebugFilesForEstimatedCombination("BestCombination", m_DebuggingContext,
-                                                      combiner.GetBestCombination(), g, estimatedOpGraph);
-            }
-
-            OpGraph mergedOpGraph = combiner.GetMergedOpGraphForBestCombination();
-            cascading_compiler::CascadingCommandStreamGenerator commandStreamGenerator(
-                mergedOpGraph, operationIds, m_Capabilities, m_CompilationOptions, m_DebuggingContext);
-            cascading_compiler::CompiledOpGraph compiledOpGraph = commandStreamGenerator.Generate();
-
-            if (m_DebuggingContext.m_DebugInfo.m_DumpDebugFiles >= CompilationOptions::DebugLevel::Medium)
-            {
-                m_DebuggingContext.Save(
-                    CompilationOptions::DebugLevel::None, "BestCombination/CompiledSimple.dot", [&](std::ofstream& s) {
-                        SaveCompiledOpGraphToDot(mergedOpGraph, compiledOpGraph, s, DetailLevel::Low);
-                    });
-                m_DebuggingContext.Save(CompilationOptions::DebugLevel::None, "BestCombination/CompiledDetailed.dot",
-                                        [&](std::ofstream& s) {
-                                            SaveCompiledOpGraphToDot(mergedOpGraph, compiledOpGraph, s,
-                                                                     DetailLevel::High);
-                                        });
-            }
-
-            return std::move(compiledOpGraph.m_CompiledNetwork);
+            return RunCascading(m_Network, utils::EmptyOptional{}, m_CompilationOptions, m_Capabilities,
+                                m_DebuggingContext)
+                .compiledOpGraph.m_CompiledNetwork;
         }
         else
         {
@@ -241,6 +199,7 @@ std::unique_ptr<CompiledNetwork> Compiler::Compile()
             Prepare(false);
             Generate();
 
+            std::set<uint32_t> operationIds                      = m_Network.GetOperationIds();
             std::unique_ptr<CompiledNetworkImpl> compiledNetwork = std::make_unique<CompiledNetworkImpl>(
                 m_BufferManager.GetConstantDmaData(), m_BufferManager.GetConstantControlUnitData(),
                 m_BufferManager.GetBuffers(), operationIds);
@@ -267,9 +226,9 @@ NetworkPerformanceData Compiler::EstimatePerformance()
         try
         {
             std::clog << "WARNING: Experimental Compiler in use.\n";
-
-            Cascading cascadingEstimate(m_EstimationOptions, m_CompilationOptions, m_Capabilities, m_DebuggingContext);
-            performance = cascadingEstimate.EstimateNetwork(m_Network);
+            performance =
+                RunCascading(m_Network, m_EstimationOptions, m_CompilationOptions, m_Capabilities, m_DebuggingContext)
+                    .GetNetworkPerformanceData();
         }
         catch (const std::exception& e)
         {

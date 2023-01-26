@@ -6,7 +6,9 @@
 #pragma once
 
 #include "CombinerDFS.hpp"
+#include "Compiler.hpp"
 #include "Part.hpp"
+#include "cascading/CascadingCommandStreamGenerator.hpp"
 
 namespace ethosn
 {
@@ -18,37 +20,26 @@ class HardwareCapabilities;
 struct EstimationOptions;
 struct DebuggingContext;
 
-class Cascading
+struct RunCascadingResult
 {
-public:
-    Cascading(const EstimationOptions& estOpt,
-              const CompilationOptions& compOpt,
-              const HardwareCapabilities& caps,
-              const DebuggingContext&);
+    OpGraph opGraph;
+    /// This is necessary to keep data alive which is referenced inside `compiledOpGraph` and `opGraph`.
+    Combination combination;
+    /// Some fields of this will be empty/null if estimation was requested.
+    cascading_compiler::CompiledOpGraph compiledOpGraph;
 
-    const GraphOfParts& GetGraphOfParts() const;
-
-    NetworkPerformanceData EstimateNetwork(const Network& network);
-
-    const Combination& GetBestCombination();
-
-private:
-    void EstimatePerformance();
-
-    const EstimationOptions& m_EstimationOptions;
-    const CompilationOptions& m_CompilationOptions;
-    const HardwareCapabilities& m_Capabilities;
-    const DebuggingContext& m_DebuggingContext;
-
-    NetworkPerformanceData m_PerformanceStream;
-    Combiner m_Combiner;
-    GraphOfParts m_GraphOfParts;
+    const NetworkPerformanceData& GetNetworkPerformanceData() const
+    {
+        return compiledOpGraph.m_EstimatedOpGraph.m_PerfData;
+    }
 };
 
-GraphOfParts CreateGraphOfParts(const Network& network,
-                                const HardwareCapabilities& capabilities,
-                                const EstimationOptions& estOpt,
+/// Estimation and Compilation share a lot of the same code path, so this function is used to run both.
+/// The presence (or lack) of `estOpt` determines if estimation or compilation is performed.
+RunCascadingResult RunCascading(const Network& network,
+                                utils::Optional<const EstimationOptions&> estOpt,
                                 const CompilationOptions& compOpt,
+                                const HardwareCapabilities& caps,
                                 const DebuggingContext& debuggingContext);
 
 }    // namespace support_library
