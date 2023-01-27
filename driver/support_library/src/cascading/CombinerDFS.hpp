@@ -6,6 +6,7 @@
 #pragma once
 
 #include "DebuggingContext.hpp"
+#include "GraphOfParts.hpp"
 #include "Part.hpp"
 #include "Plan.hpp"
 #include "SramAllocator.hpp"

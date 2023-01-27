@@ -1,14 +1,14 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
 #include "../../include/ethosn_support_library/Optional.hpp"
-#include "../Graph.hpp"
 #include "../Network.hpp"
-#include "cascading/MceEstimationUtils.hpp"
+#include "GraphOfParts.hpp"
+#include "MceEstimationUtils.hpp"
 
 #include <unordered_map>
 

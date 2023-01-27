@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2021-2022 Arm Limited.
+// Copyright (C) 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -97,6 +97,7 @@ cc_library {
         "driver/support_library/src/cascading/Cascading.cpp",
         "driver/support_library/src/cascading/DebuggableObject.cpp",
         "driver/support_library/src/cascading/Part.cpp",
+        "driver/support_library/src/cascading/GraphOfParts.cpp",
         "driver/support_library/src/cascading/Plan.cpp",
         "driver/support_library/src/cascading/CombinerDFS.cpp",
         "driver/support_library/src/cascading/Visualisation.cpp",

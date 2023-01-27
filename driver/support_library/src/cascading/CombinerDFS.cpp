@@ -10,7 +10,6 @@
 #include "Cascading.hpp"
 #include "Estimation.hpp"
 #include "EstimationUtils.hpp"
-#include "Part.hpp"
 #include "Plan.hpp"
 #include "StripeHelper.hpp"
 

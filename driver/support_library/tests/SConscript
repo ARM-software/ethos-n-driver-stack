@@ -49,7 +49,7 @@ srcs = [
     "GraphTests.cpp",
     "CombinerDFSTests.cpp",
     "PlanTests.cpp",
-    "PartTests.cpp",
+    "GraphOfPartsTests.cpp",
     "TestUtils.cpp",
     "VisualisationTests.cpp",
     "ResizeTests.cpp",
