@@ -1,5 +1,5 @@
 //
-// Copyright © 2020,2022 Arm Limited. All rights reserved.
+// Copyright © 2020,2022-2023 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -41,6 +41,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdarg>
+#include <cstdio>
 #include <cstring>
 
 #if defined(__GNUC__)
