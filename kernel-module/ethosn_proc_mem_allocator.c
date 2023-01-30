@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2022 Arm Limited.
+ * (C) COPYRIGHT 2022-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -322,7 +322,19 @@ int ethosn_process_mem_allocator_create(struct ethosn_device *ethosn,
 		return -EINVAL;
 	}
 
-	dev_dbg(ethosn->dev, "Process %d requests an asset allocator", pid);
+	dev_dbg(ethosn->dev,
+		"Process %d requests a %sprotected asset allocator", pid,
+		protected ? "" : "non-");
+
+#if !defined(ETHOSN_TZMP1)
+	if (protected) {
+		dev_err(ethosn->dev,
+			"Protected allocator is not allowed unless kernel module is built with TZMP1 support.\n");
+
+		return -EPERM;
+	}
+
+#endif
 
 	proc_mem_allocator = devm_kzalloc(ethosn->dev,
 					  sizeof(*proc_mem_allocator),

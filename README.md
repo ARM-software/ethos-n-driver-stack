@@ -51,7 +51,7 @@ Your target platform must meet specific requirements to run the Ethos-N NPU driv
 * At least 4GB of RAM
 * At least 16GB of free storage space
 
-## Secure mode
+## Secure mode and TZMP1
 
 Depending on how the hardware has been configured, the Arm Ethos-N NPU boots up in either Secure or Non-secure mode.
 
@@ -66,6 +66,20 @@ The build flag required to enable the Arm Ethos-N NPU SiP service for the Arm Ju
 For information about boot up in Secure or Non-secure modes, see the Arm Ethos-N78 NPU Technical Reference Manual.
 
 For information about how to port TF-A to another platform, see the [TF-A Porting Guide](https://trustedfirmware-a.readthedocs.io/en/latest/getting_started/porting-guide.html).
+
+If TZMP1 support is required, the TF-A must be built with the TZMP1 build option as well as the Arm Ethos-N NPU SiP service.
+
+The kernel module must also be built with appropriate flags depending on the security level required.
+
+Please refer to the following table for the supported configurations:
+
+| System security level | NPU hardware configuration | TF-A build configuration | Kernel module build configuration |
+| --------------------- | -------------------------- | ------------------------ | --------------------------------- |
+| Non-secure            | Non-secure                 | No flags                 | Non-secure                        |
+| Secure                | Secure                     | NPU support              | Secure                            |
+| TZMP1                 | Secure                     | NPU support + TZMP1      | TZMP1                             |
+
+All other combinations of configurations are not supported and may lead to errors or unexpected behaviour.
 
 ## Build tools
 
@@ -188,7 +202,7 @@ You must follow specific steps to build the Ethos-N NPU driver. You must build t
 
 2. Build the Ethos-N NPU kernel module.
 
-    _Note: By default, the kernel module is built for an NPU running in Secure mode. If Non-secure mode is required, add the `EXTRA_CCFLAGS=" -DETHOSN_NS"` flag to the following make commands. It is not possible to use a kernel module built for Non-secure mode with an NPU running in Secure mode._
+    _Note: By default, the kernel module is built for an NPU running in Secure mode. If Non-secure mode is required, add the `EXTRA_CCFLAGS=" -DETHOSN_NS"` flag to the following make commands. If TZMP1 mode is required, add the `EXTRA_CCFLAGS=" -DETHOSN_TZMP1"` flag to the following make commands. Please see the above [Secure mode and TZMP1](#secure-mode-and-tzmp1) section for more details._
 
     How you compile the driver affects how you build the Ethos-N NPU kernel module:
 

@@ -1,5 +1,5 @@
 //
-// Copyright © 2022 Arm Limited.
+// Copyright © 2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -93,6 +93,40 @@ inline bool IsNpuCoreBehindIommus()
         if (IsCore0IommuAvailable(devicePath))
         {
             break;
+        }
+    }
+    closedir(dir);
+    return ent != nullptr;
+#else
+    throw std::runtime_error("Not supported on this platform");
+    return false;
+#endif
+}
+
+/// Checks if the system appears to be configured for TZMP1.
+/// This doesn't necessarily mean that all the components in the driver stack and configured.
+inline bool IsTzmp1Configured()
+{
+#if defined(__unix__)
+    constexpr char reservedMemoryPath[] = "/proc/device-tree/reserved-memory/";
+    DIR* dir                            = opendir(reservedMemoryPath);
+    if (dir == nullptr)
+    {
+        return false;
+    }
+    dirent* ent;
+    constexpr char deviceBindingPrefix[] = "ethosn_protected_reserved@";
+    while ((ent = readdir(dir)) != nullptr)
+    {
+        const std::string dirName(ent->d_name);
+        if (dirName.find(deviceBindingPrefix, 0, strlen(deviceBindingPrefix)) == std::string::npos)
+        {
+            continue;
+        }
+        const std::string devicePath = reservedMemoryPath + std::string("/") + dirName;
+        if (!IsDeviceStatusOkay(devicePath + "/status"))
+        {
+            continue;
         }
     }
     closedir(dir);

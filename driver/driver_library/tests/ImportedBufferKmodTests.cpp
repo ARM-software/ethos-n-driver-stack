@@ -325,6 +325,13 @@ TEST_CASE("Input/Output/IntermediateBuffers-ProtectedProcMemAllocator")
         return;
     }
 
+    if (!ethosn::utils::IsTzmp1Configured())
+    {
+        INFO("System appears to not be configured for TZMP1.");
+        INFO("No tests will be performed.");
+        return;
+    }
+
     constexpr uint32_t bufSize = 103;
     DmaHeapBuffer dmaHeapData(bufSize);
     ProcMemAllocator procMemAllocProtected("/dev/ethosn0", true);

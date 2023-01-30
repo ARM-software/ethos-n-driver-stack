@@ -94,4 +94,23 @@ int ethosn_smc_core_reset(const struct device *dev,
 int ethosn_smc_core_is_sleeping(const struct device *dev,
 				phys_addr_t core_addr);
 
+#ifdef ETHOSN_TZMP1
+
+/**
+ * ethosn_smc_get_firmware_version() - Call SiP service to get the NPU firmware
+ *                                     version.
+ * @device:	Pointer to the struct device on which to log any errors.
+ * @out_major:	Location to put the firmware's major version.
+ * @out_minor:	Location to put the firmware's minor version.
+ * @out_patch:	Location to put the firmware's patch version.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ethosn_smc_get_firmware_version(const struct device *dev,
+				    uint32_t *out_major,
+				    uint32_t *out_minor,
+				    uint32_t *out_patch);
+
+#endif
+
 #endif /* _ETHOSN_SMC_H_ */

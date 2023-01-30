@@ -34,6 +34,13 @@
 #define ETHOSN_SMC_CORE_HARD_RESET      0xc2000052
 #define ETHOSN_SMC_CORE_SOFT_RESET      0xc2000053
 #define ETHOSN_SMC_CORE_IS_SLEEPING     0xc2000054
+#define ETHOSN_SMC_GET_FW_PROP          0xc2000055
+
+/* Properties for ETHOSN_SMC_GET_FW_PROP */
+#define ETHOSN_FW_PROP_VERSION          0xF00
+#define ETHOSN_FW_PROP_MEM_INFO         0xF01
+#define ETHOSN_FW_PROP_OFFSETS          0xF02
+#define ETHOSN_FW_PROP_VA_MAP           0xF03
 
 static inline int __must_check ethosn_smc_core_call(u32 cmd,
 						    phys_addr_t core_addr,
@@ -166,3 +173,32 @@ int ethosn_smc_core_is_sleeping(const struct device *dev,
 
 /* Exported for use by test module */
 EXPORT_SYMBOL(ethosn_smc_core_is_sleeping);
+
+#ifdef ETHOSN_TZMP1
+
+int ethosn_smc_get_firmware_version(const struct device *dev,
+				    uint32_t *out_major,
+				    uint32_t *out_minor,
+				    uint32_t *out_patch)
+{
+	struct arm_smccc_res res = { 0 };
+	int ret = ethosn_smc_core_call(ETHOSN_SMC_GET_FW_PROP,
+				       ETHOSN_FW_PROP_VERSION,
+				       &res);
+
+	if (ret < 0) {
+		dev_err(dev,
+			"Failed to get firmware version from SiP service: %d\n",
+			ret);
+
+		return -ENXIO;
+	}
+
+	*out_major = res.a1;
+	*out_minor = res.a2;
+	*out_patch = res.a3;
+
+	return ret;
+}
+
+#endif

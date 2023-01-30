@@ -1068,6 +1068,37 @@ void ethosn_destroy_carveout_main_allocator(struct ethosn_core *core)
 	ethosn_dma_top_allocator_destroy(core->dev, &core->main_allocator);
 }
 
+#ifdef ETHOSN_TZMP1
+
+static int ethosn_check_smc_firmware_version(const struct device *dev)
+{
+	int ret = 0;
+	uint32_t major = 0;
+	uint32_t minor = 0;
+	uint32_t patch = 0;
+
+	ret = ethosn_smc_get_firmware_version(dev, &major, &minor, &patch);
+	/* Error already printed by ethosn_smc_get_firmware_version */
+	if (ret)
+		return ret;
+
+	dev_dbg(dev,
+		"Firmware version from SiP service: %u.%u.%u\n",
+		major, minor, patch);
+
+	if (major != ETHOSN_FIRMWARE_VERSION_MAJOR) {
+		dev_err(dev,
+			"Unsupported firmware version from SiP service: %u.%u.%u. Version %u.x.x is required.\n",
+			major, minor, patch, ETHOSN_FIRMWARE_VERSION_MAJOR);
+
+		return -EPROTO;
+	}
+
+	return 0;
+}
+
+#endif
+
 /**
  * ethosn_driver_probe() - Do common probing functionality
  * @core:	ethosn core struct
@@ -1109,15 +1140,24 @@ static int ethosn_driver_probe(struct ethosn_core *core,
 		return ret;
 	}
 
-#else
+#else   /* Secure or TZMP1 */
+
 	if (ret) {
 		dev_err(core->dev,
-			"SiP service required for secure kernel.\n");
+			"SiP service required for secure or TZMP1 kernel.\n");
 
 		return -EPERM;
 	}
 
-#endif
+#ifdef ETHOSN_TZMP1
+
+	ret = ethosn_check_smc_firmware_version(core->dev);
+	/* Error is already printed ethosn_check_smc_firmware_version */
+	if (ret)
+		return -EPROTO;
+
+#endif /* ETHOSN_TZMP1 */
+#endif /* Secure or TZMP1 */
 
 	mutex_init(&core->mutex);
 

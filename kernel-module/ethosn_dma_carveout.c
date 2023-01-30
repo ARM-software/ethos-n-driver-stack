@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2022 Arm Limited.
+ * (C) COPYRIGHT 2018-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -226,6 +226,13 @@ struct ethosn_dma_sub_allocator *ethosn_dma_carveout_allocator_create(
 	struct device_node *res_mem;
 	struct resource res_mem_details;
 	resource_size_t carveout_size;
+
+#ifdef ETHOSN_TZMP1
+	dev_err(dev,
+		"Carveout is not allowed when kernel module is built with TZMP1 support\n");
+
+	return ERR_PTR(-EINVAL);
+#endif
 
 	/* Iterates backwards device tree to find a memory-region phandle */
 	do {
