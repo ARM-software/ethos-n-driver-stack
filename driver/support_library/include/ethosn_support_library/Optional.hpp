@@ -1,5 +1,5 @@
 //
-// Copyright © 2020-2021 Arm Limited.
+// Copyright © 2020-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -223,6 +223,8 @@ public:
 
     OptionalReferenceSwitch& operator=(const T value)
     {
+        // cppcheck doesn't realise that T is always a reference type
+        // cppcheck-suppress danglingLifetime
         m_Storage        = &value;
         Base::m_HasValue = true;
         return *this;
