@@ -1,5 +1,5 @@
 //
-// Copyright © 2020-2022 Arm Limited.
+// Copyright © 2020-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -333,6 +333,8 @@ PleStats GetPleStats(const HardwareCapabilities& caps,
                      const std::vector<TensorShape>& inputShapes,
                      const command_stream::PleOperation& pleOperation)
 {
+    using namespace utils;
+
     PleStats pleststs;
 
     // Number of patches that need to be post processed by the Ple kernel
@@ -342,10 +344,11 @@ PleStats GetPleStats(const HardwareCapabilities& caps,
 
     for (auto& inputShape : inputShapes)
     {
-        patchesH = std::max(utils::DivRoundUp(inputShape[1], caps.GetPatchShape()[1]), patchesH);
-        patchesW = std::max(utils::DivRoundUp(inputShape[2], caps.GetPatchShape()[2]), patchesW);
-        patchesC = std::max(utils::DivRoundUp(inputShape[3], caps.GetNumberOfEngines() * caps.GetNumberOfPleLanes()),
-                            patchesC);
+        patchesH = std::max(utils::DivRoundUp(GetHeight(inputShape), GetHeight(g_PatchShape)), patchesH);
+        patchesW = std::max(utils::DivRoundUp(GetWidth(inputShape), GetWidth(g_PatchShape)), patchesW);
+        patchesC =
+            std::max(utils::DivRoundUp(GetChannels(inputShape), caps.GetNumberOfEngines() * caps.GetNumberOfPleLanes()),
+                     patchesC);
     }
 
     pleststs.m_NumOfPatches = patchesW * patchesH * patchesC;
@@ -404,8 +407,7 @@ InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRa
 StripesStats AccountForDmaChunking(StripesStats stats,
                                    const Buffer& sramBuffer,
                                    const Buffer& dramBuffer,
-                                   bool dramStridingAllowed,
-                                   const HardwareCapabilities& caps)
+                                   bool dramStridingAllowed)
 {
     using namespace utils;
 
@@ -413,9 +415,9 @@ StripesStats AccountForDmaChunking(StripesStats stats,
 
     if (dramBuffer.m_Format == CascadingBufferFormat::NHWCB)
     {
-        const uint32_t brickGroupWidth    = utils::GetWidth(caps.GetBrickGroupShape());
-        const uint32_t brickGroupHeight   = utils::GetHeight(caps.GetBrickGroupShape());
-        const uint32_t brickGroupChannels = utils::GetChannels(caps.GetBrickGroupShape());
+        const uint32_t brickGroupWidth    = utils::GetWidth(g_BrickGroupShape);
+        const uint32_t brickGroupHeight   = utils::GetHeight(g_BrickGroupShape);
+        const uint32_t brickGroupChannels = utils::GetChannels(g_BrickGroupShape);
 
         const TensorShape& stripeSize             = sramBuffer.m_StripeShape;
         const TensorShape& supertensorSizeInCells = {

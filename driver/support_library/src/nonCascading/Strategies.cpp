@@ -155,10 +155,10 @@ TryStripeShapesResult TryStripeShapes(const MceStrategySelectionParameters& stra
 {
 
     const HardwareCapabilities& capabilities = strategySelectionParameters.capabilities;
-    const uint32_t patchWidth                = capabilities.GetPatchShape()[2];
-    const uint32_t brickGroupHeight          = capabilities.GetBrickGroupShape()[1];
-    const uint32_t brickGroupWidth           = capabilities.GetBrickGroupShape()[2];
-    const uint32_t brickGroupChannels        = capabilities.GetBrickGroupShape()[3];
+    const uint32_t patchWidth                = g_PatchShape[2];
+    const uint32_t brickGroupHeight          = g_BrickGroupShape[1];
+    const uint32_t brickGroupWidth           = g_BrickGroupShape[2];
+    const uint32_t brickGroupChannels        = g_BrickGroupShape[3];
 
     // Sanity check to ensure the output shape width and height are not zero.
     const TensorShape& outputShape = strategySelectionParameters.outputShape;
@@ -584,7 +584,7 @@ MceStrategySelectionReturnValue
     const uint32_t stripeDepth                = RoundUpToNearestMultiple(ofmRegion, capabilities.GetNumberOfSrams());
     const uint32_t outStripeDepth             = stripeDepth * mceShapeMultiplier.m_C * pleShapeMultiplier.m_C;
 
-    const uint32_t inputStripeWidth     = capabilities.GetBrickGroupShape()[2];
+    const uint32_t inputStripeWidth     = g_BrickGroupShape[2];
     const uint32_t mceOutputStripeWidth = inputStripeWidth * mceShapeMultiplier.m_W;
     const uint32_t outputStripeWidth    = mceOutputStripeWidth * pleShapeMultiplier.m_W;
 

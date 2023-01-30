@@ -1,5 +1,5 @@
 //
-// Copyright © 2020-2022 Arm Limited.
+// Copyright © 2020-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -26,7 +26,6 @@ struct EstimatedPass
 
 EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
                                               Op* op,
-                                              const HardwareCapabilities& capabilities,
                                               const EstimationOptions& estimationOpts,
                                               std::unordered_set<Op*>& unestimatedOps);
 

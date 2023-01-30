@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -443,7 +443,7 @@ void NetworkToGraphConverter::Visit(FullyConnected& fullyConnected)
     };
 
     const TensorShape reinterpretedInput =
-        GetShapeContainingLinearElements(m_Capabilities.GetBrickGroupShape(), inputTensorInfo.m_Dimensions[3]);
+        GetShapeContainingLinearElements(g_BrickGroupShape, inputTensorInfo.m_Dimensions[3]);
     ReinterpretNode* reinterpretNode = m_Graph.CreateAndAddNodeWithDebug<ReinterpretNode>(
         "FullyConnected input reinterpret", reinterpretedInput, inputTensorInfo.m_DataType,
         inputTensorInfo.m_QuantizationInfo, CompilerDataFormat::NHWCB, operationIds);
@@ -552,8 +552,7 @@ void NetworkToGraphConverter::Visit(Concatenation& concatenation)
     CompilerDataFormat format = CompilerDataFormat::NHWCB;
     for (uint32_t i = 0; i < numInputs; ++i)
     {
-        if (concatenation.GetInput(i).GetTensorInfo().m_Dimensions[axis] % m_Capabilities.GetBrickGroupShape()[axis] !=
-            0)
+        if (concatenation.GetInput(i).GetTensorInfo().m_Dimensions[axis] % g_BrickGroupShape[axis] != 0)
         {
             format = CompilerDataFormat::NHWC;
             break;
@@ -674,8 +673,7 @@ void NetworkToGraphConverter::Visit(Split& split)
     CompilerDataFormat format = CompilerDataFormat::NHWCB;
     for (uint32_t i = 0; i < split.GetOutputs().size(); ++i)
     {
-        if (split.GetOutput(i).GetTensorInfo().m_Dimensions[splitInfo.m_Axis] %
-                m_Capabilities.GetBrickGroupShape()[splitInfo.m_Axis] !=
+        if (split.GetOutput(i).GetTensorInfo().m_Dimensions[splitInfo.m_Axis] % g_BrickGroupShape[splitInfo.m_Axis] !=
             0)
         {
             format = CompilerDataFormat::NHWC;

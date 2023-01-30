@@ -1,5 +1,5 @@
 //
-// Copyright © 2020-2022 Arm Limited.
+// Copyright © 2020-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -62,8 +62,7 @@ InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRa
 StripesStats AccountForDmaChunking(StripesStats stats,
                                    const Buffer& sramBuffer,
                                    const Buffer& dramBuffer,
-                                   bool dramStridingAllowed,
-                                   const HardwareCapabilities& caps);
+                                   bool dramStridingAllowed);
 
 double CalculateMetric(const NetworkPerformanceData& networkPerfData);
 double CalculateMetric(const PassPerformanceData& passPerfData);

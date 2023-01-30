@@ -85,8 +85,8 @@ std::pair<uint32_t, uint32_t>
         return { slotSize, inputFullStripeSize };
     }
 
-    uint32_t widthMultiple  = caps.GetBrickGroupShape()[2];
-    uint32_t heightMultiple = caps.GetBrickGroupShape()[1];
+    uint32_t widthMultiple  = g_BrickGroupShape[2];
+    uint32_t heightMultiple = g_BrickGroupShape[1];
     if (couldSourceBeFcaf && !AnyPackedBoundaryData(packedBoundaryThickness) &&
         IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_DEEP, inputStripeShape,
                                                      inputTensorShape))

@@ -64,10 +64,7 @@ inline void SetBufferDataType(FmSData& streamerData, const CascadingBufferFormat
     }
 }
 
-inline void SetStripeHeightInfo(const HardwareCapabilities& hwCap,
-                                FmSData& streamerData,
-                                const TensorShape& tensorShape,
-                                const TensorShape& stripeShape)
+inline void SetStripeHeightInfo(FmSData& streamerData, const TensorShape& tensorShape, const TensorShape& stripeShape)
 {
     uint16_t tensorHeight = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(tensorShape));
     uint16_t stripeHeight = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(stripeShape));
@@ -84,7 +81,7 @@ inline void SetStripeHeightInfo(const HardwareCapabilities& hwCap,
     switch (streamerData.dataType)
     {
         case FmsDataType::NHWCB:
-            multiple = utils::GetHeight(hwCap.GetBrickGroupShape());
+            multiple = utils::GetHeight(g_BrickGroupShape);
             break;
         case FmsDataType::FCAF_WIDE:
             multiple = utils::GetHeight(g_FcafWideCellShape);
@@ -103,10 +100,7 @@ inline void SetStripeHeightInfo(const HardwareCapabilities& hwCap,
         utils::RoundUpToNearestMultiple(static_cast<uint32_t>(streamerData.edgeStripeSize.height), multiple));
 }
 
-inline void SetStripeWidthInfo(const HardwareCapabilities& hwCap,
-                               FmSData& streamerData,
-                               const TensorShape& tensorShape,
-                               const TensorShape& stripeShape)
+inline void SetStripeWidthInfo(FmSData& streamerData, const TensorShape& tensorShape, const TensorShape& stripeShape)
 {
     uint16_t tensorWidth = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(tensorShape));
     uint16_t stripeWidth = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(stripeShape));
@@ -123,7 +117,7 @@ inline void SetStripeWidthInfo(const HardwareCapabilities& hwCap,
     switch (streamerData.dataType)
     {
         case FmsDataType::NHWCB:
-            multiple = utils::GetWidth(hwCap.GetBrickGroupShape());
+            multiple = utils::GetWidth(g_BrickGroupShape);
             break;
         case FmsDataType::FCAF_WIDE:
             multiple = utils::GetWidth(g_FcafWideCellShape);

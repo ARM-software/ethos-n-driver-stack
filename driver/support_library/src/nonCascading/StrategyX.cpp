@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -96,9 +96,9 @@ MceStrategySelectionReturnValue
     const bool isHwio                                = (weightsFormat == DataFormat::HWIO);
 
     const HardwareCapabilities& capabilities         = strategyXSelectionParameters.capabilities;
-    const uint32_t brickGroupHeight                  = GetHeight(capabilities.GetBrickGroupShape());
-    const uint32_t brickGroupWidth                   = GetWidth(capabilities.GetBrickGroupShape());
-    const uint32_t brickGroupChannels                = GetChannels(capabilities.GetBrickGroupShape());
+    const uint32_t brickGroupHeight                  = GetHeight(g_BrickGroupShape);
+    const uint32_t brickGroupWidth                   = GetWidth(g_BrickGroupShape);
+    const uint32_t brickGroupChannels                = GetChannels(g_BrickGroupShape);
     const utils::ShapeMultiplier& mceShapeMultiplier = strategyXSelectionParameters.mceShapeMultiplier;
     const utils::ShapeMultiplier& pleShapeMultiplier = strategyXSelectionParameters.pleShapeMultiplier;
     const utils::ShapeMultiplier& shapeMultiplier    = mceShapeMultiplier * pleShapeMultiplier;

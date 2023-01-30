@@ -1,5 +1,5 @@
 //
-// Copyright © 2021 Arm Limited. All rights reserved.
+// Copyright © 2021,2023 Arm Limited. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -53,8 +53,8 @@ TEST_CASE("MceStats DepthwiseConvolution", "[Estimation][Mce]")
     const HardwareCapabilities caps = GetEthosN78HwCapabilities(variant);
     const uint32_t numberOfEngines  = caps.GetNumberOfEngines();
     const uint32_t numTotIfm        = caps.GetIgsPerEngine() * numberOfEngines;
-    const uint32_t halfPatchHeight  = caps.GetPatchShape()[1];
-    const uint32_t halfPatchWidth   = utils::DivRoundUp(caps.GetPatchShape()[2], 2u);
+    const uint32_t halfPatchHeight  = g_PatchShape[1];
+    const uint32_t halfPatchWidth   = utils::DivRoundUp(g_PatchShape[2], 2u);
     const uint32_t inputChannels    = GetNumberOfInputChannels(originalInputChannels, numberOfEngines, (strideXY != 1));
 
     const Stride stride(strideXY, strideXY);
@@ -83,8 +83,8 @@ TEST_CASE("MceStats Convolution", "[Estimation][Mce]")
     const uint32_t numberOfEngines  = caps.GetNumberOfEngines();
     const uint32_t numTotIfm        = caps.GetIgsPerEngine() * numberOfEngines;
     const uint32_t numTotOfm        = caps.GetOgsPerEngine() * numberOfEngines;
-    const uint32_t halfPatchHeight  = caps.GetPatchShape()[1];
-    const uint32_t halfPatchWidth   = utils::DivRoundUp(caps.GetPatchShape()[2], 2u);
+    const uint32_t halfPatchHeight  = g_PatchShape[1];
+    const uint32_t halfPatchWidth   = utils::DivRoundUp(g_PatchShape[2], 2u);
     const uint32_t inputChannels    = GetNumberOfInputChannels(originalInputChannels, numberOfEngines, (strideXY != 1));
 
     const Stride stride(strideXY, strideXY);

@@ -865,10 +865,10 @@ void McePlePass::Generate(command_stream::CommandStreamBuffer& cmdStream, Buffer
         m_StrategyConfig.inputAllocation.stripeShape[0],
         utils::RoundUpToNearestMultiple(m_StrategyConfig.inputAllocation.stripeShape[1] * mceOutputShape[1] /
                                             mceInputShape[1],
-                                        m_Capabilities.GetBrickGroupShape()[1]),
+                                        g_BrickGroupShape[1]),
         utils::RoundUpToNearestMultiple(m_StrategyConfig.inputAllocation.stripeShape[2] * mceOutputShape[2] /
                                             mceInputShape[2],
-                                        m_Capabilities.GetBrickGroupShape()[2]),
+                                        g_BrickGroupShape[2]),
         strategy == SramAllocationStrategy::STRATEGY_X
             ? m_StrategyConfig.weightsAllocation.stripeShape[3]
             : (GetPleOperation() == command_stream::PleOperation::INTERLEAVE_2X2_2_2)

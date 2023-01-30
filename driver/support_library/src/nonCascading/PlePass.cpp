@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -305,12 +305,10 @@ PleStrategySelectionReturnValue
         // The stripe depth must be such that no stripes may start on channels that aren't a multiple of 16 and pass
         // through into the next 16, which is not supported by the DMA (e.g. a stripe starting on channel 24
         // and going to channel 48).
-        const TensorShape minimumStripeSize =
-            TensorShape{ 1, GetHeight(capabilities.GetBrickGroupShape()), GetWidth(capabilities.GetBrickGroupShape()),
-                         GetChannels(capabilities.GetBrickGroupShape()) };
-        const uint32_t maxHeightSplits = splittableDims[1] ? DivRoundUp(outputShape[1], minimumStripeSize[1]) : 1U;
-        const uint32_t maxWidthSplits  = splittableDims[2] ? DivRoundUp(outputShape[2], minimumStripeSize[2]) : 1U;
-        const uint32_t maxDepthSplits  = splittableDims[3] ? DivRoundUp(outputShape[3], minimumStripeSize[3]) : 1U;
+        const TensorShape minimumStripeSize = g_BrickGroupShape;
+        const uint32_t maxHeightSplits      = splittableDims[1] ? DivRoundUp(outputShape[1], minimumStripeSize[1]) : 1U;
+        const uint32_t maxWidthSplits       = splittableDims[2] ? DivRoundUp(outputShape[2], minimumStripeSize[2]) : 1U;
+        const uint32_t maxDepthSplits       = splittableDims[3] ? DivRoundUp(outputShape[3], minimumStripeSize[3]) : 1U;
 
         for (uint32_t numChannelSplits = 1; numChannelSplits <= maxDepthSplits; ++numChannelSplits)
         {

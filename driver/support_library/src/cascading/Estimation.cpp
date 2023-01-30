@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -37,7 +37,6 @@ DataFormat GetWeightsFormat(const MceOp& mceOp)
 /// Removes Ops from the given unprocessed set that it has included in its estimation.
 EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
                                               Op* op,
-                                              const HardwareCapabilities& capabilities,
                                               const EstimationOptions& estimationOpts,
                                               std::unordered_set<Op*>& unprocessed)
 {
@@ -115,9 +114,9 @@ EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
     result.m_Stats = GetConversionStats(inputConversionData, outputConversionData, isDramToDram);
 
     result.m_Stats.m_Input.m_StripesStats =
-        AccountForDmaChunking(result.m_Stats.m_Input.m_StripesStats, *sramBuffer, *inputBuffer, false, capabilities);
+        AccountForDmaChunking(result.m_Stats.m_Input.m_StripesStats, *sramBuffer, *inputBuffer, false);
     result.m_Stats.m_Output.m_StripesStats =
-        AccountForDmaChunking(result.m_Stats.m_Output.m_StripesStats, *sramBuffer, *outputBuffer, true, capabilities);
+        AccountForDmaChunking(result.m_Stats.m_Output.m_StripesStats, *sramBuffer, *outputBuffer, true);
 
     if (isInputCompressed)
     {
@@ -298,8 +297,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
                                                                         : utils::Optional<CascadingBufferFormat>{});
         if (dramBuffer != nullptr)
         {
-            stats.m_StripesStats =
-                AccountForDmaChunking(stats.m_StripesStats, *sramInputBuffer, *dramBuffer, false, capabilities);
+            stats.m_StripesStats = AccountForDmaChunking(stats.m_StripesStats, *sramInputBuffer, *dramBuffer, false);
             if (IsCompressed(dramBuffer->m_Format))
             {
                 stats = AccountForActivationCompression(stats, estimationOpts.m_ActivationCompressionSaving);
@@ -333,8 +331,7 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
             *sramOutputBuffer, dramBuffer != nullptr ? dramBuffer->m_Format : utils::Optional<CascadingBufferFormat>{});
         if (dramBuffer != nullptr)
         {
-            stats.m_StripesStats =
-                AccountForDmaChunking(stats.m_StripesStats, *sramOutputBuffer, *dramBuffer, true, capabilities);
+            stats.m_StripesStats = AccountForDmaChunking(stats.m_StripesStats, *sramOutputBuffer, *dramBuffer, true);
             if (IsCompressed(dramBuffer->m_Format))
             {
                 stats = AccountForActivationCompression(stats, estimationOpts.m_ActivationCompressionSaving);
@@ -454,8 +451,7 @@ EstimatedOpGraph EstimateOpGraph(const OpGraph& opGraph,
             {
                 try
                 {
-                    estimatedPass =
-                        EstimateConversionPassGrownFrom(opGraph, op, capabilities, estimationOpts, unprocessedOps);
+                    estimatedPass = EstimateConversionPassGrownFrom(opGraph, op, estimationOpts, unprocessedOps);
                 }
                 catch (const NotSupportedException&)
                 {

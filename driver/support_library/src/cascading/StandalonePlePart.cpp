@@ -1,5 +1,5 @@
 //
-// Copyright © 2022 Arm Limited.
+// Copyright © 2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -131,9 +131,9 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
         }
     }
 
-    const uint32_t brickGroupHeight = m_Capabilities.GetBrickGroupShape()[1];
-    const uint32_t brickGroupWidth  = m_Capabilities.GetBrickGroupShape()[2];
-    const uint32_t brickGroupDepth  = m_Capabilities.GetBrickGroupShape()[3];
+    const uint32_t brickGroupHeight = g_BrickGroupShape[1];
+    const uint32_t brickGroupWidth  = g_BrickGroupShape[2];
+    const uint32_t brickGroupDepth  = g_BrickGroupShape[3];
 
     auto addPlan = [&](const TensorShape& outputStripeShape) {
         // Uses block configure (16, 16) which will be ignored

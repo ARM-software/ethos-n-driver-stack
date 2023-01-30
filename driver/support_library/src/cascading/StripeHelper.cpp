@@ -433,22 +433,21 @@ std::unique_ptr<Buffer>
                                    uint32_t maxDepthMultiplier)
 {
     // Calculate minimum stripe size, based on the DRAM format(s) that this buffer needs to be compatible with
-    uint32_t baseWidth  = utils::GetWidth(caps.GetBrickGroupShape());
-    uint32_t baseHeight = utils::GetHeight(caps.GetBrickGroupShape());
-    uint32_t baseDepth  = utils::GetChannels(caps.GetBrickGroupShape());
+    uint32_t baseWidth  = utils::GetWidth(g_BrickGroupShape);
+    uint32_t baseHeight = utils::GetHeight(g_BrickGroupShape);
+    uint32_t baseDepth  = utils::GetChannels(g_BrickGroupShape);
     for (CascadingBufferFormat format : compatibleDramBufferFormats)
     {
         // We always need at least one brick group (even for NHWC)
-        TensorShape minStripeShape = caps.GetBrickGroupShape();
+        TensorShape minStripeShape = g_BrickGroupShape;
         switch (format)
         {
             case CascadingBufferFormat::NHWC:
                 // The firmware cannot split NHWC tensors along channels, so we must use the full depth.
-                minStripeShape[3] =
-                    utils::RoundUpToNearestMultiple(shape[3], utils::GetChannels(caps.GetBrickGroupShape()));
+                minStripeShape[3] = utils::RoundUpToNearestMultiple(shape[3], utils::GetChannels(g_BrickGroupShape));
                 break;
             case CascadingBufferFormat::NHWCB:
-                minStripeShape = caps.GetBrickGroupShape();
+                minStripeShape = g_BrickGroupShape;
                 break;
             case CascadingBufferFormat::FCAF_DEEP:
                 minStripeShape = g_FcafDeepCellShape;
@@ -636,7 +635,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     using namespace utils;
 
     const uint32_t numOgs     = m_Capabilities.GetNumberOfOgs();
-    const uint32_t brickDepth = GetChannels(m_Capabilities.GetBrickGroupShape());
+    const uint32_t brickDepth = GetChannels(g_BrickGroupShape);
 
     // Set Stripe split restrictions, depending on the Ple kernel type.
     StripeConfig stripeConfig = ApplyPleKernelSplitRestrictions(cascadeType);
@@ -812,10 +811,10 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     };
 
     // Limit the minimum number of blocks per stripe to be such that the PLE outputs at least one brick group
-    const uint32_t baseMceInputHeight = std::max(
-        blockConfig.m_BlockHeight(), GetHeight(m_Capabilities.GetBrickGroupShape()) / m_PleShapeMultiplier.m_H);
+    const uint32_t baseMceInputHeight =
+        std::max(blockConfig.m_BlockHeight(), GetHeight(g_BrickGroupShape) / m_PleShapeMultiplier.m_H);
     const uint32_t baseMceInputWidth =
-        std::max(blockConfig.m_BlockWidth(), GetWidth(m_Capabilities.GetBrickGroupShape()) / m_PleShapeMultiplier.m_W);
+        std::max(blockConfig.m_BlockWidth(), GetWidth(g_BrickGroupShape) / m_PleShapeMultiplier.m_W);
     const uint32_t baseMceIfm = numOgs / m_MceShapeMultiplier.m_C;
 
     // Create some helpers to loop over potential stripe shapes. We create both 'inclusive' and 'exclusive' versions,

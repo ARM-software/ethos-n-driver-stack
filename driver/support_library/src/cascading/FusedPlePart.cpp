@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -436,15 +436,14 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     // PLE shape multipliers can lead to the PLE having to accumulate multiple stripes, e.g. an 8-high stripe being reduced
     // to a 4-high stripe and therefore needing to accumulate two. This can work, but makes the dependency generation
     // and tile size decisions more complicated and therefore we disallow this for now.
-    if (!fullPlane &&
-        ((GetWidth(pleInputStripe) * m_ShapeMultiplier.m_W) % m_Capabilities.GetBrickGroupShape()[2] != 0 ||
-         (GetHeight(pleInputStripe) * m_ShapeMultiplier.m_H) % m_Capabilities.GetBrickGroupShape()[1] != 0))
+    if (!fullPlane && ((GetWidth(pleInputStripe) * m_ShapeMultiplier.m_W) % g_BrickGroupShape[2] != 0 ||
+                       (GetHeight(pleInputStripe) * m_ShapeMultiplier.m_H) % g_BrickGroupShape[1] != 0))
     {
         return ret;
     }
 
     TensorShape pleOutputStripe =
-        CreateStripe(m_OutputTensorShape, pleInputStripe * m_ShapeMultiplier, m_Capabilities.GetBrickGroupShape()[3]);
+        CreateStripe(m_OutputTensorShape, pleInputStripe * m_ShapeMultiplier, g_BrickGroupShape[3]);
 
     uint32_t memoryOutputChannelsEncoding = GetChannels(pleOutputStripe);
     bool isEndOfCascade                   = cascadeType == CascadeType::End;
@@ -452,16 +451,14 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
     {
         memoryOutputChannelsEncoding = 0;
         // PLE accumulates the full depth in the middle of a strategy 1 cascade
-        pleInputStripe[3] =
-            utils::RoundUpToNearestMultiple(inputStripeShape[3], m_Capabilities.GetBrickGroupShape()[3]);
-        pleOutputStripe[3] =
-            utils::RoundUpToNearestMultiple(m_OutputTensorShape[3], m_Capabilities.GetBrickGroupShape()[3]);
+        pleInputStripe[3]  = utils::RoundUpToNearestMultiple(inputStripeShape[3], g_BrickGroupShape[3]);
+        pleOutputStripe[3] = utils::RoundUpToNearestMultiple(m_OutputTensorShape[3], g_BrickGroupShape[3]);
     }
     TensorShape memoryOutputStripeEncoding{ 0, fullHeight ? 0 : GetHeight(pleOutputStripe),
                                             fullWidth ? 0 : GetWidth(pleOutputStripe), memoryOutputChannelsEncoding };
     // Sram buffer takes the Stripe shape of the preceding Ple Op.
     TensorShape memoryOutputStripe =
-        CreateStripe(m_OutputTensorShape, memoryOutputStripeEncoding, m_Capabilities.GetBrickGroupShape()[3]);
+        CreateStripe(m_OutputTensorShape, memoryOutputStripeEncoding, g_BrickGroupShape[3]);
     bool fullDepth  = memoryOutputStripe[3] >= m_OutputTensorShape[3];
     bool fullTensor = fullPlane && fullDepth;
 

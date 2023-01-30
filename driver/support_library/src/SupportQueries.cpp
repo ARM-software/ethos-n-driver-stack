@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -1999,8 +1999,8 @@ bool IsAvgPool_3x3_1_1_FitSram(const uint32_t height,
 {
     const HardwareCapabilities hwCapabilities(GetValidCapabilities(caps));
 
-    const uint32_t inputXySizeNhwcb = utils::RoundUpToNearestMultiple(height, hwCapabilities.GetBrickGroupShape()[1]) *
-                                      utils::RoundUpToNearestMultiple(width, hwCapabilities.GetBrickGroupShape()[2]);
+    const uint32_t inputXySizeNhwcb = utils::RoundUpToNearestMultiple(height, g_BrickGroupShape[1]) *
+                                      utils::RoundUpToNearestMultiple(width, g_BrickGroupShape[2]);
 
     const uint32_t outputXySizeNhwcb = inputXySizeNhwcb;
 

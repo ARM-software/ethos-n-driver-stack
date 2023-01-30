@@ -532,7 +532,7 @@ void NetworkToGraphOfPartsConverter::Visit(FullyConnected& fullyConnected)
         };
 
         const TensorShape reinterpretedInput =
-            GetShapeContainingLinearElements(m_Capabilities.GetBrickGroupShape(), inputTensorInfo.m_Dimensions[3]);
+            GetShapeContainingLinearElements(g_BrickGroupShape, inputTensorInfo.m_Dimensions[3]);
 
         // The weight encoder for fully connected requires the input channel to be a multiple of 1024.
         // It is easier to make this adjustment here rather than the WeightEncoder itself, even though
@@ -811,11 +811,10 @@ void NetworkToGraphOfPartsConverter::Visit(Concatenation& concat)
             {
                 offsets[i] = offset;
                 offset += concat.GetInput(i).GetTensorInfo().m_Dimensions[3];
-                uint32_t rem =
-                    concat.GetInput(i).GetTensorInfo().m_Dimensions[3] % m_Capabilities.GetBrickGroupShape()[3];
+                uint32_t rem = concat.GetInput(i).GetTensorInfo().m_Dimensions[3] % g_BrickGroupShape[3];
                 if (rem != 0)
                 {
-                    uint32_t numPadChannels = m_Capabilities.GetBrickGroupShape()[3] - rem;
+                    uint32_t numPadChannels = g_BrickGroupShape[3] - rem;
                     removeAmounts.push_back(std::make_pair(offset, numPadChannels));
                     offset += numPadChannels;
                 }
@@ -1404,10 +1403,10 @@ void NetworkToGraphOfPartsConverter::Visit(Split& split)
             offsets[i] = newOffset;
             origOffset += split.GetOutput(i).GetTensorInfo().m_Dimensions[3];
             newOffset += split.GetOutput(i).GetTensorInfo().m_Dimensions[3];
-            uint32_t rem = split.GetOutput(i).GetTensorInfo().m_Dimensions[3] % m_Capabilities.GetBrickGroupShape()[3];
+            uint32_t rem = split.GetOutput(i).GetTensorInfo().m_Dimensions[3] % g_BrickGroupShape[3];
             if (rem != 0)
             {
-                uint32_t numPadChannels = m_Capabilities.GetBrickGroupShape()[3] - rem;
+                uint32_t numPadChannels = g_BrickGroupShape[3] - rem;
                 padAmounts.push_back(std::make_pair(origOffset, numPadChannels));
                 newOffset += numPadChannels;
             }

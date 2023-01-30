@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -93,8 +93,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
     if (m_StripeConfig.splits.none)
     {
         TensorShape mceInputEncoding = { 0, 0, 0, 0 };
-        TensorShape mceInputStripe =
-            CreateStripe(m_InputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
+        TensorShape mceInputStripe   = CreateStripe(m_InputTensorShape, mceInputEncoding, g_BrickGroupShape[3]);
 
         TensorShape mceOutputEncoding = { 0, 0, 0, 0 };
         TensorShape mceOutputStripe =
@@ -131,8 +130,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                                         m_StripeConfig.ofmDepthMultiplier.min, m_StripeConfig.ofmDepthMultiplier.max))
         {
             TensorShape mceInputEncoding = { 0, 0, 0, 0 };
-            TensorShape mceInputStripe =
-                CreateStripe(m_InputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
+            TensorShape mceInputStripe   = CreateStripe(m_InputTensorShape, mceInputEncoding, g_BrickGroupShape[3]);
 
             TensorShape mceOutputEncoding = { 0, 0, 0, ofmDepth };
             TensorShape mceOutputStripe =
@@ -176,8 +174,7 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                                         m_StripeConfig.ifmDepthMultiplier.min, m_StripeConfig.ifmDepthMultiplier.max))
         {
             TensorShape mceInputEncoding = { 0, 0, 0, ifmDepth };
-            TensorShape mceInputStripe =
-                CreateStripe(m_InputTensorShape, mceInputEncoding, m_Capabilities.GetBrickGroupShape()[3]);
+            TensorShape mceInputStripe   = CreateStripe(m_InputTensorShape, mceInputEncoding, g_BrickGroupShape[3]);
 
             TensorShape mceOutputEncoding = { 0, 0, 0, m_Capabilities.GetNumberOfOgs() };
             TensorShape mceOutputStripe =

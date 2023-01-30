@@ -82,16 +82,6 @@ uint32_t HardwareCapabilities::GetNumCentralSlots() const
     return m_FirmwareAndHardwareCapabilities.m_NumCentralSlots;
 }
 
-const TensorShape& HardwareCapabilities::GetBrickGroupShape() const
-{
-    return m_FirmwareAndHardwareCapabilities.m_BrickGroupShape;
-}
-
-const TensorShape& HardwareCapabilities::GetPatchShape() const
-{
-    return m_FirmwareAndHardwareCapabilities.m_PatchShape;
-}
-
 uint32_t HardwareCapabilities::GetMacUnitsPerOg() const
 {
     return m_FirmwareAndHardwareCapabilities.m_MacUnitsPerOg;
@@ -296,13 +286,12 @@ uint32_t GetNumSubmapChannels(uint32_t nChannels,
 
 uint32_t CalculateDramOffset(const CascadingBufferFormat dataFormat,
                              const TensorShape& tensorSize,
-                             const TensorShape& offset,
-                             const HardwareCapabilities& caps)
+                             const TensorShape& offset)
 {
     switch (dataFormat)
     {
         case CascadingBufferFormat::NHWCB:
-            return utils::CalculateDramOffsetNHWCB(tensorSize, offset[1], offset[2], offset[3], caps);
+            return utils::CalculateDramOffsetNHWCB(tensorSize, offset[1], offset[2], offset[3]);
         case CascadingBufferFormat::NHWC:
             // Deliberate fallthrough
         case CascadingBufferFormat::NCHW:
@@ -319,21 +308,15 @@ uint32_t CalculateDramOffset(const CascadingBufferFormat dataFormat,
     };
 }
 
-uint32_t CalculateDramOffsetNHWCB(const TensorShape& tensorShape,
-                                  uint32_t offsetY,
-                                  uint32_t offsetX,
-                                  uint32_t offsetC,
-                                  const HardwareCapabilities& caps)
+uint32_t CalculateDramOffsetNHWCB(const TensorShape& tensorShape, uint32_t offsetY, uint32_t offsetX, uint32_t offsetC)
 {
-    const TensorShape& brickGroupShape = caps.GetBrickGroupShape();
-    const TensorShape& patchShape      = caps.GetPatchShape();
-    const uint32_t brickGroupSize      = GetNumElements(brickGroupShape);
-    const uint32_t brickGroupHeight    = GetHeight(brickGroupShape);
-    const uint32_t brickGroupWidth     = GetWidth(brickGroupShape);
-    const uint32_t brickGroupChannels  = GetChannels(brickGroupShape);
-    const uint32_t patchSize           = GetNumElements(patchShape);
-    const uint32_t patchHeight         = GetHeight(patchShape);
-    const uint32_t patchWidth          = GetWidth(patchShape);
+    const uint32_t brickGroupSize     = GetNumElements(g_BrickGroupShape);
+    const uint32_t brickGroupHeight   = GetHeight(g_BrickGroupShape);
+    const uint32_t brickGroupWidth    = GetWidth(g_BrickGroupShape);
+    const uint32_t brickGroupChannels = GetChannels(g_BrickGroupShape);
+    const uint32_t patchSize          = GetNumElements(g_PatchShape);
+    const uint32_t patchHeight        = GetHeight(g_PatchShape);
+    const uint32_t patchWidth         = GetWidth(g_PatchShape);
 
     const uint32_t numBrickGroupDepth = utils::DivRoundUp(GetChannels(tensorShape), brickGroupChannels);
     const uint32_t numBrickGroupWidth = utils::DivRoundUp(GetWidth(tensorShape), brickGroupWidth);

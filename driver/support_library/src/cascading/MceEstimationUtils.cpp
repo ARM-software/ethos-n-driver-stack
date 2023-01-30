@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -71,8 +71,8 @@ uint64_t GetMceCycleCountDirect(const HardwareCapabilities& caps,
     const uint32_t numIgsPerEngine   = caps.GetIgsPerEngine();
     const uint32_t numOgsPerEngine   = caps.GetOgsPerEngine();
     const uint32_t numMacUnitsPerOg  = caps.GetMacUnitsPerOg();
-    const uint32_t halfPatchHeight   = caps.GetPatchShape()[1];
-    const uint32_t halfPatchWidth    = utils::DivRoundUp(caps.GetPatchShape()[2], 2u);
+    const uint32_t halfPatchHeight   = g_PatchShape[1];
+    const uint32_t halfPatchWidth    = utils::DivRoundUp(g_PatchShape[2], 2u);
     uint32_t numActiveOgs;
     uint32_t ifmChannelsPerMacUnit;
     uint32_t ifmChannelsPerOfm;

@@ -72,8 +72,6 @@ public:
     uint32_t GetBoundaryStripeHeight() const;
     uint32_t GetNumBoundarySlots() const;
     uint32_t GetNumCentralSlots() const;
-    const TensorShape& GetBrickGroupShape() const;
-    const TensorShape& GetPatchShape() const;
     uint32_t GetTotalAccumulatorsPerOg() const;
     uint32_t GetMacUnitsPerOg() const;
     uint32_t GetNumberOfPleLanes() const;
@@ -117,6 +115,9 @@ public:
 private:
     FirmwareAndHardwareCapabilities m_FirmwareAndHardwareCapabilities;
 };
+
+constexpr TensorShape g_PatchShape      = TensorShape{ 1, 4, 4, 1 };
+constexpr TensorShape g_BrickGroupShape = TensorShape{ 1, 8, 8, 16 };
 
 constexpr TensorShape g_FcafDeepCellShape = TensorShape{ 1, 8, 8, 32 };
 constexpr TensorShape g_FcafWideCellShape = TensorShape{ 1, 8, 16, 16 };
@@ -421,14 +422,9 @@ uint32_t GetNumSubmapChannels(uint32_t nChannels,
 
 uint32_t CalculateDramOffset(const CascadingBufferFormat dataFormat,
                              const TensorShape& tensorSize,
-                             const TensorShape& offset,
-                             const HardwareCapabilities& caps);
+                             const TensorShape& offset);
 
-uint32_t CalculateDramOffsetNHWCB(const TensorShape& tensorShape,
-                                  uint32_t offsetY,
-                                  uint32_t offsetX,
-                                  uint32_t offsetC,
-                                  const HardwareCapabilities& caps);
+uint32_t CalculateDramOffsetNHWCB(const TensorShape& tensorShape, uint32_t offsetY, uint32_t offsetX, uint32_t offsetC);
 
 uint32_t CalculateDramOffsetNHWC(const TensorShape& tensorShape, uint32_t offsetY, uint32_t offsetX, uint32_t offsetC);
 

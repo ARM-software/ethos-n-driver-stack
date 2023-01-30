@@ -1,5 +1,5 @@
 //
-// Copyright © 2022 Arm Limited.
+// Copyright © 2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -214,8 +214,8 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
 
             uint16_t inputBufferId = AddDramBufferAndCacheId(inputBuffer, ptrDmaOp);
 
-            uint32_t inputDramBufferOffset = utils::CalculateDramOffset(
-                inputBuffer->m_Format, inputBuffer->m_TensorShape, ptrDmaOp->m_Offset, m_Capabilities);
+            uint32_t inputDramBufferOffset =
+                utils::CalculateDramOffset(inputBuffer->m_Format, inputBuffer->m_TensorShape, ptrDmaOp->m_Offset);
 
             AgentIdType ifmStreamerAgentId = AddIfmStreamerToCommandStream(
                 ptrDmaOp, inputBufferId, inputBuffer, outputBuffer, dmaOp->m_TransferFormat, inputDramBufferOffset);
@@ -288,8 +288,8 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
             outputBufferId = static_cast<uint16_t>(m_DramBufToBufIdMapping[outputBuffer]);
         }
 
-        uint32_t outputDramBufferOffset = utils::CalculateDramOffset(
-            outputBuffer->m_Format, outputBuffer->m_TensorShape, ptrDmaOp->m_Offset, m_Capabilities);
+        uint32_t outputDramBufferOffset =
+            utils::CalculateDramOffset(outputBuffer->m_Format, outputBuffer->m_TensorShape, ptrDmaOp->m_Offset);
 
         // Ofm Streamer Agent
         AgentIdType ofmStreamerAgentId =
@@ -586,9 +586,9 @@ AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(DmaOp
         supertensorShape = inputDramBuffer->m_TensorShape;
     }
 
-    StreamersUtils::SetStripeHeightInfo(m_Capabilities, ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
+    StreamersUtils::SetStripeHeightInfo(ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
                                         inputSramBuffer->m_StripeShape);
-    StreamersUtils::SetStripeWidthInfo(m_Capabilities, ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
+    StreamersUtils::SetStripeWidthInfo(ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
                                        inputSramBuffer->m_StripeShape);
     StreamersUtils::SetStripeChannelsInfo(ifmStreamerData.fmData, inputSramBuffer->m_TensorShape,
                                           inputSramBuffer->m_StripeShape, ptrOp->m_Offset, supertensorShape);
@@ -694,8 +694,8 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
     {
         // Fully connected stripe shapes are always 8x8xC (for both default and edge stripes).
         // This is due to the reinterpretation that the hardware requires.
-        const uint16_t w = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(m_Capabilities.GetBrickGroupShape()));
-        const uint16_t h = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(m_Capabilities.GetBrickGroupShape()));
+        const uint16_t w = ethosn::utils::NumericCast<uint16_t>(utils::GetWidth(g_BrickGroupShape));
+        const uint16_t h = ethosn::utils::NumericCast<uint16_t>(utils::GetHeight(g_BrickGroupShape));
         mceSchedulerData.edgeStripeSize.ofmWidth  = w;
         mceSchedulerData.edgeStripeSize.ofmHeight = h;
         mceSchedulerData.dfltStripeSize.ofmWidth  = w;
@@ -912,9 +912,9 @@ AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(DmaOp
         supertensorShape = outputDramBuffer->m_TensorShape;
     }
 
-    StreamersUtils::SetStripeHeightInfo(m_Capabilities, ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
+    StreamersUtils::SetStripeHeightInfo(ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
                                         outputSramBuffer->m_StripeShape);
-    StreamersUtils::SetStripeWidthInfo(m_Capabilities, ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
+    StreamersUtils::SetStripeWidthInfo(ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
                                        outputSramBuffer->m_StripeShape);
     StreamersUtils::SetStripeChannelsInfo(ofmStreamerData.fmData, outputSramBuffer->m_TensorShape,
                                           outputSramBuffer->m_StripeShape, ptrOp->m_Offset, supertensorShape);

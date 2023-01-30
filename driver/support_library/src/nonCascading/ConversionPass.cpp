@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2021 Arm Limited.
+// Copyright © 2018-2021,2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -39,13 +39,12 @@ bool ChooseAndSetupStripe(const HardwareCapabilities& capabilities,
     outputAllocateResult.first                      = false;
 
     // Try taking the whole size first, then move until we find something that works.
-    const uint32_t maxHeightSplit = DivRoundUp(outputShape[1], capabilities.GetBrickGroupShape()[1]);
-    const uint32_t maxWidthSplits = DivRoundUp(outputShape[2], capabilities.GetBrickGroupShape()[2]);
+    const uint32_t maxHeightSplit = DivRoundUp(outputShape[1], g_BrickGroupShape[1]);
+    const uint32_t maxWidthSplits = DivRoundUp(outputShape[2], g_BrickGroupShape[2]);
     // Allow splitting in depth only if the width is 1. When the width is 1 the firmware can support splitting in depth,
     // but for other cases it can't (this isn't strictly true, but is a conservative approximation - what matters
     // here is that we support at least the cases we claim to, which is when width == 1 - see IsTensorDepthSupported).
-    const uint32_t maxDepthSplits =
-        outputShape[2] == 1 ? DivRoundUp(outputShape[3], capabilities.GetBrickGroupShape()[3]) : 1;
+    const uint32_t maxDepthSplits = outputShape[2] == 1 ? DivRoundUp(outputShape[3], g_BrickGroupShape[3]) : 1;
 
     for (uint32_t numDepthSplits = 1; numDepthSplits <= maxDepthSplits && !outputAllocateResult.first; ++numDepthSplits)
     {
@@ -59,11 +58,9 @@ bool ChooseAndSetupStripe(const HardwareCapabilities& capabilities,
                 const uint32_t outputStripeWidth  = outputShape[2] / numWidthSplits;
                 const uint32_t outputStripeDepth  = outputShape[3] / numDepthSplits;
 
-                outputStripe = {
-                    1, utils::RoundUpToNearestMultiple(outputStripeHeight, capabilities.GetBrickGroupShape()[1]),
-                    utils::RoundUpToNearestMultiple(outputStripeWidth, capabilities.GetBrickGroupShape()[2]),
-                    utils::RoundUpToNearestMultiple(outputStripeDepth, capabilities.GetBrickGroupShape()[3])
-                };
+                outputStripe          = { 1, utils::RoundUpToNearestMultiple(outputStripeHeight, g_BrickGroupShape[1]),
+                                 utils::RoundUpToNearestMultiple(outputStripeWidth, g_BrickGroupShape[2]),
+                                 utils::RoundUpToNearestMultiple(outputStripeDepth, g_BrickGroupShape[3]) };
                 const uint32_t output = TotalSizeBytesNHWCB(outputStripe);
 
                 // We can use a dummy node id here because this function only verifies whether the allocated stripe

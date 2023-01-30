@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -74,7 +74,7 @@ void ConcatPart::CreateConcatDramPlans(Plans& plans) const
         const uint32_t offset = m_Offsets[i];
 
         // Check compatibility with NHWCB
-        if (offset % m_Capabilities.GetBrickGroupShape()[m_Axis] != 0)
+        if (offset % g_BrickGroupShape[m_Axis] != 0)
         {
             canUseNhwcb = false;
         }
