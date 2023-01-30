@@ -351,36 +351,104 @@ TensorShape CreateStripe(TensorShape input, TensorShape inputEncoding, uint32_t 
     return inputStripeShape;
 }
 
-/// Checks if a given SRAM buffer could be DMA'd to or from a DRAM buffer of the given format.
-/// For example, this checks that an SRAM buffer with a stripe shape that splits depth cannot be DMA'd
-/// to an NHWC DRAM buffer (as the firmware does not support this).
-bool IsSramBufferCompatibleWithDramFormat(const Buffer& sramBuffer, CascadingBufferFormat dramFormat)
+bool IsSramBufferCompatibleWithDramBuffer(const Buffer& sramBuffer,
+                                          const Buffer& dramBuffer,
+                                          const TensorShape& dramOffset)
 {
+    assert(sramBuffer.m_Location == Location::Sram);
+    assert(dramBuffer.m_Location == Location::Dram);
+    return IsSramBufferCompatibleWithDramBuffer(sramBuffer.m_TensorShape, sramBuffer.m_StripeShape,
+                                                sramBuffer.m_PackedBoundaryThickness, dramBuffer.m_Format,
+                                                dramBuffer.m_TensorShape, dramOffset);
+}
+
+bool IsSramBufferCompatibleWithDramBuffer(const Buffer& sramBuffer,
+                                          CascadingBufferFormat dramFormat,
+                                          const TensorShape& dramTensorShape,
+                                          const TensorShape& dramOffset)
+{
+    assert(sramBuffer.m_Location == Location::Sram);
+    return IsSramBufferCompatibleWithDramBuffer(sramBuffer.m_TensorShape, sramBuffer.m_StripeShape,
+                                                sramBuffer.m_PackedBoundaryThickness, dramFormat, dramTensorShape,
+                                                dramOffset);
+}
+
+bool IsSramBufferCompatibleWithDramBuffer(
+    const TensorShape& sramTensorShape,
+    const TensorShape& stripeShape,
+    const command_stream::cascading::PackedBoundaryThickness& packedBoundaryThickness,
+    CascadingBufferFormat dramFormat,
+    const TensorShape& dramTensorShape,
+    const TensorShape& dramOffset)
+{
+    // If the copy involves a reshape (tensor shape changes to one with the same number of elements,
+    // not the same as a sub-tensor which has different number of elements), then it must be NHWC
+    TensorShape dramTensorShapeNoReshape = dramTensorShape;
+    if (sramTensorShape != dramTensorShape && GetNumElements(sramTensorShape) == GetNumElements(dramTensorShape))
+    {
+        if (dramFormat != CascadingBufferFormat::NHWC)
+        {
+            return false;
+        }
+        // Do the rest of the checks with the un-reshaped tensor, for stripe compatiblity checking etc.
+        // This is because we use the SRAM tensor shape in the command we send to the firmware, not the
+        // DRAM one.
+        dramTensorShapeNoReshape = sramTensorShape;
+    }
+
+    // If there is an offset into the DRAM tensor, check that the offset is aligned appropriately for this
+    // format.
+    TensorShape requiredMultiple = { 0, 0, 0, 0 };
+    switch (dramFormat)
+    {
+        case CascadingBufferFormat::NHWC:
+            requiredMultiple = { 1, 1, 1, 0xffffffff };    // No offset in C is allowed
+            break;
+        case CascadingBufferFormat::NHWCB:
+            requiredMultiple = g_BrickGroupShape;
+            break;
+        case CascadingBufferFormat::FCAF_WIDE:
+            requiredMultiple = g_FcafWideCellShape;
+            break;
+        case CascadingBufferFormat::FCAF_DEEP:
+            requiredMultiple = g_FcafDeepCellShape;
+            break;
+        default:
+            assert(false);
+    }
+
+    for (int axis = 1; axis <= 3; ++axis)
+    {
+        if (dramOffset[axis] % requiredMultiple[axis] != 0)
+        {
+            return false;
+        }
+    }
+
     // NHWC can't split depth
     if (dramFormat == CascadingBufferFormat::NHWC &&
-        utils::GetChannels(sramBuffer.m_StripeShape) < utils::GetChannels(sramBuffer.m_TensorShape))
+        utils::GetChannels(stripeShape) < utils::GetChannels(dramTensorShapeNoReshape))
     {
         return false;
     }
 
     // FCAF requires certain stripe shapes
     if (dramFormat == CascadingBufferFormat::FCAF_DEEP &&
-        !IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_DEEP, sramBuffer.m_StripeShape,
-                                                      sramBuffer.m_TensorShape))
+        !IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_DEEP, stripeShape,
+                                                      dramTensorShapeNoReshape))
     {
         return false;
     }
     // FCAF requires certain stripe shapes
     if (dramFormat == CascadingBufferFormat::FCAF_WIDE &&
-        !IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_WIDE, sramBuffer.m_StripeShape,
-                                                      sramBuffer.m_TensorShape))
+        !IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat::FCAF_WIDE, stripeShape,
+                                                      dramTensorShapeNoReshape))
     {
         return false;
     }
 
     // Packed boundary data only supported with NHWCB
-    if (dramFormat != CascadingBufferFormat::NHWCB &&
-        utils::AnyPackedBoundaryData(sramBuffer.m_PackedBoundaryThickness))
+    if (dramFormat != CascadingBufferFormat::NHWCB && utils::AnyPackedBoundaryData(packedBoundaryThickness))
     {
         return false;
     }
@@ -394,16 +462,27 @@ CascadingBufferFormat GetBestDramBufferFormat(const std::vector<const Buffer*>& 
     bool fcafDeep = compilationOptions.m_EnableIntermediateCompression;
     bool fcafWide = compilationOptions.m_EnableIntermediateCompression;
 
+    // All the SRAM buffers should have the same shape, and this will be the same shape as the DRAM buffer.
+    assert(sramBuffers.size() >= 1);
+    TensorShape tensorShape = sramBuffers[0]->m_TensorShape;
     for (const Buffer* b : sramBuffers)
     {
-        if (!IsSramBufferCompatibleWithDramFormat(*b, CascadingBufferFormat::FCAF_DEEP))
+        assert(b->m_TensorShape == tensorShape);
+        ETHOSN_UNUSED(b);
+    }
+
+    for (const Buffer* b : sramBuffers)
+    {
+        if (!IsSramBufferCompatibleWithDramBuffer(*b, CascadingBufferFormat::FCAF_DEEP, tensorShape, { 0, 0, 0, 0 }))
         {
             fcafDeep = false;
         }
-        if (!IsSramBufferCompatibleWithDramFormat(*b, CascadingBufferFormat::FCAF_WIDE))
+        if (!IsSramBufferCompatibleWithDramBuffer(*b, CascadingBufferFormat::FCAF_WIDE, tensorShape, { 0, 0, 0, 0 }))
         {
             fcafWide = false;
         }
+        // We'll fall back to NHWCB if neither FCAF formats work, so sanity check that NHWCB is valid.
+        assert(IsSramBufferCompatibleWithDramBuffer(*b, CascadingBufferFormat::NHWCB, tensorShape, { 0, 0, 0, 0 }));
     }
 
     if (fcafDeep)
@@ -507,6 +586,13 @@ std::unique_ptr<Buffer>
     sramBuffer->m_Offset     = 0;    // Nothing else should be resident in SRAM at this point, so we can use any address
     sramBuffer->m_NumStripes = 1;
     sramBuffer->m_SlotSizeInBytes = sramBuffer->m_SizeInBytes;
+
+    // Sanity check that the SRAM buffer we created is valid for DMAs to/from the DRAM buffers
+    for (CascadingBufferFormat format : compatibleDramBufferFormats)
+    {
+        assert(IsSramBufferCompatibleWithDramBuffer(*sramBuffer, format, shape, { 0, 0, 0, 0 }));
+        ETHOSN_UNUSED(format);
+    }
 
     return sramBuffer;
 }

@@ -676,7 +676,7 @@ bool IsCompressionFormatCompatibleWithStripeShapeLegacy(CompilerDataCompressedFo
                                                         const TensorShape& stripeShape);
 bool IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat compressionFormat,
                                                   const TensorShape& stripeShape,
-                                                  const TensorShape& tensorShape);
+                                                  const TensorShape& dramTensorShape);
 
 struct NeedBoundary
 {

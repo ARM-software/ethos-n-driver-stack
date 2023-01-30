@@ -1,5 +1,5 @@
 //
-// Copyright © 2022 Arm Limited.
+// Copyright © 2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -24,3 +24,6 @@ TEST_CASE("RoundDownToPow2")
     CHECK(RoundDownToPow2(0x800a5f6e) == 0x80000000);
     CHECK(RoundDownToPow2(0xffffffff) == 0x80000000);
 }
+
+// Note that tests for IsCompressionFormatCompatibleWithStripeShape are covered by the
+// tests for IsSramBufferCompatibleWithDramBuffer, which calls IsCompressionFormatCompatibleWithStripeShape.

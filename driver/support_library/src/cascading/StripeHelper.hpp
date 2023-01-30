@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -461,13 +461,31 @@ private:
                          StripeInfos& outStripeInfos) const;
 };
 
-/// Checks if a given SRAM buffer could be DMA'd to or from a DRAM buffer of the given format.
+/// Checks if a given SRAM buffer could be DMA'd to or from a DRAM buffer of the given format and shape,
+/// at the given offset.
 /// For example, this checks that an SRAM buffer with a stripe shape that splits depth cannot be DMA'd
 /// to an NHWC DRAM buffer (as the firmware does not support this).
-bool IsSramBufferCompatibleWithDramFormat(const Buffer& sramBuffer, CascadingBufferFormat dramFormat);
+/// This accounts for possible reshaping and subtensors/offsets.
+///@{
+bool IsSramBufferCompatibleWithDramBuffer(const Buffer& sramBuffer,
+                                          const Buffer& dramBuffer,
+                                          const TensorShape& dramOffset);
+bool IsSramBufferCompatibleWithDramBuffer(const Buffer& sramBuffer,
+                                          CascadingBufferFormat dramFormat,
+                                          const TensorShape& dramTensorShape,
+                                          const TensorShape& dramOffset);
+bool IsSramBufferCompatibleWithDramBuffer(
+    const TensorShape& sramTensorShape,
+    const TensorShape& stripeShape,
+    const command_stream::cascading::PackedBoundaryThickness& packedBoundaryThickness,
+    CascadingBufferFormat dramFormat,
+    const TensorShape& dramTensorShape,
+    const TensorShape& dramOffset);
+/// @}
 
 /// Returns the most efficient DRAM buffer format to use, that is compatible with being copied to/from
-/// the given set of SRAM buffers.
+/// the given set of SRAM buffers. Assumes that the full tensor is going to be copied (i.e. no subtensors)
+/// and no reshaping.
 CascadingBufferFormat GetBestDramBufferFormat(const std::vector<const Buffer*>& sramBuffers,
                                               const CompilationOptions& compilationOptions);
 

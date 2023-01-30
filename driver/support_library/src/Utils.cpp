@@ -490,7 +490,7 @@ bool IsCompressionFormatCompatibleWithStripeShapeLegacy(CompilerDataCompressedFo
 
 bool IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat compressionFormat,
                                                   const TensorShape& stripeShape,
-                                                  const TensorShape& tensorShape)
+                                                  const TensorShape& dramTensorShape)
 {
     TensorShape cellShape;
     switch (compressionFormat)
@@ -508,7 +508,7 @@ bool IsCompressionFormatCompatibleWithStripeShape(CompilerDataCompressedFormat c
     // stripes. If there is only a single stripe in that dimension, then it doesn't matter.
     for (uint32_t dim = 0; dim < 4; ++dim)
     {
-        uint32_t numStripes = DivRoundUp(tensorShape[dim], stripeShape[dim]);
+        uint32_t numStripes = DivRoundUp(dramTensorShape[dim], stripeShape[dim]);
         if (numStripes > 1 && (stripeShape[dim] % cellShape[dim]) != 0)
         {
             return false;

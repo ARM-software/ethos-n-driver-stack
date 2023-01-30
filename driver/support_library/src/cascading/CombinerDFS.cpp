@@ -565,7 +565,7 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
         for (std::pair<CascadingBufferFormat, Buffer*> formatAndBuffer : dramBuffers)
         {
             if (std::all_of(sramBuffers.begin(), sramBuffers.end(), [&](const Buffer* b) {
-                    return impl::IsSramBufferCompatibleWithDramFormat(*b, formatAndBuffer.first);
+                    return impl::IsSramBufferCompatibleWithDramBuffer(*b, *formatAndBuffer.second, { 0, 0, 0, 0 });
                 }))
             {
                 return formatAndBuffer.second;
@@ -601,7 +601,7 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
             {
                 // We might be able to add a single DMA to copy directly from the producer buffer,
                 Buffer* dramBufferToCopyFrom = producedBuffer;
-                if (!impl::IsSramBufferCompatibleWithDramFormat(*producedBuffer, consumerBuffer->m_Format))
+                if (!impl::IsSramBufferCompatibleWithDramBuffer(*producedBuffer, *consumerBuffer, { 0, 0, 0, 0 }))
                 {
                     // If the SRAM buffer is not compatible though, then we'll need to do a conversion.
                     // We may be lucky and there is already a DRAM buffer that is compatible that we can copy from, or we may need to add a new one.
@@ -630,7 +630,7 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
         {
             // We might be able to add a single DMA to copy directly from the producer buffer,
             Buffer* dramBufferToCopyFrom = producedBuffer;
-            if (!impl::IsSramBufferCompatibleWithDramFormat(*consumerBuffer, producedBuffer->m_Format))
+            if (!impl::IsSramBufferCompatibleWithDramBuffer(*consumerBuffer, *producedBuffer, { 0, 0, 0, 0 }))
             {
                 // If the SRAM buffer is not compatible though, then we'll need to do a conversion.
                 // We may be lucky and there is already a DRAM buffer that is compatible that we can copy from, or we may need to add a new one.
