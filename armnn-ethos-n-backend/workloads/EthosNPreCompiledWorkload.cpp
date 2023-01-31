@@ -230,33 +230,52 @@ void EthosNPreCompiledWorkload::Init(const EthosNPreCompiledObject::Network& net
         throw RuntimeException("Kernel version is not supported");
     }
 
-    auto& procMemAllocator = armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocator(deviceId);
+    auto& procMemAllocator   = armnn::EthosNBackendAllocatorService::GetInstance().GetProcMemAllocator(deviceId);
+    auto intermediateBufSize = m_PreCompiledObject->GetIntermediateBufferSize();
+    ethosn::driver_library::IntermediateBufferReq req;
 
-    if (m_InternalAllocator != nullptr)
+    if (intermediateBufSize > 0)
     {
-        auto intermediateBufSize = m_PreCompiledObject->GetIntermediateBufferSize();
-        if (intermediateBufSize > 0)
+        if (m_InternalAllocator != nullptr)
         {
-            auto fd = m_InternalAllocator->allocate(intermediateBufSize, 0);
-            ethosn::driver_library::IntermediateBufferReq req(ethosn::driver_library::MemType::IMPORT,
-                                                              *static_cast<uint32_t*>(fd), O_RDWR | O_CLOEXEC);
+            if (procMemAllocator.GetProtected() &&
+                (m_InternalAllocator->GetMemorySourceType() != armnn::MemorySource::DmaBufProtected))
+            {
+                throw RuntimeException(
+                    "Backend configured for Protected requires a Custom Allocator supporting DmaBufProtected");
+            }
+            else if (m_InternalAllocator->GetMemorySourceType() != armnn::MemorySource::DmaBuf)
+            {
+                throw RuntimeException(
+                    "Backend configured for Non-protected requires a Custom Allocator supporting DmaBuf");
+            }
 
-            m_Network = std::make_unique<ethosn::driver_library::Network>(procMemAllocator.CreateNetwork(
-                network.m_SerializedCompiledNetwork.data(), network.m_SerializedCompiledNetwork.size(), req));
+            void* mem_handle = m_InternalAllocator->allocate(intermediateBufSize, 0);
+            if (mem_handle == nullptr)
+            {
+                throw NullPointerException("Failed to allocate memory for intermediate buffers");
+            }
+            req.type  = ethosn::driver_library::MemType::IMPORT;
+            req.fd    = *static_cast<uint32_t*>(mem_handle);
+            req.flags = O_RDWR | O_CLOEXEC;
         }
         else
         {
-            ethosn::driver_library::IntermediateBufferReq req(ethosn::driver_library::MemType::NONE);
+            if (procMemAllocator.GetProtected())
+            {
+                throw RuntimeException("Backend configured for Protected requires a Custom Allocator");
+            }
 
-            m_Network = std::make_unique<ethosn::driver_library::Network>(procMemAllocator.CreateNetwork(
-                network.m_SerializedCompiledNetwork.data(), network.m_SerializedCompiledNetwork.size(), req));
+            req.type = ethosn::driver_library::MemType::ALLOCATE;
         }
     }
     else
     {
-        m_Network = std::make_unique<ethosn::driver_library::Network>(procMemAllocator.CreateNetwork(
-            network.m_SerializedCompiledNetwork.data(), network.m_SerializedCompiledNetwork.size()));
+        req.type = ethosn::driver_library::MemType::NONE;
     }
+
+    m_Network = std::make_unique<ethosn::driver_library::Network>(procMemAllocator.CreateNetwork(
+        network.m_SerializedCompiledNetwork.data(), network.m_SerializedCompiledNetwork.size(), req));
 
     m_Network->SetDebugName(("Subgraph" + std::to_string(m_PreCompiledObject->GetSubgraphIndex())).c_str());
 }
@@ -303,14 +322,14 @@ void EthosNPreCompiledWorkload::Execute() const
         for (uint32_t inputSlotIdx = 0; inputSlotIdx < numInputBuffers; ++inputSlotIdx)
         {
             auto&& inputTensorHandle   = m_Data.m_Inputs[inputSlotIdx];
-            inputBuffers[inputSlotIdx] = &(static_cast<EthosNTensorHandle*>(inputTensorHandle)->GetBuffer());
+            inputBuffers[inputSlotIdx] = &(static_cast<EthosNBaseTensorHandle*>(inputTensorHandle)->GetBuffer());
         }
         // Fill outputBuffers from the output tensor handles, assuming that the order
         // is the same from the Arm NN output slots to the Ethos-N output slots.
         for (uint32_t outputSlotIdx = 0; outputSlotIdx < numOutputBuffers; ++outputSlotIdx)
         {
             auto&& outputTensorHandle    = m_Data.m_Outputs[outputSlotIdx];
-            outputBuffers[outputSlotIdx] = &(static_cast<EthosNTensorHandle*>(outputTensorHandle)->GetBuffer());
+            outputBuffers[outputSlotIdx] = &(static_cast<EthosNBaseTensorHandle*>(outputTensorHandle)->GetBuffer());
         }
 
         ARMNN_LOG(debug) << "Ethos-N ScheduleInference Subgraph " << m_PreCompiledObject->GetSubgraphIndex();

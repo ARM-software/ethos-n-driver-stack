@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "EthosNBackend.hpp"
@@ -40,6 +40,7 @@ TEST_SUITE("EthosNBackend")
         expectedCap.AddOption(BackendOptions::BackendOption("AsyncExecution", true));
         expectedCap.AddOption(BackendOptions::BackendOption("ExternallyManagedMemory", true));
         expectedCap.AddOption(BackendOptions::BackendOption("PreImportIOTensors", true));
+        expectedCap.AddOption(BackendOptions::BackendOption("ProtectedContentAllocation", true));
 
         CHECK(backendCap.GetBackendId().Get() == expectedCap.GetBackendId().Get());
         CHECK(backendCap.GetOptionCount() == expectedCap.GetOptionCount());

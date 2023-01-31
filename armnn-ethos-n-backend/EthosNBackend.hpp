@@ -84,13 +84,22 @@ public:
 
     virtual std::vector<ITensorHandleFactory::FactoryId> GetHandleFactoryPreferences() const override
     {
-        return std::vector<ITensorHandleFactory::FactoryId>{ EthosNImportTensorHandleFactory::GetIdStatic() };
+        if (m_IsProtected)
+        {
+            return std::vector<ITensorHandleFactory::FactoryId>{ EthosNProtectedTensorHandleFactory::GetIdStatic() };
+        }
+        else
+        {
+            return std::vector<ITensorHandleFactory::FactoryId>{ EthosNImportTensorHandleFactory::GetIdStatic() };
+        }
     }
 
     bool UseCustomMemoryAllocator(std::shared_ptr<armnn::ICustomAllocator> allocator,
                                   armnn::Optional<std::string&> errMsg) override
     {
         IgnoreUnused(errMsg);
+        ms_IsProtected       = allocator->GetMemorySourceType() == MemorySource::DmaBufProtected;
+        m_IsProtected        = ms_IsProtected;
         ms_InternalAllocator = allocator;
         m_InternalAllocator  = allocator;
         ARMNN_LOG(info) << "Using Custom Allocator for EthosNBackend";
@@ -103,7 +112,7 @@ private:
     EthosNConfig m_Config;
     std::vector<char> m_Capabilities;
     std::shared_ptr<armnn::ICustomAllocator> m_InternalAllocator;
-
+    bool m_IsProtected;
     /// @}
 
     /// Subgraph counter, used to number each subgraph that we receive from Arm NN for a network.
@@ -118,6 +127,7 @@ protected:
     ARMNN_DLLEXPORT static EthosNConfig ms_Config;
     ARMNN_DLLEXPORT static std::vector<char> ms_Capabilities;
     ARMNN_DLLEXPORT static std::shared_ptr<armnn::ICustomAllocator> ms_InternalAllocator;
+    ARMNN_DLLEXPORT static bool ms_IsProtected;
     /// @}
 };
 
@@ -175,7 +185,7 @@ public:
         bool deviceIdRegistered = m_RegisteredDeviceIds.emplace(allocString).second;
         if (m_RefCount > 0 && deviceIdRegistered)
         {
-            m_Allocators.emplace(allocString, ProcMemAllocator(allocString));
+            m_Allocators.emplace(allocString, ProcMemAllocator(allocString, m_IsProtected));
         }
     }
 
@@ -208,7 +218,7 @@ public:
         {
             for (auto& deviceId : m_RegisteredDeviceIds)
             {
-                m_Allocators.emplace(deviceId, ProcMemAllocator(deviceId));
+                m_Allocators.emplace(deviceId, ProcMemAllocator(deviceId, m_IsProtected));
             }
         }
 
@@ -227,10 +237,21 @@ public:
         }
     }
 
+    bool SetProtected(bool isProtected)
+    {
+        if (m_RefCount <= 0)
+        {
+            m_IsProtected = isProtected;
+            return true;
+        }
+        return false;
+    }
+
 private:
     std::set<std::string> m_RegisteredDeviceIds;
     std::map<std::string, ethosn::driver_library::ProcMemAllocator> m_Allocators;
     uint32_t m_RefCount = 0;
+    bool m_IsProtected  = false;
 };
 
 class EthosNBackendContext : public IBackendContext
@@ -238,7 +259,13 @@ class EthosNBackendContext : public IBackendContext
 public:
     EthosNBackendContext(const IRuntime::CreationOptions& options)
         : IBackendContext(options)
-    {}
+        , m_options(options)
+    {
+        if (!EthosNBackendAllocatorService::GetInstance().SetProtected(m_options.m_ProtectedMode))
+        {
+            throw RuntimeException("Failed to set protected");
+        }
+    }
     bool BeforeLoadNetwork(NetworkId networkId) override;
 
     bool AfterLoadNetwork(NetworkId networkId) override;
@@ -248,6 +275,9 @@ public:
     bool AfterUnloadNetwork(NetworkId networkId) override;
 
     bool AfterEnqueueWorkload(NetworkId networkId) override;
+
+private:
+    IRuntime::CreationOptions m_options;
 };
 
 namespace ethosnbackend

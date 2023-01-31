@@ -21,6 +21,8 @@
 #include <ethosn_driver_library/Device.hpp>
 #include <ethosn_driver_library/Network.hpp>
 #include <ethosn_support_library/Support.hpp>
+
+#include <fmt/format.h>
 namespace armnn
 {
 
@@ -283,6 +285,7 @@ void CreatePreCompiledLayerInGraph(OptimizationViews& optimizationViews,
 ARMNN_DLLEXPORT armnn::EthosNConfig EthosNBackend::ms_Config;
 ARMNN_DLLEXPORT std::vector<char> EthosNBackend::ms_Capabilities;
 ARMNN_DLLEXPORT std::shared_ptr<armnn::ICustomAllocator> EthosNBackend::ms_InternalAllocator;
+ARMNN_DLLEXPORT bool EthosNBackend::ms_IsProtected;
 
 EthosNBackend::EthosNBackend()
     : m_NextSubgraphIdx(0)
@@ -317,6 +320,7 @@ EthosNBackend::EthosNBackend()
     m_Config            = ms_Config;
     m_Capabilities      = ms_Capabilities;
     m_InternalAllocator = ms_InternalAllocator;
+    m_IsProtected       = ms_IsProtected;
 }
 
 const BackendId& EthosNBackend::GetIdStatic()
@@ -367,16 +371,21 @@ IBackendInternal::IWorkloadFactoryPtr
                                          const ModelOptions& modelOptions) const
 {
     std::unique_ptr<ITensorHandleFactory> factory;
-    std::unique_ptr<ITensorHandleFactory> importFactory;
-
     const std::string deviceId = ethosnbackend::GetDeviceOptionVal(modelOptions);
     EthosNBackendAllocatorService::GetInstance().RegisterAllocator(m_Config, deviceId);
 
-    importFactory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config, deviceId);
+    if (m_IsProtected)
+    {
+        throw RuntimeException(fmt::format("{} not allowed in protected mode", __func__));
+    }
+    else
+    {
+        factory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config, deviceId);
+    }
 
-    tensorHandleFactoryRegistry.RegisterCopyAndImportFactoryPair(importFactory->GetId(), importFactory->GetId());
+    tensorHandleFactoryRegistry.RegisterCopyAndImportFactoryPair(factory->GetId(), factory->GetId());
 
-    tensorHandleFactoryRegistry.RegisterFactory(std::move(importFactory));
+    tensorHandleFactoryRegistry.RegisterFactory(std::move(factory));
 
     return CreateWorkloadFactory(nullptr, modelOptions);
 }
@@ -384,20 +393,29 @@ IBackendInternal::IWorkloadFactoryPtr
 IBackendInternal::IWorkloadFactoryPtr
     EthosNBackend::CreateWorkloadFactory(class TensorHandleFactoryRegistry& tensorHandleFactoryRegistry,
                                          const ModelOptions& modelOptions,
-                                         MemorySourceFlags,
-                                         MemorySourceFlags) const
+                                         MemorySourceFlags inputFlags,
+                                         MemorySourceFlags outputFlags) const
 {
     std::unique_ptr<ITensorHandleFactory> factory;
-    std::unique_ptr<ITensorHandleFactory> importFactory;
-
     const std::string deviceId = ethosnbackend::GetDeviceOptionVal(modelOptions);
     EthosNBackendAllocatorService::GetInstance().RegisterAllocator(m_Config, deviceId);
 
-    importFactory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config, deviceId);
+    if (m_IsProtected)
+    {
+        factory = std::make_unique<EthosNProtectedTensorHandleFactory>(m_Config, deviceId);
+        if (factory->GetImportFlags() != inputFlags || factory->GetExportFlags() != outputFlags)
+        {
+            factory.reset();
+            return nullptr;
+        }
+    }
+    else
+    {
+        factory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config, deviceId);
+    }
 
-    tensorHandleFactoryRegistry.RegisterCopyAndImportFactoryPair(importFactory->GetId(), importFactory->GetId());
-
-    tensorHandleFactoryRegistry.RegisterFactory(std::move(importFactory));
+    tensorHandleFactoryRegistry.RegisterCopyAndImportFactoryPair(factory->GetId(), factory->GetId());
+    tensorHandleFactoryRegistry.RegisterFactory(std::move(factory));
     return CreateWorkloadFactory(nullptr, modelOptions);
 }
 
@@ -416,12 +434,17 @@ BackendCapabilities EthosNBackend::GetCapabilities() const
     ethosnCap.AddOption(BackendOptions::BackendOption("AsyncExecution", true));
     ethosnCap.AddOption(BackendOptions::BackendOption("ExternallyManagedMemory", true));
     ethosnCap.AddOption(BackendOptions::BackendOption("PreImportIOTensors", true));
+    ethosnCap.AddOption(BackendOptions::BackendOption("ProtectedContentAllocation", true));
 
     return ethosnCap;
 }
 
 IBackendInternal::IBackendContextPtr EthosNBackend::CreateBackendContext(const IRuntime::CreationOptions& options) const
 {
+    if (m_IsProtected != options.m_ProtectedMode)
+    {
+        throw RuntimeException("ProtectedMode mismatch between CreateBackendContext and Backend");
+    }
     return IBackendContextPtr{ new EthosNBackendContext{ options } };
 }
 
@@ -505,27 +528,48 @@ OptimizationViews EthosNBackend::OptimizeSubgraphView(const SubgraphView& subgra
 }
 
 void EthosNBackend::RegisterTensorHandleFactories(TensorHandleFactoryRegistry& registry,
-                                                  MemorySourceFlags,
-                                                  MemorySourceFlags)
+                                                  MemorySourceFlags inputFlags,
+                                                  MemorySourceFlags outputFlags)
 {
     EthosNBackendAllocatorService::GetInstance().RegisterAllocator(m_Config, {});
 
-    std::unique_ptr<ITensorHandleFactory> importFactory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config);
+    std::unique_ptr<ITensorHandleFactory> factory;
+    if (m_IsProtected)
+    {
+        factory = std::make_unique<EthosNProtectedTensorHandleFactory>(m_Config);
+        if (factory->GetImportFlags() != inputFlags || factory->GetExportFlags() != outputFlags)
+        {
+            factory.reset();
+            throw RuntimeException("Unsupported input/output in Protected mode");
+        }
+    }
+    else
+    {
+        factory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config);
+    }
 
-    registry.RegisterCopyAndImportFactoryPair(importFactory->GetId(), importFactory->GetId());
+    registry.RegisterCopyAndImportFactoryPair(factory->GetId(), factory->GetId());
 
-    registry.RegisterFactory(std::move(importFactory));
+    registry.RegisterFactory(std::move(factory));
 }
 
 void EthosNBackend::RegisterTensorHandleFactories(TensorHandleFactoryRegistry& registry)
 {
     EthosNBackendAllocatorService::GetInstance().RegisterAllocator(m_Config, {});
 
-    std::unique_ptr<ITensorHandleFactory> importFactory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config);
+    std::unique_ptr<ITensorHandleFactory> factory;
+    if (m_IsProtected)
+    {
+        factory = std::make_unique<EthosNProtectedTensorHandleFactory>(m_Config);
+    }
+    else
+    {
+        factory = std::make_unique<EthosNImportTensorHandleFactory>(m_Config);
+    }
 
-    registry.RegisterCopyAndImportFactoryPair(importFactory->GetId(), importFactory->GetId());
+    registry.RegisterCopyAndImportFactoryPair(factory->GetId(), factory->GetId());
 
-    registry.RegisterFactory(std::move(importFactory));
+    registry.RegisterFactory(std::move(factory));
 }
 
 bool EthosNBackendContext::BeforeLoadNetwork(NetworkId)
