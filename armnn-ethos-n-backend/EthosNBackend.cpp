@@ -143,6 +143,8 @@ Graph CloneGraph(const SubgraphView& originalSubgraph)
         outputSlotOfLayer->Connect(newOutputLayer->GetInputSlot(0));
         outputSlotOfLayer->SetTensorInfo(originalSubgraphLayer.GetOutputSlot(i).GetTensorInfo());
     }
+    // For some reason cppcheck doesn't find the macro here, while it finds the ARMNN_NO_DEPRECATE_WARN_BEGIN.
+    // cppcheck-suppress unknownMacro
     ARMNN_NO_DEPRECATE_WARN_END
 
     return newGraph;
