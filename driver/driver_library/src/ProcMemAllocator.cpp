@@ -31,6 +31,7 @@ namespace driver_library
 {
 
 ProcMemAllocator::ProcMemAllocator(const std::string& device, bool is_protected)
+    : m_isProtected(is_protected)
 {
 #ifdef TARGET_KMOD
     int ethosnFd = open(device.c_str(), O_RDONLY);
@@ -84,6 +85,7 @@ ProcMemAllocator::ProcMemAllocator(bool is_protected)
 ProcMemAllocator::ProcMemAllocator(ProcMemAllocator&& otherAllocator)
     : m_AllocatorFd(otherAllocator.m_AllocatorFd)
     , m_deviceId(otherAllocator.m_deviceId)
+    , m_isProtected(otherAllocator.m_isProtected)
 {
     // Invalidate fd of other allocator to prevent early closing
     otherAllocator.m_AllocatorFd = -1;
@@ -137,6 +139,11 @@ Network ProcMemAllocator::CreateNetwork(const char* compiledNetworkData,
 std::string ProcMemAllocator::GetDeviceId()
 {
     return m_deviceId;
+}
+
+bool ProcMemAllocator::GetProtected()
+{
+    return m_isProtected;
 }
 
 }    // namespace driver_library

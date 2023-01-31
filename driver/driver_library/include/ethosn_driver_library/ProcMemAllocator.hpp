@@ -68,11 +68,14 @@ public:
 
     std::string GetDeviceId();
 
+    bool GetProtected();
+
     ~ProcMemAllocator();
 
 private:
     int m_AllocatorFd;
     std::string m_deviceId;
+    const bool m_isProtected;
 };
 
 }    // namespace driver_library
