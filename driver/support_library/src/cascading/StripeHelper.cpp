@@ -721,6 +721,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     using namespace utils;
 
     const uint32_t numOgs     = m_Capabilities.GetNumberOfOgs();
+    const uint32_t numSrams   = m_Capabilities.GetNumberOfSrams();
     const uint32_t brickDepth = GetChannels(g_BrickGroupShape);
 
     // Set Stripe split restrictions, depending on the Ple kernel type.
@@ -901,7 +902,9 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         std::max(blockConfig.m_BlockHeight(), GetHeight(g_BrickGroupShape) / m_PleShapeMultiplier.m_H);
     const uint32_t baseMceInputWidth =
         std::max(blockConfig.m_BlockWidth(), GetWidth(g_BrickGroupShape) / m_PleShapeMultiplier.m_W);
-    const uint32_t baseMceIfm = numOgs / m_MceShapeMultiplier.m_C;
+    // Note use of numSrams rather than numOgs when doing depthwise as only one OG per CE is used for depthwise.
+    const uint32_t baseMceOfm = (isDepthwise ? numSrams : numOgs);
+    const uint32_t baseMceIfm = baseMceOfm / m_MceShapeMultiplier.m_C;
 
     // Create some helpers to loop over potential stripe shapes. We create both 'inclusive' and 'exclusive' versions,
     // as in some cases we want to include stripes that cover the full tensor, and in others we don't.
@@ -915,7 +918,7 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         StripeShapeLoop::Exclusive(GetChannels(m_MceInputTensorShape), baseMceIfm,
                                    m_StripeConfig.ifmDepthMultiplier.min, m_StripeConfig.ifmDepthMultiplier.max);
     const StripeShapeLoop mceOfmLoopExcl =
-        StripeShapeLoop::Exclusive(GetChannels(m_MceOutputTensorShape), baseMceIfm,
+        StripeShapeLoop::Exclusive(GetChannels(m_MceOutputTensorShape), baseMceOfm,
                                    m_StripeConfig.ofmDepthMultiplier.min, m_StripeConfig.ofmDepthMultiplier.max);
     const StripeShapeLoop mceInputWidthLoopIncl =
         StripeShapeLoop::Inclusive(GetWidth(m_MceInputTensorShape), baseMceInputWidth,
@@ -1031,6 +1034,8 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
 
     if (isDepthwise)
     {
+        // Note use of numSrams rather than numOgs, as when doing depthwise only one OG is active or something like that
+
         if (cascadeType == CascadeType::Lonely)
         {
             // Try split output depth and input depth.
@@ -1045,13 +1050,14 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                     TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
                     TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
-                    TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
+                    TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, baseMceOfm);
 
                     TensorShape pleInputStripe    = mceOutputStripe;
                     TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
-                    TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, numOgs);
+                    TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, baseMceOfm);
 
-                    TensorShape memoryOutputStripe = CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, numOgs);
+                    TensorShape memoryOutputStripe =
+                        CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, baseMceOfm);
 
                     AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, mceInputStripe,
                                    memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
@@ -1076,14 +1082,14 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                                 CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
                             TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
-                            TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
+                            TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, baseMceOfm);
 
                             TensorShape pleInputStripe    = mceOutputStripe;
                             TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
-                            TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, numOgs);
+                            TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, baseMceOfm);
 
                             TensorShape memoryOutputStripe =
-                                CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, numOgs);
+                                CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, baseMceOfm);
 
                             AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe,
 
@@ -1103,20 +1109,20 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             const TensorShape& inputShape = m_MceInputTensorShape;
             TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
-            TensorShape mceOutputEncoding = TensorShape{ 0, 0, 0, numOgs };
-            TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
+            TensorShape mceOutputEncoding = TensorShape{ 0, 0, 0, baseMceOfm };
+            TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, baseMceOfm);
 
             // PLE stripe is the full tensor, as it accumulates the full output depth
-            TensorShape pleInputStripe  = CreateStripe(mceOutputShape, { 0, 0, 0, 0 }, numOgs);
-            TensorShape pleOutputStripe = CreateStripe(m_PleOutputTensorShape, { 0, 0, 0, 0 }, numOgs);
+            TensorShape pleInputStripe  = CreateStripe(mceOutputShape, { 0, 0, 0, 0 }, baseMceOfm);
+            TensorShape pleOutputStripe = CreateStripe(m_PleOutputTensorShape, { 0, 0, 0, 0 }, baseMceOfm);
 
             TensorShape memoryOutputEncoding = { 0, 0, 0, 0 };
-            TensorShape memoryOutputStripe   = CreateStripe(outputShape, memoryOutputEncoding, numOgs);
+            TensorShape memoryOutputStripe   = CreateStripe(outputShape, memoryOutputEncoding, baseMceOfm);
             AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, mceInputStripe,
                            memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
         }
     }
-    else
+    else    // Convolution or Fully Connected
     {
         if (cascadeType == CascadeType::Lonely)
         {
@@ -1131,13 +1137,14 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                     TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
                     TensorShape mceOutputEncoding = TensorShape{ 0, 0, 0, mceOfmStripeDepth };
-                    TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
+                    TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, baseMceOfm);
 
                     TensorShape pleInputStripe    = mceOutputStripe;
                     TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
-                    TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, numOgs);
+                    TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, baseMceOfm);
 
-                    TensorShape memoryOutputStripe = CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, numOgs);
+                    TensorShape memoryOutputStripe =
+                        CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, baseMceOfm);
 
                     AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, mceInputStripe,
                                    memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
@@ -1159,15 +1166,15 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
 
                         TensorShape mceOutputEncoding =
                             TensorShape{ 0, mceInputStripeHeight * m_MceShapeMultiplier.m_H,
-                                         mceInputStripeWidth * m_MceShapeMultiplier.m_W, numOgs };
-                        TensorShape mceOutputStripe = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
+                                         mceInputStripeWidth * m_MceShapeMultiplier.m_W, baseMceOfm };
+                        TensorShape mceOutputStripe = CreateStripe(mceOutputShape, mceOutputEncoding, baseMceOfm);
 
                         TensorShape pleInputStripe    = mceOutputStripe;
                         TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
-                        TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, numOgs);
+                        TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, baseMceOfm);
 
                         TensorShape memoryOutputStripe =
-                            CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, numOgs);
+                            CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, baseMceOfm);
 
                         AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe,
 
@@ -1190,12 +1197,12 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                     TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
                     // Because of the split in IFM depth, the MCE will have to hold and accumulate the MAC results
                     // between iterations. It can only do so across the number of OGs.
-                    mceOutputEncoding[3]        = numOgs;
-                    TensorShape mceOutputStripe = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
+                    mceOutputEncoding[3]        = baseMceOfm;
+                    TensorShape mceOutputStripe = CreateStripe(mceOutputShape, mceOutputEncoding, baseMceOfm);
 
                     TensorShape pleInputStripe    = mceOutputStripe;
                     TensorShape pleOutputEncoding = mceOutputEncoding * m_PleShapeMultiplier;
-                    TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, numOgs);
+                    TensorShape pleOutputStripe   = CreateStripe(outputShape, pleOutputEncoding, baseMceOfm);
 
                     TensorShape memoryOutputStripe = CreateStripe(m_PleOutputTensorShape, pleOutputEncoding, numOgs);
 
@@ -1212,15 +1219,15 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             const TensorShape& inputShape = m_MceInputTensorShape;
             TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
-            TensorShape mceOutputEncoding = TensorShape{ 0, 0, 0, numOgs };
-            TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, numOgs);
+            TensorShape mceOutputEncoding = TensorShape{ 0, 0, 0, baseMceOfm };
+            TensorShape mceOutputStripe   = CreateStripe(mceOutputShape, mceOutputEncoding, baseMceOfm);
 
             // PLE stripe is the full tensor, as it accumulates the full output depth
-            TensorShape pleInputStripe  = CreateStripe(mceOutputShape, { 0, 0, 0, 0 }, numOgs);
-            TensorShape pleOutputStripe = CreateStripe(m_PleOutputTensorShape, { 0, 0, 0, 0 }, numOgs);
+            TensorShape pleInputStripe  = CreateStripe(mceOutputShape, { 0, 0, 0, 0 }, baseMceOfm);
+            TensorShape pleOutputStripe = CreateStripe(m_PleOutputTensorShape, { 0, 0, 0, 0 }, baseMceOfm);
 
             TensorShape memoryOutputEncoding = { 0, 0, 0, 0 };
-            TensorShape memoryOutputStripe   = CreateStripe(outputShape, memoryOutputEncoding, numOgs);
+            TensorShape memoryOutputStripe   = CreateStripe(outputShape, memoryOutputEncoding, baseMceOfm);
             AddStripeInfos(mceInputStripe, mceOutputStripe, pleInputStripe, pleOutputStripe, mceInputStripe,
                            memoryOutputStripe, mceOutputStripe, inputShape, outputShape);
         }
