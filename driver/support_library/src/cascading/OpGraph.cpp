@@ -666,7 +666,7 @@ std::vector<Buffer*> GetSortedBuffers(const OpGraph& g)
     }
 
     // Function which gets the buffers which are needed as inputs (via the producing Ops) to the given buffer
-    auto getIncomingEdges = [g](Buffer* b) {
+    auto getIncomingEdges = [&g](Buffer* b) {
         std::vector<Buffer*> incomingBuffers;
         for (Op* c : g.GetProducers(b))
         {
