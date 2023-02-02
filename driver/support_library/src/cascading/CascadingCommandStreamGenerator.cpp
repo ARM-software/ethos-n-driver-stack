@@ -107,6 +107,8 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
                     // Pad the buffer ID for easy sorting of dumped file names
                     ss << "EthosNIntermediateBuffer_" << std::setfill('0') << std::setw(3) << b.second << std::setw(0);
                     ss << "_" << ToString(b.first->m_DataType);
+                    // The zero point is needed to decode FCAF tensors, so is useful to include in the filename.
+                    ss << "_" << ToString(b.first->m_QuantizationInfo.GetZeroPoint());
                     ss << "_" << ToString(b.first->m_Format);
                     ss << "_" << shape[0] << "_" << shape[1] << "_" << shape[2] << "_" << shape[3];
                     ss << ".hex";

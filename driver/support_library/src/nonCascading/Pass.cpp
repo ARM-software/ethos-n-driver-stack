@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -104,6 +104,8 @@ void Pass::PostGenerate(command_stream::CommandStreamBuffer& cmdStream, bool dum
                 ss << "EthosNIntermediateBuffer_" << std::setfill('0') << std::setw(3) << m_Nodes.back()->GetBufferId()
                    << std::setw(0);
                 ss << "_" << ToString(m_Nodes.back()->GetDataType());
+                // The zero point is needed to decode FCAF tensors, so is useful to include in the filename.
+                ss << "_" << ToString(m_Nodes.back()->GetQuantizationInfo().GetZeroPoint());
                 ss << "_" << ToString(m_Nodes.back()->GetBufferFormat());
                 ss << "_" << shape[0] << "_" << shape[1] << "_" << shape[2] << "_" << shape[3];
                 ss << ".hex";
