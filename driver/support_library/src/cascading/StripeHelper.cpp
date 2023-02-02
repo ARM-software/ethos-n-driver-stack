@@ -730,6 +730,9 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
     const bool isDepthwise           = m_Operation == ethosn::command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
     const TensorShape mceOutputShape = m_MceOutputTensorShape;
 
+    // Note use of numSrams rather than numOgs when doing depthwise as only one OG per CE is used for depthwise.
+    const uint32_t baseMceOfm = (isDepthwise ? numSrams : numOgs);
+
     auto AddStripeInfos = [&](const TensorShape& mceInputStripe, const TensorShape& mceOutputStripe,
                               const TensorShape& pleInputStripe, const TensorShape& pleOutputStripe,
                               const TensorShape& memoryInputStripe, const TensorShape& memoryOutputStripe,
@@ -780,6 +783,15 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         const uint32_t numWgtStripesPerMce       = 1;
         const uint32_t numIfmAndWgtStripesPerPle = (numIfmStripesPerMce + numWgtStripesPerMce) * numMceStripesPerPle;
         if (numIfmAndWgtStripesPerPle > m_Capabilities.GetMaxIfmAndWgtStripesPerPleStripe())
+        {
+            return;
+        }
+
+        // Prevent max pooling from having more than one channel per PLE, when it is also split in height.
+        // This is a limitation of the PLE kernel.
+        if ((m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+             m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD) &&
+            GetHeight(pleInputStripe) < GetHeight(m_MceOutputTensorShape) && GetChannels(pleInputStripe) > baseMceOfm)
         {
             return;
         }
@@ -893,8 +905,6 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         std::max(blockConfig.m_BlockHeight(), GetHeight(g_BrickGroupShape) / m_PleShapeMultiplier.m_H);
     const uint32_t baseMceInputWidth =
         std::max(blockConfig.m_BlockWidth(), GetWidth(g_BrickGroupShape) / m_PleShapeMultiplier.m_W);
-    // Note use of numSrams rather than numOgs when doing depthwise as only one OG per CE is used for depthwise.
-    const uint32_t baseMceOfm = (isDepthwise ? numSrams : numOgs);
     const uint32_t baseMceIfm = baseMceOfm / m_MceShapeMultiplier.m_C;
 
     // Create some helpers to loop over potential stripe shapes. We create both 'inclusive' and 'exclusive' versions,
