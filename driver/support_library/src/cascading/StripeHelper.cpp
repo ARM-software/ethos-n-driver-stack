@@ -1497,10 +1497,12 @@ std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
     auto pleOutBuffer = buffers.back();
     opGraph.SetProducer(pleOutBuffer, op);
 
-    pleOutBuffer->m_DataType        = outputDataType;
-    pleOutBuffer->m_TensorShape     = outputShape;
-    pleOutBuffer->m_StripeShape     = memoryOutputShape;
-    pleOutBuffer->m_NumStripes      = numMemoryStripes.m_Output;
+    pleOutBuffer->m_DataType    = outputDataType;
+    pleOutBuffer->m_TensorShape = outputShape;
+    pleOutBuffer->m_StripeShape = memoryOutputShape;
+    pleOutBuffer->m_NumStripes  = numMemoryStripes.m_Output;
+    // Note that we don't need to account for FCAF here, because this SRAM buffer will never be decompressed
+    // from FCAF. It may be compressed _into_ FCAF, but that's fine and doesn't require any special consideration.
     pleOutBuffer->m_SizeInBytes     = numMemoryStripes.m_Output * utils::TotalSizeBytesNHWCB(memoryOutputShape);
     pleOutBuffer->m_SlotSizeInBytes = utils::TotalSizeBytesNHWCB(memoryOutputShape);
 

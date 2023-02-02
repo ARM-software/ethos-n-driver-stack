@@ -77,27 +77,15 @@ inline void SetStripeHeightInfo(FmSData& streamerData, const TensorShape& tensor
     streamerData.dfltStripeSize.height = stripeHeight;
 
     streamerData.edgeStripeSize.height = CommonUtils::CalculateEdgeSize(tensorHeight, stripeHeight);
-    uint32_t multiple                  = 0;
-    switch (streamerData.dataType)
+    if (streamerData.dataType != FmsDataType::NHWC)
     {
-        case FmsDataType::NHWCB:
-            multiple = utils::GetHeight(g_BrickGroupShape);
-            break;
-        case FmsDataType::FCAF_WIDE:
-            multiple = utils::GetHeight(g_FcafWideCellShape);
-            break;
-        case FmsDataType::FCAF_DEEP:
-            multiple = utils::GetHeight(g_FcafDeepCellShape);
-            break;
-        case FmsDataType::NHWC:
-            multiple = 1;
-            break;
-        default:
-            assert(false);
-            break;
+        // Note that we don't round up to the cell shape for FCAF, only the brick group shape.
+        // This is because FCAF transfers work fine with partial cells, and we need to keep
+        // this stripe shape consistent with the PLE's interepretation of stripe layout, which rounds
+        // to the brick group shape only.
+        streamerData.edgeStripeSize.height = ethosn::utils::NumericCast<uint16_t>(utils::RoundUpToNearestMultiple(
+            static_cast<uint32_t>(streamerData.edgeStripeSize.height), utils::GetHeight(g_BrickGroupShape)));
     }
-    streamerData.edgeStripeSize.height = ethosn::utils::NumericCast<uint16_t>(
-        utils::RoundUpToNearestMultiple(static_cast<uint32_t>(streamerData.edgeStripeSize.height), multiple));
 }
 
 inline void SetStripeWidthInfo(FmSData& streamerData, const TensorShape& tensorShape, const TensorShape& stripeShape)
@@ -113,27 +101,15 @@ inline void SetStripeWidthInfo(FmSData& streamerData, const TensorShape& tensorS
     streamerData.dfltStripeSize.width = stripeWidth;
 
     streamerData.edgeStripeSize.width = CommonUtils::CalculateEdgeSize(tensorWidth, stripeWidth);
-    uint32_t multiple                 = 0;
-    switch (streamerData.dataType)
+    // Note that we don't round up to the cell shape for FCAF, only the brick group shape.
+    // This is because FCAF transfers work fine with partial cells, and we need to keep
+    // this stripe shape consistent with the PLE's interepretation of stripe layout, which rounds
+    // to the brick group shape only.
+    if (streamerData.dataType != FmsDataType::NHWC)
     {
-        case FmsDataType::NHWCB:
-            multiple = utils::GetWidth(g_BrickGroupShape);
-            break;
-        case FmsDataType::FCAF_WIDE:
-            multiple = utils::GetWidth(g_FcafWideCellShape);
-            break;
-        case FmsDataType::FCAF_DEEP:
-            multiple = utils::GetWidth(g_FcafDeepCellShape);
-            break;
-        case FmsDataType::NHWC:
-            multiple = 1;
-            break;
-        default:
-            assert(false);
-            break;
+        streamerData.edgeStripeSize.width = ethosn::utils::NumericCast<uint16_t>(utils::RoundUpToNearestMultiple(
+            static_cast<uint32_t>(streamerData.edgeStripeSize.width), utils::GetWidth(g_BrickGroupShape)));
     }
-    streamerData.edgeStripeSize.width = ethosn::utils::NumericCast<uint16_t>(
-        utils::RoundUpToNearestMultiple(static_cast<uint32_t>(streamerData.edgeStripeSize.width), multiple));
 }
 
 inline void SetStripeChannelsInfo(FmSData& streamerData,
