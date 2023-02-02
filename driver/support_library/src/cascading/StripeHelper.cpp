@@ -744,7 +744,9 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         NumStripes pleInputRange;
         const bool requiresBoundaryData =
             (m_KernelHeight > 1 && GetHeight(mceInputStripe) < GetHeight(m_MceInputTensorShape)) ||
-            (m_KernelWidth > 1 && GetWidth(mceInputStripe) < GetWidth(m_MceInputTensorShape)) || m_UpscaleFactor > 1;
+            (m_KernelWidth > 1 && GetWidth(mceInputStripe) < GetWidth(m_MceInputTensorShape)) || m_UpscaleFactor > 1 ||
+            m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+            m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD;
         CreateNumStripes(cascadeType, requiresBoundaryData, inputRange, outputRange, weightRange, pleInputRange);
 
         // Limit the max number of stripes based on the size of the tensor - there is no point considering plans where

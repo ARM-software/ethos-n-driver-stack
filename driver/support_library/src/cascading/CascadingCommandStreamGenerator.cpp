@@ -229,7 +229,7 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
                 AddReadAfterWriteDependency(
                     AgentType::IFM_STREAMER, ifmStreamerAgentId,
                     m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForIfmS)].data.type,
-                    this->m_OpToAgentIdMapping.at(m_FenceOpForIfmS));
+                    this->m_OpToAgentIdMapping.at(m_FenceOpForIfmS), m_FenceOpForIfmS);
                 m_FenceOpForIfmS = nullptr;
             }
         }
@@ -245,7 +245,7 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
                 AddReadAfterWriteDependency(
                     AgentType::WGT_STREAMER, weightStreamerAgentId,
                     m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForWgtS)].data.type,
-                    this->m_OpToAgentIdMapping.at(m_FenceOpForWgtS));
+                    this->m_OpToAgentIdMapping.at(m_FenceOpForWgtS), m_FenceOpForWgtS);
                 m_FenceOpForWgtS = nullptr;
             }
         }
@@ -301,19 +301,19 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
         // Read After Write Dependency for [OfmStreamer][IfmStreamer] or
         // Read After Write Dependency for [OfmStreamer][PleScheduler]
         AddReadAfterWriteDependency(AgentType::OFM_STREAMER, ofmStreamerAgentId, producerAgentType,
-                                    m_OpToAgentIdMapping[producerOp]);
+                                    m_OpToAgentIdMapping[producerOp], producerOp);
 
         // Add 'Write After Read' dependency information to the IfmStreamer and PleScheduler agents
         // Write After Read Dependency for [IfmStreamer][OfmStreamer] or
         // Write After Read Dependency for [PleScheduler][OfmStreamer]
         AddWriteAfterReadDependency(AgentType::OFM_STREAMER, ofmStreamerAgentId, producerAgentType,
-                                    m_OpToAgentIdMapping[producerOp]);
+                                    m_OpToAgentIdMapping[producerOp], producerOp);
 
         // Add 'Schedule Time' dependency information to the IfmStreamer and PleScheduler agents
         // Schedule Time Dependency for [IfmStreamer][OfmStreamer] or
         // Schedule Time Dependency for [PleScheduler][OfmStreamer]
         AddScheduleTimeDependency(AgentType::OFM_STREAMER, ofmStreamerAgentId, producerAgentType,
-                                  m_OpToAgentIdMapping[producerOp]);
+                                  m_OpToAgentIdMapping[producerOp], producerOp);
     }
     else
     {
@@ -364,7 +364,7 @@ void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
             AddReadAfterWriteDependency(
                 AgentType::PLE_LOADER, pleLoaderAgentId,
                 m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForPleL)].data.type,
-                this->m_OpToAgentIdMapping.at(m_FenceOpForPleL));
+                this->m_OpToAgentIdMapping.at(m_FenceOpForPleL), m_FenceOpForPleL);
             m_FenceOpForPleL = nullptr;
         }
     }
@@ -377,37 +377,36 @@ void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
     // Read After Write Dependency for [MceScheduler][IfmStreamer] or
     // Read After Write Dependency for [MceScheduler][PleScheduler]
     AddReadAfterWriteDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, producerAgentType,
-                                m_OpToAgentIdMapping[producerOp]);
+                                m_OpToAgentIdMapping[producerOp], producerOp);
     // Read After Write Dependency for [MceScheduler][WeightStreamer]
-    AddReadAfterWriteDependency(
-        AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::WGT_STREAMER,
-        m_OpToAgentIdMapping[m_MergedOpGraph.GetSingleProducer(inputBuffers[g_MceWeightBufferIndex])]);
+    Op* wgtDmaOp = m_MergedOpGraph.GetSingleProducer(inputBuffers[g_MceWeightBufferIndex]);
+    AddReadAfterWriteDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::WGT_STREAMER,
+                                m_OpToAgentIdMapping[wgtDmaOp], wgtDmaOp);
 
     // Add 'Write After Read' dependency information to the IfmStreamer and WeightStreamer agents
     // Write After Read Dependency for [IfmStreamer][MceScheduler] or
     // Write After Read Dependency for [PleScheduler][MceScheduler]
     AddWriteAfterReadDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, producerAgentType,
-                                m_OpToAgentIdMapping[producerOp]);
+                                m_OpToAgentIdMapping[producerOp], producerOp);
     // Write After Read Dependency for [WeightStreamer][MceScheduler]
-    AddWriteAfterReadDependency(
-        AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::WGT_STREAMER,
-        m_OpToAgentIdMapping[m_MergedOpGraph.GetSingleProducer(inputBuffers[g_MceWeightBufferIndex])]);
+    AddWriteAfterReadDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::WGT_STREAMER,
+                                m_OpToAgentIdMapping[wgtDmaOp], wgtDmaOp);
 
     // Add 'Schedule Time' dependency information to the IfmStreamer and WeightStreamer agents
     // Schedule Time Dependency for [IfmStreamer][MceScheduler] or
     // Schedule Time Dependency for [PleScheduler][MceScheduler]
     AddScheduleTimeDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, producerAgentType,
-                              m_OpToAgentIdMapping[producerOp]);
+                              m_OpToAgentIdMapping[producerOp], producerOp);
     // Schedule Time Dependency for [WeightStreamer][MceScheduler]
-    AddScheduleTimeDependency(
-        AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::WGT_STREAMER,
-        m_OpToAgentIdMapping[m_MergedOpGraph.GetSingleProducer(inputBuffers[g_MceWeightBufferIndex])]);
+
+    AddScheduleTimeDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::WGT_STREAMER,
+                              m_OpToAgentIdMapping[wgtDmaOp], wgtDmaOp);
     // Add 'Schedule Time' dependency information to the PLE Loader agent
     // Schedule Time Dependency for [PLE Loader][MceScheduler]
     if (ptrPleOp->m_LoadKernel)
     {
         AddScheduleTimeDependency(AgentType::MCE_SCHEDULER, mceSchedulerAgentId, AgentType::PLE_LOADER,
-                                  pleLoaderAgentId);
+                                  pleLoaderAgentId, nullptr);
     }
 }
 
@@ -466,12 +465,12 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
 
         // Read After Write Dependency for [PleScheduler][IfmStreamer]
         AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
-                                    m_OpToAgentIdMapping[input0Producer]);
+                                    m_OpToAgentIdMapping[input0Producer], input0Producer);
         if (input1Producer != nullptr)
         {
             // Read After Write Dependency for [PleScheduler][IfmStreamer]
             AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
-                                        m_OpToAgentIdMapping[input1Producer]);
+                                        m_OpToAgentIdMapping[input1Producer], input1Producer);
         }
 
         if (loadKernel)
@@ -479,7 +478,7 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
             // Read After Write Dependency for [PleScheduler][PleLoader]
             AddReadAfterWriteDependency(
                 AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::PLE_LOADER,
-                m_PleKernelToPleLoaderAgentIdMapping[static_cast<PleOp*>(ptrPleOp)->m_PleKernelId]);
+                m_PleKernelToPleLoaderAgentIdMapping[static_cast<PleOp*>(ptrPleOp)->m_PleKernelId], nullptr);
 
             if (m_FenceOpForPleL != nullptr)
             {
@@ -488,35 +487,35 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
                 AddReadAfterWriteDependency(
                     AgentType::PLE_LOADER, pleLoaderAgentId,
                     m_CommandStreamAgents[this->m_OpToAgentIdMapping.at(m_FenceOpForPleL)].data.type,
-                    this->m_OpToAgentIdMapping.at(m_FenceOpForPleL));
+                    this->m_OpToAgentIdMapping.at(m_FenceOpForPleL), m_FenceOpForPleL);
                 m_FenceOpForPleL = nullptr;
             }
         }
 
         // Write After Read Dependency for [IfmStreamer][PleScheduler]
         AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
-                                    m_OpToAgentIdMapping[input0Producer]);
+                                    m_OpToAgentIdMapping[input0Producer], input0Producer);
 
         // Schedule Time Dependency for [IfmStreamer][PleScheduler]
         AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
-                                  m_OpToAgentIdMapping[input0Producer]);
+                                  m_OpToAgentIdMapping[input0Producer], input0Producer);
 
         if (input1Producer != nullptr)
         {
             // Write After Read Dependency for [IfmStreamer][PleScheduler]
             AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
-                                        m_OpToAgentIdMapping[input1Producer]);
+                                        m_OpToAgentIdMapping[input1Producer], input1Producer);
 
             // Schedule Time Dependency for [IfmStreamer][PleScheduler]
             AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
-                                      m_OpToAgentIdMapping[input1Producer]);
+                                      m_OpToAgentIdMapping[input1Producer], input1Producer);
         }
 
         if (loadKernel)
         {
             // Schedule Time Dependency for [PleLoader][PleScheduler]
             AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::PLE_LOADER,
-                                      pleLoaderAgentId);
+                                      pleLoaderAgentId, nullptr);
         }
     }
     else
@@ -525,18 +524,18 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
 
         // Read After Write Dependency for [PleScheduler][MceScheduler]
         AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::MCE_SCHEDULER,
-                                    m_OpToAgentIdMapping[input0Producer]);
+                                    m_OpToAgentIdMapping[input0Producer], input0Producer);
         if (loadKernel)
         {
             // Read After Write Dependency for [PleScheduler][PleLoader]
             AddReadAfterWriteDependency(
                 AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::PLE_LOADER,
-                m_PleKernelToPleLoaderAgentIdMapping[static_cast<PleOp*>(ptrPleOp)->m_PleKernelId]);
+                m_PleKernelToPleLoaderAgentIdMapping[static_cast<PleOp*>(ptrPleOp)->m_PleKernelId], nullptr);
         }
 
         // Schedule Time Dependency for [MceScheduler][PleScheduler]
         AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::MCE_SCHEDULER,
-                                  m_OpToAgentIdMapping[input0Producer]);
+                                  m_OpToAgentIdMapping[input0Producer], input0Producer);
     }
     ETHOSN_UNUSED(outputBuffer);
 }
@@ -944,14 +943,16 @@ AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(DmaOp
 inline void CascadingCommandStreamGenerator::AddReadAfterWriteDependency(const AgentType consumerAgentType,
                                                                          const AgentIdType consumerAgentId,
                                                                          const AgentType producerAgentType,
-                                                                         const AgentIdType producerAgentId)
+                                                                         const AgentIdType producerAgentId,
+                                                                         const Op* producerOp)
 {
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
 
     Dependency newDependency      = {};
     newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
-    FillConsumerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId);
+    FillConsumerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId,
+                                producerOp);
     DependencyUtils::AddDependency(m_CommandStreamAgents[consumerAgentId].info.readDependencies, newDependency);
 }
 
@@ -961,14 +962,16 @@ inline void CascadingCommandStreamGenerator::AddSramOverlapDependency(
     const command_stream::cascading::AgentType consumerAgentType,
     const AgentIdType consumerAgentId,
     const command_stream::cascading::AgentType producerAgentType,
-    const AgentIdType producerAgentId)
+    const AgentIdType producerAgentId,
+    const Op* producerOp)
 {
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
 
     Dependency newDependency      = {};
     newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
-    FillConsumerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId);
+    FillConsumerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId,
+                                producerOp);
     if (newDependency.relativeAgentId != 0)
     {
         DependencyUtils::AddDependency(m_CommandStreamAgents[consumerAgentId].info.readDependencies, newDependency);
@@ -980,7 +983,8 @@ inline void CascadingCommandStreamGenerator::AddSramOverlapDependency(
 inline void CascadingCommandStreamGenerator::AddWriteAfterReadDependency(const AgentType consumerAgentType,
                                                                          const AgentIdType consumerAgentId,
                                                                          const AgentType producerAgentType,
-                                                                         const AgentIdType producerAgentId)
+                                                                         const AgentIdType producerAgentId,
+                                                                         const Op* producerOp)
 {
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
@@ -988,7 +992,7 @@ inline void CascadingCommandStreamGenerator::AddWriteAfterReadDependency(const A
     Dependency newDependency      = {};
     newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
     FillProducerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId,
-                                DependencyType::Write);
+                                producerOp, DependencyType::Write);
     if (newDependency.relativeAgentId != 0)
     {
         DependencyUtils::AddDependency(m_CommandStreamAgents[producerAgentId].info.writeDependencies, newDependency);
@@ -1000,7 +1004,8 @@ inline void CascadingCommandStreamGenerator::AddWriteAfterReadDependency(const A
 inline void CascadingCommandStreamGenerator::AddScheduleTimeDependency(const AgentType consumerAgentType,
                                                                        const AgentIdType consumerAgentId,
                                                                        const AgentType producerAgentType,
-                                                                       const AgentIdType producerAgentId)
+                                                                       const AgentIdType producerAgentId,
+                                                                       const Op* producerOp)
 {
     AgentIdType relativeAgentId = consumerAgentId - producerAgentId;
     assert(relativeAgentId <= g_MaxRelativeAgentPosition);
@@ -1008,7 +1013,7 @@ inline void CascadingCommandStreamGenerator::AddScheduleTimeDependency(const Age
     Dependency newDependency      = {};
     newDependency.relativeAgentId = static_cast<RelativeAgentIdType>(relativeAgentId);
     FillProducerAgentDependency(newDependency, consumerAgentType, consumerAgentId, producerAgentType, producerAgentId,
-                                DependencyType::Schedule);
+                                producerOp, DependencyType::Schedule);
     if (newDependency.relativeAgentId != 0)
     {
         DependencyUtils::AddDependency(m_CommandStreamAgents[producerAgentId].info.scheduleDependencies, newDependency);
@@ -1021,7 +1026,8 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
     const command_stream::cascading::AgentType consumerAgentType,
     const AgentIdType consumerAgentId,
     const command_stream::cascading::AgentType producerAgentType,
-    const AgentIdType producerAgentId)
+    const AgentIdType producerAgentId,
+    const Op* producerOp)
 {
     Agent& consumerAgent = m_CommandStreamAgents[consumerAgentId];
     Agent& producerAgent = m_CommandStreamAgents[producerAgentId];
@@ -1304,7 +1310,17 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                                                          producerAgent.data.pleS.dfltStripeSize.height);
                 consumerAgentDependency.innerRatio.self = 1;
 
-                consumerAgentDependency.boundary = 0;
+                command_stream::PleOperation pleOperation = static_cast<const PleOp*>(producerOp)->m_Op;
+                if ((pleOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+                     pleOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD) &&
+                    producerAgent.data.pleS.numStripes.height > 1)
+                {
+                    consumerAgentDependency.boundary = 1;
+                }
+                else
+                {
+                    consumerAgentDependency.boundary = 0;
+                }
             }
             else
             {
@@ -1337,6 +1353,7 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
     const AgentIdType consumerAgentId,
     const command_stream::cascading::AgentType producerAgentType,
     const AgentIdType producerAgentId,
+    const Op* producerOp,
     DependencyType dependencyType)
 {
     Agent& consumerAgent = m_CommandStreamAgents[consumerAgentId];
@@ -1602,7 +1619,18 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                                                          consumerAgent.data.ofm.fmData.dfltStripeSize.height);
                 producerAgentDependency.innerRatio.self = 1;
 
-                producerAgentDependency.boundary = 0;
+                command_stream::PleOperation pleOperation = static_cast<const PleOp*>(producerOp)->m_Op;
+                if (dependencyType == DependencyType::Schedule &&
+                    (pleOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+                     pleOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD) &&
+                    producerAgent.data.pleS.numStripes.height > 1)
+                {
+                    producerAgentDependency.boundary = 1;
+                }
+                else
+                {
+                    producerAgentDependency.boundary = 0;
+                }
             }
             else
             {

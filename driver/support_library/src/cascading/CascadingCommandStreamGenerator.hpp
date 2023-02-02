@@ -1,5 +1,5 @@
 //
-// Copyright © 2022 Arm Limited.
+// Copyright © 2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -100,37 +100,43 @@ private:
     inline void AddReadAfterWriteDependency(const command_stream::cascading::AgentType consumerAgentType,
                                             const AgentIdType consumerAgentId,
                                             const command_stream::cascading::AgentType producerAgentType,
-                                            const AgentIdType producerAgentId);
+                                            const AgentIdType producerAgentId,
+                                            const Op* producerOp);
     // Private function to add SRAM Overlap Dependency
     // Consumer agent creates and own the dependency
     inline void AddSramOverlapDependency(const command_stream::cascading::AgentType consumerAgentType,
                                          const AgentIdType consumerAgentId,
                                          const command_stream::cascading::AgentType producerAgentType,
-                                         const AgentIdType producerAgentId);
+                                         const AgentIdType producerAgentId,
+                                         const Op* producerOp);
     // Private function to add WriteAfterRead Dependency
     // Last consumer agent creates the dependency and assign it to the producer agent
     inline void AddWriteAfterReadDependency(const command_stream::cascading::AgentType consumerAgentType,
                                             const AgentIdType consumerAgentId,
                                             const command_stream::cascading::AgentType producerAgentType,
-                                            const AgentIdType producerAgentId);
+                                            const AgentIdType producerAgentId,
+                                            const Op* producerOp);
     // Private function to add ScheduleTime Dependency
     // First consumer agent creates the dependency and assign it to the producer agent
     inline void AddScheduleTimeDependency(const command_stream::cascading::AgentType consumerAgentType,
                                           const AgentIdType consumerAgentId,
                                           const command_stream::cascading::AgentType producerAgentType,
-                                          const AgentIdType producerAgentId);
+                                          const AgentIdType producerAgentId,
+                                          const Op* producerOp);
     // Private function to fill the dependency data for Read After Write or SRAM Overlap dependencies
     void FillConsumerAgentDependency(command_stream::cascading::Dependency& consumerAgentDependency,
                                      const command_stream::cascading::AgentType consumerAgentType,
                                      const AgentIdType consumerAgentId,
                                      const command_stream::cascading::AgentType producerAgentType,
-                                     const AgentIdType producerAgentId);
+                                     const AgentIdType producerAgentId,
+                                     const Op* producerOp);
     // Private function to fill the dependency data for Write After Read or Schedule Time dependencies
     void FillProducerAgentDependency(command_stream::cascading::Dependency& producerAgentDependency,
                                      const command_stream::cascading::AgentType consumerAgentType,
                                      const AgentIdType consumerAgentId,
                                      const command_stream::cascading::AgentType producerAgentType,
                                      const AgentIdType producerAgentId,
+                                     const Op* producerOp,
                                      DependencyType dependencyType);
 
     // Private function to add the lifetime information of the intermediate DRAM buffers
