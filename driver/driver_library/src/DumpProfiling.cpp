@@ -191,7 +191,7 @@ void DumpProfilingData(const std::vector<ProfilingEntry>& profilingData, std::os
                 char buffer[size + 1] = { 0 };
                 strncat(buffer, reinterpret_cast<const char*>(kernelEntry.m_LabelFields.m_Chars), size);
                 o << "\t\t\t"
-                  << R"("chars": )" << buffer << "\n";
+                  << R"("chars": ")" << buffer << "\"\n";
                 break;
             }
             case ProfilingEntry::MetadataCategory::FirmwareDmaSetup:
