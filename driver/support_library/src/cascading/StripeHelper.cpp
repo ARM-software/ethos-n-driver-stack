@@ -760,15 +760,6 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                                            DivRoundUp(GetChannels(outputShape), GetChannels(memoryOutputStripe)));
         outputCopy.m_Min = std::min(outputCopy.m_Min, outputCopy.m_Max);
 
-        // Prevent using stripes which have more elements than the entire tensor
-        bool multipleStripes         = inputCopy.m_Max > 1 && outputCopy.m_Max > 1;
-        bool stripesLargerThanTensor = utils::GetNumElements(memoryInputStripe) > utils::GetNumElements(inputShape) &&
-                                       utils::GetNumElements(memoryOutputStripe) > utils::GetNumElements(outputShape);
-        if (multipleStripes && stripesLargerThanTensor)
-        {
-            return;
-        }
-
         // Prevent too many MCE stripes per PLE (a firmware limitation)
         const uint32_t numMceStripesPerPle =
             // Multiple stripes from output depth splitting, where the PLE accumulates the full depth
