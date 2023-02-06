@@ -223,15 +223,18 @@ InputStats GetInputStatsCascading(const Buffer& ifmBuffer,
         const uint32_t total = ifmBuffer.m_NumLoads * ifmBuffer.m_TensorShape[0] * effectiveHeight * effectiveWidth *
                                ifmBuffer.m_TensorShape[3];
 
+        const bool boundaryStripesNeeded =
+            ((weightsShape[0] > 1 && ifmBuffer.m_StripeShape[1] < ifmBuffer.m_TensorShape[1]) ||
+             (weightsShape[1] > 1 && ifmBuffer.m_StripeShape[2] < ifmBuffer.m_TensorShape[2]));
         // Calculate the minimum amount of data required to start processing.
         // This is a conservative approximation (i.e. an overestimate).
         // For example we assume that the stripes needed are non-partial.
-        const uint32_t numStripesNeededToStartProcessing = (weightsShape[0] > 1 || weightsShape[1] > 1) ? 2 : 1;
+        const uint32_t numStripesNeededToStartProcessing = boundaryStripesNeeded ? 2 : 1;
         const uint32_t bytesNeededToStartProcessing =
             std::min(numStripesNeededToStartProcessing * ifmBuffer.m_SlotSizeInBytes, total);
 
         // Determine how much data can be transferred in parallel.
-        const uint32_t numStripesNeededPerOfmStripe = (weightsShape[0] > 1 || weightsShape[1] > 1) ? 3 : 1;
+        const uint32_t numStripesNeededPerOfmStripe = boundaryStripesNeeded ? 3 : 1;
         const uint32_t minNumSlotsForBuffering      = numStripesNeededPerOfmStripe + 1;
 
         const bool buffering = ifmBuffer.m_NumStripes >= minNumSlotsForBuffering;
@@ -506,8 +509,27 @@ double CalculateMetric(const PassPerformanceData& passPerfData)
     constexpr double dramBandwidth  = 12000000000;    // bytes/second
     constexpr double clockFrequency = 1250000000;     // cycles/second
     constexpr double bytesPerCycle  = dramBandwidth / clockFrequency;
-    double metric                   = (nonParallelBytesDouble / bytesPerCycle) +
-                    std::max({ parallelBytesDouble / bytesPerCycle, mceCycleCountDouble, parallelOverheadCycles }) +
+
+    // Non-buffered, multi-stripe DMA transfers can prevent the MCE from executing in parallel with buffered
+    // DMA transfers when the MCE is waiting on DMA transfers already, as the MCE and non-buffered transfer
+    // will end up waiting on each other, as they are unable to use the tile at the same time.
+    // e.g. Non-buffered IFM stripe cannot load while the MCE is using the tile slot and vice versa.
+    auto IsDmaBlocking = [](const InputStats& stats) {
+        return (stats.m_MemoryStats.m_DramNonParallel > 0) && (stats.m_StripesStats.m_NumCentralStripes > 1) &&
+               (stats.m_MemoryStats.m_DramParallel == 0);
+    };
+
+    const bool blockingDmaTransfers = IsDmaBlocking(passPerfData.m_Stats.m_Input) ||
+                                      IsDmaBlocking(passPerfData.m_Stats.m_Output) ||
+                                      IsDmaBlocking(passPerfData.m_Stats.m_Weights);
+
+    const bool dmaBlockingMce =
+        ((parallelBytesDouble / bytesPerCycle) > std::max({ mceCycleCountDouble, parallelOverheadCycles })) &&
+        blockingDmaTransfers;
+
+    double metric = (nonParallelBytesDouble / bytesPerCycle) + (dmaBlockingMce ? mceCycleCountDouble : 0) +
+                    std::max({ parallelBytesDouble / bytesPerCycle, dmaBlockingMce ? 0 : mceCycleCountDouble,
+                               parallelOverheadCycles }) +
                     nonparallelOverheadCycles;
     return metric;
 }
