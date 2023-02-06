@@ -586,22 +586,16 @@ void ethosn_notify_firmware(struct ethosn_core *core)
 #ifndef ETHOSN_NS
 
 /**
- * ethosn_core_has_protected_network()
+ * ethosn_core_has_protected_allocator()
  * @core:	Pointer to Ethos-N core
- * Return:	True if current inference uses a network with a protected
- *		asset_allocator
+ * Return:	True if assigned with a protected asset_allocator
  */
-static bool ethosn_core_has_protected_network(struct ethosn_core *core)
+static bool ethosn_core_has_protected_allocator(struct ethosn_core *core)
 {
-	struct ethosn_inference *inf = core->current_inference;
+	struct ethosn_device *ethosn = core->parent;
 
-	if (inf) {
-		struct ethosn_network *network = inf->network;
-
-		if (network)
-			if (network->asset_allocator)
-				return network->asset_allocator->is_protected;
-	}
+	if (core->set_alloc_id >= 0)
+		return ethosn->asset_allocator[core->set_alloc_id]->is_protected;
 
 	return false;
 }
@@ -647,7 +641,7 @@ static int ethosn_hard_reset(struct ethosn_core *core,
 #else
 
 	dev_info(core->dev, "Hard reset the hardware through SMC.\n");
-	core->set_is_protected = ethosn_core_has_protected_network(core);
+	core->set_is_protected = ethosn_core_has_protected_allocator(core);
 
 	/*
 	 * Access to DL1 registers is blocked in secure mode so reset is done
@@ -706,7 +700,7 @@ static int ethosn_soft_reset(struct ethosn_core *core,
 	int ret;
 
 	dev_info(core->dev, "Soft reset the hardware through SMC.\n");
-	core->set_is_protected = ethosn_core_has_protected_network(core);
+	core->set_is_protected = ethosn_core_has_protected_allocator(core);
 
 	/*
 	 * Access to DL1 registers is blocked in secure mode so reset is done
