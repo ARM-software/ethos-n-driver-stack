@@ -238,16 +238,22 @@ void EthosNPreCompiledWorkload::Init(const EthosNPreCompiledObject::Network& net
     {
         if (m_InternalAllocator != nullptr)
         {
-            if (procMemAllocator.GetProtected() &&
-                (m_InternalAllocator->GetMemorySourceType() != armnn::MemorySource::DmaBufProtected))
+            if (procMemAllocator.GetProtected())
             {
-                throw RuntimeException(
-                    "Backend configured for Protected requires a Custom Allocator supporting DmaBufProtected");
+                if (m_InternalAllocator->GetMemorySourceType() != armnn::MemorySource::DmaBufProtected)
+                {
+                    throw RuntimeException(
+                        "Backend configured for Protected requires a Custom Allocator supporting DmaBufProtected");
+                }
             }
-            else if (m_InternalAllocator->GetMemorySourceType() != armnn::MemorySource::DmaBuf)
+            else
+
             {
-                throw RuntimeException(
-                    "Backend configured for Non-protected requires a Custom Allocator supporting DmaBuf");
+                if (m_InternalAllocator->GetMemorySourceType() != armnn::MemorySource::DmaBuf)
+                {
+                    throw RuntimeException(
+                        "Backend configured for Non-protected requires a Custom Allocator supporting DmaBuf");
+                }
             }
 
             void* mem_handle = m_InternalAllocator->allocate(intermediateBufSize, 0);
