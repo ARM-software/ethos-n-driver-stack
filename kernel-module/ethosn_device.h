@@ -377,19 +377,6 @@ void ethosn_set_power_ctrl(struct ethosn_core *core,
 			   bool clk_on);
 
 /**
- * ethosn_set_addr_ext() - Set address extension offset for stream.
- * @core:	Pointer to Ethos-N core.
- * @stream:	Which stream to update.
- * @offset:	Address offset.
- *
- * Return: 0 on success, else error code.
- */
-int ethosn_set_addr_ext(struct ethosn_core *core,
-			unsigned int stream,
-			ethosn_address_t offset,
-			struct ethosn_addr_map *addr_map);
-
-/**
  * ethosn_dump_gps() - Dump all general purpose registers.
  * @core:	Pointer to Ethos-N core.
  *

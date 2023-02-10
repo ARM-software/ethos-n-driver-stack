@@ -26,7 +26,7 @@
 
 /* Compatible SiP service version */
 #define ETHOSN_SIP_MAJOR_VERSION        2
-#define ETHOSN_SIP_MINOR_VERSION        5
+#define ETHOSN_SIP_MINOR_VERSION        6
 
 /* SMC functions */
 #define ETHOSN_SMC_VERSION              0xc2000050

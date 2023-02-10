@@ -855,51 +855,30 @@ static void ethosn_set_aux_ctrl(struct ethosn_core *core)
 	ethosn_write_top_reg(core, DL1_RP, DL1_AUXCTLR, auxctlr.word);
 }
 
-#endif
-
 /**
  * ethosn_set_addr_ext() - Configure address extension for stream
- * @core:       Pointer to Ethos-N core
- * @stream: stream to configure (must be 0-2)
- * @offset: Offset to apply. Lower 29 bits will be ignored
- * @addr_map: Address map to be used later to convert to Ethos-N addresses
+ * @core:	Pointer to Ethos-N core
+ * @stream:	stream to configure (must be 0-2)
+ * @offset:	Offset to apply. Lower 29 bits will be ignored
  *
  * Return: Negative error code on error, zero otherwise
  */
-int ethosn_set_addr_ext(struct ethosn_core *core,
-			unsigned int stream,
-			ethosn_address_t offset,
-			struct ethosn_addr_map *addr_map)
+static int ethosn_set_addr_ext(struct ethosn_core *core,
+			       unsigned int stream,
+			       ethosn_address_t offset)
 {
-	/*
-	 * Program the STREAM0_ADDRESS_EXTEND register. And program the values
-	 * for STREAM1_ADDRESS_EXTEND and STREAM2_ADDRESS_EXTEND registers in
-	 * GP registers (at indices GP_STREAM1_ADDRESS_EXTEND,
-	 * GP_STREAM2_ADDRESS_EXTEND) respectively. The firmware (during bootup)
-	 * will read GP1 and GP2 and program STREAM1_ADDRESS_EXTEND and
-	 * STREAM2_ADDRESS_EXTEND registers.
-	 */
-	static const int stream_to_page[] = {
+	static const u32 stream_to_page[] = {
 		DL1_STREAM0_ADDRESS_EXTEND,
-		GP_STREAM1_ADDRESS_EXTEND,
-		GP_STREAM2_ADDRESS_EXTEND,
-	};
-	static const u32 stream_to_offset[] = {
-		0,
-		REGION_EXT_RAM0 << REGION_SHIFT,
-		REGION_EXT_RAM1 << REGION_SHIFT,
+		DL1_STREAM1_ADDRESS_EXTEND,
+		DL1_STREAM2_ADDRESS_EXTEND,
 	};
 	struct dl1_stream0_address_extend_r ext = { .word = 0 };
 
-	BUILD_BUG_ON(ARRAY_SIZE(stream_to_page) !=
-		     ARRAY_SIZE(stream_to_offset));
-
 	if (stream >= ARRAY_SIZE(stream_to_page)) {
-		dev_err(core->dev,
-			"Illegal stream %u for address extension.\n",
+		dev_err(core->dev, "Illegal stream %u for address extension.\n",
 			stream);
 
-		return -EFAULT;
+		return -EINVAL;
 	}
 
 	ext.bits.addrextend = offset >> REGION_SHIFT;
@@ -909,6 +888,44 @@ int ethosn_set_addr_ext(struct ethosn_core *core,
 		stream, offset);
 	ethosn_write_top_reg(core, DL1_RP, stream_to_page[stream],
 			     ext.word);
+
+	return 0;
+}
+
+#endif
+
+/**
+ * ethosn_set_addr_map() - Set address map to use for stream
+ * @core:	Pointer to Ethos-N core
+ * @stream:	stream to configure (must be 0-2)
+ * @offset:	Offset to apply. Lower 29 bits will be ignored
+ * @addr_map:	Address map to be used later to convert to Ethos-N addresses
+ *
+ * Return: Negative error code on error, zero otherwise
+ */
+static int ethosn_set_addr_map(struct ethosn_core *core,
+			       unsigned int stream,
+			       ethosn_address_t offset,
+			       struct ethosn_addr_map *addr_map)
+{
+	static const u32 stream_to_offset[] = {
+		0,
+		REGION_EXT_RAM0 << REGION_SHIFT,
+		REGION_EXT_RAM1 << REGION_SHIFT,
+	};
+
+	if (stream >= ARRAY_SIZE(stream_to_offset)) {
+		dev_err(core->dev, "Illegal stream %u for address map.\n",
+			stream);
+
+		return -EINVAL;
+	}
+
+	if (!addr_map) {
+		dev_err(core->dev, "Invalid address map location.\n");
+
+		return -EINVAL;
+	}
 
 	if (addr_map) {
 		addr_map->region = stream_to_offset[stream];
@@ -1499,6 +1516,15 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 	int timeout;
 	int ret;
 	struct ethosn_device *parent = core->parent;
+	const ethosn_address_t firmware_base_addr =
+		ethosn_dma_get_addr_base(core->main_allocator,
+					 ETHOSN_STREAM_FIRMWARE);
+	const ethosn_address_t work_data_base_addr =
+		ethosn_dma_get_addr_base(core->main_allocator,
+					 ETHOSN_STREAM_WORKING_DATA);
+	const ethosn_address_t command_stream_base_addr =
+		ethosn_dma_get_addr_base(parent->asset_allocator[alloc_id],
+					 ETHOSN_STREAM_COMMAND_STREAM);
 
 	dev_info(core->dev, "Reset core device\n");
 
@@ -1544,36 +1570,42 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 			return ret;
 	}
 
+	/* Configure address extension for stream 0, 1 and 2 */
+	ret = ethosn_set_addr_ext(core, ETHOSN_STREAM_FIRMWARE,
+				  firmware_base_addr);
+	if (ret)
+		return ret;
+
+	ret = ethosn_set_addr_ext(core, ETHOSN_STREAM_WORKING_DATA,
+				  work_data_base_addr);
+	if (ret)
+		return ret;
+
+	ret = ethosn_set_addr_ext(core, ETHOSN_STREAM_COMMAND_STREAM,
+				  command_stream_base_addr);
+	if (ret)
+		return ret;
+
 	/* Configure NPU events */
 	ethosn_set_events(core);
 
 	/* Configure Auxiliary controls */
 	ethosn_set_aux_ctrl(core);
-
 #endif
 
-	/* Configure address extension for stream 0, 1 and 2 */
-	ret = ethosn_set_addr_ext(
-		core, ETHOSN_STREAM_FIRMWARE,
-		ethosn_dma_get_addr_base(core->main_allocator,
-					 ETHOSN_STREAM_FIRMWARE),
-		&core->firmware_map);
+	/* Setup maps for address translation */
+	ret = ethosn_set_addr_map(core, ETHOSN_STREAM_FIRMWARE,
+				  firmware_base_addr, &core->firmware_map);
 	if (ret)
 		return ret;
 
-	ret = ethosn_set_addr_ext(
-		core, ETHOSN_STREAM_WORKING_DATA,
-		ethosn_dma_get_addr_base(core->main_allocator,
-					 ETHOSN_STREAM_WORKING_DATA),
-		&core->work_data_map);
+	ret = ethosn_set_addr_map(core, ETHOSN_STREAM_WORKING_DATA,
+				  work_data_base_addr, &core->work_data_map);
 	if (ret)
 		return ret;
 
-	ret = ethosn_set_addr_ext(
-		core, ETHOSN_STREAM_COMMAND_STREAM,
-		ethosn_dma_get_addr_base(parent->asset_allocator[alloc_id],
-					 ETHOSN_STREAM_COMMAND_STREAM),
-		&core->dma_map);
+	ret = ethosn_set_addr_map(core, ETHOSN_STREAM_COMMAND_STREAM,
+				  command_stream_base_addr, &core->dma_map);
 	if (ret)
 		return ret;
 

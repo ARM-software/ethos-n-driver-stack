@@ -47,7 +47,7 @@
  * This is common for the fat binary (ethosn.bin) and the individual
  * firmware binaries (sub-components of the fat binary).
  */
-#define ETHOSN_FIRMWARE_VERSION_MAJOR 10
+#define ETHOSN_FIRMWARE_VERSION_MAJOR 11
 #define ETHOSN_FIRMWARE_VERSION_MINOR 0
 #define ETHOSN_FIRMWARE_VERSION_PATCH 0
 
@@ -523,8 +523,6 @@ struct ethosn_message_error_response {
  * between kernel driver and firmware
  */
 #define GP_MAILBOX                      DL1_GP1
-#define GP_STREAM1_ADDRESS_EXTEND       DL1_GP2
-#define GP_STREAM2_ADDRESS_EXTEND       DL1_GP3
 #define GP_DEBUG_MONITOR_CHANNEL        DL1_GP4
 #define GP_MAILBOX_SIZE                 DL1_GP5
 #define GP_COMMAND_STREAM_SIZE          DL1_GP6
