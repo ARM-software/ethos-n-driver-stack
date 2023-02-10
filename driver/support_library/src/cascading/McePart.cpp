@@ -482,9 +482,12 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
     sramInBuffer->m_TensorShape = inputShape;
     sramInBuffer->m_StripeShape = memoryStripesInfo.m_Input.m_Shape;
     sramInBuffer->m_NumStripes  = numMemoryStripes.m_Input;
-    std::tie(sramInBuffer->m_SlotSizeInBytes, sramInBuffer->m_SizeInBytes) = CalculateTileSize(
+    TileSizeCalculation tile    = CalculateTileSize(
         m_Capabilities, sramInBuffer->m_TensorShape, sramInBuffer->m_StripeShape,
         memoryStripesInfo.m_Input.m_PackedBoundaryThickness, sramInBuffer->m_NumStripes, couldSourceBeFcaf);
+    sramInBuffer->m_SlotSizeInBytes         = tile.slotSizeInBytes;
+    sramInBuffer->m_SizeInBytes             = tile.sizeInBytes;
+    sramInBuffer->m_ForbidFcafWide          = tile.forbidFcafWide;
     sramInBuffer->m_QuantizationInfo        = inputQuantInfo;
     sramInBuffer->m_PackedBoundaryThickness = memoryStripesInfo.m_Input.m_PackedBoundaryThickness;
     sramInBuffer->m_NumLoads                = memoryStripesInfo.m_Input.m_NumLoads;

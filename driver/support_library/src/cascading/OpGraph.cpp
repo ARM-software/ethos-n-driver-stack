@@ -703,6 +703,7 @@ SramBuffer::SramBuffer()
     , m_NumStripes(0)
     , m_PackedBoundaryThickness({ 0, 0, 0, 0 })
     , m_NumLoads(1)
+    , m_ForbidFcafWide(false)
 {}
 
 DotAttributes SramBuffer::GetDotAttributes(DetailLevel detail) const
@@ -721,6 +722,10 @@ DotAttributes SramBuffer::GetDotAttributes(DetailLevel detail) const
         result.m_Label += "Num. Stripes = " + ToString(m_NumStripes) + "\n";
         result.m_Label += "Packed boundary thickness = " + ToString(m_PackedBoundaryThickness) + "\n";
         result.m_Label += "Num loads = " + ToString(m_NumLoads) + "\n";
+        if (m_ForbidFcafWide)
+        {
+            result.m_Label += "Forbid FCAF_WIDE\n";
+        }
     }
     return result;
 }

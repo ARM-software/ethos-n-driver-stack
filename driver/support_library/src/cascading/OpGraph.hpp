@@ -376,6 +376,15 @@ public:
     /// from DRAM multiple times for more complicated streaming strategies, in which case
     /// this field can be >1 to indicate this.
     uint32_t m_NumLoads;
+
+    /// If set, this SRAM buffer has not been allocated enough space to be used as the DMA
+    /// destination for an FCAF_WIDE DRAM buffer. Therefore using FCAF_WIDE would result in
+    /// a buffer overflow.
+    /// Note that just because this value is false, does not mean that FCAF_WIDE is compatible,
+    /// as there are other compatibility criteria too.
+    /// This value could be calculated based on other properties, but it's a bit complicated
+    /// so we prefer to calculate it once when we first work out the buffer size.
+    bool m_ForbidFcafWide;
 };
 
 class PleInputSramBuffer : public Buffer

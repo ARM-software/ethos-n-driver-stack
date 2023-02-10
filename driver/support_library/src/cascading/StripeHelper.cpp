@@ -356,8 +356,8 @@ bool IsSramBufferCompatibleWithDramBuffer(const SramBuffer& sramBuffer,
                                           const TensorShape& dramOffset)
 {
     return IsSramBufferCompatibleWithDramBuffer(sramBuffer.m_TensorShape, sramBuffer.m_StripeShape,
-                                                sramBuffer.m_PackedBoundaryThickness, dramBuffer.m_Format,
-                                                dramBuffer.m_TensorShape, dramOffset);
+                                                sramBuffer.m_ForbidFcafWide, sramBuffer.m_PackedBoundaryThickness,
+                                                dramBuffer.m_Format, dramBuffer.m_TensorShape, dramOffset);
 }
 
 bool IsSramBufferCompatibleWithDramBuffer(const SramBuffer& sramBuffer,
@@ -366,13 +366,14 @@ bool IsSramBufferCompatibleWithDramBuffer(const SramBuffer& sramBuffer,
                                           const TensorShape& dramOffset)
 {
     return IsSramBufferCompatibleWithDramBuffer(sramBuffer.m_TensorShape, sramBuffer.m_StripeShape,
-                                                sramBuffer.m_PackedBoundaryThickness, dramFormat, dramTensorShape,
-                                                dramOffset);
+                                                sramBuffer.m_ForbidFcafWide, sramBuffer.m_PackedBoundaryThickness,
+                                                dramFormat, dramTensorShape, dramOffset);
 }
 
 bool IsSramBufferCompatibleWithDramBuffer(
     const TensorShape& sramTensorShape,
     const TensorShape& stripeShape,
+    bool forbidFcafWide,
     const command_stream::cascading::PackedBoundaryThickness& packedBoundaryThickness,
     CascadingBufferFormat dramFormat,
     const TensorShape& dramTensorShape,
@@ -446,6 +447,12 @@ bool IsSramBufferCompatibleWithDramBuffer(
 
     // Packed boundary data only supported with NHWCB
     if (dramFormat != CascadingBufferFormat::NHWCB && utils::AnyPackedBoundaryData(packedBoundaryThickness))
+    {
+        return false;
+    }
+
+    // Explicit foridding
+    if (forbidFcafWide && dramFormat == CascadingBufferFormat::FCAF_WIDE)
     {
         return false;
     }

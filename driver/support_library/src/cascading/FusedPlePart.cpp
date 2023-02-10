@@ -254,9 +254,12 @@ std::pair<Buffer*, Buffer*> FusedPlePart::AddIdentityMceOpForSubGraph(OwnedOpGra
     idMceOpOutBuff->m_SizeInBytes = 0;    // The output buffer is in ple sram so has no size in the tile
     // Data could be de-compressed from FCAF
     constexpr bool couldSourceBeFcaf = true;
-    std::tie(idMceOpInBuff->m_SlotSizeInBytes, idMceOpInBuff->m_SizeInBytes) =
+    TileSizeCalculation tile =
         CalculateTileSize(m_Capabilities, inpShape, idMceOpInBuff->m_StripeShape,
                           memoryStripes.m_Input.m_PackedBoundaryThickness, numMemoryStripes.m_Input, couldSourceBeFcaf);
+    idMceOpInBuff->m_SlotSizeInBytes         = tile.slotSizeInBytes;
+    idMceOpInBuff->m_SizeInBytes             = tile.sizeInBytes;
+    idMceOpInBuff->m_ForbidFcafWide          = tile.forbidFcafWide;
     idMceOpOutBuff->m_DataType               = m_InputDataType;
     idMceOpOutBuff->m_QuantizationInfo       = inpQuantInfo;
     idMceOpInBuff->m_QuantizationInfo        = inpQuantInfo;

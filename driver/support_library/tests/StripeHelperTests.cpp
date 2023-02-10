@@ -242,4 +242,18 @@ TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
         dram.m_Format = CascadingBufferFormat::NHWCB;
         CHECK(impl::IsSramBufferCompatibleWithDramBuffer(sram, dram, dramOffset) == true);
     }
+
+    SECTION("Forbid FCAF_WIDE")
+    {
+        sram.m_TensorShape     = { 1, 16, 16, 16 };
+        sram.m_StripeShape     = { 1, 16, 16, 16 };
+        sram.m_ForbidFcafWide  = false;
+        dram.m_Format          = CascadingBufferFormat::FCAF_WIDE;
+        dram.m_TensorShape     = { 1, 32, 32, 32 };
+        TensorShape dramOffset = { 0, 0, 0, 0 };
+        CHECK(impl::IsSramBufferCompatibleWithDramBuffer(sram, dram, dramOffset) == true);
+
+        sram.m_ForbidFcafWide = true;
+        CHECK(impl::IsSramBufferCompatibleWithDramBuffer(sram, dram, dramOffset) == false);
+    }
 }

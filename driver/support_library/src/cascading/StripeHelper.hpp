@@ -477,6 +477,7 @@ bool IsSramBufferCompatibleWithDramBuffer(const SramBuffer& sramBuffer,
 bool IsSramBufferCompatibleWithDramBuffer(
     const TensorShape& sramTensorShape,
     const TensorShape& stripeShape,
+    bool forbidFcafWide,
     const command_stream::cascading::PackedBoundaryThickness& packedBoundaryThickness,
     CascadingBufferFormat dramFormat,
     const TensorShape& dramTensorShape,

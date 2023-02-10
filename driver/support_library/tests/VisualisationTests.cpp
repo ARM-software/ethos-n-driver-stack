@@ -315,6 +315,7 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
     buffer2.m_NumStripes       = 9;
     buffer2.m_Order            = TraversalOrder::Zxy;
     buffer2.m_DebugTag         = "Buffer2";
+    buffer2.m_ForbidFcafWide   = true;
     graph.AddBuffer(&buffer2);
 
     DramBuffer buffer3;
@@ -370,7 +371,7 @@ Mce[label = "Mce\nIdx in OpGraph: 0\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlo
 Dma[label = "Dma\nIdx in OpGraph: 1\nDmaOp\nOperation Ids = []\nTransfer Format = NHWCB\nOffset = [0, 0, 0, 0]\n", shape = oval, color = darkgoldenrod]
 Ple[label = "Ple\nIdx in OpGraph: 2\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nPle kernel Id = ADDITION_16X16_1\nKernel Load = 1\nOffset = 0 (0x0)\nOperation Ids = []\nInput0Multiplier = 10\nInput0Shift = 11\nInput1Multiplier = 12\nInput1Shift = 13\n", shape = oval]
 Buffer1[label = "Buffer1\nLocation = PleInputSram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\n", shape = box]
-Buffer2[label = "Buffer2\nLocation = Sram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nStripe shape = [5, 6, 7, 8]\nOrder = Zxy\nSlot size in bytes = 0 (0x0)\nNum. Stripes = 9\nPacked boundary thickness = { L: 0, T: 0, R: 0, B: 0 }\nNum loads = 1\n", shape = box, color = blue]
+Buffer2[label = "Buffer2\nLocation = Sram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nStripe shape = [5, 6, 7, 8]\nOrder = Zxy\nSlot size in bytes = 0 (0x0)\nNum. Stripes = 9\nPacked boundary thickness = { L: 0, T: 0, R: 0, B: 0 }\nNum loads = 1\nForbid FCAF_WIDE\n", shape = box, color = blue]
 Buffer3[label = "Buffer3\nLocation = Dram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nEncoded weights = { 3 bytes, max size = 12, num. metadata = 0 }\nType = ConstantDma\nOperation ID = 7\nProducer Output Index = 1\n", shape = box, color = brown]
 }
 )";
