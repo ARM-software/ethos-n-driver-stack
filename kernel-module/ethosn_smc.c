@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2021-2022 Arm Limited.
+ * (C) COPYRIGHT 2021-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -26,7 +26,7 @@
 
 /* Compatible SiP service version */
 #define ETHOSN_SIP_MAJOR_VERSION        2
-#define ETHOSN_SIP_MINOR_VERSION        2
+#define ETHOSN_SIP_MINOR_VERSION        5
 
 /* SMC functions */
 #define ETHOSN_SMC_VERSION              0xc2000050
@@ -53,10 +53,11 @@ static inline int __must_check ethosn_smc_core_reset_call(u32 cmd,
 							  uint32_t asset_alloc_idx,
 							  bool halt,
 							  bool is_protected,
+							  u32 aux_config,
 							  struct arm_smccc_res *res)
 {
-	arm_smccc_smc(cmd, core_addr, asset_alloc_idx, halt, is_protected, 0, 0,
-		      0, res);
+	arm_smccc_smc(cmd, core_addr, asset_alloc_idx, halt, is_protected,
+		      aux_config, 0, 0, res);
 
 	/*
 	 * Only use the first 32-bits of the response to handle an error from a
@@ -123,14 +124,16 @@ int ethosn_smc_core_reset(const struct device *dev,
 			  uint32_t asset_alloc_idx,
 			  bool halt,
 			  bool hard_reset,
-			  bool is_protected)
+			  bool is_protected,
+			  const struct ethosn_smc_aux_config *aux_config)
 {
 	struct arm_smccc_res res = { 0 };
 	const u32 smc_reset_call = hard_reset ? ETHOSN_SMC_CORE_HARD_RESET :
 				   ETHOSN_SMC_CORE_SOFT_RESET;
 	int ret = ethosn_smc_core_reset_call(smc_reset_call, core_addr,
 					     asset_alloc_idx, halt,
-					     is_protected, &res);
+					     is_protected, aux_config->word,
+					     &res);
 
 	if (ret) {
 		dev_warn(dev,

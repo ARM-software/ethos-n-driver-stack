@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2021-2022 Arm Limited.
+ * (C) COPYRIGHT 2021-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -29,6 +29,20 @@
 #include <linux/types.h>
 
 /**
+ * struct ethosn_smc_aux_config - NPU auxiliary control config for SiP service
+ */
+struct ethosn_smc_aux_config {
+	union {
+		uint32_t word;
+		struct {
+			uint32_t level_irq : 1; /* Change to level rising IRQ */
+			uint32_t stashing : 1;  /* Enable stashing */
+			uint32_t reserved : 30;
+		} bits;
+	};
+};
+
+/**
  * ethosn_smc_version_check() - Check SiP service version compatibility
  * @device:	Pointer to the struct device on which to log the error if any.
  *
@@ -52,10 +66,12 @@ int ethosn_smc_is_secure(const struct device *dev,
 /**
  * ethosn_smc_core_reset() - Call SiP service to reset a NPU core
  * @device:	Pointer to the struct device on which to log the error if any.
- * @core_addr:	Address to Ethos-N core.
+ * @core_addr:		Address to Ethos-N core.
  * @asset_alloc_idx:	Index of the asset allocator to use.
- * @halt:	Indicates if a halt reset should be performed.
- * @hard_reset:	Indicates if a hard or soft reset should be performed.
+ * @halt:		Indicates if a halt reset should be performed.
+ * @hard_reset:		Indicates if a hard or soft reset should be performed.
+ * @is_protected:	Indicates if protected inferences will be used.
+ * @aux_config:		Auxiliary control configuration.
  *
  * Return: 0 on success, else error code.
  */
@@ -64,7 +80,8 @@ int ethosn_smc_core_reset(const struct device *dev,
 			  uint32_t asset_alloc_idx,
 			  bool halt,
 			  bool hard_reset,
-			  bool is_protected);
+			  bool is_protected,
+			  const struct ethosn_smc_aux_config *aux_config);
 
 /**
  * ethosn_smc_core_is_sleeping() - Call SiP service to check if the NPU core is

@@ -551,14 +551,8 @@ EXPORT_SYMBOL(ethosn_read_top_reg);
 static int ethosn_boot_firmware(struct ethosn_core *core)
 {
 	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
-	struct dl1_sysctlr1_r sysctlr1 = { .word = 0 };
 
 	dev_dbg(core->dev, "%s\n", __func__);
-
-	/* Enable events */
-	sysctlr1.bits.mcu_setevnt = 1;
-	sysctlr1.bits.mcu_gpevnt = 1;
-	ethosn_write_top_reg(core, DL1_RP, DL1_SYSCTLR1, sysctlr1.word);
 
 	/* Set firmware init address and release CPU wait */
 	sysctlr0.bits.cpuwait = 0;
@@ -654,6 +648,14 @@ static int ethosn_core_reset(struct ethosn_core *core,
 	return 0;
 
 #else
+	const bool smmu_available = core->parent->smmu_available;
+	const struct ethosn_smc_aux_config aux_config = {
+		.bits              = {
+			.level_irq = core->force_firmware_level_interrupts,
+			.stashing  = (ethosn_stashing_enabled() &&
+				      smmu_available)
+		}
+	};
 
 	dev_info(core->dev, "%s reset the hardware through SMC.\n", reset_type);
 	core->set_is_protected = ethosn_core_has_protected_allocator(core);
@@ -667,7 +669,8 @@ static int ethosn_core_reset(struct ethosn_core *core,
 	 * allocator index is hardcoded to 0.
 	 */
 	if (ethosn_smc_core_reset(core->dev, core->phys_addr, alloc_id, halt,
-				  hard_reset, core->set_is_protected))
+				  hard_reset, core->set_is_protected,
+				  &aux_config))
 		return -ETIME;
 
 	return 0;
@@ -811,6 +814,45 @@ static int ethosn_set_smmu_stream_ids(struct ethosn_core *core,
 	ethosn_write_top_reg(core, DL1_RP, DL1_STREAM7_MMUSID, smmu_stream_id);
 
 	return 0;
+}
+
+/**
+ * ethosn_set_events() - Configure NPU events
+ * @core:	Pointer to Ethos-N core
+ */
+static void ethosn_set_events(struct ethosn_core *core)
+{
+	const struct dl1_sysctlr1_r sysctlr1 = {
+		.bits                 = {
+			.mcu_setevnt  = 1,
+			.tsu_evnt     = 1,
+			.rxev_degroup = 1,
+			.rxev_evnt    = 1
+		}
+	};
+
+	ethosn_write_top_reg(core, DL1_RP, DL1_SYSCTLR1, sysctlr1.word);
+}
+
+/**
+ * ethosn_set_aux_ctrl() - Configure auxiliary controls
+ * @core:	Pointer to Ethos-N core
+ */
+static void ethosn_set_aux_ctrl(struct ethosn_core *core)
+{
+	const bool smmu_available = core->parent->smmu_available;
+	struct dl1_auxctlr_r auxctlr = {
+		.bits = { .increase_outstanding_writes = 1U }
+	};
+
+	/* Configure interrupt and stashing behavior */
+	auxctlr.bits.dis_edgeirq = core->force_firmware_level_interrupts;
+	if (ethosn_stashing_enabled() && smmu_available) {
+		auxctlr.bits.stash_ahead = 5U;
+		auxctlr.bits.stash_issue = 10U;
+	}
+
+	ethosn_write_top_reg(core, DL1_RP, DL1_AUXCTLR, auxctlr.word);
 }
 
 #endif
@@ -1251,23 +1293,6 @@ int ethosn_send_inference(struct ethosn_core *core,
 				    sizeof(request));
 }
 
-int ethosn_send_stash_request(struct ethosn_core *core)
-{
-	if (!ethosn_stashing_enabled())
-		return 0;
-
-	if (core->parent->smmu_available) {
-		dev_dbg(core->dev, "-> SMMU Available");
-
-		return ethosn_write_message(core, ETHOSN_MESSAGE_STASH_REQUEST,
-					    NULL, 0);
-	} else {
-		dev_dbg(core->dev, "-> SMMU Not Available");
-
-		return 0;
-	}
-}
-
 /****************************************************************************
  * Firmware
  ****************************************************************************/
@@ -1510,7 +1535,7 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 		return ret;
 	}
 
-	/* In a secure build, TF-A will setup the stream IDs */
+	/* In a secure build, TF-A will perform the setup below */
 #ifdef ETHOSN_NS
 	/* Setup the SMMU Stream IDs if iommu is present */
 	if (parent->smmu_available) {
@@ -1518,6 +1543,12 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 		if (ret)
 			return ret;
 	}
+
+	/* Configure NPU events */
+	ethosn_set_events(core);
+
+	/* Configure Auxiliary controls */
+	ethosn_set_aux_ctrl(core);
 
 #endif
 
@@ -1545,9 +1576,6 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 		&core->dma_map);
 	if (ret)
 		return ret;
-
-	if (core->force_firmware_level_interrupts)
-		ethosn_write_top_reg(core, DL1_RP, GP_IRQ, 1);
 
 	/* Initialize the mailbox */
 	ret = ethosn_mailbox_init(core);
@@ -1596,11 +1624,6 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 
 	/* Ping firmware */
 	ret = ethosn_send_ping(core);
-	if (ret != 0)
-		return ret;
-
-	/* Enable stashing */
-	ret = ethosn_send_stash_request(core);
 	if (ret != 0)
 		return ret;
 

@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2022 Arm Limited.
+ * (C) COPYRIGHT 2018-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -52,6 +52,7 @@
 #define DL1_SYSCTLR0 0x0018
 #define DL1_SYSCTLR1 0x001C
 #define DL1_PWRCTLR 0x0020
+#define DL1_AUXCTLR 0x0024
 #define DL1_CLRIRQ_EXT 0x0034
 #define DL1_SETIRQ_INT 0x0040
 #define DL1_IRQ_STATUS 0x00A0
@@ -237,6 +238,81 @@ struct dl1_pwrctlr_r
 #endif
 };
 
+// dl1_auxctlr_r - Auxiliary Control
+//
+struct dl1_auxctlr_r
+{
+    union
+    {
+        uint32_t word;
+        struct
+        {
+            uint32_t dis_clkgate : 1; // Disable clock gating
+            uint32_t dis_qdeny : 1; // Q-channel FSM deny control
+            uint32_t dis_edgeirq : 1; // Change sensitivity of DEBUG and JOB IRQs
+            uint32_t dis_mcu_unique_rid : 1; // Disable MCU logic enforcing unique RIDs
+            uint32_t dis_stshtrnsltn : 1; // Disable StashTranslation transactions
+            uint32_t reserved0 : 2;
+            uint32_t increase_outstanding_writes : 1; // Increase outstanding master write transactions
+            uint32_t dbgen : 1; // Invasive debug enable
+            uint32_t niden : 1; // Non-invasive debug enable
+            uint32_t reserved1 : 2;
+            uint32_t dis_ext_err_unrecoverable : 1; // Disable ext err irq for unrecoverable errors
+            uint32_t dis_ext_err_recoverable : 1; // Disable ext err irq for recoverable errors
+            uint32_t dis_ext_err_functional : 1; // Disable ext err irq for functional errors
+            uint32_t dis_ext_err_tolerable : 1; // Disable ext debug irq for tolerable errors
+            uint32_t dis_non_broadcast_global_err : 1; // Disable non broadcast global errors
+            uint32_t en_ple_block_done : 1; // Enable detection in TSU of PLE_BLOCK_DONE events indicated by engines.
+            uint32_t mac_ramp_cycles : 2; // Number of ramp cycles when the MAC units transition between idle and active states.
+            uint32_t snoop_dis : 1; // Disable external snooping of internal signals
+            uint32_t wd_ramp_dis : 1; // Disable weight decoder ramping
+            uint32_t reserved2 : 2;
+            uint32_t stash_ahead : 4; // Number of 4kB pages to automatically read ahead for each of read and write before the corresponding DMA accesses
+            uint32_t stash_issue : 4; // Issuing capacity for StashTranslation transactions
+        } bits;
+    };
+#ifdef __cplusplus
+    CONSTEXPR dl1_auxctlr_r(uint32_t init=0) : word(init) {}
+    CONSTEXPR uint32_t get_dis_clkgate() const { uint32_t value = static_cast<uint32_t>(bits.dis_clkgate); return value;}
+    CONSTEXPR void set_dis_clkgate(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.dis_clkgate = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_dis_qdeny() const { uint32_t value = static_cast<uint32_t>(bits.dis_qdeny); return value;}
+    CONSTEXPR void set_dis_qdeny(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.dis_qdeny = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_dis_edgeirq() const { uint32_t value = static_cast<uint32_t>(bits.dis_edgeirq); return value;}
+    CONSTEXPR void set_dis_edgeirq(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.dis_edgeirq = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_dis_mcu_unique_rid() const { uint32_t value = static_cast<uint32_t>(bits.dis_mcu_unique_rid); return value;}
+    CONSTEXPR void set_dis_mcu_unique_rid(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.dis_mcu_unique_rid = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_dis_stshtrnsltn() const { uint32_t value = static_cast<uint32_t>(bits.dis_stshtrnsltn); return value;}
+    CONSTEXPR void set_dis_stshtrnsltn(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.dis_stshtrnsltn = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_increase_outstanding_writes() const { uint32_t value = static_cast<uint32_t>(bits.increase_outstanding_writes); return value;}
+    CONSTEXPR void set_increase_outstanding_writes(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.increase_outstanding_writes = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_dbgen() const { uint32_t value = static_cast<uint32_t>(bits.dbgen); return value;}
+    CONSTEXPR void set_dbgen(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.dbgen = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_niden() const { uint32_t value = static_cast<uint32_t>(bits.niden); return value;}
+    CONSTEXPR void set_niden(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.niden = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_dis_ext_err_unrecoverable() const { uint32_t value = static_cast<uint32_t>(bits.dis_ext_err_unrecoverable); return value;}
+    CONSTEXPR void set_dis_ext_err_unrecoverable(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.dis_ext_err_unrecoverable = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_dis_ext_err_recoverable() const { uint32_t value = static_cast<uint32_t>(bits.dis_ext_err_recoverable); return value;}
+    CONSTEXPR void set_dis_ext_err_recoverable(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.dis_ext_err_recoverable = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_dis_ext_err_functional() const { uint32_t value = static_cast<uint32_t>(bits.dis_ext_err_functional); return value;}
+    CONSTEXPR void set_dis_ext_err_functional(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.dis_ext_err_functional = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_dis_ext_err_tolerable() const { uint32_t value = static_cast<uint32_t>(bits.dis_ext_err_tolerable); return value;}
+    CONSTEXPR void set_dis_ext_err_tolerable(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.dis_ext_err_tolerable = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_dis_non_broadcast_global_err() const { uint32_t value = static_cast<uint32_t>(bits.dis_non_broadcast_global_err); return value;}
+    CONSTEXPR void set_dis_non_broadcast_global_err(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.dis_non_broadcast_global_err = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_en_ple_block_done() const { uint32_t value = static_cast<uint32_t>(bits.en_ple_block_done); return value;}
+    CONSTEXPR void set_en_ple_block_done(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.en_ple_block_done = static_cast<uint32_t>(value); }
+    CONSTEXPR mac_ramp_t get_mac_ramp_cycles() const { mac_ramp_t value = static_cast<mac_ramp_t>(bits.mac_ramp_cycles); return value;}
+    CONSTEXPR void set_mac_ramp_cycles(mac_ramp_t value) { assert(static_cast<uint32_t>(value) < 4u); bits.mac_ramp_cycles = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_snoop_dis() const { uint32_t value = static_cast<uint32_t>(bits.snoop_dis); return value;}
+    CONSTEXPR void set_snoop_dis(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.snoop_dis = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_wd_ramp_dis() const { uint32_t value = static_cast<uint32_t>(bits.wd_ramp_dis); return value;}
+    CONSTEXPR void set_wd_ramp_dis(uint32_t value) { assert(static_cast<uint32_t>(value) < 2u); bits.wd_ramp_dis = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_stash_ahead() const { uint32_t value = static_cast<uint32_t>(bits.stash_ahead); return value;}
+    CONSTEXPR void set_stash_ahead(uint32_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.stash_ahead = static_cast<uint32_t>(value); }
+    CONSTEXPR uint32_t get_stash_issue() const { uint32_t value = static_cast<uint32_t>(bits.stash_issue); return value;}
+    CONSTEXPR void set_stash_issue(uint32_t value) { assert(static_cast<uint32_t>(value) < 16u); bits.stash_issue = static_cast<uint32_t>(value); }
+#endif
+};
 
 //
 // dl1_clrirq_ext_r - Clear external interrupts (to host)

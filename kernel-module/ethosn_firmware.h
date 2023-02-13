@@ -47,7 +47,7 @@
  * This is common for the fat binary (ethosn.bin) and the individual
  * firmware binaries (sub-components of the fat binary).
  */
-#define ETHOSN_FIRMWARE_VERSION_MAJOR 9
+#define ETHOSN_FIRMWARE_VERSION_MAJOR 10
 #define ETHOSN_FIRMWARE_VERSION_MINOR 0
 #define ETHOSN_FIRMWARE_VERSION_PATCH 0
 
@@ -304,8 +304,6 @@ enum ethosn_message_type {
 	ETHOSN_MESSAGE_FW_HW_CAPS_REQUEST,
 	ETHOSN_MESSAGE_FW_HW_CAPS_RESPONSE,
 
-	ETHOSN_MESSAGE_STASH_REQUEST,
-
 	ETHOSN_MESSAGE_ERROR_RESPONSE,
 	ETHOSN_MESSAGE_MAX
 };
@@ -524,7 +522,6 @@ struct ethosn_message_error_response {
  * Define the DL1_GP registers to be used for special purpose communication
  * between kernel driver and firmware
  */
-#define GP_IRQ                          DL1_GP0
 #define GP_MAILBOX                      DL1_GP1
 #define GP_STREAM1_ADDRESS_EXTEND       DL1_GP2
 #define GP_STREAM2_ADDRESS_EXTEND       DL1_GP3
