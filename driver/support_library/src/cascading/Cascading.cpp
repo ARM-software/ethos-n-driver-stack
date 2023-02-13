@@ -76,8 +76,21 @@ RunCascadingResult RunCascading(const Network& network,
         MakeDirectory(debuggingContext.GetAbsolutePathOutputFileName("BestCombination").c_str());
     }
 
-    // Use default estimation options for compilation
-    EstimationOptions estimationOptions = estOpt.has_value() ? estOpt.value() : EstimationOptions();
+    // Default estimation options when none are provided (i.e. for compilation API rather than estimation API)
+    EstimationOptions estimationOptions;
+    if (estOpt.has_value())
+    {
+        estimationOptions = estOpt.value();
+    }
+    else
+    {
+        // We want the current numbers, as we are compiling for the current hardware
+        estimationOptions.m_Current = true;
+        // Estimate of the expected savings. We can't know this for sure as we don't have any input data.
+        estimationOptions.m_ActivationCompressionSaving = 0.5f;
+        // We have real weights, so use them rather than the override.
+        estimationOptions.m_UseWeightCompressionOverride = false;
+    }
 
     GraphOfParts graphOfParts = CreateGraphOfParts(network, caps, estimationOptions, compOpt, debuggingContext);
     Combiner combiner(graphOfParts, caps, compOpt, estimationOptions, debuggingContext);
