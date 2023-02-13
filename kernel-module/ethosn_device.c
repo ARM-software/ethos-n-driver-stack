@@ -602,36 +602,51 @@ static bool ethosn_core_has_protected_allocator(struct ethosn_core *core)
 
 #endif
 
-static int ethosn_hard_reset(struct ethosn_core *core,
+static int ethosn_core_reset(struct ethosn_core *core,
+			     bool hard_reset,
 			     bool halt,
 			     uint32_t alloc_id)
 {
+	const char *reset_type = hard_reset ? "hard" : "soft";
+
 #ifdef ETHOSN_NS
 	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
 	unsigned int timeout;
 
 	core->set_is_protected = false;
 
-	dev_info(core->dev, "Hard reset the hardware directly.\n");
+	dev_info(core->dev, "%s reset the hardware directly.\n", reset_type);
 
 	/* Initiate hard reset */
-	sysctlr0.bits.hard_rstreq = 1;
+	if (hard_reset)
+		sysctlr0.bits.hard_rstreq = 1;
+	else
+		/* Soft reset, block new AXI requests */
+		sysctlr0.bits.soft_rstreq = 3;
+
 	ethosn_write_top_reg(core, DL1_RP, DL1_SYSCTLR0, sysctlr0.word);
 
-	/* Wait for hard reset to complete */
+	/* Wait for reset to complete */
 	for (timeout = 0; timeout < ETHOSN_RESET_TIMEOUT_US;
 	     timeout += ETHOSN_RESET_WAIT_US) {
-		sysctlr0.word =
-			ethosn_read_top_reg(core, DL1_RP, DL1_SYSCTLR0);
+		uint32_t reset_status;
 
-		if (sysctlr0.bits.hard_rstreq == 0)
+		sysctlr0.word = ethosn_read_top_reg(core, DL1_RP, DL1_SYSCTLR0);
+
+		if (hard_reset)
+			reset_status = sysctlr0.bits.hard_rstreq;
+		else
+			reset_status = sysctlr0.bits.soft_rstreq;
+
+		if (reset_status == 0)
 			break;
 
 		udelay(ETHOSN_RESET_WAIT_US);
 	}
 
 	if (timeout >= ETHOSN_RESET_TIMEOUT_US) {
-		dev_err(core->dev, "Failed to hard reset the hardware.\n");
+		dev_err(core->dev, "Failed to %s reset the hardware.\n",
+			reset_type);
 
 		return -EFAULT;
 	}
@@ -640,7 +655,7 @@ static int ethosn_hard_reset(struct ethosn_core *core,
 
 #else
 
-	dev_info(core->dev, "Hard reset the hardware through SMC.\n");
+	dev_info(core->dev, "%s reset the hardware through SMC.\n", reset_type);
 	core->set_is_protected = ethosn_core_has_protected_allocator(core);
 
 	/*
@@ -652,79 +667,11 @@ static int ethosn_hard_reset(struct ethosn_core *core,
 	 * allocator index is hardcoded to 0.
 	 */
 	if (ethosn_smc_core_reset(core->dev, core->phys_addr, alloc_id, halt,
-				  true,
-				  core->set_is_protected))
+				  hard_reset, core->set_is_protected))
 		return -ETIME;
 
 	return 0;
 #endif
-}
-
-static int ethosn_soft_reset(struct ethosn_core *core,
-			     bool halt,
-			     uint32_t alloc_id)
-{
-#ifdef ETHOSN_NS
-	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
-	unsigned int timeout;
-
-	core->set_is_protected = false;
-
-	dev_info(core->dev, "Soft reset the hardware directly.\n");
-
-	/* Soft reset, block new AXI requests */
-	sysctlr0.bits.soft_rstreq = 3;
-	ethosn_write_top_reg(core, DL1_RP, DL1_SYSCTLR0, sysctlr0.word);
-
-	/* Wait for reset to complete */
-	for (timeout = 0; timeout < ETHOSN_RESET_TIMEOUT_US;
-	     timeout += ETHOSN_RESET_WAIT_US) {
-		sysctlr0.word =
-			ethosn_read_top_reg(core, DL1_RP, DL1_SYSCTLR0);
-
-		if (sysctlr0.bits.soft_rstreq == 0)
-			break;
-
-		udelay(ETHOSN_RESET_WAIT_US);
-	}
-
-	if (timeout >= ETHOSN_RESET_TIMEOUT_US) {
-		dev_warn(core->dev,
-			 "Failed to soft reset the hardware. sysctlr0=0x%08x\n",
-			 sysctlr0.word);
-
-		return -ETIME;
-	}
-
-#else
-	int ret;
-
-	dev_info(core->dev, "Soft reset the hardware through SMC.\n");
-	core->set_is_protected = ethosn_core_has_protected_allocator(core);
-
-	/*
-	 * Access to DL1 registers is blocked in secure mode so reset is done
-	 * with a SMC call. The call will block until the reset is done or
-	 * timeout.
-	 *
-	 * Only the first asset allocator is being used right now so the
-	 * allocator index is hardcoded to 0.
-	 */
-
-	ret =
-		ethosn_smc_core_reset(core->dev, core->phys_addr, alloc_id,
-				      halt, false,
-				      core->set_is_protected);
-	if (ret != 0) {
-		dev_err(core->dev, "ethosn_smc_core_reset failed with: %i",
-			ret);
-
-		return -ETIME;
-	}
-
-#endif
-
-	return 0;
 }
 
 int ethosn_reset(struct ethosn_core *core,
@@ -735,9 +682,9 @@ int ethosn_reset(struct ethosn_core *core,
 
 	atomic_set(&core->is_configured, 0);
 
-	ret = ethosn_soft_reset(core, halt, alloc_id);
+	ret = ethosn_core_reset(core, false, halt, alloc_id);
 	if (ret)
-		ret = ethosn_hard_reset(core, halt, alloc_id);
+		ret = ethosn_core_reset(core, true, halt, alloc_id);
 
 	/* Halt reset will not configure the NPU */
 	if (!ret && !halt)
