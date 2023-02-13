@@ -19,6 +19,8 @@
 
 #include <map>
 
+#include <fmt/format.h>
+
 namespace armnn
 {
 
@@ -237,14 +239,16 @@ public:
         }
     }
 
-    bool SetProtected(bool isProtected)
+    void SetProtected(bool isProtected)
     {
-        if (m_RefCount <= 0)
+        if (m_IsProtected != isProtected && m_RefCount > 0)
         {
-            m_IsProtected = isProtected;
-            return true;
+            throw RuntimeException(
+                fmt::format("Failed to set EthosNBackendAllocatorService to {}protected mode while in {}protected mode",
+                            isProtected ? "" : "non-", m_IsProtected ? "" : "non-"));
         }
-        return false;
+
+        m_IsProtected = isProtected;
     }
 
 private:
@@ -261,11 +265,9 @@ public:
         : IBackendContext(options)
         , m_options(options)
     {
-        if (!EthosNBackendAllocatorService::GetInstance().SetProtected(m_options.m_ProtectedMode))
-        {
-            throw RuntimeException("Failed to set protected");
-        }
+        EthosNBackendAllocatorService::GetInstance().SetProtected(m_options.m_ProtectedMode);
     }
+
     bool BeforeLoadNetwork(NetworkId networkId) override;
 
     bool AfterLoadNetwork(NetworkId networkId) override;
