@@ -21,10 +21,10 @@ class ProcMemAllocator
 {
 public:
     ProcMemAllocator();
-    ProcMemAllocator(const std::string& device);
+    ProcMemAllocator(const char* device);
 
     ProcMemAllocator(bool is_protected);
-    ProcMemAllocator(const std::string& device, bool is_protected);
+    ProcMemAllocator(const char* device, bool is_protected);
 
     ProcMemAllocator(ProcMemAllocator&& otherAllocator);
 

@@ -187,7 +187,7 @@ public:
         bool deviceIdRegistered = m_RegisteredDeviceIds.emplace(allocString).second;
         if (m_RefCount > 0 && deviceIdRegistered)
         {
-            m_Allocators.emplace(allocString, ProcMemAllocator(allocString, m_IsProtected));
+            m_Allocators.emplace(allocString, ProcMemAllocator(allocString.c_str(), m_IsProtected));
         }
     }
 
@@ -220,7 +220,7 @@ public:
         {
             for (auto& deviceId : m_RegisteredDeviceIds)
             {
-                m_Allocators.emplace(deviceId, ProcMemAllocator(deviceId, m_IsProtected));
+                m_Allocators.emplace(deviceId, ProcMemAllocator(deviceId.c_str(), m_IsProtected));
             }
         }
 
@@ -285,8 +285,8 @@ private:
 namespace ethosnbackend
 {
 
-#define MAX_ETHOSN_DRIVER_LIBRARY_MAJOR_VERSION_SUPPORTED 4
-#define MIN_ETHOSN_DRIVER_LIBRARY_MAJOR_VERSION_SUPPORTED 4
+#define MAX_ETHOSN_DRIVER_LIBRARY_MAJOR_VERSION_SUPPORTED 5
+#define MIN_ETHOSN_DRIVER_LIBRARY_MAJOR_VERSION_SUPPORTED 5
 #define MAX_ETHOSN_SUPPORT_LIBRARY_MAJOR_VERSION_SUPPORTED 3
 #define MIN_ETHOSN_SUPPORT_LIBRARY_MAJOR_VERSION_SUPPORTED 1
 

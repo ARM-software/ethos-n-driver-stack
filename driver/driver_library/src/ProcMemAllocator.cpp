@@ -30,14 +30,14 @@ namespace ethosn
 namespace driver_library
 {
 
-ProcMemAllocator::ProcMemAllocator(const std::string& device, bool is_protected)
+ProcMemAllocator::ProcMemAllocator(const char* device, bool is_protected)
     : m_isProtected(is_protected)
 {
 #ifdef TARGET_KMOD
-    int ethosnFd = open(device.c_str(), O_RDONLY);
+    int ethosnFd = open(device, O_RDONLY);
     if (ethosnFd < 0)
     {
-        throw std::runtime_error(std::string("Unable to open " + device + ": ") + strerror(errno));
+        throw std::runtime_error(std::string("Unable to open " + std::string(device) + ": ") + strerror(errno));
     }
 
     // Check compatibility between driver library and the kernel
@@ -70,7 +70,7 @@ ProcMemAllocator::ProcMemAllocator(const std::string& device, bool is_protected)
 #endif
     m_deviceId = device;
 }
-ProcMemAllocator::ProcMemAllocator(const std::string& device)
+ProcMemAllocator::ProcMemAllocator(const char* device)
     : ProcMemAllocator(device, false)
 {}
 
