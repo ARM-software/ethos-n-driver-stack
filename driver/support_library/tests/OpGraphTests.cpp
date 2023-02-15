@@ -16,7 +16,7 @@ TEST_CASE("OpGraph Contains")
 {
     OpGraph graph;
 
-    Buffer buffer;
+    DramBuffer buffer;
     MceOp op;
 
     // Initially these are not in the graph
@@ -37,7 +37,7 @@ TEST_CASE("OpGraph GetSingleProducer and GetProducers")
     OpGraph graph;
 
     // Start with just a single buffer and nothing that produces it
-    Buffer buffer;
+    DramBuffer buffer;
     graph.AddBuffer(&buffer);
     REQUIRE(graph.GetSingleProducer(&buffer) == nullptr);
     REQUIRE(graph.GetProducers(&buffer) == std::vector<Op*>{});
@@ -63,7 +63,7 @@ TEST_CASE("OpGraph GetConsumers")
     OpGraph graph;
 
     // Start with just a single buffer and nothing that consumes it
-    Buffer buffer;
+    DramBuffer buffer;
     graph.AddBuffer(&buffer);
     REQUIRE(graph.GetConsumers(&buffer) == std::vector<std::pair<Op*, uint32_t>>{});
 
@@ -94,13 +94,13 @@ TEST_CASE("OpGraph GetInputs")
     REQUIRE(graph.GetInputs(&op) == std::vector<Buffer*>{});
 
     // Add a Buffer as the first input
-    Buffer buffer1;
+    DramBuffer buffer1;
     graph.AddBuffer(&buffer1);
     graph.AddConsumer(&buffer1, &op, 0);
     REQUIRE(graph.GetInputs(&op) == std::vector<Buffer*>{ &buffer1 });
 
     // Add a Buffer as the second input
-    Buffer buffer2;
+    DramBuffer buffer2;
     graph.AddBuffer(&buffer2);
     graph.AddConsumer(&buffer2, &op, 1);
     REQUIRE(graph.GetInputs(&op) == std::vector<Buffer*>{ &buffer1, &buffer2 });
@@ -117,7 +117,7 @@ TEST_CASE("OpGraph GetOutput")
     REQUIRE(graph.GetOutput(&op) == nullptr);
 
     // Add a Buffer as the output
-    Buffer buffer;
+    DramBuffer buffer;
     graph.AddBuffer(&buffer);
     graph.SetProducer(&buffer, &op);
     REQUIRE(graph.GetOutput(&op) == &buffer);
@@ -141,7 +141,7 @@ TEST_CASE("OpGraph AddOp")
 TEST_CASE("OpGraph AddBuffer")
 {
     OpGraph graph;
-    Buffer buffer;
+    DramBuffer buffer;
 
     // Add the buffer and check it has been added
     graph.AddBuffer(&buffer);
@@ -158,7 +158,7 @@ TEST_CASE("OpGraph SetProducer")
     {
         OpGraph graph;
         MceOp op;
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         REQUIRE_THROWS(graph.SetProducer(&buffer, &op));
     }
@@ -168,7 +168,7 @@ TEST_CASE("OpGraph SetProducer")
         OpGraph graph;
         MceOp op;
         graph.AddOp(&op);
-        Buffer buffer;
+        DramBuffer buffer;
         REQUIRE_THROWS(graph.SetProducer(&buffer, &op));
     }
 
@@ -177,7 +177,7 @@ TEST_CASE("OpGraph SetProducer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         graph.SetProducer(&buffer, &op1);
 
@@ -191,7 +191,7 @@ TEST_CASE("OpGraph SetProducer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         graph.SetProducer(&buffer, &op1);
 
@@ -203,7 +203,7 @@ TEST_CASE("OpGraph SetProducer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         graph.SetProducer(&buffer, &op1);
 
@@ -218,7 +218,7 @@ TEST_CASE("OpGraph AddProducer")
     {
         OpGraph graph;
         MceOp op;
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         REQUIRE_THROWS(graph.AddProducer(&buffer, &op));
     }
@@ -228,7 +228,7 @@ TEST_CASE("OpGraph AddProducer")
         OpGraph graph;
         MceOp op;
         graph.AddOp(&op);
-        Buffer buffer;
+        DramBuffer buffer;
         REQUIRE_THROWS(graph.AddProducer(&buffer, &op));
     }
 
@@ -237,7 +237,7 @@ TEST_CASE("OpGraph AddProducer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         graph.SetProducer(&buffer, &op1);
 
@@ -252,7 +252,7 @@ TEST_CASE("OpGraph AddProducer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         graph.SetProducer(&buffer, &op1);
 
@@ -264,7 +264,7 @@ TEST_CASE("OpGraph AddProducer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         graph.AddProducer(&buffer, &op1);
 
@@ -285,7 +285,7 @@ TEST_CASE("OpGraph RemoveProducer")
     SECTION("Try calling with nullptr Op")
     {
         OpGraph graph;
-        Buffer b;
+        DramBuffer b;
         graph.AddBuffer(&b);
         REQUIRE_THROWS(graph.RemoveProducer(&b, nullptr));
     }
@@ -295,13 +295,13 @@ TEST_CASE("OpGraph RemoveProducer")
         OpGraph graph;
         MceOp o;
         graph.AddOp(&o);
-        Buffer b;
+        DramBuffer b;
         REQUIRE_THROWS(graph.RemoveProducer(&b, &o));
     }
     SECTION("Try calling with an Op that isn't part of the graph")
     {
         OpGraph graph;
-        Buffer b;
+        DramBuffer b;
         graph.AddBuffer(&b);
         MceOp o;
         REQUIRE_THROWS(graph.RemoveProducer(&b, &o));
@@ -310,7 +310,7 @@ TEST_CASE("OpGraph RemoveProducer")
     SECTION("Try calling with a Buffer that has no producers")
     {
         OpGraph graph;
-        Buffer b;
+        DramBuffer b;
         graph.AddBuffer(&b);
         MceOp o;
         graph.AddOp(&o);
@@ -319,7 +319,7 @@ TEST_CASE("OpGraph RemoveProducer")
     SECTION("Try calling with an Op that isn't a producer of the Buffer (but the Buffer has other producers)")
     {
         OpGraph graph;
-        Buffer b;
+        DramBuffer b;
         graph.AddBuffer(&b);
         MceOp o1;
         graph.AddOp(&o1);
@@ -335,7 +335,7 @@ TEST_CASE("OpGraph RemoveProducer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         graph.SetProducer(&buffer, &op1);
 
@@ -351,7 +351,7 @@ TEST_CASE("OpGraph RemoveProducer")
         graph.AddOp(&op1);
         MceOp op2;
         graph.AddOp(&op2);
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         graph.AddProducer(&buffer, &op1);
         graph.AddProducer(&buffer, &op2);
@@ -375,14 +375,14 @@ TEST_CASE("OpGraph ClearProducers")
     SECTION("Try calling with a Buffer that isn't part of the graph")
     {
         OpGraph graph;
-        Buffer b;
+        DramBuffer b;
         REQUIRE_THROWS(graph.ClearProducers(&b));
     }
 
     SECTION("Clear the producer for a buffer that doesn't already have one. This should be a no-op")
     {
         OpGraph graph;
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         REQUIRE_NOTHROW(graph.ClearProducers(&buffer));
         REQUIRE(graph.GetSingleProducer(&buffer) == nullptr);
@@ -393,7 +393,7 @@ TEST_CASE("OpGraph ClearProducers")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         graph.SetProducer(&buffer, &op1);
 
@@ -409,7 +409,7 @@ TEST_CASE("OpGraph ClearProducers")
         graph.AddOp(&op1);
         MceOp op2;
         graph.AddOp(&op2);
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         graph.AddProducer(&buffer, &op1);
         graph.AddProducer(&buffer, &op2);
@@ -427,7 +427,7 @@ TEST_CASE("OpGraph AddConsumer")
     {
         OpGraph graph;
         MceOp op;
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         REQUIRE_THROWS(graph.AddConsumer(&buffer, &op, 0));
     }
@@ -437,7 +437,7 @@ TEST_CASE("OpGraph AddConsumer")
         OpGraph graph;
         MceOp op;
         graph.AddOp(&op);
-        Buffer buffer;
+        DramBuffer buffer;
         REQUIRE_THROWS(graph.AddConsumer(&buffer, &op, 0));
     }
 
@@ -446,11 +446,11 @@ TEST_CASE("OpGraph AddConsumer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        Buffer buffer1;
+        DramBuffer buffer1;
         graph.AddBuffer(&buffer1);
         graph.AddConsumer(&buffer1, &op1, 0);
 
-        Buffer buffer2;
+        DramBuffer buffer2;
         graph.AddBuffer(&buffer2);
         REQUIRE_THROWS(graph.AddConsumer(&buffer2, &op1, 0));
     }
@@ -461,7 +461,7 @@ TEST_CASE("OpGraph AddConsumer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        Buffer buffer1;
+        DramBuffer buffer1;
         graph.AddBuffer(&buffer1);
         graph.AddConsumer(&buffer1, &op1, 0);
         graph.AddConsumer(&buffer1, &op1, 1);
@@ -475,7 +475,7 @@ TEST_CASE("OpGraph AddConsumer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        Buffer buffer1;
+        DramBuffer buffer1;
         graph.AddBuffer(&buffer1);
         REQUIRE_THROWS(graph.AddConsumer(&buffer1, &op1, 2));
     }
@@ -494,7 +494,7 @@ TEST_CASE("OpGraph RemoveConsumer")
     SECTION("Try calling with nullptr Op")
     {
         OpGraph graph;
-        Buffer b;
+        DramBuffer b;
         graph.AddBuffer(&b);
         REQUIRE_THROWS(graph.RemoveConsumer(&b, nullptr, 0));
     }
@@ -504,13 +504,13 @@ TEST_CASE("OpGraph RemoveConsumer")
         OpGraph graph;
         MceOp o;
         graph.AddOp(&o);
-        Buffer b;
+        DramBuffer b;
         REQUIRE_THROWS(graph.RemoveConsumer(&b, &o, 0));
     }
     SECTION("Try calling with an Op that isn't part of the graph")
     {
         OpGraph graph;
-        Buffer b;
+        DramBuffer b;
         graph.AddBuffer(&b);
         MceOp o;
         REQUIRE_THROWS(graph.RemoveConsumer(&b, &o, 0));
@@ -519,7 +519,7 @@ TEST_CASE("OpGraph RemoveConsumer")
     SECTION("Try calling with a Buffer that has no consumers")
     {
         OpGraph graph;
-        Buffer b;
+        DramBuffer b;
         graph.AddBuffer(&b);
         MceOp o1;
         graph.AddOp(&o1);
@@ -529,7 +529,7 @@ TEST_CASE("OpGraph RemoveConsumer")
     SECTION("Try calling with an Op that isn't a consumer of the Buffer (but the Buffer has other consumers)")
     {
         OpGraph graph;
-        Buffer b;
+        DramBuffer b;
         graph.AddBuffer(&b);
         MceOp o1;
         graph.AddOp(&o1);
@@ -543,7 +543,7 @@ TEST_CASE("OpGraph RemoveConsumer")
     SECTION("Try calling with an Op that is a consumer of the Buffer, but with a different input index")
     {
         OpGraph graph;
-        Buffer b;
+        DramBuffer b;
         graph.AddBuffer(&b);
         MceOp o1;
         graph.AddOp(&o1);
@@ -555,7 +555,7 @@ TEST_CASE("OpGraph RemoveConsumer")
     SECTION("Try removing a consumer Op which has other (later-numbered) inputs connected too")
     {
         OpGraph graph;
-        Buffer b;
+        DramBuffer b;
         graph.AddBuffer(&b);
         MceOp o1;
         graph.AddOp(&o1);
@@ -570,7 +570,7 @@ TEST_CASE("OpGraph RemoveConsumer")
         OpGraph graph;
         MceOp op1;
         graph.AddOp(&op1);
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         graph.AddConsumer(&buffer, &op1, 0);
 
@@ -586,7 +586,7 @@ TEST_CASE("OpGraph RemoveConsumer")
         graph.AddOp(&op1);
         MceOp op2;
         graph.AddOp(&op2);
-        Buffer buffer;
+        DramBuffer buffer;
         graph.AddBuffer(&buffer);
         graph.AddConsumer(&buffer, &op1, 0);
         graph.AddConsumer(&buffer, &op2, 0);
@@ -625,7 +625,7 @@ TEST_CASE("OpGraph RemoveAndPrune")
 
     OpGraph graph;
     MceOp B, D, E, G, H, L, Z;
-    Buffer a, c, f, i, j, k, q, w;
+    DramBuffer a, c, f, i, j, k, q, w;
     graph.AddOp(&B);
     graph.AddOp(&D);
     graph.AddOp(&E);
@@ -814,20 +814,35 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Linear")
     DmaOp J(CascadingBufferFormat::NHWCB);
     DmaOp L(CascadingBufferFormat::NHWCB);
     DmaOp N(CascadingBufferFormat::NHWCB);
-    Buffer c(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer e(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer g(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer i(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer k(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer m(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer o(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
+    SramBuffer c;
+    c.m_Format      = CascadingBufferFormat::NHWCB;
+    c.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    c.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    c.m_Order       = TraversalOrder::Xyz;
+    DramBuffer e;
+    e.m_Format      = CascadingBufferFormat::NHWCB;
+    e.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    SramBuffer g;
+    g.m_Format      = CascadingBufferFormat::NHWCB;
+    g.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    g.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    g.m_Order       = TraversalOrder::Xyz;
+    DramBuffer i;
+    i.m_Format      = CascadingBufferFormat::NHWCB;
+    i.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    SramBuffer k;
+    k.m_Format      = CascadingBufferFormat::NHWCB;
+    k.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    k.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    k.m_Order       = TraversalOrder::Xyz;
+    DramBuffer m;
+    m.m_Format      = CascadingBufferFormat::NHWCB;
+    m.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    SramBuffer o;
+    o.m_Format      = CascadingBufferFormat::NHWCB;
+    o.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    o.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    o.m_Order       = TraversalOrder::Xyz;
     graph.AddOp(&D);
     graph.AddOp(&F);
     graph.AddOp(&H);
@@ -975,18 +990,30 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Linear")
     F.m_Offset = TensorShape{ 0, 0, 0, 32 };
     DmaOp H(CascadingBufferFormat::NHWCB);
     DmaOp J(CascadingBufferFormat::NHWCB);
-    Buffer a(Location::Dram, CascadingBufferFormat::FCAF_DEEP, TensorShape{ 1, 16, 16, 32 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer c(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{ 1, 16, 16, 32 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer e(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer g(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{ 1, 16, 16, 32 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer i(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer k(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{ 1, 16, 16, 32 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
+    DramBuffer a;
+    a.m_Format      = CascadingBufferFormat::FCAF_DEEP;
+    a.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    SramBuffer c;
+    c.m_Format      = CascadingBufferFormat::NHWCB;
+    c.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    c.m_StripeShape = TensorShape{ 1, 16, 16, 32 };
+    c.m_Order       = TraversalOrder::Xyz;
+    DramBuffer e;
+    e.m_Format      = CascadingBufferFormat::NHWCB;
+    e.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    SramBuffer g;
+    g.m_Format      = CascadingBufferFormat::NHWCB;
+    g.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    g.m_StripeShape = TensorShape{ 1, 16, 16, 32 };
+    g.m_Order       = TraversalOrder::Xyz;
+    DramBuffer i;
+    i.m_Format      = CascadingBufferFormat::NHWCB;
+    i.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    SramBuffer k;
+    k.m_Format      = CascadingBufferFormat::NHWCB;
+    k.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    k.m_StripeShape = TensorShape{ 1, 16, 16, 32 };
+    k.m_Order       = TraversalOrder::Xyz;
     graph.AddOp(&B);
     graph.AddOp(&D);
     graph.AddOp(&F);
@@ -1116,16 +1143,25 @@ TEST_CASE("OpGraph RemoveRedundantCopies Reshape")
     DmaOp D(CascadingBufferFormat::NHWC);
     DmaOp F(CascadingBufferFormat::NHWC);
     DmaOp H(CascadingBufferFormat::NHWC);
-    Buffer a(Location::Dram, CascadingBufferFormat::NHWC, TensorShape{ 1, 10, 10, 10 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer c(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 10, 10, 10 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer e(Location::Dram, CascadingBufferFormat::NHWC, TensorShape{ 1, 100, 10, 1 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer g(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 100, 10, 1 }, TensorShape{ 1, 112, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer i(Location::Dram, CascadingBufferFormat::NHWC, TensorShape{ 1, 1, 1000, 1 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
+    DramBuffer a;
+    a.m_Format      = CascadingBufferFormat::NHWC;
+    a.m_TensorShape = TensorShape{ 1, 10, 10, 10 };
+    SramBuffer c;
+    c.m_Format      = CascadingBufferFormat::NHWCB;
+    c.m_TensorShape = TensorShape{ 1, 10, 10, 10 };
+    c.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    c.m_Order       = TraversalOrder::Xyz;
+    DramBuffer e;
+    e.m_Format      = CascadingBufferFormat::NHWC;
+    e.m_TensorShape = TensorShape{ 1, 100, 10, 1 };
+    SramBuffer g;
+    g.m_Format      = CascadingBufferFormat::NHWCB;
+    g.m_TensorShape = TensorShape{ 1, 100, 10, 1 };
+    g.m_StripeShape = TensorShape{ 1, 112, 16, 16 };
+    g.m_Order       = TraversalOrder::Xyz;
+    DramBuffer i;
+    i.m_Format      = CascadingBufferFormat::NHWC;
+    i.m_TensorShape = TensorShape{ 1, 1, 1000, 1 };
     graph.AddOp(&B);
     graph.AddOp(&D);
     graph.AddOp(&F);
@@ -1210,16 +1246,25 @@ TEST_CASE("OpGraph RemoveRedundantCopies Invalid Buffers and Ops")
     DmaOp D(CascadingBufferFormat::NHWC);
     DmaOp F(CascadingBufferFormat::NHWC);
     DmaOp H(CascadingBufferFormat::NHWC);
-    Buffer a(Location::Dram, CascadingBufferFormat::NHWC, TensorShape{ 1, 16, 16, 16 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer c(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer e(Location::Dram, CascadingBufferFormat::NHWC, TensorShape{ 1, 16, 16, 16 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer g(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer i(Location::Dram, CascadingBufferFormat::NHWC, TensorShape{ 1, 16, 16, 16 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
+    DramBuffer a;
+    a.m_Format      = CascadingBufferFormat::NHWC;
+    a.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+    SramBuffer c;
+    c.m_Format      = CascadingBufferFormat::NHWCB;
+    c.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+    c.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    c.m_Order       = TraversalOrder::Xyz;
+    DramBuffer e;
+    e.m_Format      = CascadingBufferFormat::NHWC;
+    e.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+    SramBuffer g;
+    g.m_Format      = CascadingBufferFormat::NHWCB;
+    g.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+    g.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    g.m_Order       = TraversalOrder::Xyz;
+    DramBuffer i;
+    i.m_Format      = CascadingBufferFormat::NHWC;
+    i.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
     graph.AddOp(&B);
     graph.AddOp(&D);
     graph.AddOp(&F);
@@ -1270,14 +1315,33 @@ TEST_CASE("OpGraph RemoveRedundantCopies Invalid Buffers and Ops")
 
     SECTION("Buffers not in DRAM/SRAM")
     {
-        c.m_Location = Location::PleInputSram;
-        g.m_Location = Location::VirtualSram;
+        PleInputSramBuffer c2;
+        c2.m_Format      = CascadingBufferFormat::NHWCB;
+        c2.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+        c2.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+        graph.AddBuffer(&c2);
+        graph.RemoveProducer(&c, &B);
+        graph.AddProducer(&c2, &B);
+        graph.RemoveConsumer(&c, &D, 0);
+        graph.AddConsumer(&c2, &D, 0);
 
+        PleInputSramBuffer g2;
+        g2.m_Format      = CascadingBufferFormat::NHWCB;
+        g2.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+        g2.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+        graph.AddBuffer(&g2);
+        graph.RemoveProducer(&g, &F);
+        graph.AddProducer(&g2, &F);
+        graph.RemoveConsumer(&g, &H, 0);
+        graph.AddConsumer(&g2, &H, 0);
+
+        size_t origNumBuffers = graph.GetBuffers().size();
+        size_t origNumOps     = graph.GetOps().size();
         graph.RemoveRedundantCopies();
 
         // No optimisation possible, because buffers are in weird places
-        CHECK(graph.GetBuffers().size() == 5);
-        CHECK(graph.GetOps().size() == 4);
+        CHECK(graph.GetBuffers().size() == origNumBuffers);
+        CHECK(graph.GetOps().size() == origNumOps);
     }
 
     SECTION("Non-Dma Ops")
@@ -1356,18 +1420,32 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Multiple Concat")
     H.m_Offset = TensorShape{ 0, 0, 0, 0 };
     DmaOp K(CascadingBufferFormat::NHWCB);
     K.m_Offset = TensorShape{ 0, 0, 0, 16 };
-    Buffer a(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer b(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer e(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer f(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer i(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 48 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer j(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{ 1, 16, 16, 32 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
+    SramBuffer a;
+    a.m_Format      = CascadingBufferFormat::NHWCB;
+    a.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+    a.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    a.m_Order       = TraversalOrder::Xyz;
+    SramBuffer b;
+    b.m_Format      = CascadingBufferFormat::NHWCB;
+    b.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+    b.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    b.m_Order       = TraversalOrder::Xyz;
+    DramBuffer e;
+    e.m_Format      = CascadingBufferFormat::NHWCB;
+    e.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    SramBuffer f;
+    f.m_Format      = CascadingBufferFormat::NHWCB;
+    f.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+    f.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    f.m_Order       = TraversalOrder::Xyz;
+    DramBuffer i;
+    i.m_Format      = CascadingBufferFormat::NHWCB;
+    i.m_TensorShape = TensorShape{ 1, 16, 16, 48 };
+    SramBuffer j;
+    j.m_Format      = CascadingBufferFormat::NHWCB;
+    j.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    j.m_StripeShape = TensorShape{ 1, 16, 16, 32 };
+    j.m_Order       = TraversalOrder::Xyz;
     graph.AddOp(&C);
     graph.AddOp(&D);
     graph.AddOp(&G);
@@ -1503,20 +1581,37 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Multiple Split")
     DmaOp K(CascadingBufferFormat::NHWCB);
     K.m_Offset = TensorShape{ 0, 0, 0, 16 };
     DmaOp L(CascadingBufferFormat::NHWCB);
-    Buffer a(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer b(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer e(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer f(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer i(Location::Dram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 48 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer j(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 32 }, TensorShape{ 1, 16, 16, 32 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer m(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 48 }, TensorShape{ 1, 16, 16, 48 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
+    SramBuffer a;
+    a.m_Format      = CascadingBufferFormat::NHWCB;
+    a.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+    a.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    a.m_Order       = TraversalOrder::Xyz;
+    SramBuffer b;
+    b.m_Format      = CascadingBufferFormat::NHWCB;
+    b.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+    b.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    b.m_Order       = TraversalOrder::Xyz;
+    DramBuffer e;
+    e.m_Format      = CascadingBufferFormat::NHWCB;
+    e.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    SramBuffer f;
+    f.m_Format      = CascadingBufferFormat::NHWCB;
+    f.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+    f.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    f.m_Order       = TraversalOrder::Xyz;
+    DramBuffer i;
+    i.m_Format      = CascadingBufferFormat::NHWCB;
+    i.m_TensorShape = TensorShape{ 1, 16, 16, 48 };
+    SramBuffer j;
+    j.m_Format      = CascadingBufferFormat::NHWCB;
+    j.m_TensorShape = TensorShape{ 1, 16, 16, 32 };
+    j.m_StripeShape = TensorShape{ 1, 16, 16, 32 };
+    j.m_Order       = TraversalOrder::Xyz;
+    SramBuffer m;
+    m.m_Format      = CascadingBufferFormat::NHWCB;
+    m.m_TensorShape = TensorShape{ 1, 16, 16, 48 };
+    m.m_StripeShape = TensorShape{ 1, 16, 16, 48 };
+    m.m_Order       = TraversalOrder::Xyz;
     graph.AddOp(&C);
     graph.AddOp(&D);
     graph.AddOp(&G);
@@ -1659,16 +1754,27 @@ TEST_CASE("OpGraph RemoveRedundantCopiesSramToDram Concat one branch invalid")
     D.m_Offset = TensorShape{ 0, 10, 0, 0 };
     DmaOp G(CascadingBufferFormat::NHWC);
     DmaOp K(CascadingBufferFormat::NHWC);
-    Buffer a(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 10, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer b(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 6, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer e(Location::Dram, CascadingBufferFormat::NHWC, TensorShape{ 1, 16, 16, 16 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer j(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer i(Location::Dram, CascadingBufferFormat::NHWC, TensorShape{ 1, 16, 16, 16 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
+    SramBuffer a;
+    a.m_Format      = CascadingBufferFormat::NHWCB;
+    a.m_TensorShape = TensorShape{ 1, 10, 16, 16 };
+    a.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    a.m_Order       = TraversalOrder::Xyz;
+    SramBuffer b;
+    b.m_Format      = CascadingBufferFormat::NHWCB;
+    b.m_TensorShape = TensorShape{ 1, 6, 16, 16 };
+    b.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    b.m_Order       = TraversalOrder::Xyz;
+    DramBuffer e;
+    e.m_Format      = CascadingBufferFormat::NHWC;
+    e.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+    SramBuffer j;
+    j.m_Format      = CascadingBufferFormat::NHWCB;
+    j.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+    j.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    j.m_Order       = TraversalOrder::Xyz;
+    DramBuffer i;
+    i.m_Format      = CascadingBufferFormat::NHWC;
+    i.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
     graph.AddOp(&C);
     graph.AddOp(&D);
     graph.AddOp(&G);
@@ -1763,16 +1869,27 @@ TEST_CASE("OpGraph RemoveRedundantCopiesDramToSram Split one branch invalid")
     D.m_Offset = TensorShape{ 0, 10, 0, 0 };
     DmaOp G(CascadingBufferFormat::NHWC);
     DmaOp K(CascadingBufferFormat::NHWC);
-    Buffer a(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 10, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer b(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 6, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer e(Location::Dram, CascadingBufferFormat::NHWC, TensorShape{ 1, 16, 16, 16 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer j(Location::Sram, CascadingBufferFormat::NHWCB, TensorShape{ 1, 16, 16, 16 }, TensorShape{ 1, 16, 16, 16 },
-             TraversalOrder::Xyz, 0, QuantizationInfo());
-    Buffer i(Location::Dram, CascadingBufferFormat::NHWC, TensorShape{ 1, 16, 16, 16 }, TensorShape{},
-             TraversalOrder::Xyz, 0, QuantizationInfo());
+    SramBuffer a;
+    a.m_Format      = CascadingBufferFormat::NHWCB;
+    a.m_TensorShape = TensorShape{ 1, 10, 16, 16 };
+    a.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    a.m_Order       = TraversalOrder::Xyz;
+    SramBuffer b;
+    b.m_Format      = CascadingBufferFormat::NHWCB;
+    b.m_TensorShape = TensorShape{ 1, 6, 16, 16 };
+    b.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    b.m_Order       = TraversalOrder::Xyz;
+    DramBuffer e;
+    e.m_Format      = CascadingBufferFormat::NHWC;
+    e.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+    SramBuffer j;
+    j.m_Format      = CascadingBufferFormat::NHWCB;
+    j.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
+    j.m_StripeShape = TensorShape{ 1, 16, 16, 16 };
+    j.m_Order       = TraversalOrder::Xyz;
+    DramBuffer i;
+    i.m_Format      = CascadingBufferFormat::NHWC;
+    i.m_TensorShape = TensorShape{ 1, 16, 16, 16 };
     graph.AddOp(&C);
     graph.AddOp(&D);
     graph.AddOp(&G);

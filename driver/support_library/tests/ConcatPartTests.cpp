@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -42,11 +42,9 @@ void CheckConcatDram(Buffer* concatBuffer, const CheckPlansParams& params)
         CHECK(concatBuffer->m_Location == Location::Dram);
         CHECK(concatBuffer->m_Format == params.m_DataFormat);
         CHECK(concatBuffer->m_TensorShape == params.m_OutputTensorInfo.m_Dimensions);
-        CHECK(concatBuffer->m_Order == TraversalOrder::Xyz);
         CHECK(concatBuffer->m_SizeInBytes ==
               utils::CalculateBufferSize(params.m_OutputTensorInfo.m_Dimensions, params.m_DataFormat));
-        CHECK(concatBuffer->m_NumStripes == 0);
-        CHECK(concatBuffer->m_EncodedWeights == nullptr);
+        CHECK(concatBuffer->Dram()->m_EncodedWeights == nullptr);
     }
 }
 

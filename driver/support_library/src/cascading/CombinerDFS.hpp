@@ -93,7 +93,7 @@ struct SectionContext
 {
     SramAllocator alloc;
     PleOperations pleOps;
-    std::vector<Buffer*> allocatedBuffers;
+    std::vector<SramBuffer*> allocatedBuffers;
 };
 
 struct Combination

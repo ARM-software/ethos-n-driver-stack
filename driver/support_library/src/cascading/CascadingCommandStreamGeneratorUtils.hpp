@@ -23,7 +23,7 @@ namespace cascading_compiler
 
 namespace CommonUtils
 {
-inline void SetTileInfoForBuffer(const HardwareCapabilities& hwCap, Tile& tile, const Buffer* const buffer)
+inline void SetTileInfoForBuffer(const HardwareCapabilities& hwCap, Tile& tile, const SramBuffer* const buffer)
 {
     assert(buffer->m_Format == CascadingBufferFormat::NHWCB || buffer->m_Format == CascadingBufferFormat::WEIGHT);
 
@@ -506,7 +506,7 @@ inline void SetMcesConvolutionData(MceS& mceS, const OpGraph& opGraph, MceOp* co
 namespace PleSUtils
 {
 
-inline void SetPlesTileInfo(const HardwareCapabilities& hwCap, PleS& pleS, const Buffer* const outputBuffer)
+inline void SetPlesTileInfo(const HardwareCapabilities& hwCap, PleS& pleS, const SramBuffer* const outputBuffer)
 {
     pleS.ofmTile.baseAddr = ethosn::utils::NumericCast<uint32_t>(outputBuffer->m_Offset.value());
     const uint32_t ratio = utils::DivRoundUp(utils::GetHeight(outputBuffer->m_StripeShape), pleS.dfltStripeSize.height);
@@ -555,7 +555,7 @@ inline void
     pleSchedulerData.edgeStripeSize.channels = CommonUtils::CalculateEdgeSize(ofmChannels, ofmStripeChannels);
 }
 
-inline void SetStripeIdStrides(PleS& pleSchedulerData, Buffer* outputBuffer)
+inline void SetStripeIdStrides(PleS& pleSchedulerData, SramBuffer* outputBuffer)
 {
     // Note that this defines the order of stripes within the tensor, NOT the order of blocks within the stripe
     // (which is always XYZ).

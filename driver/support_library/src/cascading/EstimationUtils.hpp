@@ -46,12 +46,12 @@ InputStats GetInputStatsLegacy(const HardwareCapabilities& caps,
                                    },
                                const uint32_t numOutStripesC = 1);
 
-InputStats GetInputStatsCascading(const Buffer& ifmBuffer,
+InputStats GetInputStatsCascading(const SramBuffer& ifmBuffer,
                                   const TensorShape& weightsShape,
                                   utils::Optional<CascadingBufferFormat> dramBufferFormat);
 
 OutputStats GetOutputStatsLegacy(const TensorShape& shape, const TensorShape& stripeShape, const Location location);
-OutputStats GetOutputStatsCascading(const Buffer& ofmSramBuffer,
+OutputStats GetOutputStatsCascading(const SramBuffer& ofmSramBuffer,
                                     utils::Optional<CascadingBufferFormat> dramBufferFormat);
 
 InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRatio);
@@ -60,8 +60,8 @@ InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRa
 /// would result in the DMA having to be split into multiple chunks. This is useful as the performance estimate
 /// will then take this into account, and prefer to choose strategies that don't require chunking.
 StripesStats AccountForDmaChunking(StripesStats stats,
-                                   const Buffer& sramBuffer,
-                                   const Buffer& dramBuffer,
+                                   const SramBuffer& sramBuffer,
+                                   const DramBuffer& dramBuffer,
                                    bool dramStridingAllowed);
 
 double CalculateMetric(const NetworkPerformanceData& networkPerfData);

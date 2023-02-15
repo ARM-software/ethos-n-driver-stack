@@ -27,7 +27,7 @@ bool IsSramBufferValid(bool needsBoundaryBeforeX,
                        bool needsBoundaryAfterX,
                        bool needsBoundaryBeforeY,
                        bool needsBoundaryAfterY,
-                       Buffer* sramBuffer)
+                       const SramBuffer* sramBuffer)
 {
     uint32_t heightSplits = DivRoundUp(GetHeight(sramBuffer->m_TensorShape), GetHeight(sramBuffer->m_StripeShape));
     uint32_t widthSplits  = DivRoundUp(GetWidth(sramBuffer->m_TensorShape), GetWidth(sramBuffer->m_StripeShape));
@@ -99,7 +99,7 @@ struct NumStripesGrouped
 
 utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     GenerateContinueSectionStripeInfos(NumStripesGrouped& numStripes,
-                                       const Buffer* sramBuffer,
+                                       const SramBuffer* sramBuffer,
                                        uint32_t numWeightStripes,
                                        bool isDepthwise,
                                        const HardwareCapabilities& caps,
@@ -405,8 +405,8 @@ Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
 
     CascadingBufferFormat formatInDram = impl::GetCascadingBufferFormatFromCompilerDataFormat(
         ConvertExternalToCompilerDataFormat(convData.weightInfo.m_DataFormat));
-    Buffer* dramWeightBuffer =
-        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, formatInDram, TraversalOrder::Xyz));
+    DramBuffer* dramWeightBuffer    = opGraph.AddBuffer(std::make_unique<DramBuffer>());
+    dramWeightBuffer->m_Format      = formatInDram;
     dramWeightBuffer->m_DataType    = convData.weightInfo.m_DataType;
     dramWeightBuffer->m_TensorShape = convData.weightInfo.m_Dimensions;
     dramWeightBuffer->m_TensorShape[2] =
@@ -416,9 +416,10 @@ Buffer* McePart::AddWeightBuffersAndDmaOpToMceOp(OwnedOpGraph& opGraph,
     dramWeightBuffer->m_QuantizationInfo = convData.weightInfo.m_QuantizationInfo;
     dramWeightBuffer->m_BufferType       = BufferType::ConstantDma;
 
-    CascadingBufferFormat formatInSram = GetCascadingBufferFormatFromCompilerDataFormat(CompilerDataFormat::WEIGHT);
-    Buffer* sramWeightBuffer =
-        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, formatInSram, TraversalOrder::Xyz));
+    CascadingBufferFormat formatInSram   = GetCascadingBufferFormatFromCompilerDataFormat(CompilerDataFormat::WEIGHT);
+    SramBuffer* sramWeightBuffer         = opGraph.AddBuffer(std::make_unique<SramBuffer>());
+    sramWeightBuffer->m_Format           = formatInSram;
+    sramWeightBuffer->m_Order            = TraversalOrder::Xyz;
     sramWeightBuffer->m_DataType         = convData.weightInfo.m_DataType;
     sramWeightBuffer->m_TensorShape      = dramWeightBuffer->m_TensorShape;
     sramWeightBuffer->m_StripeShape      = memoryWeightStripe;
@@ -474,12 +475,13 @@ std::pair<Buffer*, Op*> McePart::AddMceToOpGraph(OwnedOpGraph& opGraph,
 
     const TraversalOrder ifmTraversalOrder =
         m_Operation == command_stream::MceOperation::DEPTHWISE_CONVOLUTION ? TraversalOrder::Xyz : TraversalOrder::Zxy;
-    Buffer* sramInBuffer =
-        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, ifmTraversalOrder));
-    sramInBuffer->m_DataType                                               = m_InputDataType;
-    sramInBuffer->m_TensorShape                                            = inputShape;
-    sramInBuffer->m_StripeShape                                            = memoryStripesInfo.m_Input.m_Shape;
-    sramInBuffer->m_NumStripes                                             = numMemoryStripes.m_Input;
+    SramBuffer* sramInBuffer    = opGraph.AddBuffer(std::make_unique<SramBuffer>());
+    sramInBuffer->m_Format      = CascadingBufferFormat::NHWCB;
+    sramInBuffer->m_Order       = ifmTraversalOrder;
+    sramInBuffer->m_DataType    = m_InputDataType;
+    sramInBuffer->m_TensorShape = inputShape;
+    sramInBuffer->m_StripeShape = memoryStripesInfo.m_Input.m_Shape;
+    sramInBuffer->m_NumStripes  = numMemoryStripes.m_Input;
     std::tie(sramInBuffer->m_SlotSizeInBytes, sramInBuffer->m_SizeInBytes) = CalculateTileSize(
         m_Capabilities, sramInBuffer->m_TensorShape, sramInBuffer->m_StripeShape,
         memoryStripesInfo.m_Input.m_PackedBoundaryThickness, sramInBuffer->m_NumStripes, couldSourceBeFcaf);
@@ -670,7 +672,7 @@ Plans McePart::GetBeginningPlans(uint32_t numWeightStripes) const
 }
 
 Plans McePart::GetMiddlePlans(ethosn::command_stream::BlockConfig blockConfig,
-                              Buffer* sramBuffer,
+                              const SramBuffer* sramBuffer,
                               uint32_t numWeightStripes) const
 {
     assert(sramBuffer);
@@ -727,7 +729,7 @@ Plans McePart::GetMiddlePlans(ethosn::command_stream::BlockConfig blockConfig,
 }
 
 Plans McePart::GetEndPlans(ethosn::command_stream::BlockConfig blockConfig,
-                           Buffer* sramBuffer,
+                           const SramBuffer* sramBuffer,
                            uint32_t numWeightStripes) const
 {
     assert(sramBuffer);
@@ -798,11 +800,19 @@ Plans McePart::GetPlans(CascadeType cascadeType,
         }
         case CascadeType::Middle:
         {
-            return GetMiddlePlans(blockConfig, sramBuffer, numWeightStripes);
+            if (sramBuffer->m_Location != Location::Sram)
+            {
+                return Plans();
+            }
+            return GetMiddlePlans(blockConfig, sramBuffer->Sram(), numWeightStripes);
         }
         case CascadeType::End:
         {
-            return GetEndPlans(blockConfig, sramBuffer, numWeightStripes);
+            if (sramBuffer->m_Location != Location::Sram)
+            {
+                return Plans();
+            }
+            return GetEndPlans(blockConfig, sramBuffer->Sram(), numWeightStripes);
         }
         default:
         {

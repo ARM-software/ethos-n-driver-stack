@@ -127,8 +127,8 @@ void ConcatPart::CreateConcatDramPlans(Plans& plans) const
     PartOutputMapping outputMappings;
     OwnedOpGraph opGraph;
 
-    opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
-    Buffer* outputBuffer             = opGraph.GetBuffers().back();
+    DramBuffer* outputBuffer         = opGraph.AddBuffer(std::make_unique<DramBuffer>());
+    outputBuffer->m_Format           = format;
     outputBuffer->m_DataType         = m_OutputTensorInfo.m_DataType;
     outputBuffer->m_TensorShape      = m_OutputTensorInfo.m_Dimensions;
     outputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(outputBuffer->m_TensorShape, format);
@@ -141,8 +141,8 @@ void ConcatPart::CreateConcatDramPlans(Plans& plans) const
         TensorShape offset = { 0, 0, 0, 0 };
         offset[m_Axis]     = m_Offsets[inputIndex];
 
-        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
-        Buffer* inputBuffer             = opGraph.GetBuffers().back();
+        DramBuffer* inputBuffer         = opGraph.AddBuffer(std::make_unique<DramBuffer>());
+        inputBuffer->m_Format           = format;
         inputBuffer->m_DataType         = m_InputTensorsInfo[inputIndex].m_DataType;
         inputBuffer->m_TensorShape      = m_InputTensorsInfo[inputIndex].m_Dimensions;
         inputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(inputBuffer->m_TensorShape, format);
@@ -156,13 +156,13 @@ void ConcatPart::CreateConcatDramPlans(Plans& plans) const
         opGraph.AddOp(std::move(dma1));
 
         // Create a buffer with the best stripe shape
-        std::unique_ptr<Buffer> sramBuffer = impl::MakeGlueIntermediateSramBuffer(
+        std::unique_ptr<SramBuffer> sramBuffer = impl::MakeGlueIntermediateSramBuffer(
             m_InputTensorsInfo[inputIndex].m_Dimensions, m_OutputTensorInfo.m_QuantizationInfo,
             m_OutputTensorInfo.m_DataType, { format }, m_Capabilities, m_StripeConfig.blockWidthMultiplier.min,
             m_StripeConfig.blockWidthMultiplier.max, m_StripeConfig.blockHeightMultiplier.min,
             m_StripeConfig.blockHeightMultiplier.max, m_StripeConfig.ofmDepthMultiplier.min,
             m_StripeConfig.ofmDepthMultiplier.max);
-        Buffer* sramBufferRaw = sramBuffer.get();
+        SramBuffer* sramBufferRaw = sramBuffer.get();
         opGraph.AddBuffer(std::move(sramBuffer));
 
         auto dma2            = std::make_unique<DmaOp>(format);

@@ -238,9 +238,8 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                     convData.biasInfo   = m_BiasInfo;
                     convData.biasData   = m_BiasData;
 
-                    opGraph.AddBuffer(
-                        std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWC, TraversalOrder::Xyz));
-                    Buffer* dramInput        = opGraph.GetBuffers().back();
+                    DramBuffer* dramInput    = opGraph.AddBuffer(std::make_unique<DramBuffer>());
+                    dramInput->m_Format      = CascadingBufferFormat::NHWC;
                     dramInput->m_DataType    = m_InputDataType;
                     dramInput->m_TensorShape = m_OriginalInputShape;
                     // The input buffer size of fully connected must be rounded up to the next 1024.

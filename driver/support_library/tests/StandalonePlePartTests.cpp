@@ -1,5 +1,5 @@
 //
-// Copyright © 2022 Arm Limited.
+// Copyright © 2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -95,10 +95,10 @@ void CheckOutputBuffer(Buffer* buffer, const CheckPlansParams& params)
         CHECK(buffer->m_Location == Location::Sram);
         CHECK(buffer->m_Format == params.m_DataFormat);
         CHECK(buffer->m_TensorShape == params.m_OutputTensorInfo.m_Dimensions);
-        CHECK(buffer->m_Order == TraversalOrder::Xyz);
-        CHECK(buffer->m_SizeInBytes == (utils::TotalSizeBytes(buffer->m_StripeShape)) * buffer->m_NumStripes);
-        CHECK(buffer->m_NumStripes > 0);
-        CHECK(buffer->m_EncodedWeights == nullptr);
+        CHECK(buffer->Sram()->m_Order == TraversalOrder::Xyz);
+        CHECK(buffer->m_SizeInBytes ==
+              (utils::TotalSizeBytes(buffer->Sram()->m_StripeShape)) * buffer->Sram()->m_NumStripes);
+        CHECK(buffer->Sram()->m_NumStripes > 0);
     }
 }
 
@@ -109,10 +109,10 @@ void CheckInputBuffer(Buffer* buffer, const CheckPlansParams& params, size_t buf
         CHECK(buffer->m_Location == Location::Sram);
         CHECK(buffer->m_Format == params.m_DataFormat);
         CHECK(buffer->m_TensorShape == params.m_InputTensorsInfo[bufIdx].m_Dimensions);
-        CHECK(buffer->m_Order == TraversalOrder::Xyz);
-        CHECK(buffer->m_SizeInBytes == (utils::TotalSizeBytes(buffer->m_StripeShape)) * buffer->m_NumStripes);
-        CHECK(buffer->m_NumStripes > 0);
-        CHECK(buffer->m_EncodedWeights == nullptr);
+        CHECK(buffer->Sram()->m_Order == TraversalOrder::Xyz);
+        CHECK(buffer->m_SizeInBytes ==
+              (utils::TotalSizeBytes(buffer->Sram()->m_StripeShape)) * buffer->Sram()->m_NumStripes);
+        CHECK(buffer->Sram()->m_NumStripes > 0);
     }
 }
 
@@ -182,8 +182,7 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
         CheckPlans(plans1, params);
 
         // A plan is returned since both input and output tensors is fit into SRAM
-        Buffer prevBuffer;
-        prevBuffer.m_Location    = Location::Sram;
+        SramBuffer prevBuffer;
         prevBuffer.m_StripeShape = inputShape;
         Plans plans2             = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
         CheckPlans(plans2, params);
@@ -237,8 +236,7 @@ TEST_CASE("StandalonePlePart AVGPOOL_3X3_1_1_UDMA")
 
         CheckPlans(plans1, params);
 
-        Buffer prevBuffer;
-        prevBuffer.m_Location    = Location::Sram;
+        SramBuffer prevBuffer;
         prevBuffer.m_StripeShape = inputShape;
         Plans plans2             = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{}, &prevBuffer, 1);
         REQUIRE(plans2.size() == 0);
@@ -279,8 +277,7 @@ TEST_CASE("StandalonePlePart ADDITION")
 
         // Only the lonely part is expected to return a plan
 
-        Buffer prevBuffer;
-        prevBuffer.m_Location = Location::Sram;
+        SramBuffer prevBuffer;
 
         Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
         REQUIRE(plans0.size() == 0);
@@ -325,8 +322,7 @@ TEST_CASE("StandalonePlePart ADDITION")
 
         // Only the lonely part is expected to return a plan
 
-        Buffer prevBuffer;
-        prevBuffer.m_Location = Location::Sram;
+        SramBuffer prevBuffer;
 
         Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
         REQUIRE(plans0.size() == 0);
@@ -375,8 +371,7 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
 
         // Only the lonely part is expected to return a plan
 
-        Buffer prevBuffer;
-        prevBuffer.m_Location = Location::Sram;
+        SramBuffer prevBuffer;
 
         Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
         REQUIRE(plans0.size() == 0);
@@ -422,8 +417,7 @@ TEST_CASE("StandalonePlePart ADDITION_RESCALE")
 
         // Only the lonely part is expected to return a plan
 
-        Buffer prevBuffer;
-        prevBuffer.m_Location = Location::Sram;
+        SramBuffer prevBuffer;
 
         Plans plans0 = part.GetPlans(CascadeType::Beginning, command_stream::BlockConfig{}, nullptr, 1);
         REQUIRE(plans0.size() == 0);

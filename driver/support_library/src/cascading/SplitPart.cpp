@@ -116,8 +116,8 @@ void SplitPart::CreateSplitDramPlans(Plans& plans) const
     PartOutputMapping outputMappings;
     OwnedOpGraph opGraph;
 
-    opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
-    Buffer* inputBuffer             = opGraph.GetBuffers()[0];
+    DramBuffer* inputBuffer         = opGraph.AddBuffer(std::make_unique<DramBuffer>());
+    inputBuffer->m_Format           = format;
     inputBuffer->m_DataType         = m_InputTensorInfo.m_DataType;
     inputBuffer->m_TensorShape      = m_InputTensorInfo.m_Dimensions;
     inputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(inputBuffer->m_TensorShape, format);
@@ -140,7 +140,7 @@ void SplitPart::CreateSplitDramPlans(Plans& plans) const
         opGraph.AddOp(std::move(dma1));
 
         // Create a buffer with the best stripe shape
-        std::unique_ptr<Buffer> sramBuffer = impl::MakeGlueIntermediateSramBuffer(
+        std::unique_ptr<SramBuffer> sramBuffer = impl::MakeGlueIntermediateSramBuffer(
             outputTensorInfo.m_Dimensions, outputTensorInfo.m_QuantizationInfo, outputTensorInfo.m_DataType, { format },
             m_Capabilities, m_StripeConfig.blockWidthMultiplier.min, m_StripeConfig.blockWidthMultiplier.max,
             m_StripeConfig.blockHeightMultiplier.min, m_StripeConfig.blockHeightMultiplier.max,
@@ -153,8 +153,8 @@ void SplitPart::CreateSplitDramPlans(Plans& plans) const
         DmaOp* dma2Raw       = dma2.get();
         opGraph.AddOp(std::move(dma2));
 
-        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, TraversalOrder::Xyz));
-        Buffer* outputBuffer             = opGraph.GetBuffers().back();
+        DramBuffer* outputBuffer         = opGraph.AddBuffer(std::make_unique<DramBuffer>());
+        outputBuffer->m_Format           = format;
         outputBuffer->m_DataType         = outputTensorInfo.m_DataType;
         outputBuffer->m_TensorShape      = outputTensorInfo.m_Dimensions;
         outputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(outputBuffer->m_TensorShape, format);

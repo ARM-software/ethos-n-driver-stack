@@ -1,5 +1,5 @@
 //
-// Copyright © 2022 Arm Limited.
+// Copyright © 2022-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -43,12 +43,10 @@ void CheckSplitDram(std::vector<Buffer*> splitBuffers, const CheckPlansParams& p
             CHECK(splitBuffers[bufferIndex]->m_Location == Location::Dram);
             CHECK(splitBuffers[bufferIndex]->m_Format == params.m_DataFormat);
             CHECK(splitBuffers[bufferIndex]->m_TensorShape == params.m_OutputTensorInfos[bufferIndex].m_Dimensions);
-            CHECK(splitBuffers[bufferIndex]->m_Order == TraversalOrder::Xyz);
             CHECK(
                 splitBuffers[bufferIndex]->m_SizeInBytes ==
                 utils::CalculateBufferSize(params.m_OutputTensorInfos[bufferIndex].m_Dimensions, params.m_DataFormat));
-            CHECK(splitBuffers[bufferIndex]->m_NumStripes == 0);
-            CHECK(splitBuffers[bufferIndex]->m_EncodedWeights == nullptr);
+            CHECK(splitBuffers[bufferIndex]->Dram()->m_EncodedWeights == nullptr);
         }
 }
 

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -29,10 +29,9 @@ ethosn::support_library::Plans
 
     if (m_HasInput)
     {
-        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
-        Buffer* buffer             = opGraph.GetBuffers().back();
+        DramBuffer* buffer         = opGraph.AddBuffer(std::make_unique<DramBuffer>());
+        buffer->m_Format           = CascadingBufferFormat::NHWCB;
         buffer->m_TensorShape      = { 1, 16, 16, 16 };
-        buffer->m_StripeShape      = { 1, 16, 16, 16 };
         buffer->m_SizeInBytes      = 16 * 16 * 16;
         buffer->m_QuantizationInfo = { 0, 1.f };
 
@@ -40,10 +39,9 @@ ethosn::support_library::Plans
     }
     if (m_HasOutput)
     {
-        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
-        Buffer* buffer             = opGraph.GetBuffers().back();
+        DramBuffer* buffer         = opGraph.AddBuffer(std::make_unique<DramBuffer>());
+        buffer->m_Format           = CascadingBufferFormat::NHWCB;
         buffer->m_TensorShape      = { 1, 16, 16, 16 };
-        buffer->m_StripeShape      = { 1, 16, 16, 16 };
         buffer->m_SizeInBytes      = 16 * 16 * 16;
         buffer->m_QuantizationInfo = { 0, 1.f };
 

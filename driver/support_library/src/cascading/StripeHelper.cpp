@@ -351,23 +351,20 @@ TensorShape CreateStripe(TensorShape input, TensorShape inputEncoding, uint32_t 
     return inputStripeShape;
 }
 
-bool IsSramBufferCompatibleWithDramBuffer(const Buffer& sramBuffer,
-                                          const Buffer& dramBuffer,
+bool IsSramBufferCompatibleWithDramBuffer(const SramBuffer& sramBuffer,
+                                          const DramBuffer& dramBuffer,
                                           const TensorShape& dramOffset)
 {
-    assert(sramBuffer.m_Location == Location::Sram);
-    assert(dramBuffer.m_Location == Location::Dram);
     return IsSramBufferCompatibleWithDramBuffer(sramBuffer.m_TensorShape, sramBuffer.m_StripeShape,
                                                 sramBuffer.m_PackedBoundaryThickness, dramBuffer.m_Format,
                                                 dramBuffer.m_TensorShape, dramOffset);
 }
 
-bool IsSramBufferCompatibleWithDramBuffer(const Buffer& sramBuffer,
+bool IsSramBufferCompatibleWithDramBuffer(const SramBuffer& sramBuffer,
                                           CascadingBufferFormat dramFormat,
                                           const TensorShape& dramTensorShape,
                                           const TensorShape& dramOffset)
 {
-    assert(sramBuffer.m_Location == Location::Sram);
     return IsSramBufferCompatibleWithDramBuffer(sramBuffer.m_TensorShape, sramBuffer.m_StripeShape,
                                                 sramBuffer.m_PackedBoundaryThickness, dramFormat, dramTensorShape,
                                                 dramOffset);
@@ -456,7 +453,7 @@ bool IsSramBufferCompatibleWithDramBuffer(
     return true;
 }
 
-CascadingBufferFormat GetBestDramBufferFormat(const std::vector<const Buffer*>& sramBuffers,
+CascadingBufferFormat GetBestDramBufferFormat(const std::vector<const SramBuffer*>& sramBuffers,
                                               const CompilationOptions& compilationOptions)
 {
     bool fcafDeep = compilationOptions.m_EnableIntermediateCompression;
@@ -471,7 +468,7 @@ CascadingBufferFormat GetBestDramBufferFormat(const std::vector<const Buffer*>& 
         ETHOSN_UNUSED(b);
     }
 
-    for (const Buffer* b : sramBuffers)
+    for (const SramBuffer* b : sramBuffers)
     {
         if (!IsSramBufferCompatibleWithDramBuffer(*b, CascadingBufferFormat::FCAF_DEEP, tensorShape, { 0, 0, 0, 0 }))
         {
@@ -498,7 +495,7 @@ CascadingBufferFormat GetBestDramBufferFormat(const std::vector<const Buffer*>& 
 
 /// Creates an SRAM buffer for use in a glue which DMAs stuff into and out of SRAM.
 /// The code attempts to choose an optimal stripe shape.
-std::unique_ptr<Buffer>
+std::unique_ptr<SramBuffer>
     MakeGlueIntermediateSramBuffer(const TensorShape& shape,
                                    const QuantizationInfo& quantInfo,
                                    DataType dataType,
@@ -578,11 +575,14 @@ std::unique_ptr<Buffer>
         }
     }
 
-    auto sramBuffer =
-        std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, shape, bestStripeShape,
-                                 TraversalOrder::Xyz, utils::TotalSizeBytesNHWCB(bestStripeShape), quantInfo);
-    sramBuffer->m_DataType   = dataType;
-    sramBuffer->m_BufferType = BufferType::Intermediate;
+    auto sramBuffer                = std::make_unique<SramBuffer>();
+    sramBuffer->m_Format           = CascadingBufferFormat::NHWCB;
+    sramBuffer->m_TensorShape      = shape;
+    sramBuffer->m_StripeShape      = bestStripeShape;
+    sramBuffer->m_Order            = TraversalOrder::Xyz;
+    sramBuffer->m_SizeInBytes      = utils::TotalSizeBytesNHWCB(bestStripeShape);
+    sramBuffer->m_QuantizationInfo = quantInfo;
+    sramBuffer->m_DataType         = dataType;
     sramBuffer->m_Offset     = 0;    // Nothing else should be resident in SRAM at this point, so we can use any address
     sramBuffer->m_NumStripes = 1;
     sramBuffer->m_SlotSizeInBytes = sramBuffer->m_SizeInBytes;
@@ -1481,40 +1481,59 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
                        DataType dataType,
                        Location location)
 {
-    assert(location == Location::Sram || location == Location::PleInputSram);
+    uint32_t slotSizeInBytes = utils::CalculateBufferSize(pleInputMemoryShape, CascadingBufferFormat::NHWCB);
 
-    opGraph.AddBuffer(std::make_unique<Buffer>(location, GetFormat(location), TraversalOrder::Xyz));
-    auto buffer = opGraph.GetBuffers().back();
+    Buffer* buffer = nullptr;
+    switch (location)
+    {
+        case Location::Sram:
+        {
+            SramBuffer* b        = opGraph.AddBuffer(std::make_unique<SramBuffer>());
+            b->m_NumStripes      = numPleInputMemoryStripes;
+            b->m_StripeShape     = pleInputMemoryShape;
+            b->m_SlotSizeInBytes = utils::CalculateBufferSize(b->m_StripeShape, CascadingBufferFormat::NHWCB);
+            buffer               = b;
+        }
+        break;
+        case Location::PleInputSram:
+        {
+            PleInputSramBuffer* b = opGraph.AddBuffer(std::make_unique<PleInputSramBuffer>());
+            b->m_NumStripes       = numPleInputMemoryStripes;
+            b->m_StripeShape      = pleInputMemoryShape;
+            buffer                = b;
+        }
+        break;
+        default:
+            assert(false);
+    }
 
+    buffer->m_Format      = CascadingBufferFormat::NHWCB;
     buffer->m_TensorShape = tensorShape;
-    buffer->m_StripeShape = pleInputMemoryShape;
-    buffer->m_NumStripes  = numPleInputMemoryStripes;
 
     // number of stripes in tile is only relevant if the input buffer is in SRAM
     uint32_t numStripesInTile = location == Location::Sram ? numPleInputMemoryStripes : 1;
     buffer->m_DataType        = dataType;
-    buffer->m_SlotSizeInBytes = utils::CalculateBufferSize(buffer->m_StripeShape, buffer->m_Format);
-    buffer->m_SizeInBytes     = buffer->m_SlotSizeInBytes * numStripesInTile;
+    buffer->m_SizeInBytes     = slotSizeInBytes * numStripesInTile;
 
     buffer->m_QuantizationInfo = quantInfo;
     return buffer;
 }
 
-std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
-                                        const TensorShape& memoryOutputShape,
-                                        impl::NumMemoryStripes& numMemoryStripes,
-                                        std::unique_ptr<Op> pleOp,
-                                        const TensorShape& outputShape,
-                                        const QuantizationInfo& outputQuantInfo,
-                                        DataType outputDataType,
-                                        const std::set<uint32_t>& sourceOperationIds)
+std::pair<SramBuffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
+                                            const TensorShape& memoryOutputShape,
+                                            impl::NumMemoryStripes& numMemoryStripes,
+                                            std::unique_ptr<Op> pleOp,
+                                            const TensorShape& outputShape,
+                                            const QuantizationInfo& outputQuantInfo,
+                                            DataType outputDataType,
+                                            const std::set<uint32_t>& sourceOperationIds)
 {
-    auto& buffers      = opGraph.GetBuffers();
     Op* op             = opGraph.AddOp(std::move(pleOp));
     op->m_OperationIds = sourceOperationIds;
 
-    opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, GetFormat(Location::Sram), TraversalOrder::Xyz));
-    auto pleOutBuffer = buffers.back();
+    auto pleOutBuffer      = opGraph.AddBuffer(std::make_unique<SramBuffer>());
+    pleOutBuffer->m_Format = GetFormat(Location::Sram);
+    pleOutBuffer->m_Order  = TraversalOrder::Xyz;
     opGraph.SetProducer(pleOutBuffer, op);
 
     pleOutBuffer->m_DataType    = outputDataType;

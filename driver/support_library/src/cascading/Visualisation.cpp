@@ -636,7 +636,7 @@ std::string ToString(PleKernelId id)
     }
 }
 
-std::string ToString(BufferType t)
+std::string ToString(const BufferType& t)
 {
     switch (t)
     {
@@ -660,7 +660,7 @@ std::string ToString(command_stream::cascading::PackedBoundaryThickness t)
 {
     return "{ L: " + std::to_string(static_cast<int>(t.left)) + ", T: " + std::to_string(static_cast<int>(t.top)) +
            ", R: " + std::to_string(static_cast<int>(t.right)) + ", B: " + std::to_string(static_cast<int>(t.bottom)) +
-           "}";
+           " }";
 }
 
 /// Replaces any illegal characters to form a valid .dot file "ID".
@@ -703,32 +703,6 @@ std::string Escape(std::string s, char alignmentChar = 'n')
     return s;
 }
 
-std::string GetBufferString(Buffer* buffer)
-{
-    std::stringstream stream;
-    stream << "Location = " << ToString(buffer->m_Location) << "\n";
-    stream << "Format = " << ToString(buffer->m_Format) << "\n";
-    stream << "Data Type = " << ToString(buffer->m_DataType) << "\n";
-    stream << "Quant. Info = " << ToString(buffer->m_QuantizationInfo) << "\n";
-    stream << "Tensor shape = " << ToString(buffer->m_TensorShape) << "\n";
-    stream << "Stripe shape = " << ToString(buffer->m_StripeShape) << "\n";
-    stream << "Num. Stripes = " << buffer->m_NumStripes << "\n";
-    stream << "Order = " << ToString(buffer->m_Order) << "\n";
-    if (buffer->m_Offset.has_value())
-    {
-        stream << "Offset = " << ToString(buffer->m_Offset.value()) << " (" << ToStringHex(buffer->m_Offset.value())
-               << ")\n";
-    }
-    stream << "Size in bytes = " << buffer->m_SizeInBytes << " (" << ToStringHex(buffer->m_SizeInBytes) << ")\n";
-    stream << "Slot size in bytes = " << buffer->m_SlotSizeInBytes << " (" << ToStringHex(buffer->m_SlotSizeInBytes)
-           << ")\n";
-    stream << "Type = " << (buffer->m_BufferType.has_value() ? ToString(buffer->m_BufferType.value()) : "None") << "\n";
-    stream << "Packed boundary thickness = " << ToString(buffer->m_PackedBoundaryThickness) << "\n";
-    stream << "Num loads = " << buffer->m_NumLoads << "\n";
-
-    return stream.str();
-}
-
 DotAttributes GetDotAttributes(Op* op, DetailLevel detailLevel, uint32_t idxInOpGraph, std::string extra = "")
 {
     DotAttributes result = op->GetDotAttributes(detailLevel);
@@ -754,25 +728,25 @@ DotAttributes GetDotAttributes(Op* op, DetailLevel detailLevel, uint32_t idxInOp
 
 DotAttributes GetDotAttributes(Buffer* buffer, DetailLevel detailLevel, std::string extra = "")
 {
-    DotAttributes result;
-    result.m_Id    = SanitizeId(buffer->m_DebugTag);
-    result.m_Shape = "box";
+    DotAttributes result = buffer->GetDotAttributes(detailLevel);
+    result.m_Id          = SanitizeId(buffer->m_DebugTag);
+    result.m_Shape       = "box";
     // Highlight buffer locations with colour to make it easier to see where cascading has taken place
     result.m_Color =
         buffer->m_Location == Location::Dram ? "brown" : buffer->m_Location == Location::Sram ? "blue" : "";
 
-    std::stringstream label;
-    label << buffer->m_DebugTag;
+    std::stringstream preLabel;
+    preLabel << buffer->m_DebugTag;
     if (detailLevel == DetailLevel::High)
     {
-        label << "\n";
+        preLabel << "\n";
         if (!extra.empty())
         {
-            label << extra << "\n";
+            preLabel << extra << "\n";
         }
-        label << GetBufferString(buffer);
     }
-    result.m_Label = label.str();
+    preLabel << result.m_Label;
+    result.m_Label = preLabel.str();
 
     return result;
 }
@@ -1439,13 +1413,13 @@ void SaveOpGraphToTxtFile(const OpGraph& graph, std::ostream& stream)
         auto inputBufs = graph.GetInputs(op);
         for (auto inputBuf : inputBufs)
         {
-            stream << GetBufferString(inputBuf);
+            stream << inputBuf->GetDotAttributes(DetailLevel::High).m_Label;
         }
         stream << "Output Buffers: \n\n";
         auto outputBuf = graph.GetOutput(op);
         if (outputBuf)
         {
-            stream << GetBufferString(outputBuf);
+            stream << outputBuf->GetDotAttributes(DetailLevel::High).m_Label;
         }
         stream << "\n";
     }

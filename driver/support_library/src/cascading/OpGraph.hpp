@@ -152,8 +152,11 @@ public:
     OwnedOpGraph(OwnedOpGraph&&)      = default;
     OwnedOpGraph& operator=(OwnedOpGraph&&) = default;
 
-    Op* AddOp(std::unique_ptr<Op> op);
-    Buffer* AddBuffer(std::unique_ptr<Buffer> buffer);
+    template <typename TOp>
+    TOp* AddOp(std::unique_ptr<TOp> op);
+
+    template <typename TBuffer>
+    TBuffer* AddBuffer(std::unique_ptr<TBuffer> buffer);
 
     // Merge another OpGraph into the current one taking ownership of the other opgraphs ops and buffers
     void MergeOpGraph(OwnedOpGraph& other);
@@ -286,70 +289,107 @@ public:
     DummyOp();
 };
 
+class SramBuffer;
+class DramBuffer;
+class PleInputSramBuffer;
+
 class Buffer : public DebuggableObject
 {
+protected:
+    Buffer(const char* defaultTagPrefix, Location location);
+
 public:
-    Buffer();
-    Buffer(Location location, CascadingBufferFormat format, TraversalOrder order);
-    Buffer(Location location,
-           CascadingBufferFormat format,
-           TensorShape tensorShape,
-           TensorShape stripeShape,
-           TraversalOrder order,
-           uint32_t sizeInBytes,
-           QuantizationInfo quantInfo);
     virtual ~Buffer()
     {}
 
-    bool IsFullTensor() const
-    {
-        return m_Location == Location::Dram ||
-               (m_Location == Location::Sram && utils::IsFullTensor(m_TensorShape, m_StripeShape));
-    }
+    bool IsFullTensor() const;
 
-    Location m_Location;
+    const SramBuffer* Sram() const;
+    SramBuffer* Sram();
+
+    const DramBuffer* Dram() const;
+    DramBuffer* Dram();
+
+    const PleInputSramBuffer* PleInputSram() const;
+    PleInputSramBuffer* PleInputSram();
+
+    DotAttributes GetDotAttributes(DetailLevel) const override;
+
+    /// The value of this determines the type of object this is (e.g. DramBuffer).
+    const Location m_Location;
+
     DataType m_DataType;
     CascadingBufferFormat m_Format;
     QuantizationInfo m_QuantizationInfo;
     TensorShape m_TensorShape;
-    TensorShape m_StripeShape;
-    TraversalOrder m_Order;
+
     /// The size of the entire buffer, in bytes. For DRAM buffers, this would be the size of the entire
     /// tensor, but for SRAM buffers this would be a rolling buffer and likely be smaller than the entire
     /// tensor.
     uint32_t m_SizeInBytes;
-    /// Relevant only for SRAM buffers.
-    /// The size of a single slot in the buffer, in bytes. This could be derived from m_StripeShape,
-    /// m_Format, m_PackedBoundaryThickness etc., but it is useful to store by itself.
-    uint32_t m_SlotSizeInBytes;
+};
 
-    /// This value is set by the different parts for DRAM buffers
+class DramBuffer : public Buffer
+{
+public:
+    DramBuffer();
+
+    DotAttributes GetDotAttributes(DetailLevel) const override;
+
     utils::Optional<BufferType> m_BufferType;
-
-    /// This value is set by the Combiner for SRAM buffers
-    utils::Optional<uint32_t> m_Offset;
 
     /// This value is set by the NetworkToGraphOfPartsConverter for Input/Output buffers
     utils::Optional<uint32_t> m_OperationId;
     utils::Optional<uint32_t> m_ProducerOutputIndx;
 
+    /// Relevant only if this is a weights buffer.
+    std::shared_ptr<EncodedWeights> m_EncodedWeights;
+};
+
+class SramBuffer : public Buffer
+{
+public:
+    SramBuffer();
+
+    DotAttributes GetDotAttributes(DetailLevel) const override;
+
+    TensorShape m_StripeShape;
+
+    TraversalOrder m_Order;
+
+    /// The size of a single slot in the buffer, in bytes. This could be derived from m_StripeShape,
+    /// m_Format, m_PackedBoundaryThickness etc., but it is useful to store by itself.
+    uint32_t m_SlotSizeInBytes;
+
+    /// This value is set by the Combiner.
+    utils::Optional<uint32_t> m_Offset;
+
     /// This value should be easily calculable from m_SizeInBytes and m_SlotSizeInBytes,
     /// but is useful to store by itself nonetheless.
     uint32_t m_NumStripes;
 
-    /// Relevant only if this is a weights buffer in Dram.
-    std::shared_ptr<EncodedWeights> m_EncodedWeights;
-
-    /// Relevant only for SRAM buffers.
     /// Defines how much boundary data on each side is packed into each stripe in this buffer.
     command_stream::cascading::PackedBoundaryThickness m_PackedBoundaryThickness;
 
-    /// Relevant only for SRAM buffers.
     /// How many times the tensor is loaded into this buffer. Normally this would be 1,
     /// as we stream data in or out once. However, we sometimes need to re-load the same data
     /// from DRAM multiple times for more complicated streaming strategies, in which case
     /// this field can be >1 to indicate this.
     uint32_t m_NumLoads;
+};
+
+class PleInputSramBuffer : public Buffer
+{
+public:
+    PleInputSramBuffer();
+
+    TensorShape m_StripeShape;
+
+    /// Doesn't really mean anything for this type of buffer, but we store it to preserve
+    /// this value along a cascade to places where it does matter.
+    uint32_t m_NumStripes;
+
+    DotAttributes GetDotAttributes(DetailLevel) const override;
 };
 
 }    // namespace support_library

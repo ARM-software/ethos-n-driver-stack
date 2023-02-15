@@ -181,31 +181,31 @@ TEST_CASE("SaveOpGraphToDot Graph Topology", "[Visualisation]")
     //
     OpGraph graph;
 
-    Buffer dramIfm;
+    DramBuffer dramIfm;
     dramIfm.m_DebugTag = "Dram Ifm";
     DmaOp dmaIfm(CascadingBufferFormat::NHWCB);
     dmaIfm.m_DebugTag = "Dma Ifm";
-    Buffer sramIfm;
+    SramBuffer sramIfm;
     sramIfm.m_DebugTag = "Sram Ifm";
 
-    Buffer dramWeights;
+    DramBuffer dramWeights;
     dramWeights.m_DebugTag = "Dram Weights";
     DmaOp dmaWeights(CascadingBufferFormat::WEIGHT);
     dmaWeights.m_DebugTag = "Dma Weights";
-    Buffer sramWeights;
+    SramBuffer sramWeights;
     sramWeights.m_DebugTag = "Sram Weights";
     sramWeights.m_Format   = CascadingBufferFormat::WEIGHT;
 
     MceOp mce;
     mce.m_DebugTag = "Mce";
 
-    Buffer sramOfm;
+    SramBuffer sramOfm;
     sramOfm.m_DebugTag = "Sram Ofm";
     DmaOp dmaOfm(CascadingBufferFormat::NHWCB);
     dmaOfm.m_DebugTag = "Dma Ofm";
     DmaOp dmaExtra(CascadingBufferFormat::NHWCB);
     dmaExtra.m_DebugTag = "Dma Extra";
-    Buffer dramOfm;
+    DramBuffer dramOfm;
     dramOfm.m_DebugTag = "Dram Ofm";
 
     MceOp consumer1;
@@ -263,10 +263,10 @@ Dma_Extra[label = "Dma Extra", shape = oval, color = darkgoldenrod]
 Consumer_1[label = "Consumer 1", shape = oval]
 Consumer_2[label = "Consumer 2", shape = oval]
 Dram_Ifm[label = "Dram Ifm", shape = box, color = brown]
-Sram_Ifm[label = "Sram Ifm", shape = box, color = brown]
+Sram_Ifm[label = "Sram Ifm", shape = box, color = blue]
 Dram_Weights[label = "Dram Weights", shape = box, color = brown]
-Sram_Weights[label = "Sram Weights", shape = box, color = brown]
-Sram_Ofm[label = "Sram Ofm", shape = box, color = brown]
+Sram_Weights[label = "Sram Weights", shape = box, color = blue]
+Sram_Ofm[label = "Sram Ofm", shape = box, color = blue]
 Dram_Ofm[label = "Dram Ofm", shape = box, color = brown]
 Dram_Ifm -> Dma_Ifm
 Dma_Ifm -> Sram_Ifm
@@ -294,14 +294,41 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
     // Build a simple graph of disconnected nodes, to check the details are printed correctly for each one.
     OpGraph graph;
 
-    Buffer buffer1(Location::PleInputSram, CascadingBufferFormat::WEIGHT, { 1, 2, 3, 4 }, { 5, 6, 7, 8 },
-                   TraversalOrder::Zxy, 1234, QuantizationInfo(10, 0.1f));
-    buffer1.m_DataType   = DataType::INT32_QUANTIZED;
-    buffer1.m_NumStripes = 9;
-    buffer1.m_DebugTag   = "Buffer1";
-    buffer1.m_Offset     = 0;
-    buffer1.m_BufferType = BufferType::Intermediate;
+    PleInputSramBuffer buffer1;
+    buffer1.m_Format           = CascadingBufferFormat::WEIGHT;
+    buffer1.m_TensorShape      = { 1, 2, 3, 4 };
+    buffer1.m_StripeShape      = { 5, 6, 7, 8 };
+    buffer1.m_SizeInBytes      = 1234;
+    buffer1.m_QuantizationInfo = QuantizationInfo(10, 0.1f);
+    buffer1.m_DataType         = DataType::INT32_QUANTIZED;
+    buffer1.m_NumStripes       = 9;
+    buffer1.m_DebugTag         = "Buffer1";
     graph.AddBuffer(&buffer1);
+
+    SramBuffer buffer2;
+    buffer2.m_Format           = CascadingBufferFormat::WEIGHT;
+    buffer2.m_TensorShape      = { 1, 2, 3, 4 };
+    buffer2.m_StripeShape      = { 5, 6, 7, 8 };
+    buffer2.m_SizeInBytes      = 1234;
+    buffer2.m_QuantizationInfo = QuantizationInfo(10, 0.1f);
+    buffer2.m_DataType         = DataType::INT32_QUANTIZED;
+    buffer2.m_NumStripes       = 9;
+    buffer2.m_Order            = TraversalOrder::Zxy;
+    buffer2.m_DebugTag         = "Buffer2";
+    graph.AddBuffer(&buffer2);
+
+    DramBuffer buffer3;
+    buffer3.m_Format             = CascadingBufferFormat::WEIGHT;
+    buffer3.m_TensorShape        = { 1, 2, 3, 4 };
+    buffer3.m_SizeInBytes        = 1234;
+    buffer3.m_QuantizationInfo   = QuantizationInfo(10, 0.1f);
+    buffer3.m_DataType           = DataType::INT32_QUANTIZED;
+    buffer3.m_DebugTag           = "Buffer3";
+    buffer3.m_BufferType         = BufferType::ConstantDma;
+    buffer3.m_OperationId        = 7;
+    buffer3.m_ProducerOutputIndx = 13;
+    buffer3.m_EncodedWeights     = std::make_shared<EncodedWeights>(EncodedWeights{ {}, 12, { 1, 2, 3 } });
+    graph.AddBuffer(&buffer3);
 
     MceOp mce(MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, { 3u, 4u }, { 1, 2, 3, 4 }, { 5, 6, 7, 8 },
               { 9, 10, 11, 12 }, TraversalOrder::Zxy, Stride(10, 20), 30, 40, 100, 200);
@@ -342,7 +369,9 @@ TEST_CASE("SaveOpGraphToDot Node Details", "[Visualisation]")
 Mce[label = "Mce\nIdx in OpGraph: 0\nMceOp\nOp = CONVOLUTION\nAlgo = DIRECT\nBlock Config = 3x4\nInput Stripe Shape = [1, 2, 3, 4]\nOutput Stripe Shape = [5, 6, 7, 8]\nWeights Stripe Shape = [9, 10, 11, 12]\nOrder = Zxy\nStride = 10, 20\nPad L/T = 30, 40\nUpscaleFactor = 2\nUpsampleType = NEAREST_NEIGHBOUR\nLower/Upper Bound = 100, 200\nOperation Ids = []\n", shape = oval]
 Dma[label = "Dma\nIdx in OpGraph: 1\nDmaOp\nOperation Ids = []\nTransfer Format = NHWCB\nOffset = [0, 0, 0, 0]\n", shape = oval, color = darkgoldenrod]
 Ple[label = "Ple\nIdx in OpGraph: 2\nPleOp\nOp = ADDITION\nBlock Config = 16x16\nNum Inputs = 2\nInput Stripe Shapes = [[1, 2, 3, 4], [5, 6, 7, 8]]\nOutput Stripe Shape = [9, 10, 11, 12]\nPle kernel Id = ADDITION_16X16_1\nKernel Load = 1\nOffset = 0 (0x0)\nOperation Ids = []\nInput0Multiplier = 10\nInput0Shift = 11\nInput1Multiplier = 12\nInput1Shift = 13\n", shape = oval]
-Buffer1[label = "Buffer1\nLocation = PleInputSram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\nOrder = Zxy\nOffset = 0 (0x0)\nSize in bytes = 1234 (0x4D2)\nSlot size in bytes = 0 (0x0)\nType = Intermediate\nPacked boundary thickness = { L: 0, T: 0, R: 0, B: 0}\nNum loads = 1\n", shape = box]
+Buffer1[label = "Buffer1\nLocation = PleInputSram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nStripe shape = [5, 6, 7, 8]\nNum. Stripes = 9\n", shape = box]
+Buffer2[label = "Buffer2\nLocation = Sram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nStripe shape = [5, 6, 7, 8]\nOrder = Zxy\nSlot size in bytes = 0 (0x0)\nNum. Stripes = 9\nPacked boundary thickness = { L: 0, T: 0, R: 0, B: 0 }\nNum loads = 1\n", shape = box, color = blue]
+Buffer3[label = "Buffer3\nLocation = Dram\nFormat = WEIGHT\nData Type = INT32_QUANTIZED\nQuant. Info = ZeroPoint = 10, Scale = 0.100000\nTensor shape = [1, 2, 3, 4]\nSize in bytes = 1234 (0x4D2)\nEncoded weights = { 3 bytes, max size = 12, num. metadata = 0 }\nType = ConstantDma\nOperation ID = 7\nProducer Output Index = 1\n", shape = box, color = brown]
 }
 )";
     REQUIRE(stream.str() == expected);
@@ -359,9 +388,14 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     // aren't in a Pass.
     OpGraph graph;
 
-    Buffer inputBuffer(Location::Sram, CascadingBufferFormat::NHWCB, { 1, 2, 3, 4 }, { 5, 6, 7, 8 },
-                       TraversalOrder::Xyz, 1, QuantizationInfo(0, 1.0f));
-    inputBuffer.m_DebugTag = "InputBuffer";
+    SramBuffer inputBuffer;
+    inputBuffer.m_Format           = CascadingBufferFormat::NHWCB;
+    inputBuffer.m_TensorShape      = { 1, 2, 3, 4 };
+    inputBuffer.m_StripeShape      = { 5, 6, 7, 8 };
+    inputBuffer.m_Order            = TraversalOrder::Xyz;
+    inputBuffer.m_SizeInBytes      = 1;
+    inputBuffer.m_QuantizationInfo = QuantizationInfo(0, 1.0f);
+    inputBuffer.m_DebugTag         = "InputBuffer";
     graph.AddBuffer(&inputBuffer);
 
     PleOp ple1(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
@@ -369,9 +403,14 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     ple1.m_DebugTag = "Ple1";
     graph.AddOp(&ple1);
 
-    Buffer intermediateBuffer(Location::Sram, CascadingBufferFormat::NHWCB, { 1, 2, 3, 4 }, { 5, 6, 7, 8 },
-                              TraversalOrder::Xyz, 1, QuantizationInfo(0, 1.0f));
-    intermediateBuffer.m_DebugTag = "IntermediateBuffer";
+    SramBuffer intermediateBuffer;
+    intermediateBuffer.m_Format           = CascadingBufferFormat::NHWCB;
+    intermediateBuffer.m_TensorShape      = { 1, 2, 3, 4 };
+    intermediateBuffer.m_StripeShape      = { 5, 6, 7, 8 };
+    intermediateBuffer.m_Order            = TraversalOrder::Xyz;
+    intermediateBuffer.m_SizeInBytes      = 1;
+    intermediateBuffer.m_QuantizationInfo = QuantizationInfo(0, 1.0f);
+    intermediateBuffer.m_DebugTag         = "IntermediateBuffer";
     graph.AddBuffer(&intermediateBuffer);
 
     PleOp ple2(PleOperation::ADDITION, { 16u, 16u }, 2, { { 1, 2, 3, 4 }, { 5, 6, 7, 8 } }, { 9, 10, 11, 12 },
@@ -379,9 +418,12 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     ple2.m_DebugTag = "Ple2";
     graph.AddOp(&ple2);
 
-    Buffer outputBuffer(Location::Sram, CascadingBufferFormat::NHWCB, { 1, 2, 3, 4 }, { 5, 6, 7, 8 },
-                        TraversalOrder::Xyz, 1, QuantizationInfo(0, 1.0f));
-    outputBuffer.m_DebugTag = "OutputBuffer";
+    DramBuffer outputBuffer;
+    outputBuffer.m_Format           = CascadingBufferFormat::NHWCB;
+    outputBuffer.m_TensorShape      = { 1, 2, 3, 4 };
+    outputBuffer.m_SizeInBytes      = 1;
+    outputBuffer.m_QuantizationInfo = QuantizationInfo(0, 1.0f);
+    outputBuffer.m_DebugTag         = "OutputBuffer";
     graph.AddBuffer(&outputBuffer);
 
     EstimateOnlyOp dma("No reason");
@@ -412,7 +454,7 @@ TEST_CASE("SaveEstimatedOpGraphToDot", "[Visualisation]")
     std::map<Buffer*, std::string> extraBufferDetails = { { &inputBuffer, "Extra details for InputBuffer!" } };
 
     // For easier debugging of this test (and so that you can see the pretty graph!), dump to a file
-    bool dumpToFile = false;
+    bool dumpToFile = true;
     if (dumpToFile)
     {
         std::ofstream stream("SaveEstimatedOpGraphToDot.dot");
@@ -449,7 +491,7 @@ Pass1_Perf[label = "Metric = 0\l\l{\l    \"OperationIds\": [ ],\l    \"ParentIds
 }
 EstimateOnly[label = "EstimateOnly", shape = oval]
 IntermediateBuffer[label = "IntermediateBuffer", shape = box, color = blue]
-OutputBuffer[label = "OutputBuffer", shape = box, color = blue]
+OutputBuffer[label = "OutputBuffer", shape = box, color = brown]
 InputBuffer -> Ple1
 Ple1 -> IntermediateBuffer
 IntermediateBuffer -> Ple2
@@ -488,7 +530,7 @@ TEST_CASE("SaveCompiledOpGraphToDot", "[Visualisation]")
     ple2.m_DebugTag = "Ple2";
     graph.AddOp(&ple2);
 
-    Buffer buffer;
+    DramBuffer buffer;
     buffer.m_DebugTag = "Buffer";
     graph.AddBuffer(&buffer);
 
@@ -758,16 +800,16 @@ TEST_CASE("SavePlansToDot Graph Topology", "[Visualisation]")
     // Generate two plans for the node. These plans are not realistic at all.
     PartOutputSlot planAOutputSlot = PartOutputSlot{ 0, 0 };
     OwnedOpGraph planAOpGraph;
-    planAOpGraph.AddBuffer(std::make_unique<Buffer>());
+    planAOpGraph.AddBuffer(std::make_unique<DramBuffer>());
     Plan planA(PartInputMapping{}, PartOutputMapping{ { planAOpGraph.GetBuffers()[0], planAOutputSlot } });
     planA.m_OpGraph = std::move(planAOpGraph);
 
     OwnedOpGraph planBOpGraph;
     PartInputSlot planBInputSlot   = PartInputSlot{ 1, 0 };
     PartOutputSlot planBOutputSlot = PartOutputSlot{ 1, 0 };
-    planBOpGraph.AddBuffer(std::make_unique<Buffer>());
+    planBOpGraph.AddBuffer(std::make_unique<DramBuffer>());
     planBOpGraph.AddOp(std::make_unique<DmaOp>(CascadingBufferFormat::NHWCB));
-    planBOpGraph.AddBuffer(std::make_unique<Buffer>());
+    planBOpGraph.AddBuffer(std::make_unique<DramBuffer>());
     planBOpGraph.AddConsumer(planBOpGraph.GetBuffers()[0], planBOpGraph.GetOps()[0], 0);
     planBOpGraph.SetProducer(planBOpGraph.GetBuffers()[1], planBOpGraph.GetOps()[0]);
     Plan planB(PartInputMapping{ { planBOpGraph.GetBuffers()[0], planBInputSlot } },
@@ -799,23 +841,23 @@ subgraph clusterPlan_1
 {
 label="Plan 1"
 labeljust=l
-Buffer_0[label = "Buffer 0", shape = box, color = brown]
-OutputLabelBuffer_0[label = "Output Slot 0", shape = box]
-Buffer_0 -> OutputLabelBuffer_0[dir = back, arrowtail = box]
+DramBuffer_0[label = "DramBuffer 0", shape = box, color = brown]
+OutputLabelDramBuffer_0[label = "Output Slot 0", shape = box]
+DramBuffer_0 -> OutputLabelDramBuffer_0[dir = back, arrowtail = box]
 }
 subgraph clusterPlan_5
 {
 label="Plan 5"
 labeljust=l
 DmaOp_3[label = "DmaOp 3", shape = oval, color = darkgoldenrod]
-Buffer_2[label = "Buffer 2", shape = box, color = brown]
-Buffer_4[label = "Buffer 4", shape = box, color = brown]
-Buffer_2 -> DmaOp_3
-DmaOp_3 -> Buffer_4
-InputLabelBuffer_2[label = "Input Slot 0", shape = box]
-InputLabelBuffer_2 -> Buffer_2[arrowhead = box]
-OutputLabelBuffer_4[label = "Output Slot 0", shape = box]
-Buffer_4 -> OutputLabelBuffer_4[dir = back, arrowtail = box]
+DramBuffer_2[label = "DramBuffer 2", shape = box, color = brown]
+DramBuffer_4[label = "DramBuffer 4", shape = box, color = brown]
+DramBuffer_2 -> DmaOp_3
+DmaOp_3 -> DramBuffer_4
+InputLabelDramBuffer_2[label = "Input Slot 0", shape = box]
+InputLabelDramBuffer_2 -> DramBuffer_2[arrowhead = box]
+OutputLabelDramBuffer_4[label = "Output Slot 0", shape = box]
+DramBuffer_4 -> OutputLabelDramBuffer_4[dir = back, arrowtail = box]
 }
 }
 )";
@@ -894,52 +936,67 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     graph.AddConnection(partGInputSlot1, partDEOutputSlot1);
 
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                       TraversalOrder::Xyz, 0, QuantizationInfo()));
-    planA.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputDram";
-    planA.m_OutputMappings                          = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot0 } };
+    DramBuffer* inputDram    = planA.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
+    inputDram->m_Format      = CascadingBufferFormat::NHWCB;
+    inputDram->m_TensorShape = TensorShape{ 1, 17, 16, 16 };
+    inputDram->m_DebugTag    = "InputDram";
+    planA.m_OutputMappings   = { { inputDram, partAOutputSlot0 } };
 
     // Part consisting of node B
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram1";
-    planB.m_InputMappings                           = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot0 } };
-    planB.m_OutputMappings                          = { { planB.m_OpGraph.GetBuffers()[0], partBOutputSlot0 } };
+    SramBuffer* inputSram1    = planB.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
+    inputSram1->m_Format      = CascadingBufferFormat::NHWCB;
+    inputSram1->m_TensorShape = TensorShape{ 1, 17, 16, 16 };
+    inputSram1->m_StripeShape = TensorShape{ 1, 17, 16, 16 };
+    inputSram1->m_Order       = TraversalOrder::Xyz;
+    inputSram1->m_SizeInBytes = 4;
+    inputSram1->m_DebugTag    = "InputSram1";
+    planB.m_InputMappings     = { { inputSram1, partBInputSlot0 } };
+    planB.m_OutputMappings    = { { inputSram1, partBOutputSlot0 } };
 
     // Part consisting of node C
     Plan planC;
-    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planC.m_OpGraph.GetBuffers().back()->m_DebugTag = "InputSram2";
-    planC.m_InputMappings                           = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot0 } };
-    planC.m_OutputMappings                          = { { planC.m_OpGraph.GetBuffers()[0], partCOutputSlot0 } };
+    SramBuffer* inputSram2    = planC.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
+    inputSram2->m_Format      = CascadingBufferFormat::NHWCB;
+    inputSram2->m_TensorShape = TensorShape{ 1, 17, 16, 16 };
+    inputSram2->m_StripeShape = TensorShape{ 1, 17, 16, 16 };
+    inputSram2->m_Order       = TraversalOrder::Xyz;
+    inputSram2->m_SizeInBytes = 4;
+    inputSram2->m_DebugTag    = "InputSram2";
+    planC.m_InputMappings     = { { inputSram2, partCInputSlot0 } };
+    planC.m_OutputMappings    = { { inputSram2, partCOutputSlot0 } };
 
     // Part consisting of nodes D and E
     Plan planDE;
-    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planDE.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateSramInput1";
-    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
-    planDE.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram1";
-    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planDE.m_OpGraph.GetBuffers().back()->m_DebugTag = "IntermediateSramInput2";
-    planDE.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                        TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                        TraversalOrder::Xyz, 0, QuantizationInfo()));
-    planDE.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputSram2";
-    planDE.m_InputMappings                           = { { planDE.m_OpGraph.GetBuffers()[0], partDEInputSlot0 },
-                               { planDE.m_OpGraph.GetBuffers()[2], partDEInputSlot1 } };
-    planDE.m_OutputMappings                          = { { planDE.m_OpGraph.GetBuffers()[1], partDEOutputSlot0 },
-                                { planDE.m_OpGraph.GetBuffers()[3], partDEOutputSlot1 } };
+    SramBuffer* intermediateSramInput1    = planDE.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
+    intermediateSramInput1->m_Format      = CascadingBufferFormat::NHWCB;
+    intermediateSramInput1->m_TensorShape = TensorShape{ 1, 17, 16, 16 };
+    intermediateSramInput1->m_StripeShape = TensorShape{ 1, 17, 16, 16 };
+    intermediateSramInput1->m_Order       = TraversalOrder::Xyz;
+    intermediateSramInput1->m_SizeInBytes = 4;
+    intermediateSramInput1->m_DebugTag    = "IntermediateSramInput1";
+    SramBuffer* outputSram1               = planDE.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
+    outputSram1->m_Format                 = CascadingBufferFormat::NHWCB;
+    outputSram1->m_TensorShape            = TensorShape{ 1, 17, 16, 16 };
+    outputSram1->m_StripeShape            = TensorShape{ 1, 17, 16, 16 };
+    outputSram1->m_Order                  = TraversalOrder::Xyz;
+    outputSram1->m_DebugTag               = "OutputSram1";
+    SramBuffer* intermediateSramInput2    = planDE.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
+    intermediateSramInput2->m_Format      = CascadingBufferFormat::NHWCB;
+    intermediateSramInput2->m_TensorShape = TensorShape{ 1, 17, 16, 16 };
+    intermediateSramInput2->m_StripeShape = TensorShape{ 1, 17, 16, 16 };
+    intermediateSramInput2->m_Order       = TraversalOrder::Xyz;
+    intermediateSramInput2->m_SizeInBytes = 4;
+    intermediateSramInput2->m_DebugTag    = "IntermediateSramInput2";
+    SramBuffer* outputSram2               = planDE.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
+    outputSram2->m_Format                 = CascadingBufferFormat::NHWCB;
+    outputSram2->m_TensorShape            = TensorShape{ 1, 17, 16, 16 };
+    outputSram2->m_StripeShape            = TensorShape{ 1, 17, 16, 16 };
+    outputSram2->m_Order                  = TraversalOrder::Xyz;
+    outputSram2->m_DebugTag               = "OutputSram2";
+    planDE.m_InputMappings                = { { intermediateSramInput1, partDEInputSlot0 },
+                               { intermediateSramInput2, partDEInputSlot1 } };
+    planDE.m_OutputMappings               = { { outputSram1, partDEOutputSlot0 }, { outputSram2, partDEOutputSlot1 } };
     planDE.m_OpGraph.AddOp(std::make_unique<MceOp>(
         MceOperation::CONVOLUTION, CompilerMceAlgorithm::Direct, BlockConfig{ 16u, 16u }, TensorShape{ 1, 17, 16, 16 },
         TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 1, 1, 16 }, TraversalOrder::Xyz, Stride(), 0, 0, 0, 255));
@@ -951,21 +1008,21 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
 
     // Part consisting of node F
     Plan planF;
-    planF.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                       TraversalOrder::Xyz, 0, QuantizationInfo()));
+    DramBuffer* outputDram1                         = planF.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
+    outputDram1->m_Format                           = CascadingBufferFormat::NHWCB;
+    outputDram1->m_TensorShape                      = TensorShape{ 1, 17, 16, 16 };
     planF.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputDram1";
     planF.m_InputMappings                           = { { planF.m_OpGraph.GetBuffers()[0], partFInputSlot0 } };
 
     // Part consisting of node G
     Plan planG;
-    planG.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                       TraversalOrder::Xyz, 0, QuantizationInfo()));
+    DramBuffer* outputDram2                         = planG.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
+    outputDram2->m_Format                           = CascadingBufferFormat::NHWCB;
+    outputDram2->m_TensorShape                      = TensorShape{ 1, 17, 16, 16 };
     planG.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputDram2";
-    planG.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                       TraversalOrder::Xyz, 0, QuantizationInfo()));
+    DramBuffer* outputDram3                         = planG.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
+    outputDram3->m_Format                           = CascadingBufferFormat::NHWCB;
+    outputDram3->m_TensorShape                      = TensorShape{ 1, 17, 16, 16 };
     planG.m_OpGraph.GetBuffers().back()->m_DebugTag = "OutputDram3";
     planG.m_InputMappings                           = { { planG.m_OpGraph.GetBuffers()[0], partGInputSlot0 },
                               { planG.m_OpGraph.GetBuffers()[1], partGInputSlot1 } };
@@ -1021,10 +1078,10 @@ TEST_CASE("SaveCombinationToDot Graph Topology", "[Visualisation]")
     startingGluefromEtoG->m_ExternalConnections.m_OpsToBuffers.insert(
         { endingGlueE->m_Graph.GetOps()[0], planG.m_OpGraph.GetBuffers()[1] });
 
-    auto endingGlueF = std::make_shared<EndingGlue>();
-    endingGlueF->m_Graph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
-                                                            TensorShape{ 1, 17, 16, 16 }, TensorShape{ 1, 17, 16, 16 },
-                                                            TraversalOrder::Xyz, 0, QuantizationInfo()));
+    auto endingGlueF                                 = std::make_shared<EndingGlue>();
+    DramBuffer* x                                    = endingGlueF->m_Graph.AddBuffer(std::make_unique<DramBuffer>());
+    x->m_Format                                      = CascadingBufferFormat::NHWCB;
+    x->m_TensorShape                                 = TensorShape{ 1, 17, 16, 16 };
     endingGlueF->m_Graph.GetBuffers()[0]->m_DebugTag = "ReplacementBuffer";
     endingGlueF->m_ExternalConnections.m_ReplacementBuffers.insert(
         { planF.m_OpGraph.GetBuffers()[0], endingGlueF->m_Graph.GetBuffers()[0] });
@@ -1263,27 +1320,37 @@ TEST_CASE("SaveCombinationBranchToDot", "[Visualisation]")
     const HardwareCapabilities hwCaps = GetEthosN78HwCapabilities();
 
     Plan planA;
-    planA.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planA.m_OutputMappings = { { planA.m_OpGraph.GetBuffers()[0], partAOutputSlot } };
+    SramBuffer* bufferA    = planA.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
+    bufferA->m_Format      = CascadingBufferFormat::NHWCB;
+    bufferA->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
+    bufferA->m_StripeShape = TensorShape{ 1, 8, 8, 32 };
+    bufferA->m_Order       = TraversalOrder::Xyz;
+    bufferA->m_SizeInBytes = 4;
+    planA.m_OutputMappings = { { bufferA, partAOutputSlot } };
 
     Plan planB;
-    planB.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planB.m_InputMappings = { { planB.m_OpGraph.GetBuffers()[0], partBInputSlot } };
+    SramBuffer* bufferB    = planB.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
+    bufferB->m_Format      = CascadingBufferFormat::NHWCB;
+    bufferB->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
+    bufferB->m_StripeShape = TensorShape{ 1, 8, 8, 32 };
+    bufferB->m_Order       = TraversalOrder::Xyz;
+    bufferB->m_SizeInBytes = 4;
+    planB.m_InputMappings  = { { bufferB, partBInputSlot } };
 
     Plan planC;
-    planC.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
-    planC.m_InputMappings = { { planC.m_OpGraph.GetBuffers()[0], partCInputSlot } };
+    SramBuffer* bufferC    = planC.m_OpGraph.AddBuffer(std::make_unique<SramBuffer>());
+    bufferC->m_Format      = CascadingBufferFormat::NHWCB;
+    bufferC->m_TensorShape = TensorShape{ 1, 64, 64, 64 };
+    bufferC->m_StripeShape = TensorShape{ 1, 8, 8, 32 };
+    bufferC->m_Order       = TraversalOrder::Xyz;
+    bufferC->m_SizeInBytes = 4;
+    planC.m_InputMappings  = { { bufferC, partCInputSlot } };
 
     Plan planD;
-    planD.m_OpGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, CascadingBufferFormat::NHWCB,
-                                                       TensorShape{ 1, 64, 64, 64 }, TensorShape{ 1, 8, 8, 32 },
-                                                       TraversalOrder::Xyz, 4, QuantizationInfo()));
+    DramBuffer* x         = planD.m_OpGraph.AddBuffer(std::make_unique<DramBuffer>());
+    x->m_Format           = CascadingBufferFormat::NHWCB;
+    x->m_TensorShape      = TensorShape{ 1, 64, 64, 64 };
+    x->m_SizeInBytes      = 4;
     planD.m_InputMappings = { { planD.m_OpGraph.GetBuffers()[0], partDInputSlot } };
 
     Combination combA(partA, std::move(planA), 0);
@@ -1344,22 +1411,22 @@ subgraph clusterPlan_4
 {
 label="Part 0: Plan 4"
 labeljust=l
-Buffer_5[label = "Buffer 5", shape = box, color = blue]
+SramBuffer_5[label = "SramBuffer 5", shape = box, color = blue]
 }
 subgraph clusterPart_0_Plan_4_Ending_Glue
 {
 label="Part 0 Plan 4 Ending Glue"
 labeljust=l
 DmaOp_14[label = "DmaOp 14", shape = oval, color = darkgoldenrod]
-Buffer_13[label = "Buffer 13", shape = box, color = brown]
-DmaOp_14 -> Buffer_13
+DramBuffer_13[label = "DramBuffer 13", shape = box, color = brown]
+DmaOp_14 -> DramBuffer_13
 }
-Buffer_5 -> DmaOp_14
+SramBuffer_5 -> DmaOp_14
 subgraph clusterPlan_6
 {
 label="Part 1: Plan 6"
 labeljust=l
-Buffer_7[label = "Buffer 7", shape = box, color = blue]
+SramBuffer_7[label = "SramBuffer 7", shape = box, color = blue]
 }
 subgraph clusterPart_1_Plan_6_Starting_Glue
 {
@@ -1367,13 +1434,13 @@ label="Part 1 Plan 6 Starting Glue"
 labeljust=l
 DmaOp_15[label = "DmaOp 15", shape = oval, color = darkgoldenrod]
 }
-Buffer_13 -> DmaOp_15
-DmaOp_15 -> Buffer_7
+DramBuffer_13 -> DmaOp_15
+DmaOp_15 -> SramBuffer_7
 subgraph clusterPlan_10
 {
 label="Part 3: Plan 10"
 labeljust=l
-Buffer_11[label = "Buffer 11", shape = box, color = brown]
+DramBuffer_11[label = "DramBuffer 11", shape = box, color = brown]
 }
 subgraph clusterPart_3_Plan_10_Starting_Glue
 {
@@ -1381,13 +1448,13 @@ label="Part 3 Plan 10 Starting Glue"
 labeljust=l
 DmaOp_12[label = "DmaOp 12", shape = oval, color = darkgoldenrod]
 }
-Buffer_5 -> DmaOp_12
-DmaOp_12 -> Buffer_11
+SramBuffer_5 -> DmaOp_12
+DmaOp_12 -> DramBuffer_11
 subgraph clusterPlan_8
 {
 label="Part 2: Plan 8"
 labeljust=l
-Buffer_9[label = "Buffer 9", shape = box, color = blue]
+SramBuffer_9[label = "SramBuffer 9", shape = box, color = blue]
 }
 subgraph clusterPart_2_Plan_8_Starting_Glue
 {
@@ -1395,8 +1462,8 @@ label="Part 2 Plan 8 Starting Glue"
 labeljust=l
 DmaOp_16[label = "DmaOp 16", shape = oval, color = darkgoldenrod]
 }
-Buffer_13 -> DmaOp_16
-DmaOp_16 -> Buffer_9
+DramBuffer_13 -> DmaOp_16
+DmaOp_16 -> SramBuffer_9
 }
 )";
     std::string output = stream.str();

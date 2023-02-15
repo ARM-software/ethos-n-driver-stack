@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -37,7 +37,7 @@ private:
     DataType m_OutputDataType;
     CompilerDataFormat m_CompilerDataFormat;
 
-    void CreatePlanForConstantPart(TraversalOrder order, Plans& plans) const;
+    void CreatePlanForConstantPart(Plans& plans) const;
 };
 
 }    // namespace support_library

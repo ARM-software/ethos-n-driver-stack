@@ -232,8 +232,8 @@ bool Combiner::IsPlanAllocated(SectionContext& context,
 
                     if (isSramAllocated == true)
                     {
-                        buf->m_Offset = bufferAllocated.second;
-                        context.allocatedBuffers.push_back(buf);
+                        buf->Sram()->m_Offset = bufferAllocated.second;
+                        context.allocatedBuffers.push_back(buf->Sram());
                     }
                     else
                     {
@@ -243,8 +243,9 @@ bool Combiner::IsPlanAllocated(SectionContext& context,
                 // If an input buffer in a continue or end section
                 else
                 {
-                    assert(outBufOfPrevPlanInSection != nullptr && outBufOfPrevPlanInSection->m_Offset.has_value());
-                    buf->m_Offset = outBufOfPrevPlanInSection->m_Offset;
+                    assert(outBufOfPrevPlanInSection != nullptr &&
+                           outBufOfPrevPlanInSection->Sram()->m_Offset.has_value());
+                    buf->Sram()->m_Offset = outBufOfPrevPlanInSection->Sram()->m_Offset;
                 }
             }
 
@@ -298,16 +299,18 @@ Combination Combiner::AddTempGlues(const Combination& combination)
                     // users of this buffer will require. We could simply assume NHWCB which would be the most
                     // conservative in terms of performance and compatibility, but this might lead to pessimistic
                     // performance estimates due to chunking.
-                    CascadingBufferFormat dramFormat = impl::GetBestDramBufferFormat({ buffer }, m_CompilationOptions);
-                    auto dramBuffer        = std::make_unique<Buffer>(Location::Dram, dramFormat, buffer->m_TensorShape,
-                                                               TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
-                                                               utils::TotalSizeBytesNHWCB(buffer->m_TensorShape),
-                                                               buffer->m_QuantizationInfo);
-                    dramBuffer->m_DataType = buffer->m_DataType;
-                    dramBuffer->m_BufferType = BufferType::Intermediate;
-                    Buffer* dramBufferRaw    = dramBuffer.get();
-                    auto dma                 = std::make_unique<DmaOp>(buffer->m_Format);
-                    DmaOp* dmaRaw            = dma.get();
+                    CascadingBufferFormat dramFormat =
+                        impl::GetBestDramBufferFormat({ buffer->Sram() }, m_CompilationOptions);
+                    auto dramBuffer                = std::make_unique<DramBuffer>();
+                    dramBuffer->m_Format           = dramFormat;
+                    dramBuffer->m_TensorShape      = buffer->m_TensorShape;
+                    dramBuffer->m_SizeInBytes      = utils::TotalSizeBytesNHWCB(buffer->m_TensorShape);
+                    dramBuffer->m_QuantizationInfo = buffer->m_QuantizationInfo;
+                    dramBuffer->m_DataType         = buffer->m_DataType;
+                    dramBuffer->m_BufferType       = BufferType::Intermediate;
+                    Buffer* dramBufferRaw          = dramBuffer.get();
+                    auto dma                       = std::make_unique<DmaOp>(buffer->m_Format);
+                    DmaOp* dmaRaw                  = dma.get();
                     startingGlue->m_Graph.AddBuffer(std::move(dramBuffer));
                     startingGlue->m_Graph.AddOp(std::move(dma));
                     startingGlue->m_Graph.AddConsumer(dramBufferRaw, dmaRaw, 0);
@@ -334,16 +337,18 @@ Combination Combiner::AddTempGlues(const Combination& combination)
                     // users of this buffer will require. We could simply assume NHWCB which would be the most
                     // conservative in terms of performance and compatibility, but this might lead to pessimistic
                     // performance estimates due to chunking.
-                    CascadingBufferFormat dramFormat = impl::GetBestDramBufferFormat({ buffer }, m_CompilationOptions);
-                    auto dramBuffer        = std::make_unique<Buffer>(Location::Dram, dramFormat, buffer->m_TensorShape,
-                                                               TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
-                                                               utils::TotalSizeBytesNHWCB(buffer->m_TensorShape),
-                                                               buffer->m_QuantizationInfo);
-                    dramBuffer->m_DataType = buffer->m_DataType;
-                    dramBuffer->m_BufferType = BufferType::Intermediate;
-                    Buffer* dramBufferRaw    = dramBuffer.get();
-                    auto dma                 = std::make_unique<DmaOp>(buffer->m_Format);
-                    DmaOp* dmaRaw            = dma.get();
+                    CascadingBufferFormat dramFormat =
+                        impl::GetBestDramBufferFormat({ buffer->Sram() }, m_CompilationOptions);
+                    auto dramBuffer                = std::make_unique<DramBuffer>();
+                    dramBuffer->m_Format           = dramFormat;
+                    dramBuffer->m_TensorShape      = buffer->m_TensorShape;
+                    dramBuffer->m_SizeInBytes      = utils::TotalSizeBytesNHWCB(buffer->m_TensorShape);
+                    dramBuffer->m_QuantizationInfo = buffer->m_QuantizationInfo;
+                    dramBuffer->m_DataType         = buffer->m_DataType;
+                    dramBuffer->m_BufferType       = BufferType::Intermediate;
+                    Buffer* dramBufferRaw          = dramBuffer.get();
+                    auto dma                       = std::make_unique<DmaOp>(buffer->m_Format);
+                    DmaOp* dmaRaw                  = dma.get();
                     endingGlue->m_Graph.AddBuffer(std::move(dramBuffer));
                     endingGlue->m_Graph.AddOp(std::move(dma));
                     endingGlue->m_Graph.SetProducer(dramBufferRaw, dmaRaw);
@@ -526,10 +531,10 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
 
     // Maintain a set of DRAM buffers that are available for use in the glue.
     // These are used if possible, rather than adding new buffers.
-    std::map<CascadingBufferFormat, Buffer*> dramBuffers;
+    std::map<CascadingBufferFormat, DramBuffer*> dramBuffers;
     if (producedBuffer->m_Location == Location::Dram)
     {
-        dramBuffers[producedBuffer->m_Format] = producedBuffer;
+        dramBuffers[producedBuffer->m_Format] = producedBuffer->Dram();
     }
 
     EndingGlue endingGlue;    // We'll populate this as we go with any ending glue for the source part
@@ -537,12 +542,14 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
     // Adds a new DRAM buffer of the given format to the ending glue, so that it can be used in any starting glues of consumers.
     // Also adds the DmaOps to connect this buffer to where it is copied from.
     auto addNewBuffer = [&](CascadingBufferFormat format, Buffer* copiedFrom) {
-        auto dramBuffer = std::make_unique<Buffer>(
-            Location::Dram, format, producedBuffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 }, TraversalOrder::Xyz,
-            CalculateBufferSize(producedBuffer->m_TensorShape, format), producedBuffer->m_QuantizationInfo);
-        dramBuffer->m_DataType   = producedBuffer->m_DataType;
-        dramBuffer->m_BufferType = BufferType::Intermediate;
-        Buffer* dramBufferRaw    = dramBuffer.get();
+        auto dramBuffer                = std::make_unique<DramBuffer>();
+        dramBuffer->m_Format           = format;
+        dramBuffer->m_TensorShape      = producedBuffer->m_TensorShape;
+        dramBuffer->m_SizeInBytes      = CalculateBufferSize(producedBuffer->m_TensorShape, format);
+        dramBuffer->m_QuantizationInfo = producedBuffer->m_QuantizationInfo;
+        dramBuffer->m_DataType         = producedBuffer->m_DataType;
+        dramBuffer->m_BufferType       = BufferType::Intermediate;
+        DramBuffer* dramBufferRaw      = dramBuffer.get();
         endingGlue.m_Graph.AddBuffer(std::move(dramBuffer));
 
         // If the new buffer is being copied from the original producedBuffer, then the connections to the DmaOp
@@ -560,11 +567,11 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
     // Returns a DRAM buffer suitable for copying to/from the given set of SRAM buffers.
     // This will be an existing DRAM buffer from `dramBuffers` if one exists and is compatible, otherwise
     // it will make a new one and return that.
-    auto getOrAddCompatibleDramBuffer = [&](const std::initializer_list<const Buffer*>& sramBuffers) {
+    auto getOrAddCompatibleDramBuffer = [&](const std::initializer_list<const SramBuffer*>& sramBuffers) {
         // First check if we have an existing buffer that is usable, to avoid adding any more
-        for (std::pair<CascadingBufferFormat, Buffer*> formatAndBuffer : dramBuffers)
+        for (std::pair<CascadingBufferFormat, DramBuffer*> formatAndBuffer : dramBuffers)
         {
-            if (std::all_of(sramBuffers.begin(), sramBuffers.end(), [&](const Buffer* b) {
+            if (std::all_of(sramBuffers.begin(), sramBuffers.end(), [&](const SramBuffer* b) {
                     return impl::IsSramBufferCompatibleWithDramBuffer(*b, *formatAndBuffer.second, { 0, 0, 0, 0 });
                 }))
             {
@@ -573,7 +580,7 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
         }
         // Need to add a new buffer of a compatible format.
         CascadingBufferFormat format = impl::GetBestDramBufferFormat(sramBuffers, m_CompilationOptions);
-        Buffer* newBuffer            = addNewBuffer(format, producedBuffer);
+        DramBuffer* newBuffer        = addNewBuffer(format, producedBuffer);
         return newBuffer;
     };
 
@@ -592,7 +599,7 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
             // There might already be an existing DRAM buffer of the right format, so we can avoid adding anything.
             // This can only be done for intermediate buffers though, as outputs need to have their own buffer
             auto dramBufferIt = dramBuffers.find(consumerBuffer->m_Format);
-            if (dramBufferIt != dramBuffers.end() && consumerBuffer->m_BufferType == BufferType::Intermediate)
+            if (dramBufferIt != dramBuffers.end() && consumerBuffer->Dram()->m_BufferType == BufferType::Intermediate)
             {
                 // Re-use this existing buffer by adding a replacement link
                 startingGlue.m_ExternalConnections.m_ReplacementBuffers[consumerBuffer] = dramBufferIt->second;
@@ -601,16 +608,17 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
             {
                 // We might be able to add a single DMA to copy directly from the producer buffer,
                 Buffer* dramBufferToCopyFrom = producedBuffer;
-                if (!impl::IsSramBufferCompatibleWithDramBuffer(*producedBuffer, *consumerBuffer, { 0, 0, 0, 0 }))
+                if (!impl::IsSramBufferCompatibleWithDramBuffer(*producedBuffer->Sram(), *consumerBuffer->Dram(),
+                                                                { 0, 0, 0, 0 }))
                 {
                     // If the SRAM buffer is not compatible though, then we'll need to do a conversion.
                     // We may be lucky and there is already a DRAM buffer that is compatible that we can copy from, or we may need to add a new one.
-                    dramBufferToCopyFrom = getOrAddCompatibleDramBuffer({ producedBuffer });
+                    dramBufferToCopyFrom = getOrAddCompatibleDramBuffer({ producedBuffer->Sram() });
                 }
 
                 // We could re-use this consumer DRAM buffer for other consumers, to save them doing their own conversion.
                 // Only intermediate buffers can be shared though (Outputs, for example, don't allow reading).
-                if (consumerBuffer->m_BufferType == BufferType::Intermediate)
+                if (consumerBuffer->Dram()->m_BufferType == BufferType::Intermediate)
                 {
                     // In order for DRAM buffers in consuming plans to be available for sharing, a new copy of this buffer
                     // must be made in the ending glue of the producer, and then linked to the existing consumer buffer via a replacement.
@@ -630,11 +638,12 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
         {
             // We might be able to add a single DMA to copy directly from the producer buffer,
             Buffer* dramBufferToCopyFrom = producedBuffer;
-            if (!impl::IsSramBufferCompatibleWithDramBuffer(*consumerBuffer, *producedBuffer, { 0, 0, 0, 0 }))
+            if (!impl::IsSramBufferCompatibleWithDramBuffer(*consumerBuffer->Sram(), *producedBuffer->Dram(),
+                                                            { 0, 0, 0, 0 }))
             {
                 // If the SRAM buffer is not compatible though, then we'll need to do a conversion.
                 // We may be lucky and there is already a DRAM buffer that is compatible that we can copy from, or we may need to add a new one.
-                dramBufferToCopyFrom = getOrAddCompatibleDramBuffer({ consumerBuffer });
+                dramBufferToCopyFrom = getOrAddCompatibleDramBuffer({ consumerBuffer->Sram() });
             }
 
             // Add a DMA to the starting glue, to copy from the chosen DRAM buffer.
@@ -645,7 +654,8 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
         {
             // SRAM to SRAM always needs to go via DRAM (note that this isn't a cascade!).
             // We may be lucky and there is already a DRAM buffer that is compatible that we can copy from, or we may need to add a new one.
-            Buffer* dramBufferToCopyFrom = getOrAddCompatibleDramBuffer({ producedBuffer, consumerBuffer });
+            Buffer* dramBufferToCopyFrom =
+                getOrAddCompatibleDramBuffer({ producedBuffer->Sram(), consumerBuffer->Sram() });
             // Add a DMA to the starting glue, to copy from the chosen DRAM buffer.
             AddCopyBetweenBuffers(startingGlue.m_Graph, dramBufferToCopyFrom, &startingGlue.m_ExternalConnections,
                                   consumerBuffer, &startingGlue.m_ExternalConnections, m_Caps);
@@ -655,7 +665,7 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
             // There might already be an existing DRAM buffer of the right format, so we can avoid adding anything.
             // This can only be done for intermediate buffers though, as outputs need to have their own buffer
             auto dramBufferIt = dramBuffers.find(consumerBuffer->m_Format);
-            if (dramBufferIt != dramBuffers.end() && consumerBuffer->m_BufferType == BufferType::Intermediate)
+            if (dramBufferIt != dramBuffers.end() && consumerBuffer->Dram()->m_BufferType == BufferType::Intermediate)
             {
                 // Re-use this existing buffer by adding a replacement link
                 startingGlue.m_ExternalConnections.m_ReplacementBuffers[consumerBuffer] = dramBufferIt->second;
@@ -665,21 +675,23 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
             // and replace both with this new buffer.
             // Merging gets complicated if we have multiple consumers, as the merging may invalidate other
             // decisions. Therefore we only do this for simple single-consumer cases at the moment.
-            else if (consumerBuffers.size() == 1 && consumerBuffer->m_BufferType == BufferType::Output &&
+            else if (consumerBuffers.size() == 1 && consumerBuffer->Dram()->m_BufferType == BufferType::Output &&
                      consumerBuffer->m_Format == producedBuffer->m_Format &&
                      consumerBuffer->m_QuantizationInfo == producedBuffer->m_QuantizationInfo &&
                      consumerBuffer->m_TensorShape == producedBuffer->m_TensorShape &&
                      consumerBuffer->m_SizeInBytes == producedBuffer->m_SizeInBytes)
             {
-                std::unique_ptr<Buffer> mergedBuffer = std::make_unique<Buffer>(
-                    Location::Dram, consumerBuffer->m_Format, consumerBuffer->m_TensorShape, TensorShape{ 0, 0, 0, 0 },
-                    TraversalOrder::Xyz, consumerBuffer->m_SizeInBytes, consumerBuffer->m_QuantizationInfo);
-                mergedBuffer->m_DebugTag           = "Merged " + consumerBuffer->m_DebugTag;
-                mergedBuffer->m_BufferType         = consumerBuffer->m_BufferType;
-                mergedBuffer->m_OperationId        = consumerBuffer->m_OperationId;
-                mergedBuffer->m_ProducerOutputIndx = consumerBuffer->m_ProducerOutputIndx;
-                mergedBuffer->m_DataType           = consumerBuffer->m_DataType;
-                Buffer* mergedBufferRaw            = mergedBuffer.get();
+                std::unique_ptr<DramBuffer> mergedBuffer = std::make_unique<DramBuffer>();
+                mergedBuffer->m_Format                   = consumerBuffer->m_Format;
+                mergedBuffer->m_TensorShape              = consumerBuffer->m_TensorShape;
+                mergedBuffer->m_SizeInBytes              = consumerBuffer->m_SizeInBytes;
+                mergedBuffer->m_QuantizationInfo         = consumerBuffer->m_QuantizationInfo;
+                mergedBuffer->m_DebugTag                 = "Merged " + consumerBuffer->m_DebugTag;
+                mergedBuffer->m_BufferType               = consumerBuffer->Dram()->m_BufferType;
+                mergedBuffer->m_OperationId              = consumerBuffer->Dram()->m_OperationId;
+                mergedBuffer->m_ProducerOutputIndx       = consumerBuffer->Dram()->m_ProducerOutputIndx;
+                mergedBuffer->m_DataType                 = consumerBuffer->m_DataType;
+                Buffer* mergedBufferRaw                  = mergedBuffer.get();
 
                 endingGlue.m_Graph.AddBuffer(std::move(mergedBuffer));
                 // Mark both buffers as being replaced by the new merged buffer (the other is done later)
@@ -688,7 +700,7 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
             }
             // We could re-use this consumer DRAM buffer for other consumers, to save them doing their own conversion.
             // Only intermediate buffers can be shared though (Outputs, for example, don't allow reading).
-            else if (consumerBuffer->m_BufferType == BufferType::Intermediate)
+            else if (consumerBuffer->Dram()->m_BufferType == BufferType::Intermediate)
             {
                 // In order for DRAM buffers in consuming plans to be available for sharing, a new copy of this buffer
                 // must be made in the ending glue of the producer, and then linked to the existing consumer buffer via a replacement.
@@ -717,10 +729,10 @@ void Combiner::DeallocateUnusedBuffers(const Buffer& prevPlanBuffer, SectionCont
     {
         for (size_t i = context.allocatedBuffers.size() - 1; i < context.allocatedBuffers.size(); --i)
         {
-            Buffer* b = context.allocatedBuffers[i];
+            SramBuffer* b = context.allocatedBuffers[i];
             if (b != &prevPlanBuffer)
             {
-                context.alloc.Free(0, b->m_Offset.value());
+                context.alloc.Free(0, b->Sram()->m_Offset.value());
                 context.allocatedBuffers.erase(context.allocatedBuffers.begin() + i);
             }
         }

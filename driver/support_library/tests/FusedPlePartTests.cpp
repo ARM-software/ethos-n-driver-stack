@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -173,11 +173,8 @@ void CheckInputDram(const CheckPlansParams& params, PlanDesc& desc)
         {
             CHECK(desc.m_InputDram->m_TensorShape == params.m_InputShape.value());
         }
-        CHECK(desc.m_InputDram->m_StripeShape == TensorShape{ 0, 0, 0, 0 });
-        CHECK(desc.m_InputDram->m_Order == TraversalOrder::Xyz);
         CHECK(desc.m_InputDram->m_SizeInBytes == utils::TotalSizeBytesNHWCB(desc.m_InputDram->m_TensorShape));
-        CHECK(desc.m_InputDram->m_NumStripes == 0);
-        CHECK(desc.m_InputDram->m_EncodedWeights == nullptr);
+        CHECK(desc.m_InputDram->Dram()->m_EncodedWeights == nullptr);
     }
 }
 
@@ -207,7 +204,6 @@ void CheckInputSram(PlanDesc& desc, const CheckPlansParams& params)
             CHECK(desc.m_InputSram->m_TensorShape == desc.m_InputDram->m_TensorShape);
         }
         // m_StripeShape, m_Order, m_SizeInBytes and m_NumStripes will depend on the streaming strategy, and so cannot be checked generically
-        CHECK(desc.m_InputSram->m_EncodedWeights == nullptr);
     }
 }
 
@@ -220,12 +216,9 @@ void CheckWeightsDram(PlanDesc& desc, const CheckPlansParams& params)
         CHECK(desc.m_WeightsDram->m_Format == CascadingBufferFormat::WEIGHT);
         CHECK(desc.m_WeightsDram->m_QuantizationInfo == QuantizationInfo{ 0, 0.5f });
         CHECK(desc.m_WeightsDram->m_TensorShape == TensorShape{ 1, 1, desc.m_Input->m_TensorShape[3], 1 });
-        CHECK(desc.m_WeightsDram->m_StripeShape == TensorShape{ 0, 0, 0, 0 });
-        CHECK(desc.m_WeightsDram->m_Order == TraversalOrder::Xyz);
-        CHECK(desc.m_WeightsDram->m_NumStripes == 0);
-        REQUIRE(desc.m_WeightsDram->m_EncodedWeights != nullptr);
-        CHECK(desc.m_WeightsDram->m_EncodedWeights->m_Data.size() > 0);
-        CHECK(desc.m_WeightsDram->m_SizeInBytes == desc.m_WeightsDram->m_EncodedWeights->m_Data.size());
+        REQUIRE(desc.m_WeightsDram->Dram()->m_EncodedWeights != nullptr);
+        CHECK(desc.m_WeightsDram->Dram()->m_EncodedWeights->m_Data.size() > 0);
+        CHECK(desc.m_WeightsDram->m_SizeInBytes == desc.m_WeightsDram->Dram()->m_EncodedWeights->m_Data.size());
     }
 }
 
@@ -239,9 +232,8 @@ void CheckWeightsSram(PlanDesc& desc, const CheckPlansParams& params)
         CHECK(desc.m_WeightsSram->m_QuantizationInfo == QuantizationInfo{ 0, 0.5f });
         CHECK(desc.m_WeightsSram->m_TensorShape == TensorShape{ 1, 1, desc.m_Input->m_TensorShape[3], 1 });
         // m_StripeShape, m_Order, m_NumStripes will depend on the streaming strategy, and so cannot be checked generically
-        CHECK(desc.m_WeightsSram->m_SizeInBytes ==
-              desc.m_WeightsDram->m_EncodedWeights->m_MaxSize * desc.m_WeightsSram->m_NumStripes);
-        CHECK(desc.m_WeightsSram->m_EncodedWeights == nullptr);
+        CHECK(desc.m_WeightsSram->Sram()->m_SizeInBytes ==
+              desc.m_WeightsDram->Dram()->m_EncodedWeights->m_MaxSize * desc.m_WeightsSram->Sram()->m_NumStripes);
     }
 }
 
@@ -263,7 +255,6 @@ void CheckPleInputSram(PlanDesc& desc, const CheckPlansParams& params)
         CHECK(desc.m_PleInputSram->m_TensorShape == params.m_InputShape.value());
     }
     // m_StripeShape, m_Order, m_SizeInBytes, m_NumStripes will depend on the streaming strategy, and so cannot be checked generically
-    CHECK(desc.m_PleInputSram->m_EncodedWeights == nullptr);
 }
 
 void CheckOutputSram(PlanDesc& desc, const CheckPlansParams& params)
@@ -286,7 +277,6 @@ void CheckOutputSram(PlanDesc& desc, const CheckPlansParams& params)
             CHECK(desc.m_OutputSram->m_TensorShape == params.m_OutputShape.value());
         }
         // m_StripeShape, m_Order, m_SizeInBytes and m_NumStripes will depend on the streaming strategy, and so cannot be checked generically
-        CHECK(desc.m_OutputSram->m_EncodedWeights == nullptr);
     }
 }
 
@@ -313,11 +303,8 @@ void CheckOutputDram(PlanDesc& desc, const CheckPlansParams& params)
         {
             CHECK(desc.m_OutputDram->m_TensorShape == desc.m_OutputSram->m_TensorShape);
         }
-        CHECK(desc.m_OutputDram->m_StripeShape == TensorShape{ 0, 0, 0, 0 });
-        CHECK(desc.m_OutputDram->m_Order == TraversalOrder::Xyz);
         CHECK(desc.m_OutputDram->m_SizeInBytes == utils::TotalSizeBytesNHWCB(desc.m_OutputDram->m_TensorShape));
-        CHECK(desc.m_OutputDram->m_NumStripes == 0);
-        CHECK(desc.m_OutputDram->m_EncodedWeights == nullptr);
+        CHECK(desc.m_OutputDram->Dram()->m_EncodedWeights == nullptr);
     }
 }
 
@@ -630,7 +617,8 @@ TEST_CASE("FusedPlePart GetPlans structure")
                 params.m_InputLocation  = PlanInputLocation::Sram;
                 params.m_OutputLocation = PlanOutputLocation::Sram;
                 params.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plans, params);
             }
@@ -646,7 +634,8 @@ TEST_CASE("FusedPlePart GetPlans structure")
                 params.m_InputLocation  = PlanInputLocation::Sram;
                 params.m_OutputLocation = PlanOutputLocation::Sram;
                 params.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plans, params);
             }
@@ -654,8 +643,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
 
         WHEN("Asked to produce Middle plans with an input buffer in sram")
         {
-            Buffer prevBuffer;
-            prevBuffer.m_Location         = Location::Sram;
+            SramBuffer prevBuffer;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
             prevBuffer.m_TensorShape      = tsIn;
@@ -677,13 +665,11 @@ TEST_CASE("FusedPlePart GetPlans structure")
 
         WHEN("Asked to produce Middle plans with an input buffer in Ple Input Sram")
         {
-            Buffer prevBuffer;
-            prevBuffer.m_Location         = Location::PleInputSram;
+            PleInputSramBuffer prevBuffer;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
             prevBuffer.m_TensorShape      = tsIn;
             prevBuffer.m_StripeShape      = TensorShape{ 1, 8, 16, 16 };
-            prevBuffer.m_Order            = TraversalOrder::Xyz;
             prevBuffer.m_SizeInBytes      = 8 * 16 * 16 * 1;
             prevBuffer.m_NumStripes       = 1;
 
@@ -700,8 +686,7 @@ TEST_CASE("FusedPlePart GetPlans structure")
 
         WHEN("Asked to produce End plans with an input buffer in sram")
         {
-            Buffer prevBuffer;
-            prevBuffer.m_Location         = Location::Sram;
+            SramBuffer prevBuffer;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
             prevBuffer.m_TensorShape      = tsIn;
@@ -723,13 +708,11 @@ TEST_CASE("FusedPlePart GetPlans structure")
 
         WHEN("Asked to produce End plans with an input buffer in Ple Input Sram")
         {
-            Buffer prevBuffer;
-            prevBuffer.m_Location         = Location::PleInputSram;
+            PleInputSramBuffer prevBuffer;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
             prevBuffer.m_TensorShape      = tsIn;
             prevBuffer.m_StripeShape      = TensorShape{ 1, 8, 16, 16 };
-            prevBuffer.m_Order            = TraversalOrder::Xyz;
             prevBuffer.m_SizeInBytes      = 8 * 16 * 16 * 1;
             prevBuffer.m_NumStripes       = 1;
 
@@ -815,7 +798,8 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                     CHECK(PleOutputStripeWidth == OutputTensor[2]);
                 };
                 paramsEven.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plansEven, paramsEven);
 
@@ -834,7 +818,8 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                     CHECK(PleOutputStripeWidth == OutputTensor[2]);
                 };
                 paramsOdd.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plansOdd, paramsOdd);
             }
@@ -865,7 +850,8 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                     CHECK(PleOutputStripeWidth == OutputTensor[2]);
                 };
                 paramsEven.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plansEven, paramsEven);
 
@@ -884,7 +870,8 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                     CHECK(PleOutputStripeWidth == OutputTensor[2]);
                 };
                 paramsOdd.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plansOdd, paramsOdd);
             }
@@ -892,8 +879,7 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
 
         WHEN("Asked to produce Middle plans with split Height in Sram")
         {
-            Buffer prevBufferEven;
-            prevBufferEven.m_Location         = Location::Sram;
+            SramBuffer prevBufferEven;
             prevBufferEven.m_Format           = CascadingBufferFormat::NHWCB;
             prevBufferEven.m_QuantizationInfo = { 0, 1.0f };
             prevBufferEven.m_TensorShape      = tsInEven;
@@ -914,8 +900,7 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
 
         WHEN("Asked to produce Middle plans with an input buffer in Sram")
         {
-            Buffer prevBufferEven;
-            prevBufferEven.m_Location         = Location::Sram;
+            SramBuffer prevBufferEven;
             prevBufferEven.m_Format           = CascadingBufferFormat::NHWCB;
             prevBufferEven.m_QuantizationInfo = { 0, 1.0f };
             prevBufferEven.m_TensorShape      = tsInEven;
@@ -928,8 +913,7 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                 partEven.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, &prevBufferEven, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Middle Sram Input");
 
-            Buffer prevBufferOdd;
-            prevBufferOdd.m_Location         = Location::Sram;
+            SramBuffer prevBufferOdd;
             prevBufferOdd.m_Format           = CascadingBufferFormat::NHWCB;
             prevBufferOdd.m_QuantizationInfo = { 0, 1.0f };
             prevBufferOdd.m_TensorShape      = tsInOdd;
@@ -967,7 +951,8 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                     CHECK(PleOutputStripeDepth == OutputTensor[3]);
                 };
                 paramsEven.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plansEven, paramsEven);
 
@@ -990,7 +975,8 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                     CHECK(PleOutputStripeDepth == OutputTensor[3]);
                 };
                 paramsOdd.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plansOdd, paramsOdd);
             }
@@ -998,13 +984,11 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
 
         WHEN("Asked to produce Middle plans with an input buffer in Ple Input Sram")
         {
-            Buffer prevBufferEven;
-            prevBufferEven.m_Location         = Location::PleInputSram;
+            PleInputSramBuffer prevBufferEven;
             prevBufferEven.m_Format           = CascadingBufferFormat::NHWCB;
             prevBufferEven.m_QuantizationInfo = { 0, 1.0f };
             prevBufferEven.m_TensorShape      = tsInEven;
             prevBufferEven.m_StripeShape      = TensorShape{ 1, 128, 128, 64 };
-            prevBufferEven.m_Order            = TraversalOrder::Xyz;
             prevBufferEven.m_SizeInBytes      = 1 * 128 * 128 * 64;
             prevBufferEven.m_NumStripes       = 1;
 
@@ -1012,13 +996,11 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                 partEven.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 8U, 8U }, &prevBufferEven, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven Middle Ple Sram Input");
 
-            Buffer prevBufferOdd;
-            prevBufferOdd.m_Location         = Location::PleInputSram;
+            PleInputSramBuffer prevBufferOdd;
             prevBufferOdd.m_Format           = CascadingBufferFormat::NHWCB;
             prevBufferOdd.m_QuantizationInfo = { 0, 1.0f };
             prevBufferOdd.m_TensorShape      = tsInOdd;
             prevBufferOdd.m_StripeShape      = TensorShape{ 1, 136, 136, 64 };
-            prevBufferOdd.m_Order            = TraversalOrder::Xyz;
             prevBufferOdd.m_SizeInBytes      = 1 * 136 * 136 * 64;
             prevBufferOdd.m_NumStripes       = 1;
 
@@ -1076,8 +1058,7 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
 
         WHEN("Asked to produce End plans with an input buffer in Sram")
         {
-            Buffer prevBufferEven;
-            prevBufferEven.m_Location         = Location::Sram;
+            SramBuffer prevBufferEven;
             prevBufferEven.m_Format           = CascadingBufferFormat::NHWCB;
             prevBufferEven.m_QuantizationInfo = { 0, 1.0f };
             prevBufferEven.m_TensorShape      = tsInEven;
@@ -1090,8 +1071,7 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                 partEven.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, &prevBufferEven, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven End Sram Input");
 
-            Buffer prevBufferOdd;
-            prevBufferOdd.m_Location         = Location::Sram;
+            SramBuffer prevBufferOdd;
             prevBufferOdd.m_Format           = CascadingBufferFormat::NHWCB;
             prevBufferOdd.m_QuantizationInfo = { 0, 1.0f };
             prevBufferOdd.m_TensorShape      = tsInOdd;
@@ -1129,7 +1109,8 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                     CHECK(PleOutputStripeDepth == OutputTensor[3]);
                 };
                 paramsEven.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plansEven, paramsEven);
 
@@ -1152,7 +1133,8 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                     CHECK(PleOutputStripeDepth == OutputTensor[3]);
                 };
                 paramsOdd.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plansOdd, paramsOdd);
             }
@@ -1160,13 +1142,11 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
 
         WHEN("Asked to produce End plans with an input buffer in Ple Input Sram")
         {
-            Buffer prevBufferEven;
-            prevBufferEven.m_Location         = Location::PleInputSram;
+            PleInputSramBuffer prevBufferEven;
             prevBufferEven.m_Format           = CascadingBufferFormat::NHWCB;
             prevBufferEven.m_QuantizationInfo = { 0, 1.0f };
             prevBufferEven.m_TensorShape      = tsInEven;
             prevBufferEven.m_StripeShape      = TensorShape{ 1, 128, 128, 64 };
-            prevBufferEven.m_Order            = TraversalOrder::Xyz;
             prevBufferEven.m_SizeInBytes      = 1 * 128 * 128 * 64;
             prevBufferEven.m_NumStripes       = 1;
 
@@ -1174,13 +1154,11 @@ TEST_CASE("FusedPlePart GetPlans MaxPool")
                 partEven.GetPlans(CascadeType::End, command_stream::BlockConfig{ 8U, 8U }, &prevBufferEven, 1);
             SavePlansToDot(plansEven, "FusedPlePart GetPlans MaxPoolEven End Ple Sram Input");
 
-            Buffer prevBufferOdd;
-            prevBufferOdd.m_Location         = Location::PleInputSram;
+            PleInputSramBuffer prevBufferOdd;
             prevBufferOdd.m_Format           = CascadingBufferFormat::NHWCB;
             prevBufferOdd.m_QuantizationInfo = { 0, 1.0f };
             prevBufferOdd.m_TensorShape      = tsInOdd;
             prevBufferOdd.m_StripeShape      = TensorShape{ 1, 136, 136, 64 };
-            prevBufferOdd.m_Order            = TraversalOrder::Xyz;
             prevBufferOdd.m_SizeInBytes      = 1 * 136 * 136 * 64;
             prevBufferOdd.m_NumStripes       = 1;
 
@@ -1275,11 +1253,11 @@ TEST_CASE("FusedPlePart GetPlans strategy 0 shape multiplier")
                     uint32_t numOutputStripes = 1;
                     TensorShape pleInputStripe{ 1, 16, 16, 16 };
                     TensorShape pleOutputComputeStripe{ 1, 8, 8, 64 };
-                    return blockConfig && plan.m_InputSram->m_StripeShape == inputStripe &&
-                           plan.m_InputSram->m_NumStripes == numInputStripes &&
-                           plan.m_OutputSram->m_StripeShape == outputStripe &&
-                           plan.m_OutputSram->m_NumStripes == numOutputStripes &&
-                           plan.m_PleInputSram->m_StripeShape == pleInputStripe &&
+                    return blockConfig && plan.m_InputSram->Sram()->m_StripeShape == inputStripe &&
+                           plan.m_InputSram->Sram()->m_NumStripes == numInputStripes &&
+                           plan.m_OutputSram->Sram()->m_StripeShape == outputStripe &&
+                           plan.m_OutputSram->Sram()->m_NumStripes == numOutputStripes &&
+                           plan.m_PleInputSram->PleInputSram()->m_StripeShape == pleInputStripe &&
                            plan.m_Ple->m_OutputStripeShape == pleOutputComputeStripe;
                 });
                 CheckPlans(plans, params);
@@ -1307,8 +1285,7 @@ TEST_CASE("FusedPlePart GetPlans invalid previous buffer")
         WHEN("Asked to generate plans with the number of input stripes > 1")
         {
             command_stream::BlockConfig blockConfig = { 8u, 8u };
-            Buffer prevBuffer;
-            prevBuffer.m_Location         = Location::Sram;
+            SramBuffer prevBuffer;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
             prevBuffer.m_TensorShape      = inputShape;
@@ -1355,8 +1332,8 @@ TEST_CASE("FusedPlePart GetPlans lonely height and width splits")
             {
                 CheckPlansParams params;
                 params.m_Any.push_back([&](const PlanDesc& desc) {
-                    bool splitHeight = desc.m_Input->m_StripeShape[1] < inputShape[1];
-                    bool splitWidth  = desc.m_Input->m_StripeShape[2] < inputShape[2];
+                    bool splitHeight = desc.m_Input->Sram()->m_StripeShape[1] < inputShape[1];
+                    bool splitWidth  = desc.m_Input->Sram()->m_StripeShape[2] < inputShape[2];
                     bool splitBoth   = splitHeight && splitWidth;
                     return splitBoth;
                 });
@@ -1402,13 +1379,6 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
         // Choose the largest variant in order to have the most cascading. In this case, all Parts can be cascaded into a single 'strategy 1' section.
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_8TOPS_2PLE_RATIO);
 
-        // Define common properties of the "prevBuffer", which will be the case for all Parts we're testing. This avoids
-        // duplicating these lines for each Part being tested.
-        Buffer prevBuffer;
-        prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
-        prevBuffer.m_QuantizationInfo = { 0, 1.0f };
-        prevBuffer.m_Order            = TraversalOrder::Xyz;
-
         // Notes:
         // - The output buffer in SRAM will always have the full stripe shape and a single stripe,
         //   because this is always the case for strategy 1 cascading. This may be different from the MCE output stripe shape,
@@ -1435,20 +1405,21 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             SavePlansToDot(plans, "FusedPlePart GetPlans MobileNet Part 1");
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
-                return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 224, 224, 16 } &&
-                       plan.m_InputSram->m_NumStripes == 1 &&
-                       plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 16, 1 } &&    // Identity depthwise
-                       plan.m_WeightsSram->m_NumStripes == 1 &&
+                return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 224, 224, 16 } &&
+                       plan.m_InputSram->Sram()->m_NumStripes == 1 &&
+                       plan.m_WeightsSram->Sram()->m_StripeShape ==
+                           TensorShape{ 1, 1, 16, 1 } &&    // Identity depthwise
+                       plan.m_WeightsSram->Sram()->m_NumStripes == 1 &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 224, 224, 16 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 16, 1 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 224, 224, 16 } &&
                        plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 224, 224, 16 } } &&
                        plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 112, 112, 64 } &&
-                       plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 112, 112, 64 } &&
-                       plan.m_OutputSram->m_NumStripes == 1;
+                       plan.m_OutputSram->Sram()->m_StripeShape == TensorShape{ 1, 112, 112, 64 } &&
+                       plan.m_OutputSram->Sram()->m_NumStripes == 1;
             });
             params.m_Any.push_back([](const PlanDesc& plan) {
-                return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                return (plan.m_InputSram->Sram()->m_NumStripes == 1) && (plan.m_OutputSram->Sram()->m_NumStripes == 1);
             });
             CheckPlans(plans, params);
         }
@@ -1458,13 +1429,15 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
         {
             TensorShape inputShape{ 1, 112, 112, 64 };
             TensorShape outputShape{ 1, 56, 56, 256 };
-            FusedPlePart part     = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
+            FusedPlePart part = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
                                           utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, compOpts, caps, estOpts);
-            prevBuffer.m_Location = Location::PleInputSram;    // The previous Part is an McePart, so we will be fused
-            prevBuffer.m_TensorShape = inputShape;
-            prevBuffer.m_StripeShape = TensorShape{ 1, 112, 112, 32 };    // Depth splitting
-            prevBuffer.m_SizeInBytes = 0;    // PleInputSram buffers have no size or num stripes
-            prevBuffer.m_NumStripes  = 0;
+            PleInputSramBuffer prevBuffer;    // The previous Part is an McePart, so we will be fused
+            prevBuffer.m_Format                     = CascadingBufferFormat::NHWCB;
+            prevBuffer.m_QuantizationInfo           = { 0, 1.0f };
+            prevBuffer.m_TensorShape                = inputShape;
+            prevBuffer.m_StripeShape                = TensorShape{ 1, 112, 112, 32 };    // Depth splitting
+            prevBuffer.m_SizeInBytes                = 0;    // PleInputSram buffers have no size or num stripes
+            prevBuffer.PleInputSram()->m_NumStripes = 0;
 
             Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, &prevBuffer, 2);
             SavePlansToDot(plans, "FusedPlePart GetPlans MobileNet Part 5");
@@ -1472,12 +1445,12 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             params.m_InputLocation = PlanInputLocation::PleInputSram;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_Input->m_Location == Location::PleInputSram &&
-                       plan.m_Input->m_StripeShape == TensorShape{ 1, 112, 112, 32 } &&
-                       plan.m_Input->m_NumStripes == 0 &&    // PleInputSram buffers have no num stripes
+                       plan.m_Input->PleInputSram()->m_StripeShape == TensorShape{ 1, 112, 112, 32 } &&
+                       plan.m_Input->PleInputSram()->m_NumStripes == 0 &&    // PleInputSram buffers have no num stripes
                        plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 112, 112, 32 } } &&
                        plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 56, 56, 256 } &&    // Full output depth
-                       plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 56, 56, 256 } &&
-                       plan.m_OutputSram->m_NumStripes == 1;
+                       plan.m_OutputSram->Sram()->m_StripeShape == TensorShape{ 1, 56, 56, 256 } &&
+                       plan.m_OutputSram->Sram()->m_NumStripes == 1;
             });
             CheckPlans(plans, params);
         }
@@ -1487,13 +1460,15 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
         {
             TensorShape inputShape{ 1, 56, 56, 128 };
             TensorShape outputShape{ 1, 28, 28, 512 };
-            FusedPlePart part     = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
+            FusedPlePart part = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
                                           utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, compOpts, caps, estOpts);
-            prevBuffer.m_Location = Location::PleInputSram;    // The previous Part is an McePart, so we will be fused
-            prevBuffer.m_TensorShape = inputShape;
-            prevBuffer.m_StripeShape = TensorShape{ 1, 56, 56, 32 };    // Depth splitting
-            prevBuffer.m_SizeInBytes = 0;    // PleInputSram buffers have no size or num stripes
-            prevBuffer.m_NumStripes  = 0;
+            PleInputSramBuffer prevBuffer;    // The previous Part is an McePart, so we will be fused
+            prevBuffer.m_Format                     = CascadingBufferFormat::NHWCB;
+            prevBuffer.m_QuantizationInfo           = { 0, 1.0f };
+            prevBuffer.m_TensorShape                = inputShape;
+            prevBuffer.m_StripeShape                = TensorShape{ 1, 56, 56, 32 };    // Depth splitting
+            prevBuffer.m_SizeInBytes                = 0;    // PleInputSram buffers have no size or num stripes
+            prevBuffer.PleInputSram()->m_NumStripes = 0;
 
             Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, &prevBuffer, 2);
             SavePlansToDot(plans, "FusedPlePart GetPlans MobileNet Part 10");
@@ -1502,12 +1477,12 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             params.m_InputLocation = PlanInputLocation::PleInputSram;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_Input->m_Location == Location::PleInputSram &&
-                       plan.m_Input->m_StripeShape == TensorShape{ 1, 56, 56, 32 } &&
-                       plan.m_Input->m_NumStripes == 0 &&    // PleInputSram buffers have no num stripes
+                       plan.m_Input->PleInputSram()->m_StripeShape == TensorShape{ 1, 56, 56, 32 } &&
+                       plan.m_Input->PleInputSram()->m_NumStripes == 0 &&    // PleInputSram buffers have no num stripes
                        plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 56, 56, 32 } } &&
                        plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 32, 32, 512 } &&    // Full output depth
-                       plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 32, 32, 512 } &&
-                       plan.m_OutputSram->m_NumStripes == 1;
+                       plan.m_OutputSram->Sram()->m_StripeShape == TensorShape{ 1, 32, 32, 512 } &&
+                       plan.m_OutputSram->Sram()->m_NumStripes == 1;
             });
             CheckPlans(plans, params);
         }
@@ -1518,13 +1493,6 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
         // Choose the smallest variant in order to have the most cascades. In this case there is a combination of single
         // layer cascades (Lonely parts) as well as some longer cascades.
         const HardwareCapabilities caps = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_1TOPS_2PLE_RATIO);
-
-        // Define common properties of the "prevBuffer", which will be the case for all Parts we're testing. This avoids
-        // duplicating these lines for each Part being tested.
-        Buffer prevBuffer;
-        prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
-        prevBuffer.m_QuantizationInfo = { 0, 1.0f };
-        prevBuffer.m_Order            = TraversalOrder::Xyz;
 
         ///  1. FusedPlePart INTERLEAVE 224,224,3 -> 112,112,27
         SECTION("Part 1")
@@ -1543,19 +1511,20 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             SavePlansToDot(plans, "FusedPlePart GetPlans MobileNet Part 1 1TOPS_2PLE_RATIO");
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
-                return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 16, 224, 16 } &&
+                return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 16, 224, 16 } &&
                        // The 1x1 convolution doesn't need neighbouring data but we double buffer.
-                       plan.m_InputSram->m_NumStripes == 2 &&
-                       plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 16, 1 } &&    // Identity depthwise
-                       plan.m_WeightsSram->m_NumStripes == 1 &&
+                       plan.m_InputSram->Sram()->m_NumStripes == 2 &&
+                       plan.m_WeightsSram->Sram()->m_StripeShape ==
+                           TensorShape{ 1, 1, 16, 1 } &&    // Identity depthwise
+                       plan.m_WeightsSram->Sram()->m_NumStripes == 1 &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 16, 224, 16 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 16, 1 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 16, 224, 16 } &&
                        plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 16, 224, 16 } } &&
                        plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 8, 112, 32 } &&
                        // 2 stripes are accumulated in sram to make up a full brick-group
-                       plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 8, 112, 32 } &&
-                       plan.m_OutputSram->m_NumStripes ==
+                       plan.m_OutputSram->Sram()->m_StripeShape == TensorShape{ 1, 8, 112, 32 } &&
+                       plan.m_OutputSram->Sram()->m_NumStripes ==
                            3;    // Following McePart has kernel of height 3, so needs neighbouring data
             });
             CheckPlans(plans, params);
@@ -1569,13 +1538,15 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
 
             TensorShape inputShape{ 1, 112, 112, 64 };
             TensorShape outputShape{ 1, 56, 56, 256 };
-            FusedPlePart part     = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
+            FusedPlePart part = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
                                           utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, compOpts, caps, estOpts);
-            prevBuffer.m_Location = Location::PleInputSram;    // The previous Part is an McePart, so we will be fused
-            prevBuffer.m_TensorShape = inputShape;
-            prevBuffer.m_StripeShape = TensorShape{ 1, 16, 112, 64 };    // Height splitting
-            prevBuffer.m_SizeInBytes = 0;    // PleInputSram buffers have no size or num stripes
-            prevBuffer.m_NumStripes  = 0;
+            PleInputSramBuffer prevBuffer;    // The previous Part is an McePart, so we will be fused
+            prevBuffer.m_Format                     = CascadingBufferFormat::NHWCB;
+            prevBuffer.m_QuantizationInfo           = { 0, 1.0f };
+            prevBuffer.m_TensorShape                = inputShape;
+            prevBuffer.m_StripeShape                = TensorShape{ 1, 16, 112, 64 };    // Height splitting
+            prevBuffer.m_SizeInBytes                = 0;    // PleInputSram buffers have no size or num stripes
+            prevBuffer.PleInputSram()->m_NumStripes = 0;
 
             Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16u, 16u }, &prevBuffer, 1);
             SavePlansToDot(plans, "FusedPlePart GetPlans MobileNet Part 5 1TOPS_2PLE_RATIO");
@@ -1583,15 +1554,15 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             params.m_InputLocation = PlanInputLocation::PleInputSram;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_Input->m_Location == Location::PleInputSram &&
-                       plan.m_Input->m_StripeShape == TensorShape{ 1, 16, 112, 64 } &&
-                       plan.m_Input->m_NumStripes == 0 &&    // PleInputSram buffers have no num stripes
+                       plan.m_Input->PleInputSram()->m_StripeShape == TensorShape{ 1, 16, 112, 64 } &&
+                       plan.m_Input->PleInputSram()->m_NumStripes == 0 &&    // PleInputSram buffers have no num stripes
                        plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 16, 112, 64 } } &&
                        plan.m_Ple->m_OutputStripeShape ==
                            TensorShape{
                                1, 8, 56, 256
                            } &&    // PLE accumulates 2 stripes before writing out, to make up a full brick-group
-                       plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 8, 56, 256 } &&
-                       plan.m_OutputSram->m_NumStripes == 2;    // End of cascade, double buffered
+                       plan.m_OutputSram->Sram()->m_StripeShape == TensorShape{ 1, 8, 56, 256 } &&
+                       plan.m_OutputSram->Sram()->m_NumStripes == 2;    // End of cascade, double buffered
             });
             CheckPlans(plans, params);
         }
@@ -1604,13 +1575,15 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
 
             TensorShape inputShape{ 1, 56, 56, 128 };
             TensorShape outputShape{ 1, 28, 28, 512 };
-            FusedPlePart part     = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
+            FusedPlePart part = BuildPart(inputShape, outputShape, command_stream::PleOperation::INTERLEAVE_2X2_2_2,
                                           utils::ShapeMultiplier{ { 1, 2 }, { 1, 2 }, 4 }, compOpts, caps, estOpts);
-            prevBuffer.m_Location = Location::PleInputSram;    // The previous Part is an McePart, so we will be fused
-            prevBuffer.m_TensorShape = inputShape;
-            prevBuffer.m_StripeShape = TensorShape{ 1, 56, 56, 16 };    // Depth splitting
-            prevBuffer.m_SizeInBytes = 0;    // PleInputSram buffers have no size or num stripes
-            prevBuffer.m_NumStripes  = 0;
+            PleInputSramBuffer prevBuffer;    // The previous Part is an McePart, so we will be fused
+            prevBuffer.m_Format                     = CascadingBufferFormat::NHWCB;
+            prevBuffer.m_QuantizationInfo           = { 0, 1.0f };
+            prevBuffer.m_TensorShape                = inputShape;
+            prevBuffer.m_StripeShape                = TensorShape{ 1, 56, 56, 16 };    // Depth splitting
+            prevBuffer.m_SizeInBytes                = 0;    // PleInputSram buffers have no size or num stripes
+            prevBuffer.PleInputSram()->m_NumStripes = 0;
 
             Plans plans = part.GetPlans(CascadeType::End, command_stream::BlockConfig{ 16u, 16u }, &prevBuffer, 2);
             SavePlansToDot(plans, "FusedPlePart GetPlans MobileNet Part 10 1TOPS_2PLE_RATIO");
@@ -1618,16 +1591,16 @@ TEST_CASE("FusedPlePart GetPlans MobileNet V1")
             params.m_InputLocation = PlanInputLocation::PleInputSram;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_Input->m_Location == Location::PleInputSram &&
-                       plan.m_Input->m_StripeShape == TensorShape{ 1, 56, 56, 16 } &&
-                       plan.m_Input->m_NumStripes == 0 &&    // PleInputSram buffers have no num stripes
+                       plan.m_Input->PleInputSram()->m_StripeShape == TensorShape{ 1, 56, 56, 16 } &&
+                       plan.m_Input->PleInputSram()->m_NumStripes == 0 &&    // PleInputSram buffers have no num stripes
                        plan.m_Ple->m_InputStripeShapes == std::vector<TensorShape>{ { 1, 56, 56, 16 } } &&
                        plan.m_Ple->m_OutputStripeShape ==
                            TensorShape{ 1, 32, 32, 64 } &&    // Channels multiplied by 4 for interleave
-                       plan.m_OutputSram->m_StripeShape ==
+                       plan.m_OutputSram->Sram()->m_StripeShape ==
                            TensorShape{
                                1, 32, 32, 64
                            } &&    // Strategy 1 output is not the full tensor because we are at the end of a cascade
-                       plan.m_OutputSram->m_NumStripes == 2;
+                       plan.m_OutputSram->Sram()->m_NumStripes == 2;
             });
             CheckPlans(plans, params);
         }

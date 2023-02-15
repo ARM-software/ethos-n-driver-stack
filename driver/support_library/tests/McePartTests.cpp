@@ -228,11 +228,8 @@ void CheckInputDram(const CheckPlansParams& params, PlanDesc& desc)
         {
             CHECK(desc.m_InputDram->m_TensorShape == params.m_InputShape.value());
         }
-        CHECK(desc.m_InputDram->m_StripeShape == TensorShape{ 0, 0, 0, 0 });
-        CHECK(desc.m_InputDram->m_Order == TraversalOrder::Xyz);
         CHECK(desc.m_InputDram->m_SizeInBytes == utils::TotalSizeBytesNHWCB(desc.m_InputDram->m_TensorShape));
-        CHECK(desc.m_InputDram->m_NumStripes == 0);
-        CHECK(desc.m_InputDram->m_EncodedWeights == nullptr);
+        CHECK(desc.m_InputDram->Dram()->m_EncodedWeights == nullptr);
     }
 }
 
@@ -260,7 +257,6 @@ void CheckInputSram(PlanDesc& desc, const CheckPlansParams& params)
         CHECK(desc.m_InputSram->m_TensorShape == desc.m_InputDram->m_TensorShape);
     }
     // m_StripeShape, m_Order, m_SizeInBytes and m_NumStripes will depend on the streaming strategy, and so cannot be checked generically
-    CHECK(desc.m_InputSram->m_EncodedWeights == nullptr);
 }
 
 void CheckWeightsDram(PlanDesc& desc, const CheckPlansParams& params)
@@ -273,12 +269,9 @@ void CheckWeightsDram(PlanDesc& desc, const CheckPlansParams& params)
         CHECK(desc.m_WeightsDram->m_QuantizationInfo == params.m_WeightsTensorInfo.value().m_QuantizationInfo);
         CHECK(desc.m_WeightsDram->m_TensorShape == params.m_WeightsTensorInfo.value().m_Dimensions);
     }
-    CHECK(desc.m_WeightsDram->m_StripeShape == TensorShape{ 0, 0, 0, 0 });
-    CHECK(desc.m_WeightsDram->m_Order == TraversalOrder::Xyz);
-    CHECK(desc.m_WeightsDram->m_NumStripes == 0);
-    REQUIRE(desc.m_WeightsDram->m_EncodedWeights != nullptr);
-    CHECK(desc.m_WeightsDram->m_EncodedWeights->m_Data.size() > 0);
-    CHECK(desc.m_WeightsDram->m_SizeInBytes == desc.m_WeightsDram->m_EncodedWeights->m_Data.size());
+    REQUIRE(desc.m_WeightsDram->Dram()->m_EncodedWeights != nullptr);
+    CHECK(desc.m_WeightsDram->Dram()->m_EncodedWeights->m_Data.size() > 0);
+    CHECK(desc.m_WeightsDram->m_SizeInBytes == desc.m_WeightsDram->Dram()->m_EncodedWeights->m_Data.size());
 }
 
 void CheckWeightsSram(PlanDesc& desc, const CheckPlansParams& params)
@@ -298,8 +291,7 @@ void CheckWeightsSram(PlanDesc& desc, const CheckPlansParams& params)
     }
     // m_StripeShape, m_Order, m_NumStripes will depend on the streaming strategy, and so cannot be checked generically
     CHECK(desc.m_WeightsSram->m_SizeInBytes ==
-          desc.m_WeightsDram->m_EncodedWeights->m_MaxSize * desc.m_WeightsSram->m_NumStripes);
-    CHECK(desc.m_WeightsSram->m_EncodedWeights == nullptr);
+          desc.m_WeightsDram->Dram()->m_EncodedWeights->m_MaxSize * desc.m_WeightsSram->Sram()->m_NumStripes);
 }
 
 void CheckPleInputSram(PlanDesc& desc, const CheckPlansParams& params)
@@ -320,7 +312,6 @@ void CheckPleInputSram(PlanDesc& desc, const CheckPlansParams& params)
         CHECK(desc.m_PleInputSram->m_TensorShape == params.m_OutputShape.value());
     }
     // m_StripeShape, m_Order, m_SizeInBytes, m_NumStripes will depend on the streaming strategy, and so cannot be checked generically
-    CHECK(desc.m_PleInputSram->m_EncodedWeights == nullptr);
 }
 
 void CheckOutputSram(PlanDesc& desc, const CheckPlansParams& params)
@@ -347,7 +338,6 @@ void CheckOutputSram(PlanDesc& desc, const CheckPlansParams& params)
             CHECK(desc.m_OutputSram->m_TensorShape == desc.m_PleInputSram->m_TensorShape);
         }
         // m_StripeShape, m_Order, m_SizeInBytes and m_NumStripes will depend on the streaming strategy, and so cannot be checked generically
-        CHECK(desc.m_OutputSram->m_EncodedWeights == nullptr);
     }
 }
 
@@ -374,11 +364,8 @@ void CheckOutputDram(PlanDesc& desc, const CheckPlansParams& params)
         {
             CHECK(desc.m_OutputDram->m_TensorShape == desc.m_OutputSram->m_TensorShape);
         }
-        CHECK(desc.m_OutputDram->m_StripeShape == TensorShape{ 0, 0, 0, 0 });
-        CHECK(desc.m_OutputDram->m_Order == TraversalOrder::Xyz);
         CHECK(desc.m_OutputDram->m_SizeInBytes == utils::TotalSizeBytesNHWCB(desc.m_OutputDram->m_TensorShape));
-        CHECK(desc.m_OutputDram->m_NumStripes == 0);
-        CHECK(desc.m_OutputDram->m_EncodedWeights == nullptr);
+        CHECK(desc.m_OutputDram->Dram()->m_EncodedWeights == nullptr);
     }
 }
 
@@ -704,7 +691,8 @@ TEST_CASE("McePart GetPlans structure")
                 params.m_InputLocation   = PlanInputLocation::Sram;
                 params.m_OutputLocations = PlanOutputLocation::Sram;
                 params.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plans, params);
             }
@@ -725,7 +713,8 @@ TEST_CASE("McePart GetPlans structure")
                 params.m_Any.push_back(
                     [](const PlanDesc& plan) { return plan.m_Output->m_Location == Location::PleInputSram; });
                 params.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plans, params);
             }
@@ -733,8 +722,7 @@ TEST_CASE("McePart GetPlans structure")
 
         WHEN("Asked to produce Middle plans")
         {
-            Buffer prevBuffer;
-            prevBuffer.m_Location         = Location::Sram;
+            SramBuffer prevBuffer;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
             prevBuffer.m_TensorShape      = tsIn;
@@ -762,8 +750,7 @@ TEST_CASE("McePart GetPlans structure")
 
         WHEN("Asked to produce End plans")
         {
-            Buffer prevBuffer;
-            prevBuffer.m_Location         = Location::Sram;
+            SramBuffer prevBuffer;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
             prevBuffer.m_TensorShape      = tsIn;
@@ -829,8 +816,7 @@ TEST_CASE("McePart End Cascade full tensor")
 
         WHEN("Asked to produce End plans")
         {
-            Buffer prevBuffer;
-            prevBuffer.m_Location         = Location::Sram;
+            SramBuffer prevBuffer;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
             prevBuffer.m_TensorShape      = tsIn;
@@ -859,9 +845,9 @@ TEST_CASE("McePart End Cascade full tensor")
                     CHECK(plan.m_Ple->m_OutputStripeShape == TensorShape{ 1, 24, 24, 16 });
 
                     CHECK(plan.m_Input->m_TensorShape == TensorShape{ 1, 19, 19, 256 });
-                    CHECK(plan.m_Input->m_StripeShape == TensorShape{ 1, 24, 24, 256 });
+                    CHECK(plan.m_Input->Sram()->m_StripeShape == TensorShape{ 1, 24, 24, 256 });
                     CHECK(plan.m_Output->m_TensorShape == TensorShape{ 1, 19, 19, 256 });
-                    CHECK(plan.m_Output->m_StripeShape == TensorShape{ 1, 24, 24, 16 });
+                    CHECK(plan.m_Output->Sram()->m_StripeShape == TensorShape{ 1, 24, 24, 16 });
                 };
                 CheckPlans(plans, params);
             }
@@ -922,7 +908,8 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
                 params.m_OutputLocations = PlanOutputLocation::Sram;
                 params.m_Caps            = &caps;
                 params.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plans, params);
             }
@@ -944,7 +931,8 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
                 params.m_Any.push_back(
                     [](const PlanDesc& plan) { return plan.m_Output->m_Location == Location::PleInputSram; });
                 params.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plans, params);
             }
@@ -952,8 +940,7 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
 
         WHEN("Asked to produce Middle plans")
         {
-            Buffer prevBuffer;
-            prevBuffer.m_Location         = Location::Sram;
+            SramBuffer prevBuffer;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
             prevBuffer.m_TensorShape      = tsIn;
@@ -982,8 +969,7 @@ TEST_CASE("McePart GetPlans InputSramBuffer")
 
         WHEN("Asked to produce End plans")
         {
-            Buffer prevBuffer;
-            prevBuffer.m_Location         = Location::Sram;
+            SramBuffer prevBuffer;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
             prevBuffer.m_TensorShape      = tsIn;
@@ -1041,21 +1027,21 @@ TEST_CASE("McePart GetPlans Strategy3", "[slow]")
                         return false;
                     }
 
-                    bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 16, 16, 16 } &&
-                                          plan.m_InputSram->m_Order == TraversalOrder::Zxy &&
+                    bool inputSramValid = plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 16, 16, 16 } &&
+                                          plan.m_InputSram->Sram()->m_Order == TraversalOrder::Zxy &&
                                           plan.m_InputSram->m_SizeInBytes == 16 * 16 * 16 &&
-                                          plan.m_InputSram->m_NumStripes == 1;
-                    bool weightsSramValid = plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 16, 16 } &&
-                                            plan.m_WeightsSram->m_Order == TraversalOrder::Xyz &&
-                                            plan.m_WeightsSram->m_NumStripes == 1;
-                    bool pleInputSramValid = plan.m_PleInputSram->m_StripeShape == TensorShape{ 1, 16, 16, 16 } &&
-                                             plan.m_PleInputSram->m_Order == TraversalOrder::Xyz &&
-                                             plan.m_PleInputSram->m_SizeInBytes == 16 * 16 * 16 &&
-                                             plan.m_PleInputSram->m_NumStripes == 0;
-                    bool outputSramValid = plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 16, 16, 16 } &&
-                                           plan.m_OutputSram->m_Order == TraversalOrder::Xyz &&
+                                          plan.m_InputSram->Sram()->m_NumStripes == 1;
+                    bool weightsSramValid = plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 1, 1, 16, 16 } &&
+                                            plan.m_WeightsSram->Sram()->m_Order == TraversalOrder::Xyz &&
+                                            plan.m_WeightsSram->Sram()->m_NumStripes == 1;
+                    bool pleInputSramValid =
+                        plan.m_PleInputSram->PleInputSram()->m_StripeShape == TensorShape{ 1, 16, 16, 16 } &&
+                        plan.m_PleInputSram->m_SizeInBytes == 16 * 16 * 16 &&
+                        plan.m_PleInputSram->PleInputSram()->m_NumStripes == 0;
+                    bool outputSramValid = plan.m_OutputSram->Sram()->m_StripeShape == TensorShape{ 1, 16, 16, 16 } &&
+                                           plan.m_OutputSram->Sram()->m_Order == TraversalOrder::Xyz &&
                                            plan.m_OutputSram->m_SizeInBytes == 16 * 16 * 16 &&
-                                           plan.m_OutputSram->m_NumStripes == 1;
+                                           plan.m_OutputSram->Sram()->m_NumStripes == 1;
                     bool mceValid = plan.m_Mce->m_Algo == CompilerMceAlgorithm::Direct &&
                                     plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
                                     plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 16, 16, 16 } &&
@@ -1071,7 +1057,8 @@ TEST_CASE("McePart GetPlans Strategy3", "[slow]")
                            pleValid;
                 });
                 params.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plans, params);
             }
@@ -1114,21 +1101,21 @@ TEST_CASE("McePart GetPlans Strategy0", "[slow]")
                         return false;
                     }
 
-                    bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
-                                          plan.m_InputSram->m_Order == TraversalOrder::Zxy &&
+                    bool inputSramValid = plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
+                                          plan.m_InputSram->Sram()->m_Order == TraversalOrder::Zxy &&
                                           plan.m_InputSram->m_SizeInBytes == 8 * 16 * 16 &&
-                                          plan.m_InputSram->m_NumStripes == 1;
-                    bool weightsSramValid = plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 16, 16 } &&
-                                            plan.m_WeightsSram->m_Order == TraversalOrder::Xyz &&
-                                            plan.m_WeightsSram->m_NumStripes == 1;
-                    bool pleInputSramValid = plan.m_PleInputSram->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
-                                             plan.m_PleInputSram->m_Order == TraversalOrder::Xyz &&
-                                             plan.m_PleInputSram->m_SizeInBytes == 8 * 16 * 16 &&
-                                             plan.m_PleInputSram->m_NumStripes == 0;
-                    bool outputSramValid = plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
-                                           plan.m_OutputSram->m_Order == TraversalOrder::Xyz &&
+                                          plan.m_InputSram->Sram()->m_NumStripes == 1;
+                    bool weightsSramValid = plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 1, 1, 16, 16 } &&
+                                            plan.m_WeightsSram->Sram()->m_Order == TraversalOrder::Xyz &&
+                                            plan.m_WeightsSram->Sram()->m_NumStripes == 1;
+                    bool pleInputSramValid =
+                        plan.m_PleInputSram->PleInputSram()->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
+                        plan.m_PleInputSram->m_SizeInBytes == 8 * 16 * 16 &&
+                        plan.m_PleInputSram->PleInputSram()->m_NumStripes == 0;
+                    bool outputSramValid = plan.m_OutputSram->Sram()->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
+                                           plan.m_OutputSram->Sram()->m_Order == TraversalOrder::Xyz &&
                                            plan.m_OutputSram->m_SizeInBytes == 8 * 16 * 16 &&
-                                           plan.m_OutputSram->m_NumStripes == 1;
+                                           plan.m_OutputSram->Sram()->m_NumStripes == 1;
                     bool mceValid = plan.m_Mce->m_Algo == CompilerMceAlgorithm::Direct &&
                                     plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 8u } &&
                                     plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 8, 16, 16 } &&
@@ -1144,7 +1131,8 @@ TEST_CASE("McePart GetPlans Strategy0", "[slow]")
                            pleValid;
                 });
                 params.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plans, params);
             }
@@ -1173,8 +1161,7 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
         {
             command_stream::BlockConfig requestedBlockConfig = { 32u, 8u };
 
-            Buffer prevBuffer;
-            prevBuffer.m_Location         = Location::Sram;
+            SramBuffer prevBuffer;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
             prevBuffer.m_TensorShape      = inputShape;
@@ -1203,12 +1190,12 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
                     CHECK(plan.m_Input->m_Format == prevBuffer.m_Format);
                     CHECK(plan.m_Input->m_QuantizationInfo == prevBuffer.m_QuantizationInfo);
                     CHECK(plan.m_Input->m_TensorShape == prevBuffer.m_TensorShape);
-                    CHECK(plan.m_Input->m_StripeShape == prevBuffer.m_StripeShape);
+                    CHECK(plan.m_Input->Sram()->m_StripeShape == prevBuffer.m_StripeShape);
                     // Note that the Order doesn't need to match, because there is only one stripe in Z so both orders are equivalent.
                     CHECK(plan.m_Input->m_SizeInBytes == prevBuffer.m_SizeInBytes);
-                    CHECK(plan.m_Input->m_NumStripes == prevBuffer.m_NumStripes);
+                    CHECK(plan.m_Input->Sram()->m_NumStripes == prevBuffer.m_NumStripes);
 
-                    CHECK(plan.m_WeightsSram->m_NumStripes == numWeightStripes);
+                    CHECK(plan.m_WeightsSram->Sram()->m_NumStripes == numWeightStripes);
                 };
                 CheckPlans(plans, params);
             }
@@ -1217,8 +1204,7 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
         {
             command_stream::BlockConfig requestedBlockConfig = { 32u, 8u };
 
-            Buffer prevBuffer;
-            prevBuffer.m_Location         = Location::Sram;
+            SramBuffer prevBuffer;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
             prevBuffer.m_TensorShape      = inputShape;
@@ -1240,8 +1226,7 @@ TEST_CASE("McePart GetPlans Filters", "[slow]")
         {
             command_stream::BlockConfig requestedBlockConfig = { 32u, 8u };
 
-            Buffer prevBuffer;
-            prevBuffer.m_Location         = Location::Sram;
+            SramBuffer prevBuffer;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
             prevBuffer.m_TensorShape      = inputShape;
@@ -1278,10 +1263,10 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
 
         McePart part0 = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
                                   compOpt, caps, estOpts);
-        Buffer part0OutputBuffer;
+        SramBuffer* part0OutputBuffer = nullptr;
         McePart part1 = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
                                   compOpt, caps, estOpts);
-        Buffer part1OutputBuffer;
+        SramBuffer* part1OutputBuffer = nullptr;
         McePart part2 = BuildPart(inputShape, outputShape, weightShape, command_stream::MceOperation::CONVOLUTION,
                                   compOpt, caps, estOpts);
 
@@ -1300,24 +1285,24 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
                 params.m_InputShape  = inputShape;
                 params.m_OutputShape = outputShape;
                 params.m_Any.push_back([&](const PlanDesc& plan) {
-                    bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
-                                          plan.m_InputSram->m_Order == TraversalOrder::Zxy &&
+                    bool inputSramValid = plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
+                                          plan.m_InputSram->Sram()->m_Order == TraversalOrder::Zxy &&
                                           plan.m_InputSram->m_SizeInBytes == 8 * 16 * 16 * 2 &&
-                                          plan.m_InputSram->m_NumStripes == 2;
-                    bool weightsSramValid = plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 16, 16 } &&
-                                            plan.m_WeightsSram->m_Order == TraversalOrder::Xyz &&
-                                            plan.m_WeightsSram->m_NumStripes == 1;
-                    bool pleInputSramValid = plan.m_PleInputSram->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
-                                             plan.m_PleInputSram->m_Order == TraversalOrder::Xyz &&
-                                             plan.m_PleInputSram->m_SizeInBytes == 8 * 16 * 16 &&
-                                             plan.m_PleInputSram->m_NumStripes == 0;
+                                          plan.m_InputSram->Sram()->m_NumStripes == 2;
+                    bool weightsSramValid = plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 1, 1, 16, 16 } &&
+                                            plan.m_WeightsSram->Sram()->m_Order == TraversalOrder::Xyz &&
+                                            plan.m_WeightsSram->Sram()->m_NumStripes == 1;
+                    bool pleInputSramValid =
+                        plan.m_PleInputSram->PleInputSram()->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
+                        plan.m_PleInputSram->m_SizeInBytes == 8 * 16 * 16 &&
+                        plan.m_PleInputSram->PleInputSram()->m_NumStripes == 0;
                     bool outputSramValid = true;
                     if (plan.m_OutputSram)
                     {
-                        outputSramValid = plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
-                                          plan.m_OutputSram->m_Order == TraversalOrder::Xyz &&
+                        outputSramValid = plan.m_OutputSram->Sram()->m_StripeShape == TensorShape{ 1, 8, 16, 16 } &&
+                                          plan.m_OutputSram->Sram()->m_Order == TraversalOrder::Xyz &&
                                           plan.m_OutputSram->m_SizeInBytes == 8 * 16 * 16 &&
-                                          plan.m_OutputSram->m_NumStripes == 1;
+                                          plan.m_OutputSram->Sram()->m_NumStripes == 1;
                     }
                     bool mceValid = plan.m_Mce->m_Algo == CompilerMceAlgorithm::Direct &&
                                     plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 8u } &&
@@ -1337,19 +1322,21 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
                                 mceValid && pleValid;
                     if (pass && plan.m_OutputSram)
                     {
-                        part0OutputBuffer = *plan.m_OutputSram;
+                        part0OutputBuffer = plan.m_OutputSram->Sram();
                     }
                     return pass;
                 });
                 params.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plans0, params);
 
                 command_stream::BlockConfig requestedBlockConfig = { 16u, 8u };
 
+                CHECK(part0OutputBuffer != nullptr);
                 Plans plans1 =
-                    part1.GetPlans(CascadeType::Middle, requestedBlockConfig, &part0OutputBuffer, numWeightStripes);
+                    part1.GetPlans(CascadeType::Middle, requestedBlockConfig, part0OutputBuffer, numWeightStripes);
 
                 // There are 4 plans which are generated
                 // 3 for mce + ple.
@@ -1358,10 +1345,10 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
                 //   3 output stripes
                 // 1 for mce only
                 REQUIRE(plans1.size() == 4);
-                part1OutputBuffer = *plans1[0].m_OpGraph.GetBuffers().back();
+                part1OutputBuffer = plans1[0].m_OpGraph.GetBuffers().back()->Sram();
 
                 Plans plans2 =
-                    part2.GetPlans(CascadeType::End, requestedBlockConfig, &part1OutputBuffer, numWeightStripes);
+                    part2.GetPlans(CascadeType::End, requestedBlockConfig, part1OutputBuffer, numWeightStripes);
 
                 // There are 2 plan as we consider double buffering as the output stripe height is < output tensor
                 REQUIRE(plans2.size() == 2);
@@ -1447,9 +1434,9 @@ TEST_CASE("McePart GetPlans Split input in height and width in the case of block
                 params.m_InputShape  = tsIn;
                 params.m_OutputShape = tsOut;
                 params.m_Any.push_back([&](const PlanDesc& plan) {
-                    return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 64, 8, 256 } &&
-                           plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 64, 8, 64 } &&
-                           (plan.m_InputSram->m_NumStripes == 1 || plan.m_InputSram->m_NumStripes == 2);
+                    return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 64, 8, 256 } &&
+                           plan.m_OutputSram->Sram()->m_StripeShape == TensorShape{ 1, 64, 8, 64 } &&
+                           (plan.m_InputSram->Sram()->m_NumStripes == 1 || plan.m_InputSram->Sram()->m_NumStripes == 2);
                 });
                 CheckPlans(plans, params);
             }
@@ -1488,14 +1475,17 @@ TEST_CASE("McePart GetPlans Split input in depth")
                 params.m_InputShape  = tsIn;
                 params.m_OutputShape = tsOut;
                 params.m_All         = [&](const PlanDesc& plan) {
-                    CHECK(!(plan.m_InputSram->m_StripeShape == TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() } &&
-                            plan.m_InputSram->m_NumStripes == 1));
-                    CHECK(!(plan.m_InputSram->m_StripeShape == TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() } &&
-                            plan.m_InputSram->m_NumStripes == 2));
+                    CHECK(
+                        !(plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() } &&
+                          plan.m_InputSram->Sram()->m_NumStripes == 1));
+                    CHECK(
+                        !(plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() } &&
+                          plan.m_InputSram->Sram()->m_NumStripes == 2));
                 };
                 params.m_Any.push_back([&](const PlanDesc& plan) {
-                    return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() * 4 } &&
-                           (plan.m_InputSram->m_NumStripes == 1 || plan.m_InputSram->m_NumStripes == 2);
+                    return plan.m_InputSram->Sram()->m_StripeShape ==
+                               TensorShape{ 1, 16, 16, caps.GetNumberOfOgs() * 4 } &&
+                           (plan.m_InputSram->Sram()->m_NumStripes == 1 || plan.m_InputSram->Sram()->m_NumStripes == 2);
                 });
                 CheckPlans(plans, params);
             }
@@ -1539,10 +1529,10 @@ TEST_CASE("McePart GetPlans Split output in depth")
                     TensorShape outputStripe{ 1, 8, 8, 8 };
                     uint32_t numOutputStripes = 2;
 
-                    return plan.m_InputSram->m_StripeShape == inputStripe &&
-                           plan.m_InputSram->m_NumStripes == numInputStripes &&
-                           plan.m_OutputSram->m_StripeShape == outputStripe &&
-                           plan.m_OutputSram->m_NumStripes == numOutputStripes &&
+                    return plan.m_InputSram->Sram()->m_StripeShape == inputStripe &&
+                           plan.m_InputSram->Sram()->m_NumStripes == numInputStripes &&
+                           plan.m_OutputSram->Sram()->m_StripeShape == outputStripe &&
+                           plan.m_OutputSram->Sram()->m_NumStripes == numOutputStripes &&
                            plan.m_Ple->m_OutputStripeShape == pleOutputStripe &&
                            // Check also the algorithm, to make sure we include output-depth-split plans with Winograd enabled
                            // (these were previously missing)
@@ -1587,8 +1577,7 @@ TEST_CASE("McePart GetPlans MobileNet V1")
 
         // Define common properties of the "prevBuffer", which will be the case for all Parts we're testing. This avoids
         // duplicating these lines for each Part being tested.
-        Buffer prevBuffer;
-        prevBuffer.m_Location         = Location::Sram;
+        SramBuffer prevBuffer;
         prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
         prevBuffer.m_QuantizationInfo = { 0, 1.0f };
         prevBuffer.m_Order            = TraversalOrder::Xyz;
@@ -1622,21 +1611,21 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
-                return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 112, 112, 64 } &&
-                       plan.m_InputSram->m_NumStripes == 1 &&
-                       plan.m_WeightsSram->m_StripeShape == TensorShape{ 3, 3, 64, 32 } &&    // Strided
-                       plan.m_WeightsSram->m_NumStripes == 1 &&
+                return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 112, 112, 64 } &&
+                       plan.m_InputSram->Sram()->m_NumStripes == 1 &&
+                       plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 3, 3, 64, 32 } &&    // Strided
+                       plan.m_WeightsSram->Sram()->m_NumStripes == 1 &&
                        plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 112, 112, 64 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 3, 3, 64, 32 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 112, 112, 32 } &&
                        // The following Part is another McePart, so we'll use the plan which includes a Passthrough PLE.
                        plan.m_Output->m_Location == Location::Sram &&
-                       plan.m_Output->m_StripeShape == TensorShape{ 1, 112, 112, 32 } &&
-                       plan.m_Output->m_NumStripes == 1;
+                       plan.m_Output->Sram()->m_StripeShape == TensorShape{ 1, 112, 112, 32 } &&
+                       plan.m_Output->Sram()->m_NumStripes == 1;
             });
             params.m_Any.push_back([](const PlanDesc& plan) {
-                return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                return (plan.m_InputSram->Sram()->m_NumStripes == 1) && (plan.m_OutputSram->Sram()->m_NumStripes == 1);
             });
             CheckPlans(plans, params);
         }
@@ -1662,21 +1651,21 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
-                return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 112, 112, 32 } &&
-                       plan.m_InputSram->m_NumStripes == 1 &&
-                       plan.m_WeightsSram->m_StripeShape == TensorShape{ 3, 3, 32, 1 } &&
-                       plan.m_WeightsSram->m_NumStripes == 1 &&
+                return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 112, 112, 32 } &&
+                       plan.m_InputSram->Sram()->m_NumStripes == 1 &&
+                       plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 3, 3, 32, 1 } &&
+                       plan.m_WeightsSram->Sram()->m_NumStripes == 1 &&
                        plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 112, 112, 32 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 3, 3, 32, 1 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 112, 112, 32 } &&
                        // The following Part is another McePart, so we'll use the plan which includes a Passthrough PLE.
                        plan.m_Output->m_Location == Location::Sram &&
-                       plan.m_Output->m_StripeShape == TensorShape{ 1, 112, 112, 32 } &&
-                       plan.m_Output->m_NumStripes == 1;
+                       plan.m_Output->Sram()->m_StripeShape == TensorShape{ 1, 112, 112, 32 } &&
+                       plan.m_Output->Sram()->m_NumStripes == 1;
             });
             params.m_Any.push_back([](const PlanDesc& plan) {
-                return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                return (plan.m_InputSram->Sram()->m_NumStripes == 1) && (plan.m_OutputSram->Sram()->m_NumStripes == 1);
             });
             CheckPlans(plans, params);
         }
@@ -1698,21 +1687,21 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
-                return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 112, 112, 32 } &&
-                       plan.m_InputSram->m_NumStripes == 1 &&
-                       plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 32, 32 } &&
-                       plan.m_WeightsSram->m_NumStripes == 2 &&
+                return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 112, 112, 32 } &&
+                       plan.m_InputSram->Sram()->m_NumStripes == 1 &&
+                       plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 1, 1, 32, 32 } &&
+                       plan.m_WeightsSram->Sram()->m_NumStripes == 2 &&
                        plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 112, 112, 32 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 32, 32 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 112, 112, 32 } &&
                        // The following Part is a FusedPlePart, so we'll use the plan which ends at PleInputSram (and doesn't include a Passthrough PLE)
                        plan.m_Output->m_Location == Location::PleInputSram &&
-                       plan.m_Output->m_StripeShape == TensorShape{ 1, 112, 112, 32 } &&
-                       plan.m_Output->m_NumStripes == 0;
+                       plan.m_Output->PleInputSram()->m_StripeShape == TensorShape{ 1, 112, 112, 32 } &&
+                       plan.m_Output->PleInputSram()->m_NumStripes == 0;
             });
             params.m_Any.push_back([](const PlanDesc& plan) {
-                return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                return (plan.m_InputSram->Sram()->m_NumStripes == 1) && (plan.m_OutputSram->Sram()->m_NumStripes == 1);
             });
             CheckPlans(plans, params);
         }
@@ -1735,21 +1724,22 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
-                return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 56, 56, 256 } &&
-                       plan.m_InputSram->m_NumStripes == 1 &&
-                       plan.m_WeightsSram->m_StripeShape ==
+                return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 56, 56, 256 } &&
+                       plan.m_InputSram->Sram()->m_NumStripes == 1 &&
+                       plan.m_WeightsSram->Sram()->m_StripeShape ==
                            TensorShape{ 3, 3, 128, 1 } &&    // This is 32 but 4x because of strided
-                       plan.m_WeightsSram->m_NumStripes == 2 &&
+                       plan.m_WeightsSram->Sram()->m_NumStripes == 2 &&
                        plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 56, 56, 256 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 3, 3, 128, 1 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 56, 56, 32 } &&
                        // The following Part is another McePart, so we'll use the plan which includes a Passthrough PLE.
                        plan.m_Output->m_Location == Location::Sram &&
-                       plan.m_Output->m_StripeShape == TensorShape{ 1, 56, 56, 64 } && plan.m_Output->m_NumStripes == 1;
+                       plan.m_Output->Sram()->m_StripeShape == TensorShape{ 1, 56, 56, 64 } &&
+                       plan.m_Output->Sram()->m_NumStripes == 1;
             });
             params.m_Any.push_back([](const PlanDesc& plan) {
-                return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                return (plan.m_InputSram->Sram()->m_NumStripes == 1) && (plan.m_OutputSram->Sram()->m_NumStripes == 1);
             });
             CheckPlans(plans, params);
         }
@@ -1771,21 +1761,21 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
-                return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 56, 56, 64 } &&
-                       plan.m_InputSram->m_NumStripes == 1 &&
-                       plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 64, 32 } &&
-                       plan.m_WeightsSram->m_NumStripes == 2 &&
+                return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 56, 56, 64 } &&
+                       plan.m_InputSram->Sram()->m_NumStripes == 1 &&
+                       plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 1, 1, 64, 32 } &&
+                       plan.m_WeightsSram->Sram()->m_NumStripes == 2 &&
                        plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 56, 56, 64 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 64, 32 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 56, 56, 32 } &&
                        // The following Part is another McePart, so we'll use the plan which includes a Passthrough PLE.
                        plan.m_Output->m_Location == Location::Sram &&
-                       plan.m_Output->m_StripeShape == TensorShape{ 1, 56, 56, 128 } &&
-                       plan.m_Output->m_NumStripes == 1;
+                       plan.m_Output->Sram()->m_StripeShape == TensorShape{ 1, 56, 56, 128 } &&
+                       plan.m_Output->Sram()->m_NumStripes == 1;
             });
             params.m_Any.push_back([](const PlanDesc& plan) {
-                return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                return (plan.m_InputSram->Sram()->m_NumStripes == 1) && (plan.m_OutputSram->Sram()->m_NumStripes == 1);
             });
             CheckPlans(plans, params);
         }
@@ -1808,21 +1798,21 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
-                return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 56, 56, 128 } &&
-                       plan.m_InputSram->m_NumStripes == 1 &&
-                       plan.m_WeightsSram->m_StripeShape == TensorShape{ 3, 3, 32, 1 } &&
-                       plan.m_WeightsSram->m_NumStripes == 2 &&
+                return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 56, 56, 128 } &&
+                       plan.m_InputSram->Sram()->m_NumStripes == 1 &&
+                       plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 3, 3, 32, 1 } &&
+                       plan.m_WeightsSram->Sram()->m_NumStripes == 2 &&
                        plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 56, 56, 128 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 3, 3, 32, 1 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 56, 56, 32 } &&
                        // The following Part is another McePart, so we'll use the plan which includes a Passthrough PLE.
                        plan.m_Output->m_Location == Location::Sram &&
-                       plan.m_Output->m_StripeShape == TensorShape{ 1, 56, 56, 128 } &&
-                       plan.m_Output->m_NumStripes == 1;
+                       plan.m_Output->Sram()->m_StripeShape == TensorShape{ 1, 56, 56, 128 } &&
+                       plan.m_Output->Sram()->m_NumStripes == 1;
             });
             params.m_Any.push_back([](const PlanDesc& plan) {
-                return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                return (plan.m_InputSram->Sram()->m_NumStripes == 1) && (plan.m_OutputSram->Sram()->m_NumStripes == 1);
             });
             CheckPlans(plans, params);
         }
@@ -1844,20 +1834,21 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
-                return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 56, 56, 128 } &&
-                       plan.m_InputSram->m_NumStripes == 1 &&
-                       plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 128, 32 } &&
-                       plan.m_WeightsSram->m_NumStripes == 2 &&
+                return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 56, 56, 128 } &&
+                       plan.m_InputSram->Sram()->m_NumStripes == 1 &&
+                       plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 1, 1, 128, 32 } &&
+                       plan.m_WeightsSram->Sram()->m_NumStripes == 2 &&
                        plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 56, 56, 128 } &&
                        plan.m_Mce->m_WeightsStripeShape == TensorShape{ 1, 1, 128, 32 } &&
                        plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 56, 56, 32 } &&
                        // The following Part is a FusedPlePart, so we'll use the plan which ends at PleInputSram (and doesn't include a Passthrough PLE)
                        plan.m_Output->m_Location == Location::PleInputSram &&
-                       plan.m_Output->m_StripeShape == TensorShape{ 1, 56, 56, 32 } && plan.m_Output->m_NumStripes == 0;
+                       plan.m_Output->PleInputSram()->m_StripeShape == TensorShape{ 1, 56, 56, 32 } &&
+                       plan.m_Output->PleInputSram()->m_NumStripes == 0;
             });
             params.m_Any.push_back([](const PlanDesc& plan) {
-                return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                return (plan.m_InputSram->Sram()->m_NumStripes == 1) && (plan.m_OutputSram->Sram()->m_NumStripes == 1);
             });
             CheckPlans(plans, params);
         }
@@ -1892,15 +1883,18 @@ TEST_CASE("McePart GetPlans Upsampling")
                 params.m_UpscaleFactor = 2;
                 params.m_UpsampleType  = command_stream::cascading::UpsampleType::NEAREST_NEIGHBOUR;
                 params.m_All           = [&](const PlanDesc& plan) {
-                    CHECK(plan.m_PleInputSram->m_StripeShape[1] == 2 * plan.m_InputSram->m_StripeShape[1]);
-                    CHECK(plan.m_PleInputSram->m_StripeShape[2] == 2 * plan.m_InputSram->m_StripeShape[2]);
+                    CHECK(plan.m_PleInputSram->PleInputSram()->m_StripeShape[1] ==
+                          2 * plan.m_InputSram->Sram()->m_StripeShape[1]);
+                    CHECK(plan.m_PleInputSram->PleInputSram()->m_StripeShape[2] ==
+                          2 * plan.m_InputSram->Sram()->m_StripeShape[2]);
                 };
                 params.m_Any.push_back([&](const PlanDesc& plan) {
-                    return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 16, 64, 16 } &&
-                           plan.m_PleInputSram->m_StripeShape == TensorShape{ 1, 32, 128, 16 };
+                    return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 16, 64, 16 } &&
+                           plan.m_PleInputSram->PleInputSram()->m_StripeShape == TensorShape{ 1, 32, 128, 16 };
                 });
                 params.m_Any.push_back([](const PlanDesc& plan) {
-                    return (plan.m_InputSram->m_NumStripes == 1) && (plan.m_OutputSram->m_NumStripes == 1);
+                    return (plan.m_InputSram->Sram()->m_NumStripes == 1) &&
+                           (plan.m_OutputSram->Sram()->m_NumStripes == 1);
                 });
                 CheckPlans(plans, params);
             }
@@ -1908,8 +1902,7 @@ TEST_CASE("McePart GetPlans Upsampling")
 
         WHEN("Asked to generate Middle plans")
         {
-            Buffer prevBuffer;
-            prevBuffer.m_Location         = Location::Sram;
+            SramBuffer prevBuffer;
             prevBuffer.m_Format           = CascadingBufferFormat::NHWCB;
             prevBuffer.m_QuantizationInfo = { 0, 1.0f };
             prevBuffer.m_TensorShape      = tsIn;
@@ -1930,12 +1923,14 @@ TEST_CASE("McePart GetPlans Upsampling")
                 params.m_UpscaleFactor = 2;
                 params.m_UpsampleType  = command_stream::cascading::UpsampleType::NEAREST_NEIGHBOUR;
                 params.m_All           = [&](const PlanDesc& plan) {
-                    CHECK(plan.m_PleInputSram->m_StripeShape[1] == 2 * plan.m_InputSram->m_StripeShape[1]);
-                    CHECK(plan.m_PleInputSram->m_StripeShape[2] == 2 * plan.m_InputSram->m_StripeShape[2]);
+                    CHECK(plan.m_PleInputSram->PleInputSram()->m_StripeShape[1] ==
+                          2 * plan.m_InputSram->Sram()->m_StripeShape[1]);
+                    CHECK(plan.m_PleInputSram->PleInputSram()->m_StripeShape[2] ==
+                          2 * plan.m_InputSram->Sram()->m_StripeShape[2]);
                 };
                 params.m_Any.push_back([&](const PlanDesc& plan) {
-                    return plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 64, 16 } &&
-                           plan.m_PleInputSram->m_StripeShape == TensorShape{ 1, 16, 128, 16 };
+                    return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 8, 64, 16 } &&
+                           plan.m_PleInputSram->PleInputSram()->m_StripeShape == TensorShape{ 1, 16, 128, 16 };
                 });
                 CheckPlans(plans, params);
             }

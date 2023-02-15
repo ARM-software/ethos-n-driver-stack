@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -45,7 +45,7 @@ Plans OutputPart::GetPlans(CascadeType cascadeType,
 
     if (cascadeType == CascadeType::Lonely)
     {
-        CreatePlanForOutputPart(TraversalOrder::Xyz, plans);
+        CreatePlanForOutputPart(plans);
     }
 
     return plans;
@@ -54,22 +54,23 @@ Plans OutputPart::GetPlans(CascadeType cascadeType,
 OutputPart::~OutputPart()
 {}
 
-void OutputPart::CreatePlanForOutputPart(TraversalOrder order, Plans& plans) const
+void OutputPart::CreatePlanForOutputPart(Plans& plans) const
 {
     PartInputMapping inputMappings;
     PartOutputMapping outputMappings;
     OwnedOpGraph opGraph;
 
-    CascadingBufferFormat format   = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
-    std::unique_ptr<Buffer> buffer = std::make_unique<Buffer>(Location::Dram, format, order);
-    buffer->m_DataType             = m_InputDataType;
-    buffer->m_TensorShape          = m_InputTensorShape;
-    buffer->m_SizeInBytes          = utils::CalculateBufferSize(m_InputTensorShape, format);
-    buffer->m_QuantizationInfo     = m_InputQuantizationInfo;
-    buffer->m_OperationId          = *m_CorrespondingOperationIds.begin();
-    buffer->m_ProducerOutputIndx   = m_ProducerOutputIndx;
-    buffer->m_BufferType           = BufferType::Output;
-    inputMappings[buffer.get()]    = PartInputSlot{ m_PartId, 0 };
+    CascadingBufferFormat format       = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
+    std::unique_ptr<DramBuffer> buffer = std::make_unique<DramBuffer>();
+    buffer->m_Format                   = format;
+    buffer->m_DataType                 = m_InputDataType;
+    buffer->m_TensorShape              = m_InputTensorShape;
+    buffer->m_SizeInBytes              = utils::CalculateBufferSize(m_InputTensorShape, format);
+    buffer->m_QuantizationInfo         = m_InputQuantizationInfo;
+    buffer->m_OperationId              = *m_CorrespondingOperationIds.begin();
+    buffer->m_ProducerOutputIndx       = m_ProducerOutputIndx;
+    buffer->m_BufferType               = BufferType::Output;
+    inputMappings[buffer.get()]        = PartInputSlot{ m_PartId, 0 };
     opGraph.AddBuffer(std::move(buffer));
 
     AddNewPlan(std::move(inputMappings), std::move(outputMappings), std::move(opGraph), plans);

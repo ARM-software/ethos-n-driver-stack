@@ -194,7 +194,7 @@ InputStats GetInputStatsLegacy(const HardwareCapabilities& caps,
     return data;
 }
 
-InputStats GetInputStatsCascading(const Buffer& ifmBuffer,
+InputStats GetInputStatsCascading(const SramBuffer& ifmBuffer,
                                   const TensorShape& weightsShape,
                                   utils::Optional<CascadingBufferFormat> dramBufferFormat)
 {
@@ -288,7 +288,7 @@ OutputStats GetOutputStatsLegacy(const TensorShape& shape, const TensorShape& st
     return data;
 }
 
-OutputStats GetOutputStatsCascading(const Buffer& ofmSramBuffer,
+OutputStats GetOutputStatsCascading(const SramBuffer& ofmSramBuffer,
                                     utils::Optional<CascadingBufferFormat> dramBufferFormat)
 {
     OutputStats data;
@@ -408,8 +408,8 @@ InputStats AccountForActivationCompression(InputStats stats, float spaceSavingRa
 }
 
 StripesStats AccountForDmaChunking(StripesStats stats,
-                                   const Buffer& sramBuffer,
-                                   const Buffer& dramBuffer,
+                                   const SramBuffer& sramBuffer,
+                                   const DramBuffer& dramBuffer,
                                    bool dramStridingAllowed)
 {
     using namespace utils;

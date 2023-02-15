@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -157,11 +157,8 @@ void CheckInputDram(const CheckPlansParams& params, PlanDesc& desc)
         {
             CHECK(desc.m_InputDram->m_TensorShape == params.m_InputShape.value());
         }
-        CHECK(desc.m_InputDram->m_StripeShape == TensorShape{ 0, 0, 0, 0 });
-        CHECK(desc.m_InputDram->m_Order == TraversalOrder::Xyz);
         CHECK(desc.m_InputDram->m_SizeInBytes == utils::GetNumElements(desc.m_InputDram->m_TensorShape));
-        CHECK(desc.m_InputDram->m_NumStripes == 0);
-        CHECK(desc.m_InputDram->m_EncodedWeights == nullptr);
+        CHECK(desc.m_InputDram->Dram()->m_EncodedWeights == nullptr);
     }
 }
 
@@ -221,7 +218,6 @@ void CheckInputSram(PlanDesc& desc, const CheckPlansParams& params)
         CHECK(desc.m_InputSram->m_TensorShape == desc.m_InputDram->m_TensorShape);
     }
     // m_StripeShape, m_Order, m_SizeInBytes and m_NumStripes will depend on the streaming strategy, and so cannot be checked generically
-    CHECK(desc.m_InputSram->m_EncodedWeights == nullptr);
 }
 
 void CheckWeightsDram(PlanDesc& desc, const CheckPlansParams& params)
@@ -234,12 +230,9 @@ void CheckWeightsDram(PlanDesc& desc, const CheckPlansParams& params)
         CHECK(desc.m_WeightsDram->m_QuantizationInfo == params.m_WeightsTensorInfo.value().m_QuantizationInfo);
         CHECK(desc.m_WeightsDram->m_TensorShape == params.m_WeightsTensorInfo.value().m_Dimensions);
     }
-    CHECK(desc.m_WeightsDram->m_StripeShape == TensorShape{ 0, 0, 0, 0 });
-    CHECK(desc.m_WeightsDram->m_Order == TraversalOrder::Xyz);
-    CHECK(desc.m_WeightsDram->m_NumStripes == 0);
-    REQUIRE(desc.m_WeightsDram->m_EncodedWeights != nullptr);
-    CHECK(desc.m_WeightsDram->m_EncodedWeights->m_Data.size() > 0);
-    CHECK(desc.m_WeightsDram->m_SizeInBytes == desc.m_WeightsDram->m_EncodedWeights->m_Data.size());
+    REQUIRE(desc.m_WeightsDram->Dram()->m_EncodedWeights != nullptr);
+    CHECK(desc.m_WeightsDram->Dram()->m_EncodedWeights->m_Data.size() > 0);
+    CHECK(desc.m_WeightsDram->m_SizeInBytes == desc.m_WeightsDram->Dram()->m_EncodedWeights->m_Data.size());
 }
 
 void CheckWeightsSram(PlanDesc& desc, const CheckPlansParams& params)
@@ -258,9 +251,8 @@ void CheckWeightsSram(PlanDesc& desc, const CheckPlansParams& params)
         CHECK(desc.m_WeightsSram->m_TensorShape == desc.m_WeightsDram->m_TensorShape);
     }
     // m_StripeShape, m_Order, m_NumStripes will depend on the streaming strategy, and so cannot be checked generically
-    CHECK(desc.m_WeightsSram->m_SizeInBytes ==
-          desc.m_WeightsDram->m_EncodedWeights->m_MaxSize * desc.m_WeightsSram->m_NumStripes);
-    CHECK(desc.m_WeightsSram->m_EncodedWeights == nullptr);
+    CHECK(desc.m_WeightsSram->Sram()->m_SizeInBytes ==
+          desc.m_WeightsDram->Dram()->m_EncodedWeights->m_MaxSize * desc.m_WeightsSram->Sram()->m_NumStripes);
 }
 
 void CheckPleInputSram(PlanDesc& desc, const CheckPlansParams& params)
@@ -281,7 +273,6 @@ void CheckPleInputSram(PlanDesc& desc, const CheckPlansParams& params)
         CHECK(desc.m_PleInputSram->m_TensorShape == params.m_OutputShape.value());
     }
     // m_StripeShape, m_Order, m_SizeInBytes, m_NumStripes will depend on the streaming strategy, and so cannot be checked generically
-    CHECK(desc.m_PleInputSram->m_EncodedWeights == nullptr);
 }
 
 void CheckOutputSram(PlanDesc& desc, const CheckPlansParams& params)
@@ -308,7 +299,6 @@ void CheckOutputSram(PlanDesc& desc, const CheckPlansParams& params)
             CHECK(desc.m_OutputSram->m_TensorShape == desc.m_PleInputSram->m_TensorShape);
         }
         // m_StripeShape, m_Order, m_SizeInBytes and m_NumStripes will depend on the streaming strategy, and so cannot be checked generically
-        CHECK(desc.m_OutputSram->m_EncodedWeights == nullptr);
     }
 }
 
@@ -335,11 +325,8 @@ void CheckOutputDram(PlanDesc& desc, const CheckPlansParams& params)
         {
             CHECK(desc.m_OutputDram->m_TensorShape == desc.m_OutputSram->m_TensorShape);
         }
-        CHECK(desc.m_OutputDram->m_StripeShape == TensorShape{ 0, 0, 0, 0 });
-        CHECK(desc.m_OutputDram->m_Order == TraversalOrder::Xyz);
         CHECK(desc.m_OutputDram->m_SizeInBytes == utils::TotalSizeBytesNHWCB(desc.m_OutputDram->m_TensorShape));
-        CHECK(desc.m_OutputDram->m_NumStripes == 0);
-        CHECK(desc.m_OutputDram->m_EncodedWeights == nullptr);
+        CHECK(desc.m_OutputDram->Dram()->m_EncodedWeights == nullptr);
     }
 }
 
@@ -641,21 +628,22 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
                 params.m_InputLocation = PlanInputLocation::Dram;
                 params.m_InputShape    = tsInOrig;
                 params.m_Any.push_back([](const PlanDesc& plan) {
-                    bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 8, 32 } &&
-                                          plan.m_InputSram->m_Order == TraversalOrder::Zxy &&
+                    bool inputSramValid = plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 8, 8, 32 } &&
+                                          plan.m_InputSram->Sram()->m_Order == TraversalOrder::Zxy &&
                                           plan.m_InputSram->m_SizeInBytes == 8 * 8 * 32 &&
-                                          plan.m_InputSram->m_NumStripes == 1;
-                    bool weightsSramValid = plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 2048, 1024 } &&
-                                            plan.m_WeightsSram->m_Order == TraversalOrder::Xyz &&
-                                            plan.m_WeightsSram->m_NumStripes == 1;
-                    bool pleInputSramValid = plan.m_PleInputSram->m_StripeShape == TensorShape{ 1, 8, 8, 1024 } &&
-                                             plan.m_PleInputSram->m_Order == TraversalOrder::Xyz &&
-                                             plan.m_PleInputSram->m_SizeInBytes == 8 * 8 * 1024 &&
-                                             plan.m_PleInputSram->m_NumStripes == 0;
-                    bool outputSramValid = plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 8, 8, 1024 } &&
-                                           plan.m_OutputSram->m_Order == TraversalOrder::Xyz &&
+                                          plan.m_InputSram->Sram()->m_NumStripes == 1;
+                    bool weightsSramValid =
+                        plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 1, 1, 2048, 1024 } &&
+                        plan.m_WeightsSram->Sram()->m_Order == TraversalOrder::Xyz &&
+                        plan.m_WeightsSram->Sram()->m_NumStripes == 1;
+                    bool pleInputSramValid =
+                        plan.m_PleInputSram->PleInputSram()->m_StripeShape == TensorShape{ 1, 8, 8, 1024 } &&
+                        plan.m_PleInputSram->m_SizeInBytes == 8 * 8 * 1024 &&
+                        plan.m_PleInputSram->PleInputSram()->m_NumStripes == 0;
+                    bool outputSramValid = plan.m_OutputSram->Sram()->m_StripeShape == TensorShape{ 1, 8, 8, 1024 } &&
+                                           plan.m_OutputSram->Sram()->m_Order == TraversalOrder::Xyz &&
                                            plan.m_OutputSram->m_SizeInBytes == 8 * 8 * 1024 &&
-                                           plan.m_OutputSram->m_NumStripes == 1;
+                                           plan.m_OutputSram->Sram()->m_NumStripes == 1;
                     bool mceValid = plan.m_Mce->m_Algo == CompilerMceAlgorithm::Direct &&
                                     plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 8, 8, 32 } &&
                                     plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 8, 8, 1024 } &&
@@ -676,21 +664,22 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
                 params.m_InputLocation = PlanInputLocation::Dram;
                 params.m_InputShape    = tsInOrig;
                 params.m_Any.push_back([](const PlanDesc& plan) {
-                    bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 8, 32 } &&
-                                          plan.m_InputSram->m_Order == TraversalOrder::Zxy &&
+                    bool inputSramValid = plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 8, 8, 32 } &&
+                                          plan.m_InputSram->Sram()->m_Order == TraversalOrder::Zxy &&
                                           plan.m_InputSram->m_SizeInBytes == 8 * 8 * 32 &&
-                                          plan.m_InputSram->m_NumStripes == 1;
-                    bool weightsSramValid = plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 2048, 16 } &&
-                                            plan.m_WeightsSram->m_Order == TraversalOrder::Xyz &&
-                                            plan.m_WeightsSram->m_NumStripes == 1;
-                    bool pleInputSramValid = plan.m_PleInputSram->m_StripeShape == TensorShape{ 1, 8, 8, 16 } &&
-                                             plan.m_PleInputSram->m_Order == TraversalOrder::Xyz &&
-                                             plan.m_PleInputSram->m_SizeInBytes == 8 * 8 * 16 &&
-                                             plan.m_PleInputSram->m_NumStripes == 0;
-                    bool outputSramValid = plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 8, 8, 16 } &&
-                                           plan.m_OutputSram->m_Order == TraversalOrder::Xyz &&
+                                          plan.m_InputSram->Sram()->m_NumStripes == 1;
+                    bool weightsSramValid =
+                        plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 1, 1, 2048, 16 } &&
+                        plan.m_WeightsSram->Sram()->m_Order == TraversalOrder::Xyz &&
+                        plan.m_WeightsSram->Sram()->m_NumStripes == 1;
+                    bool pleInputSramValid =
+                        plan.m_PleInputSram->PleInputSram()->m_StripeShape == TensorShape{ 1, 8, 8, 16 } &&
+                        plan.m_PleInputSram->m_SizeInBytes == 8 * 8 * 16 &&
+                        plan.m_PleInputSram->PleInputSram()->m_NumStripes == 0;
+                    bool outputSramValid = plan.m_OutputSram->Sram()->m_StripeShape == TensorShape{ 1, 8, 8, 16 } &&
+                                           plan.m_OutputSram->Sram()->m_Order == TraversalOrder::Xyz &&
                                            plan.m_OutputSram->m_SizeInBytes == 8 * 8 * 16 &&
-                                           plan.m_OutputSram->m_NumStripes == 1;
+                                           plan.m_OutputSram->Sram()->m_NumStripes == 1;
                     bool mceValid = plan.m_Mce->m_Algo == CompilerMceAlgorithm::Direct &&
                                     plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 8, 8, 32 } &&
                                     plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 8, 8, 16 } &&
@@ -711,21 +700,22 @@ TEST_CASE("FullyConnectedPart GetPlans", "[slow]")
                 params.m_InputLocation = PlanInputLocation::Dram;
                 params.m_InputShape    = tsInOrig;
                 params.m_Any.push_back([](const PlanDesc& plan) {
-                    bool inputSramValid = plan.m_InputSram->m_StripeShape == TensorShape{ 1, 8, 8, 16 } &&
-                                          plan.m_InputSram->m_Order == TraversalOrder::Zxy &&
+                    bool inputSramValid = plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 8, 8, 16 } &&
+                                          plan.m_InputSram->Sram()->m_Order == TraversalOrder::Zxy &&
                                           plan.m_InputSram->m_SizeInBytes == 8 * 8 * 16 &&
-                                          plan.m_InputSram->m_NumStripes == 1;
-                    bool weightsSramValid = plan.m_WeightsSram->m_StripeShape == TensorShape{ 1, 1, 1024, 16 } &&
-                                            plan.m_WeightsSram->m_Order == TraversalOrder::Xyz &&
-                                            plan.m_WeightsSram->m_NumStripes == 1;
-                    bool pleInputSramValid = plan.m_PleInputSram->m_StripeShape == TensorShape{ 1, 8, 8, 16 } &&
-                                             plan.m_PleInputSram->m_Order == TraversalOrder::Xyz &&
-                                             plan.m_PleInputSram->m_SizeInBytes == 8 * 8 * 16 &&
-                                             plan.m_PleInputSram->m_NumStripes == 0;
-                    bool outputSramValid = plan.m_OutputSram->m_StripeShape == TensorShape{ 1, 8, 8, 16 } &&
-                                           plan.m_OutputSram->m_Order == TraversalOrder::Xyz &&
+                                          plan.m_InputSram->Sram()->m_NumStripes == 1;
+                    bool weightsSramValid =
+                        plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 1, 1, 1024, 16 } &&
+                        plan.m_WeightsSram->Sram()->m_Order == TraversalOrder::Xyz &&
+                        plan.m_WeightsSram->Sram()->m_NumStripes == 1;
+                    bool pleInputSramValid =
+                        plan.m_PleInputSram->PleInputSram()->m_StripeShape == TensorShape{ 1, 8, 8, 16 } &&
+                        plan.m_PleInputSram->m_SizeInBytes == 8 * 8 * 16 &&
+                        plan.m_PleInputSram->PleInputSram()->m_NumStripes == 0;
+                    bool outputSramValid = plan.m_OutputSram->Sram()->m_StripeShape == TensorShape{ 1, 8, 8, 16 } &&
+                                           plan.m_OutputSram->Sram()->m_Order == TraversalOrder::Xyz &&
                                            plan.m_OutputSram->m_SizeInBytes == 8 * 8 * 16 &&
-                                           plan.m_OutputSram->m_NumStripes == 1;
+                                           plan.m_OutputSram->Sram()->m_NumStripes == 1;
                     bool mceValid = plan.m_Mce->m_Algo == CompilerMceAlgorithm::Direct &&
                                     plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 8, 8, 16 } &&
                                     plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 8, 8, 16 } &&

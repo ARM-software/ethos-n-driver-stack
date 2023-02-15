@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -39,6 +39,7 @@ enum class CompilerDataCompressedFormat;
 enum class TraversalOrder;
 enum class CompilerMceAlgorithm;
 enum class CascadingBufferFormat;
+enum class BufferType;
 
 using Plans = std::vector<Plan>;
 
@@ -66,6 +67,7 @@ std::string ToString(const utils::ShapeMultiplier& m);
 std::string ToString(const utils::Fraction& f);
 std::string ToString(command_stream::cascading::UpsampleType t);
 std::string ToString(command_stream::cascading::PackedBoundaryThickness t);
+std::string ToString(const BufferType& t);
 
 /// Replaces any illegal characters to form a valid .dot file "ID".
 std::string SanitizeId(std::string s);

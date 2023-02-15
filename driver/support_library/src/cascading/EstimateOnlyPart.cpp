@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -43,7 +43,7 @@ Plans EstimateOnlyPart::GetPlans(CascadeType cascadeType,
 
     if (cascadeType == CascadeType::Lonely)
     {
-        CreatePlanForEstimateOnlyPart(TraversalOrder::Xyz, plans);
+        CreatePlanForEstimateOnlyPart(plans);
     }
 
     return plans;
@@ -52,7 +52,7 @@ Plans EstimateOnlyPart::GetPlans(CascadeType cascadeType,
 EstimateOnlyPart::~EstimateOnlyPart()
 {}
 
-void EstimateOnlyPart::CreatePlanForEstimateOnlyPart(TraversalOrder order, Plans& plans) const
+void EstimateOnlyPart::CreatePlanForEstimateOnlyPart(Plans& plans) const
 {
     PartInputMapping inputMappings;
     PartOutputMapping outputMappings;
@@ -66,8 +66,8 @@ void EstimateOnlyPart::CreatePlanForEstimateOnlyPart(TraversalOrder order, Plans
 
     for (uint32_t inputIndex = 0; inputIndex < m_InputTensorsInfo.size(); inputIndex++)
     {
-        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, order));
-        Buffer* inputBuffer             = opGraph.GetBuffers().back();
+        DramBuffer* inputBuffer         = opGraph.AddBuffer(std::make_unique<DramBuffer>());
+        inputBuffer->m_Format           = format;
         inputBuffer->m_DataType         = m_InputTensorsInfo[inputIndex].m_DataType;
         inputBuffer->m_TensorShape      = m_InputTensorsInfo[inputIndex].m_Dimensions;
         inputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(inputBuffer->m_TensorShape, format);
@@ -79,8 +79,8 @@ void EstimateOnlyPart::CreatePlanForEstimateOnlyPart(TraversalOrder order, Plans
 
     for (uint32_t outputIndex = 0; outputIndex < m_OutputTensorsInfo.size(); outputIndex++)
     {
-        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, format, order));
-        Buffer* outputBuffer             = opGraph.GetBuffers().back();
+        DramBuffer* outputBuffer         = opGraph.AddBuffer(std::make_unique<DramBuffer>());
+        outputBuffer->m_Format           = format;
         outputBuffer->m_DataType         = m_OutputTensorsInfo[outputIndex].m_DataType;
         outputBuffer->m_TensorShape      = m_OutputTensorsInfo[outputIndex].m_Dimensions;
         outputBuffer->m_SizeInBytes      = utils::CalculateBufferSize(outputBuffer->m_TensorShape, format);

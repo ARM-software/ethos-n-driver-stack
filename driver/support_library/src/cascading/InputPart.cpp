@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -43,7 +43,7 @@ Plans InputPart::GetPlans(CascadeType cascadeType,
 
     if (cascadeType == CascadeType::Lonely)
     {
-        CreatePlanForInputPart(TraversalOrder::Xyz, plans);
+        CreatePlanForInputPart(plans);
     }
 
     return plans;
@@ -52,14 +52,15 @@ Plans InputPart::GetPlans(CascadeType cascadeType,
 InputPart::~InputPart()
 {}
 
-void InputPart::CreatePlanForInputPart(TraversalOrder order, Plans& plans) const
+void InputPart::CreatePlanForInputPart(Plans& plans) const
 {
     PartInputMapping inputMappings;
     PartOutputMapping outputMappings;
     OwnedOpGraph opGraph;
 
     CascadingBufferFormat format = impl::GetCascadingBufferFormatFromCompilerDataFormat(m_CompilerDataFormat);
-    auto buffer                  = std::make_unique<Buffer>(Location::Dram, format, order);
+    auto buffer                  = std::make_unique<DramBuffer>();
+    buffer->m_Format             = format;
     buffer->m_DataType           = m_OutputDataType;
     buffer->m_TensorShape        = m_OutputTensorShape;
     buffer->m_SizeInBytes        = utils::CalculateBufferSize(m_OutputTensorShape, format);

@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -39,7 +39,7 @@ private:
     const uint32_t m_ProducerOutputIndx;
     CompilerDataFormat m_CompilerDataFormat;
 
-    void CreatePlanForOutputPart(TraversalOrder order, Plans& plans) const;
+    void CreatePlanForOutputPart(Plans& plans) const;
 };
 
 }    // namespace support_library

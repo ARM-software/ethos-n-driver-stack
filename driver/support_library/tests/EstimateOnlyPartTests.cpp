@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -53,12 +53,9 @@ void CheckPlans(const Plans& plans, const CheckPlansParams& params)
         CHECK(buffers[outputIndex]->m_QuantizationInfo ==
               params.m_OutputTensorsInfo[outputIndex - 2].m_QuantizationInfo);
         CHECK(buffers[outputIndex]->m_TensorShape == params.m_OutputTensorsInfo[outputIndex - 2].m_Dimensions);
-        CHECK(buffers[outputIndex]->m_StripeShape == TensorShape{ 0, 0, 0, 0 });
-        CHECK(buffers[outputIndex]->m_Order == TraversalOrder::Xyz);
         CHECK(buffers[outputIndex]->m_SizeInBytes ==
               utils::TotalSizeBytesNHWCB(params.m_OutputTensorsInfo[outputIndex - 2].m_Dimensions));
-        CHECK(buffers[outputIndex]->m_NumStripes == 0);
-        CHECK(buffers[outputIndex]->m_EncodedWeights == nullptr);
+        CHECK(buffers[outputIndex]->Dram()->m_EncodedWeights == nullptr);
     }
 
     // Check the input and output mappings

@@ -38,10 +38,8 @@ TEST_CASE("StripeShapeLoop")
 
 TEST_CASE("IsSramBufferCompatibleWithDramBuffer")
 {
-    Buffer sram;
-    sram.m_Location = Location::Sram;
-    Buffer dram;
-    dram.m_Location = Location::Dram;
+    SramBuffer sram;
+    DramBuffer dram;
 
     SECTION("Reshape without NHWC is invalid")
     {

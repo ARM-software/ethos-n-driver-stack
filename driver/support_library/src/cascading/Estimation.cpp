@@ -96,7 +96,7 @@ EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
     // Use the SRAM tensor shape, which might be different from the DRAM tensor shape for reshapes
     inputConversionData.tensorShape = sramBuffer->m_TensorShape;
     // The input and output buffers are in DRAM so don't have stripes, use the sram buffer to get the stripe information
-    inputConversionData.stripeShape = sramBuffer->m_StripeShape;
+    inputConversionData.stripeShape = sramBuffer->Sram()->m_StripeShape;
     inputConversionData.isNhwc      = inputBuffer->m_Format == CascadingBufferFormat::NHWC;
     bool isDramToDram = inputBuffer->m_Location == Location::Dram && outputBuffer->m_Location == Location::Dram;
 
@@ -108,15 +108,15 @@ EstimatedPass EstimateConversionPassGrownFrom(const OpGraph& opGraph,
     ConversionData outputConversionData;
     // Use the SRAM tensor shape, which might be different from the DRAM tensor shape for reshapes
     outputConversionData.tensorShape = sramBuffer->m_TensorShape;
-    outputConversionData.stripeShape = sramBuffer->m_StripeShape;
+    outputConversionData.stripeShape = sramBuffer->Sram()->m_StripeShape;
     outputConversionData.isNhwc      = outputBuffer->m_Format == CascadingBufferFormat::NHWC;
 
     result.m_Stats = GetConversionStats(inputConversionData, outputConversionData, isDramToDram);
 
     result.m_Stats.m_Input.m_StripesStats =
-        AccountForDmaChunking(result.m_Stats.m_Input.m_StripesStats, *sramBuffer, *inputBuffer, false);
+        AccountForDmaChunking(result.m_Stats.m_Input.m_StripesStats, *sramBuffer->Sram(), *inputBuffer->Dram(), false);
     result.m_Stats.m_Output.m_StripesStats =
-        AccountForDmaChunking(result.m_Stats.m_Output.m_StripesStats, *sramBuffer, *outputBuffer, true);
+        AccountForDmaChunking(result.m_Stats.m_Output.m_StripesStats, *sramBuffer->Sram(), *outputBuffer->Dram(), true);
 
     if (isInputCompressed)
     {
@@ -234,8 +234,8 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
         weightsTensorInfo = TensorInfo(weightsDram->m_TensorShape, DataType::UINT8_QUANTIZED, GetWeightsFormat(*mceOp),
                                        weightsDram->m_QuantizationInfo);
         result.m_Stats.m_Weights =
-            GetWeightsStats(capabilities, *weightsDram->m_EncodedWeights, weightsTensorInfo, weightsSram->m_SizeInBytes,
-                            inputBuffer->m_TensorShape, inputBuffer->m_StripeShape);
+            GetWeightsStats(capabilities, *weightsDram->Dram()->m_EncodedWeights, weightsTensorInfo,
+                            weightsSram->m_SizeInBytes, inputBuffer->m_TensorShape, inputBuffer->Sram()->m_StripeShape);
 
         includeOp(dmaOp);
         includeOp(mceOp);
@@ -292,12 +292,13 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
             includeOp(dmaOp);
         }
 
-        InputStats stats = GetInputStatsCascading(*sramInputBuffer, weightsTensorInfo.m_Dimensions,
+        InputStats stats = GetInputStatsCascading(*sramInputBuffer->Sram(), weightsTensorInfo.m_Dimensions,
                                                   dramBuffer != nullptr ? dramBuffer->m_Format
                                                                         : utils::Optional<CascadingBufferFormat>{});
         if (dramBuffer != nullptr)
         {
-            stats.m_StripesStats = AccountForDmaChunking(stats.m_StripesStats, *sramInputBuffer, *dramBuffer, false);
+            stats.m_StripesStats =
+                AccountForDmaChunking(stats.m_StripesStats, *sramInputBuffer->Sram(), *dramBuffer->Dram(), false);
             if (IsCompressed(dramBuffer->m_Format))
             {
                 stats = AccountForActivationCompression(stats, estimationOpts.m_ActivationCompressionSaving);
@@ -327,11 +328,13 @@ EstimatedPass EstimatePassGrownFrom(const OpGraph& opGraph,
             }
         }
 
-        OutputStats stats = GetOutputStatsCascading(
-            *sramOutputBuffer, dramBuffer != nullptr ? dramBuffer->m_Format : utils::Optional<CascadingBufferFormat>{});
+        OutputStats stats = GetOutputStatsCascading(*sramOutputBuffer->Sram(),
+                                                    dramBuffer != nullptr ? dramBuffer->m_Format
+                                                                          : utils::Optional<CascadingBufferFormat>{});
         if (dramBuffer != nullptr)
         {
-            stats.m_StripesStats = AccountForDmaChunking(stats.m_StripesStats, *sramOutputBuffer, *dramBuffer, true);
+            stats.m_StripesStats =
+                AccountForDmaChunking(stats.m_StripesStats, *sramOutputBuffer->Sram(), *dramBuffer->Dram(), true);
             if (IsCompressed(dramBuffer->m_Format))
             {
                 stats = AccountForActivationCompression(stats, estimationOpts.m_ActivationCompressionSaving);

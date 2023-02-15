@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -40,11 +40,8 @@ void CheckOutputDram(Buffer* outputBuffer, const CheckPlansParams& params)
         CHECK(outputBuffer->m_Format == CascadingBufferFormat::NHWCB);
         CHECK(outputBuffer->m_QuantizationInfo == params.m_InputQuantInfo);
         CHECK(outputBuffer->m_TensorShape == params.m_InputShape);
-        CHECK(outputBuffer->m_StripeShape == TensorShape{ 0, 0, 0, 0 });
-        CHECK(outputBuffer->m_Order == TraversalOrder::Xyz);
         CHECK(outputBuffer->m_SizeInBytes == utils::TotalSizeBytesNHWCB(outputBuffer->m_TensorShape));
-        CHECK(outputBuffer->m_NumStripes == 0);
-        CHECK(outputBuffer->m_EncodedWeights == nullptr);
+        CHECK(outputBuffer->Dram()->m_EncodedWeights == nullptr);
     }
 }
 

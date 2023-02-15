@@ -95,7 +95,7 @@ CompiledOpGraph CascadingCommandStreamGenerator::Generate()
     // Add DUMP_DRAM commands to the command stream, if requested.
     if (m_DebuggingContext.m_DebugInfo.m_DumpRam)
     {
-        for (std::pair<Buffer*, uint32_t> b : m_DramBufToBufIdMapping)
+        for (std::pair<DramBuffer*, uint32_t> b : m_DramBufToBufIdMapping)
         {
             if (b.first->m_BufferType == BufferType::Intermediate)
             {
@@ -159,12 +159,12 @@ const OpGraph& CascadingCommandStreamGenerator::GetMergedOpGraph() const
     return m_MergedOpGraph;
 }
 
-const std::unordered_map<Buffer*, uint32_t>& CascadingCommandStreamGenerator::GetDramBufToBufIdMapping() const
+const std::unordered_map<DramBuffer*, uint32_t>& CascadingCommandStreamGenerator::GetDramBufToBufIdMapping() const
 {
     return m_DramBufToBufIdMapping;
 }
 
-uint16_t CascadingCommandStreamGenerator::AddDramBufferAndCacheId(Buffer* inputBuffer, Op* const)
+uint16_t CascadingCommandStreamGenerator::AddDramBufferAndCacheId(DramBuffer* inputBuffer, Op* const)
 {
     uint16_t inputBufferId = std::numeric_limits<uint16_t>::max();
     if (m_DramBufToBufIdMapping.find(inputBuffer) != m_DramBufToBufIdMapping.end())
@@ -205,22 +205,23 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
     // Construct and add the required agents to the command stream
     if (inputBuffer->m_Location == Location::Dram && outputBuffer->m_Location == Location::Sram)
     {
-        assert(inputBuffer->m_BufferType.has_value());
+        assert(inputBuffer->Dram()->m_BufferType.has_value());
 
         if (inputBuffer->m_Format != CascadingBufferFormat::WEIGHT)
         {
-            assert(inputBuffer->m_BufferType.value() == BufferType::Intermediate ||
-                   inputBuffer->m_BufferType.value() == BufferType::Input);
+            assert(inputBuffer->Dram()->m_BufferType.value() == BufferType::Intermediate ||
+                   inputBuffer->Dram()->m_BufferType.value() == BufferType::Input);
 
             DmaOp* const dmaOp = static_cast<DmaOp*>(ptrDmaOp);
 
-            uint16_t inputBufferId = AddDramBufferAndCacheId(inputBuffer, ptrDmaOp);
+            uint16_t inputBufferId = AddDramBufferAndCacheId(inputBuffer->Dram(), ptrDmaOp);
 
             uint32_t inputDramBufferOffset =
                 utils::CalculateDramOffset(inputBuffer->m_Format, inputBuffer->m_TensorShape, ptrDmaOp->m_Offset);
 
-            AgentIdType ifmStreamerAgentId = AddIfmStreamerToCommandStream(
-                ptrDmaOp, inputBufferId, inputBuffer, outputBuffer, dmaOp->m_TransferFormat, inputDramBufferOffset);
+            AgentIdType ifmStreamerAgentId =
+                AddIfmStreamerToCommandStream(ptrDmaOp, inputBufferId, inputBuffer, outputBuffer->Sram(),
+                                              dmaOp->m_TransferFormat, inputDramBufferOffset);
 
             if (m_FenceOpForIfmS != nullptr)
             {
@@ -252,8 +253,8 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
     }
     else if (inputBuffer->m_Location == Location::Sram && outputBuffer->m_Location == Location::Dram)
     {
-        assert(inputBuffer->m_Offset.has_value());
-        assert(outputBuffer->m_BufferType.has_value());
+        assert(inputBuffer->Sram()->m_Offset.has_value());
+        assert(outputBuffer->Dram()->m_BufferType.has_value());
 
         // Get the producer of the input buffer and the producing agent type
         Op* producerOp = m_MergedOpGraph.GetSingleProducer(inputBuffer);
@@ -271,31 +272,31 @@ void CascadingCommandStreamGenerator::ProcessDmaOp(DmaOp* const ptrDmaOp)
 
         uint16_t outputBufferId = std::numeric_limits<uint16_t>::max();
         // Don't add buffers multiple times if they are used more than once
-        if (m_DramBufToBufIdMapping.find(outputBuffer) == m_DramBufToBufIdMapping.end())
+        if (m_DramBufToBufIdMapping.find(outputBuffer->Dram()) == m_DramBufToBufIdMapping.end())
         {
             outputBufferId = static_cast<uint16_t>(
-                m_BufferManager.AddDram(outputBuffer->m_BufferType.value(), outputBuffer->m_SizeInBytes));
-            m_DramBufToBufIdMapping[outputBuffer] = outputBufferId;
+                m_BufferManager.AddDram(outputBuffer->Dram()->m_BufferType.value(), outputBuffer->m_SizeInBytes));
+            m_DramBufToBufIdMapping[outputBuffer->Dram()] = outputBufferId;
 
-            if (outputBuffer->m_BufferType.value() == BufferType::Output)
+            if (outputBuffer->Dram()->m_BufferType.value() == BufferType::Output)
             {
-                assert(outputBuffer->m_OperationId.has_value());
-                assert(outputBuffer->m_ProducerOutputIndx);
-                m_BufferManager.ChangeToOutput(outputBufferId, outputBuffer->m_OperationId.value(),
-                                               outputBuffer->m_ProducerOutputIndx.value());
+                assert(outputBuffer->Dram()->m_OperationId.has_value());
+                assert(outputBuffer->Dram()->m_ProducerOutputIndx);
+                m_BufferManager.ChangeToOutput(outputBufferId, outputBuffer->Dram()->m_OperationId.value(),
+                                               outputBuffer->Dram()->m_ProducerOutputIndx.value());
             }
         }
         else
         {
-            outputBufferId = static_cast<uint16_t>(m_DramBufToBufIdMapping[outputBuffer]);
+            outputBufferId = static_cast<uint16_t>(m_DramBufToBufIdMapping[outputBuffer->Dram()]);
         }
 
         uint32_t outputDramBufferOffset =
             utils::CalculateDramOffset(outputBuffer->m_Format, outputBuffer->m_TensorShape, ptrDmaOp->m_Offset);
 
         // Ofm Streamer Agent
-        AgentIdType ofmStreamerAgentId =
-            AddOfmStreamerToCommandStream(ptrDmaOp, inputBuffer, outputBufferId, outputBuffer, outputDramBufferOffset);
+        AgentIdType ofmStreamerAgentId = AddOfmStreamerToCommandStream(ptrDmaOp, inputBuffer->Sram(), outputBufferId,
+                                                                       outputBuffer, outputDramBufferOffset);
 
         // Add 'Read After Write' dependency information to the IfmStreamer and PleScheduler agents
         // Read After Write Dependency for [OfmStreamer][IfmStreamer] or
@@ -325,8 +326,8 @@ void CascadingCommandStreamGenerator::ProcessMceOp(Op* const ptrMceOp)
 {
     // Get the input buffers to the Mce Op
     OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrMceOp);
-    assert(inputBuffers.size() == 2 && inputBuffers[g_MceIfmBufferIndex]->m_Offset.has_value() &&
-           inputBuffers[g_MceWeightBufferIndex]->m_Offset.has_value());
+    assert(inputBuffers.size() == 2 && inputBuffers[g_MceIfmBufferIndex]->Sram()->m_Offset.has_value() &&
+           inputBuffers[g_MceWeightBufferIndex]->Sram()->m_Offset.has_value());
 
     // Get the output buffer from the Mce Op
     Buffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrMceOp);
@@ -420,14 +421,14 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
     {
         if (inputBuffer->m_Location == Location::Sram)
         {
-            assert(inputBuffer->m_Offset.has_value());
+            assert(inputBuffer->Sram()->m_Offset.has_value());
         }
         ETHOSN_UNUSED(inputBuffer);
     }
 
     // Get the output buffer from the Ple Op
     Buffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrPleOp);
-    assert(outputBuffer->m_Offset.has_value());
+    assert(outputBuffer->Sram()->m_Offset.has_value());
 
     // Determine whether ple op is standalone or fused
     bool isStandAlonePle = false;
@@ -554,7 +555,7 @@ void CascadingCommandStreamGenerator::ProcessTransposeOp(Op* const ptrTransposeO
 AgentIdType CascadingCommandStreamGenerator::AddIfmStreamerToCommandStream(DmaOp* const ptrOp,
                                                                            const uint16_t inputDramBufferId,
                                                                            const Buffer* const inputDramBuffer,
-                                                                           const Buffer* const inputSramBuffer,
+                                                                           const SramBuffer* const inputSramBuffer,
                                                                            const CascadingBufferFormat transferFormat,
                                                                            const uint32_t inputDramBufferOffset)
 {
@@ -619,15 +620,15 @@ AgentIdType CascadingCommandStreamGenerator::AddWeightStreamerToCommandStream(Dm
 {
     // Get the input buffer to the Dma Op
     OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrDmaOp);
-    Buffer* weightsDramBuffer        = inputBuffers[g_DmaInputBufferIndex];
-    Buffer* weightsSramBuffer        = m_MergedOpGraph.GetOutput(ptrDmaOp);
+    DramBuffer* weightsDramBuffer    = inputBuffers[g_DmaInputBufferIndex]->Dram();
+    SramBuffer* weightsSramBuffer    = m_MergedOpGraph.GetOutput(ptrDmaOp)->Sram();
 
     // Get the Mce consumer of the weights buffer
     auto weightBufferConsumer = m_MergedOpGraph.GetConsumer(weightsSramBuffer, 0);
     assert(weightBufferConsumer.first != nullptr && IsObjectOfType<MceOp>(weightBufferConsumer.first));
 
-    Buffer* ifmBuffer = m_MergedOpGraph.GetInputs(weightBufferConsumer.first)[0];
-    Buffer* ofmBuffer = m_MergedOpGraph.GetOutput(weightBufferConsumer.first);
+    SramBuffer* ifmBuffer         = m_MergedOpGraph.GetInputs(weightBufferConsumer.first)[0]->Sram();
+    PleInputSramBuffer* ofmBuffer = m_MergedOpGraph.GetOutput(weightBufferConsumer.first)->PleInputSram();
 
     WgtS weightStreamerData = {};
 
@@ -672,11 +673,11 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
 {
     // Get the input buffers to the Mce Op
     OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrMceOp);
-    Buffer* inputBuffer              = inputBuffers[g_MceIfmBufferIndex];
-    Buffer* weightBuffer             = inputBuffers[g_MceWeightBufferIndex];
+    SramBuffer* inputBuffer          = inputBuffers[g_MceIfmBufferIndex]->Sram();
+    SramBuffer* weightBuffer         = inputBuffers[g_MceWeightBufferIndex]->Sram();
 
     // Get the output buffer from the Mce Op
-    Buffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrMceOp);
+    PleInputSramBuffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrMceOp)->PleInputSram();
 
     MceS mceSchedulerData = {};
 
@@ -707,7 +708,7 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
                                             ptrMceOp->m_OutputStripeShape);
     MceSUtils::SetMcesIfmChannelsStripeInfo(mceSchedulerData, inputBuffer->m_TensorShape, inputBuffer->m_StripeShape);
 
-    MceSUtils::SetStripeIdStrides(mceSchedulerData, outputBuffer->m_Order);
+    MceSUtils::SetStripeIdStrides(mceSchedulerData, ptrMceOp->m_Order);
 
     mceSchedulerData.convStrideXy.x = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_Stride.m_X);
     mceSchedulerData.convStrideXy.y = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_Stride.m_Y);
@@ -802,7 +803,7 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
     Buffer* inputBuffer0 = inputBuffers[g_PleInputBuffer0Index];
 
     // Get the output buffer from the Ple Op
-    Buffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrPleOp);
+    SramBuffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrPleOp)->Sram();
 
     PleS pleS = {};
 
@@ -839,7 +840,7 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
 
     if (pleS.inputMode == PleInputMode::SRAM)
     {
-        CommonUtils::SetTileInfoForBuffer(m_Capabilities, pleS.ifmTile0, inputBuffer0);
+        CommonUtils::SetTileInfoForBuffer(m_Capabilities, pleS.ifmTile0, inputBuffer0->Sram());
     }
 
     pleS.ifmInfo0.zeroPoint  = ethosn::utils::NumericCast<int16_t>(inputBuffer0->m_QuantizationInfo.GetZeroPoint());
@@ -853,7 +854,7 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
 
     if (inputBuffers.size() == 2)
     {
-        Buffer* inputBuffer1 = inputBuffers[g_PleInputBuffer1Index];
+        SramBuffer* inputBuffer1 = inputBuffers[g_PleInputBuffer1Index]->Sram();
         CommonUtils::SetTileInfoForBuffer(m_Capabilities, pleS.ifmTile1, inputBuffer1);
 
         pleS.ifmInfo1.zeroPoint = ethosn::utils::NumericCast<int16_t>(inputBuffer1->m_QuantizationInfo.GetZeroPoint());
@@ -877,7 +878,7 @@ AgentIdType CascadingCommandStreamGenerator::AddPleSchedulerToCommandStream(PleO
 
 // Private function to add OFM_STREAMER to the command stream
 AgentIdType CascadingCommandStreamGenerator::AddOfmStreamerToCommandStream(DmaOp* const ptrOp,
-                                                                           const Buffer* const outputSramBuffer,
+                                                                           const SramBuffer* const outputSramBuffer,
                                                                            const uint16_t outputDramBufferId,
                                                                            const Buffer* const outputDramBuffer,
                                                                            const uint32_t outputDramBufferOffset)
@@ -1733,12 +1734,12 @@ void CascadingCommandStreamGenerator::AddLifetimeInfoForIntermediateDramBuffers(
     {
         if (buffer->m_Location == Location::Dram)
         {
-            assert(buffer->m_BufferType.has_value());
-            if (buffer->m_BufferType.value() == BufferType::Intermediate)
+            assert(buffer->Dram()->m_BufferType.has_value());
+            if (buffer->Dram()->m_BufferType.value() == BufferType::Intermediate)
             {
                 AgentIdType lifetimeStart = WalkGraphUp(m_MergedOpGraph, buffer);
                 AgentIdType lifetimeEnd   = WalkGraphDown(m_MergedOpGraph, buffer);
-                m_BufferManager.MarkBufferUsedAtTime(m_DramBufToBufIdMapping.at(buffer),
+                m_BufferManager.MarkBufferUsedAtTime(m_DramBufToBufIdMapping.at(buffer->Dram()),
                                                      static_cast<uint32_t>(lifetimeStart),
                                                      static_cast<uint32_t>(lifetimeEnd + 1));
             }

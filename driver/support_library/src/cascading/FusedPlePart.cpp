@@ -159,8 +159,8 @@ Buffer* FusedPlePart::AddIdentityWeights(OwnedOpGraph& opGraph,
 
     CascadingBufferFormat formatInDram = impl::GetCascadingBufferFormatFromCompilerDataFormat(
         ConvertExternalToCompilerDataFormat(convData.weightInfo.m_DataFormat));
-    Buffer* dramWeightBuffer =
-        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Dram, formatInDram, TraversalOrder::Xyz));
+    DramBuffer* dramWeightBuffer         = opGraph.AddBuffer(std::make_unique<DramBuffer>());
+    dramWeightBuffer->m_Format           = formatInDram;
     dramWeightBuffer->m_DataType         = convData.weightInfo.m_DataType;
     dramWeightBuffer->m_TensorShape      = convData.weightInfo.m_Dimensions;
     dramWeightBuffer->m_EncodedWeights   = std::move(encodedWeights);
@@ -168,9 +168,10 @@ Buffer* FusedPlePart::AddIdentityWeights(OwnedOpGraph& opGraph,
     dramWeightBuffer->m_QuantizationInfo = convData.weightInfo.m_QuantizationInfo;
     dramWeightBuffer->m_BufferType       = BufferType::ConstantDma;
 
-    CascadingBufferFormat formatInSram = GetCascadingBufferFormatFromCompilerDataFormat(CompilerDataFormat::WEIGHT);
-    Buffer* sramWeightBuffer =
-        opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, formatInSram, TraversalOrder::Xyz));
+    CascadingBufferFormat formatInSram   = GetCascadingBufferFormatFromCompilerDataFormat(CompilerDataFormat::WEIGHT);
+    SramBuffer* sramWeightBuffer         = opGraph.AddBuffer(std::make_unique<SramBuffer>());
+    sramWeightBuffer->m_Format           = formatInSram;
+    sramWeightBuffer->m_Order            = TraversalOrder::Xyz;
     sramWeightBuffer->m_DataType         = convData.weightInfo.m_DataType;
     sramWeightBuffer->m_TensorShape      = dramWeightBuffer->m_TensorShape;
     sramWeightBuffer->m_StripeShape      = memoryWeightStripe;
@@ -197,9 +198,6 @@ std::pair<Buffer*, Buffer*> FusedPlePart::AddIdentityMceOpForSubGraph(OwnedOpGra
                                                                       const QuantizationInfo& inpQuantInfo,
                                                                       WeightEncoderCache& weightEncoderCache) const
 {
-    const OpGraph::BufferList& buffers = opGraph.GetBuffers();
-    const OpGraph::OpList& ops         = opGraph.GetOps();
-
     const float weightScale = 0.5f;
     const float biasScale   = weightScale * inpQuantInfo.GetScale();
     const uint32_t numIfm   = inpShape[3];
@@ -212,8 +210,9 @@ std::pair<Buffer*, Buffer*> FusedPlePart::AddIdentityMceOpForSubGraph(OwnedOpGra
 
     // Add input Buffer.
     // Note traversal order is Xyz because it's depthwise
-    opGraph.AddBuffer(std::make_unique<Buffer>(Location::Sram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
-    Buffer* idMceOpInBuff     = buffers.back();
+    SramBuffer* idMceOpInBuff = opGraph.AddBuffer(std::make_unique<SramBuffer>());
+    idMceOpInBuff->m_Format   = CascadingBufferFormat::NHWCB;
+    idMceOpInBuff->m_Order    = TraversalOrder::Xyz;
     idMceOpInBuff->m_DataType = m_InputDataType;
 
     // Add Weight buffers and DmaOp.
@@ -233,17 +232,15 @@ std::pair<Buffer*, Buffer*> FusedPlePart::AddIdentityMceOpForSubGraph(OwnedOpGra
     int16_t upperBound = m_OutputDataType == DataType::UINT8_QUANTIZED ? 255 : 127;
 
     // Add MceOp.
-    opGraph.AddOp(std::make_unique<MceOp>(MceOperation::DEPTHWISE_CONVOLUTION, CompilerMceAlgorithm::Direct,
-                                          mceComputeInfo.m_BlockConfig, mceComputeInfo.m_Input, mceComputeInfo.m_Output,
-                                          mceComputeInfo.m_Weight, TraversalOrder::Xyz, Stride(1, 1), 0, 0, lowerBound,
-                                          upperBound));
-    Op* idMceOp             = ops.back();
+    Op* idMceOp             = opGraph.AddOp(std::make_unique<MceOp>(
+        MceOperation::DEPTHWISE_CONVOLUTION, CompilerMceAlgorithm::Direct, mceComputeInfo.m_BlockConfig,
+        mceComputeInfo.m_Input, mceComputeInfo.m_Output, mceComputeInfo.m_Weight, TraversalOrder::Xyz, Stride(1, 1), 0,
+        0, lowerBound, upperBound));
     idMceOp->m_OperationIds = m_CorrespondingOperationIds;
 
     // Add Output Buffer.
-    opGraph.AddBuffer(
-        std::make_unique<Buffer>(Location::PleInputSram, CascadingBufferFormat::NHWCB, TraversalOrder::Xyz));
-    Buffer* idMceOpOutBuff = buffers.back();
+    PleInputSramBuffer* idMceOpOutBuff = opGraph.AddBuffer(std::make_unique<PleInputSramBuffer>());
+    idMceOpOutBuff->m_Format           = CascadingBufferFormat::NHWCB;
 
     opGraph.AddConsumer(idMceOpInBuff, idMceOp, 0);
     opGraph.AddConsumer(weightSramBuffer, idMceOp, 1);
@@ -407,6 +404,10 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
 {
     assert(cascadeType == CascadeType::Middle || cascadeType == CascadeType::End);
     assert(prevBuffer);
+
+    TensorShape prevStripeShape = prevBuffer->m_Location == Location::Sram ? prevBuffer->Sram()->m_StripeShape
+                                                                           : prevBuffer->PleInputSram()->m_StripeShape;
+
     Plans ret;
 
     if (cascadeType == CascadeType::Middle && !m_StripeConfig.planTypes.middle)
@@ -425,12 +426,12 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
 
     // Multiple output stripes are needed because the follow layers may require multiple buffers due to boundary data.
     // These will be filtered out by the following layer
-    bool fullHeight = GetHeight(prevBuffer->m_StripeShape) >= GetHeight(prevBuffer->m_TensorShape);
-    bool fullWidth  = GetWidth(prevBuffer->m_StripeShape) >= GetWidth(prevBuffer->m_TensorShape);
+    bool fullHeight = GetHeight(prevStripeShape) >= GetHeight(prevBuffer->m_TensorShape);
+    bool fullWidth  = GetWidth(prevStripeShape) >= GetWidth(prevBuffer->m_TensorShape);
     bool fullPlane  = fullHeight && fullWidth;
     // At the end of a cascde we can double buffer
 
-    const TensorShape& inputStripeShape = prevBuffer->m_StripeShape;
+    const TensorShape& inputStripeShape = prevStripeShape;
     TensorShape pleInputStripe          = inputStripeShape;
 
     // PLE shape multipliers can lead to the PLE having to accumulate multiple stripes, e.g. an 8-high stripe being reduced
@@ -520,12 +521,12 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
         uint32_t kernelHeight = 1;
         uint32_t kernelWidth  = 1;
 
-        if (prevBuffer->m_NumStripes != 1)
+        if (prevBuffer->Sram()->m_NumStripes != 1)
         {
             return ret;
         }
 
-        NumStripes numStripesInput    = { prevBuffer->m_NumStripes, prevBuffer->m_NumStripes };
+        NumStripes numStripesInput    = { prevBuffer->Sram()->m_NumStripes, prevBuffer->Sram()->m_NumStripes };
         NumStripes numStripesWeights  = { numWeightStripes, numWeightStripes };
         NumStripes numStripesPleInput = { 0, 0 };
 
@@ -588,7 +589,9 @@ Plans FusedPlePart::GenerateContinueSectionPlans(ethosn::command_stream::BlockCo
         pleOnlyInfo.m_Memory.m_Input    = { { { 0, 0 }, { 0, 0, 0, 0 } }, { 0, 0, 0, 0 }, 0 };
         pleOnlyInfo.m_Memory.m_Output   = { numStripesOutput, memoryOutputStripe };
         pleOnlyInfo.m_Memory.m_Weight   = { { { 0, 0 }, { 0, 0, 0, 0 } }, 0 };
-        pleOnlyInfo.m_Memory.m_PleInput = { { prevBuffer->m_NumStripes, prevBuffer->m_NumStripes }, inputStripeShape };
+        pleOnlyInfo.m_Memory.m_PleInput = {
+            { prevBuffer->PleInputSram()->m_NumStripes, prevBuffer->PleInputSram()->m_NumStripes }, inputStripeShape
+        };
         CreateFuseOnlyPlans(pleOnlyInfo, ret);
     }
 

@@ -292,14 +292,14 @@ Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
                        DataType dataType,
                        Location location);
 
-std::pair<Buffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
-                                        const TensorShape& memoryOutputShape,
-                                        impl::NumMemoryStripes& numMemoryStripes,
-                                        std::unique_ptr<Op> pleOp,
-                                        const TensorShape& outputShape,
-                                        const QuantizationInfo& outputQuantInfo,
-                                        DataType outputDataType,
-                                        const std::set<uint32_t>& sourceOperationIds);
+std::pair<SramBuffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
+                                            const TensorShape& memoryOutputShape,
+                                            impl::NumMemoryStripes& numMemoryStripes,
+                                            std::unique_ptr<Op> pleOp,
+                                            const TensorShape& outputShape,
+                                            const QuantizationInfo& outputQuantInfo,
+                                            DataType outputDataType,
+                                            const std::set<uint32_t>& sourceOperationIds);
 
 /// Generates a stripe shape given an encoding and an input tensor
 /// Tries to create a stripe with the stripe shape in the encoding, if the dimension is 0 then it uses the full length of that dimension.
@@ -467,10 +467,10 @@ private:
 /// to an NHWC DRAM buffer (as the firmware does not support this).
 /// This accounts for possible reshaping and subtensors/offsets.
 ///@{
-bool IsSramBufferCompatibleWithDramBuffer(const Buffer& sramBuffer,
-                                          const Buffer& dramBuffer,
+bool IsSramBufferCompatibleWithDramBuffer(const SramBuffer& sramBuffer,
+                                          const DramBuffer& dramBuffer,
                                           const TensorShape& dramOffset);
-bool IsSramBufferCompatibleWithDramBuffer(const Buffer& sramBuffer,
+bool IsSramBufferCompatibleWithDramBuffer(const SramBuffer& sramBuffer,
                                           CascadingBufferFormat dramFormat,
                                           const TensorShape& dramTensorShape,
                                           const TensorShape& dramOffset);
@@ -486,7 +486,7 @@ bool IsSramBufferCompatibleWithDramBuffer(
 /// Returns the most efficient DRAM buffer format to use, that is compatible with being copied to/from
 /// the given set of SRAM buffers. Assumes that the full tensor is going to be copied (i.e. no subtensors)
 /// and no reshaping.
-CascadingBufferFormat GetBestDramBufferFormat(const std::vector<const Buffer*>& sramBuffers,
+CascadingBufferFormat GetBestDramBufferFormat(const std::vector<const SramBuffer*>& sramBuffers,
                                               const CompilationOptions& compilationOptions);
 
 /// Creates an SRAM buffer for use in a glue (or similar) which DMAs stuff into and out of SRAM.
@@ -494,7 +494,7 @@ CascadingBufferFormat GetBestDramBufferFormat(const std::vector<const Buffer*>& 
 /// The stripe shape is chosen so that it is compatible with the given set of DRAM buffer formats,
 /// so that it can be DMA'd into and out of SRAM to those formats. For example, if you request that
 /// the buffer is compatible with FCAF, the stripe shape will be a multiple of the FCAF cell size.
-std::unique_ptr<Buffer>
+std::unique_ptr<SramBuffer>
     MakeGlueIntermediateSramBuffer(const TensorShape& shape,
                                    const QuantizationInfo& quantInfo,
                                    DataType dataType,

@@ -32,7 +32,7 @@ struct CompiledOpGraph
 {
     EstimatedOpGraph m_EstimatedOpGraph;
     std::unordered_map<Op*, AgentIdType> m_OpToAgentIdMapping;
-    std::unordered_map<Buffer*, uint32_t> m_BufferIds;
+    std::unordered_map<DramBuffer*, uint32_t> m_BufferIds;
     std::unique_ptr<CompiledNetworkImpl> m_CompiledNetwork;
 };
 
@@ -55,7 +55,7 @@ public:
     const std::vector<command_stream::cascading::Agent>& GetCommandStreamOfAgents() const;
     const BufferManager& GetBufferManager() const;
     const OpGraph& GetMergedOpGraph() const;
-    const std::unordered_map<Buffer*, uint32_t>& GetDramBufToBufIdMapping() const;
+    const std::unordered_map<DramBuffer*, uint32_t>& GetDramBufToBufIdMapping() const;
 
 private:
     enum class DependencyType
@@ -76,7 +76,7 @@ private:
     AgentIdType AddIfmStreamerToCommandStream(DmaOp* const ptrOp,
                                               const uint16_t inputDramBufferId,
                                               const Buffer* const inputDramBuffer,
-                                              const Buffer* const inputSramBuffer,
+                                              const SramBuffer* const inputSramBuffer,
                                               const CascadingBufferFormat transferFormat,
                                               const uint32_t inputDramBufferOffset);
     // Private function to add WGT_STREAMER to the command stream
@@ -90,7 +90,7 @@ private:
     AgentIdType AddPleSchedulerToCommandStream(PleOp* const ptrPleOp);
     // Private function to add OFM_STREAMER to the command stream
     AgentIdType AddOfmStreamerToCommandStream(DmaOp* const ptrOp,
-                                              const Buffer* const outputSramBuffer,
+                                              const SramBuffer* const outputSramBuffer,
                                               const uint16_t outputDramBufferId,
                                               const Buffer* const outputDramBuffer,
                                               const uint32_t outputDramBufferOffset);
@@ -143,9 +143,9 @@ private:
     void AddLifetimeInfoForIntermediateDramBuffers();
 
     // DRAM Buffer to Buffer Id mapping
-    std::unordered_map<Buffer*, uint32_t> m_DramBufToBufIdMapping;
+    std::unordered_map<DramBuffer*, uint32_t> m_DramBufToBufIdMapping;
     // Used for intermediate and input buffers as they can be duplicated
-    uint16_t AddDramBufferAndCacheId(Buffer* inputBuffer, Op* const op);
+    uint16_t AddDramBufferAndCacheId(DramBuffer* inputBuffer, Op* const op);
 
     // Merged OpGraph used to generate the command stream, set at creation time.
     const OpGraph m_MergedOpGraph;

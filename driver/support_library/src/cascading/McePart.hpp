@@ -117,11 +117,11 @@ protected:
     Plans GetBeginningPlans(uint32_t numWeightStripes) const;
 
     Plans GetMiddlePlans(ethosn::command_stream::BlockConfig blockConfig,
-                         Buffer* sramBuffer,
+                         const SramBuffer* sramBuffer,
                          uint32_t numWeightStripes) const;
 
     Plans GetEndPlans(ethosn::command_stream::BlockConfig blockConfig,
-                      Buffer* sramBuffer,
+                      const SramBuffer* sramBuffer,
                       uint32_t numWeightStripes) const;
 
     std::pair<Buffer*, Op*> AddMceToOpGraph(OwnedOpGraph& opGraph,

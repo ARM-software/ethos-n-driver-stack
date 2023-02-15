@@ -115,9 +115,9 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
                 // A cascadable plan is not possible if the stripe shape of the previous buffer
                 // is smaller than the input tensor (in other words a full tensor plan is NOT
                 // compatible with its predecessors).
-                if (prevBuffer->m_StripeShape[1] < m_InputTensorShapes[0][1] ||
-                    prevBuffer->m_StripeShape[2] < m_InputTensorShapes[0][2] ||
-                    prevBuffer->m_StripeShape[3] < m_InputTensorShapes[0][3])
+                if (prevBuffer->Sram()->m_StripeShape[1] < m_InputTensorShapes[0][1] ||
+                    prevBuffer->Sram()->m_StripeShape[2] < m_InputTensorShapes[0][2] ||
+                    prevBuffer->Sram()->m_StripeShape[3] < m_InputTensorShapes[0][3])
                 {
                     return Plans{};
                 }

@@ -393,23 +393,39 @@ void OpGraph::RemoveAndPrune(Buffer* buffer)
     m_Buffers.erase(m_Buffers.begin() + found.second);
 }
 
-Op* OwnedOpGraph::AddOp(std::unique_ptr<Op> op)
+template <typename TOp>
+TOp* OwnedOpGraph::AddOp(std::unique_ptr<TOp> op)
 {
     // Call base implementation first in case it errors, in which case we don't want to track this Op.
-    Op* raw = op.get();
+    TOp* raw = op.get();
     OpGraph::AddOp(raw);
     m_Ops.emplace_back(std::move(op));
     return raw;
 }
 
-Buffer* OwnedOpGraph::AddBuffer(std::unique_ptr<Buffer> buffer)
+// Explicit instantiations
+template Op* OwnedOpGraph::AddOp<Op>(std::unique_ptr<Op> op);
+template DummyOp* OwnedOpGraph::AddOp<DummyOp>(std::unique_ptr<DummyOp> op);
+template DmaOp* OwnedOpGraph::AddOp<DmaOp>(std::unique_ptr<DmaOp> op);
+template MceOp* OwnedOpGraph::AddOp<MceOp>(std::unique_ptr<MceOp> op);
+template PleOp* OwnedOpGraph::AddOp<PleOp>(std::unique_ptr<PleOp> op);
+template EstimateOnlyOp* OwnedOpGraph::AddOp<EstimateOnlyOp>(std::unique_ptr<EstimateOnlyOp> op);
+
+template <typename TBuffer>
+TBuffer* OwnedOpGraph::AddBuffer(std::unique_ptr<TBuffer> buffer)
 {
     // Call base implementation first in case it errors, in which case we don't want to track this Op.
-    Buffer* raw = buffer.get();
+    TBuffer* raw = buffer.get();
     OpGraph::AddBuffer(raw);
     m_Buffers.emplace_back(std::move(buffer));
     return raw;
 }
+
+// Explicit instantiations
+template Buffer* OwnedOpGraph::AddBuffer<Buffer>(std::unique_ptr<Buffer> op);
+template DramBuffer* OwnedOpGraph::AddBuffer<DramBuffer>(std::unique_ptr<DramBuffer> op);
+template SramBuffer* OwnedOpGraph::AddBuffer<SramBuffer>(std::unique_ptr<SramBuffer> op);
+template PleInputSramBuffer* OwnedOpGraph::AddBuffer<PleInputSramBuffer>(std::unique_ptr<PleInputSramBuffer> op);
 
 void OwnedOpGraph::MergeOpGraph(OwnedOpGraph& other)
 {
@@ -612,41 +628,148 @@ DummyOp::DummyOp()
     : Op("DummyOp")
 {}
 
-Buffer::Buffer()
-    : Buffer(Location::Dram,
-             CascadingBufferFormat::NHWCB,
-             { 0, 0, 0, 0 },
-             { 0, 0, 0, 0 },
-             TraversalOrder::Xyz,
-             0,
-             QuantizationInfo())
-{}
-
-Buffer::Buffer(Location location, CascadingBufferFormat format, TraversalOrder order)
-    : Buffer(location, format, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, order, 0, QuantizationInfo())
-{}
-
-Buffer::Buffer(Location location,
-               CascadingBufferFormat format,
-               TensorShape tensorShape,
-               TensorShape stripeShape,
-               TraversalOrder order,
-               uint32_t sizeInBytes,
-               QuantizationInfo quantInfo)
-    : DebuggableObject("Buffer")
+Buffer::Buffer(const char* defaultTagPrefix, Location location)
+    : DebuggableObject(defaultTagPrefix)
     , m_Location(location)
     , m_DataType(DataType::UINT8_QUANTIZED)
-    , m_Format(format)
-    , m_QuantizationInfo(quantInfo)
-    , m_TensorShape(tensorShape)
-    , m_StripeShape(stripeShape)
-    , m_Order(order)
-    , m_SizeInBytes(sizeInBytes)
+    , m_Format(CascadingBufferFormat::NHWCB)
+    , m_QuantizationInfo(QuantizationInfo())
+    , m_TensorShape({ 0, 0, 0, 0 })
+    , m_SizeInBytes(0)
+{}
+
+DotAttributes Buffer::GetDotAttributes(DetailLevel detail) const
+{
+    DotAttributes result;
+    if (detail == DetailLevel::High)
+    {
+        result.m_Label += "Location = " + ToString(m_Location) + "\n";
+        result.m_Label += "Format = " + ToString(m_Format) + "\n";
+        result.m_Label += "Data Type = " + ToString(m_DataType) + "\n";
+        result.m_Label += "Quant. Info = " + ToString(m_QuantizationInfo) + "\n";
+        result.m_Label += "Tensor shape = " + ToString(m_TensorShape) + "\n";
+        result.m_Label += "Size in bytes = " + ToString(m_SizeInBytes) + " (" + ToStringHex(m_SizeInBytes) + ")\n";
+    }
+    return result;
+}
+
+bool Buffer::IsFullTensor() const
+{
+    return m_Location == Location::Dram ||
+           (m_Location == Location::Sram && utils::IsFullTensor(m_TensorShape, Sram()->m_StripeShape));
+}
+
+const SramBuffer* Buffer::Sram() const
+{
+    assert(m_Location == Location::Sram);
+    return static_cast<const SramBuffer*>(this);
+}
+
+SramBuffer* Buffer::Sram()
+{
+    assert(m_Location == Location::Sram);
+    return static_cast<SramBuffer*>(this);
+}
+
+const DramBuffer* Buffer::Dram() const
+{
+    assert(m_Location == Location::Dram);
+    return static_cast<const DramBuffer*>(this);
+}
+
+DramBuffer* Buffer::Dram()
+{
+    assert(m_Location == Location::Dram);
+    return static_cast<DramBuffer*>(this);
+}
+
+const PleInputSramBuffer* Buffer::PleInputSram() const
+{
+    assert(m_Location == Location::PleInputSram);
+    return static_cast<const PleInputSramBuffer*>(this);
+}
+
+PleInputSramBuffer* Buffer::PleInputSram()
+{
+    assert(m_Location == Location::PleInputSram);
+    return static_cast<PleInputSramBuffer*>(this);
+}
+
+SramBuffer::SramBuffer()
+    : Buffer("SramBuffer", Location::Sram)
+    , m_StripeShape({ 0, 0, 0, 0 })
+    , m_Order(TraversalOrder::Xyz)
     , m_SlotSizeInBytes(0)
     , m_NumStripes(0)
     , m_PackedBoundaryThickness({ 0, 0, 0, 0 })
     , m_NumLoads(1)
 {}
+
+DotAttributes SramBuffer::GetDotAttributes(DetailLevel detail) const
+{
+    DotAttributes result = Buffer::GetDotAttributes(detail);
+    if (detail == DetailLevel::High)
+    {
+        result.m_Label += "Stripe shape = " + ToString(m_StripeShape) + "\n";
+        result.m_Label += "Order = " + ToString(m_Order) + "\n";
+        result.m_Label +=
+            "Slot size in bytes = " + ToString(m_SlotSizeInBytes) + " (" + ToStringHex(m_SlotSizeInBytes) + ")\n";
+        if (m_Offset.has_value())
+        {
+            result.m_Label += "Offset = " + ToString(m_Offset.value()) + " (" + ToStringHex(m_Offset.value()) + ")\n";
+        }
+        result.m_Label += "Num. Stripes = " + ToString(m_NumStripes) + "\n";
+        result.m_Label += "Packed boundary thickness = " + ToString(m_PackedBoundaryThickness) + "\n";
+        result.m_Label += "Num loads = " + ToString(m_NumLoads) + "\n";
+    }
+    return result;
+}
+
+DramBuffer::DramBuffer()
+    : Buffer("DramBuffer", Location::Dram)
+{}
+
+DotAttributes DramBuffer::GetDotAttributes(DetailLevel detail) const
+{
+    DotAttributes result = Buffer::GetDotAttributes(detail);
+    if (detail == DetailLevel::High)
+    {
+        if (m_EncodedWeights)
+        {
+            result.m_Label +=
+                "Encoded weights = { " + ToString(static_cast<uint32_t>(m_EncodedWeights->m_Data.size())) +
+                " bytes, max size = " + ToString(m_EncodedWeights->m_MaxSize) +
+                ", num. metadata = " + ToString(static_cast<uint32_t>(m_EncodedWeights->m_Metadata.size())) + " }\n";
+        }
+        result.m_Label += "Type = " + (m_BufferType.has_value() ? ToString(m_BufferType.value()) : "None") + "\n";
+        if (m_OperationId.has_value())
+        {
+            result.m_Label += "Operation ID = " + ToString(m_OperationId.value()) + "\n";
+        }
+        if (m_ProducerOutputIndx.has_value())
+        {
+            result.m_Label += "Producer Output Index = " + ToString(m_ProducerOutputIndx.has_value()) + "\n";
+        }
+    }
+    return result;
+}
+
+PleInputSramBuffer::PleInputSramBuffer()
+    : Buffer("PleInputSramBuffer", Location::PleInputSram)
+    , m_StripeShape({ 0, 0, 0, 0 })
+    , m_NumStripes(0)
+{}
+
+DotAttributes PleInputSramBuffer::GetDotAttributes(DetailLevel detail) const
+{
+    DotAttributes result = Buffer::GetDotAttributes(detail);
+    if (detail == DetailLevel::High)
+    {
+        result.m_Label += "Stripe shape = " + ToString(m_StripeShape) + "\n";
+        result.m_Label += "Num. Stripes = " + ToString(m_NumStripes) + "\n";
+    }
+    return result;
+}
 
 namespace remove_redundant_copies_impl
 {
@@ -1080,10 +1203,8 @@ void OpGraph::RemoveRedundantCopiesSramToDram()
         // Four buffers (Sram -> Dram -> Sram -> Dram) is the minimum length we can optimize.
         while (chain.buffers.size() >= 4)
         {
-            Buffer* sramBuffer = chain.buffers[0];
-            assert(chain.buffers[0]->m_Location == Location::Sram);
-            Buffer* dramBuffer = chain.buffers.back();
-            assert(chain.buffers.back()->m_Location == Location::Dram);
+            SramBuffer* sramBuffer = chain.buffers[0]->Sram();
+            DramBuffer* dramBuffer = chain.buffers.back()->Dram();
 
             // Sum up the DMA offsets along the whole chain, to get the total offset
             TensorShape combinedOffset = chain.GetTotalDmaOffset();
@@ -1152,8 +1273,7 @@ void OpGraph::RemoveRedundantCopiesSramToDram()
     for (DmaChain chain : chains)
     {
         assert(chain.buffers[0]->m_Location == Location::Sram);
-        Buffer* dramBuffer = chain.buffers.back();
-        assert(dramBuffer->m_Location == Location::Dram);
+        DramBuffer* dramBuffer = chain.buffers.back()->Dram();
 
         // Sum up the DMA offsets along the whole chain, to collapse into one.
         TensorShape combinedOffset = chain.GetTotalDmaOffset();
@@ -1238,10 +1358,8 @@ void OpGraph::RemoveRedundantCopiesDramToSram()
         // Four buffers (Dram -> Sram -> Dram ->) is the minimum length we can optimize.
         while (chain.buffers.size() >= 4)
         {
-            Buffer* dramBuffer = chain.buffers[0];
-            assert(dramBuffer->m_Location == Location::Dram);
-            Buffer* sramBuffer = chain.buffers.back();
-            assert(sramBuffer->m_Location == Location::Sram);
+            DramBuffer* dramBuffer = chain.buffers[0]->Dram();
+            SramBuffer* sramBuffer = chain.buffers.back()->Sram();
 
             // Sum up the DMA offsets along the whole chain, to collapse into one
             TensorShape combinedOffset = chain.GetTotalDmaOffset();

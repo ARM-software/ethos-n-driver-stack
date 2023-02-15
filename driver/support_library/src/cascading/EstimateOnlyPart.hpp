@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -37,7 +37,7 @@ private:
     const std::string m_ReasonForEstimateOnly;
     CompilerDataFormat m_CompilerDataFormat;
 
-    void CreatePlanForEstimateOnlyPart(TraversalOrder order, Plans& plans) const;
+    void CreatePlanForEstimateOnlyPart(Plans& plans) const;
 };
 
 }    // namespace support_library
