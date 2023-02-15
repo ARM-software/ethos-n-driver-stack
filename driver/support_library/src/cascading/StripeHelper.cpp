@@ -696,10 +696,8 @@ StripeConfig StripeGenerator::ApplyPleKernelSplitRestrictions(CascadeType cascad
             result.DisableSplitInputDepth();
             result.DisableSplitOutputDepth();
         }
-        else
-        {
-            result.DisableSplitWidth();
-        }
+        // Note that there are also restrictions for Lonely plans, but these are applied in AddStripeInfos
+        // as more information is needed than is available here.
     }
 
     return result;
@@ -789,13 +787,25 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
             return;
         }
 
-        // Prevent max pooling from having more than one channel per PLE, when it is also split in height.
-        // This is a limitation of the PLE kernel.
-        if ((m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
-             m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD) &&
-            GetHeight(pleInputStripe) < GetHeight(m_MceOutputTensorShape) && GetChannels(pleInputStripe) > baseMceOfm)
+        // Prevent unsupported splits for max pooling due to limitations of the PLE kernel
+        if (m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_EVEN ||
+            m_KernelOperation == command_stream::PleOperation::MAXPOOL_3X3_2_2_ODD)
         {
-            return;
+            // Prevent having more than one channel per PLE, when it is also split in height.
+            if (GetHeight(pleInputStripe) < GetHeight(m_MceOutputTensorShape) &&
+                GetChannels(pleInputStripe) > baseMceOfm)
+            {
+                return;
+            }
+
+            // Prevent any splitting in width.
+            // (Note this can't be done using StripeConfig::DisableSplitWidth because that is overly cautious and also
+            //  disables splitting in all the dimensions, which is the only way to get a height+depth split, which is needed
+            //  in some cases).
+            if (GetWidth(pleInputStripe) < GetWidth(m_MceOutputTensorShape))
+            {
+                return;
+            }
         }
 
         TensorShape mceWeightStripe    = { m_KernelHeight, m_KernelWidth, mceInputStripe[3],
