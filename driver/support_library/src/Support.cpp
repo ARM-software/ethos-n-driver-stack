@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -441,6 +441,10 @@ bool operator!=(const QuantizationScales& lhs, const QuantizationScales& rhs)
 {
     return !(lhs == rhs);
 }
+
+InternalErrorException::InternalErrorException(const char* msg)
+    : std::runtime_error(std::string("Internal compiler error: ") + msg)
+{}
 
 }    // namespace support_library
 }    // namespace ethosn

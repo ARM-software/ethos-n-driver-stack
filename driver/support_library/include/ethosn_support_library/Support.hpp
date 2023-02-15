@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -958,7 +958,8 @@ public:
 /// Exception type thrown for unexpected internal errors.
 class InternalErrorException : public std::runtime_error
 {
-    using std::runtime_error::runtime_error;
+public:
+    InternalErrorException(const char* msg);
 };
 
 /// Exception type thrown when an operation is added to a Network which is not supported.

@@ -1328,7 +1328,11 @@ Combination Combiner::FindBestCombinationForPartImpl(const BasePart& part)
 
     result = GetBestCombinationSafe(options);
 
-    assert(result.m_Elems.count(part.GetPartId()) == 1);
+    if (result.m_Elems.count(part.GetPartId()) != 1)
+    {
+        throw InternalErrorException(
+            (std::string("Failed to find a valid plan for part ") + std::to_string(part.GetPartId())).c_str());
+    }
 
     return result;
 }
