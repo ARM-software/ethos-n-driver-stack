@@ -1262,8 +1262,9 @@ static void free_network(struct ethosn_network *network)
 		ethosn_dma_unmap(network->asset_allocator,
 				 network->constant_dma_data);
 
-	ethosn_dma_unmap(network->asset_allocator,
-			 network->constant_cu_data);
+	if (network->constant_cu_data)
+		ethosn_dma_unmap(network->asset_allocator,
+				 network->constant_cu_data);
 
 	for (i = 0; i < ethosn->num_cores; i++) {
 		/* Free allocated DMA from core */
@@ -1284,8 +1285,9 @@ static void free_network(struct ethosn_network *network)
 		ethosn_dma_release(network->asset_allocator,
 				   &network->constant_dma_data);
 
-	ethosn_dma_release(network->asset_allocator,
-			   &network->constant_cu_data);
+	if (network->constant_cu_data)
+		ethosn_dma_release(network->asset_allocator,
+				   &network->constant_cu_data);
 
 	kfree(network->intermediate_data);
 	kfree(network->inference_data);

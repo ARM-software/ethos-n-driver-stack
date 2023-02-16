@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2021-2022 Arm Limited.
+ * (C) COPYRIGHT 2021-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -72,7 +72,8 @@ int ethosn_bitmap_find_next_zero_area(struct device *dev,
 				      void **bitmap,
 				      size_t *bits,
 				      int nr_pages,
-				      unsigned long *start);
+				      unsigned long *start,
+				      bool extend_bitmap);
 
 struct sg_table *ethosn_dma_buf_map_attachment(
 	struct dma_buf_attachment *attach);

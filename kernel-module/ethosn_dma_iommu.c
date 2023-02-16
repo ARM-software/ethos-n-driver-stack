@@ -87,6 +87,7 @@ struct ethosn_dma_info_internal {
 	struct page               **pages;
 	struct dma_buf_internal   *dma_buf_internal;
 	struct scatterlist        **scatterlist;
+	bool                      iova_mapped;
 };
 
 static phys_addr_t ethosn_page_to_phys(int index,
@@ -186,12 +187,15 @@ static dma_addr_t iommu_alloc_iova(struct device *dev,
 	int ret;
 	int nr_pages = ethosn_nr_pages(dma);
 	dma_addr_t iova = 0;
+	bool extend_bitmap =
+		(dma->info.stream_type > ETHOSN_STREAM_COMMAND_STREAM);
 
 	spin_lock_irqsave(&stream->lock, flags);
 
 	ret = ethosn_bitmap_find_next_zero_area(dev,
 						&stream->bitmap, &stream->bits,
-						nr_pages, &start);
+						nr_pages, &start,
+						extend_bitmap);
 	if (ret)
 		goto ret;
 
@@ -327,7 +331,8 @@ ret:
 		},
 		.source = ETHOSN_MEMORY_ALLOC,
 		.dma_addr = dma_addr,
-		.pages = pages
+		.pages = pages,
+		.iova_mapped = false
 	};
 
 	return &dma_info->info;
@@ -351,6 +356,9 @@ static void iommu_unmap_iova_pages(struct ethosn_dma_info_internal *dma_info,
 {
 	int i;
 
+	if (!dma_info->iova_mapped)
+		return;
+
 	for (i = 0; i < nr_pages; ++i) {
 		unsigned long iova_addr =
 			dma_info->info.iova_addr + ethosn_page_size(0, i,
@@ -370,6 +378,8 @@ static void iommu_unmap_iova_pages(struct ethosn_dma_info_internal *dma_info,
 					IOMMU_READ);
 		}
 	}
+
+	dma_info->iova_mapped = false;
 }
 
 static int iommu_iova_map(struct ethosn_dma_sub_allocator *allocator,
@@ -498,9 +508,15 @@ static int iommu_iova_map(struct ethosn_dma_sub_allocator *allocator,
 				addr,
 				ethosn_page_to_phys(i, dma_info),
 				sg_entry_size);
+
+			if (i > 0)
+				dma_info->iova_mapped = true;
+
 			goto unmap_pages;
 		}
 	}
+
+	dma_info->iova_mapped = true;
 
 ret:
 
@@ -767,7 +783,8 @@ static struct ethosn_dma_info *iommu_import(
 		.dma_addr = dma_addr,
 		.pages = pages,
 		.dma_buf_internal = dma_buf_internal,
-		.scatterlist = sctrlst
+		.scatterlist = sctrlst,
+		.iova_mapped = false
 	};
 
 	return &dma_info->info;
@@ -851,7 +868,7 @@ static void iommu_iova_unmap(struct ethosn_dma_sub_allocator *allocator,
 	if (WARN_ON(stream->type != _dma_info->stream_type))
 		return;
 
-	if (dma_info->info.size) {
+	if (dma_info->iova_mapped) {
 		int nr_scatter_pages = ethosn_nr_sg_objects(dma_info);
 		int nr_pages = ethosn_nr_pages(dma_info);
 
