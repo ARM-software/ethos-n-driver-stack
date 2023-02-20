@@ -429,11 +429,17 @@ inline void SetMcesConvolutionData(MceS& mceS, const OpGraph& opGraph, MceOp* co
 
         // Set the filter shapes
         {
+            mceS.filterShape[s].height = NumericCast<uint8_t>(subfilter.GetFilterY());
+            mceS.filterShape[s].width  = NumericCast<uint8_t>(subfilter.GetFilterX());
+
             // If stride is greater than the filter shape in any dimension, some submaps don't participate in the computation.
             // For those cases a kernel 1x1 with weights equal to zero is created in the support library.
             // For example, a 1x1 kernel with 2x2 stride: only one submap will actually be relevant.
-            mceS.filterShape[s].height = NumericCast<uint8_t>(std::max(1u, subfilter.GetFilterY()));
-            mceS.filterShape[s].width  = NumericCast<uint8_t>(std::max(1u, subfilter.GetFilterX()));
+            if (mceS.filterShape[s].width == 0 || mceS.filterShape[s].height == 0)
+            {
+                mceS.filterShape[s].width  = 1;
+                mceS.filterShape[s].height = 1;
+            }
 
             // When using wide filter, the filter shape needs to be rounded up to be a whole multiple
             // of the base filter size (3). Except for the value 1, which doesn't round.
