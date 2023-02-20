@@ -1242,9 +1242,11 @@ std::vector<BasePart*> NetworkToGraphOfPartsConverter::CreateTransposeConv(const
         params.m_Op                     = command_stream::MceOperation::DEPTHWISE_CONVOLUTION;
         params.m_OperationIds           = operationIds;
         params.m_InputDataType          = inputInfo.m_DataType;
-        params.m_OutputDataType         = outputInfo.m_DataType;
+        params.m_OutputDataType         = inputInfo.m_DataType;
         params.m_UpscaleFactor          = upscaleFactor;
         params.m_UpsampleType           = upsampleType;
+        params.m_LowerBound             = inputInfo.m_DataType == DataType::UINT8_QUANTIZED ? 0 : -128;
+        params.m_UpperBound             = inputInfo.m_DataType == DataType::UINT8_QUANTIZED ? 255 : 127;
 
         auto identityDepthwisePart = std::make_unique<McePart>(std::move(params));
         parts.push_back(identityDepthwisePart.get());
@@ -1291,6 +1293,8 @@ std::vector<BasePart*> NetworkToGraphOfPartsConverter::CreateTransposeConv(const
     params.m_OutputDataType         = outputInfo.m_DataType;
     params.m_UpscaleFactor          = upscaleFactor;
     params.m_UpsampleType           = upsampleType;
+    params.m_LowerBound             = outputInfo.m_DataType == DataType::UINT8_QUANTIZED ? 0 : -128;
+    params.m_UpperBound             = outputInfo.m_DataType == DataType::UINT8_QUANTIZED ? 255 : 127;
     auto mcePart                    = std::make_unique<McePart>(std::move(params));
 
     parts.push_back(mcePart.get());
