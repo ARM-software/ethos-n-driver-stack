@@ -952,7 +952,7 @@ bool McePart::MergeWithChannelSelectorBefore(const utils::ConstTensorData& chann
     // If not, then merging may make performance worse!
     uint64_t separateMacsPerPixel =
         GetNumElements(channelSelectorWeights.GetShape()) + GetNumElements(m_WeightsInfo.m_Dimensions);
-    uint64_t mergedMacsPerPixel = m_WeightsInfo.m_Dimensions[0] * m_WeightsInfo.m_Dimensions[1] *
+    uint64_t mergedMacsPerPixel = static_cast<uint64_t>(m_WeightsInfo.m_Dimensions[0]) * m_WeightsInfo.m_Dimensions[1] *
                                   channelSelectorWeights.GetShape()[2] * m_WeightsInfo.m_Dimensions[3];
     if (separateMacsPerPixel < mergedMacsPerPixel)
     {
@@ -1022,7 +1022,7 @@ bool McePart::MergeWithChannelSelectorAfter(const utils::ConstTensorData& channe
     // If not, then merging may make performance worse!
     uint64_t separateMacsPerPixel =
         GetNumElements(m_WeightsInfo.m_Dimensions) + GetNumElements(channelSelectorWeights.GetShape());
-    uint64_t mergedMacsPerPixel = m_WeightsInfo.m_Dimensions[0] * m_WeightsInfo.m_Dimensions[1] *
+    uint64_t mergedMacsPerPixel = static_cast<uint64_t>(m_WeightsInfo.m_Dimensions[0]) * m_WeightsInfo.m_Dimensions[1] *
                                   m_WeightsInfo.m_Dimensions[2] * channelSelectorWeights.GetShape()[3];
     if (separateMacsPerPixel < mergedMacsPerPixel)
     {
