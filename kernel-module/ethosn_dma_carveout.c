@@ -193,8 +193,7 @@ static resource_size_t carveout_get_addr_size(
 }
 
 static void carveout_allocator_destroy(
-	struct ethosn_dma_sub_allocator *allocator,
-	enum ethosn_stream_type stream_type)
+	struct ethosn_dma_sub_allocator *allocator)
 {
 	struct device *dev;
 

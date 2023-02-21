@@ -44,21 +44,17 @@
 #endif
 
 struct ethosn_iommu_stream {
-	void        *bitmap;
-	dma_addr_t  addr_base;
-	size_t      bits;
-	struct page *page;
-	spinlock_t  lock;
+	enum ethosn_stream_type type;
+	void                    *bitmap;
+	dma_addr_t              addr_base;
+	size_t                  bits;
+	struct page             *page;
+	spinlock_t              lock;
 };
 
 struct ethosn_iommu_domain {
 	struct iommu_domain        *iommu_domain;
-	struct ethosn_iommu_stream stream_firmware;
-	struct ethosn_iommu_stream stream_working_data;
-	struct ethosn_iommu_stream stream_command_stream;
-	struct ethosn_iommu_stream stream_weight_data;
-	struct ethosn_iommu_stream stream_buffer_data;
-	struct ethosn_iommu_stream stream_intermediate_data;
+	struct ethosn_iommu_stream stream;
 };
 
 struct ethosn_allocator_internal {
@@ -137,92 +133,71 @@ static int ethosn_nr_pages(struct ethosn_dma_info_internal *dma_info)
 	return DIV_ROUND_UP(dma_info->info.size, PAGE_SIZE);
 }
 
-static struct ethosn_iommu_stream *iommu_get_stream(
-	struct ethosn_iommu_domain *domain,
-	enum ethosn_stream_type stream_type)
+static dma_addr_t ethosn_stream_addr_base(enum ethosn_stream_type stream_type)
 {
-	struct ethosn_iommu_stream *stream = NULL;
-
 	switch (stream_type) {
 	case ETHOSN_STREAM_FIRMWARE:
-	case ETHOSN_STREAM_PLE_CODE:
-		stream = &domain->stream_firmware;
-		break;
+
+		return IOMMU_FIRMWARE_ADDR_BASE;
 
 	case ETHOSN_STREAM_WORKING_DATA:
-	case ETHOSN_STREAM_DEBUG:
-		stream = &domain->stream_working_data;
-		break;
+
+		return IOMMU_WORKING_DATA_ADDR_BASE;
 
 	case ETHOSN_STREAM_COMMAND_STREAM:
-		stream = &domain->stream_command_stream;
-		break;
+
+		return IOMMU_COMMAND_STREAM_ADDR_BASE;
+
+	case ETHOSN_STREAM_PLE_CODE:
+
+		return IOMMU_FIRMWARE_ADDR_BASE;
 
 	case ETHOSN_STREAM_WEIGHT_DATA:
-		stream = &domain->stream_weight_data;
-		break;
+
+		return IOMMU_WEIGHT_DATA_ADDR_BASE;
 
 	case ETHOSN_STREAM_IO_BUFFER:
-		stream = &domain->stream_buffer_data;
-		break;
+
+		return IOMMU_BUFFER_ADDR_BASE;
 
 	case ETHOSN_STREAM_INTERMEDIATE_BUFFER:
-		stream = &domain->stream_intermediate_data;
-		break;
+
+		return IOMMU_INTERMEDIATE_BUFFER_ADDR_BASE;
 
 	default:
-		break;
-	}
+		WARN_ON(1);
 
-	return stream;
+		return 0U;
+	}
 }
 
 static dma_addr_t iommu_get_addr_base(
 	struct ethosn_dma_sub_allocator *allocator,
 	enum ethosn_stream_type stream_type)
 {
-	dma_addr_t addr = 0;
+	struct ethosn_allocator_internal *allocator_private =
+		container_of(allocator, typeof(*allocator_private), allocator);
+	struct ethosn_iommu_stream *stream =
+		&allocator_private->ethosn_iommu_domain.stream;
 
-	switch (stream_type) {
-	case ETHOSN_STREAM_FIRMWARE:
-		addr = IOMMU_FIRMWARE_ADDR_BASE;
-		break;
+	if (WARN_ON(stream->type != stream_type))
+		return 0U;
 
-	case ETHOSN_STREAM_WORKING_DATA:
-		addr = IOMMU_WORKING_DATA_ADDR_BASE;
-		break;
-
-	case ETHOSN_STREAM_COMMAND_STREAM:
-		addr = IOMMU_COMMAND_STREAM_ADDR_BASE;
-		break;
-
-	case ETHOSN_STREAM_PLE_CODE:
-		addr = IOMMU_FIRMWARE_ADDR_BASE;
-		break;
-
-	case ETHOSN_STREAM_WEIGHT_DATA:
-		addr = IOMMU_WEIGHT_DATA_ADDR_BASE;
-		break;
-
-	case ETHOSN_STREAM_IO_BUFFER:
-		addr = IOMMU_BUFFER_ADDR_BASE;
-		break;
-
-	case ETHOSN_STREAM_INTERMEDIATE_BUFFER:
-		addr = IOMMU_INTERMEDIATE_BUFFER_ADDR_BASE;
-		break;
-
-	default:
-		break;
-	}
-
-	return addr;
+	return stream->addr_base;
 }
 
 static resource_size_t iommu_get_addr_size(
 	struct ethosn_dma_sub_allocator *allocator,
 	enum ethosn_stream_type stream_type)
 {
+	struct ethosn_allocator_internal *allocator_private =
+		container_of(allocator, typeof(*allocator_private), allocator);
+	struct ethosn_iommu_stream *stream =
+		&allocator_private->ethosn_iommu_domain.stream;
+
+	if (WARN_ON(stream->type != stream_type))
+		return 0U;
+
 	return IOMMU_ADDR_SIZE;
 }
 
@@ -428,8 +403,7 @@ static int iommu_iova_map(struct ethosn_dma_sub_allocator *allocator,
 		container_of(allocator, typeof(*allocator_private), allocator);
 	struct ethosn_iommu_domain *domain =
 		&allocator_private->ethosn_iommu_domain;
-	struct ethosn_iommu_stream *stream =
-		iommu_get_stream(domain, _dma_info->stream_type);
+	struct ethosn_iommu_stream *stream = &domain->stream;
 	struct ethosn_dma_info_internal *dma_info =
 		container_of(_dma_info, typeof(*dma_info), info);
 	int nr_scatter_entries = ethosn_nr_sg_objects(dma_info);
@@ -442,7 +416,7 @@ static int iommu_iova_map(struct ethosn_dma_sub_allocator *allocator,
 	if (!dma_info->info.size)
 		goto ret;
 
-	if (!stream)
+	if (WARN_ON(stream->type != _dma_info->stream_type))
 		goto early_exit;
 
 	if (!dma_info->pages)
@@ -815,10 +789,9 @@ static void iommu_iova_unmap(struct ethosn_dma_sub_allocator *allocator,
 		container_of(allocator, typeof(*allocator_private), allocator);
 	struct ethosn_iommu_domain *domain =
 		&allocator_private->ethosn_iommu_domain;
-	struct ethosn_iommu_stream *stream =
-		iommu_get_stream(domain, _dma_info->stream_type);
+	struct ethosn_iommu_stream *stream = &domain->stream;
 
-	if (!stream)
+	if (WARN_ON(stream->type != _dma_info->stream_type))
 		return;
 
 	if (dma_info->info.size) {
@@ -933,8 +906,7 @@ static int iommu_stream_init(struct ethosn_allocator_internal *allocator,
 			     size_t bitmap_size)
 {
 	struct ethosn_iommu_domain *domain = &allocator->ethosn_iommu_domain;
-	struct ethosn_iommu_stream *stream =
-		iommu_get_stream(domain, stream_type);
+	struct ethosn_iommu_stream *stream = &domain->stream;
 	size_t nr_pages = DIV_ROUND_UP(IOMMU_ADDR_SIZE, PAGE_SIZE);
 	size_t i;
 	int err;
@@ -947,8 +919,8 @@ static int iommu_stream_init(struct ethosn_allocator_internal *allocator,
 	if (!stream->bitmap)
 		return -ENOMEM;
 
-	stream->addr_base =
-		iommu_get_addr_base(&allocator->allocator, stream_type);
+	stream->addr_base = ethosn_stream_addr_base(stream_type);
+	stream->type = stream_type;
 	stream->bits = bitmap_size * BITS_PER_BYTE;
 	spin_lock_init(&stream->lock);
 
@@ -992,19 +964,11 @@ free_bitmap:
 	return -ENOMEM;
 }
 
-static void iommu_stream_deinit(struct ethosn_allocator_internal *allocator,
-				enum ethosn_stream_type stream_type)
+static void iommu_stream_deinit(struct ethosn_allocator_internal *allocator)
 {
 	struct ethosn_iommu_domain *domain = &allocator->ethosn_iommu_domain;
-	struct ethosn_iommu_stream *stream =
-		iommu_get_stream(domain, stream_type);
+	struct ethosn_iommu_stream *stream = &domain->stream;
 	size_t nr_pages = DIV_ROUND_UP(IOMMU_ADDR_SIZE, PAGE_SIZE);
-
-	dev_dbg(allocator->allocator.dev,
-		"%s: stream_type %u\n", __func__, stream_type);
-
-	if (!stream)
-		return;
 
 	/* Parent and children share the streams, make sure that it is not
 	 * freed twice.
@@ -1025,8 +989,7 @@ static void iommu_stream_deinit(struct ethosn_allocator_internal *allocator,
 	stream->page = NULL;
 }
 
-static void iommu_allocator_destroy(struct ethosn_dma_sub_allocator *_allocator,
-				    enum ethosn_stream_type stream_type)
+static void iommu_allocator_destroy(struct ethosn_dma_sub_allocator *_allocator)
 {
 	struct ethosn_allocator_internal *allocator;
 	struct iommu_domain *domain;
@@ -1039,7 +1002,7 @@ static void iommu_allocator_destroy(struct ethosn_dma_sub_allocator *_allocator,
 	domain = allocator->ethosn_iommu_domain.iommu_domain;
 	dev = _allocator->dev;
 
-	iommu_stream_deinit(allocator, stream_type);
+	iommu_stream_deinit(allocator);
 
 	memset(allocator, 0, sizeof(struct ethosn_allocator_internal));
 	devm_kfree(dev, allocator);

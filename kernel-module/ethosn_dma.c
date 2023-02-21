@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2022 Arm Limited.
+ * (C) COPYRIGHT 2018-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -225,7 +225,7 @@ void ethosn_dma_sub_allocator_destroy(
 	if (!ops)
 		return;
 
-	ops->destroy(*sub_allocator, stream_type);
+	ops->destroy(*sub_allocator);
 
 	*sub_allocator = NULL;
 }

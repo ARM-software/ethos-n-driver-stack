@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2022 Arm Limited.
+ * (C) COPYRIGHT 2018-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -157,9 +157,8 @@ struct ethosn_carveout_allocator {
  * @get_addr_size      Get address size
  */
 struct ethosn_dma_allocator_ops {
-	void (*destroy)(struct ethosn_dma_sub_allocator *
-			allocator,
-			enum ethosn_stream_type stream_type);
+	void                   (*destroy)(struct ethosn_dma_sub_allocator *
+					  allocator);
 
 	struct ethosn_dma_info *(*alloc)(struct ethosn_dma_sub_allocator *
 					 allocator,
