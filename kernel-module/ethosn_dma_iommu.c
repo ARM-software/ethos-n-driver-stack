@@ -298,20 +298,20 @@ static struct ethosn_dma_info *iommu_alloc(
 					   gfp);
 
 		if (!pages[i])
-			goto free_pages;
+			goto free_pages_and_dma_addr;
 
 		if (dma_mapping_error(allocator->dev, dma_addr[i])) {
 			dev_err(allocator->dev,
 				"failed to dma map pa 0x%llX\n",
 				page_to_phys(pages[i]));
 			__free_page(pages[i]);
-			goto free_pages;
+			goto free_pages_and_dma_addr;
 		}
 	}
 
 	cpu_addr = vmap(pages, nr_pages, 0, PAGE_KERNEL);
 	if (!cpu_addr)
-		goto free_pages;
+		goto free_pages_and_dma_addr;
 
 	dev_dbg(allocator->dev,
 		"Allocated DMA. handle=%pK allocator->dev = %pK",
@@ -332,8 +332,9 @@ ret:
 
 	return &dma_info->info;
 
-free_pages:
+free_pages_and_dma_addr:
 	iommu_free_pages(allocator, dma_addr, pages, i);
+	devm_kfree(allocator->dev, dma_addr);
 free_pages_list:
 	devm_kfree(allocator->dev, pages);
 free_dma_info:
