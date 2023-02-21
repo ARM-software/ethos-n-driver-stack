@@ -523,6 +523,13 @@ inline void SetMcesConvolutionData(MceS& mceS, const OpGraph& opGraph, MceOp* co
     {
         mceS.filterShape[s] = mceS.filterShape[0];
     }
+
+    mceS.isExtraIfmStripeAtRightEdge =
+        utils::DivRoundUp(utils::GetWidth(inputBuffer->m_TensorShape), utils::GetWidth(mceOp->m_InputStripeShape)) >
+        utils::DivRoundUp(utils::GetWidth(outputBuffer->m_TensorShape), utils::GetWidth(mceOp->m_OutputStripeShape));
+    mceS.isExtraIfmStripeAtBottomEdge =
+        utils::DivRoundUp(utils::GetHeight(inputBuffer->m_TensorShape), utils::GetHeight(mceOp->m_InputStripeShape)) >
+        utils::DivRoundUp(utils::GetHeight(outputBuffer->m_TensorShape), utils::GetHeight(mceOp->m_OutputStripeShape));
 }
 
 }    // namespace MceSUtils
