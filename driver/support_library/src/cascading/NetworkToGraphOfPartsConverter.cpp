@@ -351,7 +351,7 @@ void NetworkToGraphOfPartsConverter::Visit(DepthwiseConvolution& depthwise)
         auto mcePart = std::make_unique<McePart>(
             m_GraphOfParts.GeneratePartId(), mceOperationInput.m_Dimensions,
             depthwise.GetOutput(0).GetTensorInfo().m_Dimensions, mceOperationInput.m_QuantizationInfo,
-            depthwise.GetOutput(0).GetTensorInfo().m_QuantizationInfo, depthwise.GetWeights().GetTensorInfo(),
+            depthwise.GetOutput(0).GetTensorInfo().m_QuantizationInfo, weightsTensorInfo,
             OverrideWeights(depthwise.GetWeights().GetDataVector(), weightsTensorInfo),
             depthwise.GetBias().GetTensorInfo(), GetDataVectorAs<int32_t, uint8_t>(depthwise.GetBias().GetDataVector()),
             depthwise.GetConvolutionInfo().m_Stride, depthwise.GetConvolutionInfo().m_Padding.m_Top,
