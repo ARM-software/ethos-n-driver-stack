@@ -25,8 +25,8 @@
 #include <linux/bug.h>
 
 /* Compatible SiP service version */
-#define ETHOSN_SIP_MAJOR_VERSION        2
-#define ETHOSN_SIP_MINOR_VERSION        6
+#define ETHOSN_SIP_MAJOR_VERSION        3
+#define ETHOSN_SIP_MINOR_VERSION        0
 
 /* SMC functions */
 #define ETHOSN_SMC_VERSION              0xc2000050
@@ -35,6 +35,7 @@
 #define ETHOSN_SMC_CORE_SOFT_RESET      0xc2000053
 #define ETHOSN_SMC_CORE_IS_SLEEPING     0xc2000054
 #define ETHOSN_SMC_GET_FW_PROP          0xc2000055
+#define ETHOSN_SMC_CORE_BOOT_FW         0xc2000056
 
 /* Properties for ETHOSN_SMC_GET_FW_PROP */
 #define ETHOSN_FW_PROP_VERSION          0xF00
@@ -268,6 +269,23 @@ int ethosn_smc_get_firmware_va_map(const struct device *dev,
 	*out_firmware_va = res.a1;
 	*out_working_data_va = res.a2;
 	*out_command_stream_va = res.a3;
+
+	return ret;
+}
+
+int ethosn_smc_core_boot_firmware(const struct device *dev,
+				  phys_addr_t core_addr)
+{
+	struct arm_smccc_res res = { 0 };
+	int ret = ethosn_smc_core_call(ETHOSN_SMC_CORE_BOOT_FW,
+				       core_addr,
+				       &res);
+
+	if (ret < 0) {
+		dev_err(dev, "Failed to boot firmware on core: %d\n", ret);
+
+		return -EFAULT;
+	}
 
 	return ret;
 }

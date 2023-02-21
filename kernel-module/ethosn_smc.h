@@ -152,6 +152,17 @@ int ethosn_smc_get_firmware_va_map(const struct device *dev,
 				   dma_addr_t *out_working_data_va,
 				   dma_addr_t *out_command_stream_va);
 
+/**
+ * ethosn_smc_core_boot_firmware() - Call SiP service to boot firmware on a NPU
+ *                                   core
+ * @device:	Pointer to the struct device on which to log any errors.
+ * @core_addr:	Address to Ethos-N core.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ethosn_smc_core_boot_firmware(const struct device *dev,
+				  phys_addr_t core_addr);
+
 #endif
 
 #endif /* _ETHOSN_SMC_H_ */

@@ -75,20 +75,33 @@ static enum ethosn_stream_type get_stream_type(struct platform_device *pdev)
 static dma_addr_t get_stream_addr_base(struct ethosn_device *ethosn,
 				       enum ethosn_stream_type stream_type)
 {
+#ifdef ETHOSN_TZMP1
+	const dma_addr_t firmware_base =
+		ethosn->protected_firmware.firmware_addr_base;
+	const dma_addr_t working_data_base =
+		ethosn->protected_firmware.working_data_addr_base;
+	const dma_addr_t command_stream_base =
+		ethosn->protected_firmware.command_stream_addr_base;
+#else
+	const dma_addr_t firmware_base = IOMMU_FIRMWARE_ADDR_BASE;
+	const dma_addr_t working_data_base = IOMMU_WORKING_DATA_ADDR_BASE;
+	const dma_addr_t command_stream_base = IOMMU_COMMAND_STREAM_ADDR_BASE;
+#endif
+
 	switch (stream_type) {
 	case ETHOSN_STREAM_FIRMWARE:
 	/* Fallthrough */
 	case ETHOSN_STREAM_PLE_CODE:
 
-		return IOMMU_FIRMWARE_ADDR_BASE;
+		return firmware_base;
 
 	case ETHOSN_STREAM_WORKING_DATA:
 
-		return IOMMU_WORKING_DATA_ADDR_BASE;
+		return working_data_base;
 
 	case ETHOSN_STREAM_COMMAND_STREAM:
 
-		return IOMMU_COMMAND_STREAM_ADDR_BASE;
+		return command_stream_base;
 
 	case ETHOSN_STREAM_WEIGHT_DATA:
 

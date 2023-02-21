@@ -145,6 +145,7 @@ struct ethosn_carveout_allocator {
  * @alloc:             Allocate DMA memory
  * @free               Free DMA memory allocated with alloc
  * @map                Map virtual addresses
+ * @from_protected     Use protected memory as DMA memory
  * @import             Attach and map the buffer into the device memory space
  * @release            Release and unmap the buffer from the device memory space
  * @unmap              Unmap virtual addresses
@@ -168,7 +169,11 @@ struct ethosn_dma_allocator_ops {
 		   struct ethosn_dma_info *dma_info,
 		   struct ethosn_dma_prot_range *prot_ranges,
 		   size_t num_prot_ranges);
-
+	struct ethosn_dma_info *(*from_protected)(struct
+						  ethosn_dma_sub_allocator *
+						  allocator,
+						  phys_addr_t start_addr,
+						  size_t size);
 	struct ethosn_dma_info *(*import)(struct ethosn_dma_sub_allocator *
 					  allocator,
 					  int fd,
@@ -300,6 +305,25 @@ struct ethosn_dma_info *ethosn_dma_alloc(
 	enum ethosn_stream_type stream_type,
 	gfp_t gfp,
 	const char *debug_tag);
+
+/**
+ * ethosn_dma_firmware_from_protected() - Setup DMA memory for NPU firmware in
+ *                                        protected memory
+ * @top_allocator: Top-level allocator for sub-allocators
+ * @start_addr: Physical start address of the memory holding the NPU firmware
+ * @size: bytes of memory
+ *
+ * DMA memory setup with this function will always be assigned to
+ * ETHOSN_STREAM_FIRMWARE.
+ *
+ * Return:
+ *  Pointer to ethosn_dma_info struct representing the protected memory
+ *  Or NULL or negative error code on failure
+ */
+struct ethosn_dma_info *ethosn_dma_firmware_from_protected(
+	struct ethosn_dma_allocator *top_allocator,
+	phys_addr_t start_addr,
+	size_t size);
 
 /**
  * ethosn_dma_map() - Map DMA memory

@@ -292,6 +292,42 @@ exit:
 	return dma_info;
 }
 
+struct ethosn_dma_info *ethosn_dma_firmware_from_protected(
+	struct ethosn_dma_allocator *top_allocator,
+	phys_addr_t start_addr,
+	size_t size)
+{
+	struct ethosn_dma_sub_allocator *sub_allocator;
+	const struct ethosn_dma_allocator_ops *ops;
+	struct ethosn_dma_info *dma_info;
+
+	sub_allocator = ethosn_get_sub_allocator(top_allocator,
+						 ETHOSN_STREAM_FIRMWARE);
+	if (!sub_allocator)
+		return ERR_PTR(-EINVAL);
+
+	ops = sub_allocator->ops;
+	if (!ops)
+		return ERR_PTR(-EINVAL);
+
+	if (!ops->from_protected)
+		return ERR_PTR(-EINVAL);
+
+	dma_info = ops->from_protected(sub_allocator, start_addr, size);
+	if (IS_ERR(dma_info)) {
+		dev_err(sub_allocator->dev,
+			"Failed to use protected memory addr=%pa size=%zu for firmware\n",
+			&start_addr, size);
+		goto error;
+	}
+
+	dma_info->stream_type = ETHOSN_STREAM_FIRMWARE;
+
+error:
+
+	return dma_info;
+}
+
 int ethosn_dma_map(struct ethosn_dma_allocator *top_allocator,
 		   struct ethosn_dma_info *dma_info,
 		   int prot)

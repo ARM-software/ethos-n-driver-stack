@@ -550,9 +550,15 @@ EXPORT_SYMBOL(ethosn_read_top_reg);
  */
 static int ethosn_boot_firmware(struct ethosn_core *core)
 {
+#ifdef ETHOSN_TZMP1
+	dev_dbg(core->dev, "%s: Firmware boot through SMC.\n", __func__);
+
+	return ethosn_smc_core_boot_firmware(core->dev, core->phys_addr);
+#else
 	struct dl1_sysctlr0_r sysctlr0 = { .word = 0 };
 
-	dev_dbg(core->dev, "%s\n", __func__);
+	dev_dbg(core->dev, "%s: Firmware boot through hardware directly.\n",
+		__func__);
 
 	/* Set firmware init address and release CPU wait */
 	sysctlr0.bits.cpuwait = 0;
@@ -563,6 +569,7 @@ static int ethosn_boot_firmware(struct ethosn_core *core)
 	ethosn_write_top_reg(core, DL1_RP, DL1_SYSCTLR0, sysctlr0.word);
 
 	return 0;
+#endif
 }
 
 void ethosn_notify_firmware(struct ethosn_core *core)
@@ -1315,6 +1322,108 @@ int ethosn_send_inference(struct ethosn_core *core,
  * Firmware
  ****************************************************************************/
 
+/**
+ * firmware_dma_map() - DMA map firmware
+ * @core:		Pointer to Ethos-N core with firmware to DMA map
+ * @ple_offset:		Offset to PLE kernels in the firmware
+ * @stack_offset:	Offset to the stacks in the firmware
+ * @stack_size:		Size of the stacks in the firmware
+ *
+ * Return: 0 on success, else error code.
+ */
+static int firmware_dma_map(struct ethosn_core *core,
+			    size_t ple_offset,
+			    size_t stack_offset,
+			    size_t stack_size)
+{
+	struct ethosn_dma_prot_range prot_ranges[3];
+	int ret;
+
+	/* Code need to be writable (e.g. global variables are stored here) */
+	prot_ranges[0].start = 0;
+	prot_ranges[0].end = ple_offset;
+	prot_ranges[0].prot = ETHOSN_PROT_READ | ETHOSN_PROT_WRITE;
+	/* PLE kernels and vector need to be read-only */
+	prot_ranges[1].start = ple_offset;
+	prot_ranges[1].end = stack_offset;
+	prot_ranges[1].prot = ETHOSN_PROT_READ;
+	/* Stacks need to be writable */
+	prot_ranges[2].start = stack_offset;
+	prot_ranges[2].end = stack_size;
+	prot_ranges[2].prot = ETHOSN_PROT_READ | ETHOSN_PROT_WRITE;
+
+	ret = ethosn_dma_map_with_prot_ranges(core->main_allocator,
+					      core->firmware,
+					      prot_ranges,
+					      ARRAY_SIZE(prot_ranges));
+	if (ret < 0) {
+		dev_err(core->dev,
+			"%s: ethosn_dma_map_with_prot_ranges failed: %d\n",
+			__func__, ret);
+
+		return ret;
+	}
+
+	return 0;
+}
+
+#ifdef ETHOSN_TZMP1
+
+/**
+ * protected_firmware_map() - Map protected firmware
+ * @core:	Pointer to Ethos-N core
+ *
+ * Return: 0 on success, else error code.
+ */
+static int protected_firmware_map(struct ethosn_core *core)
+{
+	const struct ethosn_protected_firmware *firmware =
+		&core->parent->protected_firmware;
+	int ret;
+
+	/*
+	 * The protected firmware will always be the same so do nothing if it's
+	 * already setup.
+	 */
+	if (core->firmware) {
+		dev_dbg(core->dev, "Protected firmware already mapped\n");
+
+		return 0;
+	}
+
+	dev_dbg(core->dev, "Mapping protected firmware\n");
+
+	core->firmware = ethosn_dma_firmware_from_protected(
+		core->main_allocator, firmware->addr, firmware->size);
+	if (IS_ERR(core->firmware)) {
+		ret = PTR_ERR(core->firmware);
+		dev_err(core->dev,
+			"%s: Failed to setup DMA for firmware in protected memory: %d\n",
+			__func__, ret);
+		goto error;
+	}
+
+	ret = firmware_dma_map(core, firmware->ple_offset,
+			       firmware->stack_offset, firmware->size);
+	if (ret) {
+		dev_err(core->dev,
+			"%s: Failed to DMA map firmware in protected memory: %d\n",
+			__func__, ret);
+		goto free_dma_info;
+	}
+
+	return 0;
+
+free_dma_info:
+	ethosn_dma_release(core->main_allocator, &core->firmware);
+error:
+	core->firmware = NULL;
+
+	return ret;
+}
+
+#else
+
 static bool validate_big_fw_header(struct ethosn_core *core,
 				   struct ethosn_big_fw *big_fw)
 {
@@ -1363,8 +1472,8 @@ static bool validate_big_fw_header(struct ethosn_core *core,
 }
 
 /**
- * firmware_load - Load firmware binary.
- * @core:		Pointer to Ethos-N core.
+ * firmware_load() - Load firmware binary
+ * @core:	Pointer to Ethos-N core
  *
  * Return: 0 on success, else error code.
  */
@@ -1373,7 +1482,6 @@ static int firmware_load(struct ethosn_core *core)
 	const struct firmware *fw;
 	struct ethosn_big_fw *big_fw;
 	int ret = -ENOMEM;
-	struct ethosn_dma_prot_range prot_ranges[3];
 
 	/* Request firmware binary */
 	ret = request_firmware(&fw, "ethosn.bin", core->parent->dev);
@@ -1468,26 +1576,10 @@ static int firmware_load(struct ethosn_core *core)
 		goto release_fw;
 	}
 
-	/* Code need to be writable (e.g. global variables are stored here) */
-	prot_ranges[0].start = 0;
-	prot_ranges[0].end = big_fw->ple_offset;
-	prot_ranges[0].prot = ETHOSN_PROT_READ | ETHOSN_PROT_WRITE;
-	/* PLE kernels and vector need to be read-only */
-	prot_ranges[1].start = big_fw->ple_offset;
-	prot_ranges[1].end = big_fw->unpriv_stack_offset;
-	prot_ranges[1].prot = ETHOSN_PROT_READ;
-	/* Stacks need to be writable */
-	prot_ranges[2].start = big_fw->unpriv_stack_offset;
-	prot_ranges[2].end = big_fw->size;
-	prot_ranges[2].prot = ETHOSN_PROT_READ | ETHOSN_PROT_WRITE;
-
-	ret = ethosn_dma_map_with_prot_ranges(core->main_allocator,
-					      core->firmware,
-					      prot_ranges,
-					      ARRAY_SIZE(prot_ranges));
+	ret = firmware_dma_map(core, big_fw->ple_offset,
+			       big_fw->unpriv_stack_offset, big_fw->size);
 	if (ret < 0) {
-		dev_err(core->dev,
-			"%s: ethosn_dma_map_with_prot_ranges failed: %d\n",
+		dev_err(core->dev, "%s: Failed to DMA map firmware: %d\n",
 			__func__, ret);
 		goto free_firmware;
 	}
@@ -1510,6 +1602,8 @@ release_fw:
 
 	return ret;
 }
+
+#endif
 
 int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 				  uint32_t alloc_id)
@@ -1549,6 +1643,23 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 	if (ret)
 		return ret;
 
+#ifdef ETHOSN_TZMP1
+
+	/*
+	 * Firmware has already been loaded into the protected memory by TF-A
+	 * during boot so it only needs to be mapped
+	 */
+	ret = protected_firmware_map(core);
+	if (ret) {
+		dev_err(core->dev,
+			"%s: Failed to map protected firmware %d\n",
+			__func__, ret);
+
+		return ret;
+	}
+
+#else
+
 	/* Load the firmware. Note this must be done after resetting the device,
 	 * so that the firmware code isn't being run and we can safely
 	 * overwrite it
@@ -1561,6 +1672,8 @@ int ethosn_reset_and_start_ethosn(struct ethosn_core *core,
 
 		return ret;
 	}
+
+#endif
 
 	/* In a secure build, TF-A will perform the setup below */
 #ifdef ETHOSN_NS
@@ -2176,8 +2289,10 @@ static void dfs_deinit(struct ethosn_core *core)
 static void dfs_init(struct ethosn_core *core)
 {
 	static const struct debugfs_reg32 regs[] = {
+#ifndef ETHOSN_TZMP1
 		REGSET32(SYSCTLR0),
 		REGSET32(SYSCTLR1),
+#endif
 		REGSET32(PWRCTLR),
 		REGSET32(CLRIRQ_EXT),
 		REGSET32(SETIRQ_INT),
@@ -2269,7 +2384,9 @@ static void dfs_init(struct ethosn_core *core)
 
 int ethosn_device_init(struct ethosn_core *core)
 {
+#ifndef ETHOSN_TZMP1
 	const bool smmu_available = core->parent->smmu_available;
+#endif
 	int ret;
 
 	/* Round up queue size to next power of 2 */
@@ -2278,6 +2395,7 @@ int ethosn_device_init(struct ethosn_core *core)
 	/* Initialize debugfs */
 	dfs_init(core);
 
+#ifndef ETHOSN_TZMP1
 	/* When Carveout is used, the firmware must be allocated first */
 	if (!smmu_available) {
 		/* Load the firmware */
@@ -2285,6 +2403,8 @@ int ethosn_device_init(struct ethosn_core *core)
 		if (ret)
 			goto remove_debufs;
 	}
+
+#endif
 
 	/* Allocate the mailbox structure */
 	ret = mailbox_alloc(core);
@@ -2311,10 +2431,12 @@ int ethosn_device_init(struct ethosn_core *core)
 	return 0;
 
 deinit_firmware:
+#ifndef ETHOSN_TZMP1
 	if (!smmu_available)
 		ethosn_firmware_deinit(core);
 
 remove_debufs:
+#endif
 	dfs_deinit(core);
 
 	return ret;
