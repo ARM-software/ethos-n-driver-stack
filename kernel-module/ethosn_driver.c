@@ -79,6 +79,7 @@
 #define ETHOSN_PING_WAIT_US 1000
 
 #define ETHOSN_MAX_NUM_IRQS 3
+#define ETHOSN_TZMP1_CORE_NUM_MAX 1U
 
 static int ethosn_major;
 static struct ethosn_device *ethosn_global_device_for_testing;
@@ -1101,7 +1102,73 @@ static int ethosn_check_smc_firmware_version(const struct device *dev)
 	return 0;
 }
 
+static int ethosn_populate_protected_firmware(struct ethosn_device *ethosn)
+{
+	struct ethosn_protected_firmware *firmware =
+		&ethosn->protected_firmware;
+	int ret;
+
+	ret = ethosn_check_smc_firmware_version(ethosn->dev);
+	if (ret)
+		return ret;
+
+	ret = ethosn_smc_get_firmware_mem_info(ethosn->dev,
+					       &firmware->addr,
+					       &firmware->size);
+	if (ret)
+		return ret;
+
+	ret = ethosn_smc_get_firmware_offsets(ethosn->dev,
+					      &firmware->ple_offset,
+					      &firmware->stack_offset);
+	if (ret)
+		return ret;
+
+	ret = ethosn_smc_get_firmware_va_map(ethosn->dev,
+					     &firmware->firmware_addr_base,
+					     &firmware->working_data_addr_base,
+					     &firmware->command_stream_addr_base);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
 #endif
+
+static int ethosn_check_smc_core_secure_status(const struct device *dev,
+					       phys_addr_t core_addr)
+{
+	int ret = ethosn_smc_is_secure(dev, core_addr);
+
+#ifdef ETHOSN_NS
+
+	/*
+	 * If the SiP service is available verify the NPU's secure status.
+	 * If not, assume it's non-secure.
+	 */
+	if (ret == 1) {
+		dev_err(dev,
+			"Core in secure mode, non-secure kernel not supported.\n");
+
+		return -EPERM;
+	}
+
+#else   /* Secure or TZMP1 */
+	if (ret < 0)
+		return ret;
+
+	if (ret == 0) {
+		dev_err(dev,
+			"Core in non-secure mode is not supported for secure or TZMP1 kernel.\n");
+
+		return -EPERM;
+	}
+
+#endif  /* Secure or TZMP1 */
+
+	return 0;
+}
 
 /**
  * ethosn_driver_probe() - Do common probing functionality
@@ -1124,44 +1191,11 @@ static int ethosn_driver_probe(struct ethosn_core *core,
 {
 	struct ethosn_profiling_config config = {};
 	const phys_addr_t core_addr = top_regs->start;
-	int ret = ethosn_smc_version_check(core->dev);
+	int ret = ethosn_check_smc_core_secure_status(core->dev, core_addr);
 	const bool smmu_available = core->parent->smmu_available;
 
-#ifdef ETHOSN_NS
-
-	/*
-	 * If the SiP service is available verify the NPU's
-	 * secure status. If not, assume it's non-secure.
-	 */
-	ret = !ret ? ethosn_smc_is_secure(core->dev, core_addr) : 0;
-	if (ret) {
-		if (ret == 1) {
-			dev_err(core->dev,
-				"Device in secure mode, non-secure kernel not supported.\n");
-			ret = -EPERM;
-		}
-
-		return ret;
-	}
-
-#else   /* Secure or TZMP1 */
-
-	if (ret) {
-		dev_err(core->dev,
-			"SiP service required for secure or TZMP1 kernel.\n");
-
-		return -EPERM;
-	}
-
-#ifdef ETHOSN_TZMP1
-
-	ret = ethosn_check_smc_firmware_version(core->dev);
-	/* Error is already printed ethosn_check_smc_firmware_version */
 	if (ret)
-		return -EPROTO;
-
-#endif /* ETHOSN_TZMP1 */
-#endif /* Secure or TZMP1 */
+		return ret;
 
 	mutex_init(&core->mutex);
 
@@ -1471,6 +1505,16 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+#ifdef ETHOSN_TZMP1
+	if (!smmu_available) {
+		dev_err(&pdev->dev,
+			"TZMP1 support requires the NPU to use an SMMU\n");
+
+		return -EINVAL;
+	}
+
+#endif
+
 	dma_set_mask_and_coherent(&pdev->dev,
 				  DMA_BIT_MASK(ETHOSN_SMMU_MAX_ADDR_BITS));
 
@@ -1482,12 +1526,34 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+#ifdef ETHOSN_TZMP1
+	if (num_of_npus > ETHOSN_TZMP1_CORE_NUM_MAX) {
+		dev_err(&pdev->dev, "TZMP1 only supports one core. Found %u\n",
+			num_of_npus);
+
+		return -EINVAL;
+	}
+
+#else
 	if (num_of_npus > ETHOSN_CORE_NUM_MAX) {
 		dev_err(&pdev->dev, "Invalid number of cores, max = %d\n",
 			ETHOSN_CORE_NUM_MAX);
 
 		return -EINVAL;
 	}
+
+#endif
+
+#ifndef ETHOSN_NS
+	ret = ethosn_smc_version_check(&pdev->dev);
+	if (ret) {
+		dev_err(&pdev->dev,
+			"SiP service required for secure or TZMP1 kernel.\n");
+
+		return -EPERM;
+	}
+
+#endif
 
 	platform_id = ida_simple_get(&ethosn_ida, 0,
 				     ETHOSN_MAX_DEVICES,
@@ -1518,6 +1584,14 @@ static int ethosn_pdev_probe(struct platform_device *pdev)
 	ethosn->current_busy_cores = 0;
 	ethosn->status_mask = 0;
 	ethosn->smmu_available = smmu_available;
+
+#ifdef ETHOSN_TZMP1
+
+	ret = ethosn_populate_protected_firmware(ethosn);
+	if (ret)
+		goto err_free_ethosn;
+
+#endif  /* ETHOSN_TZMP1 */
 
 	snprintf(name, sizeof(name), "ethosn%u", ethosn->parent_id);
 	ethosn->debug_dir = debugfs_create_dir(name, NULL);

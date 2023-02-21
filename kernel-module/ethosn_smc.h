@@ -111,6 +111,47 @@ int ethosn_smc_get_firmware_version(const struct device *dev,
 				    uint32_t *out_minor,
 				    uint32_t *out_patch);
 
+/**
+ * ethosn_smc_get_firmware_mem_info() - Call SiP service to get the NPU firmware
+ *                                      memory info.
+ * @device:	Pointer to the struct device on which to log any errors.
+ * @out_addr:	Location to put the firmware's address.
+ * @out_size:	Location to put the firmware's size.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ethosn_smc_get_firmware_mem_info(const struct device *dev,
+				     phys_addr_t *out_addr,
+				     size_t *out_size);
+
+/**
+ * ethosn_smc_get_firmware_offsets() - Call SiP service to get the NPU firmware
+ *                                     offsets.
+ * @device:		Pointer to the struct device on which to log any errors.
+ * @out_ple_offset:	Location to put the firmware's PLE offset.
+ * @out_stack_offset:	Location to put the firmware's stack offset.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ethosn_smc_get_firmware_offsets(const struct device *dev,
+				    uint32_t *out_ple_offset,
+				    uint32_t *out_stack_offset);
+
+/**
+ * ethosn_smc_get_firmware_va_map() - Call SiP service to get virtual base
+ *                                    address map for the NPU firmware.
+ * @device:	Pointer to the struct device on which to log any errors.
+ * @out_firmware_va:		Location to put firmware base address.
+ * @out_working_data_va:	Location to put working data base address.
+ * @out_command_stream_va:	Location to put command stream base address.
+ *
+ * Return: 0 on success, negative error code on failure.
+ */
+int ethosn_smc_get_firmware_va_map(const struct device *dev,
+				   dma_addr_t *out_firmware_va,
+				   dma_addr_t *out_working_data_va,
+				   dma_addr_t *out_command_stream_va);
+
 #endif
 
 #endif /* _ETHOSN_SMC_H_ */

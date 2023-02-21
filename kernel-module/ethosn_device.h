@@ -88,20 +88,37 @@ enum ethosn_status_code {
 	INFERENCE_SCHEDULED_ON_BUSY_CORE
 };
 
+#ifdef ETHOSN_TZMP1
+struct ethosn_protected_firmware {
+	phys_addr_t addr;
+	size_t      size;
+
+	dma_addr_t  firmware_addr_base;
+	dma_addr_t  working_data_addr_base;
+	dma_addr_t  command_stream_addr_base;
+
+	uint32_t    ple_offset;
+	uint32_t    stack_offset;
+};
+#endif
+
 struct ethosn_device {
-	struct ethosn_core            **core;
-	struct device                 *dev;
-	struct cdev                   cdev;
-	struct mutex                  mutex;
-	int                           parent_id;
-	int                           num_cores;
-	struct ethosn_inference_queue queue;
-	struct ethosn_dma_allocator   **asset_allocator;
-	int                           num_asset_allocs;
-	uint32_t                      current_busy_cores;
-	uint32_t                      status_mask;
-	bool                          smmu_available;
-	struct dentry                 *debug_dir;
+	struct ethosn_core               **core;
+	struct device                    *dev;
+	struct cdev                      cdev;
+	struct mutex                     mutex;
+	int                              parent_id;
+	int                              num_cores;
+	struct ethosn_inference_queue    queue;
+	struct ethosn_dma_allocator      **asset_allocator;
+	int                              num_asset_allocs;
+	uint32_t                         current_busy_cores;
+	uint32_t                         status_mask;
+	bool                             smmu_available;
+	struct dentry                    *debug_dir;
+#ifdef ETHOSN_TZMP1
+	struct ethosn_protected_firmware protected_firmware;
+#endif
 };
 
 struct ethosn_core {

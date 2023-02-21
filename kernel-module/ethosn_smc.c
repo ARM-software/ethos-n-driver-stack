@@ -201,4 +201,75 @@ int ethosn_smc_get_firmware_version(const struct device *dev,
 	return ret;
 }
 
+int ethosn_smc_get_firmware_mem_info(const struct device *dev,
+				     phys_addr_t *out_addr,
+				     size_t *out_size)
+{
+	struct arm_smccc_res res = { 0 };
+	int ret = ethosn_smc_core_call(ETHOSN_SMC_GET_FW_PROP,
+				       ETHOSN_FW_PROP_MEM_INFO,
+				       &res);
+
+	if (ret < 0) {
+		dev_err(dev,
+			"Failed to get firmware memory info from SiP service: %d\n",
+			ret);
+
+		return -ENXIO;
+	}
+
+	*out_addr = res.a1;
+	*out_size = res.a2;
+
+	return ret;
+}
+
+int ethosn_smc_get_firmware_offsets(const struct device *dev,
+				    uint32_t *out_ple_offset,
+				    uint32_t *out_stack_offset)
+{
+	struct arm_smccc_res res = { 0 };
+	int ret = ethosn_smc_core_call(ETHOSN_SMC_GET_FW_PROP,
+				       ETHOSN_FW_PROP_OFFSETS,
+				       &res);
+
+	if (ret < 0) {
+		dev_err(dev,
+			"Failed to get firmware offsets from SiP service: %d\n",
+			ret);
+
+		return -ENXIO;
+	}
+
+	*out_ple_offset = res.a1;
+	*out_stack_offset = res.a2;
+
+	return ret;
+}
+
+int ethosn_smc_get_firmware_va_map(const struct device *dev,
+				   dma_addr_t *out_firmware_va,
+				   dma_addr_t *out_working_data_va,
+				   dma_addr_t *out_command_stream_va)
+{
+	struct arm_smccc_res res = { 0 };
+	int ret = ethosn_smc_core_call(ETHOSN_SMC_GET_FW_PROP,
+				       ETHOSN_FW_PROP_VA_MAP,
+				       &res);
+
+	if (ret < 0) {
+		dev_err(dev,
+			"Failed to get firmware virtual address map from SiP service: %d\n",
+			ret);
+
+		return -ENXIO;
+	}
+
+	*out_firmware_va = res.a1;
+	*out_working_data_va = res.a2;
+	*out_command_stream_va = res.a3;
+
+	return ret;
+}
+
 #endif
