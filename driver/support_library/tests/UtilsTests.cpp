@@ -4,6 +4,7 @@
 //
 
 #include "../src/Utils.hpp"
+#include "TestUtils.hpp"
 
 #include <catch.hpp>
 
@@ -23,6 +24,15 @@ TEST_CASE("RoundDownToPow2")
     CHECK(RoundDownToPow2(0x80000000) == 0x80000000);
     CHECK(RoundDownToPow2(0x800a5f6e) == 0x80000000);
     CHECK(RoundDownToPow2(0xffffffff) == 0x80000000);
+}
+
+TEST_CASE("FindBestConvAlgorithm")
+{
+    const HardwareCapabilities capabilities = GetEthosN78HwCapabilities(EthosNVariant::ETHOS_N78_4TOPS_4PLE_RATIO);
+
+    CHECK(FindBestConvAlgorithm(capabilities, 1, 1) == CompilerMceAlgorithm::Direct);
+    CHECK(FindBestConvAlgorithm(capabilities, 3, 3) == CompilerMceAlgorithm::Winograd);
+    CHECK(FindBestConvAlgorithm(capabilities, 7, 7) == CompilerMceAlgorithm::Direct);
 }
 
 // Note that tests for IsCompressionFormatCompatibleWithStripeShape are covered by the
