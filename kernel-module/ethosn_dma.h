@@ -236,6 +236,7 @@ int ethosn_dma_top_allocator_destroy(struct device *dev,
  * @top_allocator: Pointer to the top-level allocator to make the sub-allocator
  * under
  * @stream_type: Stream type to select the sub-allocator to create
+ * @addr_base: Base address for the stream
  * @is_smmu_available: Is SMMU available in this device.
  *
  * Return:
@@ -244,6 +245,7 @@ int ethosn_dma_top_allocator_destroy(struct device *dev,
 int ethosn_dma_sub_allocator_create(struct device *dev,
 				    struct ethosn_dma_allocator *top_allocator,
 				    enum ethosn_stream_type stream_type,
+				    dma_addr_t addr_base,
 				    bool is_smmu_available);
 
 /**

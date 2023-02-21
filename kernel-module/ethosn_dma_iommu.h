@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2018-2020,2022 Arm Limited.
+ * (C) COPYRIGHT 2018-2020,2022-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -44,6 +44,7 @@
 
 struct ethosn_dma_sub_allocator *ethosn_dma_iommu_allocator_create(
 	struct device *dev,
-	enum ethosn_stream_type stream_type);
+	enum ethosn_stream_type stream_type,
+	dma_addr_t addr_base);
 
 #endif /* _ETHOSN_DMA_IOMMU_H_ */

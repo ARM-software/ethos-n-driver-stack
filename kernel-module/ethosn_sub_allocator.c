@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2022 Arm Limited.
+ * (C) COPYRIGHT 2022-2023 Arm Limited.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -22,6 +22,7 @@
 
 #include "ethosn_device.h"
 #include "ethosn_dma.h"
+#include "ethosn_dma_iommu.h"
 #include "ethosn_sub_allocator.h"
 #include "ethosn_backport.h"
 
@@ -69,6 +70,43 @@ static enum ethosn_stream_type get_stream_type(struct platform_device *pdev)
 		return ETHOSN_STREAM_INVALID;
 
 	return ETHOSN_STREAM_INVALID;
+}
+
+static dma_addr_t get_stream_addr_base(struct ethosn_device *ethosn,
+				       enum ethosn_stream_type stream_type)
+{
+	switch (stream_type) {
+	case ETHOSN_STREAM_FIRMWARE:
+	/* Fallthrough */
+	case ETHOSN_STREAM_PLE_CODE:
+
+		return IOMMU_FIRMWARE_ADDR_BASE;
+
+	case ETHOSN_STREAM_WORKING_DATA:
+
+		return IOMMU_WORKING_DATA_ADDR_BASE;
+
+	case ETHOSN_STREAM_COMMAND_STREAM:
+
+		return IOMMU_COMMAND_STREAM_ADDR_BASE;
+
+	case ETHOSN_STREAM_WEIGHT_DATA:
+
+		return IOMMU_WEIGHT_DATA_ADDR_BASE;
+
+	case ETHOSN_STREAM_IO_BUFFER:
+
+		return IOMMU_BUFFER_ADDR_BASE;
+
+	case ETHOSN_STREAM_INTERMEDIATE_BUFFER:
+
+		return IOMMU_INTERMEDIATE_BUFFER_ADDR_BASE;
+
+	default:
+		WARN_ON(1);
+
+		return 0U;
+	}
 }
 
 static int ethosn_mem_stream_pdev_remove(struct platform_device *pdev)
@@ -127,6 +165,8 @@ static int ethosn_mem_stream_pdev_probe(struct platform_device *pdev)
 
 	ret = ethosn_dma_sub_allocator_create(&pdev->dev, top_allocator,
 					      stream_type,
+					      get_stream_addr_base(ethosn,
+								   stream_type),
 					      ethosn->smmu_available);
 
 	if (ret)

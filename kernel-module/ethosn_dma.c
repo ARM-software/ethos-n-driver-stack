@@ -188,6 +188,7 @@ int ethosn_dma_top_allocator_destroy(struct device *dev,
 int ethosn_dma_sub_allocator_create(struct device *dev,
 				    struct ethosn_dma_allocator *top_allocator,
 				    enum ethosn_stream_type stream_type,
+				    dma_addr_t addr_base,
 				    bool is_smmu_available)
 {
 	struct ethosn_dma_sub_allocator **allocator;
@@ -197,9 +198,14 @@ int ethosn_dma_sub_allocator_create(struct device *dev,
 
 	allocator = ethosn_get_sub_allocator_ref(top_allocator, stream_type);
 
+	/*
+	 * Address base only needed for SMMU because carveout will parse it from
+	 * the device tree.
+	 */
 	if (is_smmu_available)
 		*allocator =
-			ethosn_dma_iommu_allocator_create(dev, stream_type);
+			ethosn_dma_iommu_allocator_create(dev, stream_type,
+							  addr_base);
 
 	else
 		*allocator = ethosn_dma_carveout_allocator_create(dev);

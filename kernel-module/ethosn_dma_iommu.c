@@ -133,44 +133,6 @@ static int ethosn_nr_pages(struct ethosn_dma_info_internal *dma_info)
 	return DIV_ROUND_UP(dma_info->info.size, PAGE_SIZE);
 }
 
-static dma_addr_t ethosn_stream_addr_base(enum ethosn_stream_type stream_type)
-{
-	switch (stream_type) {
-	case ETHOSN_STREAM_FIRMWARE:
-
-		return IOMMU_FIRMWARE_ADDR_BASE;
-
-	case ETHOSN_STREAM_WORKING_DATA:
-
-		return IOMMU_WORKING_DATA_ADDR_BASE;
-
-	case ETHOSN_STREAM_COMMAND_STREAM:
-
-		return IOMMU_COMMAND_STREAM_ADDR_BASE;
-
-	case ETHOSN_STREAM_PLE_CODE:
-
-		return IOMMU_FIRMWARE_ADDR_BASE;
-
-	case ETHOSN_STREAM_WEIGHT_DATA:
-
-		return IOMMU_WEIGHT_DATA_ADDR_BASE;
-
-	case ETHOSN_STREAM_IO_BUFFER:
-
-		return IOMMU_BUFFER_ADDR_BASE;
-
-	case ETHOSN_STREAM_INTERMEDIATE_BUFFER:
-
-		return IOMMU_INTERMEDIATE_BUFFER_ADDR_BASE;
-
-	default:
-		WARN_ON(1);
-
-		return 0U;
-	}
-}
-
 static dma_addr_t iommu_get_addr_base(
 	struct ethosn_dma_sub_allocator *allocator,
 	enum ethosn_stream_type stream_type)
@@ -903,6 +865,7 @@ static int iommu_mmap(struct ethosn_dma_sub_allocator *allocator,
 
 static int iommu_stream_init(struct ethosn_allocator_internal *allocator,
 			     enum ethosn_stream_type stream_type,
+			     dma_addr_t addr_base,
 			     size_t bitmap_size)
 {
 	struct ethosn_iommu_domain *domain = &allocator->ethosn_iommu_domain;
@@ -919,7 +882,7 @@ static int iommu_stream_init(struct ethosn_allocator_internal *allocator,
 	if (!stream->bitmap)
 		return -ENOMEM;
 
-	stream->addr_base = ethosn_stream_addr_base(stream_type);
+	stream->addr_base = addr_base;
 	stream->type = stream_type;
 	stream->bits = bitmap_size * BITS_PER_BYTE;
 	spin_lock_init(&stream->lock);
@@ -1012,7 +975,8 @@ static void iommu_allocator_destroy(struct ethosn_dma_sub_allocator *_allocator)
 
 struct ethosn_dma_sub_allocator *ethosn_dma_iommu_allocator_create(
 	struct device *dev,
-	enum ethosn_stream_type stream_type)
+	enum ethosn_stream_type stream_type,
+	dma_addr_t addr_base)
 {
 	static const struct ethosn_dma_allocator_ops ops = {
 		.destroy         = iommu_allocator_destroy,
@@ -1059,7 +1023,8 @@ struct ethosn_dma_sub_allocator *ethosn_dma_iommu_allocator_create(
 		bitmap_size = BITS_TO_LONGS(IOMMU_ADDR_SIZE >> PAGE_SHIFT) *
 			      sizeof(unsigned long);
 
-		ret = iommu_stream_init(allocator, stream_type, bitmap_size);
+		ret = iommu_stream_init(allocator, stream_type, addr_base,
+					bitmap_size);
 		if (ret)
 			goto err_stream;
 

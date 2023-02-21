@@ -1003,12 +1003,14 @@ static int ethosn_create_carveout_asset_allocator(struct ethosn_device *ethosn)
 	if (IS_ERR_OR_NULL(ethosn->asset_allocator[0]))
 		return PTR_ERR(ethosn->asset_allocator[0]);
 
-	/* Carveout case doesn't distinguish between streams,
-	 * giving IO BUFFERS as a parameter is still required.
+	/* Carveout case doesn't distinguish between streams and will get its
+	 * address base from the device tree so giving IO BUFFER and 0 as the
+	 * parameters are still required.
 	 */
 	ret = ethosn_dma_sub_allocator_create(ethosn->dev,
 					      ethosn->asset_allocator[0],
 					      ETHOSN_STREAM_IO_BUFFER,
+					      0U,
 					      false);
 
 	if (ret) {
@@ -1042,12 +1044,14 @@ static int ethosn_create_carveout_main_allocator(struct ethosn_core *core)
 	if (IS_ERR_OR_NULL(core->main_allocator))
 		return PTR_ERR(core->main_allocator);
 
-	/* Carveout case doesn't distinguish between streams,
-	 * giving IO BUFFER as a parameter is still required.
+	/* Carveout case doesn't distinguish between streams and will get its
+	 * address base from the device tree so giving IO BUFFER and 0 as the
+	 * parameters are still required.
 	 */
 	ret = ethosn_dma_sub_allocator_create(core->dev,
 					      core->main_allocator,
 					      ETHOSN_STREAM_IO_BUFFER,
+					      0U,
 					      false);
 
 	if (ret) {
