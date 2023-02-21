@@ -85,7 +85,6 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
     // Fully connected only supports 8x8 block configs
     const BlockConfig blockConfig                                              = { 8u, 8u };
     command_stream::cascading::PackedBoundaryThickness packedBoundaryThickness = { 0, 0, 0, 0 };
-    const uint32_t numIfmLoads                                                 = 1;
     const uint32_t numWeightLoads                                              = 1;
 
     StripeInfos stripeInfos;
@@ -104,6 +103,8 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
         NumStripes numStripesInput   = { 1, 1 };
         NumStripes numStripesWeights = { 1, 1 };
         NumStripes numStripesOutput  = { 1, 1 };
+
+        const uint32_t numIfmLoads = 1;
 
         MceAndPleInfo mceAndPleInfo;
 
@@ -143,6 +144,8 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
 
             uint32_t maxNumStripesOutput = GetChannels(m_OutputTensorShape) > GetChannels(mceOutputStripe) ? 2 : 1;
             NumStripes numStripesOutput  = { 1, maxNumStripesOutput };
+
+            const uint32_t numIfmLoads = 1;
 
             MceAndPleInfo mceAndPleInfo;
 
@@ -189,6 +192,9 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
             NumStripes numStripesOutput  = { 1, maxNumStripesOutput };
 
             NumStripes numStripesWeights = { 1, 1 };
+
+            const uint32_t numIfmLoads =
+                utils::DivRoundUp(GetChannels(m_OutputTensorShape), GetChannels(mceOutputStripe));
 
             MceAndPleInfo mceAndPleInfo;
 
