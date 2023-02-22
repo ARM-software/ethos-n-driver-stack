@@ -14,6 +14,7 @@
 #include <armnn/Optional.hpp>
 #include <armnn/backends/TensorHandle.hpp>
 #include <armnn/utility/Assert.hpp>
+#include <armnn/utility/PolymorphicDowncast.hpp>
 #include <armnnUtils/Filesystem.hpp>
 #include <armnnUtils/Permute.hpp>
 #include <ethosn_utils/VectorStream.hpp>
@@ -68,8 +69,7 @@ std::pair<const ConstTensorHandle&, const ConstTensorHandle*> GetWeightsAndBiasH
     {
         throw armnn::Exception("Layer's weight slot connected to non-constant layer");
     }
-    const ConstTensorHandle& weightsHandle =
-        *armnn::PolymorphicDowncast<const ConstantLayer*>(&weightsLayer)->m_LayerOutput;
+    const ConstTensorHandle& weightsHandle = *weightsLayer.GetConstantTensorsByRef()[0].get();
 
     // Get the bias tensor (if any) from the layer connected to input slot #2
     const ConstTensorHandle* biasHandle = nullptr;
@@ -85,7 +85,7 @@ std::pair<const ConstTensorHandle&, const ConstTensorHandle*> GetWeightsAndBiasH
         {
             throw armnn::Exception("Layer's bias slot connected to non-constant layer");
         }
-        biasHandle = armnn::PolymorphicDowncast<const ConstantLayer*>(&biasLayer)->m_LayerOutput.get();
+        biasHandle = biasLayer.GetConstantTensorsByRef()[0].get().get();
     }
 
     return { weightsHandle, biasHandle };
@@ -222,18 +222,18 @@ void EthosNSubgraphViewConverter::AddActivationLayer(const IConnectableLayer* la
     ARMNN_ASSERT(layer != nullptr);
     ARMNN_ASSERT(layer->GetType() == LayerType::Activation);
 
-    const ActivationLayer& activationLayer = *PolymorphicPointerDowncast<const ActivationLayer>(layer);
+    const ActivationDescriptor& descriptor = *PolymorphicDowncast<const ActivationDescriptor*>(&layer->GetParameters());
 
     auto input1 = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
     EthosNAddOperationResult newOperand;
-    switch (activationLayer.GetParameters().m_Function)
+    switch (descriptor.m_Function)
     {
         case ActivationFunction::ReLu:
         case ActivationFunction::BoundedReLu:
         {
-            const Optional<ethosn_lib::ReluInfo> reluInfo = BuildEthosNReluInfo(
-                activationLayer.GetParameters(), layer->GetInputSlot(0).GetConnection()->GetTensorInfo());
+            const Optional<ethosn_lib::ReluInfo> reluInfo =
+                BuildEthosNReluInfo(descriptor, layer->GetInputSlot(0).GetConnection()->GetTensorInfo());
             if (!reluInfo.has_value())
             {
                 throw Exception("Unsupported relu configuration");
@@ -245,8 +245,8 @@ void EthosNSubgraphViewConverter::AddActivationLayer(const IConnectableLayer* la
         }
         case ActivationFunction::LeakyReLu:
         {
-            const ethosn_lib::LeakyReluInfo leakyReluInfo = BuildEthosNLeakyReluInfo(
-                activationLayer.GetParameters(), activationLayer.GetOutputSlot(0).GetTensorInfo());
+            const ethosn_lib::LeakyReluInfo leakyReluInfo =
+                BuildEthosNLeakyReluInfo(descriptor, layer->GetOutputSlot(0).GetTensorInfo());
 
             newOperand = ethosn_lib::AddLeakyRelu(m_Network, *input1.tensor, leakyReluInfo);
 
@@ -268,7 +268,7 @@ void EthosNSubgraphViewConverter::AddActivationLayer(const IConnectableLayer* la
             {
                 std::string reasonForEstimateOnly = "Unsupported activation function.";
                 ethosn_lib::EstimateOnlyInfo estimateInfo(
-                    { BuildEthosNTensorInfo(activationLayer.GetOutputSlot(0).GetTensorInfo(), DataLayout::NHWC) },
+                    { BuildEthosNTensorInfo(layer->GetOutputSlot(0).GetTensorInfo(), DataLayout::NHWC) },
                     reasonForEstimateOnly);
                 auto tensorsAndId = ethosn_lib::AddEstimateOnly(m_Network, { input1.tensor.get() }, estimateInfo);
                 newOperand        = { tensorsAndId.tensors[0], tensorsAndId.operationId };
@@ -304,7 +304,7 @@ void EthosNSubgraphViewConverter::AddConstantLayer(const IConnectableLayer* laye
 
     ethosn_lib::TensorInfo tensorInfo =
         BuildEthosNTensorInfo(layer->GetOutputSlot(0).GetTensorInfo(), DataLayout::NHWC);
-    const void* data = PolymorphicPointerDowncast<const ConstantLayer>(layer)->m_LayerOutput->GetConstTensor<void>();
+    const void* data = layer->GetConstantTensorsByRef()[0].get()->GetConstTensor<void>();
 
     auto constantAndId = ethosn_lib::AddConstant(m_Network, tensorInfo, data);
 
@@ -320,19 +320,18 @@ void EthosNSubgraphViewConverter::AddConvolution2dLayer(const IConnectableLayer*
     ARMNN_ASSERT(layer != nullptr);
     ARMNN_ASSERT(layer->GetType() == LayerType::Convolution2d);
 
-    const Convolution2dLayer& convolutionLayer = *PolymorphicPointerDowncast<const Convolution2dLayer>(layer);
-    Convolution2dDescriptor descriptor         = convolutionLayer.GetParameters();
+    const Convolution2dDescriptor& descriptor =
+        *PolymorphicDowncast<const Convolution2dDescriptor*>(&layer->GetParameters());
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
-    auto weightsAndBiasHandle = GetWeightsAndBiasHandle(convolutionLayer);
+    auto weightsAndBiasHandle = GetWeightsAndBiasHandle(*layer);
 
-    auto biases = AddBiases(convolutionLayer, weightsAndBiasHandle.second, weightsAndBiasHandle.first.GetTensorInfo(),
+    auto biases  = AddBiases(*layer, weightsAndBiasHandle.second, weightsAndBiasHandle.first.GetTensorInfo(),
                             descriptor.m_BiasEnabled);
-    auto weights =
-        AddWeights(convolutionLayer, convolutionLayer.GetParameters().m_DataLayout, weightsAndBiasHandle.first);
+    auto weights = AddWeights(*layer, descriptor.m_DataLayout, weightsAndBiasHandle.first);
 
-    auto& outputInfo                                      = convolutionLayer.GetOutputSlot(0).GetTensorInfo();
+    auto& outputInfo                                      = layer->GetOutputSlot(0).GetTensorInfo();
     Optional<ethosn_lib::ConvolutionInfo> convolutionInfo = BuildEthosNConvolutionInfo(
         descriptor, outputInfo.GetQuantizationOffset(), outputInfo.GetQuantizationScale(), {});
     if (!convolutionInfo.has_value())
@@ -350,9 +349,6 @@ void EthosNSubgraphViewConverter::AddMeanXyLayer(const IConnectableLayer* layer)
     ARMNN_ASSERT(layer != nullptr);
     ARMNN_ASSERT(layer->GetType() == LayerType::Mean);
 
-    const MeanLayer& meanLayer = *PolymorphicPointerDowncast<const MeanLayer>(layer);
-    MeanDescriptor descriptor  = meanLayer.GetParameters();
-
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
     // Mean has exactly one output that maps neatly to the NPU
@@ -364,18 +360,16 @@ void EthosNSubgraphViewConverter::AddDepthwiseConvolution2dLayer(const IConnecta
     ARMNN_ASSERT(layer != nullptr);
     ARMNN_ASSERT(layer->GetType() == LayerType::DepthwiseConvolution2d);
 
-    const DepthwiseConvolution2dLayer& depthwiseConvolution2dLayer =
-        *PolymorphicPointerDowncast<const DepthwiseConvolution2dLayer>(layer);
-    DepthwiseConvolution2dDescriptor descriptor = depthwiseConvolution2dLayer.GetParameters();
+    const DepthwiseConvolution2dDescriptor& descriptor =
+        *PolymorphicDowncast<const DepthwiseConvolution2dDescriptor*>(&layer->GetParameters());
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
-    auto weightsAndBiasHandle = GetWeightsAndBiasHandle(depthwiseConvolution2dLayer);
+    auto weightsAndBiasHandle = GetWeightsAndBiasHandle(*layer);
 
-    auto biases  = AddBiases(depthwiseConvolution2dLayer, weightsAndBiasHandle.second,
-                            weightsAndBiasHandle.first.GetTensorInfo(), descriptor.m_BiasEnabled);
-    auto weights = AddWeights(depthwiseConvolution2dLayer, depthwiseConvolution2dLayer.GetParameters().m_DataLayout,
-                              weightsAndBiasHandle.first);
+    auto biases  = AddBiases(*layer, weightsAndBiasHandle.second, weightsAndBiasHandle.first.GetTensorInfo(),
+                            descriptor.m_BiasEnabled);
+    auto weights = AddWeights(*layer, descriptor.m_DataLayout, weightsAndBiasHandle.first);
 
     auto outputInfo      = layer->GetOutputSlot(0).GetTensorInfo();
     auto convolutionInfo = BuildEthosNConvolutionInfo(descriptor, outputInfo.GetQuantizationOffset(),
@@ -395,21 +389,19 @@ void EthosNSubgraphViewConverter::AddTransposeConvolution2dLayer(const IConnecta
     ARMNN_ASSERT(layer != nullptr);
     ARMNN_ASSERT(layer->GetType() == LayerType::TransposeConvolution2d);
 
-    const TransposeConvolution2dLayer& transposeConvolution2dLayer =
-        *PolymorphicPointerDowncast<const TransposeConvolution2dLayer>(layer);
-    TransposeConvolution2dDescriptor descriptor = transposeConvolution2dLayer.GetParameters();
+    const TransposeConvolution2dDescriptor& descriptor =
+        *PolymorphicDowncast<const TransposeConvolution2dDescriptor*>(&layer->GetParameters());
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
     // Arm NN is transitioning from having weights/bias as intrinsic properties of the layer to having them
     // as separate layers with connections. For now, TransposeConvolution2d is not converted and use the old
     // way with m_Weight and m_Bias
+    auto weightsAndBias = layer->GetConstantTensorsByRef();
 
-    ARMNN_ASSERT(transposeConvolution2dLayer.m_Weight);
-    auto biases  = AddBiases(transposeConvolution2dLayer, transposeConvolution2dLayer.m_Bias.get(),
-                            transposeConvolution2dLayer.m_Weight->GetTensorInfo(), descriptor.m_BiasEnabled);
-    auto weights = AddWeights(transposeConvolution2dLayer, transposeConvolution2dLayer.GetParameters().m_DataLayout,
-                              *transposeConvolution2dLayer.m_Weight);
+    auto biases  = AddBiases(*layer, weightsAndBias[1].get().get(), weightsAndBias[0].get()->GetTensorInfo(),
+                            descriptor.m_BiasEnabled);
+    auto weights = AddWeights(*layer, descriptor.m_DataLayout, *weightsAndBias[0].get());
 
     auto outputInfo = layer->GetOutputSlot(0).GetTensorInfo();
     auto convolutionInfo =
@@ -467,7 +459,6 @@ void EthosNSubgraphViewConverter::AddConcatLayer(const IConnectableLayer* layer)
 {
     ARMNN_ASSERT(layer != nullptr);
     ARMNN_ASSERT(layer->GetType() == LayerType::Concat);
-    const ConcatLayer& concatLayer = *PolymorphicPointerDowncast<const ConcatLayer>(layer);
 
     unsigned int numInputSlots = layer->GetNumInputSlots();
     ARMNN_ASSERT(numInputSlots >= 2u);
@@ -485,7 +476,7 @@ void EthosNSubgraphViewConverter::AddConcatLayer(const IConnectableLayer* layer)
 
     // The Ethos-N's concat axis is the same as Arm NN's even if the tensor shapes have been padded to 4D,
     // because we pad on the right hand side of the dimensions.
-    uint32_t ethosnConcatAxis = concatLayer.GetParameters().GetConcatAxis();
+    uint32_t ethosnConcatAxis = PolymorphicDowncast<const ConcatDescriptor*>(&layer->GetParameters())->GetConcatAxis();
 
     // Concatenation has exactly one output that maps neatly to the NPU
     // Note we ignore the "view origins" contained in OriginsDescriptor and use just the "concat axis".
@@ -500,8 +491,7 @@ void EthosNSubgraphViewConverter::AddPooling2dLayer(const IConnectableLayer* lay
     ARMNN_ASSERT(layer != nullptr);
     ARMNN_ASSERT(layer->GetType() == LayerType::Pooling2d);
 
-    const Pooling2dLayer& pooling2dLayer = *PolymorphicPointerDowncast<const Pooling2dLayer>(layer);
-    Pooling2dDescriptor descriptor       = pooling2dLayer.GetParameters();
+    const Pooling2dDescriptor& descriptor = *PolymorphicDowncast<const Pooling2dDescriptor*>(&layer->GetParameters());
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
@@ -515,8 +505,7 @@ void EthosNSubgraphViewConverter::AddReshapeLayer(const IConnectableLayer* layer
     ARMNN_ASSERT(layer != nullptr);
     ARMNN_ASSERT(layer->GetType() == LayerType::Reshape);
 
-    const ReshapeLayer& reshapeLayer = *PolymorphicPointerDowncast<const ReshapeLayer>(layer);
-    ReshapeDescriptor descriptor     = reshapeLayer.GetParameters();
+    const ReshapeDescriptor& descriptor = *PolymorphicDowncast<const ReshapeDescriptor*>(&layer->GetParameters());
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
@@ -540,13 +529,13 @@ void EthosNSubgraphViewConverter::AddSplitterLayer(const IConnectableLayer* laye
 {
     ARMNN_ASSERT(layer != nullptr);
     ARMNN_ASSERT(layer->GetType() == LayerType::Splitter);
-    const SplitterLayer& splitterLayer = *PolymorphicPointerDowncast<const SplitterLayer>(layer);
+    const SplitterDescriptor& descriptor = *PolymorphicDowncast<const SplitterDescriptor*>(&layer->GetParameters());
 
     auto input             = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
     TensorShape inputShape = layer->GetInputSlot(0).GetConnection()->GetTensorInfo().GetShape();
 
     // Note it's safe to assume that BuildEthosNSplitInfo succeeds, because we checked this in IsSplitterSupported.
-    ethosn_lib::SplitInfo ethosnSplitInfo = BuildEthosNSplitInfo(inputShape, splitterLayer.GetParameters()).value();
+    ethosn_lib::SplitInfo ethosnSplitInfo = BuildEthosNSplitInfo(inputShape, descriptor).value();
 
     InsertConvertedLayerMultipleOutput(layer, ethosn_lib::AddSplit(m_Network, *input.tensor, ethosnSplitInfo));
 }
@@ -555,11 +544,12 @@ void EthosNSubgraphViewConverter::AddDepthToSpaceLayer(const IConnectableLayer* 
 {
     ARMNN_ASSERT(layer != nullptr);
     ARMNN_ASSERT(layer->GetType() == LayerType::DepthToSpace);
-    const DepthToSpaceLayer& depthToSpaceLayer = *PolymorphicPointerDowncast<const DepthToSpaceLayer>(layer);
+    const DepthToSpaceDescriptor& descriptor =
+        *PolymorphicDowncast<const DepthToSpaceDescriptor*>(&layer->GetParameters());
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
-    ethosn_lib::DepthToSpaceInfo info(depthToSpaceLayer.GetParameters().m_BlockSize);
+    ethosn_lib::DepthToSpaceInfo info(descriptor.m_BlockSize);
 
     // DepthToSpace has exactly one output that maps neatly to the NPU
     InsertConvertedLayerSingleOutput(layer, ethosn_lib::AddDepthToSpace(m_Network, *input.tensor, info));
@@ -569,11 +559,12 @@ void EthosNSubgraphViewConverter::AddSpaceToDepthLayer(const IConnectableLayer* 
 {
     ARMNN_ASSERT(layer != nullptr);
     ARMNN_ASSERT(layer->GetType() == LayerType::SpaceToDepth);
-    const SpaceToDepthLayer& spaceToDepthLayer = *PolymorphicPointerDowncast<const SpaceToDepthLayer>(layer);
+    const SpaceToDepthDescriptor& descriptor =
+        *PolymorphicDowncast<const SpaceToDepthDescriptor*>(&layer->GetParameters());
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
-    ethosn_lib::SpaceToDepthInfo info(spaceToDepthLayer.GetParameters().m_BlockSize);
+    ethosn_lib::SpaceToDepthInfo info(descriptor.m_BlockSize);
 
     // SpaceToDepth has exactly one output that maps neatly to the NPU
     InsertConvertedLayerSingleOutput(layer, ethosn_lib::AddSpaceToDepth(m_Network, *input.tensor, info));
@@ -583,12 +574,12 @@ void EthosNSubgraphViewConverter::AddTransposeLayer(const IConnectableLayer* lay
 {
     ARMNN_ASSERT(layer != nullptr);
     ARMNN_ASSERT(layer->GetType() == LayerType::Transpose);
-    const TransposeLayer& transposeLayer = *PolymorphicPointerDowncast<const TransposeLayer>(layer);
+    const TransposeDescriptor& descriptor = *PolymorphicDowncast<const TransposeDescriptor*>(&layer->GetParameters());
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
     // Note it's safe to assume that BuildEthosNTransposeInfo succeeds, because we checked this in IsTransposeSupported.
-    auto transposeInfo = BuildEthosNTransposeInfo(transposeLayer.GetPermutation());
+    auto transposeInfo = BuildEthosNTransposeInfo(descriptor.m_DimMappings);
 
     InsertConvertedLayerSingleOutput(layer, ethosn_lib::AddTranspose(m_Network, *input.tensor, transposeInfo.value()));
 }
@@ -597,12 +588,11 @@ void EthosNSubgraphViewConverter::AddQuantizeLayer(const IConnectableLayer* laye
 {
     ARMNN_ASSERT(layer != nullptr);
     ARMNN_ASSERT(layer->GetType() == LayerType::Quantize);
-    const QuantizeLayer& quantizeLayer = *PolymorphicPointerDowncast<const QuantizeLayer>(layer);
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
     // Note it's safe to assume that BuildEthosNRequantizeInfo succeeds, because we checked this in IsRequantizeSupported.
-    auto requantizeInfo = BuildEthosNRequantizeInfo(quantizeLayer.GetOutputSlot(0).GetTensorInfo());
+    auto requantizeInfo = BuildEthosNRequantizeInfo(layer->GetOutputSlot(0).GetTensorInfo());
 
     InsertConvertedLayerSingleOutput(layer, ethosn_lib::AddRequantize(m_Network, *input.tensor, requantizeInfo));
 }
@@ -611,12 +601,12 @@ void EthosNSubgraphViewConverter::AddResizeLayer(const IConnectableLayer* layer)
 {
     ARMNN_ASSERT(layer != nullptr);
     ARMNN_ASSERT(layer->GetType() == LayerType::Resize);
-    const ResizeLayer& resizeLayer = *PolymorphicPointerDowncast<const ResizeLayer>(layer);
+    const ResizeDescriptor& descriptor = *PolymorphicDowncast<const ResizeDescriptor*>(&layer->GetParameters());
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
     // Note it's safe to assume that BuildEthosNResizeInfo succeeds, because we checked this in IsResizeSupported.
-    auto resizeInfo = BuildEthosNResizeInfo(resizeLayer.GetParameters(), resizeLayer.GetOutputSlot(0).GetTensorInfo());
+    auto resizeInfo = BuildEthosNResizeInfo(descriptor, layer->GetOutputSlot(0).GetTensorInfo());
 
     InsertConvertedLayerSingleOutput(layer, ethosn_lib::AddResize(m_Network, *input.tensor, resizeInfo));
 }
@@ -649,25 +639,23 @@ void EthosNSubgraphViewConverter::AddStandInLayer(const IConnectableLayer* layer
 {
     ARMNN_ASSERT(layer != nullptr);
     ARMNN_ASSERT(layer->GetType() == LayerType::StandIn);
-    const StandInLayer& standInLayer = *PolymorphicPointerDowncast<const StandInLayer>(layer);
+    const StandInDescriptor& descriptor = *PolymorphicDowncast<const StandInDescriptor*>(&layer->GetParameters());
 
     auto input = AddOrRetrieveEthosNOperand(layer->GetInputSlot(0).GetConnection());
 
     // StandIn layer being used to add a ReinterpretQuantization operation.
     if ((std::string(layer->GetName()) == "EthosNBackend:ReplaceScalarMulWithReinterpretQuantization") &&
-        (standInLayer.GetParameters().m_NumInputs == 1U) && (standInLayer.GetParameters().m_NumOutputs == 1U))
+        (descriptor.m_NumInputs == 1U) && (descriptor.m_NumOutputs == 1U))
     {
-        auto reinterpretQuantizeInfo =
-            BuildEthosNReinterpretQuantizationInfo(standInLayer.GetOutputSlot(0).GetTensorInfo());
+        auto reinterpretQuantizeInfo = BuildEthosNReinterpretQuantizationInfo(layer->GetOutputSlot(0).GetTensorInfo());
 
         InsertConvertedLayerSingleOutput(
             layer, ethosn_lib::AddReinterpretQuantization(m_Network, *input.tensor, reinterpretQuantizeInfo));
     }
     else if ((std::string(layer->GetName()) == "EthosNBackend:ReplaceScalarAddWithReinterpretQuantization") &&
-             (standInLayer.GetParameters().m_NumInputs == 1U) && (standInLayer.GetParameters().m_NumOutputs == 1U))
+             (descriptor.m_NumInputs == 1U) && (descriptor.m_NumOutputs == 1U))
     {
-        auto reinterpretQuantizeInfo =
-            BuildEthosNReinterpretQuantizationInfo(standInLayer.GetOutputSlot(0).GetTensorInfo());
+        auto reinterpretQuantizeInfo = BuildEthosNReinterpretQuantizationInfo(layer->GetOutputSlot(0).GetTensorInfo());
         InsertConvertedLayerSingleOutput(
             layer, ethosn_lib::AddReinterpretQuantization(m_Network, *input.tensor, reinterpretQuantizeInfo));
     }
@@ -836,7 +824,7 @@ void DeleteAsType(const void* const blob)
 }
 }    // namespace
 
-std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Estimate()
+std::vector<EthosNPreCompiledObjectPtr> EthosNSubgraphViewConverter::Estimate()
 {
     ethosn_lib::EstimationOptions ethosnEstimationOpts;
     ethosnEstimationOpts.m_ActivationCompressionSaving  = m_EthosNConfig.m_PerfActivationCompressionSaving;
@@ -856,7 +844,7 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Estimate()
     auto preCompiledObj =
         std::make_unique<EthosNPreCompiledObject>(std::move(perfData), m_EthosNOperationNameMapping, m_SubgraphIdx);
 
-    std::vector<PreCompiledObjectPtr> compiledBlobs;
+    std::vector<EthosNPreCompiledObjectPtr> compiledBlobs;
 
     // Convert the EthosNPreCompiledObject into a "blob" (void) object and attach the custom blob deleter
     compiledBlobs.emplace_back(preCompiledObj.release(), DeleteAsType<EthosNPreCompiledObject>);
@@ -864,12 +852,12 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Estimate()
     return compiledBlobs;
 }
 
-std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::CompileNetwork()
+std::vector<EthosNPreCompiledObjectPtr> EthosNSubgraphViewConverter::CompileNetwork()
 {
     fs::create_directories(m_CompilationOptions.m_DebugInfo.m_DebugDir);
 
     // Compile the network into a list of generic type-agnostic "blobs"
-    std::vector<PreCompiledObjectPtr> compiledBlobs;
+    std::vector<EthosNPreCompiledObjectPtr> compiledBlobs;
 
     try
     {
@@ -891,9 +879,9 @@ std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::CompileNetwork()
     return compiledBlobs;
 }
 
-std::vector<PreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
+std::vector<EthosNPreCompiledObjectPtr> EthosNSubgraphViewConverter::Compile()
 {
-    std::vector<PreCompiledObjectPtr> compiledBlobs;
+    std::vector<EthosNPreCompiledObjectPtr> compiledBlobs;
 
     auto caching = EthosNCachingService::GetInstance().GetEthosNCachingPtr();
 
