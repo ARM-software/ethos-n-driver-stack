@@ -713,7 +713,7 @@ inline void AddDependency(std::array<command_stream::cascading::Dependency, N>& 
     assert(false);
 }
 
-int8_t CalculateIfmSMceSBoundary(const command_stream::cascading::MceS& mce)
+int8_t CalculateMceSBoundary(const command_stream::cascading::MceS& mce)
 {
     // MceS needs to wait for two IfmS stripes at the start of each outer ratio if neighbouring data
     // is needed. This is not applicable if all the boundary data is packed though.

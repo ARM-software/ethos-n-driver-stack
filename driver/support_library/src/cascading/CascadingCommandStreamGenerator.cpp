@@ -1113,7 +1113,7 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                     ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio);
                 consumerAgentDependency.innerRatio.self = 1;
 
-                consumerAgentDependency.boundary = DependencyUtils::CalculateIfmSMceSBoundary(consumerAgent.data.mce);
+                consumerAgentDependency.boundary = DependencyUtils::CalculateMceSBoundary(consumerAgent.data.mce);
             }
             // Read After Write Dependency for [MceScheduler][WeightStreamer]
             else if (producerAgentType == AgentType::WGT_STREAMER)
@@ -1164,20 +1164,7 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                     ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio * channelRatio);
                 consumerAgentDependency.innerRatio.self = 1;
 
-                bool needsBoundaryBeforeX = producerAgent.data.pleS.numStripes.width > 1 &&
-                                            (consumerAgent.data.mce.filterShape[0].width >= 2 ||
-                                             consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
-                bool needsBoundaryAfterX = producerAgent.data.pleS.numStripes.width > 1 &&
-                                           (consumerAgent.data.mce.filterShape[0].width >= 3 ||
-                                            consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
-                bool needsBoundaryBeforeY = producerAgent.data.pleS.numStripes.height > 1 &&
-                                            (consumerAgent.data.mce.filterShape[0].height >= 2 ||
-                                             consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
-                bool needsBoundaryAfterY = producerAgent.data.pleS.numStripes.height > 1 &&
-                                           (consumerAgent.data.mce.filterShape[0].height >= 3 ||
-                                            consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
-                consumerAgentDependency.boundary =
-                    needsBoundaryBeforeX || needsBoundaryAfterX || needsBoundaryBeforeY || needsBoundaryAfterY;
+                consumerAgentDependency.boundary = DependencyUtils::CalculateMceSBoundary(consumerAgent.data.mce);
             }
             else
             {
@@ -1418,7 +1405,7 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                 producerAgentDependency.innerRatio.self =
                     ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio);
 
-                producerAgentDependency.boundary = DependencyUtils::CalculateIfmSMceSBoundary(consumerAgent.data.mce);
+                producerAgentDependency.boundary = DependencyUtils::CalculateMceSBoundary(consumerAgent.data.mce);
             }
             // Write After Read Dependency for [WeightStreamer][MceScheduler] or
             // Schedule Time Dependency for [WeightStreamer][MceScheduler]
@@ -1494,20 +1481,7 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                     ethosn::utils::NumericCast<uint16_t>(widthRatio * heightRatio * channelRatio);
                 producerAgentDependency.innerRatio.other = 1;
 
-                bool needsBoundaryBeforeX = producerAgent.data.pleS.numStripes.width > 1 &&
-                                            (consumerAgent.data.mce.filterShape[0].width >= 2 ||
-                                             consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
-                bool needsBoundaryAfterX = producerAgent.data.pleS.numStripes.width > 1 &&
-                                           (consumerAgent.data.mce.filterShape[0].width >= 3 ||
-                                            consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
-                bool needsBoundaryBeforeY = producerAgent.data.pleS.numStripes.height > 1 &&
-                                            (consumerAgent.data.mce.filterShape[0].height >= 2 ||
-                                             consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
-                bool needsBoundaryAfterY = producerAgent.data.pleS.numStripes.height > 1 &&
-                                           (consumerAgent.data.mce.filterShape[0].height >= 3 ||
-                                            consumerAgent.data.mce.upsampleType != UpsampleType::OFF);
-                producerAgentDependency.boundary =
-                    needsBoundaryBeforeX || needsBoundaryAfterX || needsBoundaryBeforeY || needsBoundaryAfterY;
+                producerAgentDependency.boundary = DependencyUtils::CalculateMceSBoundary(consumerAgent.data.mce);
             }
             else
             {
