@@ -55,6 +55,7 @@ struct ethosn_iommu_stream {
 	dma_addr_t              addr_base;
 	size_t                  bits;
 	struct page             *page;
+	bool                    allocated_page;
 	spinlock_t              lock;
 };
 
@@ -999,7 +1000,8 @@ static int iommu_mmap(struct ethosn_dma_sub_allocator *allocator,
 static int iommu_stream_init(struct ethosn_allocator_internal *allocator,
 			     enum ethosn_stream_type stream_type,
 			     dma_addr_t addr_base,
-			     size_t bitmap_size)
+			     size_t bitmap_size,
+			     phys_addr_t speculative_page_addr)
 {
 	struct ethosn_iommu_domain *domain = &allocator->ethosn_iommu_domain;
 	struct ethosn_iommu_stream *stream = &domain->stream;
@@ -1023,7 +1025,14 @@ static int iommu_stream_init(struct ethosn_allocator_internal *allocator,
 	if (stream_type > ETHOSN_STREAM_COMMAND_STREAM)
 		return 0;
 
-	stream->page = alloc_page(GFP_KERNEL);
+	if (!speculative_page_addr) {
+		stream->page = alloc_page(GFP_KERNEL);
+		stream->allocated_page = true;
+	} else {
+		stream->page =
+			pfn_to_page(__phys_to_pfn(speculative_page_addr));
+		stream->allocated_page = false;
+	}
 
 	if (!stream->page)
 		goto free_bitmap;
@@ -1053,7 +1062,9 @@ static int iommu_stream_init(struct ethosn_allocator_internal *allocator,
 unmap_page:
 	iommu_unmap_pages(domain->iommu_domain, stream->addr_base, i);
 
-	__free_page(stream->page);
+	if (stream->allocated_page)
+		__free_page(stream->page);
+
 free_bitmap:
 	devm_kfree(allocator->allocator.dev, stream->bitmap);
 
@@ -1081,7 +1092,9 @@ static void iommu_stream_deinit(struct ethosn_allocator_internal *allocator)
 	/* Unmap all the virtual space (see iommu_stream_init). */
 	iommu_unmap_pages(domain->iommu_domain, stream->addr_base, nr_pages);
 
-	__free_page(stream->page);
+	if (stream->allocated_page)
+		__free_page(stream->page);
+
 	stream->page = NULL;
 }
 
@@ -1109,7 +1122,8 @@ static void iommu_allocator_destroy(struct ethosn_dma_sub_allocator *_allocator)
 struct ethosn_dma_sub_allocator *ethosn_dma_iommu_allocator_create(
 	struct device *dev,
 	enum ethosn_stream_type stream_type,
-	dma_addr_t addr_base)
+	dma_addr_t addr_base,
+	phys_addr_t speculative_page_addr)
 {
 	static const struct ethosn_dma_allocator_ops ops = {
 		.destroy         = iommu_allocator_destroy,
@@ -1160,7 +1174,7 @@ struct ethosn_dma_sub_allocator *ethosn_dma_iommu_allocator_create(
 			      sizeof(unsigned long);
 
 		ret = iommu_stream_init(allocator, stream_type, addr_base,
-					bitmap_size);
+					bitmap_size, speculative_page_addr);
 		if (ret)
 			goto err_stream;
 

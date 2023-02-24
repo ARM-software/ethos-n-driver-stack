@@ -189,6 +189,7 @@ int ethosn_dma_sub_allocator_create(struct device *dev,
 				    struct ethosn_dma_allocator *top_allocator,
 				    enum ethosn_stream_type stream_type,
 				    dma_addr_t addr_base,
+				    phys_addr_t speculative_page_addr,
 				    bool is_smmu_available)
 {
 	struct ethosn_dma_sub_allocator **allocator;
@@ -205,7 +206,8 @@ int ethosn_dma_sub_allocator_create(struct device *dev,
 	if (is_smmu_available)
 		*allocator =
 			ethosn_dma_iommu_allocator_create(dev, stream_type,
-							  addr_base);
+							  addr_base,
+							  speculative_page_addr);
 
 	else
 		*allocator = ethosn_dma_carveout_allocator_create(dev);

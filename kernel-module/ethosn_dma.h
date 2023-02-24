@@ -242,7 +242,11 @@ int ethosn_dma_top_allocator_destroy(struct device *dev,
  * under
  * @stream_type: Stream type to select the sub-allocator to create
  * @addr_base: Base address for the stream
+ * @speculative_page_addr: Optional address to page for speculative accesses
  * @is_smmu_available: Is SMMU available in this device.
+ *
+ * If speculative_page_addr is 0x0, the sub allocator will provide a page for
+ * the speculative accesses.
  *
  * Return:
  *  0 or negative error code on failure
@@ -251,6 +255,7 @@ int ethosn_dma_sub_allocator_create(struct device *dev,
 				    struct ethosn_dma_allocator *top_allocator,
 				    enum ethosn_stream_type stream_type,
 				    dma_addr_t addr_base,
+				    phys_addr_t speculative_page_addr,
 				    bool is_smmu_available);
 
 /**

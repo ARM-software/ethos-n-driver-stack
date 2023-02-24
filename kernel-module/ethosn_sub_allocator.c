@@ -72,6 +72,43 @@ static enum ethosn_stream_type get_stream_type(struct platform_device *pdev)
 	return ETHOSN_STREAM_INVALID;
 }
 
+static phys_addr_t get_stream_speculative_page_addr(
+	struct ethosn_device *ethosn,
+	enum ethosn_stream_type stream_type)
+{
+#ifdef ETHOSN_TZMP1
+	/* Use page from firmware padding for speculative accesses */
+	const phys_addr_t speculative_page_addr =
+		(ethosn->protected_firmware.addr - PAGE_SIZE);
+#else
+	const phys_addr_t speculative_page_addr = 0U;
+#endif
+
+	switch (stream_type) {
+	case ETHOSN_STREAM_FIRMWARE:
+	/* Fallthrough */
+	case ETHOSN_STREAM_PLE_CODE:
+
+		return speculative_page_addr;
+
+	case ETHOSN_STREAM_WORKING_DATA:
+	/* Fallthrough */
+	case ETHOSN_STREAM_COMMAND_STREAM:
+	/* Fallthrough */
+	case ETHOSN_STREAM_WEIGHT_DATA:
+	/* Fallthrough */
+	case ETHOSN_STREAM_IO_BUFFER:
+	/* Fallthrough */
+	case ETHOSN_STREAM_INTERMEDIATE_BUFFER:
+
+		return 0U;
+	default:
+		WARN_ON(1);
+
+		return 0U;
+	}
+}
+
 static dma_addr_t get_stream_addr_base(struct ethosn_device *ethosn,
 				       enum ethosn_stream_type stream_type)
 {
@@ -180,6 +217,9 @@ static int ethosn_mem_stream_pdev_probe(struct platform_device *pdev)
 					      stream_type,
 					      get_stream_addr_base(ethosn,
 								   stream_type),
+					      get_stream_speculative_page_addr(
+						      ethosn,
+						      stream_type),
 					      ethosn->smmu_available);
 
 	if (ret)
