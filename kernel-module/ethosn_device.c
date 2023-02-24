@@ -841,9 +841,10 @@ static void ethosn_set_events(struct ethosn_core *core)
 static void ethosn_set_aux_ctrl(struct ethosn_core *core)
 {
 	const bool smmu_available = core->parent->smmu_available;
-	struct dl1_auxctlr_r auxctlr = {
-		.bits = { .increase_outstanding_writes = 1U }
-	};
+	struct dl1_auxctlr_r auxctlr;
+
+	auxctlr.word = ethosn_read_top_reg(core, DL1_RP, DL1_AUXCTLR);
+	auxctlr.bits.increase_outstanding_writes = 1U;
 
 	/* Configure interrupt and stashing behavior */
 	auxctlr.bits.dis_edgeirq = core->force_firmware_level_interrupts;
