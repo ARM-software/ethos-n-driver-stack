@@ -11,7 +11,7 @@ For more information, see <https://www.arm.com/solutions/artificial-intelligence
 * We have tested this release with the following networks:
 
     * VGG16
-    * MobileNet v1-1-224
+    * MobileNet v1 0.25 224
     * SSD MobileNet v1
     * InceptionV3
     * InceptionV4
@@ -53,21 +53,21 @@ Your target platform must meet specific requirements to run the Ethos-N NPU driv
 
 ## Secure mode and TZMP1
 
-Depending on how the hardware has been configured, the Arm Ethos-N NPU boots up in either Secure or Non-secure mode.
+Depending on how the hardware has been configured, the NPU boots up in either Secure or Non-secure mode.
 
-To use the NPU in Secure mode, the target platform must have a [Trusted Firmware-A (TF-A)](https://www.trustedfirmware.org/projects/tf-a/) that includes the Arm Ethos-N NPU SiP service.
+To use the NPU in Secure mode, the target platform must have a [Trusted Firmware-A (TF-A)](https://www.trustedfirmware.org/projects/tf-a/) that is built with Arm Ethos-N NPU support.
 
-The Arm Ethos-N NPU SiP service is available in the TF-A source tree, along with a reference implementation about how to use the Arm Ethos-N NPU SiP service on the Arm Juno platform.
-For instructions on how to get and build the TF-A source, see the [TF-A documentation](https://trustedfirmware-a.readthedocs.io/en/latest/index.html). TF-A version v2.7 or later must be used.
-The following [patch](https://git.trustedfirmware.org//TF-A%2Ftrusted-firmware-a.git/commit/?id=b139f1cf975f9968eb8bd1182a173b976ecf06f9) must be applied on top of TF-A version v2.7 to add support for SMMU streams.
+NPU support is available in the TF-A source tree, along with a reference implementation showing how to use it on the Arm Juno platform.
+For instructions on how to get and build the TF-A source, see the [TF-A documentation](https://trustedfirmware-a.readthedocs.io/en/latest/index.html). The following commit of TF-A must be used:
+[placeholder](https://www.arm.com).
 
-The build flag required to enable the Arm Ethos-N NPU SiP service for the Arm Juno platform is available at [TF-A Arm Platform Build Options](https://trustedfirmware-a.readthedocs.io/en/latest/plat/arm/arm-build-options.html).
+The build flag required to enable NPU support for the Arm Juno platform is available at [TF-A Arm Platform Build Options](https://www.arm.com).
 
 For information about boot up in Secure or Non-secure modes, see the Arm Ethos-N78 NPU Technical Reference Manual.
 
-For information about how to port TF-A to another platform, see the [TF-A Porting Guide](https://trustedfirmware-a.readthedocs.io/en/latest/getting_started/porting-guide.html).
+For information about how to port TF-A to another platform, see the [TF-A Porting Guide](https://www.arm.com).
 
-If TZMP1 support is required, the TF-A must be built with the TZMP1 build option as well as the Arm Ethos-N NPU SiP service.
+If TZMP1 support is required, the TF-A must be built with the TZMP1 build option as well as the NPU build option.
 
 The kernel module must also be built with appropriate flags depending on the security level required.
 
@@ -75,9 +75,9 @@ Please refer to the following table for the supported configurations:
 
 | System security level | NPU hardware configuration | TF-A build configuration | Kernel module build configuration |
 | --------------------- | -------------------------- | ------------------------ | --------------------------------- |
-| Non-secure            | Non-secure                 | No flags                 | Non-secure                        |
-| Secure                | Secure                     | NPU support              | Secure                            |
-| TZMP1                 | Secure                     | NPU support + TZMP1      | TZMP1                             |
+| **Non-secure**        | Non-secure                 | No flags                 | Non-secure                        |
+| **Secure**            | Secure                     | NPU                      | Secure                            |
+| **TZMP1**             | Secure                     | NPU + TZMP1              | TZMP1                             |
 
 All other combinations of configurations are not supported and may lead to errors or unexpected behaviour.
 
@@ -397,10 +397,10 @@ There are multiple ways to exercise the Ethos-N NPU driver:
    * `-m` The path to the model to be run.
    * `-c` The device you wish to run this inference on.
 
-    An example of running **Mobilenet_v1_1.0_224_quant.tflite** on the Ethos-N NPU is:
+    An example of running **mobilenet_v1_0.25_224_default_minmax.tflite** on the Ethos-N NPU is:
 
     ```sh
-    LD_LIBRARY_PATH=<path_to_ethosn_libraries>:<path_to_armnn_libs> ./tests/ExecuteNetwork -f tflite-binary -i input -y qasymmu8 -o MobilenetV1/Predictions/Reshape_1 -z qasymmu8 -d input_data.txt -m mobilenet_v1_1.0_224_quant.tflite -c EthosNAcc -c CpuRef
+    LD_LIBRARY_PATH=<path_to_ethosn_libraries>:<path_to_armnn_libs> ./tests/ExecuteNetwork -f tflite-binary -i input -y qasymmu8 -o MobilenetV1/Predictions/Reshape_1 -z qasymmu8 -d input_data.txt -m mobilenet_v1_0.25_224_default_minmax.tflite -c EthosNAcc -c CpuRef
     ```
 
 ## Power Management
