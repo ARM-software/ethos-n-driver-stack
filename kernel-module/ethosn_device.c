@@ -2268,6 +2268,7 @@ static void dfs_init(struct ethosn_core *core)
 
 int ethosn_device_init(struct ethosn_core *core)
 {
+	const bool smmu_available = core->parent->smmu_available;
 	int ret;
 
 	/* Round up queue size to next power of 2 */
@@ -2276,20 +2277,28 @@ int ethosn_device_init(struct ethosn_core *core)
 	/* Initialize debugfs */
 	dfs_init(core);
 
+	/* When Carveout is used, the firmware must be allocated first */
+	if (!smmu_available) {
+		/* Load the firmware */
+		ret = firmware_load(core);
+		if (ret)
+			goto remove_debufs;
+	}
+
 	/* Allocate the mailbox structure */
 	ret = mailbox_alloc(core);
 	if (ret)
-		goto remove_debufs;
+		goto deinit_firmware;
 
 	/* Allocate the firmware log */
 	ret = firmware_log_alloc(core);
 	if (ret)
-		goto remove_debufs;
+		goto deinit_firmware;
 
 	/* Allocate the debug_monitor_channel structure */
 	ret = debug_monitor_channel_alloc(core);
 	if (ret)
-		goto remove_debufs;
+		goto deinit_firmware;
 
 	/* For multi-npu, we test only the first NPU */
 	if (ethosn_global_core_for_testing == NULL)
@@ -2299,6 +2308,10 @@ int ethosn_device_init(struct ethosn_core *core)
 	atomic_set(&core->init_done, 1);
 
 	return 0;
+
+deinit_firmware:
+	if (!smmu_available)
+		ethosn_firmware_deinit(core);
 
 remove_debufs:
 	dfs_deinit(core);
