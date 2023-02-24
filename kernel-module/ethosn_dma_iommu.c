@@ -807,8 +807,17 @@ static void iommu_release(struct ethosn_dma_sub_allocator *allocator,
 		return;
 
 	if (dma_info->info.size) {
+		memset(dma_info->dma_addr, 0,
+		       (sizeof(dma_addr_t) * dma_buf_internal->sgt->nents));
 		devm_kfree(allocator->dev, dma_info->dma_addr);
+
+		memset(dma_info->pages, 0,
+		       (sizeof(struct page *) * dma_buf_internal->sgt->nents));
 		devm_kfree(allocator->dev, dma_info->pages);
+
+		memset(dma_info->scatterlist, 0,
+		       (sizeof(struct scatterlist *) *
+			dma_buf_internal->sgt->nents));
 		devm_kfree(allocator->dev, dma_info->scatterlist);
 	}
 
@@ -859,12 +868,12 @@ static void iommu_free(struct ethosn_dma_sub_allocator *allocator,
 		container_of(*_dma_info, typeof(*dma_info), info);
 	const size_t nr_pages = DIV_ROUND_UP((*_dma_info)->size, PAGE_SIZE);
 
-	if (dma_info->info.cpu_addr)
-		vunmap(dma_info->info.cpu_addr);
-
 	if (dma_info->info.size) {
 		switch (dma_info->source) {
 		case ETHOSN_MEMORY_ALLOC:
+			/* Clear any data before freeing the memory */
+			memset(dma_info->info.cpu_addr, 0, dma_info->info.size);
+			vunmap(dma_info->info.cpu_addr);
 			iommu_free_pages(allocator, dma_info->dma_addr,
 					 dma_info->pages, nr_pages);
 			break;

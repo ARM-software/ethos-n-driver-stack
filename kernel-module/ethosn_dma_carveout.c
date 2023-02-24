@@ -111,10 +111,13 @@ static void carveout_free(struct ethosn_dma_sub_allocator *allocator,
 
 	/* FIXME:- We cannot allocate addresses at different 512MB offsets */
 	/* for the different streams. */
-	if ((*dma_info)->size)
+	if ((*dma_info)->size) {
+		/* Clear any data before freeing the memory */
+		memset((*dma_info)->cpu_addr, 0U, (*dma_info)->size);
 		dma_free_wc(allocator->dev, (*dma_info)->size,
 			    (*dma_info)->cpu_addr,
 			    dma_addr);
+	}
 
 	memset(*dma_info, 0, sizeof(struct ethosn_dma_info));
 	devm_kfree(allocator->dev, *dma_info);
