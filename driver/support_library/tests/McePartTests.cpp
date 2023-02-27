@@ -1719,20 +1719,19 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             prevBuffer.m_StripeShape = TensorShape{ 1, 56, 56, 256 };
             prevBuffer.m_SizeInBytes = 56 * 56 * 256;
 
-            Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, &prevBuffer, 2);
+            Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, &prevBuffer, 1);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 6");
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 56, 56, 256 } &&
                        plan.m_InputSram->Sram()->m_NumStripes == 1 &&
-                       plan.m_WeightsSram->Sram()->m_StripeShape ==
-                           TensorShape{ 3, 3, 128, 1 } &&    // This is 32 but 4x because of strided
-                       plan.m_WeightsSram->Sram()->m_NumStripes == 2 &&
+                       plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 3, 3, 256, 1 } &&
+                       plan.m_WeightsSram->Sram()->m_NumStripes == 1 &&
                        plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 56, 56, 256 } &&
-                       plan.m_Mce->m_WeightsStripeShape == TensorShape{ 3, 3, 128, 1 } &&
-                       plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 56, 56, 32 } &&
+                       plan.m_Mce->m_WeightsStripeShape == TensorShape{ 3, 3, 256, 1 } &&
+                       plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 56, 56, 64 } &&
                        // The following Part is another McePart, so we'll use the plan which includes a Passthrough PLE.
                        plan.m_Output->m_Location == Location::Sram &&
                        plan.m_Output->Sram()->m_StripeShape == TensorShape{ 1, 56, 56, 64 } &&
@@ -1793,19 +1792,19 @@ TEST_CASE("McePart GetPlans MobileNet V1")
             prevBuffer.m_StripeShape = TensorShape{ 1, 56, 56, 128 };
             prevBuffer.m_SizeInBytes = 56 * 56 * 128;
 
-            Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, &prevBuffer, 2);
+            Plans plans = part.GetPlans(CascadeType::Middle, command_stream::BlockConfig{ 16u, 16u }, &prevBuffer, 1);
             SavePlansToDot(plans, "McePart GetPlans MobileNet Part 8");
             CHECK(plans.size() == 2);
             CheckPlansParams params;
             params.m_Any.push_back([&](const PlanDesc& plan) {
                 return plan.m_InputSram->Sram()->m_StripeShape == TensorShape{ 1, 56, 56, 128 } &&
                        plan.m_InputSram->Sram()->m_NumStripes == 1 &&
-                       plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 3, 3, 32, 1 } &&
-                       plan.m_WeightsSram->Sram()->m_NumStripes == 2 &&
+                       plan.m_WeightsSram->Sram()->m_StripeShape == TensorShape{ 3, 3, 128, 1 } &&
+                       plan.m_WeightsSram->Sram()->m_NumStripes == 1 &&
                        plan.m_Mce->m_BlockConfig == command_stream::BlockConfig{ 16u, 16u } &&
                        plan.m_Mce->m_InputStripeShape == TensorShape{ 1, 56, 56, 128 } &&
-                       plan.m_Mce->m_WeightsStripeShape == TensorShape{ 3, 3, 32, 1 } &&
-                       plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 56, 56, 32 } &&
+                       plan.m_Mce->m_WeightsStripeShape == TensorShape{ 3, 3, 128, 1 } &&
+                       plan.m_Mce->m_OutputStripeShape == TensorShape{ 1, 56, 56, 128 } &&
                        // The following Part is another McePart, so we'll use the plan which includes a Passthrough PLE.
                        plan.m_Output->m_Location == Location::Sram &&
                        plan.m_Output->Sram()->m_StripeShape == TensorShape{ 1, 56, 56, 128 } &&

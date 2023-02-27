@@ -117,35 +117,53 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     bool fullHeight                   = GetHeight(sramBuffer->m_StripeShape) >= GetHeight(sramBuffer->m_TensorShape);
     bool fullWidth                    = GetWidth(sramBuffer->m_StripeShape) >= GetWidth(sramBuffer->m_TensorShape);
     bool fullTensor                   = fullHeight && fullWidth;
-    TensorShape mceOutputEncoding     = { 0, 0, 0, 0 };
-    // If we have the full plane, the number of weight stripes is 1 and we're in the middle of a cascade we can use the full tensor
-    // But if we're at the end of a cascade we can split the output depth so we get more parallelism.
-    if (fullTensor && numWeightStripes == 1 && cascadeType == CascadeType::Middle)
+    bool fullInputDepth = GetChannels(sramBuffer->m_StripeShape) >= GetChannels(sramBuffer->m_TensorShape);
+
+    if (!isDepthwise && !fullInputDepth)
     {
-        // strategy 3
-        if (stripeConfig.splits.none)
-        {
-            mceOutputEncoding = { 0, 0, 0, 0 };
-        }
-        else
-        {
-            return {};
-        }
+        return {};
     }
-    else if (fullTensor)
+
+    TensorShape mceOutputEncoding = { 0, 0, 0, 0 };
+    if (fullTensor)
     {
-        // strategy 1
-        if (stripeConfig.splits.mceAndPleOutputDepth || stripeConfig.splits.mceOutputDepthOnly)
+        if (isDepthwise)
         {
-            mceOutputEncoding = { 0, 0, 0, caps.GetNumberOfOgs() };
+            mceOutputEncoding = { 0, 0, 0, GetChannels(mceInputStripe) / strideMultiplier };
         }
         else
         {
-            return {};
+            // If we have the full plane, the number of weight stripes is 1 and we're in the middle of a cascade we can use the full tensor
+            // But if we're at the end of a cascade we can split the output depth so we get more parallelism.
+            if (numWeightStripes == 1 && cascadeType == CascadeType::Middle)
+            {
+                // strategy 3
+                if (stripeConfig.splits.none)
+                {
+                    mceOutputEncoding = { 0, 0, 0, 0 };
+                }
+                else
+                {
+                    return {};
+                }
+            }
+            else
+            {
+                // strategy 1
+                if (stripeConfig.splits.mceAndPleOutputDepth || stripeConfig.splits.mceOutputDepthOnly)
+                {
+                    mceOutputEncoding = { 0, 0, 0, caps.GetNumberOfOgs() };
+                }
+                else
+                {
+                    return {};
+                }
+            }
         }
     }
     else
     {
+        // Splitting width or height
         if (stripeConfig.splits.mceOutputHeightOnly || stripeConfig.splits.mceAndPleOutputHeight ||
             stripeConfig.splits.widthOnly || stripeConfig.splits.widthHeight)
         {
@@ -185,11 +203,9 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     }
     TensorShape memoryWeightStripe = mceWeightStripe;
 
-    uint32_t memoryOutputChannelsEncoding = 0;
-    if (fullTensor && cascadeType == CascadeType::End)
-    {
-        memoryOutputChannelsEncoding = caps.GetNumberOfOgs();
-    }
+    // Even if the MCE output is split in depth, we build up a full-depth tensor in SRAM for the next
+    // layer of the cascade (if there is one)
+    uint32_t memoryOutputChannelsEncoding = cascadeType == CascadeType::End ? GetChannels(mceOutputStripe) : 0;
     TensorShape memoryOutputStripeEncoding{ 0, fullHeight ? 0 : GetHeight(mceOutputStripe),
                                             fullWidth ? 0 : GetWidth(mceOutputStripe), memoryOutputChannelsEncoding };
     TensorShape memoryOutputStripe = CreateStripe(outputTensorShape, memoryOutputStripeEncoding, g_BrickGroupShape[3]);
@@ -211,12 +227,10 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
     }
     else if (!isEndOfCascade)
     {
-        assert(fullDepth);
         maxOutputStripes = 1;
     }
     else if (!fullDepth)
     {
-        assert(fullTensor && isEndOfCascade);
         maxOutputStripes = 2;
     }
     numStripes.m_Output = { 1, maxOutputStripes };
@@ -243,7 +257,7 @@ utils::Optional<std::pair<MceAndPleInfo, MceOnlyInfo>>
 
     MceAndPleInfo mceAndPleInfo;
 
-    mceAndPleInfo.m_MceCompute.m_Input       = sramBuffer->m_StripeShape;
+    mceAndPleInfo.m_MceCompute.m_Input       = mceInputStripe;
     mceAndPleInfo.m_MceCompute.m_Output      = mceOutputStripe;
     mceAndPleInfo.m_MceCompute.m_Weight      = mceWeightStripe;
     mceAndPleInfo.m_MceCompute.m_BlockConfig = blockConfig;
