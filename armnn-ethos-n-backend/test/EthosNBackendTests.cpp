@@ -41,6 +41,7 @@ TEST_SUITE("EthosNBackend")
         expectedCap.AddOption(BackendOptions::BackendOption("ExternallyManagedMemory", true));
         expectedCap.AddOption(BackendOptions::BackendOption("PreImportIOTensors", true));
         expectedCap.AddOption(BackendOptions::BackendOption("ProtectedContentAllocation", true));
+        expectedCap.AddOption(BackendOptions::BackendOption("NonConstWeights", true));
 
         CHECK(backendCap.GetBackendId().Get() == expectedCap.GetBackendId().Get());
         CHECK(backendCap.GetOptionCount() == expectedCap.GetOptionCount());
@@ -60,6 +61,10 @@ TEST_SUITE("EthosNBackend")
         CHECK(backendCap.GetOption(5).GetValue().AsBool() == expectedCap.GetOption(5).GetValue().AsBool());
         CHECK(backendCap.GetOption(6).GetName() == expectedCap.GetOption(6).GetName());
         CHECK(backendCap.GetOption(6).GetValue().AsBool() == expectedCap.GetOption(6).GetValue().AsBool());
+        CHECK(backendCap.GetOption(7).GetName() == expectedCap.GetOption(7).GetName());
+        CHECK(backendCap.GetOption(7).GetValue().AsBool() == expectedCap.GetOption(7).GetValue().AsBool());
+        CHECK(backendCap.GetOption(8).GetName() == expectedCap.GetOption(8).GetName());
+        CHECK(backendCap.GetOption(8).GetValue().AsBool() == expectedCap.GetOption(8).GetValue().AsBool());
     }
 
     TEST_CASE("CreateWorkloadFactoryModelOptions")

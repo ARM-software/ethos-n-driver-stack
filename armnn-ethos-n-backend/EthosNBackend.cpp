@@ -336,6 +336,9 @@ BackendCapabilities EthosNBackend::GetCapabilities() const
     ethosnCap.AddOption(BackendOptions::BackendOption("ExternallyManagedMemory", true));
     ethosnCap.AddOption(BackendOptions::BackendOption("PreImportIOTensors", true));
     ethosnCap.AddOption(BackendOptions::BackendOption("ProtectedContentAllocation", true));
+    // Arm NN's "NonConstWeights" mean use weights as inputs.
+    // We don't support dynamic weights but check them in IsSupported.
+    ethosnCap.AddOption(BackendOptions::BackendOption("NonConstWeights", true));
 
     return ethosnCap;
 }
