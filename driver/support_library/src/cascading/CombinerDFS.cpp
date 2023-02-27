@@ -676,6 +676,7 @@ Combination Combiner::GluePartToCombinationSrcToDests(const BasePart& sPart,
             // Merging gets complicated if we have multiple consumers, as the merging may invalidate other
             // decisions. Therefore we only do this for simple single-consumer cases at the moment.
             else if (consumerBuffers.size() == 1 && consumerBuffer->Dram()->m_BufferType == BufferType::Output &&
+                     producedBuffer->Dram()->m_BufferType == BufferType::Intermediate &&
                      consumerBuffer->m_Format == producedBuffer->m_Format &&
                      consumerBuffer->m_QuantizationInfo == producedBuffer->m_QuantizationInfo &&
                      consumerBuffer->m_TensorShape == producedBuffer->m_TensorShape &&
