@@ -1,5 +1,5 @@
 //
-// Copyright © 2021-2022 Arm Limited.
+// Copyright © 2021-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -191,7 +191,8 @@ EncodedWeights ReadEncodedWeights(std::istream& s)
         s.read(reinterpret_cast<char*>(w.m_Metadata.data()), numMetadata * sizeof(WeightsMetadata));
     }
 
-    w.m_MaxSize = ReadUInt32(s);
+    w.m_MaxSize      = ReadUInt32(s);
+    w.m_IsWideFilter = (ReadUInt32(s) != 0);
 
     w.m_Data = ReadVector<uint8_t>(s);
 
@@ -207,6 +208,7 @@ void WriteEncodedWeights(std::ostream& s, const EncodedWeights& w)
     }
 
     WriteUInt32(s, w.m_MaxSize);
+    WriteUInt32(s, w.m_IsWideFilter ? 1 : 0);
 
     WriteVector<uint8_t>(s, w.m_Data);
 }

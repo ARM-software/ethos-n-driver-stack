@@ -366,7 +366,7 @@ inline void setMcesAlgorithm(MceS& mceSchedulerData, CompilerMceAlgorithm algori
 ///   * Striding (none or 2x2)
 ///   * Upscaling (none or 2x, with odd or even output sizes)
 ///   * Packed boundary data (none, either or both dimensions) - although this doesn't actually affect the result, thankfully
-inline void SetMcesConvolutionData(MceS& mceS, const OpGraph& opGraph, MceOp* const mceOp)
+inline void SetMcesConvolutionData(MceS& mceS, const OpGraph& opGraph, MceOp* const mceOp, bool isWideFilter)
 {
     using namespace ethosn::utils;
 
@@ -396,6 +396,8 @@ inline void SetMcesConvolutionData(MceS& mceS, const OpGraph& opGraph, MceOp* co
     };
     const uint32_t upscaledInputWidth  = Upscale(inputWidth, mceS.upsampleEdgeMode.col);
     const uint32_t upscaledInputHeight = Upscale(inputHeight, mceS.upsampleEdgeMode.row);
+
+    mceS.isWideFilter = isWideFilter;
 
     // For strided convolution, previous agents have 'interleaved' the data to break it down into four submaps
     // per original IFM channel, and this agent will combine them back again. Therefore we have up to 4 sets of
@@ -432,6 +434,22 @@ inline void SetMcesConvolutionData(MceS& mceS, const OpGraph& opGraph, MceOp* co
             // For example, a 1x1 kernel with 2x2 stride: only one submap will actually be relevant.
             mceS.filterShape[s].height = NumericCast<uint8_t>(std::max(1u, subfilter.GetFilterY()));
             mceS.filterShape[s].width  = NumericCast<uint8_t>(std::max(1u, subfilter.GetFilterX()));
+
+            // When using wide filter, the filter shape needs to be rounded up to be a whole multiple
+            // of the base filter size (3). Except for the value 1, which doesn't round.
+            if (isWideFilter)
+            {
+                if (mceS.filterShape[s].height > 1)
+                {
+                    mceS.filterShape[s].height = static_cast<uint8_t>(
+                        utils::RoundUpToNearestMultiple(static_cast<uint32_t>(mceS.filterShape[s].height), 3));
+                }
+                if (mceS.filterShape[s].width > 1)
+                {
+                    mceS.filterShape[s].width = static_cast<uint8_t>(
+                        utils::RoundUpToNearestMultiple(static_cast<uint32_t>(mceS.filterShape[s].width), 3));
+                }
+            }
         }
 
         // Set the padding on the top/left side.

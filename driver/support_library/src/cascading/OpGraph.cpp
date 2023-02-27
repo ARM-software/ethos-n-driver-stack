@@ -744,7 +744,8 @@ DotAttributes DramBuffer::GetDotAttributes(DetailLevel detail) const
             result.m_Label +=
                 "Encoded weights = { " + ToString(static_cast<uint32_t>(m_EncodedWeights->m_Data.size())) +
                 " bytes, max size = " + ToString(m_EncodedWeights->m_MaxSize) +
-                ", num. metadata = " + ToString(static_cast<uint32_t>(m_EncodedWeights->m_Metadata.size())) + " }\n";
+                ", num. metadata = " + ToString(static_cast<uint32_t>(m_EncodedWeights->m_Metadata.size())) +
+                ", is wide filter = " + ToString(m_EncodedWeights->m_IsWideFilter) + " }\n";
         }
         result.m_Label += "Type = " + (m_BufferType.has_value() ? ToString(m_BufferType.value()) : "None") + "\n";
         if (m_OperationId.has_value())

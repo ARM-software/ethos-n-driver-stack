@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -175,13 +175,13 @@ WeightEncoder::EncodedOfm
                              const TensorInfo& weightsTensorInfo,
                              uint32_t strideY,
                              uint32_t strideX,
-                             uint32_t paddingTop,
-                             uint32_t paddingLeft,
                              uint32_t iterationSize,
                              ethosn::command_stream::MceOperation operation,
                              CompilerMceAlgorithm algorithm,
                              const EncodingParams& params,
-                             std::vector<std::unique_ptr<WeightCompressionParams>>& compressionParams)
+                             std::vector<std::unique_ptr<WeightCompressionParams>>& compressionParams,
+                             const std::vector<SubmapFilter>& subfilters,
+                             const std::vector<SubmapFilter>& wideSubfilters)
 {
     uint32_t wdIdx = (ofmIdx % stripeDepth) % numOfmInParallel;
 
@@ -205,7 +205,7 @@ WeightEncoder::EncodedOfm
     }
 
     std::vector<uint8_t> weights = GetRawOfmStream(weightData, ofmIdx, iteration, weightsTensorInfo, strideY, strideX,
-                                                   paddingTop, paddingLeft, iterationSize, operation, algorithm);
+                                                   iterationSize, operation, algorithm, subfilters, wideSubfilters);
 
     const WeightCompressionParams compParams =
         SelectWeightCompressionParams(weights, weightsTensorInfo, params, prevCompParams);
@@ -1336,6 +1336,9 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
     assert(stripeDepth > 0);
     assert(iterationSize > 0);
 
+    const uint32_t filterX = weightsTensorInfo.m_Dimensions[1];
+    const uint32_t filterY = weightsTensorInfo.m_Dimensions[0];
+
     uint32_t numOfms = 0;
     if (weightsTensorInfo.m_DataFormat == DataFormat::HWIO)
     {
@@ -1376,6 +1379,14 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
 
     std::vector<std::unique_ptr<WeightCompressionParams>> compressionParams =
         GenerateCompressionParams(numOfmInParallel);
+
+    // Decide if wide filter is needed
+    const uint32_t maxFilterSize = algorithm == CompilerMceAlgorithm::Direct ? 7 : 1;
+    std::vector<SubmapFilter> subfilters =
+        GetSubmapFilters(filterX, filterY, strideX, strideY, paddingLeft, paddingTop, weightsTensorInfo.m_Dimensions);
+    const uint32_t wideKernelSize = m_Capabilities.GetWideKernelSize();
+    std::vector<SubmapFilter> wideSubfilters =
+        GetSubmapFilters(filterX, filterY, wideKernelSize, maxFilterSize, weightsTensorInfo.m_Dimensions);
 
     // Encode each OFM stream independently
     // Split the work for each OG so that the OFMs for each OG can be encoded in parallel.
@@ -1419,8 +1430,8 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
 
                     EncodedOfm encodedOfm =
                         EncodeOfm(weightsData, ofmIdx, numOfmInParallel, numIterationsOfm, stripeDepth, iteration,
-                                  weightsTensorInfo, strideY, strideX, paddingTop, paddingLeft, iterationSize,
-                                  operation, algorithm, params, compressionParams);
+                                  weightsTensorInfo, strideY, strideX, iterationSize, operation, algorithm, params,
+                                  compressionParams, subfilters, wideSubfilters);
 
                     encodedStreams[ofm] = std::move(encodedOfm);
                 }
@@ -1494,8 +1505,9 @@ EncodedWeights WeightEncoder::Encode(const TensorInfo& weightsTensorInfo,
 
     // Merge all the SRAM streams together by interleaving 16 bytes from each.
     // This is so the DMA will distribute the correct weight data to the correct SRAM.
-    encodedWeights.m_Data     = InterleaveStreams(mergedStreams, dmaEngineAlignment);
-    encodedWeights.m_Metadata = CalculateWeightsMetadata(streamPerStripeOg, numOfmInParallel);
+    encodedWeights.m_Data         = InterleaveStreams(mergedStreams, dmaEngineAlignment);
+    encodedWeights.m_Metadata     = CalculateWeightsMetadata(streamPerStripeOg, numOfmInParallel);
+    encodedWeights.m_IsWideFilter = wideSubfilters.size() > 1;
 
     encodedWeights.m_MaxSize = 0;
 
@@ -1533,24 +1545,18 @@ std::vector<uint8_t> WeightEncoder::GetRawOfmStream(const uint8_t* weightData,
                                                     const TensorInfo& weightsTensorInfo,
                                                     uint32_t strideY,
                                                     uint32_t strideX,
-                                                    uint32_t paddingTop,
-                                                    uint32_t paddingLeft,
                                                     uint32_t iterationSize,
                                                     ethosn::command_stream::MceOperation operation,
-                                                    CompilerMceAlgorithm algorithm) const
+                                                    CompilerMceAlgorithm algorithm,
+                                                    const std::vector<SubmapFilter>& subfilters,
+                                                    const std::vector<SubmapFilter>& wideSubfilters) const
 {
     assert(algorithm != CompilerMceAlgorithm::None);
 
     const uint32_t numUninterleavedIfmsPerIteration = iterationSize / (strideX * strideY);
 
-    uint32_t filterX             = weightsTensorInfo.m_Dimensions[1];
-    uint32_t filterY             = weightsTensorInfo.m_Dimensions[0];
-    const uint32_t maxFilterSize = algorithm == CompilerMceAlgorithm::Direct ? 7 : 1;
-    std::vector<SubmapFilter> subfilters =
-        GetSubmapFilters(filterX, filterY, strideX, strideY, paddingLeft, paddingTop, weightsTensorInfo.m_Dimensions);
-    const uint32_t wideKernelSize = m_Capabilities.GetWideKernelSize();
-    std::vector<SubmapFilter> wideSubfilters =
-        GetSubmapFilters(filterX, filterY, wideKernelSize, maxFilterSize, weightsTensorInfo.m_Dimensions);
+    const uint32_t filterX = weightsTensorInfo.m_Dimensions[1];
+    const uint32_t filterY = weightsTensorInfo.m_Dimensions[0];
 
     uint32_t numEngines      = m_Capabilities.GetNumberOfEngines();
     uint32_t numIgsPerEngine = m_Capabilities.GetIgsPerEngine();

@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -7,6 +7,7 @@
 
 #include "GraphNodes.hpp"
 #include "Network.hpp"
+#include "SubmapFilter.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -35,6 +36,7 @@ struct EncodedWeights
     std::vector<WeightsMetadata> m_Metadata;
     uint32_t m_MaxSize;
     std::vector<uint8_t> m_Data;
+    bool m_IsWideFilter;
 };
 
 class BitstreamWriter;
@@ -200,11 +202,11 @@ protected:
                                          const TensorInfo& weightsTensorInfo,
                                          uint32_t strideY,
                                          uint32_t strideX,
-                                         uint32_t paddingTop,
-                                         uint32_t paddingLeft,
                                          uint32_t iterationSize,
                                          ethosn::command_stream::MceOperation operation,
-                                         CompilerMceAlgorithm algorithm) const;
+                                         CompilerMceAlgorithm algorithm,
+                                         const std::vector<SubmapFilter>& subfilters,
+                                         const std::vector<SubmapFilter>& wideSubfilters) const;
 
     /// Generate vector of weight compression parameters
     std::vector<std::unique_ptr<WeightCompressionParams>> GenerateCompressionParams(uint32_t numOfmInParallel);
@@ -219,13 +221,13 @@ protected:
                          const TensorInfo& weightsTensorInfo,
                          uint32_t strideY,
                          uint32_t strideX,
-                         uint32_t paddingTop,
-                         uint32_t paddingLeft,
                          uint32_t iterationSize,
                          ethosn::command_stream::MceOperation operation,
                          CompilerMceAlgorithm algorithm,
                          const EncodingParams& params,
-                         std::vector<std::unique_ptr<WeightCompressionParams>>& compressionParams);
+                         std::vector<std::unique_ptr<WeightCompressionParams>>& compressionParams,
+                         const std::vector<SubmapFilter>& subfilters,
+                         const std::vector<SubmapFilter>& wideSubfilters);
 
     /// Merges the given streams of data into 'numGroups' groups, using a round-robin allocation of streams to groups.
     /// All the streams in a group are then concatenated together.

@@ -1,11 +1,11 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #pragma once
 
-#include "WeightEncoder.hpp"
+#include "../include/ethosn_support_library/Support.hpp"
 
 #include <cstdint>
 #include <vector>

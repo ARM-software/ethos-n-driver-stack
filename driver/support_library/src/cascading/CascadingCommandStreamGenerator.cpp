@@ -674,7 +674,9 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
     // Get the input buffers to the Mce Op
     OpGraph::BufferList inputBuffers = m_MergedOpGraph.GetInputs(ptrMceOp);
     SramBuffer* inputBuffer          = inputBuffers[g_MceIfmBufferIndex]->Sram();
-    SramBuffer* weightBuffer         = inputBuffers[g_MceWeightBufferIndex]->Sram();
+    SramBuffer* weightSramBuffer     = inputBuffers[g_MceWeightBufferIndex]->Sram();
+    DramBuffer* weightDramBuffer =
+        m_MergedOpGraph.GetInputs(m_MergedOpGraph.GetSingleProducer(weightSramBuffer))[0]->Dram();
 
     // Get the output buffer from the Mce Op
     PleInputSramBuffer* outputBuffer = m_MergedOpGraph.GetOutput(ptrMceOp)->PleInputSram();
@@ -683,7 +685,7 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
 
     CommonUtils::SetTileInfoForBuffer(m_Capabilities, mceSchedulerData.ifmTile, inputBuffer);
 
-    CommonUtils::SetTileInfoForBuffer(m_Capabilities, mceSchedulerData.wgtTile, weightBuffer);
+    CommonUtils::SetTileInfoForBuffer(m_Capabilities, mceSchedulerData.wgtTile, weightSramBuffer);
 
     mceSchedulerData.blockSize.width  = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_BlockConfig.m_BlockWidth());
     mceSchedulerData.blockSize.height = ethosn::utils::NumericCast<uint8_t>(ptrMceOp->m_BlockConfig.m_BlockHeight());
@@ -733,7 +735,8 @@ AgentIdType CascadingCommandStreamGenerator::AddMceSchedulerToCommandStream(MceO
             (outputBufferHeight & 1) ? UpsampleEdgeMode::DROP : UpsampleEdgeMode::GENERATE;
     }
 
-    MceSUtils::SetMcesConvolutionData(mceSchedulerData, m_MergedOpGraph, ptrMceOp);
+    MceSUtils::SetMcesConvolutionData(mceSchedulerData, m_MergedOpGraph, ptrMceOp,
+                                      weightDramBuffer->m_EncodedWeights->m_IsWideFilter);
 
     mceSchedulerData.ifmStripeShapeDefault.height =
         static_cast<uint16_t>(inputBuffer->m_StripeShape[1] + inputBuffer->m_PackedBoundaryThickness.top +

@@ -1,9 +1,11 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #include "SubmapFilter.hpp"
+
+#include "Utils.hpp"
 
 #include <cstdint>
 #include <vector>
