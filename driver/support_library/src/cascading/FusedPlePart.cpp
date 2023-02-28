@@ -340,8 +340,8 @@ void FusedPlePart::CreateFuseOnlyPlans(const PleOnlyInfo& info, Plans& plans) co
             PartInputMapping inputMappings;
             PartOutputMapping outputMappings;
             auto pleInBuffer =
-                AddPleInBuffer(opGraph, numPleInputStripes, m_InputTensorShape, info.m_Memory.m_PleInput.m_Shape,
-                               m_InputQuantizationInfo, m_InputDataType, Location::PleInputSram);
+                AddPleInputSramBuffer(opGraph, numPleInputStripes, m_InputTensorShape, info.m_Memory.m_PleInput.m_Shape,
+                                      m_InputQuantizationInfo, m_InputDataType);
 
             // A fuse only ple operation only has 1 input
             auto op                = std::make_unique<PleOp>(m_KernelOperation, info.m_PleCompute.m_BlockConfig, 1,

@@ -166,8 +166,22 @@ Plans StandalonePlePart::GetPlans(CascadeType cascadeType,
         // PLE input buffers
         for (size_t i = 0; i < m_InputTensorShapes.size(); ++i)
         {
-            pleInputBuffers[i] = AddPleInBuffer(opGraph, 2u, m_InputTensorShapes.at(i), outputStripeShape,
-                                                m_InputQuantizationInfos.at(i), m_DataType, Location::Sram);
+            TileSizeCalculation tileSize =
+                impl::CalculateTileSize(m_Capabilities, m_InputTensorShapes.at(i), outputStripeShape,
+                                        command_stream::cascading::PackedBoundaryThickness{ 0, 0, 0, 0 }, 2u, true);
+            SramBuffer* buffer        = opGraph.AddBuffer(std::make_unique<SramBuffer>());
+            buffer->m_NumStripes      = 2;
+            buffer->m_StripeShape     = outputStripeShape;
+            buffer->m_SlotSizeInBytes = tileSize.slotSizeInBytes;
+            buffer->m_Format          = CascadingBufferFormat::NHWCB;
+            buffer->m_TensorShape     = m_InputTensorShapes.at(i);
+
+            buffer->m_DataType       = m_DataType;
+            buffer->m_SizeInBytes    = tileSize.sizeInBytes;
+            buffer->m_ForbidFcafWide = tileSize.forbidFcafWide;
+
+            buffer->m_QuantizationInfo = m_InputQuantizationInfos.at(i);
+            pleInputBuffers[i]         = buffer;
         }
 
         // Output buffer

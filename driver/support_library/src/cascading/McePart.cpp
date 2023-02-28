@@ -568,9 +568,9 @@ void McePart::CreateMceAndIdentityPlePlans(const impl::MceAndPleInfo& info,
                     continue;    // Weight compression failed (too big for SRAM) - abandon this plan
                 }
 
-                auto pleInBuffer = impl::AddPleInBuffer(opGraph, numPleInputStripes, m_OutputTensorShape,
-                                                        info.m_Memory.m_PleInput.m_Shape, m_OutputQuantizationInfo,
-                                                        m_OutputDataType, Location::PleInputSram);
+                auto pleInBuffer = impl::AddPleInputSramBuffer(opGraph, numPleInputStripes, m_OutputTensorShape,
+                                                               info.m_Memory.m_PleInput.m_Shape,
+                                                               m_OutputQuantizationInfo, m_OutputDataType);
                 opGraph.SetProducer(pleInBuffer, inBufferAndMceOp.second);
 
                 // Create an identity ple Op
@@ -625,9 +625,9 @@ void McePart::CreateMceOnlyPlans(const impl::MceOnlyInfo& info,
 
             // We need to add the output buffer first before adding mce to opgraph as it uses it.
 
-            auto outBuffer =
-                impl::AddPleInBuffer(opGraph, numPleInputStripes, m_OutputTensorShape, info.m_Memory.m_PleInput.m_Shape,
-                                     m_OutputQuantizationInfo, m_OutputDataType, Location::PleInputSram);
+            auto outBuffer = impl::AddPleInputSramBuffer(opGraph, numPleInputStripes, m_OutputTensorShape,
+                                                         info.m_Memory.m_PleInput.m_Shape, m_OutputQuantizationInfo,
+                                                         m_OutputDataType);
             opGraph.SetProducer(outBuffer, inBufferAndMceOp.second);
             inputMappings[inBufferAndMceOp.first] = PartInputSlot{ m_PartId, 0 };
             outputMappings[outBuffer]             = PartOutputSlot{ m_PartId, 0 };

@@ -1480,49 +1480,21 @@ uint32_t GetWeightStripeDepth(const TensorInfo& weightInfo, const TensorShape& w
     }
 }
 
-Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
-                       NumStripesType numPleInputMemoryStripes,
-                       const TensorShape& tensorShape,
-                       const TensorShape& pleInputMemoryShape,
-                       const QuantizationInfo& quantInfo,
-                       DataType dataType,
-                       Location location)
+Buffer* AddPleInputSramBuffer(OwnedOpGraph& opGraph,
+                              NumStripesType numPleInputMemoryStripes,
+                              const TensorShape& tensorShape,
+                              const TensorShape& pleInputMemoryShape,
+                              const QuantizationInfo& quantInfo,
+                              DataType dataType)
 {
-    uint32_t slotSizeInBytes = utils::CalculateBufferSize(pleInputMemoryShape, CascadingBufferFormat::NHWCB);
-
-    Buffer* buffer = nullptr;
-    switch (location)
-    {
-        case Location::Sram:
-        {
-            SramBuffer* b        = opGraph.AddBuffer(std::make_unique<SramBuffer>());
-            b->m_NumStripes      = numPleInputMemoryStripes;
-            b->m_StripeShape     = pleInputMemoryShape;
-            b->m_SlotSizeInBytes = utils::CalculateBufferSize(b->m_StripeShape, CascadingBufferFormat::NHWCB);
-            buffer               = b;
-        }
-        break;
-        case Location::PleInputSram:
-        {
-            PleInputSramBuffer* b = opGraph.AddBuffer(std::make_unique<PleInputSramBuffer>());
-            b->m_NumStripes       = numPleInputMemoryStripes;
-            b->m_StripeShape      = pleInputMemoryShape;
-            buffer                = b;
-        }
-        break;
-        default:
-            assert(false);
-    }
-
-    buffer->m_Format      = CascadingBufferFormat::NHWCB;
-    buffer->m_TensorShape = tensorShape;
-
-    // number of stripes in tile is only relevant if the input buffer is in SRAM
-    uint32_t numStripesInTile = location == Location::Sram ? numPleInputMemoryStripes : 1;
-    buffer->m_DataType        = dataType;
-    buffer->m_SizeInBytes     = slotSizeInBytes * numStripesInTile;
-
+    PleInputSramBuffer* buffer = opGraph.AddBuffer(std::make_unique<PleInputSramBuffer>());
+    buffer->m_NumStripes       = numPleInputMemoryStripes;
+    buffer->m_StripeShape      = pleInputMemoryShape;
+    buffer->m_Format           = CascadingBufferFormat::NHWCB;
+    buffer->m_TensorShape      = tensorShape;
+    buffer->m_DataType         = dataType;
     buffer->m_QuantizationInfo = quantInfo;
+    buffer->m_SizeInBytes      = utils::CalculateBufferSize(pleInputMemoryShape, CascadingBufferFormat::NHWCB);
     return buffer;
 }
 

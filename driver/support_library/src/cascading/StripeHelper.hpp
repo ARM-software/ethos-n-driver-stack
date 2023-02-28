@@ -284,13 +284,12 @@ struct ConvData
     std::vector<int32_t> biasData;
 };
 
-Buffer* AddPleInBuffer(OwnedOpGraph& opGraph,
-                       NumStripesType numPleInputMemoryStripes,
-                       const TensorShape& tensorShape,
-                       const TensorShape& pleInputMemoryShape,
-                       const QuantizationInfo& quantInfo,
-                       DataType dataType,
-                       Location location);
+Buffer* AddPleInputSramBuffer(OwnedOpGraph& opGraph,
+                              NumStripesType numPleInputMemoryStripes,
+                              const TensorShape& tensorShape,
+                              const TensorShape& pleInputMemoryShape,
+                              const QuantizationInfo& quantInfo,
+                              DataType dataType);
 
 std::pair<SramBuffer*, Op*> AddPleToOpGraph(OwnedOpGraph& opGraph,
                                             const TensorShape& memoryOutputShape,

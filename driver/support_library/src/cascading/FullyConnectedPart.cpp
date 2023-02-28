@@ -269,9 +269,9 @@ Plans FullyConnectedPart::GetLonelyPlans(uint32_t numWeightStripes) const
                     opGraph.AddConsumer(dramInput, dmaOp, 0);
                     opGraph.SetProducer(sramInputAndMceOp.first, dmaOp);
 
-                    auto pleInBuffer = impl::AddPleInBuffer(opGraph, numPleInputStripes, m_OutputTensorShape,
-                                                            info.m_Memory.m_PleInput.m_Shape, m_OutputQuantizationInfo,
-                                                            m_OutputDataType, Location::PleInputSram);
+                    auto pleInBuffer = impl::AddPleInputSramBuffer(opGraph, numPleInputStripes, m_OutputTensorShape,
+                                                                   info.m_Memory.m_PleInput.m_Shape,
+                                                                   m_OutputQuantizationInfo, m_OutputDataType);
                     opGraph.SetProducer(pleInBuffer, sramInputAndMceOp.second);
 
                     // Create an identity ple Op

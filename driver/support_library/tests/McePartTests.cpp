@@ -1334,7 +1334,7 @@ TEST_CASE("McePart GetPlans multiple", "[slow]")
 
                 command_stream::BlockConfig requestedBlockConfig = { 16u, 8u };
 
-                CHECK(part0OutputBuffer != nullptr);
+                REQUIRE(part0OutputBuffer != nullptr);
                 Plans plans1 =
                     part1.GetPlans(CascadeType::Middle, requestedBlockConfig, part0OutputBuffer, numWeightStripes);
 
