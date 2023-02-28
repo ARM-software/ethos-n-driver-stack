@@ -31,12 +31,6 @@ std::unique_ptr<ITensorHandle>
     return nullptr;
 }
 
-std::unique_ptr<IWorkload> EthosNWorkloadFactory::CreateInput(const InputQueueDescriptor& descriptor,
-                                                              const WorkloadInfo& info) const
-{
-    return std::make_unique<CopyMemGenericWorkload>(descriptor, info);
-}
-
 std::unique_ptr<ITensorHandle>
     EthosNWorkloadFactory::CreateTensorHandle(const TensorInfo&, DataLayout, const bool) const
 {
@@ -50,22 +44,38 @@ std::unique_ptr<ITensorHandle> EthosNWorkloadFactory::CreateTensorHandle(const T
     return CreateTensorHandle(tensorInfo, DataLayout::NHWC);
 }
 
-std::unique_ptr<IWorkload> EthosNWorkloadFactory::CreatePreCompiled(const PreCompiledQueueDescriptor& descriptor,
-                                                                    const WorkloadInfo& info) const
+std::unique_ptr<IWorkload> EthosNWorkloadFactory::CreateWorkload(LayerType type,
+                                                                 const QueueDescriptor& descriptor,
+                                                                 const WorkloadInfo& info) const
 {
-
-    return std::make_unique<EthosNPreCompiledWorkload>(descriptor, info, m_DeviceId, m_InternalAllocator);
-}
-
-std::unique_ptr<IWorkload> EthosNWorkloadFactory::CreateOutput(const OutputQueueDescriptor& descriptor,
-                                                               const WorkloadInfo& info) const
-{
-    return std::make_unique<CopyMemGenericWorkload>(descriptor, info);
-}
-std::unique_ptr<IWorkload> EthosNWorkloadFactory::CreateMemCopy(const MemCopyQueueDescriptor& descriptor,
-                                                                const WorkloadInfo& info) const
-{
-    return std::make_unique<CopyMemGenericWorkload>(descriptor, info);
+    switch (type)
+    {
+        case LayerType::Input:
+        {
+            auto inputQueueDescriptor = PolymorphicDowncast<const InputQueueDescriptor*>(&descriptor);
+            return std::make_unique<CopyMemGenericWorkload>(*inputQueueDescriptor, info);
+        }
+        case LayerType::MemCopy:
+        {
+            auto memCopyQueueDescriptor = PolymorphicDowncast<const MemCopyQueueDescriptor*>(&descriptor);
+            return std::make_unique<CopyMemGenericWorkload>(*memCopyQueueDescriptor, info);
+        }
+        case LayerType::Output:
+        {
+            auto outputQueueDescriptor = PolymorphicDowncast<const OutputQueueDescriptor*>(&descriptor);
+            return std::make_unique<CopyMemGenericWorkload>(*outputQueueDescriptor, info);
+        }
+        case LayerType::PreCompiled:
+        {
+            auto preCompiledQueueDescriptor = PolymorphicDowncast<const PreCompiledQueueDescriptor*>(&descriptor);
+            return std::make_unique<EthosNPreCompiledWorkload>(*preCompiledQueueDescriptor, info, m_DeviceId,
+                                                               m_InternalAllocator);
+        }
+        default:
+        {
+            return nullptr;
+        }
+    }
 }
 
 }    // namespace armnn

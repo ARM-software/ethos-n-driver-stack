@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -42,9 +42,6 @@ public:
                                                          TensorShape const& subTensorShape,
                                                          unsigned int const* subTensorOrigin) const override;
 
-    std::unique_ptr<IWorkload> CreateInput(const InputQueueDescriptor& descriptor,
-                                           const WorkloadInfo& info) const override;
-
     std::unique_ptr<ITensorHandle> CreateTensorHandle(const TensorInfo& tensorInfo,
                                                       const bool IsMemoryManaged = true) const override;
 
@@ -52,14 +49,8 @@ public:
                                                       DataLayout dataLayout,
                                                       const bool IsMemoryManaged = true) const override;
 
-    std::unique_ptr<IWorkload> CreateOutput(const OutputQueueDescriptor& descriptor,
-                                            const WorkloadInfo& info) const override;
-
-    std::unique_ptr<IWorkload> CreateMemCopy(const MemCopyQueueDescriptor& descriptor,
-                                             const WorkloadInfo& info) const override;
-
-    std::unique_ptr<IWorkload> CreatePreCompiled(const PreCompiledQueueDescriptor& descriptor,
-                                                 const WorkloadInfo& info) const override;
+    std::unique_ptr<IWorkload>
+        CreateWorkload(LayerType type, const QueueDescriptor& descriptor, const WorkloadInfo& info) const override;
 
     std::string GetDeviceId() const
     {
