@@ -1,5 +1,43 @@
 # Changelog for Arm® Ethos™-N Driver Stack
 
+## 23.02
+
+### New features
+
+- TZMP1 Support
+- Per-Process Memory Isolation (SMMU only)
+
+### Public API changes
+
+- Kernel supports creating process memory allocator in protected context
+- Kernel UAPI changed to use __kernel_size_t to ensure consistent type size
+- ProcMemAllocator std::string constructor changed to const char *
+- Version number updates:
+  - Driver library version 4.0.0 → 5.0.0
+  - Kernel module version 5.0.0 → 6.0.0
+  - Firmware version 6.0.0 → 11.0.0
+
+### Other changes
+
+- Updated list of supported models to a higher performance MobileNet variant
+- Suggested development platform changed from Ubuntu 18.04 to Ubuntu 20.04
+- Support for Arm NN backend option ProtectedContentAllocation
+- Kernel module
+  - Fix a crash in the kernel module caused by the shared interrupt handler getting triggered during NPU reset
+  - Buffers are now zeroed out before being freed to not leave any data in the memory
+  - Kernel module only supports a single binary in the firmware
+  - Kernel module will only accept an NPU with a matching security level that it was built for
+  - Kernel module now sets mailbox size to be the nearest power of 2
+  - Improved error handling in network creation
+
+### Known issues
+
+- Dual core with carveout is not supported
+
+### Notes
+
+- A workaround for erratum 2838783 is available in Trusted Firmware-A: <https://review.trustedfirmware.org/plugins/gitiles/TF-A/trusted-firmware-a/+/00af8f4a7dd75cbbbb597996439233614badd04e>
+
 ## 22.11
 
 ### New features
