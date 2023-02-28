@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 #include "BinaryParser.hpp"
@@ -1773,8 +1773,6 @@ BinaryParser::BinaryParser(const std::vector<uint32_t>& data)
 
 void BinaryParser::WriteXml(std::ostream& output)
 {
-    const std::string& temp = out.str();
-    const char* cstr        = temp.c_str();
-
-    output.write(cstr, strlen(cstr));
+    std::string temp = out.str();
+    output.write(temp.c_str(), temp.size());
 }
