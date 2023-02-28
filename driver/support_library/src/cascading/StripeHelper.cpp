@@ -92,7 +92,7 @@ StripeConfig GetDefaultStripeConfig(const CompilationOptions& compilationOptions
     }
     if (!compilationOptions.m_BlockConfig8x32)
     {
-        removeBlockConfig(ethosn::command_stream::BlockConfig{ 8u, 832u });
+        removeBlockConfig(ethosn::command_stream::BlockConfig{ 8u, 32u });
     }
 
     // Apply the rules from the config file, if one is set
