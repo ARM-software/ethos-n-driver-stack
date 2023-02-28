@@ -919,11 +919,17 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
         }
     };
 
-    // Limit the minimum number of blocks per stripe to be such that the PLE outputs at least one brick group
+    // Determine the "base" shape of stripes - the stripe shapes we pick will be a whole multiple of this.
+    // We choose a single block for this as this is the smallest size that will fully utilize the hardware.
+    // Also make the base shape large enough such that the PLE outputs at least one brick group and
+    // the MCE takes as input at least one brick group, which is a limitation of the firmware/hardware.
+    const ShapeMultiplier mceAndPleShapeMultiplier = m_MceShapeMultiplier * m_PleShapeMultiplier;
     const uint32_t baseMceInputHeight =
-        std::max(blockConfig.m_BlockHeight(), GetHeight(g_BrickGroupShape) / m_PleShapeMultiplier.m_H);
+        std::max({ blockConfig.m_BlockHeight() / m_MceShapeMultiplier.m_H,
+                   GetHeight(g_BrickGroupShape) / mceAndPleShapeMultiplier.m_H, GetHeight(g_BrickGroupShape) });
     const uint32_t baseMceInputWidth =
-        std::max(blockConfig.m_BlockWidth(), GetWidth(g_BrickGroupShape) / m_PleShapeMultiplier.m_W);
+        std::max({ blockConfig.m_BlockWidth() / m_MceShapeMultiplier.m_W,
+                   GetWidth(g_BrickGroupShape) / mceAndPleShapeMultiplier.m_W, GetWidth(g_BrickGroupShape) });
     const uint32_t baseMceIfm = baseMceOfm / m_MceShapeMultiplier.m_C;
 
     // Create some helpers to loop over potential stripe shapes. We create both 'inclusive' and 'exclusive' versions,
@@ -1215,6 +1221,16 @@ void StripeGenerator::GenerateStripes(const ethosn::command_stream::BlockConfig 
                     TensorShape mceInputStripe    = CreateStripe(m_MceInputTensorShape, mceInputEncoding, brickDepth);
 
                     TensorShape mceOutputEncoding = mceInputEncoding * m_MceShapeMultiplier;
+
+                    // We need to check mceOutputEncoding here, because that might be more than one block, depending
+                    // on baseMceInputWidth/Height (e.g. MCE/PLE shape multipliers).
+                    // In this case we can't generate a valid plan, and we'd need to use a larger block config instead.
+                    if (GetWidth(mceOutputEncoding) != blockConfig.m_BlockWidth() ||
+                        GetHeight(mceOutputEncoding) != blockConfig.m_BlockHeight())
+                    {
+                        continue;
+                    }
+
                     // Because of the split in IFM depth, the MCE will have to hold and accumulate the MAC results
                     // between iterations. It can only do so across the number of OGs.
                     mceOutputEncoding[3]        = baseMceOfm;
