@@ -74,10 +74,10 @@ The kernel module must also be built with appropriate flags depending on the sec
 Please refer to the following table for the supported configurations:
 
 | System security level | NPU hardware configuration | TF-A build configuration | Kernel module build configuration |
-| --------------------- | -------------------------- | ------------------------ | --------------------------------- |
-| **Non-secure**        | Non-secure                 | No flags                 | Non-secure                        |
-| **Secure**            | Secure                     | NPU                      | Secure                            |
-| **TZMP1**             | Secure                     | NPU + TZMP1              | TZMP1                             |
+| --------------------- | --------------------------- | ------------------------ | --------------------------------- |
+| **Non-secure**        | Non-secure                  | No flags                 | Non-secure                        |
+| **Secure**            | Secure                      | NPU                      | Secure                            |
+| **TZMP1**             | Secure + SMMU + Single-core | NPU + TZMP1              | TZMP1                             |
 
 All other combinations of configurations are not supported and may lead to errors or unexpected behaviour.
 
