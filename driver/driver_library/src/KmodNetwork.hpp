@@ -1,5 +1,5 @@
 //
-// Copyright © 2018-2022 Arm Limited.
+// Copyright © 2018-2023 Arm Limited.
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -12,8 +12,8 @@ namespace ethosn
 namespace driver_library
 {
 
-#define MAX_ETHOSN_KERNEL_MODULE_MAJOR_VERSION_SUPPORTED 5
-#define MIN_ETHOSN_KERNEL_MODULE_MAJOR_VERSION_SUPPORTED 5
+#define MAX_ETHOSN_KERNEL_MODULE_MAJOR_VERSION_SUPPORTED 6
+#define MIN_ETHOSN_KERNEL_MODULE_MAJOR_VERSION_SUPPORTED 6
 
 class KmodNetworkImpl : public NetworkImpl
 {
