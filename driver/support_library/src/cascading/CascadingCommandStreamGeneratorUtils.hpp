@@ -747,23 +747,15 @@ inline void AddDependency(std::array<command_stream::cascading::Dependency, N>& 
 int8_t CalculateMceSBoundary(const command_stream::cascading::MceS& mce)
 {
     // MceS needs to wait for two IfmS stripes at the start of each outer ratio if neighbouring data
-    // is needed. This is not applicable if all the boundary data is packed though.
-    if (!(mce.isPackedBoundaryX && mce.isPackedBoundaryY))
-    {
-        uint8_t maxFilterWidth  = utils::Max<uint8_t>(mce.filterShape, [](const FilterShape& s) { return s.width; });
-        uint8_t maxFilterHeight = utils::Max<uint8_t>(mce.filterShape, [](const FilterShape& s) { return s.height; });
+    // is needed. This is not applicable if the boundary data is packed in the direction of traversal though.
+    uint8_t maxFilterWidth  = utils::Max<uint8_t>(mce.filterShape, [](const FilterShape& s) { return s.width; });
+    uint8_t maxFilterHeight = utils::Max<uint8_t>(mce.filterShape, [](const FilterShape& s) { return s.height; });
 
-        bool needsBoundaryBeforeX =
-            mce.numStripes.ofmWidth > 1 && (maxFilterWidth >= 2 || mce.upsampleType != UpsampleType::OFF);
-        bool needsBoundaryAfterX =
-            mce.numStripes.ofmWidth > 1 && (maxFilterWidth >= 3 || mce.upsampleType != UpsampleType::OFF);
-        bool needsBoundaryBeforeY =
-            mce.numStripes.ofmHeight > 1 && (maxFilterHeight >= 2 || mce.upsampleType != UpsampleType::OFF);
-        bool needsBoundaryAfterY =
-            mce.numStripes.ofmHeight > 1 && (maxFilterHeight >= 3 || mce.upsampleType != UpsampleType::OFF);
-        return needsBoundaryBeforeX || needsBoundaryAfterX || needsBoundaryBeforeY || needsBoundaryAfterY;
-    }
-    return 0;
+    bool needsBoundaryBeforeX = mce.numStripes.ofmWidth > 1 && !mce.isPackedBoundaryX &&
+                                (maxFilterWidth >= 2 || mce.upsampleType != UpsampleType::OFF);
+    bool needsBoundaryBeforeY = mce.numStripes.ofmHeight > 1 && !mce.isPackedBoundaryY &&
+                                (maxFilterHeight >= 2 || mce.upsampleType != UpsampleType::OFF);
+    return needsBoundaryBeforeX || needsBoundaryBeforeY;
 }
 
 void CalculateIfmSMceSOuterRatio(const command_stream::cascading::Agent& mce,
