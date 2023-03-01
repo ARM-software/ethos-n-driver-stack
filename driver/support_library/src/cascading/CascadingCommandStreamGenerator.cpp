@@ -455,13 +455,16 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
 
         AgentIdType pleSchedulerAgentId = AddPleSchedulerToCommandStream(static_cast<PleOp*>(ptrPleOp));
 
-        // Read After Write Dependency for [PleScheduler][IfmStreamer]
-        AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
+        AgentType input0AgentType = m_CommandStreamAgents[m_OpToAgentIdMapping[input0Producer]].data.type;
+
+        // Read After Write Dependency for [PleScheduler][IfmStreamer] or [PleScheduler][PleScheduler]
+        AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input0AgentType,
                                     m_OpToAgentIdMapping[input0Producer], input0Producer);
         if (input1Producer != nullptr)
         {
-            // Read After Write Dependency for [PleScheduler][IfmStreamer]
-            AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
+            AgentType input1AgentType = m_CommandStreamAgents[m_OpToAgentIdMapping[input1Producer]].data.type;
+            // Read After Write Dependency for [PleScheduler][IfmStreamer] or [PleScheduler][PleScheduler]
+            AddReadAfterWriteDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input1AgentType,
                                         m_OpToAgentIdMapping[input1Producer], input1Producer);
         }
 
@@ -484,22 +487,24 @@ void CascadingCommandStreamGenerator::ProcessPleOp(Op* const ptrPleOp)
             }
         }
 
-        // Write After Read Dependency for [IfmStreamer][PleScheduler]
-        AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
+        // Write After Read Dependency for [IfmStreamer][PleScheduler] or [PleScheduler][PleScheduler]
+        AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input0AgentType,
                                     m_OpToAgentIdMapping[input0Producer], input0Producer);
 
-        // Schedule Time Dependency for [IfmStreamer][PleScheduler]
-        AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
+        // Schedule Time Dependency for [IfmStreamer][PleScheduler] or [PleScheduler][PleScheduler]
+        AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input0AgentType,
                                   m_OpToAgentIdMapping[input0Producer], input0Producer);
 
         if (input1Producer != nullptr)
         {
-            // Write After Read Dependency for [IfmStreamer][PleScheduler]
-            AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
+            AgentType input1AgentType = m_CommandStreamAgents[m_OpToAgentIdMapping[input1Producer]].data.type;
+
+            // Write After Read Dependency for [IfmStreamer][PleScheduler] or [PleScheduler][PleScheduler]
+            AddWriteAfterReadDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input1AgentType,
                                         m_OpToAgentIdMapping[input1Producer], input1Producer);
 
-            // Schedule Time Dependency for [IfmStreamer][PleScheduler]
-            AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, AgentType::IFM_STREAMER,
+            // Schedule Time Dependency for [IfmStreamer][PleScheduler] or [PleScheduler][PleScheduler]
+            AddScheduleTimeDependency(AgentType::PLE_SCHEDULER, pleSchedulerAgentId, input1AgentType,
                                       m_OpToAgentIdMapping[input1Producer], input1Producer);
         }
 
@@ -1258,6 +1263,13 @@ void CascadingCommandStreamGenerator::FillConsumerAgentDependency(
                     consumerAgent.data.pleS.numStripes.height * consumerAgent.data.pleS.numStripes.width *
                     consumerAgent.data.pleS.numStripes.channels);
             }
+            // Read After Write Dependency for [PleScheduler][PleScheduler]
+            else if (producerAgentType == AgentType::PLE_SCHEDULER)
+            {
+                // We only support strategy 3 (full tensor) cascading for Ple -> Ple
+                consumerAgentDependency.outerRatio.other = 1U;
+                consumerAgentDependency.outerRatio.self  = 1U;
+            }
             else
             {
                 assert(false);
@@ -1550,6 +1562,13 @@ void CascadingCommandStreamGenerator::FillProducerAgentDependency(
                     consumerAgent.data.pleS.numStripes.height * consumerAgent.data.pleS.numStripes.width *
                     consumerAgent.data.pleS.numStripes.channels);
                 producerAgentDependency.outerRatio.self = 1U;
+            }
+            // Schedule Time Dependency for [PleScheduler][PleScheduler]
+            else if (producerAgentType == AgentType::PLE_SCHEDULER)
+            {
+                // We only support strategy 3 (full tensor) cascading for Ple -> Ple
+                producerAgentDependency.outerRatio.other = 1U;
+                producerAgentDependency.outerRatio.self  = 1U;
             }
             else
             {
